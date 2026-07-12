@@ -767,6 +767,26 @@ function ezd_teczki_all(string $status = ''): array {
     );
 }
 
+/** Formatuje wiersz teczki (ezd_teczka_get/ezd_teczki_all) do publicznej odpowiedzi REST API. */
+function ezd_api_teczka(array $r): array {
+    return [
+        'id'          => (int)$r['id'],
+        'symbol'      => $r['symbol'],
+        'title'       => $r['title'],
+        'rok'         => (int)$r['rok'],
+        'status'      => $r['status'],
+        'jrwa_symbol' => $r['jrwa_symbol'] ?? null,
+        'jrwa_title'  => $r['jrwa_title'] ?? null,
+        'kat_arch'    => $r['kat_arch'] ?? null,
+        'owner_id'    => $r['owner_id'] !== null ? (int)$r['owner_id'] : null,
+        'owner_name'  => $r['owner_name'] ?? null,
+        'open_cases'  => array_key_exists('open_cases', $r) ? (int)$r['open_cases'] : null,
+        'total_cases' => array_key_exists('total_cases', $r) ? (int)$r['total_cases'] : null,
+        'created_at'  => $r['created_at'],
+        'closed_at'   => $r['closed_at'],
+    ];
+}
+
 function ezd_teczka_create(array $d, int $user_id): int {
     $pdo = db();
     $pdo->prepare(
@@ -885,6 +905,35 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
          LIMIT 200",
         $params
     );
+}
+
+/** Formatuje wiersz sprawy (ezd_sprawa_get/ezd_sprawy_all) do publicznej odpowiedzi REST API. */
+function ezd_api_sprawa(array $r): array {
+    return [
+        'id'           => (int)$r['id'],
+        'teczka_id'    => (int)$r['teczka_id'],
+        'teczka_symbol'=> $r['teczka_symbol'] ?? null,
+        'teczka_title' => $r['teczka_title'] ?? null,
+        'znak_sprawy'  => $r['znak_sprawy'],
+        'numer'        => $r['numer'] ?? null,
+        'title'        => $r['title'],
+        'description'  => $r['description'],
+        'status'       => $r['status'],
+        'status_label' => EZD_STATUSES_SPRAWA[$r['status']]['label'] ?? $r['status'],
+        'priority'     => $r['priority'],
+        'priority_label'=> EZD_PRIORITIES[$r['priority']]['label'] ?? $r['priority'],
+        'etap'         => $r['etap'] ?? null,
+        'etap_label'   => EZD_ETAPY[$r['etap'] ?? '']['label'] ?? null,
+        'ciagla'       => (bool)($r['ciagla'] ?? false),
+        'owner_id'     => $r['owner_id'] !== null ? (int)$r['owner_id'] : null,
+        'owner_name'   => $r['owner_name'] ?? null,
+        'parent_id'    => $r['parent_id'] !== null && $r['parent_id'] !== '' ? (int)$r['parent_id'] : null,
+        'deadline'     => $r['deadline'],
+        'created_by'   => $r['created_by'] !== null ? (int)$r['created_by'] : null,
+        'created_at'   => $r['created_at'],
+        'updated_at'   => $r['updated_at'],
+        'closed_at'    => $r['closed_at'],
+    ];
 }
 
 function ezd_sprawa_create(array $d, int $user_id): int {
@@ -1371,6 +1420,33 @@ function ezd_pisma_by_sprawa(int $sprawa_id): array {
          LEFT JOIN users u ON u.id=p.owner_id
          WHERE p.sprawa_id=? ORDER BY p.created_at", [$sprawa_id]
     );
+}
+
+/** Formatuje wiersz pisma (ezd_pismo_get/ezd_pisma_by_sprawa) do publicznej odpowiedzi REST API. */
+function ezd_api_pismo(array $r): array {
+    return [
+        'id'                  => (int)$r['id'],
+        'sprawa_id'           => (int)$r['sprawa_id'],
+        'znak_sprawy'         => $r['znak_sprawy'] ?? null,
+        'sygnatura'           => $r['sygnatura'],
+        'kierunek'            => $r['kierunek'],
+        'kierunek_label'      => EZD_KIERUNKI[$r['kierunek']]['label'] ?? $r['kierunek'],
+        'title'               => $r['title'],
+        'tresc'               => $r['tresc'],
+        'nadawca'             => $r['nadawca'],
+        'odbiorca'            => $r['odbiorca'],
+        'data_pisma'          => $r['data_pisma'],
+        'data_wplywu'         => $r['data_wplywu'],
+        'data_wysylki'        => $r['data_wysylki'],
+        'status'              => $r['status'],
+        'rodzaj_medium'       => $r['rodzaj_medium'] ?? null,
+        'rodzaj_medium_label' => EZD_MEDIA[$r['rodzaj_medium'] ?? '']['label'] ?? null,
+        'owner_id'            => $r['owner_id'] !== null ? (int)$r['owner_id'] : null,
+        'owner_name'          => $r['owner_name'] ?? null,
+        'created_by'          => $r['created_by'] !== null ? (int)$r['created_by'] : null,
+        'created_at'          => $r['created_at'],
+        'updated_at'          => $r['updated_at'],
+    ];
 }
 
 function ezd_pismo_create(array $d, int $user_id): int {

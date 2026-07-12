@@ -30,6 +30,7 @@ const AM_API_PERMISSIONS = [
     'karty30:write'    => 'Karty 30 — zapis (twórz / edytuj / usuń)',
     'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
     'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
+    'ezd:read'         => 'EZD Wirtualne biurko — odczyt (teczki, sprawy, pisma)',
 ];
 
 // ── Zdarzenia Webhook ──────────────────────────────────────────────────────────
@@ -465,6 +466,19 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
         służy osobny, bez-autoryzacyjny widget — zobacz
         <a href="<?= APP_URL ?>/events/settings/embed.php">Wydarzenia → Osadzanie / API</a>.
       </div>
+
+      <h6 class="fw-semibold mt-4"><i class="bi bi-archive-fill text-primary me-1" style="color:#1f2937"></i>EZD Wirtualne biurko — <code><?= h($api_base) ?>/ezd.php</code></h6>
+      <p class="mb-1">Routing <code>?resource=&lt;R&gt;&amp;id=N</code>; tylko odczyt (<code>GET</code>). Scope: <code>ezd:read</code>.</p>
+      <ul class="mb-2">
+        <li><strong>Zasoby:</strong> <code>teczki</code> (segregatory, filtr <code>status</code>), <code>sprawy</code> (koszulki, filtry <code>status, priority, teczka_id, owner_id, q, deadline_od, deadline_do</code>), <code>pisma</code> (wymaga <code>sprawa_id</code> przy liście).</li>
+        <li>Paginacja <code>page</code>/<code>per_page</code> jak w pozostałych API. Pełny opis pól i terminologii (koszulka/segregator) — <a href="<?= APP_URL ?>/docs/ezd/" target="_blank">dokumentacja Swagger UI</a> (logowanie Microsoft 365).</li>
+        <li>Zapis (nowa koszulka/pismo, dekretacje, e-podpis) jest wyłącznie przez sesyjny UI modułu — nie ma odpowiednika <code>ezd:write</code>.</li>
+      </ul>
+      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem"># Lista otwartych spraw w teczce #3
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=sprawy&teczka_id=3&status=open"
+
+# Pisma sprawy o id=42
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=pisma&sprawa_id=42"</pre>
     </div>
   </div>
 </div><!-- /pane-api -->
