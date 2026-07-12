@@ -89,22 +89,48 @@ try {
     $pdf->SetDrawColor(150, 165, 185);
     $pdf->Ln(9);
 
-    // Treść
+    // Treść — Organizacja rozlicza, Zarząd podpisuje
     $pdf->SetFont('DejaVu', '', 11);
-    $intro = 'Zarząd ' . $org_name . ', po rozpatrzeniu ewidencji wsparcia świadczonego przez podmiot zewnętrzny, '
-        . 'oświadcza, co następuje:';
-    $pdf->MultiCell($W, 6, $pl($intro), 0, 'J');
+    $pdf->MultiCell($W, 6, $pl($org_name . ' (dalej: Organizacja) rozlicza wsparcie zewnętrzne świadczone na jej rzecz przez podmiot:'), 0, 'J');
+    $pdf->Ln(1);
+    $pdf->SetFont('DejaVu', 'B', 12);
+    $pdf->MultiCell($W, 6, $pl($w['podmiot_nazwa'] ?: '—'), 0, 'L');
+    $pdf->SetFont('DejaVu', '', 11);
+    $pdf->MultiCell($W, 6, $pl('Zarząd Organizacji, działając w jej imieniu, po rozpatrzeniu poniższej ewidencji za miesiąc ' . $mies . ', oświadcza, co następuje:'), 0, 'J');
     $pdf->Ln(3);
 
-    // Dane podmiotu / wsparcia — tabelka
-    $row = function (string $k, string $v) use ($pdf, $pl, $W) {
-        $pdf->SetFont('DejaVu', '', 10);
-        $pdf->SetFillColor(240, 243, 247);
-        $pdf->Cell($W * 0.38, 7, $pl($k), 1, 0, 'L', true);
-        $pdf->SetFont('DejaVu', 'B', 10);
-        $pdf->Cell($W * 0.62, 7, $pl($v), 1, 1, 'L', false);
+    // Dane podmiotu / wsparcia — tabelka z zawijaniem długich wartości
+    $labelW = $W * 0.40; $valW = $W * 0.60; $lineH = 5.2;
+    $nbLines = function (float $ww, string $s) use ($pdf): int {
+        $s = str_replace("\r", '', $s);
+        if ($s === '') return 1;
+        $maxw = $ww - 2; $lines = 0;
+        foreach (explode("\n", $s) as $para) {
+            $line = ''; $n = 1;
+            foreach (explode(' ', $para) as $word) {
+                $test = $line === '' ? $word : $line . ' ' . $word;
+                if ($pdf->GetStringWidth($test) > $maxw && $line !== '') { $n++; $line = $word; }
+                else $line = $test;
+            }
+            $lines += $n;
+        }
+        return max(1, $lines);
     };
-    $row('Podmiot', $w['podmiot_nazwa'] ?: '—');
+    $row = function (string $k, string $v) use ($pdf, $pl, $labelW, $valW, $lineH, $nbLines) {
+        $kp = $pl($k); $vp = $pl($v);
+        $pdf->SetFont('DejaVu', '', 10);
+        $n = max($nbLines($labelW, $kp), $nbLines($valW, $vp));
+        $h = $n * $lineH;
+        $x = $pdf->GetX(); $y = $pdf->GetY();
+        if ($y + $h > $pdf->GetPageHeight() - 20) { $pdf->AddPage(); $x = $pdf->GetX(); $y = $pdf->GetY(); }
+        $pdf->SetDrawColor(150, 165, 185); $pdf->SetFillColor(240, 243, 247);
+        $pdf->Rect($x, $y, $labelW, $h, 'DF');
+        $pdf->Rect($x + $labelW, $y, $valW, $h, 'D');
+        $pdf->SetFont('DejaVu', '', 10);  $pdf->SetXY($x, $y);            $pdf->MultiCell($labelW, $lineH, $kp, 0, 'L');
+        $pdf->SetFont('DejaVu', 'B', 10); $pdf->SetXY($x + $labelW, $y);  $pdf->MultiCell($valW, $lineH, $vp, 0, 'L');
+        $pdf->SetXY($x, $y + $h);
+    };
+    $row('Podmiot udzielający wsparcia', $w['podmiot_nazwa'] ?: '—');
     $ident = trim(($w['podmiot_krs'] ? 'KRS ' . $w['podmiot_krs'] : '') . ($w['podmiot_nip'] ? '   NIP ' . $w['podmiot_nip'] : '') . ($w['podmiot_regon'] ? '   REGON ' . $w['podmiot_regon'] : ''));
     if ($ident !== '') $row('Identyfikatory', $ident);
     if ($w['podmiot_adres']) $row('Adres', $w['podmiot_adres']);
@@ -132,11 +158,6 @@ try {
         $pdf->MultiCell($W, 6, $pl($w['powod_odrzucenia'] !== '' ? $w['powod_odrzucenia'] : '—'), 1, 'J');
     }
     $pdf->Ln(4);
-    if ($w['decided_name']) {
-        $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(110, 110, 110);
-        $pdf->MultiCell($W, 4.5, $pl('Rozstrzygnięcie zarejestrował(a): ' . $w['decided_name'] . ' (' . $decDate . ').'), 0, 'L');
-        $pdf->SetTextColor(0, 0, 0);
-    }
 
     // Adnotacja urzędowa (tryb złożenia)
     $pdf->Ln(6);
@@ -158,7 +179,11 @@ try {
     $pdf->SetXY($sigX, $ySig + 1);
     $pdf->SetFont('DejaVu', '', 8.5);
     if ($org_zarzad) { $pdf->MultiCell($sigW, 4, $pl($org_zarzad), 0, 'C'); $pdf->SetX($sigX); }
-    $pdf->Cell($sigW, 4, $pl('(podpis / pieczęć Zarządu ' . $org_short . ')'), 0, 1, 'C');
+    $pdf->Cell($sigW, 4, $pl('Zarząd ' . $org_short), 0, 2, 'C');
+    $pdf->SetX($sigX);
+    $pdf->SetTextColor(110, 110, 110);
+    $pdf->Cell($sigW, 4, $pl('(podpis elektroniczny / pieczęć)'), 0, 1, 'C');
+    $pdf->SetTextColor(0, 0, 0);
 
     while (ob_get_level() > 0) ob_end_clean();
     $disp = !empty($_GET['dl']) ? 'D' : 'I';
