@@ -11,13 +11,15 @@ require_once dirname(__DIR__) . '/includes/wsparcie_ou.php';
 
 require_login();
 require_module_enabled('wsparcie_ou_enabled', 'Ewidencja wsparcia zewnętrznego OU');
-if (!can_edit()) { flash_set('error', 'Brak uprawnień do ewidencji wsparcia zewnętrznego.'); header('Location:' . APP_URL . '/index.php'); exit; }
+if (!can_read('wsparcie_ou')) { flash_set('error', 'Brak uprawnień do ewidencji wsparcia zewnętrznego (rola „Rozliczanie OU").'); header('Location:' . APP_URL . '/index.php'); exit; }
 
-$user_id = (int)current_user()['id'];
-$self    = APP_URL . '/wsparcie_ou/index.php';
+$user_id   = (int)current_user()['id'];
+$can_write = can_write('wsparcie_ou');   // dodatkowa rola „Rozliczanie OU"
+$self      = APP_URL . '/wsparcie_ou/index.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+    if (!$can_write) { flash_set('error', 'Brak uprawnień do rozliczania OU.'); header('Location:' . $self); exit; }
     $op = $_POST['_op'] ?? '';
     try {
         if ($op === 'create') {
@@ -64,7 +66,9 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-building-add text-primary me-2"></i>Ewidencja wsparcia zewnętrznego OU</h4>
+  <?php if ($can_write): ?>
   <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-lg me-1"></i>Nowy wpis</button>
+  <?php endif; ?>
 </div>
 
 <?= flash_html() ?>
@@ -134,6 +138,8 @@ include dirname(__DIR__) . '/includes/header.php';
             <td class="text-end fw-semibold"><?= $fmtG($r['liczba_godzin']) ?> h</td>
             <td><?= wsparcie_ou_status_badge($r['status']) ?></td>
             <td class="text-end text-nowrap">
+              <?php if (!$can_write): ?><span class="text-muted small">—</span><?php endif; ?>
+              <?php if ($can_write): ?>
               <?php if ($r['status'] !== 'zatwierdzony'): ?>
               <form method="post" class="d-inline">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="approve">
@@ -158,6 +164,7 @@ include dirname(__DIR__) . '/includes/header.php';
                 <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Usuń"><i class="bi bi-trash"></i></button>
               </form>
               <?php endif; ?>
+              <?php endif; /* can_write */ ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -168,6 +175,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<?php if ($can_write): ?>
 <!-- Modal: dodaj / edytuj -->
 <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -234,6 +242,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </form>
   </div>
 </div>
+<?php endif; /* can_write — modale */ ?>
 
 <script>
 (function () {

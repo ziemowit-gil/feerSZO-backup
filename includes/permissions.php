@@ -29,6 +29,7 @@ const PERMISSION_MODULES = [
     'wydarzenia'    => 'Moduł Wydarzeń',
     'szkolenia'     => 'Szkolenia (rezerwacja TidyCal)',
     'poczta'        => 'Moduł Poczty',
+    'wsparcie_ou'   => 'Rozliczanie OU',
     'admin'         => 'Administracja',
 ];
 

@@ -592,7 +592,7 @@ if ($_user) {
   } catch (\Throwable $e) {}
   $_wsparcie_ou_pending = 0;
   try {
-    if (module_enabled('wsparcie_ou_enabled') && can_edit()) {
+    if (module_enabled('wsparcie_ou_enabled') && can_write('wsparcie_ou')) {
       require_once __DIR__ . '/wsparcie_ou.php';
       $_wsparcie_ou_pending = wsparcie_ou_pending_count();
     }
@@ -801,7 +801,7 @@ if ($_user) {
       <?php endif; ?>
       <li><a class="dropdown-item<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox me-2"></i>Korespondencja</a></li>
       <li><a class="dropdown-item<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task me-2"></i>Procedury</a></li>
-      <?php if (module_enabled('wsparcie_ou_enabled') && can_edit()): ?>
+      <?php if (module_enabled('wsparcie_ou_enabled') && can_read('wsparcie_ou')): ?>
       <li><a class="dropdown-item<?= _nav_active('/wsparcie_ou/') ?>" href="<?= APP_URL ?>/wsparcie_ou/index.php"><i class="bi bi-building-add me-2"></i>Wsparcie zewnętrzne OU<?php if (!empty($_wsparcie_ou_pending)): ?><span class="badge bg-warning text-dark ms-2"><?= (int)$_wsparcie_ou_pending ?></span><?php endif; ?></a></li>
       <?php endif; ?>
       <?php if (module_enabled('doc_signing_enabled')): ?>
