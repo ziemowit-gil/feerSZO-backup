@@ -47,6 +47,10 @@ if (!current_user()) {
   </div>
   <div id="swagger-ui"></div>
 
+  <footer style="padding:16px 20px;color:#94a3b8;font:400 12px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center">
+    Autorzy: Ziemowit Gil, Jarosław Połczyński, Sebastian Dzienisowicz — na potrzeby FEER'a
+  </footer>
+
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
   <script>
