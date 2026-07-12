@@ -443,7 +443,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         if ($mgrN !== '') { $pdf->SetX($sigX); $pdf->Cell($sigW, 4, $pl($mgrT), 0, 1, 'C'); }
 
         while (ob_get_level() > 0) ob_end_clean();
-        $pdf->Output('D', 'sprawozdanie_WUP_' . $from . '_' . $to . '.pdf');
+        $disp = (($_POST['disp'] ?? '') === 'inline') ? 'I' : 'D';  // I=podgląd inline, D=pobranie
+        $pdf->Output($disp, 'sprawozdanie_WUP_' . $from . '_' . $to . '.pdf');
         exit;
     } catch (\Throwable $e) {
         error_log('[wup_report] ' . $from . '..' . $to . ': ' . $e->getMessage());
@@ -558,7 +559,7 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
 
   <!-- Pola sprawozdania + generowanie -->
   <div class="col-lg-5">
-    <form method="post" action="<?= APP_URL ?>/karty30/ti/wup_report.php" class="card border-0 shadow-sm mb-3">
+    <form method="post" action="<?= APP_URL ?>/karty30/ti/wup_report.php" data-wup-pdf class="card border-0 shadow-sm mb-3">
       <div class="card-header bg-white fw-semibold"><i class="bi bi-pencil-square me-2"></i>Dane sprawozdania</div>
       <div class="card-body">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -608,8 +609,8 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
             placeholder="Wyjaśnij przyczynę braku / niekompletności danych."><?= h((string)$fld('missing_reason','')) ?></textarea>
         </div>
 
-        <button type="submit" class="btn btn-danger" formtarget="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Zapisz i pobierz PDF</button>
-        <div class="form-text">Zapisuje pola i generuje PDF do wydruku/podpisu. Podpisany plik wgraj poniżej.</div>
+        <button type="submit" class="btn btn-danger" formtarget="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF</button>
+        <div class="form-text">Zapisuje pola i pokazuje PDF w podglądzie — stamtąd pobierzesz plik do wydruku/podpisu.</div>
       </div>
     </form>
   </div>
@@ -688,5 +689,6 @@ document.getElementById('signModal')?.addEventListener('show.bs.modal', function
 });
 </script>
 
+<?php include __DIR__ . '/_wup_pdf_preview.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
 <?php endif; ?>

@@ -164,4 +164,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+<?php include __DIR__ . '/_wup_pdf_preview.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
