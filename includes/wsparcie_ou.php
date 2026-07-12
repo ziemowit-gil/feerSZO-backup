@@ -177,6 +177,18 @@ function wsparcie_ou_pending_count(): int {
     return (int)(db_one("SELECT COUNT(*) AS c FROM wsparcie_ou WHERE status='oczekuje'")['c'] ?? 0);
 }
 
+/** Ostatnio używane podmioty (unikalne po KRS+nazwie) — do szybkiego wyboru w formularzu. */
+function wsparcie_ou_recent_podmioty(int $limit = 30): array {
+    return db_all(
+        "SELECT podmiot_krs, podmiot_nazwa, podmiot_nip, podmiot_regon, podmiot_adres, MAX(created_at) AS last_at
+         FROM wsparcie_ou
+         WHERE podmiot_nazwa <> '' OR podmiot_krs <> ''
+         GROUP BY podmiot_krs, podmiot_nazwa
+         ORDER BY last_at DESC
+         LIMIT ?", [$limit]
+    );
+}
+
 /**
  * Godziny wsparcia tego samego podmiotu za poprzedni miesiąc (suma wpisów).
  * Dopasowanie po KRS (gdy jest), w innym wypadku po nazwie.

@@ -58,6 +58,7 @@ if ($f_miesiac === '' && !isset($_GET['miesiac'])) $f_miesiac = wsparcie_ou_defa
 $rows   = wsparcie_ou_all(['miesiac' => $f_miesiac, 'status' => $f_status, 'q' => $q]);
 $stats  = wsparcie_ou_stats($f_miesiac ?: null);
 $months = wsparcie_ou_months();
+$recent = wsparcie_ou_recent_podmioty();
 if ($f_miesiac && !in_array($f_miesiac, $months, true)) array_unshift($months, $f_miesiac);
 $fmtG   = fn($x) => rtrim(rtrim(number_format((float)$x, 2, ',', ' '), '0'), ',');
 
@@ -194,6 +195,22 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="modal-header py-2"><h2 class="modal-title h6 mb-0" id="ouTitle">Nowy wpis</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
       <div class="modal-body">
+        <?php if ($recent): ?>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Wybierz z ostatnich</label>
+          <select class="form-select form-select-sm" id="ouRecent">
+            <option value="">— nowy podmiot (wyszukaj po KRS) —</option>
+            <?php foreach ($recent as $p): ?>
+            <option
+              data-krs="<?= h($p['podmiot_krs']) ?>" data-nazwa="<?= h($p['podmiot_nazwa']) ?>"
+              data-nip="<?= h($p['podmiot_nip']) ?>" data-regon="<?= h($p['podmiot_regon']) ?>"
+              data-adres="<?= h($p['podmiot_adres']) ?>">
+              <?= h($p['podmiot_nazwa'] ?: '(bez nazwy)') ?><?= $p['podmiot_krs'] ? ' — KRS '.h($p['podmiot_krs']) : '' ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
         <div class="mb-3">
           <label class="form-label fw-semibold small">Podmiot — wyszukaj po KRS</label>
           <div class="input-group input-group-sm">
@@ -292,11 +309,26 @@ include dirname(__DIR__) . '/includes/header.php';
       .catch(function () { msg.innerHTML = '<span class="text-danger">Błąd połączenia z API KRS.</span>'; });
   });
 
+  // Wybór z ostatnio używanych podmiotów
+  var recentSel = document.getElementById('ouRecent');
+  recentSel && recentSel.addEventListener('change', function () {
+    var o = recentSel.options[recentSel.selectedIndex];
+    var msg = document.getElementById('ouKrsMsg');
+    if (!o || !o.value && recentSel.selectedIndex === 0) { return; }
+    document.getElementById('ouKrs').value   = o.getAttribute('data-krs') || '';
+    document.getElementById('ouNazwa').value = o.getAttribute('data-nazwa') || '';
+    document.getElementById('ouNip').value   = o.getAttribute('data-nip') || '';
+    document.getElementById('ouRegon').value = o.getAttribute('data-regon') || '';
+    document.getElementById('ouAdres').value = o.getAttribute('data-adres') || '';
+    if (msg) msg.innerHTML = '<span class="text-success"><i class="bi bi-check-lg me-1"></i>Wybrano z ostatnich: ' + (o.getAttribute('data-nazwa') || '') + '</span>';
+  });
+
   // Dodaj vs edytuj
   var addModal = document.getElementById('addModal');
   addModal && addModal.addEventListener('show.bs.modal', function (ev) {
     var b = ev.relatedTarget, ed = b && b.getAttribute('data-edit');
     var msg = document.getElementById('ouKrsMsg'); msg.innerHTML = '';
+    if (recentSel) recentSel.selectedIndex = 0;
     if (ed) {
       var d = JSON.parse(ed);
       document.getElementById('ouTitle').textContent = 'Edytuj wpis';
