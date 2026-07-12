@@ -168,7 +168,7 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 
 <?php if (!$months): ?>
 <div class="alert alert-info">
-  Brak kopii zapasowych. Uruchom backup ręcznie lub poczekaj na CRON (codziennie w nocy 1:00–3:00).
+  Brak kopii zapasowych. Uruchom backup ręcznie lub poczekaj na CRON (przyrostowo, co 4 godziny).
 </div>
 <?php endif; ?>
 
@@ -237,8 +237,8 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 
 <div class="text-muted small mt-3">
   <i class="bi bi-info-circle me-1"></i>
-  Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP.
-  Rotacja: pliki starsze niż 30 dni usuwane przez CRON.
+  Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP. Backup przyrostowy co 4 godziny.
+  Rotacja: zawsze zachowywane min. 3 ostatnie kopie każdego typu, pozostałe starsze niż 30 dni usuwane przez CRON.
   <?php if ($_sp_enabled): ?>
   &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint backup aktywny.
   <?php else: ?>

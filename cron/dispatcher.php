@@ -95,8 +95,7 @@ $AGENTS = [
     ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
-        'interval' => 86400,
-        'schedule' => [1, 3],
+        'interval' => 14400,        // co 4h — backup przyrostowy
     ],
     'sync_crm_volunteers' => [
         'file'     => __DIR__ . '/sync_crm_volunteers.php',
