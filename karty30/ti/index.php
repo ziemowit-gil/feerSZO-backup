@@ -150,6 +150,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </a>
   <?php if ($can_write): ?>
 
+  <?php $_unr_cnt = count(k30_ti_unenroll_pending_admin()); ?>
+
   <!-- ── Komunikacja ── -->
   <div class="dropdown">
     <button class="btn btn-outline-secondary btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -157,28 +159,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?>
     </button>
     <ul class="dropdown-menu">
-      <li><h6 class="dropdown-header">Wiadomości</h6></li>
       <li><a class="dropdown-item" href="messages.php">
         <i class="bi bi-envelope me-2"></i>Wiadomości z kursantami
         <?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-2"><?= (int)$msg_unread_staff ?></span><?php endif; ?>
       </a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Ogłoszenia</h6></li>
       <li><a class="dropdown-item" href="notices.php"><i class="bi bi-megaphone me-2"></i>Komunikaty placówki</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Wysyłka masowa</h6></li>
       <li><a class="dropdown-item" href="komunikacja.php"><i class="bi bi-send me-2"></i>Wyślij e-mail / SMS</a></li>
-    </ul>
-  </div>
-
-  <!-- ── Kalendarz ── -->
-  <div class="dropdown">
-    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-calendar3 me-1"></i>Kalendarz
-    </button>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item" href="holidays.php"><i class="bi bi-calendar-x me-2"></i>Dni wolne i przerwy</a></li>
-      <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy prowadzących</a></li>
     </ul>
   </div>
 
@@ -193,33 +179,66 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="grades.php"><i class="bi bi-table me-2"></i>Dziennik ocen</a></li>
       <li><a class="dropdown-item" href="curriculum.php"><i class="bi bi-list-check me-2"></i>Plan nauczania</a></li>
       <li><a class="dropdown-item" href="tests.php"><i class="bi bi-card-checklist me-2"></i>Testy i quizy</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Finanse ── -->
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-cash-coin me-1"></i>Finanse
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia kursantów</a></li>
       <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
       <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Raporty (PDF)</h6></li>
-      <li><a class="dropdown-item" href="raporty.php"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Raporty ── -->
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-file-earmark-bar-graph me-1"></i>Raporty
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="raporty.php"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty i sprawozdanie WUP</a></li>
       <li><a class="dropdown-item" href="ris.php"><i class="bi bi-card-list me-2"></i>Dane do RIS</a></li>
     </ul>
   </div>
 
-  <!-- ── Narzędzia ── -->
+  <!-- ── Kalendarz ── -->
   <div class="dropdown">
     <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-gear me-1"></i>Narzędzia
+      <i class="bi bi-calendar3 me-1"></i>Kalendarz
     </button>
-    <ul class="dropdown-menu dropdown-menu-end">
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="holidays.php"><i class="bi bi-calendar-x me-2"></i>Dni wolne i przerwy</a></li>
+      <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy prowadzących</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Platformy ── -->
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-hdd-network me-1"></i>Platformy
+    </button>
+    <ul class="dropdown-menu">
       <li><a class="dropdown-item" href="online_admin.php"><i class="bi bi-camera-video me-2"></i>Nauka online</a></li>
       <li><a class="dropdown-item" href="moodle_admin.php"><i class="bi bi-mortarboard me-2"></i>Moodle</a></li>
-      <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
       <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLab</a></li>
-      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Administracja ── -->
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-person-gear me-1"></i>Administracja
+      <?php if ($_unr_cnt): ?><span class="badge bg-danger ms-1"><?= (int)$_unr_cnt ?></span><?php endif; ?>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Konta kursantów</a></li>
       <li><a class="dropdown-item" href="unenroll_admin.php"><i class="bi bi-box-arrow-left me-2"></i>Wnioski wypisania
-        <?php $_unr_cnt = count(k30_ti_unenroll_pending_admin()); if ($_unr_cnt): ?>
-        <span class="badge bg-danger ms-1"><?= $_unr_cnt ?></span>
-        <?php endif; ?>
+        <?php if ($_unr_cnt): ?><span class="badge bg-danger ms-1"><?= (int)$_unr_cnt ?></span><?php endif; ?>
       </a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="terms_admin.php"><i class="bi bi-file-earmark-text me-2"></i>Regulaminy</a></li>
