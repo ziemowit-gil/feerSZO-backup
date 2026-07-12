@@ -1,0 +1,1333 @@
+openapi: 3.0.3
+
+# =============================================================================
+#  EZD „Wirtualne Biurko" — specyfikacja interfejsu HTTP (OpenAPI 3.0)
+# -----------------------------------------------------------------------------
+#  Moduł EZD nie jest klasycznym REST API — to zestaw kontrolerów stron PHP.
+#  Ta specyfikacja dokumentuje CAŁĄ powierzchnię HTTP modułu:
+#    • strony GET (widoki, wydruki, strumienie plików),
+#    • akcje POST (formularze; dyskryminator `_action` lub `_op`),
+#    • dwa realne endpointy JSON/AJAX (walidacja podpisu, pull z Office Online),
+#    • panele administracyjne (/admin/ezd_*).
+#
+#  Uwierzytelnianie: sesyjne (cookie PHPSESSID) — NIE token Bearer.
+#  Każdy endpoint woła require_login() + require_module_enabled('ezd_enabled').
+#  Każdy POST wymaga pola _csrf (csrf_check()); część /ezd/ bywa objęta
+#  ograniczeniem „tylko przez VPN" (ezd_vpn_only / ezd_vpn_allowlist).
+#
+#  Źródło prawdy: includes/ezd.php, ezd/**/*.php, admin/ezd_*.php
+#  Wygenerowano z komentarzy i kodu — 2026-07-12.
+# =============================================================================
+
+info:
+  title: EZD „Wirtualne Biurko" — interfejs HTTP
+  version: "1.0"
+  description: |
+    **System Obsługi Organizacji (FEER) — moduł Elektronicznego Zarządzania Dokumentacją.**
+
+    Hierarchia danych: **Teczka (segregator, klasa JRWA) → Sprawa (koszulka) → Pismo / Umowa / Dokument**.
+    Na każdym poziomie: załączniki, dekretacje (obieg), wpisy do dziennika (audyt).
+
+    Terminologia UI ↔ baza:
+    - „Koszulka" = sprawa (`ezd_sprawy`)
+    - „Segregator" = teczka (`ezd_teczki`)
+    - „Podkoszulka" = podsprawa (`parent_id`)
+    - Wykaz akt = JRWA (`ezd_jrwa`)
+
+    ### Uwierzytelnianie i autoryzacja
+    - **Sesja** (cookie), nie Bearer. Wejście przez `/auth/login.php`.
+    - `require_module_enabled('ezd_enabled')` — moduł musi być włączony (admin → Ustawienia EZD).
+    - Model dostępu jest bogatszy niż role R/Z/U — patrz `ezd_sprawa_access()`:
+      `write` (admin / rola z zapisem / właściciel / referent / współdzielenie „edycja"),
+      `read` (współdzielenie „odczyt" / rola z odczytem), lub brak.
+    - Zamknięta koszulka jest zablokowana dla wszystkich poza administratorem.
+    - Zarządzanie JRWA i teczkami — wyłącznie administrator.
+
+    ### CSRF
+    Każde żądanie modyfikujące (POST) wymaga pola `_csrf` = `csrf_token()`.
+    Brak/niepoprawny token → błąd (lub `{ok:false,error}` w trybie AJAX).
+
+    ### Kody odpowiedzi (wspólne)
+    - `200` — HTML widoku lub treść (JSON/plik).
+    - `302/303` — redirect PRG po udanym POST.
+    - `403` — naruszenie bramy dostępu (`ezd_sprawa_access`, `can_edit`, `is_admin`).
+    - `404` — nie znaleziono rekordu / pliku.
+
+servers:
+  - url: "{APP_URL}"
+    description: Instancja SZO (np. https://szo.feer.org.pl)
+    variables:
+      APP_URL:
+        default: https://szo.feer.org.pl
+
+tags:
+  - name: Dashboard
+    description: Pulpit „Wirtualne biurko" i wyszukiwarka
+  - name: Sprawy (Koszulki)
+    description: Podstawowa jednostka postępowania — repozytorium plików, pisma, dokumenty, dekretacje, notatki, obieg BPM
+  - name: Teczki (Segregatory)
+    description: Roczny zbiornik spraw w ramach jednej klasy JRWA
+  - name: Pisma
+    description: Korespondencja przychodząca / wychodząca / wewnętrzna w ramach sprawy
+  - name: Dokumenty wewnętrzne
+    description: Notatki służbowe, opinie, protokoły, projekty pism
+  - name: Umowy
+    description: Umowy powiązane ze sprawą
+  - name: RPW (Dziennik podawczy)
+    description: Rejestr Przesyłek Wpływających — rejestracja, przekazanie, dekretacja do sprawy
+  - name: Dekretacja
+    description: Obieg — przekazywanie sprawy do załatwienia / akceptacji / podpisu
+  - name: JRWA
+    description: Jednolity Rzeczowy Wykaz Akt (słownik klasyfikacyjny)
+  - name: Archiwum zakładowe
+    description: Spisy zdawczo-odbiorcze i brakowanie akt po okresie przechowywania
+  - name: Pełnomocnictwa
+    description: Rejestr pełnomocnictw (JRWA 013)
+  - name: Rejestry pochodne
+    description: Zaświadczenia, pisma do wolontariuszy — auto-rejestracja w EZD
+  - name: Pliki i podpis
+    description: Serwowanie plików, Office Online, walidacja podpisu elektronicznego
+  - name: Administracja
+    description: Ustawienia modułu, szablony pism, macierz uprawnień, edytor workflow (BPMN)
+
+# =============================================================================
+paths:
+
+  # --------------------------------------------------------------- Dashboard --
+  /ezd/index.php:
+    get:
+      tags: [Dashboard]
+      summary: Pulpit „Wirtualne biurko"
+      description: |
+        Dashboard: statystyki (`ezd_stats`, `ezd_rpw_stats`, `ezd_arch_stats`),
+        wyszukiwarka, launcher modułów, moje koszulki / pisma / oczekujące dekretacje,
+        ostatnia aktywność, dane eDoręczeń (adres ADE).
+      responses:
+        "200": { description: HTML pulpitu }
+
+  /ezd/szukaj.php:
+    get:
+      tags: [Dashboard]
+      summary: Wyszukiwarka EZD
+      description: |
+        Szuka po numerze dokumentu (sygnatura pisma/dokumentu/umowy), znaku koszulki
+        i tytułach. Wyniki grupowane, z poszanowaniem dostępu (`ezd_sprawa_access`).
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Fraza wyszukiwania }
+      responses:
+        "200": { description: HTML wyników }
+
+  # ----------------------------------------------------------- Sprawy --------
+  /ezd/sprawy/index.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Lista koszulek (spraw)
+      description: Lista z filtrowaniem, eksportem CSV i akcją zbiorowego przerejestrowania.
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusSprawy' } }
+        - { name: priority, in: query, schema: { $ref: '#/components/schemas/Priorytet' } }
+        - { name: owner_id, in: query, schema: { type: integer }, description: Filtr po właścicielu }
+        - { name: mine, in: query, schema: { type: boolean }, description: Tylko moje/współdzielone }
+        - { name: deadline_od, in: query, schema: { type: string, format: date } }
+        - { name: deadline_do, in: query, schema: { type: string, format: date } }
+        - { name: q, in: query, schema: { type: string }, description: Szukaj po tytule/znaku/piśmie }
+        - { name: hide_ciagla, in: query, schema: { type: boolean }, description: Ukryj sprawy ciągłe }
+        - { name: hide_old, in: query, schema: { type: boolean }, description: Ukryj stare }
+        - name: export
+          in: query
+          schema: { type: string, enum: [csv] }
+          description: "`csv` → pobranie pliku `sprawy_YYYY-MM-DD.csv`"
+      responses:
+        "200":
+          description: HTML listy, lub plik CSV przy `export=csv`
+          content:
+            text/html: {}
+            text/csv: {}
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Zbiorcze przerejestrowanie koszulek
+      description: Wymaga `can_edit()`. Zmienia znak spraw — nieodwracalne.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op, ids, target]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [bulk_reregister] }
+                ids: { type: array, items: { type: integer }, description: Zaznaczone koszulki }
+                target: { type: string, description: Docelowy segregator / klasa JRWA }
+      responses:
+        "302": { description: Redirect po operacji }
+        "403": { description: Brak uprawnień }
+
+  /ezd/sprawy/add.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Formularz nowej koszulki / podkoszulki
+      parameters:
+        - { name: parent_id, in: query, schema: { type: integer }, description: Tryb podsprawy }
+        - { name: teczka_id, in: query, schema: { type: integer }, description: Preselekcja segregatora }
+      responses:
+        "200": { description: HTML formularza }
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Utwórz koszulkę
+      description: |
+        Generuje znak `SYMBOL.numer.rok`. Wymaga `can_edit()` (lub dostępu do rodzica
+        dla podkoszulki). Twórca staje się właścicielem, o ile `owner_id` nie wskazuje inaczej.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/SprawaInput' }
+      responses:
+        "302": { description: "Redirect do view.php?id=" }
+        "403": { description: Brak uprawnień }
+
+  /ezd/sprawy/edit.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Formularz edycji koszulki
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML formularza }
+        "404": { description: Nie znaleziono }
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Zapisz zmiany koszulki
+      description: Wymaga `ezd_sprawa_access === 'write'`; zamkniętą koszulkę tylko admin.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/SprawaInput' }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak dostępu / koszulka zamknięta }
+
+  /ezd/sprawy/view.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Widok koszulki (repozytorium, pisma, dokumenty, dekretacje, obieg)
+      description: |
+        Najbogatszy kontroler modułu. Kotwice: `#files`, `#pisma`, `#dekretacje`,
+        `#notatki`, `#workflow`. `?share=1` otwiera panel współdzielenia.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: share, in: query, schema: { type: boolean }, description: Otwórz panel współdzielenia }
+      responses:
+        "200": { description: HTML widoku }
+        "403": { description: Brak dostępu }
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Akcje na koszulce (dyskryminator `_action`)
+      description: |
+        Jeden endpoint, wiele akcji rozróżnianych polem `_action`. Wszystkie zwracają
+        redirect na `view.php?id=…` (z kotwicą). Naruszenie bramy → `403`.
+
+        Bramy dostępu:
+        - `$can_act` = write **i** koszulka niezamknięta — akcje na plikach/pismach/notatkach/dekretacji/etapie.
+        - `$can_manage_share` (`ezd_sprawa_can_manage_share`) — `share_add` / `share_del`.
+        - `dekr_done` — dostępne także dla wykonawcy dekretacji (nie wymaga `$can_act`).
+
+        **Wykaz akcji `_action`:**
+        | `_action` | Opis | Kluczowe pola |
+        |---|---|---|
+        | `upload` | Wgranie pliku (multipart) | `grupa_id`, `custom_name`, `convert_pdf`, plik |
+        | `new_office_file` | Utworzenie pliku Office | `filetype`, `name`, `grupa_id`, `with_znak` |
+        | `convert_pdf` | Konwersja załącznika do PDF | `zal_id` |
+        | `del_file` | Usunięcie załącznika | `zal_id` |
+        | `pismo_add` | Dodanie pisma do sprawy | `kierunek`, `title`, `tresc`, `nadawca`, `odbiorca`, `data_*`, `rodzaj_medium` |
+        | `grupa_add` / `grupa_rename` / `grupa_del` | Grupy plików | `grupa_id`, `nazwa` |
+        | `zal_move` | Przeniesienie pliku do grupy | `zal_id`, `grupa_id` |
+        | `zal_przekaz` | Udostępnienie plików osobie | `przekaz_user_id`, `zal_ids[]`, `przekaz_note` |
+        | `share_add` / `share_del` | Współdzielenie koszulki | `share_user_id`, `share_uprawnienie` (odczyt/edycja) |
+        | `dekretacja` | Przekazanie koszulki (obieg) | `unit_id`, `wykonawca_id`, `dyspozycja`, `tresc`, `deadline` |
+        | `dekr_done` | Oznacz dekretację jako wykonaną | `dekr_id` |
+        | `set_etap` | Zmiana etapu obiegu BPM | `etap` |
+        | `note_add` / `note_edit` / `note_del` / `note_pin` | Notatki | `note_id`, `tresc` |
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action:
+                  type: string
+                  enum: [upload, new_office_file, convert_pdf, del_file, pismo_add,
+                         grupa_add, grupa_rename, grupa_del, zal_move, zal_przekaz,
+                         share_add, share_del, dekretacja, dekr_done, set_etap,
+                         note_add, note_edit, note_del, note_pin]
+                file: { type: string, format: binary, description: Dla `upload` }
+      responses:
+        "302": { description: Redirect na view.php }
+        "403": { description: Naruszenie bramy dostępu }
+
+  /ezd/sprawy/metryka.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Metryka sprawy (chronologiczny rejestr czynności)
+      description: Budowana z dziennika operacji (`ezd_log`). Drukowalna. Tylko odczyt.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML metryki }
+        "403": { description: Brak dostępu }
+
+  /ezd/sprawy/print.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Wydruk sprawy → PDF
+      description: |
+        Łączy okładkę sprawy + dokumenty w jeden PDF.
+        `?id=N` — ekran wyboru; `?id=N&out=pdf` — cała sprawa; `?id=N&out=pdf&zal=Z` — jeden dokument.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: out, in: query, schema: { type: string, enum: ['', pdf] } }
+        - { name: zal, in: query, schema: { type: integer }, description: Id pojedynczego załącznika }
+      responses:
+        "200":
+          description: HTML ekranu wyboru lub strumień PDF
+          content:
+            application/pdf: {}
+        "403": { description: Brak dostępu }
+
+  /ezd/sprawy/przerejestruj.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Asystent przerejestrowania do Nowego JRWA (AI)
+      description: |
+        Kwalifikuje sprawę do klasy JRWA przy pomocy Claude (structured outputs),
+        generuje adnotacje, instrukcję stanowiskową i wpis do protokołu.
+      parameters:
+        - { name: id, in: query, schema: { type: integer } }
+        - { name: sprawa_id, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: HTML asystenta }
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Operacje asystenta przerejestrowania (`_op`)
+      description: |
+        `analyze` — analiza AI (`opis`, `stary_znak`, `forma`=papierowa/elektroniczna/auto);
+        `save` — zapis wyniku (`payload` JSON, `instrukcja`);
+        przypisanie do JRWA (`target`); `delete` — usunięcie wpisu protokołu (`id`).
+        Wymaga `can_edit()`.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [analyze, save, delete] }
+                opis: { type: string }
+                stary_znak: { type: string }
+                forma: { type: string, enum: [papierowa, elektroniczna, auto] }
+                payload: { type: string, description: JSON wyniku analizy }
+                target: { type: string }
+                id: { type: integer }
+      responses:
+        "200": { description: HTML z wynikiem (możliwy JSON payload) }
+        "302": { description: Redirect po zapisie }
+
+  /ezd/sprawy/spinacz.php:
+    get:
+      tags: [Sprawy (Koszulki)]
+      summary: Spinacz — ekran łączenia plików w jeden PDF
+      parameters: [{ name: sprawa_id, in: query, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Sprawy (Koszulki)]
+      summary: Połącz 2+ plików w jeden PDF
+      description: |
+        Word/Excel są automatycznie konwertowane na PDF, następnie scalane (qpdf/FPDI)
+        i dodawane do repozytorium koszulki. Wymaga write + koszulka niezamknięta.
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                custom_name: { type: string }
+                grupa_id: { type: integer }
+                files: { type: array, items: { type: integer }, description: Id plików do połączenia }
+      responses:
+        "302": { description: Redirect do view.php#files }
+        "403": { description: Brak dostępu }
+
+  # ----------------------------------------------------------- Teczki --------
+  /ezd/teczki/index.php:
+    get:
+      tags: [Teczki (Segregatory)]
+      summary: Lista segregatorów aktowych
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [open, closed], default: open } }]
+      responses:
+        "200": { description: HTML listy }
+
+  /ezd/teczki/add.php:
+    get:
+      tags: [Teczki (Segregatory)]
+      summary: Formularz nowego segregatora (tylko admin)
+      responses:
+        "200": { description: HTML formularza }
+        "403": { description: Wymaga roli admin }
+    post:
+      tags: [Teczki (Segregatory)]
+      summary: Utwórz segregator
+      description: "`require_role('admin')`."
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/TeczkaInput' }
+      responses:
+        "302": { description: "Redirect do view.php?id=" }
+        "403": { description: Wymaga roli admin }
+
+  /ezd/teczki/edit.php:
+    get:
+      tags: [Teczki (Segregatory)]
+      summary: Formularz edycji segregatora (tylko admin)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+        "403": { description: Wymaga roli admin }
+    post:
+      tags: [Teczki (Segregatory)]
+      summary: Zapisz segregator
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TeczkaInput'
+                - type: object
+                  properties: { status: { type: string, enum: [open, closed] } }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Wymaga roli admin }
+
+  /ezd/teczki/view.php:
+    get:
+      tags: [Teczki (Segregatory)]
+      summary: Podgląd segregatora + jego koszulki
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusSprawy' }, description: Filtr koszulek }
+      responses:
+        "200": { description: HTML }
+
+  /ezd/teczki/spis.php:
+    get:
+      tags: [Teczki (Segregatory)]
+      summary: Spis koszulek segregatora (do wydruku)
+      description: Formalny rejestr koszulek wg kolejnego numeru.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML spisu }
+
+  # ----------------------------------------------------------- Pisma ---------
+  /ezd/pisma/add.php:
+    get:
+      tags: [Pisma]
+      summary: Formularz nowego pisma
+      parameters:
+        - { name: sprawa_id, in: query, required: true, schema: { type: integer } }
+        - { name: kierunek, in: query, schema: { $ref: '#/components/schemas/Kierunek' } }
+        - { name: szablon_id, in: query, schema: { type: integer }, description: Wypełnienie z szablonu }
+      responses:
+        "200": { description: HTML formularza }
+    post:
+      tags: [Pisma]
+      summary: Utwórz pismo
+      description: Sygnatura `znak.P.n`. Wymaga write; zamknięta koszulka → tylko admin.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/PismoInput' }
+      responses:
+        "302": { description: "Redirect do view.php?id=" }
+        "403": { description: Brak dostępu }
+
+  /ezd/pisma/edit.php:
+    get:
+      tags: [Pisma]
+      summary: Formularz edycji pisma
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Pisma]
+      summary: Zapisz pismo
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/PismoInput' }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak dostępu }
+
+  /ezd/pisma/view.php:
+    get:
+      tags: [Pisma]
+      summary: Podgląd pisma + załączniki
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Pisma]
+      summary: Załączniki pisma (`_action`)
+      description: "`upload` (multipart) / `del_file` (`zid`). Wymaga `$can_act`."
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [upload, del_file] }
+                zid: { type: integer }
+                file: { type: string, format: binary }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak dostępu }
+
+  /ezd/pisma/seria.php:
+    get:
+      tags: [Pisma]
+      summary: Korespondencja seryjna (mail merge) — ekran
+      parameters:
+        - { name: sprawa_id, in: query, required: true, schema: { type: integer } }
+        - { name: szablon_id, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Pisma]
+      summary: Generuj pisma seryjne
+      description: |
+        Z jednego szablonu tworzy wiele pism wychodzących (po jednym na adresata).
+        Tokeny `{{odbiorca}}` / `{{znak_obcy}}` podstawiane per wiersz.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op, sprawa_id, szablon_id, adresaci]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [generate] }
+                sprawa_id: { type: integer }
+                szablon_id: { type: integer }
+                adresaci: { type: string, description: Lista adresatów (wiersz = adresat) }
+      responses:
+        "302": { description: "Redirect do sprawy/view.php?id=" }
+        "403": { description: Brak dostępu }
+
+  # ------------------------------------------------------- Dokumenty ---------
+  /ezd/dokumenty/add.php:
+    get:
+      tags: [Dokumenty wewnętrzne]
+      summary: Formularz nowego dokumentu wewnętrznego
+      parameters:
+        - { name: sprawa_id, in: query, required: true, schema: { type: integer } }
+        - { name: rodzaj, in: query, schema: { $ref: '#/components/schemas/RodzajDok' } }
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Dokumenty wewnętrzne]
+      summary: Utwórz dokument wewnętrzny
+      description: Notatka służbowa / opinia / protokół / projekt pisma. Sygnatura `znak.D.n`.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/DokumentInput' }
+      responses:
+        "302": { description: "Redirect do view.php?id=" }
+        "403": { description: Brak dostępu }
+
+  /ezd/dokumenty/edit.php:
+    get:
+      tags: [Dokumenty wewnętrzne]
+      summary: Formularz edycji dokumentu
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Dokumenty wewnętrzne]
+      summary: Zapisz dokument
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/DokumentInput' }
+      responses:
+        "302": { description: Redirect }
+
+  /ezd/dokumenty/view.php:
+    get:
+      tags: [Dokumenty wewnętrzne]
+      summary: Podgląd dokumentu + załączniki
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Dokumenty wewnętrzne]
+      summary: Akcje dokumentu (`_action`)
+      description: "`upload` / `del_file` (`zid`) / `delete` (tylko admin lub twórca). Wymaga `can_edit()`."
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [upload, del_file, delete] }
+                zid: { type: integer }
+                file: { type: string, format: binary }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak dostępu }
+
+  # ----------------------------------------------------------- Umowy ---------
+  /ezd/umowy/add.php:
+    get:
+      tags: [Umowy]
+      summary: Formularz nowej umowy
+      parameters: [{ name: sprawa_id, in: query, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Umowy]
+      summary: Utwórz umowę
+      description: Sygnatura `znak.U.n`. Wymaga `can_edit()`.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/UmowaInput' }
+      responses:
+        "302": { description: "Redirect do view.php?id=" }
+
+  /ezd/umowy/edit.php:
+    get:
+      tags: [Umowy]
+      summary: Formularz edycji umowy
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Umowy]
+      summary: Zapisz umowę
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/UmowaInput' }
+      responses:
+        "302": { description: Redirect }
+
+  /ezd/umowy/view.php:
+    get:
+      tags: [Umowy]
+      summary: Podgląd umowy + załączniki
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Umowy]
+      summary: Załączniki umowy (`_action`)
+      description: "`upload` / `del_file` (`zid`). Wymaga `can_edit()`."
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [upload, del_file] }
+                zid: { type: integer }
+                file: { type: string, format: binary }
+      responses:
+        "302": { description: Redirect }
+
+  # ------------------------------------------------------------- RPW ---------
+  /ezd/rpw/index.php:
+    get:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Dziennik podawczy — lista przesyłek wpływających
+      parameters:
+        - { name: rok, in: query, schema: { type: integer }, description: Domyślnie bieżący }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusRpw' } }
+        - { name: typ, in: query, schema: { $ref: '#/components/schemas/TypRpw' } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200": { description: HTML listy }
+
+  /ezd/rpw/add.php:
+    get:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Formularz rejestracji przesyłki
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Zarejestruj przesyłkę wpływającą
+      description: |
+        Nadaje kolejny numer RPW; pozwala od razu wgrać skan i/lub przekazać referentowi.
+        Wymaga `can_edit()`.
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, data_wplywu]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                data_wplywu: { type: string, format: date }
+                typ: { $ref: '#/components/schemas/TypRpw' }
+                nadawca: { type: string }
+                znak_obcy: { type: string }
+                opis: { type: string }
+                uwagi: { type: string }
+                przekazano_unit_id: { type: integer, description: Przekazanie do jednostki org. }
+                scan: { type: string, format: binary }
+                _next: { type: string, enum: [view], description: Dokąd po zapisie }
+      responses:
+        "302": { description: "Redirect do view.php?id= lub nowy add.php" }
+        "403": { description: Brak uprawnień }
+
+  /ezd/rpw/view.php:
+    get:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Podgląd przesyłki + akcje kancelaryjne
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Akcje kancelaryjne (`_action`)
+      description: |
+        Wymaga `can_edit()` (inaczej 403).
+        | `_action` | Opis | Pola |
+        |---|---|---|
+        | `scan` | Wgranie/wymiana skanu | plik (multipart) |
+        | `edit` | Edycja metadanych | `data_wplywu`, `typ`, `nadawca`, `znak_obcy`, `opis`, `uwagi` |
+        | `przekaz` | Przekazanie referentowi | `przekazano_unit_id` |
+        | `odrzuc` | Odrzucenie | `powod` |
+        | `delete` | Usunięcie przesyłki | — (redirect do index) |
+        | `assign` | Dekretacja do sprawy (tworzy pismo przychodzące, przenosi skan do akt) | `sprawa_id`, `teczka_id`, `sprawa_title` |
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [scan, edit, przekaz, odrzuc, delete, assign] }
+      responses:
+        "302": { description: Redirect (przy `assign` → sprawy/view.php) }
+        "403": { description: Brak uprawnień }
+
+  /ezd/rpw/scan.php:
+    get:
+      tags: [RPW (Dziennik podawczy)]
+      summary: Bezpieczne serwowanie skanu przesyłki
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: dl, in: query, schema: { type: boolean }, description: Wymuś pobranie (attachment) }
+      responses:
+        "200":
+          description: Strumień binarny (nagłówki nosniff, Cache-Control private)
+          content:
+            application/octet-stream: {}
+        "404": { description: Brak pliku }
+
+  # ------------------------------------------------------- Dekretacja --------
+  /ezd/dekretacja/complete.php:
+    post:
+      tags: [Dekretacja]
+      summary: Oznacz dekretację jako wykonaną
+      description: Dozwolone tylko dla wykonawcy dekretacji lub administratora.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, id]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                id: { type: integer, description: Id dekretacji }
+      responses:
+        "302": { description: Redirect do referera / pulpitu }
+
+  # ------------------------------------------------------------- JRWA --------
+  /ezd/jrwa/index.php:
+    get:
+      tags: [JRWA]
+      summary: Wykaz akt (JRWA) — przegląd
+      description: Przegląd dla wszystkich z dostępem; modyfikacja — administrator.
+      parameters: [{ name: edit, in: query, schema: { type: integer }, description: Załaduj pozycję do edycji }]
+      responses:
+        "200": { description: HTML wykazu }
+    post:
+      tags: [JRWA]
+      summary: Zapisz / usuń hasło JRWA (tylko admin)
+      description: "`is_admin()` — inaczej 403."
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [save, delete] }
+                id: { type: integer, description: "0 = nowe" }
+                symbol: { type: string }
+                title: { type: string }
+                kat_arch: { $ref: '#/components/schemas/KatArch' }
+                description: { type: string }
+                sort_order: { type: integer }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Wymaga roli admin }
+
+  # -------------------------------------------------- Archiwum zakładowe -----
+  /ezd/archiwum/index.php:
+    get:
+      tags: [Archiwum zakładowe]
+      summary: Archiwum zakładowe — segregatory do przekazania/brakowania
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Archiwum zakładowe]
+      summary: Utwórz spis (zdawczo-odbiorczy / brakowania)
+      description: Wymaga `can_edit()`.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op, typ]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [create_spis] }
+                typ: { type: string, enum: [zdawczo_odbiorczy, brakowanie] }
+                tytul: { type: string }
+                komorka: { type: string }
+                uwagi: { type: string }
+                zgoda_ap: { type: string, description: Zgoda archiwum państwowego (dla kat. A) }
+                ids: { type: array, items: { type: integer }, description: Zaznaczone segregatory }
+      responses:
+        "302": { description: "Redirect do spis_view.php?id=" }
+
+  /ezd/archiwum/spis_view.php:
+    get:
+      tags: [Archiwum zakładowe]
+      summary: Podgląd / edycja spisu
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Archiwum zakładowe]
+      summary: Operacje na spisie (`_op`)
+      description: |
+        | `_op` | Opis | Uprawnienia |
+        |---|---|---|
+        | `add_teczka` (`teczka_id`) | Dodaj segregator jako pozycję | `can_edit()` |
+        | `del_poz` (`poz_id`) | Usuń pozycję | `can_edit()` |
+        | `save` | Zapis metadanych | `can_edit()` |
+        | `approve` | Zatwierdź (projekt → zatwierdzony) | `can_edit()` |
+        | `realize` | Realizacja (do archiwum / wybrakowanie) | **admin** |
+        | `delete` | Usuń spis | **admin** |
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [add_teczka, del_poz, save, approve, realize, delete] }
+                teczka_id: { type: integer }
+                poz_id: { type: integer }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak uprawnień }
+
+  /ezd/archiwum/spis_print.php:
+    get:
+      tags: [Archiwum zakładowe]
+      summary: Wydruk spisu
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        "200": { description: HTML wydruku }
+        "404": { description: Spis nie istnieje }
+
+  # ------------------------------------------------------- Pełnomocnictwa ----
+  /ezd/pelnomocnictwa/index.php:
+    get:
+      tags: [Pełnomocnictwa]
+      summary: Rejestr pełnomocnictw (JRWA 013)
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: edit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: HTML rejestru }
+    post:
+      tags: [Pełnomocnictwa]
+      summary: Zapisz metadane pełnomocnictwa
+      description: Wymaga `can_edit()`. Metadane 1:1 ze sprawą JRWA 013.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _action, sprawa_id]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [save] }
+                sprawa_id: { type: integer }
+                mocodawca: { type: string }
+                pelnomocnik: { type: string }
+                zakres: { type: string }
+                data_udzielenia: { type: string, format: date }
+                data_waznosci: { type: string, format: date }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak uprawnień }
+
+  /ezd/pelnomocnictwa/print.php:
+    get:
+      tags: [Pełnomocnictwa]
+      summary: Wydruk rejestru pełnomocnictw
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200": { description: HTML wydruku }
+
+  # -------------------------------------------------- Rejestry pochodne ------
+  /ezd/zaswiadczenia/index.php:
+    get:
+      tags: [Rejestry pochodne]
+      summary: Rejestr zaświadczeń (JRWA 53)
+      description: Zaświadczenia zarejestrowane w EZD jako pisma wychodzące.
+      parameters: [{ name: q, in: query, schema: { type: string } }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Rejestry pochodne]
+      summary: Rejestracja zaległych zaświadczeń (backfill)
+      description: Wymaga `can_edit()`. Zależy od `certificates_enabled`.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _action]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [backfill] }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak uprawnień }
+
+  /ezd/wolontariusze/index.php:
+    get:
+      tags: [Rejestry pochodne]
+      summary: Pisma do wolontariuszy bez umowy (JRWA WOL)
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Rejestry pochodne]
+      summary: Wyślij pismo do wolontariusza
+      description: |
+        Wysyłka zaszyfrowanego ZIP e-mailem + hasło SMS-em; rejestracja jako pismo
+        wychodzące w EZD. Wymaga `can_edit()` i gotowego SMS (`sms_is_enabled()`).
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [_csrf, volunteer_id, tytul]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                volunteer_id: { type: integer }
+                tytul: { type: string }
+                tresc: { type: string }
+                content_mode: { type: string, enum: [text, file] }
+                plik: { type: string, format: binary, description: Dla content_mode=file }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Brak uprawnień }
+
+  # ------------------------------------------------------- Pliki i podpis ----
+  /ezd/serve.php:
+    get:
+      tags: [Pliki i podpis]
+      summary: Bezpieczne serwowanie załącznika EZD
+      description: Sprawdza uwierzytelnienie przed strumieniowaniem pliku.
+      parameters: [{ name: id, in: query, required: true, schema: { type: integer }, description: Id załącznika }]
+      responses:
+        "200":
+          description: Strumień binarny
+          content: { application/octet-stream: {} }
+        "404": { description: Brak pliku }
+
+  /ezd/office_online.php:
+    get:
+      tags: [Pliki i podpis]
+      summary: Otwórz plik w Office Word/Excel Online
+      description: |
+        Wysyła plik (.doc/.docx/.xls/.xlsx) na SharePoint (jeśli jeszcze nie wysłano)
+        i przekierowuje na adres edytora zwrócony przez Microsoft Graph API.
+      parameters: [{ name: id, in: query, required: true, schema: { type: integer }, description: Id załącznika }]
+      responses:
+        "302": { description: Redirect do Office Online }
+
+  /ezd/office_online_pull.php:
+    post:
+      tags: [Pliki i podpis]
+      summary: Pobierz treść po edycji online (nowa wersja / nadpisanie)
+      description: |
+        Ściąga aktualną treść pliku edytowanego w Office Online. Pomija zapis, gdy
+        plik bez zmian (porównanie hasha po stronie serwera). W trybie AJAX zwraca JSON.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, id]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                id: { type: integer, description: Id załącznika }
+                mode: { type: string, enum: [version, replace], default: version }
+                _ajax: { type: integer, enum: [1], description: Włącza odpowiedź JSON }
+      responses:
+        "200":
+          description: JSON w trybie AJAX
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  unchanged: { type: boolean }
+                  message: { type: string }
+                  error: { type: string }
+        "302": { description: Redirect do referera (bez AJAX) }
+
+  /ezd/validate_signature.php:
+    get:
+      tags: [Pliki i podpis]
+      summary: Walidacja kryptograficzna podpisu załącznika (JSON)
+      description: |
+        Zwraca certyfikat(y) podpisującego + status integralności. Zależy od `openssl`
+        CLI na serwerze (gdy brak → `integrity: no_tool`, fallback do zewn. walidatora).
+      parameters:
+        - { name: zal_id, in: query, schema: { type: integer } }
+        - { name: id, in: query, schema: { type: integer }, description: Alias zal_id }
+      responses:
+        "200":
+          description: Wynik walidacji
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  integrity: { type: string, enum: [verified, unverified, no_tool, "n/d"] }
+                  certs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        cn: { type: string }
+                        o: { type: string }
+                        issuer: { type: string }
+                        from: { type: string }
+                        to: { type: string }
+                        serial: { type: string }
+                        valid_now: { type: boolean }
+                        days_left: { type: integer }
+                  messages: { type: array, items: { type: string } }
+                  openssl_cli: { type: boolean }
+        "404":
+          description: Załącznik nie istnieje
+          content:
+            application/json:
+              schema: { type: object, properties: { error: { type: string } } }
+
+  # -------------------------------------------------------- Administracja ----
+  /admin/ezd_settings.php:
+    get:
+      tags: [Administracja]
+      summary: Ustawienia modułu Wirtualne biurko (admin)
+      description: Włącznik modułu, tryb mini, przypomnienia, mapowanie symboli JRWA, autorejestracja korespondencji.
+      responses:
+        "200": { description: HTML }
+        "403": { description: Wymaga roli admin }
+    post:
+      tags: [Administracja]
+      summary: Zapisz ustawienia EZD
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                ezd_enabled: { type: boolean }
+                ezd_mini: { type: boolean, description: Uproszczony rejestr (bez metryki i workflow) }
+                ezd_reminders_enabled: { type: boolean, description: Cron — przypomnienia o terminach }
+                ezd_peln_jrwa: { type: string, description: "Symbol JRWA pełnomocnictw (dom. 013)" }
+                ezd_cert_jrwa: { type: string, description: "Symbol JRWA zaświadczeń (dom. 53)" }
+                ezd_kdok_jrwa: { type: string, description: "Symbol JRWA dok. księgowych (dom. KSG)" }
+                corr_ezd_auto: { type: boolean, description: Autorejestracja korespondencji }
+                corr_ezd_jrwa: { type: string, description: "Symbol JRWA korespondencji (dom. KOR)" }
+      responses:
+        "302": { description: Redirect }
+        "403": { description: Wymaga roli admin }
+
+  /admin/ezd_szablony.php:
+    get:
+      tags: [Administracja]
+      summary: Szablony pism — lista/edycja (admin)
+      parameters: [{ name: edit, in: query, schema: { type: integer }, description: "?edit=0#form = nowy" }]
+      responses:
+        "200": { description: HTML }
+    post:
+      tags: [Administracja]
+      summary: Zapisz / usuń szablon (`_op`)
+      description: Wzorce tytułu i treści z tokenami `{{token}}` (mail merge).
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _op]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _op: { type: string, enum: [save, delete] }
+                id: { type: integer }
+                nazwa: { type: string }
+                kategoria: { type: string, enum: [pismo, dokument] }
+                kierunek: { $ref: '#/components/schemas/Kierunek' }
+                rodzaj_medium: { $ref: '#/components/schemas/Medium' }
+                tytul_wzor: { type: string }
+                tresc_wzor: { type: string }
+                opis: { type: string }
+                aktywny: { type: boolean }
+      responses:
+        "302": { description: Redirect (PRG) }
+
+  /admin/ezd_access_matrix.php:
+    get:
+      tags: [Administracja]
+      summary: Macierz uprawnień EZD (tylko odczyt, admin)
+      description: |
+        Widok modelu dostępu (role × relacje do koszulki × reguły domykania × VPN).
+        `?print=1` — czysty HTML A4 landscape z auto-wydrukiem.
+      parameters: [{ name: print, in: query, schema: { type: integer, enum: [1] } }]
+      responses:
+        "200": { description: HTML macierzy }
+        "403": { description: Wymaga roli admin }
+
+  /admin/ezd_workflows.php:
+    get:
+      tags: [Administracja]
+      summary: Edytor procesów (workflow BPM) per JRWA
+      description: Definiuje wykonywalną ścieżkę etapów; podgląd SVG w notacji zbliżonej do BPMN.
+      parameters: [{ name: jrwa_id, in: query, schema: { type: integer } }]
+      responses:
+        "200": { description: HTML edytora }
+        "403": { description: Wymaga roli admin }
+    post:
+      tags: [Administracja]
+      summary: Zapisz / zresetuj workflow (`_action`)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [_csrf, _action, jrwa_id]
+              properties:
+                _csrf: { $ref: '#/components/schemas/Csrf' }
+                _action: { type: string, enum: [save, reset] }
+                jrwa_id: { type: integer }
+                name: { type: string }
+                steps_json: { type: string, description: JSON kroków (etykieta, kolor, dyspozycja, sla_days) }
+      responses:
+        "302": { description: "Redirect do ?jrwa_id=" }
+
+  /admin/ezd_workflow_bpmn.php:
+    get:
+      tags: [Administracja]
+      summary: Eksport workflow JRWA do BPMN 2.0 (.bpmn)
+      parameters: [{ name: jrwa_id, in: query, required: true, schema: { type: integer } }]
+      responses:
+        "200":
+          description: Plik BPMN 2.0 XML (attachment)
+          content:
+            application/bpmn+xml: {}
+        "404": { description: Brak JRWA }
+
+# =============================================================================
+components:
+
+  parameters:
+    Id:
+      name: id
+      in: query
+      required: true
+      schema: { type: integer }
+      description: Identyfikator rekordu
+
+  schemas:
+
+    # --- słowniki / enumy ---------------------------------------------------
+    Csrf:
+      type: string
+      description: Token CSRF (`csrf_token()`). Wymagany w każdym POST.
+
+    StatusSprawy:
+      type: string
+      enum: [open, in_progress, suspended, closed]
+      description: "Otwarta / W toku / Zawieszona / Zamknięta"
+
+    Priorytet:
+      type: string
+      enum: [low, normal, high, urgent]
+      description: "Niski / Normalny / Wysoki / Pilny"
+
+    Kierunek:
+      type: string
+      enum: [przychodzace, wychodzace, wewnetrzne]
+
+    Medium:
+      type: string
+      enum: [papier, email, epuap, faks, inne]
+
+    KatArch:
+      type: string
+      enum: [A, B5, B10, B25, B50, Bc, BE5, BE10]
+      description: Kategoria archiwalna (retencja)
+
+    TypRpw:
+      type: string
+      enum: [list, polecony, paczka, email, epuap, fax, osobiscie, inne]
+
+    StatusRpw:
+      type: string
+      enum: [nowa, przekazana, w_sprawie, odrzucona]
+
+    RodzajDok:
+      type: string
+      enum: [notatka_sluzbowa, opinia, protokol, decyzja, projekt_pisma, raport, inne]
+
+    Dyspozycja:
+      type: string
+      enum: [do_zalat, do_akcept, do_wiadom, do_podpisu, do_realizacji]
+
+    # --- ciała formularzy ---------------------------------------------------
+    SprawaInput:
+      type: object
+      required: [_csrf, title, teczka_id]
+      properties:
+        _csrf: { $ref: '#/components/schemas/Csrf' }
+        parent_id: { type: integer, description: Podkoszulka }
+        teczka_id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/StatusSprawy' }
+        priority: { $ref: '#/components/schemas/Priorytet' }
+        owner_id: { type: integer }
+        deadline: { type: string, format: date }
+        ciagla: { type: boolean, description: Sprawa ciągła (nie zamyka się) }
+
+    TeczkaInput:
+      type: object
+      required: [_csrf, jrwa_id, symbol, title]
+      properties:
+        _csrf: { $ref: '#/components/schemas/Csrf' }
+        jrwa_id: { type: integer }
+        symbol: { type: string }
+        title: { type: string }
+        rok: { type: integer, description: Domyślnie bieżący }
+        owner_id: { type: integer }
+
+    PismoInput:
+      type: object
+      required: [_csrf, title]
+      properties:
+        _csrf: { $ref: '#/components/schemas/Csrf' }
+        sprawa_id: { type: integer }
+        kierunek: { $ref: '#/components/schemas/Kierunek' }
+        title: { type: string }
+        tresc: { type: string }
+        nadawca: { type: string }
+        odbiorca: { type: string }
+        data_pisma: { type: string, format: date }
+        data_wplywu: { type: string, format: date }
+        data_wysylki: { type: string, format: date }
+        status: { type: string }
+        owner_id: { type: integer }
+        rodzaj_medium: { $ref: '#/components/schemas/Medium' }
+
+    DokumentInput:
+      type: object
+      required: [_csrf, title]
+      properties:
+        _csrf: { $ref: '#/components/schemas/Csrf' }
+        sprawa_id: { type: integer }
+        rodzaj: { $ref: '#/components/schemas/RodzajDok' }
+        title: { type: string }
+        tresc: { type: string }
+        status: { type: string, enum: [projekt, zatwierdzony, archiwalny] }
+        owner_id: { type: integer }
+
+    UmowaInput:
+      type: object
+      required: [_csrf, title]
+      properties:
+        _csrf: { $ref: '#/components/schemas/Csrf' }
+        sprawa_id: { type: integer }
+        typ: { type: string, enum: [umowa, aneks, porozumienie, zlecenie, ugoda, inne] }
+        title: { type: string }
+        strona: { type: string }
+        wartosc: { type: number }
+        waluta: { type: string, default: PLN }
+        data_zawarcia: { type: string, format: date }
+        data_od: { type: string, format: date }
+        data_do: { type: string, format: date }
+        warunki_platnosci: { type: string }
+        status: { type: string }
+        owner_id: { type: integer }
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: PHPSESSID
+      description: Sesja PHP po zalogowaniu przez /auth/login.php
+
+security:
+  - sessionCookie: []
