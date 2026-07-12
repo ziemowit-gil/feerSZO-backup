@@ -95,7 +95,16 @@ $AGENTS = [
     ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
-        'interval' => 14400,        // co 4h — backup przyrostowy
+        'interval' => 14400,        // co 4h — backup przyrostowy (lokalny)
+    ],
+    'sp_backup_incremental' => [
+        'file'     => __DIR__ . '/agents/sp_backup_incremental.php',
+        'interval' => 21600,        // co 6h — backup przyrostowy na SharePoint
+    ],
+    'sp_backup_full' => [
+        'file'     => __DIR__ . '/agents/sp_backup_full.php',
+        'interval' => 86400,        // raz dziennie — pełny backup systemu na SharePoint
+        'schedule' => [1, 3],       // w nocy
     ],
     'sync_crm_volunteers' => [
         'file'     => __DIR__ . '/sync_crm_volunteers.php',

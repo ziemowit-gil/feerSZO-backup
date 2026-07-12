@@ -240,7 +240,7 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
   Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP. Backup przyrostowy co 4 godziny.
   Rotacja: zawsze zachowywane min. 3 ostatnie kopie każdego typu, pozostałe starsze niż 30 dni usuwane przez CRON.
   <?php if ($_sp_enabled): ?>
-  &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint backup aktywny.
+  &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint: przyrostowo co 6h, pełny backup systemu w nocy.
   <?php else: ?>
   &middot; <a href="<?= APP_URL ?>/admin/sp_onboarding.php"><i class="bi bi-cloud-arrow-up"></i> Włącz SharePoint backup</a>
   <?php endif; ?>

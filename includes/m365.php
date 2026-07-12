@@ -1262,6 +1262,193 @@ function sp_backup_db(): array {
     }
 }
 
+/** Wspólny preflight dla automatycznych backupów SP — zwraca [graph, site_id, drive_id] albo rzuca wyjątek z komunikatem. */
+function sp_backup_preflight(): array {
+    if (m365_setting('sp_enabled') !== '1') {
+        throw new \RuntimeException('SharePoint nie jest włączony.');
+    }
+    $site_url = m365_setting('sp_site_url');
+    if (!$site_url) {
+        throw new \RuntimeException('Brak URL witryny SharePoint w ustawieniach.');
+    }
+    $graph = new M365Graph();
+    if (!$graph->is_configured()) {
+        throw new \RuntimeException('Brak konfiguracji Microsoft 365 (Client ID / Secret).');
+    }
+    $library  = m365_setting('sp_library') ?: '';
+    $site_id  = $graph->sp_site_id($site_url);
+    $drive_id = $graph->sp_drive_id($site_id, $library);
+    return [$graph, $site_id, $drive_id];
+}
+
+/** Gzipuje plik lokalny (poziom 9) i zwraca ścieżkę tymczasową do wynikowego .gz. */
+function sp_gzip_temp(string $src_path, string $tmp_prefix): string {
+    $tmp_gz = sys_get_temp_dir() . '/' . $tmp_prefix . '.gz';
+    $gz = gzopen($tmp_gz, 'wb9');
+    $fh = fopen($src_path, 'rb');
+    while (!feof($fh)) gzwrite($gz, fread($fh, 65536));
+    fclose($fh);
+    gzclose($gz);
+    return $tmp_gz;
+}
+
+/**
+ * Przyrostowy backup na SharePoint (baza + zmienione pliki uploads).
+ * Wysyła tylko to, co zmieniło się od ostatniej synchronizacji SP — znaczniki
+ * BASE_DIR/backups/.last_sp_db_mtime i .last_sp_uploads_ts, NIEZALEŻNE od
+ * znaczników lokalnej rotacji przyrostowej (cron/agents/backup.php).
+ * Folder na SP: sp_backup_folder / incremental / YYYY-MM / ...
+ */
+function sp_backup_incremental(): array {
+    try {
+        [$graph, $site_id, $drive_id] = sp_backup_preflight();
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'skipped' => true, 'error' => $e->getMessage()];
+    }
+
+    $base       = dirname(__DIR__);
+    $marker_db  = $base . '/backups/.last_sp_db_mtime';
+    $marker_up  = $base . '/backups/.last_sp_uploads_ts';
+    $bak_folder = trim(m365_setting('sp_backup_folder') ?: 'Backup', '/') . '/incremental';
+    $stamp      = date('Ymd_His');
+    $sent       = [];
+
+    // ── Baza — tylko jeśli zmieniona od ostatniej wysyłki na SP ───────────
+    $db_src = defined('DB_PATH') ? DB_PATH : ($base . '/umowy.db');
+    if (file_exists($db_src)) {
+        $db_mtime      = filemtime($db_src);
+        $last_db_mtime = file_exists($marker_db) ? (int)file_get_contents($marker_db) : 0;
+
+        if ($db_mtime > $last_db_mtime) {
+            $tmp_db = sys_get_temp_dir() . '/feer_spinc_' . $stamp . '.db';
+            $pdo = new \PDO('sqlite:' . $db_src);
+            $pdo->exec('VACUUM INTO ' . $pdo->quote($tmp_db));
+            $pdo = null;
+            $tmp_gz = sp_gzip_temp($tmp_db, 'feer_spinc_' . $stamp);
+            @unlink($tmp_db);
+
+            $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz';
+            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_gz);
+            @unlink($tmp_gz);
+            file_put_contents($marker_db, $db_mtime);
+            $sent[] = $sp_path;
+        }
+    }
+
+    // ── Uploads — tylko pliki zmienione od ostatniej wysyłki na SP ────────
+    $uploads_src = defined('UPLOAD_DIR') ? rtrim(UPLOAD_DIR, '/') : ($base . '/uploads');
+    $last_up_ts  = file_exists($marker_up) ? (int)file_get_contents($marker_up) : 0;
+
+    if (is_dir($uploads_src)) {
+        $changed = [];
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($uploads_src, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($it as $file) {
+            if ($file->isFile() && $file->getMTime() > $last_up_ts) {
+                $changed[] = $file->getPathname();
+            }
+        }
+
+        if ($changed) {
+            $list_file = tempnam(sys_get_temp_dir(), 'spinc_list_');
+            $prefix    = basename($uploads_src) . '/';
+            $rel_paths = array_map(
+                fn($f) => $prefix . ltrim(substr($f, strlen($uploads_src)), '/'),
+                $changed
+            );
+            file_put_contents($list_file, implode("\n", $rel_paths));
+
+            $tmp_tar = sys_get_temp_dir() . '/feer_spinc_uploads_' . $stamp . '.tar.gz';
+            $cmd = 'tar -czf ' . escapeshellarg($tmp_tar)
+                 . ' -C ' . escapeshellarg(dirname($uploads_src))
+                 . ' -T ' . escapeshellarg($list_file)
+                 . ' 2>&1';
+            $output = [];
+            $ret    = 0;
+            exec($cmd, $output, $ret);
+            unlink($list_file);
+
+            if ($ret === 0) {
+                $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz';
+                $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_tar);
+                @unlink($tmp_tar);
+                file_put_contents($marker_up, time());
+                $sent[] = $sp_path;
+            } else {
+                @unlink($tmp_tar);
+                return ['ok' => false, 'error' => 'tar: ' . implode(' ', $output)];
+            }
+        }
+    }
+
+    return ['ok' => true, 'sent' => $sent];
+}
+
+/**
+ * Pełny backup całego systemu (baza + wszystkie uploads, bez pomijania) na SharePoint.
+ * Uruchamiany raz na dobę (w nocy) — niezależnie resetuje znaczniki przyrostowe SP,
+ * żeby kolejny przyrostowy backup nie duplikował właśnie wysłanych danych.
+ * Folder na SP: sp_backup_folder / full / YYYY-MM / ...
+ */
+function sp_backup_full(): array {
+    try {
+        [$graph, $site_id, $drive_id] = sp_backup_preflight();
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'skipped' => true, 'error' => $e->getMessage()];
+    }
+
+    $base       = dirname(__DIR__);
+    $bak_folder = trim(m365_setting('sp_backup_folder') ?: 'Backup', '/') . '/full';
+    $stamp      = date('Ymd_His');
+    $sent       = [];
+
+    // ── Baza — pełny VACUUM INTO + gzip ────────────────────────────────────
+    $db_src = defined('DB_PATH') ? DB_PATH : ($base . '/umowy.db');
+    if (file_exists($db_src)) {
+        $tmp_db = sys_get_temp_dir() . '/feer_spfull_' . $stamp . '.db';
+        $pdo = new \PDO('sqlite:' . $db_src);
+        $pdo->exec('VACUUM INTO ' . $pdo->quote($tmp_db));
+        $pdo = null;
+        $tmp_gz = sp_gzip_temp($tmp_db, 'feer_spfull_' . $stamp);
+        @unlink($tmp_db);
+
+        $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz';
+        $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_gz);
+        @unlink($tmp_gz);
+        $sent[] = $sp_path;
+    }
+
+    // ── Uploads — pełne archiwum całego katalogu ───────────────────────────
+    $uploads_src = defined('UPLOAD_DIR') ? rtrim(UPLOAD_DIR, '/') : ($base . '/uploads');
+    if (is_dir($uploads_src)) {
+        $tmp_tar = sys_get_temp_dir() . '/feer_spfull_uploads_' . $stamp . '.tar.gz';
+        $cmd = 'tar -czf ' . escapeshellarg($tmp_tar)
+             . ' -C ' . escapeshellarg(dirname($uploads_src))
+             . ' ' . escapeshellarg(basename($uploads_src))
+             . ' 2>&1';
+        $output = [];
+        $ret    = 0;
+        exec($cmd, $output, $ret);
+        if ($ret === 0) {
+            $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz';
+            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_tar);
+            @unlink($tmp_tar);
+            $sent[] = $sp_path;
+        } else {
+            @unlink($tmp_tar);
+            return ['ok' => false, 'error' => 'tar: ' . implode(' ', $output)];
+        }
+    }
+
+    // Po pełnym backupie zresetuj znaczniki przyrostowe SP, żeby kolejny
+    // przyrostowy backup wysyłał tylko zmiany od TEJ chwili.
+    @file_put_contents($base . '/backups/.last_sp_db_mtime', file_exists($db_src) ? filemtime($db_src) : time());
+    @file_put_contents($base . '/backups/.last_sp_uploads_ts', time());
+
+    return ['ok' => true, 'sent' => $sent];
+}
+
 /**
  * Automatycznie powiąż lub utwórz konto lokalne dla konta M365.
  * Szuka po microsoft_id, potem po e-mail; jeśli nie znajdzie — tworzy nowe.
