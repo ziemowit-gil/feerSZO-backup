@@ -464,6 +464,112 @@ include __DIR__ . '/_layout_head.php';
 
 <main id="main" class="container-xl px-3 py-4">
 
+<?php
+  // ── Subskrypcja / pobranie kalendarza lekcji dziecka (iCal) — modal dostępny z każdej zakładki
+  $kpp_cal_tok    = k30_ti_calendar_token((int)$parent['student_id']);
+  $kpp_cal_base   = rtrim(defined('APP_URL') ? APP_URL : '', '/')
+                    . '/karty30/ti/kursant/ical.php?id=' . (int)$parent['student_id'] . '&t=' . $kpp_cal_tok;
+  $kpp_cal_webcal = preg_replace('#^https?://#i', 'webcal://', $kpp_cal_base);
+?>
+<div class="modal fade" id="kpParentCalSubModal" tabindex="-1" aria-labelledby="kpParentCalSubTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title" id="kpParentCalSubTitle"><i class="bi bi-calendar-check me-2"></i>Kalendarz lekcji dziecka — subskrypcja i pobranie</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-body-secondary small">
+        Kalendarz obejmuje wszystkie lekcje dziecka. Dodaj go do Kalendarza Google, Apple Calendar
+        lub Outlooka, a terminy zajęć będą aktualizować się automatycznie — bez ręcznego przepisywania.
+      </p>
+
+      <label class="form-label fw-semibold" for="kppCalUrl">Adres kanału (URL do subskrypcji)</label>
+      <div class="input-group mb-1">
+        <input type="text" class="form-control" id="kppCalUrl" value="<?= h($kpp_cal_base) ?>" readonly
+               onfocus="this.select()" aria-describedby="kppCalUrlHelp">
+        <button type="button" class="btn btn-outline-secondary" id="kppCalCopy"
+                data-copy-target="kppCalUrl"><i class="bi bi-clipboard me-1"></i>Kopiuj</button>
+      </div>
+      <p id="kppCalUrlHelp" class="form-text">
+        Wklej ten adres w Kalendarzu Google („Inne kalendarze → Dodaj z adresu URL"),
+        Apple Calendar lub Outlook, aby kalendarz aktualizował się automatycznie.
+      </p>
+
+      <div class="d-flex flex-wrap gap-2 my-3">
+        <a class="btn btn-primary btn-sm" href="<?= h($kpp_cal_base) ?>">
+          <i class="bi bi-download me-1"></i>Pobierz plik .ics
+        </a>
+        <a class="btn btn-outline-primary btn-sm" href="<?= h($kpp_cal_webcal) ?>">
+          <i class="bi bi-calendar-plus me-1"></i>Subskrybuj (webcal)
+        </a>
+      </div>
+
+      <p class="small text-body-secondary mb-0"><i class="bi bi-shield-lock me-1"></i>Adres jest prywatny — nie udostępniaj go osobom postronnym.</p>
+    </div>
+  </div></div>
+</div>
+
+<!-- Szybki popup zachęcający do dodania kalendarza lekcji dziecka (iCal) — position:fixed, prawy dolny róg -->
+<div id="kppIcalPopup"
+     role="dialog" aria-modal="true" aria-labelledby="kppIcalPopupTitle"
+     tabindex="-1"
+     style="display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
+            width:min(380px,calc(100vw - 2rem));
+            background:#1e293b;color:#f1f5f9;
+            border:2px solid #2563eb;border-radius:.6rem;
+            box-shadow:0 8px 32px rgba(0,0,0,.5);">
+  <div style="background:#2563eb;color:#fff;border-radius:.45rem .45rem 0 0;
+              padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;">
+    <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+    <h2 class="mb-0 fw-bold" id="kppIcalPopupTitle" style="font-size:1rem">Dodaj lekcje dziecka do kalendarza</h2>
+  </div>
+  <div style="padding:.9rem 1rem .5rem">
+    <p style="font-size:.875rem;margin:0 0 .5rem">
+      Subskrybuj kanał iCal, aby terminy zajęć dziecka pojawiały się automatycznie
+      w Kalendarzu Google, Apple Calendar lub Outlooku — bez ręcznego przepisywania.
+    </p>
+  </div>
+  <div style="padding:.5rem 1rem .8rem;display:flex;justify-content:flex-end;gap:.5rem">
+    <button type="button" id="kppIcalPopupLater"
+            style="background:transparent;color:#cbd5e1;border:1px solid #475569;border-radius:.375rem;
+                   padding:.3rem .8rem;font-size:.875rem;cursor:pointer">Nie teraz</button>
+    <button type="button" id="kppIcalPopupGo" data-bs-toggle="modal" data-bs-target="#kpParentCalSubModal"
+            style="background:#2563eb;color:#fff;border:none;border-radius:.375rem;
+                   padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem">
+      <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Dodaj kalendarz
+    </button>
+  </div>
+</div>
+<script>
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-copy-target]'); if (!b) return;
+  var inp = document.getElementById(b.getAttribute('data-copy-target')); if (!inp) return;
+  var done = function(){
+    var orig = b.innerHTML;
+    b.innerHTML = '<i class="bi bi-check2 me-1"></i>Skopiowano';
+    setTimeout(function(){ b.innerHTML = orig; }, 1500);
+  };
+  inp.focus(); inp.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(_){} });
+  } else { try { document.execCommand('copy'); done(); } catch(_){} }
+});
+document.addEventListener('DOMContentLoaded', function() {
+  var STORE_KEY = 'ti_ical_popup_seen_parent';
+  var popup = document.getElementById('kppIcalPopup');
+  if (!popup) return;
+  try { if (localStorage.getItem(STORE_KEY) === '1') return; } catch(e) {}
+
+  var dismiss = function(){
+    try { localStorage.setItem(STORE_KEY, '1'); } catch(e) {}
+    popup.style.display = 'none';
+  };
+  setTimeout(function(){ popup.style.display = 'block'; }, 800);
+  document.getElementById('kppIcalPopupLater').addEventListener('click', dismiss);
+  document.getElementById('kppIcalPopupGo').addEventListener('click', dismiss);
+});
+</script>
+
 <?php if ($ptab === 'rozliczenia'):
     $rv_client_id    = $parent['client_id'];
     $rv_show_lessons = false;
@@ -567,6 +673,9 @@ include __DIR__ . '/_layout_head.php';
 ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajęć
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-bs-toggle="modal" data-bs-target="#kpParentCalSubModal">
+      <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Subskrybuj / pobierz
+    </button>
   </h2>
   <?php if ($hmsg): ?>
   <div class="alert alert-<?= $hmsg[0]==='ok'?'success':'danger' ?> py-2"><?= h($hmsg[1]) ?></div>

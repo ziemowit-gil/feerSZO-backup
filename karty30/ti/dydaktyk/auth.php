@@ -16,9 +16,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 
 const DYD_SESSION_KEY = 'k30_ti_dyd';
-const DYD_SESSION_TTL = 3600 * 8; // 8h
+const DYD_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzyma cichy token „zapamiętaj mnie" (patrz niżej)
 
 function dyd_start(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -43,9 +44,22 @@ function dyd_start(): void {
 function dyd_current(): ?array {
     dyd_start();
     $s = $_SESSION[DYD_SESSION_KEY] ?? null;
-    if (!$s) return null;
-    if ((time() - ($s['ts'] ?? 0)) > DYD_SESSION_TTL) { unset($_SESSION[DYD_SESSION_KEY]); return null; }
-    return $s;
+    if ($s) {
+        if ((time() - ($s['ts'] ?? 0)) <= DYD_SESSION_TTL) {
+            $_SESSION[DYD_SESSION_KEY]['ts'] = time();
+            return $_SESSION[DYD_SESSION_KEY];
+        }
+        unset($_SESSION[DYD_SESSION_KEY]);
+    }
+    // Cicha próba wznowienia z trwałego tokenu (bez logowania, bez opcji w UI).
+    $rem = ti_remember_consume('dyd');
+    if ($rem) {
+        $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$rem['account_id']]);
+        $profile = $u ? dyd_profile_from_user($u) : null;
+        if ($profile) { dyd_login_user($profile); return $_SESSION[DYD_SESSION_KEY]; }
+        ti_remember_forget('dyd');
+    }
+    return null;
 }
 
 /**
@@ -86,11 +100,13 @@ function dyd_login_user(array $data): void {
     $data['ts'] = time();
     $_SESSION[DYD_SESSION_KEY] = $data;
     $_SESSION['k30_dyd_csrf']  = bin2hex(random_bytes(16));
+    ti_remember_issue('dyd', (int)$data['user_id']);
 }
 
 function dyd_logout(): void {
     dyd_start();
     unset($_SESSION[DYD_SESSION_KEY]);
+    ti_remember_forget('dyd');
     session_destroy();
 }
 

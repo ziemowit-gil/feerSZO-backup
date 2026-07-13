@@ -67,7 +67,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </div>
           <div class="d-none d-md-block mb-4">
             <h1 class="h4 fw-bold mb-1">Zaloguj się</h1>
+            <?php if ($office_available): ?>
+            <p class="text-body-secondary mb-0">Zalecamy logowanie przez <strong>Microsoft&nbsp;365</strong>.</p>
+            <?php else: ?>
             <p class="text-body-secondary mb-0">Użyj swojego <strong>e-maila i hasła do SZO</strong>.</p>
+            <?php endif; ?>
           </div>
 
           <?php if ($error): ?>
@@ -76,14 +80,33 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </div>
           <?php endif; ?>
 
+          <?php
+            // Office/M365 jest zalecaną metodą — formularz hasła jest domyślnie zwinięty
+            // (delikatnie ukryty), żeby nie odciągać uwagi. Rozwijamy go od razu, gdy nie ma
+            // logowania Office, albo gdy użytkownik już próbował logować się hasłem (błąd/POST) —
+            // wtedy zwijanie byłoby mylące.
+            $dyd_pwd_open = !$office_available || $error !== '' || $_SERVER['REQUEST_METHOD'] === 'POST';
+          ?>
           <?php if ($office_available): ?>
-          <a href="<?= h($office_login_url) ?>" class="btn btn-lg w-100 fw-semibold mb-3 d-flex align-items-center justify-content-center gap-2"
+          <a href="<?= h($office_login_url) ?>" class="btn btn-lg w-100 fw-semibold mb-2 d-flex align-items-center justify-content-center gap-2"
              style="background:#2f2f2f;color:#fff">
             <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M12 1h10v10H12z"/><path fill="#00a4ef" d="M1 12h10v10H1z"/><path fill="#ffb900" d="M12 12h10v10H12z"/></svg>
             Zaloguj przez Microsoft 365
           </a>
+          <p class="text-body-secondary text-center mb-3" style="font-size:.78rem">
+            <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zalecana metoda logowania
+          </p>
+          <button type="button" class="btn btn-link btn-sm text-body-secondary px-0 mb-2 text-decoration-none <?= $dyd_pwd_open ? 'd-none' : '' ?>"
+                  id="dydPwToggle" data-bs-toggle="collapse" data-bs-target="#dydPwCollapse"
+                  aria-expanded="<?= $dyd_pwd_open ? 'true' : 'false' ?>" aria-controls="dydPwCollapse">
+            <i class="bi bi-chevron-down me-1" aria-hidden="true"></i>Zaloguj hasłem (konta bez Microsoft 365)
+          </button>
+          <?php endif; ?>
+
+          <div class="collapse<?= $dyd_pwd_open ? ' show' : '' ?>" id="dydPwCollapse">
+          <?php if ($office_available): ?>
           <div class="d-flex align-items-center gap-2 my-3 text-body-secondary" aria-hidden="true">
-            <hr class="flex-grow-1 m-0"><span class="small">albo hasłem</span><hr class="flex-grow-1 m-0">
+            <hr class="flex-grow-1 m-0"><span class="small">logowanie hasłem</span><hr class="flex-grow-1 m-0">
           </div>
           <?php endif; ?>
 
@@ -93,7 +116,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <div class="input-group input-group-lg">
                 <span class="input-group-text" aria-hidden="true"><i class="bi bi-envelope"></i></span>
                 <input type="email" class="form-control form-control-lg" id="email" name="email"
-                       value="<?= h($_POST['email'] ?? '') ?>" required autofocus autocomplete="username" placeholder="np. imie.nazwisko@feer.org.pl">
+                       value="<?= h($_POST['email'] ?? '') ?>" required <?= $office_available ? '' : 'autofocus' ?> autocomplete="username" placeholder="np. imie.nazwisko@feer.org.pl">
               </div>
             </div>
             <div class="mb-4">
@@ -116,6 +139,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Logujesz się tymi samymi danymi, co do Systemu Zarządzania Organizacją.
           </p>
+          </div>
 
           <hr class="my-4">
 
@@ -142,6 +166,20 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     btn.setAttribute('aria-pressed', show ? 'true' : 'false');
     btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
     pw.focus();
+  });
+})();
+</script>
+<script>
+// Rozwinięcie zwiniętego formularza hasła (Office jest metodą zalecaną) — po rozwinięciu
+// chowa przycisk i przenosi fokus na e-mail (dostępność).
+(function(){
+  var collapseEl = document.getElementById('dydPwCollapse');
+  var toggle     = document.getElementById('dydPwToggle');
+  if (!collapseEl || !toggle) return;
+  collapseEl.addEventListener('shown.bs.collapse', function(){
+    toggle.classList.add('d-none');
+    var email = document.getElementById('email');
+    if (email) email.focus();
   });
 })();
 </script>

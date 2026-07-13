@@ -2,9 +2,10 @@
 /**
  * Autoryzacja kursantów TI — osobny system sesji, bez dostępu do reszty aplikacji.
  */
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 
 const STUDENT_SESSION_KEY = 'k30_ti_student';
-const STUDENT_SESSION_TTL = 3600 * 8; // 8h
+const STUDENT_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzyma cichy token „zapamiętaj mnie" (patrz niżej)
 
 function student_start(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -16,12 +17,28 @@ function student_start(): void {
 function student_current(): ?array {
     student_start();
     $s = $_SESSION[STUDENT_SESSION_KEY] ?? null;
-    if (!$s) return null;
-    if ((time() - ($s['ts'] ?? 0)) > STUDENT_SESSION_TTL) {
+    if ($s) {
+        if ((time() - ($s['ts'] ?? 0)) <= STUDENT_SESSION_TTL) {
+            $_SESSION[STUDENT_SESSION_KEY]['ts'] = time(); // sesja aktywna — odśwież licznik bezczynności
+            return $_SESSION[STUDENT_SESSION_KEY];
+        }
         unset($_SESSION[STUDENT_SESSION_KEY]);
-        return null;
     }
-    return $s;
+    // Sesja wygasła lub jej brak — cicha próba wznowienia z trwałego tokenu (bez logowania,
+    // bez opcji w UI). Pomijamy konta zablokowane/nieaktywne, tak jak przy zwykłym logowaniu.
+    $rem = ti_remember_consume('student');
+    if ($rem) {
+        $account = db_one(
+            "SELECT * FROM k30_ti_student_accounts WHERE id=? AND is_active=1",
+            [$rem['account_id']]
+        );
+        if ($account && empty($account['child_access_blocked'])) {
+            student_login_user($account);
+            return $_SESSION[STUDENT_SESSION_KEY];
+        }
+        ti_remember_forget('student');
+    }
+    return null;
 }
 
 function student_login_user(array $account): void {
@@ -32,11 +49,13 @@ function student_login_user(array $account): void {
         'login'     => $account['login'],
         'ts'        => time(),
     ];
+    ti_remember_issue('student', (int)$account['id']);
 }
 
 function student_logout(): void {
     student_start();
     unset($_SESSION[STUDENT_SESSION_KEY]);
+    ti_remember_forget('student');
     session_destroy();
 }
 
@@ -99,17 +118,24 @@ function student_token_check(): void {
 
 // ── Dostęp rodzica (osobna sesja, dla małoletnich kursantów) ──────────────────
 const PARENT_SESSION_KEY = 'k30_ti_parent';
-const PARENT_SESSION_TTL = 3600 * 4; // 4h
+const PARENT_SESSION_TTL = 3600 * 2; // 120 min bezczynności — cichy token „zapamiętaj mnie" niżej
 
 function parent_current(): ?array {
     student_start();
     $p = $_SESSION[PARENT_SESSION_KEY] ?? null;
-    if (!$p) return null;
-    if ((time() - ($p['ts'] ?? 0)) > PARENT_SESSION_TTL) {
+    if ($p) {
+        if ((time() - ($p['ts'] ?? 0)) <= PARENT_SESSION_TTL) {
+            $_SESSION[PARENT_SESSION_KEY]['ts'] = time();
+            return $_SESSION[PARENT_SESSION_KEY];
+        }
         unset($_SESSION[PARENT_SESSION_KEY]);
-        return null;
     }
-    return $p;
+    // Cicha próba wznowienia z trwałego tokenu (bez logowania, bez opcji w UI).
+    $rem = ti_remember_consume('parent');
+    if ($rem && parent_login_for_student($rem['account_id'], $rem['payload'])) {
+        return $_SESSION[PARENT_SESSION_KEY];
+    }
+    return null;
 }
 
 /** Zaloguj rodzica do widoku konkretnego kursanta (po OTP lub linku magicznym). */
@@ -124,6 +150,7 @@ function parent_login_for_student(int $studentId, array $extra = []): bool {
         'name'       => $client['name'] ?? $acc['login'],
         'ts'         => time(),
     ], $extra);
+    ti_remember_issue('parent', (int)$acc['id'], $extra);
     return true;
 }
 
@@ -151,6 +178,7 @@ function parent_login_with_password(string $login, string $pass): bool {
 function parent_logout(): void {
     student_start();
     unset($_SESSION[PARENT_SESSION_KEY]);
+    ti_remember_forget('parent');
 }
 
 /** Generuje OTP dla rodzica (sesja, ważny 5 min) i wysyła SMS-em. Zwraca liczbę dopasowanych dzieci. */

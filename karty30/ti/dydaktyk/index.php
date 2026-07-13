@@ -1798,6 +1798,54 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </div></div>
     </div>
 
+    <!-- Szybki popup zachęcający do dodania kalendarza lekcji (iCal) — position:fixed, prawy dolny róg -->
+    <div id="dydIcalPopup"
+         role="dialog" aria-modal="true" aria-labelledby="dydIcalPopupTitle"
+         tabindex="-1"
+         style="display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
+                width:min(380px,calc(100vw - 2rem));
+                background:#1e293b;color:#f1f5f9;
+                border:2px solid #2563eb;border-radius:.6rem;
+                box-shadow:0 8px 32px rgba(0,0,0,.5);">
+      <div style="background:#2563eb;color:#fff;border-radius:.45rem .45rem 0 0;
+                  padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+        <h2 class="mb-0 fw-bold" id="dydIcalPopupTitle" style="font-size:1rem">Dodaj lekcje do kalendarza</h2>
+      </div>
+      <div style="padding:.9rem 1rem .5rem">
+        <p style="font-size:.875rem;margin:0 0 .5rem">
+          Subskrybuj kanał iCal, aby terminy Twoich lekcji pojawiały się automatycznie
+          w Kalendarzu Google, Apple Calendar lub Outlooku — bez ręcznego przepisywania.
+        </p>
+      </div>
+      <div style="padding:.5rem 1rem .8rem;display:flex;justify-content:flex-end;gap:.5rem">
+        <button type="button" id="dydIcalPopupLater"
+                style="background:transparent;color:#cbd5e1;border:1px solid #475569;border-radius:.375rem;
+                       padding:.3rem .8rem;font-size:.875rem;cursor:pointer">Nie teraz</button>
+        <button type="button" id="dydIcalPopupGo" data-bs-toggle="modal" data-bs-target="#dydCalSubModal"
+                style="background:#2563eb;color:#fff;border:none;border-radius:.375rem;
+                       padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem">
+          <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Dodaj kalendarz
+        </button>
+      </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var STORE_KEY = 'ti_ical_popup_seen_dyd';
+      var popup = document.getElementById('dydIcalPopup');
+      if (!popup) return;
+      try { if (localStorage.getItem(STORE_KEY) === '1') return; } catch(e) {}
+
+      var dismiss = function(){
+        try { localStorage.setItem(STORE_KEY, '1'); } catch(e) {}
+        popup.style.display = 'none';
+      };
+      setTimeout(function(){ popup.style.display = 'block'; }, 800);
+      document.getElementById('dydIcalPopupLater').addEventListener('click', dismiss);
+      document.getElementById('dydIcalPopupGo').addEventListener('click', dismiss);
+    });
+    </script>
+
     <!-- Ukryty formularz akcji obecności (odwołaj/przywróć udział) -->
     <form method="post" id="dydAttAction" class="d-none">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">

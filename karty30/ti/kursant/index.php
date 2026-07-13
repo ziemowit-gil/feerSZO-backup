@@ -88,6 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tok = $_POST['_token'] ?? '';
     if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
 
+    // Nowy adres subskrypcji kalendarza (unieważnia poprzedni)
+    if ($op === 'cal_token_reset') {
+        k30_ti_calendar_token_reset((int)$student['id']);
+        header('Location: index.php?tab=lekcje'); exit;
+    }
+
     // Akceptacja regulaminu TI — pomijamy regulaminy już podpisane (bieżąca wersja) i zakończone
     // (wycofane, is_active=0), żeby powtórne/spreparowane wysłanie formularza nic nie zmieniało.
     if ($op === 'accept_term') {
@@ -1052,6 +1058,122 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php endif; ?>
 
+<?php
+  // ── Subskrypcja / pobranie kalendarza moich lekcji (iCal) — modal dostępny z każdej zakładki
+  $kp_cal_tok    = k30_ti_calendar_token((int)$student['id']);
+  $kp_cal_base   = rtrim(defined('APP_URL') ? APP_URL : '', '/')
+                   . '/karty30/ti/kursant/ical.php?id=' . (int)$student['id'] . '&t=' . $kp_cal_tok;
+  $kp_cal_webcal = preg_replace('#^https?://#i', 'webcal://', $kp_cal_base);
+?>
+<div class="modal fade" id="kpCalSubModal" tabindex="-1" aria-labelledby="kpCalSubTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title" id="kpCalSubTitle"><i class="bi bi-calendar-check me-2"></i>Kalendarz lekcji — subskrypcja i pobranie</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-body-secondary small">
+        Kalendarz obejmuje wszystkie Twoje lekcje. Dodaj go do Kalendarza Google, Apple Calendar
+        lub Outlooka, a terminy zajęć będą aktualizować się automatycznie — bez ręcznego przepisywania.
+      </p>
+
+      <label class="form-label fw-semibold" for="kpCalUrl">Adres kanału (URL do subskrypcji)</label>
+      <div class="input-group mb-1">
+        <input type="text" class="form-control" id="kpCalUrl" value="<?= h($kp_cal_base) ?>" readonly
+               onfocus="this.select()" aria-describedby="kpCalUrlHelp">
+        <button type="button" class="btn btn-outline-secondary" id="kpCalCopy"
+                data-copy-target="kpCalUrl"><i class="bi bi-clipboard me-1"></i>Kopiuj</button>
+      </div>
+      <p id="kpCalUrlHelp" class="form-text">
+        Wklej ten adres w Kalendarzu Google („Inne kalendarze → Dodaj z adresu URL"),
+        Apple Calendar lub Outlook, aby kalendarz aktualizował się automatycznie.
+      </p>
+
+      <div class="d-flex flex-wrap gap-2 my-3">
+        <a class="btn btn-primary btn-sm" href="<?= h($kp_cal_base) ?>">
+          <i class="bi bi-download me-1"></i>Pobierz plik .ics
+        </a>
+        <a class="btn btn-outline-primary btn-sm" href="<?= h($kp_cal_webcal) ?>">
+          <i class="bi bi-calendar-plus me-1"></i>Subskrybuj (webcal)
+        </a>
+      </div>
+
+      <hr>
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Adres jest prywatny — nie udostępniaj go osobom postronnym.</span>
+        <form method="post" class="ms-auto" onsubmit="return confirm('Wygenerować nowy adres? Dotychczasowy link przestanie działać.')">
+          <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+          <input type="hidden" name="_op" value="cal_token_reset">
+          <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-arrow-repeat me-1"></i>Wygeneruj nowy adres
+          </button>
+        </form>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- Szybki popup zachęcający do dodania kalendarza lekcji (iCal) — position:fixed, prawy dolny róg -->
+<div id="kpIcalPopup"
+     role="dialog" aria-modal="true" aria-labelledby="kpIcalPopupTitle"
+     tabindex="-1"
+     style="display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
+            width:min(380px,calc(100vw - 2rem));
+            background:#1e293b;color:#f1f5f9;
+            border:2px solid #2563eb;border-radius:.6rem;
+            box-shadow:0 8px 32px rgba(0,0,0,.5);">
+  <div style="background:#2563eb;color:#fff;border-radius:.45rem .45rem 0 0;
+              padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;">
+    <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+    <h2 class="mb-0 fw-bold" id="kpIcalPopupTitle" style="font-size:1rem">Dodaj lekcje do kalendarza</h2>
+  </div>
+  <div style="padding:.9rem 1rem .5rem">
+    <p style="font-size:.875rem;margin:0 0 .5rem">
+      Subskrybuj kanał iCal, aby terminy Twoich zajęć pojawiały się automatycznie
+      w Kalendarzu Google, Apple Calendar lub Outlooku — bez ręcznego przepisywania.
+    </p>
+  </div>
+  <div style="padding:.5rem 1rem .8rem;display:flex;justify-content:flex-end;gap:.5rem">
+    <button type="button" id="kpIcalPopupLater"
+            style="background:transparent;color:#cbd5e1;border:1px solid #475569;border-radius:.375rem;
+                   padding:.3rem .8rem;font-size:.875rem;cursor:pointer">Nie teraz</button>
+    <button type="button" id="kpIcalPopupGo" data-bs-toggle="modal" data-bs-target="#kpCalSubModal"
+            style="background:#2563eb;color:#fff;border:none;border-radius:.375rem;
+                   padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem">
+      <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Dodaj kalendarz
+    </button>
+  </div>
+</div>
+<script>
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-copy-target]'); if (!b) return;
+  var inp = document.getElementById(b.getAttribute('data-copy-target')); if (!inp) return;
+  var done = function(){
+    var orig = b.innerHTML;
+    b.innerHTML = '<i class="bi bi-check2 me-1"></i>Skopiowano';
+    setTimeout(function(){ b.innerHTML = orig; }, 1500);
+  };
+  inp.focus(); inp.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(_){} });
+  } else { try { document.execCommand('copy'); done(); } catch(_){} }
+});
+document.addEventListener('DOMContentLoaded', function() {
+  var STORE_KEY = 'ti_ical_popup_seen_student';
+  var popup = document.getElementById('kpIcalPopup');
+  if (!popup) return;
+  try { if (localStorage.getItem(STORE_KEY) === '1') return; } catch(e) {}
+
+  var dismiss = function(){
+    try { localStorage.setItem(STORE_KEY, '1'); } catch(e) {}
+    popup.style.display = 'none';
+  };
+  setTimeout(function(){ popup.style.display = 'block'; }, 800);
+  document.getElementById('kpIcalPopupLater').addEventListener('click', dismiss);
+  document.getElementById('kpIcalPopupGo').addEventListener('click', dismiss);
+});
+</script>
+
 <?php if ($tab === 'dane'):
   // ── Launcher „Start" (motyw Metro) — ściana dużych kafli widoczna od razu po zalogowaniu.
   // Poza motywem Metro sekcja jest niewidoczna (kp-startwall ma display:none) — bez wpływu
@@ -1441,6 +1563,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
     <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#kpCalSubModal">
+        <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Subskrybuj / pobierz
+      </button>
       <a href="lessons_pdf.php" class="btn btn-sm btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj
       </a>
