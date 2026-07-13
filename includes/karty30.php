@@ -5087,11 +5087,37 @@ function k30_ti_comm_recipients(array $course_ids): array {
     if (!$course_ids) return [];
     $ph = implode(',', array_fill(0, count($course_ids), '?'));
     return db_all(
-        "SELECT cl.id AS client_id, cl.name, cl.email, cl.phone
+        "SELECT cl.id AS client_id, cl.name, cl.email, cl.phone, 'kursant' AS role
          FROM k30_ti_enrollments e
          JOIN k30_clients cl ON cl.id=e.client_id
          WHERE e.status='active' AND e.course_id IN ($ph)
          GROUP BY cl.id
+         ORDER BY cl.name COLLATE NOCASE",
+        $course_ids
+    );
+}
+
+/**
+ * Rodzice / opiekunowie małoletnich kursantów z danych kursów (dane opiekuna
+ * z konta kursanta: guardian_name/guardian_email/guardian_phone), do wysyłki
+ * komunikatów obok samych kursantów. Pomija konta bez kontaktu opiekuna.
+ */
+function k30_ti_comm_guardian_recipients(array $course_ids): array {
+    $course_ids = array_values(array_unique(array_filter(array_map('intval', $course_ids))));
+    if (!$course_ids) return [];
+    $ph = implode(',', array_fill(0, count($course_ids), '?'));
+    return db_all(
+        "SELECT a.id AS client_id,
+                'Opiekun: ' || cl.name AS name,
+                a.guardian_email AS email,
+                a.guardian_phone AS phone,
+                'opiekun' AS role
+         FROM k30_ti_enrollments e
+         JOIN k30_clients cl ON cl.id=e.client_id
+         JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1 AND a.is_minor=1
+         WHERE e.status='active' AND e.course_id IN ($ph)
+           AND (a.guardian_email!='' OR a.guardian_phone!='')
+         GROUP BY a.id
          ORDER BY cl.name COLLATE NOCASE",
         $course_ids
     );

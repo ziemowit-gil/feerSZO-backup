@@ -1,6 +1,7 @@
 <?php
 /**
- * karty30/ti/komunikacja.php — Komunikacja TI: wysyłka e-mail / SMS do kursantów.
+ * karty30/ti/komunikacja.php — Komunikacja TI: wysyłka e-mail / SMS do kursantów
+ * (opcjonalnie też do rodziców/opiekunów małoletnich — kontakt opiekuna z konta kursanta).
  * Odbiorcy wg filtra: per grupa (kurs), per prowadzący, per dzień (lekcje tego dnia).
  * Podgląd odbiorców → wysyłka (mail_queue_add + sms_send) + log w k30_ti_comm_log.
  */
@@ -27,6 +28,7 @@ $instr_id  = (int)($_POST['instructor_id'] ?? 0);
 $date      = trim($_POST['date'] ?? '');
 $ch_email  = !empty($_POST['ch_email']);
 $ch_sms    = !empty($_POST['ch_sms']);
+$ch_guard  = !empty($_POST['ch_guardians']);
 $subject   = trim($_POST['subject'] ?? '');
 $body      = trim($_POST['body'] ?? '');
 $body_html = trim($_POST['body_html'] ?? '');
@@ -42,6 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $opts = ['course_ids'=>$course_ids, 'instructor_id'=>$instr_id, 'date'=>$date];
     $cids = k30_ti_comm_course_ids($mode, $opts);
     $recipients = k30_ti_comm_recipients($cids);
+    if ($ch_guard) {
+        $recipients = array_merge($recipients, k30_ti_comm_guardian_recipients($cids));
+        // Ten sam kontakt (np. e-mail rodzica bywa tożsamy z e-mailem klienta) — wyślij raz,
+        // żeby ta sama osoba nie dostała identycznej wiadomości dwukrotnie.
+        $seen = [];
+        $recipients = array_values(array_filter($recipients, function($r) use (&$seen) {
+            $key = trim(mb_strtolower((string)$r['email'])) ?: trim((string)$r['phone']);
+            if ($key === '' || isset($seen[$key])) return $key === '';
+            $seen[$key] = true;
+            return true;
+        }));
+    }
     $did_preview = true;
 
     // Etykieta filtra (do logu i podglądu)
@@ -54,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $filter_label = 'Dzień: ' . ($date ?: '—');
     }
+    if ($ch_guard) $filter_label .= ' + rodzice/opiekunowie';
 
     if ($op === 'send') {
         $errs = [];
@@ -167,6 +182,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input type="date" class="form-control" id="date" name="date" value="<?= h($date) ?>" style="max-width:14rem">
             <div class="form-text">Wiadomość trafi do kursantów z kursów, które mają lekcję tego dnia.</div>
           </div>
+
+          <hr class="my-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="ch_guardians" id="ch_guardians" value="1" <?= $ch_guard?'checked':'' ?>>
+            <label class="form-check-label" for="ch_guardians">
+              <i class="bi bi-people-fill me-1" aria-hidden="true"></i>Uwzględnij też rodziców / opiekunów małoletnich kursantów
+            </label>
+            <div class="form-text">Dodaje do odbiorców kontakt opiekuna (e-mail/telefon) każdego małoletniego kursanta z wybranego filtra — niezależnie od wysyłki do samego kursanta.</div>
+          </div>
         </div>
       </div>
 
@@ -229,11 +253,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php if ($ch_sms && $no_phone): ?><div class="small text-warning-emphasis mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><?= $no_phone ?> bez numeru telefonu — nie otrzyma SMS.</div><?php endif; ?>
           <div class="table-responsive" style="max-height:24rem;overflow:auto">
             <table class="table table-sm align-middle mb-0">
-              <thead class="table-light"><tr><th scope="col">Kursant</th><th scope="col">E-mail</th><th scope="col">Telefon</th></tr></thead>
+              <thead class="table-light"><tr><th scope="col">Odbiorca</th><?php if ($ch_guard): ?><th scope="col">Rola</th><?php endif; ?><th scope="col">E-mail</th><th scope="col">Telefon</th></tr></thead>
               <tbody>
                 <?php foreach ($recipients as $r): ?>
                 <tr>
                   <td class="fw-semibold"><?= h($r['name']) ?></td>
+                  <?php if ($ch_guard): ?>
+                  <td class="small"><?= ($r['role'] ?? 'kursant') === 'opiekun' ? '<span class="badge text-bg-info">Opiekun</span>' : '<span class="badge text-bg-secondary">Kursant</span>' ?></td>
+                  <?php endif; ?>
                   <td class="small"><?= trim((string)$r['email'])!=='' ? h($r['email']) : '<span class="text-muted">—</span>' ?></td>
                   <td class="small"><?= trim((string)$r['phone'])!=='' ? h($r['phone']) : '<span class="text-muted">—</span>' ?></td>
                 </tr>
