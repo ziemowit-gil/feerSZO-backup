@@ -130,6 +130,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: vlab_admin.php'); exit;
     }
 
+    // Start/stop/restart maszyny kursanta (konsola admina — bezpośrednio, bez wniosku).
+    if (in_array($op, ['container_start', 'container_stop', 'container_restart'], true)) {
+        $cid = (int)($_POST['container_id'] ?? 0);
+        $row = $cid ? db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$cid]) : null;
+        if (!$row || $row['status'] === 'removed') {
+            flash_set('danger', 'Maszyna nie istnieje.');
+        } else {
+            $act = ['container_start' => 'start', 'container_stop' => 'stop', 'container_restart' => 'restart'][$op];
+            $r = vlab_action($cid, (int)$row['student_id'], $act);
+            flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        }
+        header('Location: vlab_admin.php'); exit;
+    }
+
+    // Obrazy Docker na hoście: pobranie nowego / usunięcie nieużywanego.
+    if ($op === 'docker_image_pull') {
+        $r = vlab_docker_image_pull((string)($_POST['image'] ?? ''));
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#images'); exit;
+    }
+    if ($op === 'docker_image_remove') {
+        $r = vlab_docker_image_remove((string)($_POST['image_id'] ?? ''));
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#images'); exit;
+    }
+
     // Odtworzenie / reset hasła konta SSH kursanta na hoście (pokazujemy je RAZ).
     if ($op === 'host_pass_reset') {
         $cid = (int)($_POST['container_id'] ?? 0);
@@ -250,6 +276,10 @@ $dedserver_history = db_all(
      WHERE d.status IN ('active','cancelled')
      ORDER BY d.id DESC LIMIT 100"
 );
+
+// Obrazy Docker na hoście — wczytywane na żądanie (SSH), żeby nie obciążać każdego wejścia na stronę.
+$show_images   = isset($_GET['images']);
+$docker_images = $show_images ? vlab_docker_images_list() : [];
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -556,6 +586,30 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="small"><?= $c['ssh_port'] ? (int)$c['ssh_port'] : '—' ?> / <?= $c['ttyd_port'] ? (int)$c['ttyd_port'] : '—' ?></td>
             <td class="small text-muted"><?= h($c['created_at']) ?></td>
             <td class="text-end text-nowrap">
+              <a href="vlab_container.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary py-0" title="Podgląd (inspect, logi, terminal)">
+                <i class="bi bi-eye"></i>
+              </a>
+              <?php if ($c['status'] === 'running'): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Zatrzymać maszynę <?= h($c['label']) ?>?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="container_stop">
+                <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
+                <button class="btn btn-sm btn-outline-secondary py-0" title="Zatrzymaj"><i class="bi bi-stop-circle"></i></button>
+              </form>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="container_restart">
+                <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
+                <button class="btn btn-sm btn-outline-secondary py-0" title="Uruchom ponownie"><i class="bi bi-arrow-clockwise"></i></button>
+              </form>
+              <?php elseif ($c['status'] === 'stopped'): ?>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="container_start">
+                <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
+                <button class="btn btn-sm btn-outline-success py-0" title="Uruchom"><i class="bi bi-play-circle"></i></button>
+              </form>
+              <?php endif; ?>
               <a href="vlab_ports.php?container=<?= (int)$c['id'] ?>" class="btn btn-sm py-0 <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'btn-warning' : 'btn-outline-primary' ?>" title="<?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'Zamówienie dedykowanego IP czeka na aktywację' : 'Zarządzaj portami (UFW / Azure)' ?>">
                 <i class="bi <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'bi-globe' : 'bi-hdd-network' ?>"></i>
               </a>
@@ -586,6 +640,56 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       </table>
     </div>
     <?php endif; ?>
+  </div>
+</div>
+
+<!-- Obrazy Docker na hoście -->
+<div class="card border-0 shadow-sm mt-4" id="images">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-hdd-stack me-1"></i>Obrazy Docker (host)
+    <a href="?images=1#images" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-arrow-repeat me-1"></i><?= $show_images ? 'Odśwież' : 'Wczytaj z hosta' ?></a>
+  </div>
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end mb-3">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="docker_image_pull">
+      <div class="col-auto">
+        <label class="form-label small" for="docker-image-pull">Pobierz nowy obraz na hosta (docker pull)</label>
+        <input class="form-control form-control-sm" id="docker-image-pull" name="image" style="width:320px"
+               placeholder="np. ubuntu:22.04 lub feer/vlab-ubuntu:latest" required>
+      </div>
+      <div class="col-auto"><button class="btn btn-primary btn-sm"><i class="bi bi-download me-1"></i>Pobierz</button></div>
+    </form>
+    <?php if (!$show_images): ?>
+    <p class="text-muted small mb-0">Kliknij „Wczytaj z hosta", aby pobrać aktualną listę obrazów przez SSH (<code>docker images</code>). Nieładowane automatycznie, żeby nie spowalniać strony przy każdym wejściu.</p>
+    <?php elseif (!$docker_images): ?>
+    <p class="text-muted small mb-0">Brak obrazów na hoście lub nie udało się połączyć (sprawdź konfigurację SSH powyżej).</p>
+    <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Obraz</th><th>ID</th><th>Rozmiar</th><th>Wiek</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($docker_images as $im): ?>
+          <tr>
+            <td><code><?= h($im['repo']) ?>:<?= h($im['tag']) ?></code></td>
+            <td class="font-monospace small text-muted"><?= h($im['id']) ?></td>
+            <td class="small"><?= h($im['size']) ?></td>
+            <td class="small text-muted"><?= h($im['created']) ?></td>
+            <td class="text-end">
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć obraz <?= h($im['repo'] . ':' . $im['tag']) ?> z hosta? Zadziała tylko, jeśli nie jest używany przez żaden kontener.')">
+                <?= csrf_field() ?>
+                <input type="hidden" name="_op" value="docker_image_remove">
+                <input type="hidden" name="image_id" value="<?= h($im['id']) ?>">
+                <button class="btn btn-sm btn-outline-danger py-0" title="Usuń obraz z hosta"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+    <p class="form-text small mt-2 mb-0">Obrazy widoczne tu to surowa lista z hosta Dockera. Żeby udostępnić obraz kursantom, dodaj go jako <a href="?new_tpl=1">szablon</a> powyżej.</p>
   </div>
 </div>
 

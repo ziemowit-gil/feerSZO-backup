@@ -16,6 +16,13 @@ ti_terms_migrate();
 $user      = current_user();
 $can_write = can_write('karty30') || is_admin();
 
+// Pobranie przesłanego skanu podpisanego oświadczenia administratora.
+if (isset($_GET['dl_signed'])) {
+    $sf = db_one("SELECT signed_file, signed_file_orig FROM k30_ti_terms_accepts WHERE id=?", [(int)$_GET['dl_signed']]);
+    if ($sf && $sf['signed_file'] !== '') ti_term_signed_send_file($sf['signed_file'], $sf['signed_file_orig']);
+    http_response_code(404); exit('Plik nie istnieje.');
+}
+
 $flash_err = '';
 
 // Zapis regulaminu
@@ -70,6 +77,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $flash_err = 'Nie udało się cofnąć akceptacji.';
         }
         header('Location: terms_admin.php?type=' . urlencode($type)); exit;
+    }
+
+    // Wgranie skanu podpisanego oświadczenia (papierowa wersja pominięcia/zdalnej akceptacji, podpisana i zeskanowana).
+    if ($op === 'upload_signed') {
+        $aid    = (int)($_POST['accept_id'] ?? 0);
+        $accept = $aid ? db_one("SELECT * FROM k30_ti_terms_accepts WHERE id=?", [$aid]) : null;
+        if (!$accept || strpos((string)$accept['accepted_by_role'], 'admin_') !== 0) {
+            $flash_err = 'Nie znaleziono czynności administratora do podpięcia skanu.';
+        } else {
+            try {
+                $up = ti_term_signed_upload('signed_file');
+                if (!$up) {
+                    $flash_err = 'Wybierz plik do wgrania.';
+                } else {
+                    if ($accept['signed_file'] !== '') ti_term_signed_delete_file($accept['signed_file']);
+                    db_update('k30_ti_terms_accepts', [
+                        'signed_file'        => $up['stored'],
+                        'signed_file_orig'   => $up['name'],
+                        'signed_uploaded_at' => date('Y-m-d H:i:s'),
+                    ], $aid);
+                    flash_set('success', 'Podpisane oświadczenie zapisane.');
+                    header('Location: terms_admin.php?type=' . urlencode($type)); exit;
+                }
+            } catch (\RuntimeException $e) {
+                $flash_err = $e->getMessage();
+            }
+        }
     }
 }
 
@@ -233,6 +267,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td class="text-end text-nowrap">
                 <?php if ($is_admin_row): ?>
                 <a href="terms_pdf.php?id=<?= (int)$a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Pobierz oświadczenie (PDF)"><i class="bi bi-file-earmark-pdf"></i></a>
+                <?php if ($a['signed_file']): ?>
+                <a href="?type=<?= h($active_type) ?>&dl_signed=<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-success py-0" title="Pobierz podpisany skan (<?= h($a['signed_file_orig']) ?>)"><i class="bi bi-file-earmark-check"></i></a>
+                <?php endif; ?>
+                <?php if ($can_write): ?>
+                <button type="button" class="btn btn-sm btn-outline-primary py-0" title="<?= $a['signed_file'] ? 'Podmień podpisany skan' : 'Wgraj podpisane oświadczenie' ?>"
+                        onclick="signedUploadModal(<?= (int)$a['id'] ?>)"><i class="bi bi-upload"></i></button>
+                <?php endif; ?>
                 <?php endif; ?>
                 <?php if ($can_write): ?>
                 <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć tę akceptację? Kursant będzie musiał zaakceptować regulamin ponownie (lub admin użyje pominięcia/zdalnej akceptacji).')">
@@ -307,6 +348,39 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 </div>
 <?php endif; ?>
+
+<!-- Modal: wgranie podpisanego skanu oświadczenia administratora -->
+<div class="modal fade" id="signedUploadModal" tabindex="-1" aria-modal="true">
+  <div class="modal-dialog">
+    <form method="post" enctype="multipart/form-data">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="upload_signed">
+      <input type="hidden" name="type" value="<?= h($active_type) ?>">
+      <input type="hidden" name="accept_id" id="signed-upload-aid" value="">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Wgraj podpisane oświadczenie</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-body-secondary">Pobierz oświadczenie (PDF), wydrukuj, podpisz i wgraj tu skan — jako trwały dowód czynności administratora.</p>
+          <label class="form-label" for="signed-upload-file">Skan podpisanego dokumentu (PDF/JPG/PNG, maks. 15 MB)</label>
+          <input type="file" class="form-control" id="signed-upload-file" name="signed_file" accept=".pdf,.jpg,.jpeg,.png" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i>Wgraj</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function signedUploadModal(aid) {
+  document.getElementById('signed-upload-aid').value = aid;
+  new bootstrap.Modal(document.getElementById('signedUploadModal')).show();
+}
+</script>
 
 <!-- Quill WYSIWYG -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.min.css">

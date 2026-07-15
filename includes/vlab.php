@@ -606,6 +606,82 @@ function vlab_refresh(int $containerId, int $studentId): array {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Konsola administracyjna: obrazy Docker na hoście + przegląd serwerów kursantów
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lista obrazów Docker dostępnych na hoście (repozytorium, tag, ID, rozmiar, wiek). Pomija warstwy pośrednie (<none>). */
+function vlab_docker_images_list(): array {
+    $r = vlab_ssh_exec(['docker', 'images', '--format', '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedSince}}']);
+    if (!$r['ok'] || trim($r['out']) === '') return [];
+    $out = [];
+    foreach (preg_split('/\r?\n/', trim($r['out'])) as $line) {
+        $p = explode("\t", $line);
+        if (count($p) < 5) continue;
+        [$repo, $tag, $id, $size, $created] = $p;
+        if ($repo === '<none>' && $tag === '<none>') continue;
+        $out[] = ['repo' => $repo, 'tag' => $tag, 'id' => $id, 'size' => $size, 'created' => $created];
+    }
+    return $out;
+}
+
+/** Pobiera (docker pull) nowy obraz na hosta — do wykorzystania w szablonach maszyn. */
+function vlab_docker_image_pull(string $image): array {
+    $image = trim($image);
+    if ($image === '' || !preg_match('#^[a-z0-9]([a-z0-9._/-]*[a-z0-9])?(:[\w][\w.-]*)?$#i', $image)) {
+        return ['ok' => false, 'msg' => 'Nieprawidłowa nazwa obrazu (np. „ubuntu:22.04" lub „feer/vlab-ubuntu:latest").'];
+    }
+    $r = vlab_ssh_exec(['docker', 'pull', $image]);
+    return $r['ok']
+        ? ['ok' => true, 'msg' => 'Obraz „' . $image . '" pobrany na hosta.']
+        : ['ok' => false, 'msg' => 'Nie udało się pobrać obrazu: ' . ($r['err'] ?: 'nieznany błąd')];
+}
+
+/** Usuwa obraz z hosta (docker rmi). Docker sam odmówi, jeśli obraz jest używany przez istniejący kontener. */
+function vlab_docker_image_remove(string $imageId): array {
+    $imageId = trim($imageId);
+    if ($imageId === '' || !preg_match('/^[a-f0-9]{6,64}$/i', $imageId)) return ['ok' => false, 'msg' => 'Nieprawidłowe ID obrazu.'];
+    $r = vlab_ssh_exec(['docker', 'rmi', $imageId]);
+    return $r['ok']
+        ? ['ok' => true, 'msg' => 'Obraz usunięty z hosta.']
+        : ['ok' => false, 'msg' => 'Nie udało się usunąć obrazu: ' . ($r['err'] ?: 'prawdopodobnie jest używany przez kontener')];
+}
+
+/** Ostatnie N linii logów kontenera (stdout+stderr połączone). */
+function vlab_container_logs(string $name, int $lines = 200): string {
+    $r = vlab_ssh_exec(['docker', 'logs', '--tail', (string)max(1, min(1000, $lines)), $name]);
+    return trim($r['out'] . ($r['err'] !== '' ? "\n" . $r['err'] : ''));
+}
+
+/** Szczegóły kontenera (docker inspect) — wyciąg najważniejszych pól do podglądu admina. */
+function vlab_container_inspect(string $name): ?array {
+    $r = vlab_ssh_exec(['docker', 'inspect', $name]);
+    if (!$r['ok']) return null;
+    $data = json_decode($r['out'], true);
+    if (!is_array($data) || !isset($data[0])) return null;
+    $d = $data[0];
+    return [
+        'image'      => $d['Config']['Image'] ?? '',
+        'created'    => $d['Created'] ?? '',
+        'status'     => $d['State']['Status'] ?? '',
+        'started_at' => $d['State']['StartedAt'] ?? '',
+        'restarting' => !empty($d['State']['Restarting']),
+        'oom_killed' => !empty($d['State']['OOMKilled']),
+        'exit_code'  => $d['State']['ExitCode'] ?? null,
+        'mounts'     => array_map(fn($m) => ($m['Source'] ?? '') . ' → ' . ($m['Destination'] ?? ''), $d['Mounts'] ?? []),
+        'mem_limit'  => (int)($d['HostConfig']['Memory'] ?? 0),
+        'nano_cpus'  => (int)($d['HostConfig']['NanoCpus'] ?? 0),
+    ];
+}
+
+/** Bieżące zużycie CPU/RAM kontenera (docker stats --no-stream), tylko dla działających. */
+function vlab_container_stats(string $name): ?array {
+    $r = vlab_ssh_exec(['docker', 'stats', '--no-stream', '--format', '{{.CPUPerc}}\t{{.MemUsage}}', $name]);
+    if (!$r['ok'] || trim($r['out']) === '') return null;
+    $p = explode("\t", trim($r['out']));
+    return ['cpu' => $p[0] ?? '', 'mem' => $p[1] ?? ''];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Zarządzanie portami: zapora hosta (UFW przez SSH) + reguły NSG w Microsoft Azure
 // ─────────────────────────────────────────────────────────────────────────────
 

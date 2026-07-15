@@ -41,11 +41,17 @@ function ti_terms_migrate(): void {
         accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         accepted_by_role TEXT NOT NULL DEFAULT 'kursant', -- 'kursant' | 'rodzic' | 'admin_skip' | 'admin_remote' — kto faktycznie zaakceptował (admin_* = czynność administratora)
         admin_id   INTEGER REFERENCES users(id) ON DELETE SET NULL, -- administrator, gdy accepted_by_role zaczyna się od 'admin_'
-        admin_note TEXT    NOT NULL DEFAULT ''    -- uzasadnienie/podstawa czynności administratora
+        admin_note TEXT    NOT NULL DEFAULT '',   -- uzasadnienie/podstawa czynności administratora
+        signed_file          TEXT NOT NULL DEFAULT '', -- nazwa pliku (UPLOAD_DIR/ti_terms_signed/) z podpisanym skanem oświadczenia admina
+        signed_file_orig     TEXT NOT NULL DEFAULT '', -- oryginalna nazwa przesłanego pliku
+        signed_uploaded_at   DATETIME
     )");
     try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN accepted_by_role TEXT NOT NULL DEFAULT 'kursant'"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN admin_id INTEGER"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN signed_file TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN signed_file_orig TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN signed_uploaded_at DATETIME"); } catch (\Throwable $e) {}
 
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_terms_acc ON k30_ti_terms_accepts(client_id, term_id)");
 
@@ -411,6 +417,48 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
     $fname = 'oswiadczenie_' . preg_replace('/[^a-z0-9_]/i', '_', $accept['type']) . '_' . date('Ymd', strtotime($accept['accepted_at'])) . '.pdf';
     $pdf->Output('D', $fname);
     exit;
+}
+
+/**
+ * Zapisuje przesłany skan podpisanego oświadczenia administratora (PDF/JPG/PNG) do
+ * UPLOAD_DIR/ti_terms_signed/. Zwraca ['name'=>oryginalna nazwa,'stored'=>nazwa na dysku] lub null,
+ * gdy nie przesłano pliku. Rzuca RuntimeException przy błędzie/niedozwolonym typie/rozmiarze.
+ */
+function ti_term_signed_upload(string $field): ?array {
+    $f = $_FILES[$field] ?? null;
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if ($f['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Błąd przesyłania pliku.');
+    if ($f['size'] > 15 * 1024 * 1024) throw new RuntimeException('Plik zbyt duży (maks. 15 MB).');
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true)) {
+        throw new RuntimeException('Dozwolone formaty: PDF, JPG, PNG (skan podpisanego dokumentu).');
+    }
+    $dir = rtrim(UPLOAD_DIR, '/') . '/ti_terms_signed/';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); @file_put_contents($dir . '.htaccess', "Deny from all\nOptions -Indexes\n"); }
+    $stored = 'sig_' . date('Ymd_His') . '_' . bin2hex(random_bytes(5)) . '.' . $ext;
+    if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) throw new RuntimeException('Nie udało się zapisać pliku.');
+    return ['name' => mb_substr($f['name'], 0, 200), 'stored' => $stored];
+}
+
+/** Wysyła przesłany skan podpisanego oświadczenia do przeglądarki (download). Kończy skrypt. */
+function ti_term_signed_send_file(string $stored, string $orig = ''): void {
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_terms_signed/' . basename($stored);
+    if ($stored === '' || !is_file($path)) { http_response_code(404); exit('Plik nie istnieje.'); }
+    $name = preg_replace('/[\r\n"]+/', '', $orig !== '' ? $orig : basename($stored));
+    $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'][$ext] ?? 'application/octet-stream';
+    header('Content-Type: ' . $mime);
+    header('Content-Disposition: attachment; filename="' . $name . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
+/** Usuwa z dysku poprzednio przesłany skan podpisanego oświadczenia (jeśli istnieje). */
+function ti_term_signed_delete_file(string $stored): void {
+    if ($stored === '') return;
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_terms_signed/' . basename($stored);
+    if (is_file($path)) @unlink($path);
 }
 
 function _ti_pdf_txt(string $s): string {
