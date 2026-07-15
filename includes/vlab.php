@@ -164,6 +164,11 @@ function vlab_host_username(array $container): string {
     return preg_replace('/[^a-z0-9_]/', '', strtolower((string)($container['container_name'] ?? '')));
 }
 
+/** Bezpiecznie osadza dowolny ciąg jako pojedynczy token powłoki POSIX w cudzysłowie apostrofowym. */
+function vlab_shq(string $s): string {
+    return "'" . str_replace("'", "'\\''", $s) . "'";
+}
+
 /**
  * Tworzy na hoście konto systemowe, którego logowanie SSH od razu wpuszcza
  * kursanta do kontenera (login shell = wrapper `docker exec`). Hasło jest
@@ -172,23 +177,33 @@ function vlab_host_username(array $container): string {
  * $forceChange=true → ustawia `chage -d 0`, więc sshd (UsePAM yes) wymusi zmianę
  * hasła przy najbliższym logowaniu SSH (działa niezależnie od powłoki logowania).
  *
+ * $customPassword — jeśli podane (niepuste), używane zamiast losowego hasła (np. admin
+ * ustawia własne, proste hasło dla kursanta). Bezpiecznie osadzane w skrypcie (vlab_shq()),
+ * więc może zawierać dowolne znaki (w tym apostrof) bez ryzyka wstrzyknięcia poleceń.
+ *
  * Zwraca ['ok'=>bool,'user'=>string,'password'=>string,'msg'=>string].
  */
-function vlab_host_user_create(array $container, bool $forceChange = false): array {
+function vlab_host_user_create(array $container, bool $forceChange = false, ?string $customPassword = null): array {
     $u    = vlab_host_username($container);
     $name = (string)$container['container_name'];
     if ($u === '' || $name === '') return ['ok' => false, 'msg' => 'Brak nazwy kontenera.'];
 
-    // Hasło: heks + stały sufiks (mała+wielka litera, cyfra, znak specjalny) — bez apostrofu.
-    $pass = bin2hex(random_bytes(8)) . 'Aa1!';
+    if ($customPassword !== null && trim($customPassword) !== '') {
+        // Usuń znaki sterujące (w tym nowe linie) i ogranicz długość — poza tym dowolna treść dozwolona.
+        $pass = mb_substr(preg_replace('/[\x00-\x1F\x7F]/', '', trim($customPassword)) ?? '', 0, 72);
+        if ($pass === '') return ['ok' => false, 'msg' => 'Nieprawidłowe hasło.'];
+    } else {
+        // Hasło: heks + stały sufiks (mała+wielka litera, cyfra, znak specjalny) — bez apostrofu.
+        $pass = bin2hex(random_bytes(8)) . 'Aa1!';
+    }
     $w    = '/usr/local/bin/vlab-' . $u;
 
-    // Jeden skrypt → jedno połączenie SSH. $u/$name/$pass z bezpiecznych zestawów znaków.
+    // Jeden skrypt → jedno połączenie SSH. $u/$name z bezpiecznych zestawów znaków; $pass — vlab_shq().
     $script = implode("\n", [
         'set -e',
         "U='{$u}'",
         "NM='{$name}'",
-        "P='{$pass}'",
+        'P=' . vlab_shq($pass),
         'FORCE=' . ($forceChange ? '1' : '0'),
         'W="/usr/local/bin/vlab-$U"',
         // wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox)
@@ -548,6 +563,47 @@ function vlab_email_credentials(array $container, string $hostUser = '', string 
         return true;
     } catch (\Throwable $e) {
         vlab_log((int)$container['id'], (int)$container['student_id'], 'email', false, $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Wysyła hasło konta SSH kursanta przez SMS. Numer: opiekuna dla małoletnich
+ * (`guardian_phone`), w przeciwnym razie kursanta (`k30_clients.phone`) — jak w innych
+ * powiadomieniach TI. Wymaga włączonego SMS w ustawieniach (`sms_enabled`).
+ */
+function vlab_sms_credentials(array $container, string $hostUser, string $hostPass): bool {
+    if (!function_exists('sms_is_enabled')) @require_once __DIR__ . '/sms.php';
+    if (!function_exists('sms_is_enabled') || !sms_is_enabled()) {
+        vlab_log((int)$container['id'], (int)$container['student_id'], 'sms', false, 'SMS wyłączone w ustawieniach.');
+        return false;
+    }
+
+    $client = !empty($container['client_id']) ? db_one("SELECT name, phone FROM k30_clients WHERE id=?", [$container['client_id']]) : null;
+    $acc    = db_one("SELECT is_minor, guardian_phone FROM k30_ti_student_accounts WHERE id=?", [(int)$container['student_id']]);
+    $minor  = $acc && !empty($acc['is_minor']);
+    $phone  = $minor && !empty($acc['guardian_phone']) ? $acc['guardian_phone'] : trim((string)($client['phone'] ?? ''));
+    if ($phone === '') {
+        vlab_log((int)$container['id'], (int)$container['student_id'], 'sms', false, 'Brak numeru telefonu.');
+        return false;
+    }
+
+    $cfg  = vlab_config();
+    $host = (string)($cfg['public_host'] ?? '');
+    $port = (int)($cfg['ssh_port'] ?: 22);
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'VLab';
+    $msg  = "{$org}: haslo SSH do maszyny \"{$container['label']}\" - login {$hostUser}, haslo {$hostPass}"
+          . ($host !== '' ? ". Polaczenie: ssh {$hostUser}@{$host} -p {$port}" : '');
+    // bez polskich znaków — bramki SMS
+    $msg = strtr($msg, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
+                        'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
+
+    try {
+        sms_send($phone, $msg);
+        vlab_log((int)$container['id'], (int)$container['student_id'], 'sms', true, $phone);
+        return true;
+    } catch (\Throwable $e) {
+        vlab_log((int)$container['id'], (int)$container['student_id'], 'sms', false, $e->getMessage());
         return false;
     }
 }

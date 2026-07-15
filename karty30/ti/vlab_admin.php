@@ -195,6 +195,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: vlab_admin.php'); exit;
     }
 
+    // Ustawienie WŁASNEGO (podanego przez admina) hasła konta SSH — np. proste hasło dla kursanta,
+    // opcjonalnie wysyłane SMS-em (oprócz e-maila, jak przy zwykłym resecie).
+    if ($op === 'host_pass_set') {
+        $cid  = (int)($_POST['container_id'] ?? 0);
+        $row  = $cid ? db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$cid]) : null;
+        $newPass = (string)($_POST['new_password'] ?? '');
+        $sendSms = !empty($_POST['send_sms']);
+        if (!$row || $row['status'] === 'removed') {
+            flash_set('danger', 'Maszyna nie istnieje.');
+        } elseif (trim($newPass) === '') {
+            flash_set('danger', 'Podaj hasło.');
+        } else {
+            $c2 = vlab_config();
+            $hu = vlab_host_user_create($row, false, $newPass); // admin świadomie ustawia to hasło — bez wymuszania zmiany
+            if ($hu['ok']) {
+                db_update('k30_ti_vlab_containers', ['host_user' => $hu['user'], 'force_pw_pending' => 0], $cid);
+                vlab_log($cid, (int)$row['student_id'], 'host_pass_set', true, $hu['user']);
+                $row['host_user'] = $hu['user'];
+                $mailed  = vlab_email_credentials($row, $hu['user'], $hu['password'], false);
+                $smsSent = $sendSms ? vlab_sms_credentials($row, $hu['user'], $hu['password']) : false;
+                if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+                $_SESSION['vlab_reset_creds'] = [
+                    'label'     => (string)($row['label'] ?? ''),
+                    'user'      => $hu['user'],
+                    'password'  => $hu['password'],
+                    'host'      => (string)($c2['public_host'] ?? ''),
+                    'port'      => (int)($c2['ssh_port'] ?: 22),
+                    'force'     => false,
+                    'mailed'    => $mailed,
+                    'sms_requested' => $sendSms,
+                    'sms_sent'  => $smsSent,
+                    'ttyd_url'  => vlab_ttyd_url($row),
+                    'ttyd_user' => (string)($row['ttyd_user'] ?? ''),
+                    'ttyd_pass' => (string)($row['ttyd_password'] ?? ''),
+                ];
+                $msg = 'Hasło konta SSH „' . $hu['user'] . '" zostało ustawione.'
+                     . ($mailed ? ' Dane wysłano e-mailem.' : ' (Nie udało się wysłać e-maila — przekaż dane ręcznie.)');
+                if ($sendSms) $msg .= $smsSent ? ' Wysłano SMS.' : ' (Nie udało się wysłać SMS — sprawdź numer/ustawienia SMS.)';
+                flash_set('success', $msg);
+            } else {
+                flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
+            }
+        }
+        header('Location: vlab_admin.php'); exit;
+    }
+
     // Dedykowany serwer: potwierdzenie wpłaty → składamy zamówienie u partnera
     if ($op === 'dedserver_mark_paid') {
         $r = vlab_dedicated_server_mark_paid((int)($_POST['order_id'] ?? 0), $uid);
@@ -623,12 +669,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <a href="vlab_ports.php?container=<?= (int)$c['id'] ?>" class="btn btn-sm py-0 <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'btn-warning' : 'btn-outline-primary' ?>" title="<?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'Zamówienie dedykowanego IP czeka na aktywację' : 'Zarządzaj portami (UFW / Azure)' ?>">
                 <i class="bi <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'bi-globe' : 'bi-hdd-network' ?>"></i>
               </a>
-              <form method="post" class="d-inline" onsubmit="return confirm('Ustawić NOWE hasło SSH dla tego konta? Stare przestanie działać.')">
+              <form method="post" class="d-inline" onsubmit="return confirm('Ustawić NOWE (losowe) hasło SSH dla tego konta? Stare przestanie działać.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="host_pass_reset">
                 <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
-                <button class="btn btn-sm btn-outline-secondary py-0" title="Ustaw/odtwórz hasło SSH (pokazywane raz)"><i class="bi bi-key"></i></button>
+                <button class="btn btn-sm btn-outline-secondary py-0" title="Ustaw nowe losowe hasło SSH (pokazywane raz)"><i class="bi bi-key"></i></button>
               </form>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="Ustaw własne (proste) hasło SSH i/lub wyślij SMS-em"
+                      data-cid="<?= (int)$c['id'] ?>" data-label="<?= h($c['label']) ?>" onclick="setPassModal(this.dataset.cid, this.dataset.label)">
+                <i class="bi bi-pencil-square"></i>
+              </button>
               <?php if (!empty($c['host_user'])): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Wymusić zmianę hasła SSH przy następnym logowaniu kursanta?')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -860,10 +910,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <?php if (!empty($reset_creds['force'])): ?>
         <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-shield-lock me-1"></i>Kursant ustawi własne hasło przy pierwszym logowaniu SSH.</div>
         <?php endif; ?>
-        <div class="alert <?= !empty($reset_creds['mailed']) ? 'alert-info' : 'alert-secondary' ?> py-2 small mb-0">
+        <div class="alert <?= !empty($reset_creds['mailed']) ? 'alert-info' : 'alert-secondary' ?> py-2 small mb-2">
           <i class="bi bi-envelope me-1"></i>
           <?= !empty($reset_creds['mailed']) ? 'Te dane wysłano też e-mailem do kursanta.' : 'Nie udało się wysłać e-maila — przekaż dane kursantowi ręcznie.' ?>
         </div>
+        <?php if (!empty($reset_creds['sms_requested'])): ?>
+        <div class="alert <?= !empty($reset_creds['sms_sent']) ? 'alert-info' : 'alert-warning' ?> py-2 small mb-0">
+          <i class="bi bi-phone me-1"></i>
+          <?= !empty($reset_creds['sms_sent']) ? 'Wysłano też SMS-em.' : 'Nie udało się wysłać SMS-a — sprawdź numer telefonu i ustawienia SMS.' ?>
+        </div>
+        <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Zamknij</button>
@@ -885,6 +941,44 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 })();
 </script>
 <?php endif; ?>
+
+<!-- Modal: ustawienie własnego (prostego) hasła SSH, opcjonalnie SMS do kursanta -->
+<div class="modal fade" id="setPassModal" tabindex="-1" aria-modal="true">
+  <div class="modal-dialog">
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="host_pass_set">
+      <input type="hidden" name="container_id" id="setpass-cid" value="">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Ustaw własne hasło SSH — <span id="setpass-label"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-body-secondary">Zastępuje dotychczasowe hasło — poprzednie przestanie działać. Nie wymusza zmiany hasła przy logowaniu.</p>
+          <label class="form-label" for="setpass-value">Nowe hasło</label>
+          <input type="text" class="form-control font-monospace mb-3" id="setpass-value" name="new_password" required maxlength="72" placeholder="np. 123qwe">
+          <div class="form-check form-switch">
+            <input type="checkbox" class="form-check-input" id="setpass-sms" name="send_sms" value="1" checked>
+            <label class="form-check-label" for="setpass-sms">Wyślij SMS-em do kursanta (dodatkowo do e-maila)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1"></i>Ustaw hasło</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function setPassModal(cid, label) {
+  document.getElementById('setpass-cid').value = cid;
+  document.getElementById('setpass-label').textContent = label;
+  document.getElementById('setpass-value').value = '';
+  new bootstrap.Modal(document.getElementById('setPassModal')).show();
+}
+</script>
 
 <!-- Quill WYSIWYG dla regulaminu zablokowanego oprogramowania -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.min.css">
