@@ -189,6 +189,18 @@ function ti_terms_accepts_for_client(int $client_id): array {
     );
 }
 
+/**
+ * Administrator: cofnij (trwale usuń) zapisaną akceptację regulaminu — niezależnie kto ją
+ * zarejestrował (kursant/rodzic/admin). Kursant będzie musiał zaakceptować ponownie, albo admin
+ * użyje ponownie pominięcia/zdalnej akceptacji (`ti_term_admin_action`).
+ */
+function ti_term_accept_revoke(int $accept_id): bool {
+    ti_terms_migrate();
+    $stmt = db()->prepare("DELETE FROM k30_ti_terms_accepts WHERE id=?");
+    $stmt->execute([$accept_id]);
+    return $stmt->rowCount() > 0;
+}
+
 /** Pobierz konkretny rekord akceptacji (dla PDF). */
 function ti_terms_accept_get(int $accept_id, int $client_id): ?array {
     ti_terms_migrate();

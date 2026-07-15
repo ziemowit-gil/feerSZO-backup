@@ -60,6 +60,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $flash_err = 'Nie udało się zapisać czynności.';
         }
     }
+
+    // Cofnięcie (trwałe usunięcie) zapisanej akceptacji — kursant/opiekun będzie musiał zaakceptować ponownie.
+    if ($op === 'revoke_accept') {
+        $aid = (int)($_POST['accept_id'] ?? 0);
+        if ($aid && ti_term_accept_revoke($aid)) {
+            flash_set('success', 'Akceptacja cofnięta — wymóg zaakceptowania regulaminu wróci przy następnym wejściu kursanta.');
+        } else {
+            $flash_err = 'Nie udało się cofnąć akceptacji.';
+        }
+        header('Location: terms_admin.php?type=' . urlencode($type)); exit;
+    }
 }
 
 $active_type = $_GET['type'] ?? 'szkolenia';
@@ -219,9 +230,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </td>
               <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime($a['accepted_at']))) ?></td>
               <td>v<?= (int)$a['version'] ?></td>
-              <td class="text-end">
+              <td class="text-end text-nowrap">
                 <?php if ($is_admin_row): ?>
                 <a href="terms_pdf.php?id=<?= (int)$a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Pobierz oświadczenie (PDF)"><i class="bi bi-file-earmark-pdf"></i></a>
+                <?php endif; ?>
+                <?php if ($can_write): ?>
+                <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć tę akceptację? Kursant będzie musiał zaakceptować regulamin ponownie (lub admin użyje pominięcia/zdalnej akceptacji).')">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="_op" value="revoke_accept">
+                  <input type="hidden" name="type" value="<?= h($active_type) ?>">
+                  <input type="hidden" name="accept_id" value="<?= (int)$a['id'] ?>">
+                  <button class="btn btn-sm btn-outline-danger py-0" title="Cofnij akceptację"><i class="bi bi-trash"></i></button>
+                </form>
                 <?php endif; ?>
               </td>
             </tr>

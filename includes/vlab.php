@@ -1209,6 +1209,19 @@ function vlab_dedicated_ip_cancel(int $orderId, int $adminId, string $reason = '
 }
 
 /**
+ * Admin: trwałe usunięcie rekordu zamówienia dedykowanego IP z historii (np. błędne/testowe
+ * zamówienie). Tylko dla już anulowanych zamówień — aktywne/oczekujące trzeba najpierw anulować
+ * (`vlab_dedicated_ip_cancel`), żeby nie skasować przypadkiem żywej, rozliczanej usługi.
+ */
+function vlab_dedicated_ip_delete(int $orderId, int $adminId): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE id=? AND status='cancelled'", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie jest anulowane — najpierw je anuluj.'];
+    db()->prepare("DELETE FROM k30_ti_vlab_dedicated_ip WHERE id=?")->execute([$orderId]);
+    vlab_log((int)$order['container_id'], (int)$order['student_id'], 'dedip_delete', true, 'zamówienie #' . $orderId);
+    return ['ok' => true, 'msg' => 'Zamówienie dedykowanego IP trwale usunięte z historii.'];
+}
+
+/**
  * Kursant samodzielnie rezygnuje z usługi dedykowanego IP. Opłata za bieżący, już opłacony okres
  * (od aktywacji do końca okresu) NIE jest zwracana, gdy usługa jest aktywna — środki zostały już
  * przekazane operatorowi/partnerowi i fundacja nie otrzyma ich z powrotem. Jeśli usługa jeszcze nie
@@ -1492,6 +1505,19 @@ function vlab_dedicated_server_cancel(int $orderId, int $adminId, string $reason
 
     vlab_dedicated_server_notify($order, 'cancelled', $reason);
     return ['ok' => true, 'msg' => 'Zamówienie/usługa dedykowanego serwera anulowana.'];
+}
+
+/**
+ * Admin: trwałe usunięcie rekordu zamówienia dedykowanego serwera z historii (np. błędne/testowe
+ * zamówienie). Tylko dla już anulowanych zamówień — aktywne/opłacone/oczekujące trzeba najpierw
+ * anulować (`vlab_dedicated_server_cancel`), żeby nie skasować przypadkiem żywej usługi.
+ */
+function vlab_dedicated_server_delete(int $orderId, int $adminId): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=? AND status='cancelled'", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie jest anulowane — najpierw je anuluj.'];
+    db()->prepare("DELETE FROM k30_ti_vlab_dedicated_server WHERE id=?")->execute([$orderId]);
+    vlab_log(null, (int)$order['student_id'], 'dedserver_delete', true, 'zamówienie #' . $orderId);
+    return ['ok' => true, 'msg' => 'Zamówienie dedykowanego serwera trwale usunięte z historii.'];
 }
 
 /**

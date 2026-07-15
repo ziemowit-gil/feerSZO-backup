@@ -93,6 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
         header('Location: vlab_ports.php?container=' . $cid); exit;
     }
+
+    // Trwałe usunięcie rekordu zamówienia dedykowanego IP z historii (tylko admin)
+    if ($op === 'dedip_delete' && is_admin()) {
+        $oid = (int)($_POST['order_id'] ?? 0);
+        $r = vlab_dedicated_ip_delete($oid, $uid);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_ports.php?container=' . $cid); exit;
+    }
 }
 
 $ports    = vlab_ports_list($cid);
@@ -152,8 +160,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
   </div>
   <div class="card-body">
-    <?php if (!$dedip_current || $dedip_current['status'] === 'cancelled'): ?>
+    <?php if (!$dedip_current): ?>
       <p class="text-muted small mb-0">Kursant nie zamówił dedykowanego adresu IP dla tej maszyny.</p>
+    <?php elseif ($dedip_current['status'] === 'cancelled'): ?>
+      <p class="small mb-3">
+        Ostatnie zamówienie #<?= (int)$dedip_current['id'] ?> zostało anulowane
+        <?= $dedip_current['cancelled_at'] ? h(date('d.m.Y H:i', strtotime($dedip_current['cancelled_at']))) : '' ?>.
+        <?= $dedip_current['note'] !== '' ? '<br><span class="text-muted">Powód: ' . h($dedip_current['note']) . '</span>' : '' ?>
+      </p>
+      <form method="post" onsubmit="return confirm('Trwale usunąć ten rekord zamówienia z historii? Tej operacji nie można cofnąć.')">
+        <?= csrf_field() ?>
+        <input type="hidden" name="_op" value="dedip_delete">
+        <input type="hidden" name="container_id" value="<?= $cid ?>">
+        <input type="hidden" name="order_id" value="<?= (int)$dedip_current['id'] ?>">
+        <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Usuń trwale z historii</button>
+      </form>
     <?php elseif ($dedip_current['status'] === 'requested'): ?>
       <p class="small mb-3">
         Zamówienie #<?= (int)$dedip_current['id'] ?> z dnia <?= h(date('d.m.Y H:i', strtotime($dedip_current['requested_at']))) ?> ·
@@ -204,7 +225,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <p class="small fw-semibold mb-1">Historia zamówień</p>
     <ul class="small text-muted mb-0 ps-3">
       <?php foreach (array_slice($dedip_history, 1) as $dh): ?>
-      <li>#<?= (int)$dh['id'] ?> — <?= h($dh['status']) ?><?= $dh['ip_address'] !== '' ? ' (' . h($dh['ip_address']) . ')' : '' ?>, <?= h(date('d.m.Y', strtotime($dh['requested_at']))) ?></li>
+      <li class="d-flex align-items-center gap-2">
+        <span>#<?= (int)$dh['id'] ?> — <?= h($dh['status']) ?><?= $dh['ip_address'] !== '' ? ' (' . h($dh['ip_address']) . ')' : '' ?>, <?= h(date('d.m.Y', strtotime($dh['requested_at']))) ?></span>
+        <?php if ($dh['status'] === 'cancelled'): ?>
+        <form method="post" class="d-inline" onsubmit="return confirm('Trwale usunąć ten rekord zamówienia z historii? Tej operacji nie można cofnąć.')">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="dedip_delete">
+          <input type="hidden" name="container_id" value="<?= $cid ?>">
+          <input type="hidden" name="order_id" value="<?= (int)$dh['id'] ?>">
+          <button class="btn btn-sm btn-outline-danger py-0" title="Usuń trwale z historii"><i class="bi bi-trash"></i></button>
+        </form>
+        <?php endif; ?>
+      </li>
       <?php endforeach; ?>
     </ul>
     <?php endif; ?>

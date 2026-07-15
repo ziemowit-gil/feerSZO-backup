@@ -193,6 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: vlab_admin.php#dedserver'); exit;
     }
 
+    // Dedykowany serwer: trwałe usunięcie anulowanego zamówienia z historii
+    if ($op === 'dedserver_delete') {
+        $r = vlab_dedicated_server_delete((int)($_POST['order_id'] ?? 0), $uid);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#dedserver'); exit;
+    }
+
     // Wymuszenie zmiany hasła SSH przy następnym logowaniu (bez zmiany hasła).
     if ($op === 'host_pass_force') {
         $cid = (int)($_POST['container_id'] ?? 0);
@@ -668,7 +675,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <p class="small fw-semibold mb-1">Historia (aktywne / anulowane)</p>
     <div class="table-responsive" style="max-height:300px;overflow-y:auto">
       <table class="table table-sm align-middle mb-0 small">
-        <thead class="table-light sticky-top"><tr><th>Kursant</th><th>Serwer</th><th>Okres</th><th>Cena</th><th>Status</th><th>Odnowienie</th></tr></thead>
+        <thead class="table-light sticky-top"><tr><th>Kursant</th><th>Serwer</th><th>Okres</th><th>Cena</th><th>Status</th><th>Odnowienie</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($dedserver_history as $dh): ?>
           <tr>
@@ -678,6 +685,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td><?= number_format((float)$dh['price'], 2, ',', ' ') ?> zł</td>
             <td><span class="badge <?= $dh['status'] === 'active' ? 'bg-success' : 'bg-secondary' ?>"><?= $dh['status'] === 'active' ? 'aktywny' : 'anulowany' ?></span></td>
             <td><?= $dh['next_renewal_at'] ? h(date('d.m.Y', strtotime($dh['next_renewal_at']))) : '—' ?></td>
+            <td class="text-end">
+              <?php if ($dh['status'] === 'cancelled'): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Trwale usunąć ten rekord zamówienia z historii? Tej operacji nie można cofnąć.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="dedserver_delete">
+                <input type="hidden" name="order_id" value="<?= (int)$dh['id'] ?>">
+                <button class="btn btn-sm btn-outline-danger py-0" title="Usuń trwale z historii"><i class="bi bi-trash"></i></button>
+              </form>
+              <?php endif; ?>
+            </td>
           </tr>
         <?php endforeach; ?>
         </tbody>
