@@ -85,6 +85,14 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .nav-tabs .nav-link.active { font-weight:600; }
 
 /* ── Ekran logowania (login.php / parent.php) — odświeżony wygląd ─────────── */
+/* Delikatna, statyczna poświata za kartą logowania (progressive enhancement —
+   bez :has() tło zostaje zwykłym tłem body, nic się nie psuje). */
+body:has(.kp-auth-wrap) {
+  background:
+    radial-gradient(ellipse 900px 620px at 12% -8%, rgba(var(--kp-primary-rgb,37,99,235),.12), transparent 60%),
+    radial-gradient(ellipse 760px 560px at 105% 108%, rgba(var(--kp-primary-rgb,37,99,235),.09), transparent 55%);
+  background-repeat:no-repeat;
+}
 .kp-auth-wrap { width:100%; max-width:940px; }
 .kp-auth-card {
   overflow:hidden; border-radius:1.25rem;
@@ -93,10 +101,17 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
   animation:kpAuthIn .4s cubic-bezier(.16,.84,.44,1) both;
 }
 @keyframes kpAuthIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
-/* Panel marki (lewa kolumna) — dekoracyjny gradient + lista korzyści */
+/* Panel marki (lewa kolumna) — dekoracyjny gradient + subtelna faktura kropek + lista korzyści */
 .kp-auth-hero {
   background:var(--kp-brand-gradient,linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%));
   color:#fff; position:relative;
+}
+.kp-auth-hero::before {
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.55;
+  background-image:radial-gradient(rgba(255,255,255,.16) 1px, transparent 1.4px);
+  background-size:22px 22px;
+  -webkit-mask-image:linear-gradient(160deg, rgba(0,0,0,.9), transparent 72%);
+          mask-image:linear-gradient(160deg, rgba(0,0,0,.9), transparent 72%);
 }
 .kp-auth-hero::after {
   content:""; position:absolute; inset:0; pointer-events:none;
@@ -108,12 +123,23 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
   width:64px; height:64px; border-radius:1rem;
   background:rgba(255,255,255,.16); backdrop-filter:blur(4px);
   border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.18);
+  animation:kpLogoFloat 5s ease-in-out infinite;
 }
-.kp-auth-feat { display:flex; gap:.65rem; align-items:flex-start; }
-.kp-auth-feat i { font-size:1.15rem; opacity:.95; flex-shrink:0; margin-top:.1rem; }
-/* Pola formularza — łagodniejsze zaokrąglenie, czytelne granice (WCAG 1.4.11) */
+@keyframes kpLogoFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
+.kp-auth-feat { display:flex; gap:.7rem; align-items:center; }
+.kp-auth-feat i {
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  width:2rem; height:2rem; border-radius:.6rem;
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.18);
+  font-size:1rem;
+}
+/* Pola formularza — łagodniejsze zaokrąglenie, czytelne granice (WCAG 1.4.11) + akcent przy fokusie */
 .kp-auth-card .form-control { padding:.7rem .95rem; border-radius:.6rem; border-width:1.5px; }
 .kp-auth-card .form-control-lg { font-size:1rem; }
+.kp-auth-card .input-group-text { transition:color .15s ease, border-color .15s ease; }
+.kp-auth-card .input-group:focus-within .input-group-text {
+  color:var(--kp-primary,#2563eb); border-color:var(--kp-primary,#2563eb);
+}
 /* Przycisk główny — gradient marki + miękki cień + hover-lift (spójnie z logowaniem głównym) */
 .kp-auth-card .btn-primary {
   background:linear-gradient(135deg, var(--kp-primary,#2563eb), var(--kp-primary-hover,#1d4ed8));
@@ -129,6 +155,7 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 @media (prefers-reduced-motion:reduce){
   .kp-auth-card { animation:none; }
   .kp-auth-card .btn-primary { transition:none; }
+  .kp-auth-logo { animation:none; }
 }
 /* ── Zwijane oddane zadania (Dydaktyka / eLearning) ──────────────────────── */
 .dyd-hw-summary { cursor:pointer; list-style:none; }
