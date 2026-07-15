@@ -2711,7 +2711,7 @@ document.addEventListener('DOMContentLoaded', function() {
       h += credRow('Hasło SSH', c.host_password, true);
       if (c.ttyd_url) h += credRow('Terminal w przeglądarce', c.ttyd_url, true);
       if (c.ttyd_user) h += credRow('Login terminala', c.ttyd_user+' / '+c.ttyd_password, true);
-      if (c.force_change) h += '<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</div>';
+      if (c.force_change) h += '<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi Cię o ustawienie własnego hasła. Po jego zmianie połączenie SSH samo się rozłączy (tak działa SSH) — połącz się ponownie już NOWYM hasłem, żeby wejść do maszyny.</div>';
       document.getElementById('vlabCredsBody').innerHTML = h;
       if (window.bootstrap) new bootstrap.Modal(document.getElementById('vlabCredsModal')).show();
     }

@@ -559,7 +559,7 @@ function vlab_email_credentials(array $container, string $hostUser = '', string 
             $rows .= "<tr><td style='padding:4px 12px;color:#555'>Hasło SSH</td><td style='padding:4px 12px'><code>" . htmlspecialchars($hostPass, ENT_QUOTES) . "</code></td></tr>";
         }
         if ($forceChange) {
-            $rows .= "<tr><td style='padding:4px 12px;color:#555'>Uwaga</td><td style='padding:4px 12px'>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</td></tr>";
+            $rows .= "<tr><td style='padding:4px 12px;color:#555'>Uwaga</td><td style='padding:4px 12px'>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła. Po jego zmianie połączenie SSH <strong>automatycznie się rozłączy</strong> (tak działa SSH) — połącz się ponownie już NOWYM hasłem, żeby wejść do maszyny.</td></tr>";
         }
     }
     if ($ttyd) {

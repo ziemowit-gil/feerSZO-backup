@@ -421,7 +421,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" name="force_pw_first_login" id="fpw" <?= (!isset($cfg['force_pw_first_login']) || $cfg['force_pw_first_login']) ? 'checked' : '' ?>>
             <label class="form-check-label" for="fpw">Wymuś zmianę hasła SSH przy pierwszym logowaniu</label>
-            <div class="form-text small">Konto na hoście dostaje <code>chage -d 0</code> — kursant ustawi własne hasło przy pierwszym logowaniu (wymaga <code>UsePAM yes</code> na hoście).</div>
+            <div class="form-text small">Konto na hoście dostaje <code>chage -d 0</code> — kursant ustawi własne hasło przy pierwszym logowaniu (wymaga <code>UsePAM yes</code> na hoście). Po zmianie hasła SSH samo się rozłącza (standardowe zachowanie wymuszonej zmiany hasła) — kursant musi połączyć się jeszcze raz nowym hasłem.</div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-4"><label class="form-label small">Limit maszyn / kursant</label>
@@ -908,7 +908,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </div>
         <?php endif; ?>
         <?php if (!empty($reset_creds['force'])): ?>
-        <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-shield-lock me-1"></i>Kursant ustawi własne hasło przy pierwszym logowaniu SSH.</div>
+        <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-shield-lock me-1"></i>Kursant ustawi własne hasło przy pierwszym logowaniu SSH. Po jego zmianie SSH <strong>samo się rozłączy</strong> (tak działa wymuszona zmiana hasła) — trzeba połączyć się jeszcze raz nowym hasłem, żeby wejść do maszyny.</div>
         <?php endif; ?>
         <div class="alert <?= !empty($reset_creds['mailed']) ? 'alert-info' : 'alert-secondary' ?> py-2 small mb-2">
           <i class="bi bi-envelope me-1"></i>
