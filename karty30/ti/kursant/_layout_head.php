@@ -94,6 +94,9 @@ body:has(.kp-auth-wrap) {
   background-repeat:no-repeat;
 }
 .kp-auth-wrap { width:100%; max-width:940px; }
+/* Wariant jednokolumnowy (login.php / dydaktyk/login.php / parent.php) — bez bocznego
+   panelu marki: wąska, wyśrodkowana karta, ta sama na telefonie i desktopie. */
+.kp-auth-wrap.kp-auth-centered { max-width:460px; }
 .kp-auth-card {
   overflow:hidden; border-radius:1.25rem;
   border:1px solid rgba(255,255,255,.6);
@@ -101,38 +104,14 @@ body:has(.kp-auth-wrap) {
   animation:kpAuthIn .4s cubic-bezier(.16,.84,.44,1) both;
 }
 @keyframes kpAuthIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
-/* Panel marki (lewa kolumna) — dekoracyjny gradient + subtelna faktura kropek + lista korzyści */
-.kp-auth-hero {
-  background:var(--kp-brand-gradient,linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%));
-  color:#fff; position:relative;
-}
-.kp-auth-hero::before {
-  content:""; position:absolute; inset:0; pointer-events:none; opacity:.55;
-  background-image:radial-gradient(rgba(255,255,255,.16) 1px, transparent 1.4px);
-  background-size:22px 22px;
-  -webkit-mask-image:linear-gradient(160deg, rgba(0,0,0,.9), transparent 72%);
-          mask-image:linear-gradient(160deg, rgba(0,0,0,.9), transparent 72%);
-}
-.kp-auth-hero::after {
-  content:""; position:absolute; inset:0; pointer-events:none;
-  background:radial-gradient(circle at 80% 15%, rgba(255,255,255,.18), transparent 45%),
-             radial-gradient(circle at 10% 95%, rgba(255,255,255,.10), transparent 40%);
-}
-.kp-auth-hero > * { position:relative; z-index:1; }
+/* Logo/plakietka marki nad formularzem — gradient marki, ta sama na telefonie i desktopie */
 .kp-auth-logo {
   width:64px; height:64px; border-radius:1rem;
-  background:rgba(255,255,255,.16); backdrop-filter:blur(4px);
-  border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.18);
+  background:var(--kp-brand-gradient,linear-gradient(135deg,#2563eb,#7c3aed));
+  color:#fff; box-shadow:0 10px 24px rgba(var(--kp-primary-rgb,37,99,235),.35);
   animation:kpLogoFloat 5s ease-in-out infinite;
 }
 @keyframes kpLogoFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
-.kp-auth-feat { display:flex; gap:.7rem; align-items:center; }
-.kp-auth-feat i {
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  width:2rem; height:2rem; border-radius:.6rem;
-  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.18);
-  font-size:1rem;
-}
 /* Pola formularza — łagodniejsze zaokrąglenie, czytelne granice (WCAG 1.4.11) + akcent przy fokusie */
 .kp-auth-card .form-control { padding:.7rem .95rem; border-radius:.6rem; border-width:1.5px; }
 .kp-auth-card .form-control-lg { font-size:1rem; }
@@ -149,9 +128,6 @@ body:has(.kp-auth-wrap) {
 }
 .kp-auth-card .btn-primary:hover { filter:brightness(1.06); box-shadow:0 10px 26px rgba(var(--kp-primary-rgb,37,99,235),.40); transform:translateY(-1px); }
 .kp-auth-card .btn-primary:active { transform:translateY(0); }
-@media (max-width:767.98px){
-  .kp-auth-hero { display:none !important; } /* na telefonie tylko formularz */
-}
 @media (prefers-reduced-motion:reduce){
   .kp-auth-card { animation:none; }
   .kp-auth-card .btn-primary { transition:none; }

@@ -227,33 +227,16 @@ include __DIR__ . '/_layout_head.php';
 ?>
 
 <?php if (!$parent): ?>
-<main id="main" class="kp-auth-wrap">
+<main id="main" class="kp-auth-wrap kp-auth-centered">
   <div class="card kp-auth-card shadow-lg border-0">
-    <div class="row g-0">
-
-      <!-- ── Panel marki (dekoracyjny — ukryty na telefonie) ───────────────── -->
-      <div class="col-md-5 kp-auth-hero d-none d-md-flex flex-column justify-content-between p-4 p-lg-5"
-           aria-hidden="true">
-        <div>
-          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-4">
-            <i class="bi bi-people-fill fs-2"></i>
-          </span>
-          <h2 class="h3 fw-bold mb-2">Panel rodzica</h2>
-          <p class="mb-0 opacity-75"><?= h($org) ?></p>
-        </div>
-        <ul class="list-unstyled d-flex flex-column gap-3 mt-5 mb-0 small">
-          <li class="kp-auth-feat"><i class="bi bi-receipt"></i><span>Rozliczenia i terminy płatności dziecka</span></li>
-          <li class="kp-auth-feat"><i class="bi bi-calendar-check"></i><span>Frekwencja na zajęciach</span></li>
-          <li class="kp-auth-feat"><i class="bi bi-shield-lock"></i><span>Zarządzanie dostępem dziecka do panelu</span></li>
-        </ul>
+    <div class="card-body p-4 p-lg-5">
+      <div class="text-center mb-4">
+        <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+          <i class="bi bi-people-fill fs-3"></i>
+        </span>
+        <h1 class="h4 fw-bold mb-1">Panel rodzica</h1>
+        <p class="text-body-secondary small mb-0"><?= h($org) ?> · Dostęp zewnętrzny</p>
       </div>
-
-      <!-- ── Logowanie opiekuna (SMS / link) ──────────────────────────────── -->
-      <div class="col-md-7">
-        <div class="card-body p-4 p-lg-5">
-          <h1 class="h4 fw-bold d-flex align-items-center gap-2 mb-1">
-            <i class="bi bi-shield-lock text-primary d-md-none" aria-hidden="true"></i>Dostęp zewnętrzny
-          </h1>
 
           <!-- Wybór roli -->
           <?php if (in_array($stage, ['phone', 'pwd'], true) || $role === 'up'): ?>
@@ -383,9 +366,6 @@ include __DIR__ . '/_layout_head.php';
           <a href="login.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
           </a>
-        </div>
-      </div>
-
     </div>
   </div>
 </main>
