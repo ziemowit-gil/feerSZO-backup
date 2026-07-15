@@ -198,21 +198,33 @@ function vlab_host_user_create(array $container, bool $forceChange = false, ?str
     }
     $w    = '/usr/local/bin/vlab-' . $u;
 
-    // Jeden skrypt → jedno połączenie SSH. $u/$name z bezpiecznych zestawów znaków; $pass — vlab_shq().
+    // Jeden skrypt → jedno połączenie SSH. $u/$name z bezpiecznych zestawów znaków; $pass/$name w wrapperze — vlab_shq().
     $script = implode("\n", [
         'set -e',
         "U='{$u}'",
-        "NM='{$name}'",
         'P=' . vlab_shq($pass),
         'FORCE=' . ($forceChange ? '1' : '0'),
         'W="/usr/local/bin/vlab-$U"',
         // Wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox).
-        // WAŻNE: fallback bash→sh musi być wewnątrz JEDNEGO `docker exec` (w podpowłoce kontenera),
-        // a nie jako `exec docker exec ... || exec docker exec ...` na hoście — `exec` na hoście
-        // PODMIENIA proces przy starcie samego CLI dockera, więc gdy `bash -l` w kontenerze
-        // zawiedzie/zakończy się PO starcie (np. brak bash w obrazie), fallback po host-side `||`
-        // nigdy się nie uruchamia i SSH po prostu się rozłącza zaraz po zalogowaniu.
-        'printf \'#!/bin/sh\nexec docker exec -it %s sh -c "exec bash -l 2>/dev/null || exec sh -l"\n\' "$NM" > "$W"',
+        // Zapisywany przez heredoc z cudzysłowionym znacznikiem ('WRAPEOF') — bez interpolacji
+        // przy generowaniu, więc $NM/$(...) w treści to poprawna, DZIAŁAJĄCA powłoka wrappera,
+        // nie fragment naszego skryptu roota.
+        //
+        // 1) `docker start` przed wejściem — jeśli maszyna była zatrzymana, budzi się automatycznie
+        //    przy logowaniu SSH zamiast kończyć się gołym błędem dockera „container is not running”.
+        // 2) fallback bash→sh musi być wewnątrz JEDNEGO `docker exec` (w podpowłoce kontenera), a nie
+        //    jako `exec docker exec ... || exec docker exec ...` na hoście — `exec` na hoście PODMIENIA
+        //    proces przy starcie samego CLI dockera, więc gdy `bash -l` w kontenerze zawiedzie/zakończy
+        //    się PO starcie (np. brak bash w obrazie), fallback po host-side `||` nigdy się nie uruchamia.
+        'cat > "$W" << \'WRAPEOF\'',
+        '#!/bin/sh',
+        'NM=' . vlab_shq($name),
+        'docker start "$NM" >/dev/null 2>&1 || true',
+        'i=0',
+        'while [ "$(docker inspect -f \'{{.State.Running}}\' "$NM" 2>/dev/null)" != "true" ] && [ "$i" -lt 8 ]; do sleep 1; i=$((i+1)); done',
+        'if [ "$(docker inspect -f \'{{.State.Running}}\' "$NM" 2>/dev/null)" != "true" ]; then echo "Maszyna jest aktualnie niedostepna (nie udalo sie jej uruchomic). Skontaktuj sie z administratorem."; exit 1; fi',
+        'exec docker exec -it "$NM" sh -c "exec bash -l 2>/dev/null || exec sh -l"',
+        'WRAPEOF',
         'chmod 755 "$W"',
         'grep -qxF "$W" /etc/shells 2>/dev/null || echo "$W" >> /etc/shells',
         'id "$U" >/dev/null 2>&1 || useradd -m -s "$W" "$U"',
