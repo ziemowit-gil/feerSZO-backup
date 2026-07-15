@@ -1183,7 +1183,16 @@ function printBulk(){
                 </div>
                 <?php endif; ?>
               </td>
-              <td class="text-muted"><?= $a['last_login'] ? date('d.m.Y H:i', strtotime($a['last_login'])) : '—' ?></td>
+              <td class="text-muted">
+                <?php if ($a['last_login']): ?>
+                <?= h(date('d.m.Y H:i', strtotime($a['last_login']))) ?>
+                <?php if (!empty($a['last_login_ip'])): ?>
+                <div class="font-monospace" style="font-size:.78em"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($a['last_login_ip']) ?></div>
+                <?php endif; ?>
+                <?php else: ?>
+                —
+                <?php endif; ?>
+              </td>
               <td class="text-end">
                 <?php $aname = h($a['client_name']); ?>
                 <div class="dropdown">

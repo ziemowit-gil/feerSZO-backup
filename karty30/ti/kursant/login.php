@@ -34,10 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($account['child_access_blocked'])) {
             $error = 'Dostęp do panelu został wstrzymany przez opiekuna. Skontaktuj się z rodzicem/opiekunem.';
         } else {
-            student_login_user($account);
-            db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
-               ->execute([$account['id']]);
-            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login', "Zalogowano: {$login} | IP: {$ip_log}");
+            student_login_user($account, 'password', "login: {$login}");
             header('Location: index.php'); exit;
         }
     } else {

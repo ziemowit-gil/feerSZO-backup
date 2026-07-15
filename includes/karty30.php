@@ -895,6 +895,8 @@ HTML;
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_created_at DATETIME",
         // Alias logowania — własny login ustawiony przez kursanta (opcjonalny, unikalny)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN login_alias TEXT NOT NULL DEFAULT ''",
+        // Adres IP ostatniego logowania/wejścia do panelu (logowanie hasłem lub ciche wznowienie „zapamiętaj mnie")
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN last_login_ip TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

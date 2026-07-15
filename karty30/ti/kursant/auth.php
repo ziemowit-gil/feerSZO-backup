@@ -33,7 +33,7 @@ function student_current(): ?array {
             [$rem['account_id']]
         );
         if ($account && empty($account['child_access_blocked'])) {
-            student_login_user($account);
+            student_login_user($account, 'remember');
             return $_SESSION[STUDENT_SESSION_KEY];
         }
         ti_remember_forget('student');
@@ -41,7 +41,13 @@ function student_current(): ?array {
     return null;
 }
 
-function student_login_user(array $account): void {
+/**
+ * Uruchamia sesję kursanta i zapisuje IP wejścia do panelu — zarówno przy zwykłym
+ * logowaniu hasłem ($method='password'), jak i przy cichym wznowieniu sesji tokenem
+ * „zapamiętaj mnie" ($method='remember'), żeby administrator widział skąd kursant
+ * faktycznie korzysta z panelu, nie tylko skąd wpisał hasło.
+ */
+function student_login_user(array $account, string $method = 'password', string $detail = ''): void {
     student_start();
     $_SESSION[STUDENT_SESSION_KEY] = [
         'id'        => (int)$account['id'],
@@ -50,6 +56,17 @@ function student_login_user(array $account): void {
         'ts'        => time(),
     ];
     ti_remember_issue('student', (int)$account['id']);
+
+    $ip = mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now'), last_login_ip=? WHERE id=?")
+        ->execute([$ip, (int)$account['id']]);
+
+    if (!function_exists('ti_account_log')) @require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
+    if (function_exists('ti_account_log')) {
+        $msg = $method === 'remember' ? 'Wznowiono sesję (zapamiętaj mnie)' : 'Zalogowano';
+        if ($detail !== '') $msg .= ' — ' . $detail;
+        ti_account_log((int)$account['id'], $method === 'remember' ? 'login_resume' : 'login', $msg . " | IP: {$ip}");
+    }
 }
 
 function student_logout(): void {
