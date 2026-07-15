@@ -369,9 +369,13 @@ function vlab_parse_ports(string $spec): array {
 /**
  * Provisioning nowego kontenera dla kursanta.
  * $ports — opcjonalna lista portów kontenera do wystawienia (np. „80,443"); SSH/terminal
- * są wystawiane zawsze przez obraz. Zwraca ['ok'=>bool,'msg'=>string,'id'=>?int].
+ * są wystawiane zawsze przez obraz.
+ * $customPassword — jeśli kursant sam wybrał hasło konta SSH przy tworzeniu maszyny, używane
+ * zamiast losowego i BEZ wymuszania zmiany przy pierwszym logowaniu (kursant już zna swoje hasło —
+ * unika to mylącego dla niektórych rozłączenia SSH przy wymuszonej zmianie hasła).
+ * Zwraca ['ok'=>bool,'msg'=>string,'id'=>?int].
  */
-function vlab_provision(int $studentId, int $clientId, int $templateId, string $label, string $ports = ''): array {
+function vlab_provision(int $studentId, int $clientId, int $templateId, string $label, string $ports = '', ?string $customPassword = null): array {
     if (!vlab_enabled()) return ['ok' => false, 'msg' => 'Moduł VLAB nie jest skonfigurowany.'];
     if (vlab_is_disabled()) return ['ok' => false, 'msg' => vlab_disabled_notice()];
 
@@ -477,10 +481,12 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     // Konto na hoście, którego logowanie SSH wpuszcza kursanta wprost do kontenera.
     $container = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$id]);
     $hostUser = $hostPass = '';
-    // Domyślnie wymuszaj zmianę hasła przy pierwszym logowaniu (chyba że admin wyłączył).
-    $forceChange = !isset($cfg['force_pw_first_login']) || (int)$cfg['force_pw_first_login'] === 1;
+    $hasCustomPassword = $customPassword !== null && trim($customPassword) !== '';
+    // Kursant sam wybrał hasło → nie wymuszamy zmiany (już je zna). W przeciwnym razie: losowe
+    // hasło + domyślnie wymuszona zmiana przy pierwszym logowaniu (chyba że admin wyłączył).
+    $forceChange = !$hasCustomPassword && (!isset($cfg['force_pw_first_login']) || (int)$cfg['force_pw_first_login'] === 1);
     if ($container) {
-        $hu = vlab_host_user_create($container, $forceChange);
+        $hu = vlab_host_user_create($container, $forceChange, $hasCustomPassword ? $customPassword : null);
         if ($hu['ok']) {
             $hostUser = $hu['user'];
             $hostPass = $hu['password'];

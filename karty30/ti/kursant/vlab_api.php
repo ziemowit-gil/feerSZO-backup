@@ -82,10 +82,11 @@ try {
             break;
 
         case 'create': {
-            $tpl   = (int)($_POST['template_id'] ?? 0);
-            $label = (string)($_POST['label'] ?? '');
-            $ports = (string)($_POST['ports'] ?? '');
-            $res   = vlab_provision($student['id'], (int)$student['client_id'], $tpl, $label, $ports);
+            $tpl      = (int)($_POST['template_id'] ?? 0);
+            $label    = (string)($_POST['label'] ?? '');
+            $ports    = (string)($_POST['ports'] ?? '');
+            $hostPass = (string)($_POST['host_password'] ?? '');
+            $res      = vlab_provision($student['id'], (int)$student['client_id'], $tpl, $label, $ports, $hostPass !== '' ? $hostPass : null);
             echo json_encode($res + ['data' => vlab_payload($student)]);
             break;
         }

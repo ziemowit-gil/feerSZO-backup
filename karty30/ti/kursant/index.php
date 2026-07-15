@@ -2657,6 +2657,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <input type="text" class="form-control" id="vc-ports" placeholder="np. 80, 443, 8080">
             <div class="form-text">Porty usług w kontenerze, które chcesz wystawić (oddziel przecinkami). SSH i terminal są dostępne zawsze. Możesz zostawić puste.</div>
           </div>
+          <div class="mb-2">
+            <label class="form-label" for="vc-password">Własne hasło do SSH (opcjonalnie)</label>
+            <input type="text" class="form-control font-monospace" id="vc-password" maxlength="72" placeholder="np. moje-haslo123" autocomplete="new-password">
+            <div class="form-text">Podaj własne hasło, jeśli chcesz od razu je znać i uniknąć wymuszonej zmiany przy pierwszym logowaniu SSH (po niej połączenie się rozłącza — trzeba połączyć się ponownie). Zostaw puste, aby dostać wygenerowane hasło.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -2979,15 +2984,17 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('vlabCreateForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const btn = document.getElementById('vc-submit');
-      const tpl   = document.getElementById('vc-tpl').value;
-      const label = document.getElementById('vc-label').value.trim() || 'lab';
-      const ports = document.getElementById('vc-ports').value.trim();
+      const tpl      = document.getElementById('vc-tpl').value;
+      const label    = document.getElementById('vc-label').value.trim() || 'lab';
+      const ports    = document.getElementById('vc-ports').value.trim();
+      const host_password = document.getElementById('vc-password').value;
       btn.disabled = true; const orig = btn.innerHTML;
       btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tworzę…';
-      const r = await api('create', {template_id: tpl, label, ports});
+      const r = await api('create', {template_id: tpl, label, ports, host_password});
       btn.disabled = false; btn.innerHTML = orig;
       if (r.id && r.creds) lastCreds[r.id] = r.creds;
       if (window.bootstrap) bootstrap.Modal.getInstance(document.getElementById('vlabCreateModal'))?.hide();
+      document.getElementById('vc-password').value = '';
       if (!r.ok) alert(r.msg || 'Błąd.');
       if (r.data) render(r.data); else reload();
       if (r.ok && r.creds) showCredsModal(r.creds);
