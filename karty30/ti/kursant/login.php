@@ -138,11 +138,6 @@ include __DIR__ . '/_layout_head.php';
               <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)
             </a>
           </div>
-          <p class="text-body-secondary mt-2 mb-0" style="font-size:.78rem">
-            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-            Opiekunowie logują się SMS-em lub hasłem konta. Osoby upoważnione przez pełnoletniego kursanta
-            logują się danymi z upoważnienia.
-          </p>
 
           <p class="text-body-secondary mt-4 mb-0 text-center" style="font-size:.78rem">
             <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Moduł „Kursant” jest częścią systemu <strong>System Zarządzania Organizacją</strong> i służy do obsługi szkoleń.
