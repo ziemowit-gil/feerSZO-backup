@@ -49,23 +49,55 @@ $KP_TITLE = 'Logowanie — Panel kursanta';
 $KP_BODY_CLASS = 'd-flex align-items-center justify-content-center py-4 px-3';
 include __DIR__ . '/_layout_head.php';
 ?>
-<main id="main" class="kp-auth-wrap kp-auth-centered">
+<main id="main" class="kp-auth-wrap">
   <div class="card kp-auth-card shadow-lg border-0">
-    <div class="card-body p-4 p-lg-5">
-      <div class="text-center mb-4">
-        <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-          <i class="bi bi-pc-display fs-3"></i>
-        </span>
-        <h1 class="h4 fw-bold mb-1">Panel kursanta</h1>
-        <p class="text-body-secondary small mb-0"><?= h($KP_ORG) ?> · Zajęcia TI</p>
+    <div class="row g-0">
+
+      <!-- ── Panel marki: mockup terminala (ukryty na telefonie) ───────────── -->
+      <div class="col-md-5 kp-term-hero p-4 p-lg-5" aria-hidden="true">
+        <div>
+          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+            <i class="bi bi-pc-display fs-3"></i>
+          </span>
+          <h2 class="h4 fw-bold mb-1">Panel kursanta</h2>
+          <p class="mb-0" style="color:rgba(255,255,255,.6)"><?= h($KP_ORG) ?></p>
+        </div>
+        <div class="kp-term-window mt-4">
+          <div class="kp-term-bar">
+            <span class="kp-term-dot kp-term-dot-r"></span><span class="kp-term-dot kp-term-dot-y"></span><span class="kp-term-dot kp-term-dot-g"></span>
+            <span class="kp-term-title">kursant@feer:~</span>
+          </div>
+          <div class="kp-term-body">
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span>whoami</div>
+            <div class="kp-term-line kp-term-dim">kursant</div>
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span>ls</div>
+            <div class="kp-term-line kp-term-dim">lekcje  zadania  vlab  licencje  szkolenia</div>
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span><span class="kp-term-cursor"></span></div>
+          </div>
+        </div>
       </div>
 
-      <?php if ($error): ?>
-      <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
-        <i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i>
-        <span><?= h($error) ?></span>
-      </div>
-      <?php endif; ?>
+      <!-- ── Formularz logowania ──────────────────────────────────────────── -->
+      <div class="col-md-7">
+        <div class="card-body p-4 p-lg-5">
+          <div class="text-center mb-4 d-md-none">
+            <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+              <i class="bi bi-pc-display fs-3"></i>
+            </span>
+            <h1 class="h4 fw-bold mb-1">Panel kursanta</h1>
+            <p class="text-body-secondary small mb-0"><?= h($KP_ORG) ?> · Zajęcia TI</p>
+          </div>
+          <div class="d-none d-md-block mb-4">
+            <h1 class="h4 fw-bold mb-1">Zaloguj się</h1>
+            <p class="text-body-secondary mb-0">Wpisz dane otrzymane od prowadzącego.</p>
+          </div>
+
+          <?php if ($error): ?>
+          <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
+            <i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i>
+            <span><?= h($error) ?></span>
+          </div>
+          <?php endif; ?>
 
       <form method="post" autocomplete="on">
         <div class="mb-3">
@@ -112,9 +144,12 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </div>
 
-      <p class="text-body-secondary mt-4 mb-0 text-center" style="font-size:.78rem">
-        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Moduł „Kursant” jest częścią systemu <strong>System Zarządzania Organizacją</strong> i służy do obsługi szkoleń.
-      </p>
+          <p class="text-body-secondary mt-4 mb-0 text-center" style="font-size:.78rem">
+            <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Moduł „Kursant” jest częścią systemu <strong>System Zarządzania Organizacją</strong> i służy do obsługi szkoleń.
+          </p>
+        </div>
+      </div>
+
     </div>
   </div>
 </main>

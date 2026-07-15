@@ -227,16 +227,47 @@ include __DIR__ . '/_layout_head.php';
 ?>
 
 <?php if (!$parent): ?>
-<main id="main" class="kp-auth-wrap kp-auth-centered">
+<main id="main" class="kp-auth-wrap">
   <div class="card kp-auth-card shadow-lg border-0">
-    <div class="card-body p-4 p-lg-5">
-      <div class="text-center mb-4">
-        <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-          <i class="bi bi-people-fill fs-3"></i>
-        </span>
-        <h1 class="h4 fw-bold mb-1">Panel rodzica</h1>
-        <p class="text-body-secondary small mb-0"><?= h($org) ?> · Dostęp zewnętrzny</p>
+    <div class="row g-0">
+
+      <!-- ── Panel marki: mockup terminala (ukryty na telefonie) ───────────── -->
+      <div class="col-md-5 kp-term-hero p-4 p-lg-5" aria-hidden="true">
+        <div>
+          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+            <i class="bi bi-people-fill fs-3"></i>
+          </span>
+          <h2 class="h4 fw-bold mb-1">Panel rodzica</h2>
+          <p class="mb-0" style="color:rgba(255,255,255,.6)"><?= h($org) ?></p>
+        </div>
+        <div class="kp-term-window mt-4">
+          <div class="kp-term-bar">
+            <span class="kp-term-dot kp-term-dot-r"></span><span class="kp-term-dot kp-term-dot-y"></span><span class="kp-term-dot kp-term-dot-g"></span>
+            <span class="kp-term-title">rodzic@feer:~</span>
+          </div>
+          <div class="kp-term-body">
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span>whoami</div>
+            <div class="kp-term-line kp-term-dim">rodzic</div>
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span>ls</div>
+            <div class="kp-term-line kp-term-dim">rozliczenia  frekwencja  dostep</div>
+            <div class="kp-term-line"><span class="kp-term-prompt">$</span><span class="kp-term-cursor"></span></div>
+          </div>
+        </div>
       </div>
+
+      <!-- ── Logowanie opiekuna (SMS / link) ──────────────────────────────── -->
+      <div class="col-md-7">
+        <div class="card-body p-4 p-lg-5">
+          <div class="text-center mb-4 d-md-none">
+            <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+              <i class="bi bi-people-fill fs-3"></i>
+            </span>
+            <h1 class="h4 fw-bold mb-1">Panel rodzica</h1>
+            <p class="text-body-secondary small mb-0"><?= h($org) ?> · Dostęp zewnętrzny</p>
+          </div>
+          <div class="d-none d-md-block mb-4">
+            <h1 class="h4 fw-bold mb-1">Dostęp zewnętrzny</h1>
+          </div>
 
           <!-- Wybór roli -->
           <?php if (in_array($stage, ['phone', 'pwd'], true) || $role === 'up'): ?>
@@ -366,6 +397,9 @@ include __DIR__ . '/_layout_head.php';
           <a href="login.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
           </a>
+        </div>
+      </div>
+
     </div>
   </div>
 </main>

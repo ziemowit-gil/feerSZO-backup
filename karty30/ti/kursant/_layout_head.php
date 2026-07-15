@@ -94,9 +94,6 @@ body:has(.kp-auth-wrap) {
   background-repeat:no-repeat;
 }
 .kp-auth-wrap { width:100%; max-width:940px; }
-/* Wariant jednokolumnowy (login.php / dydaktyk/login.php / parent.php) — bez bocznego
-   panelu marki: wąska, wyśrodkowana karta, ta sama na telefonie i desktopie. */
-.kp-auth-wrap.kp-auth-centered { max-width:460px; }
 .kp-auth-card {
   overflow:hidden; border-radius:1.25rem;
   border:1px solid rgba(255,255,255,.6);
@@ -133,6 +130,48 @@ body:has(.kp-auth-wrap) {
   .kp-auth-card .btn-primary { transition:none; }
   .kp-auth-logo { animation:none; }
 }
+/* ── Panel marki (hero): mockup terminala — zamiast gradientu z listą ikon, bo to
+   platforma do nauki IT (VLab, kod, SSH). Boczna kolumna obok formularza. ────── */
+.kp-term-hero {
+  background:#0b1120; color:#fff; position:relative; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:space-between;
+}
+.kp-term-hero::before {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(circle at 20% 12%, rgba(var(--kp-primary-rgb,37,99,235),.35), transparent 55%),
+             radial-gradient(circle at 92% 92%, rgba(var(--kp-primary-rgb,37,99,235),.18), transparent 50%);
+}
+.kp-term-hero > * { position:relative; z-index:1; }
+.kp-term-window {
+  background:#111827; border:1px solid rgba(255,255,255,.08); border-radius:.75rem;
+  box-shadow:0 20px 45px rgba(0,0,0,.45); overflow:hidden;
+}
+.kp-term-bar {
+  display:flex; align-items:center; gap:.35rem; padding:.55rem .75rem;
+  background:#1a2233; border-bottom:1px solid rgba(255,255,255,.06);
+}
+.kp-term-dot { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
+.kp-term-dot-r { background:#ff5f57; } .kp-term-dot-y { background:#febc2e; } .kp-term-dot-g { background:#28c840; }
+.kp-term-title {
+  margin-left:.5rem; font-size:.72rem; color:rgba(255,255,255,.5);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.kp-term-body {
+  padding:.9rem 1rem 1.1rem; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.82rem; line-height:1.7;
+}
+.kp-term-line { white-space:pre; }
+.kp-term-prompt { color:#4ade80; font-weight:700; margin-right:.4rem; }
+.kp-term-dim { color:rgba(255,255,255,.55); }
+.kp-term-ok { color:#4ade80; }
+.kp-term-cursor {
+  display:inline-block; width:.5rem; height:1em; background:#e5e7eb; vertical-align:text-bottom;
+  animation:kpTermBlink 1s steps(2,start) infinite;
+}
+@keyframes kpTermBlink { to { visibility:hidden; } }
+@media (prefers-reduced-motion:reduce){ .kp-term-cursor { animation:none; } }
+[data-kp-scheme="metro"] .kp-term-window, [data-kp-scheme="metro"] .kp-term-dot { border-radius:0 !important; }
+@media (max-width:767.98px){ .kp-term-hero { display:none !important; } } /* na telefonie tylko formularz */
 /* ── Zwijane oddane zadania (Dydaktyka / eLearning) ──────────────────────── */
 .dyd-hw-summary { cursor:pointer; list-style:none; }
 .dyd-hw-summary::-webkit-details-marker { display:none; }   /* Safari/Chrome */
