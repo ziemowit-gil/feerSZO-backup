@@ -310,6 +310,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?= flash_html() ?>
 
+<div class="alert alert-info small py-2 mb-3">
+  <i class="bi bi-shield-lock me-1"></i>
+  <strong>Izolacja od głównego systemu:</strong> nowe maszyny są tworzone w dedykowanej sieci Docker
+  „<?= h(VLAB_NETWORK) ?>" (osobnej od <code>bridge</code>, z wyłączoną komunikacją między kontenerami) oraz
+  z limitem procesów i pamięci bez swapu. Starsze maszyny można przełączyć ręcznie przyciskiem
+  „Izoluj od głównego systemu" w ich podglądzie. Nie obejmuje to zapory hosta — jeśli host obsługuje też inne
+  usługi w tej samej sieci prywatnej, rozważ dodatkowo reguły UFW/iptables blokujące ruch z podsieci
+  „<?= h(VLAB_NETWORK) ?>" do reszty sieci lokalnej (poza dostępem do internetu).
+</div>
+
 <?php if ($test_result): ?>
 <div class="alert <?= $test_result['ok'] ? 'alert-success' : 'alert-danger' ?>">
   <i class="bi bi-<?= $test_result['ok'] ? 'check-circle' : 'x-circle' ?> me-1"></i><?= h($test_result['msg']) ?>

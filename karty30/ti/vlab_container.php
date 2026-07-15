@@ -39,6 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
         header('Location: ' . ($op === 'remove' ? 'vlab_admin.php' : ('vlab_container.php?id=' . $cid))); exit;
     }
+    if ($op === 'isolate_network') {
+        $r = vlab_container_isolate($container['container_name']);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        vlab_log($cid, (int)$container['student_id'], 'network_isolate', $r['ok'], $r['msg']);
+        header('Location: vlab_container.php?id=' . $cid); exit;
+    }
 }
 
 // Odśwież po ewentualnej akcji powyżej (status mógł się zmienić).
@@ -101,6 +107,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </form>
   <?php endif; ?>
   <a href="vlab_ports.php?container=<?= $cid ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-hdd-network me-1"></i>Porty</a>
+  <?php if ($inspect && !in_array(VLAB_NETWORK, $inspect['networks'], true)): ?>
+  <form method="post" onsubmit="return confirm('Podłączyć maszynę do izolowanej sieci i odłączyć od bridge? Krótka przerwa w łączności sieciowej możliwa w trakcie przełączania.')">
+    <?= csrf_field() ?><input type="hidden" name="_op" value="isolate_network"><input type="hidden" name="container_id" value="<?= $cid ?>">
+    <button class="btn btn-warning btn-sm"><i class="bi bi-shield-lock me-1"></i>Izoluj od głównego systemu</button>
+  </form>
+  <?php endif; ?>
   <a href="vlab_container.php?id=<?= $cid ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Odśwież podgląd</a>
   <form method="post" class="ms-auto" onsubmit="return confirm('Wymusić usunięcie tej maszyny? Konto SSH na hoście też zostanie skasowane.')">
     <?= csrf_field() ?><input type="hidden" name="_op" value="remove"><input type="hidden" name="container_id" value="<?= $cid ?>">
@@ -139,6 +151,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if ($inspect['mounts']): ?>
             <tr><th class="text-muted small fw-normal align-top">Woluminy</th><td class="small"><?php foreach ($inspect['mounts'] as $m): ?><div class="font-monospace"><?= h($m) ?></div><?php endforeach; ?></td></tr>
             <?php endif; ?>
+            <?php $is_isolated = in_array(VLAB_NETWORK, $inspect['networks'], true); ?>
+            <tr><th class="text-muted small fw-normal">Sieć / izolacja</th><td class="small">
+              <?php if ($is_isolated): ?>
+              <span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>izolowana (<?= h(VLAB_NETWORK) ?>)</span>
+              <?php else: ?>
+              <span class="badge bg-warning text-dark" title="Kontener utworzony przed wprowadzeniem izolacji sieciowej — nie jest odgrodzony od innych kontenerów/usług na hoście."><i class="bi bi-exclamation-triangle me-1"></i>nieizolowana (<?= h(implode(', ', $inspect['networks']) ?: 'bridge') ?>)</span>
+              <?php endif; ?>
+            </td></tr>
           </tbody>
         </table>
         <?php endif; ?>

@@ -39,6 +39,9 @@
 
 require_once __DIR__ . '/db.php';
 
+/** Dedykowana, izolowana sieć Docker dla maszyn VLab — osobna od `bridge` i innych usług/kontenerów hosta. */
+const VLAB_NETWORK = 'vlab-isolated';
+
 /** Zwraca (i w razie potrzeby tworzy) wiersz konfiguracji VLAB. */
 function vlab_config(): array {
     $row = db_one("SELECT * FROM k30_ti_vlab_config WHERE id=1");
@@ -389,12 +392,21 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     // Budowa polecenia docker run. `-P` publikuje porty z EXPOSE obrazu (sshd 22 / ttyd 7681),
     // a wybrane przez użytkownika porty publikujemy jawnie przez `-p <port>/<proto>` (losowy port hosta).
     $argv = ['docker', 'run', '-d', '--name', $name, '-P'];
+    // Izolacja od reszty hosta: dedykowana sieć Docker (osobna od `bridge`, gdzie mogą działać inne
+    // usługi/kontenery), z wyłączoną komunikacją między kontenerami — maszyny kursantów nie widzą
+    // się nawzajem ani innych kontenerów na hoście. Fallback na domyślną sieć, gdyby się nie udało.
+    $net = vlab_ensure_isolated_network();
+    if ($net['ok']) { $argv[] = '--network'; $argv[] = VLAB_NETWORK; }
+    else { vlab_log($id, $studentId, 'network_isolate', false, $net['msg']); }
+    // Limit procesów (ochrona hosta przed fork bombą).
+    $argv[] = '--pids-limit'; $argv[] = '512';
     $extraPorts = vlab_parse_ports($ports !== '' ? $ports : (string)($tpl['default_ports'] ?? ''));
     foreach ($extraPorts as $p) { $argv[] = '-p'; $argv[] = $p['port'] . '/' . $p['proto']; }
     $cpus = $tpl['cpus'] !== '' ? $tpl['cpus'] : ($cfg['default_cpus'] ?? '');
     $mem  = $tpl['mem']  !== '' ? $tpl['mem']  : ($cfg['default_mem'] ?? '');
     if ($cpus !== '') { $argv[] = '--cpus'; $argv[] = $cpus; }
-    if ($mem  !== '') { $argv[] = '-m';     $argv[] = $mem; }
+    // `--memory-swap` równe `-m` = bez dodatkowego swapu (limit pamięci nie da się obejść przez swap).
+    if ($mem  !== '') { $argv[] = '-m'; $argv[] = $mem; $argv[] = '--memory-swap'; $argv[] = $mem; }
     // Dane dostępowe przekazywane do entrypointu kontenera przez env
     $argv[] = '-e'; $argv[] = 'VLAB_SSH_USER=' . $sshUser;
     $argv[] = '-e'; $argv[] = 'VLAB_SSH_PASS=' . $sshPass;
@@ -670,6 +682,8 @@ function vlab_container_inspect(string $name): ?array {
         'mounts'     => array_map(fn($m) => ($m['Source'] ?? '') . ' → ' . ($m['Destination'] ?? ''), $d['Mounts'] ?? []),
         'mem_limit'  => (int)($d['HostConfig']['Memory'] ?? 0),
         'nano_cpus'  => (int)($d['HostConfig']['NanoCpus'] ?? 0),
+        'networks'   => array_keys($d['NetworkSettings']['Networks'] ?? []),
+        'pids_limit' => $d['HostConfig']['PidsLimit'] ?? null,
     ];
 }
 
@@ -679,6 +693,46 @@ function vlab_container_stats(string $name): ?array {
     if (!$r['ok'] || trim($r['out']) === '') return null;
     $p = explode("\t", trim($r['out']));
     return ['cpu' => $p[0] ?? '', 'mem' => $p[1] ?? ''];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Izolacja od głównego systemu: dedykowana sieć Docker dla maszyn kursantów
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Upewnia się, że na hoście istnieje dedykowana sieć Docker dla maszyn VLab (VLAB_NETWORK) —
+ * osobna od domyślnej `bridge` (na której mogą działać inne usługi/kontenery hosta), z wyłączoną
+ * komunikacją między kontenerami (ICC) — maszyny kursantów nie widzą się nawzajem po sieci ani
+ * innych kontenerów na hoście. Idempotentne (bezpieczne do wielokrotnego wywołania).
+ */
+function vlab_ensure_isolated_network(): array {
+    $chk = vlab_ssh_exec(['docker', 'network', 'inspect', VLAB_NETWORK, '--format', '{{.Id}}']);
+    if ($chk['ok'] && trim($chk['out']) !== '') return ['ok' => true, 'msg' => 'Sieć „' . VLAB_NETWORK . '" już istnieje.'];
+    $r = vlab_ssh_exec([
+        'docker', 'network', 'create',
+        '--driver', 'bridge',
+        '--opt', 'com.docker.network.bridge.enable_icc=false',
+        '--label', 'feer.vlab=1',
+        VLAB_NETWORK,
+    ]);
+    return $r['ok']
+        ? ['ok' => true, 'msg' => 'Utworzono izolowaną sieć „' . VLAB_NETWORK . '".']
+        : ['ok' => false, 'msg' => 'Nie udało się utworzyć izolowanej sieci: ' . ($r['err'] ?: 'nieznany błąd')];
+}
+
+/**
+ * Przełącza ISTNIEJĄCY kontener (utworzony przed wprowadzeniem izolacji) na dedykowaną sieć
+ * VLAB_NETWORK i odłącza go od domyślnej `bridge`, jeśli był do niej podłączony (best-effort).
+ */
+function vlab_container_isolate(string $name): array {
+    $net = vlab_ensure_isolated_network();
+    if (!$net['ok']) return $net;
+    $r = vlab_ssh_exec(['docker', 'network', 'connect', VLAB_NETWORK, $name]);
+    if (!$r['ok'] && stripos($r['err'], 'already') === false) {
+        return ['ok' => false, 'msg' => 'Nie udało się podłączyć do izolowanej sieci: ' . ($r['err'] ?: 'nieznany błąd')];
+    }
+    vlab_ssh_exec(['docker', 'network', 'disconnect', 'bridge', $name]); // best-effort, ignorujemy błąd gdy nie był podłączony
+    return ['ok' => true, 'msg' => 'Maszyna podłączona do izolowanej sieci „' . VLAB_NETWORK . '".'];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
