@@ -36,6 +36,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             header('Location: terms_admin.php?type=' . urlencode($type)); exit;
         }
     }
+
+    // Pominięcie wymogu akceptacji / zdalna akceptacja w imieniu kursanta.
+    if ($op === 'admin_action' && isset(TI_TERM_TYPES[$type])) {
+        $mode      = ($_POST['mode'] ?? '') === 'skip' ? 'skip' : 'remote';
+        $client_id = (int)($_POST['client_id'] ?? 0);
+        $reason    = trim((string)($_POST['reason'] ?? ''));
+        $term      = ti_term_get($type);
+        if (!$client_id) {
+            $flash_err = 'Wybierz kursanta.';
+        } elseif ($reason === '') {
+            $flash_err = 'Podaj uzasadnienie / podstawę czynności.';
+        } elseif (!$term) {
+            $flash_err = 'Nie znaleziono regulaminu.';
+        } else {
+            $aid = ti_term_admin_action($client_id, (int)$term['id'], (int)$user['id'], $mode, $reason);
+            if ($aid) {
+                flash_set('success', $mode === 'skip'
+                    ? 'Wymóg akceptacji regulaminu pominięty.'
+                    : 'Regulamin zaakceptowany zdalnie w imieniu kursanta.');
+                header('Location: terms_admin.php?type=' . urlencode($type) . '&last_accept=' . $aid); exit;
+            }
+            $flash_err = 'Nie udało się zapisać czynności.';
+        }
+    }
 }
 
 $active_type = $_GET['type'] ?? 'szkolenia';
@@ -47,15 +71,26 @@ foreach ($terms as $t) { if ($t['type'] === $active_type) { $current = $t; break
 // Lista ostatnich akceptacji
 $accepts = db_all(
     "SELECT a.*, t.title AS term_title, t.type AS term_type,
-            c.name AS client_name
+            c.name AS client_name,
+            COALESCE(NULLIF(TRIM(u.first_name||' '||u.last_name),''), u.name) AS admin_name
      FROM k30_ti_terms_accepts a
      JOIN k30_ti_terms t ON t.id=a.term_id
      JOIN k30_clients c ON c.id=a.client_id
+     LEFT JOIN users u ON u.id=a.admin_id
      WHERE t.type=?
      ORDER BY a.accepted_at DESC
      LIMIT 100",
     [$active_type]
 );
+
+// Kursanci TI (do wyboru w akcji administratora) + ostatnio zapisane oświadczenie (do linku pobrania)
+$ti_clients = db_all(
+    "SELECT DISTINCT a.client_id, cl.name AS client_name, a.is_minor
+     FROM k30_ti_student_accounts a
+     JOIN k30_clients cl ON cl.id=a.client_id
+     ORDER BY cl.name"
+);
+$last_accept_id = (int)($_GET['last_accept'] ?? 0);
 
 $PAGE_TITLE = 'Regulaminy TI';
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
@@ -163,18 +198,32 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <thead class="table-light sticky-top">
             <tr>
               <th>Kursant</th>
+              <th>Kto</th>
               <th>Data</th>
-              <th>IP</th>
               <th>v.</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($accepts as $a): ?>
+            <?php foreach ($accepts as $a):
+              $is_admin_row = str_starts_with((string)$a['accepted_by_role'], 'admin_');
+              $role_badge   = $is_admin_row ? 'text-bg-warning' : ($a['accepted_by_role'] === 'rodzic' ? 'text-bg-info' : 'text-bg-secondary');
+            ?>
             <tr>
               <td><?= h($a['client_name']) ?></td>
+              <td>
+                <span class="badge <?= $role_badge ?>" <?= $is_admin_row && $a['admin_note'] !== '' ? 'title="'.h($a['admin_note']).'"' : '' ?>>
+                  <?= h(ti_terms_role_label($a['accepted_by_role'])) ?>
+                </span>
+                <?php if ($is_admin_row): ?><div class="text-body-secondary" style="font-size:.75rem"><?= h($a['admin_name'] ?? '') ?></div><?php endif; ?>
+              </td>
               <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime($a['accepted_at']))) ?></td>
-              <td class="font-monospace text-body-secondary"><?= h($a['ip']) ?></td>
               <td>v<?= (int)$a['version'] ?></td>
+              <td class="text-end">
+                <?php if ($is_admin_row): ?>
+                <a href="terms_pdf.php?id=<?= (int)$a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Pobierz oświadczenie (PDF)"><i class="bi bi-file-earmark-pdf"></i></a>
+                <?php endif; ?>
+              </td>
             </tr>
             <?php endforeach; ?>
           </tbody>
@@ -187,6 +236,54 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php endif; ?>
     </div>
   </div>
+
+  <?php if ($can_write): ?>
+  <!-- Pominięcie / zdalna akceptacja przez administratora -->
+  <div class="col-12">
+    <div class="card border-warning shadow-sm">
+      <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
+        <i class="bi bi-person-gear text-warning"></i>
+        <span class="fw-semibold">Administrator: pomiń wymóg lub zaakceptuj zdalnie w imieniu kursanta</span>
+      </div>
+      <div class="card-body">
+        <?php if ($last_accept_id): ?>
+        <div class="alert alert-success d-flex align-items-center gap-2 py-2">
+          <i class="bi bi-check2-circle" aria-hidden="true"></i>
+          <span>Czynność zapisana. <a href="terms_pdf.php?id=<?= $last_accept_id ?>" target="_blank" class="alert-link">Pobierz oświadczenie (PDF)</a>.</span>
+        </div>
+        <?php endif; ?>
+        <p class="text-body-secondary small">Użyj, gdy kursant (lub jego opiekun) nie może samodzielnie zaakceptować regulaminu w panelu — np. potwierdził zgodę telefonicznie lub mailowo. Każda czynność jest logowana i generuje oświadczenie do wydruku.</p>
+        <form method="post" class="row g-2 align-items-end">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="admin_action">
+          <input type="hidden" name="type" value="<?= h($active_type) ?>">
+          <div class="col-md-4">
+            <label class="form-label small" for="admin-action-client">Kursant</label>
+            <select class="form-select form-select-sm" id="admin-action-client" name="client_id" required>
+              <option value="">— wybierz —</option>
+              <?php foreach ($ti_clients as $tc): ?>
+              <option value="<?= (int)$tc['client_id'] ?>"><?= h($tc['client_name']) ?><?= $tc['is_minor'] ? ' (niepełnoletni)' : '' ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label small" for="admin-action-reason">Uzasadnienie / podstawa czynności</label>
+            <input type="text" class="form-control form-control-sm" id="admin-action-reason" name="reason" required maxlength="500"
+                   placeholder="np. zgoda potwierdzona telefonicznie 12.07.2026 przez opiekuna">
+          </div>
+          <div class="col-md-3 d-flex gap-2">
+            <button type="submit" name="mode" value="skip" class="btn btn-sm btn-outline-warning flex-fill" title="Kursant nie musi akceptować — dostęp odblokowany bez zaznaczenia zgody">
+              <i class="bi bi-skip-forward me-1"></i>Pomiń wymóg
+            </button>
+            <button type="submit" name="mode" value="remote" class="btn btn-sm btn-warning flex-fill" title="Zapisz akceptację w imieniu kursanta">
+              <i class="bi bi-check2-circle me-1"></i>Zaakceptuj zdalnie
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
 </div>
 <?php endif; ?>

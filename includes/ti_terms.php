@@ -39,9 +39,13 @@ function ti_terms_migrate(): void {
         ip         TEXT    NOT NULL DEFAULT '',
         ua         TEXT    NOT NULL DEFAULT '',
         accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        accepted_by_role TEXT NOT NULL DEFAULT 'kursant' -- 'kursant' | 'rodzic' — kto faktycznie zaakceptował
+        accepted_by_role TEXT NOT NULL DEFAULT 'kursant', -- 'kursant' | 'rodzic' | 'admin_skip' | 'admin_remote' — kto faktycznie zaakceptował (admin_* = czynność administratora)
+        admin_id   INTEGER REFERENCES users(id) ON DELETE SET NULL, -- administrator, gdy accepted_by_role zaczyna się od 'admin_'
+        admin_note TEXT    NOT NULL DEFAULT ''    -- uzasadnienie/podstawa czynności administratora
     )");
     try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN accepted_by_role TEXT NOT NULL DEFAULT 'kursant'"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN admin_id INTEGER"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_terms_acc ON k30_ti_terms_accepts(client_id, term_id)");
 
@@ -136,6 +140,40 @@ function ti_term_accept(int $client_id, int $term_id, int $account_id, string $r
         'ua'         => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 300),
         'accepted_by_role' => $role === 'rodzic' ? 'rodzic' : 'kursant',
     ]);
+}
+
+/**
+ * Administrator: pomiń wymóg akceptacji regulaminu dla kursanta, lub zaakceptuj go
+ * zdalnie w jego imieniu (np. zgoda potwierdzona telefonicznie/mailowo poza panelem).
+ * $mode: 'skip' (pominięcie wymogu) | 'remote' (akceptacja zdalna w imieniu kursanta).
+ * $reason — wymagane uzasadnienie/podstawa, trafia na wygenerowane oświadczenie.
+ * Zwraca ID wpisu akceptacji (do wygenerowania oświadczenia PDF).
+ */
+function ti_term_admin_action(int $client_id, int $term_id, int $admin_id, string $mode, string $reason): int {
+    ti_terms_migrate();
+    $term = db_one("SELECT version FROM k30_ti_terms WHERE id=?", [$term_id]);
+    if (!$term) return 0;
+    db()->prepare("DELETE FROM k30_ti_terms_accepts WHERE client_id=? AND term_id=?")->execute([$client_id, $term_id]);
+    return db_insert('k30_ti_terms_accepts', [
+        'term_id'          => $term_id,
+        'client_id'        => $client_id,
+        'version'          => (int)$term['version'],
+        'ip'               => substr($_SERVER['REMOTE_ADDR'] ?? '', 0, 45),
+        'ua'               => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 300),
+        'accepted_by_role' => $mode === 'skip' ? 'admin_skip' : 'admin_remote',
+        'admin_id'         => $admin_id,
+        'admin_note'       => $reason,
+    ]);
+}
+
+/** Czytelna etykieta „kto zaakceptował" do list/UI. */
+function ti_terms_role_label(string $role): string {
+    return match ($role) {
+        'rodzic'       => 'Rodzic/opiekun',
+        'admin_skip'   => 'Administrator — pominięcie',
+        'admin_remote' => 'Administrator — zdalnie',
+        default        => 'Kursant',
+    };
 }
 
 /** Historia akceptacji regulaminów kursanta (do zakładki + PDF). */
@@ -260,6 +298,105 @@ function ti_term_pdf(array $accept, array $client): void {
     $pdf->Cell($W, 5, _ti_pdf_txt('Dokument wygenerowany automatycznie · ' . $org . ' · ' . date('d.m.Y H:i')), 0, 1, 'C');
 
     $fname = 'regulamin_' . preg_replace('/[^a-z0-9_]/i', '_', $accept['type']) . '_' . date('Ymd', strtotime($accept['accepted_at'])) . '.pdf';
+    $pdf->Output('D', $fname);
+    exit;
+}
+
+/**
+ * Generuj i wyślij PDF oświadczenia administratora — pominięcie wymogu akceptacji
+ * regulaminu lub zdalna akceptacja w imieniu kursanta. Kończy skrypt.
+ */
+function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/fpdi/autoload_fpdi.php';
+
+    $is_skip   = $accept['accepted_by_role'] === 'admin_skip';
+    $admin_name = $admin
+        ? (trim(($admin['first_name'] ?? '') . ' ' . ($admin['last_name'] ?? '')) ?: ($admin['name'] ?? ''))
+        : '—';
+
+    $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+    $pdf->SetAutoPageBreak(true, 20);
+    $pdf->SetMargins(20, 20, 20);
+    $font_dir = __DIR__ . '/fpdf/font/';
+    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
+    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+
+    $pdf->AddPage();
+    $W = $pdf->GetPageWidth() - 40;
+    $org = defined('ORG_NAME') ? ORG_NAME : '';
+
+    // Nagłówek
+    $pdf->SetFillColor(180, 60, 30);
+    $pdf->Rect(20, $pdf->GetY(), $W, 14, 'F');
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->Cell($W, 14, _ti_pdf_txt('Oświadczenie administratora — regulamin'), 0, 1, 'C', false);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->Ln(4);
+
+    // Blok danych
+    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->Cell($W, 6, _ti_pdf_txt($accept['title']), 0, 1);
+    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell($W, 5, _ti_pdf_txt($org), 0, 1);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->Ln(3);
+
+    // Ramka z danymi czynności
+    $rowsH = 34;
+    $pdf->SetFillColor(245, 247, 250);
+    $pdf->SetDrawColor(200, 210, 220);
+    $pdf->Rect(20, $pdf->GetY(), $W, $rowsH, 'FD');
+    $pdf->SetXY(24, $pdf->GetY() + 4);
+    $rows = [
+        ['Kursant',       $client['name'] ?? ''],
+        ['Czynność',      $is_skip ? 'Pominięcie wymogu akceptacji regulaminu' : 'Akceptacja zdalna w imieniu kursanta'],
+        ['Administrator', $admin_name],
+        ['Data i czas',   date('d.m.Y H:i:s', strtotime($accept['accepted_at']))],
+        ['Wersja reg.',   'v' . ($accept['version'] ?? 1)],
+    ];
+    $pdf->SetFont('DejaVu', '', 9);
+    foreach ($rows as [$label, $val]) {
+        $pdf->SetXY(24, $pdf->GetY());
+        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->Cell(38, 5.5, _ti_pdf_txt($label . ':'), 0, 0);
+        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->Cell($W - 42, 5.5, _ti_pdf_txt($val), 0, 1);
+    }
+    $pdf->Ln(6);
+
+    // Uzasadnienie / podstawa
+    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->Cell($W, 6, _ti_pdf_txt('Uzasadnienie / podstawa czynności:'), 0, 1);
+    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->MultiCell($W, 5, _ti_pdf_txt((string)($accept['admin_note'] ?: '—')), 0, 'L');
+    $pdf->Ln(4);
+
+    // Treść regulaminu (HTML strip → akapity)
+    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->Cell($W, 6, _ti_pdf_txt($is_skip ? 'Treść regulaminu (którego wymóg pominięto):' : 'Treść regulaminu (zaakceptowana wersja):'), 0, 1);
+    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetTextColor(40, 40, 40);
+
+    $plain = _ti_html_to_plain($accept['body_html']);
+    $lines = explode("\n", $plain);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') { $pdf->Ln(2); continue; }
+        $pdf->MultiCell($W, 5, _ti_pdf_txt($line), 0, 'L');
+    }
+
+    $pdf->SetTextColor(0,0,0);
+    $pdf->Ln(6);
+
+    // Stopka
+    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetTextColor(130, 130, 130);
+    $pdf->Cell($W, 5, _ti_pdf_txt('Dokument wygenerowany automatycznie · ' . $org . ' · ' . date('d.m.Y H:i')), 0, 1, 'C');
+
+    $fname = 'oswiadczenie_' . preg_replace('/[^a-z0-9_]/i', '_', $accept['type']) . '_' . date('Ymd', strtotime($accept['accepted_at'])) . '.pdf';
     $pdf->Output('D', $fname);
     exit;
 }

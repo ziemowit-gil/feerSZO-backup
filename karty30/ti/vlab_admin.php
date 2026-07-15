@@ -268,6 +268,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php if ($dedserver_pending): ?>
   <a href="#dedserver" class="badge bg-warning text-dark text-decoration-none"><i class="bi bi-hdd-rack me-1"></i><?= count($dedserver_pending) ?> zamówień(-ie) dedykowanego serwera czeka na akcję</a>
   <?php endif; ?>
+  <a href="terms_admin.php?type=vlab" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-text me-1"></i>Regulamin VLab / akceptacje</a>
 </div>
 
 <?= flash_html() ?>
