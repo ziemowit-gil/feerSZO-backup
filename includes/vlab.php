@@ -206,8 +206,13 @@ function vlab_host_user_create(array $container, bool $forceChange = false, ?str
         'P=' . vlab_shq($pass),
         'FORCE=' . ($forceChange ? '1' : '0'),
         'W="/usr/local/bin/vlab-$U"',
-        // wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox)
-        'printf \'#!/bin/sh\nexec docker exec -it %s bash -l 2>/dev/null || exec docker exec -it %s sh -l\n\' "$NM" "$NM" > "$W"',
+        // Wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox).
+        // WAŻNE: fallback bash→sh musi być wewnątrz JEDNEGO `docker exec` (w podpowłoce kontenera),
+        // a nie jako `exec docker exec ... || exec docker exec ...` na hoście — `exec` na hoście
+        // PODMIENIA proces przy starcie samego CLI dockera, więc gdy `bash -l` w kontenerze
+        // zawiedzie/zakończy się PO starcie (np. brak bash w obrazie), fallback po host-side `||`
+        // nigdy się nie uruchamia i SSH po prostu się rozłącza zaraz po zalogowaniu.
+        'printf \'#!/bin/sh\nexec docker exec -it %s sh -c "exec bash -l 2>/dev/null || exec sh -l"\n\' "$NM" > "$W"',
         'chmod 755 "$W"',
         'grep -qxF "$W" /etc/shells 2>/dev/null || echo "$W" >> /etc/shells',
         'id "$U" >/dev/null 2>&1 || useradd -m -s "$W" "$U"',
