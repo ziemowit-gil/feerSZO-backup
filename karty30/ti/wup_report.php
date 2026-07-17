@@ -693,6 +693,32 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
     </form>
   </div>
 </div>
+<?php if ($ris_past_deadline): ?>
+<!-- Modal: przekroczony termin złożenia sprawozdania (RIS) -->
+<div class="modal fade" id="risDeadlineModal" tabindex="-1" aria-hidden="true" aria-labelledby="risDeadlineLbl">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2 bg-danger-subtle">
+        <h2 class="modal-title h6 mb-0 text-danger-emphasis" id="risDeadlineLbl"><i class="bi bi-exclamation-octagon-fill me-2"></i>Przekroczono termin</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="fw-semibold mb-1"><?= h($RIS_DEADLINE_MSG) ?></p>
+        <p class="small text-body-secondary mb-0">Termin złożenia sprawozdania za ten okres upłynął <?= h(date('d.m.Y', strtotime($ris_deadline))) ?>.</p>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-danger btn-sm" data-bs-dismiss="modal">Rozumiem</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(document.getElementById('risDeadlineModal')).show();
+});
+</script>
+<?php endif; ?>
+
 <script>
 document.getElementById('signModal')?.addEventListener('show.bs.modal', function (ev) {
   var b = ev.relatedTarget;
