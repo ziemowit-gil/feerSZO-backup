@@ -44,7 +44,7 @@
     modal.show();
     var fd = new FormData(f); fd.set('disp', 'inline');   // wymuś podgląd inline (Content-Type: application/pdf)
     fetch(f.action || location.href, { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+      .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t.trim() || ('HTTP ' + r.status)); }); return r.blob(); })
       .then(function (blob) {
         var url = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' }));
         frame.src = url; frame.style.display = 'block'; load.style.display = 'none';

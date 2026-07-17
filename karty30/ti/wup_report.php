@@ -230,9 +230,21 @@ $fmtH  = fn(int $m): string => number_format($m / 60, 2, ',', ' ');
 $fmtHd = fn(int $m): string => number_format($m / 45, 2, ',', ' ');
 $period_txt = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to));
 
+// ── Termin złożenia sprawozdania — do 15. dnia miesiąca następującego po okresie sprawozdawczym
+$RIS_DEADLINE_MSG = 'RIS API: Przekroczenie terminu skontaktuj się z właściwym urzędem w celu złożenia wyjaśnień';
+$to_month_first  = date('Y-m-01', strtotime($to));
+$ris_deadline    = date('Y-m', strtotime($to_month_first . ' +1 month')) . '-15';
+$ris_past_deadline = date('Y-m-d') > $ris_deadline;
+
 // ── Generowanie PDF (POST out=pdf) — zapis rekordu + dokument ────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
     csrf_check();
+
+    if ($ris_past_deadline) {
+        if (!headers_sent()) { http_response_code(422); header('Content-Type: text/plain; charset=UTF-8'); }
+        echo $RIS_DEADLINE_MSG . "\n";
+        exit;
+    }
 
     // Zbierz pola narracyjne z formularza
     $zero_just = [];
@@ -549,6 +561,14 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
 
   <!-- Pola sprawozdania + generowanie -->
   <div class="col-lg-5">
+    <?php if ($ris_past_deadline): ?>
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-3">
+      <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+      <div><strong><?= h($RIS_DEADLINE_MSG) ?></strong>
+        <div class="small mt-1">Termin złożenia sprawozdania za ten okres upłynął <?= h(date('d.m.Y', strtotime($ris_deadline))) ?>.</div>
+      </div>
+    </div>
+    <?php endif; ?>
     <form method="post" action="<?= APP_URL ?>/karty30/ti/wup_report.php" data-wup-pdf class="card border-0 shadow-sm mb-3">
       <div class="card-header bg-white fw-semibold"><i class="bi bi-pencil-square me-2"></i>Dane sprawozdania</div>
       <div class="card-body">
@@ -599,8 +619,10 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
             placeholder="Wyjaśnij przyczynę braku / niekompletności danych."><?= h((string)$fld('missing_reason','')) ?></textarea>
         </div>
 
-        <button type="submit" class="btn btn-danger" formtarget="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF</button>
-        <div class="form-text">Zapisuje pola i pokazuje PDF w podglądzie — stamtąd pobierzesz plik do wydruku/podpisu.</div>
+        <button type="submit" class="btn btn-danger" formtarget="_blank" <?= $ris_past_deadline ? 'disabled' : '' ?>><i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF</button>
+        <div class="form-text"><?= $ris_past_deadline
+            ? 'Generowanie zablokowane — termin złożenia sprawozdania minął.'
+            : 'Zapisuje pola i pokazuje PDF w podglądzie — stamtąd pobierzesz plik do wydruku/podpisu.' ?></div>
       </div>
     </form>
   </div>
