@@ -38,12 +38,17 @@ if (!current_user()) {
       display: flex; align-items: center; gap: 10px;
     }
     .feer-topbar small { font-weight: 400; opacity: .7; }
+    .feer-topbar a.guide { margin-left: auto; color: #fff; text-decoration: none;
+      border: 1px solid rgba(255,255,255,.35); border-radius: 8px; padding: 5px 12px;
+      font-size: 13px; white-space: nowrap; }
+    .feer-topbar a.guide:hover { border-color: #fff; background: rgba(255,255,255,.1); }
     #swagger-ui .topbar { display: none; } /* ukryj domyślny pasek z polem URL */
   </style>
 </head>
 <body>
   <div class="feer-topbar">
     🗃️ EZD „Wirtualne Biurko" <small>— specyfikacja interfejsu HTTP (System Obsługi Organizacji FEER)</small>
+    <a class="guide" href="./przewodnik.php">📖 Przewodnik programisty</a>
   </div>
   <div id="swagger-ui"></div>
 
