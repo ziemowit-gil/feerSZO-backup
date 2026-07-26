@@ -21,6 +21,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -890,6 +891,21 @@ include __DIR__ . '/_layout_head.php';
 </nav>
 
 <main id="main" class="container-xl px-3 py-4">
+
+<?php // ── Baner wakacyjny — gdy trwa okres typu vacation ─────────────────────────
+$ti_vac = ti_current_vacation();
+if ($ti_vac): ?>
+<div class="alert alert-warning d-flex align-items-start gap-2 shadow-sm mb-4" role="alert">
+  <i class="bi bi-sun-fill fs-3 flex-shrink-0" aria-hidden="true"></i>
+  <div>
+    <div class="fw-bold">Trwają wakacje — przerwa w zajęciach</div>
+    <div class="small"><?= h($ti_vac['name']) ?> ·
+      <?= h(date('d.m.Y', strtotime($ti_vac['date_from']))) ?> – <?= h(date('d.m.Y', strtotime($ti_vac['date_to']))) ?>.
+      Zajęcia wznawiamy <strong><?= h(date('d.m.Y', strtotime($ti_vac['resume_date']))) ?></strong>.</div>
+    <?php if (!empty($ti_vac['note'])): ?><div class="small mt-1"><?= h($ti_vac['note']) ?></div><?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($active_lesson): ?>
 <!-- ── Aktywny link do zajęć — widoczny od razu po wejściu do panelu ─────────── -->

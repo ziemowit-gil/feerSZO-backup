@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
@@ -1185,6 +1186,20 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </div>
 
   <?= flash_html() ?>
+
+  <?php // Komunikat o trwających wakacjach (okres typu vacation)
+  $ti_vac = ti_current_vacation();
+  if ($ti_vac): ?>
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+    <i class="bi bi-sun-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+    <div>
+      <strong>Trwają wakacje — przerwa w zajęciach</strong> (<?= h($ti_vac['name']) ?>).
+      Termin: <strong><?= h(date('d.m.Y', strtotime($ti_vac['date_from']))) ?> – <?= h(date('d.m.Y', strtotime($ti_vac['date_to']))) ?></strong>.
+      <div class="small mt-1">Zajęcia wznawiamy <strong><?= h(date('d.m.Y', strtotime($ti_vac['resume_date']))) ?></strong>.
+        <?php if (!empty($ti_vac['note'])): ?><span class="d-block"><?= h($ti_vac['note']) ?></span><?php endif; ?></div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <?php // Komunikat o zaplanowanej / trwającej nieobecności prowadzącego
   if ($my_leaves): $today = date('Y-m-d');
