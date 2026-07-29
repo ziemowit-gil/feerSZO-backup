@@ -228,100 +228,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$uid]);
-if ($_is_volunteer_only) {
-    include dirname(__DIR__) . '/panel/includes/header_panel.php';
-} else {
-    include dirname(__DIR__) . '/includes/header.php';
-}
-
 $initials = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtoupper($m2[1]);
+
+$PAGE_TITLE = 'Tożsamość';
+$TZ_ACTIVE  = 'konto';
+include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 ?>
 
-<style>
-.tz{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;--tz-muted:#6B7280;}
-.tz .lbl-en{font-size:.72rem;color:var(--tz-muted);font-weight:500;display:block;margin-top:.1rem}
-.tz-card{background:#fff;border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08);overflow:hidden;margin-bottom:1.25rem}
-.tz-card__hd{padding:1rem 1.25rem;border-bottom:1px solid var(--tz-line);display:flex;align-items:center;gap:.65rem;font-weight:600}
-.tz-card__hd i{color:var(--tz)}
-.tz-card__bd{padding:1.25rem}
-.tz-id{background:linear-gradient(90deg,var(--tz),var(--tz-strong));color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.tz-id .tz-ava{width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem}
-.tz-uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:1.55rem;letter-spacing:.06em;line-height:1}
-.tz-dl{display:grid;grid-template-columns:repeat(1,1fr)}
-@media(min-width:576px){.tz-dl{grid-template-columns:repeat(2,1fr)}}
-@media(min-width:992px){.tz-dl{grid-template-columns:repeat(3,1fr)}}
-.tz-dl>div{padding:.8rem 1.1rem;border-top:1px solid var(--tz-line);position:relative}
-@media(min-width:576px){.tz-dl>div:nth-child(2n)::before,.tz-dl>div:nth-child(n+2)::before{content:none}}
-.tz-dl dt{font-size:.7rem;color:var(--tz-muted);margin:0;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
-.tz-dl dd{font-weight:600;margin:.2rem 0 0;font-size:.94rem;word-break:break-word;color:#0f172a}
-.tz-dl dd .tz-copy{border:0;background:none;color:var(--tz-strong);padding:0 .25rem;cursor:pointer}
-.tz-note{background:#F4F6F9;border-top:1px solid var(--tz-line);padding:.6rem 1rem;font-size:.8rem;color:var(--tz-muted);display:flex;gap:.4rem;align-items:flex-start}
-.tz-btn{background:var(--tz-strong);color:#fff;border:none;border-radius:9px;padding:.6rem 1.3rem;font-weight:600;display:inline-flex;align-items:center;gap:.45rem;text-decoration:none}
-.tz-btn:hover{background:#0f3c9c;color:#fff}
-.tz-btn:focus-visible{outline:3px solid #FBBF24;outline-offset:2px}
-.tz-btn--ghost{background:#fff;color:var(--tz-strong);border:1px solid var(--tz-line)}
-.tz-btn--ghost:hover{background:var(--tz-50);color:var(--tz-strong)}
-.tz-badge{font-size:.72rem;font-weight:600;padding:.2rem .6rem;border-radius:999px;display:inline-flex;align-items:center;gap:.3rem}
-.tz-badge--ok{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
-.tz-badge--warn{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
-.tz-badge--off{background:#f3f4f6;color:#6B7280;border:1px solid #e5e7eb}
-.tz-otp{font-size:1.6rem;letter-spacing:.5rem;text-align:center;font-weight:700;font-family:ui-monospace,monospace}
-.tz-req{list-style:none;padding:0;margin:.5rem 0 0;display:grid;grid-template-columns:1fr;gap:.35rem;font-size:.85rem}
-@media(min-width:576px){.tz-req{grid-template-columns:1fr 1fr}}
-.tz-req li{color:var(--tz-muted);display:flex;align-items:center;gap:.4rem}
-.tz-req li.ok{color:#047857}
-.tz-req li .dot{display:inline-block;width:1.1em;text-align:center;font-weight:700}
-.tz-meter{height:7px;border-radius:999px;background:var(--tz-line);overflow:hidden;margin-top:.5rem}
-.tz-meter>span{display:block;height:100%;width:0;background:#f87171;transition:width .3s,background-color .3s}
-.tz-subnav{position:sticky;top:0;z-index:5;background:#F4F6F9;padding:.6rem 0;margin-bottom:1.1rem}
-.tz-subnav .seg{display:inline-flex;gap:.2rem;padding:.25rem;background:#fff;border:1px solid var(--tz-line);border-radius:12px;flex-wrap:wrap;box-shadow:0 1px 2px rgba(16,24,40,.05)}
-.tz-subnav a{font-size:.85rem;padding:.4rem .9rem;border-radius:9px;text-decoration:none;color:var(--tz-muted);display:inline-flex;align-items:center;gap:.4rem;font-weight:500}
-.tz-subnav a:hover,.tz-subnav a:focus-visible{background:var(--tz-50);color:var(--tz-strong);outline:none}
-.tz-subnav a.on{background:var(--tz);color:#fff}
-.tz-subnav a.on i{color:#fff}
-/* Zakładki — pokazujemy tylko aktywny panel (mniej treści na 1 ekranie) */
-.tz-panel{display:none}
-.tz-panel.active{display:block;animation:tzfade .2s ease}
-@keyframes tzfade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.tz-svc{display:flex;align-items:center;gap:.9rem;padding:.85rem 0;border-top:1px solid var(--tz-line)}
-.tz-svc:first-child{border-top:0}
-.tz-svc__ico{width:42px;height:42px;border-radius:11px;background:var(--tz-50);color:var(--tz-strong);display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
-.tz-tiles{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:.25rem 0 .75rem}
-.tz-tile{display:block;text-align:left;background:#fff;border:1px solid var(--tz-line);border-radius:14px;padding:1.1rem;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s,box-shadow .15s}
-.tz-tile:hover,.tz-tile:focus-visible{transform:translateY(-2px);border-color:var(--tz);box-shadow:0 8px 24px -6px rgba(30,109,255,.28);color:inherit;outline:none}
-.tz-tile__ico{width:42px;height:42px;border-radius:11px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:.7rem}
-</style>
-
-<div class="tz">
-
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-person-vcard me-2" aria-hidden="true"></i>Tożsamość</h1>
-  <p class="pv-page-sub">Zarządzanie tożsamością w Entra ID</p>
+<div class="tz-h">
+  <h1><i class="bi bi-person-vcard me-2" style="color:#1E6DFF" aria-hidden="true"></i>Tożsamość</h1>
+  <p>Zarządzanie tożsamością w Entra ID · Twoje konto i dostępy</p>
 </div>
-<?php else: ?>
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:52px;height:52px;flex-shrink:0;background:#eef4ff">
-    <i class="bi bi-person-vcard fs-4" style="color:#1E6DFF"></i>
-  </div>
-  <div>
-    <h1 class="h4 mb-0">Tożsamość</h1>
-    <div class="text-muted small">Zarządzanie tożsamością w Entra ID · Identity management</div>
-  </div>
-</div>
-<?php endif; ?>
 
 <div class="alert d-flex align-items-start gap-2" style="background:#eef4ff;border:1px solid #dbe7ff;color:#1146ad">
   <i class="bi bi-diagram-3 fs-5 flex-shrink-0" aria-hidden="true"></i>
   <div class="small">
-    Ten moduł zarządza <strong>Twoją tożsamością w centralnym rejestrze użytkowników i kont (Entra ID)</strong> — identyfikatory, hasło, telefon i uwierzytelnianie.
-    Sprawy bieżącej współpracy (umowy, zadania, komunikaty) załatwiasz w <a href="<?= APP_URL ?>/panel/index.php">Moim panelu</a>.
+    To <strong>centralny katalog z Twoimi dostępami</strong> (Entra ID) — identyfikatory, hasło, telefon i uwierzytelnianie.
+    Sprawy bieżącej współpracy (umowy, zadania, komunikaty) załatwiasz w <a href="<?= APP_URL ?>/portal.php">systemie SZO</a>.
   </div>
 </div>
 
-<?= flash_html() ?>
+<?= function_exists('flash_html') ? flash_html() : '' ?>
 
 <div aria-live="assertive">
 <?php if ($errors): ?>
@@ -433,6 +361,17 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
         <div class="text-muted small">Drugi składnik logowania chroniący Twoją tożsamość.</div>
       </div>
       <a href="#bezpieczenstwo" class="tz-btn--ghost tz-btn btn-sm">Konfiguruj</a>
+    </div>
+    <!-- Dostęp do komputerów FEER -->
+    <div class="tz-svc" style="opacity:.75">
+      <span class="tz-svc__ico"><i class="bi bi-pc-display" aria-hidden="true"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">Dostęp do komputerów FEER
+          <span class="tz-badge tz-badge--off ms-1"><i class="bi bi-slash-circle" aria-hidden="true"></i> Nieaktywna</span>
+        </div>
+        <div class="text-muted small">Usługa tymczasowo nieaktywna.</div>
+      </div>
+      <button type="button" class="tz-btn--ghost tz-btn btn-sm" disabled aria-disabled="true" style="opacity:.6;cursor:not-allowed">Wkrótce</button>
     </div>
   </div>
 </section>
@@ -578,14 +517,14 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
     <h3 class="h6 fw-bold mb-2"><i class="bi bi-shield-check me-1" style="color:#1E6DFF" aria-hidden="true"></i>Konfiguracja telefonu i MFA <span class="lbl-en d-inline">Set up authenticator</span></h3>
     <p class="text-muted small mb-2">Sparuj smartfon z kontem organizacji. Zalecamy aplikację <strong>Microsoft Authenticator</strong>.</p>
     <div class="tz-tiles">
-      <a class="tz-tile" href="<?= APP_URL ?>/panel/2fa_settings.php">
+      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
         <span class="tz-tile__ico"><i class="bi bi-phone" aria-hidden="true"></i></span>
         <span class="fw-semibold d-block">Aplikacja Authenticator</span>
         <span class="lbl-en">Authenticator app (TOTP)</span>
         <span class="d-block text-muted mt-1" style="font-size:.85rem">Kreator: instalacja → skan kodu QR → potwierdzenie.</span>
       </a>
       <?php if ($sms_available): ?>
-      <a class="tz-tile" href="<?= APP_URL ?>/panel/2fa_settings.php">
+      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
         <span class="tz-tile__ico"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
         <span class="fw-semibold d-block">Kod SMS</span>
         <span class="lbl-en">Text message code</span>
@@ -593,11 +532,9 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
       </a>
       <?php endif; ?>
     </div>
-    <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Otwórz kreator MFA</a>
+    <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Otwórz kreator MFA</a>
   </div>
 </section>
-
-</div><!-- /.tz -->
 
 <script>
 (function(){
@@ -669,9 +606,4 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 })();
 </script>
 
-<?php
-if ($_is_volunteer_only) {
-    include dirname(__DIR__) . '/panel/includes/footer_panel.php';
-} else {
-    include dirname(__DIR__) . '/includes/footer.php';
-}
+<?php include __DIR__ . '/_foot.php';
