@@ -316,11 +316,7 @@ $_url_dyd    = APP_URL . '/karty30/ti/dydaktyk/login.php';
 html,body{height:100%;margin:0;padding:0}
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  background:
-    radial-gradient(900px 480px at 15% -10%, rgba(96,165,250,.18), transparent 60%),
-    radial-gradient(1000px 560px at 100% 110%, rgba(99,102,241,.16), transparent 55%),
-    linear-gradient(155deg,#0b1220 0%,#111c30 55%,#0f1e34 100%);
-  background-attachment:fixed;
+  background:#fff;color:#0f172a;
 }
 
 /* ── Skip link ───────────────────────────────────────────── */
@@ -336,23 +332,56 @@ body{
 *:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
 *:focus:not(:focus-visible){outline:none}
 
-/* ── Powłoka — wyśrodkowana karta ────────────────────────── */
-.login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem}
-.login-wrap{width:100%;max-width:440px}
+/* ── Powłoka — układ dwukolumnowy (jak na web) ───────────── */
+.login-layout{min-height:100vh;display:flex;flex-direction:column}
+
+/* ── Lewy panel brandowy ─────────────────────────────────── */
+.login-aside{
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;gap:2rem;
+  padding:2.25rem 1.75rem;
+  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));
+  color:var(--c-text,#fff);
+}
+.login-aside-decor{position:absolute;inset:0;opacity:.2;pointer-events:none}
+.login-aside-decor .blob{position:absolute;border-radius:50%;filter:blur(64px)}
+.login-aside-decor .blob-1{top:-6rem;left:-6rem;width:24rem;height:24rem;background:rgba(255,255,255,.20)}
+.login-aside-decor .blob-2{bottom:-8rem;right:-4rem;width:24rem;height:24rem;background:rgba(255,255,255,.10)}
+.login-aside-decor .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.35) 1px,transparent 0);background-size:26px 26px}
+.aside-brand{position:relative;display:inline-flex;align-items:center;gap:.75rem;text-decoration:none;color:inherit;align-self:flex-start}
+.aside-brand-logo{height:3rem;width:3rem;border-radius:.75rem;background:rgba(255,255,255,.95);object-fit:contain;padding:.25rem;box-shadow:0 1px 3px rgba(2,6,23,.2)}
+.aside-brand-icon{height:3rem;width:3rem;border-radius:.75rem;background:rgba(255,255,255,.95);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 1px 3px rgba(2,6,23,.2)}
+.aside-brand-name{font-size:1.1rem;font-weight:800;letter-spacing:-.01em}
+.aside-hero{position:relative;display:none}
+.aside-hero h1{max-width:26rem;font-size:1.9rem;font-weight:800;line-height:1.2;margin:0;letter-spacing:-.01em}
+.aside-hero p{max-width:26rem;margin:1rem 0 0;color:rgba(255,255,255,.82);font-size:1rem;line-height:1.6}
+.aside-foot{position:relative;display:none;font-size:.8rem;color:rgba(255,255,255,.72)}
+
+/* ── Prawa strona — formularz ────────────────────────────── */
+.login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;background:#fff}
+.login-wrap{width:100%;max-width:460px}
+.login-mobile-brand{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:2rem;text-decoration:none;color:#0f172a}
+.login-mobile-brand img{height:2.5rem;width:2.5rem;border-radius:.5rem;object-fit:contain;box-shadow:0 0 0 1px rgba(15,23,42,.05)}
+.login-mobile-brand span{font-weight:800}
+
+@media(min-width:1024px){
+  .login-layout{flex-direction:row}
+  .login-aside{width:50%;padding:4rem}
+  .login-aside-decor .dots{opacity:1}
+  .aside-hero,.aside-foot{display:block}
+  .login-panel{padding:2.5rem 2rem}
+  .login-mobile-brand{display:none}
+}
 
 /* ── Karta ───────────────────────────────────────────────── */
 .login-card{
-  position:relative;overflow:hidden;
-  background:#fff;border-radius:20px;border:1px solid rgba(255,255,255,.6);
-  box-shadow:0 24px 70px rgba(2,6,23,.45),0 2px 8px rgba(2,6,23,.18);
-  padding:2.4rem 2.25rem 2rem;
+  position:relative;
+  background:transparent;padding:0;
   animation:loginIn .4s cubic-bezier(.16,.84,.44,1) both;
 }
-.login-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:4px;
-  background:linear-gradient(90deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));
-}
 @keyframes loginIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+/* Branding w karcie dubluje panel brandowy (lewy na desktopie, górny pasek na mobile) → chowamy */
+.brand{display:none}
 
 /* ── Branding (góra karty) ───────────────────────────────── */
 .brand{text-align:center;margin-bottom:1.6rem}
@@ -418,13 +447,13 @@ body{
 .cross-link .arr{color:#cbd5e1;flex-shrink:0;font-size:.8rem}
 
 /* ── Stopka pod kartą ────────────────────────────────────── */
-.login-foot{margin-top:1.3rem;text-align:center}
-.login-foot .sec{display:inline-flex;align-items:center;gap:.35rem;color:rgba(255,255,255,.5);font-size:.77rem}
+.login-foot{margin-top:2rem;text-align:center}
+.login-foot .sec{display:inline-flex;align-items:center;gap:.35rem;color:#94a3b8;font-size:.77rem}
 .login-foot .links{margin-top:.55rem}
-.login-foot a{color:rgba(255,255,255,.78);text-decoration:none;font-size:.8rem;font-weight:500}
-.login-foot a:hover{color:#fff;text-decoration:underline}
-.login-foot .dot{color:rgba(255,255,255,.3);margin:0 .5rem}
-.login-foot .cpy{display:block;margin-top:.55rem;color:rgba(255,255,255,.38);font-size:.72rem}
+.login-foot a{color:#64748b;text-decoration:none;font-size:.8rem;font-weight:500}
+.login-foot a:hover{color:var(--c,#2563eb);text-decoration:underline}
+.login-foot .dot{color:#cbd5e1;margin:0 .5rem}
+.login-foot .cpy{display:block;margin-top:.55rem;color:#94a3b8;font-size:.72rem}
 
 /* ── Komunikaty ──────────────────────────────────────────── */
 .login-notice{
@@ -584,8 +613,8 @@ body{
 
 /* ── Mobile ──────────────────────────────────────────────── */
 @media(max-width:520px){
-  .login-shell{padding:1.25rem .75rem;align-items:flex-start}
-  .login-card{padding:1.6rem 1.35rem 1.4rem;border-radius:14px}
+  .login-panel{padding:1.75rem .9rem;align-items:flex-start}
+  .login-aside{padding:1.5rem 1.25rem}
   .brand-org{font-size:1.05rem}
   .choice{padding:.95rem .9rem;gap:.8rem}
   .choice-icon{width:44px;height:44px;font-size:1.3rem}
@@ -613,8 +642,42 @@ body.login-view-feer{
      id="login-alert"
      style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 
-<div class="login-shell">
+<div class="login-layout">
+
+<!-- ══ Lewy panel brandowy ═══════════════════════════════════════════════════ -->
+<aside class="login-aside">
+  <div class="login-aside-decor" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="dots"></span>
+  </div>
+
+  <a href="<?= APP_URL ?>" class="aside-brand">
+    <?php if ($_b['logo_url']): ?>
+      <img src="<?= h($_b['logo_url']) ?>" alt="" class="aside-brand-logo">
+    <?php else: ?>
+      <span class="aside-brand-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
+    <?php endif; ?>
+    <span class="aside-brand-name"><?= h($org_name) ?></span>
+  </a>
+
+  <div class="aside-hero">
+    <h1>Witaj ponownie</h1>
+    <p><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się, aby kontynuować.' ?></p>
+  </div>
+
+  <div class="aside-foot">&copy; <?= date('Y') ?> <?= h($org_name) ?></div>
+</aside>
+
+<!-- ══ Prawa strona — formularz ══════════════════════════════════════════════ -->
+<div class="login-panel">
 <div class="login-wrap">
+
+<!-- Logo widoczne na mobile (panel brandowy jest tam skrócony) -->
+<a href="<?= APP_URL ?>" class="login-mobile-brand">
+  <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt=""><?php endif; ?>
+  <span><?= h($org_name) ?></span>
+</a>
 
 <main class="login-card" id="login-form-area" tabindex="-1">
 
@@ -749,7 +812,8 @@ body.login-view-feer{
 </div>
 
 </div><!-- /login-wrap -->
-</div><!-- /login-shell -->
+</div><!-- /login-panel -->
+</div><!-- /login-layout -->
 
 <!-- ══ Modale metod logowania (poza shell — prawidłowy stacking context) ════ -->
 
