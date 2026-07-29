@@ -362,6 +362,15 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       </div>
       <a href="#bezpieczenstwo" class="tz-btn--ghost tz-btn btn-sm">Konfiguruj</a>
     </div>
+    <!-- Katalog RODO -->
+    <div class="tz-svc">
+      <span class="tz-svc__ico"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">Katalog RODO</div>
+        <div class="text-muted small">Co dzieje się z Twoją umową i danymi · Twoje upoważnienia do przetwarzania.</div>
+      </div>
+      <a href="<?= APP_URL ?>/tozsamosc/rodo.php" class="tz-btn--ghost tz-btn btn-sm">Otwórz</a>
+    </div>
     <!-- Dostęp do komputerów FEER -->
     <div class="tz-svc" style="opacity:.75">
       <span class="tz-svc__ico"><i class="bi bi-pc-display" aria-hidden="true"></i></span>
