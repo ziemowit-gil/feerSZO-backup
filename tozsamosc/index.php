@@ -290,13 +290,47 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
   <p>Zarządzanie tożsamością w Entra ID · Twoje konto i dostępy</p>
 </div>
 
-<div class="alert d-flex align-items-start gap-2" style="background:#eef4ff;border:1px solid #dbe7ff;color:#1146ad">
-  <i class="bi bi-diagram-3 fs-5 flex-shrink-0" aria-hidden="true"></i>
-  <div class="small">
-    To <strong>centralny katalog z Twoimi dostępami</strong> (Entra ID) — identyfikatory, hasło, telefon i uwierzytelnianie.
-    Sprawy bieżącej współpracy (umowy, zadania, komunikaty) załatwiasz w <a href="<?= APP_URL ?>/portal.php">systemie SZO</a>.
+<!-- Łopatologiczne wyjaśnienie: do czego służy panel, a czym NIE jest -->
+<section class="tz-card" aria-labelledby="explain-h">
+  <div class="tz-card__bd">
+    <div class="d-flex align-items-start gap-2 mb-3">
+      <i class="bi bi-signpost-2 fs-4" style="color:#1E6DFF" aria-hidden="true"></i>
+      <div>
+        <h2 id="explain-h" class="h6 fw-bold mb-1">Co to jest System Tożsamości?</h2>
+        <p class="text-muted small mb-0">
+          To Twoje <strong>„konto o koncie"</strong> — miejsce, gdzie zarządzasz <strong>logowaniem i tożsamością</strong>
+          w organizacji (jak login, hasło i telefon). <strong>Nie służy do codziennej pracy</strong> — tę robisz w systemie SZO.
+        </p>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="h-100 rounded p-3" style="background:#ecfdf5;border:1px solid #a7f3d0">
+          <div class="fw-bold mb-2" style="color:#047857"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Do tego służy</div>
+          <ul class="mb-0 ps-3 small" style="line-height:1.7">
+            <li>Sprawdzić swój <strong>numer UID</strong> i login (identyfikator sieciowy)</li>
+            <li><strong>Zmienić lub zresetować hasło</strong> (panel SZO + Microsoft 365 naraz)</li>
+            <li>Ustawić i zweryfikować <strong>numer telefonu</strong> (SMS, odzyskiwanie)</li>
+            <li>Włączyć <strong>logowanie dwuetapowe (MFA)</strong></li>
+            <li>Zobaczyć swoje <strong>usługi, upoważnienia RODO i rejestr czynności</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="h-100 rounded p-3" style="background:#fff7ed;border:1px solid #fed7aa">
+          <div class="fw-bold mb-2" style="color:#c2410c"><i class="bi bi-x-circle-fill me-1" aria-hidden="true"></i>Czym NIE jest</div>
+          <ul class="mb-0 ps-3 small" style="line-height:1.7">
+            <li>To <strong>nie</strong> panel do pracy — <strong>zadań, komunikatów, kalendarza</strong> szukaj w <a href="<?= APP_URL ?>/portal.php">SZO</a></li>
+            <li><strong>Nie</strong> znajdziesz tu <strong>treści umów ani dokumentów</strong> (to panel SZO / EZD)</li>
+            <li><strong>Nie</strong> zgłaszasz tu problemów — od tego jest <strong>helpdesk</strong></li>
+            <li><strong>Nie</strong> zmienisz tu swojej <strong>roli ani uprawnień</strong> (robi to administrator)</li>
+            <li>To <strong>nie</strong> jest Twoja <strong>skrzynka e-mail</strong> — pocztę masz w Microsoft 365</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+</section>
 
 <?= function_exists('flash_html') ? flash_html() : '' ?>
 
