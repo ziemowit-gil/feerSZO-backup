@@ -50,6 +50,7 @@ try {
 // ── Samonaprawa schematu ────────────────────────────────────────────────────
 try { db()->exec("ALTER TABLE users ADD COLUMN phone_verified_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE users ADD COLUMN tozsamosc_seen_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
 
 // ── Pełny rekord + identyfikatory ───────────────────────────────────────────
 $db_user = db_one("SELECT * FROM users WHERE id=?", [$user['id']]);
@@ -96,6 +97,9 @@ foreach ([
     } catch (\Throwable $e) { $row = null; }
     if ($row) { $src_contract = $row; $account_type_label = $lbl; break; }
 }
+
+// Pierwsza wizyta w podsystemie (info powitalne pokazywane raz).
+$first_visit = empty($db_user['tozsamosc_seen_at']);
 
 // ── Stan telefonu / MFA ─────────────────────────────────────────────────────
 $phone_saved    = $db_user['phone_number'] ?? '';
@@ -169,7 +173,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['_action'] ?? '';
 
-    if ($action === 'phone_send') {
+    if ($action === 'dismiss_intro') {
+        db()->prepare("UPDATE users SET tozsamosc_seen_at=datetime('now') WHERE id=? AND tozsamosc_seen_at IS NULL")->execute([$uid]);
+        header('Location: ' . $SELF); exit;
+    }
+    elseif ($action === 'phone_send') {
         if (!$sms_available) {
             $errors[] = 'Wysyłka SMS jest obecnie niedostępna. Skontaktuj się z administratorem.';
         } else {
@@ -290,47 +298,26 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
   <p>Zarządzanie tożsamością w Entra ID · Twoje konto i dostępy</p>
 </div>
 
-<!-- Łopatologiczne wyjaśnienie: do czego służy panel, a czym NIE jest -->
-<section class="tz-card" aria-labelledby="explain-h">
-  <div class="tz-card__bd">
-    <div class="d-flex align-items-start gap-2 mb-3">
-      <i class="bi bi-signpost-2 fs-4" style="color:#1E6DFF" aria-hidden="true"></i>
-      <div>
-        <h2 id="explain-h" class="h6 fw-bold mb-1">Co to jest System Tożsamości?</h2>
-        <p class="text-muted small mb-0">
-          To Twoje <strong>„konto o koncie"</strong> — miejsce, gdzie zarządzasz <strong>logowaniem i tożsamością</strong>
-          w organizacji (jak login, hasło i telefon). <strong>Nie służy do codziennej pracy</strong> — tę robisz w systemie SZO.
-        </p>
-      </div>
+<?php if ($first_visit): ?>
+<!-- Powitanie po pierwszym logowaniu (pokazywane raz) -->
+<section class="tz-card" style="border:2px solid #1E6DFF" aria-labelledby="welcome-h">
+  <div class="tz-card__bd d-flex flex-wrap align-items-center gap-3">
+    <i class="bi bi-stars fs-3" style="color:#1E6DFF" aria-hidden="true"></i>
+    <div class="flex-grow-1" style="min-width:220px">
+      <div class="fw-bold" id="welcome-h">Witaj w Systemie Tożsamości 👋</div>
+      <div class="text-muted small">To Twoje pierwsze wejście. Zajrzyj do zakładki <strong>„O panelu"</strong> — w 20 sekund zrozumiesz, do czego to służy (a do czego nie).</div>
     </div>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="h-100 rounded p-3" style="background:#ecfdf5;border:1px solid #a7f3d0">
-          <div class="fw-bold mb-2" style="color:#047857"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Do tego służy</div>
-          <ul class="mb-0 ps-3 small" style="line-height:1.7">
-            <li>Sprawdzić swój <strong>numer UID</strong> i login (identyfikator sieciowy)</li>
-            <li><strong>Zmienić lub zresetować hasło</strong> (panel SZO + Microsoft 365 naraz)</li>
-            <li>Ustawić i zweryfikować <strong>numer telefonu</strong> (SMS, odzyskiwanie)</li>
-            <li>Włączyć <strong>logowanie dwuetapowe (MFA)</strong></li>
-            <li>Zobaczyć swoje <strong>usługi, upoważnienia RODO i rejestr czynności</strong></li>
-          </ul>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="h-100 rounded p-3" style="background:#fff7ed;border:1px solid #fed7aa">
-          <div class="fw-bold mb-2" style="color:#c2410c"><i class="bi bi-x-circle-fill me-1" aria-hidden="true"></i>Czym NIE jest</div>
-          <ul class="mb-0 ps-3 small" style="line-height:1.7">
-            <li>To <strong>nie</strong> panel do pracy — <strong>zadań, komunikatów, kalendarza</strong> szukaj w <a href="<?= APP_URL ?>/portal.php">SZO</a></li>
-            <li><strong>Nie</strong> znajdziesz tu <strong>treści umów ani dokumentów</strong> (to panel SZO / EZD)</li>
-            <li><strong>Nie</strong> zgłaszasz tu problemów — od tego jest <strong>helpdesk</strong></li>
-            <li><strong>Nie</strong> zmienisz tu swojej <strong>roli ani uprawnień</strong> (robi to administrator)</li>
-            <li>To <strong>nie</strong> jest Twoja <strong>skrzynka e-mail</strong> — pocztę masz w Microsoft 365</li>
-          </ul>
-        </div>
-      </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="#opanelu" class="tz-btn"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Zobacz „O panelu"</a>
+      <form method="post" class="m-0">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="dismiss_intro">
+        <button type="submit" class="tz-btn tz-btn--ghost">Rozumiem, nie pokazuj</button>
+      </form>
     </div>
   </div>
 </section>
+<?php endif; ?>
 
 <?= function_exists('flash_html') ? flash_html() : '' ?>
 
@@ -349,6 +336,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <a href="#uslugi" role="tab" id="tab-uslugi" aria-controls="uslugi" aria-selected="false" tabindex="-1"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
     <a href="#bezpieczenstwo" role="tab" id="tab-bezpieczenstwo" aria-controls="bezpieczenstwo" aria-selected="false" tabindex="-1"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
     <a href="#rejestr" role="tab" id="tab-rejestr" aria-controls="rejestr" aria-selected="false" tabindex="-1"><i class="bi bi-clock-history" aria-hidden="true"></i>Rejestr czynności</a>
+    <a href="#opanelu" role="tab" id="tab-opanelu" aria-controls="opanelu" aria-selected="false" tabindex="-1"><i class="bi bi-info-circle" aria-hidden="true"></i>O panelu</a>
   </span>
 </nav>
 
@@ -708,7 +696,69 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
   </div>
 </section>
 
+<!-- ═══════════ O PANELU ═══════════ -->
+<section class="tz-card tz-panel" id="opanelu" role="tabpanel" aria-labelledby="tab-opanelu" tabindex="-1">
+  <div class="tz-card__hd" id="op-h">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+    <span>O panelu <span class="lbl-en">About this panel</span></span>
+  </div>
+  <div class="tz-card__bd">
+
+    <p class="mb-3">
+      <strong>System Tożsamości</strong> to Twoje <strong>„konto o koncie"</strong> — jedno miejsce, w którym zarządzasz
+      <strong>logowaniem i tożsamością</strong> w organizacji (login, hasło, telefon, uwierzytelnianie).
+      <strong>Nie służy do codziennej pracy</strong> — zadania, umowy i komunikaty załatwiasz w systemie SZO.
+    </p>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="h-100 rounded p-3" style="background:#ecfdf5;border:1px solid #a7f3d0">
+          <div class="fw-bold mb-2" style="color:#047857"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Do tego służy</div>
+          <ul class="mb-0 ps-3 small" style="line-height:1.7">
+            <li>Sprawdzić swój <strong>numer UID</strong> i login (identyfikator sieciowy)</li>
+            <li><strong>Zmienić lub zresetować hasło</strong> (panel SZO + Microsoft 365 naraz)</li>
+            <li>Ustawić i zweryfikować <strong>numer telefonu</strong> (SMS, odzyskiwanie)</li>
+            <li>Włączyć <strong>logowanie dwuetapowe (MFA)</strong></li>
+            <li>Zobaczyć swoje <strong>usługi, upoważnienia RODO i rejestr czynności</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="h-100 rounded p-3" style="background:#fff7ed;border:1px solid #fed7aa">
+          <div class="fw-bold mb-2" style="color:#c2410c"><i class="bi bi-x-circle-fill me-1" aria-hidden="true"></i>Czym NIE jest</div>
+          <ul class="mb-0 ps-3 small" style="line-height:1.7">
+            <li>To <strong>nie</strong> panel do pracy — <strong>zadań, komunikatów, kalendarza</strong> szukaj w <a href="<?= APP_URL ?>/portal.php">SZO</a></li>
+            <li><strong>Nie</strong> znajdziesz tu <strong>treści umów ani dokumentów</strong> (panel SZO / EZD)</li>
+            <li><strong>Nie</strong> zgłaszasz tu problemów — od tego jest <strong>helpdesk</strong></li>
+            <li><strong>Nie</strong> zmienisz tu swojej <strong>roli ani uprawnień</strong> (robi to administrator)</li>
+            <li>To <strong>nie</strong> jest Twoja <strong>skrzynka e-mail</strong> — pocztę masz w Microsoft 365</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1" style="color:#1E6DFF" aria-hidden="true"></i>Jak to działa</h3>
+    <ul class="small mb-4" style="line-height:1.8">
+      <li>Twoje konto i <strong>numer UID</strong> powstają automatycznie w chwili <strong>zawarcia umowy</strong> — UID jest stały i niezmienny.</li>
+      <li><strong>Login do panelu</strong> (identyfikator sieciowy) może różnić się od <strong>loginu Microsoft 365</strong> — oba widzisz w zakładce „Podstawowe".</li>
+      <li>Zmiana hasła <strong>synchronizuje się</strong> jednocześnie z panelem SZO i Microsoft 365 / Entra ID.</li>
+    </ul>
+
+    <h3 class="h6 fw-bold mb-2"><i class="bi bi-life-preserver me-1" style="color:#1E6DFF" aria-hidden="true"></i>Potrzebujesz pomocy?</h3>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="<?= APP_URL ?>/helpdesk/index.php" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-headset me-1" aria-hidden="true"></i>Zgłoś do helpdesku</a>
+      <a href="<?= APP_URL ?>/portal.php" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Przejdź do SZO</a>
+      <a href="<?= APP_URL ?>/user/verify_reset.php" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-key me-1" aria-hidden="true"></i>Nie mogę się zalogować</a>
+    </div>
+
+    <?php if (!$first_visit): ?>
+    <p class="text-muted mt-3 mb-0" style="font-size:.78rem"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapoznałeś się z wprowadzeniem.</p>
+    <?php endif; ?>
+  </div>
+</section>
+
 <script>
+window.__tzFirstVisit = <?= $first_visit ? 'true' : 'false' ?>;
 (function(){
   var toggle=document.getElementById('pw_toggle'), pwNew=document.getElementById('pw_new');
   if(toggle&&pwNew){toggle.addEventListener('click',function(){
@@ -770,10 +820,12 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       if(n){e.preventDefault();activate(n.getAttribute('aria-controls'),false);n.focus();}
     });
   });
-  // Na starcie: otwórz sekcję wskazaną w #hash (np. po zapisie hasła → #bezpieczenstwo)
+  // Na starcie: #hash (np. po zapisie hasła → #bezpieczenstwo); przy 1. wizycie → „O panelu".
   var initial=(location.hash||'').slice(1);
   if(initial && document.getElementById(initial) && document.getElementById(initial).classList.contains('tz-panel')){
     activate(initial,false);
+  } else if(window.__tzFirstVisit){
+    activate('opanelu',false);
   }
 })();
 </script>
