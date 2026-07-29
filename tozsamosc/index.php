@@ -106,6 +106,55 @@ $mfa_active     = $mfa_method !== '';
 $mfa_label      = $mfa_method === 'totp' ? 'Aplikacja Authenticator'
                 : ($mfa_method === 'sms' ? 'Kod SMS' : 'Nieaktywne');
 
+// ── Rejestr czynności: RODO (co dzieje się z danymi) + historia umowy ────────
+require_once dirname(__DIR__) . '/includes/rodo.php';
+try { rodo_migrate(); } catch (\Throwable $e) {}
+$rodo_org  = function_exists('rodo_org_data') ? rodo_org_data() : ['name'=>'','address'=>'','city'=>'','nip'=>'','krs'=>''];
+$rodo_auth = [];
+$rodo_ids  = [];
+foreach (['wolontariat','zlecenie'] as $ctype) {
+    $ids = [];
+    try {
+        foreach (db_all("SELECT id FROM umowy_{$ctype} WHERE email=? OR m365_login=?", [$panel_login,$panel_login]) as $r) $ids[] = (int)$r['id'];
+        if ($microsoft_id) foreach (db_all("SELECT id FROM umowy_{$ctype} WHERE m365_user_id=?", [$microsoft_id]) as $r) { if (!in_array((int)$r['id'],$ids,true)) $ids[] = (int)$r['id']; }
+    } catch (\Throwable $e) { $ids = []; }
+    if (!$ids) continue;
+    $rodo_ids[$ctype] = $ids;
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    try { foreach (db_all("SELECT * FROM rodo_authorizations WHERE contract_type=? AND contract_id IN ({$ph}) ORDER BY created_at DESC", array_merge([$ctype],$ids)) as $a) $rodo_auth[] = $a; } catch (\Throwable $e) {}
+}
+// Historia umowy — TYLKO wejścia i modyfikacje
+$REG_ENTER  = ['login','cpc_verify_ok','admin_impersonate','admin_impersonate_stop'];
+$REG_MODIFY = ['edit','status','renewal_create','renewed_by','user_role_change','user_password_reset','delete','note','consent_accepted'];
+$rodo_history = [];
+if ($rodo_ids) {
+    $conds = []; $params = [];
+    foreach ($rodo_ids as $ct=>$ids) { $ph = implode(',', array_fill(0,count($ids),'?')); $conds[] = "(contract_type=? AND contract_id IN ({$ph}))"; $params[] = $ct; foreach ($ids as $i) $params[] = $i; }
+    $inActions = array_merge($REG_ENTER, $REG_MODIFY);
+    $aph = implode(',', array_fill(0, count($inActions), '?'));
+    try {
+        $rodo_history = db_all(
+            "SELECT contract_type, contract_id, action, note, created_at FROM contract_audit_log
+             WHERE (" . implode(' OR ', $conds) . ") AND action IN ({$aph})
+             ORDER BY created_at DESC LIMIT 50", array_merge($params, $inActions));
+    } catch (\Throwable $e) { $rodo_history = []; }
+}
+$ACT = [
+    'login'               => ['Wejście do konta', 'bi-box-arrow-in-right'],
+    'cpc_verify_ok'       => ['Weryfikacja tożsamości', 'bi-shield-check'],
+    'admin_impersonate'   => ['Wejście administratora', 'bi-people'],
+    'admin_impersonate_stop'=> ['Koniec wejścia administratora', 'bi-people'],
+    'edit'                => ['Modyfikacja danych umowy', 'bi-pencil'],
+    'status'              => ['Zmiana statusu umowy', 'bi-flag'],
+    'renewal_create'      => ['Przedłużenie umowy', 'bi-arrow-repeat'],
+    'renewed_by'          => ['Przedłużenie umowy', 'bi-arrow-repeat'],
+    'user_role_change'    => ['Zmiana roli', 'bi-person-gear'],
+    'user_password_reset' => ['Reset hasła', 'bi-key'],
+    'consent_accepted'    => ['Akceptacja zgody', 'bi-check2-square'],
+    'note'                => ['Notatka', 'bi-sticky'],
+    'delete'              => ['Usunięcie', 'bi-trash'],
+];
+
 $errors = [];
 
 /** Maskuje numer: +48 ••• ••• 200. */
@@ -265,6 +314,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <a href="#podstawowe" class="on" role="tab" id="tab-podstawowe" aria-controls="podstawowe" aria-selected="true"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
     <a href="#uslugi" role="tab" id="tab-uslugi" aria-controls="uslugi" aria-selected="false" tabindex="-1"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
     <a href="#bezpieczenstwo" role="tab" id="tab-bezpieczenstwo" aria-controls="bezpieczenstwo" aria-selected="false" tabindex="-1"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
+    <a href="#rejestr" role="tab" id="tab-rejestr" aria-controls="rejestr" aria-selected="false" tabindex="-1"><i class="bi bi-clock-history" aria-hidden="true"></i>Rejestr czynności</a>
   </span>
 </nav>
 
@@ -361,15 +411,6 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <div class="text-muted small">Drugi składnik logowania chroniący Twoją tożsamość.</div>
       </div>
       <a href="#bezpieczenstwo" class="tz-btn--ghost tz-btn btn-sm">Konfiguruj</a>
-    </div>
-    <!-- Katalog RODO -->
-    <div class="tz-svc">
-      <span class="tz-svc__ico"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
-      <div class="flex-grow-1">
-        <div class="fw-semibold">Katalog RODO</div>
-        <div class="text-muted small">Co dzieje się z Twoją umową i danymi · Twoje upoważnienia do przetwarzania.</div>
-      </div>
-      <a href="<?= APP_URL ?>/tozsamosc/rodo.php" class="tz-btn--ghost tz-btn btn-sm">Otwórz</a>
     </div>
     <!-- Dostęp do komputerów FEER -->
     <div class="tz-svc" style="opacity:.75">
@@ -542,6 +583,94 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       <?php endif; ?>
     </div>
     <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Otwórz kreator MFA</a>
+  </div>
+</section>
+
+<!-- ═══════════ REJESTR CZYNNOŚCI ═══════════ -->
+<section class="tz-card tz-panel" id="rejestr" role="tabpanel" aria-labelledby="tab-rejestr" tabindex="-1">
+  <div class="tz-card__hd" id="rej-h">
+    <i class="bi bi-clock-history" aria-hidden="true"></i>
+    <span>Rejestr czynności <span class="lbl-en">Record of processing &amp; activity</span></span>
+  </div>
+  <div class="tz-card__bd">
+
+    <!-- Co dzieje się z Twoimi danymi -->
+    <h3 class="h6 fw-bold mb-2"><i class="bi bi-info-circle me-1" style="color:#1E6DFF" aria-hidden="true"></i>Co dzieje się z Twoimi danymi <span class="lbl-en d-inline">How your data is processed</span></h3>
+    <dl class="tz-dl mb-3" style="border:1px solid var(--tz-line);border-radius:10px;overflow:hidden">
+      <div style="border-top:0"><dt>Administrator danych</dt><dd><?= h($rodo_org['name'] ?: '—') ?></dd></div>
+      <div style="border-top:0"><dt>Siedziba</dt><dd><?= h(trim(($rodo_org['address'] ?? '') . ' ' . ($rodo_org['city'] ?? ''))) ?: '—' ?></dd></div>
+      <div style="border-top:0"><dt>NIP / KRS</dt><dd><?= h(trim(($rodo_org['nip'] ?? '') . ($rodo_org['krs'] ? ' / ' . $rodo_org['krs'] : ''))) ?: '—' ?></dd></div>
+      <div><dt>Cel przetwarzania</dt><dd>Realizacja umowy i obowiązków organizacji</dd></div>
+      <div><dt>Podstawa prawna</dt><dd>Wykonanie umowy (art. 6 ust. 1 lit. b RODO)</dd></div>
+      <div><dt>Okres przechowywania</dt><dd>Czas trwania umowy + okres wymagany przepisami</dd></div>
+    </dl>
+
+    <!-- Upoważnienia -->
+    <h3 class="h6 fw-bold mb-2"><i class="bi bi-patch-check me-1" style="color:#1E6DFF" aria-hidden="true"></i>Twoje upoważnienia do przetwarzania danych</h3>
+    <?php if (!$rodo_auth): ?>
+      <p class="text-muted small mb-4">Brak upoważnień powiązanych z Twoim kontem.</p>
+    <?php else: ?>
+      <div class="mb-4">
+      <?php foreach ($rodo_auth as $a):
+        $scope = json_decode($a['scope_items'] ?? '[]', true) ?: [];
+      ?>
+        <div class="border rounded p-3 mb-2 <?= $a['status'] !== 'aktywne' ? 'opacity-75' : '' ?>" style="border-color:var(--tz-line)!important">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="font-monospace fw-bold text-muted" style="font-size:.82rem"><?= h($a['number']) ?></span>
+            <?= rodo_status_badge($a['status']) ?>
+            <a href="<?= APP_URL ?>/rodo/print.php?id=<?= (int)$a['id'] ?>" target="_blank" rel="noopener" class="tz-btn tz-btn--ghost btn-sm ms-auto"><i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj</a>
+          </div>
+          <div class="text-muted small mt-1">
+            od <?= !empty($a['authorized_from']) ? h(date('d.m.Y', strtotime($a['authorized_from']))) : '—' ?>
+            <?= !empty($a['authorized_until']) ? ' do ' . h(date('d.m.Y', strtotime($a['authorized_until']))) : ' (do zakończenia umowy)' ?>
+          </div>
+          <?php if ($scope || !empty($a['scope_custom'])): ?>
+          <ul class="mb-0 ps-3 mt-1" style="font-size:.85rem">
+            <?php foreach ($scope as $k): ?><li><?= h(RODO_SCOPE_ITEMS[$k] ?? $k) ?></li><?php endforeach; ?>
+            <?php if (!empty($a['scope_custom'])): ?><li><?= h($a['scope_custom']) ?></li><?php endif; ?>
+          </ul>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+
+    <!-- Rejestr czynności na umowie — TYLKO wejścia i modyfikacje -->
+    <h3 class="h6 fw-bold mb-1"><i class="bi bi-file-earmark-text me-1" style="color:#1E6DFF" aria-hidden="true"></i>Czynności na Twojej umowie</h3>
+    <p class="text-muted small mb-2">Rejestr wejść (dostępów) i modyfikacji danych umowy.</p>
+    <?php if (!$rodo_history): ?>
+      <div class="text-muted small">Brak zapisanych wejść ani modyfikacji.</div>
+    <?php else: ?>
+      <ol class="list-unstyled mb-0">
+        <?php foreach ($rodo_history as $ev):
+          [$lbl, $ic] = $ACT[$ev['action']] ?? [$ev['action'], 'bi-dot'];
+          $is_enter = in_array($ev['action'], $REG_ENTER, true);
+          $col = $is_enter ? '#6B7280' : '#1E6DFF';
+          $cat = $is_enter ? 'Wejście' : 'Modyfikacja';
+        ?>
+        <li class="d-flex gap-3 pb-3" style="border-left:2px solid var(--tz-line);margin-left:14px;padding-left:16px;position:relative">
+          <span style="position:absolute;left:-9px;top:0;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid <?= $col ?>;display:flex;align-items:center;justify-content:center">
+            <i class="bi <?= h($ic) ?>" style="font-size:.55rem;color:<?= $col ?>" aria-hidden="true"></i>
+          </span>
+          <div>
+            <div class="fw-semibold" style="font-size:.9rem"><?= h($lbl) ?>
+              <span class="tz-badge <?= $is_enter ? 'tz-badge--off' : '' ?> ms-1" style="<?= $is_enter ? '' : 'background:#eef4ff;color:#1656d6;border:1px solid #dbe7ff' ?>"><?= $cat ?></span>
+              <span class="text-muted fw-normal" style="font-size:.78rem">· <?= h(ucfirst($ev['contract_type'])) ?></span>
+            </div>
+            <div class="text-muted" style="font-size:.8rem">
+              <?= !empty($ev['created_at']) ? h(date('d.m.Y H:i', strtotime($ev['created_at']))) : '' ?>
+              <?php if (!empty($ev['note'])): ?> · <?= h(mb_strimwidth($ev['note'], 0, 120, '…')) ?><?php endif; ?>
+            </div>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ol>
+    <?php endif; ?>
+
+    <p class="tz-note mt-3 mb-0" style="border:0;padding-left:0">
+      <i class="bi bi-lock" aria-hidden="true"></i>
+      <span>Masz prawo dostępu do swoich danych, sprostowania i ograniczenia przetwarzania. Upoważnienie oznacza obowiązek <strong>poufności</strong> — również po zakończeniu współpracy.</span>
+    </p>
   </div>
 </section>
 
