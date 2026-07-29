@@ -252,10 +252,10 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 .tz-dl{display:grid;grid-template-columns:repeat(1,1fr)}
 @media(min-width:576px){.tz-dl{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:992px){.tz-dl{grid-template-columns:repeat(3,1fr)}}
-.tz-dl>div{padding:.75rem 1rem;border-top:1px solid var(--tz-line)}
-.tz-dl>div+div{border-left:1px solid var(--tz-line)}
-.tz-dl dt{font-size:.75rem;color:var(--tz-muted);margin:0}
-.tz-dl dd{font-weight:600;margin:.15rem 0 0;font-size:.92rem;word-break:break-word}
+.tz-dl>div{padding:.8rem 1.1rem;border-top:1px solid var(--tz-line);position:relative}
+@media(min-width:576px){.tz-dl>div:nth-child(2n)::before,.tz-dl>div:nth-child(n+2)::before{content:none}}
+.tz-dl dt{font-size:.7rem;color:var(--tz-muted);margin:0;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.tz-dl dd{font-weight:600;margin:.2rem 0 0;font-size:.94rem;word-break:break-word;color:#0f172a}
 .tz-dl dd .tz-copy{border:0;background:none;color:var(--tz-strong);padding:0 .25rem;cursor:pointer}
 .tz-note{background:#F4F6F9;border-top:1px solid var(--tz-line);padding:.6rem 1rem;font-size:.8rem;color:var(--tz-muted);display:flex;gap:.4rem;align-items:flex-start}
 .tz-btn{background:var(--tz-strong);color:#fff;border:none;border-radius:9px;padding:.6rem 1.3rem;font-weight:600;display:inline-flex;align-items:center;gap:.45rem;text-decoration:none}
@@ -275,9 +275,12 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 .tz-req li .dot{display:inline-block;width:1.1em;text-align:center;font-weight:700}
 .tz-meter{height:7px;border-radius:999px;background:var(--tz-line);overflow:hidden;margin-top:.5rem}
 .tz-meter>span{display:block;height:100%;width:0;background:#f87171;transition:width .3s,background-color .3s}
-.tz-subnav{position:sticky;top:0;z-index:5;background:#F4F6F9;padding:.5rem 0;margin-bottom:1rem;display:flex;gap:.4rem;flex-wrap:wrap;border-bottom:1px solid var(--tz-line)}
-.tz-subnav a{font-size:.85rem;padding:.4rem .85rem;border-radius:8px;text-decoration:none;color:var(--tz-strong);border:1px solid var(--tz-line);background:#fff;display:inline-flex;align-items:center;gap:.35rem}
-.tz-subnav a:hover,.tz-subnav a:focus-visible{background:var(--tz-50);outline:none}
+.tz-subnav{position:sticky;top:0;z-index:5;background:#F4F6F9;padding:.6rem 0;margin-bottom:1.1rem}
+.tz-subnav .seg{display:inline-flex;gap:.2rem;padding:.25rem;background:#fff;border:1px solid var(--tz-line);border-radius:12px;flex-wrap:wrap;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.tz-subnav a{font-size:.85rem;padding:.4rem .9rem;border-radius:9px;text-decoration:none;color:var(--tz-muted);display:inline-flex;align-items:center;gap:.4rem;font-weight:500}
+.tz-subnav a:hover,.tz-subnav a:focus-visible{background:var(--tz-50);color:var(--tz-strong);outline:none}
+.tz-subnav a.on{background:var(--tz);color:#fff}
+.tz-subnav a.on i{color:#fff}
 .tz-svc{display:flex;align-items:center;gap:.9rem;padding:.85rem 0;border-top:1px solid var(--tz-line)}
 .tz-svc:first-child{border-top:0}
 .tz-svc__ico{width:42px;height:42px;border-radius:11px;background:var(--tz-50);color:var(--tz-strong);display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
@@ -326,9 +329,11 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 </div>
 
 <nav class="tz-subnav" aria-label="Sekcje tożsamości">
-  <a href="#podstawowe"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
-  <a href="#uslugi"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
-  <a href="#bezpieczenstwo"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
+  <span class="seg">
+    <a href="#podstawowe" class="on"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
+    <a href="#uslugi"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
+    <a href="#bezpieczenstwo"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
+  </span>
 </nav>
 
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
@@ -624,6 +629,19 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
       if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});t.focus({preventScroll:true});}
     });
   });
+  // Scrollspy — podświetl aktywną zakładkę segmentu wg widocznej sekcji
+  var navLinks=[].slice.call(document.querySelectorAll('.tz-subnav .seg a'));
+  var secs=navLinks.map(function(a){return document.querySelector(a.getAttribute('href'));}).filter(Boolean);
+  if('IntersectionObserver' in window && secs.length){
+    var obs=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          navLinks.forEach(function(a){a.classList.toggle('on', a.getAttribute('href')==='#'+en.target.id);});
+        }
+      });
+    },{rootMargin:'-45% 0px -50% 0px',threshold:0});
+    secs.forEach(function(s){obs.observe(s);});
+  }
 })();
 </script>
 
