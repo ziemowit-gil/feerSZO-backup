@@ -665,6 +665,19 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
   .digit-box{width:42px;height:54px;font-size:1.55rem}
   .pesel-box{width:48px;height:60px}
 }
+
+/* ── Integracja z System Tożsamości — spójna paleta #1E6DFF ─────────────── */
+.gate-logo{background:linear-gradient(135deg,#1E6DFF,#1656d6)!important;box-shadow:0 2px 8px rgba(30,109,255,.25)}
+.gate-mode-icon{background:#eef4ff;color:#1656d6;border-color:#dbe7ff}
+.btn-gate{--c:#1E6DFF;--c-dark:#1656d6;--c-ring:rgba(30,109,255,.28)}
+.gate-dest-module{color:#1656d6}
+.method-tab.active{color:#1656d6;border-color:#dbe7ff}
+.digit-box.filled{background:#eef4ff;border-color:#1E6DFF}
+.digit-box:focus,.pesel-box:focus{border-color:#1E6DFF;box-shadow:0 0 0 3px rgba(30,109,255,.18)}
+.recovery-btn:hover{border-color:#93b4ff;color:#1656d6;background:#eef4ff}
+.recovery-btn:hover i{color:#1E6DFF}
+.gate-footer a:hover{color:#1656d6}
+.gate-tz-link{display:flex;align-items:center;gap:.3rem;color:#1656d6!important;font-weight:600}
 </style>
 </head>
 <body>
@@ -1058,6 +1071,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
 <?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'Dydaktyka' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
 <div class="gate-footer">
   <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Anuluj i wróć</a>
+  <a href="<?= APP_URL ?>/tozsamosc/index.php" class="gate-tz-link"><i class="bi bi-person-vcard" aria-hidden="true"></i> System Tożsamości</a>
   <span>&copy; <?= date('Y') ?> <?= h($org_name) ?></span>
 </div>
 

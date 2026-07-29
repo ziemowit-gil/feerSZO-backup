@@ -159,6 +159,12 @@ $ACT = [
     'delete'              => ['Usunięcie', 'bi-trash'],
 ];
 
+// ── IKA (Indywidualny Kod Autoryzacyjny) — zmiana z podsystemu ──────────────
+require_once dirname(__DIR__) . '/includes/cpc.php';
+try { cpc_migrate(); } catch (\Throwable $e) {}
+$has_ika     = !empty($db_user['cpc_code']);
+$ika_blocked = !empty($db_user['cpc_blocked_until']) && $db_user['cpc_blocked_until'] > date('Y-m-d H:i:s');
+
 $errors = [];
 
 /** Maskuje numer: +48 ••• ••• 200. */
@@ -176,6 +182,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'dismiss_intro') {
         db()->prepare("UPDATE users SET tozsamosc_seen_at=datetime('now') WHERE id=? AND tozsamosc_seen_at IS NULL")->execute([$uid]);
         header('Location: ' . $SELF); exit;
+    }
+    elseif ($action === 'change_ika') {
+        if (empty($db_user['cpc_code'])) {
+            $errors[] = 'Nie masz przypisanego kodu IKA.';
+        } else {
+            $cur = preg_replace('/\D/', '', $_POST['ika_current'] ?? '');
+            $new = preg_replace('/\D/', '', $_POST['ika_new'] ?? '');
+            $cnf = preg_replace('/\D/', '', $_POST['ika_confirm'] ?? '');
+            $v = cpc_verify($uid, $cur);
+            if (!empty($v['blocked'])) {
+                $errors[] = 'Kod IKA jest tymczasowo zablokowany po błędnych próbach. Spróbuj później.';
+            } elseif (empty($v['ok'])) {
+                $errors[] = 'Aktualny kod IKA jest nieprawidłowy.';
+            } elseif (!preg_match('/^\d{6}$/', $new)) {
+                $errors[] = 'Nowy kod IKA musi składać się dokładnie z 6 cyfr.';
+            } elseif ($new !== $cnf) {
+                $errors[] = 'Nowe kody IKA nie są identyczne.';
+            } elseif ($new === $cur) {
+                $errors[] = 'Nowy kod musi różnić się od obecnego.';
+            } else {
+                db()->prepare("UPDATE users SET cpc_code=?, cpc_fails=0, cpc_blocked_until=NULL WHERE id=?")->execute([$new, $uid]);
+                authlog_write($uid, 'ika_changed', $user['email'] ?? '', 'Zmiana kodu IKA z podsystemu Tożsamość');
+                flash_set('success', 'Kod IKA został zmieniony.');
+                header('Location: ' . $SELF . '#ika'); exit;
+            }
+        }
     }
     elseif ($action === 'phone_send') {
         if (!$sms_available) {
@@ -335,6 +367,9 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <a href="#podstawowe" class="on" role="tab" id="tab-podstawowe" aria-controls="podstawowe" aria-selected="true"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
     <a href="#uslugi" role="tab" id="tab-uslugi" aria-controls="uslugi" aria-selected="false" tabindex="-1"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
     <a href="#bezpieczenstwo" role="tab" id="tab-bezpieczenstwo" aria-controls="bezpieczenstwo" aria-selected="false" tabindex="-1"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
+    <?php if ($has_ika): ?>
+    <a href="#ika" role="tab" id="tab-ika" aria-controls="ika" aria-selected="false" tabindex="-1"><i class="bi bi-key" aria-hidden="true"></i>Zmień IKA</a>
+    <?php endif; ?>
     <a href="#rejestr" role="tab" id="tab-rejestr" aria-controls="rejestr" aria-selected="false" tabindex="-1"><i class="bi bi-clock-history" aria-hidden="true"></i>Rejestr czynności</a>
     <a href="#opanelu" role="tab" id="tab-opanelu" aria-controls="opanelu" aria-selected="false" tabindex="-1"><i class="bi bi-info-circle" aria-hidden="true"></i>O panelu</a>
   </span>
@@ -607,6 +642,55 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Otwórz kreator MFA</a>
   </div>
 </section>
+
+<?php if ($has_ika): ?>
+<!-- ═══════════ ZMIEŃ IKA ═══════════ -->
+<section class="tz-card tz-panel" id="ika" role="tabpanel" aria-labelledby="tab-ika" tabindex="-1">
+  <div class="tz-card__hd" id="ika-h">
+    <i class="bi bi-key" aria-hidden="true"></i>
+    <span>Zmień kod IKA <span class="lbl-en">Change your access code</span></span>
+  </div>
+  <div class="tz-card__bd">
+    <p class="text-muted small mb-3">
+      <strong>IKA</strong> (Indywidualny Kod Autoryzacyjny) to 6-cyfrowy kod potwierdzający Twoją tożsamość
+      przy dostępie do chronionych danych (np. umów). Aby go zmienić, podaj obecny kod i ustaw nowy.
+    </p>
+
+    <?php if ($ika_blocked): ?>
+    <div class="alert alert-warning" role="alert">
+      <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>
+      Kod IKA jest tymczasowo zablokowany po błędnych próbach. Spróbuj ponownie później.
+    </div>
+    <?php endif; ?>
+
+    <form method="post" style="max-width:340px">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="change_ika">
+      <div class="mb-3">
+        <label for="ika_current" class="form-label fw-semibold">Obecny kod IKA</label>
+        <input type="text" id="ika_current" name="ika_current" class="form-control tz-otp"
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" autocomplete="off" required <?= $ika_blocked ? 'disabled' : '' ?>>
+      </div>
+      <div class="mb-3">
+        <label for="ika_new" class="form-label fw-semibold">Nowy kod IKA</label>
+        <input type="text" id="ika_new" name="ika_new" class="form-control tz-otp"
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="off" required <?= $ika_blocked ? 'disabled' : '' ?>>
+      </div>
+      <div class="mb-3">
+        <label for="ika_confirm" class="form-label fw-semibold">Powtórz nowy kod IKA</label>
+        <input type="text" id="ika_confirm" name="ika_confirm" class="form-control tz-otp"
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="off" required <?= $ika_blocked ? 'disabled' : '' ?>>
+      </div>
+      <button type="submit" class="tz-btn" <?= $ika_blocked ? 'disabled' : '' ?>><i class="bi bi-key" aria-hidden="true"></i> Zmień kod IKA</button>
+    </form>
+
+    <p class="tz-note mt-3 mb-0" style="border:0;padding-left:0">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <span>Kodu IKA nie udostępniaj nikomu. Jeśli go nie pamiętasz, zresetujesz go przy bramie IKA (AdminCode od administratora, kod e-mail lub PESEL).</span>
+    </p>
+  </div>
+</section>
+<?php endif; ?>
 
 <!-- ═══════════ REJESTR CZYNNOŚCI ═══════════ -->
 <section class="tz-card tz-panel" id="rejestr" role="tabpanel" aria-labelledby="tab-rejestr" tabindex="-1">
