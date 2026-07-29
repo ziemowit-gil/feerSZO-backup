@@ -174,10 +174,10 @@ class M365Graph {
 
     // ── Reset hasła ──────────────────────────────────────────────────────────
 
-    public function set_password(string $user_id, string $password): void {
+    public function set_password(string $user_id, string $password, bool $force_change = true): void {
         $this->http_patch(
             "https://graph.microsoft.com/v1.0/users/{$user_id}",
-            ['passwordProfile' => ['forceChangePasswordNextSignIn' => true, 'password' => $password]]
+            ['passwordProfile' => ['forceChangePasswordNextSignIn' => $force_change, 'password' => $password]]
         );
     }
 

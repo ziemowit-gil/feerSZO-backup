@@ -90,8 +90,60 @@ function _vr_provision_wolontariat_account(array $contract): int {
     return $uid;
 }
 
+/**
+ * Wykrywa, czy dla podanych danych (e-mail LUB nazwisko) istnieje umowa, ale NIE
+ * istnieje aktywne konto panelowe (users). Służy do zaproponowania założenia konta.
+ * Zwraca ['email','name','type','type_label','has_numer'] albo null.
+ *
+ * Uwaga prywatność: potwierdza istnienie umowy → wymagamy DOKŁADNEGO e-maila albo
+ * pełnego nazwiska (min. 3 znaki), a właściwe założenie konta i tak jest bramkowane
+ * pełnym cross-matchem (numer umowy + PESEL/dokument).
+ */
+function _vr_detect_contract_no_account(string $email, string $surname): ?array {
+    $email   = trim(mb_strtolower($email));
+    $surname = trim($surname);
+    if ($email === '' && mb_strlen($surname) < 3) return null;
+
+    $types = [
+        ['umowy_wolontariat','email','Wolontariusz'],
+        ['umowy_zlecenie',   'email','Zleceniobiorca'],
+        ['umowy_praca',      'email_login','Pracownik'],
+        ['umowy_dzielo',     'email','Wykonawca dzieła'],
+    ];
+    foreach ($types as [$tbl,$ecol,$lbl]) {
+        $conds = []; $params = [];
+        if ($email !== '')          { $conds[] = "LOWER({$ecol}) = ?"; $params[] = $email; }
+        if (mb_strlen($surname)>=3) { $conds[] = "imie_nazwisko LIKE ?"; $params[] = '%' . $surname . '%'; }
+        if (!$conds) continue;
+        try {
+            $c = db_one("SELECT numer_umowy, imie_nazwisko, {$ecol} AS c_email
+                         FROM {$tbl} WHERE (" . implode(' OR ', $conds) . ")
+                         ORDER BY id DESC LIMIT 1", $params);
+        } catch (\Throwable $e) { $c = null; }
+        if (!$c) continue;
+
+        $c_email = trim((string)($c['c_email'] ?? ''));
+        // Czy istnieje AKTYWNE konto panelowe dla tej umowy?
+        $acct = $c_email !== ''
+            ? db_one("SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1", [$c_email])
+            : null;
+        if ($acct) continue; // konto już jest — nic nie proponujemy
+
+        return [
+            'email'      => $c_email,
+            'name'       => trim((string)($c['imie_nazwisko'] ?? '')),
+            'type'       => $tbl,
+            'type_label' => $lbl,
+            'has_numer'  => trim((string)($c['numer_umowy'] ?? '')) !== '',
+        ];
+    }
+    return null;
+}
+
 // ── Odczyt stanu z sesji ──────────────────────────────────────────────────────
-$reset_step     = (int) ($_SESSION['vr_step']       ?? 1);
+$propose      = null;   // propozycja założenia konta (umowa jest, konta brak)
+$detect_done  = false;  // czy uruchomiono detekcję (do komunikatu „nie znaleziono")
+$reset_step   = (int) ($_SESSION['vr_step']       ?? 1);
 $reset_user_id  = (int) ($_SESSION['vr_user_id']    ?? 0);
 $sms_fails      = (int) ($_SESSION['vr_sms_fails']  ?? 0);
 $vr_new_account = !empty($_SESSION['vr_new_account']); // konto właśnie założone (brak wcześniejszego konta)
@@ -303,6 +355,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── Wykrycie umowy bez aktywnego konta panelowego + propozycja założenia ──
+    elseif ($action === 'detect_account' && $reset_step === 1) {
+        if (!_vr_rate_check()) {
+            $error = VR_ERR_RATE;
+        } else {
+            _vr_rate_record();
+            $detect_done = true;
+            $propose = _vr_detect_contract_no_account($_POST['detect_email'] ?? '', $_POST['detect_surname'] ?? '');
+        }
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // KROK 2: Weryfikacja kodu SMS
     // ────────────────────────────────────────────────────────────────────────
@@ -367,8 +430,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = implode(' ', $validation['errors']);
             } else {
                 $hash = password_hash($pass_new, PASSWORD_BCRYPT);
-                db()->prepare("UPDATE users SET password = ? WHERE id = ?")
+                db()->prepare("UPDATE users SET password = ?, allow_local_fallback = 1 WHERE id = ?")
                      ->execute([$hash, $reset_user_id]);
+
+                // ── Synchronizacja z Microsoft 365 / Entra ID ────────────────
+                // Reset dotyczy zarówno panelu SZO, jak i konta M365. Awaria po
+                // stronie M365 NIE blokuje resetu lokalnego — informujemy usera.
+                $m365_reset_note = '';
+                try {
+                    $ru = db_one("SELECT email, m365_login, microsoft_id FROM users WHERE id = ?", [$reset_user_id]);
+                    $ms_id = trim((string)($ru['microsoft_id'] ?? ''));
+                    $m365_ct = null;
+                    foreach ([
+                        ['m365_user_id = ?', $ms_id],
+                        ['m365_login = ?',   trim((string)($ru['m365_login'] ?? ''))],
+                        ['email = ?',        trim((string)($ru['email'] ?? ''))],
+                    ] as [$cond, $val]) {
+                        if ($val === '' ) continue;
+                        $m365_ct = db_one(
+                            "SELECT m365_user_id, m365_login FROM umowy_wolontariat
+                             WHERE {$cond} AND m365_user_id != '' AND m365_konto = 1
+                             ORDER BY id DESC LIMIT 1", [$val]);
+                        if ($m365_ct) break;
+                    }
+                    if (!$m365_ct && $ms_id !== '') $m365_ct = ['m365_user_id' => $ms_id, 'm365_login' => ($ru['m365_login'] ?? '')];
+
+                    if ($m365_ct && !empty($m365_ct['m365_user_id'])) {
+                        require_once dirname(__DIR__) . '/includes/m365.php';
+                        if (m365_setting('m365_enabled') === '1'
+                            && m365_setting('m365_tenant_id') && m365_setting('m365_graph_client_id') && m365_setting('m365_graph_client_secret')) {
+                            $m365 = new M365Graph([
+                                'tenant_id'     => m365_setting('m365_tenant_id'),
+                                'client_id'     => m365_setting('m365_graph_client_id'),
+                                'client_secret' => m365_setting('m365_graph_client_secret'),
+                            ]);
+                            $m365->set_password($m365_ct['m365_user_id'], $pass_new, false);
+                            log_system_action($reset_user_id, 'm365_password_reset',
+                                'Synchronizacja hasła M365 przy resecie: ' . ($m365_ct['m365_login'] ?? ''));
+                            $m365_reset_note = ' Hasło zsynchronizowano także z Microsoft 365.';
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    log_system_action($reset_user_id, 'm365_password_reset_failed',
+                        'Nie udało się zsynchronizować hasła M365 przy resecie: ' . $e->getMessage());
+                    $m365_reset_note = ' UWAGA: hasło do panelu zmieniono, ale synchronizacja z Microsoft 365 nie powiodła się — skontaktuj się z administratorem, jeśli logowanie Microsoft nie zadziała.';
+                }
 
                 $is_new_account = !empty($_SESSION['vr_new_account']);
                 log_system_action(
@@ -387,9 +493,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['vr_new_account']
                 );
 
-                flash_set('success', $is_new_account
+                flash_set('success', ($is_new_account
                     ? 'Konto zostało założone, a hasło ustawione. Zaloguj się.'
-                    : 'Hasło zostało zmienione. Zaloguj się.');
+                    : 'Hasło zostało zmienione. Zaloguj się.') . $m365_reset_note);
                 header('Location: ' . APP_URL . '/auth/login.php');
                 exit;
             }
@@ -420,18 +526,33 @@ $step_labels = [
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
+    :root{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
     body {
-      background: #f0f4f8;
+      background:
+        radial-gradient(1200px 500px at 50% -10%, #e7f0ff 0%, rgba(231,240,255,0) 60%),
+        #F4F6F9;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
+      color:#111827;
     }
     .reset-wrapper {
-      max-width: 520px;
+      max-width: 540px;
       width: 100%;
     }
+    .tz-brandbar{display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:1.25rem}
+    .tz-brandbar .mark{width:34px;height:34px;border-radius:10px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.05rem}
+    .tz-brandbar .txt{font-weight:700;letter-spacing:.02em;color:#1146ad}
+    .tz-brandbar .txt small{display:block;font-weight:500;font-size:.68rem;letter-spacing:.06em;color:#6B7280;text-transform:uppercase}
+    .reset-wrapper .card{border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 12px 40px -12px rgba(30,109,255,.25)}
+    .reset-wrapper .btn-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c;--bs-btn-active-bg:#0f3c9c}
+    .reset-wrapper .btn-outline-primary{--bs-btn-color:var(--tz-strong);--bs-btn-border-color:var(--tz-line);--bs-btn-hover-bg:var(--tz-50);--bs-btn-hover-color:var(--tz-strong);--bs-btn-hover-border-color:var(--tz)}
+    .reset-wrapper .text-primary{color:var(--tz-strong)!important}
+    .reset-wrapper .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(30,109,255,.18)}
+    .reset-wrapper .card.border-primary{border-color:var(--tz)!important}
+    .reset-wrapper a{color:var(--tz-strong)}
     /* Pasek postępu kroków */
     .step-bar {
       display: flex;
@@ -457,14 +578,14 @@ $step_labels = [
       border: 2px solid;
     }
     .step-circle.done {
-      background: #0d6efd;
-      border-color: #0d6efd;
+      background: #1E6DFF;
+      border-color: #1E6DFF;
       color: #fff;
     }
     .step-circle.active {
       background: #fff;
-      border-color: #0d6efd;
-      color: #0d6efd;
+      border-color: #1E6DFF;
+      color: #1E6DFF;
     }
     .step-circle.pending {
       background: #fff;
@@ -477,7 +598,7 @@ $step_labels = [
       color: #6c757d;
       max-width: 80px;
     }
-    .step-label.active { color: #0d6efd; font-weight: 600; }
+    .step-label.active { color: #1E6DFF; font-weight: 600; }
     .step-connector {
       flex: 1;
       height: 2px;
@@ -485,20 +606,26 @@ $step_labels = [
       margin: 0 8px;
       margin-bottom: 20px;
     }
-    .step-connector.done { background: #0d6efd; }
+    .step-connector.done { background: #1E6DFF; }
   </style>
 </head>
 <body>
 <div class="reset-wrapper">
 
+  <!-- Pasek systemu Tożsamości -->
+  <div class="tz-brandbar">
+    <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
+    <span class="txt">System Tożsamości<small><?= h($org_name) ?></small></span>
+  </div>
+
   <!-- Nagłówek -->
   <div class="text-center mb-4">
-    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-10 mb-3"
-         style="width:60px;height:60px">
-      <i class="bi bi-key-fill text-warning fs-2"></i>
+    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+         style="width:64px;height:64px;background:#eef4ff">
+      <i class="bi bi-shield-lock-fill fs-2" style="color:#1E6DFF"></i>
     </div>
-    <h5 class="fw-bold mb-1">Odzyskiwanie dostępu</h5>
-    <p class="text-muted small mb-0"><?= h($org_name) ?></p>
+    <h1 class="h5 fw-bold mb-1">Odzyskiwanie dostępu</h1>
+    <p class="text-muted small mb-0">Zresetuj hasło do panelu SZO i Microsoft 365 · autoryzacja kodem SMS</p>
   </div>
 
   <!-- Pasek kroków -->
@@ -544,6 +671,39 @@ $step_labels = [
   <!-- KROK 1: Formularz cross-match                                          -->
   <!-- ─────────────────────────────────────────────────────────────────────── -->
   <?php if ($reset_step === 1): ?>
+
+  <?php if ($propose): ?>
+  <!-- Wykryto umowę bez aktywnego konta panelowego → propozycja utworzenia -->
+  <div class="card shadow-sm border-primary mb-3" style="border-width:2px">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-start gap-2 mb-2">
+        <i class="bi bi-person-plus-fill text-primary fs-4" aria-hidden="true"></i>
+        <div>
+          <h6 class="fw-bold mb-1">Znaleźliśmy Twoją umowę — utwórz konto panelowe</h6>
+          <p class="text-muted small mb-0">
+            Dla danych <strong><?= h($propose['name'] ?: $propose['email']) ?></strong>
+            (<?= h($propose['type_label']) ?>) istnieje umowa, ale nie masz jeszcze
+            <strong>aktywnego konta w panelu</strong>. Możesz je teraz założyć — potwierdź tożsamość
+            danymi z umowy w formularzu poniżej<?= $propose['email'] ? ' (adres e-mail wpisaliśmy za Ciebie)' : '' ?>.
+          </p>
+        </div>
+      </div>
+      <div class="alert alert-light border small mb-0" role="note">
+        <i class="bi bi-shield-check me-1 text-primary" aria-hidden="true"></i>
+        Ze względów bezpieczeństwa założenie konta wymaga podania numeru umowy oraz PESEL/dokumentu tożsamości.
+      </div>
+    </div>
+  </div>
+  <?php elseif ($detect_done): ?>
+  <div class="alert alert-secondary d-flex align-items-start gap-2" role="status">
+    <i class="bi bi-info-circle fs-5 flex-shrink-0" aria-hidden="true"></i>
+    <div class="small">
+      Nie znaleźliśmy umowy powiązanej z podanymi danymi lub masz już aktywne konto.
+      Jeśli masz konto — użyj formularza odzyskiwania hasła poniżej. W razie wątpliwości skontaktuj się z administratorem.
+    </div>
+  </div>
+  <?php endif; ?>
+
   <div class="card shadow-sm">
     <div class="card-body p-4">
       <h6 class="fw-semibold mb-1">Weryfikacja tożsamości</h6>
@@ -561,7 +721,7 @@ $step_labels = [
             <span class="input-group-text"><i class="bi bi-envelope"></i></span>
             <input type="email" class="form-control" id="email" name="email"
                    placeholder="Twój adres e-mail z umowy"
-                   value="<?= h($_POST['email'] ?? '') ?>"
+                   value="<?= h($_POST['email'] ?? ($propose['email'] ?? '')) ?>"
                    required autofocus>
           </div>
         </div>
@@ -630,6 +790,42 @@ $step_labels = [
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Nie masz konta? Sprawdź, czy masz umowę -->
+  <div class="card shadow-sm mt-3">
+    <div class="card-body p-4">
+      <button type="button" class="btn btn-link p-0 text-decoration-none fw-semibold small"
+              data-bs-toggle="collapse" data-bs-target="#detect-box"
+              aria-expanded="<?= ($propose || $detect_done) ? 'true' : 'false' ?>" aria-controls="detect-box">
+        <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Nie masz jeszcze konta? Sprawdź, czy masz umowę
+      </button>
+      <div class="collapse <?= ($propose || $detect_done) ? 'show' : '' ?>" id="detect-box">
+        <p class="text-muted small mt-3 mb-2">
+          Podaj adres e-mail lub nazwisko — sprawdzimy, czy istnieje umowa, dla której nie założono jeszcze konta panelowego,
+          i zaproponujemy jego utworzenie.
+        </p>
+        <form method="post" novalidate>
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="detect_account">
+          <div class="row g-2">
+            <div class="col-sm-7">
+              <label for="detect_email" class="form-label small fw-semibold">Adres e-mail</label>
+              <input type="email" class="form-control form-control-sm" id="detect_email" name="detect_email"
+                     placeholder="e-mail z umowy" value="<?= h($_POST['detect_email'] ?? '') ?>">
+            </div>
+            <div class="col-sm-5">
+              <label for="detect_surname" class="form-label small fw-semibold">lub nazwisko</label>
+              <input type="text" class="form-control form-control-sm" id="detect_surname" name="detect_surname"
+                     placeholder="nazwisko" value="<?= h($_POST['detect_surname'] ?? '') ?>">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
+            <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 

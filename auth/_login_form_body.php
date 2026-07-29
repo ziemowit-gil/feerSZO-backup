@@ -140,6 +140,26 @@ if ($is_feer) {
 </a>
 <?php endif; ?>
 
+<!-- ── Samoobsługa: odzyskiwanie dostępu + zarządzanie tożsamością ───────── -->
+<a href="<?= APP_URL ?>/user/verify_reset.php" class="cross-link" style="margin-top:1rem"
+   aria-label="Odzyskiwanie dostępu — zresetuj hasło do panelu i Microsoft 365 kodem SMS">
+  <i class="bi bi-key-fill" aria-hidden="true"></i>
+  <span class="cross-link-body">
+    <span class="cross-link-title">Odzyskiwanie dostępu</span>
+    <span class="cross-link-sub">Reset hasła (panel + Microsoft 365) kodem SMS</span>
+  </span>
+  <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+</a>
+<a href="<?= APP_URL ?>/tozsamosc/index.php" class="cross-link" style="margin-top:.5rem"
+   aria-label="Zarządzanie tożsamością — Twoje konto w Entra ID, hasło, telefon i MFA (wymaga zalogowania)">
+  <i class="bi bi-person-vcard-fill" aria-hidden="true"></i>
+  <span class="cross-link-body">
+    <span class="cross-link-title">Zarządzanie tożsamością</span>
+    <span class="cross-link-sub">Twoje konto w Entra ID: dane, hasło, telefon, MFA</span>
+  </span>
+  <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+</a>
+
 <!-- ── Problem z logowaniem → zgłoszenie do helpdesku (prefiks LOG) ──────── -->
 <p style="text-align:center;margin:1rem 0 0">
   <a href="<?= APP_URL ?>/auth/report_login_issue.php"
