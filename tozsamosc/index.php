@@ -281,6 +281,10 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 .tz-subnav a:hover,.tz-subnav a:focus-visible{background:var(--tz-50);color:var(--tz-strong);outline:none}
 .tz-subnav a.on{background:var(--tz);color:#fff}
 .tz-subnav a.on i{color:#fff}
+/* Zakładki — pokazujemy tylko aktywny panel (mniej treści na 1 ekranie) */
+.tz-panel{display:none}
+.tz-panel.active{display:block;animation:tzfade .2s ease}
+@keyframes tzfade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .tz-svc{display:flex;align-items:center;gap:.9rem;padding:.85rem 0;border-top:1px solid var(--tz-line)}
 .tz-svc:first-child{border-top:0}
 .tz-svc__ico{width:42px;height:42px;border-radius:11px;background:var(--tz-50);color:var(--tz-strong);display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
@@ -329,15 +333,15 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 </div>
 
 <nav class="tz-subnav" aria-label="Sekcje tożsamości">
-  <span class="seg">
-    <a href="#podstawowe" class="on"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
-    <a href="#uslugi"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
-    <a href="#bezpieczenstwo"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
+  <span class="seg" role="tablist">
+    <a href="#podstawowe" class="on" role="tab" id="tab-podstawowe" aria-controls="podstawowe" aria-selected="true"><i class="bi bi-person-badge" aria-hidden="true"></i>Podstawowe</a>
+    <a href="#uslugi" role="tab" id="tab-uslugi" aria-controls="uslugi" aria-selected="false" tabindex="-1"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Usługi</a>
+    <a href="#bezpieczenstwo" role="tab" id="tab-bezpieczenstwo" aria-controls="bezpieczenstwo" aria-selected="false" tabindex="-1"><i class="bi bi-shield-lock" aria-hidden="true"></i>Bezpieczeństwo</a>
   </span>
 </nav>
 
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
-<section class="tz-card" id="podstawowe" aria-labelledby="pod-h" tabindex="-1">
+<section class="tz-card tz-panel active" id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1">
   <h2 id="pod-h" class="visually-hidden">Podstawowe dane tożsamości</h2>
   <div class="tz-id">
     <div class="d-flex align-items-center gap-3">
@@ -377,7 +381,7 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 </section>
 
 <!-- ═══════════ USŁUGI ═══════════ -->
-<section class="tz-card" id="uslugi" aria-labelledby="usl-h" tabindex="-1">
+<section class="tz-card tz-panel" id="uslugi" role="tabpanel" aria-labelledby="tab-uslugi" tabindex="-1">
   <div class="tz-card__hd" id="usl-h">
     <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
     <span>Usługi <span class="lbl-en">Services &amp; access validity</span></span>
@@ -434,7 +438,7 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
 </section>
 
 <!-- ═══════════ BEZPIECZEŃSTWO ═══════════ -->
-<section class="tz-card" id="bezpieczenstwo" aria-labelledby="bez-h" tabindex="-1">
+<section class="tz-card tz-panel" id="bezpieczenstwo" role="tabpanel" aria-labelledby="tab-bezpieczenstwo" tabindex="-1">
   <div class="tz-card__hd" id="bez-h">
     <i class="bi bi-shield-lock" aria-hidden="true"></i>
     <span>Bezpieczeństwo <span class="lbl-en">Credentials &amp; sign-in</span></span>
@@ -623,24 +627,44 @@ if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtouppe
   }
   if(pwNew)pwNew.addEventListener('input',check);
   if(conf)conf.addEventListener('input',check);
-  document.querySelectorAll('.tz-subnav a[href^="#"],a[href="#bezpieczenstwo"]').forEach(function(a){
-    a.addEventListener('click',function(e){
-      var t=document.querySelector(a.getAttribute('href'));
-      if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});t.focus({preventScroll:true});}
+  // ── Zakładki: pokazuj tylko wybraną sekcję ──
+  var tabs=[].slice.call(document.querySelectorAll('.tz-subnav .seg a[role="tab"]'));
+  var panels=[].slice.call(document.querySelectorAll('.tz-panel'));
+  function activate(id, focusPanel){
+    var found=false;
+    panels.forEach(function(p){var on=p.id===id;p.classList.toggle('active',on);found=found||on;});
+    if(!found){id='podstawowe';panels.forEach(function(p){p.classList.toggle('active',p.id===id);});}
+    tabs.forEach(function(t){
+      var on=t.getAttribute('aria-controls')===id;
+      t.classList.toggle('on',on);
+      t.setAttribute('aria-selected',on?'true':'false');
+      t.tabIndex=on?0:-1;
+    });
+    if(history.replaceState) history.replaceState(null,'','#'+id);
+    if(focusPanel){var pl=document.getElementById(id);if(pl)pl.focus({preventScroll:true});}
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  // Klik w dowolny odnośnik do panelu (zakładki + np. „Konfiguruj" → #bezpieczenstwo)
+  document.querySelectorAll('a[href^="#"]').forEach(function(a){
+    var id=a.getAttribute('href').slice(1);
+    if(!document.getElementById(id)||!document.getElementById(id).classList.contains('tz-panel'))return;
+    a.addEventListener('click',function(e){e.preventDefault();activate(id,true);});
+  });
+  // Klawiatura: strzałki/Home/End w obrębie listy zakładek
+  tabs.forEach(function(t,i){
+    t.addEventListener('keydown',function(e){
+      var n=null;
+      if(e.key==='ArrowRight'||e.key==='ArrowDown')n=tabs[(i+1)%tabs.length];
+      else if(e.key==='ArrowLeft'||e.key==='ArrowUp')n=tabs[(i-1+tabs.length)%tabs.length];
+      else if(e.key==='Home')n=tabs[0];
+      else if(e.key==='End')n=tabs[tabs.length-1];
+      if(n){e.preventDefault();activate(n.getAttribute('aria-controls'),false);n.focus();}
     });
   });
-  // Scrollspy — podświetl aktywną zakładkę segmentu wg widocznej sekcji
-  var navLinks=[].slice.call(document.querySelectorAll('.tz-subnav .seg a'));
-  var secs=navLinks.map(function(a){return document.querySelector(a.getAttribute('href'));}).filter(Boolean);
-  if('IntersectionObserver' in window && secs.length){
-    var obs=new IntersectionObserver(function(entries){
-      entries.forEach(function(en){
-        if(en.isIntersecting){
-          navLinks.forEach(function(a){a.classList.toggle('on', a.getAttribute('href')==='#'+en.target.id);});
-        }
-      });
-    },{rootMargin:'-45% 0px -50% 0px',threshold:0});
-    secs.forEach(function(s){obs.observe(s);});
+  // Na starcie: otwórz sekcję wskazaną w #hash (np. po zapisie hasła → #bezpieczenstwo)
+  var initial=(location.hash||'').slice(1);
+  if(initial && document.getElementById(initial) && document.getElementById(initial).classList.contains('tz-panel')){
+    activate(initial,false);
   }
 })();
 </script>
