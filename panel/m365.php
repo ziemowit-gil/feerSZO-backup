@@ -76,6 +76,64 @@ if (isset($_GET['done'])) {
     unset($_SESSION['m365_new_pass']);
 }
 
+// ── Usunięcie konta M365 ────────────────────────────────────────────────────
+// Akcja NIEODWRACALNA — wymaga potwierdzenia przez wpisanie dokładnego loginu.
+$del_error   = null;
+$del_success = null;
+$_ALLOWED_M365_TABLES = ['wolontariat', 'zlecenie', 'dzielo'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'delete_m365') {
+    csrf_check();
+    if (!$has_m365) {
+        $del_error = 'Nie posiadasz konta Microsoft 365.';
+    } elseif (strcasecmp(trim($_POST['confirm_login'] ?? ''), (string)$m365_row['m365_login']) !== 0) {
+        $del_error = 'Potwierdzenie nieprawidłowe — wpisz dokładnie swój login Microsoft 365, aby usunąć konto.';
+    } else {
+        $enabled       = m365_setting('m365_enabled') === '1';
+        $tenant_id     = m365_setting('m365_tenant_id');
+        $client_id     = m365_setting('m365_graph_client_id');
+        $client_secret = m365_setting('m365_graph_client_secret');
+        if (!$enabled || !$tenant_id || !$client_id || !$client_secret) {
+            $del_error = 'Integracja z Microsoft 365 nie jest skonfigurowana. Skontaktuj się z administratorem.';
+        } else {
+            try {
+                $m365 = new M365Graph([
+                    'tenant_id'     => $tenant_id,
+                    'client_id'     => $client_id,
+                    'client_secret' => $client_secret,
+                ]);
+                $m365->delete_user($m365_row['m365_user_id']);
+
+                // Odznacz konto w umowie (tabela z białej listy) i odepnij SSO.
+                $tbl = in_array($m365_row['_type'], $_ALLOWED_M365_TABLES, true) ? $m365_row['_type'] : null;
+                if ($tbl) {
+                    db()->prepare("UPDATE umowy_{$tbl} SET m365_konto_aktywne=0, m365_user_id='' WHERE id=?")
+                        ->execute([(int)$m365_row['id']]);
+                }
+                db()->prepare("UPDATE users SET microsoft_id=NULL WHERE id=?")->execute([$uid]);
+
+                if (function_exists('log_user_action')) {
+                    log_user_action($uid, $uid, 'm365_account_deleted', 'Usunięto konto Microsoft 365: ' . ($m365_row['m365_login'] ?? ''));
+                }
+                if (function_exists('authlog_write')) {
+                    authlog_write($uid, 'm365_account_deleted', $user['email'] ?? '', 'Usunięto konto M365: ' . ($m365_row['m365_login'] ?? ''));
+                }
+                auth_start();
+                $_SESSION['m365_deleted'] = $m365_row['m365_login'] ?? '';
+                header('Location: ' . APP_URL . '/panel/m365.php?deleted=1'); exit;
+            } catch (\Exception $e) {
+                $del_error = 'Nie udało się usunąć konta: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+if (isset($_GET['deleted'])) {
+    auth_start();
+    $del_success = $_SESSION['m365_deleted'] ?? '';
+    unset($_SESSION['m365_deleted']);
+}
+
 // ── Wniosek o alias e-mail ──────────────────────────────────────────────────────
 $alias_error    = null;
 $alias_domain   = m365_setting('m365_domain') ?: 'feer.org.pl';
@@ -172,6 +230,17 @@ if ($_is_volunteer_only) {
 <div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i><?= h($pass_error) ?></div>
 <?php endif; ?>
 
+<?php if ($del_error): ?>
+<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i><?= h($del_error) ?></div>
+<?php endif; ?>
+
+<?php if ($del_success !== null): ?>
+<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>
+  Konto Microsoft 365<?= $del_success ? ' <strong>' . h($del_success) . '</strong>' : '' ?> zostało usunięte.
+  Powiązanie logowania przez Microsoft zostało odłączone.
+</div>
+<?php endif; ?>
+
 <!-- ── Hasło zresetowane ──────────────────────────────────────────────────── -->
 <?php if ($pass_success): ?>
 <div class="card border-success shadow-sm mb-4">
@@ -236,13 +305,40 @@ if ($_is_volunteer_only) {
         </dl>
 
         <?php if ($m365_row['m365_konto_aktywne']): ?>
-        <form method="post" onsubmit="return confirm('Zresetować hasło do konta Microsoft 365?')">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="reset_m365">
-          <button type="submit" class="btn btn-outline-primary btn-sm w-100">
-            <i class="bi bi-key me-1"></i>Zresetuj hasło M365
+        <div class="d-flex flex-column gap-2">
+          <form method="post" onsubmit="return confirm('Zresetować hasło do konta Microsoft 365?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="reset_m365">
+            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+              <i class="bi bi-key me-1"></i>Resetuj hasło
+            </button>
+          </form>
+          <button type="button" class="btn btn-outline-danger btn-sm w-100"
+                  onclick="var d=document.getElementById('m365-del-zone');d.hidden=!d.hidden;if(!d.hidden)d.querySelector('input[name=confirm_login]').focus();">
+            <i class="bi bi-trash me-1"></i>Usuń konto
           </button>
-        </form>
+        </div>
+
+        <!-- Strefa niebezpieczna: usunięcie konta (potwierdzenie loginem) -->
+        <div id="m365-del-zone" hidden class="mt-3 p-3 rounded border border-danger-subtle bg-danger bg-opacity-10">
+          <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Usunięcie konta Microsoft 365</div>
+          <p class="small text-muted mb-2">
+            Ta operacja jest <strong>nieodwracalna</strong> — usuwa konto z Microsoft 365 / Entra ID wraz z pocztą,
+            plikami OneDrive i dostępem do aplikacji. Aby potwierdzić, wpisz swój login:
+          </p>
+          <form method="post" onsubmit="return confirm('Na pewno TRWALE usunąć konto Microsoft 365? Tej operacji nie można cofnąć.')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="delete_m365">
+            <label for="confirm_login" class="form-label small fw-semibold mb-1">
+              Wpisz <code><?= h($m365_row['m365_login']) ?></code> aby potwierdzić
+            </label>
+            <input type="text" class="form-control form-control-sm mb-2" id="confirm_login" name="confirm_login"
+                   autocomplete="off" placeholder="<?= h($m365_row['m365_login']) ?>" required>
+            <button type="submit" class="btn btn-danger btn-sm w-100">
+              <i class="bi bi-trash me-1"></i>Usuń konto na stałe
+            </button>
+          </form>
+        </div>
         <?php else: ?>
         <div class="alert alert-warning py-2 small mb-0">
           <i class="bi bi-info-circle me-1"></i>Konto nieaktywne. Skontaktuj się z administratorem.
