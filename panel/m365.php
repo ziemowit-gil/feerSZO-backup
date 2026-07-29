@@ -208,6 +208,24 @@ if ($_is_volunteer_only) {
 }
 ?>
 
+<style>
+/* Skórka „Tożsamość" dla widoku M365 — spójna paleta #1E6DFF */
+.tzskin{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
+.tzskin .card{border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.tzskin .card-header{background:#fff;border-bottom:1px solid var(--tz-line);font-weight:600}
+.tzskin .card-header i{color:var(--tz)}
+.tzskin .btn-primary,.tzskin .btn-outline-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c;--bs-btn-color:#fff;--bs-btn-active-bg:#0f3c9c}
+.tzskin .btn-outline-primary{--bs-btn-bg:#fff;--bs-btn-color:var(--tz-strong);--bs-btn-border-color:var(--tz-line);--bs-btn-hover-bg:var(--tz-50);--bs-btn-hover-color:var(--tz-strong);--bs-btn-hover-border-color:var(--tz)}
+.tzskin .badge.bg-success{background:#16a34a!important}
+.tzskin .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(30,109,255,.18)}
+.tzskin .tz-hero{display:flex;align-items:center;gap:.85rem;margin-bottom:1.25rem}
+.tzskin .tz-hero .ico{width:52px;height:52px;border-radius:14px;background:var(--tz-50);color:var(--tz);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tzskin .tz-hero h1{font-size:1.4rem;font-weight:700;margin:0}
+.tzskin .tz-hero p{color:#6B7280;margin:.1rem 0 0;font-size:.88rem}
+</style>
+
+<div class="tzskin">
+
 <?php if ($_is_volunteer_only): ?>
 <div class="pv-page-header d-flex gap-2 flex-wrap">
   <h1 class="pv-page-title"><i class="bi bi-microsoft me-2" aria-hidden="true"></i>Microsoft 365</h1>
@@ -215,14 +233,11 @@ if ($_is_volunteer_only) {
 </div>
 <?php endif; ?>
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-       style="width:52px;height:52px;background:linear-gradient(135deg,#0078d4,#50e6ff)">
-    <i class="bi bi-microsoft text-white fs-4"></i>
-  </div>
+<div class="tz-hero">
+  <div class="ico"><i class="bi bi-microsoft fs-4" aria-hidden="true"></i></div>
   <div>
-    <h4 class="mb-0">Konto Microsoft 365</h4>
-    <div class="text-muted small">Status i zarządzanie Twoim kontem organizacyjnym M365</div>
+    <h1>Konto Microsoft 365</h1>
+    <p>Status i zarządzanie Twoim kontem organizacyjnym M365</p>
   </div>
 </div>
 
@@ -516,6 +531,8 @@ if ($_is_volunteer_only) {
   </div>
 </div>
 <?php endif; ?>
+
+</div><!-- /.tzskin -->
 
 <?php
 if ($_is_volunteer_only) {
