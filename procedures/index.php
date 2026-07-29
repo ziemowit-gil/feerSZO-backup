@@ -111,11 +111,17 @@ include dirname(__DIR__) . '/includes/header.php';
       Wewnętrzne procedury i instrukcje organizacji
     </div>
   </div>
-  <?php if (can_edit()): ?>
-  <a href="<?= APP_URL ?>/procedures/add.php" class="btn btn-primary">
-    <i class="bi bi-plus-lg me-1"></i>Nowa procedura
-  </a>
-  <?php endif; ?>
+  <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/procedures/asystent.php" class="btn btn-outline-primary"
+       style="border-color:#7c3aed;color:#6d28d9">
+      <i class="bi bi-robot me-1"></i>Asystent AI
+    </a>
+    <?php if (can_edit()): ?>
+    <a href="<?= APP_URL ?>/procedures/add.php" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Nowa procedura
+    </a>
+    <?php endif; ?>
+  </div>
 </div>
 
 <?= flash_html() ?>

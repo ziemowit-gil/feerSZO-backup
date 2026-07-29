@@ -330,7 +330,8 @@ function _menu_editor(): array {
     if (module_enabled('reports_enabled'))
         $kanc[] = _mi('Raporty','/reports/index.php','bi-bar-chart-line',['match'=>'/reports/','kw'=>'raporty statystyki']);
     $kanc[] = _mi('Korespondencja','/correspondence/index.php','bi-mailbox',['match'=>'/correspondence/','kw'=>'korespondencja listy']);
-    $kanc[] = _mi('Procedury','/procedures/index.php','bi-list-task',['match'=>'/procedures/','kw'=>'procedury instrukcje']);
+    $kanc[] = _mi('Procedury','/procedures/index.php','bi-list-task',['match'=>'/procedures/index','kw'=>'procedury instrukcje']);
+    $kanc[] = _mi('Asystent AI (procedury)','/procedures/asystent.php','bi-robot',['match'=>'/procedures/asystent','kw'=>'asystent ai wyszukiwanie procedury dokumentacja chat pytania']);
     if (module_enabled('wsparcie_ou_enabled') && can_read('wsparcie_ou'))
         $kanc[] = _mi('Wsparcie zewnętrzne OU','/wsparcie_ou/index.php','bi-building-add',['match'=>'/wsparcie_ou/','badge'=>$cnt['wsparcie_ou'],'kw'=>'wsparcie ou podmioty zewnętrzne']);
     if (module_enabled('doc_signing_enabled'))

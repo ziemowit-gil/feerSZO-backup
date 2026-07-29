@@ -104,6 +104,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <li>CRM → Komunikacja → przycisk <strong>Wygeneruj AI</strong> w edytorze e-mail</li>
     <li>CRM → Masowa wysyłka → przycisk <strong>Wygeneruj AI</strong></li>
     <li>EZD → Koszulki → <strong>Przerejestrowanie (AI)</strong> — kwalifikacja spraw do Nowego JRWA</li>
+    <li>Biuro → Procedury → <strong>Asystent AI</strong> — agent przeszukujący procedury i dokumentację, z odpowiedziami i źródłami</li>
   </ul>
 </div>
 </div>
