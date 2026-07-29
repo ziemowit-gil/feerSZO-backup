@@ -360,7 +360,9 @@ body{
 /* ── Prawa strona — formularz ────────────────────────────── */
 .login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;background:#fff}
 .login-wrap{width:100%;max-width:460px}
-.login-mobile-brand{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:2rem;text-decoration:none;color:#0f172a}
+/* Panel brandowy (aside) renderuje się na mobile jako górny pasek — dedykowany
+   nagłówek mobilny byłby wtedy dublem, więc go chowamy (aside brandu je zastępuje). */
+.login-mobile-brand{display:none;align-items:center;justify-content:center;gap:.5rem;margin-bottom:2rem;text-decoration:none;color:#0f172a}
 .login-mobile-brand img{height:2.5rem;width:2.5rem;border-radius:.5rem;object-fit:contain;box-shadow:0 0 0 1px rgba(15,23,42,.05)}
 .login-mobile-brand span{font-weight:800}
 
@@ -624,9 +626,15 @@ body{
    nie kolor panelu wolontariusza. Domyślnie (choose/priv) --c = volunteer_color,
    więc reszta strony jest już brandowana pod wolontariuszy bez zmian tutaj. */
 body.login-view-feer{
+<?php if (color_contrast_text($_b['sidebar']) === '#ffffff'): /* pasek boczny ciemny → użyj koloru marki */ ?>
   --c:var(--bp,#1e293b); --c-dark:var(--bp-dark,#0f172a); --c-darker:var(--bp-darker,#020617);
   --c-light:var(--bp-light,#334155); --c-text:var(--bp-text,#fff);
   --c-ring:var(--bp-subtle,rgba(30,41,59,.18)); --c-bg:var(--bp-subtle,rgba(30,41,59,.07));
+<?php else: /* pasek jasny/biały → pełnoekranowy panel byłby nieczytelny; stały granat */ ?>
+  --c:#1e293b; --c-dark:#0f172a; --c-darker:#020617;
+  --c-light:#334155; --c-text:#ffffff;
+  --c-ring:rgba(30,41,59,.18); --c-bg:rgba(30,41,59,.07);
+<?php endif; ?>
 }
 </style>
 </head>
