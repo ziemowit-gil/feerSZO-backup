@@ -324,7 +324,7 @@ function module_entry(string $key, bool $primary = false): ?array {
  */
 function module_entry_volunteer_panel(): array {
     $u   = current_user();
-    $url = APP_URL . '/panel/index.php';
+    $url = APP_URL . '/panel/launcher.php';
     try {
         $sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)($u['id'] ?? 0)]);
         if (!empty($sv['is_standalone_volunteer'])) $url = APP_URL . '/panel/standalone.php';
