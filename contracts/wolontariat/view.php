@@ -3072,32 +3072,9 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
       <span class="cv-section-title">Portal i Dostęp IT</span>
       <?php if (can_edit() && $row['email']): ?>
       <div class="cv-section-action">
-        <div class="dropdown d-inline-block">
-          <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-lightning-charge-fill me-1"></i>Akcje
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end" style="min-width:264px">
-            <li><h6 class="dropdown-header"><i class="bi bi-box-arrow-in-right me-1"></i>Logowanie do portalu (system)</h6></li>
-            <li>
-              <form method="post" onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
-                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                <button type="submit" name="_resend_welcome" value="1" class="dropdown-item"><i class="bi bi-envelope-heart me-2 text-success"></i>E-mail powitalny</button>
-              </form>
-            </li>
-            <li>
-              <form method="post">
-                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                <button type="submit" name="_resend_portal" value="1" class="dropdown-item"><i class="bi bi-send me-2 text-primary"></i>Kod jednorazowy (7 dni)</button>
-              </form>
-            </li>
-            <li>
-              <form method="post" onsubmit="return confirm('Wysłać link do ustawienia hasła portalu na e-mail wolontariusza?')">
-                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                <button type="submit" name="_set_portal_pass" value="1" class="dropdown-item"><i class="bi bi-key me-2 text-warning"></i>Link zmiany hasła</button>
-              </form>
-            </li>
-          </ul>
-        </div>
+        <a href="<?= APP_URL ?>/tozsamosc/access.php?type=<?= h($TYPE) ?>&id=<?= (int)$id ?>" class="btn btn-sm btn-primary">
+          <i class="bi bi-shield-lock me-1"></i>Zarządzaj dostępem
+        </a>
       </div>
       <?php endif; ?>
     </div>
