@@ -493,68 +493,17 @@ function _tn_task_card(array $task): string {
 </div>';
 }
 
-/** Główny szablon HTML maila. */
+/** Szablon maila dla powiadomień z modułu Zadania. */
 function _tn_tpl(string $header_title, string $preheader, string $content_html, string $cta_url): string {
-    $org         = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME) : '';
-    $settings_url= htmlspecialchars(rtrim(APP_URL, '/') . '/tasks/notification_settings.php');
-    $year        = date('Y');
+    $settings_url = htmlspecialchars(rtrim(APP_URL, '/') . '/tasks/notification_settings.php', ENT_QUOTES, 'UTF-8');
+    $title_h      = htmlspecialchars($header_title, ENT_QUOTES, 'UTF-8');
 
-    return '<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>' . htmlspecialchars($preheader) . '</title>
-</head>
-<body style="margin:0;padding:0;background:#f1f5f9;
-             font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">
-<!-- preheader (ukryty) -->
-<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f1f5f9">
-  ' . htmlspecialchars($preheader) . '&nbsp;
-</div>
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-       style="background:#f1f5f9;padding:32px 16px">
-<tr><td align="center">
-  <table width="100%" style="max-width:560px">
+    $body = '<p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b">Zadania</p>'
+          . '<p style="margin:0 0 18px;font-size:17px;font-weight:700;color:#1e293b">📋 ' . $title_h . '</p>'
+          . $content_html
+          . '<p style="margin:22px 0 0;font-size:12px;color:#94a3b8">'
+          . '<a href="' . $settings_url . '" style="color:#94a3b8;text-decoration:underline">Zarządzaj powiadomieniami</a>'
+          . '</p>';
 
-    <!-- Logo / header -->
-    <tr><td style="background:#2563eb;padding:20px 28px;border-radius:10px 10px 0 0;
-                   text-align:left">
-      <span style="color:#fff;font-size:17px;font-weight:700">
-        📋 ' . htmlspecialchars($header_title) . '
-      </span>
-    </td></tr>
-
-    <!-- Body -->
-    <tr><td style="background:#ffffff;padding:24px 28px;color:#1e293b;
-                   font-size:15px;line-height:1.65">
-      ' . $content_html . '
-    </td></tr>
-
-    <!-- CTA -->
-    <tr><td style="background:#ffffff;padding:0 28px 28px;text-align:center">
-      <a href="' . htmlspecialchars($cta_url) . '"
-         style="background:#2563eb;color:#ffffff;text-decoration:none;
-                padding:11px 28px;border-radius:7px;font-weight:600;
-                display:inline-block;font-size:14px;letter-spacing:.01em">
-        Otwórz zadanie →
-      </a>
-    </td></tr>
-
-    <!-- Footer -->
-    <tr><td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e2e8f0;
-                   border-radius:0 0 10px 10px;color:#94a3b8;font-size:12px;line-height:1.6">
-      <p style="margin:0">
-        ' . $org . ' · ' . $year . '<br>
-        <a href="' . $settings_url . '" style="color:#94a3b8;text-decoration:underline">
-          Zarządzaj powiadomieniami
-        </a>
-      </p>
-    </td></tr>
-
-  </table>
-</td></tr>
-</table>
-</body>
-</html>';
+    return _feer_email_tpl($body, $preheader, $cta_url, 'Otwórz zadanie →');
 }

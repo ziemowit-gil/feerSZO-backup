@@ -186,6 +186,54 @@ function log_system_action(int $user_id, string $action, string $note = ''): voi
 // ── Wysyłka maili ─────────────────────────────────────────────────────────────
 
 /**
+ * Ujednolicony szablon HTML maila systemowego.
+ * $body_html  — gotowy HTML treści (bez owijki)
+ * $preheader  — krótki tekst widoczny w podglądzie klienta poczty
+ * $cta_url    — URL przycisku CTA (opcjonalny)
+ * $cta_label  — etykieta przycisku CTA (opcjonalny)
+ */
+function _feer_email_tpl(string $body_html, string $preheader = '', string $cta_url = '', string $cta_label = ''): string {
+    $org  = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES, 'UTF-8') : '';
+    $year = date('Y');
+
+    $pre = $preheader
+        ? '<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f1f5f9">'
+          . htmlspecialchars($preheader, ENT_QUOTES, 'UTF-8') . '&nbsp;</div>'
+        : '';
+
+    $cta_row = '';
+    if ($cta_url !== '' && $cta_label !== '') {
+        $cta_row = '<tr><td style="background:#ffffff;padding:0 32px 28px;text-align:center">'
+                 . '<a href="' . htmlspecialchars($cta_url, ENT_QUOTES, 'UTF-8') . '"'
+                 . ' style="background:#2563eb;color:#ffffff;text-decoration:none;'
+                 . 'padding:11px 28px;border-radius:6px;font-weight:600;'
+                 . 'display:inline-block;font-size:14px">'
+                 . htmlspecialchars($cta_label, ENT_QUOTES, 'UTF-8')
+                 . '</a></td></tr>';
+    }
+
+    return '<!DOCTYPE html><html lang="pl">'
+         . '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+         . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">'
+         . $pre
+         . '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f1f5f9;padding:28px 16px">'
+         . '<tr><td align="center">'
+         . '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px">'
+         . '<tr><td style="background:#1e293b;padding:14px 32px;border-radius:8px 8px 0 0">'
+         . '<span style="color:#e2e8f0;font-size:13px;font-weight:600;letter-spacing:.03em">' . $org . '</span>'
+         . '</td></tr>'
+         . '<tr><td style="background:#ffffff;padding:28px 32px;color:#1e293b;font-size:15px;line-height:1.65">'
+         . $body_html
+         . '</td></tr>'
+         . $cta_row
+         . '<tr><td style="background:#f8fafc;padding:14px 32px;border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px;color:#94a3b8;font-size:11px;text-align:center">'
+         . $org . ' &middot; ' . $year
+         . '</td></tr>'
+         . '</table></td></tr></table>'
+         . '</body></html>';
+}
+
+/**
  * Sprawdź rate-limit: max $max wiadomości do tego samego adresu w ciągu $window sekund.
  * Zwraca true jeśli wysyłka jest dozwolona.
  */
@@ -262,42 +310,45 @@ function approval_send_request_email(array $admin, string $type, int $id, string
     $type_label  = CONTRACT_TYPES[$type] ?? $type;
     $org         = defined('ORG_NAME') ? ORG_NAME : '';
 
-    $body = "
-<p>Dzień dobry,</p>
-<p>Użytkownik złożył wniosek o akceptację umowy w systemie Rejestru Umów <strong>{$org}</strong>.</p>
-<table style='border-collapse:collapse;margin:12px 0'>
-  <tr><td style='padding:4px 12px 4px 0;color:#555'>Typ:</td><td><strong>" . htmlspecialchars($type_label) . "</strong></td></tr>
-  <tr><td style='padding:4px 12px 4px 0;color:#555'>Numer:</td><td><strong>" . htmlspecialchars($numer) . "</strong></td></tr>
-</table>
-<p>Możesz zaakceptować lub odrzucić tę umowę klikając poniższe przyciski:</p>
-<p>
-  <a href='" . htmlspecialchars($approve_url) . "' style='background:#198754;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;margin-right:8px;display:inline-block'>✓ Zatwierdź</a>
-  <a href='" . htmlspecialchars($reject_url) . "' style='background:#dc3545;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;display:inline-block'>✗ Odrzuć</a>
-</p>
-<p><a href='" . htmlspecialchars($view_url) . "'>Otwórz umowę w systemie →</a></p>
-<p style='color:#888;font-size:.85em'>Link jest ważny 30 dni. Wygenerowany automatycznie przez system Rejestru Umów.</p>
-";
-    return approval_send_email($admin['email'], "Do akceptacji: {$numer} — {$org}", $body);
+    $body = '<p style="margin:0 0 14px">Dzień dobry,</p>'
+          . '<p style="margin:0 0 16px">Wpłynął wniosek o akceptację umowy w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
+          . '<table cellpadding="0" cellspacing="0" style="margin:0 0 18px;font-size:14px">'
+          . '<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap">Typ:</td>'
+          . '<td><strong>' . htmlspecialchars($type_label) . '</strong></td></tr>'
+          . '<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap">Numer:</td>'
+          . '<td><strong>' . htmlspecialchars($numer) . '</strong></td></tr>'
+          . '</table>'
+          . '<p style="margin:0 0 16px">Zatwierdź lub odrzuć umowę:</p>'
+          . '<p style="margin:0 0 20px">'
+          . '<a href="' . htmlspecialchars($approve_url) . '" style="background:#16a34a;color:#fff;padding:10px 22px;text-decoration:none;border-radius:6px;margin-right:8px;display:inline-block;font-weight:600;font-size:14px">✓ Zatwierdź</a>'
+          . '<a href="' . htmlspecialchars($reject_url) . '" style="background:#dc2626;color:#fff;padding:10px 22px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;font-size:14px">✗ Odrzuć</a>'
+          . '</p>'
+          . '<p style="margin:0"><a href="' . htmlspecialchars($view_url) . '" style="color:#2563eb;font-size:14px">Otwórz umowę w systemie →</a></p>'
+          . '<p style="margin:20px 0 0;color:#94a3b8;font-size:12px">Link jest ważny 30 dni.</p>';
+
+    $html = _feer_email_tpl($body, "Do akceptacji: {$numer}");
+    return approval_send_email($admin['email'], "Do akceptacji: {$numer} — {$org}", $html);
 }
 
 function approval_send_decision_email(array $user, string $type, int $id, string $numer, string $decision, string $note): bool {
-    $view_url   = APP_URL . '/contracts/' . $type . '/view.php?id=' . $id;
-    $type_label = CONTRACT_TYPES[$type] ?? $type;
-    $org        = defined('ORG_NAME') ? ORG_NAME : '';
+    $view_url       = APP_URL . '/contracts/' . $type . '/view.php?id=' . $id;
+    $org            = defined('ORG_NAME') ? ORG_NAME : '';
     $decision_label = $decision === 'zaakceptowana' ? '✓ Zaakceptowana' : '✗ Odrzucona';
-    $color = $decision === 'zaakceptowana' ? '#198754' : '#dc3545';
+    $color          = $decision === 'zaakceptowana' ? '#16a34a' : '#dc2626';
 
-    $body = "
-<p>Dzień dobry,</p>
-<p>Umowa złożona przez Ciebie do akceptacji otrzymała decyzję w systemie Rejestru Umów <strong>{$org}</strong>.</p>
-<table style='border-collapse:collapse;margin:12px 0'>
-  <tr><td style='padding:4px 12px 4px 0;color:#555'>Umowa:</td><td><strong>" . htmlspecialchars($numer) . "</strong></td></tr>
-  <tr><td style='padding:4px 12px 4px 0;color:#555'>Decyzja:</td><td><strong style='color:{$color}'>{$decision_label}</strong></td></tr>
-  " . ($note ? "<tr><td style='padding:4px 12px 4px 0;color:#555'>Uwaga:</td><td>" . htmlspecialchars($note) . "</td></tr>" : "") . "
-</table>
-<p><a href='" . htmlspecialchars($view_url) . "'>Otwórz umowę →</a></p>
-";
-    return approval_send_email($user['email'], "Decyzja: {$numer} — {$decision_label}", $body);
+    $body = '<p style="margin:0 0 14px">Dzień dobry,</p>'
+          . '<p style="margin:0 0 16px">Twoja umowa otrzymała decyzję w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
+          . '<table cellpadding="0" cellspacing="0" style="margin:0 0 18px;font-size:14px">'
+          . '<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap">Umowa:</td>'
+          . '<td><strong>' . htmlspecialchars($numer) . '</strong></td></tr>'
+          . '<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap">Decyzja:</td>'
+          . '<td><strong style="color:' . $color . '">' . $decision_label . '</strong></td></tr>'
+          . ($note ? '<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap">Uwaga:</td><td>' . htmlspecialchars($note) . '</td></tr>' : '')
+          . '</table>'
+          . '<p style="margin:0"><a href="' . htmlspecialchars($view_url) . '" style="color:#2563eb;font-size:14px">Otwórz umowę →</a></p>';
+
+    $html = _feer_email_tpl($body, "Decyzja: {$numer} — {$decision_label}");
+    return approval_send_email($user['email'], "Decyzja: {$numer} — {$decision_label}", $html);
 }
 
 // ── Akcja etykiety ─────────────────────────────────────────────────────────────
