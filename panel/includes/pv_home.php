@@ -171,6 +171,12 @@ $pv_tile = function (array $t): void {
 /* Karty Bootstrap (zadania, wydarzenia, rezerwacje) w estetyce tz */
 .pvtz .card{border:1px solid var(--tz-line)!important;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
 .pvtz .card .card-header{border-top-left-radius:14px;border-top-right-radius:14px;background:#fff}
+/* Góra: status (lewa) + widżet zadań (prawa) — na pół ekranu (desktop) */
+.pvtz .pv-top{display:grid;grid-template-columns:1fr;gap:1.1rem;margin-bottom:1.1rem;align-items:start}
+@media(min-width:992px){.pvtz .pv-top{grid-template-columns:1fr 1fr}}
+.pvtz .pv-top-main,.pvtz .pv-top-side{min-width:0}
+.pvtz .pv-top .pv-status{margin-bottom:0}
+.pvtz .pv-top-side .card{margin-bottom:0!important}
 .pvtz .lbl-en{font-size:.72rem;color:var(--tz-muted);font-weight:500;display:block;margin-top:.1rem}
 
 /* Nagłówek strony */
@@ -293,7 +299,9 @@ $pv_tile = function (array $t): void {
   </div>
   <?php else: ?>
 
-  <?php /* ── Pasek statusu umowy — zawsze widoczny nad zakładkami ── */ ?>
+  <?php /* ── Góra: status umowy (lewa) + zadania (prawa) na dwie kolumny ── */ ?>
+  <div class="pv-top">
+  <div class="pv-top-main">
   <?php if ($_active_row): ?>
   <section aria-labelledby="pvp-contract-heading">
     <h2 id="pvp-contract-heading" class="visually-hidden">Status Twojej umowy</h2>
@@ -331,9 +339,11 @@ $pv_tile = function (array $t): void {
     </div>
   </section>
   <?php endif; ?>
-
-  <?php /* ── Moje zadania — zawsze na wierzchu, nad zakładkami ── */ ?>
-  <?php include __DIR__ . '/pv_tasks_section.php'; ?>
+  </div><!-- /pv-top-main -->
+  <aside class="pv-top-side" aria-label="Moje zadania">
+    <?php include __DIR__ . '/pv_tasks_section.php'; ?>
+  </aside>
+  </div><!-- /pv-top -->
 
   <?php /* ── Jednorazowe zachęty (nad zakładkami, gdy aktywne) ── */ ?>
   <?php if ($_show_dir_invite): ?>
