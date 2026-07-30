@@ -171,15 +171,10 @@ include __DIR__ . '/includes/header_panel.php';
 ?>
 
 <!-- Nagłówek -->
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div style="width:44px;height:44px;border-radius:12px;background:var(--vol-bg);
-              display:flex;align-items:center;justify-content:center;
-              font-size:1.3rem;color:var(--vol-color)">
-    <i class="bi bi-headset" aria-hidden="true"></i>
-  </div>
-  <div>
-    <h1 class="mb-0 fw-bold" style="font-size:1.2rem">Helpdesk IT</h1>
-    <div class="text-muted small">Zgłoś problem lub zapytaj o wsparcie techniczne</div>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <h1 class="pv-page-title"><i class="bi bi-headset" aria-hidden="true"></i>Helpdesk IT</h1>
+    <p class="pv-page-sub">Zgłoś problem lub zapytaj o wsparcie techniczne</p>
   </div>
 </div>
 

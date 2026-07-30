@@ -58,7 +58,7 @@ include __DIR__ . '/includes/header_panel.php';
   Brak dokumentów<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.
 </div></div>
 <?php else: ?>
-<div class="list-group">
+<div class="list-group pv-list">
   <?php foreach ($docs as $d): ?>
   <div class="list-group-item d-flex align-items-start gap-3">
     <i class="bi <?= h(org_docs_file_icon($d['original_name'])) ?> fs-4 text-primary flex-shrink-0 mt-1" aria-hidden="true"></i>

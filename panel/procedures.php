@@ -132,7 +132,7 @@ include __DIR__ . '/includes/header_panel.php';
   Brak procedur<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.
 </div></div>
 <?php else: ?>
-<div class="list-group">
+<div class="list-group pv-list">
   <?php foreach ($procs as $p): ?>
   <a href="procedures.php?id=<?= (int)$p['id'] ?>" class="list-group-item list-group-item-action d-flex align-items-start gap-3">
     <i class="bi bi-file-earmark-text fs-5 text-primary flex-shrink-0 mt-1" aria-hidden="true"></i>

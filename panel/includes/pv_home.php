@@ -168,6 +168,9 @@ $pv_tile = function (array $t): void {
   max-width:960px;margin:0 auto;color:var(--tz-ink);
 }
 .pvtz *:focus-visible{outline:3px solid #FBBF24;outline-offset:2px}
+/* Karty Bootstrap (zadania, wydarzenia, rezerwacje) w estetyce tz */
+.pvtz .card{border:1px solid var(--tz-line)!important;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
+.pvtz .card .card-header{border-top-left-radius:14px;border-top-right-radius:14px;background:#fff}
 .pvtz .lbl-en{font-size:.72rem;color:var(--tz-muted);font-weight:500;display:block;margin-top:.1rem}
 
 /* Nagłówek strony */
@@ -328,6 +331,9 @@ $pv_tile = function (array $t): void {
     </div>
   </section>
   <?php endif; ?>
+
+  <?php /* ── Moje zadania — zawsze na wierzchu, nad zakładkami ── */ ?>
+  <?php include __DIR__ . '/pv_tasks_section.php'; ?>
 
   <?php /* ── Jednorazowe zachęty (nad zakładkami, gdy aktywne) ── */ ?>
   <?php if ($_show_dir_invite): ?>
@@ -547,15 +553,15 @@ $pv_tile = function (array $t): void {
 
     </div></div>
 
-    <?php /* ── Moje zadania ── */ ?>
-    <h3 class="tz-section-h">Moje zadania</h3>
-    <?php include __DIR__ . '/pv_tasks_section.php'; ?>
-
     <?php /* ── Narzędzia (kafelki) ── */ ?>
     <h3 class="tz-section-h">Narzędzia i pomoc</h3>
     <div class="tz-tiles">
       <?php foreach ($_pv_daily as $t) $pv_tile($t); ?>
     </div>
+
+    <?php /* ── Wydarzenia i rezerwacje (sekcje wspólne) ── */ ?>
+    <h3 class="tz-section-h">Wydarzenia i rezerwacje</h3>
+    <?php include __DIR__ . '/pv_extra_sections.php'; ?>
 
   </section>
   <?php endif; // $contracts ?>
