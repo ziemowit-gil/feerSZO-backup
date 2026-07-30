@@ -140,8 +140,11 @@ $_pv_apps = $my_apps ? array_map(fn($a) => [
     'status' => $a['status'], 'created_at' => $a['created_at'], 'odpowiedz' => $a['odpowiedz'] ?? '',
 ], $my_apps) : [];
 
-/* ── Domyślna zakładka: gdy są zadania/uwagi → Narzędzia; inaczej Formalne ── */
-$_default_tab = 'formalne';
+/* ── Zakładka „Zadania": tylko gdy moduł włączony (ten sam warunek co widżet) ── */
+$_tasks_tab_on = false;
+try { $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'"); $_tasks_tab_on = ($_tm['value'] ?? '1') !== '0'; } catch (\Throwable $e) {}
+/* Domyślna zakładka: „Zadania" (pierwsza, najważniejsza codziennie); gdy wyłączona → „Formalne". */
+$_default_tab = $_tasks_tab_on ? 'zadania' : 'formalne';
 
 /* Helper: render kafelka .tz-tile ----------------------------------------- */
 $pv_tile = function (array $t): void {
@@ -171,12 +174,6 @@ $pv_tile = function (array $t): void {
 /* Karty Bootstrap (zadania, wydarzenia, rezerwacje) w estetyce tz */
 .pvtz .card{border:1px solid var(--tz-line)!important;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
 .pvtz .card .card-header{border-top-left-radius:14px;border-top-right-radius:14px;background:#fff}
-/* Góra: status (lewa) + widżet zadań (prawa) — na pół ekranu (desktop) */
-.pvtz .pv-top{display:grid;grid-template-columns:1fr;gap:1.1rem;margin-bottom:1.1rem;align-items:start}
-@media(min-width:992px){.pvtz .pv-top{grid-template-columns:1fr 1fr}}
-.pvtz .pv-top-main,.pvtz .pv-top-side{min-width:0}
-.pvtz .pv-top .pv-status{margin-bottom:0}
-.pvtz .pv-top-side .card{margin-bottom:0!important}
 .pvtz .lbl-en{font-size:.72rem;color:var(--tz-muted);font-weight:500;display:block;margin-top:.1rem}
 
 /* Nagłówek strony */
@@ -299,9 +296,7 @@ $pv_tile = function (array $t): void {
   </div>
   <?php else: ?>
 
-  <?php /* ── Góra: status umowy (lewa) + zadania (prawa) na dwie kolumny ── */ ?>
-  <div class="pv-top">
-  <div class="pv-top-main">
+  <?php /* ── Pasek statusu umowy — pełna szerokość, nad zakładkami ── */ ?>
   <?php if ($_active_row): ?>
   <section aria-labelledby="pvp-contract-heading">
     <h2 id="pvp-contract-heading" class="visually-hidden">Status Twojej umowy</h2>
@@ -339,11 +334,6 @@ $pv_tile = function (array $t): void {
     </div>
   </section>
   <?php endif; ?>
-  </div><!-- /pv-top-main -->
-  <aside class="pv-top-side" aria-label="Moje zadania">
-    <?php include __DIR__ . '/pv_tasks_section.php'; ?>
-  </aside>
-  </div><!-- /pv-top -->
 
   <?php /* ── Jednorazowe zachęty (nad zakładkami, gdy aktywne) ── */ ?>
   <?php if ($_show_dir_invite): ?>
@@ -362,6 +352,12 @@ $pv_tile = function (array $t): void {
   <?php /* ══════════════ ZAKŁADKI ══════════════ */ ?>
   <nav class="tz-subnav" aria-label="Sekcje panelu">
     <span class="seg" role="tablist">
+      <?php if ($_tasks_tab_on): ?>
+      <a href="#zadania" class="<?= $_default_tab==='zadania'?'on':'' ?>" role="tab" id="tab-zadania"
+         aria-controls="zadania" aria-selected="<?= $_default_tab==='zadania'?'true':'false' ?>" <?= $_default_tab==='zadania'?'':'tabindex="-1"' ?>>
+        <i class="bi bi-list-check" aria-hidden="true"></i>Zadania
+      </a>
+      <?php endif; ?>
       <a href="#formalne" class="<?= $_default_tab==='formalne'?'on':'' ?>" role="tab" id="tab-formalne"
          aria-controls="formalne" aria-selected="<?= $_default_tab==='formalne'?'true':'false' ?>" <?= $_default_tab==='formalne'?'':'tabindex="-1"' ?>>
         <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalne / Umowa
@@ -373,7 +369,14 @@ $pv_tile = function (array $t): void {
     </span>
   </nav>
 
-  <!-- ═══════════ ZAKŁADKA 1 — FORMALNE / UMOWA ═══════════ -->
+  <?php if ($_tasks_tab_on): ?>
+  <!-- ═══════════ ZAKŁADKA — ZADANIA ═══════════ -->
+  <section class="tz-panel <?= $_default_tab==='zadania'?'active':'' ?>" id="zadania" role="tabpanel" aria-labelledby="tab-zadania" tabindex="-1">
+    <?php include __DIR__ . '/pv_tasks_section.php'; ?>
+  </section>
+  <?php endif; ?>
+
+  <!-- ═══════════ ZAKŁADKA — FORMALNE / UMOWA ═══════════ -->
   <section class="tz-panel <?= $_default_tab==='formalne'?'active':'' ?>" id="formalne" role="tabpanel" aria-labelledby="tab-formalne" tabindex="-1">
 
     <?php if ($_active_row):
