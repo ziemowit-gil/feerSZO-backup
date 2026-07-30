@@ -482,6 +482,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Dla technicznej numer jest celowo pusty — nie waliduj
     if (!$is_technical && empty($row['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($row['status']))      $errors[] = 'Status jest wymagany.';
+    if (!$is_draft && !$is_technical && !empty($_task_workspaces) && empty($_POST['task_workspace_id'])) {
+        $errors[] = 'Wybierz obszar zadań — pole jest wymagane.';
+    }
 
     // Statusy terminalne — tylko admin + wymagane uzasadnienie (pomiń dla technicznej)
     if (!$is_technical && in_array($row['status'] ?? '', $_terminal_statuses, true)) {
@@ -799,20 +802,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             _wolontariat_notify_canva($data, $id, $org ?? (defined('ORG_NAME') ? ORG_NAME : 'Organizacja'));
         }
 
-        // Przypisanie do obszaru zadań (jeśli wybrano przy grupie M365)
-        $suggested_workspace_id = intval($_POST['suggested_workspace_id'] ?? 0);
-        if ($suggested_workspace_id > 0 && !empty($data['email'])) {
+        // Przypisanie do obszaru zadań
+        $task_ws_id = (int)($_POST['task_workspace_id'] ?? $_POST['suggested_workspace_id'] ?? 0);
+        if ($task_ws_id > 0 && !empty($_task_workspaces)) {
             try {
-                $wvol_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$data['email']]);
-                if ($wvol_user) {
-                    db()->prepare(
-                        "INSERT OR IGNORE INTO task_workspace_members
-                         (workspace_id, user_id, role, added_by, added_at)
-                         VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
-                    )->execute([$suggested_workspace_id, (int)$wvol_user['id'], (int)current_user()['id']]);
-                    log_contract_action($TYPE, $id, current_user()['id'], 'note',
-                        'Wolontariusz dodany do obszaru zadań ID=' . $suggested_workspace_id);
+                if (!empty($data['email'])) {
+                    $wvol_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$data['email']]);
+                    if ($wvol_user) {
+                        db()->prepare(
+                            "INSERT OR IGNORE INTO task_workspace_members
+                             (workspace_id, user_id, role, added_by, added_at)
+                             VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
+                        )->execute([$task_ws_id, (int)$wvol_user['id'], (int)current_user()['id']]);
+                    }
                 }
+                log_contract_action($TYPE, $id, current_user()['id'], 'note',
+                    'Przypisano do obszaru zadań ID=' . $task_ws_id);
             } catch (\Throwable $e) {}
         }
 
@@ -2045,28 +2050,44 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div id="add_sg_status" class="form-text mt-1"></div>
         </div>
 
-        <?php if (!empty($_task_workspaces)): ?>
-        <!-- Sugestia obszaru zadań -->
-        <div id="sg_workspace_suggest" style="display:none;margin-top:.85rem">
-          <div class="alert alert-info d-flex gap-2 py-2 mb-0" style="font-size:.85rem">
-            <i class="bi bi-kanban-fill flex-shrink-0 mt-1" style="color:#0284c7"></i>
-            <div style="flex:1">
-              <div class="fw-semibold mb-1">Przypisz też do obszaru w module Zadania</div>
-              <select name="suggested_workspace_id" id="sg_workspace_id" class="form-select form-select-sm">
-                <option value="">— pomiń (nie przypisuj) —</option>
-                <?php foreach ($_task_workspaces as $ws): ?>
-                <option value="<?= h($ws['id']) ?>"><?= h($ws['name']) ?></option>
-                <?php endforeach; ?>
-              </select>
-              <div class="form-text mt-1">Wolontariusz zostanie dodany jako <strong>member</strong> wybranego obszaru.</div>
-            </div>
-          </div>
-        </div>
-        <?php endif; ?>
-
       </div>
     </div>
   </div>
+
+  <?php if (!empty($_task_workspaces)): ?>
+  <!-- Obszar zadań — wymagany -->
+  <div class="wiz-card" style="border: 2px solid #fbbf24;">
+    <div class="wiz-card-header" style="background:#fffbeb">
+      <div class="wiz-card-icon" style="background:#fef3c7;color:#d97706">
+        <i class="bi bi-kanban-fill"></i>
+      </div>
+      <div>
+        <div class="wiz-card-title">
+          Obszar zadań <span class="text-danger ms-1">*</span>
+        </div>
+        <div class="wiz-card-subtitle">Wymagane — przypisz wolontariusza do obszaru modułu Zadania</div>
+      </div>
+    </div>
+    <div class="wiz-card-body">
+      <label for="task_workspace_id" class="form-label fw-semibold">Obszar roboczy</label>
+      <select name="task_workspace_id" id="task_workspace_id"
+              class="form-select" required aria-required="true"
+              aria-describedby="task_ws_vol_hint">
+        <option value="">— wybierz obszar zadań —</option>
+        <?php foreach ($_task_workspaces as $ws): ?>
+        <option value="<?= h($ws['id']) ?>"
+                <?= ($row['task_workspace_id'] ?? '') == $ws['id'] ? 'selected' : '' ?>>
+          <?= h($ws['name']) ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text" id="task_ws_vol_hint">
+        <i class="bi bi-info-circle me-1"></i>
+        Wolontariusz zostanie dodany jako <strong>member</strong> wybranego obszaru. Pole wymagane.
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Dostęp do Canva -->
   <div class="wiz-card">
@@ -2388,6 +2409,11 @@ var ADD_STEP_FIELDS = {
     {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
       var el = document.querySelector('[name="plik_umowy"]');
       return el && el.files && el.files.length > 0;
+    }},
+    {name:'task_workspace_id', label:'Obszar zadań', customCheck: function() {
+      var el = document.querySelector('[name="task_workspace_id"]');
+      if (!el) return true; // pole nieobecne gdy moduł wyłączony
+      return !!el.value;
     }},
   ],
 };
@@ -2864,9 +2890,6 @@ document.addEventListener('DOMContentLoaded', function() {
   sel.addEventListener('change', function() {
     var opt = this.options[this.selectedIndex];
     if (hidden) hidden.value = opt ? (opt.dataset.name || opt.textContent.trim()) : '';
-    // Pokaż sugestię obszaru zadań gdy wybrano grupę
-    var suggest = document.getElementById('sg_workspace_suggest');
-    if (suggest) suggest.style.display = this.value ? '' : 'none';
   });
 
   if (refresh) refresh.addEventListener('click', loadGroups);

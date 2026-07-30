@@ -27,6 +27,13 @@ $TABLE = 'umowy_zlecenie';
 $errors = [];
 $row = ['numer_umowy' => next_contract_number($TYPE), 'status' => 'projekt'];
 
+$_task_workspaces = [];
+try {
+    if (module_enabled('tasks_enabled')) {
+        $_task_workspaces = db_all("SELECT id, name FROM task_workspaces WHERE is_active=1 ORDER BY name");
+    }
+} catch (\Throwable $e) {}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $row = $_POST;
@@ -39,6 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($row['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($row['status']))      $errors[] = 'Status jest wymagany.';
+    if (!$is_draft && !empty($_task_workspaces) && empty($_POST['task_workspace_id'])) {
+        $errors[] = 'Wybierz obszar zadań — pole jest wymagane.';
+    }
 
     if (!$errors) {
         // Pola checkboxowe
@@ -113,6 +123,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'create', 'Dodano: ' . ($data['numer_umowy'] ?? ''));
+
+        // Przypisanie do obszaru zadań
+        $task_ws_id = (int)($_POST['task_workspace_id'] ?? 0);
+        if ($task_ws_id > 0 && !empty($_task_workspaces)) {
+            try {
+                $person_email = $data['email'] ?? '';
+                if ($person_email) {
+                    $zlec_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$person_email]);
+                    if ($zlec_user) {
+                        db()->prepare(
+                            "INSERT OR IGNORE INTO task_workspace_members
+                             (workspace_id, user_id, role, added_by, added_at)
+                             VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
+                        )->execute([$task_ws_id, (int)$zlec_user['id'], (int)current_user()['id']]);
+                    }
+                }
+                log_contract_action($TYPE, $id, current_user()['id'], 'note',
+                    'Przypisano do obszaru zadań ID=' . $task_ws_id);
+            } catch (\Throwable $e) {}
+        }
+
         if (isset($_POST['nie_mam_drukarki'])) {
             require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);
@@ -482,6 +513,34 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <small class="text-muted">Konto można też <a href="#">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</small>
 </div>
 </div>
+
+<?php if (!empty($_task_workspaces)): ?>
+<!-- Obszar zadań — wymagany -->
+<div class="card shadow-sm mb-3 border-warning">
+  <div class="card-header fw-semibold text-warning-emphasis bg-warning-subtle">
+    <i class="bi bi-kanban-fill me-1"></i>Obszar zadań <span class="text-danger">*</span>
+  </div>
+  <div class="card-body">
+    <label for="task_workspace_id" class="form-label fw-semibold">
+      Przypisz zleceniobiorcę do obszaru w module Zadania
+    </label>
+    <select name="task_workspace_id" id="task_workspace_id" class="form-select"
+            required aria-required="true" aria-describedby="task_ws_hint">
+      <option value="">— wybierz obszar zadań —</option>
+      <?php foreach ($_task_workspaces as $ws): ?>
+      <option value="<?= h($ws['id']) ?>"
+              <?= ($row['task_workspace_id'] ?? '') == $ws['id'] ? 'selected' : '' ?>>
+        <?= h($ws['name']) ?>
+      </option>
+      <?php endforeach; ?>
+    </select>
+    <div class="form-text" id="task_ws_hint">
+      <i class="bi bi-info-circle me-1"></i>
+      Zleceniobiorca zostanie dodany jako <strong>member</strong> wybranego obszaru. Pole wymagane.
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- Dostęp -->
 <div class="card shadow-sm mb-3">
