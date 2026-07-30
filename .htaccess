@@ -124,11 +124,14 @@ RewriteRule ^wa/?$            panel/whatsapp_group.php [QSA,L]
 # Publiczna weryfikacja zaświadczeń (skan QR)
 RewriteRule ^weryfikuj/?$     weryfikuj/index.php   [QSA,L]
 
+# Publiczny asystent AI (link do udostępnienia w intranecie): /chatbot/{token}
+RewriteRule ^chatbot/([a-f0-9]{16,64})/?$ chatbot/index.php?t=$1 [QSA,L]
+
 # Dynamiczne aliasy z bazy danych (short_url_routes)
 # Każdy nieznany path jest sprawdzany przez router.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/(org|api|admin|auth|contracts|uploads|assets|directory|crm|karty30|tasks|grants|actions|persons|reports|procedures|panel|onboarding|org|correspondence|ezd|resolutions|saas|saas-tenent|tenants|certs|cli|misc) [NC]
+RewriteCond %{REQUEST_URI} !^/(org|api|admin|auth|contracts|uploads|assets|directory|crm|karty30|tasks|grants|actions|persons|reports|procedures|panel|onboarding|org|correspondence|ezd|resolutions|chatbot|saas|saas-tenent|tenants|certs|cli|misc) [NC]
 RewriteRule ^([a-z0-9_-]+)/?$ r.php?_slug=$1 [QSA,L]
 
 # ── koniec short URLs ───────────────────────────────────────────────────────

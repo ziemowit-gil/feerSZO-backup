@@ -2759,6 +2759,32 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
     </div>
   </div>
 
+  <!-- ── Dostępy (MS365 + panel) — zarządzane w Systemie Tożsamości ─────────── -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#1E6DFF"><i class="bi bi-shield-lock"></i></div>
+      <span class="cv-section-title">Dostępy — Microsoft 365 i panel</span>
+      <?php if (can_edit()): ?>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/tozsamosc/access.php?type=wolontariat&id=<?= (int)$id ?>" class="btn btn-sm btn-primary">
+          <i class="bi bi-shield-lock me-1"></i>Zarządzaj dostępem
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Konto Microsoft 365</div>
+        <div class="cv-value"><?= !empty($row['m365_konto']) ? h($row['m365_login'] ?: 'konto aktywne') : '— brak —' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Status M365</div>
+        <div class="cv-value"><?= !empty($row['m365_konto']) ? (!empty($row['m365_konto_aktywne']) ? 'Aktywne' : 'Nieaktywne') : '—' ?></div></div>
+    </div>
+    <div class="alert alert-primary d-flex gap-2 py-2 mt-2 mb-0" style="font-size:.83rem;background:#eef4ff;border-color:#bfdbfe;color:#1e40af">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+      <div>Zarządzanie dostępem (Microsoft 365, hasło, wysyłka danych do panelu) przeniesiono do <strong>Systemu Tożsamości</strong> — użyj przycisku „Zarządzaj dostępem".</div>
+    </div>
+  </div>
+
+  <?php if (false): // Sekcje przeniesione do /tozsamosc/access.php (zachowane wyłączone) ?>
   <div class="cv-section">
     <div class="cv-section-head">
       <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-microsoft"></i></div>
@@ -3148,6 +3174,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
     </div>
     <?php endif; ?>
   </div>
+  <?php endif; // /Sekcje MS365 + Portal przeniesione do /tozsamosc/access.php ?>
 
   <!-- ── Sekcja Canva ──────────────────────────────────────────────────────── -->
   <?php if (can_edit()): ?>

@@ -32,6 +32,48 @@ function asai_model(): string {
     return $m !== '' ? $m : 'claude-opus-4-8';
 }
 
+// ── Publiczny asystent (link /chatbot/{token} do udostępnienia w intranecie) ──
+/** Zapisz wartość do tabeli settings (INSERT lub UPDATE). */
+function asai_setting_set(string $key, string $value): void {
+    if (db_one("SELECT 1 FROM settings WHERE key_=?", [$key])) {
+        db()->prepare("UPDATE settings SET value=? WHERE key_=?")->execute([$value, $key]);
+    } else {
+        db()->prepare("INSERT INTO settings (key_,value) VALUES (?,?)")->execute([$key, $value]);
+    }
+}
+
+/** Token publicznego asystenta (pusty = jeszcze nie wygenerowany). */
+function asai_public_token(): string {
+    return trim((string)(db_one("SELECT value FROM settings WHERE key_='chatbot_public_token'")['value'] ?? ''));
+}
+
+/** Czy publiczny asystent jest włączony (flaga + token + klucz API). */
+function asai_public_enabled(): bool {
+    $flag = (db_one("SELECT value FROM settings WHERE key_='chatbot_public_enabled'")['value'] ?? '') === '1';
+    return $flag && asai_public_token() !== '' && asai_enabled();
+}
+
+/** Wygeneruj (lub obróć) token publicznego asystenta i zwróć go. */
+function asai_public_generate_token(): string {
+    $token = bin2hex(random_bytes(16)); // 32 znaki hex
+    asai_setting_set('chatbot_public_token', $token);
+    return $token;
+}
+
+/** Zbuduj publiczny URL /chatbot/{token} (pusty, jeśli brak tokenu). */
+function asai_public_url(): string {
+    $t = asai_public_token();
+    return $t === '' ? '' : APP_URL . '/chatbot/' . $t;
+}
+
+/** Sprawdź, czy podany token jest ważnym, aktywnym tokenem publicznym. */
+function asai_public_token_valid(string $token): bool {
+    $token = trim($token);
+    if ($token === '' || !preg_match('/^[a-f0-9]{16,64}$/', $token)) return false;
+    if (!asai_public_enabled()) return false;
+    return hash_equals(asai_public_token(), $token);
+}
+
 // ── Definicje źródeł bazy wiedzy ─────────────────────────────────────────────
 /**
  * Metadane każdego źródła: etykieta, ikona i budowniczy URL do rekordu.

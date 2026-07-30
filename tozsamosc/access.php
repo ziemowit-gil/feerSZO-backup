@@ -36,6 +36,13 @@ $portal_user = ($email && filter_var($email, FILTER_VALIDATE_EMAIL))
 $m365_uid    = trim($row['m365_user_id'] ?? '');
 $m365_login  = trim($row['m365_login'] ?? '');
 $has_m365    = ($m365_uid !== '' && !empty($row['m365_konto']));
+
+// Numer telefonu wolontariusza (do wysyłki SMS): konto → telefon z umowy.
+$sms_ok    = false;
+try { require_once dirname(__DIR__) . '/includes/sms.php'; $sms_ok = sms_is_enabled(); } catch (\Throwable $e) {}
+$vol_phone = '';
+if ($portal_user) { $pu = db_one("SELECT phone_number FROM users WHERE id=?", [(int)$portal_user['id']]); $vol_phone = trim($pu['phone_number'] ?? ''); }
+if ($vol_phone === '') $vol_phone = trim($row['telefon'] ?? '');
 $back_view   = APP_URL . "/contracts/{$TYPE}/view.php?id={$id}";
 $self        = APP_URL . "/tozsamosc/access.php?type={$TYPE}&id={$id}";
 
@@ -110,6 +117,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mail_queue_process();
             log_contract_action($TYPE, $id, $me, 'note', 'Wysłano jednorazowy kod dostępu do panelu: ' . $email);
             flash_set('success', 'Jednorazowy kod dostępu wysłany na ' . $email . '.');
+        }
+        header('Location: ' . $self); exit;
+    }
+
+    // ── Panel: wyślij login + hasło SMS-em (reset hasła) ──
+    elseif ($act === 'sms_credentials') {
+        if (!$sms_ok) { flash_set('danger', 'Wysyłka SMS jest niedostępna (integracja wyłączona).'); }
+        elseif (!$portal_user) { flash_set('warning', 'Osoba nie ma konta w panelu.'); }
+        elseif ($vol_phone === '') { flash_set('warning', 'Brak numeru telefonu — uzupełnij numer na koncie lub w umowie.'); }
+        else {
+            $plain = substr(str_replace(['+','/','-'],'',base64_encode(random_bytes(18))),0,12);
+            db()->prepare("UPDATE users SET password=?, login_code=NULL, must_change_password=1 WHERE id=?")
+                ->execute([password_hash($plain, PASSWORD_BCRYPT), (int)$portal_user['id']]);
+            $org_short = mb_substr($org, 0, 24);
+            $msg = "Panel {$org_short}\nLogin: {$email}\nHaslo: {$plain}\nZmien haslo po zalogowaniu.";
+            try {
+                $via = sms_send_with_fallback(sms_normalize_phone($vol_phone), $msg, $email);
+                log_contract_action($TYPE, $id, $me, 'note', 'Wyslano login+haslo panelu SMS-em na: ' . $vol_phone . ' (reset hasla)');
+                flash_set($via === 'email' ? 'warning' : 'success',
+                    $via === 'email'
+                      ? 'SMS nie przeszedł — login i hasło wysłano na e-mail ' . $email . '. Hasło zostało zresetowane.'
+                      : 'Login i hasło wysłano SMS-em na ' . $vol_phone . '. Hasło zostało zresetowane.');
+            } catch (\Throwable $e) { flash_set('danger', 'Błąd wysyłki SMS: ' . $e->getMessage() . ' (hasło zostało zresetowane).'); }
         }
         header('Location: ' . $self); exit;
     }
@@ -203,7 +233,18 @@ include __DIR__ . '/_head.php';
           <button class="tz-btn tz-btn--ghost btn-sm" type="submit"><i class="bi bi-key" aria-hidden="true"></i> Resetuj hasło + wyślij dane</button></form>
         <form method="post" class="m-0"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="resend_code">
           <button class="tz-btn tz-btn--ghost btn-sm" type="submit"><i class="bi bi-123" aria-hidden="true"></i> Wyślij jednorazowy kod</button></form>
+        <?php if ($sms_ok && $vol_phone !== ''): ?>
+        <form method="post" class="m-0" onsubmit="return confirm('Zresetować hasło i wysłać login + hasło SMS-em na <?= h($vol_phone) ?>?')">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="sms_credentials">
+          <button class="tz-btn btn-sm" type="submit"><i class="bi bi-phone-vibrate" aria-hidden="true"></i> Wyślij login + hasło SMS-em</button></form>
+        <?php endif; ?>
       </div>
+      <?php if ($sms_ok): ?>
+      <p class="text-muted mt-2 mb-0" style="font-size:.8rem">
+        <i class="bi bi-phone me-1" aria-hidden="true"></i>
+        <?= $vol_phone !== '' ? 'SMS na numer: <strong>' . h($vol_phone) . '</strong> (hasło zostanie zresetowane).' : 'Brak numeru telefonu — wysyłka SMS niedostępna, uzupełnij numer na koncie lub w umowie.' ?>
+      </p>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 </section>

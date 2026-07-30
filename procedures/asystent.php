@@ -99,9 +99,24 @@ include dirname(__DIR__) . '/includes/header.php';
         <strong>procedury</strong>, dokumenty organizacji, uchwały i zasady — i odpowie, wskazując źródła.
       </div>
     </div>
-    <a href="<?= APP_URL ?>/procedures/index.php" class="btn btn-sm btn-outline-secondary flex-shrink-0">
-      <i class="bi bi-journal-bookmark-fill me-1"></i>Procedury
-    </a>
+    <div class="d-flex flex-column gap-2 flex-shrink-0">
+      <a href="<?= APP_URL ?>/procedures/index.php" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-journal-bookmark-fill me-1"></i>Procedury
+      </a>
+      <?php if (is_admin()):
+        $pub_url = asai_public_url();
+        if (asai_public_enabled() && $pub_url): ?>
+        <a href="<?= htmlspecialchars($pub_url, ENT_QUOTES) ?>" target="_blank" rel="noopener"
+           class="btn btn-sm btn-outline-secondary" title="Publiczny link do udostępnienia w intranecie">
+          <i class="bi bi-share me-1"></i>Link publiczny
+        </a>
+      <?php else: ?>
+        <a href="<?= APP_URL ?>/admin/ai_settings.php#chatbot" class="btn btn-sm btn-outline-secondary"
+           title="Włącz publiczny link do asystenta">
+          <i class="bi bi-share me-1"></i>Udostępnij
+        </a>
+      <?php endif; endif; ?>
+    </div>
   </div>
 
   <?php if (!$ai_ready): ?>
