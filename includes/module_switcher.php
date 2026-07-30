@@ -10,6 +10,25 @@
 if (!isset($msw_active)) $msw_active = 'szo';
 if (!isset($msw_dark))   $msw_dark   = false;
 
+/* ── Widoczność per rola (msw_role_perms) ─── */
+function _msw_role_visible(string $key): bool {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        $u = current_user();
+        $role = $u['role'] ?? '';
+        if ($role === 'admin') { $cache = ['*' => true]; return true; }
+        try {
+            foreach (db_all("SELECT module_key, visible FROM msw_role_perms WHERE role=?", [$role]) as $r) {
+                $cache[$r['module_key']] = (bool)$r['visible'];
+            }
+        } catch (\Throwable $e) {}
+    }
+    if (isset($cache['*'])) return true;
+    if (!isset($cache[$key])) return true;   // brak wpisu = domyślnie widoczny
+    return $cache[$key];
+}
+
 $_msw_mods = [
     ['key'=>'szo',       'label'=>'SZO',           'icon'=>'bi-building',          'mc'=>'#2563eb','mb'=>'#eff6ff','url'=>APP_URL.'/index.php',                          'check'=>null],
     ['key'=>'crm',       'label'=>'CRM',           'icon'=>'bi-diagram-2-fill',    'mc'=>'#16a34a','mb'=>'#f0fdf4','url'=>APP_URL.'/crm/dashboard.php',                  'check'=>fn()=>module_enabled('crm_enabled')&&can_read('crm')],
@@ -106,6 +125,7 @@ $_msw_btn_cls = $msw_dark ? 'mod-sw-btn mod-sw-btn--dark' : 'mod-sw-btn';
     <div class="mod-sw-head">Przejdź do modułu</div>
     <div class="mod-sw-grid">
       <?php foreach ($_msw_mods as $_msw_m):
+        if (!_msw_role_visible($_msw_m['key'])) continue;
         if ($_msw_m['check'] !== null && !($_msw_m['check'])()) continue;
         $_msw_on = ($_msw_m['key'] === $msw_active) ? ' msw-on' : '';
       ?>

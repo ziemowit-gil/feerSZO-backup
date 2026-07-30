@@ -159,6 +159,7 @@ $groups = [
         'items' => [
             ['icon'=>'bi-building',             'label'=>'Dane organizacji',         'url'=>'/admin/org_settings.php'],
             ['icon'=>'bi-toggles2',             'label'=>'Moduły',                   'url'=>'/admin/modules_settings.php'],
+            ['icon'=>'bi-grid-3x3-gap-fill',    'label'=>'Widoczność modułów per rola','url'=>'/admin/module_perms.php'],
             ['icon'=>'bi-calendar-event-fill',  'label'=>'Ustawienia wydarzeń',     'url'=>'/admin/events_settings.php'],
             ['icon'=>'bi-building-gear',        'label'=>'Wirtualne biurko',           'url'=>'/admin/ezd_settings.php'],
             ['icon'=>'bi-diagram-2',            'label'=>'Procesy EZD (workflow)',   'url'=>'/admin/ezd_workflows.php'],
