@@ -82,235 +82,203 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 ?>
 
 <style>
-/* ── KPI cards ──────────────────────────────────────────────── */
-.tsk-kpi {
-  background: #fff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: .75rem;
-  padding: 1.1rem 1.2rem;
-  display: block; text-decoration: none;
-  transition: box-shadow .15s, border-color .15s, transform .1s;
-  position: relative; overflow: hidden;
-}
-.tsk-kpi:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,.09);
-  border-color: #a5b4fc;
-  transform: translateY(-2px);
-}
-.tsk-kpi:focus-visible {
-  outline: 3px solid var(--tsk-focus) !important;
-}
-.tsk-kpi-stripe {
-  position: absolute; top: 0; left: 0; right: 0;
-  height: 3px;
-}
-.tsk-kpi-val {
-  font-size: 2rem; font-weight: 800; line-height: 1;
-  color: var(--tsk-text); margin-bottom: .25rem;
-}
-.tsk-kpi-label {
-  font-size: .8rem; color: #64748b; font-weight: 500;
-}
-.tsk-kpi-icon {
-  position: absolute; bottom: .8rem; right: 1rem;
-  font-size: 1.6rem; opacity: .09;
+/* ══ Dashboard zadań — styl „panel wolontariusza" (pvtz) ════════════════
+   Zmienne strukturalne zgodne z .pvtz; akcent = --tsk-green (emerald).   */
+.tsk-dash {
+  --tz-line: #E5E9F0;
+  --tz-muted: #5b6472;
+  --tz-ink: #111827;
+  --tz-50: rgba(5,150,105,.07);
+  --tz-strong: var(--tsk-green);
+  max-width: 1100px;
 }
 
-/* ── Sekcje ─────────────────────────────────────────────────── */
-.tsk-section {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: .75rem;
+/* Nagłówek strony */
+.tsk-dash .dash-h { margin-bottom: 1.25rem; }
+.tsk-dash .dash-h h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; margin: 0; line-height: 1.2; color: var(--tz-ink); }
+.tsk-dash .dash-h p  { color: var(--tz-muted); margin: .2rem 0 0; font-size: .9rem; }
+
+/* Karty — identycznie jak .tz-card */
+.tsk-dash .tz-card { background: #fff; border: 1px solid var(--tz-line); border-radius: 14px; box-shadow: 0 1px 3px rgba(16,24,40,.08); overflow: hidden; }
+.tsk-dash .tz-card__hd { padding: .9rem 1.15rem; border-bottom: 1px solid var(--tz-line); display: flex; align-items: center; gap: .6rem; font-weight: 700; font-size: .95rem; color: var(--tz-ink); }
+.tsk-dash .tz-card__hd i { color: var(--tsk-green); }
+.tsk-dash .tz-card__hd a.btn { margin-left: auto; font-size: .74rem; }
+
+/* Nagłówki sekcji — identycznie jak .tz-section-h */
+.tsk-dash .tz-section-h { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--tz-muted); margin: 1.4rem 0 .7rem; }
+.tsk-dash .tz-section-h:first-child { margin-top: 0; }
+
+/* KPI tiles — wzorowane na .tz-tile */
+.tsk-dash .kpi-tile {
+  position: relative; display: flex; flex-direction: column; gap: .15rem;
+  background: #fff; border: 1px solid var(--tz-line); border-radius: 14px;
+  padding: 1rem 1.05rem; text-decoration: none; color: inherit;
+  min-height: 100px; transition: transform .15s, border-color .15s, box-shadow .15s;
   overflow: hidden;
 }
-.tsk-section-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: .8rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  background: #f8fafc;
+.tsk-dash .kpi-tile:hover, .tsk-dash .kpi-tile:focus-visible {
+  transform: translateY(-2px); border-color: var(--tsk-green);
+  box-shadow: 0 8px 24px -6px rgba(5,150,105,.22); color: inherit;
 }
-.tsk-section-title {
-  font-size: .78rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .07em;
-  color: #64748b; display: flex; align-items: center; gap: .4rem;
-  margin: 0;
+.tsk-dash .kpi-tile__ico {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--tsk-green); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; margin-bottom: .5rem; flex-shrink: 0;
 }
+.tsk-dash .kpi-tile__val  { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--tz-ink); }
+.tsk-dash .kpi-tile__lbl  { font-size: .76rem; color: var(--tz-muted); font-weight: 500; }
+.tsk-dash .kpi-tile.is-red   .kpi-tile__ico { background: #dc2626; }
+.tsk-dash .kpi-tile.is-red   .kpi-tile__val { color: #dc2626; }
+.tsk-dash .kpi-tile.is-green .kpi-tile__ico { background: #16a34a; }
+.tsk-dash .kpi-tile.is-blue  .kpi-tile__ico { background: #2563eb; }
+.tsk-dash .kpi-tile.is-slate .kpi-tile__ico { background: #64748b; }
+.tsk-dash .kpi-tile.is-violet .kpi-tile__ico { background: #7c3aed; }
 
-/* ── Wiersze zadań ───────────────────────────────────────────── */
-.tsk-task-row {
+/* Wiersze zadań */
+.tsk-dash .tsk-row {
   display: flex; align-items: center; gap: .75rem;
-  padding: .6rem 1rem;
-  border-bottom: 1px solid #f8fafc;
-  cursor: pointer; text-decoration: none; color: inherit;
-  transition: background .1s;
+  padding: .65rem 1.15rem; border-bottom: 1px solid var(--tz-line);
+  text-decoration: none; color: inherit; transition: background .1s;
 }
-.tsk-task-row:last-child { border-bottom: none; }
-.tsk-task-row:hover { background: #f8fafc; }
-.tsk-task-row:focus-visible { outline: 3px solid var(--tsk-focus) !important; outline-offset: -2px; }
-.tsk-task-pri {
-  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-}
-.tsk-task-title {
-  flex: 1; font-size: .87rem; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tsk-task-due {
-  font-size: .73rem; white-space: nowrap;
-  color: #94a3b8;
-}
-.tsk-task-due.overdue { color: #dc2626; font-weight: 700; }
-.tsk-task-list {
-  font-size: .7rem; color: #94a3b8; white-space: nowrap;
-}
+.tsk-dash .tsk-row:last-child { border-bottom: none; }
+.tsk-dash .tsk-row:hover { background: #f8fafc; }
+.tsk-dash .tsk-row:focus-visible { outline: 3px solid var(--tsk-focus) !important; outline-offset: -2px; }
+.tsk-dash .tsk-row__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.tsk-dash .tsk-row__ttl { flex: 1; font-size: .87rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tz-ink); }
+.tsk-dash .tsk-row__list { font-size: .7rem; color: var(--tz-muted); white-space: nowrap; }
+.tsk-dash .tsk-row__due  { font-size: .73rem; white-space: nowrap; color: var(--tz-muted); }
+.tsk-dash .tsk-row__due.overdue { color: #dc2626; font-weight: 700; }
 
-/* ── Aktywność ───────────────────────────────────────────────── */
-.tsk-act-row {
+/* Aktywność */
+.tsk-dash .act-row {
   display: flex; gap: .6rem; align-items: flex-start;
-  padding: .45rem 1rem; border-bottom: 1px solid #f8fafc;
-  font-size: .78rem; color: #64748b;
+  padding: .55rem 1.15rem; border-bottom: 1px solid var(--tz-line);
+  font-size: .78rem; color: var(--tz-muted);
 }
-.tsk-act-row:last-child { border-bottom: none; }
-.tsk-act-icon { flex-shrink: 0; margin-top: .1rem; font-size: .8rem; color: #94a3b8; }
-.tsk-act-text { flex: 1; line-height: 1.4; }
-.tsk-act-time { flex-shrink: 0; font-size: .7rem; color: #94a3b8; white-space: nowrap; }
+.tsk-dash .act-row:last-child { border-bottom: none; }
+.tsk-dash .act-row__ico { flex-shrink: 0; margin-top: .1rem; font-size: .8rem; color: var(--tz-muted); }
+.tsk-dash .act-row__bd  { flex: 1; line-height: 1.4; }
+.tsk-dash .act-row__time { flex-shrink: 0; font-size: .7rem; color: var(--tz-muted); white-space: nowrap; }
 
-/* ── Workspace cards ─────────────────────────────────────────── */
-.tsk-ws-card {
+/* Obszary robocze */
+.tsk-dash .ws-row {
   display: flex; align-items: center; gap: .75rem;
-  padding: .6rem 1rem; border-bottom: 1px solid #f8fafc;
-  text-decoration: none; color: inherit;
-  transition: background .1s;
+  padding: .65rem 1.15rem; border-bottom: 1px solid var(--tz-line);
+  text-decoration: none; color: inherit; transition: background .1s;
 }
-.tsk-ws-card:last-child { border-bottom: none; }
-.tsk-ws-card:hover { background: #f8fafc; }
-.tsk-ws-icon {
-  width: 34px; height: 34px; border-radius: 8px;
+.tsk-dash .ws-row:last-child { border-bottom: none; }
+.tsk-dash .ws-row:hover { background: #f8fafc; }
+.tsk-dash .ws-row__ico {
+  width: 36px; height: 36px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
   font-size: .95rem; flex-shrink: 0;
 }
-.tsk-ws-name { font-size: .88rem; font-weight: 600; }
-.tsk-ws-cnt  { font-size: .75rem; color: #94a3b8; }
-.tsk-ws-prog { flex: 1; }
-.tsk-ws-bar  { height: 3px; background: #e2e8f0; border-radius: 2px; overflow: hidden; margin-top: .25rem; }
-.tsk-ws-fill { height: 100%; border-radius: 2px; }
+.tsk-dash .ws-row__prog { flex: 1; min-width: 0; }
+.tsk-dash .ws-row__name { font-size: .88rem; font-weight: 600; color: var(--tz-ink); }
+.tsk-dash .ws-row__bar  { height: 5px; background: var(--tz-line); border-radius: 999px; overflow: hidden; margin-top: .3rem; }
+.tsk-dash .ws-row__fill { height: 5px; border-radius: 999px; }
+.tsk-dash .ws-row__cnt  { font-size: .74rem; color: var(--tz-muted); white-space: nowrap; }
 
 /* Puste stany */
-.tsk-empty { text-align: center; padding: 2rem 1rem; color: #94a3b8; font-size: .84rem; }
-.tsk-empty i { font-size: 1.5rem; display: block; margin-bottom: .4rem; opacity: .3; }
+.tsk-dash .tsk-empty { text-align: center; padding: 2rem 1rem; color: var(--tz-muted); font-size: .84rem; }
+.tsk-dash .tsk-empty i { font-size: 1.6rem; display: block; margin-bottom: .4rem; opacity: .3; }
 </style>
 
-<!-- ── Nagłówek dashboardu ───────────────────────────────────────────── -->
-<div class="d-flex align-items-start justify-content-between mb-4">
+<div class="tsk-dash">
+
+<!-- ── Nagłówek ─────────────────────────────────────────────────────── -->
+<div class="dash-h d-flex flex-wrap align-items-start justify-content-between gap-2">
   <div>
-    <h1 class="h4 fw-bold mb-0" style="color:var(--tsk-text)">
-      Dzień dobry, <?= h(explode(' ', $_tu_name ?? 'Użytkowniku')[0]) ?> 👋
-    </h1>
-    <p class="text-muted small mb-0">
+    <h1>Dzień dobry, <?= h(explode(' ', $_tu_name ?? 'Użytkowniku')[0]) ?> 👋</h1>
+    <p>
       <?php if ($kpi['mine'] > 0): ?>
-        Masz <strong><?= $kpi['mine'] ?></strong> aktywnych zadań.
-        <?php if ($kpi['overdue'] > 0): ?>
-        <span class="text-danger fw-semibold">Uwaga: <?= $kpi['overdue'] ?> po terminie!</span>
-        <?php endif; ?>
+        Masz <strong><?= $kpi['mine'] ?></strong> aktywnych zadań.<?php if ($kpi['overdue'] > 0): ?> <span class="text-danger fw-semibold">Uwaga: <?= $kpi['overdue'] ?> po terminie!</span><?php endif; ?>
       <?php else: ?>
-        Nie masz przypisanych zadań. <?php if ($kpi['open'] > 0): ?>
-        Dostępne: <strong><?= $kpi['open'] ?></strong> wolnych zadań.
-        <?php endif; ?>
+        Nie masz przypisanych zadań.<?php if ($kpi['open'] > 0): ?> Dostępne: <strong><?= $kpi['open'] ?></strong> wolnych.<?php endif; ?>
       <?php endif; ?>
     </p>
   </div>
   <?php if ($is_admin): ?>
-  <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-primary btn-sm">
-    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
+  <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm"
+     style="background:var(--tsk-green);color:#fff;border-radius:10px;font-weight:600;min-height:40px;display:inline-flex;align-items:center;gap:.4rem">
+    <i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe zadanie
   </a>
   <?php endif; ?>
 </div>
 
 <!-- ── KPI ──────────────────────────────────────────────────────────── -->
+<h2 class="tz-section-h">Podsumowanie</h2>
 <div class="row g-3 mb-4">
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php"
-       aria-label="Wszystkie zadania: <?= $kpi['total'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#6366f1"></div>
-      <div class="tsk-kpi-val"><?= $kpi['total'] ?></div>
-      <div class="tsk-kpi-label">Wszystkie</div>
-      <i class="bi bi-table tsk-kpi-icon" aria-hidden="true"></i>
+    <a class="kpi-tile" href="<?= APP_URL ?>/tasks/index.php" aria-label="Wszystkie zadania: <?= $kpi['total'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-table"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['total'] ?></div>
+      <div class="kpi-tile__lbl">Wszystkie</div>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=open"
-       aria-label="Do zrobienia: <?= $kpi['open'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#16a34a"></div>
-      <div class="tsk-kpi-val" style="color:<?= $kpi['open'] > 0 ? '#16a34a' : 'inherit' ?>">
-        <?= $kpi['open'] ?>
-      </div>
-      <div class="tsk-kpi-label">Do zrobienia</div>
-      <i class="bi bi-circle tsk-kpi-icon" aria-hidden="true"></i>
+    <a class="kpi-tile is-green" href="<?= APP_URL ?>/tasks/index.php?status=open" aria-label="Do zrobienia: <?= $kpi['open'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-circle"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['open'] ?></div>
+      <div class="kpi-tile__lbl">Do zrobienia</div>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=taken"
-       aria-label="Przydzielone zadania: <?= $kpi['taken'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#2563eb"></div>
-      <div class="tsk-kpi-val"><?= $kpi['taken'] ?></div>
-      <div class="tsk-kpi-label">Przydzielone</div>
-      <i class="bi bi-person-fill tsk-kpi-icon" aria-hidden="true"></i>
+    <a class="kpi-tile is-blue" href="<?= APP_URL ?>/tasks/index.php?status=taken" aria-label="Przydzielone: <?= $kpi['taken'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-person-fill"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['taken'] ?></div>
+      <div class="kpi-tile__lbl">Przydzielone</div>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=done"
-       aria-label="Ukończone zadania: <?= $kpi['done'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#64748b"></div>
-      <div class="tsk-kpi-val"><?= $kpi['done'] ?></div>
-      <div class="tsk-kpi-label">Ukończone</div>
-      <i class="bi bi-check-circle-fill tsk-kpi-icon" aria-hidden="true"></i>
+    <a class="kpi-tile is-slate" href="<?= APP_URL ?>/tasks/index.php?status=done" aria-label="Ukończone: <?= $kpi['done'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['done'] ?></div>
+      <div class="kpi-tile__lbl">Ukończone</div>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=mine"
-       aria-label="Moje zadania: <?= $kpi['mine'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#7c3aed"></div>
-      <div class="tsk-kpi-val"><?= $kpi['mine'] ?></div>
-      <div class="tsk-kpi-label">Moje</div>
-      <i class="bi bi-person-check-fill tsk-kpi-icon" aria-hidden="true"></i>
+    <a class="kpi-tile is-violet" href="<?= APP_URL ?>/tasks/index.php?status=mine" aria-label="Moje zadania: <?= $kpi['mine'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-person-check-fill"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['mine'] ?></div>
+      <div class="kpi-tile__lbl">Moje</div>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
-    <a class="tsk-kpi <?= $kpi['overdue'] > 0 ? 'border-danger' : '' ?>"
+    <a class="kpi-tile <?= $kpi['overdue'] > 0 ? 'is-red' : '' ?>"
        href="<?= APP_URL ?>/tasks/index.php"
-       aria-label="Zadania po terminie: <?= $kpi['overdue'] ?>">
-      <div class="tsk-kpi-stripe" style="background:#dc2626"></div>
-      <div class="tsk-kpi-val" style="color:<?= $kpi['overdue'] > 0 ? '#dc2626' : 'inherit' ?>">
-        <?= $kpi['overdue'] ?>
-      </div>
-      <div class="tsk-kpi-label">Po terminie</div>
-      <i class="bi bi-alarm tsk-kpi-icon" aria-hidden="true"></i>
+       aria-label="Po terminie: <?= $kpi['overdue'] ?>">
+      <span class="kpi-tile__ico" aria-hidden="true"><i class="bi bi-alarm"></i></span>
+      <div class="kpi-tile__val"><?= $kpi['overdue'] ?></div>
+      <div class="kpi-tile__lbl">Po terminie</div>
     </a>
   </div>
 
 </div>
 
 <!-- ── Siatka główna ─────────────────────────────────────────────────── -->
+<h2 class="tz-section-h">Zadania</h2>
 <div class="row g-3">
 
   <!-- Moje zadania -->
   <div class="col-lg-5">
-    <div class="tsk-section h-100">
-      <div class="tsk-section-head">
-        <h2 class="tsk-section-title">
-          <i class="bi bi-person-check" aria-hidden="true"></i>
-          Moje zadania
-          <?php if ($kpi['mine'] > 0): ?>
-          <span class="badge rounded-pill ms-1" style="background:var(--tsk-green-light);color:var(--tsk-green);font-size:.65rem">
-            <?= $kpi['mine'] ?>
-          </span>
-          <?php endif; ?>
-        </h2>
+    <div class="tz-card h-100">
+      <div class="tz-card__hd">
+        <i class="bi bi-person-check" aria-hidden="true"></i>
+        Moje zadania
+        <?php if ($kpi['mine'] > 0): ?>
+        <span class="badge rounded-pill ms-1"
+              style="background:var(--tsk-green-light);color:var(--tsk-green);font-size:.65rem">
+          <?= $kpi['mine'] ?>
+        </span>
+        <?php endif; ?>
         <a href="<?= APP_URL ?>/tasks/index.php?status=mine"
            class="btn btn-outline-secondary btn-sm py-0"
            style="font-size:.74rem">Wszystkie</a>
@@ -320,19 +288,19 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
         $overdue = $t['due_date'] && strtotime($t['due_date']) < strtotime('today');
         $pc = $pri_colors[$t['priority']] ?? '#94a3b8';
       ?>
-      <a class="tsk-task-row"
+      <a class="tsk-row"
          href="<?= APP_URL ?>/tasks/index.php?status=mine"
          onclick="event.preventDefault(); window.taskOpenById(<?= $t['id'] ?>)"
          aria-label="Zadanie: <?= h($t['title']) ?><?= $overdue?' (po terminie)':'' ?>">
-        <span class="tsk-task-pri" style="background:<?= $pc ?>" aria-hidden="true"></span>
-        <span class="tsk-task-title"><?= h($t['title']) ?></span>
-        <span class="tsk-task-list">
+        <span class="tsk-row__dot" style="background:<?= $pc ?>" aria-hidden="true"></span>
+        <span class="tsk-row__ttl"><?= h($t['title']) ?></span>
+        <span class="tsk-row__list">
           <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:<?= h($t['list_color']?:'#94a3b8') ?>;margin-right:3px" aria-hidden="true"></span>
           <?= h($t['list_name']) ?>
         </span>
         <?php if ($t['due_date']): ?>
-        <span class="tsk-task-due <?= $overdue?'overdue':'' ?>">
-          <?= $overdue ? '⚠' : '' ?> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+        <span class="tsk-row__due <?= $overdue?'overdue':'' ?>">
+          <?= $overdue ? '⚠ ' : '' ?><?= h(date('d.m', strtotime($t['due_date']))) ?>
         </span>
         <?php endif; ?>
       </a>
@@ -347,17 +315,16 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 
   <!-- Dostępne zadania do wzięcia -->
   <div class="col-lg-4">
-    <div class="tsk-section h-100">
-      <div class="tsk-section-head">
-        <h2 class="tsk-section-title">
-          <i class="bi bi-circle" aria-hidden="true"></i>
-          Dostępne — do wzięcia
-          <?php if ($kpi['open'] > 0): ?>
-          <span class="badge rounded-pill ms-1" style="background:#dcfce7;color:#15803d;font-size:.65rem">
-            <?= $kpi['open'] ?>
-          </span>
-          <?php endif; ?>
-        </h2>
+    <div class="tz-card h-100">
+      <div class="tz-card__hd">
+        <i class="bi bi-circle" aria-hidden="true"></i>
+        Dostępne — do wzięcia
+        <?php if ($kpi['open'] > 0): ?>
+        <span class="badge rounded-pill ms-1"
+              style="background:#dcfce7;color:#15803d;font-size:.65rem">
+          <?= $kpi['open'] ?>
+        </span>
+        <?php endif; ?>
         <a href="<?= APP_URL ?>/tasks/index.php?status=open"
            class="btn btn-outline-secondary btn-sm py-0"
            style="font-size:.74rem">Wszystkie</a>
@@ -367,14 +334,14 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
         $overdue = $t['due_date'] && strtotime($t['due_date']) < strtotime('today');
         $pc = $pri_colors[$t['priority']] ?? '#94a3b8';
       ?>
-      <a class="tsk-task-row"
+      <a class="tsk-row"
          href="<?= APP_URL ?>/tasks/index.php?status=open"
          onclick="event.preventDefault(); window.taskOpenById(<?= $t['id'] ?>)"
          aria-label="Dostępne zadanie: <?= h($t['title']) ?>">
-        <span class="tsk-task-pri" style="background:<?= $pc ?>" aria-hidden="true"></span>
-        <span class="tsk-task-title"><?= h($t['title']) ?></span>
+        <span class="tsk-row__dot" style="background:<?= $pc ?>" aria-hidden="true"></span>
+        <span class="tsk-row__ttl"><?= h($t['title']) ?></span>
         <?php if ($t['due_date']): ?>
-        <span class="tsk-task-due <?= $overdue?'overdue':'' ?>">
+        <span class="tsk-row__due <?= $overdue?'overdue':'' ?>">
           <?= h(date('d.m', strtotime($t['due_date']))) ?>
         </span>
         <?php endif; ?>
@@ -390,12 +357,10 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 
   <!-- Ostatnia aktywność -->
   <div class="col-lg-3">
-    <div class="tsk-section h-100">
-      <div class="tsk-section-head">
-        <h2 class="tsk-section-title">
-          <i class="bi bi-clock-history" aria-hidden="true"></i>
-          Aktywność
-        </h2>
+    <div class="tz-card h-100">
+      <div class="tz-card__hd">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        Aktywność
       </div>
 
       <?php
@@ -412,16 +377,16 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
         $label = $ev_labels[$ev['event_type']] ?? $ev['event_type'];
         $time  = substr($ev['occurred_at'], 0, 16);
       ?>
-      <div class="tsk-act-row">
-        <i class="bi <?= $icon ?> tsk-act-icon" aria-hidden="true"></i>
-        <span class="tsk-act-text">
-          <strong style="font-size:.75rem"><?= h($label) ?></strong>
-          <span style="display:block;font-size:.73rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      <div class="act-row">
+        <i class="bi <?= $icon ?> act-row__ico" aria-hidden="true"></i>
+        <span class="act-row__bd">
+          <strong style="font-size:.75rem;color:var(--tz-ink)"><?= h($label) ?></strong>
+          <span style="display:block;font-size:.73rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             <?= h(mb_substr($ev['task_title'],0,30)) ?>
           </span>
           <span style="font-size:.7rem"><?= h($ev['actor_name']) ?></span>
         </span>
-        <span class="tsk-act-time" aria-label="Czas: <?= h($time) ?>">
+        <span class="act-row__time" aria-label="Czas: <?= h($time) ?>">
           <?= h(substr($time, 5)) ?>
         </span>
       </div>
@@ -438,58 +403,54 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 
 <!-- ── Obszary robocze ────────────────────────────────────────────────── -->
 <?php if ($ws_stats): ?>
-<div class="row g-3 mt-1">
-  <div class="col-12">
-    <div class="tsk-section">
-      <div class="tsk-section-head">
-        <h2 class="tsk-section-title">
-          <i class="bi bi-grid" aria-hidden="true"></i>
-          Obszary robocze
-        </h2>
-        <?php if ($is_admin): ?>
-        <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
-           class="btn btn-outline-secondary btn-sm py-0"
-           style="font-size:.74rem">Zarządzaj</a>
-        <?php endif; ?>
-      </div>
-      <div class="row g-0">
-        <?php foreach ($ws_stats as $ws):
-          // Liczba ukończonych zadań w obszarze
-          $ws_done = (int)(db_one(
-            "SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND completed_at IS NOT NULL AND deleted_at IS NULL",
-            [$ws['id']]
-          )['n'] ?? 0);
-          $ws_total = (int)$ws['task_count'];
-          $ws_pct   = $ws_total ? round($ws_done / $ws_total * 100) : 0;
-        ?>
-        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-          <a class="tsk-ws-card" href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws['id'] ?>">
-            <span class="tsk-ws-icon"
-                  style="background:<?= h($ws['color']) ?>22;color:<?= h($ws['color']) ?>">
-              <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
-            </span>
-            <div class="tsk-ws-prog">
-              <div class="tsk-ws-name"><?= h($ws['name']) ?></div>
-              <div class="d-flex align-items-center gap-2">
-                <div class="tsk-ws-bar flex-grow-1"
-                     role="progressbar"
-                     aria-valuenow="<?= $ws_pct ?>"
-                     aria-valuemin="0" aria-valuemax="100"
-                     aria-label="Ukończono <?= $ws_pct ?>%">
-                  <div class="tsk-ws-fill"
-                       style="width:<?= $ws_pct ?>%;background:<?= h($ws['color']) ?>"></div>
-                </div>
-                <span class="tsk-ws-cnt"><?= $ws_done ?>/<?= $ws_total ?></span>
-              </div>
+<h2 class="tz-section-h" style="margin-top:1.6rem">Obszary robocze</h2>
+<div class="tz-card">
+  <div class="tz-card__hd">
+    <i class="bi bi-grid" aria-hidden="true"></i>
+    Obszary robocze
+    <?php if ($is_admin): ?>
+    <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
+       class="btn btn-outline-secondary btn-sm py-0"
+       style="font-size:.74rem">Zarządzaj</a>
+    <?php endif; ?>
+  </div>
+  <div class="row g-0">
+    <?php foreach ($ws_stats as $ws):
+      $ws_done  = (int)(db_one(
+        "SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND completed_at IS NOT NULL AND deleted_at IS NULL",
+        [$ws['id']]
+      )['n'] ?? 0);
+      $ws_total = (int)$ws['task_count'];
+      $ws_pct   = $ws_total ? round($ws_done / $ws_total * 100) : 0;
+    ?>
+    <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+      <a class="ws-row" href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws['id'] ?>">
+        <span class="ws-row__ico"
+              style="background:<?= h($ws['color']) ?>22;color:<?= h($ws['color']) ?>">
+          <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
+        </span>
+        <div class="ws-row__prog">
+          <div class="ws-row__name"><?= h($ws['name']) ?></div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="ws-row__bar flex-grow-1"
+                 role="progressbar"
+                 aria-valuenow="<?= $ws_pct ?>"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-label="Ukończono <?= $ws_pct ?>%">
+              <div class="ws-row__fill"
+                   style="width:<?= $ws_pct ?>%;background:<?= h($ws['color']) ?>"></div>
             </div>
-          </a>
+            <span class="ws-row__cnt"><?= $ws_done ?>/<?= $ws_total ?></span>
+          </div>
         </div>
-        <?php endforeach; ?>
-      </div>
+      </a>
     </div>
+    <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>
+
+</div><!-- /tsk-dash -->
 
 <!-- Offcanvas do otwierania zadań z dashboardu -->
 <div class="offcanvas offcanvas-end shadow-lg" tabindex="-1" id="taskOffcanvas"
