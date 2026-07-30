@@ -1189,8 +1189,51 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 <?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
 
 
+<?php if (str_contains($_uri, '/ezd/')): ?>
+<div id="content" class="ezd-content-host">
+
+<!-- ── EZD Topbar (zastępuje globalny navbar na stronach /ezd/) ─── -->
+<header class="ezd-topbar" role="banner">
+  <div class="ezd-topbar-l">
+    <button type="button" class="ezd-topbar-menu d-lg-none" id="ezdSbToggle" aria-label="Menu EZD">
+      <i class="bi bi-list" aria-hidden="true"></i>
+    </button>
+    <a href="<?= APP_URL ?>/index.php" class="ezd-topbar-brand" title="Panel główny">
+      <?php if (!empty($_org_logo) && file_exists(dirname(__DIR__).'/assets/logo/'.basename($_org_logo))): ?>
+      <img src="<?= APP_URL ?>/assets/logo/<?= h(basename($_org_logo)) ?>" alt="" class="ezd-topbar-logo">
+      <?php else: ?>
+      <span class="ezd-topbar-icon"><i class="bi bi-building" aria-hidden="true"></i></span>
+      <?php endif; ?>
+      <span class="ezd-topbar-org d-none d-sm-inline"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
+    </a>
+    <span class="ezd-topbar-div" aria-hidden="true">/</span>
+    <span class="ezd-topbar-mod">Wirtualne biurko</span>
+  </div>
+  <div class="ezd-topbar-c d-none d-md-block">
+    <?php if (!empty($_page_title) && $_page_title !== 'Wirtualne biurko'): ?>
+    <span class="ezd-topbar-ptitle"><?= h($_page_title) ?></span>
+    <?php endif; ?>
+  </div>
+  <div class="ezd-topbar-r">
+    <?php if ($_user): ?>
+    <a href="<?= APP_URL ?>/panel/password.php" class="ezd-topbar-avatar" title="<?= h($_user['name']) ?>">
+      <?= h($_nb_initials ?: mb_substr($_user['name'], 0, 1)) ?>
+    </a>
+    <a href="<?= APP_URL ?>/auth/logout.php" class="ezd-topbar-logout d-none d-sm-inline" title="Wyloguj się">
+      <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+    </a>
+    <?php endif; ?>
+  </div>
+</header>
+
+<div class="ezd-body">
+<?php require_once __DIR__ . '/ezd_sidebar.php'; ?>
+<div class="ezd-main">
+<?= flash_html() ?>
+<?php else: ?>
   <div id="content">
   <?= flash_html() ?>
+<?php endif; ?>
 
 <?php
 // ── Baner globalnego statusu systemu (tylko do odczytu / przestój) ───────────

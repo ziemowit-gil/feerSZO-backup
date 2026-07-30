@@ -1,14 +1,19 @@
 /* ============================================================
- * ezd-tz-theme.css — Nakładka wizualna EZD → styl Tożsamość
+ * ezd-tz-theme.css — Nakładka wizualna + układ boczny EZD
  *
  * IZOLACJA: ten plik jest ładowany WYŁĄCZNIE na stronach /ezd/.
- * Nie zmienia żadnej logiki, event listenerów, atrybutów data-*
- * ani struktury DOM — tylko kolory, obramowania, cienie i tło.
+ * Kolory, obramowania, cienie — tylko prezentacja.
+ * Układ: .ezd-content-host → .ezd-sidebar + .ezd-main
  *
  * KASKADA: selektory z prefiksem `body ` mają specyficzność
  * (0,1,1) vs (0,1,0) inline <style> stron EZD — nasz plik
  * załadowany w <head> wygrywa bez potrzeby używania !important.
  * ============================================================ */
+
+/* ── 0. Ukryj globalny navbar + title-bar na stronach EZD ──────── */
+/* Specyficzność body #id = (1,0,1) bije inline-style #id = (1,0,0) */
+body #navbar,
+body #page-title-bar { display: none !important; }
 
 /* ── 1. Zmienne kolorystyczne (identyczne z tozsamosc/_head.php) ─── */
 :root {
@@ -205,3 +210,502 @@ body .breadcrumb-item a {
 body .breadcrumb-item a:hover {
   color: #0f3c9c;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 17. UKŁAD EZD: topbar + sidebar + main
+ *
+ *  .ezd-content-host
+ *    ├── .ezd-topbar         (sticky, full width, 44px)
+ *    └── .ezd-body           (flex row, fills rest)
+ *          ├── .ezd-sidebar  (sticky left, 224px)
+ *          └── .ezd-main     (scrollable content)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Wrapper zastępuje #content padding */
+#content.ezd-content-host {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── EZD Topbar ──────────────────────────────────────────────────── */
+.ezd-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 120;
+  height: 44px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 0 1rem;
+  flex-shrink: 0;
+}
+
+.ezd-topbar-l {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-shrink: 0;
+}
+
+.ezd-topbar-menu {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.7);
+  font-size: 1.2rem;
+  padding: .2rem .3rem;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 6px;
+}
+.ezd-topbar-menu:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+.ezd-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  text-decoration: none;
+  color: rgba(255,255,255,.85);
+  font-size: .82rem;
+  font-weight: 600;
+}
+.ezd-topbar-brand:hover { color: #fff; }
+
+.ezd-topbar-logo {
+  height: 26px;
+  width: auto;
+  max-width: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.ezd-topbar-icon {
+  width: 26px;
+  height: 26px;
+  background: rgba(255,255,255,.12);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .85rem;
+  flex-shrink: 0;
+}
+
+.ezd-topbar-org {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ezd-topbar-div {
+  color: rgba(255,255,255,.25);
+  font-size: .8rem;
+}
+
+.ezd-topbar-mod {
+  color: rgba(255,255,255,.65);
+  font-size: .78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ezd-topbar-c {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.ezd-topbar-ptitle {
+  font-size: .8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.ezd-topbar-r {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ezd-topbar-avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--tz);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .72rem;
+  font-weight: 700;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.ezd-topbar-avatar:hover { background: var(--tz-strong); color: #fff; }
+
+.ezd-topbar-logout {
+  color: rgba(255,255,255,.5);
+  font-size: .85rem;
+  text-decoration: none;
+  padding: .2rem .3rem;
+  border-radius: 5px;
+}
+.ezd-topbar-logout:hover { color: #fff; background: rgba(255,255,255,.1); }
+
+/* ── Flex row pod topbarem ───────────────────────────────────────── */
+.ezd-body {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+.ezd-sidebar {
+  width: 224px;
+  min-width: 224px;
+  max-width: 224px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid var(--tz-line);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 44px; /* height of .ezd-topbar */
+  height: calc(100vh - 44px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tz-line) transparent;
+  z-index: 10;
+}
+
+/* ── Główny obszar treści ────────────────────────────────────────── */
+.ezd-main {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 1.5rem 1.5rem 5rem;
+  overflow-x: hidden;
+}
+
+/* ── Nagłówek sidebara (brand) ───────────────────────────────────── */
+.ezd-sb-brand {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .9rem .85rem .8rem;
+  border-bottom: 1px solid var(--tz-line);
+  flex-shrink: 0;
+}
+
+.ezd-sb-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--tz-50);
+  color: var(--tz);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.ezd-sb-title {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ezd-sb-sub {
+  font-size: .62rem;
+  color: var(--tz-muted);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.ezd-sb-close {
+  background: none;
+  border: none;
+  color: var(--tz-muted);
+  padding: .25rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.ezd-sb-close:hover { background: var(--tz-50); color: var(--tz-strong); }
+
+/* ── Szybkie akcje ───────────────────────────────────────────────── */
+.ezd-sb-actions {
+  padding: .6rem .7rem .3rem;
+  flex-shrink: 0;
+}
+
+/* ── Nawigacja ───────────────────────────────────────────────────── */
+.ezd-sb-nav {
+  flex: 1 1 auto;
+  padding: .2rem 0;
+  overflow-y: auto;
+}
+
+.ezd-sb-link {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .38rem .85rem;
+  font-size: .8rem;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  transition: background .1s, color .1s;
+  position: relative;
+}
+
+.ezd-sb-link .bi {
+  font-size: .85rem;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--tz-muted);
+}
+
+.ezd-sb-link:hover {
+  background: var(--tz-50);
+  color: var(--tz-strong);
+}
+
+.ezd-sb-link:hover .bi { color: var(--tz); }
+
+.ezd-sb-link.active {
+  background: var(--tz-50);
+  color: var(--tz-strong);
+  font-weight: 600;
+}
+
+.ezd-sb-link.active .bi { color: var(--tz); }
+
+.ezd-sb-link.active::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--tz);
+  border-radius: 2px 0 0 2px;
+}
+
+.ezd-sb-section {
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--tz-muted);
+  padding: .65rem .85rem .2rem;
+}
+
+.ezd-sb-badge {
+  margin-left: auto;
+  font-size: .6rem;
+  font-weight: 700;
+  background: var(--tz);
+  color: #fff;
+  border-radius: 999px;
+  padding: .1rem .42rem;
+  min-width: 1.35rem;
+  text-align: center;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+/* ── Stopka sidebara ─────────────────────────────────────────────── */
+.ezd-sb-foot {
+  border-top: 1px solid var(--tz-line);
+  padding: .5rem .7rem;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.ezd-sb-back {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .77rem;
+  color: var(--tz-muted);
+  text-decoration: none;
+  padding: .3rem .15rem;
+}
+
+.ezd-sb-back:hover { color: var(--tz-strong); }
+.ezd-sb-back .bi { font-size: .85rem; }
+
+/* ── Backdrop (mobilny) ──────────────────────────────────────────── */
+.ezd-sb-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,.42);
+  z-index: 149;
+  backdrop-filter: blur(1px);
+}
+.ezd-sb-backdrop.show { display: block; }
+
+/* ── Responsywność ───────────────────────────────────────────────── */
+@media (max-width: 991px) {
+  /* Topbar: ukryj przycisk toggle na desktop */
+  .ezd-topbar-menu { display: flex; }
+
+  /* Sidebar wysuwa się z lewej */
+  .ezd-sidebar {
+    position: fixed;
+    left: -240px;
+    top: 44px;
+    height: calc(100vh - 44px);
+    z-index: 150;
+    box-shadow: 4px 0 24px rgba(15,23,42,.18);
+    transition: left .22s cubic-bezier(.16,.84,.44,1);
+  }
+  .ezd-sidebar.show { left: 0; }
+
+  #content.ezd-content-host { display: flex; flex-direction: column; }
+  .ezd-main { padding: 1.25rem 1rem 5rem; }
+}
+
+@media (min-width: 992px) {
+  .ezd-topbar-menu { display: none !important; }
+  .ezd-sb-close    { display: none !important; }
+  .ezd-sb-backdrop { display: none !important; }
+}
+
+/* ── Nadpisanie marginesów komponentów w .ezd-main ───────────────── */
+body .ezd-main .ezd-stat { height: auto; }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 18. KOMPONENTY DASHBOARD — strukturalne style (przeniesione
+ *     z inline <style> ezd/index.php, dostępne dla wszystkich stron)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Pasek wyszukiwania — struktura */
+.ezd-search { margin-bottom: 1.25rem; }
+.ezd-search .input-group {
+  box-shadow: 0 4px 14px rgba(15,23,42,.08);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ezd-search .input-group-text {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-right: none;
+  font-size: 1.1rem;
+  color: #64748b;
+  padding: .7rem .55rem .7rem 1rem;
+}
+.ezd-search input {
+  border: 1px solid #e2e8f0;
+  border-left: none;
+  border-right: none;
+  font-size: .95rem;
+  padding: .7rem .5rem;
+}
+.ezd-search input:focus { box-shadow: none; }
+.ezd-search .btn { padding: .7rem 1.4rem; font-weight: 600; }
+
+/* Płytka statystyk */
+.ezd-stat {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.05rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 100%;
+  transition: box-shadow .12s, border-color .12s;
+}
+.ezd-stat:hover { box-shadow: 0 8px 18px rgba(15,23,42,.07); border-color: #cbd5e1; }
+.ezd-stat-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.ezd-stat-val   { font-size: 1.55rem; font-weight: 800; line-height: 1; color: #0f172a; }
+.ezd-stat-label { font-size: .74rem; color: #5b6472; margin-top: .2rem; }
+
+/* Karta EZD */
+.ezd-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+.ezd-card-header {
+  padding: .75rem 1.1rem;
+  font-size: .86rem;
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+.ezd-card-header .bi  { color: #64748b; font-size: .95rem; }
+.ezd-card-header .ezd-more  { margin-left: auto; font-size: .76rem; font-weight: 600; text-transform: none; letter-spacing: 0; text-decoration: none; }
+.ezd-card-header .ezd-count { margin-left: .15rem; font-weight: 600; color: #5b6472; }
+
+/* Wiersz-link w kartach */
+.ezd-row-link { cursor: pointer; }
+.ezd-row-link:hover { background: #f8fafc; }
+
+/* Oś czasu aktywności */
+.ezd-timeline { position: relative; padding: .4rem 1rem .4rem 1.3rem; max-height: 480px; overflow-y: auto; }
+.ezd-timeline::before {
+  content: '';
+  position: absolute;
+  left: 1.05rem; top: .9rem; bottom: .9rem;
+  width: 1px;
+  background: #e7ebf1;
+}
+.activity-item { position: relative; padding: .5rem 0; font-size: .79rem; }
+.activity-dot  {
+  position: absolute;
+  left: -1.05rem; top: .85rem;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #fff;
+}
+.activity-empty { text-align: center; color: #5b6472; font-size: .8rem; padding: 1.5rem 0; }
+
+/* Kafelki Launcher (launcher.php i inne — zachowane dla kompatybilności) */
+.ezd-launcher { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .65rem; margin-bottom: 1.5rem; }
+.ezd-launcher-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .7rem .85rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #334155;
+  font-size: .8rem;
+  font-weight: 600;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+}
+.ezd-launcher-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15,23,42,.09); border-color: #cbd5e1; color: #0f172a; }
+.ezd-launcher-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; flex-shrink: 0; }
+.ezd-launcher-badge { position: absolute; top: -7px; right: -7px; }
+
