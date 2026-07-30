@@ -15,6 +15,8 @@
 require_once __DIR__ . '/approval.php';   // approval_send_email()
 require_once __DIR__ . '/notifications.php';   // notif_create()
 
+_tn_schema_heal();
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  PUBLICZNE FUNKCJE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
     if (_tn_send($user['email'], $subject, $html)) {
         _tn_log($assigned_uid, 'assigned', $task_id);
     }
-    _tn_sms($assigned_uid, 'FEER SZO. Przypisano Cie do zadania: "' . mb_substr($task['title'], 0, 80) . '".');
+    _tn_sms($assigned_uid, 'FEER SZO. Przypisano Cie do zadania: "' . mb_substr($task['title'], 0, 80) . '".', 'assigned', $task_id);
 }
 
 /**
@@ -120,7 +122,7 @@ do którego jesteś przypisany/a.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'comment', $comment_id);
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' skomentował zadanie: "' . mb_substr($task['title'], 0, 60) . '".');
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' skomentował zadanie: "' . mb_substr($task['title'], 0, 60) . '".', 'comment', $task_id);
     }
 
     // ── 2. @wzmianki (notify_mentioned) ───────────────────────────────────
@@ -156,7 +158,7 @@ do zadania w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'mention', $comment_id);
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' wspomniał Cię w zadaniu: "' . mb_substr($task['title'], 0, 60) . '".');
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' wspomniał Cię w zadaniu: "' . mb_substr($task['title'], 0, 60) . '".', 'mention', $task_id);
     }
 }
 
@@ -205,7 +207,7 @@ function task_notify_due(int $task_id, string $event): void {
             _tn_log((int)$u['id'], $event, $task_id);
         }
         $sms_when = $event === 'due_today' ? 'DZISIAJ' : 'JUTRO';
-        _tn_sms((int)$u['id'], 'FEER SZO. Termin zadania ' . $sms_when . ': "' . mb_substr($task['title'], 0, 80) . '" (' . $due_str . ').');
+        _tn_sms((int)$u['id'], 'FEER SZO. Termin zadania ' . $sms_when . ': "' . mb_substr($task['title'], 0, 80) . '" (' . $due_str . ').', $event, $task_id);
     }
 }
 
@@ -252,7 +254,7 @@ które realizujesz.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'confirmed', $task_id);
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' potwierdził(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 60) . '".');
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' potwierdził(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 60) . '".', 'confirmed', $task_id);
     }
 }
 
@@ -304,7 +306,7 @@ które realizujesz — konieczna poprawa.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'rejected', $task_id);
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' odrzucił(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 50) . '". Powod: ' . mb_substr($reason, 0, 60));
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' odrzucił(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 50) . '". Powod: ' . mb_substr($reason, 0, 60), 'rejected', $task_id);
     }
 }
 
@@ -366,8 +368,8 @@ function _tn_default_prefs(): array {
     ];
 }
 
-/** Wysyła SMS powiadomienie jeśli użytkownik ma włączone notify_sms i podany numer. */
-function _tn_sms(int $user_id, string $message): void {
+/** Wysyła SMS i loguje do task_notification_log z channel='sms'. */
+function _tn_sms(int $user_id, string $message, string $event = '', int $ref_id = 0): void {
     try {
         require_once __DIR__ . '/sms.php';
         if (!sms_is_enabled()) return;
@@ -376,8 +378,24 @@ function _tn_sms(int $user_id, string $message): void {
         $u = db_one("SELECT phone_number FROM users WHERE id=?", [$user_id]);
         $phone = $u['phone_number'] ?? '';
         if (!$phone) return;
-        sms_send($phone, $message);
+        $ok = sms_send($phone, $message);
+        if ($ok && $event && $ref_id) {
+            _tn_log($user_id, $event, $ref_id, 'sms');
+        }
     } catch (\Throwable $_) {}
+}
+
+/** Samonaprawa schematu: dodaje kolumnę channel jeśli brakuje. */
+function _tn_schema_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $cols = array_column(db_all("PRAGMA table_info(task_notification_log)"), 'name');
+        if (!in_array('channel', $cols, true)) {
+            db()->exec("ALTER TABLE task_notification_log ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'");
+        }
+    } catch (\Throwable $e) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -413,12 +431,12 @@ function _tn_should_send(int $user_id, string $event, int $ref_id): bool {
     } catch (\Throwable $e) { return true; }
 }
 
-function _tn_log(int $user_id, string $event, int $ref_id): void {
+function _tn_log(int $user_id, string $event, int $ref_id, string $channel = 'email'): void {
     try {
         db()->prepare(
-            "INSERT OR IGNORE INTO task_notification_log (user_id, event_type, ref_id)
-             VALUES (?, ?, ?)"
-        )->execute([$user_id, $event, $ref_id]);
+            "INSERT INTO task_notification_log (user_id, event_type, ref_id, channel)
+             VALUES (?, ?, ?, ?)"
+        )->execute([$user_id, $event, $ref_id, $channel]);
     } catch (\Throwable $e) {}
 }
 
