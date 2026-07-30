@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
 
 // Moduł w przygotowaniu — blokuj dodawanie/edycję
 require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
@@ -79,6 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         assign_nr_rejestru($data);
         $id = db_insert($TABLE, $data);
         contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
+
+        // Upoważnienie RODO (opcjonalnie — wraz z umową)
+        if (!empty($_POST['rodo_grant'])) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
+                rodo_migrate();
+                rodo_quick_create($TYPE, (int)$id, [
+                    'numer_umowy'      => $data['numer_umowy']   ?? '',
+                    'data_zawarcia'    => $data['data_zawarcia'] ?? '',
+                    'imie_nazwisko'    => $data['imie_nazwisko'] ?? '',
+                    'pesel'            => $data['pesel']         ?? '',
+                    'scope_items'      => $_POST['scope_items']  ?? [],
+                    'scope_custom'     => $_POST['rodo_scope_custom']     ?? '',
+                    'authorized_until' => $_POST['rodo_authorized_until'] ?? '',
+                ]);
+            } catch (\Throwable $e) { error_log('[zlecenie/add rodo] ' . $e->getMessage()); }
+        }
 
         // Weryfikacja utrwalenia — wykryj „cichy" brak zapisu (sukces bez danych w bazie).
         $missed = contract_assert_saved($TABLE, $id, $data);
@@ -479,6 +497,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <i class="bi bi-printer"></i> Nie mam drukarki — zapisz umowę jako PDF do późniejszego wydruku
   </label>
 </div>
+
+<?php rodo_grant_form_section(); ?>
 
 </div><!-- /krok 4 -->
 

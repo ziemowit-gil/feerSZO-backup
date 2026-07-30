@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -615,6 +616,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $id = db_insert($TABLE, $data);
         contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
+
+        // Upoważnienie RODO (opcjonalnie — wraz z umową)
+        if (!empty($_POST['rodo_grant'])) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
+                rodo_migrate();
+                rodo_quick_create($TYPE, (int)$id, [
+                    'numer_umowy'      => $data['numer_umowy']   ?? '',
+                    'data_zawarcia'    => $data['data_zawarcia'] ?? '',
+                    'imie_nazwisko'    => $data['imie_nazwisko'] ?? '',
+                    'pesel'            => $data['pesel']         ?? '',
+                    'scope_items'      => $_POST['scope_items']  ?? [],
+                    'scope_custom'     => $_POST['rodo_scope_custom']     ?? '',
+                    'authorized_until' => $_POST['rodo_authorized_until'] ?? '',
+                ]);
+            } catch (\Throwable $e) { error_log('[wolontariat/add rodo] ' . $e->getMessage()); }
+        }
+
         // Automatyczna blokada, jeśli niepełnoletni bez aktualnej zgody przedstawiciela ustawowego.
         ContractMinorGuard::syncAfterSave($TYPE, (int)$id, $data, (int)current_user()['id']);
         // Ustaw godzin_przepracowanych = z zadań + korekta (na starcie = korekta)
@@ -2225,6 +2244,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
   </div>
+
+  <?php if (function_exists('rodo_grant_form_section')) rodo_grant_form_section(); ?>
 
   <div class="form-check mb-2 mt-3">
     <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">

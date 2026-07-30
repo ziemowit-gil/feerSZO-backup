@@ -185,6 +185,88 @@ function rodo_org_data(): array {
     ];
 }
 
+/**
+ * Szybkie utworzenie upoważnienia RODO wprost z formularza dodawania umowy.
+ * $c: numer_umowy, data_zawarcia, imie_nazwisko, pesel, scope_items(array),
+ *     scope_custom, authorized_until. Zwraca id lub null (gdy nic nie wybrano).
+ */
+function rodo_quick_create(string $contract_type, int $contract_id, array $c): ?int {
+    $scope = array_values(array_filter((array)($c['scope_items'] ?? [])));
+    if (!$scope && empty($c['scope_custom'])) return null; // brak zakresu → nic nie twórz
+    $org = rodo_org_data();
+    $uid = (int)(function_exists('current_user') ? (current_user()['id'] ?? 0) : 0);
+    $name = trim((string)($c['imie_nazwisko'] ?? ''));
+    $from = ($c['data_zawarcia'] ?? '') ?: date('Y-m-d');
+    return db_insert('rodo_authorizations', [
+        'number'           => rodo_next_number($c['numer_umowy'] ?? ''),
+        'contract_type'    => $contract_type,
+        'contract_id'      => $contract_id,
+        'person_name'      => $name,
+        'person_pesel'     => ($c['pesel'] ?? '') ?: null,
+        'org_name'         => $org['name'] ?? '',
+        'org_address'      => trim(($org['address'] ?? '') . ', ' . ($org['city'] ?? ''), ', '),
+        'org_nip'          => $org['nip'] ?? '',
+        'scope_items'      => json_encode($scope, JSON_UNESCAPED_UNICODE),
+        'scope_custom'     => ($c['scope_custom'] ?? '') ?: null,
+        'authorized_from'  => $from,
+        'authorized_until' => ($c['authorized_until'] ?? '') ?: null,
+        'contract_number'  => ($c['numer_umowy'] ?? '') ?: null,
+        'contract_date'    => ($c['data_zawarcia'] ?? '') ?: null,
+        'status'           => 'aktywne',
+        'signed_by_id'     => $uid ?: null,
+        'signed_by_name'   => function_exists('current_user') ? (current_user()['name'] ?? '') : '',
+        'created_by'       => $uid ?: null,
+    ]);
+}
+
+/**
+ * Renderuje sekcję formularza „Upoważnienie RODO" do wstawienia w add.php umowy.
+ * Bez <form> — osadzana w istniejącym formularzu. Pola: rodo_grant, scope_items[],
+ * rodo_scope_custom, rodo_authorized_until.
+ */
+function rodo_grant_form_section(): void {
+    ?>
+    <div class="card shadow-sm mb-4" id="rodo-grant-card">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock text-primary"></i> Upoważnienie do przetwarzania danych (RODO)
+      </div>
+      <div class="card-body">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" role="switch" id="rodo_grant" name="rodo_grant" value="1"
+                 onchange="var b=document.getElementById('rodo-grant-body');if(b)b.hidden=!this.checked;">
+          <label class="form-check-label fw-semibold" for="rodo_grant">
+            Nadaj upoważnienie RODO wraz z umową
+          </label>
+        </div>
+        <div id="rodo-grant-body" hidden>
+          <p class="text-muted small mb-2">Zakres upoważnienia (§ 2) — zaznacz cele przetwarzania:</p>
+          <div class="row g-1 mb-3">
+            <?php foreach (RODO_SCOPE_ITEMS as $key => $label): ?>
+            <div class="col-md-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="scope_items[]" value="<?= h($key) ?>" id="rsi_<?= h($key) ?>">
+                <label class="form-check-label small" for="rsi_<?= h($key) ?>"><?= h(ucfirst($label)) ?></label>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label small fw-semibold" for="rodo_scope_custom">Dodatkowy zakres (opcjonalnie)</label>
+              <input type="text" class="form-control form-control-sm" id="rodo_scope_custom" name="rodo_scope_custom" placeholder="np. obsługa konkretnego programu">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold" for="rodo_authorized_until">Ważne do (opcjonalnie)</label>
+              <input type="date" class="form-control form-control-sm" id="rodo_authorized_until" name="rodo_authorized_until">
+            </div>
+          </div>
+          <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Domyślnie od daty zawarcia umowy do jej zakończenia. Numer upoważnienia nadamy automatycznie.</div>
+        </div>
+      </div>
+    </div>
+    <?php
+}
+
 // ── Statusy ───────────────────────────────────────────────────────────────────
 function rodo_status_badge(string $status): string {
     $map = [
