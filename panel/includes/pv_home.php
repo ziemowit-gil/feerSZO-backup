@@ -144,7 +144,7 @@ $_pv_apps = $my_apps ? array_map(fn($a) => [
 $_tasks_tab_on = false;
 try { $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'"); $_tasks_tab_on = ($_tm['value'] ?? '1') !== '0'; } catch (\Throwable $e) {}
 /* Domyślna zakładka: „Zadania" (pierwsza, najważniejsza codziennie); gdy wyłączona → „Formalne". */
-$_default_tab = $_tasks_tab_on ? 'zadania' : 'formalne';
+$_default_tab = 'formalne'; // Zadania mają osobny moduł — panel umowy otwiera się na Formalne
 
 /* Helper: render kafelka .tz-tile ----------------------------------------- */
 $pv_tile = function (array $t): void {
@@ -213,6 +213,15 @@ $pv_tile = function (array $t): void {
 .pvtz .tz-panel.active{display:block;animation:pvtzfade .2s ease}
 @media(prefers-reduced-motion:reduce){.pvtz .tz-panel.active{animation:none}}
 @keyframes pvtzfade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* Teaser "Szukasz zadań?" w zakładce Zadania */
+.pv-tasks-teaser{display:flex;align-items:center;gap:1.1rem;padding:1.4rem 1.6rem;background:linear-gradient(135deg,#9A3412,#EA580C);border-radius:16px;text-decoration:none;color:#fff;margin:.5rem 0;transition:transform .13s,box-shadow .13s}
+.pv-tasks-teaser:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(154,52,18,.35);color:#fff}
+.pv-tasks-teaser__ic{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.65rem;flex-shrink:0}
+.pv-tasks-teaser__body{flex:1;min-width:0}
+.pv-tasks-teaser__label{display:block;font-size:1.1rem;font-weight:800;line-height:1.2}
+.pv-tasks-teaser__sub{display:block;font-size:.82rem;color:rgba(255,255,255,.82);margin-top:.2rem}
+.pv-tasks-teaser__arrow{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;white-space:nowrap;color:rgba(255,255,255,.95)}
+@media(max-width:540px){.pv-tasks-teaser{flex-direction:column;align-items:flex-start;gap:.75rem}.pv-tasks-teaser__arrow{align-self:flex-end}}
 .pvtz .tz-section-h{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--tz-muted);margin:1.4rem 0 .6rem}
 .pvtz .tz-section-h:first-child{margin-top:0}
 
@@ -371,8 +380,16 @@ $pv_tile = function (array $t): void {
 
   <?php if ($_tasks_tab_on): ?>
   <!-- ═══════════ ZAKŁADKA — ZADANIA ═══════════ -->
+  <?php $GLOBALS['_pv_tasks_section_done'] = true; /* panel umowy ma własny teaser; blokuje drugi include w index.php */ ?>
   <section class="tz-panel <?= $_default_tab==='zadania'?'active':'' ?>" id="zadania" role="tabpanel" aria-labelledby="tab-zadania" tabindex="-1">
-    <?php include __DIR__ . '/pv_tasks_section.php'; ?>
+    <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-tasks-teaser" aria-label="Przejdź do modułu Zadania">
+      <span class="pv-tasks-teaser__ic"><i class="bi bi-kanban-fill" aria-hidden="true"></i></span>
+      <span class="pv-tasks-teaser__body">
+        <span class="pv-tasks-teaser__label">Szukasz zadań?</span>
+        <span class="pv-tasks-teaser__sub">Twoje zadania, statusy i terminy znajdziesz w osobnym module.</span>
+      </span>
+      <span class="pv-tasks-teaser__arrow"><i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i> Przejdź do zadań</span>
+    </a>
   </section>
   <?php endif; ?>
 

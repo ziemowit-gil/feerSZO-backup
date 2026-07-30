@@ -64,6 +64,14 @@ $choices = [
         'url'   => APP_URL . '/panel/index.php',
         'ext'   => false,
     ],
+    [
+        'label' => 'Tożsamość',
+        'desc'  => 'Konta, dostępy do systemów IT — Microsoft 365, Moodle i inne',
+        'icon'  => 'bi-person-badge-fill',
+        'grad'  => 'linear-gradient(135deg,#065F46,#10B981)',
+        'url'   => APP_URL . '/tozsamosc/',
+        'ext'   => false,
+    ],
 ];
 ?><!DOCTYPE html>
 <html lang="pl">
@@ -91,12 +99,12 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 .pt-btn:hover{border-color:#EF4444;color:#EF4444;background:#FEF2F2}
 
 /* layout */
-.pw{max-width:860px;margin:0 auto;padding:2.25rem 1.25rem 3.5rem}
+.pw{max-width:1060px;margin:0 auto;padding:2.25rem 1.25rem 3.5rem}
 .ph-greet{font-size:1.6rem;font-weight:800;letter-spacing:-.03em}
 .ph-sub{font-size:.87rem;color:#64748B;margin-top:.3rem}
 
 /* tiles */
-.apps{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-top:2rem}
+.apps{display:grid;grid-template-columns:repeat(4,1fr);gap:1.1rem;margin-top:2rem}
 .app{position:relative;border-radius:20px;overflow:hidden;text-decoration:none;color:#fff;display:flex;flex-direction:column;min-height:190px;padding:1.35rem 1.4rem 1.2rem;transition:transform .14s,box-shadow .14s}
 .app::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.07);right:-55px;bottom:-75px;pointer-events:none}
 .app:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(2,6,23,.22);color:#fff}
@@ -116,7 +124,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
   .app-body{margin-top:0}
   .app-cta{margin-top:.4rem}
 }
-@media(min-width:641px) and (max-width:860px){
+@media(min-width:641px) and (max-width:960px){
   .apps{grid-template-columns:1fr 1fr}
 }
 </style>
