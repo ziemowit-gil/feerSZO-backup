@@ -185,53 +185,6 @@ function log_system_action(int $user_id, string $action, string $note = ''): voi
 
 // ── Wysyłka maili ─────────────────────────────────────────────────────────────
 
-/**
- * Ujednolicony szablon HTML maila systemowego.
- * $body_html  — gotowy HTML treści (bez owijki)
- * $preheader  — krótki tekst widoczny w podglądzie klienta poczty
- * $cta_url    — URL przycisku CTA (opcjonalny)
- * $cta_label  — etykieta przycisku CTA (opcjonalny)
- */
-function _feer_email_tpl(string $body_html, string $preheader = '', string $cta_url = '', string $cta_label = ''): string {
-    $org  = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES, 'UTF-8') : '';
-    $year = date('Y');
-
-    $pre = $preheader
-        ? '<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f1f5f9">'
-          . htmlspecialchars($preheader, ENT_QUOTES, 'UTF-8') . '&nbsp;</div>'
-        : '';
-
-    $cta_row = '';
-    if ($cta_url !== '' && $cta_label !== '') {
-        $cta_row = '<tr><td style="background:#ffffff;padding:0 32px 28px;text-align:center">'
-                 . '<a href="' . htmlspecialchars($cta_url, ENT_QUOTES, 'UTF-8') . '"'
-                 . ' style="background:#2563eb;color:#ffffff;text-decoration:none;'
-                 . 'padding:11px 28px;border-radius:6px;font-weight:600;'
-                 . 'display:inline-block;font-size:14px">'
-                 . htmlspecialchars($cta_label, ENT_QUOTES, 'UTF-8')
-                 . '</a></td></tr>';
-    }
-
-    return '<!DOCTYPE html><html lang="pl">'
-         . '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
-         . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">'
-         . $pre
-         . '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f1f5f9;padding:28px 16px">'
-         . '<tr><td align="center">'
-         . '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px">'
-         . '<tr><td style="background:#1e293b;padding:14px 32px;border-radius:8px 8px 0 0">'
-         . '<span style="color:#e2e8f0;font-size:13px;font-weight:600;letter-spacing:.03em">' . $org . '</span>'
-         . '</td></tr>'
-         . '<tr><td style="background:#ffffff;padding:28px 32px;color:#1e293b;font-size:15px;line-height:1.65">'
-         . $body_html
-         . '</td></tr>'
-         . $cta_row
-         . '<tr><td style="background:#f8fafc;padding:14px 32px;border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px;color:#94a3b8;font-size:11px;text-align:center">'
-         . $org . ' &middot; ' . $year
-         . '</td></tr>'
-         . '</table></td></tr></table>'
-         . '</body></html>';
-}
 
 /**
  * Sprawdź rate-limit: max $max wiadomości do tego samego adresu w ciągu $window sekund.

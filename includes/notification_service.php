@@ -144,7 +144,6 @@ class NotificationService
 
     private static function buildEzdDekretacjaHtml(array $v): string
     {
-        $org   = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES) : 'System';
         $sign  = htmlspecialchars($v['sygnatura']      ?? '—',  ENT_QUOTES);
         $title = htmlspecialchars($v['doc_title']      ?? '—',  ENT_QUOTES);
         $url   = htmlspecialchars($v['doc_url']        ?? '#',  ENT_QUOTES);
@@ -158,102 +157,46 @@ class NotificationService
         $sub_notice = '';
         if (!empty($v['via_substitute'])) {
             $orig = htmlspecialchars($v['original_name'] ?? '', ENT_QUOTES);
-            $sub_notice = <<<HTML
-<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px 16px;margin-bottom:20px;border-radius:0 6px 6px 0;font-size:13px">
-  <strong>⚠️ Zastępstwo</strong><br>Ta wiadomość jest kierowana do Ciebie jako do zastępcy osoby <strong>{$orig}</strong>, która jest aktualnie niedostępna.
-</div>
-HTML;
+            $sub_notice = '<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px 16px;margin-bottom:20px;border-radius:0 6px 6px 0;font-size:13px">'
+                        . '<strong>⚠️ Zastępstwo</strong><br>Ta wiadomość jest kierowana do Ciebie jako do zastępcy osoby <strong>' . $orig . '</strong>, która jest aktualnie niedostępna.'
+                        . '</div>';
         }
 
-        return <<<HTML
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Nowe zadanie — {$sign}</title></head>
-<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:32px 16px">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+        $body = '<div style="background:#2563eb;padding:10px 32px;margin:-28px -32px 24px;border-bottom:1px solid #1d4ed8">'
+              . '<span style="color:#bfdbfe;font-size:12px">Nowe zadanie do wykonania:</span>'
+              . '<span style="color:#ffffff;font-size:14px;font-weight:700;margin-left:8px">' . $disp . '</span>'
+              . '</div>'
+              . '<p style="margin:0 0 6px;color:#475569;font-size:13px">Cześć <strong>' . $rname . '</strong>,</p>'
+              . '<p style="margin:0 0 20px;color:#64748b;font-size:13px">Przydzielono Ci nowe zadanie w systemie EZD. Szczegóły poniżej.</p>'
+              . $sub_notice
+              . '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;font-size:13px;margin-bottom:24px">'
+              . '<tr><td style="padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569;width:40%">Sygnatura:</td>'
+              . '<td style="padding:8px 12px;font-weight:700;font-family:monospace;color:#1e40af">' . $sign . '</td></tr>'
+              . '<tr><td style="padding:8px 12px;background:#f1f5f9;font-weight:600;color:#475569">Tytuł / sprawa:</td>'
+              . '<td style="padding:8px 12px;color:#1e293b">' . $title . '</td></tr>'
+              . '<tr><td style="padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">Przekazał/a:</td>'
+              . '<td style="padding:8px 12px;color:#374151">' . $from . '</td></tr>'
+              . '<tr><td style="padding:8px 12px;background:#f1f5f9;font-weight:600;color:#475569">Dyspozycja:</td>'
+              . '<td style="padding:8px 12px"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-weight:600;font-size:12px">' . $disp . '</span></td></tr>'
+              . $dead . $note_row
+              . '</table>'
+              . '<a href="' . $url . '" style="display:inline-block;background:#2563eb;color:#fff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px">Otwórz dokument w systemie →</a>'
+              . '<p style="margin:16px 0 0;font-size:11px;color:#94a3b8">Jeśli link nie działa, skopiuj adres: <a href="' . $url . '" style="color:#2563eb">' . $url . '</a></p>';
 
-  <!-- Header -->
-  <tr><td style="background:#1e293b;padding:24px 32px">
-    <div style="color:#94a3b8;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Wirtualne biurko</div>
-    <div style="color:#ffffff;font-size:20px;font-weight:700">{$org}</div>
-  </td></tr>
-
-  <!-- Chip dyspozycji -->
-  <tr><td style="background:#2563eb;padding:10px 32px">
-    <span style="color:#bfdbfe;font-size:12px">Nowe zadanie do wykonania:</span>
-    <span style="color:#ffffff;font-size:14px;font-weight:700;margin-left:8px">{$disp}</span>
-  </td></tr>
-
-  <!-- Body -->
-  <tr><td style="padding:28px 32px">
-    <p style="margin:0 0 6px;color:#475569;font-size:13px">Cześć <strong>{$rname}</strong>,</p>
-    <p style="margin:0 0 24px;color:#64748b;font-size:13px">Przydzielono Ci nowe zadanie w systemie EZD. Szczegóły poniżej.</p>
-
-    {$sub_notice}
-
-    <!-- Tabela metadanych -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;font-size:13px;margin-bottom:24px">
-      <tr><td style="padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569;width:40%">Sygnatura:</td>
-          <td style="padding:8px 12px;font-weight:700;font-family:monospace;color:#1e40af">{$sign}</td></tr>
-      <tr><td style="padding:8px 12px;background:#f1f5f9;font-weight:600;color:#475569">Tytuł / sprawa:</td>
-          <td style="padding:8px 12px;color:#1e293b">{$title}</td></tr>
-      <tr><td style="padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">Przekazał/a:</td>
-          <td style="padding:8px 12px;color:#374151">{$from}</td></tr>
-      <tr><td style="padding:8px 12px;background:#f1f5f9;font-weight:600;color:#475569">Dyspozycja:</td>
-          <td style="padding:8px 12px"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-weight:600;font-size:12px">{$disp}</span></td></tr>
-      {$dead}
-      {$note_row}
-    </table>
-
-    <!-- CTA Button -->
-    <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#2563eb">
-      <a href="{$url}" style="display:inline-block;padding:13px 28px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px">
-        Otwórz dokument w systemie →
-      </a>
-    </td></tr></table>
-
-    <p style="margin:20px 0 0;font-size:11px;color:#94a3b8">Jeśli link nie działa, skopiuj adres: <a href="{$url}" style="color:#2563eb">{$url}</a></p>
-  </td></tr>
-
-  <!-- Footer -->
-  <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 32px;font-size:11px;color:#94a3b8">
-    Ta wiadomość została wygenerowana automatycznie przez system <strong>{$org}</strong>. Nie odpowiadaj na tę wiadomość.
-  </td></tr>
-
-</table>
-</td></tr></table>
-</body>
-</html>
-HTML;
+        return _feer_email_tpl($body, 'Nowe zadanie EZD — ' . htmlspecialchars($v['sygnatura'] ?? '', ENT_QUOTES));
     }
 
     private static function buildGenericHtml(string $tpl_key, array $v): string
     {
-        $org    = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES) : 'System';
-        $rname  = htmlspecialchars($v['recipient_name'] ?? '', ENT_QUOTES);
-        $body   = htmlspecialchars($v['body'] ?? '', ENT_QUOTES);
-        $url    = htmlspecialchars($v['url'] ?? '', ENT_QUOTES);
-        $btn    = $url ? "<p><a href='{$url}' style='display:inline-block;background:#2563eb;color:#fff;padding:11px 22px;border-radius:7px;text-decoration:none;font-weight:700'>Przejdź do systemu →</a></p>" : '';
+        $rname = htmlspecialchars($v['recipient_name'] ?? '', ENT_QUOTES);
+        $body  = htmlspecialchars($v['body'] ?? '', ENT_QUOTES);
+        $url   = htmlspecialchars($v['url'] ?? '', ENT_QUOTES);
+        $btn   = $url ? '<p style="margin:20px 0 0"><a href="' . $url . '" style="display:inline-block;background:#2563eb;color:#fff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:700">Przejdź do systemu →</a></p>' : '';
 
-        return <<<HTML
-<!DOCTYPE html>
-<html lang="pl"><head><meta charset="UTF-8"></head>
-<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16px">
-<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1e293b;padding:22px 30px;color:#fff;font-size:18px;font-weight:700">{$org}</div>
-  <div style="padding:26px 30px;font-size:14px;color:#374151">
-    <p>Cześć <strong>{$rname}</strong>,</p>
-    <div style="background:#f8fafc;border-left:4px solid #2563eb;padding:14px 16px;border-radius:0 8px 8px 0;margin:16px 0">{$body}</div>
-    {$btn}
-  </div>
-  <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 30px;font-size:11px;color:#94a3b8">
-    Wiadomość automatyczna — {$org}
-  </div>
-</div>
-</body></html>
-HTML;
+        $inner = '<p style="margin:0 0 14px">Cześć <strong>' . $rname . '</strong>,</p>'
+               . '<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:14px 16px;border-radius:0 6px 6px 0;margin:0 0 4px">' . $body . '</div>'
+               . $btn;
+
+        return _feer_email_tpl($inner);
     }
 }

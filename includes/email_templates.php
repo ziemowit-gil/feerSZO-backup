@@ -15,6 +15,25 @@
 
 require_once __DIR__ . '/db.php';
 
+// ── Helper: domyślne opakowanie HTML maila ───────────────────────────────────
+function _email_tpl_default_wrap(string $inner_html, string $preheader = ''): string {
+    if (function_exists('_feer_email_tpl')) {
+        return _feer_email_tpl($inner_html, $preheader);
+    }
+    $org  = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES, 'UTF-8') : '';
+    $year = date('Y');
+    $pre  = $preheader ? '<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f1f5f9">' . htmlspecialchars($preheader, ENT_QUOTES, 'UTF-8') . '&nbsp;</div>' : '';
+    return '<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+         . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">'
+         . $pre
+         . '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f1f5f9;padding:28px 16px"><tr><td align="center">'
+         . '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px">'
+         . '<tr><td style="background:#1e293b;padding:14px 32px;border-radius:8px 8px 0 0"><span style="color:#e2e8f0;font-size:13px;font-weight:600;letter-spacing:.03em">' . $org . '</span></td></tr>'
+         . '<tr><td style="background:#ffffff;padding:28px 32px;color:#1e293b;font-size:15px;line-height:1.65">' . $inner_html . '</td></tr>'
+         . '<tr><td style="background:#f8fafc;padding:14px 32px;border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px;color:#94a3b8;font-size:11px;text-align:center">' . $org . ' &middot; ' . $year . '</td></tr>'
+         . '</table></td></tr></table></body></html>';
+}
+
 // ── Migracja ────────────────────────────────────────────────────────────────
 function email_tpl_migrate(): void
 {
@@ -48,318 +67,172 @@ function email_tpl_registry(): array
 
     // — Powitalny / dane logowania ————————————————————————————————
     $welcome_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,{{accent}},{{accent}}cc);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.15rem">🔑 Dane logowania — {{org}}</h2>
+<p>Cześć, <strong>{{name}}</strong>!</p>
+<p>{{intro}}</p>
+<div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
+  Hasło zostało wygenerowane przez administratora. Po zalogowaniu możesz je zmienić w <strong>Mój panel</strong>.
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Cześć, <strong>{{name}}</strong>!</p>
-  <p>{{intro}}</p>
-  <div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
-    Hasło zostało wygenerowane przez administratora. Po zalogowaniu możesz je zmienić w <strong>Mój panel</strong>.
-  </div>
-  {{login_block}}
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{login_url}}" style="background:{{accent}};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Zaloguj się →
-    </a>
-  </div>
-  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość wysłana automatycznie przez system {{org}}.
-  </p>
-</div></body></html>
+{{login_block}}
+<div style="margin:20px 0;text-align:center">
+  <a href="{{login_url}}" style="background:{{accent}};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zaloguj się →
+  </a>
+</div>
+<p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wysłana automatycznie przez system {{org}}.
+</p>
 HTML;
 
     // — Przypomnienie o wygaśnięciu umowy ————————————————————————
-    $expiry_body = <<<'HTML'
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><title>Przypomnienie o wygaśnięciu umowy</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
-        <tr>
-          <td style="background:{{accent}};padding:24px 32px;">
-            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
-                      letter-spacing:.05em;">System zarządzania umowami</p>
-            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
-              Przypomnienie o wygasającej umowie
-            </h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#333333;">
-              Dzień dobry{{greeting}},
-            </p>
-            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
-              {{urgency_text}}
-              Prosimy o podjęcie stosownych działań.
-            </p>
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
-                          padding:0;margin-bottom:24px;">
-              <tr><td style="padding:20px 24px;">
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Typ umowy</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{type_label}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Osoba</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{osoba}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data zakończenia</td>
-                    <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{data_zakonczenia}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Pozostało</td>
-                    <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{days_left}} {{days_label}}</td>
-                  </tr>
-                </table>
-              </td></tr>
-            </table>
-            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
-              Zaloguj się do systemu, aby sprawdzić szczegóły umowy i podjąć działania
-              (przedłużenie, zakończenie lub anulowanie).
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
-            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
-              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
-              Prosimy nie odpowiadać na tę wiadomość.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
+    $expiry_body = <<<HTML
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Dzień dobry{{greeting}},
+</p>
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  {{urgency_text}}
+  Prosimy o podjęcie stosownych działań.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Typ umowy</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{type_label}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Osoba</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{osoba}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data zakończenia</td>
+        <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{data_zakonczenia}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Pozostało</td>
+        <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{days_left}} {{days_label}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  Zaloguj się do systemu, aby sprawdzić szczegóły umowy i podjąć działania
+  (przedłużenie, zakończenie lub anulowanie).
+</p>
 HTML;
 
     // — Przypomnienie ZUS ———————————————————————————————————————
-    $zus_body = <<<'HTML'
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><title>Przypomnienie ZUS</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
-        <tr>
-          <td style="background:{{accent}};padding:24px 32px;">
-            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
-                      letter-spacing:.05em;">System zarządzania umowami</p>
-            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
-              Przypomnienie ZUS: {{tytul}}
-            </h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
-              {{pilnosc}} Należy {{akcja}} zleceniobiorcę zgodnie z umową.
-            </p>
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
-                          margin-bottom:24px;">
-              <tr><td style="padding:20px 24px;">
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Umowa zlecenie</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Zleceniobiorca</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{osoba}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Termin (ustawowy 7 dni)</td>
-                    <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{deadline}}</td>
-                  </tr>
-                </table>
-              </td></tr>
-            </table>
-            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
-              <a href="{{url}}" style="color:{{accent}};font-weight:600;">Otwórz umowę w systemie</a>,
-              dokonaj zgłoszenia w ZUS i odnotuj datę w karcie umowy (sekcja ZUS), aby zakończyć przypomnienia.
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
-            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
-              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
-              Prosimy nie odpowiadać na tę wiadomość.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
+    $zus_body = <<<HTML
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  {{pilnosc}} Należy {{akcja}} zleceniobiorcę zgodnie z umową.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Umowa zlecenie</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Zleceniobiorca</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{osoba}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Termin (ustawowy 7 dni)</td>
+        <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{deadline}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  <a href="{{url}}" style="color:{{accent}};font-weight:600;">Otwórz umowę w systemie</a>,
+  dokonaj zgłoszenia w ZUS i odnotuj datę w karcie umowy (sekcja ZUS), aby zakończyć przypomnienia.
+</p>
 HTML;
 
     // — Okresowa weryfikacja wolontariusza niepełnoletniego ——————————————
-    $minor_verif_body = <<<'HTML'
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><title>Okresowa weryfikacja wolontariatu</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
-        <tr>
-          <td style="background:{{accent}};padding:24px 32px;">
-            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
-                      letter-spacing:.05em;">System zarządzania umowami</p>
-            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
-              Okresowa weryfikacja wolontariatu
-            </h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#333333;">
-              Szanowni Państwo,
-            </p>
-            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
-              W związku z okresową weryfikacją wolontariatu uprzejmie informujemy, że zostanie
-              do Pani/Pana nadane pismo w sprawie wolontariusza niepełnoletniego
-              <strong>{{osoba}}</strong>.
-            </p>
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
-                          padding:0;margin-bottom:24px;">
-              <tr><td style="padding:20px 24px;">
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Opiekun</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{opiekun_nazwa}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data weryfikacji</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{data_weryfikacji}}</td>
-                  </tr>
-                </table>
-              </td></tr>
-            </table>
-            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
-              Weryfikacja przeprowadzana jest cyklicznie (co 90 dni) i ma na celu potwierdzenie
-              aktualności danych oraz zgody na dalszy udział w wolontariacie. Pismo, o którym mowa
-              powyżej, zostanie przekazane odrębnie.
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
-            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
-              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
-              Prosimy nie odpowiadać na tę wiadomość.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
+    $minor_verif_body = <<<HTML
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Szanowni Państwo,
+</p>
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  W związku z okresową weryfikacją wolontariatu uprzejmie informujemy, że zostanie
+  do Pani/Pana nadane pismo w sprawie wolontariusza niepełnoletniego
+  <strong>{{osoba}}</strong>.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Opiekun</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{opiekun_nazwa}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data weryfikacji</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{data_weryfikacji}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  Weryfikacja przeprowadzana jest cyklicznie (co 90 dni) i ma na celu potwierdzenie
+  aktualności danych oraz zgody na dalszy udział w wolontariacie. Pismo, o którym mowa
+  powyżej, zostanie przekazane odrębnie.
+</p>
 HTML;
 
     // — Okresowa weryfikacja wolontariusza niepełnoletniego — powiadomienie admina —
-    $minor_verif_admin_body = <<<'HTML'
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><title>Do wysłania: pismo ws. weryfikacji</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
-        <tr>
-          <td style="background:{{accent}};padding:24px 32px;">
-            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
-                      letter-spacing:.05em;">System zarządzania umowami</p>
-            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
-              Wymagane pismo — weryfikacja wolontariusza niepełnoletniego
-            </h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
-              Do opiekuna wolontariusza niepełnoletniego <strong>{{osoba}}</strong> wysłano właśnie
-              zapowiedź okresowej weryfikacji wolontariatu. Zgodnie z jej treścią, do opiekuna
-              powinno zostać nadane <strong>pismo w sprawie weryfikacji</strong> — prosimy o jego
-              przygotowanie i wysłanie.
-            </p>
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
-                          padding:0;margin-bottom:24px;">
-              <tr><td style="padding:20px 24px;">
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Opiekun</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{opiekun_nazwa}} &lt;{{opiekun_email}}&gt;</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data powiadomienia</td>
-                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{data_weryfikacji}}</td>
-                  </tr>
-                </table>
-              </td></tr>
-            </table>
-            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
-              <a href="{{url}}" style="color:{{accent}};font-weight:600;">Otwórz umowę w systemie</a>
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
-            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
-              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
-              Prosimy nie odpowiadać na tę wiadomość.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
+    $minor_verif_admin_body = <<<HTML
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  Do opiekuna wolontariusza niepełnoletniego <strong>{{osoba}}</strong> wysłano właśnie
+  zapowiedź okresowej weryfikacji wolontariatu. Zgodnie z jej treścią, do opiekuna
+  powinno zostać nadane <strong>pismo w sprawie weryfikacji</strong> — prosimy o jego
+  przygotowanie i wysłanie.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Opiekun</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{opiekun_nazwa}} &lt;{{opiekun_email}}&gt;</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data powiadomienia</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{data_weryfikacji}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  <a href="{{url}}" style="color:{{accent}};font-weight:600;">Otwórz umowę w systemie</a>
+</p>
 HTML;
 
     // — Zaproszenie opiekuna do odnowienia zgody na wolontariat małoletniego —
@@ -429,123 +302,92 @@ HTML;
 
     // — Kod odzyskiwania dostępu ————————————————————————————————
     $recovery_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.15rem">🔐 Kod odzyskiwania dostępu — {{org}}</h2>
+<p>Cześć <strong>{{name}}</strong>,</p>
+<p>Twój kod odzyskiwania dostępu do systemu <strong>{{org}}</strong>:</p>
+<div style="text-align:center;margin:24px 0">
+  <span style="display:inline-block;font-family:monospace;font-size:2rem;letter-spacing:.35em;
+               background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:12px 28px;font-weight:900">
+    {{code}}
+  </span>
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Cześć <strong>{{name}}</strong>,</p>
-  <p>Twój kod odzyskiwania dostępu do systemu <strong>{{org}}</strong>:</p>
-  <div style="text-align:center;margin:24px 0">
-    <span style="display:inline-block;font-family:monospace;font-size:2rem;letter-spacing:.35em;
-                 background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:12px 28px;font-weight:900">
-      {{code}}
-    </span>
-  </div>
-  <p style="color:#64748b;font-size:.88rem">
-    Zachowaj ten kod w bezpiecznym miejscu — będzie potrzebny do odzyskania hasła,
-    jeśli nie pamiętasz numeru umowy.
-  </p>
-  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość wysłana automatycznie przez system {{org}}.
-  </p>
-</div></body></html>
+<p style="color:#64748b;font-size:.88rem">
+  Zachowaj ten kod w bezpiecznym miejscu — będzie potrzebny do odzyskania hasła,
+  jeśli nie pamiętasz numeru umowy.
+</p>
+<p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wysłana automatycznie przez system {{org}}.
+</p>
 HTML;
 
     // ── TI: powiadomienie dydaktyczne (materiał / zadanie) ————————————
     $ti_dydaktyka_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#4338ca,#6366f1);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">📚 {{org}} — aktualizacja w panelu kursanta</h2>
+<p>Cześć <strong>{{name}}</strong>,</p>
+<p>{{body_html}}</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz panel kursanta →
+  </a>
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Cześć <strong>{{name}}</strong>,</p>
-  <p>{{body_html}}</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz panel kursanta →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
-  </p>
-</div></body></html>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
+</p>
 HTML;
 
     // ── TI: prośba o odwołanie lekcji (do prowadzącego) ───────────────
     $ti_cancel_req_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#d97706,#f59e0b);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">⚠️ {{org}} — prośba o odwołanie lekcji</h2>
+<p>Dzień dobry,</p>
+<p><strong>{{client_name}}</strong> prosi o odwołanie udziału w lekcji
+   <strong>{{course_name}}</strong> ({{when}}).</p>
+{{reason_block}}
+<p>Prośba czeka na Twoje potwierdzenie w panelu dydaktyka.</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#d97706;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz panel dydaktyka →
+  </a>
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Dzień dobry,</p>
-  <p><strong>{{client_name}}</strong> prosi o odwołanie udziału w lekcji
-     <strong>{{course_name}}</strong> ({{when}}).</p>
-  {{reason_block}}
-  <p>Prośba czeka na Twoje potwierdzenie w panelu dydaktyka.</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#d97706;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz panel dydaktyka →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}.
-  </p>
-</div></body></html>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
 HTML;
 
     // ── TI: decyzja prowadzącego ws. odwołania (do kursanta) ─────────
     $ti_cancel_decision_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:{{header_color}};padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">{{header_icon}} {{org}} — {{header_title}}</h2>
+<p>Dzień dobry,</p>
+<p>{{lead_html}}</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz panel kursanta →
+  </a>
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Dzień dobry,</p>
-  <p>{{lead_html}}</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz panel kursanta →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}.
-  </p>
-</div></body></html>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
 HTML;
 
     // ── TI: nowa ocena (do kursanta) ──────────────────────────────────
     $ti_grade_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#0891b2,#06b6d4);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎓 {{org}} — nowa ocena</h2>
+<p>Dzień dobry,</p>
+<p>W kursie <strong>{{course_name}}</strong> wystawiono ocenę:</p>
+<div style="text-align:center;margin:20px 0">
+  <span style="display:inline-block;font-size:2rem;font-weight:900;font-family:monospace;
+               background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:10px 30px;color:#166534">
+    {{value}}
+  </span>
+  {{category_block}}
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Dzień dobry,</p>
-  <p>W kursie <strong>{{course_name}}</strong> wystawiono ocenę:</p>
-  <div style="text-align:center;margin:20px 0">
-    <span style="display:inline-block;font-size:2rem;font-weight:900;font-family:monospace;
-                 background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:10px 30px;color:#166534">
-      {{value}}
-    </span>
-    {{category_block}}
-  </div>
-  {{description_block}}
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Zobacz oceny w panelu kursanta →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}.
-  </p>
-</div></body></html>
+{{description_block}}
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zobacz oceny w panelu kursanta →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
 HTML;
 
     // ── TI: nieobecność bez zgłoszenia (no-show) ─────────────────────
     $ti_no_show_body = <<<'HTML'
-<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">
 <p>Dzień dobry,</p>
 <p>Informujemy, że <strong>{{client_name}}</strong> nie pojawił/a się na zajęciach kursu <strong>{{course_name}}</strong> w dniu <strong>{{when}}</strong>.</p>
 <table style="border-collapse:collapse;margin:16px 0">
@@ -556,79 +398,60 @@ HTML;
 <p><a href="{{url}}">Panel kursanta</a></p>
 <hr style="border:none;border-top:1px solid #ddd;margin:20px 0">
 <p style="font-size:.8em;color:#888">Wiadomość automatyczna — {{org}}.</p>
-</body></html>
 HTML;
 
     // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
     $ti_billing_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#059669,#10b981);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">💳 Rozliczenie za {{period}} — {{org}}</h2>
+<p>Dzień dobry{{name_suffix}},</p>
+<p>Wystawiliśmy rozliczenie za zajęcia ({{org}}) za okres <strong>{{period}}</strong>.</p>
+<div style="background:#f8f9fa;border-left:3px solid #059669;border-radius:4px;padding:14px 18px;margin:14px 0">
+  {{details_html}}
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Dzień dobry{{name_suffix}},</p>
-  <p>Wystawiliśmy rozliczenie za zajęcia ({{org}}) za okres <strong>{{period}}</strong>.</p>
-  <div style="background:#f8f9fa;border-left:3px solid #059669;border-radius:4px;padding:14px 18px;margin:14px 0">
-    {{details_html}}
-  </div>
-  <p style="font-size:.9em;color:#495057">
-    Szczegóły i historia rozliczeń w panelu kursanta:
-    <a href="{{portal}}" style="color:#059669">{{portal}}</a>
-  </p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{portal}}" style="background:#059669;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz panel kursanta →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość wygenerowana automatycznie.
-  </p>
-</div></body></html>
+<p style="font-size:.9em;color:#495057">
+  Szczegóły i historia rozliczeń w panelu kursanta:
+  <a href="{{portal}}" style="color:#059669">{{portal}}</a>
+</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{portal}}" style="background:#059669;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz panel kursanta →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wygenerowana automatycznie.
+</p>
 HTML;
 
     // ── TI: nowa wiadomość od prowadzącego (do kursanta) ──────────────
     $ti_message_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">✉️ {{org}} — nowa wiadomość</h2>
+<p>Cześć <strong>{{name}}</strong>,</p>
+<p>Masz nową wiadomość w panelu kursanta:</p>
+<div style="border-left:3px solid #2563eb;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
+  <strong>{{subject}}</strong><br>{{preview_html}}
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Cześć <strong>{{name}}</strong>,</p>
-  <p>Masz nową wiadomość w panelu kursanta:</p>
-  <div style="border-left:3px solid #2563eb;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
-    <strong>{{subject}}</strong><br>{{preview_html}}
-  </div>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#1d4ed8;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Przeczytaj i odpowiedz →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
-  </p>
-</div></body></html>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#1d4ed8;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przeczytaj i odpowiedz →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
+</p>
 HTML;
 
     // ── TI: odpowiedź kursanta (do prowadzącego) ──────────────────────
     $ti_message_reply_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#16a34a,#22c55e);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">↩️ {{org}} — odpowiedź kursanta</h2>
+<p>Kursant <strong>{{student_name}}</strong> odpowiedział w panelu:</p>
+<div style="border-left:3px solid #16a34a;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
+  {{preview_html}}
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Kursant <strong>{{student_name}}</strong> odpowiedział w panelu:</p>
-  <div style="border-left:3px solid #16a34a;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
-    {{preview_html}}
-  </div>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#16a34a;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz wątek →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}.
-  </p>
-</div></body></html>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#16a34a;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz wątek →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
 HTML;
 
     $base = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
@@ -669,7 +492,7 @@ HTML;
                 'osoba'            => ['label' => 'Osoba',              'sample' => 'Jan Kowalski'],
                 'data_zakonczenia' => ['label' => 'Data zakończenia',   'sample' => '30.06.2026'],
                 'days_left'        => ['label' => 'Liczba dni',         'sample' => '7'],
-                'days_label'       => ['label' => 'Odmiana „dni”',      'sample' => 'dni'],
+                'days_label'       => ['label' => 'Odmiana „dni"',      'sample' => 'dni'],
             ],
         ],
 
@@ -835,9 +658,6 @@ HTML;
             'vars'        => [
                 'org'           => ['label' => 'Nazwa organizacji',          'sample' => 'Dydaktyka TI'],
                 'subject_suffix'=> ['label' => 'Końcówka tematu',             'sample' => 'potwierdzono odwołanie udziału — 30.06.2026'],
-                'header_color'  => ['label' => 'Kolor nagłówka (hex CSS)',    'sample' => 'linear-gradient(135deg,#16a34a,#22c55e)'],
-                'header_icon'   => ['label' => 'Emoji/ikona nagłówka',        'sample' => '✅'],
-                'header_title'  => ['label' => 'Tytuł nagłówka',              'sample' => 'odwołanie potwierdzone'],
                 'lead_html'     => ['label' => 'Główna treść (HTML)',          'sample' => 'Twoja prośba o odwołanie udziału w lekcji <strong>Kurs obsługi komputera</strong> (30.06.2026 o 10:00) została <strong>potwierdzona</strong>.'],
                 'url'           => ['label' => 'Link do panelu kursanta',      'sample' => $base . '/karty30/ti/kursant/index.php?tab=lekcje'],
             ],
@@ -975,6 +795,8 @@ function email_tpl_substitute(string $tpl, array $vars): string
 /**
  * Renderuje mail systemowy: zwraca temat i treść HTML z podstawionymi zmiennymi.
  * Fallback do domyślnej treści, gdy szablon nie istnieje w bazie.
+ * Treści wewnętrzne (bez DOCTYPE/html) owijane są automatycznie przez
+ * _email_tpl_default_wrap(); pełne szablony HTML (np. guardian_consent) przechodzą bez zmian.
  *
  * @return array{subject:string, html:string, enabled:bool}
  */
@@ -984,11 +806,13 @@ function email_tpl_render(string $key, array $vars = []): array
     if ($t === null) {
         return ['subject' => '', 'html' => '', 'enabled' => true];
     }
-    return [
-        'subject' => email_tpl_substitute($t['subject'], $vars),
-        'html'    => email_tpl_substitute($t['body'], $vars),
-        'enabled' => $t['enabled'],
-    ];
+    $subj    = email_tpl_substitute($t['subject'], $vars);
+    $html    = email_tpl_substitute($t['body'], $vars);
+    $trimmed = ltrim($html);
+    if (stripos($trimmed, '<!DOCTYPE') !== 0 && stripos($trimmed, '<html') !== 0) {
+        $html = _email_tpl_default_wrap($html, $subj);
+    }
+    return ['subject' => $subj, 'html' => $html, 'enabled' => $t['enabled']];
 }
 
 /** Zapisuje nadpisanie szablonu. */

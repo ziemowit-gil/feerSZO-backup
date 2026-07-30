@@ -160,23 +160,18 @@ function ti_notices_send_email(int $notice_id, string $title, string $body): voi
 }
 
 function _ti_notice_email_html(string $recipient_name, string $title, string $body_esc, string $panel_url): string {
-    $org = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME) : 'Placówka TI';
-    return '<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"></head><body style="font-family:sans-serif;color:#1e293b;max-width:600px;margin:auto;padding:24px">
-<div style="background:#c2410c;color:#fff;padding:14px 20px;border-radius:8px 8px 0 0">
-  <strong style="font-size:1.1rem">📢 Nowy komunikat — ' . htmlspecialchars($org) . '</strong>
-</div>
-<div style="border:1px solid #e2e8f0;border-top:none;padding:20px;border-radius:0 0 8px 8px">
-  <p>Cześć ' . htmlspecialchars($recipient_name) . ',</p>
-  <p>Opublikowano nowy komunikat placówki:</p>
-  <div style="background:#fff7ed;border-left:4px solid #c2410c;padding:12px 16px;margin:12px 0;border-radius:0 4px 4px 0">
-    <strong style="font-size:1rem">' . htmlspecialchars($title) . '</strong>
-    ' . ($body_esc ? '<div style="margin-top:8px;color:#475569">' . $body_esc . '</div>' : '') . '
-  </div>
-  ' . ($panel_url ? '<p><a href="' . htmlspecialchars($panel_url) . '" style="background:#c2410c;color:#fff;padding:8px 18px;border-radius:5px;text-decoration:none;display:inline-block">Przejdź do panelu kursanta</a></p>' : '') . '
-  <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-  <p style="font-size:.8rem;color:#94a3b8">Wiadomość wysłana automatycznie przez system ' . $org . '. Nie odpowiadaj na ten e-mail.</p>
-</div>
-</body></html>';
+    $rname = htmlspecialchars($recipient_name, ENT_QUOTES, 'UTF-8');
+    $tit   = htmlspecialchars($title,          ENT_QUOTES, 'UTF-8');
+    $purl  = htmlspecialchars($panel_url,      ENT_QUOTES, 'UTF-8');
+    $btn   = $panel_url
+        ? '<p style="margin:20px 0 0"><a href="' . $purl . '" style="display:inline-block;background:#2563eb;color:#fff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:700">Przejdź do panelu kursanta →</a></p>'
+        : '';
+    $inner = '<p style="margin:0 0 14px">Cześć <strong>' . $rname . '</strong>,</p>'
+           . '<p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b">Komunikat</p>'
+           . '<p style="margin:0 0 16px;font-size:17px;font-weight:700">📢 ' . $tit . '</p>'
+           . ($body_esc ? '<div style="background:#f8fafc;border-left:3px solid #64748b;padding:12px 16px;border-radius:0 6px 6px 0;margin:0 0 20px;font-size:14px;color:#334155">' . $body_esc . '</div>' : '')
+           . $btn;
+    return _feer_email_tpl($inner, $title, $panel_url, '');
 }
 
 function ti_notices_update(int $id, array $data): void {
