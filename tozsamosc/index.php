@@ -51,6 +51,7 @@ try {
 try { db()->exec("ALTER TABLE users ADD COLUMN phone_verified_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE users ADD COLUMN tozsamosc_seen_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE users ADD COLUMN ldap_created_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
 
 // ── Pełny rekord + identyfikatory ───────────────────────────────────────────
 $db_user = db_one("SELECT * FROM users WHERE id=?", [$user['id']]);
@@ -60,6 +61,10 @@ $panel_login        = $user['email'] ?? '';          // GŁÓWNY identyfikator s
 $m365_login         = $db_user['m365_login'] ?? '';  // login MS365 (może być inny)
 $microsoft_id       = $db_user['microsoft_id'] ?? '';
 $has_m365           = ($microsoft_id !== '' || $m365_login !== '');
+
+// ── Konto w katalogu LDAP (samoobsługa) ──────────────────────────────────────
+$ldap_enabled = defined('LDAP_ENABLED') && LDAP_ENABLED;
+$has_ldap     = !empty($db_user['ldap_created_at']);
 
 // ── Konto M365 z umowy (dopasowanie: microsoft_id → m365_login → e-mail) ─────
 $m365_row = null;
@@ -315,6 +320,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
         }
     }
+    elseif ($action === 'ldap_create') {
+        // Samodzielne utworzenie/odświeżenie własnego wpisu w katalogu LDAP.
+        if (!(defined('LDAP_ENABLED') && LDAP_ENABLED)) {
+            $errors[] = 'Usługa katalogu LDAP jest obecnie niedostępna.';
+        } else {
+            require_once dirname(__DIR__) . '/includes/ldap.php';
+            try {
+                $ldap = new LdapDirectory();
+                if (!$ldap->is_configured()) {
+                    throw new RuntimeException('Katalog LDAP nie jest skonfigurowany. Skontaktuj się z administratorem.');
+                }
+                $row = ldap_user_row($uid) ?? $db_user;
+                $ldap->connect();
+                $done = $ldap->upsert_user($row);
+                $ldap->close();
+
+                db()->prepare("UPDATE users SET ldap_created_at=datetime('now') WHERE id=? AND ldap_created_at IS NULL")
+                    ->execute([$uid]);
+                authlog_write($uid, 'ldap_created', $user['email'] ?? '',
+                    'Samodzielne ' . ($done === 'created' ? 'utworzenie' : 'odświeżenie') . ' konta LDAP z modułu Tożsamość');
+                flash_set('success', $done === 'created'
+                    ? 'Konto w katalogu LDAP zostało utworzone.'
+                    : 'Wpis w katalogu LDAP został zaktualizowany.');
+                header('Location: ' . $SELF . '#uslugi'); exit;
+            } catch (\Throwable $e) {
+                error_log('[LDAP self-service] uid=' . $uid . ': ' . $e->getMessage());
+                $errors[] = 'Nie udało się utworzyć konta LDAP: ' . $e->getMessage();
+            }
+        }
+    }
 }
 
 $initials = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
@@ -454,6 +489,48 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         </div>
       </div>
       <a href="<?= APP_URL ?>/panel/m365.php" class="tz-btn--ghost tz-btn btn-sm">Szczegóły</a>
+    </div>
+    <!-- Katalog LDAP -->
+    <div class="tz-svc">
+      <span class="tz-svc__ico"><i class="bi bi-diagram-3" aria-hidden="true"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">Katalog LDAP
+          <?php if ($has_ldap): ?>
+            <span class="tz-badge tz-badge--ok ms-1"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Utworzone</span>
+          <?php elseif ($ldap_enabled): ?>
+            <span class="tz-badge tz-badge--warn ms-1"><i class="bi bi-plus-circle-fill" aria-hidden="true"></i> Do utworzenia</span>
+          <?php else: ?>
+            <span class="tz-badge tz-badge--off ms-1"><i class="bi bi-slash-circle" aria-hidden="true"></i> Nieaktywna</span>
+          <?php endif; ?>
+        </div>
+        <div class="text-muted small">
+          <?php if ($has_ldap): ?>
+            Wpis w katalogu organizacji (uid=<?= h($uid) ?>)
+            <?php if (!empty($db_user['ldap_created_at'])): ?> · utworzono <?= h(date('d.m.Y', strtotime($db_user['ldap_created_at']))) ?><?php endif; ?>
+          <?php elseif ($ldap_enabled): ?>
+            Utwórz swój wpis w katalogu LDAP organizacji na podstawie danych tożsamości. Hasło nie jest kopiowane.
+          <?php else: ?>
+            Usługa katalogu LDAP jest tymczasowo nieaktywna.
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php if ($ldap_enabled && !$has_ldap): ?>
+      <form method="post" class="m-0">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="ldap_create">
+        <button type="submit" class="tz-btn btn-sm" onclick="return confirm('Utworzyć konto w katalogu LDAP na podstawie Twoich danych tożsamości?');">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i> Utwórz konto
+        </button>
+      </form>
+      <?php elseif ($has_ldap): ?>
+      <form method="post" class="m-0">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="ldap_create">
+        <button type="submit" class="tz-btn--ghost tz-btn btn-sm">
+          <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Odśwież wpis
+        </button>
+      </form>
+      <?php endif; ?>
     </div>
     <!-- MFA -->
     <div class="tz-svc">

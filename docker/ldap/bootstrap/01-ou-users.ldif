@@ -1,0 +1,11 @@
+# Bootstrap katalogu FEER — gałąź kont użytkowników.
+# osixia/openldap importuje pliki z tego katalogu przy PIERWSZEJ inicjalizacji
+# (gdy wolumin ldap_data jest pusty). Zmiana po inicjalizacji nie zadziała —
+# użyj wtedy instalatora: bash setup-ldap.sh  lub  php cli/ldap_install.php.
+#
+# DN musi być spójny z LDAP_DOMAIN (feer.org.pl -> dc=feer,dc=org,dc=pl).
+
+dn: ou=users,dc=feer,dc=org,dc=pl
+objectClass: organizationalUnit
+ou: users
+description: Konta uzytkownikow synchronizowane z SZO

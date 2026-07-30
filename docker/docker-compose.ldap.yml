@@ -1,0 +1,66 @@
+# ── OpenLDAP ("ldap") addon — katalog tożsamości (cel synchronizacji SZO) ─────
+#
+# Alternatywa dla zewnętrznego serwera ldap-prod.feer.org.pl: lokalny kontener
+# OpenLDAP + phpLDAPadmin. Porty są bindowane WYŁĄCZNIE do 127.0.0.1 — usługa
+# słuchá tylko lokalnie (na hoście), nie jest wystawiona do sieci.
+#
+# DEV (lokalnie):
+#   docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d ldap phpldapadmin
+#   # albo prościej przez instalator:  bash setup-ldap.sh
+#
+# PROD (obok głównego stacku; zwykle jednak używa się zewnętrznego serwera LDAP):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.ldap.yml --env-file .env.prod up -d ldap
+#
+# Ustaw w .env / .env.prod (albo pozwól, by setup-ldap.sh dopisał je za Ciebie):
+#   LDAP_ORGANISATION, LDAP_DOMAIN (np. feer.org.pl → dc=feer,dc=org,dc=pl),
+#   LDAP_ADMIN_PASSWORD.
+#
+# Aplikacja SZO łączy się:
+#   • z sieci Docker „feer":     LDAP_HOST=ldap        (nazwa usługi)
+#   • z hosta (php wbudowany):   LDAP_HOST=127.0.0.1   (przez binding poniżej)
+# Konto binda: cn=admin,dc=feer,dc=org,dc=pl  /  hasło = LDAP_ADMIN_PASSWORD.
+
+services:
+
+  ldap:
+    image: osixia/openldap:1.5.0        # przypnij tag przed produkcją
+    container_name: feer-ldap
+    restart: unless-stopped
+    # --copy-service jest wymagane, gdy montujemy własne LDIF-y bootstrap poniżej.
+    command: ["--copy-service"]
+    environment:
+      LDAP_ORGANISATION:   ${LDAP_ORGANISATION:-Fundacja FEER}
+      LDAP_DOMAIN:         ${LDAP_DOMAIN:-feer.org.pl}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-admin}
+      LDAP_RFC2307BIS_SCHEMA: "true"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+      LDAP_TLS: "false"                 # w dev bez TLS; w prod użyj STARTTLS/ldaps
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      # Bootstrap: tworzy ou=users przy pierwszej inicjalizacji katalogu.
+      - ./ldap/bootstrap:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
+    ports:
+      - "127.0.0.1:389:389"
+      - "127.0.0.1:636:636"
+    networks:
+      - feer
+
+  phpldapadmin:
+    image: osixia/phpldapadmin:0.9.0    # przypnij tag przed produkcją
+    container_name: feer-phpldapadmin
+    restart: unless-stopped
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: ldap
+      PHPLDAPADMIN_HTTPS: "false"
+    ports:
+      - "127.0.0.1:8389:80"             # http://127.0.0.1:8389  (login: cn=admin,dc=feer,dc=org,dc=pl)
+    depends_on:
+      - ldap
+    networks:
+      - feer
+
+volumes:
+  ldap_data:
+  ldap_config:

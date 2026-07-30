@@ -90,6 +90,19 @@ if (!defined('MS_CLIENT_ID'))    define('MS_CLIENT_ID',    getenv('MS_CLIENT_ID'
 if (!defined('MS_CLIENT_SECRET'))define('MS_CLIENT_SECRET',getenv('MS_CLIENT_SECRET') ?: '');
 if (!defined('MS_REDIRECT_URI')) define('MS_REDIRECT_URI', getenv('MS_REDIRECT_URI') ?: 'https://localhost/auth/microsoft.php');
 
+// ── LDAP (jednokierunkowa synchronizacja kont do OpenLDAP) ─────────────────────
+// Katalog jest CELEM eksportu tożsamości. Logowanie do SZO pozostaje lokalne —
+// LDAP nie uczestniczy w uwierzytelnianiu. Hasło binda trzymaj w config.local.php
+// lub w env (nigdy w bazie/repo), analogicznie do MS_CLIENT_SECRET.
+if (!defined('LDAP_ENABLED'))   define('LDAP_ENABLED',   getenv('LDAP_ENABLED') === '1');
+if (!defined('LDAP_HOST'))      define('LDAP_HOST',      getenv('LDAP_HOST') ?: 'ldap-prod.feer.org.pl');
+if (!defined('LDAP_PORT'))      define('LDAP_PORT',      (int)(getenv('LDAP_PORT') ?: 389));
+if (!defined('LDAP_USE_TLS'))   define('LDAP_USE_TLS',   getenv('LDAP_USE_TLS') === '1');
+if (!defined('LDAP_BIND_DN'))   define('LDAP_BIND_DN',   getenv('LDAP_BIND_DN') ?: 'cn=admin,dc=feer,dc=org,dc=pl');
+if (!defined('LDAP_BIND_PW'))   define('LDAP_BIND_PW',   getenv('LDAP_BIND_PW') ?: '');
+if (!defined('LDAP_BASE_DN'))   define('LDAP_BASE_DN',   getenv('LDAP_BASE_DN') ?: 'dc=feer,dc=org,dc=pl');
+if (!defined('LDAP_USERS_OU'))  define('LDAP_USERS_OU',  getenv('LDAP_USERS_OU') ?: 'ou=users,dc=feer,dc=org,dc=pl');
+
 // ── Ścieżki ───────────────────────────────────────────────────────────────────
 if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/uploads/');
 if (!defined('APP_URL'))    define('APP_URL', (function() {
