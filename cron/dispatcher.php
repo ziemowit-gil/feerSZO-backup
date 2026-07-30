@@ -64,6 +64,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [8, 10],      // między 8:00 a 10:00
     ],
+    'never_logged_in_reminder' => [
+        'file'     => __DIR__ . '/agents/never_logged_in_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [9, 11],      // między 9:00 a 11:00
+    ],
     'zus_reminder' => [
         'file'     => __DIR__ . '/zus_reminder.php',
         'interval' => 86400,        // raz dziennie
