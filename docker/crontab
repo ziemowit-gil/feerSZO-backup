@@ -26,3 +26,8 @@
 
 # Dispatcher (orchestrator) — co 5 minut
 */5 * * * * www-data php /var/www/html/cron/dispatcher.php >> /var/log/feer_cron.log 2>&1
+
+# Synchronizacja kont do LDAP (jednokierunkowa) — codziennie o 7:30.
+# Uruchamiaj tylko gdy LDAP_ENABLED=1; przy wyłączonej integracji skrypt i tak
+# kończy się bez zmian. Ręcznie/na sucho: php cron/sync_ldap.php --dry-run
+30 7 * * * www-data php /var/www/html/cron/sync_ldap.php >> /var/log/feer_cron.log 2>&1

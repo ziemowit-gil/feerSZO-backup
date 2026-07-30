@@ -247,9 +247,67 @@ cron/mail_queue.php (co minutę)
 | `msmtp.conf` | PHP `mail()` → Mailpit |
 | `crontab` | Zadania cykliczne aplikacji |
 | `entrypoint.sh` | Start crona + Apache (COPY do obrazu — musi zostać w `docker/`) |
+| `docker-compose.ldap.yml` | Dodatek: OpenLDAP + phpLDAPadmin (nasłuch 127.0.0.1) |
+| `setup-ldap.sh` | Instalator lokalnego katalogu LDAP (idempotentny) |
+| `ldap/bootstrap/` | LDIF bootstrap katalogu (tworzy `ou=users`) |
 
 Pozostałe skrypty administracyjne (`rebuild.sh`, `update.sh`, `run.sh`, ...)
 fizycznie leżą w [`scripts/`](scripts/) — w `docker/` są tylko symlinki o tych
 samych nazwach, więc wszystkie dotychczasowe komendy (`bash rebuild.sh` itp.)
 działają bez zmian. Wyjątki, które zostały w `docker/` naprawdę (nie symlinki):
 `entrypoint.sh`, `setup.sh`, `clean.sh` — zob. [`scripts/README.md`](scripts/README.md).
+
+---
+
+## Katalog LDAP (dodatek, `docker-compose.ldap.yml`)
+
+Jednokierunkowa synchronizacja kont SZO do katalogu LDAP (współpracownicy →
+`ou=users`). Logowanie do SZO pozostaje lokalne — LDAP nie uwierzytelnia.
+Kontener to **alternatywa** dla zewnętrznego `ldap-prod.feer.org.pl`; nasłuchuje
+**tylko na `127.0.0.1`** (389/636 + phpLDAPadmin na 8389), nie jest wystawiony
+do sieci.
+
+### Instalacja lokalna (dev)
+
+```bash
+cd docker && bash setup-ldap.sh
+```
+
+Skrypt: stawia kontenery, tworzy `ou=users`, generuje `LDAP_ADMIN_PASSWORD` w
+`docker/.env` i wypisuje gotowy blok `LDAP_*` do wklejenia w `config.local.php`
+aplikacji. phpLDAPadmin: <http://127.0.0.1:8389/> (login `cn=admin,dc=feer,dc=org,dc=pl`).
+
+### Konfiguracja aplikacji
+
+Połączenie aplikacji z katalogiem ustawiasz stałymi `LDAP_*` w `config.local.php`
+(zob. `config.local.php.example`) — niezależnie od kontenera. Ta sama zmienna
+`LDAP_HOST` przełącza między lokalnym kontenerem a produkcją:
+
+| Scenariusz | `LDAP_HOST` |
+|---|---|
+| Kontener, aplikacja na hoście | `127.0.0.1` |
+| Kontener, aplikacja w sieci Docker `feer` | `ldap` |
+| Produkcja (zewnętrzny serwer) | `ldap-prod.feer.org.pl` |
+
+### Weryfikacja i uruchomienie
+
+```bash
+php cli/ldap_install.php        # test bindu + zapewnienie ou=users (idempotentnie)
+php cron/sync_ldap.php --dry-run  # podgląd eksportu bez zapisu
+php cron/sync_ldap.php            # pełny eksport
+```
+
+Synchronizacja jest też wyzwalana z GUI (`admin/ldap_sync.php`, tylko admin),
+samoobsługowo przez użytkownika (moduł Tożsamość) oraz z crona — codziennie o
+7:30 (`crontab`, aktywne tylko przy `LDAP_ENABLED=1`).
+
+### Produkcja
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  -f docker-compose.ldap.yml --env-file .env.prod up -d ldap
+```
+
+Zwykle jednak w produkcji używa się zewnętrznego serwera LDAP i kontenera się
+nie uruchamia — wystarczy wskazać `LDAP_HOST=ldap-prod.feer.org.pl` w
+`config.local.php`. Włącz wtedy TLS (`LDAP_USE_TLS=1`, STARTTLS/ldaps).

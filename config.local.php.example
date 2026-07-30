@@ -60,6 +60,18 @@
 // define('MS_REDIRECT_URI', 'https://twoja-domena.pl/auth/microsoft.php');
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  LDAP  (jednokierunkowy eksport kont do OpenLDAP; logowanie zostaje lokalne)
+// ══════════════════════════════════════════════════════════════════════════════
+// define('LDAP_ENABLED',  true);
+// define('LDAP_HOST',     'ldap-prod.feer.org.pl');
+// define('LDAP_PORT',     389);
+// define('LDAP_USE_TLS',  false);                          // true = STARTTLS na porcie 389
+// define('LDAP_BIND_DN',  'cn=admin,dc=feer,dc=org,dc=pl');
+// define('LDAP_BIND_PW',  'haslo_konta_serwisowego');      // TYLKO tutaj / w env
+// define('LDAP_BASE_DN',  'dc=feer,dc=org,dc=pl');
+// define('LDAP_USERS_OU', 'ou=users,dc=feer,dc=org,dc=pl');
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  SYNCHRONIZACJA KONT DO ŚRODOWISKA TESTOWEGO  (tylko na PRODUKCJI)
 // ══════════════════════════════════════════════════════════════════════════════
 // Gdy zdefiniowane, nowe/zmienione konta użytkowników są automatycznie
