@@ -1,0 +1,207 @@
+/* ============================================================
+ * ezd-tz-theme.css — Nakładka wizualna EZD → styl Tożsamość
+ *
+ * IZOLACJA: ten plik jest ładowany WYŁĄCZNIE na stronach /ezd/.
+ * Nie zmienia żadnej logiki, event listenerów, atrybutów data-*
+ * ani struktury DOM — tylko kolory, obramowania, cienie i tło.
+ *
+ * KASKADA: selektory z prefiksem `body ` mają specyficzność
+ * (0,1,1) vs (0,1,0) inline <style> stron EZD — nasz plik
+ * załadowany w <head> wygrywa bez potrzeby używania !important.
+ * ============================================================ */
+
+/* ── 1. Zmienne kolorystyczne (identyczne z tozsamosc/_head.php) ─── */
+:root {
+  --tz:        #1E6DFF;
+  --tz-strong: #1656d6;
+  --tz-50:     #eef4ff;
+  --tz-line:   #E5E9F0;
+  --tz-muted:  #6B7280;
+  --tz-canvas: #F4F6F9;
+}
+
+/* ── 2. Tło strony ─────────────────────────────────────────────── */
+body { background: var(--tz-canvas); }
+
+/* ── 3. Hero (index.php + sprawy/view.php) ─────────────────────── */
+/* Zamienia gradient czerwony (#fef2f2) na błękitny (#eef4ff)       */
+body .ezd-hero {
+  background: linear-gradient(135deg, var(--tz-50) 0%, #ffffff 60%);
+  border-color: var(--tz-line);
+}
+body .ezd-hero-icon {
+  background: var(--tz);
+  box-shadow: 0 4px 10px rgba(30, 109, 255, .22);
+}
+
+/* ── 4. Karty EZD (.ezd-card) ──────────────────────────────────── */
+body .ezd-card {
+  border-color: var(--tz-line);
+  border-width: 1px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .07);
+}
+body .ezd-card-header {
+  background: #ffffff;
+  border-bottom-color: var(--tz-line);
+  color: #1e293b;
+}
+body .ezd-card-header .bi { color: var(--tz); }
+body .ezd-card-header .ezd-more { color: var(--tz-strong); }
+body .ezd-card-header .ezd-more:hover { text-decoration: underline; }
+
+/* ── 5. Bento karty (.bc) — kolumna prawa sprawy/view.php ──────── */
+body .bc {
+  border: 1px solid var(--tz-line);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .07);
+}
+body .bc-h {
+  background: #ffffff;
+  border-bottom-color: var(--tz-line);
+  color: var(--tz-muted);
+}
+body .bc-h .bi { color: var(--tz); }
+
+/* ── 6. Płytki statystyk (.ezd-stat) ───────────────────────────── */
+body .ezd-stat {
+  border-color: var(--tz-line);
+}
+body .ezd-stat:hover {
+  border-color: var(--tz);
+  box-shadow: 0 4px 12px rgba(30, 109, 255, .12);
+}
+
+/* ── 7. Launcher — płytki nawigacyjne (.ezd-launcher-tile) ─────── */
+body .ezd-launcher-tile {
+  border-color: var(--tz-line);
+  color: #334155;
+}
+body .ezd-launcher-tile:hover {
+  border-color: var(--tz);
+  box-shadow: 0 8px 24px -6px rgba(30, 109, 255, .22);
+  color: var(--tz-strong);
+}
+
+/* ── 8. Pasek wyszukiwania EZD ─────────────────────────────────── */
+body .ezd-search .input-group {
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .06);
+}
+body .ezd-search .input-group-text {
+  border-color: var(--tz-line);
+}
+body .ezd-search input {
+  border-color: var(--tz-line);
+}
+body .ezd-search input:focus {
+  border-color: var(--tz);
+  box-shadow: none;
+}
+
+/* ── 9. Timeline dokumentów w koszulce (.tl-*) ─────────────────── */
+body .tl-wrap::before { background: var(--tz-line); }
+
+body .tl-dot {
+  background: var(--tz);
+  box-shadow: 0 0 0 2px var(--tz);
+}
+body .tl-dot.pismo-out {
+  background: var(--tz);
+  box-shadow: 0 0 0 2px var(--tz);
+}
+body .tl-dot.pismo-in {
+  background: #0891b2;
+  box-shadow: 0 0 0 2px #0891b2;
+}
+body .tl-dot.pismo-int {
+  background: var(--tz-muted);
+  box-shadow: 0 0 0 2px var(--tz-muted);
+}
+body .tl-dot.umowa-card {
+  background: #d97706;
+  box-shadow: 0 0 0 2px #d97706;
+}
+
+body .tl-card {
+  border-color: var(--tz-line);
+}
+body .tl-card:hover {
+  border-color: rgba(30, 109, 255, .45);
+  box-shadow: 0 2px 10px rgba(30, 109, 255, .12);
+}
+body .tl-card.pismo-out { border-left-color: var(--tz); }
+body .tl-card.pismo-in  { border-left-color: #0891b2; }
+body .tl-card.umowa-card { border-left-color: #d97706; }
+
+/* ── 10. Stepper Workflow BPM ───────────────────────────────────── */
+body .ezd-step::before { background: var(--tz-line); }
+body .ezd-step-dot {
+  background: var(--tz-line);
+  box-shadow: 0 0 0 1px var(--tz-line);
+}
+body .ezd-step-done .ezd-step-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+body .ezd-step-done::before { background: #22c55e; }
+body .ezd-step-done .ezd-step-lbl { color: #16a34a; }
+body .ezd-step-current .ezd-step-dot {
+  background: var(--tz);
+  box-shadow: 0 0 0 3px rgba(30, 109, 255, .22);
+}
+body .ezd-step-current .ezd-step-lbl {
+  color: var(--tz-strong);
+}
+
+/* ── 11. Bootstrap .card (wyniki szukaj.php, podkoszulki, log) ─── */
+body .card {
+  border-color: var(--tz-line);
+  border-radius: 12px;
+}
+body .card-header {
+  border-bottom-color: var(--tz-line);
+}
+body .card-header.bg-light {
+  background-color: #ffffff !important; /* nadpisuje Bootstrap utility !important */
+}
+
+/* ── 12. Bootstrap btn-primary → kolor tz-strong ───────────────── */
+/* Tylko dla stron EZD — ten plik nie jest ładowany globalnie.       */
+.btn-primary {
+  --bs-btn-bg:             var(--tz-strong);
+  --bs-btn-border-color:   var(--tz-strong);
+  --bs-btn-hover-bg:       #0f3c9c;
+  --bs-btn-hover-border-color: #0f3c9c;
+  --bs-btn-active-bg:      #0e3090;
+  --bs-btn-active-border-color: #0e3090;
+  --bs-btn-focus-shadow-rgb: 30, 109, 255;
+}
+.btn-outline-primary {
+  --bs-btn-color:          var(--tz-strong);
+  --bs-btn-border-color:   var(--tz-strong);
+  --bs-btn-hover-bg:       var(--tz-strong);
+  --bs-btn-hover-border-color: var(--tz-strong);
+  --bs-btn-active-bg:      var(--tz-strong);
+  --bs-btn-active-border-color: var(--tz-strong);
+}
+
+/* ── 13. Form-control focus ────────────────────────────────────── */
+body .form-control:focus,
+body .form-select:focus {
+  border-color: var(--tz);
+  box-shadow: 0 0 0 .2rem rgba(30, 109, 255, .18);
+}
+
+/* ── 14. Wiersze przekazań (.dekr-row) ─────────────────────────── */
+body .dekr-row {
+  border-bottom-color: var(--tz-line);
+}
+
+/* ── 15. Timeline aktywności (index.php) ───────────────────────── */
+body .ezd-timeline::before { background: var(--tz-line); }
+
+/* ── 16. Breadcrumb link ────────────────────────────────────────── */
+body .breadcrumb-item a {
+  color: var(--tz-strong);
+}
+body .breadcrumb-item a:hover {
+  color: #0f3c9c;
+}
