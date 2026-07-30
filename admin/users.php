@@ -10,6 +10,52 @@ require_once dirname(__DIR__) . '/includes/user_sync.php';
 require_role('admin');
 ika_require(APP_URL . '/admin/users.php', 3600);
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
+
+function _users_send_deactivated_email(string $email, string $name): void {
+    $org     = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+    $app_url = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+    $subject = 'Twoje konto w systemie ' . $org . ' zostało dezaktywowane';
+    $display = htmlspecialchars($name ?: $email, ENT_QUOTES, 'UTF-8');
+    $org_h   = htmlspecialchars($org, ENT_QUOTES, 'UTF-8');
+
+    $body = '
+<!DOCTYPE html><html lang="pl"><body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <tr><td style="background:#dc2626;padding:28px 32px;text-align:center">
+    <div style="font-size:28px;color:#fff;margin-bottom:4px">&#128274;</div>
+    <div style="font-size:18px;font-weight:700;color:#fff">Konto dezaktywowane</div>
+  </td></tr>
+  <tr><td style="padding:28px 32px">
+    <p style="margin:0 0 16px;color:#1e293b;font-size:15px">Cześć <strong>' . $display . '</strong>,</p>
+    <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6">
+      Twoje konto w systemie <strong>' . $org_h . '</strong> zostało <strong style="color:#dc2626">dezaktywowane</strong>
+      przez administratora. Nie możesz się już zalogować.
+    </p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin:20px 0">
+      <div style="font-size:13px;color:#991b1b;line-height:1.5">
+        Jeśli uważasz, że to pomyłka lub chcesz odwołać się od tej decyzji,
+        skontaktuj się z administratorem organizacji.
+      </div>
+    </div>
+    <p style="margin:16px 0 0;color:#64748b;font-size:12px">
+      Ta wiadomość została wygenerowana automatycznie przez system ' . $org_h . '.
+    </p>
+  </td></tr>
+  <tr><td style="background:#f8fafc;padding:14px 32px;border-top:1px solid #f1f5f9;text-align:center">
+    <span style="font-size:11px;color:#94a3b8">' . $org_h . ' &mdash; System zarządzania</span>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>';
+
+    try {
+        approval_send_email($email, $subject, $body);
+    } catch (\Throwable $e) {
+        error_log('[users/deactivate mail] ' . $e->getMessage());
+    }
+}
 $errors   = [];
 require_once dirname(__DIR__) . '/includes/user_delete.php';
 $new_pass = null;
@@ -116,7 +162,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uid = intval($_POST['user_id'] ?? 0);
         $me  = current_user();
         if ($uid && $uid !== (int)$me['id']) {
-            $u = db_one("SELECT is_active, email FROM users WHERE id = ?", [$uid]);
+            $u = db_one(
+                "SELECT is_active, email,
+                        CASE WHEN first_name != '' AND last_name != ''
+                             THEN first_name || ' ' || last_name
+                             ELSE name END AS display_name
+                 FROM users WHERE id = ?",
+                [$uid]
+            );
             if ($u && $u['email'] === 'serwis@local') {
                 flash_set('danger', 'Konto systemowe SaaS jest chronione i nie może być dezaktywowane.');
             } elseif ($u) {
@@ -125,6 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_user_action($uid, (int)current_user()['id'], 'user_toggle',
                     $new ? 'Konto aktywowane' : 'Konto dezaktywowane');
                 user_sync_push(['email' => $u['email'], 'is_active' => $new]);
+
+                if ($new === 0 && $u['email']) {
+                    _users_send_deactivated_email($u['email'], $u['display_name'] ?? '');
+                }
+
                 flash_set('success', $new ? 'Użytkownik aktywowany.' : 'Użytkownik dezaktywowany.');
             }
         } else {
