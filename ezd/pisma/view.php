@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id    = (int)($_GET['id'] ?? 0);
@@ -27,7 +28,7 @@ if ($corr_enabled) {
 $zal  = ezd_zalaczniki_by($sprawa_id, $id);
 $user_id = (int)current_user()['id'];
 
-// POST: upload, del_file
+// POST: upload, del_file, send_email_pismo
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['_action'] ?? '';
@@ -41,10 +42,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_zal_delete($zid, $user_id);
         flash_set('success','Plik usunięty.');
     }
+    if ($action === 'send_email_pismo' && $can_act) {
+        $recipient = trim($_POST['recipient_email'] ?? '');
+        $zids      = array_map('intval', (array)($_POST['zal_ids'] ?? []));
+        if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            flash_set('error', 'Podaj prawidłowy adres e-mail odbiorcy.');
+        } elseif (!$zids) {
+            flash_set('error', 'Wybierz co najmniej jeden plik do wysłania.');
+        } else {
+            $attachments = [];
+            foreach ($zal as $z) {
+                if (!in_array((int)$z['id'], $zids, true)) continue;
+                if (strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)) !== 'pdf') continue;
+                $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/' . $z['filename'];
+                if (!is_file($path)) continue;
+                $attachments[] = [
+                    'path' => EZD_UPLOAD_SUBDIR . $sprawa_id . '/' . $z['filename'],
+                    'name' => $z['original_name'],
+                    'mime' => $z['mime_type'] ?: 'application/pdf',
+                    'size' => (int)$z['file_size'],
+                ];
+            }
+            if (!$attachments) {
+                flash_set('error', 'Nie znaleziono wybranych plików PDF.');
+            } else {
+                $subject = 'Pismo: ' . $pismo['title'] . ' (' . $pismo['sygnatura'] . ')';
+                $body_html = '<p>W załączeniu przesyłamy pismo:</p>'
+                    . '<p><strong>' . htmlspecialchars($pismo['title'], ENT_QUOTES) . '</strong><br>'
+                    . 'Sygnatura: <code>' . htmlspecialchars($pismo['sygnatura'], ENT_QUOTES) . '</code></p>'
+                    . '<p>— ' . htmlspecialchars(ORG_NAME, ENT_QUOTES) . '</p>';
+                mail_queue_add($recipient, '', $subject, $body_html, '', 'ezd_pismo', $id, '', true, $attachments);
+                ezd_log(null, $sprawa_id, $id, null, $user_id, 'pismo_email_sent',
+                    'Wysłano mailem do: ' . $recipient . ' (' . count($attachments) . ' plik/ów)');
+                flash_set('success', 'Pismo wysłane na adres ' . htmlspecialchars($recipient, ENT_QUOTES) . '.');
+            }
+        }
+    }
     header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
 }
 
 $kier = EZD_KIERUNKI[$pismo['kierunek']] ?? ['label'=>$pismo['kierunek'],'icon'=>'bi-envelope','class'=>'secondary'];
+
+$pdf_zal = array_filter($zal, fn($z) => strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)) === 'pdf');
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -83,6 +122,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
           <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
           <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+          <?php endif; ?>
+          <?php if($can_act && $pdf_zal): ?>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pismoEmailModal">
+            <i class="bi bi-send me-1"></i>Wyślij mailem
+          </button>
           <?php endif; ?>
         </div>
       </div>
@@ -228,4 +272,47 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_email_modal.php'; ?>
+
+<?php if($can_act && $pdf_zal): ?>
+<div class="modal fade" id="pismoEmailModal" tabindex="-1" aria-labelledby="pismoEmailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="send_email_pismo">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="pismoEmailModalLabel"><i class="bi bi-send me-1 text-primary"></i>Wyślij pismo mailem</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Adres e-mail odbiorcy</label>
+          <input type="email" name="recipient_email" class="form-control" required placeholder="odbiorca@example.com"
+                 value="<?= h($pismo['odbiorca'] && filter_var($pismo['odbiorca'], FILTER_VALIDATE_EMAIL) ? $pismo['odbiorca'] : '') ?>">
+          <div class="form-text">Wiadomość zostanie wysłana z konta domyślnego organizacji.</div>
+        </div>
+        <div class="mb-1">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Pliki PDF do wysłania</label>
+          <?php foreach($pdf_zal as $z): ?>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="zal_ids[]" value="<?= $z['id'] ?>" id="zml<?= $z['id'] ?>" checked>
+            <label class="form-check-label" for="zml<?= $z['id'] ?>" style="font-size:.82rem">
+              <i class="bi bi-file-earmark-pdf text-danger me-1"></i><?= h($z['original_name']) ?>
+              <span class="text-muted">(<?= ezd_filesize($z['file_size']) ?>)</span>
+            </label>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="alert alert-info py-2 mt-3 mb-0" style="font-size:.78rem">
+          <i class="bi bi-info-circle me-1"></i>Wysyłaj wyłącznie pliki podpisane elektronicznie.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Wyślij</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
