@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Wybierz decyzję.';
             } else {
                 // Weryfikacja kluczem WebAuthn (albo, gdy brak klucza, kodem IKAKS) + certyfikat X.509
-                $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '');
+                $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '', $_POST['bypass_ika'] ?? '');
                 if (!$auth['ok']) {
                     $errors[] = $auth['error'];
                 }
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $auth = null;
         if (!$errors) {
-            $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '');
+            $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '', $_POST['bypass_ika'] ?? '');
             if (!$auth['ok']) {
                 $errors[] = $auth['error'];
             }
@@ -362,6 +362,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="action" value="accept_all_steps">
         <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
         <input type="hidden" name="ikaks_reason" value="" class="kdok-ikaks-reason-value">
+        <input type="hidden" name="bypass_ika" value="" class="kdok-bypass-ika-value">
       </form>
     </div>
     <?php endif; ?>
@@ -418,6 +419,7 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="action" value="<?= $step_key ?>">
             <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
         <input type="hidden" name="ikaks_reason" value="" class="kdok-ikaks-reason-value">
+        <input type="hidden" name="bypass_ika" value="" class="kdok-bypass-ika-value">
             <div class="d-flex gap-3 mb-2 flex-wrap">
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status"
@@ -563,13 +565,20 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- ── Modal IKAKS — wspólny dla wszystkich kroków ─────────────────────────── -->
 <?php
-$my_cert          = kdok_cert_get((int)$user['id']);
-$cert_ok          = $my_cert && kdok_cert_is_valid($my_cert);
-$has_webauthn     = webauthn_user_has_keys((int)$user['id']);
-$has_ikaks        = kdok_ikaks_has((int)$user['id']);
-$auth_ready       = $cert_ok && ($has_webauthn || $has_ikaks);
-$ikaks_session_ok = !$has_webauthn && kdok_ikaks_session_ok((int)$user['id']);
-$ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user['id']) : null;
+$my_cert           = kdok_cert_get((int)$user['id']);
+$cert_ok           = $my_cert && kdok_cert_is_valid($my_cert);
+$has_webauthn      = webauthn_user_has_keys((int)$user['id']);
+$has_ikaks         = kdok_ikaks_has((int)$user['id']);
+$has_ms365         = !empty($user['microsoft_id']);
+$ms365_session_ok  = kdok_ms365_session_ok((int)$user['id']);
+$ms365_expires_at  = $ms365_session_ok ? kdok_ms365_session_expires_at((int)$user['id']) : null;
+$bypass_session_ok = $has_webauthn && kdok_bypass_session_ok((int)$user['id']);
+$bypass_expires_at = $bypass_session_ok ? kdok_bypass_session_expires_at((int)$user['id']) : null;
+$bypass_pending    = $has_webauthn && $ms365_session_ok && !$bypass_session_ok;
+$auth_ready        = $cert_ok && ($has_webauthn || $has_ms365 || $has_ikaks);
+$ikaks_session_ok  = !$has_webauthn && !$ms365_session_ok && kdok_ikaks_session_ok((int)$user['id']);
+$ikaks_expires_at  = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user['id']) : null;
+$stepup_url        = APP_URL . '/ksiegowosc/ms365_stepup.php?return_to=' . urlencode(APP_URL . '/ksiegowosc/view.php?id=' . $id);
 ?>
 <div class="modal fade" id="ikaksModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
@@ -583,24 +592,61 @@ $ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user
       </div>
       <div class="modal-body">
 
-        <!-- Status klucza WebAuthn -->
-        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-warning bg-warning bg-opacity-10' ?>">
+        <!-- Status klucza WebAuthn / metody auth -->
+        <?php if ($bypass_session_ok): ?>
+        <div class="mb-3 p-2 rounded border border-success bg-success bg-opacity-10">
           <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-warning' ?>"></i>
+            <i class="bi bi-shield-check-fill fs-4 text-success"></i>
             <div>
-              <?php if ($has_webauthn): ?>
+              <div class="fw-semibold">Bypass MS365 + IKA aktywny</div>
+              <div class="small text-muted">Ważny do <?= date('H:i', $bypass_expires_at) ?> — klucz WebAuthn nie jest teraz wymagany.</div>
+            </div>
+          </div>
+        </div>
+        <?php elseif ($bypass_pending): ?>
+        <div class="mb-3 p-2 rounded border border-info bg-info bg-opacity-10">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-microsoft fs-4 text-info"></i>
+            <div>
+              <div class="fw-semibold">Microsoft 365 zweryfikowane</div>
+              <div class="small text-muted">Podaj kod IKA poniżej, aby dokończyć autoryzację bez klucza WebAuthn.</div>
+            </div>
+          </div>
+        </div>
+        <?php elseif ($has_webauthn): ?>
+        <div class="mb-3 p-2 rounded border border-success bg-success bg-opacity-10">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-usb-symbol fs-4 text-success"></i>
+            <div>
               <div class="fw-semibold">Klucz WebAuthn zarejestrowany</div>
               <div class="small text-muted">Wymagana świeża weryfikacja kluczem sprzętowym.</div>
-              <?php else: ?>
+            </div>
+          </div>
+        </div>
+        <?php elseif ($has_ms365): ?>
+        <div class="mb-3 p-2 rounded border border-primary bg-primary bg-opacity-10">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-microsoft fs-4 text-primary"></i>
+            <div>
+              <div class="fw-semibold">Microsoft 365 dostępne</div>
+              <div class="small text-muted">Możesz potwierdzić tożsamość kontem Microsoft 365 zamiast kluczem WebAuthn.</div>
+            </div>
+          </div>
+        </div>
+        <?php else: ?>
+        <div class="mb-3 p-2 rounded border border-warning bg-warning bg-opacity-10">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-usb-symbol fs-4 text-warning"></i>
+            <div>
               <div class="fw-semibold text-warning-emphasis">Brak zarejestrowanego klucza WebAuthn</div>
               <div class="small text-muted">
                 Możesz awaryjnie użyć kodu IKAKS poniżej. Docelowo zarejestruj klucz w
                 <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
               </div>
-              <?php endif; ?>
             </div>
           </div>
         </div>
+        <?php endif; ?>
 
         <!-- Status certyfikatu -->
         <div class="mb-3 p-2 rounded border <?= $cert_ok ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
@@ -627,61 +673,109 @@ $ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user
         </div>
 
         <?php if (!$auth_ready): ?>
-        <div class="alert alert-danger mb-0">
-          Autoryzacja niemożliwa. Wymagany ważny certyfikat X.509 oraz zarejestrowany klucz WebAuthn
-          albo (awaryjnie) ustawiony kod IKAKS.
+        <div class=”alert alert-danger mb-0”>
+          Autoryzacja niemożliwa. Wymagany ważny certyfikat X.509 oraz zarejestrowany klucz WebAuthn,
+          powiązane konto Microsoft 365 albo (awaryjnie) ustawiony kod IKAKS.
           <?php if (!$my_cert): ?>
           Poproś admina o dodanie certyfikatu w
-          <a href="<?= APP_URL ?>/admin/kdok_certs.php">Certyfikaty X.509 i IKAKS</a>.
+          <a href=”<?= APP_URL ?>/admin/kdok_certs.php”>Certyfikaty X.509 i IKAKS</a>.
           <?php endif; ?>
         </div>
+
+        <?php elseif ($bypass_session_ok): ?>
+        <div class=”alert alert-success mb-0”>
+          <i class=”bi bi-check-circle-fill”></i> Bypass MS365 + IKA aktywny do
+          <strong><?= date('H:i', $bypass_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”.
+        </div>
+
+        <?php elseif ($bypass_pending): ?>
+        <div>
+          <label class=”form-label fw-semibold”>
+            <i class=”bi bi-key-fill text-info”></i>
+            Kod IKA — ostatni krok autoryzacji bez klucza
+          </label>
+          <input type=”password” id=”bypassIkaInput” class=”form-control form-control-lg”
+            placeholder=”6-cyfrowy kod IKA…” maxlength=”6” inputmode=”numeric” autocomplete=”off”>
+          <div class=”form-text mb-1”>
+            Twój kod IKA (6 cyfr) nadany przez administratora.
+          </div>
+          <div id=”bypassIkaError” class=”text-danger small mt-1” style=”display:none”>
+            Wpisz 6-cyfrowy kod IKA przed zatwierdzeniem.
+          </div>
+        </div>
+
         <?php elseif ($has_webauthn): ?>
-        <div id="webauthnStep">
-          <label class="form-label fw-semibold">
-            <i class="bi bi-usb-symbol text-primary"></i>
+        <div id=”webauthnStep”>
+          <label class=”form-label fw-semibold”>
+            <i class=”bi bi-usb-symbol text-primary”></i>
             Zweryfikuj kluczem WebAuthn
           </label>
-          <div class="form-text mt-0 mb-2">
+          <div class=”form-text mt-0 mb-2”>
             Po dotknięciu klucza decyzja zapisze się automatycznie.
           </div>
-          <div class="d-flex align-items-center gap-2">
-            <button type="button" id="webauthnConfirm" class="btn btn-primary">
-              <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn i zapisz
+          <div class=”d-flex align-items-center gap-2 flex-wrap”>
+            <button type=”button” id=”webauthnConfirm” class=”btn btn-primary”>
+              <i class=”bi bi-usb-plug”></i> Dotknij klucz WebAuthn i zapisz
             </button>
-            <span id="webauthnSpinner" class="spinner-border spinner-border-sm text-primary" style="display:none"></span>
-            <span id="webauthnOk" class="text-success fw-semibold" style="display:none">
-              <i class="bi bi-check-circle-fill"></i> Zweryfikowano
+            <span id=”webauthnSpinner” class=”spinner-border spinner-border-sm text-primary” style=”display:none”></span>
+            <span id=”webauthnOk” class=”text-success fw-semibold” style=”display:none”>
+              <i class=”bi bi-check-circle-fill”></i> Zweryfikowano
             </span>
           </div>
-          <div id="webauthnError" class="text-danger small mt-1" style="display:none"></div>
+          <div id=”webauthnError” class=”text-danger small mt-1” style=”display:none”></div>
+          <?php if ($has_ms365): ?>
+          <hr class=”my-3”>
+          <div class=”d-flex align-items-center gap-2 flex-wrap”>
+            <a href=”<?= $stepup_url ?>&bypass=1” class=”btn btn-sm btn-outline-secondary”>
+              <i class=”bi bi-microsoft me-1”></i>Nie mam klucza przy sobie…
+            </a>
+            <span class=”text-muted small”>Alternatywa: weryfikacja MS365 + kod IKA (ważna 24h)</span>
+          </div>
+          <?php endif; ?>
         </div>
+
+        <?php elseif ($ms365_session_ok): ?>
+        <div class=”alert alert-success mb-0”>
+          <i class=”bi bi-check-circle-fill”></i> Sesja Microsoft 365 aktywna do
+          <strong><?= date('H:i', $ms365_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”.
+        </div>
+
+        <?php elseif ($has_ms365): ?>
+        <div>
+          <p class=”mb-2 text-muted small”>
+            Zostaniesz przekierowany do Microsoft, aby potwierdzić tożsamość.
+            Po powrocie otwórz ponownie okno i kliknij „Potwierdź”.
+          </p>
+        </div>
+
         <?php elseif ($ikaks_session_ok): ?>
-        <div class="alert alert-success mb-0">
-          <i class="bi bi-check-circle-fill"></i> Sesja awaryjna IKAKS jest aktywna do
-          <strong><?= date('H:i', $ikaks_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”, bez ponownego podawania kodu.
+        <div class=”alert alert-success mb-0”>
+          <i class=”bi bi-check-circle-fill”></i> Sesja awaryjna IKAKS aktywna do
+          <strong><?= date('H:i', $ikaks_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”.
         </div>
+
         <?php else: ?>
         <div>
-          <label class="form-label fw-semibold">
-            <i class="bi bi-key-fill text-warning"></i>
+          <label class=”form-label fw-semibold”>
+            <i class=”bi bi-key-fill text-warning”></i>
             IKAKS — Indywidualny Kod Autoryzacyjny (awaryjnie, brak klucza WebAuthn)
           </label>
-          <input type="password" id="ikaksInput" class="form-control form-control-lg"
-            placeholder="Wpisz swój kod IKAKS…" autocomplete="off">
-          <div class="form-text mb-2">
+          <input type=”password” id=”ikaksInput” class=”form-control form-control-lg”
+            placeholder=”Wpisz swój kod IKAKS…” autocomplete=”off”>
+          <div class=”form-text mb-2”>
             Podaj kod IKAKS, który nadał Ci administrator. Możesz go zmienić w
-            <a href="<?= APP_URL ?>/user/kdok_ikaks.php" target="_blank">Moim profilu → IKAKS</a>.
+            <a href=”<?= APP_URL ?>/user/kdok_ikaks.php” target=”_blank”>Moim profilu → IKAKS</a>.
           </div>
-          <div id="ikaksError" class="text-danger small mt-1 mb-2" style="display:none">
+          <div id=”ikaksError” class=”text-danger small mt-1 mb-2” style=”display:none”>
             Wpisz kod IKAKS przed zatwierdzeniem.
           </div>
-          <label class="form-label fw-semibold">Powód użycia kodu IKAKS zamiast klucza WebAuthn</label>
-          <textarea id="ikaksReasonInput" class="form-control" rows="2"
-            placeholder="Np. klucz zgubiony/w naprawie, jeszcze nie zarejestrowany…"></textarea>
-          <div class="form-text">
+          <label class=”form-label fw-semibold”>Powód użycia kodu IKAKS zamiast klucza WebAuthn</label>
+          <textarea id=”ikaksReasonInput” class=”form-control” rows=”2”
+            placeholder=”Np. klucz zgubiony/w naprawie, jeszcze nie zarejestrowany…”></textarea>
+          <div class=”form-text”>
             Kod wystarczy podać raz na 6 godzin — kolejne decyzje w tym oknie czasowym nie wymagają ponownej autoryzacji.
           </div>
-          <div id="ikaksReasonError" class="text-danger small mt-1" style="display:none">
+          <div id=”ikaksReasonError” class=”text-danger small mt-1” style=”display:none”>
             Podaj powód użycia kodu IKAKS.
           </div>
         </div>
@@ -689,10 +783,16 @@ $ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <?php if ($auth_ready && !$has_webauthn): ?>
-        <button type="button" id="ikaksConfirm" class="btn btn-dark">
-          <i class="bi bi-shield-check"></i> Potwierdź autoryzację
-        </button>
+        <?php if ($auth_ready): ?>
+          <?php if ($has_ms365 && !$has_webauthn && !$ms365_session_ok): ?>
+          <a href="<?= $stepup_url ?>" class="btn btn-primary">
+            <i class="bi bi-microsoft me-1"></i>Autoryzuj przez Microsoft 365
+          </a>
+          <?php elseif (!$has_webauthn || $bypass_session_ok || $bypass_pending): ?>
+          <button type="button" id="ikaksConfirm" class="btn btn-dark">
+            <i class="bi bi-shield-check"></i> Potwierdź autoryzację
+          </button>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>
@@ -717,6 +817,8 @@ window.addEventListener('load', function () {
   var _reasonInp    = document.getElementById('ikaksReasonInput');
   var _reasonErrorEl= document.getElementById('ikaksReasonError');
   var _confirmBtn   = document.getElementById('ikaksConfirm');
+  var _bypassIkaInp = document.getElementById('bypassIkaInput');
+  var _bypassIkaErr = document.getElementById('bypassIkaError');
 
   // ── Krok WebAuthn ────────────────────────────────────────────────────────
   var _waBtn      = document.getElementById('webauthnConfirm');
@@ -857,6 +959,24 @@ window.addEventListener('load', function () {
 
   // ── Potwierdzenie ─────────────────────────────────────────────────────────
   function doConfirm() {
+    // Tryb bypass: MS365 zweryfikowane, brakuje kodu IKA
+    if (_bypassIkaInp) {
+      var code = _bypassIkaInp.value.replace(/\D/g, '');
+      if (!code) {
+        if (_bypassIkaErr) { _bypassIkaErr.textContent = 'Wpisz 6-cyfrowy kod IKA.'; _bypassIkaErr.style.display = ''; }
+        _bypassIkaInp.focus();
+        return;
+      }
+      if (_bypassIkaErr) _bypassIkaErr.style.display = 'none';
+      if (!_targetForm) return;
+      var bypassF = _targetForm.querySelector('.kdok-bypass-ika-value');
+      if (bypassF) bypassF.value = code;
+      var f0 = _targetForm;
+      bsModal().hide();
+      setTimeout(function () { f0.submit(); }, 150);
+      return;
+    }
+
     if (_inp) {
       // Tryb awaryjny: świeży kod IKAKS + powód (brak aktywnej sesji 6h)
       if (!_inp.value.trim()) {
@@ -920,6 +1040,8 @@ window.addEventListener('load', function () {
     if (_errorEl)       _errorEl.style.display = 'none';
     if (_reasonInp)     _reasonInp.value = '';
     if (_reasonErrorEl) _reasonErrorEl.style.display = 'none';
+    if (_bypassIkaInp)  _bypassIkaInp.value = '';
+    if (_bypassIkaErr)  _bypassIkaErr.style.display = 'none';
   });
 });
 

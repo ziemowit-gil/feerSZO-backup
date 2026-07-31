@@ -86,6 +86,39 @@ if (!$error) {
     }
 }
 
+// ── KDOK MS365 step-up — weryfikacja tożsamości bez nowego logowania ──────────
+// Użytkownik jest już zalogowany; ten redirect służy wyłącznie potwierdzeniu tożsamości.
+if (!$error && $redirect_after === '__kdok_ms365__' && !empty($_SESSION['kdok_ms365_step_up'])) {
+    $step_uid  = (int)$_SESSION['kdok_ms365_step_up'];
+    $return_to = $_SESSION['kdok_ms365_return_to'] ?? (APP_URL . '/ksiegowosc/');
+    $is_bypass = !empty($_SESSION['kdok_ms365_bypass']);
+    unset($_SESSION['kdok_ms365_step_up'], $_SESSION['kdok_ms365_return_to'], $_SESSION['kdok_ms365_bypass']);
+
+    $cur   = current_user();
+    $ms_id = $ms_user['id'] ?? '';
+    $ms_em = strtolower((string)($ms_user['mail'] ?? $ms_user['userPrincipalName'] ?? ''));
+
+    $identity_ok = $cur
+        && (int)$cur['id'] === $step_uid
+        && $ms_id !== ''
+        && ((string)($cur['microsoft_id'] ?? '') === $ms_id
+            || strtolower((string)($cur['email'] ?? '')) === $ms_em);
+
+    if ($identity_ok) {
+        require_once dirname(__DIR__) . '/includes/ksiegowosc.php';
+        kdok_ms365_mark($step_uid);
+        if ($is_bypass) {
+            flash_set('info', 'Microsoft 365 zweryfikowane. Otwórz ponownie okno autoryzacji i podaj kod IKA, aby dokończyć.');
+        } else {
+            flash_set('success', 'Microsoft 365 zweryfikowane. Możesz teraz autoryzować dokument.');
+        }
+    } else {
+        flash_set('error', 'Weryfikacja nie powiodła się — zalogowane konto nie pasuje do konta Microsoft 365.');
+    }
+    header('Location: ' . $return_to);
+    exit;
+}
+
 if (!$error) {
     $email = $ms_user['mail'] ?? $ms_user['userPrincipalName'];
     $name  = $ms_user['displayName'] ?? $email;

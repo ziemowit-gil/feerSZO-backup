@@ -553,25 +553,92 @@ function kdok_ikaks_session_expires_at(int $user_id): ?int {
     return (int)$_SESSION['kdok_ikaks_at'] + KDOK_IKAKS_SESSION_TTL;
 }
 
+// ── MS365 step-up — alternatywa gdy użytkownik nie ma klucza WebAuthn ─────────
+const KDOK_MS365_SESSION_TTL  = 21600; // 6h, jak IKAKS
+const KDOK_BYPASS_SESSION_TTL = 86400; // 24h dla bypassu WebAuthn (MS365 + IKA)
+
+// Oznacza udaną weryfikację tożsamości przez Microsoft 365
+function kdok_ms365_mark(int $user_id): void {
+    $_SESSION['kdok_ms365_uid'] = $user_id;
+    $_SESSION['kdok_ms365_at']  = time();
+}
+
+function kdok_ms365_session_ok(int $user_id): bool {
+    return !empty($_SESSION['kdok_ms365_uid'])
+        && (int)$_SESSION['kdok_ms365_uid'] === $user_id
+        && (time() - (int)($_SESSION['kdok_ms365_at'] ?? 0)) <= KDOK_MS365_SESSION_TTL;
+}
+
+function kdok_ms365_session_expires_at(int $user_id): ?int {
+    if (!kdok_ms365_session_ok($user_id)) return null;
+    return (int)$_SESSION['kdok_ms365_at'] + KDOK_MS365_SESSION_TTL;
+}
+
+// Oznacza pełny bypass WebAuthn (MS365 + kod IKA) — dla użytkowników z kluczem, gdy klucz
+// fizycznie niedostępny. Trwa 24h.
+function kdok_bypass_mark(int $user_id): void {
+    $_SESSION['kdok_bypass_uid'] = $user_id;
+    $_SESSION['kdok_bypass_at']  = time();
+}
+
+function kdok_bypass_session_ok(int $user_id): bool {
+    return !empty($_SESSION['kdok_bypass_uid'])
+        && (int)$_SESSION['kdok_bypass_uid'] === $user_id
+        && (time() - (int)($_SESSION['kdok_bypass_at'] ?? 0)) <= KDOK_BYPASS_SESSION_TTL;
+}
+
+function kdok_bypass_session_expires_at(int $user_id): ?int {
+    if (!kdok_bypass_session_ok($user_id)) return null;
+    return (int)$_SESSION['kdok_bypass_at'] + KDOK_BYPASS_SESSION_TTL;
+}
+
 /**
- * Weryfikuje klucz WebAuthn (albo, gdy użytkownik nie ma zarejestrowanego klucza,
- * kod IKAKS jako awaryjną alternatywę) + certyfikat przed akceptacją kroku.
- * Pierwsze awaryjne użycie IKAKS w danym oknie 6h wymaga podania powodu (audytowalne);
- * kolejne decyzje w tym oknie nie proszą już ani o kod, ani o powód.
+ * Weryfikuje klucz WebAuthn (albo alternatywne metody) + certyfikat przed akceptacją kroku.
+ *
+ * Hierarchia dla użytkownika Z kluczem WebAuthn:
+ *   1. Aktywna sesja bypass (MS365 + IKA, 24h) — nie wymaga klucza
+ *   2. Krok bypassu w toku: sesja MS365 aktywna + podany kod IKA → ustanawia bypass
+ *   3. Świeża weryfikacja kluczem WebAuthn (domyślna ścieżka)
+ *   Opcja „Nie mam klucza przy sobie" inicjuje flow: MS365 redirect → powrót → podanie IKA.
+ *
+ * Hierarchia dla użytkownika BEZ klucza:
+ *   1. Aktywna sesja MS365 (6h)
+ *   2. Aktywna sesja IKAKS (6h)
+ *   3. Nowa weryfikacja kodem IKAKS + powód
+ *
  * Zwraca ['ok'=>bool, 'error'=>string|null, 'cert'=>array|null, 'display_name'=>string,
  *         'ikaks_reason_logged'=>string|null].
  */
-function kdok_auth_verify(int $user_id, string $ika_plain = '', string $ika_reason = ''): array {
+function kdok_auth_verify(int $user_id, string $ika_plain = '', string $ika_reason = '', string $bypass_ika = ''): array {
     require_once __DIR__ . '/webauthn.php';
     webauthn_migrate();
 
     $ikaks_reason_logged = null;
 
     if (webauthn_user_has_keys($user_id)) {
-        // Ma zarejestrowany klucz — wymagana świeża weryfikacja WebAuthn
-        if (!kdok_webauthn_check($user_id)) {
-            return ['ok' => false, 'error' => 'Wymagana świeża weryfikacja kluczem WebAuthn. Dotknij klucza sprzętowego i spróbuj ponownie.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+        if (kdok_bypass_session_ok($user_id)) {
+            // Aktywna 24h sesja bypass (MS365 + IKA) — klucz nie jest wymagany
+        } elseif (kdok_ms365_session_ok($user_id)) {
+            // MS365 potwierdzone — teraz wymaga kodu IKA, żeby ustanowić bypass
+            require_once __DIR__ . '/cpc.php';
+            $code = preg_replace('/\D/', '', $bypass_ika);
+            if (empty($code)) {
+                return ['ok' => false, 'error' => 'Podaj kod IKA (6 cyfr), aby dokończyć autoryzację bez klucza WebAuthn.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+            }
+            $res = cpc_verify($user_id, $code);
+            if ($res['blocked']) {
+                return ['ok' => false, 'error' => 'Kod IKA zablokowany po zbyt wielu błędnych próbach. Spróbuj ponownie za 15 minut.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+            }
+            if (!$res['ok']) {
+                $left = max(0, 3 - (int)($res['fails'] ?? 0));
+                return ['ok' => false, 'error' => 'Nieprawidłowy kod IKA.' . ($left > 0 ? ' Pozostało prób: ' . $left . '.' : ''), 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+            }
+            kdok_bypass_mark($user_id);
+        } elseif (!kdok_webauthn_check($user_id)) {
+            return ['ok' => false, 'error' => 'Wymagana świeża weryfikacja kluczem WebAuthn. Dotknij klucza sprzętowego lub skorzystaj z opcji „Nie mam klucza przy sobie".', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
         }
+    } elseif (kdok_ms365_session_ok($user_id)) {
+        // Brak klucza WebAuthn, ale aktywna sesja MS365 — wystarczająca autoryzacja
     } elseif (!kdok_ikaks_session_ok($user_id)) {
         // Brak zarejestrowanego klucza i brak aktywnej sesji awaryjnej — wymagany kod IKAKS + powód
         if (!kdok_ikaks_has($user_id)) {
@@ -586,7 +653,7 @@ function kdok_auth_verify(int $user_id, string $ika_plain = '', string $ika_reas
         kdok_ikaks_mark($user_id);
         $ikaks_reason_logged = trim($ika_reason);
     }
-    // else: aktywna sesja awaryjna IKAKS (ustanowiona w ciągu ostatnich 6h) — nic więcej nie pytamy
+    // else: aktywna sesja awaryjna IKAKS lub MS365 (ustanowiona w ciągu ostatnich 6h)
 
     // Certyfikat X.509
     $cert = kdok_cert_get($user_id);
