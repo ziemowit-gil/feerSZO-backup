@@ -33,6 +33,7 @@ $dokumenty   = ezd_dokumenty_by_sprawa($id);
 $notatki     = ezd_notatki_by_sprawa($id);
 $grupy       = ezd_grupy_by_sprawa($id);
 $shares      = ezd_sprawa_share_list($id);
+try { $strony = db_all("SELECT s.*, c.imie_nazwisko AS crm_name FROM ezd_strony s LEFT JOIN crm_contacts c ON c.id=s.crm_id WHERE s.sprawa_id=? ORDER BY s.created_at", [$id]); } catch (\Throwable $e) { $strony = []; }
 
 // Pliki repozytorium pogrupowane: grupa_id => [pliki], 0 => bez grupy
 $grupy_map = [];
@@ -120,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'rodzaj_medium' => $_POST['rodzaj_medium'] ?? 'papier',
             ], $user_id);
             flash_set('success', 'Pismo dodane.');
-            header('Location: ' . APP_URL . '/ezd/pisma/view.php?id=' . $pid); exit;
+            header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#tab-pisma'); exit;
         } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#pisma'); exit;
     }
@@ -325,6 +326,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
+    }
+
+    if ($action === 'strona_add' && $can_manage_share) {
+        $strona_name  = trim($_POST['strona_name']  ?? '');
+        $strona_crm   = (int)($_POST['strona_crm_id'] ?? 0) ?: null;
+        $strona_rola  = trim($_POST['strona_rola']  ?? '');
+        if ($strona_name) {
+            db()->exec("CREATE TABLE IF NOT EXISTS ezd_strony (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sprawa_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                crm_id INTEGER DEFAULT NULL,
+                rola TEXT NOT NULL DEFAULT '',
+                created_by INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )");
+            db()->prepare("INSERT INTO ezd_strony (sprawa_id,name,crm_id,rola,created_by) VALUES (?,?,?,?,?)")
+               ->execute([$id, $strona_name, $strona_crm, $strona_rola, $user_id]);
+            flash_set('success', 'Strona dodana.');
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '?share=1#tab-uczestnicy'); exit;
+    }
+    if ($action === 'strona_del' && $can_manage_share) {
+        $sid = (int)($_POST['strona_id'] ?? 0);
+        try { db()->prepare("DELETE FROM ezd_strony WHERE id=? AND sprawa_id=?")->execute([$sid, $id]); } catch (\Throwable $e) {}
+        flash_set('success', 'Stronę usunięto.');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '?share=1#tab-uczestnicy'); exit;
     }
 
     header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
@@ -742,10 +770,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <!-- ══ Tabs ════════════════════════════════════════════════════════════════════ -->
 <ul class="nav sp-tabs mt-3" id="sprawaTabs">
-  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-zadania"><i class="bi bi-person-lines-fill me-1"></i>ZADANIA<?php $pend = count(array_filter($dekretacje,fn($d)=>$d['status']==='oczekuje')); if($pend): ?> <span class="badge bg-warning text-dark ms-1"><?= $pend ?></span><?php endif; ?></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-pisma"><i class="bi bi-envelope me-1"></i>PISMA <span class="badge bg-secondary ms-1"><?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?></span></a></li>
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-pisma"><i class="bi bi-envelope me-1"></i>PISMA <span class="badge bg-secondary ms-1"><?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?></span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-zadania"><i class="bi bi-person-lines-fill me-1"></i>ZADANIA<?php $pend = count(array_filter($dekretacje,fn($d)=>$d['status']==='oczekuje')); if($pend): ?> <span class="badge bg-warning text-dark ms-1"><?= $pend ?></span><?php endif; ?></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-meta"><i class="bi bi-info-circle me-1"></i>METADANE</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-uczestnicy"><i class="bi bi-people me-1"></i>UCZESTNICY<?php if($shares): ?> <span class="badge bg-info ms-1"><?= count($shares) ?></span><?php endif; ?></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-uczestnicy"><i class="bi bi-people me-1"></i>UCZESTNICY<?php if($shares||$strony): ?> <span class="badge bg-info ms-1"><?= count($shares)+count($strony) ?></span><?php endif; ?></a></li>
   <?php if(!$mini): ?><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-przebieg"><i class="bi bi-diagram-2 me-1"></i>PRZEBIEG SPRAWY</a></li><?php endif; ?>
   <?php if($podsprawy): ?><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-podkoszulki"><i class="bi bi-diagram-3 me-1"></i>PODKOSZULKI <span class="badge bg-secondary ms-1"><?= count($podsprawy) ?></span></a></li><?php endif; ?>
 </ul>
@@ -753,7 +781,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="tab-content">
 
   <!-- ZADANIA: dekretacje -->
-  <div class="tab-pane fade show active sp-tab-pane" id="tab-zadania">
+  <div class="tab-pane fade sp-tab-pane" id="tab-zadania">
     <?php if($can_act): ?>
     <div class="mb-3">
       <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#dekrModal">
@@ -793,12 +821,52 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 
   <!-- PISMA: timeline -->
-  <div class="tab-pane fade sp-tab-pane" id="tab-pisma">
+  <div class="tab-pane fade show active sp-tab-pane" id="tab-pisma">
     <?php if($can_act): ?>
     <div class="mb-3">
-      <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
-        <i class="bi bi-envelope-plus me-1"></i>Nowe pismo
-      </button>
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <!-- Quick-pick: kierunek × medium -->
+        <div class="border rounded overflow-hidden" style="font-size:.72rem">
+          <?php
+          $qk = ['przychodzace' => ['↓ P.Przychodzące','info'],
+                 'wychodzace'   => ['↑ P.Wychodzące','primary']];
+          $qm = ['papier'=>['bi-file-earmark-text','Papier'],
+                 'email' =>['bi-at','E-mail'],
+                 'epuap' =>['bi-shield-lock','ePUAP'],
+                 'faks'  =>['bi-printer','Faks']];
+          foreach($qk as $kv=>[$klabel,$kclass]): ?>
+          <div class="d-flex align-items-center">
+            <span class="px-2 py-1 fw-semibold text-<?= $kclass ?> border-end text-nowrap" style="min-width:110px;background:#f8fafc"><?= $klabel ?></span>
+            <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
+            <button type="button" class="btn btn-link px-2 py-1 border-end text-dark ezd-pm-pick"
+                    data-kierunek="<?= $kv ?>" data-medium="<?= $mv ?>"
+                    title="<?= $klabel ?> · <?= $mlabel ?>" style="text-decoration:none;font-size:.7rem">
+              <i class="bi <?= $micon ?>"></i><span class="d-none d-sm-inline ms-1"><?= $mlabel ?></span>
+            </button>
+            <?php endforeach; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <!-- Notatka wewnętrzna -->
+        <button type="button" class="btn btn-sm btn-outline-secondary ezd-notatka-btn">
+          <i class="bi bi-sticky me-1"></i>Notatka
+        </button>
+      </div>
+      <!-- Notatka inline (ukryta) -->
+      <form method="post" class="mt-2 d-none" id="notatkaInlineForm">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="pismo_add">
+        <input type="hidden" name="kierunek" value="wewnetrzne">
+        <input type="hidden" name="rodzaj_medium" value="inne">
+        <input type="hidden" name="title" value="Notatka wewnętrzna">
+        <div class="d-flex gap-2 align-items-start">
+          <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Treść notatki…" style="font-size:.82rem" required></textarea>
+          <div class="d-flex flex-column gap-1">
+            <button type="submit" class="btn btn-sm btn-secondary"><i class="bi bi-check-lg"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="notatkaInlineCancel"><i class="bi bi-x"></i></button>
+          </div>
+        </div>
+      </form>
     </div>
     <?php endif; ?>
     <?php if($timeline): ?>
@@ -889,7 +957,64 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <!-- UCZESTNICY: współdzielenie -->
   <div class="tab-pane fade sp-tab-pane" id="tab-uczestnicy">
-    <p class="text-muted mb-3" style="font-size:.82rem">Osoby z dostępem do tej koszulki poza właścicielem i rolami globalnymi.</p>
+
+    <!-- Strony / uczestnicy zewnętrzni -->
+    <div class="fw-semibold mb-2" style="font-size:.8rem"><i class="bi bi-person-vcard me-1 text-primary"></i>Strony / uczestnicy</div>
+    <?php if($strony): ?>
+    <ul class="list-group list-group-flush mb-3">
+      <?php foreach($strony as $st): ?>
+      <li class="list-group-item d-flex align-items-center gap-2 px-0" style="font-size:.84rem">
+        <i class="bi bi-building text-muted"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold"><?= h($st['name']) ?></div>
+          <div class="text-muted" style="font-size:.72rem">
+            <?php if($st['rola']): ?><span class="badge bg-light text-dark border me-1"><?= h($st['rola']) ?></span><?php endif; ?>
+            <?php if($st['crm_id']): ?><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $st['crm_id'] ?>" class="text-decoration-none text-info" style="font-size:.7rem"><i class="bi bi-link-45deg"></i> CRM</a><?php endif; ?>
+          </div>
+        </div>
+        <?php if($can_manage_share): ?>
+        <form method="post" onsubmit="return confirm('Usunąć stronę?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="strona_del">
+          <input type="hidden" name="strona_id" value="<?= (int)$st['id'] ?>">
+          <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle"></i></button>
+        </form>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
+    <div class="text-muted mb-3" style="font-size:.82rem">Brak stron / uczestników w tej koszulce.</div>
+    <?php endif; ?>
+    <?php if($can_manage_share): ?>
+    <form method="post" class="d-flex flex-column gap-2 mb-4" style="max-width:400px">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="strona_add">
+      <input type="hidden" name="strona_crm_id" id="stranaCrmId" value="">
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.8rem">Nazwa strony <span class="text-danger">*</span></label>
+        <input type="text" name="strona_name" id="stranaName" class="form-control form-control-sm" required
+               placeholder="Wpisz lub zacznij szukać w CRM…" autocomplete="off">
+        <div id="stranaCrmSuggestions" class="list-group mt-1" style="position:absolute;z-index:500;min-width:300px;max-height:180px;overflow-y:auto;display:none"></div>
+      </div>
+      <div><label class="form-label fw-semibold" style="font-size:.8rem">Rola</label>
+        <select name="strona_rola" class="form-select form-select-sm">
+          <option value="">— brak —</option>
+          <option value="Wnioskodawca">Wnioskodawca</option>
+          <option value="Strona">Strona</option>
+          <option value="Pełnomocnik">Pełnomocnik</option>
+          <option value="Świadek">Świadek</option>
+          <option value="Uczestnik">Uczestnik</option>
+        </select>
+      </div>
+      <button class="btn btn-sm btn-primary" style="align-self:flex-start"><i class="bi bi-person-plus me-1"></i>Dodaj stronę</button>
+    </form>
+    <?php endif; ?>
+
+    <hr class="my-3">
+
+    <!-- Dostęp wewnętrzny (współdzielenie) -->
+    <div class="fw-semibold mb-2" style="font-size:.8rem"><i class="bi bi-person-lock me-1 text-secondary"></i>Dostęp wewnętrzny</div>
     <?php if($shares): ?>
     <ul class="list-group list-group-flush mb-3">
       <?php foreach($shares as $sh): ?>
@@ -914,7 +1039,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="text-muted mb-3" style="font-size:.82rem">Koszulka nie jest współdzielona z dodatkowymi osobami.</div>
     <?php endif; ?>
     <?php if($can_manage_share): ?>
-    <form method="post" class="d-flex flex-column gap-2 pt-3 border-top" style="max-width:360px">
+    <form method="post" class="d-flex flex-column gap-2" style="max-width:360px">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="share_add">
       <div class="fw-semibold" style="font-size:.82rem">Udostępnij nowej osobie</div>
@@ -1025,6 +1150,102 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 </div><!-- /tab-content -->
 
+<script>
+(function(){
+  // ── Quick-pick kierunek × medium → pismoModal ─────────────────────────────
+  document.querySelectorAll('.ezd-pm-pick').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var kier   = this.dataset.kierunek;
+      var medium = this.dataset.medium;
+      // Zaznacz kierunek
+      var radio = document.querySelector('[name="kierunek"][value="'+kier+'"]');
+      if (radio) radio.checked = true;
+      // Ustaw medium
+      var sel = document.getElementById('pm-medium');
+      if (sel) sel.value = medium;
+      // Pokaż ostrzeżenie ePUAP jeśli wychodzące
+      epuapWarn(kier, medium);
+      // Otwórz modal
+      var m = document.getElementById('pismoModal');
+      if (m) bootstrap.Modal.getOrCreateInstance(m).show();
+      // Focus na title
+      setTimeout(function(){ var t=document.getElementById('pm-title'); if(t) t.focus(); }, 300);
+    });
+  });
+
+  // ── Ostrzeżenie ePUAP ────────────────────────────────────────────────────
+  function epuapWarn(kier, medium) {
+    var warn = document.getElementById('pm-epuap-warn');
+    if (!warn) return;
+    var show = (medium === 'epuap') && (kier === 'wychodzace');
+    warn.style.display = show ? '' : 'none';
+  }
+  var pmMed = document.getElementById('pm-medium');
+  if (pmMed) {
+    pmMed.addEventListener('change', function(){
+      var kier = (document.querySelector('[name="kierunek"]:checked')||{}).value||'';
+      epuapWarn(kier, this.value);
+    });
+    document.querySelectorAll('[name="kierunek"]').forEach(function(r){
+      r.addEventListener('change', function(){
+        epuapWarn(this.value, pmMed.value);
+      });
+    });
+  }
+
+  // ── Notatka inline toggle ────────────────────────────────────────────────
+  var notatkaBtn  = document.querySelector('.ezd-notatka-btn');
+  var notatkaForm = document.getElementById('notatkaInlineForm');
+  var notatkaCancel = document.getElementById('notatkaInlineCancel');
+  if (notatkaBtn && notatkaForm) {
+    notatkaBtn.addEventListener('click', function(){
+      notatkaForm.classList.toggle('d-none');
+      if (!notatkaForm.classList.contains('d-none')) {
+        var ta = notatkaForm.querySelector('textarea');
+        if (ta) ta.focus();
+      }
+    });
+    if (notatkaCancel) notatkaCancel.addEventListener('click', function(){ notatkaForm.classList.add('d-none'); });
+  }
+
+  // ── CRM autocomplete dla strony ──────────────────────────────────────────
+  var stranaInput = document.getElementById('stranaName');
+  var stranaSugg  = document.getElementById('stranaCrmSuggestions');
+  var stranaCrmId = document.getElementById('stranaCrmId');
+  if (stranaInput && stranaSugg && stranaCrmId) {
+    var crmTimer = null;
+    stranaInput.addEventListener('input', function(){
+      stranaCrmId.value = '';
+      clearTimeout(crmTimer);
+      var q = this.value.trim();
+      if (q.length < 2) { stranaSugg.style.display='none'; stranaSugg.innerHTML=''; return; }
+      crmTimer = setTimeout(function(){
+        fetch('<?= APP_URL ?>/crm/api/contacts_search.php?q='+encodeURIComponent(q)+'&limit=8', {credentials:'same-origin'})
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (!data.length) { stranaSugg.style.display='none'; return; }
+            stranaSugg.innerHTML = data.map(function(c){
+              return '<button type="button" class="list-group-item list-group-item-action py-1 px-2 text-start" style="font-size:.8rem" data-id="'+c.id+'" data-name="'+h(c.name)+'">'+
+                '<strong>'+h(c.name)+'</strong>'+(c.organizacja?'<span class="text-muted ms-1">'+h(c.organizacja)+'</span>':'')+
+              '</button>';
+            }).join('');
+            stranaSugg.style.display = '';
+            stranaSugg.querySelectorAll('button').forEach(function(b){
+              b.addEventListener('click', function(){
+                stranaInput.value  = this.dataset.name;
+                stranaCrmId.value  = this.dataset.id;
+                stranaSugg.style.display = 'none';
+              });
+            });
+          }).catch(function(){});
+      }, 280);
+    });
+    document.addEventListener('click', function(e){ if (!stranaInput.contains(e.target)) stranaSugg.style.display='none'; });
+    function h(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+  }
+})();
+</script>
+
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_email_modal.php'; ?>
 
@@ -1071,6 +1292,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   var tabTarget = null;
   if (hash === '#dekretacje' || hash === '#workflow' || hash === '#pisma') {
     tabTarget = {'#dekretacje':'tab-zadania','#workflow':'tab-przebieg','#pisma':'tab-pisma'}[hash];
+  }
+  if (hash === '#tab-pisma' || hash === '#tab-zadania' || hash === '#tab-uczestnicy' || hash === '#tab-meta') {
+    tabTarget = hash.slice(1);
   }
   if (tabTarget && window.bootstrap) {
     var el = document.querySelector('[href="#'+tabTarget+'"]');
@@ -1179,6 +1403,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <select name="rodzaj_medium" id="pm-medium" class="form-select">
                 <?php foreach(EZD_MEDIA as $mv=>$ml): ?><option value="<?= $mv ?>" <?= $mv==='papier'?'selected':'' ?>><?= h($ml['label']) ?></option><?php endforeach; ?>
               </select>
+              <div id="pm-epuap-warn" class="alert alert-warning py-1 px-2 mt-1" style="font-size:.75rem;display:none">
+                <i class="bi bi-exclamation-triangle me-1"></i>Pismo przez ePUAP/eDoręczenia wymaga <strong>podpisu elektronicznego</strong> na załączonym pliku PDF.
+              </div>
             </div>
             <div class="col-6">
               <label class="form-label fw-semibold" for="pm-owner">Referent</label>
