@@ -104,13 +104,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php if($zal): ?>
       <div>
         <?php foreach($zal as $z): ?>
+        <?php $zext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)); ?>
         <div class="zal-row">
           <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5"></i>
           <div class="flex-grow-1 overflow-hidden">
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" target="_blank" class="text-decoration-none fw-semibold text-truncate d-block" style="font-size:.82rem"><?= h($z['original_name']) ?></a>
             <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · v<?= $z['wersja'] ?> · <?= h($z['uploader']??'—') ?> · <?= date('d.m.Y H:i',strtotime($z['uploaded_at'])) ?></div>
           </div>
-          <?php if (in_array(strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)), EZD_OFFICE_ONLINE_EXT, true)): ?>
+          <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
+          <button type="button" class="btn btn-sm btn-outline-primary ezd-email-btn flex-shrink-0"
+                  data-id="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"
+                  title="Podgląd wiadomości e-mail"><i class="bi bi-envelope-open"></i></button>
+          <?php endif; ?>
+          <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
           <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
           <?php if (!empty($z['sp_web_url'])): ?>
           <button type="button" class="btn btn-sm btn-outline-success ezd-oop-btn" title="Zapisz zmiany z Office Online"
@@ -221,4 +227,5 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   </div>
 </div>
+<?php include dirname(dirname(__DIR__)) . '/includes/ezd_email_modal.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

@@ -588,6 +588,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm ezd-pdf-btn"
                data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>" title="Podgląd PDF"><i class="bi bi-eye"></i></a>
             <?php endif; ?>
+            <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
+            <button type="button" class="btn btn-xs btn-outline-primary btn-sm ezd-email-btn flex-shrink-0"
+                    data-id="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"
+                    title="Podgląd wiadomości e-mail"><i class="bi bi-envelope-open"></i></button>
+            <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if(module_enabled('obiegi_enabled')): ?>
             <a href="<?= APP_URL ?>/obiegi/new.php?ezd_sprawa_id=<?= $id ?>&ezd_zalacznik_id=<?= $z['id'] ?>"
@@ -701,6 +706,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
 
     <?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
+    <?php include dirname(dirname(__DIR__)) . '/includes/ezd_email_modal.php'; ?>
 
     <!-- Modal: przenieś plik do innej grupy -->
     <div class="modal fade" id="zalMoveGroupModal" tabindex="-1" aria-labelledby="zalMoveGroupModalLabel" aria-hidden="true">
