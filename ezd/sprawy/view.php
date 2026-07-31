@@ -826,30 +826,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="mb-3">
       <div class="d-flex align-items-start gap-2 flex-wrap">
         <!-- Quick-pick: kierunek × medium -->
-        <div class="border rounded overflow-hidden" style="font-size:.72rem">
+        <div class="d-flex flex-column gap-2">
           <?php
-          $qk = ['przychodzace' => ['↓ P.Przychodzące','info'],
-                 'wychodzace'   => ['↑ P.Wychodzące','primary']];
+          $qk = ['przychodzace' => ['↓ Przychodzące','info'],
+                 'wychodzace'   => ['↑ Wychodzące','primary']];
           $qm = ['papier'=>['bi-file-earmark-text','Papier'],
                  'email' =>['bi-at','E-mail'],
                  'epuap' =>['bi-shield-lock','ePUAP'],
                  'faks'  =>['bi-printer','Faks']];
           foreach($qk as $kv=>[$klabel,$kclass]): ?>
-          <div class="d-flex align-items-center">
-            <span class="px-2 py-1 fw-semibold text-<?= $kclass ?> border-end text-nowrap" style="min-width:110px;background:#f8fafc"><?= $klabel ?></span>
-            <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
-            <button type="button" class="btn btn-link px-2 py-1 border-end text-dark ezd-pm-pick"
-                    data-kierunek="<?= $kv ?>" data-medium="<?= $mv ?>"
-                    title="<?= $klabel ?> · <?= $mlabel ?>" style="text-decoration:none;font-size:.7rem">
-              <i class="bi <?= $micon ?>"></i><span class="d-none d-sm-inline ms-1"><?= $mlabel ?></span>
-            </button>
-            <?php endforeach; ?>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-<?= $kclass ?> text-nowrap fw-semibold" style="font-size:.72rem;min-width:100px;text-align:center"><?= $klabel ?></span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Nowe pismo <?= $klabel ?>">
+              <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
+              <button type="button" class="btn btn-outline-secondary ezd-pm-pick"
+                      data-kierunek="<?= $kv ?>" data-medium="<?= $mv ?>"
+                      title="<?= $klabel ?> · <?= $mlabel ?>">
+                <i class="bi <?= $micon ?>" aria-hidden="true"></i> <?= $mlabel ?>
+              </button>
+              <?php endforeach; ?>
+            </div>
           </div>
           <?php endforeach; ?>
         </div>
         <!-- Notatka wewnętrzna -->
-        <button type="button" class="btn btn-sm btn-outline-secondary ezd-notatka-btn">
-          <i class="bi bi-sticky me-1"></i>Notatka
+        <button type="button" class="btn btn-sm btn-outline-secondary ezd-notatka-btn align-self-start">
+          <i class="bi bi-sticky me-1" aria-hidden="true"></i>Notatka
         </button>
       </div>
       <!-- Notatka inline (ukryta) -->

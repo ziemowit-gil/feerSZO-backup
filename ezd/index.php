@@ -53,6 +53,20 @@ $my_pisma = db_all(
     [$user_id]
 );
 
+// Nowe pisma w jednostce (wszystkie przychodzące ≤ 14 dni LUB status=nowe)
+$nowe_pisma_jedn = [];
+try {
+    $nowe_pisma_jedn = db_all(
+        "SELECT p.*, s.znak_sprawy, s.title AS sprawa_title
+         FROM ezd_pisma p
+         JOIN ezd_sprawy s ON s.id=p.sprawa_id
+         WHERE p.kierunek='przychodzace'
+           AND (p.status='nowe' OR p.created_at >= date('now','-14 days'))
+         ORDER BY p.created_at DESC LIMIT 12"
+    );
+} catch (\Throwable $e) { $nowe_pisma_jedn = []; }
+$nowe_pisma_jedn_cnt = count($nowe_pisma_jedn);
+
 $my_sprawy_cnt = (int)(db_one(
     "SELECT COUNT(*) c FROM ezd_sprawy s WHERE s.status!='closed' AND (s.owner_id=? OR s.created_by=?
      OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))",
@@ -522,6 +536,14 @@ include dirname(__DIR__) . '/includes/header.php';
             <span class="badge bg-secondary rounded-pill ms-1"><?= $my_pisma_cnt ?></span>
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link py-1" data-bs-toggle="tab" href="#tab-nowe-pisma">
+            <i class="bi bi-envelope-arrow-down me-1 text-info"></i>Nowe pisma
+            <?php if ($nowe_pisma_jedn_cnt): ?>
+            <span class="badge bg-info rounded-pill ms-1"><?= $nowe_pisma_jedn_cnt ?></span>
+            <?php endif; ?>
+          </a>
+        </li>
       </ul>
       <div class="tab-content p-0">
         <div class="tab-pane fade show active" id="tab-moje-sprawy">
@@ -567,6 +589,43 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php endforeach; else: ?>
           <div class="text-muted text-center py-3" style="font-size:.8rem">Nie jesteś referentem żadnego pisma</div>
           <?php endif; ?>
+        </div>
+
+        <!-- Nowe pisma w jednostce -->
+        <div class="tab-pane fade" id="tab-nowe-pisma">
+          <?php if ($nowe_pisma_jedn): foreach ($nowe_pisma_jedn as $p):
+            $k = EZD_KIERUNKI[$p['kierunek']] ?? ['icon'=>'bi-envelope','class'=>'secondary'];
+            $med = ['papier'=>'','email'=>'E-mail','epuap'=>'ePUAP','faks'=>'Faks','inne'=>''][$p['rodzaj_medium']??''] ?? '';
+          ?>
+          <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom ezdd-row-link"
+               style="font-size:.8rem;cursor:pointer"
+               onclick="location='<?= APP_URL ?>/ezd/pisma/view.php?id=<?= (int)$p['id'] ?>'">
+            <i class="bi bi-envelope-arrow-down text-info flex-shrink-0" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <div class="fw-semibold text-truncate"><?= h($p['title']) ?></div>
+              <div class="text-muted" style="font-size:.68rem">
+                <span class="font-monospace"><?= h($p['sygnatura'] ?: '—') ?></span>
+                · <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$p['sprawa_id'] ?>"
+                     class="text-decoration-none text-muted" onclick="event.stopPropagation()">
+                    <?= h(mb_substr($p['sprawa_title'] ?? '', 0, 35)) ?>
+                  </a>
+              </div>
+            </div>
+            <?php if ($med): ?>
+            <span class="badge bg-light text-dark border flex-shrink-0" style="font-size:.58rem"><?= $med ?></span>
+            <?php endif; ?>
+            <span class="badge bg-<?= $p['status']==='nowe'?'info':'light text-dark border' ?> flex-shrink-0" style="font-size:.58rem"><?= h($p['status']) ?></span>
+            <div class="text-muted flex-shrink-0" style="font-size:.68rem"><?= date('d.m', strtotime($p['created_at'])) ?></div>
+          </div>
+          <?php endforeach; else: ?>
+          <div class="text-muted text-center py-4" style="font-size:.8rem">
+            <i class="bi bi-envelope-check text-info" style="font-size:1.8rem;display:block;margin-bottom:.4rem;opacity:.4"></i>
+            Brak nowych pism przychodzących z ostatnich 14 dni
+          </div>
+          <?php endif; ?>
+          <div class="px-3 py-2" style="font-size:.75rem">
+            <a href="<?= APP_URL ?>/ezd/pisma/add.php" class="text-primary text-decoration-none fw-semibold">Zarejestruj pismo →</a>
+          </div>
         </div>
       </div>
     </div>

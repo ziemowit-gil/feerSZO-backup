@@ -95,7 +95,7 @@ $uid = 'kp' . $id; // unikalne prefiksy id dla WCAG (wielokrotne otwieranie tego
     <?php if ($can_act): ?>
     <div class="mb-3">
       <div class="d-flex align-items-start gap-2 flex-wrap">
-        <div class="border rounded overflow-hidden" style="font-size:.72rem">
+        <div class="d-flex flex-column gap-2">
           <?php
           $qk = ['przychodzace' => ['↓ Przychodzące','info'],
                  'wychodzace'   => ['↑ Wychodzące','primary']];
@@ -104,17 +104,16 @@ $uid = 'kp' . $id; // unikalne prefiksy id dla WCAG (wielokrotne otwieranie tego
                  'epuap' =>['bi-shield-lock','ePUAP'],
                  'faks'  =>['bi-printer','Faks']];
           foreach($qk as $kv=>[$klabel,$kclass]): ?>
-          <div class="d-flex align-items-center">
-            <span class="px-2 py-1 fw-semibold text-<?= $kclass ?> border-end text-nowrap"
-                  style="min-width:100px;background:#f8fafc"><?= $klabel ?></span>
-            <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
-            <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=<?= $kv ?>&medium=<?= $mv ?>"
-               class="btn btn-link px-2 py-1 border-end text-dark text-decoration-none"
-               style="font-size:.7rem" title="<?= $klabel ?> · <?= $mlabel ?>">
-              <i class="bi <?= $micon ?>" aria-hidden="true"></i>
-              <span class="d-none d-sm-inline ms-1"><?= $mlabel ?></span>
-            </a>
-            <?php endforeach; ?>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-<?= $kclass ?> text-nowrap fw-semibold" style="font-size:.72rem;min-width:100px;text-align:center"><?= $klabel ?></span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Nowe pismo <?= $klabel ?>">
+              <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
+              <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=<?= $kv ?>&medium=<?= $mv ?>"
+                 class="btn btn-outline-secondary" title="<?= $klabel ?> · <?= $mlabel ?>">
+                <i class="bi <?= $micon ?>" aria-hidden="true"></i> <?= $mlabel ?>
+              </a>
+              <?php endforeach; ?>
+            </div>
           </div>
           <?php endforeach; ?>
         </div>
