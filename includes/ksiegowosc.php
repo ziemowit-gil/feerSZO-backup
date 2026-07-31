@@ -20,7 +20,6 @@ const KDOK_TYPES = [
     'ksef'        => ['label' => 'Dokument z KSeF',                     'icon' => 'bi-receipt'],
     'ksef_reczny'      => ['label' => 'Faktura pobrana ręcznie z KSeF',      'icon' => 'bi-receipt-cutoff'],
     'faktura_papierowa'=> ['label' => 'Faktura papierowa',                  'icon' => 'bi-file-earmark-text'],
-    'oswiadczenie_przed_ksef' => ['label' => 'Oświadczenie — faktura wystawiona przed 1 lipca 2026', 'icon' => 'bi-file-earmark-check'],
     'rachunek'         => ['label' => 'Rachunek do umowy',                   'icon' => 'bi-person-vcard'],
     'lista_plac'  => ['label' => 'Lista płac',                          'icon' => 'bi-people-fill'],
     'wyciag'      => ['label' => 'Wyciąg bankowy',                      'icon' => 'bi-bank'],
@@ -232,8 +231,9 @@ function kdok_migrate(): void {
         'centrum_kosztow' => "TEXT NOT NULL DEFAULT ''",
         'projekt'         => "TEXT NOT NULL DEFAULT ''",
         'tytul_przelewu'  => "TEXT NOT NULL DEFAULT ''",
-        'status_platnosci'=> "TEXT NOT NULL DEFAULT 'nowy'",
-        'ezd_sprawa_id'   => "INTEGER",
+        'status_platnosci'  => "TEXT NOT NULL DEFAULT 'nowy'",
+        'ezd_sprawa_id'     => "INTEGER",
+        'oswiadczenie_ksef' => "INTEGER NOT NULL DEFAULT 0",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",

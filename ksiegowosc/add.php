@@ -59,8 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // kwota legacy = brutto gdy podane, inaczej oryginalne pole
     if ($kwota_brutto !== '') $kwota = $kwota_brutto . ' ' . $waluta;
 
-    $ksef_ref = trim($_POST['ksef_reference'] ?? '');
-    $is_ksef  = ($type === 'ksef');
+    $ksef_ref          = trim($_POST['ksef_reference'] ?? '');
+    $oswiadczenie_ksef = !empty($_POST['oswiadczenie_ksef']) ? 1 : 0;
+    $is_ksef           = ($type === 'ksef');
 
     // Opcjonalne powiązanie z umową (tylko dla typu "rachunek")
     $contract_type = trim($_POST['contract_type'] ?? '');
@@ -181,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'projekt'         => $projekt,
             'tytul_przelewu'  => $tytul_przelewu,
             'status_platnosci'=> 'nowy',
+            'oswiadczenie_ksef' => $oswiadczenie_ksef,
         ]);
 
         foreach (array_keys(KDOK_STEPS) as $step) {
@@ -452,6 +454,21 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
       </div>
 
+      <!-- Oświadczenie KSeF (widoczne tylko dla faktury papierowej) -->
+      <div class="mb-3 p-3 rounded border border-warning-subtle bg-warning bg-opacity-10"
+           id="ksef-statement-section" style="display:none">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="oswiadczenie_ksef"
+                 name="oswiadczenie_ksef" value="1"
+                 <?= !empty($_POST['oswiadczenie_ksef']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="oswiadczenie_ksef">
+            Oświadczam, że niniejsza faktura została wystawiona przed dniem 1 lipca 2026 r.
+            i nie podlega obowiązkowi rejestracji oraz przesyłania za pośrednictwem
+            Krajowego Systemu e-Faktur (KSeF).
+          </label>
+        </div>
+      </div>
+
       <!-- Sekcja upload pliku (widoczna dla typów innych niż ksef) -->
       <div class="mb-4" id="file-section">
         <label for="file" class="form-label fw-semibold">Plik PDF <span class="text-danger">*</span></label>
@@ -469,20 +486,23 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 (function () {
-  var ksefSection     = document.getElementById('ksef-section');
-  var fileSection     = document.getElementById('file-section');
-  var contractSection = document.getElementById('contract-section');
-  var fileInput       = document.getElementById('file');
-  var radios          = document.querySelectorAll('input[name="type"]');
+  var ksefSection      = document.getElementById('ksef-section');
+  var fileSection      = document.getElementById('file-section');
+  var contractSection  = document.getElementById('contract-section');
+  var ksefStmtSection  = document.getElementById('ksef-statement-section');
+  var fileInput        = document.getElementById('file');
+  var radios           = document.querySelectorAll('input[name="type"]');
 
   function toggleSections() {
     var selected   = document.querySelector('input[name="type"]:checked');
     var selVal     = selected ? selected.value : '';
     var isKsef     = selVal === 'ksef';
     var isRachunek = selVal === 'rachunek';
+    var isFakturaPap = selVal === 'faktura_papierowa';
     if (ksefSection)     ksefSection.style.display = isKsef ? '' : 'none';
     if (fileSection)     fileSection.style.display = isKsef ? 'none' : '';
     if (contractSection) contractSection.style.display = isRachunek ? '' : 'none';
+    if (ksefStmtSection) ksefStmtSection.style.display = isFakturaPap ? '' : 'none';
     if (fileInput) fileInput.required = !isKsef;
 
     // Pola finansowe: chowaj według data-fin-hide-for
