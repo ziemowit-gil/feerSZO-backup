@@ -89,13 +89,13 @@ function _esb_exact(string $path): string {
       <i class="bi bi-archive" aria-hidden="true"></i><span>Segregatory aktowe</span>
     </a>
 
-    <?php if ($_esb_dekr): ?>
-    <a href="<?= APP_URL ?>/ezd/index.php"
-       class="ezd-sb-link" style="color:#b45309">
+    <a href="<?= APP_URL ?>/ezd/zadania/index.php"
+       class="ezd-sb-link<?= _esb_a('/ezd/zadania/') ?>">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Moje zadania</span>
+      <?php if ($_esb_dekr): ?>
       <span class="ezd-sb-badge" style="background:#d97706"><?= $_esb_dekr ?></span>
+      <?php endif; ?>
     </a>
-    <?php endif; ?>
 
     <div class="ezd-sb-section">Archiwistyka</div>
 
