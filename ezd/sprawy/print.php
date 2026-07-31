@@ -91,181 +91,72 @@ if ($out === 'pdf') {
     // ── Okładka (tylko dla całej sprawy) ─────────────────────────────────────
     if ($with_cover) {
         $pdf->AddPage('P', 'A4');
-        $W = 180; // szerokość robocza (mm)
+        $W = 180;
 
-        // ── Paleta i pomocniki wizualne ───────────────────────────────────────
         $cNavy = [22, 53, 102]; $cInk = [28, 35, 51]; $cMuted = [124, 132, 146];
-        $cLine = [224, 229, 237]; $cTint = [240, 244, 251]; $cAccent = [37, 99, 235];
+        $cLine = [224, 229, 237];
         $tc = fn(array $c) => $pdf->SetTextColor($c[0], $c[1], $c[2]);
         $fc = fn(array $c) => $pdf->SetFillColor($c[0], $c[1], $c[2]);
         $dc = fn(array $c) => $pdf->SetDrawColor($c[0], $c[1], $c[2]);
-        // Mikro-etykieta sekcji (wersaliki, wyciszona)
-        $micro = function (string $t) use ($pdf, $pl, $tc, $cMuted) {
-            $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
-            $pdf->Cell(0, 4.6, $pl(mb_strtoupper($t, 'UTF-8')), 0, 1);
-            $pdf->SetTextColor(0, 0, 0);
-        };
 
-        // ── Hero: pasek ze znakiem koszulki ──────────────────────────────────
-        $bandH = 23;
+        // ── Pasek: numer + data wszczęcia ────────────────────────────────────
+        $bandH = 16;
         $fc($cNavy); $pdf->Rect(15, 15, $W, $bandH, 'F');
-        $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(182, 198, 226);
-        $pdf->SetXY(19, 18.2); $pdf->Cell(90, 4, $pl('KARTA KOSZULKI'), 0, 0, 'L');
-        $pdf->SetXY(105, 18.2);
-        $pdf->Cell($W - 96, 4, $pl(($org_name ?: '') . '   ·   ' . date('d.m.Y H:i')), 0, 0, 'R');
-        $pdf->SetFont('DejaVu', 'B', 18); $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetXY(19, 23.6); $pdf->Cell($W - 8, 9, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 1, 'L');
+        $pdf->SetFont('DejaVu', 'B', 14); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetXY(19, 19.5);
+        $pdf->Cell($W * 0.6, 8, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 0, 'L');
+        $dateStr = $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—';
+        $pdf->SetFont('DejaVu', '', 9); $pdf->SetTextColor(182, 198, 226);
+        $pdf->Cell($W * 0.4 - 4, 8, $pl('Data wszczęcia: ' . $dateStr), 0, 1, 'R');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetY(15 + $bandH + 7);
+        $pdf->SetY(15 + $bandH + 10);
 
-        // ── Tytuł + status ────────────────────────────────────────────────────
+        // ── Tytuł ─────────────────────────────────────────────────────────────
         $pdf->SetX(15);
-        $pdf->SetFont('DejaVu', 'B', 13.5); $tc($cInk);
-        $pdf->MultiCell($W, 6.8, $pl($sprawa['title']), 0, 'L');
+        $pdf->SetFont('DejaVu', 'B', 15); $tc($cInk);
+        $pdf->MultiCell($W, 7.5, $pl($sprawa['title']), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->Ln(2.5);
-        $stat  = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
-        $pdf->SetFont('DejaVu', 'B', 8);
-        $pillW = $pdf->GetStringWidth($pl($stat)) + 9;
-        $pillY = $pdf->GetY();
-        $fc($cTint); $pdf->Rect(15, $pillY, $pillW, 6.2, 'F');
-        $fc($cAccent); $pdf->Rect(15, $pillY, 1.6, 6.2, 'F');   // akcent
-        $tc($cNavy); $pdf->SetXY(15, $pillY + 0.4);
-        $pdf->Cell($pillW, 5.4, $pl($stat), 0, 1, 'C');
-        $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetY($pillY + 6.2 + 5);
+        $pdf->Ln(8);
 
-        // ── Opis — wyróżnione pole ────────────────────────────────────────────
-        if (!empty($sprawa['description'])) {
-            $desc  = $pl($sprawa['description']);
-            $lines = max(2, (int)ceil(mb_strlen($sprawa['description']) / 92) + 1);
-            $boxH  = $lines * 5.5 + 11;
-            $yBox  = $pdf->GetY();
-            $fc($cTint);   $pdf->Rect(15, $yBox, $W, $boxH, 'F');
-            $fc($cAccent); $pdf->Rect(15, $yBox, 1.6, $boxH, 'F');   // lewy pasek akcentu
-            $pdf->SetXY(20, $yBox + 3);
-            $micro('Opis koszulki');
-            $pdf->SetFont('DejaVu', '', 9.5); $tc($cInk);
-            $pdf->SetX(20);
-            $pdf->MultiCell($W - 8, 5.5, $desc, 0, 'L');
-            $pdf->SetTextColor(0, 0, 0);
-            $pdf->SetY($yBox + $boxH + 5);
-        }
-
-        // ── Hasło klasyfikacyjne JRWA (pełne, z zawijaniem) ───────────────────
-        if ($jrwa && trim((string)($jrwa['title'] ?? '')) !== '') {
-            $micro('Hasło klasyfikacyjne JRWA · kat. arch. ' . ($jrwa['kat_arch'] ?? '—'));
-            $pdf->SetFont('DejaVu', 'B', 9.5); $tc($cInk);
-            $pdf->MultiCell(0, 5.5, $pl(trim(($jrwa['symbol'] ?? '') . '   ' . ($jrwa['title'] ?? ''))), 0, 'L');
-            $pdf->SetTextColor(0, 0, 0);
-            $pdf->Ln(3);
-        }
-
-        // ── Metadane (dwie kolumny) ───────────────────────────────────────────
-        $meta = [
-            ['Segregator',           $sprawa['teczka_symbol'] ?? '—'],
-            ['Klasyfikacja JRWA',    $jrwa['symbol'] ?? '—'],
-            ['Kategoria archiwalna', $jrwa['kat_arch'] ?? '—'],
-            ['Właściciel',           $sprawa['owner_name'] ?? '—'],
-            ['Otwarto',              $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
-        ];
-        if (!empty($sprawa['ciagla']))        $meta[] = ['Termin', 'koszulka ciągła (stale otwarta)'];
-        elseif (!empty($sprawa['deadline']))  $meta[] = ['Termin', date('d.m.Y', strtotime($sprawa['deadline']))];
-        if (!empty($sprawa['closed_at']))     $meta[] = ['Zamknięto', date('d.m.Y', strtotime($sprawa['closed_at']))];
-
-        $colW = ($W - 8) / 2;
-        $rowH = 12.5;
-        $y0   = $pdf->GetY();
-        $col  = 0;
-        foreach ($meta as $i => [$k, $v]) {
-            $x = 15 + ($col ? $colW + 8 : 0);
-            $yr = $y0 + (int)floor($i / 2) * $rowH;
-            $pdf->SetXY($x, $yr);
-            $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
-            $pdf->Cell($colW, 4.6, $pl(mb_strtoupper($k, 'UTF-8')), 0, 1);
-            $pdf->SetX($x);
-            $pdf->SetFont('DejaVu', 'B', 10); $tc($cInk);
-            $pdf->Cell($colW, 5.6, $pl($v), 0, 1);
-            $pdf->SetTextColor(0, 0, 0);
-            $col = 1 - $col;
-        }
-        $pdf->SetY($y0 + (int)ceil(count($meta) / 2) * $rowH + 3);
-
-        // ── Separator ────────────────────────────────────────────────────────
+        // ── Separator ─────────────────────────────────────────────────────────
         $dc($cLine);
         $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
-        $pdf->Ln(5);
+        $pdf->Ln(8);
 
-        // ── Spis dokumentów ───────────────────────────────────────────────────
-        $micro('Dokumenty w koszulce (' . count($files) . ')');
+        // ── QR kod (prawy górny narożnik bloku) + lista dokumentów po lewej ──
+        $qrSize = 35;
+        $qrFile = qr_png_file(rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . $id,
+                              UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/', 300);
+        $blockY = $pdf->GetY();
+        if ($qrFile) {
+            try { $pdf->Image($qrFile, 195 - $qrSize, $blockY, $qrSize, $qrSize); } catch (\Throwable $e) {}
+            @unlink($qrFile);
+            $pdf->SetXY(195 - $qrSize, $blockY + $qrSize + 1.5);
+            $pdf->SetFont('DejaVu', '', 6.5); $tc($cMuted);
+            $pdf->Cell($qrSize, 3, $pl('Otwórz w EZD'), 0, 0, 'C');
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->SetY($blockY);
+        }
+
+        $listW = $qrFile ? $W - $qrSize - 8 : $W;
+        $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
+        $pdf->SetX(15); $pdf->Cell($listW, 5, $pl('DOKUMENTY (' . count($files) . ')'), 0, 1);
         $pdf->Ln(1);
         if ($files) {
             foreach ($files as $i => $z) {
-                $yr = $pdf->GetY();
-                if ($i % 2 === 1) { $fc($cTint); $pdf->Rect(15, $yr, $W, 7, 'F'); }
-                $pdf->SetXY(18, $yr + 1);
-                $pdf->SetFont('DejaVu', 'B', 8.5); $tc($cAccent);
-                $pdf->Cell(8, 5, $pl(($i + 1) . '.'), 0, 0);
+                $pdf->SetX(15);
                 $pdf->SetFont('DejaVu', '', 8.5); $tc($cInk);
-                $pdf->Cell(112, 5, $pl($z['original_name']), 0, 0);
-                $pdf->SetFont('DejaVu', '', 8); $tc($cMuted);
-                $pdf->Cell($W - 8 - 120, 5, $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size'])), 0, 1, 'R');
+                $pdf->Cell(6, 5.5, $pl(($i + 1) . '.'), 0, 0);
+                $pdf->Cell($listW - 6, 5.5, $pl($z['original_name']), 0, 1);
                 $pdf->SetTextColor(0, 0, 0);
-                $pdf->SetY($yr + 7);
             }
         } else {
             $pdf->SetFont('DejaVu', '', 9); $tc($cMuted);
-            $pdf->Cell(0, 6, $pl('Brak plików — karta zawiera wyłącznie metadane.'), 0, 1);
+            $pdf->Cell($listW, 6, $pl('Brak dokumentów w koszulce.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
 
-        // ── Kod QR + adnotacje kancelaryjne ───────────────────────────────────
-        // Zapewnij miejsce na blok (QR 30 mm + podpisy) — inaczej przejdź na nową stronę.
-        if ($pdf->GetY() > 235) { $pdf->AddPage('P', 'A4'); }
-        $pdf->Ln(6);
-        $dc($cLine);
-        $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
-        $pdf->Ln(5);
-        $blockY = $pdf->GetY();
-
-        // QR z linkiem do koszulki — generowany LOKALNIE (dane sprawy nie wychodzą na zewnątrz)
-        $qrSize = 30; // mm
-        $qrFile = qr_png_file(rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . $id,
-                              UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/', 300);
-        if ($qrFile) {
-            try { $pdf->Image($qrFile, 15, $blockY, $qrSize, $qrSize); } catch (\Throwable $e) {}
-            @unlink($qrFile);
-            $pdf->SetXY(15, $blockY + $qrSize + 1.5);
-            $pdf->SetFont('DejaVu', '', 6.5); $tc($cMuted);
-            $pdf->MultiCell($qrSize, 3, $pl('Zeskanuj, aby otworzyć koszulkę w EZD'), 0, 'C');
-            $pdf->SetTextColor(0, 0, 0);
-        }
-
-        // Adnotacje / miejsce na podpisy — po prawej od QR
-        $ax = $qrFile ? 15 + $qrSize + 8 : 15;
-        $pdf->SetXY($ax, $blockY);
-        $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
-        $pdf->Cell(195 - $ax, 4.6, $pl('ADNOTACJE KANCELARYJNE'), 0, 1);
-        $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetY($blockY + 6);
-        $annLine = function (string $label) use ($pdf, $ax, $pl, $tc, $cMuted, $cLine, $dc) {
-            $y   = $pdf->GetY();
-            $lbl = $pl($label);
-            $pdf->SetX($ax);
-            $pdf->SetFont('DejaVu', '', 8); $tc($cMuted);
-            $pdf->Cell($pdf->GetStringWidth($lbl) + 2, 7, $lbl, 0, 0);
-            $pdf->SetTextColor(0, 0, 0);
-            $dc($cLine);
-            $pdf->Line($pdf->GetX(), $y + 5.5, 195, $y + 5.5);
-            $pdf->Ln(7);
-        };
-        $annLine('Sprawę założył / prowadzi:');
-        $annLine('Data przekazania / dekretacja:');
-        $annLine('Sprawę zakończono dnia:');
-        $annLine('Przekazano do archiwum (kat. ' . ($jrwa['kat_arch'] ?? '—') . '):');
-
-        // Zejdź pod wyższy z dwóch bloków (QR vs adnotacje)
-        $pdf->SetY(max($pdf->GetY(), $blockY + $qrSize + ($qrFile ? 6 : 0)));
+        $pdf->SetY(max($pdf->GetY() + 4, $blockY + $qrSize + ($qrFile ? 10 : 0)));
     }
 
     // ── Scalanie dokumentów ──────────────────────────────────────────────────
