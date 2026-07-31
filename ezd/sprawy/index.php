@@ -92,7 +92,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .sprawa-line{display:flex;align-items:center;border-bottom:1px solid #f1f5f9;}
 .sprawa-line:last-child{border-bottom:none;}
 .sprawa-line:hover{background:#f8fafc;}
-.sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;text-decoration:none;color:inherit;transition:background .12s;}
+.sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;text-decoration:none;color:inherit;transition:background .12s;cursor:pointer;}
 .sprawa-znak{font-family:monospace;font-size:.8rem;font-weight:700;color:#2563eb;white-space:nowrap;}
 .ezd-search .input-group{box-shadow:0 4px 14px rgba(15,23,42,.08);border-radius:14px;overflow:hidden;}
 .ezd-search .input-group-text{background:#fff;border:1px solid #e2e8f0;border-right:none;font-size:1.15rem;color:#64748b;padding:.7rem .55rem .7rem 1rem;}
@@ -102,6 +102,24 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .dekr-cell{white-space:nowrap;font-size:.72rem;text-align:right;min-width:112px;}
 .dekr-cell .dekr-who{font-weight:600;color:#334155;}
 .dekr-cell .dekr-lezy{font-size:.66rem;}
+/* Timeline w popupie koszulki */
+.tl-wrap{display:flex;flex-direction:column;gap:.5rem;}
+.tl-item{display:flex;align-items:flex-start;gap:.6rem;}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.55rem;border:2px solid;}
+.tl-card{flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .75rem;background:#fff;transition:box-shadow .12s;color:inherit;}
+.tl-card:hover{box-shadow:0 2px 8px rgba(15,23,42,.1);}
+.tl-syg{font-size:.62rem;font-family:monospace;color:#64748b;margin-bottom:.15rem;}
+.tl-title{font-size:.83rem;font-weight:600;color:#1e293b;line-height:1.3;}
+.tl-meta{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem;font-size:.7rem;color:#64748b;}
+.pismo-in .tl-dot{border-color:#0ea5e9;background:#e0f2fe;}
+.pismo-out .tl-dot{border-color:#8b5cf6;background:#ede9fe;}
+.pismo-int .tl-dot{border-color:#94a3b8;background:#f1f5f9;}
+.tl-card.pismo-in{border-left:3px solid #0ea5e9;}
+.tl-card.pismo-out{border-left:3px solid #8b5cf6;}
+.tl-card.pismo-int{border-left:3px solid #94a3b8;}
+/* Przycisk "pełny widok" na wierszu */
+.sp-full-btn{opacity:.45;transition:opacity .15s;padding:.25rem .4rem;border-radius:4px;color:#374151;text-decoration:none;flex-shrink:0;}
+.sprawa-line:hover .sp-full-btn,.sp-full-btn:focus{opacity:1;}
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -205,7 +223,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php if(can_edit()): ?>
       <div class="ps-3 pe-1"><input type="checkbox" class="form-check-input bulk-cb" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
       <?php endif; ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="sprawa-row flex-grow-1">
+    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>"
+       class="sprawa-row flex-grow-1 ezd-sp-preview"
+       data-sprawa-id="<?= (int)$s['id'] ?>"
+       data-sprawa-title="<?= h(mb_substr($s['title'],0,60)) ?>"
+       aria-label="Podgląd koszulki: <?= h($s['title']) ?>. Ctrl+klik otwiera pełny widok.">
       <div class="flex-grow-1 overflow-hidden">
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
         <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
@@ -310,4 +332,97 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 })();
 </script>
 <?php endif; ?>
+<!-- Modal: szybki podgląd koszulki ——————————————————————————————— -->
+<div class="modal fade" id="ksModal" tabindex="-1"
+     role="dialog" aria-modal="true" aria-labelledby="ksModalLabel">
+  <div class="modal-dialog modal-xl modal-fullscreen-md-down"
+       style="--bs-modal-width:min(900px,96vw)">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="border-bottom:2px solid #e2e8f0">
+        <h2 class="modal-title fw-bold mb-0" id="ksModalLabel" style="font-size:.88rem">
+          <i class="bi bi-folder2-open text-primary me-2" aria-hidden="true"></i>
+          <span id="ksModalTitleText">Koszulka</span>
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Zamknij podgląd koszulki"></button>
+      </div>
+      <div class="modal-body p-3" id="ksModalBody" style="min-height:340px;max-height:82vh;overflow-y:auto">
+        <div id="ksModalSpinner" class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+          Ładowanie koszulki…
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modalEl = document.getElementById('ksModal');
+  if (!modalEl) return;
+  var bsModal  = new bootstrap.Modal(modalEl, {focus: true});
+  var body     = document.getElementById('ksModalBody');
+  var titleEl  = document.getElementById('ksModalTitleText');
+  var SPINNER  = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>Ładowanie…</div>';
+  var cache    = {};  // id → html
+  var curId    = null;
+
+  function open(id, title) {
+    titleEl.textContent = title;
+    curId = id;
+    if (cache[id]) {
+      body.innerHTML = cache[id];
+    } else {
+      body.innerHTML = SPINNER;
+      fetch('<?= APP_URL ?>/ezd/sprawy/ajax_panel.php?id=' + id,
+            {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        })
+        .then(function (html) {
+          if (curId === id) {
+            body.innerHTML = html;
+            cache[id] = html;
+          }
+        })
+        .catch(function () {
+          if (curId === id)
+            body.innerHTML = '<p class="text-danger p-3 mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Nie udało się załadować koszulki.</p>';
+        });
+    }
+    bsModal.show();
+    setTimeout(function () {
+      var first = body.querySelector('a,button,[tabindex="0"]');
+      if (first) first.focus();
+    }, 350);
+  }
+
+  document.querySelectorAll('.ezd-sp-preview').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      /* Ctrl/Cmd/Shift+klik → normalna nawigacja do pełnego widoku */
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+      e.preventDefault();
+      open(el.dataset.sprawaId, el.dataset.sprawaTitle || 'Koszulka');
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); el.click(); }
+    });
+  });
+
+  /* Czyść stan po zamknięciu */
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    curId = null;
+  });
+
+  /* Powrót fokusu na wiersz po zamknięciu modalem (WCAG 2.5.3) */
+  var lastTrigger = null;
+  document.querySelectorAll('.ezd-sp-preview').forEach(function (el) {
+    el.addEventListener('click', function () { lastTrigger = el; });
+  });
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  });
+})();
+</script>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

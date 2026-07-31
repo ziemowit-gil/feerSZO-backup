@@ -48,9 +48,6 @@ function _esb_exact(string $path): string {
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka
     </a>
-    <a href="<?= APP_URL ?>/ezd/pisma/add.php" class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1 mt-1" style="font-size:.75rem">
-      <i class="bi bi-envelope-plus" aria-hidden="true"></i>Nowe pismo
-    </a>
   </div>
   <?php endif; ?>
 
