@@ -163,7 +163,7 @@ foreach ($docs as $doc) {
         // Zwykły przelew — jedna linia: tytuł + nr obiegu + znak EZD (bez |)
         $ezd_sign_doc = (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']]))
             ? $ezd_signs[(int)$doc['ezd_sprawa_id']] : '';
-        $tytul4 = pli_clean($tytul . ' ' . $doc['number'] . ($ezd_sign_doc ? ' ' . $ezd_sign_doc : ''), 35) . '|||';
+        $tytul4 = pli_clean($tytul . ' ' . $doc['number'] . ($ezd_sign_doc ? ' ' . $ezd_sign_doc : ''), 35);
         $kod    = 51;
     }
 
