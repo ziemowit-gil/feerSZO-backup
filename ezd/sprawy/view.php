@@ -819,22 +819,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
              data-pismo-id="<?= (int)$item['id'] ?>" data-pismo-href="<?= h($href) ?>"
              style="cursor:pointer"
              aria-label="Podgląd pisma: <?= h($item['title']) ?>">
+          <?php if(!empty($item['sygnatura'])): ?><div class="tl-syg"><?= h($item['sygnatura']) ?></div><?php endif; ?>
+          <div class="tl-title"><?= h(mb_substr($item['title'],0,70)) ?></div>
+          <div class="tl-meta">
+            <span><?= h((EZD_KIERUNKI[$kier] ?? ['label'=>$kier])['label']) ?></span>
+            <?php if(!empty($item['nadawca'])): ?><span><?= h($item['nadawca']) ?></span><?php endif; ?>
+            <?php if(!empty($item['status'])): ?><span class="badge bg-light text-dark border" style="font-size:.6rem"><?= h($item['status']) ?></span><?php endif; ?>
+            <span class="ms-auto"><?= date('d.m.Y', strtotime($item['_date'])) ?></span>
+          </div>
+        </div>
         <?php else: ?>
         <a href="<?= $href ?>" class="tl-card <?= $card_cls ?>">
           <?php if(!empty($item['sygnatura'])): ?><div class="tl-syg"><?= h($item['sygnatura']) ?></div><?php endif; ?>
           <div class="tl-title"><?= h(mb_substr($item['title'],0,70)) ?></div>
           <div class="tl-meta">
-            <?php if($is_pismo): ?>
-            <span><?= h((EZD_KIERUNKI[$kier] ?? ['label'=>$kier])['label']) ?></span>
-            <?php if(!empty($item['nadawca'])): ?><span><?= h($item['nadawca']) ?></span><?php endif; ?>
-            <?php if(!empty($item['status'])): ?><span class="badge bg-light text-dark border" style="font-size:.6rem"><?= h($item['status']) ?></span><?php endif; ?>
-            <?php else: ?>
             <span class="badge bg-warning text-dark" style="font-size:.62rem">Umowa</span>
             <?php if(!empty($item['nr_umowy'])): ?><span class="font-monospace"><?= h($item['nr_umowy']) ?></span><?php endif; ?>
-            <?php endif; ?>
             <span class="ms-auto"><?= date('d.m.Y', strtotime($item['_date'])) ?></span>
           </div>
-        <?= $is_pismo ? '</div>' : '</a>' ?>
+        </a>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
