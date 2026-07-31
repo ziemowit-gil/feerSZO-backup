@@ -23,6 +23,11 @@ function _org_reps_migrate(): void {
 }
 _org_reps_migrate();
 
+function format_iban_pl(string $nrb): string {
+    $full = 'PL' . $nrb; // 28 znaków → 7 grup po 4
+    return implode(' ', str_split($full, 4));
+}
+
 
 
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
@@ -38,6 +43,7 @@ foreach ($branding_keys as $k) {
 }
 if (!$saved['sidebar_color']) $saved['sidebar_color'] = '#1e293b';
 if (!$saved['volunteer_color']) $saved['volunteer_color'] = '#2563eb';
+$rachunki = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
 
 // Ensure logo directory exists
 $_logo_dir = dirname(__DIR__) . '/assets/logo';
@@ -267,6 +273,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Ustawienia VPN dla Wirtualnego biurka zapisane.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
+    } elseif (isset($_POST['add_rachunek'])) {
+        $raw_nrb = strtoupper(preg_replace('/[\s\-]/', '', trim($_POST['rachunek_nrb'] ?? '')));
+        if (str_starts_with($raw_nrb, 'PL')) $raw_nrb = substr($raw_nrb, 2);
+        $raw_nrb = preg_replace('/\D/', '', $raw_nrb);
+        if (strlen($raw_nrb) !== 26) {
+            flash_set('error', 'Nieprawidłowy numer rachunku — wymagane 26 cyfr (NRB) lub IBAN z prefiksem PL.');
+            header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+        }
+        $rachunki_cur = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+        foreach ($rachunki_cur as $ex) {
+            if ($ex['nrb'] === $raw_nrb) {
+                flash_set('error', 'Ten numer rachunku już istnieje na liście.');
+                header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+            }
+        }
+        $rachunki_cur[] = [
+            'nrb'    => $raw_nrb,
+            'waluta' => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
+            'nazwa'  => mb_substr(trim($_POST['rachunek_nazwa'] ?? ''), 0, 140),
+            'adres'  => mb_substr(trim($_POST['rachunek_adres'] ?? ''), 0, 140),
+            'bank'   => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
+            'opis'   => mb_substr(trim($_POST['rachunek_opis']  ?? ''), 0, 100),
+        ];
+        org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
+        flash_set('success', 'Dodano rachunek ' . format_iban_pl($raw_nrb) . '.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
+    } elseif (isset($_POST['delete_rachunek'])) {
+        $del_nrb = trim($_POST['del_nrb'] ?? '');
+        $rachunki_cur = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+        $rachunki_cur = array_values(array_filter($rachunki_cur, fn($r) => $r['nrb'] !== $del_nrb));
+        org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
+        flash_set('success', 'Rachunek usunięty.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
     }
 }
 
@@ -314,6 +354,15 @@ include dirname(__DIR__) . '/includes/header.php';
     <button class="nav-link" id="tab-btn-security" data-bs-toggle="tab" data-bs-target="#tab-security"
             type="button" role="tab">
       <i class="bi bi-shield-lock me-1"></i>Bezpieczeństwo
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-rachunki" data-bs-toggle="tab" data-bs-target="#tab-rachunki"
+            type="button" role="tab">
+      <i class="bi bi-bank me-1"></i>Rachunki bankowe
+      <?php if ($rachunki): ?>
+      <span class="badge bg-secondary ms-1"><?= count($rachunki) ?></span>
+      <?php endif; ?>
     </button>
   </li>
 </ul>
@@ -963,6 +1012,130 @@ include dirname(__DIR__) . '/includes/header.php';
   </div><!-- /row -->
 </div><!-- /tab-security -->
 
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: Rachunki bankowe organizacji
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-rachunki" role="tabpanel">
+
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-bank text-primary me-1"></i> Numery rachunków organizacji</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Dane rachunków używane m.in. w eksporcie PLI do banku oraz w szablonach pism.
+      Podaj numer w formacie IBAN (<code>PL</code> + 26 cyfr) lub sam 26-cyfrowy NRB — system normalizuje automatycznie.
+      Pola <em>Nazwa właściciela</em> i <em>Adres</em> zastępują domyślne dane organizacji w poleceniach przelewu.
+    </p>
+
+    <!-- Formularz dodawania rachunku -->
+    <form method="post" class="mb-4" id="form-add-rachunek">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+      <div class="row g-3 mb-2">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Numer rachunku (IBAN / NRB) <span class="text-danger">*</span></label>
+          <input type="text" name="rachunek_nrb" id="rachunek_nrb_input"
+                 class="form-control form-control-sm font-monospace"
+                 placeholder="PL12 3456 7890 1234 5678 9012 3456"
+                 maxlength="40" autocomplete="off" required>
+          <div class="form-text" id="rachunek_nrb_hint"></div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Waluta</label>
+          <select name="rachunek_waluta" class="form-select form-select-sm">
+            <?php foreach (['PLN','EUR','USD','GBP','CHF','CZK'] as $cur): ?>
+            <option value="<?= $cur ?>"><?= $cur ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Nazwa banku</label>
+          <input type="text" name="rachunek_bank" class="form-control form-control-sm"
+                 placeholder="np. PKO Bank Polski SA" maxlength="100">
+        </div>
+      </div>
+
+      <div class="row g-3 mb-2">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Nazwa właściciela rachunku</label>
+          <input type="text" name="rachunek_nazwa" class="form-control form-control-sm"
+                 placeholder="Domyślnie: pełna nazwa organizacji" maxlength="140">
+          <div class="form-text">Zastępuje nazwę organizacji w poleceniu przelewu (pole nadawcy).</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Adres właściciela</label>
+          <input type="text" name="rachunek_adres" class="form-control form-control-sm"
+                 placeholder="Domyślnie: adres siedziby organizacji" maxlength="140">
+        </div>
+      </div>
+
+      <div class="row g-3 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold">Opis / przeznaczenie rachunku</label>
+          <input type="text" name="rachunek_opis" class="form-control form-control-sm"
+                 placeholder="np. Rachunek bieżący PLN, subkonto projektowe" maxlength="100">
+        </div>
+        <div class="col-md-4">
+          <button type="submit" name="add_rachunek" class="btn btn-sm btn-primary w-100">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj rachunek
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Lista rachunków -->
+    <?php if ($rachunki): ?>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Numer IBAN</th>
+            <th>Waluta</th>
+            <th>Właściciel / bank</th>
+            <th>Opis</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($rachunki as $r): ?>
+          <tr>
+            <td class="font-monospace fw-semibold" style="font-size:.82rem;letter-spacing:.04em">
+              <?= h(format_iban_pl($r['nrb'])) ?>
+            </td>
+            <td><span class="badge bg-secondary bg-opacity-75"><?= h($r['waluta'] ?: 'PLN') ?></span></td>
+            <td class="text-muted small">
+              <?php if ($r['nazwa'] ?? ''): ?>
+              <div><?= h($r['nazwa']) ?></div>
+              <?php endif; ?>
+              <?php if ($r['bank'] ?? ''): ?>
+              <div class="text-muted"><?= h($r['bank']) ?></div>
+              <?php endif; ?>
+            </td>
+            <td class="text-muted small"><?= h($r['opis'] ?? '') ?></td>
+            <td class="text-end">
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć rachunek <?= h(addslashes(format_iban_pl($r['nrb']))) ?>?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="del_nrb" value="<?= h($r['nrb']) ?>">
+                <button type="submit" name="delete_rachunek" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small"><i class="bi bi-bank me-1"></i>Brak zdefiniowanych rachunków — dodaj pierwszy rachunek powyżej.</div>
+    <?php endif; ?>
+
+  </div>
+  </div>
+
+</div><!-- /tab-rachunki -->
+
 </div><!-- /tab-content -->
 
 <script>
@@ -1026,6 +1199,25 @@ document.getElementById('logo_file_input')?.addEventListener('change', function(
         document.getElementById('logo-new-preview').style.display = 'block';
     };
     reader.readAsDataURL(file);
+});
+
+// ── Normalizator NRB / IBAN (live hint) ─────────────────────────────────────
+document.getElementById('rachunek_nrb_input')?.addEventListener('input', function() {
+    var raw = this.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
+    if (raw.startsWith('PL')) raw = raw.slice(2);
+    raw = raw.replace(/\D/g, '');
+    var hint = document.getElementById('rachunek_nrb_hint');
+    if (!hint) return;
+    if (!raw) { hint.textContent = ''; return; }
+    if (raw.length < 26) {
+        hint.innerHTML = '<span class="text-muted">Brakuje ' + (26 - raw.length) + ' cyfr.</span>';
+    } else if (raw.length > 26) {
+        hint.innerHTML = '<span class="text-danger">Za dużo cyfr (' + raw.length + '/26).</span>';
+    } else {
+        var iban = 'PL' + raw;
+        var fmt  = iban.match(/.{1,4}/g).join(' ');
+        hint.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>IBAN: <code>' + fmt + '</code>';
+    }
 });
 
 // ── Aktywacja zakładki przez URL / localStorage ──────────────────────────────

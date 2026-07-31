@@ -86,12 +86,30 @@ function pli_4lines(array $lines, int $maxlen = 35): string {
     return implode('|', $out);
 }
 
-// ── Dane nadawcy ──────────────────────────────────────────────────────────────
+// ── Dane nadawcy — z konfiguracji rachunku lub danych org ────────────────────
 
-$sender_bank = substr($sender_nrb, 2, 8);  // numer rozliczeniowy banku (cyfry 3-10 NRB)
-$org_name    = pli_clean(ORG_NAME, 35);
-$org_addr    = pli_clean(org_setting('org_adres') ?: '', 35);
-$sender_4    = pli_4lines([$org_name, '', $org_addr, '']);
+$sender_bank = substr($sender_nrb, 2, 8);
+
+$rachunki_org = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+$sender_acct  = null;
+foreach ($rachunki_org as $acct) {
+    if ($acct['nrb'] === $sender_nrb) { $sender_acct = $acct; break; }
+}
+
+$org_name = pli_clean(($sender_acct['nazwa'] ?? '') ?: ORG_NAME, 35);
+$org_addr = pli_clean(($sender_acct['adres'] ?? '') ?: org_setting('org_adres') ?: '', 35);
+$sender_4 = pli_4lines([$org_name, '', $org_addr, '']);
+
+// ── Mapa znaku EZD (koszulka) per ezd_sprawa_id ──────────────────────────────
+
+$ezd_ids = array_filter(array_map(fn($d) => (int)($d['ezd_sprawa_id'] ?? 0), $docs));
+$ezd_signs = [];
+if ($ezd_ids) {
+    $placeholders = implode(',', array_fill(0, count($ezd_ids), '?'));
+    $rows = db_all("SELECT id, znak_sprawy FROM ezd_sprawy WHERE id IN ($placeholders)",
+                   array_values($ezd_ids));
+    foreach ($rows as $r) $ezd_signs[(int)$r['id']] = $r['znak_sprawy'];
+}
 
 // ── Generowanie wierszy PLI ───────────────────────────────────────────────────
 
@@ -147,8 +165,12 @@ foreach ($docs as $doc) {
         $kod    = 51;
     }
 
-    // Referencja własna (max 16 znaków) — numer dokumentu KDOK
-    $ref = pli_clean($doc['number'], 16);
+    // Referencja własna (max 16 znaków) — numer KDOK + znak EZD
+    $ref_str = $doc['number'];
+    if (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']])) {
+        $ref_str .= '/' . $ezd_signs[(int)$doc['ezd_sprawa_id']];
+    }
+    $ref = pli_clean($ref_str, 16);
 
     $lines_out[] = implode(',', [
         110,                          // 1. typ operacji

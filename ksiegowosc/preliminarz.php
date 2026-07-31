@@ -37,6 +37,8 @@ $filters = array_filter([
 
 $docs = kdok_preliminarz_query($filters);
 
+$rachunki_pli = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+
 // ── Eksport CSV ───────────────────────────────────────────────────────────────
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -430,14 +432,44 @@ require_once __DIR__ . '/../includes/header.php';
             Dokumenty z MPP otrzymują strukturę Split Payment (pole 15 = 53).
           </p>
           <div class="mb-2">
-            <label class="form-label fw-semibold mb-1">NRB rachunku organizacji (nadawca)</label>
+            <label class="form-label fw-semibold mb-1">Rachunek organizacji (nadawca)</label>
+            <?php if ($rachunki_pli): ?>
+            <?php $saved_nrb = org_setting('kdok_rachunek_wlasny'); ?>
+            <select name="nrb" id="pli-nrb" class="form-select form-select-sm font-monospace" required>
+              <?php foreach ($rachunki_pli as $ra): ?>
+              <option value="<?= h($ra['nrb']) ?>"
+                      data-nazwa="<?= h($ra['nazwa'] ?? '') ?>"
+                      data-waluta="<?= h($ra['waluta'] ?? 'PLN') ?>"
+                      <?= ($ra['nrb'] === $saved_nrb) ? 'selected' : '' ?>>
+                <?= h(chunk_split($ra['nrb'], 4, ' ')) ?>
+                (<?= h($ra['waluta'] ?: 'PLN') ?>)
+                <?= $ra['opis'] ? '— ' . h(mb_substr($ra['opis'], 0, 30)) : '' ?>
+              </option>
+              <?php endforeach; ?>
+              <option value="">— wpisz ręcznie —</option>
+            </select>
+            <div id="pli-nrb-custom-wrap" class="mt-2" style="display:none">
+              <input type="text" id="pli-nrb-custom"
+                     class="form-control form-control-sm font-monospace"
+                     maxlength="26" pattern="\d{26}"
+                     placeholder="26 cyfr NRB">
+            </div>
+            <div class="form-text">
+              Rachunki bankowe konfigurujesz w
+              <a href="<?= APP_URL ?>/admin/org_settings.php?tab=rachunki" target="_blank">Dane organizacji → Rachunki bankowe</a>.
+            </div>
+            <?php else: ?>
             <input type="text" name="nrb" id="pli-nrb"
                    class="form-control form-control-sm font-monospace"
                    maxlength="26" pattern="\d{26}"
                    placeholder="26 cyfr, np. 61109010140000071219812874"
                    value="<?= h(org_setting('kdok_rachunek_wlasny')) ?>"
                    required>
-            <div class="form-text">Numer zostanie zapamiętany na przyszłość.</div>
+            <div class="form-text">
+              Numer zostanie zapamiętany. Skonfiguruj rachunki w
+              <a href="<?= APP_URL ?>/admin/org_settings.php?tab=rachunki" target="_blank">Dane organizacji</a>.
+            </div>
+            <?php endif; ?>
           </div>
           <?php
           $bez_rachunku = count(array_filter($docs, fn($d) => strlen(preg_replace('/[\s\-]/', '', $d['rachunek_bankowy'] ?? '')) !== 26));
@@ -474,16 +506,51 @@ document.getElementById('modalPliExport').addEventListener('show.bs.modal', func
     });
 });
 
-// Walidacja: NRB musi mieć dokładnie 26 cyfr przed submittem
+// Dropdown select z opcją ręcznego wpisania NRB
+(function() {
+    var sel    = document.getElementById('pli-nrb');
+    var wrap   = document.getElementById('pli-nrb-custom-wrap');
+    var custom = document.getElementById('pli-nrb-custom');
+    if (sel && sel.tagName === 'SELECT') {
+        sel.addEventListener('change', function() {
+            if (!this.value) {
+                if (wrap) wrap.style.display = 'block';
+                if (custom) custom.required = true;
+            } else {
+                if (wrap) wrap.style.display = 'none';
+                if (custom) { custom.required = false; custom.value = ''; }
+            }
+        });
+    }
+})();
+
+// Walidacja + normalizacja NRB przed submittem
 document.querySelector('#modalPliExport form').addEventListener('submit', function (e) {
-    var nrb = document.getElementById('pli-nrb').value.replace(/[\s\-]/g, '');
-    if (!/^\d{26}$/.test(nrb)) {
-        e.preventDefault();
-        document.getElementById('pli-nrb').setCustomValidity('NRB musi składać się z dokładnie 26 cyfr.');
-        document.getElementById('pli-nrb').reportValidity();
-    } else {
-        document.getElementById('pli-nrb').setCustomValidity('');
-        document.getElementById('pli-nrb').value = nrb; // usuń spacje przed wysłaniem
+    var selEl  = document.getElementById('pli-nrb');
+    var custom = document.getElementById('pli-nrb-custom');
+    var nrb;
+    if (selEl && selEl.tagName === 'SELECT') {
+        nrb = (selEl.value || (custom ? custom.value : '')).replace(/[\s\-]/g, '');
+        // Jeśli wybrano "ręcznie" i brak wpisu w polu custom — blokuj
+        if (!selEl.value && (!custom || !/^\d{26}$/.test(nrb))) {
+            e.preventDefault();
+            if (custom) { custom.setCustomValidity('Podaj 26-cyfrowy NRB.'); custom.reportValidity(); }
+            return;
+        }
+        if (selEl.value) {
+            nrb = selEl.value;
+        }
+        // Wstrzyknij NRB jako hidden field (select przesyła nrb= bezpośrednio)
+    } else if (selEl) {
+        nrb = selEl.value.replace(/[\s\-]/g, '');
+        if (!/^\d{26}$/.test(nrb)) {
+            e.preventDefault();
+            selEl.setCustomValidity('NRB musi składać się z dokładnie 26 cyfr.');
+            selEl.reportValidity();
+            return;
+        }
+        selEl.setCustomValidity('');
+        selEl.value = nrb;
     }
 });
 </script>
