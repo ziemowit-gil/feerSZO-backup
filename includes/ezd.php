@@ -2331,6 +2331,63 @@ function _ezd_kdok_teczka_id(int $rok, int $user_id): int {
     return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_kdok_jrwa(), 'title'=>"Dokumenty księgowe $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
 }
 
+/**
+ * Tworzy dedykowaną koszulkę (sprawę) EZD dla pojedynczego dokumentu KDOK.
+ * Sprawdza najpierw ref_type='kdok', ref_id=$doc['id'] — unikamy duplikatów.
+ */
+function ezd_kdok_koszulka_create(array $doc, int $user_id): int {
+    $doc_id = (int)($doc['id'] ?? 0);
+    // Idempotentność — czy koszulka już istnieje?
+    $existing = db_one("SELECT id FROM ezd_sprawy WHERE ref_type='kdok' AND ref_id=?", [$doc_id]);
+    if ($existing) return (int)$existing['id'];
+
+    $rok = (int)substr((string)($doc['created_at'] ?? date('Y')), 0, 4) ?: (int)date('Y');
+    $tid = _ezd_kdok_teczka_id($rok, $user_id);
+
+    $typ_label = '';
+    if (function_exists('KDOK_TYPES')) {
+        // Stała może być niedostępna gdy ezd.php ładuje się bez ksiegowosc.php
+    }
+    $type_labels = [
+        'ksef'        => 'Faktura KSeF',
+        'ksef_reczny' => 'Faktura KSeF (ręczna)',
+        'rachunek'    => 'Rachunek',
+        'lista_plac'  => 'Lista płac',
+        'wyciag'      => 'Wyciąg bankowy',
+    ];
+    $typ_label = $type_labels[$doc['type'] ?? ''] ?? ($doc['type'] ?? 'Dokument');
+
+    $nr_fakt  = trim((string)($doc['nr_faktury'] ?? $doc['number'] ?? ''));
+    $title    = $typ_label . ($nr_fakt ? ' ' . $nr_fakt : '') . (($doc['title'] ?? '') !== '' ? ' — ' . $doc['title'] : '');
+
+    $parts = [];
+    if (($doc['nip_dostawcy'] ?? '') !== '')     $parts[] = 'NIP: ' . $doc['nip_dostawcy'];
+    if (($doc['kwota_brutto'] ?? '') !== '')      $parts[] = 'Kwota brutto: ' . $doc['kwota_brutto'] . ' ' . ($doc['waluta'] ?? 'PLN');
+    elseif (($doc['kwota'] ?? '') !== '')         $parts[] = 'Kwota: ' . $doc['kwota'];
+    if (($doc['termin_platnosci'] ?? '') !== '')  $parts[] = 'Termin płatności: ' . $doc['termin_platnosci'];
+    if (($doc['centrum_kosztow'] ?? '') !== '')   $parts[] = 'CK: ' . $doc['centrum_kosztow'];
+    elseif (($doc['mpk'] ?? '') !== '')           $parts[] = 'MPK: ' . $doc['mpk'];
+    if (($doc['projekt'] ?? '') !== '')           $parts[] = 'Projekt: ' . $doc['projekt'];
+    elseif (($doc['grant_name'] ?? '') !== '')    $parts[] = 'Projekt: ' . $doc['grant_name'];
+    if (!empty($doc['wymaga_mpp']))               $parts[] = 'Wymaga split payment (MPP)';
+
+    $desc = 'Koszulka dokumentu finansowo-księgowego KDOK/' . ($doc['number'] ?? '?') . ".\n"
+          . ($parts ? implode(' | ', $parts) : '');
+
+    $deadline = ($doc['termin_platnosci'] ?? '') ?: null;
+
+    return ezd_sprawa_create([
+        'teczka_id'   => $tid,
+        'title'       => mb_substr($title, 0, 255),
+        'description' => $desc,
+        'priority'    => 'normal',
+        'owner_id'    => $doc['created_by'] ?? null,
+        'deadline'    => $deadline,
+        'ref_type'    => 'kdok',
+        'ref_id'      => $doc_id,
+    ], $user_id);
+}
+
 /** Sprawa ciągła „Dokumenty księgowe - obieg od zapłaty {rok}" (utworzona w razie potrzeby). */
 function ezd_kdok_sprawa_id(int $rok, int $user_id): int {
     $tid   = _ezd_kdok_teczka_id($rok, $user_id);

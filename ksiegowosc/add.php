@@ -41,6 +41,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $grant_name  = trim($_POST['grant_name']  ?? '');
     $mpk         = trim($_POST['mpk']         ?? '');
 
+    // Pola finansowe
+    $nr_faktury       = trim($_POST['nr_faktury']       ?? '');
+    $nip_dostawcy     = preg_replace('/\D/', '', trim($_POST['nip_dostawcy'] ?? ''));
+    $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
+    $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
+    $kwota_netto      = trim($_POST['kwota_netto']      ?? '');
+    $kwota_vat        = trim($_POST['kwota_vat']        ?? '');
+    $kwota_brutto     = trim($_POST['kwota_brutto']     ?? '');
+    $waluta           = trim($_POST['waluta']           ?? 'PLN');
+    $centrum_kosztow  = trim($_POST['centrum_kosztow']  ?? '');
+    $projekt          = trim($_POST['projekt']          ?? '');
+    $tytul_przelewu   = trim($_POST['tytul_przelewu']   ?? '');
+    // MPP: wymagane gdy brutto >= 15 000 PLN (waluta PLN)
+    $brutto_num  = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
+    $wymaga_mpp  = ($waluta === 'PLN' && $brutto_num >= 15000.00) ? 1 : 0;
+    // kwota legacy = brutto gdy podane, inaczej oryginalne pole
+    if ($kwota_brutto !== '') $kwota = $kwota_brutto . ' ' . $waluta;
+
     $ksef_ref = trim($_POST['ksef_reference'] ?? '');
     $is_ksef  = ($type === 'ksef');
 
@@ -131,24 +149,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $number = kdok_next_number();
         $cu = current_user();
         $doc_id = kdok_insert('kdok_documents', [
-            'number'       => $number,
-            'type'         => $type,
-            'title'        => $title,
-            'description'  => $description,
-            'uwagi'        => $uwagi,
-            'kwota'        => $kwota,
-            'grant_name'   => $grant_name,
-            'mpk'          => $mpk,
-            'creator_name' => $cu['name'] ?? '',
-            'file_path'    => $file_path,
-            'file_sha256'  => $file_sha256,
-            'file_size'    => $file_size,
-            'status'       => 'w_obiegu',
-            'created_by'   => $cu['id'],
-            'miesiac'      => (int)date('n'),
-            'rok'          => (int)date('Y'),
-            'contract_type'=> $contract_type,
-            'contract_id'  => $contract_id,
+            'number'          => $number,
+            'type'            => $type,
+            'title'           => $title,
+            'description'     => $description,
+            'uwagi'           => $uwagi,
+            'kwota'           => $kwota,
+            'grant_name'      => $grant_name,
+            'mpk'             => $mpk ?: $centrum_kosztow,
+            'creator_name'    => $cu['name'] ?? '',
+            'file_path'       => $file_path,
+            'file_sha256'     => $file_sha256,
+            'file_size'       => $file_size,
+            'status'          => 'w_obiegu',
+            'created_by'      => $cu['id'],
+            'miesiac'         => (int)date('n'),
+            'rok'             => (int)date('Y'),
+            'contract_type'   => $contract_type,
+            'contract_id'     => $contract_id,
+            // Pola finansowe
+            'nr_faktury'      => $nr_faktury,
+            'nip_dostawcy'    => $nip_dostawcy,
+            'rachunek_bankowy'=> $rachunek_bankowy,
+            'termin_platnosci'=> $termin_platnosci ?: null,
+            'kwota_netto'     => $kwota_netto,
+            'kwota_vat'       => $kwota_vat,
+            'kwota_brutto'    => $kwota_brutto,
+            'waluta'          => $waluta ?: 'PLN',
+            'wymaga_mpp'      => $wymaga_mpp,
+            'centrum_kosztow' => $centrum_kosztow ?: $mpk,
+            'projekt'         => $projekt,
+            'tytul_przelewu'  => $tytul_przelewu,
+            'status_platnosci'=> 'nowy',
         ]);
 
         foreach (array_keys(KDOK_STEPS) as $step) {
@@ -156,6 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         kdok_log($doc_id, 'Dokument dodany do obiegu', 'SHA-256: ' . $file_sha256);
+
+        // Automatyczne utworzenie koszulki EZD
+        $doc_row = kdok_one("SELECT * FROM kdok_documents WHERE id=?", [$doc_id]);
+        if ($doc_row) kdok_create_koszulka_ezd($doc_row, (int)$cu['id']);
 
         flash_set('success', 'Dokument ' . $number . ' dodany do obiegu.');
         header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $doc_id);
@@ -271,6 +307,91 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
       </div>
       <?php endif; ?>
+
+      <!-- Sekcja: Dane finansowe i płatnicze -->
+      <hr class="my-3">
+      <p class="fw-semibold small text-muted mb-2"><i class="bi bi-currency-exchange"></i> Dane finansowe i płatnicze</p>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label for="nr_faktury" class="form-label">Nr oryginalnej faktury</label>
+          <input type="text" id="nr_faktury" name="nr_faktury" class="form-control"
+            value="<?= h($_POST['nr_faktury'] ?? '') ?>" maxlength="100" placeholder="np. FV/2026/01/001">
+        </div>
+        <div class="col-sm-6">
+          <label for="nip_dostawcy" class="form-label">NIP dostawcy</label>
+          <input type="text" id="nip_dostawcy" name="nip_dostawcy" class="form-control"
+            value="<?= h($_POST['nip_dostawcy'] ?? '') ?>" maxlength="13" placeholder="9999999999">
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-5">
+          <label for="kwota_netto" class="form-label">Kwota netto</label>
+          <div class="input-group">
+            <input type="text" id="kwota_netto" name="kwota_netto" class="form-control text-end"
+              value="<?= h($_POST['kwota_netto'] ?? '') ?>" maxlength="20" placeholder="0,00"
+              oninput="recalcBrutto()">
+            <select name="waluta" id="waluta" class="form-select" style="max-width:90px" onchange="recalcMpp()">
+              <?php foreach (['PLN','EUR','USD','CHF','GBP'] as $w): ?>
+              <option value="<?= $w ?>" <?= ($_POST['waluta'] ?? 'PLN') === $w ? 'selected' : '' ?>><?= $w ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <div class="col-sm-3">
+          <label for="kwota_vat" class="form-label">Kwota VAT</label>
+          <input type="text" id="kwota_vat" name="kwota_vat" class="form-control text-end"
+            value="<?= h($_POST['kwota_vat'] ?? '') ?>" maxlength="20" placeholder="0,00"
+            oninput="recalcBrutto()">
+        </div>
+        <div class="col-sm-4">
+          <label for="kwota_brutto" class="form-label fw-semibold">Kwota brutto</label>
+          <input type="text" id="kwota_brutto" name="kwota_brutto" class="form-control text-end fw-semibold"
+            value="<?= h($_POST['kwota_brutto'] ?? '') ?>" maxlength="20" placeholder="0,00"
+            oninput="recalcMpp()">
+        </div>
+      </div>
+
+      <div id="mpp-alert" class="alert alert-warning py-2 small mb-3" style="display:none">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Kwota brutto ≥ 15 000 PLN — <strong>wymagany mechanizm podzielonej płatności (MPP / split payment)</strong>.
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label for="termin_platnosci" class="form-label">Termin płatności</label>
+          <input type="date" id="termin_platnosci" name="termin_platnosci" class="form-control"
+            value="<?= h($_POST['termin_platnosci'] ?? '') ?>">
+        </div>
+        <div class="col-sm-6">
+          <label for="centrum_kosztow" class="form-label">Centrum kosztów</label>
+          <input type="text" id="centrum_kosztow" name="centrum_kosztow" class="form-control"
+            value="<?= h($_POST['centrum_kosztow'] ?? '') ?>" maxlength="100" placeholder="np. CK-01-ADMIN">
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label for="projekt" class="form-label">Projekt / dotacja</label>
+          <input type="text" id="projekt" name="projekt" class="form-control"
+            value="<?= h($_POST['projekt'] ?? '') ?>" maxlength="200" placeholder="Kod lub nazwa projektu">
+        </div>
+        <div class="col-sm-6">
+          <label for="rachunek_bankowy" class="form-label">Nr rachunku bankowego</label>
+          <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control font-monospace"
+            value="<?= h($_POST['rachunek_bankowy'] ?? '') ?>" maxlength="34" placeholder="PL61 1090 1014 0000 0712 1981 2874">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="tytul_przelewu" class="form-label">Tytuł przelewu</label>
+        <input type="text" id="tytul_przelewu" name="tytul_przelewu" class="form-control"
+          value="<?= h($_POST['tytul_przelewu'] ?? '') ?>" maxlength="140"
+          placeholder="Np. Zapłata za fakturę FV/2026/01/001 z dn. …">
+        <div class="form-text">Maks. 140 znaków. Zostanie użyty jako tytuł przelewu bankowego.</div>
+      </div>
+      <hr class="my-3">
 
       <!-- Sekcja umowy (widoczna tylko dla typu "rachunek") -->
       <?php $picked_contract = ($_POST['contract_type'] ?? '') && ($_POST['contract_id'] ?? '')
@@ -471,6 +592,25 @@ require_once __DIR__ . '/../includes/header.php';
     });
   }
   <?php endif; ?>
+
+  // ── Kalkulator brutto + alert MPP ──────────────────────────────────────────
+  window.recalcBrutto = function () {
+    var netto  = parseFloat((document.getElementById('kwota_netto')?.value  || '0').replace(',', '.').replace(/\s/g,'')) || 0;
+    var vat    = parseFloat((document.getElementById('kwota_vat')?.value    || '0').replace(',', '.').replace(/\s/g,'')) || 0;
+    var brutto = document.getElementById('kwota_brutto');
+    if (brutto && netto + vat > 0) {
+      brutto.value = (netto + vat).toFixed(2).replace('.', ',');
+    }
+    window.recalcMpp();
+  };
+  window.recalcMpp = function () {
+    var brutto = parseFloat((document.getElementById('kwota_brutto')?.value || '0').replace(',', '.').replace(/\s/g,'')) || 0;
+    var waluta = document.getElementById('waluta')?.value || 'PLN';
+    var alert  = document.getElementById('mpp-alert');
+    if (alert) alert.style.display = (waluta === 'PLN' && brutto >= 15000) ? '' : 'none';
+  };
+  // Stan startowy
+  window.recalcMpp();
 })();
 </script>
 

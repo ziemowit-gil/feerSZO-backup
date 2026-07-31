@@ -282,8 +282,11 @@ function _menu_editor(): array {
     if (can_read('umowy') || is_admin())
         $fin[] = _mi('Strategia','/strategy/index.php','bi-bullseye',['match'=>'/strategy/index','kw'=>'strategia cele']);
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
-    if ($cnt['has_kdok'])
-        $fin[] = _mi('EOD Dok. Księgowych','/ksiegowosc/index.php','bi-file-earmark-check',['match'=>'/ksiegowosc/','kw'=>'księgowość faktury dokumenty']);
+    if ($cnt['has_kdok']) {
+        $fin[] = _mi('EOD Dok. Księgowych','/ksiegowosc/index.php','bi-file-earmark-check',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty']);
+        if (kdok_has_role('zatwierdza'))
+            $fin[] = _mi('Preliminarz Płatności','/ksiegowosc/preliminarz.php','bi-calendar-check',['match'=>'/ksiegowosc/preliminarz','kw'=>'preliminarz płatności przelew']);
+    }
     $fin[] = _mi('Zasoby','/resources/','bi-box-seam',['match'=>'/resources/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt']);
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);

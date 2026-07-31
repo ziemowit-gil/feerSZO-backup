@@ -207,16 +207,31 @@ function kdok_migrate(): void {
 
     // Migracja schemy — dodaj nowe kolumny do istniejących tabel
     _kdok_add_columns($kdb, 'kdok_documents', [
-        'uwagi'         => "TEXT NOT NULL DEFAULT ''",
-        'grant_name'    => "TEXT NOT NULL DEFAULT ''",
-        'mpk'           => "TEXT NOT NULL DEFAULT ''",
-        'kwota'         => "TEXT NOT NULL DEFAULT ''",
-        'creator_name'  => "TEXT NOT NULL DEFAULT ''",
-        'miesiac'       => "INTEGER",
-        'rok'           => "INTEGER",
-        'contract_type' => "TEXT",
-        'contract_id'   => "INTEGER",
-        'ezd_dokument_id' => "INTEGER", // link do dokumentu wewn. w EZD (rejestracja po zaakceptowaniu)
+        'uwagi'           => "TEXT NOT NULL DEFAULT ''",
+        'grant_name'      => "TEXT NOT NULL DEFAULT ''",
+        'mpk'             => "TEXT NOT NULL DEFAULT ''",
+        'kwota'           => "TEXT NOT NULL DEFAULT ''",
+        'creator_name'    => "TEXT NOT NULL DEFAULT ''",
+        'miesiac'         => "INTEGER",
+        'rok'             => "INTEGER",
+        'contract_type'   => "TEXT",
+        'contract_id'     => "INTEGER",
+        'ezd_dokument_id' => "INTEGER",
+        // Pola finansowe — Preliminarz Płatności
+        'nr_faktury'      => "TEXT NOT NULL DEFAULT ''",
+        'nip_dostawcy'    => "TEXT NOT NULL DEFAULT ''",
+        'rachunek_bankowy'=> "TEXT NOT NULL DEFAULT ''",
+        'termin_platnosci'=> "TEXT",
+        'kwota_netto'     => "TEXT NOT NULL DEFAULT ''",
+        'kwota_vat'       => "TEXT NOT NULL DEFAULT ''",
+        'kwota_brutto'    => "TEXT NOT NULL DEFAULT ''",
+        'waluta'          => "TEXT NOT NULL DEFAULT 'PLN'",
+        'wymaga_mpp'      => "INTEGER NOT NULL DEFAULT 0",
+        'centrum_kosztow' => "TEXT NOT NULL DEFAULT ''",
+        'projekt'         => "TEXT NOT NULL DEFAULT ''",
+        'tytul_przelewu'  => "TEXT NOT NULL DEFAULT ''",
+        'status_platnosci'=> "TEXT NOT NULL DEFAULT 'nowy'",
+        'ezd_sprawa_id'   => "INTEGER",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -662,6 +677,108 @@ function kdok_mpk_list(): array {
     $raw = org_setting('kdok_mpk_list');
     if ($raw === '') return [];
     return array_values(array_filter(array_map('trim', explode("\n", $raw))));
+}
+
+// ── Preliminarz Płatności — priorytety i statusy ──────────────────────────────
+
+const KDOK_STATUS_PLATNOSCI = [
+    'nowy'         => ['label' => 'Nowy',             'class' => 'secondary'],
+    'do_realizacji'=> ['label' => 'Do realizacji',    'class' => 'warning'],
+    'zlecony'      => ['label' => 'Zlecony do banku', 'class' => 'info'],
+    'oplacony'     => ['label' => 'Opłacony',         'class' => 'success'],
+    'wstrzymany'   => ['label' => 'Wstrzymany',       'class' => 'danger'],
+    'anulowany'    => ['label' => 'Anulowany',        'class' => 'dark'],
+];
+
+/** Zwraca priorytet P1–P5 na podstawie terminu płatności i flagi MPP. */
+function kdok_platnosc_priorytet(array $doc): int {
+    $termin = $doc['termin_platnosci'] ?? '';
+    if (!$termin) return 5;
+    $today = (int) date('Ymd');
+    $tdate = (int) str_replace('-', '', substr($termin, 0, 10));
+    $diff  = (int) round((strtotime(substr($termin, 0, 10)) - strtotime(date('Y-m-d'))) / 86400);
+    $mpp   = !empty($doc['wymaga_mpp']);
+    if ($diff < 0)                        return 1; // przeterminowane
+    if ($mpp && $diff <= 7)               return 1; // MPP + bliski termin
+    if ($diff <= 3)                       return 2;
+    if ($diff <= 7)                       return 3;
+    if ($diff <= 14)                      return 4;
+    return 5;
+}
+
+function kdok_platnosc_priorytet_label(int $p): string {
+    return ['', 'Krytyczny', 'Pilny', 'Wkrótce', 'Normalny', 'Oczekujący'][$p] ?? '?';
+}
+
+function kdok_status_platnosci_badge(string $status): string {
+    $s = KDOK_STATUS_PLATNOSCI[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . '">' . h($s['label']) . '</span>';
+}
+
+/**
+ * Dokumenty kwalifikowane do Preliminarza Płatności.
+ * Kwalifikuje status 'zaakceptowany' (kroki zakończone).
+ */
+function kdok_preliminarz_query(array $f = []): array {
+    $where  = ["d.status = 'zaakceptowany'"];
+    $params = [];
+
+    if (!empty($f['status_platnosci'])) {
+        $where[]  = "d.status_platnosci = ?";
+        $params[] = $f['status_platnosci'];
+    } else {
+        $where[]  = "d.status_platnosci NOT IN ('anulowany')";
+    }
+    if (!empty($f['termin_od'])) {
+        $where[]  = "d.termin_platnosci >= ?";
+        $params[] = $f['termin_od'];
+    }
+    if (!empty($f['termin_do'])) {
+        $where[]  = "d.termin_platnosci <= ?";
+        $params[] = $f['termin_do'];
+    }
+    if (!empty($f['waluta'])) {
+        $where[]  = "d.waluta = ?";
+        $params[] = $f['waluta'];
+    }
+    if (!empty($f['mpp'])) {
+        $where[]  = "d.wymaga_mpp = 1";
+    }
+    if (!empty($f['centrum_kosztow'])) {
+        $where[]  = "d.centrum_kosztow = ?";
+        $params[] = $f['centrum_kosztow'];
+    }
+    if (!empty($f['q'])) {
+        $where[]  = "(d.title LIKE ? OR d.nip_dostawcy LIKE ? OR d.nr_faktury LIKE ?)";
+        $q = '%' . $f['q'] . '%';
+        $params[] = $q; $params[] = $q; $params[] = $q;
+    }
+
+    $sql = "SELECT d.* FROM kdok_documents d WHERE " . implode(' AND ', $where)
+         . " ORDER BY COALESCE(d.termin_platnosci,'9999-99-99') ASC, d.id ASC";
+    $rows = kdok_all($sql, $params);
+
+    foreach ($rows as &$row) {
+        $row['priorytet'] = kdok_platnosc_priorytet($row);
+    }
+    usort($rows, fn($a, $b) => $a['priorytet'] <=> $b['priorytet'] ?: strcmp($a['termin_platnosci'] ?? '', $b['termin_platnosci'] ?? ''));
+    return $rows;
+}
+
+/** Tworzy dedykowaną koszulkę EZD dla dokumentu KDOK (1:1). */
+function kdok_create_koszulka_ezd(array $doc, int $user_id): ?int {
+    if (!module_enabled('ezd_enabled')) return null;
+    if (!empty($doc['ezd_sprawa_id'])) return (int)$doc['ezd_sprawa_id'];
+    require_once __DIR__ . '/ezd.php';
+    try {
+        $sprawa_id = ezd_kdok_koszulka_create($doc, $user_id);
+        kdok_exec("UPDATE kdok_documents SET ezd_sprawa_id=? WHERE id=?", [$sprawa_id, (int)$doc['id']]);
+        kdok_log((int)$doc['id'], 'Koszulka EZD utworzona (sprawa #' . $sprawa_id . ')');
+        return $sprawa_id;
+    } catch (\Throwable $e) {
+        try { kdok_log((int)($doc['id'] ?? 0), 'EZD: nie udało się utworzyć koszulki', $e->getMessage()); } catch (\Throwable $_) {}
+        return null;
+    }
 }
 
 // ── Numery dokumentów ─────────────────────────────────────────────────────────
