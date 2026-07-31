@@ -352,7 +352,6 @@ if ($out === 'pdf') {
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
 $PAGE_TITLE = 'Drukuj koszulkę — ' . $sprawa['znak_sprawy'];
-$stat_label = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
@@ -364,147 +363,100 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?= flash_html() ?>
 
 <style>
-  .pk-wrap{max-width:900px}
-  .pk-hero{border-radius:16px;overflow:hidden;background:#fff;
-           box-shadow:0 1px 2px rgba(16,42,82,.06),0 14px 32px -18px rgba(16,42,82,.35)}
-  .pk-hero__top{background:linear-gradient(135deg,#12305e 0%,#1e4a8a 100%);color:#fff;padding:22px 26px 20px}
-  .pk-eyebrow{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6)}
-  .pk-znak{font-size:1.55rem;font-weight:800;line-height:1.12;letter-spacing:.01em;color:#fff;margin-top:3px}
-  .pk-title{font-size:1.02rem;font-weight:600;color:rgba(255,255,255,.92);margin-top:10px;line-height:1.4}
-  .pk-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-  .pk-chip{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:600;
-           padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.13);
-           color:#fff;border:1px solid rgba(255,255,255,.22);white-space:nowrap}
-  .pk-chip i{opacity:.8}
-  .pk-back{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.26);
-           border-radius:8px;white-space:nowrap;transition:background .15s}
-  .pk-back:hover{background:rgba(255,255,255,.26);color:#fff}
-  .pk-desc{background:#f2f6fd;border-top:1px solid #e6eefb;padding:14px 24px;
-           display:flex;gap:12px;align-items:flex-start}
-  .pk-desc__lbl{font-size:.64rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5a719e;margin-bottom:3px}
-  .pk-desc__txt{font-size:.92rem;color:#1a2a45;line-height:1.55;white-space:pre-wrap}
-  .pk-meta{display:flex;flex-wrap:wrap;gap:18px 30px;padding:16px 24px;border-top:1px solid #eef2f8}
-  .pk-meta__k{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a94a6}
-  .pk-meta__v{font-size:.9rem;font-weight:700;color:#1c2333;margin-top:2px}
-  .pk-card{border:1px solid #edf0f6;border-radius:14px;background:#fff;
-           box-shadow:0 1px 2px rgba(16,42,82,.05);transition:box-shadow .15s,border-color .15s;overflow:hidden}
-  .pk-cta{display:flex;align-items:center;gap:18px;padding:18px 22px}
-  .pk-cta__icon{width:52px;height:52px;border-radius:12px;background:#fdecec;display:flex;
-                align-items:center;justify-content:center;flex-shrink:0;color:#dc2626;font-size:1.7rem}
-  .pk-cta__btn{background:#dc2626;border:0;color:#fff;font-weight:600;border-radius:9px;
-               padding:11px 22px;white-space:nowrap;transition:background .15s,transform .1s}
-  .pk-cta__btn:hover{background:#b91c1c;color:#fff;transform:translateY(-1px)}
-  .pk-sec{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7a8496}
-  .pk-doc{display:flex;align-items:center;gap:14px;padding:11px 20px;border-top:1px solid #f2f4f9;transition:background .12s}
-  .pk-doc:first-of-type{border-top:0}
-  .pk-doc:hover{background:#f7f9fc}
-  .pk-doc__icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .pk-doc__name{font-size:.88rem;font-weight:600;color:#1c2333}
-  .pk-doc__meta{font-size:.73rem;color:#8a94a6;margin-top:1px}
-  .pk-foot{font-size:.75rem;color:#98a2b3;padding:12px 20px;border-top:1px solid #f2f4f9;background:#fcfdff}
+.ezd-hero{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;background:linear-gradient(135deg,#fef2f2 0%,#ffffff 60%);border:1px solid #fee2e2;border-radius:16px;padding:1.15rem 1.4rem;margin-bottom:1.25rem;}
+.ezd-hero-icon{width:52px;height:52px;border-radius:14px;background:#dc2626;color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.55rem;box-shadow:0 4px 10px rgba(220,38,38,.28);}
+.ezd-hero-title{font-size:1.2rem;font-weight:800;color:#0f172a;line-height:1.2;margin:.15rem 0 .1rem;}
+.ezd-hero-desc{font-size:.83rem;color:#5b6472;line-height:1.5;margin-top:.35rem;}
+.bc{background:#fff;border:1.5px solid #e8edf3;border-radius:12px;overflow:hidden;margin-bottom:.85rem;}
+.bc-h{padding:.5rem 1rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;border-bottom:1px solid #f1f5f9;background:#fafbfc;display:flex;align-items:center;gap:.4rem;}
+.bc-b{padding:.9rem 1rem;}
+.pr-doc{display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid #f2f4f9;transition:background .12s;}
+.pr-doc:first-of-type{border-top:0;}
+.pr-doc:hover{background:#f7f9fc;}
+.pr-doc__icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pr-doc__name{font-size:.87rem;font-weight:600;color:#1c2333;}
+.pr-doc__meta{font-size:.72rem;color:#8a94a6;margin-top:1px;}
+.pr-foot{font-size:.74rem;color:#94a3b8;padding:9px 16px;border-top:1px solid #f2f4f9;background:#fafbfc;}
 </style>
 
-<div class="pk-wrap">
+<div style="max-width:820px">
 
-  <!-- ── Karta podglądu sprawy ─────────────────────────────────────────────── -->
-  <div class="pk-hero mb-4">
-    <div class="pk-hero__top">
-      <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-        <div class="flex-grow-1">
-          <div class="pk-eyebrow">Znak koszulki</div>
-          <div class="pk-znak"><?= h($sprawa['znak_sprawy']) ?></div>
-        </div>
-        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>" class="btn btn-sm pk-back">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do koszulki
-        </a>
-      </div>
-      <div class="pk-title"><?= h($sprawa['title']) ?></div>
-      <div class="pk-chips">
-        <span class="pk-chip"><i class="bi bi-flag"></i><?= h($stat_label) ?></span>
-        <span class="pk-chip"><i class="bi bi-folder2"></i><?= h($sprawa['teczka_symbol'] ?? '—') ?></span>
+  <!-- Hero -->
+  <div class="ezd-hero">
+    <div class="ezd-hero-icon"><i class="bi bi-printer"></i></div>
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <code class="bg-white px-2 py-0 rounded fw-bold border" style="font-size:.82rem;color:#1d4ed8"><?= h($sprawa['znak_sprawy']) ?></code>
+        <?= ezd_status_badge_sprawa($sprawa['status']) ?>
         <?php if ($jrwa): ?>
-        <span class="pk-chip"><i class="bi bi-diagram-3"></i>JRWA <?= h($jrwa['symbol'] ?? '—') ?></span>
-        <span class="pk-chip"><i class="bi bi-archive"></i>kat. <?= h($jrwa['kat_arch'] ?? '—') ?></span>
+        <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.68rem">
+          <i class="bi bi-archive me-1"></i>kat. <?= h($jrwa['kat_arch'] ?? '—') ?>
+        </span>
         <?php endif; ?>
+        <span class="text-muted ms-auto" style="font-size:.75rem"><?= count($zalaczniki) ?> dok.</span>
       </div>
-    </div>
-
-    <?php if (!empty($sprawa['description'])): ?>
-    <div class="pk-desc">
-      <i class="bi bi-card-text" style="color:#2f5aa8;font-size:1.15rem;margin-top:1px;flex-shrink:0"></i>
-      <div>
-        <div class="pk-desc__lbl">Opis koszulki</div>
-        <div class="pk-desc__txt"><?= h($sprawa['description']) ?></div>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <div class="pk-meta">
-      <div><div class="pk-meta__k">Właściciel</div><div class="pk-meta__v"><?= h($sprawa['owner_name'] ?? '—') ?></div></div>
-      <div><div class="pk-meta__k">Otwarto</div><div class="pk-meta__v"><?= $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—' ?></div></div>
-      <?php if (!empty($sprawa['ciagla'])): ?>
-      <div><div class="pk-meta__k">Termin</div><div class="pk-meta__v">koszulka ciągła</div></div>
-      <?php elseif (!empty($sprawa['deadline'])): ?>
-      <div><div class="pk-meta__k">Termin</div><div class="pk-meta__v"><?= date('d.m.Y', strtotime($sprawa['deadline'])) ?></div></div>
+      <div class="ezd-hero-title"><?= h($sprawa['title']) ?></div>
+      <?php if (!empty($sprawa['description'])): ?>
+      <div class="ezd-hero-desc"><?= h($sprawa['description']) ?></div>
       <?php endif; ?>
-      <div class="ms-auto"><div class="pk-meta__k">Dokumenty</div><div class="pk-meta__v"><?= count($zalaczniki) ?></div></div>
     </div>
+    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary align-self-start flex-shrink-0">
+      <i class="bi bi-arrow-left me-1"></i>Wróć
+    </a>
   </div>
 
-  <!-- ── Akcja: cała sprawa ────────────────────────────────────────────────── -->
-  <div class="pk-card mb-3">
-    <div class="pk-cta">
-      <div class="pk-cta__icon"><i class="bi bi-file-earmark-pdf"></i></div>
+  <!-- Cała koszulka -->
+  <div class="bc">
+    <div class="bc-h"><i class="bi bi-file-earmark-pdf text-danger"></i>Cały dokument</div>
+    <div class="bc-b d-flex align-items-center gap-3 flex-wrap">
       <div class="flex-grow-1">
-        <div class="fw-bold mb-1">Cała koszulka — jeden plik PDF</div>
-        <div class="text-secondary" style="font-size:.83rem">
-          Okładka (dane, klasyfikacja JRWA, kod QR, adnotacje) + scalone
-          <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
+        <div class="fw-semibold mb-1" style="font-size:.92rem">Koszulka — jeden plik PDF</div>
+        <div class="text-secondary" style="font-size:.81rem">
+          Okładka (dane, JRWA, kod QR, adnotacje kancelaryjne) +
+          <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> scalonych w jeden plik.
         </div>
       </div>
-      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener" class="btn pk-cta__btn">
-        <i class="bi bi-download me-2"></i>Pobierz PDF
+      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener"
+         class="btn btn-danger btn-sm flex-shrink-0" style="white-space:nowrap">
+        <i class="bi bi-download me-1"></i>Pobierz PDF
       </a>
     </div>
   </div>
 
-  <!-- ── Lista dokumentów ─────────────────────────────────────────────────── -->
+  <!-- Lista dokumentów -->
   <?php if ($zalaczniki): ?>
-  <div class="pk-card">
-    <div class="d-flex align-items-center px-4 pt-3 pb-2">
-      <span class="pk-sec"><i class="bi bi-files me-2"></i>Pojedynczy dokument</span>
-      <span class="text-secondary ms-2" style="font-size:.8rem">— pobierz z listy</span>
-    </div>
+  <div class="bc">
+    <div class="bc-h"><i class="bi bi-files"></i>Pojedynczy dokument</div>
     <div>
-      <?php foreach ($zalaczniki as $i => $z):
+      <?php foreach ($zalaczniki as $z):
         $ext       = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
         $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true) || in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true);
         $icon      = ezd_file_icon($z['original_name']);
       ?>
-      <div class="pk-doc">
-        <div class="pk-doc__icon" style="background:<?= $printable ? '#eef4ff' : '#f5f7fa' ?>">
-          <i class="bi <?= $icon ?>" style="font-size:1.1rem;color:<?= $printable ? '#2563eb' : '#94a3b8' ?>"></i>
+      <div class="pr-doc">
+        <div class="pr-doc__icon" style="background:<?= $printable ? '#eef4ff' : '#f5f7fa' ?>">
+          <i class="bi <?= $icon ?>" style="font-size:1rem;color:<?= $printable ? '#2563eb' : '#94a3b8' ?>"></i>
         </div>
         <div class="flex-grow-1 overflow-hidden">
-          <div class="pk-doc__name text-truncate"><?= h($z['original_name']) ?></div>
-          <div class="pk-doc__meta"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
+          <div class="pr-doc__name text-truncate"><?= h($z['original_name']) ?></div>
+          <div class="pr-doc__meta"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
         </div>
         <?php if ($printable): ?>
         <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
-           target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="white-space:nowrap">
+           target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger flex-shrink-0" style="white-space:nowrap">
           <i class="bi bi-file-earmark-pdf me-1"></i>PDF
         </a>
         <?php else: ?>
         <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1"
-           class="btn btn-sm btn-outline-secondary" style="white-space:nowrap" title="Format nie-PDF — pobierz oryginał">
+           class="btn btn-sm btn-outline-secondary flex-shrink-0" style="white-space:nowrap" title="Format nie-PDF — pobierz oryginał">
           <i class="bi bi-download me-1"></i>Oryginał
         </a>
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
-    <div class="pk-foot">
-      <i class="bi bi-info-circle me-1"></i>PDF, obrazy (JPG, PNG) i pliki Word/Excel (DOC, DOCX, XLS, XLSX — konwertowane automatycznie) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej koszulki.
+    <div class="pr-foot">
+      <i class="bi bi-info-circle me-1"></i>PDF, JPG, PNG i pliki Word/Excel są konwertowane automatycznie. Pozostałe formaty pobierz jako oryginał — są wykazane na okładce.
     </div>
   </div>
   <?php endif; ?>
