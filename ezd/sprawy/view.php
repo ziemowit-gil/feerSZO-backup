@@ -4,9 +4,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 if (module_enabled('org_enabled')) {
     require_once dirname(dirname(__DIR__)) . '/includes/org.php';
-    require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
     require_once dirname(dirname(__DIR__)) . '/includes/notification_service.php';
 }
 
@@ -49,6 +49,16 @@ $can_edit_case    = $access === 'write';           // zarządzanie sprawą (meta
 $can_act          = $can_edit_case && !$is_closed; // dodawanie treści do sprawy — tylko gdy otwarta
 $can_manage_share = ezd_sprawa_can_manage_share($sprawa, $user_id);
 $mini             = ezd_mini(); // tryb uproszczony — ukrywa metrykę i obieg/workflow
+
+// Tylko PDF-y z podpisem elektronicznym ze wszystkich plików repozytorium koszulki
+$signed_pdfs = [];
+foreach ($zalaczniki as $z) {
+    if (strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)) !== 'pdf') continue;
+    $fp = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/' . $z['filename'];
+    if (is_file($fp) && ezd_signature_info($fp, $z['original_name'])['signed']) {
+        $signed_pdfs[] = $z;
+    }
+}
 
 // Obsługa POST (upload + dekretacja + zmiana statusu sprawy)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -239,6 +249,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
 
+    if ($action === 'send_email_pismo' && $can_act && $signed_pdfs) {
+        $recipient = trim($_POST['recipient_email'] ?? '');
+        $subject   = trim($_POST['mail_subject']    ?? '');
+        $body_raw  = trim($_POST['mail_body']       ?? '');
+        $zids      = array_filter(array_map('intval', (array)($_POST['zal_ids'] ?? [])));
+        if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            flash_set('error', 'Podaj prawidłowy adres e-mail odbiorcy.');
+        } elseif (!$zids) {
+            flash_set('error', 'Wybierz co najmniej jeden plik do wysłania.');
+        } else {
+            $attachments = [];
+            foreach ($signed_pdfs as $z) {
+                if (!in_array((int)$z['id'], $zids, true)) continue;
+                $attachments[] = [
+                    'path' => EZD_UPLOAD_SUBDIR . $id . '/' . $z['filename'],
+                    'name' => $z['original_name'],
+                    'mime' => 'application/pdf',
+                    'size' => (int)$z['file_size'],
+                ];
+            }
+            if (!$attachments) {
+                flash_set('error', 'Nie znaleziono podpisanych plików PDF do wysłania.');
+            } else {
+                $subj      = $subject ?: $sprawa['znak_sprawy'] . ' — ' . $sprawa['title'];
+                $body_html = $body_raw ? nl2br(htmlspecialchars($body_raw, ENT_QUOTES, 'UTF-8')) : '';
+                mail_queue_add($recipient, $recipient, $subj,
+                    $body_html, $body_raw, 'ezd_sprawa', $id, '', false, $attachments);
+                ezd_log(null, $id, null, null, $user_id, 'sprawa_email_sent',
+                    'Wysłano mailem do: ' . $recipient . '; pliki: ' . implode(', ', array_column($attachments, 'name')));
+                flash_set('success', 'Wiadomość e-mail wysłana na adres ' . htmlspecialchars($recipient, ENT_QUOTES) . '.');
+            }
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
+    }
+
     header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
 }
 
@@ -387,6 +432,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
       <i class="bi bi-envelope-plus me-1"></i>Pismo
     </button>
+    <?php if($signed_pdfs): ?>
+    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal">
+      <i class="bi bi-send me-1"></i>Wyślij mailem
+    </button>
+    <?php endif; ?>
     <?php endif; ?>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal">
       <i class="bi bi-sticky me-1"></i>Notatki<?php if($notatki): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($notatki) ?></span><?php endif; ?>
@@ -1252,6 +1302,58 @@ function dekrUnitChange(sel) {
         </div>
       </form>
     </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if($can_act && $signed_pdfs): ?>
+<div class="modal fade" id="sprawaSendMailModal" tabindex="-1" aria-labelledby="sprawaSendMailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="send_email_pismo">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="sprawaSendMailModalLabel"><i class="bi bi-send me-1 text-success"></i>Wyślij dokumenty mailem</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Adres e-mail odbiorcy <span class="text-danger">*</span></label>
+          <input type="email" name="recipient_email" class="form-control form-control-sm" required placeholder="odbiorca@example.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Temat</label>
+          <input type="text" name="mail_subject" class="form-control form-control-sm"
+                 value="<?= h($sprawa['znak_sprawy'] . ' — ' . $sprawa['title']) ?>">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Treść wiadomości</label>
+          <textarea name="mail_body" class="form-control form-control-sm" rows="7"
+                    placeholder="Treść wiadomości e-mail (opcjonalna)…"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Załączniki — podpisane elektronicznie PDF</label>
+          <?php foreach($signed_pdfs as $z): ?>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" name="zal_ids[]" value="<?= $z['id'] ?>" id="ssm<?= $z['id'] ?>" checked>
+            <label class="form-check-label d-flex align-items-center gap-2 flex-wrap" for="ssm<?= $z['id'] ?>" style="font-size:.82rem">
+              <i class="bi bi-file-earmark-pdf text-danger"></i>
+              <span><?= h($z['original_name']) ?></span>
+              <span class="text-muted" style="font-size:.72rem"><?= ezd_filesize($z['file_size']) ?></span>
+              <span class="badge bg-success bg-opacity-15 text-success border border-success" style="font-size:.62rem"><i class="bi bi-pen-fill me-1"></i>Podpisany elektronicznie</span>
+            </label>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="p-2 rounded border border-secondary border-opacity-25" style="font-size:.72rem;color:#64748b">
+          <i class="bi bi-info-circle me-1"></i>Wiadomość zostanie wysłana z domyślnego adresu e-mail organizacji. Wybrany plik PDF zostanie dołączony jako załącznik.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-send me-1"></i>Wyślij</button>
+      </div>
+    </form>
   </div>
 </div>
 <?php endif; ?>
