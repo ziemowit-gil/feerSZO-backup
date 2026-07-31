@@ -204,10 +204,19 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           <?php endforeach; ?>
           <td><?= date_pl($doc['created_at']) ?></td>
           <td><?= h($doc['creator_name']) ?></td>
-          <td>
+          <td class="text-nowrap">
             <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= $doc['id'] ?>" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-eye"></i>
             </a>
+            <?php if ($doc['status'] === 'zaakceptowany' && !empty($doc['wyklucz_z_preliminarza']) && (is_admin() || kdok_has_role('zatwierdza'))): ?>
+            <form method="post" action="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= $doc['id'] ?>" class="d-inline ms-1">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="toggle_wyklucz">
+              <button type="submit" class="btn btn-sm btn-outline-success" title="Przenieś do Preliminarza Płatności">
+                <i class="bi bi-arrow-up-circle"></i>
+              </button>
+            </form>
+            <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>
