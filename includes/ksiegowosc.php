@@ -20,6 +20,7 @@ const KDOK_TYPES = [
     'ksef'        => ['label' => 'Dokument z KSeF',                     'icon' => 'bi-receipt'],
     'ksef_reczny'      => ['label' => 'Faktura pobrana ręcznie z KSeF',      'icon' => 'bi-receipt-cutoff'],
     'faktura_papierowa'=> ['label' => 'Faktura papierowa',                  'icon' => 'bi-file-earmark-text'],
+    'oswiadczenie_przed_ksef' => ['label' => 'Oświadczenie — faktura wystawiona przed 1 lipca 2026', 'icon' => 'bi-file-earmark-check'],
     'rachunek'         => ['label' => 'Rachunek do umowy',                   'icon' => 'bi-person-vcard'],
     'lista_plac'  => ['label' => 'Lista płac',                          'icon' => 'bi-people-fill'],
     'wyciag'      => ['label' => 'Wyciąg bankowy',                      'icon' => 'bi-bank'],
