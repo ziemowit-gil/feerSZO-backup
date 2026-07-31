@@ -63,7 +63,6 @@ function _ika_parse_destination(string $url): array {
     parse_str(parse_url($url, PHP_URL_QUERY) ?? '', $qs);
     $id_str = (isset($qs['id']) && ctype_digit((string)$qs['id'])) ? ' #' . (int)$qs['id'] : '';
 
-    // Typ akcji na podstawie pliku
     $fname       = basename($path);
     $action_type = match(true) {
         str_contains($fname, 'add')    => 'Dodawanie',
@@ -74,7 +73,6 @@ function _ika_parse_destination(string $url): array {
         default                        => 'Dostęp',
     };
 
-    // Mapowanie segmentów URL → [icon, color, module, resource, ctx]
     $map = [
         '/admin/users'             => ['bi-people',              '#6d28d9', 'Panel administratora', 'Zarządzanie użytkownikami'],
         '/admin/'                  => ['bi-shield-lock',          '#6d28d9', 'Panel administratora', 'Ustawienia systemu'],
@@ -157,7 +155,7 @@ $_sess_key  = 'ika_ip_fails_' . md5($user_ip);
 $_ip_fails  = (int)($_SESSION[$_sess_key] ?? 0);
 $_ip_blocked = $_ip_fails >= 10;
 
-// ── Branding ──────────────────────────────────────────────────────────────────
+// ── Branding (tylko dla org_name i emaila) ────────────────────────────────────
 $_b      = branding_load();
 $org_name = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : 'System');
 
@@ -381,402 +379,167 @@ if ($page_mode === 'pesel' && !empty($_SESSION['ika_pesel_ch']) && $_SESSION['ik
     $pesel_challenge = $_SESSION['ika_pesel_ch'];
 }
 
-// Czy aktywna zakładka e-mail
-$active_method  = in_array($page_mode, ['email_verify'], true) ? 'email' : 'ika';
-// Czy pokazywać zakładki metod
+$active_method    = in_array($page_mode, ['email_verify'], true) ? 'email' : 'ika';
 $show_method_tabs = $email_is_primary && ($has_code || !$has_code) && $page_mode !== 'pesel' && $page_mode !== 'setup';
-
-// Czy OTP już wysłany
-$otp_ready = !empty($u_fresh['ika_email_otp'])
+$otp_ready        = !empty($u_fresh['ika_email_otp'])
     && !empty($u_fresh['ika_email_otp_expires'])
     && $u_fresh['ika_email_otp_expires'] > date('Y-m-d H:i:s');
 
-// Poziom ochrony
-$sec_dots = ['admin' => 4, 'editor' => 3];
-$dots = $sec_dots[$role] ?? (in_array($role, ['crm_user'], true) ? 3 : 2);
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Weryfikacja IKA — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
+$PAGE_TITLE = 'Weryfikacja IKA';
+$TZ_ACTIVE  = '';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
+?>
+
 <style>
-*,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0}
-
-/* ── Tło ────────────────────────────────────────────────────── */
-body{
-  min-height:100vh;
-  background:#f0f4f8;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:1.25rem;
-}
-
-/* ── Karta główna ───────────────────────────────────────────── */
-.gate-card{
-  width:100%;max-width:420px;
-  background:#fff;
-  border:1px solid #e2e8f0;
-  border-radius:18px;
-  box-shadow:0 4px 24px rgba(15,23,42,.09),0 1px 4px rgba(15,23,42,.06);
-  overflow:hidden;
-}
-
-/* ── Top bar — org + user ───────────────────────────────────── */
-.gate-top{
-  display:flex;align-items:center;gap:.75rem;
-  padding:.85rem 1.25rem;
-  border-bottom:1px solid #f1f5f9;
-  background:#f8fafc;
-}
-.gate-logo{
-  width:34px;height:34px;border-radius:9px;flex-shrink:0;
-  background:linear-gradient(135deg,#1e3a5f,#2563eb);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;color:#fff;
-  box-shadow:0 2px 8px rgba(37,99,235,.25);
-}
-.gate-top-org{
-  flex:1;min-width:0;
-  font-size:.78rem;font-weight:700;color:#0f172a;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.gate-top-org small{
-  display:block;font-size:.62rem;font-weight:400;
-  color:#94a3b8;letter-spacing:.04em;text-transform:uppercase;
-}
-.gate-user-pill{
-  display:flex;align-items:center;gap:.5rem;
-  background:#fff;border:1px solid #e2e8f0;
-  border-radius:999px;padding:.28rem .65rem .28rem .3rem;
-  box-shadow:0 1px 3px rgba(0,0,0,.06);
-}
-.gate-avatar{
-  width:24px;height:24px;border-radius:50%;
-  background:var(--c,#2563eb);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.6rem;font-weight:800;flex-shrink:0;
-}
-.gate-user-name{font-size:.72rem;font-weight:600;color:#374151;max-width:100px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-
-/* ── Destination strip ──────────────────────────────────────── */
-.gate-dest{
-  display:flex;align-items:center;gap:.6rem;
-  padding:.55rem 1.25rem;
-  background:#f8fafc;
-  border-bottom:1px solid #e2e8f0;
-}
-.gate-dest-icon{
-  width:28px;height:28px;border-radius:7px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:.85rem;
-}
-.gate-dest-module{font-size:.75rem;font-weight:700;color:#1e40af;line-height:1.2}
-.gate-dest-resource{font-size:.68rem;color:#94a3b8;margin-top:.05rem}
-
-/* ── Tryb header ────────────────────────────────────────────── */
-.gate-mode-head{
-  padding:1.4rem 1.4rem .6rem;
-  display:flex;align-items:flex-start;gap:.85rem;
-}
-.gate-mode-icon{
-  width:44px;height:44px;border-radius:12px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:1.25rem;
-  background:#eff6ff;color:#2563eb;
-  border:1px solid #bfdbfe;
-}
-.gate-mode-icon.setup{background:#fffbeb;color:#d97706;border-color:#fde68a}
-.gate-mode-icon.email{background:#ecfdf5;color:#059669;border-color:#a7f3d0}
-.gate-mode-icon.pesel{background:#f5f3ff;color:#7c3aed;border-color:#ddd6fe}
-.gate-mode-title{font-size:1rem;font-weight:800;color:#0f172a;margin:0;line-height:1.25}
-.gate-mode-sub{font-size:.75rem;color:#64748b;margin-top:.2rem;line-height:1.4}
-
-/* ── Body ───────────────────────────────────────────────────── */
-.gate-body{padding:.5rem 1.4rem 1.4rem}
-
-/* ── Zakładki metod ─────────────────────────────────────────── */
-.method-tabs{
-  display:flex;gap:.3rem;margin-bottom:1.1rem;
-  background:#f1f5f9;border-radius:10px;padding:.28rem;
-  border:1px solid #e2e8f0;
-}
-.method-tab{
-  flex:1;padding:.5rem .4rem;border:none;border-radius:7px;
-  background:transparent;font-size:.8rem;font-weight:500;color:#64748b;
-  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:.35rem;
-}
-.method-tab.active{background:#fff;color:#1e40af;font-weight:700;
-  border:1px solid #bfdbfe;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.method-tab:hover:not(.active){color:#0f172a;background:rgba(255,255,255,.7)}
-
-/* ── 6 boxów cyfr ───────────────────────────────────────────── */
+/* ── Rozszerzenia gate na tokeny tz-* ───────────────────────────────────────── */
 .digit-row{display:flex;gap:.38rem;justify-content:center;margin:.8rem 0}
 .digit-box{
-  width:48px;height:60px;
-  border:2px solid #cbd5e1;border-radius:10px;
-  background:#f8fafc;
-  font-size:1.8rem;font-weight:800;font-family:monospace;
+  width:48px;height:60px;border:2px solid var(--tz-line);border-radius:10px;
+  background:var(--tz-canvas);font-size:1.8rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;caret-color:transparent;
   transition:border-color .15s,box-shadow .15s,background .15s;color:#0f172a;
 }
-.digit-box:focus{
-  border-color:var(--c,#2563eb);
-  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.18));
-  background:#fff;
-}
-.digit-box.filled{background:#eff6ff;border-color:#2563eb}
+.digit-box:focus{border-color:var(--tz);box-shadow:0 0 0 3px rgba(30,109,255,.18);background:#fff}
+.digit-box.filled{background:var(--tz-50);border-color:var(--tz)}
 .digit-box.is-error{border-color:#ef4444;background:#fef2f2}
-
-/* ── 3 boxy PESEL ───────────────────────────────────────────── */
 .pesel-row{display:flex;gap:.45rem;justify-content:center;margin:.9rem 0}
 .pesel-box{
-  width:52px;height:64px;border:2px solid #cbd5e1;border-radius:10px;
-  background:#f8fafc;font-size:2rem;font-weight:800;font-family:monospace;
+  width:52px;height:64px;border:2px solid var(--tz-line);border-radius:10px;
+  background:var(--tz-canvas);font-size:2rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;color:#0f172a;
   transition:border-color .15s,box-shadow .15s;
 }
-.pesel-box:focus{
-  border-color:var(--c,#2563eb);
-  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.18));
-  background:#fff;
-}
+.pesel-box:focus{border-color:var(--tz);box-shadow:0 0 0 3px rgba(30,109,255,.18);background:#fff}
 .pesel-box.is-error{border-color:#ef4444;background:#fef2f2}
-.pesel-pos{font-size:.66rem;color:#64748b;text-align:center;margin-top:.2rem;font-weight:600}
-
-/* ── Przycisk główny ────────────────────────────────────────── */
-.btn-gate{
-  background:linear-gradient(135deg,var(--c,#2563eb) 0%,var(--c-dark,#1d4ed8) 100%);
-  color:#fff;border:none;border-radius:.6rem;padding:.72rem 1.25rem;
-  font-size:.88rem;font-weight:700;width:100%;
-  display:flex;align-items:center;justify-content:center;gap:.5rem;
-  transition:all .15s;cursor:pointer;
-  box-shadow:0 4px 14px var(--c-ring,rgba(37,99,235,.28));
-  letter-spacing:.01em;
-}
-.btn-gate:hover:not(:disabled){
-  filter:brightness(1.07);
-  box-shadow:0 6px 20px var(--c-ring,rgba(37,99,235,.38));
-  transform:translateY(-1px);
-}
-.btn-gate:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
-.btn-gate.btn-email{--c:#059669;--c-dark:#047857;--c-ring:rgba(5,150,105,.28)}
-.btn-gate.btn-setup{--c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.3)}
-
-/* ── Separator ──────────────────────────────────────────────── */
-.or-sep{display:flex;align-items:center;gap:.7rem;margin:.85rem 0;color:#94a3b8;font-size:.71rem}
-.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:#e2e8f0}
-
-/* ── Linki odzyskiwania ─────────────────────────────────────── */
+.pesel-pos{font-size:.66rem;color:var(--tz-muted);text-align:center;margin-top:.2rem;font-weight:600}
+.or-sep{display:flex;align-items:center;gap:.7rem;margin:.9rem 0;color:var(--tz-muted);font-size:.75rem}
+.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:var(--tz-line)}
 .recovery-links{display:flex;flex-direction:column;gap:.3rem}
 .recovery-btn{
-  display:flex;align-items:center;gap:.5rem;
-  padding:.52rem .85rem;border:1.5px solid #e2e8f0;border-radius:.6rem;
-  background:#fff;color:#374151;font-size:.78rem;text-decoration:none;
+  display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;
+  border:1.5px solid var(--tz-line);border-radius:9px;background:#fff;
+  color:#374151;font-size:.85rem;text-decoration:none;
   cursor:pointer;transition:all .12s;width:100%;text-align:left;
 }
-.recovery-btn:hover{
-  border-color:#93c5fd;color:#1e40af;
-  background:#eff6ff;transform:translateX(2px);
-}
-.recovery-btn i{color:#94a3b8;font-size:.85rem;flex-shrink:0;transition:color .12s}
-.recovery-btn:hover i{color:#2563eb}
-
-/* ── Setup form ─────────────────────────────────────────────── */
-.setup-field{margin-bottom:.85rem}
-.setup-label{font-size:.76rem;font-weight:600;color:#374151;margin-bottom:.3rem;display:block}
-.setup-label span{font-weight:400;color:#64748b;font-size:.71rem;margin-left:.3rem}
-.setup-input{
-  width:100%;border:1.5px solid #cbd5e1;border-radius:.6rem;
-  padding:.52rem .8rem;font-size:.9rem;color:#0f172a;
-  background:#f8fafc;outline:none;
-  transition:border-color .15s,box-shadow .15s;
-}
-.setup-input:focus{
-  border-color:#d97706;
-  box-shadow:0 0 0 3px rgba(217,119,6,.14);
-  background:#fff;
-}
-.setup-input.is-error{border-color:#ef4444;background:#fef2f2}
-.setup-code-input{font-family:monospace;letter-spacing:.25em;font-size:1.05rem;font-weight:700;text-align:center;text-transform:uppercase}
-.setup-input::placeholder{color:#94a3b8}
-
-/* ── Alert ──────────────────────────────────────────────────── */
-.gate-alert{
-  display:flex;align-items:flex-start;gap:.5rem;
-  padding:.6rem .8rem;border-radius:.55rem;
-  font-size:.8rem;line-height:1.5;margin-bottom:.85rem;
-}
-.gate-alert.err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
-.gate-alert.ok {background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d}
-
-/* ── Spinner ────────────────────────────────────────────────── */
-@keyframes _spin{to{transform:rotate(360deg)}}
-.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite}
-
-/* ── State box ──────────────────────────────────────────────── */
-.state-box{text-align:center;padding:.9rem 0 .4rem}
-.state-icon{font-size:2.2rem;display:block;margin-bottom:.55rem}
-.state-box p{color:#64748b;font-size:.83rem;line-height:1.6;margin:0}
+.recovery-btn:hover{border-color:var(--tz);color:var(--tz-strong);background:var(--tz-50)}
+.recovery-btn i{color:var(--tz-muted);flex-shrink:0;transition:color .12s}
+.recovery-btn:hover i{color:var(--tz)}
+.state-box{text-align:center;padding:1.5rem 0}
+.state-icon{font-size:2.5rem;display:block;margin-bottom:.6rem}
+.state-box p{color:var(--tz-muted);font-size:.88rem;line-height:1.6;margin:0}
 .state-box p+p{margin-top:.3rem}
 .state-box strong{color:#374151}
-
-/* ── Email note ─────────────────────────────────────────────── */
-.sms-code-note{font-size:.81rem;color:#475569;margin-bottom:1rem;line-height:1.5}
-.sms-code-note strong{color:#1e40af}
-
-/* ── Footer ─────────────────────────────────────────────────── */
-.gate-footer{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:.7rem 1.25rem;
-  border-top:1px solid #f1f5f9;
-  background:#f8fafc;
-  font-size:.67rem;color:#94a3b8;
-}
-.gate-footer a{color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
-.gate-footer a:hover{color:#2563eb}
-
-/* ── Accessibility ──────────────────────────────────────────── */
-@media(prefers-contrast:high){
-  .digit-box,.setup-input{border-width:3px;border-color:#000}
-  .btn-gate{background:#1d4ed8!important}
-}
+.tz-btn--wide{width:100%;justify-content:center}
+.tz-btn--email{background:#047857;border:none}
+.tz-btn--email:hover{background:#065f46;color:#fff}
+.tz-btn--setup{background:#b45309;border:none}
+.tz-btn--setup:hover{background:#92400e;color:#fff}
+@keyframes _spin{to{transform:rotate(360deg)}}
+.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite;flex-shrink:0}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
-
-a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:focus-visible,.btn-gate:focus-visible{
-  outline:3px solid #2563eb;outline-offset:2px;border-radius:6px;
-}
-.digit-box:focus-visible,.pesel-box:focus-visible,.setup-input:focus-visible{
-  outline:3px solid var(--c,#2563eb);outline-offset:1px;
-}
-
-.skip-to-form{
-  position:absolute;left:-9999px;top:0;z-index:50;
-  background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:0 0 8px 0;
-  font-size:.84rem;font-weight:600;text-decoration:none;
-}
-.skip-to-form:focus{left:0}
-
-@media(max-width:480px){
-  body{padding:.75rem}
-  .gate-card{border-radius:14px}
-  .digit-box{width:42px;height:54px;font-size:1.55rem}
-  .pesel-box{width:48px;height:60px}
-}
-
-/* ── Integracja z System Tożsamości — spójna paleta #1E6DFF ─────────────── */
-.gate-logo{background:linear-gradient(135deg,#1E6DFF,#1656d6)!important;box-shadow:0 2px 8px rgba(30,109,255,.25)}
-.gate-mode-icon{background:#eef4ff;color:#1656d6;border-color:#dbe7ff}
-.btn-gate{--c:#1E6DFF;--c-dark:#1656d6;--c-ring:rgba(30,109,255,.28)}
-.gate-dest-module{color:#1656d6}
-.method-tab.active{color:#1656d6;border-color:#dbe7ff}
-.digit-box.filled{background:#eef4ff;border-color:#1E6DFF}
-.digit-box:focus,.pesel-box:focus{border-color:#1E6DFF;box-shadow:0 0 0 3px rgba(30,109,255,.18)}
-.recovery-btn:hover{border-color:#93b4ff;color:#1656d6;background:#eef4ff}
-.recovery-btn:hover i{color:#1E6DFF}
-.gate-footer a:hover{color:#1656d6}
-.gate-tz-link{display:flex;align-items:center;gap:.3rem;color:#1656d6!important;font-weight:600}
+@media(max-width:480px){.digit-box{width:42px;height:54px;font-size:1.55rem}.pesel-box{width:48px;height:60px}}
 </style>
-</head>
-<body>
-<a href="#gate-main" class="skip-to-form">Przejdź do formularza weryfikacji</a>
-<div class="gate-card">
 
-<!-- ── Top bar ──────────────────────────────────────────────── -->
-<div class="gate-top">
-  <div class="gate-logo" aria-hidden="true">
-    <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="" style="max-height:26px;max-width:26px;object-fit:contain;filter:brightness(0) invert(1)">
-    <?php else: ?>
-    <i class="bi bi-shield-lock-fill"></i>
+<!-- ── Nagłówek strony ───────────────────────────────────────────────────────── -->
+<div class="tz-h">
+  <h1><i class="bi bi-shield-check me-2" style="color:#1E6DFF" aria-hidden="true"></i>Weryfikacja IKA</h1>
+  <p>Potwierdzenie tożsamości wymagane przez system</p>
+</div>
+
+<!-- ── Kontekst: cel + użytkownik ──────────────────────────────────────────── -->
+<div class="tz-card mb-3">
+  <div class="tz-card__bd" style="padding:.85rem 1.25rem">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div style="width:42px;height:42px;border-radius:11px;flex-shrink:0;
+                  background:<?= h($dest_ctx['color']) ?>1a;color:<?= h($dest_ctx['color']) ?>;
+                  display:flex;align-items:center;justify-content:center;font-size:1.25rem"
+           aria-hidden="true">
+        <i class="bi <?= h($dest_ctx['icon']) ?>"></i>
+      </div>
+      <div class="flex-grow-1">
+        <div class="fw-bold" style="color:var(--tz-strong)"><?= h($dest_ctx['module']) ?></div>
+        <div class="text-muted small"><?= h($dest_ctx['resource']) ?></div>
+      </div>
+      <div class="d-flex align-items-center gap-2 border rounded-pill px-3 py-1"
+           style="background:var(--tz-canvas);border-color:var(--tz-line)!important">
+        <span style="width:26px;height:26px;border-radius:50%;background:var(--tz);color:#fff;
+                     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.62rem;flex-shrink:0"
+              aria-hidden="true"><?= h($initials) ?></span>
+        <span style="font-size:.82rem;font-weight:600;color:#374151;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($display_name) ?></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Zakładki metod (gdy aktywna) ─────────────────────────────────────────── -->
+<?php if ($show_method_tabs): ?>
+<nav class="tz-subnav" aria-label="Metoda weryfikacji">
+  <span class="seg" role="tablist">
+    <?php if ($has_code || (!$has_code && !$email_is_primary)): ?>
+    <a href="#panel-ika"
+       id="tab-btn-ika" role="tab"
+       aria-selected="<?= $active_method === 'ika' ? 'true' : 'false' ?>"
+       aria-controls="panel-ika"
+       class="<?= $active_method === 'ika' ? 'on' : '' ?>"
+       tabindex="<?= $active_method === 'ika' ? '0' : '-1' ?>"
+       onclick="switchMethod('ika'); return false">
+      <i class="bi bi-key-fill" aria-hidden="true"></i>Kod IKA
+    </a>
     <?php endif; ?>
-  </div>
-  <div class="gate-top-org">
-    <?= h($org_name) ?>
-    <small>Weryfikacja tożsamości</small>
-  </div>
-  <div class="gate-user-pill">
-    <div class="gate-avatar" aria-hidden="true"><?= h($initials) ?></div>
-    <span class="gate-user-name"><?= h($display_name) ?></span>
-  </div>
-</div>
+    <a href="#panel-email"
+       id="tab-btn-email" role="tab"
+       aria-selected="<?= $active_method === 'email' ? 'true' : 'false' ?>"
+       aria-controls="panel-email"
+       class="<?= $active_method === 'email' ? 'on' : '' ?>"
+       tabindex="<?= $active_method === 'email' ? '0' : '-1' ?>"
+       onclick="switchMethod('email'); return false">
+      <i class="bi bi-envelope-fill" aria-hidden="true"></i>E-mail
+    </a>
+  </span>
+</nav>
+<?php endif; ?>
 
-<!-- ── Destination strip ─────────────────────────────────────── -->
-<div class="gate-dest">
-  <div class="gate-dest-icon"
-       style="background:<?= h($dest_ctx['color']) ?>1a;color:<?= h($dest_ctx['color']) ?>">
-    <i class="bi <?= h($dest_ctx['icon']) ?>" aria-hidden="true"></i>
-  </div>
-  <div>
-    <div class="gate-dest-module"><?= h($dest_ctx['module']) ?></div>
-    <div class="gate-dest-resource"><?= h($dest_ctx['resource']) ?></div>
-  </div>
-</div>
-
-<!-- ══ Formularz ════════════════════════════════════════════════ -->
-<main id="gate-main">
-
-  <!-- Tryb header -->
-  <?php
-  $head_mode_cls = match(true) {
-    $page_mode === 'setup'        => 'setup',
-    in_array($page_mode, ['email_verify'], true) && !$show_method_tabs => 'email',
-    $page_mode === 'pesel'        => 'pesel',
-    default => '',
-  };
-  $head_icon = match(true) {
-    $page_mode === 'setup'                                => 'bi-shield-plus',
-    $page_mode === 'pesel'                                => 'bi-card-text',
-    $page_mode === 'email_verify' && !$show_method_tabs   => 'bi-envelope-check',
-    $dest_ctx['module'] === 'CRM'                         => 'bi-diagram-2-fill',
-    $dest_ctx['module'] === 'Dydaktyka'                   => 'bi-card-checklist',
-    $dest_ctx['module'] === 'Panel administratora'        => 'bi-shield-lock',
-    default                                               => 'bi-shield-check',
-  };
-  $head_title = match(true) {
+<!-- ── Karta weryfikacji ─────────────────────────────────────────────────────── -->
+<?php
+$head_icon = match(true) {
+    $page_mode === 'setup'                              => 'bi-shield-plus',
+    $page_mode === 'pesel'                              => 'bi-card-text',
+    $page_mode === 'email_verify' && !$show_method_tabs => 'bi-envelope-check',
+    default                                             => 'bi-shield-check',
+};
+$head_title = match(true) {
     $page_mode === 'setup'        => 'Ustaw kody autoryzacyjne',
     $page_mode === 'pesel'        => 'Weryfikacja PESEL',
     $show_method_tabs             => 'Weryfikacja dwuetapowa',
     $page_mode === 'email_verify' => 'Kod e-mail',
     default                       => 'Weryfikacja IKA',
-  };
-  $head_sub = match(true) {
-    $page_mode === 'setup'        => 'Jednorazowy AdminCode od administratora',
-    $page_mode === 'pesel'        => 'Podaj cyfry z numeru PESEL z kartoteki',
-    $show_method_tabs             => 'Wybierz metodę weryfikacji',
-    $page_mode === 'email_verify' => 'Jednorazowy kod wysłany na e-mail',
-    default => 'Wejście do: <strong style="color:#1e40af">' . h($dest_ctx['module']) . ($dest_ctx['resource'] !== 'Strona chroniona' ? ' / ' . h($dest_ctx['resource']) : '') . '</strong>',
-  };
-  ?>
-  <div class="gate-mode-head">
-    <div class="gate-mode-icon <?= $head_mode_cls ?>" aria-hidden="true">
-      <i class="bi <?= $head_icon ?>"></i>
-    </div>
-    <div>
-      <h1 class="gate-mode-title"><?= $head_title ?></h1>
-      <div class="gate-mode-sub"><?= $head_sub ?></div>
-    </div>
+};
+?>
+<section class="tz-card" id="gate-main">
+  <div class="tz-card__hd">
+    <i class="bi <?= $head_icon ?>" aria-hidden="true"></i>
+    <span><?= h($head_title) ?></span>
+    <?php if (!$show_method_tabs && $page_mode === 'ika'): ?>
+    <span class="lbl-en" style="display:inline;font-size:.72rem;color:var(--tz-muted);margin-left:.4rem">Indywidualny Kod Autoryzacyjny</span>
+    <?php endif; ?>
   </div>
+  <div class="tz-card__bd">
 
-  <div class="gate-body">
-
-      <?php if ($error): ?>
-    <div class="gate-alert err" role="alert">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-      <?= h($error) ?>
+    <?php if ($error): ?>
+    <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <span><?= h($error) ?></span>
     </div>
     <?php endif; ?>
     <?php if ($info): ?>
-    <div class="gate-alert ok" role="status">
-      <i class="bi bi-check-circle-fill flex-shrink-0"></i>
-      <?= h($info) ?>
+    <div class="alert alert-success d-flex align-items-start gap-2" role="status">
+      <i class="bi bi-check-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <span><?= h($info) ?></span>
     </div>
     <?php endif; ?>
 
     <?php if ($_ip_blocked): ?>
-    <!-- ── Blokada IP ────────────────────────────── -->
+    <!-- ── Blokada IP ───────────────────────────────────── -->
     <div class="state-box">
       <span class="state-icon"><i class="bi bi-slash-circle text-danger"></i></span>
       <p>Zbyt wiele nieudanych prób z tego komputera.</p>
@@ -784,14 +547,12 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
     </div>
 
     <?php elseif ($page_mode === 'pesel' && $pesel_challenge): ?>
-    <!-- ══ PESEL challenge ═══════════════════════ -->
+    <!-- ── PESEL challenge ──────────────────────────────── -->
     <?php $pos = $pesel_challenge['pos']; ?>
-    <p style="font-size:.82rem;color:#475569;margin-bottom:.75rem">
-      Podaj cyfry numeru PESEL na pozycjach:
-    </p>
-    <div style="display:flex;justify-content:center;gap:.5rem;margin-bottom:1.1rem">
+    <p class="text-muted small mb-2">Podaj cyfry numeru PESEL na pozycjach:</p>
+    <div class="d-flex justify-content-center gap-2 mb-3">
       <?php foreach ($pos as $p): ?>
-      <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:8px;padding:.3rem .8rem;font-size:1.05rem;font-weight:800;color:#1e40af;min-width:44px;text-align:center"><?= $p ?></div>
+      <div class="tz-badge tz-badge--ok" style="font-size:1rem;font-weight:800;padding:.4rem .9rem;min-width:44px;justify-content:center"><?= $p ?></div>
       <?php endforeach; ?>
     </div>
     <form method="post" id="peselForm" autocomplete="off">
@@ -810,92 +571,85 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
         </div>
         <?php endforeach; ?>
       </div>
-      <button type="submit" class="btn-gate" id="btnPesel" disabled>
+      <button type="submit" class="tz-btn tz-btn--wide" id="btnPesel" disabled>
         <span class="spin-icon" id="spinPesel"></span>
-        <i class="bi bi-card-text"></i> Zweryfikuj
+        <i class="bi bi-card-text" aria-hidden="true"></i> Zweryfikuj
       </button>
     </form>
-    <div style="margin-top:.8rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#64748b;text-decoration:none">
+    <div class="mt-3 text-center">
+      <a href="?to=<?= urlencode($return_to) ?>" class="text-muted" style="font-size:.82rem;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Inna metoda
       </a>
     </div>
 
     <?php elseif ($page_mode === 'setup'): ?>
-    <!-- ══ Setup (AdminCode) ════════════════════ -->
-    <p style="font-size:.8rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.55rem;padding:.55rem .8rem;margin-bottom:1rem;display:flex;gap:.45rem;align-items:flex-start">
-      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#d97706"></i>
-      Wpisz <strong>AdminCode</strong> od administratora i ustaw swoje kody dostępu.
-    </p>
-    <form method="post" id="setupForm" autocomplete="off">
+    <!-- ── Setup (AdminCode) ────────────────────────────── -->
+    <div class="alert alert-warning d-flex align-items-start gap-2" role="note">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <span>Wpisz <strong>AdminCode</strong> od administratora i ustaw swoje kody dostępu.</span>
+    </div>
+    <form method="post" id="setupForm" autocomplete="off" style="max-width:420px">
       <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
       <input type="hidden" name="_mode" value="setup">
       <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-      <div class="setup-field">
-        <label class="setup-label" for="admin_code">AdminCode <span>(jednorazowy, od administratora)</span></label>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="admin_code">
+          AdminCode
+          <span class="text-muted fw-normal" style="font-size:.8rem">(jednorazowy, od administratora)</span>
+        </label>
         <input type="text" id="admin_code" name="admin_code"
-               class="setup-input setup-code-input<?= ($page_mode === 'setup' && $error) ? ' is-error' : '' ?>"
+               class="form-control<?= ($page_mode === 'setup' && $error) ? ' is-invalid' : '' ?>"
+               style="font-family:monospace;letter-spacing:.25em;font-size:1.05rem;text-align:center;text-transform:uppercase"
                maxlength="10" placeholder="np. A3B7C2D8E1"
                autocomplete="off" spellcheck="false"
                oninput="this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,'')">
-        <div style="font-size:.7rem;color:#586577;margin-top:.25rem">10 znaków: cyfry i litery A–F</div>
+        <div class="form-text">10 znaków: cyfry i litery A–F</div>
       </div>
-      <div class="or-sep" style="margin:.65rem 0"></div>
-      <div class="setup-field">
-        <label class="setup-label" for="setup_cpc">Nowy kod IKA <span>(dokładnie 6 cyfr)</span></label>
+      <hr class="my-3">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="setup_cpc">
+          Nowy kod IKA
+          <span class="text-muted fw-normal" style="font-size:.8rem">(dokładnie 6 cyfr)</span>
+        </label>
         <input type="text" id="setup_cpc" name="cpc_code"
-               class="setup-input setup-code-input<?= ($page_mode === 'setup' && $error) ? ' is-error' : '' ?>"
+               class="form-control<?= ($page_mode === 'setup' && $error) ? ' is-invalid' : '' ?>"
+               style="font-family:monospace;letter-spacing:.25em;text-align:center;font-size:1.1rem"
                maxlength="6" placeholder="000000" inputmode="numeric" pattern="\d{6}" autocomplete="new-password">
       </div>
-      <div class="setup-field">
-        <label class="setup-label" for="ikaks1">Nowy IKAKS <span>(min. 6 znaków)</span></label>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="ikaks1">
+          Nowy IKAKS
+          <span class="text-muted fw-normal" style="font-size:.8rem">(min. 6 znaków)</span>
+        </label>
         <input type="password" id="ikaks1" name="ikaks1"
-               class="setup-input<?= ($page_mode === 'setup' && $error) ? ' is-error' : '' ?>"
+               class="form-control<?= ($page_mode === 'setup' && $error) ? ' is-invalid' : '' ?>"
                minlength="6" autocomplete="new-password" placeholder="min. 6 znaków">
       </div>
-      <div class="setup-field" style="margin-bottom:1.1rem">
-        <label class="setup-label" for="ikaks2">Powtórz IKAKS</label>
+      <div class="mb-4">
+        <label class="form-label fw-semibold" for="ikaks2">Powtórz IKAKS</label>
         <input type="password" id="ikaks2" name="ikaks2"
-               class="setup-input<?= ($page_mode === 'setup' && $error) ? ' is-error' : '' ?>"
+               class="form-control<?= ($page_mode === 'setup' && $error) ? ' is-invalid' : '' ?>"
                minlength="6" autocomplete="new-password" placeholder="powtórz IKAKS">
       </div>
-      <button type="submit" class="btn-gate btn-setup">
+      <button type="submit" class="tz-btn tz-btn--setup tz-btn--wide">
         <span class="spin-icon" id="spinSetup"></span>
-        <i class="bi bi-shield-check"></i>
+        <i class="bi bi-shield-check" aria-hidden="true"></i>
         Zapisz i wejdź
       </button>
     </form>
-    <div style="margin-top:.7rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.75rem;color:#64748b;text-decoration:none">
+    <div class="mt-3">
+      <a href="?to=<?= urlencode($return_to) ?>" class="text-muted" style="font-size:.82rem;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Mam już kod IKA
       </a>
     </div>
 
     <?php else: ?>
-    <!-- ══ Tryby IKA / Email (z zakładkami lub bez) ════════════ -->
+    <!-- ── Panele IKA / E-mail ──────────────────────────── -->
 
-    <?php if ($show_method_tabs): ?>
-    <!-- Zakładki metod -->
-    <div class="method-tabs" role="tablist" aria-label="Wybierz metodę weryfikacji">
-      <?php if ($has_code || (!$has_code && !$email_is_primary)): ?>
-      <button class="method-tab <?= $active_method === 'ika' ? 'active' : '' ?>"
-              role="tab" aria-selected="<?= $active_method === 'ika' ? 'true' : 'false' ?>"
-              id="tab-btn-ika" aria-controls="panel-ika"
-              onclick="switchMethod('ika')">
-        <i class="bi bi-key-fill"></i> Kod IKA
-      </button>
-      <?php endif; ?>
-      <button class="method-tab <?= $active_method === 'email' ? 'active' : '' ?>"
-              role="tab" aria-selected="<?= $active_method === 'email' ? 'true' : 'false' ?>"
-              id="tab-btn-email" aria-controls="panel-email"
-              onclick="switchMethod('email')">
-        <i class="bi bi-envelope-fill"></i> E-mail
-      </button>
-    </div>
-    <?php endif; ?>
-
-    <!-- ── Panel IKA ─────────────────────────────────────── -->
-    <div id="panel-ika" <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-ika" tabindex="0"' : '' ?> <?= ($show_method_tabs && $active_method !== 'ika') ? 'hidden' : '' ?>>
+    <!-- Panel IKA -->
+    <div id="panel-ika"
+         <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-ika" tabindex="0"' : '' ?>
+         <?= ($show_method_tabs && $active_method !== 'ika') ? 'hidden' : '' ?>>
 
       <?php if ($is_blocked): ?>
       <div class="state-box">
@@ -914,20 +668,21 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
         <?php endif; ?>
       </div>
       <?php if ($has_setup_token): ?>
-      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e;margin-top:.5rem">
+      <a href="?to=<?= urlencode($return_to) ?>&mode=setup"
+         class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e">
         <i class="bi bi-shield-plus" style="color:#d97706"></i>
-        <span><strong>Mam AdminCode</strong> — ustaw kody samodzielnie</span>
-        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+        <strong>Mam AdminCode</strong> — ustaw kody samodzielnie
+        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.8rem"></i>
       </a>
       <?php endif; ?>
+
       <?php else: ?>
       <form method="post" id="ikaForm" autocomplete="off">
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="ika">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-
-        <p style="font-size:.77rem;color:#64748b;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
+        <p class="text-muted small text-center mb-1">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="text" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
@@ -937,56 +692,55 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
           <?php endfor; ?>
           <input type="hidden" name="ika_code" id="ikaCodeHidden">
         </div>
-        <button type="submit" class="btn-gate" id="btnVerify" disabled>
+        <button type="submit" class="tz-btn tz-btn--wide" id="btnVerify" disabled>
           <span class="spin-icon" id="ikaSpinner"></span>
-          <i class="bi bi-shield-check"></i>
+          <i class="bi bi-shield-check" aria-hidden="true"></i>
           Zweryfikuj i wejdź
         </button>
       </form>
 
-      <?php if (!$show_method_tabs): ?>
-      <!-- Recovery (tylko gdy brak zakładek) -->
-      <?php $show_recovery = $user_email || $pesel_available || $has_setup_token || $is_blocked; ?>
-      <?php if ($show_recovery): ?>
+      <?php if (!$show_method_tabs):
+        $show_recovery = $user_email || $pesel_available || $has_setup_token || $is_blocked;
+        if ($show_recovery): ?>
       <div class="or-sep">nie pamiętasz kodu?</div>
       <div class="recovery-links">
         <?php if ($has_setup_token): ?>
-        <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e">
+        <a href="?to=<?= urlencode($return_to) ?>&mode=setup"
+           class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e">
           <i class="bi bi-shield-plus" style="color:#d97706"></i>
           <strong>Mam AdminCode</strong> — ustaw nowy kod IKA
-          <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+          <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.8rem"></i>
         </a>
         <?php endif; ?>
         <?php if ($user_email): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
           <i class="bi bi-envelope-arrow-down-fill"></i>
           Wyślij jednorazowy kod e-mail
-          <span style="margin-left:auto;font-size:.69rem;color:#64748b"><?= h($user_email) ?></span>
+          <span class="ms-auto text-muted" style="font-size:.75rem"><?= h($user_email) ?></span>
         </a>
         <?php endif; ?>
         <?php if ($pesel_available): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
           <i class="bi bi-card-text"></i>
           Zweryfikuj cyframi PESEL
-          <span style="margin-left:auto;font-size:.69rem;color:#64748b">z kartoteki</span>
+          <span class="ms-auto text-muted" style="font-size:.75rem">z kartoteki</span>
         </a>
         <?php endif; ?>
       </div>
-      <?php endif; ?>
-      <?php endif; ?>
+      <?php endif; endif; ?>
 
-      <?php endif; /* /has_code or not */ ?>
+      <?php endif; ?>
     </div><!-- /panel-ika -->
 
-    <!-- ── Panel E-mail ──────────────────────────────────── -->
-    <?php if ($email_is_primary || $page_mode === 'email_verify' || (!$show_method_tabs && $page_mode === 'email_verify')): ?>
-    <div id="panel-email" <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-email" tabindex="0"' : '' ?>
+    <!-- Panel E-mail -->
+    <?php if ($email_is_primary || $page_mode === 'email_verify'): ?>
+    <div id="panel-email"
+         <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-email" tabindex="0"' : '' ?>
          <?= ($show_method_tabs && $active_method !== 'email') ? 'hidden' : '' ?>
          <?= (!$email_is_primary && $page_mode !== 'email_verify') ? 'hidden' : '' ?>>
 
       <?php if (!$otp_ready): ?>
-      <!-- Wyślij OTP -->
-      <p class="sms-code-note">
+      <p class="text-muted small mb-3">
         Otrzymasz jednorazowy 6-cyfrowy kod na adres:<br>
         <strong><?= h($user_email) ?></strong>. Ważny 15 minut.
       </p>
@@ -995,8 +749,8 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
         <input type="hidden" name="_mode" value="request_email_otp">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-        <button type="submit" class="btn-gate btn-email">
-          <i class="bi bi-envelope-arrow-down-fill"></i>
+        <button type="submit" class="tz-btn tz-btn--email tz-btn--wide">
+          <i class="bi bi-envelope-arrow-down-fill" aria-hidden="true"></i>
           Wyślij kod na <?= h($user_email) ?>
         </button>
       </form>
@@ -1011,8 +765,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
       <?php endif; ?>
 
       <?php else: ?>
-      <!-- Wpisz OTP -->
-      <p class="sms-code-note">
+      <p class="text-muted small mb-3">
         Wpisz 6-cyfrowy kod wysłany na <strong><?= h($user_email) ?></strong>.<br>
         Ważny 15 minut.
       </p>
@@ -1029,53 +782,61 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
           <?php endfor; ?>
           <input type="hidden" name="email_otp" id="emailOtpHidden">
         </div>
-        <button type="submit" class="btn-gate btn-email" id="btnEmailOtp" disabled>
+        <button type="submit" class="tz-btn tz-btn--email tz-btn--wide" id="btnEmailOtp" disabled>
           <span class="spin-icon" id="spinEmailOtp"></span>
-          <i class="bi bi-envelope-check"></i>
+          <i class="bi bi-envelope-check" aria-hidden="true"></i>
           Zweryfikuj kod e-mail
         </button>
       </form>
-      <div style="margin-top:.75rem;text-align:center">
+      <div class="mt-3">
         <form method="post" style="display:inline">
           <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
           <input type="hidden" name="_mode" value="request_email_otp">
           <input type="hidden" name="to"    value="<?= h($return_to) ?>">
           <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-          <button type="submit" style="background:none;border:none;color:#64748b;font-size:.76rem;cursor:pointer;padding:0">
-            <i class="bi bi-arrow-clockwise me-1"></i>Wyślij nowy kod
+          <button type="submit"
+                  style="background:none;border:none;color:var(--tz-muted);font-size:.82rem;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:.3rem">
+            <i class="bi bi-arrow-clockwise"></i>Wyślij nowy kod
           </button>
         </form>
       </div>
-      <?php endif; /* /otp_ready */ ?>
+      <?php endif; ?>
 
     </div><!-- /panel-email -->
     <?php endif; ?>
 
     <?php if ($show_method_tabs && $pesel_available): ?>
-    <div class="or-sep" style="margin-top:.9rem">dodatkowe opcje</div>
+    <div class="or-sep mt-3">dodatkowe opcje</div>
     <div class="recovery-links">
       <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
         <i class="bi bi-card-text"></i>
         Zweryfikuj cyframi PESEL
-        <span style="margin-left:auto;font-size:.69rem;color:#64748b">z kartoteki umów</span>
+        <span class="ms-auto text-muted" style="font-size:.75rem">z kartoteki umów</span>
       </a>
     </div>
     <?php endif; ?>
 
-    <?php endif; /* /$page_mode cases */ ?>
+    <?php endif; /* page_mode cases */ ?>
 
-  </div><!-- /gate-body -->
-</main>
+  </div><!-- /tz-card__bd -->
+</section>
 
-<!-- ── Footer ────────────────────────────────────────────────── -->
-<?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'Dydaktyka' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
-<div class="gate-footer">
-  <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Anuluj i wróć</a>
-  <a href="<?= APP_URL ?>/tozsamosc/index.php" class="gate-tz-link"><i class="bi bi-person-vcard" aria-hidden="true"></i> System Tożsamości</a>
-  <span>&copy; <?= date('Y') ?> <?= h($org_name) ?></span>
+<!-- ── Linki dolne ──────────────────────────────────────────────────────────── -->
+<?php $back_url = match($dest_ctx['module']) {
+    'CRM'      => APP_URL . '/crm/dashboard.php',
+    'Dydaktyka'=> APP_URL . '/karty30/index.php',
+    default    => APP_URL . '/index.php',
+}; ?>
+<div class="d-flex justify-content-between align-items-center mt-1 mb-2" style="font-size:.8rem;color:var(--tz-muted)">
+  <a href="<?= h($back_url) ?>" class="text-muted"
+     style="text-decoration:none;display:inline-flex;align-items:center;gap:.3rem">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> Anuluj i wróć
+  </a>
+  <a href="<?= APP_URL ?>/tozsamosc/index.php"
+     style="text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;color:var(--tz-strong);font-weight:600">
+    <i class="bi bi-person-vcard" aria-hidden="true"></i> System Tożsamości
+  </a>
 </div>
-
-</div><!-- /gate-card -->
 
 <script>
 (function(){
@@ -1087,7 +848,11 @@ function switchMethod(name) {
     var p = document.getElementById('panel-' + k);
     if (p) p.hidden = true;
     var b = document.getElementById('tab-btn-' + k);
-    if (b) { b.classList.toggle('active', k === name); b.setAttribute('aria-selected', k === name ? 'true' : 'false'); }
+    if (b) {
+      b.classList.toggle('on', k === name);
+      b.setAttribute('aria-selected', k === name ? 'true' : 'false');
+      b.tabIndex = k === name ? 0 : -1;
+    }
   });
   var panel = document.getElementById('panel-' + name);
   if (panel) {
@@ -1100,7 +865,7 @@ window.switchMethod = switchMethod;
 
 /* Nawigacja klawiaturą po zakładkach metod (strzałki / Home / End) */
 (function(){
-  var tablist = document.querySelector('.method-tabs[role=tablist]');
+  var tablist = document.querySelector('.tz-subnav .seg[role=tablist]');
   if (!tablist) return;
   var tabs = Array.from(tablist.querySelectorAll('[role=tab]'));
   tablist.addEventListener('keydown', function(e){
@@ -1163,7 +928,6 @@ function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {
     btn.disabled = true;
   });
 
-  // Auto-focus pierwszego boxa jeśli panel widoczny
   var panel = group.closest('[id^=panel-]') || group;
   if (!panel.hidden) inputs[0].focus();
 }
@@ -1210,6 +974,5 @@ initDigitGroup('emailDigits', 'emailOtpHidden', 'btnEmailOtp', 'spinEmailOtp');
 
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>
