@@ -498,6 +498,10 @@ function ezd_require_access(): void {
                     ['431', 'Plany i agendy wydarzeń', 'B5', '', []],
                     ['432', 'Umowy z prelegentami i cateringiem', 'B5', '', []],
                 ]],
+                ['44', 'Patronaty', '', '', [
+                    ['441', 'Patronaty udzielone przez Fundację', 'B10', 'Korespondencja i umowy dotyczące objęcia patronatem wydarzeń lub inicjatyw zewnętrznych', []],
+                    ['442', 'Patronaty honorowe i nagrody', 'B10', 'Patronaty instytucjonalne i wyróżnienia honorowe przyznane Fundacji', []],
+                ]],
             ]],
             ['5', 'Administracja, IT, RODO i Systemy AI', '', '', [
                 ['50', 'Obsługa kancelaryjna i bieżąca administracja', '', '', [
@@ -587,6 +591,20 @@ function ezd_require_access(): void {
                     'Klasa przejściowa. Akta spraw/projektów rozpoczętych w systemie tradycyjnym (papierowym) i kontynuowanych po wdrożeniu EZD — prowadzone dwutorowo: oryginał papierowy pozostaje w teczce aktowej, a w systemie rejestruje się metrykę i odsyłacz. Podlega ekspertyzie archiwum państwowego.',
                     999,
                 ]);
+        }
+    } catch (\Throwable $e) {}
+
+    // Klasa „44 Patronaty" — dodawana idempotentnie do istniejących instalacji.
+    try {
+        if (!$pdo->query("SELECT 1 FROM ezd_jrwa WHERE symbol='44' LIMIT 1")->fetchColumn()) {
+            $parent4 = $pdo->query("SELECT id FROM ezd_jrwa WHERE symbol='4' LIMIT 1")->fetchColumn();
+            $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order,parent_id) VALUES (?,?,?,?,?,?)")
+                ->execute(['44', 'Patronaty', '', '', 445, $parent4 ?: null]);
+            $id44 = (int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order,parent_id) VALUES (?,?,?,?,?,?)")
+                ->execute(['441', 'Patronaty udzielone przez Fundację', 'B10', 'Korespondencja i umowy dotyczące objęcia patronatem wydarzeń lub inicjatyw zewnętrznych', 4451, $id44]);
+            $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order,parent_id) VALUES (?,?,?,?,?,?)")
+                ->execute(['442', 'Patronaty honorowe i nagrody', 'B10', 'Patronaty instytucjonalne i wyróżnienia honorowe przyznane Fundacji', 4452, $id44]);
         }
     } catch (\Throwable $e) {}
 })();
