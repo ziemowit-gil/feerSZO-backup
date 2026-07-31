@@ -362,6 +362,114 @@ body .breadcrumb-item a:hover {
 }
 .ezd-topbar-logout:hover { color: #fff; background: rgba(255,255,255,.1); }
 
+/* ── Powrót do SZO ───────────────────────────────────────────────── */
+.ezd-tb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .22rem .6rem;
+  border-radius: 6px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,255,255,.8);
+  text-decoration: none;
+  font-size: .74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+}
+.ezd-tb-back:hover { background: rgba(255,255,255,.2); color: #fff; }
+.ezd-tb-back .bi { font-size: .78rem; }
+
+/* ── Separator topbar ────────────────────────────────────────────── */
+.ezd-tb-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255,255,255,.18);
+  flex-shrink: 0;
+}
+
+/* ── EZD brand wrapper ───────────────────────────────────────────── */
+.ezd-tb-mod-wrap {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  flex-shrink: 0;
+}
+.ezd-tb-icon {
+  width: 24px;
+  height: 24px;
+  background: rgba(255,255,255,.12);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .8rem;
+  color: rgba(255,255,255,.85);
+  flex-shrink: 0;
+}
+.ezd-tb-label {
+  font-size: .82rem;
+  font-weight: 700;
+  color: rgba(255,255,255,.9);
+  white-space: nowrap;
+  line-height: 1;
+}
+.ezd-tb-badge {
+  font-size: .5rem;
+  font-weight: 800;
+  background: var(--tz);
+  color: #fff;
+  border-radius: 4px;
+  padding: .1rem .38rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* ── Icon buttons topbar ─────────────────────────────────────────── */
+.ezd-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 7px;
+  color: rgba(255,255,255,.7);
+  text-decoration: none;
+  font-size: .86rem;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  position: relative;
+  flex-shrink: 0;
+}
+.ezd-tb-btn:hover { background: rgba(255,255,255,.2); color: #fff; }
+.ezd-tb-btn:focus-visible { outline: 2px solid var(--tz); outline-offset: 2px; }
+
+/* ── Avatar button (chip z imieniem) ────────────────────────────── */
+.ezd-tb-avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 20px;
+  padding: .15rem .55rem .15rem .15rem;
+  color: rgba(255,255,255,.85);
+  cursor: pointer;
+  transition: background .12s;
+  flex-shrink: 0;
+}
+.ezd-tb-avatar-btn:hover { background: rgba(255,255,255,.2); color: #fff; }
+.ezd-tb-avatar-btn .ezd-topbar-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: .65rem;
+}
+
 /* ── Flex row pod topbarem ───────────────────────────────────────── */
 .ezd-body {
   display: flex;
@@ -397,44 +505,75 @@ body .breadcrumb-item a:hover {
   overflow-x: hidden;
 }
 
-/* ── Nagłówek sidebara (brand) ───────────────────────────────────── */
-.ezd-sb-brand {
-  display: flex;
-  align-items: center;
-  gap: .65rem;
-  padding: .9rem .85rem .8rem;
-  border-bottom: 1px solid var(--tz-line);
-  flex-shrink: 0;
+/* ── Nagłówek sidebara ───────────────────────────────────────────── */
+.ezd-sb-brand { /* legacy — zachowane dla kompatybilności */
+  display: flex; align-items: center; gap: .65rem;
+  padding: .9rem .85rem .8rem; border-bottom: 1px solid var(--tz-line); flex-shrink: 0;
 }
 
-.ezd-sb-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+/* Nowy header sidebara */
+.ezd-sb-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem .85rem;
+  border-bottom: 1px solid var(--tz-line);
+  flex-shrink: 0;
+  min-height: 52px;
+}
+
+.ezd-sb-module-id {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.ezd-sb-mod-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
   background: var(--tz-50);
   color: var(--tz);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: .95rem;
   flex-shrink: 0;
 }
 
-.ezd-sb-title {
+.ezd-sb-mod-name {
   font-size: .78rem;
   font-weight: 700;
   color: #0f172a;
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.ezd-sb-sub {
-  font-size: .62rem;
-  color: var(--tz-muted);
+.ezd-sb-mod-tag {
+  font-size: .59rem;
+  font-weight: 700;
+  color: var(--tz);
   text-transform: uppercase;
-  letter-spacing: .07em;
+  letter-spacing: .08em;
+  line-height: 1;
+}
+
+/* Legacy icons (kept for compat) */
+.ezd-sb-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--tz-50); color: var(--tz);
+  display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;
+}
+.ezd-sb-title {
+  font-size: .78rem; font-weight: 700; color: #0f172a;
+  line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ezd-sb-sub {
+  font-size: .62rem; color: var(--tz-muted); text-transform: uppercase; letter-spacing: .07em;
 }
 
 .ezd-sb-close {

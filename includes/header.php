@@ -1194,35 +1194,129 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 
 <!-- ── EZD Topbar (zastępuje globalny navbar na stronach /ezd/) ─── -->
 <header class="ezd-topbar" role="banner">
+
+  <!-- Lewa: toggle mobilny + Powrót do SZO + branding EZD -->
   <div class="ezd-topbar-l">
     <button type="button" class="ezd-topbar-menu d-lg-none" id="ezdSbToggle" aria-label="Menu EZD">
       <i class="bi bi-list" aria-hidden="true"></i>
     </button>
-    <a href="<?= APP_URL ?>/index.php" class="ezd-topbar-brand" title="Panel główny">
+
+    <a href="<?= APP_URL ?>/index.php" class="ezd-tb-back" title="Powrót do głównego systemu SZO">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>
+      <span>Powrót do SZO</span>
+    </a>
+
+    <span class="ezd-tb-divider d-none d-sm-block" aria-hidden="true"></span>
+
+    <div class="ezd-tb-mod-wrap d-none d-sm-flex">
       <?php if (!empty($_org_logo) && file_exists(dirname(__DIR__).'/assets/logo/'.basename($_org_logo))): ?>
       <img src="<?= APP_URL ?>/assets/logo/<?= h(basename($_org_logo)) ?>" alt="" class="ezd-topbar-logo">
       <?php else: ?>
-      <span class="ezd-topbar-icon"><i class="bi bi-building" aria-hidden="true"></i></span>
+      <span class="ezd-tb-icon"><i class="bi bi-building-gear" aria-hidden="true"></i></span>
       <?php endif; ?>
-      <span class="ezd-topbar-org d-none d-sm-inline"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
-    </a>
-    <span class="ezd-topbar-div" aria-hidden="true">/</span>
-    <span class="ezd-topbar-mod">Wirtualne biurko</span>
+      <span class="ezd-tb-label d-none d-md-inline">Wirtualne biurko</span>
+      <span class="ezd-tb-badge">EZD</span>
+    </div>
   </div>
-  <div class="ezd-topbar-c d-none d-md-block">
-    <?php if (!empty($_page_title) && $_page_title !== 'Wirtualne biurko'): ?>
+
+  <!-- Centrum: tytuł strony -->
+  <div class="ezd-topbar-c d-none d-lg-block">
+    <?php if (!empty($_page_title) && !in_array($_page_title, ['Wirtualne biurko', 'EZD', 'Rejestr Umów'], true)): ?>
     <span class="ezd-topbar-ptitle"><?= h($_page_title) ?></span>
     <?php endif; ?>
   </div>
+
+  <!-- Prawa: akcje + user -->
   <div class="ezd-topbar-r">
-    <?php if ($_user): ?>
-    <a href="<?= APP_URL ?>/panel/password.php" class="ezd-topbar-avatar" title="<?= h($_user['name']) ?>">
-      <?= h($_nb_initials ?: mb_substr($_user['name'], 0, 1)) ?>
+
+    <?php if ($_user && function_exists('can_edit') && can_edit()): ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php"
+       class="ezd-tb-btn d-none d-md-flex"
+       title="Nowa koszulka" aria-label="Nowa koszulka">
+      <i class="bi bi-folder-plus" aria-hidden="true"></i>
     </a>
-    <a href="<?= APP_URL ?>/auth/logout.php" class="ezd-topbar-logout d-none d-sm-inline" title="Wyloguj się">
-      <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+    <a href="<?= APP_URL ?>/ezd/rpw/add.php"
+       class="ezd-tb-btn d-none d-lg-flex"
+       title="Nowe pismo / RPW" aria-label="Nowe pismo / RPW">
+      <i class="bi bi-envelope-plus" aria-hidden="true"></i>
     </a>
     <?php endif; ?>
+
+    <?php
+    // Licznik dekretacji oczekujących
+    $_ezd_dekr_tb = 0;
+    try {
+        if ($_user) {
+            $_ezd_dekr_tb = (int)(db_one(
+                "SELECT COUNT(*) c FROM ezd_dekretacje WHERE wykonawca_id=? AND status='oczekuje'",
+                [(int)$_user['id']]
+            )['c'] ?? 0);
+        }
+    } catch (\Throwable $e) {}
+    ?>
+    <a href="<?= APP_URL ?>/ezd/index.php"
+       class="ezd-tb-btn position-relative"
+       title="<?= $_ezd_dekr_tb ? "Moje zadania EZD ($_ezd_dekr_tb oczekujących)" : 'Moje zadania EZD' ?>"
+       aria-label="Moje zadania EZD">
+      <i class="bi bi-bell-fill" aria-hidden="true"></i>
+      <?php if ($_ezd_dekr_tb > 0): ?>
+      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+            style="font-size:.5rem;padding:.2rem .32rem" aria-hidden="true">
+        <?= $_ezd_dekr_tb > 9 ? '9+' : $_ezd_dekr_tb ?>
+      </span>
+      <?php endif; ?>
+    </a>
+
+    <?php if ($_user): ?>
+    <div class="dropdown">
+      <button class="ezd-tb-avatar-btn" type="button"
+              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+              title="<?= h($_user['name']) ?>">
+        <span class="ezd-topbar-avatar"><?= h($_nb_initials ?: mb_strtoupper(mb_substr($_user['name'],0,1))) ?></span>
+        <span class="d-none d-sm-inline" style="font-size:.75rem;font-weight:500;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <?= h(explode(' ', $_user['name'])[0]) ?>
+        </span>
+        <i class="bi bi-chevron-down d-none d-sm-inline" style="font-size:.55rem;opacity:.5" aria-hidden="true"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width:220px;font-size:.83rem">
+        <li class="px-3 py-2 border-bottom">
+          <div class="fw-semibold"><?= h($_user['name']) ?></div>
+          <div class="text-muted" style="font-size:.73rem"><?= h($_user['email']) ?></div>
+          <span class="badge bg-light text-dark border mt-1" style="font-size:.64rem"><?= h($_user['role']) ?></span>
+        </li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/index.php">
+            <i class="bi bi-building me-2 text-muted"></i>Panel SZO
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/index.php">
+            <i class="bi bi-person-circle me-2 text-muted"></i>Mój panel
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/password.php">
+            <i class="bi bi-gear me-2 text-muted"></i>Ustawienia konta
+          </a>
+        </li>
+        <?php if (function_exists('is_admin') && is_admin()): ?>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/admin/ezd_settings.php">
+            <i class="bi bi-sliders me-2 text-muted"></i>Ustawienia EZD
+          </a>
+        </li>
+        <?php endif; ?>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
+          <a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php">
+            <i class="bi bi-box-arrow-right me-2"></i>Wyloguj się
+          </a>
+        </li>
+      </ul>
+    </div>
+    <?php endif; ?>
+
   </div>
 </header>
 

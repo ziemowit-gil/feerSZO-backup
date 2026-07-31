@@ -29,11 +29,14 @@ function _esb_exact(string $path): string {
 ?>
 <aside class="ezd-sidebar" id="ezdSidebar" aria-label="Nawigacja EZD">
 
-  <div class="ezd-sb-brand">
-    <div class="ezd-sb-icon"><i class="bi bi-building-gear" aria-hidden="true"></i></div>
-    <div class="flex-grow-1 overflow-hidden">
-      <div class="ezd-sb-title">Wirtualne biurko</div>
-      <div class="ezd-sb-sub">EZD</div>
+  <!-- Nagłówek sidebara: identyfikator modułu + przycisk zamknięcia (mobile) -->
+  <div class="ezd-sb-header">
+    <div class="ezd-sb-module-id">
+      <span class="ezd-sb-mod-icon"><i class="bi bi-building-gear" aria-hidden="true"></i></span>
+      <div>
+        <div class="ezd-sb-mod-name">Wirtualne biurko</div>
+        <div class="ezd-sb-mod-tag">EZD</div>
+      </div>
     </div>
     <button type="button" class="ezd-sb-close d-lg-none" id="ezdSidebarClose" aria-label="Zamknij panel nawigacji">
       <i class="bi bi-x-lg" aria-hidden="true"></i>
@@ -42,8 +45,11 @@ function _esb_exact(string $path): string {
 
   <?php if (function_exists('can_edit') && can_edit()): ?>
   <div class="ezd-sb-actions">
-    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm w-100">
-      <i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Nowa koszulka
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
+      <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka
+    </a>
+    <a href="<?= APP_URL ?>/ezd/pisma/add.php" class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1 mt-1" style="font-size:.75rem">
+      <i class="bi bi-envelope-plus" aria-hidden="true"></i>Nowe pismo
     </a>
   </div>
   <?php endif; ?>
@@ -143,7 +149,7 @@ function _esb_exact(string $path): string {
 
   <div class="ezd-sb-foot">
     <a href="<?= APP_URL ?>/index.php" class="ezd-sb-back">
-      <i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span>Panel główny</span>
+      <i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span>Powrót do SZO</span>
     </a>
   </div>
 
