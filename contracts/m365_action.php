@@ -36,21 +36,6 @@ try {
     $graph = new M365Graph();
     if (!$graph->is_configured()) throw new RuntimeException('Integracja M365 nie jest skonfigurowana. Przejdź do Admin → Ustawienia M365.');
 
-    // Blokada aktywacji M365 — wymagane oświadczenie o ochronie danych
-    $is_activating = $action === 'create'
-        || $action === 'enable'
-        || ($action === 'toggle' && !$row['m365_konto'])
-        || ($action === 'toggle_active' && !($row['m365_konto_aktywne'] ?? 0));
-    if ($is_activating && $person_email) {
-        $stmt_check = db_one("SELECT gdpr_statement_signed_at FROM users WHERE email=? LIMIT 1", [$person_email]);
-        if ($stmt_check && empty($stmt_check['gdpr_statement_signed_at'])) {
-            throw new RuntimeException(
-                'Aktywacja konta M365 zablokowana — współpracownik nie podpisał jeszcze '
-                . 'Oświadczenia o Ochronie Danych w Panelu Wolontariusza.'
-            );
-        }
-    }
-
     if ($action === 'create' || ($action === 'toggle' && !$row['m365_konto'])) {
         // Generuj login i hasło
         $login    = $graph->unique_login($person_name);
