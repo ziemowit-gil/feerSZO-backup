@@ -160,8 +160,13 @@ foreach ($docs as $doc) {
         $tytul4   = "/VAT/{$vat_str}/IDC/{$nip_pli}/INV/{$inv_pli}|/TXT/{$txt_pli}||";
         $kod      = 53;
     } else {
-        // Zwykły przelew — tytuł max 35 znaków w pierwszej linii, reszta pusta
-        $tytul4 = $tytul . '|||';
+        // Zwykły przelew — linia 1: tytuł, linia 2: nr obiegu, linia 3: sprawa EZD
+        $l2 = pli_clean('NR OB: ' . $doc['number'], 35);
+        $l3 = '';
+        if (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']])) {
+            $l3 = pli_clean('SPRAWA: ' . $ezd_signs[(int)$doc['ezd_sprawa_id']], 35);
+        }
+        $tytul4 = pli_4lines([$tytul, $l2, $l3, '']);
         $kod    = 51;
     }
 
