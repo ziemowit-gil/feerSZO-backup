@@ -249,6 +249,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
 
+    if ($action === 'pismo_from_zal' && $can_act) {
+        $zal_id = (int)($_POST['zal_id'] ?? 0);
+        $zal_row = db()->prepare("SELECT * FROM ezd_zalaczniki WHERE id=? AND sprawa_id=?")->execute([$zal_id, $id]) ? null : null;
+        $stmt = db()->prepare("SELECT * FROM ezd_zalaczniki WHERE id=? AND sprawa_id=?");
+        $stmt->execute([$zal_id, $id]);
+        $zal_row = $stmt->fetch();
+        if (!$zal_row) {
+            flash_set('error', 'Nie znaleziono pliku w aktach tej koszulki.');
+            header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+        }
+        $zfp  = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/' . $zal_row['filename'];
+        $sig  = ezd_signature_info($zfp, $zal_row['original_name']);
+        if (!$sig['signed']) {
+            flash_set('error', 'Wybrany plik nie zawiera podpisu elektronicznego.');
+            header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+        }
+        $title  = trim($_POST['pismo_title']   ?? '');
+        $kier   = $_POST['kierunek']           ?? 'przychodzace';
+        $medium = $_POST['rodzaj_medium']      ?? 'inne';
+        $dpis   = trim($_POST['data_pisma']    ?? '');
+        $nad    = trim($_POST['nadawca']        ?? '');
+        $odb    = trim($_POST['odbiorca']       ?? '');
+        if (!$title) {
+            flash_set('error', 'Podaj tytuł pisma.');
+            header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+        }
+        $pid = ezd_pismo_create([
+            'sprawa_id'    => $id,
+            'kierunek'     => in_array($kier, array_keys(EZD_KIERUNKI), true) ? $kier : 'przychodzace',
+            'title'        => $title,
+            'nadawca'      => $nad,
+            'odbiorca'     => $odb,
+            'data_pisma'   => $dpis ?: date('Y-m-d'),
+            'rodzaj_medium'=> $medium,
+            'status'       => 'nowe',
+        ], $user_id);
+        db()->prepare("UPDATE ezd_zalaczniki SET pismo_id=? WHERE id=? AND sprawa_id=?")->execute([$pid, $zal_id, $id]);
+        ezd_log(null, $id, $pid, null, $user_id, 'pismo_from_zal',
+            'Utworzono pismo z pliku: ' . $zal_row['original_name']);
+        flash_set('success', 'Pismo zostało utworzone i plik przypisany.');
+        header('Location: ' . APP_URL . '/ezd/pisma/view.php?id=' . $pid); exit;
+    }
+
     if ($action === 'send_email_pismo' && $can_act && $signed_pdfs) {
         $recipient = trim($_POST['recipient_email'] ?? '');
         $subject   = trim($_POST['mail_subject']    ?? '');
@@ -544,36 +587,49 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="d-flex gap-1 flex-shrink-0">
             <?php if(!empty($sig['signed'])): ?>
             <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-sig-btn"
+              title="Weryfikuj podpis elektroniczny"
               data-zal="<?= (int)$z['id'] ?>" data-file="<?= h($z['original_name']) ?>"
               data-type="<?= h((string)$sig['type']) ?>" data-signer="<?= h((string)($sig['signer'] ?? '')) ?>"
               data-date="<?= h((string)($sig['signed_at'] ?? '')) ?>" data-reason="<?= h((string)($sig['reason'] ?? '')) ?>"
               data-location="<?= h((string)($sig['location'] ?? '')) ?>" data-note="<?= h((string)($sig['note'] ?? '')) ?>">
               <i class="bi bi-patch-check"></i>
             </button>
+            <?php if($can_act && $zext === 'pdf'): ?>
+            <button type="button" class="btn btn-xs btn-outline-info btn-sm"
+                    title="Utwórz pismo z tego pliku"
+                    data-bs-toggle="modal" data-bs-target="#pismoFromZalModal"
+                    data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>">
+              <i class="bi bi-envelope-plus"></i>
+            </button>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if($can_act && $grupy): ?>
             <button type="button" class="btn btn-xs btn-outline-secondary btn-sm ezd-move-grupa-btn"
+                    title="Przenieś do grupy"
                     data-bs-toggle="modal" data-bs-target="#zalMoveGroupModal"
                     data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>" data-grupa="<?= (int)($z['grupa_id'] ?? 0) ?>">
               <i class="bi bi-folder-symlink"></i>
             </button>
             <?php endif; ?>
             <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
-            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Office Online"><i class="bi bi-microsoft"></i></a>
+            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Office Online"><i class="bi bi-microsoft"></i></a>
             <?php if (!empty($z['sp_web_url'])): $_s = in_array($zext, ['xls','xlsx'], true) ? 'ms-excel' : 'ms-word'; ?>
-            <a href="<?= h($_s) ?>:ofe|u|<?= rawurlencode($z['sp_web_url']) ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w aplikacji desktop"><i class="bi bi-window-desktop"></i></a>
-            <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-oop-btn" data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
+            <a href="<?= h($_s) ?>:ofe|u|<?= rawurlencode($z['sp_web_url']) ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w aplikacji desktop (Word/Excel)"><i class="bi bi-window-desktop"></i></a>
+            <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-oop-btn" title="Pobierz zmiany z Office Online"
+                    data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
                     data-zal="<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-cloud-arrow-down"></i></button>
             <?php endif; ?>
             <?php elseif (!empty($z['sp_web_url'])): ?>
-            <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-cloud-check"></i></a>
+            <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary btn-sm" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
             <?php endif; ?>
             <?php if ($zext === 'pdf'): ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm ezd-pdf-btn"
+               title="Podgląd PDF"
                data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-eye"></i></a>
             <?php endif; ?>
             <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
             <button type="button" class="btn btn-xs btn-outline-primary btn-sm ezd-email-btn"
+                    title="Podgląd wiadomości e-mail"
                     data-id="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-envelope-open"></i></button>
             <?php endif; ?>
             <?php if ($can_act && in_array($zext, EZD_PDF_CONVERTIBLE_EXT, true)): ?>
@@ -581,20 +637,20 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="convert_pdf">
               <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
-              <button class="btn btn-xs btn-outline-danger btn-sm"><i class="bi bi-filetype-pdf"></i></button>
+              <button class="btn btn-xs btn-outline-danger btn-sm" title="Konwertuj na PDF"><i class="bi bi-filetype-pdf"></i></button>
             </form>
             <?php endif; ?>
             <?php if(module_enabled('obiegi_enabled')): ?>
             <a href="<?= APP_URL ?>/obiegi/new.php?ezd_sprawa_id=<?= $id ?>&ezd_zalacznik_id=<?= $z['id'] ?>"
-               class="btn btn-xs btn-outline-primary btn-sm" title="Uruchom obieg"><i class="bi bi-diagram-2"></i></a>
+               class="btn btn-xs btn-outline-primary btn-sm" title="Uruchom obieg dokumentu"><i class="bi bi-diagram-2"></i></a>
             <?php endif; ?>
-            <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
+            <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm" title="Pobierz plik"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="del_file">
               <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
-              <button class="btn btn-xs btn-outline-danger btn-sm"><i class="bi bi-trash3"></i></button>
+              <button class="btn btn-xs btn-outline-danger btn-sm" title="Usuń plik"><i class="bi bi-trash3"></i></button>
             </form>
             <?php endif; ?>
           </div>
@@ -1356,6 +1412,85 @@ function dekrUnitChange(sel) {
     </form>
   </div>
 </div>
+<?php endif; ?>
+
+<?php if($can_act): ?>
+<div class="modal fade" id="pismoFromZalModal" tabindex="-1" aria-labelledby="pismoFromZalModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="pismo_from_zal">
+      <input type="hidden" name="zal_id" id="pfzZalId" value="">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="pismoFromZalModalLabel"><i class="bi bi-envelope-plus me-1 text-info"></i>Utwórz pismo z pliku</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pfzFileInfo" class="mb-3 p-2 rounded bg-success bg-opacity-10 border border-success border-opacity-25 d-flex align-items-center gap-2" style="font-size:.82rem">
+          <i class="bi bi-patch-check text-success"></i>
+          <span id="pfzFileName" class="text-truncate fw-semibold"></span>
+          <span class="badge bg-success bg-opacity-15 text-success border border-success ms-auto" style="font-size:.62rem"><i class="bi bi-pen-fill me-1"></i>Podpisany el.</span>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.84rem">Tytuł pisma <span class="text-danger">*</span></label>
+          <input type="text" name="pismo_title" id="pfzTitle" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">Kierunek</label>
+            <div class="d-flex gap-3 flex-wrap pt-1">
+              <?php foreach(EZD_KIERUNKI as $kval => $klabel): ?>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="kierunek" id="pfzKier_<?= $kval ?>"
+                       value="<?= $kval ?>" <?= $kval === 'przychodzace' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="pfzKier_<?= $kval ?>" style="font-size:.82rem"><?= h($klabel['label']) ?></label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">Rodzaj medium</label>
+            <select name="rodzaj_medium" class="form-select form-select-sm">
+              <?php foreach(EZD_MEDIA as $mval => $mlabel): ?>
+              <option value="<?= $mval ?>" <?= $mval === 'email' ? 'selected' : '' ?>><?= h($mlabel) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">Data pisma</label>
+            <input type="date" name="data_pisma" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>">
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">Nadawca</label>
+            <input type="text" name="nadawca" class="form-control form-control-sm" placeholder="Opcjonalnie">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">Odbiorca</label>
+            <input type="text" name="odbiorca" class="form-control form-control-sm" placeholder="Opcjonalnie">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-info btn-sm text-white"><i class="bi bi-envelope-plus me-1"></i>Utwórz pismo</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var zalId = this.dataset.zal   || '';
+    var name  = this.dataset.name  || '';
+    document.getElementById('pfzZalId').value   = zalId;
+    document.getElementById('pfzFileName').textContent = name;
+    var title = name.replace(/\.[^.]+$/, '');
+    document.getElementById('pfzTitle').value = title;
+  });
+});
+</script>
 <?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
