@@ -814,6 +814,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       ?>
       <div class="tl-item">
         <div class="tl-dot <?= $dot_cls ?>"></div>
+        <?php if ($is_pismo): ?>
+        <div class="tl-card <?= $card_cls ?> tl-pismo-btn" role="button" tabindex="0"
+             data-pismo-id="<?= (int)$item['id'] ?>" data-pismo-href="<?= h($href) ?>"
+             style="cursor:pointer"
+             aria-label="Podgląd pisma: <?= h($item['title']) ?>">
+        <?php else: ?>
         <a href="<?= $href ?>" class="tl-card <?= $card_cls ?>">
           <?php if(!empty($item['sygnatura'])): ?><div class="tl-syg"><?= h($item['sygnatura']) ?></div><?php endif; ?>
           <div class="tl-title"><?= h(mb_substr($item['title'],0,70)) ?></div>
@@ -828,7 +834,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
             <span class="ms-auto"><?= date('d.m.Y', strtotime($item['_date'])) ?></span>
           </div>
-        </a>
+        <?= $is_pismo ? '</div>' : '</a>' ?>
       </div>
       <?php endforeach; ?>
     </div>
@@ -1492,5 +1498,50 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
 });
 </script>
 <?php endif; ?>
+
+<!-- Offcanvas: podgląd pisma inline -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="pismoPanel" aria-labelledby="pismoPanelLabel" style="width:min(420px,100vw)">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title fw-semibold" id="pismoPanelLabel"><i class="bi bi-envelope me-1 text-primary"></i>Pismo</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Zamknij"></button>
+  </div>
+  <div class="offcanvas-body" id="pismoPanelBody">
+    <div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div></div>
+  </div>
+</div>
+<script>
+(function () {
+  var panel   = document.getElementById('pismoPanel');
+  var body    = document.getElementById('pismoPanelBody');
+  var oc      = bootstrap.Offcanvas.getOrCreateInstance(panel);
+  var lastId  = null;
+
+  function loadPismo(id) {
+    if (id === lastId) { oc.show(); return; }
+    body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div></div>';
+    oc.show();
+    fetch('<?= APP_URL ?>/ezd/pisma/ajax_panel.php?id=' + id, {credentials: 'same-origin'})
+      .then(function(r) { return r.text(); })
+      .then(function(html) { body.innerHTML = html; lastId = id; })
+      .catch(function() { body.innerHTML = '<div class="text-danger p-3">Błąd ładowania danych.</div>'; });
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.tl-pismo-btn');
+    if (!btn) return;
+    e.preventDefault();
+    loadPismo(btn.dataset.pismoId);
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var btn = e.target.closest('.tl-pismo-btn');
+    if (!btn) return;
+    e.preventDefault();
+    loadPismo(btn.dataset.pismoId);
+  });
+
+  panel.addEventListener('hidden.bs.offcanvas', function() { lastId = null; });
+})();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
