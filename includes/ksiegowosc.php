@@ -258,6 +258,17 @@ function kdok_migrate(): void {
     )");
     try { $kdb->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_kdok_dostawcy_nip ON kdok_dostawcy(nip) WHERE nip!=''"); } catch (\Exception $e) {}
 
+    // Naprawa danych: starsze dokumenty mogą mieć NULL w polach dodanych przez ALTER TABLE,
+    // co powoduje zniknięcie z Preliminarza (NULL NOT IN ('anulowany') = NULL = false).
+    try {
+        $kdb->exec("UPDATE kdok_documents SET status_platnosci='nowy'
+                    WHERE status_platnosci IS NULL OR status_platnosci=''");
+        $kdb->exec("UPDATE kdok_documents SET wyklucz_z_preliminarza=1
+                    WHERE wyklucz_z_preliminarza IS NULL AND type='wyciag'");
+        $kdb->exec("UPDATE kdok_documents SET wyklucz_z_preliminarza=0
+                    WHERE wyklucz_z_preliminarza IS NULL");
+    } catch (\Exception $e) {}
+
     // Certyfikaty i IKAKS — zawsze w głównej bazie (przypisane do users)
     $mdb->exec("CREATE TABLE IF NOT EXISTS kdok_certificates (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -877,10 +888,10 @@ function kdok_preliminarz_query(array $f = []): array {
     $params = [];
 
     if (!empty($f['status_platnosci'])) {
-        $where[]  = "d.status_platnosci = ?";
+        $where[]  = "COALESCE(d.status_platnosci,'nowy') = ?";
         $params[] = $f['status_platnosci'];
     } else {
-        $where[]  = "d.status_platnosci NOT IN ('anulowany')";
+        $where[]  = "COALESCE(d.status_platnosci,'nowy') NOT IN ('anulowany')";
     }
     if (!empty($f['termin_od'])) {
         $where[]  = "d.termin_platnosci >= ?";
