@@ -142,6 +142,15 @@ $AGENTS = [
     ],
 ];
 
+// Agenci aktywni tylko w środowisku Docker
+if (file_exists('/.dockerenv')) {
+    $AGENTS['gdpr_statement_reminder'] = [
+        'file'     => __DIR__ . '/gdpr_statement_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ];
+}
+
 $lock_dir = sys_get_temp_dir();
 $now      = time();
 $hour     = (int)date('G');
