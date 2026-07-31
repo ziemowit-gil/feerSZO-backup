@@ -139,6 +139,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Odrzucenie dokumentu — zablokowane, gdy dokument jest już zaakceptowany
     // (zatwierdzenie jest ostateczne; cofnięcie po fakcie wymagałoby osobnej,
     // świadomej procedury, nie zwykłego przycisku "Odrzuć").
+    if ($action === 'toggle_wyklucz' && (is_admin() || kdok_has_role('zatwierdza'))) {
+        $nowy = (int)$doc['wyklucz_z_preliminarza'] ? 0 : 1;
+        kdok_exec("UPDATE kdok_documents SET wyklucz_z_preliminarza=?, updated_at=datetime('now') WHERE id=?", [$nowy, $id]);
+        kdok_log($id, $nowy ? 'Wyłączono z Preliminarza Płatności' : 'Przywrócono do Preliminarza Płatności');
+        flash_set($nowy ? 'warning' : 'success', $nowy ? 'Dokument wykluczony z Preliminarza Płatności.' : 'Dokument przywrócony do Preliminarza Płatności.');
+        header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+        exit;
+    }
+
     if ($action === 'reject' && is_admin()) {
         if ($doc['status'] === 'zaakceptowany') {
             flash_set('danger', 'Dokument jest już zaakceptowany — nie można go odrzucić.');
@@ -167,6 +176,20 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/ksiegowosc/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0 me-auto"><i class="bi bi-file-earmark-check"></i> <?= h($doc['number']) ?></h4>
   <?= kdok_status_badge($doc['status']) ?>
+  <?php if (is_admin() || kdok_has_role('zatwierdza')): ?>
+  <?php if (!empty($doc['wyklucz_z_preliminarza'])): ?>
+  <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Poza Preliminarzem</span>
+  <?php endif; ?>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="action" value="toggle_wyklucz">
+    <button type="submit" class="btn btn-sm <?= !empty($doc['wyklucz_z_preliminarza']) ? 'btn-outline-success' : 'btn-outline-secondary' ?>"
+            title="<?= !empty($doc['wyklucz_z_preliminarza']) ? 'Przywróć do Preliminarza' : 'Nie dodawaj do Preliminarza' ?>">
+      <i class="bi <?= !empty($doc['wyklucz_z_preliminarza']) ? 'bi-eye' : 'bi-eye-slash' ?>"></i>
+      <?= !empty($doc['wyklucz_z_preliminarza']) ? 'Przywróć do Preliminarza' : 'Nie dodawaj do Preliminarza' ?>
+    </button>
+  </form>
+  <?php endif; ?>
   <?php if (is_admin()): ?>
   <a href="<?= APP_URL ?>/ksiegowosc/delete.php?id=<?= $id ?>" class="btn btn-sm btn-outline-danger"
      onclick="return confirm('Na pewno usunąć dokument?')"><i class="bi bi-trash"></i></a>

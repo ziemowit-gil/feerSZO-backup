@@ -160,8 +160,8 @@ foreach ($docs as $doc) {
         $tytul4   = "/VAT/{$vat_str}/IDC/{$nip_pli}/INV/{$inv_pli}|/TXT/{$txt_pli}||";
         $kod      = 53;
     } else {
-        // Zwykły przelew — jedna linia: tytuł + nr obiegu + znak EZD (bez |)
-        $ezd_sign_doc = (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']]))
+        // Zwykły przelew — jedna linia: tytuł + nr obiegu + (opcjonalnie) znak EZD
+        $ezd_sign_doc = (!empty($_GET['z_sprawa']) && !empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']]))
             ? $ezd_signs[(int)$doc['ezd_sprawa_id']] : '';
         $tytul4 = pli_clean($tytul . ' ' . $doc['number'] . ($ezd_sign_doc ? ' ' . $ezd_sign_doc : ''), 35);
         $kod    = 51;

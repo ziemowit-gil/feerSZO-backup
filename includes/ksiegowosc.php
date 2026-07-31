@@ -231,9 +231,10 @@ function kdok_migrate(): void {
         'centrum_kosztow' => "TEXT NOT NULL DEFAULT ''",
         'projekt'         => "TEXT NOT NULL DEFAULT ''",
         'tytul_przelewu'  => "TEXT NOT NULL DEFAULT ''",
-        'status_platnosci'  => "TEXT NOT NULL DEFAULT 'nowy'",
-        'ezd_sprawa_id'     => "INTEGER",
-        'oswiadczenie_ksef' => "INTEGER NOT NULL DEFAULT 0",
+        'status_platnosci'       => "TEXT NOT NULL DEFAULT 'nowy'",
+        'ezd_sprawa_id'          => "INTEGER",
+        'oswiadczenie_ksef'      => "INTEGER NOT NULL DEFAULT 0",
+        'wyklucz_z_preliminarza' => "INTEGER NOT NULL DEFAULT 0",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -805,7 +806,7 @@ function kdok_status_platnosci_badge(string $status): string {
  * Kwalifikuje status 'zaakceptowany' (kroki zakończone).
  */
 function kdok_preliminarz_query(array $f = []): array {
-    $where  = ["d.status = 'zaakceptowany'"];
+    $where  = ["d.status = 'zaakceptowany'", "COALESCE(d.wyklucz_z_preliminarza, 0) = 0"];
     $params = [];
 
     if (!empty($f['status_platnosci'])) {

@@ -471,6 +471,14 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <?php endif; ?>
           </div>
+          <div class="mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="z_sprawa" id="pli-z-sprawa" value="1" checked>
+              <label class="form-check-label small" for="pli-z-sprawa">
+                Dodaj numer sprawy EZD do tytułu przelewu
+              </label>
+            </div>
+          </div>
           <?php
           $bez_rachunku = count(array_filter($docs, fn($d) => strlen(preg_replace('/[\s\-]/', '', $d['rachunek_bankowy'] ?? '')) !== 26));
           if ($bez_rachunku): ?>
