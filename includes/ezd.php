@@ -1510,6 +1510,29 @@ function ezd_pismo_create(array $d, int $user_id): int {
     $id = (int)db()->lastInsertId();
     db()->prepare("UPDATE ezd_sprawy SET updated_at=datetime('now') WHERE id=?")->execute([$d['sprawa_id']]);
     ezd_log(null, (int)$d['sprawa_id'], $id, null, $user_id, 'pismo_create', "Dodano pismo $sygnatura");
+
+    // Auto-rejestracja wychodzących jako korespondencja wychodząca
+    if (($d['kierunek'] ?? '') === 'wychodzace' && function_exists('module_enabled') && module_enabled('correspondence_enabled')) {
+        if (!function_exists('corr_create') && is_file(__DIR__ . '/correspondence.php')) {
+            require_once __DIR__ . '/correspondence.php';
+        }
+        if (function_exists('corr_create')) {
+            $corr_id = corr_create([
+                'direction'    => 'outgoing',
+                'number'       => $sygnatura,
+                'subject'      => trim($d['title']),
+                'correspondent'=> $d['odbiorca'] ?? '',
+                'date'         => ($d['data_wysylki'] ?? '') ?: ($d['data_pisma'] ?? '') ?: date('Y-m-d'),
+                'status'       => 'new',
+                'medium'       => in_array($medium, ['email','epuap','faks','inne'], true) ? $medium : 'papier',
+                'ezd_pismo_id' => $id,
+            ], $user_id);
+            db()->prepare("UPDATE correspondence SET ezd_pismo_id=? WHERE id=?")->execute([$id, $corr_id]);
+            ezd_log(null, (int)$d['sprawa_id'], $id, null, $user_id, 'corr_auto_linked',
+                'Auto-rejestracja w korespondencji #' . $corr_id);
+        }
+    }
+
     return $id;
 }
 
@@ -1536,7 +1559,7 @@ function ezd_pismo_update(int $id, array $d, int $user_id): void {
 
 function _ezd_next_sygnatura_pisma(int $sprawa_id, string $znak): string {
     $c = db_one("SELECT COUNT(*) AS c FROM ezd_pisma WHERE sprawa_id=?", [$sprawa_id])['c'] ?? 0;
-    return $znak . '.P.' . ($c + 1);
+    return $znak . '.P' . ($c + 1);
 }
 
 // ── Umowy EZD ────────────────────────────────────────────────────────────────

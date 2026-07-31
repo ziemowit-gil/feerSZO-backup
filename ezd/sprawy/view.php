@@ -1504,7 +1504,7 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
 <?php endif; ?>
 
 <!-- Offcanvas: podgląd pisma inline -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="pismoPanel" aria-labelledby="pismoPanelLabel" style="width:min(420px,100vw)">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="pismoPanel" aria-labelledby="pismoPanelLabel" style="width:min(440px,100vw)">
   <div class="offcanvas-header border-bottom">
     <h6 class="offcanvas-title fw-semibold" id="pismoPanelLabel"><i class="bi bi-envelope me-1 text-primary"></i>Pismo</h6>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Zamknij"></button>
@@ -1513,6 +1513,23 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
     <div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div></div>
   </div>
 </div>
+
+<!-- Modal: podgląd PDF inline -->
+<div class="modal fade" id="pdfPreviewModal" tabindex="-1" aria-labelledby="pdfPreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-lg-down">
+    <div class="modal-content" style="height:90vh">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold text-truncate me-2" id="pdfPreviewModalLabel"><i class="bi bi-file-earmark-pdf text-danger me-1"></i><span id="pdfPreviewName"></span></h6>
+        <a id="pdfPreviewDownload" href="#" target="_blank" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-download me-1"></i>Pobierz</a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body p-0 flex-grow-1" style="overflow:hidden">
+        <iframe id="pdfPreviewFrame" src="" style="width:100%;height:100%;border:none" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var panel   = document.getElementById('pismoPanel');
@@ -1520,28 +1537,114 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
   var oc      = bootstrap.Offcanvas.getOrCreateInstance(panel);
   var lastId  = null;
 
-  function loadPismo(id) {
-    if (id === lastId) { oc.show(); return; }
+  function showToast(msg, ok) {
+    var t = document.createElement('div');
+    t.className = 'position-fixed bottom-0 end-0 m-3 alert alert-' + (ok ? 'success' : 'danger') + ' py-2 px-3 shadow';
+    t.style.cssText = 'font-size:.82rem;z-index:9999;max-width:280px';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 3000);
+  }
+
+  function loadPismo(id, force) {
+    if (id === lastId && !force) { oc.show(); return; }
     body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div></div>';
     oc.show();
+    lastId = null;
     fetch('<?= APP_URL ?>/ezd/pisma/ajax_panel.php?id=' + id, {credentials: 'same-origin'})
       .then(function(r) { return r.text(); })
       .then(function(html) { body.innerHTML = html; lastId = id; })
       .catch(function() { body.innerHTML = '<div class="text-danger p-3">Błąd ładowania danych.</div>'; });
   }
 
+  // Klik w kartę pisma
   document.addEventListener('click', function(e) {
     var btn = e.target.closest('.tl-pismo-btn');
-    if (!btn) return;
-    e.preventDefault();
-    loadPismo(btn.dataset.pismoId);
+    if (btn) { e.preventDefault(); loadPismo(btn.dataset.pismoId); return; }
+
+    // Akcje z załadowanego panelu (delegacja)
+    var statusForm = e.target.closest('.ezd-panel-status-form');
+    if (statusForm) return; // handled by submit
+
+    var uploadForm = e.target.closest('.ezd-panel-upload-form');
+    if (uploadForm) return; // handled by submit
+
+    // PDF preview z panelu
+    var pdfBtn = e.target.closest('.ezd-pdf-btn');
+    if (pdfBtn) {
+      e.preventDefault();
+      document.getElementById('pdfPreviewFrame').src = pdfBtn.dataset.url;
+      document.getElementById('pdfPreviewName').textContent = pdfBtn.dataset.name || 'Dokument';
+      document.getElementById('pdfPreviewDownload').href = pdfBtn.dataset.url;
+      var pdfMod = bootstrap.Modal.getOrCreateInstance(document.getElementById('pdfPreviewModal'));
+      pdfMod.show();
+      return;
+    }
+
+    // Utwórz pismo z pliku — z panelu
+    var fromZalBtn = e.target.closest('.ezd-panel-from-zal');
+    if (fromZalBtn && document.getElementById('pfzZalId')) {
+      e.preventDefault();
+      document.getElementById('pfzZalId').value = fromZalBtn.dataset.zal;
+      document.getElementById('pfzFileName').textContent = fromZalBtn.dataset.name;
+      document.getElementById('pfzTitle').value = fromZalBtn.dataset.name.replace(/\.[^.]+$/, '');
+      oc.hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('pismoFromZalModal')).show();
+      return;
+    }
   });
+
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     var btn = e.target.closest('.tl-pismo-btn');
     if (!btn) return;
     e.preventDefault();
     loadPismo(btn.dataset.pismoId);
+  });
+
+  // Submit: status
+  document.addEventListener('submit', function(e) {
+    var sf = e.target.closest('.ezd-panel-status-form');
+    if (sf) {
+      e.preventDefault();
+      var pismoId = sf.dataset.pismoId;
+      var fd = new FormData(sf);
+      fetch(sf.dataset.actionUrl, {method: 'POST', credentials: 'same-origin', body: fd})
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          showToast(j.msg || j.error || '?', !!j.ok);
+          if (j.ok) loadPismo(pismoId, true);
+        })
+        .catch(function() { showToast('Błąd połączenia.', false); });
+      return;
+    }
+
+    // Submit: upload
+    var uf = e.target.closest('.ezd-panel-upload-form');
+    if (uf) {
+      e.preventDefault();
+      var pismoId2 = uf.dataset.pismoId;
+      var fd2 = new FormData(uf);
+      var btn2 = uf.querySelector('button[type=submit]');
+      if (btn2) { btn2.disabled = true; btn2.textContent = '…'; }
+      fetch(uf.dataset.actionUrl, {method: 'POST', credentials: 'same-origin', body: fd2})
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          showToast(j.msg || j.error || '?', !!j.ok);
+          if (j.ok) loadPismo(pismoId2, true);
+          else if (btn2) { btn2.disabled = false; btn2.innerHTML = '<i class="bi bi-upload me-1"></i>Dodaj'; }
+        })
+        .catch(function() {
+          showToast('Błąd połączenia.', false);
+          if (btn2) { btn2.disabled = false; btn2.innerHTML = '<i class="bi bi-upload me-1"></i>Dodaj'; }
+        });
+      return;
+    }
+  });
+
+  // Czyść iframe po zamknięciu PDF modal (zatrzymuje pobieranie)
+  document.getElementById('pdfPreviewModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('pdfPreviewFrame').src = '';
   });
 
   panel.addEventListener('hidden.bs.offcanvas', function() { lastId = null; });

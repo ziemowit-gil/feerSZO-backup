@@ -6,8 +6,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
-$id    = (int)($_GET['id'] ?? 0);
-$pismo = ezd_pismo_get($id);
+$id          = (int)($_GET['id'] ?? 0);
+$from_sprawa = (int)($_GET['from_sprawa'] ?? 0);
+$pismo       = ezd_pismo_get($id);
 if (!$pismo) { flash_set('error','Pismo nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 $_sprawa_pisma = ezd_sprawa_get((int)$pismo['sprawa_id']);
 if (!$_sprawa_pisma || ezd_sprawa_access($_sprawa_pisma, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
@@ -41,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             ezd_pismo_update($id, $row, (int)current_user()['id']);
             flash_set('success','Pismo zaktualizowane.');
+            if ($from_sprawa && $from_sprawa === (int)$pismo['sprawa_id']) {
+                header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$from_sprawa.'#tab-pisma'); exit;
+            }
             header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
@@ -53,7 +57,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $pismo['sprawa_id'] ?>"><?= h($pismo['znak_sprawy']) ?></a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $id ?>"><?= h($pismo['sygnatura']) ?></a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $id ?><?= $from_sprawa ? '&from_sprawa='.$from_sprawa : '' ?>"><?= h($pismo['sygnatura']) ?></a></li>
   <li class="breadcrumb-item active">Edytuj</li>
 </ol></nav>
 <h4 class="fw-bold mb-3"><i class="bi bi-pencil text-primary me-2"></i>Edytuj pismo <span class="font-monospace"><?= h($pismo['sygnatura']) ?></span></h4>

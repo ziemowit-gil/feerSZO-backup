@@ -7,8 +7,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
-$id    = (int)($_GET['id'] ?? 0);
-$pismo = ezd_pismo_get($id);
+$id           = (int)($_GET['id'] ?? 0);
+$from_sprawa  = (int)($_GET['from_sprawa'] ?? 0);
+$pismo        = ezd_pismo_get($id);
 if (!$pismo) { flash_set('error','Pismo nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 
 $sprawa_id = (int)$pismo['sprawa_id'];
@@ -89,7 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
+    $fs = $from_sprawa ? '&from_sprawa=' . $from_sprawa : '';
+    header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id.$fs); exit;
 }
 
 $kier = EZD_KIERUNKI[$pismo['kierunek']] ?? ['label'=>$pismo['kierunek'],'icon'=>'bi-envelope','class'=>'secondary'];
@@ -103,6 +105,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .zal-row:last-child{border-bottom:none}
 </style>
 
+<?php if ($from_sprawa && $from_sprawa === $sprawa_id): ?>
+<a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa_id ?>#tab-pisma"
+   class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left me-1"></i>Wróć do koszulki <?= h($pismo['znak_sprawy']) ?></a>
+<?php endif; ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa_id ?>"><?= h($pismo['znak_sprawy']) ?></a></li>
@@ -137,7 +143,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-send me-1"></i>Wyślij mailem
             </button>
             <?php endif; ?>
-            <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+            <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?><?= $from_sprawa ? '&from_sprawa='.$from_sprawa : '' ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
           </div>
           <?php endif; ?>
         </div>
