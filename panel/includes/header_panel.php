@@ -51,6 +51,28 @@ function _pv_nav_active(string $path): string {
     global $_pv_uri;
     return str_contains($_pv_uri, $path) ? ' pv-active' : '';
 }
+
+// ── Oświadczenie o ochronie danych — blokada panelu do momentu podpisania ─────
+// Dotyczy tylko użytkowników bez założonego konta M365 (istniejące konta są pomijane).
+try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_signed_at DATETIME"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_ip TEXT"); } catch (\Throwable $e) {}
+$_gdpr_signed = !empty(db_one("SELECT gdpr_statement_signed_at FROM users WHERE id=?",
+    [(int)($_pu['id'] ?? 0)])['gdpr_statement_signed_at']);
+$_gdpr_has_m365 = false;
+if (!$_gdpr_signed) {
+    $_gdpr_email = $_pu['email'] ?? '';
+    if ($_gdpr_email) {
+        foreach (['wolontariat', 'zlecenie', 'dzielo'] as $_gdpr_t) {
+            if (db_one("SELECT id FROM umowy_{$_gdpr_t} WHERE (email=? OR m365_login=?) AND m365_konto=1 LIMIT 1",
+                       [$_gdpr_email, $_gdpr_email])) {
+                $_gdpr_has_m365 = true; break;
+            }
+        }
+    }
+}
+if (!$_gdpr_signed && !$_gdpr_has_m365 && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php') {
+    header('Location: ' . APP_URL . '/panel/gdpr_statement.php'); exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -381,6 +403,15 @@ try {
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Konto</div>
 
+  <?php $_gdpr_needs_attention = !$_gdpr_signed && !$_gdpr_has_m365; ?>
+  <a href="<?= APP_URL ?>/panel/gdpr_statement.php"
+     class="pv-nav-link<?= _pv_nav_active('/panel/gdpr_statement') ?>"
+     aria-label="Oświadczenie o ochronie danych<?= $_gdpr_needs_attention ? ' — wymagane podpisanie' : ($_gdpr_signed ? ' — podpisane' : '') ?>">
+    <i class="bi bi-file-earmark-check<?= $_gdpr_signed ? '-fill text-success' : '' ?>" aria-hidden="true"></i>Oświadczenie IT
+    <?php if ($_gdpr_needs_attention): ?>
+    <span class="pv-badge" aria-label="wymagane">!</span>
+    <?php endif; ?>
+  </a>
   <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
     <i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365
   </a>
