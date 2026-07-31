@@ -32,16 +32,30 @@ $is_edit  = $edit_id > 0;
 $row      = [];
 $errors   = [];
 
+// Typ kontaktu: domyślnie 'organizacja', ale można wymusić 'kontrahent' lub 'partner'
+$org_like_types = array_keys(array_filter(CRM_CONTACT_TYPES, fn($t) => $t['org_like']));
+$_init_type = $_GET['type'] ?? 'organizacja';
+$contact_type = in_array($_init_type, $org_like_types, true) ? $_init_type : 'organizacja';
+$ct_meta = CRM_CONTACT_TYPES[$contact_type];
+
 if ($is_edit) {
-    $row = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1 AND type='organizacja'", [$edit_id]);
+    $placeholders = implode(',', array_fill(0, count($org_like_types), '?'));
+    $row = db_one(
+        "SELECT * FROM crm_contacts WHERE id=? AND crm_active=1 AND type IN ($placeholders)",
+        array_merge([$edit_id], $org_like_types)
+    );
     if (!$row) {
         flash_set('danger', 'Nie znaleziono kontaktu.');
         header('Location: ' . APP_URL . '/crm/index.php');
         exit;
     }
+    $contact_type = $row['type'];
+    $ct_meta = CRM_CONTACT_TYPES[$contact_type] ?? CRM_CONTACT_TYPES['organizacja'];
 }
 
-$PAGE_TITLE = $is_edit ? 'Edytuj firmę: ' . $row['imie_nazwisko'] : 'Nowa firma / organizacja';
+$PAGE_TITLE = $is_edit
+    ? 'Edytuj ' . strtolower($ct_meta['label']) . ': ' . $row['imie_nazwisko']
+    : 'Nowy/-a ' . $ct_meta['label'];
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 // Łagodna weryfikacja CSRF: zamiast twardego die() (który kasuje cały, długi
@@ -63,8 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
 
     $nazwa = trim($_POST['nazwa'] ?? '');
 
+    $contact_type = in_array(trim($_POST['contact_type'] ?? ''), $org_like_types, true)
+        ? trim($_POST['contact_type']) : 'organizacja';
     $data = [
-        'type'             => 'organizacja',
+        'type'             => $contact_type,
         'imie_nazwisko'    => $nazwa,                                            // "imię_nazwisko" przechowuje nazwę firmy
         'status'           => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
         'email'            => trim($_POST['email']             ?? '') ?: null,
@@ -162,19 +178,19 @@ include __DIR__ . '/../includes/header_crm.php';
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/dashboard.php">CRM</a></li>
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/index.php">Kontakty</a></li>
     <li class="breadcrumb-item active" aria-current="page">
-      <?= $is_edit ? 'Edytuj firmę' : 'Nowa firma / organizacja' ?>
+      <?= $is_edit ? 'Edytuj ' . h($ct_meta['label']) : 'Nowy/-a ' . h($ct_meta['label']) ?>
     </li>
   </ol>
 </nav>
 
 <!-- Header formularza -->
 <div class="of-header of-accent" role="banner">
-  <div class="of-header-icon" aria-hidden="true"><i class="bi bi-building-fill"></i></div>
+  <div class="of-header-icon" aria-hidden="true"><i class="bi <?= h($ct_meta['icon']) ?>"></i></div>
   <div>
     <div style="font-size:1.15rem;font-weight:700">
-      <?= $is_edit ? 'Edytuj firmę / organizację' : 'Nowy kontakt — Firma / Organizacja' ?>
+      <?= $is_edit ? 'Edytuj ' . h(strtolower($ct_meta['label'])) : 'Nowy kontakt — ' . h($ct_meta['label']) ?>
     </div>
-    <div style="font-size:.82rem;opacity:.8">Partner, darczyńca instytucjonalny, kontrahent, stowarzyszenie</div>
+    <div style="font-size:.82rem;opacity:.8">Organizacja, kontrahent, partner — dowolna firma lub instytucja</div>
   </div>
   <?php if (!$is_edit): ?>
   <div class="ms-auto">
@@ -197,6 +213,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
 <form method="post" novalidate class="of-accent" aria-label="Formularz firmy / organizacji CRM">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+<input type="hidden" name="contact_type" value="<?= h($contact_type) ?>">
 
 <!-- ══ SZYBKI IMPORT — przycisk otwierający kreator (CEIDG / KRS) ═════════════ -->
 <div class="card border-0 shadow-sm mb-3 of-importer">

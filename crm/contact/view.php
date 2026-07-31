@@ -570,19 +570,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
     }
     if ($action === 'convert_type') {
         $current_type = $contact['type'];
-        $target_type  = $current_type === 'osoba' ? 'organizacja' : 'osoba';
+        $target_type  = trim($_POST['target_type'] ?? '');
+        if (!array_key_exists($target_type, CRM_CONTACT_TYPES) || $target_type === $current_type) {
+            flash_set('danger', 'Nieprawidłowy typ docelowy.');
+            header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id);
+            exit;
+        }
+        $target_meta = CRM_CONTACT_TYPES[$target_type];
         $update = ['type' => $target_type];
-        if ($target_type === 'organizacja') {
+        if ($target_meta['org_like']) {
+            // org-like: usuń pola tylko dla osoby fizycznej
             $update['imie'] = null; $update['nazwisko'] = null;
             $update['pesel'] = null; $update['data_urodzenia'] = null;
         } else {
+            // osoba: usuń pola org
             $update['nip'] = null; $update['krs'] = null; $update['regon'] = null;
             $update['osoba_kontaktowa'] = null; $update['forma_prawna'] = null;
         }
         CrmManager::updateContact($id, $update);
-        $labels = ['osoba' => 'Osoba fizyczna', 'organizacja' => 'Organizacja / firma'];
-        CrmManager::addNote($id, 'Konwersja typu kontaktu: ' . $labels[$current_type] . ' → ' . $labels[$target_type] . '.', $user_id);
-        flash_set('success', 'Typ kontaktu zmieniony na: ' . $labels[$target_type] . '.');
+        $from_label = CRM_CONTACT_TYPES[$current_type]['label'] ?? $current_type;
+        $to_label   = $target_meta['label'];
+        CrmManager::addNote($id, 'Konwersja typu kontaktu: ' . $from_label . ' → ' . $to_label . '.', $user_id);
+        flash_set('success', 'Typ kontaktu zmieniony na: ' . $to_label . '.');
         header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id);
         exit;
     }
@@ -1605,35 +1614,42 @@ const ActivityUI = (function () {
     <div class="modal-content">
       <div class="modal-header py-2">
         <h5 class="modal-title fs-6" id="convertTypeModalLabel">
-          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Konwertuj typ kontaktu
+          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Zmień typ kontaktu
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <form method="post">
         <div class="modal-body">
-          <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action"  value="convert_type">
-          <?php $is_osoba = ($contact['type'] === 'osoba'); ?>
-          <p class="mb-1" style="font-size:.88rem">
-            Aktualny typ: <strong><?= $is_osoba ? 'Osoba fizyczna' : 'Organizacja / firma' ?></strong>
+          <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action"     value="convert_type">
+          <?php $ct_cur = CRM_CONTACT_TYPES[$contact['type']] ?? CRM_CONTACT_TYPES['osoba']; ?>
+          <p class="mb-2" style="font-size:.88rem">
+            Aktualny typ: <strong><?= h($ct_cur['label']) ?></strong>
           </p>
-          <p class="mb-3" style="font-size:.88rem">
-            Nowy typ: <strong><?= $is_osoba ? 'Organizacja / firma' : 'Osoba fizyczna' ?></strong>
-          </p>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Zmień na:</label>
+            <select name="target_type" class="form-select form-select-sm">
+              <?php foreach (CRM_CONTACT_TYPES as $tkey => $tmeta): ?>
+              <?php if ($tkey === $contact['type']) continue; ?>
+              <option value="<?= $tkey ?>">
+                <?= h($tmeta['label']) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
           <div class="alert alert-warning py-2 mb-0" style="font-size:.8rem" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
-            Zostaną wyczyszczone pola:
-            <?php if ($is_osoba): ?>
-            Imię, Nazwisko, PESEL, Data urodzenia.
+            <?php if ($ct_cur['org_like']): ?>
+            Jeśli zmieniasz na Osobę fizyczną — zostaną wyczyszczone: NIP, KRS, REGON.
             <?php else: ?>
-            NIP, KRS, REGON, Osoba kontaktowa, Forma prawna.
+            Jeśli zmieniasz na typ org-podobny — zostaną wyczyszczone: Imię, Nazwisko, PESEL.
             <?php endif; ?>
           </div>
         </div>
         <div class="modal-footer py-2">
           <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
           <button type="submit" class="btn btn-warning btn-sm">
-            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj
+            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Zmień typ
           </button>
         </div>
       </form>

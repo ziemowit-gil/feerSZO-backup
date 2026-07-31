@@ -189,6 +189,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         kdok_log($doc_id, 'Dokument dodany do obiegu', 'SHA-256: ' . $file_sha256);
 
+        // Zapamiętaj kontrahenta (NIP + rachunek) do przyszłych dokumentów
+        if ($nip_dostawcy && $rachunek_bankowy) {
+            kdok_dostawcy_upsert($nip_dostawcy, $title, $rachunek_bankowy);
+        }
+
         // Automatyczne utworzenie koszulki EZD
         $doc_row = kdok_one("SELECT * FROM kdok_documents WHERE id=?", [$doc_id]);
         if ($doc_row) kdok_create_koszulka_ezd($doc_row, (int)$cu['id']);
@@ -312,7 +317,21 @@ require_once __DIR__ . '/../includes/header.php';
       <hr class="my-3">
       <p class="fw-semibold small text-muted mb-2"><i class="bi bi-currency-exchange"></i> Dane finansowe i płatnicze</p>
 
-      <div class="row g-3 mb-3">
+      <!-- Selektor kontrahenta — widoczny dla typów z fakturą -->
+      <div class="mb-3 fin-group-kontrahent" data-fin-hide-for="lista_plac,wyciag">
+        <label class="form-label"><i class="bi bi-briefcase text-secondary"></i> Kontrahent
+          <span class="text-muted fw-normal small">(opcjonalnie — wypełni NIP i rachunek)</span>
+        </label>
+        <div class="position-relative">
+          <input type="text" id="kontrahent-search" class="form-control"
+                 autocomplete="off" placeholder="Szukaj po nazwie lub NIP…">
+          <div id="kontrahent-results" class="list-group shadow"
+               style="display:none;position:absolute;z-index:30;width:100%;max-height:220px;overflow-y:auto"></div>
+        </div>
+        <div id="kontrahent-picked" class="form-text mt-1"></div>
+      </div>
+
+      <div class="row g-3 mb-3 fin-group-kontrahent" data-fin-hide-for="lista_plac,wyciag">
         <div class="col-sm-6">
           <label for="nr_faktury" class="form-label">Nr oryginalnej faktury</label>
           <input type="text" id="nr_faktury" name="nr_faktury" class="form-control"
@@ -353,7 +372,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
       </div>
 
-      <div id="mpp-alert" class="alert alert-warning py-2 small mb-3" style="display:none">
+      <div id="mpp-alert" class="alert alert-warning py-2 small mb-3 fin-group-mpp" data-fin-hide-for="lista_plac,wyciag" style="display:none">
         <i class="bi bi-exclamation-triangle-fill"></i>
         Kwota brutto ≥ 15 000 PLN — <strong>wymagany mechanizm podzielonej płatności (MPP / split payment)</strong>.
       </div>
@@ -377,14 +396,14 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="text" id="projekt" name="projekt" class="form-control"
             value="<?= h($_POST['projekt'] ?? '') ?>" maxlength="200" placeholder="Kod lub nazwa projektu">
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-6 fin-group-przelew" data-fin-hide-for="lista_plac,wyciag">
           <label for="rachunek_bankowy" class="form-label">Nr rachunku bankowego</label>
           <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control font-monospace"
             value="<?= h($_POST['rachunek_bankowy'] ?? '') ?>" maxlength="34" placeholder="PL61 1090 1014 0000 0712 1981 2874">
         </div>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-3 fin-group-przelew" data-fin-hide-for="lista_plac,wyciag">
         <label for="tytul_przelewu" class="form-label">Tytuł przelewu</label>
         <input type="text" id="tytul_przelewu" name="tytul_przelewu" class="form-control"
           value="<?= h($_POST['tytul_przelewu'] ?? '') ?>" maxlength="140"
@@ -458,13 +477,25 @@ require_once __DIR__ . '/../includes/header.php';
 
   function toggleSections() {
     var selected   = document.querySelector('input[name="type"]:checked');
-    var isKsef     = selected && selected.value === 'ksef';
-    var isRachunek = selected && selected.value === 'rachunek';
+    var selVal     = selected ? selected.value : '';
+    var isKsef     = selVal === 'ksef';
+    var isRachunek = selVal === 'rachunek';
     if (ksefSection)     ksefSection.style.display = isKsef ? '' : 'none';
     if (fileSection)     fileSection.style.display = isKsef ? 'none' : '';
     if (contractSection) contractSection.style.display = isRachunek ? '' : 'none';
-    // required tylko na aktywnym polu
     if (fileInput) fileInput.required = !isKsef;
+
+    // Pola finansowe: chowaj według data-fin-hide-for
+    document.querySelectorAll('[data-fin-hide-for]').forEach(function(el) {
+      var hideFor = el.getAttribute('data-fin-hide-for').split(',');
+      var hide    = hideFor.indexOf(selVal) !== -1;
+      el.style.display = hide ? 'none' : '';
+      // dezaktywuj required w ukrytych polach
+      el.querySelectorAll('[required]').forEach(function(inp) {
+        inp._finRequired = inp._finRequired !== undefined ? inp._finRequired : true;
+        inp.required = !hide;
+      });
+    });
   }
 
   radios.forEach(function(r) { r.addEventListener('change', toggleSections); });
@@ -592,6 +623,73 @@ require_once __DIR__ . '/../includes/header.php';
     });
   }
   <?php endif; ?>
+
+  // ── Selektor kontrahenta ──────────────────────────────────────────────────
+  (function () {
+    var search  = document.getElementById('kontrahent-search');
+    var results = document.getElementById('kontrahent-results');
+    var picked  = document.getElementById('kontrahent-picked');
+    if (!search) return;
+
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function fillFields(r) {
+      var nipF = document.getElementById('nip_dostawcy');
+      var racF = document.getElementById('rachunek_bankowy');
+      if (nipF && r.nip)              nipF.value = r.nip;
+      if (racF && r.rachunek_bankowy) racF.value = r.rachunek_bankowy;
+      picked.innerHTML = r.nazwa
+        ? '<i class="bi bi-check-circle-fill text-success me-1"></i>Wybrano: <strong>' + esc(r.nazwa) + '</strong>'
+           + (r.nip ? ' · NIP: ' + esc(r.nip) : '')
+           + (r.rachunek_bankowy ? ' · Rachunek: <code>' + esc(r.rachunek_bankowy.replace(/(.{4})/g,'$1 ').trim()) + '</code>' : '')
+        : '';
+    }
+
+    var timer = null;
+    search.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = search.value.trim();
+      if (q.length < 2) { results.style.display = 'none'; return; }
+      timer = setTimeout(function () {
+        fetch('<?= APP_URL ?>/ksiegowosc/search_dostawca.php?q=' + encodeURIComponent(q))
+          .then(function(r){ return r.json(); })
+          .then(function(data) {
+            results.innerHTML = '';
+            if (!data.results || !data.results.length) {
+              results.style.display = 'none';
+              return;
+            }
+            data.results.forEach(function(item) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'list-group-item list-group-item-action py-2';
+              var src = item.source === 'crm'
+                ? '<span class="badge bg-primary ms-1" style="font-size:.65rem">CRM</span>'
+                : '<span class="badge bg-secondary ms-1" style="font-size:.65rem">Zapisany</span>';
+              btn.innerHTML = '<span class="fw-semibold">' + esc(item.nazwa || '—') + '</span> '
+                + (item.nip ? '<span class="text-muted small ms-1">NIP: ' + esc(item.nip) + '</span>' : '')
+                + src
+                + (item.rachunek_bankowy
+                    ? '<div class="text-muted" style="font-size:.75rem;font-family:monospace">'
+                      + esc(item.rachunek_bankowy.replace(/(.{4})/g,'$1 ').trim()) + '</div>'
+                    : '');
+              btn.addEventListener('click', function() {
+                search.value = item.nazwa || item.nip || '';
+                fillFields(item);
+                results.style.display = 'none';
+              });
+              results.appendChild(btn);
+            });
+            results.style.display = '';
+          })
+          .catch(function() { results.style.display = 'none'; });
+      }, 280);
+    });
+
+    document.addEventListener('click', function(e) {
+      if (e.target !== search && !results.contains(e.target)) results.style.display = 'none';
+    });
+  })();
 
   // ── Kalkulator brutto + alert MPP ──────────────────────────────────────────
   window.recalcBrutto = function () {

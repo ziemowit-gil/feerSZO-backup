@@ -243,6 +243,18 @@ function kdok_migrate(): void {
         'gen_name' => "TEXT NOT NULL DEFAULT ''",
     ]);
 
+    // Tablica zapamiętanych kontrahentów (NIP → dane płatnicze)
+    $kdb->exec("CREATE TABLE IF NOT EXISTS kdok_dostawcy (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        nazwa            TEXT    NOT NULL DEFAULT '',
+        nip              TEXT    NOT NULL DEFAULT '',
+        rachunek_bankowy TEXT    NOT NULL DEFAULT '',
+        uwagi            TEXT    NOT NULL DEFAULT '',
+        created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { $kdb->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_kdok_dostawcy_nip ON kdok_dostawcy(nip) WHERE nip!=''"); } catch (\Exception $e) {}
+
     // Certyfikaty i IKAKS — zawsze w głównej bazie (przypisane do users)
     $mdb->exec("CREATE TABLE IF NOT EXISTS kdok_certificates (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,6 +329,77 @@ function kdok_migrate(): void {
             $mdb->prepare("INSERT INTO settings (key_,value) VALUES (?,?)")->execute([$key, $default]);
         }
     }
+}
+
+// ── Kontrahenci (dostawcy) ─────────────────────────────────────────────────────
+
+/**
+ * Zapamiętuje/aktualizuje kontrahenta po NIP.
+ * Wywołać po zapisaniu dokumentu z NIP + rachunkiem bankowym.
+ */
+function kdok_dostawcy_upsert(string $nip, string $nazwa, string $rachunek): void {
+    $nip = preg_replace('/\D/', '', $nip);
+    if (!$nip) return;
+    $existing = kdok_one("SELECT id, nazwa FROM kdok_dostawcy WHERE nip=?", [$nip]);
+    if ($existing) {
+        $upd = ['updated_at' => date('Y-m-d H:i:s')];
+        if ($rachunek) $upd['rachunek_bankowy'] = $rachunek;
+        if ($nazwa && !$existing['nazwa']) $upd['nazwa'] = $nazwa;
+        $set = implode(', ', array_map(fn($k) => "$k=?", array_keys($upd)));
+        $vals = array_values($upd);
+        $vals[] = $existing['id'];
+        kdok_exec("UPDATE kdok_dostawcy SET $set WHERE id=?", $vals);
+    } else {
+        kdok_insert('kdok_dostawcy', ['nip' => $nip, 'nazwa' => $nazwa, 'rachunek_bankowy' => $rachunek]);
+    }
+}
+
+/**
+ * Szuka kontrahentów po frazie (nazwa lub NIP).
+ * Łączy lokalne kdok_dostawcy + CRM contacts (org-like z NIP).
+ * Zwraca max 12 rekordów: [{nazwa, nip, rachunek_bankowy, source}].
+ */
+function kdok_dostawcy_search(string $q): array {
+    $q = trim($q);
+    if (strlen($q) < 2) return [];
+    $like = '%' . $q . '%';
+
+    $local = kdok_query(
+        "SELECT nazwa, nip, rachunek_bankowy, 'local' AS source
+           FROM kdok_dostawcy
+          WHERE (nazwa LIKE ? OR nip LIKE ?)
+          ORDER BY updated_at DESC LIMIT 8",
+        [$like, $like]
+    );
+
+    // Uzupełnij z CRM contacts (organizacja/kontrahent/partner, mają NIP)
+    $crm = [];
+    try {
+        require_once __DIR__ . '/crm.php';
+        $org_types = array_keys(array_filter(CRM_CONTACT_TYPES, fn($t) => $t['org_like']));
+        $ph = implode(',', array_fill(0, count($org_types), '?'));
+        $crm = db_all(
+            "SELECT imie_nazwisko AS nazwa, nip, '' AS rachunek_bankowy, 'crm' AS source
+               FROM crm_contacts
+              WHERE crm_active=1 AND nip IS NOT NULL AND nip!=''
+                AND type IN ($ph)
+                AND (imie_nazwisko LIKE ? OR organizacja LIKE ? OR nip LIKE ?)
+              ORDER BY imie_nazwisko LIMIT 8",
+            array_merge($org_types, [$like, $like, $like])
+        );
+    } catch (\Throwable $_) {}
+
+    // Scala, deduplikuje po NIP — local ma priorytet
+    $seen = [];
+    $out  = [];
+    foreach (array_merge($local, $crm) as $r) {
+        $key = $r['nip'] ?: ('_' . $r['nazwa']);
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $out[] = $r;
+        if (count($out) >= 12) break;
+    }
+    return $out;
 }
 
 function _kdok_add_columns(PDO $db, string $table, array $cols): void {

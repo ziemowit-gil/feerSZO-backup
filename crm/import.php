@@ -29,7 +29,7 @@ $TARGET_FIELDS = [
     'organizacja'  => 'Organizacja / Firma',
     'stanowisko'   => 'Stanowisko',
     'status'       => 'Status CRM',
-    'type'         => 'Typ (osoba / organizacja)',
+    'type'         => 'Typ (osoba / organizacja / kontrahent / partner)',
     'notatka'      => 'Notatka',
     'adres'        => 'Adres',
     'wojewodztwo'  => 'Województwo',
@@ -158,7 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $val = 'prospect';
                         }
                     } elseif ($field === 'type') {
-                        $val = in_array(strtolower($val), ['organizacja', 'org', 'organization', 'firma']) ? 'organizacja' : 'osoba';
+                        $v = strtolower(trim($val));
+                        if (in_array($v, ['organizacja', 'org', 'organization', 'firma'])) {
+                            $val = 'organizacja';
+                        } elseif (in_array($v, ['kontrahent', 'contractor', 'dostawca', 'supplier'])) {
+                            $val = 'kontrahent';
+                        } elseif (in_array($v, ['partner', 'partnership'])) {
+                            $val = 'partner';
+                        } else {
+                            $val = 'osoba';
+                        }
                     }
                     $data[$field] = $val;
                 }

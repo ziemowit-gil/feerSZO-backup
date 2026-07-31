@@ -156,7 +156,8 @@ function _crm_table_html(
               $initials = $row['avatar_initials'] ?: CrmManager::makeInitials($row['imie_nazwisko']);
               $tags     = $row['tags_csv'] ? array_filter(explode(',', $row['tags_csv'])) : [];
               $sc       = crm_statuses()[$row['status']] ?? ['label' => $row['status'], 'color' => '#939393'];
-              $is_org   = $row['type'] === 'organizacja';
+              $ct_meta  = CRM_CONTACT_TYPES[$row['type']] ?? CRM_CONTACT_TYPES['osoba'];
+              $is_org   = $ct_meta['org_like'];
             ?>
             <tr data-row-href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$row['id'] ?>">
               <td>
@@ -170,7 +171,7 @@ function _crm_table_html(
               <td>
                 <div class="crm-name-cell">
                   <div class="crm-avatar <?= $is_org ? 'org' : '' ?>" aria-hidden="true"
-                       style="background:<?= $is_org ? 'var(--crm-navy)' : 'var(--crm-primary)' ?>">
+                       style="background:<?= h($ct_meta['color']) ?>">
                     <?= h($initials) ?>
                   </div>
                   <div>
@@ -568,11 +569,12 @@ include __DIR__ . '/includes/header_crm.php';
     <?php endforeach; ?>
   </select>
 
-  <select name="type" class="form-select" style="width:auto;min-width:120px"
+  <select name="type" class="form-select" style="width:auto;min-width:130px"
           aria-label="Filtruj po typie">
     <option value="">Wszystkie typy</option>
-    <option value="osoba"       <?= $filters['type'] === 'osoba'       ? 'selected' : '' ?>>Osoba</option>
-    <option value="organizacja" <?= $filters['type'] === 'organizacja' ? 'selected' : '' ?>>Organizacja</option>
+    <?php foreach (CRM_CONTACT_TYPES as $tkey => $tmeta): ?>
+    <option value="<?= $tkey ?>" <?= $filters['type'] === $tkey ? 'selected' : '' ?>><?= h($tmeta['short']) ?></option>
+    <?php endforeach; ?>
   </select>
 
   <?php

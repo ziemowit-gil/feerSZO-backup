@@ -46,7 +46,7 @@ $only_ids = array_values(array_filter(array_map('intval', (array)($_GET['ids'] ?
 // ── Definicja dostępnych kolumn: kod => [etykieta, funkcja wartości] ──────────
 $COLUMNS = [
     'id'            => ['ID',                fn($r) => $r['id']],
-    'type'          => ['Typ',               fn($r) => $r['type'] === 'organizacja' ? 'Organizacja' : 'Osoba'],
+    'type'          => ['Typ',               fn($r) => CRM_CONTACT_TYPES[$r['type']]['label'] ?? ucfirst($r['type'])],
     'imie_nazwisko' => ['Imię i nazwisko',   fn($r) => $r['imie_nazwisko']],
     'email'         => ['E-mail',            fn($r) => $r['email'] ?? ''],
     'telefon'       => ['Telefon',           fn($r) => $r['telefon'] ?? ''],

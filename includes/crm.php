@@ -10,6 +10,14 @@
  * Wymaga: db.php, auth.php, functions.php
  */
 
+// ── Typy kontaktów ────────────────────────────────────────────────────────────
+const CRM_CONTACT_TYPES = [
+    'osoba'       => ['label' => 'Osoba fizyczna', 'short' => 'Osoba',      'icon' => 'bi-person-fill', 'color' => '#0176D3', 'org_like' => false],
+    'organizacja' => ['label' => 'Organizacja',    'short' => 'Org.',        'icon' => 'bi-building',    'color' => '#032D60', 'org_like' => true],
+    'kontrahent'  => ['label' => 'Kontrahent',     'short' => 'Kontr.',      'icon' => 'bi-briefcase',   'color' => '#E07B39', 'org_like' => true],
+    'partner'     => ['label' => 'Partner',        'short' => 'Partner',     'icon' => 'bi-handshake',   'color' => '#2E844A', 'org_like' => true],
+];
+
 // ── Stałe relacji ──────────────────────────────────────────────────────────────
 const CRM_RELATION_TYPES = [
     'powiązany'    => 'Powiązany',
