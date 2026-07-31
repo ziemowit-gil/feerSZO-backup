@@ -774,6 +774,11 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
   <div class="tz-card__hd" id="rej-h">
     <i class="bi bi-clock-history" aria-hidden="true"></i>
     <span>Rejestr czynności <span class="lbl-en">Record of processing &amp; activity</span></span>
+    <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener"
+       class="tz-btn tz-btn--ghost btn-sm ms-auto"
+       title="Pobierz eksport danych osobowych (PDF) — art. 15 i 20 RODO">
+      <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Eksport PDF
+    </a>
   </div>
   <div class="tz-card__bd">
 
