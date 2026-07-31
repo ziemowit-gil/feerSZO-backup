@@ -160,13 +160,10 @@ foreach ($docs as $doc) {
         $tytul4   = "/VAT/{$vat_str}/IDC/{$nip_pli}/INV/{$inv_pli}|/TXT/{$txt_pli}||";
         $kod      = 53;
     } else {
-        // Zwykły przelew — linia 1: tytuł, linia 2: nr obiegu, linia 3: sprawa EZD
-        $l2 = pli_clean('NR OB: ' . $doc['number'], 35);
-        $l3 = '';
-        if (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']])) {
-            $l3 = pli_clean('SPRAWA: ' . $ezd_signs[(int)$doc['ezd_sprawa_id']], 35);
-        }
-        $tytul4 = pli_4lines([$tytul, $l2, $l3, '']);
+        // Zwykły przelew — jedna linia: tytuł + nr obiegu + znak EZD (bez |)
+        $ezd_sign_doc = (!empty($doc['ezd_sprawa_id']) && isset($ezd_signs[(int)$doc['ezd_sprawa_id']]))
+            ? $ezd_signs[(int)$doc['ezd_sprawa_id']] : '';
+        $tytul4 = pli_clean($tytul . ' ' . $doc['number'] . ($ezd_sign_doc ? ' ' . $ezd_sign_doc : ''), 35) . '|||';
         $kod    = 51;
     }
 
