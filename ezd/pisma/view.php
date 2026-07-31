@@ -83,8 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $body_html, $body_raw, 'ezd_pismo', $id, '', false, $attachments);
                 ezd_log(null, $sprawa_id, $id, null, $user_id, 'pismo_email_sent',
                     'Wysłano mailem do: ' . $recipient . '; pliki: ' . implode(', ', array_column($attachments, 'name')));
+                $med_upd = $pismo['rodzaj_medium'] !== 'email' ? ",rodzaj_medium='email'" : '';
                 if (!$pismo['data_wysylki']) {
-                    db()->prepare("UPDATE ezd_pisma SET data_wysylki=date('now'),updated_at=datetime('now') WHERE id=?")->execute([$id]);
+                    db()->prepare("UPDATE ezd_pisma SET data_wysylki=date('now')$med_upd,updated_at=datetime('now') WHERE id=?")->execute([$id]);
+                } elseif ($pismo['rodzaj_medium'] !== 'email') {
+                    db()->prepare("UPDATE ezd_pisma SET rodzaj_medium='email',updated_at=datetime('now') WHERE id=?")->execute([$id]);
                 }
                 flash_set('success', 'Wiadomość e-mail wysłana na adres ' . htmlspecialchars($recipient, ENT_QUOTES) . '.');
             }
