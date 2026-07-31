@@ -56,6 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // MPP: wymagane gdy brutto >= 15 000 PLN (waluta PLN)
     $brutto_num  = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
     $wymaga_mpp  = ($waluta === 'PLN' && $brutto_num >= 15000.00) ? 1 : 0;
+    // Wyciąg bankowy nigdy nie trafia do Preliminarza (brak przelewu do wykonania)
+    $wyklucz_z_preliminarza = ($type === 'wyciag') ? 1 : (!empty($_POST['wyklucz_z_preliminarza']) ? 1 : 0);
     // kwota legacy = brutto gdy podane, inaczej oryginalne pole
     if ($kwota_brutto !== '') $kwota = $kwota_brutto . ' ' . $waluta;
 
@@ -183,6 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tytul_przelewu'  => $tytul_przelewu,
             'status_platnosci'=> 'nowy',
             'oswiadczenie_ksef' => $oswiadczenie_ksef,
+            'wyklucz_z_preliminarza' => $wyklucz_z_preliminarza,
         ]);
 
         foreach (array_keys(KDOK_STEPS) as $step) {
@@ -474,6 +477,17 @@ require_once __DIR__ . '/../includes/header.php';
         <label for="file" class="form-label fw-semibold">Plik PDF <span class="text-danger">*</span></label>
         <input type="file" id="file" name="file" class="form-control" accept=".pdf">
         <div class="form-text">Maks. 30 MB. Wyłącznie PDF. Suma SHA-256 zostanie wyliczona automatycznie.</div>
+      </div>
+
+      <!-- Preliminarz Płatności — domyślnie dokument trafia do Preliminarza;
+           wyciągi bankowe zawsze wykluczone (ukryte). -->
+      <div class="mb-3 form-check" data-fin-hide-for="wyciag" id="prelim-check-wrap">
+        <input class="form-check-input" type="checkbox" id="wyklucz_z_preliminarza"
+               name="wyklucz_z_preliminarza" value="1"
+               <?= !empty($_POST['wyklucz_z_preliminarza']) ? 'checked' : '' ?>>
+        <label class="form-check-label text-secondary small" for="wyklucz_z_preliminarza">
+          <i class="bi bi-eye-slash me-1"></i>Nie dodawaj do Preliminarza Płatności
+        </label>
       </div>
 
       <div class="d-flex gap-2">
