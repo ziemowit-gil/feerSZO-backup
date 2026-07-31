@@ -37,6 +37,37 @@ $filters = array_filter([
 
 $docs = kdok_preliminarz_query($filters);
 
+// ── Eksport CSV ───────────────────────────────────────────────────────────────
+if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="KDOK_Preliminarz_' . date('Y-m-d') . '.csv"');
+    header('Cache-Control: no-cache');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8
+    fputcsv($out, ['Nr KDOK','Typ','Tytuł','Nr faktury','NIP dostawcy','Nr rachunku','Kwota netto','VAT','Kwota brutto','Waluta','Termin płatności','Centrum kosztów','Projekt','Status płatności','MPP'], ';');
+    foreach ($docs as $d) {
+        fputcsv($out, [
+            $d['number'],
+            KDOK_TYPES[$d['type']]['label'] ?? $d['type'],
+            $d['title'],
+            $d['nr_faktury'] ?? '',
+            $d['nip_dostawcy'] ?? '',
+            $d['rachunek_bankowy'] ?? '',
+            $d['kwota_netto'] ?? '',
+            $d['kwota_vat'] ?? '',
+            $d['kwota_brutto'] ?: $d['kwota'] ?: '',
+            $d['waluta'] ?: 'PLN',
+            $d['termin_platnosci'] ? substr($d['termin_platnosci'], 0, 10) : '',
+            $d['centrum_kosztow'] ?? '',
+            $d['projekt'] ?? '',
+            $d['status_platnosci'] ?: 'nowy',
+            !empty($d['wymaga_mpp']) ? 'MPP' : '',
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 // Sumy kontrolne dla zaznaczonych walut
 $sumy = [];
 foreach ($docs as $d) {
@@ -63,6 +94,10 @@ require_once __DIR__ . '/../includes/header.php';
        class="btn btn-sm btn-outline-success" title="Eksport do CSV">
       <i class="bi bi-filetype-csv"></i> CSV
     </a>
+    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPliExport"
+            title="Eksport do GOonline Biznes — MultiCash PLI">
+      <i class="bi bi-bank"></i> PLI
+    </button>
     <a href="<?= APP_URL ?>/ksiegowosc/index.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> EOD
     </a>
@@ -367,6 +402,90 @@ require_once __DIR__ . '/../includes/header.php';
     });
   });
 })();
+</script>
+
+<!-- ── Modal: Eksport PLI (GOonline Biznes) ──────────────────────────────── -->
+<div class="modal fade" id="modalPliExport" tabindex="-1" aria-labelledby="modalPliLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPliLabel"><i class="bi bi-bank me-2"></i>Eksport PLI — GOonline Biznes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form action="<?= APP_URL ?>/ksiegowosc/export_pli.php" method="get">
+        <!-- Propaguj aktywne filtry do export_pli.php -->
+        <?php foreach ($_GET as $gk => $gv):
+            if ($gk === 'export') continue;
+            if (is_array($gv)): foreach ($gv as $gvi): ?>
+          <input type="hidden" name="<?= h($gk) ?>[]" value="<?= h($gvi) ?>">
+        <?php endforeach; else: ?>
+          <input type="hidden" name="<?= h($gk) ?>" value="<?= h($gv) ?>">
+        <?php endif; endforeach; ?>
+        <!-- Propaguj zaznaczone ID (z bulk-bar) przez JS -->
+        <div id="pli-ids-container"></div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Generuje plik <strong>MultiCash PLI</strong> (CP852) gotowy do importu w GOonline Biznes.<br>
+            Eksportowane są tylko dokumenty z uzupełnionym 26-cyfrowym NRB odbiorcy.
+            Dokumenty z MPP otrzymują strukturę Split Payment (pole 15 = 53).
+          </p>
+          <div class="mb-2">
+            <label class="form-label fw-semibold mb-1">NRB rachunku organizacji (nadawca)</label>
+            <input type="text" name="nrb" id="pli-nrb"
+                   class="form-control form-control-sm font-monospace"
+                   maxlength="26" pattern="\d{26}"
+                   placeholder="26 cyfr, np. 61109010140000071219812874"
+                   value="<?= h(org_setting('kdok_rachunek_wlasny')) ?>"
+                   required>
+            <div class="form-text">Numer zostanie zapamiętany na przyszłość.</div>
+          </div>
+          <?php
+          $bez_rachunku = count(array_filter($docs, fn($d) => strlen(preg_replace('/[\s\-]/', '', $d['rachunek_bankowy'] ?? '')) !== 26));
+          if ($bez_rachunku): ?>
+          <div class="alert alert-warning small py-2 mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <?= $bez_rachunku ?> z <?= count($docs) ?> dokumentów nie ma NRB odbiorcy — zostaną pominięte.
+          </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-download me-1"></i>Pobierz plik PLI
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Przy otwarciu modalu — wstrzyknij zaznaczone ID jako hidden inputs
+document.getElementById('modalPliExport').addEventListener('show.bs.modal', function () {
+    var cont = document.getElementById('pli-ids-container');
+    cont.innerHTML = '';
+    var checked = Array.from(document.querySelectorAll('.bp-row:checked'));
+    checked.forEach(function (cb) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'ids[]';
+        inp.value = cb.value;
+        cont.appendChild(inp);
+    });
+});
+
+// Walidacja: NRB musi mieć dokładnie 26 cyfr przed submittem
+document.querySelector('#modalPliExport form').addEventListener('submit', function (e) {
+    var nrb = document.getElementById('pli-nrb').value.replace(/[\s\-]/g, '');
+    if (!/^\d{26}$/.test(nrb)) {
+        e.preventDefault();
+        document.getElementById('pli-nrb').setCustomValidity('NRB musi składać się z dokładnie 26 cyfr.');
+        document.getElementById('pli-nrb').reportValidity();
+    } else {
+        document.getElementById('pli-nrb').setCustomValidity('');
+        document.getElementById('pli-nrb').value = nrb; // usuń spacje przed wysłaniem
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
