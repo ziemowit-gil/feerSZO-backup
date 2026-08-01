@@ -26,6 +26,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
+require_once dirname(__DIR__) . '/includes/permissions.php';
 
 // Osobne logowanie do modułu Tożsamość — niezalogowanych kierujemy na dedykowany
 // ekran /tozsamosc/login.php (a nie na ogólne logowanie SZO).
@@ -378,14 +379,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $initials = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtoupper($m2[1]);
 
+// ── Routing sekcja — moduły dostępne dla użytkownika ─────────────────────────
+$_tz_role = $db_user['role'] ?? $user['role'] ?? 'viewer';
+$_tz_entries = portal_entry_points(); // tablica modułów dla scoped/viewer (pusta dla admin/editor)
+if (!$_tz_entries) {
+    // Admin/editor: portal + ewentualnie panel wolontariusza
+    $_tz_entries = [
+        ['label'=>'Portal SZO','desc'=>'Moduły zarządcze organizacji','icon'=>'bi-grid-3x3-gap-fill',
+         'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)','url'=>APP_URL.'/portal.php','primary'=>true],
+    ];
+    if (function_exists('user_has_volunteer_panel') && user_has_volunteer_panel()) {
+        $_tz_entries[] = module_entry_volunteer_panel();
+    }
+}
+if ($has_m365) {
+    $_tz_entries[] = ['label'=>'Microsoft 365','desc'=>'Outlook, Teams, SharePoint','icon'=>'bi-grid',
+         'grad'=>'linear-gradient(135deg,#0078d4,#00a4ef)','url'=>'https://office.com','primary'=>false,'ext'=>true];
+}
+
 $PAGE_TITLE = 'Tożsamość';
 $TZ_ACTIVE  = 'konto';
 include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 ?>
 
 <div class="tz-h">
-  <h1><i class="bi bi-person-vcard me-2" style="color:#1E6DFF" aria-hidden="true"></i>Tożsamość</h1>
-  <p>Zarządzanie tożsamością w Entra ID · Twoje konto i dostępy</p>
+  <h1><i class="bi bi-person-vcard me-2" style="color:#1E6DFF" aria-hidden="true"></i>eTożsamość</h1>
+  <p>Centrum dostępów · 1 login, 1 hasło do wszystkich systemów organizacji</p>
 </div>
 
 <?php if ($first_visit): ?>
@@ -419,6 +438,40 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 </div>
 <?php endif; ?>
 </div>
+
+<!-- ══ Routing: przejdź do modułu ═══════════════════════════════════════════ -->
+<section class="tz-card" aria-labelledby="tz-go-h" style="padding:.85rem 1.1rem">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+    <i class="bi bi-arrow-right-circle-fill" style="color:#1E6DFF;font-size:1rem" aria-hidden="true"></i>
+    <span id="tz-go-h" style="font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6B7280">Przejdź do</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:.55rem" role="list">
+    <?php foreach ($_tz_entries as $_te): ?>
+    <a href="<?= h($_te['url']) ?>"
+       <?= !empty($_te['ext']) ? 'target="_blank" rel="noopener"' : '' ?>
+       role="listitem"
+       style="display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;
+              border-radius:11px;padding:.6rem 1rem;min-width:160px;flex:1;max-width:260px;
+              background:<?= h($_te['grad']) ?>;color:#fff;transition:opacity .15s,transform .13s"
+       onmouseover="this.style.opacity='.88';this.style.transform='translateY(-2px)'"
+       onmouseout="this.style.opacity='1';this.style.transform=''"
+       aria-label="Przejdź do: <?= h($_te['label']) ?>">
+      <span style="width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.2);
+                   display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0">
+        <i class="bi <?= h($_te['icon']) ?>" aria-hidden="true"></i>
+      </span>
+      <span style="min-width:0">
+        <span style="display:block;font-size:.87rem;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          <?= h($_te['label']) ?><?= !empty($_te['ext']) ? '<i class="bi bi-box-arrow-up-right ms-1" style="font-size:.7rem" aria-hidden="true"></i>' : '' ?>
+        </span>
+        <span style="display:block;font-size:.7rem;color:rgba(255,255,255,.8);line-height:1.3;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          <?= h($_te['desc']) ?>
+        </span>
+      </span>
+    </a>
+    <?php endforeach; ?>
+  </div>
+</section>
 
 <nav class="tz-subnav" aria-label="Sekcje tożsamości">
   <span class="seg" role="tablist">

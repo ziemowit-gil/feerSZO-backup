@@ -202,6 +202,7 @@ function _menu_viewer(): array {
         $items[] = _mi('Moje kursy','/panel/moodle.php','bi-mortarboard',['match'=>'/panel/moodle','kw'=>'kursy szkolenia moodle']);
 
     $account = [
+        _mi('System Tożsamości','/tozsamosc/index.php','bi-person-vcard-fill',['match'=>'/tozsamosc/','kw'=>'tożsamość konto dostępy hasło']),
         _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']),
         _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']),
         _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']),

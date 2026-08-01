@@ -183,6 +183,16 @@ $modules = [
         'stat'   => $stats['approvals'] ? ($stats['approvals'] . ' do akceptacji') : null,
         'badge'  => null,
     ],
+    [
+        'title'  => 'System Tożsamości',
+        'desc'   => 'Konto, hasło, dostępy — Microsoft 365, eTożsamość',
+        'icon'   => 'bi-person-vcard-fill',
+        'grad'   => 'linear-gradient(135deg,#1E6DFF,#7c3aed)',
+        'url'    => APP_URL . '/tozsamosc/index.php',
+        'access' => true,
+        'stat'   => null,
+        'badge'  => null,
+    ],
 ];
 ?><!DOCTYPE html>
 <html lang="pl">

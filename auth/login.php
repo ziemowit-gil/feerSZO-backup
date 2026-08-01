@@ -16,11 +16,11 @@ if (defined('CRM_STANDALONE') && CRM_STANDALONE) {
     header('Location: ' . APP_URL . '/crm/login.php'); exit;
 }
 
-if (current_user()) { header('Location: ' . APP_URL . '/portal.php'); exit; }
+if (current_user()) { header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit; }
 
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
-    ? $raw_redirect : APP_URL . '/portal.php';
+    ? $raw_redirect : APP_URL . '/tozsamosc/index.php';
 
 // ── Feature flags ─────────────────────────────────────────────────────────
 function _login_method_enabled(string $key, bool $default = true): bool {
@@ -100,10 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash_set('warning', 'Administrator zresetował Twoje hasło. Ustaw nowe przed kontynuowaniem.');
                     header('Location: ' . APP_URL . '/panel/password.php?force=1'); exit;
                 }
-                // Konta zawężone → portal.php zdecyduje: launcher (gdy są
-                // dodatkowe moduły) albo przekierowanie do modułu bazowego.
+                // Konta zawężone → tozsamosc zdecyduje o routingu.
                 if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                    header('Location: ' . APP_URL . '/portal.php'); exit;
+                    header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
                 }
                 header('Location: ' . $redirect); exit;
             }
@@ -155,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                header('Location: ' . APP_URL . '/portal.php'); exit;
+                header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
             }
             header('Location: ' . $redirect); exit;
         }
@@ -207,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                header('Location: ' . APP_URL . '/portal.php'); exit;
+                header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
             }
             header('Location: ' . $redirect); exit;
         }
@@ -747,8 +746,14 @@ body.login-view-feer{
   <?php if ($view === 'choose'): ?>
   <!-- ══ Widok: wybór rodzaju konta ════════════════════════════════════════ -->
   <div class="view-head center">
+    <div style="display:inline-flex;align-items:center;gap:.45rem;margin-bottom:.65rem">
+      <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--c,#2563eb),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0" aria-hidden="true">
+        <i class="bi bi-person-vcard-fill"></i>
+      </span>
+      <span style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--c,#2563eb)">eTożsamość</span>
+    </div>
     <h1 class="view-title" id="login-title">Zaloguj się</h1>
-    <p class="view-sub">Wybierz, kim jesteś — pokażemy właściwy sposób logowania.</p>
+    <p class="view-sub">Jeden login i hasło do wszystkich systemów organizacji.</p>
   </div>
 
   <?php if ($_login_welcome_is_custom): ?>

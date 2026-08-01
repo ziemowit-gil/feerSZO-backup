@@ -400,6 +400,10 @@ try {
     <span class="pv-badge" aria-label="wymagane">!</span>
     <?php endif; ?>
   </a>
+  <a href="<?= APP_URL ?>/tozsamosc/index.php" class="pv-nav-link<?= _pv_nav_active('/tozsamosc/') ?>"
+     aria-label="System Tożsamości — konto, dostępy, hasło">
+    <i class="bi bi-person-vcard-fill" aria-hidden="true"></i>Tożsamość
+  </a>
   <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
     <i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365
   </a>
