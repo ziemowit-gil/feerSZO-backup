@@ -1,8 +1,8 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
+import { map, filter, startWith } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -15,6 +15,14 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 
 import { NAV_TREE, NavItem } from '../nav/nav.model';
+import { AppConfigService } from '../services/app-config.service';
+
+const ALL_LEAVES = NAV_TREE.flatMap(n => n.children?.length ? n.children : [n]);
+
+function urlToLabel(url: string): string {
+  const clean = url.split('?')[0];
+  return ALL_LEAVES.find(n => n.route && clean.startsWith(n.route))?.label ?? '';
+}
 
 @Component({
   selector: 'app-shell',
@@ -31,7 +39,9 @@ import { NAV_TREE, NavItem } from '../nav/nav.model';
 export class ShellComponent {
   readonly nav = NAV_TREE;
 
-  private bp = inject(BreakpointObserver);
+  private bp     = inject(BreakpointObserver);
+  private router = inject(Router);
+  readonly cfg   = inject(AppConfigService);
 
   readonly isHandset = toSignal(
     this.bp.observe(Breakpoints.Handset).pipe(map(r => r.matches)),
@@ -39,6 +49,15 @@ export class ShellComponent {
   );
 
   readonly sidenavOpened = signal(true);
+
+  readonly pageLabel = toSignal(
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map((e: NavigationEnd) => urlToLabel(e.urlAfterRedirects)),
+      startWith(urlToLabel(this.router.url))
+    ),
+    { initialValue: urlToLabel(this.router.url) }
+  );
 
   toggleSidenav() {
     this.sidenavOpened.update(v => !v);

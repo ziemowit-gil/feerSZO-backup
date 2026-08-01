@@ -1,3 +1,5 @@
+<a class="skip-nav" href="#main-content">Przejdź do treści</a>
+
 <mat-sidenav-container class="shell-container" autosize>
 
   <!-- ── Sidebar ──────────────────────────────────────────────────── -->
@@ -15,7 +17,10 @@
       <span class="sidenav-logo__icon" aria-hidden="true">
         <mat-icon>account_balance</mat-icon>
       </span>
-      <span class="sidenav-logo__text">feerSZO</span>
+      <div class="sidenav-logo__labels">
+        <span class="sidenav-logo__text">feerSZO</span>
+        <span class="sidenav-logo__org">{{ cfg.orgName }}</span>
+      </div>
     </div>
 
     <!-- Nav items -->
@@ -40,10 +45,10 @@
           [expanded]="true"
           hideToggle>
           <mat-expansion-panel-header class="nav-group-header"
-            [attr.aria-label]="item.label + ' — rozwiń menu'">
+            [attr.aria-label]="item.label + ' — sekcja'">
             <mat-panel-title>
               <mat-icon aria-hidden="true">{{ item.icon }}</mat-icon>
-              {{ item.label }}
+              {{ item.label | uppercase }}
             </mat-panel-title>
           </mat-expansion-panel-header>
 
@@ -77,7 +82,9 @@
         <mat-icon aria-hidden="true">menu</mat-icon>
       </button>
 
-      <span class="topbar-title" aria-hidden="true">Panel zarządzania</span>
+      <span class="topbar-title" aria-live="polite">
+        {{ pageLabel() || cfg.appTitle }}
+      </span>
 
       <div class="topbar-spacer"></div>
 
@@ -90,8 +97,8 @@
         <mat-icon aria-hidden="true">account_circle</mat-icon>
       </button>
       <mat-menu #userMenu="matMenu">
-        <button mat-menu-item routerLink="/profil">
-          <mat-icon aria-hidden="true">manage_accounts</mat-icon> Profil
+        <button mat-menu-item routerLink="/ustawienia">
+          <mat-icon aria-hidden="true">settings</mat-icon> Ustawienia
         </button>
         <mat-divider></mat-divider>
         <button mat-menu-item>
