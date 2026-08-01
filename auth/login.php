@@ -379,6 +379,15 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
 .more-opt-label{font-size:.84rem;font-weight:600;color:#0f172a}
 .more-opt-sub{font-size:.73rem;color:#64748b;display:block;margin-top:.05rem}
 
+/* ── Nowy wolontariusz CTA ─── */
+.new-vol{display:flex;align-items:center;gap:.75rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.85rem 1rem;margin-top:1.2rem;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
+.new-vol:hover{border-color:#4ade80;background:#dcfce7;color:inherit}
+.new-vol-icon{font-size:1.3rem;color:#16a34a;flex-shrink:0}
+.new-vol-body{flex:1;min-width:0}
+.new-vol-title{font-size:.9rem;font-weight:700;color:#15803d;display:block}
+.new-vol-sub{font-size:.78rem;color:#4b5563;display:block;margin-top:.1rem}
+.new-vol-arrow{color:#16a34a;font-size:.9rem;flex-shrink:0}
+
 /* ── Stopka linków ─── */
 .login-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35rem .7rem;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #f1f5f9}
 .login-links a{font-size:.78rem;color:#94a3b8;text-decoration:none;display:inline-flex;align-items:center;gap:.2rem}
@@ -534,6 +543,17 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
     </button>
   </form>
 
+  <!-- ── Nowy wolontariusz ───────────────────────────────── -->
+  <a href="<?= APP_URL ?>/user/register.php" class="new-vol"
+     aria-label="Załóż konto wolontariusza — otwiera formularz rejestracji">
+    <i class="bi bi-person-plus-fill new-vol-icon" aria-hidden="true"></i>
+    <span class="new-vol-body">
+      <span class="new-vol-title">Nowy wolontariusz?</span>
+      <span class="new-vol-sub">Masz umowę z FEER? Utwórz konto w 2 minuty.</span>
+    </span>
+    <i class="bi bi-chevron-right new-vol-arrow" aria-hidden="true"></i>
+  </a>
+
   <!-- ── Więcej opcji ─────────────────────────────────────── -->
   <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>
   <div class="more-opts">
@@ -564,8 +584,6 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
   <!-- ── Linki nawigacyjne ─────────────────────────────────── -->
   <div class="login-links">
     <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-key" aria-hidden="true"></i> Odzyskaj dostęp</a>
-    <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= APP_URL ?>/user/register.php"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto</a>
     <span class="dot" aria-hidden="true">·</span>
     <a href="<?= h($_url_dyd) ?>"><i class="bi bi-easel2" aria-hidden="true"></i> Panel dydaktyka</a>
     <?php if ($sel_url): ?>
