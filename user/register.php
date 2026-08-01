@@ -294,15 +294,6 @@ body{
 *:focus-visible{outline:2.5px solid var(--c,#2563eb);outline-offset:3px;border-radius:3px}
 *:focus:not(:focus-visible){outline:none}
 
-/* ── Progress bar ────────────────────────────────────────────── */
-.pg-rail{position:fixed;top:0;left:0;right:0;height:3px;background:#dde3ea;z-index:100}
-.pg-fill{
-  height:100%;
-  background:linear-gradient(90deg,var(--c,#2563eb),#60a5fa);
-  transition:width .4s cubic-bezier(.4,0,.2,1);
-  width:<?= round(($step / 3) * 100) ?>%;
-}
-
 /* ── Top bar ─────────────────────────────────────────────────── */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
@@ -432,9 +423,6 @@ body{
 <body>
 
 <a href="#reg-main" class="skip-link">Przejdź do formularza</a>
-
-<!-- Progress bar -->
-<div class="pg-rail" aria-hidden="true"><div class="pg-fill"></div></div>
 
 <!-- Top bar -->
 <header class="topbar">
