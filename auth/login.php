@@ -767,26 +767,33 @@ body.login-view-feer{
 
   <!-- ══ Banner: System Tożsamości ═════════════════════════════════════════ -->
   <div role="region" aria-label="System Tożsamości"
-       style="margin-top:1.25rem;border:1px solid #dbe7ff;background:linear-gradient(180deg,#f5f9ff,#eef4ff);border-radius:14px;padding:1rem 1.15rem">
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem">
-      <span style="width:34px;height:34px;border-radius:10px;background:#1E6DFF;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <i class="bi bi-person-vcard-fill" aria-hidden="true"></i>
-      </span>
-      <span style="font-weight:700;color:#1146ad">Nowość: System Tożsamości</span>
-    </div>
-    <p style="font-size:.85rem;color:#334155;margin:0 0 .7rem;line-height:1.45">
-      Centralny katalog z Twoimi dostępami. W jednym miejscu zmienisz hasło (panel + Microsoft 365),
-      ustawisz numer telefonu i logowanie dwuetapowe.
-    </p>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <a href="<?= APP_URL ?>/user/verify_reset.php"
-         style="flex:1;min-width:150px;text-align:center;text-decoration:none;font-size:.82rem;font-weight:600;padding:.55rem .8rem;border-radius:9px;background:#1656d6;color:#fff">
-        <i class="bi bi-key-fill me-1" aria-hidden="true"></i>Odzyskaj dostęp
-      </a>
-      <a href="<?= APP_URL ?>/tozsamosc/index.php"
-         style="flex:1;min-width:150px;text-align:center;text-decoration:none;font-size:.82rem;font-weight:600;padding:.55rem .8rem;border-radius:9px;background:#fff;color:#1656d6;border:1px solid #cbd9f5">
-        <i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Zarządzaj tożsamością
-      </a>
+       style="margin-top:1.25rem;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+    <div style="height:3px;background:linear-gradient(90deg,var(--c,#2563eb) 0%,#7c3aed 100%)"></div>
+    <div style="padding:.95rem 1.1rem">
+      <div style="display:flex;align-items:flex-start;gap:.8rem">
+        <div style="width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,var(--c,#2563eb),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.15rem">
+          <i class="bi bi-person-vcard-fill" aria-hidden="true"></i>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.18rem;flex-wrap:wrap">
+            <span style="font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:4px;line-height:1.4">Nowość</span>
+            <span style="font-size:.92rem;font-weight:700;color:#0f172a">System Tożsamości</span>
+          </div>
+          <p style="font-size:.82rem;color:#64748b;margin:0 0 .75rem;line-height:1.5">
+            Centralny katalog dostępów — hasło panelu i Microsoft 365, telefon oraz logowanie dwuetapowe w jednym miejscu.
+          </p>
+          <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+            <a href="<?= APP_URL ?>/user/verify_reset.php"
+               style="display:inline-flex;align-items:center;gap:.35rem;text-decoration:none;font-size:.8rem;font-weight:600;padding:.42rem .85rem;border-radius:7px;background:var(--c,#2563eb);color:#fff;white-space:nowrap">
+              <i class="bi bi-key-fill" aria-hidden="true"></i>Odzyskaj dostęp
+            </a>
+            <a href="<?= APP_URL ?>/tozsamosc/index.php"
+               style="display:inline-flex;align-items:center;gap:.35rem;text-decoration:none;font-size:.8rem;font-weight:600;padding:.42rem .85rem;border-radius:7px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;white-space:nowrap">
+              <i class="bi bi-person-vcard" aria-hidden="true"></i>Zarządzaj tożsamością
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
