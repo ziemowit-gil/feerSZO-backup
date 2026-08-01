@@ -1,0 +1,38 @@
+# ── Angular UI (ng-ui) — Traefik serwuje /newUI/ ─────────────────────────────
+#
+# Użycie DEV (z override.yml):
+#   docker compose -f docker-compose.yml -f docker-compose.ng.yml up -d ng-ui
+#
+# Użycie PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.ng.yml --env-file .env.prod up -d
+
+services:
+
+  ng-ui:
+    build:
+      context: ../ng-app
+      dockerfile: Dockerfile
+    image: feer-ng-ui:latest
+    container_name: feer-ng-ui
+    restart: unless-stopped
+    networks:
+      - feer
+    labels:
+      - "traefik.enable=true"
+
+      # ── Router HTTPS ──────────────────────────────────────────────────────
+      - "traefik.http.routers.ng-ui.rule=Host(`${DOMAIN}`) && PathPrefix(`/newUI/`)"
+      - "traefik.http.routers.ng-ui.entrypoints=websecure"
+      - "traefik.http.routers.ng-ui.tls=true"
+      - "traefik.http.routers.ng-ui.tls.certresolver=le"
+      - "traefik.http.routers.ng-ui.middlewares=ng-strip@docker,sec-headers@docker"
+      - "traefik.http.services.ng-ui.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.ng-ui-http.rule=Host(`${DOMAIN}`) && PathPrefix(`/newUI/`)"
+      - "traefik.http.routers.ng-ui-http.entrypoints=web"
+      - "traefik.http.routers.ng-ui-http.middlewares=https-redirect@docker"
+
+      # ── Middleware: strip /newUI prefix przed nginx ───────────────────────
+      - "traefik.http.middlewares.ng-strip.stripprefix.prefixes=/newUI"
