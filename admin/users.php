@@ -424,51 +424,6 @@ foreach ($db_roles as $r) {
     $role_counts[$r['name']] = (int)($row['c'] ?? 0);
 }
 
-// Orphaned viewers
-function orphaned_viewers(): array {
-    $viewers = db_all("SELECT * FROM users WHERE is_active = 1 AND role = 'viewer' ORDER BY name");
-    $active_statuses = ['projekt','podpisana','w realizacji','obowiązująca'];
-    $placeholders    = implode(',', array_fill(0, count($active_statuses), '?'));
-    $orphaned = [];
-    foreach ($viewers as $u) {
-        $email = $u['email'] ?? '';
-        $ms_id = $u['microsoft_id'] ?? '';
-        if (!$email && !$ms_id) continue;
-        $found = false;
-        foreach (['zlecenie', 'dzielo'] as $t) {
-            if ($found) break;
-            $conds  = ['m365_login = ?'];
-            $params = [$email];
-            if ($ms_id) { $conds[] = 'm365_user_id = ?'; $params[] = $ms_id; }
-            $r = db_one(
-                "SELECT id FROM umowy_{$t} WHERE (" . implode(' OR ', $conds) . ") AND status IN ({$placeholders}) LIMIT 1",
-                array_merge($params, $active_statuses)
-            );
-            if ($r) $found = true;
-        }
-        if (!$found) {
-            $conds  = ['m365_login = ?', 'email = ?'];
-            $params = [$email, $email];
-            if ($ms_id) { $conds[] = 'm365_user_id = ?'; $params[] = $ms_id; }
-            $r = db_one(
-                "SELECT id FROM umowy_wolontariat WHERE (" . implode(' OR ', $conds) . ") AND status IN ({$placeholders}) LIMIT 1",
-                array_merge($params, $active_statuses)
-            );
-            if ($r) $found = true;
-        }
-        if (!$found && $email) {
-            try {
-                $r = db_one("SELECT id FROM umowy_praca WHERE email_login = ? AND status IN ({$placeholders}) LIMIT 1",
-                    array_merge([$email], $active_statuses));
-                if ($r) $found = true;
-            } catch (\Exception $e) {}
-        }
-        if (!$found) $orphaned[] = $u;
-    }
-    return $orphaned;
-}
-
-$orphaned = orphaned_viewers();
 
 $PAGE_TITLE = 'Użytkownicy';
 $TZ_ACTIVE  = 'uzytkownicy';
@@ -535,45 +490,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       </div>
     </div>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="card text-center border-0 shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-warning"><?= count($orphaned) ?></div>
-        <div class="small text-muted">Do weryfikacji</div>
-      </div>
-    </div>
-  </div>
 </div>
-
-<?php if ($orphaned): ?>
-<div class="alert alert-warning alert-dismissible fade show d-flex gap-3 align-items-start mb-3" role="alert">
-  <i class="bi bi-person-exclamation fs-4 mt-1 flex-shrink-0"></i>
-  <div class="flex-grow-1">
-    <strong>Konta do weryfikacji (<?= count($orphaned) ?>)</strong> —
-    poniżsi użytkownicy nie mają żadnej aktywnej umowy w systemie.
-    <div class="mt-2 d-flex flex-wrap gap-2">
-    <?php foreach ($orphaned as $ou): ?>
-      <div class="d-flex align-items-center gap-2 border rounded px-3 py-2 bg-white">
-        <div>
-          <span class="fw-semibold"><?= h($ou['name']) ?></span>
-          <span class="text-muted small ms-1"><?= h($ou['email']) ?></span>
-        </div>
-        <form method="post" class="d-inline">
-          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-          <input type="hidden" name="action"  value="toggle_active">
-          <input type="hidden" name="user_id" value="<?= intval($ou['id']) ?>">
-          <button type="submit" class="btn btn-sm btn-warning"
-                  onclick="return confirm('Dezaktywować konto <?= h(addslashes($ou['name'])) ?>?')">
-            <i class="bi bi-person-dash"></i> Dezaktywuj
-          </button>
-        </form>
-      </div>
-    <?php endforeach; ?>
-    </div>
-  </div>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php endif; ?>
 
 <!-- Filter bar -->
 <div class="card shadow-sm mb-3">
