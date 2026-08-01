@@ -538,10 +538,14 @@ body {
             </a>
             <?php endforeach; endif; ?>
           </div>
-          <div class="px-3 py-2 border-top">
-            <a href="<?= APP_URL ?>/tasks/notifications.php" class="btn btn-sm w-100"
+          <div class="px-3 py-2 border-top d-flex gap-2">
+            <a href="<?= APP_URL ?>/tasks/notifications.php" class="btn btn-sm flex-fill"
                style="background:#f1f5f9;color:#374151;font-size:.8rem">
-              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia powiadomień
+              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia
+            </a>
+            <a href="<?= APP_URL ?>/tasks/notification_settings.php" class="btn btn-sm flex-fill"
+               style="background:#fffbeb;color:#92400e;font-size:.8rem;border:1px solid #fcd34d">
+              <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Ustawienia
             </a>
           </div>
         </div>
@@ -653,10 +657,19 @@ body {
     <div class="tsk-nav-sep" role="separator"></div>
     <span class="tsk-nav-label">Ustawienia</span>
 
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/notifications') ? 'active' : '' ?>"
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/notification_settings') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/notification_settings.php"
+       aria-current="<?= _tsk_active('/tasks/notification_settings') ? 'page' : 'false' ?>">
+      <i class="bi bi-bell-fill" aria-hidden="true"></i>Powiadomienia — ustawienia
+      <?php if ($_tsk_notif_setup_needed): ?>
+      <span class="tsk-nav-badge" style="background:#f59e0b;color:#fff" aria-label="do skonfigurowania">!</span>
+      <?php endif; ?>
+    </a>
+
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/notifications.php') ? 'active' : '' ?>"
        href="<?= APP_URL ?>/tasks/notifications.php"
-       aria-current="<?= _tsk_active('/tasks/notifications') ? 'page' : 'false' ?>">
-      <i class="bi bi-bell" aria-hidden="true"></i>Powiadomienia
+       aria-current="<?= _tsk_active('/tasks/notifications.php') ? 'page' : 'false' ?>">
+      <i class="bi bi-clock-history" aria-hidden="true"></i>Historia powiadomień
       <?php if ($_due_soon > 0): ?>
       <span class="tsk-nav-badge" style="background:#fee2e2;color:#dc2626"
             aria-label="<?= $_due_soon ?> zadań z bliskim terminem"><?= $_due_soon ?></span>
