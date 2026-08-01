@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/totp.php';
+require_once dirname(__DIR__) . '/includes/webauthn.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 
 // Osobne logowanie podsystemu.
@@ -18,14 +19,16 @@ auth_start();
 if (!current_user()) { header('Location: ' . APP_URL . '/tozsamosc/login.php'); exit; }
 require_login();
 
-$PAGE_TITLE = 'Uwierzytelnianie MFA';
+$PAGE_TITLE = 'Metody weryfikacji';
 $SELF = APP_URL . '/tozsamosc/mfa.php';
 $user = current_user();
 
 $sms_available = false;
 try { require_once dirname(__DIR__) . '/includes/sms.php'; $sms_available = sms_is_enabled(); } catch (\Throwable $e) {}
 
+webauthn_migrate();
 $db_user = db_one("SELECT * FROM users WHERE id=?", [$user['id']]);
+$wk_keys = webauthn_get_credentials((int)$user['id']);
 $errors  = [];
 $success = '';
 
@@ -101,6 +104,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', '2FA SMS zostało wyłączone.');
         header('Location: ' . $SELF); exit;
     }
+    elseif ($action === 'webauthn_delete') {
+        $cred_id = (int)($_POST['cred_id'] ?? 0);
+        if ($cred_id && webauthn_delete_credential($cred_id, (int)$user['id'])) {
+            log_user_action((int)$user['id'], (int)$user['id'], 'webauthn_deleted', 'Usunięto klucz WebAuthn ID=' . $cred_id . ' (Tożsamość)');
+            flash_set('success', 'Klucz bezpieczeństwa został usunięty.');
+        } else {
+            flash_set('danger', 'Nie można usunąć klucza.');
+        }
+        header('Location: ' . $SELF . '#webauthn'); exit;
+    }
     elseif ($action === 'disable_all') {
         db()->prepare("UPDATE users SET twofa_method='', totp_secret=NULL, totp_confirmed=0, totp_backup_codes=NULL WHERE id=?")
             ->execute([$user['id']]);
@@ -114,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $current_method    = $db_user['twofa_method'] ?? '';
 $pending_secret    = $_SESSION['2fa_pending_secret'] ?? '';
 $backup_codes_show = $_SESSION['2fa_backup_codes_display'] ?? null;
+$wk_keys           = webauthn_get_credentials((int)$user['id']); // świeże po POST
 $totp_uri = '';
 if ($pending_secret) {
     $issuer   = defined('ORG_NAME') ? ORG_NAME : 'Tożsamość';
@@ -125,11 +139,11 @@ include __DIR__ . '/_head.php';
 ?>
 
 <div class="tz-h">
-  <h1><i class="bi bi-shield-check me-2" style="color:#1E6DFF" aria-hidden="true"></i>Uwierzytelnianie wieloskładnikowe (MFA)</h1>
-  <p>Drugi składnik logowania chroniący Twoją tożsamość · konto: <?= h($user['email']) ?></p>
+  <h1>Metody weryfikacji</h1>
+  <p>Wszystkie sposoby potwierdzania tożsamości · konto: <?= h($user['email']) ?></p>
 </div>
 
-<p class="mb-3"><a href="<?= APP_URL ?>/tozsamosc/index.php" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do Tożsamości</a></p>
+<p class="mb-3"><a href="<?= APP_URL ?>/tozsamosc/index.php#bezpieczenstwo" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć</a></p>
 
 <?= flash_html() ?>
 
@@ -282,5 +296,105 @@ include __DIR__ . '/_head.php';
   </div>
 </section>
 <?php endif; ?>
+
+<!-- ═══════════ WEBAUTHN / PASSKEYS ═══════════ -->
+<section class="tz-card" id="webauthn">
+  <div class="tz-card__hd">
+    <i class="bi bi-fingerprint" aria-hidden="true"></i>
+    <span>Klucze bezpieczeństwa / Passkeys <span style="font-size:.72rem;color:var(--tz-muted);font-weight:500">(WebAuthn / FIDO2)</span></span>
+    <?php if ($wk_keys): ?>
+    <span class="tz-badge tz-badge--ok ms-auto"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <?= count($wk_keys) ?> klucz<?= count($wk_keys) > 1 ? 'e' : '' ?></span>
+    <?php endif; ?>
+  </div>
+  <div class="tz-card__bd">
+    <p class="text-muted small mb-3">
+      Klucze sprzętowe (YubiKey, FIDO2) lub wbudowane w urządzenie (Face ID, Touch ID, Windows Hello)
+      są najsilniejszą metodą uwierzytelniania — odporną na phishing.
+    </p>
+
+    <?php if ($wk_keys): ?>
+    <div class="mb-3">
+      <?php foreach ($wk_keys as $k): ?>
+      <div class="d-flex align-items-center gap-2 py-2 border-bottom">
+        <i class="bi bi-usb-symbol text-muted" aria-hidden="true"></i>
+        <div style="flex:1;min-width:0">
+          <div class="fw-semibold" style="font-size:.9rem"><?= h($k['name']) ?></div>
+          <div class="text-muted" style="font-size:.75rem">
+            <?= $k['alg'] == -257 ? 'RSA-SHA256' : 'EC P-256' ?> ·
+            dodano <?= h($k['created_at'] ? date('d.m.Y', strtotime($k['created_at'])) : '—') ?> ·
+            użyty <?= h($k['last_used_at'] ? date('d.m.Y H:i', strtotime($k['last_used_at'])) : 'nigdy') ?>
+          </div>
+        </div>
+        <form method="post" class="m-0" onsubmit="return confirm('Usunąć klucz «<?= h(addslashes($k['name'])) ?>»?')">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="webauthn_delete">
+          <input type="hidden" name="cred_id" value="<?= (int)$k['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash" aria-hidden="true"></i></button>
+        </form>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <!-- Dodaj nowy klucz -->
+    <div class="d-flex gap-2 flex-wrap align-items-end mb-3">
+      <div>
+        <label for="wk_name" class="form-label fw-semibold" style="font-size:.85rem">Nazwa klucza</label>
+        <input id="wk_name" type="text" class="form-control form-control-sm" placeholder="np. YubiKey 5, iPhone" maxlength="80" style="width:220px">
+      </div>
+      <button id="wk_btn" class="tz-btn" type="button" onclick="tzRegisterKey()">
+        <i class="bi bi-plus-circle" aria-hidden="true"></i> Dodaj klucz / passkey
+      </button>
+    </div>
+    <div id="wk_status" role="status" aria-live="polite"></div>
+    <p class="text-muted" style="font-size:.78rem">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+      Jeśli Twoje urządzenie obsługuje Face ID / Touch ID / Windows Hello, zostanie ono zaproponowane automatycznie.
+    </p>
+  </div>
+</section>
+
+<input type="hidden" id="tz_csrf" value="<?= h(csrf_token()) ?>">
+
+<script>
+(function(){
+function b64u(str){var s=str.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer;}
+function ab64u(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.byteLength;i++)s+=String.fromCharCode(b[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function wkStatus(msg,type){document.getElementById('wk_status').innerHTML='<div class="alert alert-'+type+' py-2 small mt-2">'+msg+'</div>';}
+
+window.tzRegisterKey = async function(){
+    var btn  = document.getElementById('wk_btn');
+    var name = (document.getElementById('wk_name').value.trim()) || 'Klucz bezpieczeństwa';
+    var csrf = document.getElementById('tz_csrf').value;
+    btn.disabled = true;
+    wkStatus('<span class="spinner-border spinner-border-sm me-2"></span>Inicjalizacja…', 'info');
+    try {
+        var r1 = await fetch('<?= APP_URL ?>/tozsamosc/api/webauthn_begin_register.php',
+            {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({_csrf:csrf})});
+        var d1 = await r1.json();
+        if (!d1.ok) throw new Error(d1.message || 'Błąd inicjalizacji');
+        var opts = d1.options;
+        opts.challenge  = b64u(opts.challenge);
+        opts.user.id    = b64u(opts.user.id);
+        if (opts.excludeCredentials) opts.excludeCredentials = opts.excludeCredentials.map(function(c){return Object.assign({},c,{id:b64u(c.id)});});
+        wkStatus('<span class="spinner-border spinner-border-sm me-2"></span>Dotknij klucz lub użyj biometryki…', 'info');
+        var cred = await navigator.credentials.create({publicKey: opts});
+        wkStatus('<span class="spinner-border spinner-border-sm me-2"></span>Zapisywanie…', 'info');
+        var payload = {id:cred.id, rawId:ab64u(cred.rawId),
+            clientDataJSON:ab64u(cred.response.clientDataJSON),
+            attestationObject:ab64u(cred.response.attestationObject)};
+        var r2 = await fetch('<?= APP_URL ?>/tozsamosc/api/webauthn_complete_register.php',
+            {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({_csrf:csrf,response:payload,key_name:name})});
+        var d2 = await r2.json();
+        if (!d2.ok) throw new Error(d2.message || 'Błąd rejestracji');
+        wkStatus('<i class="bi bi-check-circle-fill me-1"></i>Klucz zarejestrowany!', 'success');
+        setTimeout(function(){location.reload();}, 1000);
+    } catch(e) {
+        btn.disabled = false;
+        wkStatus('<i class="bi bi-exclamation-triangle-fill me-1"></i>' + (e.message || 'Błąd'), 'danger');
+    }
+};
+})();
+</script>
 
 <?php include __DIR__ . '/_foot.php';

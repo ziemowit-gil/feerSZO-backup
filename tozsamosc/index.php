@@ -759,19 +759,25 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
         <span class="tz-tile__ico"><i class="bi bi-phone" aria-hidden="true"></i></span>
         <span class="fw-semibold d-block">Aplikacja Authenticator</span>
-        <span class="lbl-en">Authenticator app (TOTP)</span>
-        <span class="d-block text-muted mt-1" style="font-size:.85rem">Kreator: instalacja → skan kodu QR → potwierdzenie.</span>
+        <span class="lbl-en">TOTP (Microsoft / Google Authenticator)</span>
+        <span class="d-block text-muted mt-1" style="font-size:.82rem">Kod jednorazowy z aplikacji — działa offline.</span>
       </a>
       <?php if ($sms_available): ?>
       <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
         <span class="tz-tile__ico"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
         <span class="fw-semibold d-block">Kod SMS</span>
-        <span class="lbl-en">Text message code</span>
-        <span class="d-block text-muted mt-1" style="font-size:.85rem">Jednorazowy kod na zweryfikowany numer telefonu.</span>
+        <span class="lbl-en">Text message one-time code</span>
+        <span class="d-block text-muted mt-1" style="font-size:.82rem">Jednorazowy kod na zweryfikowany numer telefonu.</span>
       </a>
       <?php endif; ?>
+      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
+        <span class="tz-tile__ico" style="background:#047857"><i class="bi bi-fingerprint" aria-hidden="true"></i></span>
+        <span class="fw-semibold d-block">Klucz / Passkey</span>
+        <span class="lbl-en">WebAuthn / FIDO2 / Passkeys</span>
+        <span class="d-block text-muted mt-1" style="font-size:.82rem">Biometria, YubiKey lub Windows Hello — ochrona przed phishingiem.</span>
+      </a>
     </div>
-    <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Otwórz kreator MFA</a>
+    <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Zarządzaj metodami weryfikacji</a>
   </div>
 </section>
 
