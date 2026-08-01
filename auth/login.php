@@ -778,8 +778,8 @@ body.login-view-feer{
     </a>
   </div>
 
-  <!-- ══ Banner: System Tożsamości ═════════════════════════════════════════ -->
-  <div role="region" aria-label="System Tożsamości"
+  <!-- ══ Banner: eTożsamość ════════════════════════════════════════════════ -->
+  <div role="region" aria-label="eTożsamość — zunifikowane logowanie"
        style="margin-top:1.25rem;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
     <div style="height:3px;background:linear-gradient(90deg,var(--c,#2563eb) 0%,#7c3aed 100%)"></div>
     <div style="padding:.95rem 1.1rem">
@@ -790,10 +790,11 @@ body.login-view-feer{
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.18rem;flex-wrap:wrap">
             <span style="font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:4px;line-height:1.4">Nowość</span>
-            <span style="font-size:.92rem;font-weight:700;color:#0f172a">System Tożsamości</span>
+            <span style="font-size:.92rem;font-weight:700;color:#0f172a">eTożsamość — 1 login, 1 hasło</span>
           </div>
           <p style="font-size:.82rem;color:#64748b;margin:0 0 .75rem;line-height:1.5">
-            Centralny katalog dostępów — hasło panelu i Microsoft 365, telefon oraz logowanie dwuetapowe w jednym miejscu.
+            Zunifikowaliśmy logowanie do wszystkich systemów organizacji. Jeden login i hasło działają teraz w Panelu SZO i Microsoft 365.
+            <a href="<?= APP_URL ?>/auth/etoz.php" style="color:var(--c,#2563eb);white-space:nowrap">Dowiedz się więcej&nbsp;→</a>
           </p>
           <div style="display:flex;gap:.45rem;flex-wrap:wrap">
             <a href="<?= APP_URL ?>/user/verify_reset.php"
@@ -859,6 +860,9 @@ body.login-view-feer{
     <span class="dot" aria-hidden="true">·</span>
     <a href="<?= APP_URL ?>/user/register.php"
        aria-label="Załóż konto — samodzielna rejestracja dla wolontariuszy z umową">Załóż konto</a>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href="<?= APP_URL ?>/auth/etoz.php"
+       aria-label="Informacje o eTożsamości — jeden login i hasło do wszystkich systemów">eTożsamość</a>
     <?php if ($sel_url): ?>
     <span class="dot" aria-hidden="true">·</span>
     <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?></a>
