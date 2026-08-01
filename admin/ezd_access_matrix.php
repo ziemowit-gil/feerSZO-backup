@@ -25,6 +25,11 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/permissions.php';
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/ezd_macierz.php' . ($_SERVER['QUERY_STRING'] ? '?' . $_SERVER['QUERY_STRING'] : ''));
+    exit;
+}
+$SELF_URL   = TZ_ADMIN_URL;
 
 $PAGE_TITLE = 'Macierz uprawnień EZD';
 $is_print   = isset($_GET['print']);
@@ -139,7 +144,7 @@ function eam_render_body(array $ctx): void {
         <?php endforeach; ?>
       </tbody>
     </table>
-    <p class="am-note">Administrator ma pełny dostęp niezależnie od zapisanej konfiguracji roli. Edycja praw ról: <a href="roles.php">Role i uprawnienia</a>.</p>
+    <p class="am-note">Administrator ma pełny dostęp niezależnie od zapisanej konfiguracji roli. Edycja praw ról: <a href="<?= APP_URL ?>/tozsamosc/role.php">Role i uprawnienia</a>.</p>
 
     <h2 class="am-h2">2. Macierz czynności EZD × relacja do koszulki</h2>
     <table class="am-matrix">
@@ -326,30 +331,36 @@ if ($is_print) {
 }
 
 // ── Tryb WIDOK ───────────────────────────────────────────────────────────────
-include dirname(__DIR__) . '/includes/header.php';
+$_tz_page_title = 'Macierz uprawnień EZD';
+$PAGE_TITLE = $_tz_page_title;
+$TZ_ACTIVE  = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
-<style><?= $am_styles ?></style>
+<style>
+.tz-wrap{max-width:1200px}
+<?= $am_styles ?>
+</style>
 
-<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-  <h4 class="mb-0"><i class="bi bi-archive-fill" style="color:#b45309"></i> Macierz uprawnień EZD</h4>
-  <div class="d-flex gap-2">
-    <a href="access_matrix.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-grid-3x3-gap"></i> Macierz ogólna
+<div class="tz-h" style="margin-bottom:1rem">
+  <h1><i class="bi bi-archive-fill" style="color:#b45309" aria-hidden="true"></i> Macierz uprawnień EZD</h1>
+  <div class="d-flex gap-2 ms-auto flex-wrap">
+    <a href="<?= APP_URL ?>/admin/access_matrix.php" class="tz-btn tz-btn--ghost btn-sm">
+      <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> Macierz ogólna
     </a>
-    <a href="org_settings.php?tab=security" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-shield-lock"></i> Ustawienia VPN
+    <a href="<?= APP_URL ?>/admin/org_settings.php?tab=security" class="tz-btn tz-btn--ghost btn-sm">
+      <i class="bi bi-shield-lock" aria-hidden="true"></i> Ustawienia VPN
     </a>
-    <a href="ezd_access_matrix.php?print=1" target="_blank" rel="noopener" class="btn btn-sm btn-primary">
-      <i class="bi bi-printer"></i> Drukuj / PDF
+    <a href="<?= h($SELF_URL) ?>?print=1" target="_blank" rel="noopener" class="tz-btn btn-sm">
+      <i class="bi bi-printer" aria-hidden="true"></i> Drukuj / PDF
     </a>
   </div>
 </div>
-<p class="am-meta">Model dostępu modułu „Wirtualne biurko" — role, relacje do koszulki oraz status dostępu tylko przez VPN. Widok tylko do odczytu.</p>
+<p style="font-size:.84rem;color:var(--tz-muted);margin-bottom:1.2rem">Model dostępu modułu „Wirtualne biurko" — role, relacje do koszulki oraz status dostępu tylko przez VPN. Widok tylko do odczytu.</p>
 
-<div class="card shadow-sm">
+<div class="tz-card" style="padding:0;overflow:hidden">
   <div class="card-body">
     <?php eam_render_body($ctx); ?>
   </div>
 </div>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

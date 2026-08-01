@@ -21,7 +21,14 @@ if (current_user()) { header('Location: ' . APP_URL . '/tozsamosc/index.php'); e
 
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
-    ? $raw_redirect : APP_URL . '/tozsamosc/index.php';
+    ? $raw_redirect : '';
+
+// Gdzie po zalogowaniu — admin/editor → Tożsamość, reszta → portal (wybór modułu)
+function _login_landing(array $user): string {
+    return in_array($user['role'] ?? '', ['admin', 'editor'], true)
+        ? APP_URL . '/tozsamosc/index.php'
+        : APP_URL . '/portal.php';
+}
 
 // ── Feature flags ─────────────────────────────────────────────────────────
 function _login_method_enabled(string $key, bool $default = true): bool {
@@ -101,11 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash_set('warning', 'Administrator zresetował Twoje hasło. Ustaw nowe przed kontynuowaniem.');
                     header('Location: ' . APP_URL . '/panel/password.php?force=1'); exit;
                 }
-                // Konta zawężone → tozsamosc zdecyduje o routingu.
-                if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                    header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
-                }
-                header('Location: ' . $redirect); exit;
+                header('Location: ' . ($redirect ?: _login_landing($user))); exit;
             }
             brute_record_fail($email);
             authlog_write(null, 'login_fail', $email, 'Nieudana próba logowania');
@@ -154,10 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once dirname(__DIR__) . '/includes/webauthn.php';
             if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
-            if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
-            }
-            header('Location: ' . $redirect); exit;
+            header('Location: ' . ($redirect ?: _login_landing($user))); exit;
         }
         $sms_step = 2;
         $error    = 'Nieprawidłowy lub wygasły kod. Spróbuj ponownie.';
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once dirname(__DIR__) . '/includes/webauthn.php';
                 if (webauthn_login_gate($user, $redirect)) exit;
                 login_user($user);
-                header('Location: ' . $redirect); exit;
+                header('Location: ' . ($redirect ?: _login_landing($user))); exit;
             }
             $error = 'Nieprawidłowy certyfikat, błędne hasło lub certyfikat wygasł/unieważniony.';
         }
@@ -206,10 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once dirname(__DIR__) . '/includes/webauthn.php';
             if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
-            if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
-                header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
-            }
-            header('Location: ' . $redirect); exit;
+            header('Location: ' . ($redirect ?: _login_landing($user))); exit;
         }
         $error      = 'Nieprawidłowy lub nieaktywny kod dostępu.';
         $active_tab = 'code';
@@ -283,25 +280,8 @@ $_login_welcome = '';
 try { $_login_welcome = trim(org_setting('login_welcome_text') ?: ''); } catch (\Throwable $e) {}
 $_login_welcome_is_custom = ($_login_welcome !== '');
 
-// ── Widok: najpierw wybór grupy, potem dopasowany formularz ──────────────
-//   choose → ekran wyboru rodzaju konta
-//   priv   → wolontariusze i zleceniobiorcy (prywatny e-mail)
-//   feer   → administracja i koordynatorzy (konto @feer.org.pl)
-$view = $_GET['view'] ?? '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($active_tab === 'local')                          $view = $_POST['_view'] ?? 'priv';
-    elseif (in_array($active_tab, ['code','sms'], true))  $view = 'priv';
-    elseif ($active_tab === 'x509')                       $view = 'feer';
-}
-if (!in_array($view, ['priv','feer'], true)) $view = 'choose';
-
-// Adresy nawigacji między widokami (zachowują parametr redirect)
-$_q          = $raw_redirect ? ('&redirect=' . urlencode($raw_redirect)) : '';
-$_url_choose = APP_URL . '/auth/login.php' . ($raw_redirect ? ('?redirect=' . urlencode($raw_redirect)) : '');
-$_url_priv   = APP_URL . '/auth/login.php?view=priv' . $_q;
-$_url_feer   = APP_URL . '/auth/login.php?view=feer' . $_q;
-// Dydaktyk loguje się we własnym panelu (osobna sesja — działa też na subdomenie ti.*)
-$_url_dyd    = APP_URL . '/karty30/ti/dydaktyk/login.php';
+// Dydaktyk loguje się we własnym panelu
+$_url_dyd = APP_URL . '/karty30/ti/dydaktyk/login.php';
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -313,608 +293,323 @@ $_url_dyd    = APP_URL . '/karty30/ti/dydaktyk/login.php';
 <?php branding_css($_b); ?>
 <style>
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0}
-body{
-  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  background:#fff;color:#0f172a;
-}
+html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#0f172a}
 
-/* ── Skip link ───────────────────────────────────────────── */
-.skip-link{
-  position:absolute;top:-100%;left:1rem;z-index:9999;
-  background:var(--c,#2563eb);color:#fff;
-  padding:.5rem 1.25rem;border-radius:0 0 8px 8px;
-  font-weight:700;text-decoration:none;font-size:.95rem;
-}
+.skip-link{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1.25rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
 .skip-link:focus{top:0;outline:3px solid #FBBF24;outline-offset:2px}
-
-/* ── Global focus ────────────────────────────────────────── */
 *:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
 *:focus:not(:focus-visible){outline:none}
 
-/* ── Powłoka — układ dwukolumnowy (jak na web) ───────────── */
-.login-layout{min-height:100vh;display:flex;flex-direction:column}
+/* ── Układ ─── */
+.login-layout{min-height:100vh;display:flex;flex-direction:column;background:#fff}
+@media(min-width:960px){.login-layout{flex-direction:row}}
 
-/* ── Lewy panel brandowy ─────────────────────────────────── */
+/* ── Aside (lewy panel brandowy) ─── */
 .login-aside{
-  position:relative;overflow:hidden;
-  display:flex;flex-direction:column;justify-content:space-between;gap:2rem;
-  padding:2.25rem 1.75rem;
+  position:relative;overflow:hidden;padding:2rem 1.75rem;
   background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));
-  color:var(--c-text,#fff);
+  color:#fff;display:flex;flex-direction:column;justify-content:space-between;gap:2rem;
 }
-.login-aside-decor{position:absolute;inset:0;opacity:.2;pointer-events:none}
-.login-aside-decor .blob{position:absolute;border-radius:50%;filter:blur(64px)}
-.login-aside-decor .blob-1{top:-6rem;left:-6rem;width:24rem;height:24rem;background:rgba(255,255,255,.20)}
-.login-aside-decor .blob-2{bottom:-8rem;right:-4rem;width:24rem;height:24rem;background:rgba(255,255,255,.10)}
-.login-aside-decor .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.35) 1px,transparent 0);background-size:26px 26px}
-.aside-brand{position:relative;display:inline-flex;align-items:center;gap:.75rem;text-decoration:none;color:inherit;align-self:flex-start}
-.aside-brand-logo{height:3rem;width:3rem;border-radius:.75rem;background:rgba(255,255,255,.95);object-fit:contain;padding:.25rem;box-shadow:0 1px 3px rgba(2,6,23,.2)}
-.aside-brand-icon{height:3rem;width:3rem;border-radius:.75rem;background:rgba(255,255,255,.95);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 1px 3px rgba(2,6,23,.2)}
-.aside-brand-name{font-size:1.1rem;font-weight:800;letter-spacing:-.01em}
-.aside-hero{position:relative;display:none}
-.aside-hero h1{max-width:26rem;font-size:1.9rem;font-weight:800;line-height:1.2;margin:0;letter-spacing:-.01em}
-.aside-hero p{max-width:26rem;margin:1rem 0 0;color:rgba(255,255,255,.82);font-size:1rem;line-height:1.6}
-.aside-foot{position:relative;display:none;font-size:.8rem;color:rgba(255,255,255,.72)}
-.aside-etoz{position:relative;display:none;align-items:center;gap:.65rem;text-decoration:none;color:inherit;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.75rem .9rem;transition:background .15s}
-.aside-etoz:hover{background:rgba(255,255,255,.12)}
-.aside-etoz-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--c,#2563eb),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.aside-etoz-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
-.aside-etoz-title{font-size:.85rem;font-weight:700;color:#fff;line-height:1.2}
-.aside-etoz-sub{font-size:.72rem;color:rgba(255,255,255,.55);letter-spacing:.02em}
-.aside-etoz-arrow{font-size:.8rem;color:rgba(255,255,255,.35);transition:transform .15s}
-.aside-etoz:hover .aside-etoz-arrow{transform:translateX(3px);color:rgba(255,255,255,.7)}
+@media(min-width:960px){.login-aside{width:44%;padding:3.5rem}}
+.aside-decor{position:absolute;inset:0;opacity:.18;pointer-events:none}
+.aside-decor .blob{position:absolute;border-radius:50%;filter:blur(70px)}
+.aside-decor .blob-1{top:-6rem;left:-6rem;width:22rem;height:22rem;background:rgba(255,255,255,.22)}
+.aside-decor .blob-2{bottom:-7rem;right:-4rem;width:20rem;height:20rem;background:rgba(255,255,255,.12)}
+.aside-decor .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.32) 1px,transparent 0);background-size:26px 26px}
+.aside-brand{position:relative;display:inline-flex;align-items:center;gap:.7rem;text-decoration:none;color:#fff;align-self:flex-start}
+.aside-brand-icon{width:3rem;height:3rem;border-radius:.75rem;background:rgba(255,255,255,.92);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.5rem}
+.aside-brand img{width:3rem;height:3rem;border-radius:.75rem;object-fit:contain;background:#fff;padding:.25rem}
+.aside-brand-name{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
+.aside-hero{position:relative}
+.aside-hero h1{font-size:2rem;font-weight:800;line-height:1.2;margin:0;letter-spacing:-.02em}
+.aside-hero p{margin:.8rem 0 0;color:rgba(255,255,255,.8);font-size:.95rem;line-height:1.6;max-width:24rem}
+.aside-foot{position:relative;font-size:.78rem;color:rgba(255,255,255,.6)}
+@media(max-width:959px){.aside-hero,.aside-foot{display:none}.login-aside{padding:1.25rem 1.5rem}}
 
-/* ── Prawa strona — formularz ────────────────────────────── */
-.login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;background:#fff}
-.login-wrap{width:100%;max-width:460px}
-/* Panel brandowy (aside) renderuje się na mobile jako górny pasek — dedykowany
-   nagłówek mobilny byłby wtedy dublem, więc go chowamy (aside brandu je zastępuje). */
-.login-mobile-brand{display:none;align-items:center;justify-content:center;gap:.5rem;margin-bottom:2rem;text-decoration:none;color:#0f172a}
-.login-mobile-brand img{height:2.5rem;width:2.5rem;border-radius:.5rem;object-fit:contain;box-shadow:0 0 0 1px rgba(15,23,42,.05)}
-.login-mobile-brand span{font-weight:800}
+/* ── Panel formularza ─── */
+.login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1.25rem}
+.login-wrap{width:100%;max-width:420px}
+.login-card{animation:lIn .35s cubic-bezier(.16,.84,.44,1) both}
+@keyframes lIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-@media(min-width:1024px){
-  .login-layout{flex-direction:row}
-  .login-aside{width:50%;padding:4rem}
-  .login-aside-decor .dots{opacity:1}
-  .aside-hero,.aside-foot,.aside-etoz{display:flex}
-  .login-panel{padding:2.5rem 2rem}
-  .login-mobile-brand{display:none}
-}
+.login-heading{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;margin:0 0 .3rem}
+.login-sub{font-size:.88rem;color:#64748b;margin:0 0 1.5rem;line-height:1.5}
 
-/* ── Karta ───────────────────────────────────────────────── */
-.login-card{
-  position:relative;
-  background:transparent;padding:0;
-  animation:loginIn .4s cubic-bezier(.16,.84,.44,1) both;
-}
-@keyframes loginIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-/* Branding w karcie dubluje panel brandowy (lewy na desktopie, górny pasek na mobile) → chowamy */
-.brand{display:none}
+/* ── Alerty ─── */
+.l-alert{display:flex;gap:.55rem;align-items:flex-start;padding:.7rem .9rem;border-radius:10px;font-size:.87rem;margin-bottom:1.1rem;line-height:1.45}
+.l-alert-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.l-alert-success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.l-alert-info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
 
-/* ── Branding (góra karty) ───────────────────────────────── */
-.brand{text-align:center;margin-bottom:1.6rem}
-.brand-logo{max-height:48px;max-width:210px;object-fit:contain;display:inline-block;margin-bottom:.7rem}
-.brand-icon{
-  width:58px;height:58px;border-radius:17px;margin:0 auto .8rem;
-  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));color:var(--c-text,#fff);
-  box-shadow:0 8px 20px rgba(37,99,235,.28);
-  display:flex;align-items:center;justify-content:center;font-size:1.75rem;
-}
-.brand-org{font-size:1.15rem;font-weight:800;color:#0f172a;margin:0;line-height:1.3;letter-spacing:-.01em}
-.brand-tagline{font-size:.82rem;color:#64748b;margin:.3rem 0 0;line-height:1.5}
-
-/* ── Nagłówek widoku ─────────────────────────────────────── */
-.view-head{margin-bottom:1.4rem}
-.view-head.center{text-align:center}
-.view-title{font-size:1.3rem;font-weight:800;color:#0f172a;margin:0;letter-spacing:-.01em;line-height:1.25}
-.view-sub{font-size:.9rem;color:#64748b;margin:.4rem 0 0;line-height:1.55}
-.view-sub strong{color:#334155;font-weight:700}
-.back-link{
-  display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.95rem;
-  font-size:.82rem;font-weight:600;color:#64748b;text-decoration:none;
-  padding:.32rem .7rem;border:1px solid #e2e8f0;border-radius:2rem;
-  transition:color .12s,border-color .12s,background .12s;
-}
-.back-link:hover{color:var(--c,#2563eb);border-color:#cbd5e1;background:#f8fafc}
-
-/* ── Wybór grupy ─────────────────────────────────────────── */
-.chooser{display:flex;flex-direction:column;gap:.7rem}
-.choice{
-  display:flex;align-items:center;gap:1rem;
-  padding:1.05rem 1.1rem;border:1.5px solid #e2e8f0;border-radius:14px;
-  text-decoration:none;background:#fff;cursor:pointer;width:100%;text-align:left;
-  box-shadow:0 1px 2px rgba(2,6,23,.04);
-  transition:border-color .14s,box-shadow .14s,transform .12s,background .14s;
-}
-.choice:hover{border-color:var(--c,#2563eb);background:#f8fafc;box-shadow:0 8px 22px rgba(37,99,235,.14);transform:translateY(-2px)}
-.choice:active{transform:translateY(0)}
-.choice-icon{
-  width:50px;height:50px;border-radius:13px;flex-shrink:0;
-  background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);
-  display:flex;align-items:center;justify-content:center;font-size:1.5rem;
-}
-.choice-icon.alt{background:#f1f5f9;color:#475569}
-.choice-body{flex:1;min-width:0}
-.choice-title{display:block;font-size:1rem;font-weight:700;color:#0f172a;line-height:1.3}
-.choice-sub{display:block;font-size:.81rem;color:#64748b;margin-top:.12rem;line-height:1.4}
-.choice-arrow{color:#cbd5e1;font-size:1rem;flex-shrink:0}
-.choice:hover .choice-arrow{color:var(--c,#2563eb)}
-
-/* ── Link krzyżowy (wolontariusz → konto @feer.org.pl) ───── */
-.cross-link{
-  display:flex;align-items:center;gap:.65rem;margin-top:1.1rem;
-  padding:.7rem .85rem;border:1px solid #e2e8f0;border-radius:10px;
-  background:#f8fafc;text-decoration:none;
-  transition:border-color .12s,background .12s;
-}
-.cross-link:hover{border-color:var(--c,#2563eb);background:#fff}
-.cross-link > i:first-child{color:var(--c,#2563eb);font-size:1.05rem;flex-shrink:0}
-.cross-link-body{flex:1;min-width:0}
-.cross-link-title{display:block;font-size:.83rem;font-weight:600;color:#334155;line-height:1.3}
-.cross-link-sub{display:block;font-size:.75rem;color:#64748b;margin-top:.05rem}
-.cross-link .arr{color:#cbd5e1;flex-shrink:0;font-size:.8rem}
-
-/* ── Stopka pod kartą ────────────────────────────────────── */
-.login-foot{margin-top:2rem;text-align:center}
-.login-foot .sec{display:inline-flex;align-items:center;gap:.35rem;color:#94a3b8;font-size:.77rem}
-.login-foot .links{margin-top:.55rem}
-.login-foot a{color:#64748b;text-decoration:none;font-size:.8rem;font-weight:500}
-.login-foot a:hover{color:var(--c,#2563eb);text-decoration:underline}
-.login-foot .dot{color:#cbd5e1;margin:0 .5rem}
-.login-foot .cpy{display:block;margin-top:.55rem;color:#94a3b8;font-size:.72rem}
-
-/* ── Komunikaty ──────────────────────────────────────────── */
-.login-notice{
-  display:flex;align-items:flex-start;gap:.6rem;
-  padding:.75rem .9rem;border-radius:8px;background:#eff6ff;
-  border-left:3px solid #2563eb;margin-bottom:.65rem;font-size:.85rem;color:#1e293b;line-height:1.5;
-}
-.login-notice.pinned{background:#fffbeb;border-left-color:#f59e0b}
-.login-notice i{flex-shrink:0;color:#2563eb;margin-top:.15rem}
-.login-notice.pinned i{color:#d97706}
-.login-notice-title{font-weight:600}
-
-.login-alert{
-  display:flex;align-items:flex-start;gap:.7rem;
-  padding:.9rem 1rem;border-radius:8px;border:2px solid;
-  margin-bottom:1.25rem;font-size:.9rem;line-height:1.5;
-}
-.login-alert i{font-size:1.1rem;flex-shrink:0;margin-top:.05rem}
-.login-alert-danger {background:#fef2f2;border-color:#dc2626;color:#7f1d1d}
-.login-alert-success{background:#f0fdf4;border-color:#16a34a;color:#14532d}
-
-/* ── Pola formularza ─────────────────────────────────────── */
-.form-label{font-size:.9rem;font-weight:600;color:#1e293b;margin-bottom:.38rem;display:block}
-.form-control{
-  border:1.5px solid #94a3b8;border-radius:10px;
-  font-size:1rem;padding:.7rem .95rem;min-height:48px;
-  color:#0f172a;width:100%;background:#fff;
-  transition:border-color .15s,box-shadow .15s;
-}
-.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.15);outline:none}
-.form-control[aria-invalid="true"]{border-color:#dc2626;background:#fff8f8}
-.form-control[aria-invalid="true"]:focus{box-shadow:0 0 0 3px rgba(220,38,38,.15)}
-.form-hint{font-size:.8rem;color:#64748b;margin-top:.3rem;line-height:1.45}
-.form-error{font-size:.8rem;color:#b91c1c;margin-top:.3rem;font-weight:500;display:flex;align-items:center;gap:.3rem}
-
-/* ── Hasło — przycisk reveal ─────────────────────────────── */
-.pass-wrap{position:relative}
-.pass-toggle{
-  position:absolute;right:.65rem;top:50%;transform:translateY(-50%);
-  background:none;border:2px solid transparent;padding:0;
-  color:#64748b;cursor:pointer;font-size:1.05rem;border-radius:6px;
-  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
-  transition:color .12s,border-color .12s;
-}
-.pass-toggle:hover{color:var(--c,#2563eb);border-color:#e2e8f0}
-
-/* ── Przycisk główny ─────────────────────────────────────── */
-.btn-login{
-  display:flex;align-items:center;justify-content:center;gap:.55rem;
-  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));color:var(--c-text,#fff);
-  border:2px solid transparent;border-radius:10px;
-  padding:.85rem 1.25rem;font-size:1rem;font-weight:700;
-  width:100%;min-height:52px;cursor:pointer;
-  box-shadow:0 8px 20px rgba(37,99,235,.28);
-  transition:filter .15s,box-shadow .15s,transform .12s;
-  text-decoration:none;
-}
-.btn-login:hover{filter:brightness(1.06);box-shadow:0 10px 26px rgba(37,99,235,.36);transform:translateY(-1px);color:var(--c-text,#fff)}
-.btn-login:active{transform:translateY(0)}
-
-/* ── Microsoft 365 ───────────────────────────────────────── */
-.btn-ms365{
-  display:flex;align-items:center;justify-content:center;gap:.75rem;
-  background:#fff;color:#1e293b;
-  border:2px solid #d1d5db;border-radius:8px;
-  padding:.85rem 1.25rem;font-size:1rem;font-weight:700;
-  width:100%;min-height:52px;cursor:pointer;
-  transition:border-color .15s,box-shadow .15s;
-  text-decoration:none;
-}
+/* ── MS365 ─── */
+.btn-ms365{display:flex;align-items:center;justify-content:center;gap:.7rem;width:100%;padding:.85rem 1.25rem;background:#fff;color:#1e293b;border:2px solid #d1d5db;border-radius:10px;font-size:.97rem;font-weight:700;text-decoration:none;transition:border-color .13s,box-shadow .13s;cursor:pointer;min-height:50px}
 .btn-ms365:hover{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);color:#1e293b}
-.ms-note{font-size:.8rem;color:#64748b;text-align:center;margin:.6rem 0 0;line-height:1.4}
 
-/* ── Separator ───────────────────────────────────────────── */
-.or-div{display:flex;align-items:center;gap:.75rem;color:#94a3b8;font-size:.8rem;margin:1.3rem 0}
+/* ── Separator ─── */
+.or-div{display:flex;align-items:center;gap:.7rem;color:#94a3b8;font-size:.8rem;margin:1.2rem 0}
 .or-div::before,.or-div::after{content:'';flex:1;height:1px;background:#e2e8f0}
 
-/* ── Alternatywne metody — przyciski do modali ───────────── */
-.method-triggers{display:flex;flex-direction:column;gap:.4rem}
-.method-trigger-btn{
-  display:flex;align-items:center;gap:.75rem;
-  width:100%;padding:.65rem .85rem;
-  background:#fff;border:2px solid #e2e8f0;border-radius:10px;
-  cursor:pointer;text-align:left;
-  transition:border-color .12s,box-shadow .12s;
-}
-.method-trigger-btn:hover{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
-.method-trigger-icon{
-  width:36px;height:36px;border-radius:8px;flex-shrink:0;
-  background:var(--c-bg,#eff6ff);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;color:var(--c,#2563eb);
-}
-.method-trigger-body{flex:1;min-width:0}
-.method-trigger-label{display:block;font-size:.88rem;font-weight:600;color:#0f172a;line-height:1.3}
-.method-trigger-sub{display:block;font-size:.75rem;color:#64748b;margin-top:.06rem}
-.method-trigger-arrow{color:#cbd5e1;font-size:.8rem;flex-shrink:0}
-
-/* ── Modal logowania ─────────────────────────────────────── */
-.login-modal-content{border:none;border-radius:14px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.2)}
-.login-modal-header{
-  background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);
-  border-bottom:1px solid #e2e8f0;padding:1rem 1.25rem;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.login-modal-title-wrap{display:flex;align-items:center;gap:.55rem}
-.login-modal-title-wrap > i{font-size:1.1rem;color:var(--c,#2563eb)}
-.login-modal-title{font-size:1.05rem;font-weight:700;color:#0f172a;margin:0}
-.login-modal-body{padding:1.25rem 1.5rem 1.5rem}
-.login-modal-desc{font-size:.84rem;color:#64748b;margin:0 0 1rem;line-height:1.5}
-
-/* ── SMS kode input ──────────────────────────────────────── */
-.sms-otp{
-  font-size:2rem;letter-spacing:.45rem;text-align:center;
-  font-family:monospace;font-weight:700;
-}
-
-/* ── Tekst powitalny (konfigurowalny przez administratora) ── */
-.login-welcome-text{font-size:.84rem;color:#64748b;line-height:1.6;margin:0 0 1.2rem;text-align:center}
-
-/* ── Podpis pod blokiem metody (dla kogo) ─────────────────── */
-.method-for{font-size:.78rem;color:#64748b;text-align:center;margin:.45rem 0 0;line-height:1.45}
-
-/* ── Więcej opcji — rozwijane ─────────────────────────────── */
-.more-options{margin-top:1.3rem;border-top:1px solid #e2e8f0;padding-top:1rem}
-.more-options > summary{
-  list-style:none;cursor:pointer;user-select:none;
-  display:flex;align-items:center;justify-content:center;gap:.4rem;
-  font-size:.83rem;font-weight:600;color:#64748b;
-  padding:.45rem;border-radius:8px;transition:color .12s,background .12s;
-}
-.more-options > summary::-webkit-details-marker{display:none}
-.more-options > summary:hover{color:var(--c,#2563eb);background:#f8fafc}
-.more-options > summary .chev{transition:transform .15s}
-.more-options[open] > summary .chev{transform:rotate(180deg)}
-.more-options-body{margin-top:.7rem}
-
-/* ── Zapomniałem hasła ───────────────────────────────────── */
-.forgot-link{
-  display:inline-flex;align-items:center;gap:.35rem;
-  font-size:.83rem;color:#64748b;text-decoration:none;
-  padding:.3rem;border-radius:4px;
-  transition:color .12s;
-}
+/* ── Formularz ─── */
+.form-label{display:block;font-size:.84rem;font-weight:600;color:#374151;margin-bottom:.3rem}
+.form-control{width:100%;padding:.65rem .85rem;border:2px solid #e2e8f0;border-radius:10px;font-size:.97rem;font-family:inherit;color:#0f172a;background:#fff;transition:border-color .13s,box-shadow .13s}
+.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.1);outline:none}
+.form-control[aria-invalid=true]{border-color:#ef4444}
+.form-hint{font-size:.76rem;color:#94a3b8;margin:.3rem 0 0;line-height:1.4}
+.pass-wrap{position:relative}
+.pass-wrap .form-control{padding-right:2.8rem}
+.pass-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:.25rem;line-height:1;border-radius:4px}
+.pass-toggle:hover{color:#475569}
+.fmb{margin-bottom:1rem}
+.fmb-last{margin-bottom:1.25rem}
+.pass-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem}
+.forgot-link{font-size:.8rem;color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
 .forgot-link:hover{color:var(--c,#2563eb)}
 
-/* ── High contrast ───────────────────────────────────────── */
-@media(prefers-contrast:high){
-  .form-control{border-width:3px;border-color:#000}
-  .btn-login,.btn-ms365{border-width:3px}
-  .btn-login{background:#000!important;border-color:#000!important;color:#fff!important}
-  .login-alert-danger{border-width:3px}
-  .method-trigger-btn{border-width:3px}
-}
-/* ── Reduced motion ──────────────────────────────────────── */
+.btn-login{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.85rem 1.25rem;background:var(--c,#2563eb);color:var(--c-text,#fff);border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:filter .13s,box-shadow .13s,transform .1s;min-height:50px}
+.btn-login:hover{filter:brightness(1.06);box-shadow:0 8px 22px rgba(37,99,235,.32);transform:translateY(-1px);color:var(--c-text,#fff)}
+.btn-login:active{transform:translateY(0)}
+
+/* ── Więcej opcji ─── */
+.more-opts{margin-top:1.2rem;border-top:1px solid #f1f5f9;padding-top:.9rem}
+.more-opts-label{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:.55rem;display:block}
+.more-opts-list{display:flex;flex-direction:column;gap:.4rem}
+.more-opt-btn{display:flex;align-items:center;gap:.65rem;width:100%;padding:.55rem .7rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;transition:border-color .12s}
+.more-opt-btn:hover{border-color:var(--c,#2563eb);background:#eff6ff}
+.more-opt-icon{width:30px;height:30px;border-radius:7px;background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem}
+.more-opt-label{font-size:.84rem;font-weight:600;color:#0f172a}
+.more-opt-sub{font-size:.73rem;color:#64748b;display:block;margin-top:.05rem}
+
+/* ── Stopka linków ─── */
+.login-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35rem .7rem;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #f1f5f9}
+.login-links a{font-size:.78rem;color:#94a3b8;text-decoration:none;display:inline-flex;align-items:center;gap:.2rem}
+.login-links a:hover{color:var(--c,#2563eb)}
+.login-links .dot{color:#e2e8f0;font-size:.65rem}
+
+/* ── Modal ─── */
+.lm-content{border:none;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.lm-hd{padding:.9rem 1.25rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}
+.lm-title{font-size:1.02rem;font-weight:700;margin:0;display:flex;align-items:center;gap:.45rem}
+.lm-body{padding:1.25rem 1.5rem 1.5rem}
+.sms-otp{font-size:1.8rem;letter-spacing:.45rem;text-align:center;font-family:monospace;font-weight:700}
+
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
-
-/* ── Mobile ──────────────────────────────────────────────── */
-@media(max-width:520px){
-  .login-panel{padding:1.75rem .9rem;align-items:flex-start}
-  .login-aside{padding:1.5rem 1.25rem}
-  .brand-org{font-size:1.05rem}
-  .choice{padding:.95rem .9rem;gap:.8rem}
-  .choice-icon{width:44px;height:44px;font-size:1.3rem}
-}
-
-/* ── Widok „Administracja / koordynator" — kolor bocznego paska (--bp),      ──
-   nie kolor panelu wolontariusza. Domyślnie (choose/priv) --c = volunteer_color,
-   więc reszta strony jest już brandowana pod wolontariuszy bez zmian tutaj. */
-body.login-view-feer{
-<?php if (color_contrast_text($_b['sidebar']) === '#ffffff'): /* pasek boczny ciemny → użyj koloru marki */ ?>
-  --c:var(--bp,#1e293b); --c-dark:var(--bp-dark,#0f172a); --c-darker:var(--bp-darker,#020617);
-  --c-light:var(--bp-light,#334155); --c-text:var(--bp-text,#fff);
-  --c-ring:var(--bp-subtle,rgba(30,41,59,.18)); --c-bg:var(--bp-subtle,rgba(30,41,59,.07));
-<?php else: /* pasek jasny/biały → pełnoekranowy panel byłby nieczytelny; stały granat */ ?>
-  --c:#1e293b; --c-dark:#0f172a; --c-darker:#020617;
-  --c-light:#334155; --c-text:#ffffff;
-  --c-ring:rgba(30,41,59,.18); --c-bg:rgba(30,41,59,.07);
-<?php endif; ?>
-}
+@media(prefers-contrast:high){.form-control,.btn-login,.btn-ms365{border-width:3px}.btn-login{background:#000!important;border-color:#000!important}}
+@media(max-width:520px){.login-panel{padding:1.75rem .9rem;align-items:flex-start}}
 </style>
 </head>
-<body class="<?= $view === 'feer' ? 'login-view-feer' : '' ?>">
+<body>
 
-<a href="#login-form-area" class="skip-link">Przejdź do formularza logowania</a>
-
-<!-- Regiony ARIA live — ogłaszają zmiany dla czytników ekranu -->
-<div role="status" aria-live="polite" aria-atomic="true"
-     id="login-live"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
-<div role="alert" aria-live="assertive" aria-atomic="true"
-     id="login-alert"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<a href="#login-main" class="skip-link">Przejdź do formularza logowania</a>
+<div role="status"  aria-live="polite"    aria-atomic="true" id="login-live"  style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div role="alert"   aria-live="assertive" aria-atomic="true" id="login-alert" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 
 <div class="login-layout">
 
-<!-- ══ Lewy panel brandowy ═══════════════════════════════════════════════════ -->
+<!-- ══ Aside ═══════════════════════════════════════════════════════════════ -->
 <aside class="login-aside">
-  <div class="login-aside-decor" aria-hidden="true">
+  <div class="aside-decor" aria-hidden="true">
     <span class="blob blob-1"></span>
     <span class="blob blob-2"></span>
     <span class="dots"></span>
   </div>
-
   <a href="<?= APP_URL ?>" class="aside-brand">
     <?php if ($_b['logo_url']): ?>
-      <img src="<?= h($_b['logo_url']) ?>" alt="" class="aside-brand-logo">
+      <img src="<?= h($_b['logo_url']) ?>" alt="">
     <?php else: ?>
       <span class="aside-brand-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
     <?php endif; ?>
     <span class="aside-brand-name"><?= h($org_name) ?></span>
   </a>
-
   <div class="aside-hero">
-    <h1>Witaj ponownie</h1>
-    <p><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się, aby kontynuować.' ?></p>
+    <h1><?= $_login_tagline ? h($_login_tagline) : 'Jeden login,<br>wszystkie systemy.' ?></h1>
+    <p>Zaloguj się, aby przejść do panelu organizacji.</p>
   </div>
-
-  <a href="<?= APP_URL ?>/auth/etoz.php" class="aside-etoz" aria-label="eTożsamość — dowiedz się o zunifikowanym logowaniu">
-    <span class="aside-etoz-icon" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
-    <span class="aside-etoz-body">
-      <span class="aside-etoz-title">eTożsamość</span>
-      <span class="aside-etoz-sub">bez loginu · 1 hasło · wszystkie systemy</span>
-    </span>
-    <i class="bi bi-arrow-right aside-etoz-arrow" aria-hidden="true"></i>
-  </a>
-
   <div class="aside-foot">&copy; <?= date('Y') ?> <?= h($org_name) ?></div>
 </aside>
 
-<!-- ══ Prawa strona — formularz ══════════════════════════════════════════════ -->
+<!-- ══ Formularz ════════════════════════════════════════════════════════════ -->
 <div class="login-panel">
 <div class="login-wrap">
+<main class="login-card" id="login-main" tabindex="-1">
 
-<!-- Logo widoczne na mobile (panel brandowy jest tam skrócony) -->
-<a href="<?= APP_URL ?>" class="login-mobile-brand">
-  <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt=""><?php endif; ?>
-  <span><?= h($org_name) ?></span>
-</a>
-
-<main class="login-card" id="login-form-area" tabindex="-1">
-
-  <!-- ══ Branding ══════════════════════════════════════════════════════════ -->
-  <div class="brand">
-    <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="brand-logo">
-    <?php else: ?>
-    <div class="brand-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
-    <?php endif; ?>
-    <p class="brand-org"><?= h($org_name) ?></p>
-    <?php if ($_login_tagline): ?><p class="brand-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
-  </div>
-
-  <?php
-  // Komunikat administratora — pokazywany na każdym widoku (preferuj przypięty)
+  <?php // Admin announcement
   $_ln_show = null;
   foreach ($_login_notices as $_ln_item) {
-    if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
+      if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
   }
   if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
-  ?>
-  <?php if ($_ln_show): $ln_pinned = (int)($_ln_show['is_pinned'] ?? 0); ?>
-  <div role="region" aria-label="Komunikat administratora" style="margin-bottom:1.25rem">
-    <div class="login-notice <?= $ln_pinned ? 'pinned' : '' ?>">
-      <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" aria-hidden="true"></i>
-      <div>
-        <div class="login-notice-title"><?= h($_ln_show['title']) ?></div>
-        <?php if ($_ln_show['body']): ?><div style="margin-top:.2rem;font-size:.84rem"><?= nl2br(h($_ln_show['body'])) ?></div><?php endif; ?>
-      </div>
+  if ($_ln_show): ?>
+  <div class="l-alert l-alert-info" role="region" aria-label="Komunikat" style="margin-bottom:1.1rem">
+    <i class="bi bi-megaphone-fill flex-shrink-0" aria-hidden="true"></i>
+    <div>
+      <strong><?= h($_ln_show['title']) ?></strong>
+      <?php if ($_ln_show['body']): ?><br><span style="font-size:.83rem"><?= nl2br(h($_ln_show['body'])) ?></span><?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
 
   <?php if (isset($_GET['ended'])): ?>
-  <div class="login-alert login-alert-success" role="status" style="border-color:#0ea5e9;background:#f0f9ff;color:#075985">
-    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-    <span>Twoja sesja została zakończona. Zaloguj się ponownie.</span>
+  <div class="l-alert l-alert-success" role="status">
+    <i class="bi bi-box-arrow-right flex-shrink-0" aria-hidden="true"></i>
+    <span>Sesja zakończona — zaloguj się ponownie.</span>
   </div>
   <?php endif; ?>
 
-  <?php if ($view === 'choose'): ?>
-  <!-- ══ Widok: wybór rodzaju konta ════════════════════════════════════════ -->
-  <div class="view-head center">
-    <div style="display:inline-flex;align-items:center;gap:.45rem;margin-bottom:.65rem">
-      <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--c,#2563eb),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0" aria-hidden="true">
-        <i class="bi bi-person-vcard-fill"></i>
-      </span>
-      <span style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--c,#2563eb)">eTożsamość</span>
-    </div>
-    <h1 class="view-title" id="login-title">Zaloguj się</h1>
-    <p class="view-sub">Bez osobnego loginu — 1 hasło do wszystkich systemów organizacji.</p>
-  </div>
-
-  <?php if ($_login_welcome_is_custom): ?>
-  <p class="login-welcome-text"><?= nl2br(h($_login_welcome)) ?></p>
-  <?php endif; ?>
-
-  <div class="chooser" role="group" aria-label="Wybierz rodzaj konta">
-    <a href="<?= h($_url_priv) ?>" class="choice">
-      <span class="choice-icon" aria-hidden="true"><i class="bi bi-heart-fill"></i></span>
-      <span class="choice-body">
-        <span class="choice-title">Wolontariusz / zleceniobiorca</span>
-        <span class="choice-sub">Logowanie prywatnym e-mailem i hasłem</span>
-      </span>
-      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
-    </a>
-    <a href="<?= h($_url_feer) ?>" class="choice">
-      <span class="choice-icon alt" aria-hidden="true"><i class="bi bi-building-fill"></i></span>
-      <span class="choice-body">
-        <span class="choice-title">Administracja / koordynator</span>
-        <span class="choice-sub">Logowanie kontem służbowym @feer.org.pl</span>
-      </span>
-      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
-    </a>
-    <a href="<?= h($_url_dyd) ?>" class="choice">
-      <span class="choice-icon" aria-hidden="true"><i class="bi bi-easel2"></i></span>
-      <span class="choice-body">
-        <span class="choice-title">Dydaktyk / prowadzący zajęcia TI</span>
-        <span class="choice-sub">Logowanie e-mailem do panelu dydaktyka</span>
-      </span>
-      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
-    </a>
-    <div style="border-top:1px solid #e2e8f0;margin:.1rem 0"></div>
-    <a href="<?= APP_URL ?>/user/register.php" class="choice"
-       style="border-color:#bbf7d0"
-       aria-label="Załóż konto — samodzielna rejestracja dla wolontariuszy z umową">
-      <span class="choice-icon" style="background:#f0fdf4;color:#16a34a" aria-hidden="true">
-        <i class="bi bi-person-plus-fill"></i>
-      </span>
-      <span class="choice-body">
-        <span class="choice-title" style="color:#15803d">Załóż konto</span>
-        <span class="choice-sub">Masz umowę wolontariacką? Utwórz konto samodzielnie</span>
-      </span>
-      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
-    </a>
-  </div>
-
-  <?php else: ?>
-  <!-- ══ Widok: formularz wybranej grupy ═══════════════════════════════════ -->
-  <a href="<?= h($_url_choose) ?>" class="back-link">
-    <i class="bi bi-arrow-left" aria-hidden="true"></i> Zmień rodzaj konta
-  </a>
-  <div class="view-head">
-    <h1 class="view-title" id="login-title">
-      <?php if ($view === 'feer'): ?>
-      Administracja i koordynatorzy
-      <?php else: ?>
-      <i class="bi bi-heart-fill" style="color:var(--c);font-size:.85em" aria-hidden="true"></i> Wolontariusze i zleceniobiorcy
-      <?php endif; ?>
-    </h1>
-    <p class="view-sub">
-      <?php if ($view === 'feer'): ?>
-      Zaloguj się <strong>wyłącznie</strong> kontem służbowym <strong>@feer.org.pl</strong>.
-      <?php else: ?>
-      Zaloguj się swoim <strong>prywatnym e-mailem</strong> podanym do WiadomościFEER.
-      <?php endif; ?>
-    </p>
-  </div>
-
-  <?php if ($error && $active_tab === 'local'): ?>
-  <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
-    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+  <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?>
+  <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
     <span id="login-error-text"><?= h($error) ?></span>
   </div>
   <?php endif; ?>
-  <?php if ($info && $active_tab !== 'sms'): ?>
-  <div class="login-alert login-alert-success" role="status">
-    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
-    <span><?= h($info) ?></span>
+
+  <?php if ($emergency): ?>
+  <div class="l-alert" style="background:#7c2d12;color:#fff;border-color:#92400e" role="note">
+    <i class="bi bi-shield-lock-fill flex-shrink-0" aria-hidden="true"></i>
+    <span>Logowanie awaryjne — użyj <strong>adresu e-mail</strong> i <strong>hasła awaryjnego</strong>.</span>
   </div>
   <?php endif; ?>
 
-  <?php include __DIR__ . '/_login_form_body.php'; ?>
-  <?php endif; /* /view */ ?>
+  <?php if ($_login_welcome_is_custom): ?>
+  <p style="font-size:.85rem;color:#64748b;line-height:1.6;margin:0 0 1.2rem;text-align:center"><?= nl2br(h($_login_welcome)) ?></p>
+  <?php endif; ?>
 
-</main>
+  <h1 class="login-heading">Zaloguj się</h1>
+  <p class="login-sub">
+    <?php if ($ms_available): ?>Administracja: użyj Microsoft 365. Wolontariusze: e-mail i hasło.
+    <?php else: ?>Wpisz adres e-mail i hasło.
+    <?php endif; ?>
+  </p>
 
-<!-- ══ Stopka pod kartą ════════════════════════════════════════════════════ -->
-<div class="login-foot">
-  <span class="sec"><i class="bi bi-lock-fill" aria-hidden="true"></i> Połączenie szyfrowane HTTPS</span>
-  <div class="links">
-    <a href="<?= APP_URL ?>/auth/help.php"
-       aria-label="Otwórz instrukcję: jak się zalogować i jak ustalić login i hasło">Jak się zalogować?</a>
+  <?php if ($ms_available): ?>
+  <!-- ── MS365 ───────────────────────────────────────────── -->
+  <a href="<?= h(ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php')) ?>"
+     class="btn-ms365"
+     aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
+      <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
+      <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+    </svg>
+    Zaloguj przez Microsoft 365
+  </a>
+  <p style="font-size:.76rem;color:#94a3b8;text-align:center;margin:.5rem 0 0">
+    Konto służbowe <strong>@feer.org.pl</strong> — SSO, bez wpisywania hasła
+  </p>
+  <div class="or-div"><span>lub e-mailem i hasłem</span></div>
+  <?php endif; ?>
+
+  <!-- ── Email + hasło ───────────────────────────────────── -->
+  <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
+    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+    <input type="hidden" name="_method" value="local">
+
+    <div class="fmb">
+      <label class="form-label" for="f-email">Adres e-mail</label>
+      <input type="email" name="email" id="f-email" class="form-control"
+             placeholder="nazwa@domena.pl"
+             autocomplete="email" inputmode="email" required
+             <?= (!$ms_available) ? 'autofocus' : '' ?>
+             <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
+    </div>
+
+    <div class="fmb-last">
+      <div class="pass-row">
+        <label class="form-label" for="f-pass" style="margin:0">Hasło</label>
+        <a href="<?= APP_URL ?>/auth/forgot.php" class="forgot-link" tabindex="0">
+          <i class="bi bi-question-circle" aria-hidden="true"></i> Zapomniałem hasła
+        </a>
+      </div>
+      <div class="pass-wrap">
+        <input type="password" name="password" id="f-pass" class="form-control"
+               autocomplete="current-password" required
+               <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
+        <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
+                onclick="togglePass('f-pass', this)">
+          <i class="bi bi-eye" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-login">
+      Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
+    </button>
+  </form>
+
+  <!-- ── Więcej opcji ─────────────────────────────────────── -->
+  <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>
+  <div class="more-opts">
+    <span class="more-opts-label">Inne metody logowania</span>
+    <div class="more-opts-list" role="list">
+      <?php if ($code_available): ?>
+      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-code" role="listitem">
+        <span class="more-opt-icon"><i class="bi bi-key-fill" aria-hidden="true"></i></span>
+        <span><span class="more-opt-label">Kod jednorazowy</span><span class="more-opt-sub">Pierwsze logowanie lub dostęp od administratora</span></span>
+      </button>
+      <?php endif; ?>
+      <?php if ($sms_available): ?>
+      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms" role="listitem">
+        <span class="more-opt-icon"><i class="bi bi-phone-fill" aria-hidden="true"></i></span>
+        <span><span class="more-opt-label">Kod SMS</span><span class="more-opt-sub">Logowanie przez numer telefonu</span></span>
+      </button>
+      <?php endif; ?>
+      <?php if ($x509_available): ?>
+      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509" role="listitem">
+        <span class="more-opt-icon"><i class="bi bi-patch-check-fill" aria-hidden="true"></i></span>
+        <span><span class="more-opt-label">Certyfikat X.509</span><span class="more-opt-sub">Plik .p12 — dla adminów systemu</span></span>
+      </button>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Linki nawigacyjne ─────────────────────────────────── -->
+  <div class="login-links">
+    <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-key" aria-hidden="true"></i> Odzyskaj dostęp</a>
     <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= APP_URL ?>/user/register.php"
-       aria-label="Załóż konto — samodzielna rejestracja dla wolontariuszy z umową">Załóż konto</a>
+    <a href="<?= APP_URL ?>/user/register.php"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto</a>
     <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= APP_URL ?>/auth/etoz.php"
-       aria-label="Informacje o eTożsamości — jeden login i hasło do wszystkich systemów">eTożsamość</a>
+    <a href="<?= h($_url_dyd) ?>"><i class="bi bi-easel2" aria-hidden="true"></i> Panel dydaktyka</a>
     <?php if ($sel_url): ?>
     <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?></a>
+    <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień org' : 'Wybierz org' ?></a>
     <?php endif; ?>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href="<?= APP_URL ?>/auth/report_login_issue.php"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Pomoc</a>
   </div>
-  <span class="cpy">&copy; <?= date('Y') ?> · <?= h($org_name) ?></span>
+
+</main>
+</div>
+</div>
 </div>
 
-</div><!-- /login-wrap -->
-</div><!-- /login-panel -->
-</div><!-- /login-layout -->
-
-<!-- ══ Modale metod logowania (poza shell — prawidłowy stacking context) ════ -->
+<!-- ══ Modale ════════════════════════════════════════════════════════════════ -->
 
 <?php if ($code_available): ?>
-<div class="modal fade" id="modal-code"
-     tabindex="-1"
-     aria-hidden="true"
-     aria-labelledby="modal-code-title">
+<div class="modal fade" id="modal-code" tabindex="-1" aria-labelledby="mcode-title" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content login-modal-content">
-      <div class="login-modal-header">
-        <div class="login-modal-title-wrap">
-          <i class="bi bi-key-fill" aria-hidden="true"></i>
-          <h2 class="login-modal-title" id="modal-code-title">Kod jednorazowy</h2>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                aria-label="Zamknij okno logowania kodem jednorazowym"></button>
+    <div class="modal-content lm-content">
+      <div class="lm-hd">
+        <h2 class="lm-title" id="mcode-title"><i class="bi bi-key-fill" aria-hidden="true"></i> Kod jednorazowy</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
-      <div class="login-modal-body">
+      <div class="lm-body">
         <?php if ($error && $active_tab === 'code'): ?>
-        <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
-          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
-        <p class="login-modal-desc">
-          Kod wysłany e-mailem lub podany przez administratora —
-          ważny wyłącznie do pierwszego użycia.
-        </p>
-        <form method="post" novalidate autocomplete="off" aria-labelledby="modal-code-title">
+        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Kod jednorazowy wysłany przez administratora lub wygenerowany na Twoją prośbę.</p>
+        <form method="post" novalidate autocomplete="off" aria-labelledby="mcode-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="code">
-          <div style="margin-bottom:1.25rem">
+          <div class="fmb-last">
             <label class="form-label" for="f-code">Kod dostępu</label>
-            <input type="text"
-                   name="login_code"
-                   id="f-code"
-                   class="form-control"
-                   style="font-family:monospace;letter-spacing:.12em;text-align:center;font-size:1.05rem"
-                   placeholder="XXXXXXXXXX"
-                   spellcheck="false"
-                   autocomplete="one-time-code"
-                   required
-                   aria-required="true"
-                   <?php if ($error && $active_tab === 'code'): ?>
-                   aria-invalid="true"
-                   aria-errormessage="login-error-box"
-                   <?php endif; ?>>
+            <input type="text" name="login_code" id="f-code" class="form-control"
+                   autocomplete="off" spellcheck="false" required aria-required="true"
+                   placeholder="XXXX-XXXX-XXXX">
           </div>
           <button type="submit" class="btn-login">
-            Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            <i class="bi bi-key-fill" aria-hidden="true"></i> Zaloguj kodem
           </button>
         </form>
       </div>
@@ -924,69 +619,40 @@ body.login-view-feer{
 <?php endif; ?>
 
 <?php if ($sms_available): ?>
-<div class="modal fade" id="modal-sms"
-     tabindex="-1"
-     aria-hidden="true"
-     aria-labelledby="modal-sms-title">
+<div class="modal fade" id="modal-sms" tabindex="-1" aria-labelledby="msms-title" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content login-modal-content">
-      <div class="login-modal-header">
-        <div class="login-modal-title-wrap">
-          <i class="bi bi-phone-fill" aria-hidden="true"></i>
-          <h2 class="login-modal-title" id="modal-sms-title">
-            Kod SMS
-            <?php if ($sms_step === 2): ?>
-            <span style="font-size:.8rem;font-weight:500;color:#64748b;margin-left:.35rem">— krok 2: wpisz kod</span>
-            <?php endif; ?>
-          </h2>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                aria-label="Zamknij okno logowania SMS"></button>
+    <div class="modal-content lm-content">
+      <div class="lm-hd">
+        <h2 class="lm-title" id="msms-title"><i class="bi bi-phone-fill" aria-hidden="true"></i> Kod SMS</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
-      <div class="login-modal-body">
+      <div class="lm-body">
         <?php if ($error && $active_tab === 'sms'): ?>
-        <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
-          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
         <?php if ($info && $active_tab === 'sms'): ?>
-        <div class="login-alert login-alert-success" role="status">
-          <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+        <div class="l-alert l-alert-success" role="status">
+          <i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i>
           <span><?= h($info) ?></span>
         </div>
         <?php endif; ?>
         <?php if ($sms_step === 1): ?>
-        <p class="login-modal-desc">Wpisz numer telefonu powiązany z Twoim kontem.</p>
-        <form method="post" novalidate autocomplete="off" aria-labelledby="modal-sms-title">
+        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Wpisz numer telefonu powiązany z Twoim kontem.</p>
+        <form method="post" novalidate autocomplete="off" aria-labelledby="msms-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="sms_send">
-          <div style="margin-bottom:1.25rem">
+          <div class="fmb-last">
             <label class="form-label" for="f-sms-phone">Numer telefonu</label>
             <div style="display:flex;gap:0">
-              <span style="display:inline-flex;align-items:center;padding:.65rem .8rem;background:#f8fafc;border:2px solid #94a3b8;border-right:none;border-radius:8px 0 0 8px;font-weight:700;color:#374151;font-size:1rem;white-space:nowrap"
-                    aria-hidden="true">+48</span>
-              <input type="tel"
-                     name="sms_phone"
-                     id="f-sms-phone"
-                     class="form-control"
-                     style="border-radius:0 8px 8px 0"
-                     placeholder="123 456 789"
-                     value="<?= h($sms_phone) ?>"
-                     inputmode="numeric"
-                     pattern="[0-9 ]{9,11}"
-                     autocomplete="tel-national"
-                     required
-                     aria-required="true"
-                     aria-label="Numer telefonu bez prefiksu +48"
-                     aria-describedby="f-sms-hint"
-                     <?php if ($error && $active_tab === 'sms'): ?>
-                     aria-invalid="true"
-                     aria-errormessage="login-error-box"
-                     <?php endif; ?>>
-            </div>
-            <div id="f-sms-hint" class="form-hint">
-              Numer wpisany w umowie wolontariackiej lub udostępniony administratorowi.
+              <span style="display:inline-flex;align-items:center;padding:.65rem .8rem;background:#f8fafc;border:2px solid #94a3b8;border-right:none;border-radius:10px 0 0 10px;font-weight:700;color:#374151;font-size:.97rem" aria-hidden="true">+48</span>
+              <input type="tel" name="sms_phone" id="f-sms-phone" class="form-control"
+                     style="border-radius:0 10px 10px 0" placeholder="123 456 789"
+                     value="<?= h($sms_phone) ?>" inputmode="numeric" pattern="[0-9 ]{9,11}"
+                     autocomplete="tel-national" required aria-required="true"
+                     aria-label="Numer telefonu bez prefiksu +48">
             </div>
           </div>
           <button type="submit" class="btn-login">
@@ -994,40 +660,26 @@ body.login-view-feer{
           </button>
         </form>
         <?php else: ?>
-        <p style="font-size:.88rem;color:#374151;margin-bottom:.9rem;line-height:1.5">
-          Kod wysłany na numer <strong><?= h($sms_phone) ?></strong>.<br>Ważny przez <strong>5 minut</strong>.
+        <p style="font-size:.87rem;color:#374151;margin:0 0 1rem;line-height:1.5">
+          Kod wysłany na <strong><?= h($sms_phone) ?></strong>. Ważny 5 minut.
         </p>
-        <form method="post" novalidate autocomplete="off" aria-labelledby="modal-sms-title">
+        <form method="post" novalidate autocomplete="off" aria-labelledby="msms-title">
           <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
           <input type="hidden" name="_method"   value="sms_verify">
           <input type="hidden" name="sms_phone" value="<?= h($sms_phone) ?>">
-          <div style="margin-bottom:1.25rem">
+          <div class="fmb-last">
             <label class="form-label" for="f-sms-code">6-cyfrowy kod SMS</label>
-            <input type="text"
-                   name="sms_code"
-                   id="f-sms-code"
-                   class="form-control sms-otp"
-                   inputmode="numeric"
-                   pattern="[0-9]{6}"
-                   maxlength="6"
-                   placeholder="000000"
-                   autocomplete="one-time-code"
-                   required
-                   aria-required="true"
-                   <?php if ($error && $active_tab === 'sms'): ?>
-                   aria-invalid="true"
-                   aria-errormessage="login-error-box"
-                   <?php endif; ?>>
-            <div class="form-hint" style="margin-top:.3rem">Sprawdź wiadomości SMS — wpisz 6 cyfr.</div>
+            <input type="text" name="sms_code" id="f-sms-code" class="form-control sms-otp"
+                   inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                   placeholder="000000" autocomplete="one-time-code" required aria-required="true">
           </div>
           <button type="submit" class="btn-login" style="margin-bottom:.65rem">
             Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </button>
           <button type="button"
                   style="background:none;border:none;color:#64748b;font-size:.83rem;cursor:pointer;padding:.4rem;width:100%;text-align:center;border-radius:6px"
-                  aria-label="Wróć — zmień numer telefonu"
                   onclick="document.querySelector('[name=_method]').value='sms_send';this.closest('form').submit()">
-            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Zmień numer telefonu
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Zmień numer
           </button>
         </form>
         <?php endif; ?>
@@ -1038,73 +690,39 @@ body.login-view-feer{
 <?php endif; ?>
 
 <?php if ($x509_available): ?>
-<div class="modal fade" id="modal-x509"
-     tabindex="-1"
-     aria-hidden="true"
-     aria-labelledby="modal-x509-title">
+<div class="modal fade" id="modal-x509" tabindex="-1" aria-labelledby="mx509-title" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content login-modal-content">
-      <div class="login-modal-header">
-        <div class="login-modal-title-wrap">
-          <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
-          <h2 class="login-modal-title" id="modal-x509-title">Certyfikat X.509</h2>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                aria-label="Zamknij okno logowania certyfikatem"></button>
+    <div class="modal-content lm-content">
+      <div class="lm-hd">
+        <h2 class="lm-title" id="mx509-title"><i class="bi bi-patch-check-fill" aria-hidden="true"></i> Certyfikat X.509</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
-      <div class="login-modal-body">
+      <div class="lm-body">
         <?php if ($error && $active_tab === 'x509'): ?>
-        <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
-          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
-        <p class="login-modal-desc">
-          Plik PKCS#12 (.p12 lub .pfx) wygenerowany przez administratora systemu.
-        </p>
-        <form method="post" enctype="multipart/form-data" novalidate aria-labelledby="modal-x509-title">
+        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
+        <form method="post" enctype="multipart/form-data" novalidate aria-labelledby="mx509-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="x509">
-          <div style="margin-bottom:1rem">
+          <div class="fmb">
             <label class="form-label" for="f-p12">Plik certyfikatu (.p12 lub .pfx)</label>
-            <input type="file"
-                   name="p12_file"
-                   id="f-p12"
-                   class="form-control"
-                   accept=".p12,.pfx"
-                   required
-                   aria-required="true"
-                   aria-describedby="f-p12-hint"
-                   <?php if ($error && $active_tab === 'x509'): ?>
-                   aria-invalid="true"
-                   aria-errormessage="login-error-box"
-                   <?php endif; ?>>
-            <div id="f-p12-hint" class="form-hint">Plik PKCS#12 wygenerowany przez administratora systemu.</div>
+            <input type="file" name="p12_file" id="f-p12" class="form-control"
+                   accept=".p12,.pfx" required aria-required="true">
           </div>
-          <div style="margin-bottom:1.25rem">
+          <div class="fmb-last">
             <label class="form-label" for="f-cert-pass">Hasło certyfikatu</label>
             <div class="pass-wrap">
-              <input type="password"
-                     name="cert_password"
-                     id="f-cert-pass"
-                     class="form-control"
-                     autocomplete="current-password"
-                     required
-                     aria-required="true"
-                     aria-describedby="f-cert-pass-hint"
-                     <?php if ($error && $active_tab === 'x509'): ?>
-                     aria-invalid="true"
-                     aria-errormessage="login-error-box"
-                     <?php endif; ?>>
-              <button type="button"
-                      class="pass-toggle"
-                      aria-label="Pokaż hasło certyfikatu"
-                      aria-pressed="false"
+              <input type="password" name="cert_password" id="f-cert-pass" class="form-control"
+                     autocomplete="current-password" required aria-required="true">
+              <button type="button" class="pass-toggle" aria-label="Pokaż hasło certyfikatu" aria-pressed="false"
                       onclick="togglePass('f-cert-pass', this)">
                 <i class="bi bi-eye" aria-hidden="true"></i>
               </button>
             </div>
-            <div id="f-cert-pass-hint" class="form-hint">Hasło podane przez administratora przy generowaniu pliku .p12.</div>
           </div>
           <button type="submit" class="btn-login">
             <i class="bi bi-patch-check-fill" aria-hidden="true"></i> Zaloguj certyfikatem
@@ -1119,44 +737,28 @@ body.login-view-feer{
 <script>
 (function(){
 'use strict';
-
-// ── Reveal hasła ──────────────────────────────────────────────────────────
-function togglePass(inputId, btn) {
-  var inp = document.getElementById(inputId);
-  if (!inp) return;
-  var nowHidden = inp.type !== 'password';
-  inp.type      = nowHidden ? 'password' : 'text';
-  btn.setAttribute('aria-pressed', nowHidden ? 'false' : 'true');
-  btn.setAttribute('aria-label',   nowHidden ? 'Pokaż hasło' : 'Ukryj hasło');
-  btn.querySelector('i').className = nowHidden ? 'bi bi-eye' : 'bi bi-eye-slash';
+function togglePass(id, btn){
+  var inp=document.getElementById(id); if(!inp) return;
+  var h=inp.type!=='password'; inp.type=h?'password':'text';
+  btn.setAttribute('aria-pressed',h?'false':'true');
+  btn.setAttribute('aria-label',h?'Pokaż hasło':'Ukryj hasło');
+  btn.querySelector('i').className=h?'bi bi-eye':'bi bi-eye-slash';
 }
-window.togglePass = togglePass;
+window.togglePass=togglePass;
 
+var errText=document.getElementById('login-error-text');
+var liveErr=document.getElementById('login-alert');
+if(errText && liveErr) liveErr.textContent=errText.textContent.trim();
+
+document.querySelectorAll('.modal').forEach(function(m){
+  m.addEventListener('shown.bs.modal',function(){
+    var f=m.querySelector('input:not([type=hidden])'); if(f) f.focus();
+  });
+});
+var autoOpen=<?= json_encode(in_array($active_tab,['code','sms','x509'],true)?$active_tab:null) ?>;
+if(autoOpen){var el=document.getElementById('modal-'+autoOpen);if(el) bootstrap.Modal.getOrCreateInstance(el).show();}
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-(function(){
-// ── Ogłoszenie błędu przez ARIA live region ───────────────────────────────
-var errText = document.getElementById('login-error-text');
-var liveErr = document.getElementById('login-alert');
-if (errText && liveErr) liveErr.textContent = errText.textContent.trim();
-
-// ── Fokus na pierwszy input przy otwieraniu modala ────────────────────────
-document.querySelectorAll('.modal').forEach(function(m) {
-  m.addEventListener('shown.bs.modal', function() {
-    var first = m.querySelector('input:not([type=hidden]),textarea');
-    if (first) first.focus();
-  });
-});
-
-// ── Auto-otwarcie modala gdy POST zwrócił błąd metody alternatywnej ───────
-var autoOpen = <?= json_encode(in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null) ?>;
-if (autoOpen) {
-  var el = document.getElementById('modal-' + autoOpen);
-  if (el) bootstrap.Modal.getOrCreateInstance(el).show();
-}
-})();
-</script>
 </body>
 </html>

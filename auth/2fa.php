@@ -141,11 +141,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Success handler ───────────────────────────────────────────────────────
 function _2fa_success(array $user, string $redirect): void
 {
-    // Clean 2FA session variables before promoting to full session
     unset($_SESSION['2fa_uid'], $_SESSION['2fa_method'],
           $_SESSION['2fa_phone'], $_SESSION['2fa_attempts'],
           $_SESSION['2fa_sms_sent']);
     login_user($user);
+    $tz = APP_URL . '/tozsamosc/index.php';
+    if (!$redirect || $redirect === $tz) {
+        $redirect = in_array($user['role'] ?? '', ['admin', 'editor'], true)
+            ? $tz : APP_URL . '/portal.php';
+    }
     header('Location: ' . $redirect);
     exit;
 }

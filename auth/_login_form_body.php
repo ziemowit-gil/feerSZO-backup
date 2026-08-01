@@ -11,14 +11,14 @@
 $local_error_id = ($error && $active_tab === 'local') ? 'login-error-box' : '';
 $is_feer = ($view === 'feer');
 
-// Alternatywne metody (modale) — dobrane do grupy
+// Alternatywne metody (modale) — dobrane do grupy.
+// X.509 usunięty z głównego flow (bardzo niszowe — dostępny przez ?awaryjne=1).
 $alt_tabs = [];
 if ($is_feer) {
-    if ($x509_available) $alt_tabs['x509'] = ['icon'=>'bi-patch-check-fill', 'label'=>'Certyfikat X.509',  'desc'=>'Plik .p12 dla administratora systemu'];
-    if ($code_available) $alt_tabs['code'] = ['icon'=>'bi-key-fill',         'label'=>'Kod jednorazowy',   'desc'=>'Jednorazowy dostęp od administratora'];
+    if ($code_available) $alt_tabs['code'] = ['icon'=>'bi-key-fill', 'label'=>'Kod jednorazowy', 'desc'=>'Jednorazowy dostęp od administratora'];
 } else {
     if ($code_available) $alt_tabs['code'] = ['icon'=>'bi-key-fill',  'label'=>'Kod jednorazowy', 'desc'=>'Pierwsze logowanie lub jednorazowy dostęp'];
-    if ($sms_available)  $alt_tabs['sms']  = ['icon'=>'bi-phone-fill','label'=>'Kod SMS',        'desc'=>'Logowanie przez numer telefonu'];
+    if ($sms_available)  $alt_tabs['sms']  = ['icon'=>'bi-phone-fill','label'=>'Kod SMS',         'desc'=>'Logowanie przez numer telefonu'];
 }
 ?>
 
@@ -140,48 +140,37 @@ if ($is_feer) {
 </a>
 <?php endif; ?>
 
-<!-- ── Samoobsługa: odzyskiwanie dostępu + zarządzanie tożsamością ───────── -->
+<!-- ── Odzyskiwanie dostępu ───────────────────────────────────────── -->
 <a href="<?= APP_URL ?>/user/verify_reset.php" class="cross-link" style="margin-top:1rem"
-   aria-label="Odzyskiwanie dostępu — zresetuj hasło do panelu i Microsoft 365 kodem SMS">
+   aria-label="Odzyskiwanie dostępu — zresetuj hasło kodem SMS">
   <i class="bi bi-key-fill" aria-hidden="true"></i>
   <span class="cross-link-body">
     <span class="cross-link-title">Odzyskiwanie dostępu</span>
-    <span class="cross-link-sub">Reset hasła (panel + Microsoft 365) kodem SMS</span>
-  </span>
-  <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
-</a>
-<a href="<?= APP_URL ?>/tozsamosc/index.php" class="cross-link" style="margin-top:.5rem"
-   aria-label="Zarządzanie tożsamością — Twoje konto w Entra ID, hasło, telefon i MFA (wymaga zalogowania)">
-  <i class="bi bi-person-vcard-fill" aria-hidden="true"></i>
-  <span class="cross-link-body">
-    <span class="cross-link-title">Zarządzanie tożsamością</span>
-    <span class="cross-link-sub">Twoje konto w Entra ID: dane, hasło, telefon, MFA</span>
+    <span class="cross-link-sub">Reset hasła kodem SMS</span>
   </span>
   <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
 </a>
 
-<!-- ── Problem z logowaniem → zgłoszenie do helpdesku (prefiks LOG) ──────── -->
-<p style="text-align:center;margin:1rem 0 0">
+<!-- ── Helpdesk + awaryjne (feer) / rejestracja (priv) ────────────── -->
+<p style="text-align:center;margin:.9rem 0 0">
   <a href="<?= APP_URL ?>/auth/report_login_issue.php"
-     class="forgot-link" style="font-size:.82rem"
-     aria-label="Zgłoś problem z logowaniem — otwiera formularz weryfikacji tożsamości">
+     class="forgot-link" style="font-size:.82rem">
     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-    Masz problem z logowaniem? Zgłoś to
+    Problem z logowaniem? Zgłoś to
   </a>
 </p>
-<p style="text-align:center;margin:.35rem 0 0">
+<?php if ($is_feer): ?>
+<p style="text-align:center;margin:.3rem 0 0">
   <a href="<?= APP_URL ?>/auth/convert_account.php"
-     class="forgot-link" style="font-size:.82rem"
-     aria-label="Utwórz hasło awaryjne na podstawie konta Microsoft 365 — wymaga zalogowania przez Office">
+     class="forgot-link" style="font-size:.82rem">
     <i class="bi bi-key" aria-hidden="true"></i>
-    Logowanie przez Office nie działa? Utwórz hasło awaryjne
+    Office nie działa? Utwórz hasło awaryjne
   </a>
 </p>
-<?php if (!$is_feer): ?>
-<p style="text-align:center;margin:.35rem 0 0">
+<?php else: ?>
+<p style="text-align:center;margin:.3rem 0 0">
   <a href="<?= APP_URL ?>/user/register.php"
-     class="forgot-link" style="font-size:.82rem"
-     aria-label="Masz podpisaną umowę wolontariacką, ale nie masz jeszcze konta? Załóż je przez samodzielną rejestrację">
+     class="forgot-link" style="font-size:.82rem">
     <i class="bi bi-person-plus" aria-hidden="true"></i>
     Masz umowę, ale nie masz jeszcze konta? Załóż je
   </a>
