@@ -57,7 +57,7 @@ function _reg_rate_record(): void {
 }
 
 // ── Stałe błędów ──────────────────────────────────────────────────────────────
-const REG_ERR_NOTFOUND   = 'Nie znaleziono umowy dla podanych danych. Sprawdź e-mail, numer umowy i PESEL/dokument.';
+const REG_ERR_NOTFOUND   = 'Nie znaleziono umowy dla podanych danych. Sprawdź e-mail i PESEL/dokument.';
 const REG_ERR_HASACCOUNT = 'Dla tej umowy istnieje już aktywne konto. Zaloguj się lub skorzystaj z odzyskiwania hasła.';
 const REG_ERR_NOPHONE    = 'Brak numeru telefonu w umowie — rejestracja wymaga weryfikacji SMS. Skontaktuj się z biurem.';
 const REG_ERR_RATE       = 'Zbyt wiele prób weryfikacji. Spróbuj ponownie za godzinę.';
@@ -67,15 +67,14 @@ const REG_ERR_SMS        = 'Podany kod jest nieprawidłowy lub wygasł. Spróbuj
  * Szuka umowy wolontariackiej pasującej do danych.
  * Zwraca ['contract' => row, 'phone' => string] lub null/string (kod błędu).
  */
-function _reg_find_contract(string $email, string $numer, string $pesel_or_doc): array|null|string {
+function _reg_find_contract(string $email, string $pesel_or_doc): array|null|string {
     $stmt = db()->prepare(
         "SELECT * FROM umowy_wolontariat
          WHERE LOWER(email) = LOWER(?)
-           AND numer_umowy = ?
            AND (SUBSTR(pesel, -5) = ? OR id_document_number = ?)
-         LIMIT 1"
+         ORDER BY id DESC LIMIT 1"
     );
-    $stmt->execute([$email, $numer, $pesel_or_doc, $pesel_or_doc]);
+    $stmt->execute([$email, $pesel_or_doc, $pesel_or_doc]);
     $contract = $stmt->fetch(\PDO::FETCH_ASSOC);
 
     if (!$contract) return null;
@@ -146,10 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             _reg_rate_record();
             $email = trim($_POST['email']        ?? '');
-            $numer = trim($_POST['numer_umowy']  ?? '');
             $pesel = trim($_POST['pesel_or_doc'] ?? '');
 
-            $result = _reg_find_contract($email, $numer, $pesel);
+            $result = _reg_find_contract($email, $pesel);
 
             if ($result === null) {
                 $error = REG_ERR_NOTFOUND;
@@ -379,17 +377,6 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
                    placeholder="E-mail podany w umowie"
                    value="<?= h($_POST['email'] ?? '') ?>"
                    required autofocus autocomplete="email">
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label for="numer_umowy" class="form-label fw-semibold small">Numer umowy</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
-            <input type="text" class="form-control" id="numer_umowy" name="numer_umowy"
-                   placeholder="np. RU/0001/2025/AB"
-                   value="<?= h($_POST['numer_umowy'] ?? '') ?>"
-                   required>
           </div>
         </div>
 
