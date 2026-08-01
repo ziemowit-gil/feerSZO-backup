@@ -147,11 +147,12 @@ $PAGE_TITLE = 'Weryfikacja';
 $TZ_ACTIVE  = '';
 include __DIR__ . '/_head.php';
 
-// Ikonki i opisy metod
+// Ikonki i opisy metod — WebAuthn spełnia też level 2 (jest silniejszy)
 $methods_level2 = [];
-if ($has_totp)   $methods_level2[] = ['key'=>'totp',   'icon'=>'bi-phone',       'color'=>'#2563eb', 'label'=>'Aplikacja Authenticator', 'sub'=>'Kod jednorazowy z aplikacji Microsoft / Google Authenticator'];
-if ($has_sms)    $methods_level2[] = ['key'=>'sms',    'icon'=>'bi-chat-dots',   'color'=>'#16a34a', 'label'=>'Kod SMS',                  'sub'=>'Wyślemy kod na ' . tz_mask_phone($db_user['twofa_phone'] ?? '')];
-if ($has_backup) $methods_level2[] = ['key'=>'backup', 'icon'=>'bi-key',         'color'=>'#92400e', 'label'=>'Kod zapasowy',             'sub'=>'Jednorazowy kod z listy kodów awaryjnych'];
+if ($has_totp)   $methods_level2[] = ['key'=>'totp',     'icon'=>'bi-phone',       'color'=>'#2563eb', 'label'=>'Aplikacja Authenticator', 'sub'=>'Kod jednorazowy z aplikacji Microsoft / Google Authenticator'];
+if ($has_sms)    $methods_level2[] = ['key'=>'sms',      'icon'=>'bi-chat-dots',   'color'=>'#16a34a', 'label'=>'Kod SMS',                  'sub'=>'Wyślemy kod na ' . tz_mask_phone($db_user['twofa_phone'] ?? '')];
+if ($has_backup) $methods_level2[] = ['key'=>'backup',   'icon'=>'bi-key',         'color'=>'#92400e', 'label'=>'Kod zapasowy',             'sub'=>'Jednorazowy kod z listy kodów awaryjnych'];
+if ($has_wk)     $methods_level2[] = ['key'=>'webauthn', 'icon'=>'bi-fingerprint', 'color'=>'#047857', 'label'=>'Klucz sprzętowy / Passkey','sub'=>'YubiKey, biometria (Face ID, Touch ID, Windows Hello)'];
 ?>
 
 <style>
@@ -387,6 +388,29 @@ if ($has_backup) $methods_level2[] = ['key'=>'backup', 'icon'=>'bi-key',        
     </div>
     <?php endif; ?>
 
+    <?php /* Klucz sprzętowy (WebAuthn — spełnia też level 2) */ ?>
+    <?php if ($has_wk): ?>
+    <div class="su-form <?= $active_method === 'webauthn' ? 'active' : '' ?>" id="su-form-webauthn">
+      <button type="button" class="su-back" onclick="suBack()" aria-label="Powrót do wyboru metody">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Inne metody
+      </button>
+      <div class="tz-card">
+        <div class="tz-card__hd">
+          <i class="bi bi-fingerprint" style="color:#047857" aria-hidden="true"></i>
+          <span>Klucz sprzętowy / Passkey</span>
+          <span class="tz-badge tz-badge--ok ms-auto"><?= count($wk_keys) ?> klucz<?= count($wk_keys) > 1 ? 'e' : '' ?></span>
+        </div>
+        <div class="tz-card__bd">
+          <p class="text-muted small mb-3">Dotknij klucz YubiKey / FIDO2 lub użyj biometryki urządzenia (Face ID, Touch ID, Windows Hello).</p>
+          <button id="wk_btn" class="tz-btn mt-2" type="button" onclick="tzStepUpWebAuthn()">
+            <i class="bi bi-fingerprint" aria-hidden="true"></i> Potwierdź kluczem sprzętowym
+          </button>
+          <div id="wk_status" role="status" aria-live="polite" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
   <?php endif; // $methods_level2 ?>
 <?php endif; // required_level ?>
 
@@ -430,7 +454,7 @@ if ($has_backup) $methods_level2[] = ['key'=>'backup', 'icon'=>'bi-key',        
   var active = document.querySelector('.su-form.active');
   if (active && picker) picker.style.display = 'none';
 
-<?php if ($required_level >= 3 && $has_wk): ?>
+<?php if ($has_wk): ?>
   function b64u(s){var x=s.replace(/-/g,'+').replace(/_/g,'/');while(x.length%4)x+='=';var b=atob(x),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer;}
   function ab64u(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.byteLength;i++)s+=String.fromCharCode(b[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
   function wkSt(msg,type){var d=document.getElementById('wk_status');if(d)d.innerHTML='<div class="alert alert-'+type+' py-2 small">'+msg+'</div>';}
