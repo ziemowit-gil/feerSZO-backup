@@ -111,6 +111,48 @@ function notif_mark_read(int $user_id, ?int $id = null): void {
     } catch (\Throwable $e) {}
 }
 
+/** Liczba nieprzeczytanych danego typu (np. 'task'). */
+function notif_unread_count_type(int $user_id, string $type): int {
+    try {
+        $row = db_one(
+            "SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND type=? AND is_read=0",
+            [$user_id, $type]
+        );
+        return (int)($row['c'] ?? 0);
+    } catch (\Throwable $e) { return 0; }
+}
+
+/** Ostatnie powiadomienia danego typu. */
+function notif_latest_type(int $user_id, string $type, int $limit = 6): array {
+    try {
+        return db_all(
+            "SELECT * FROM notifications WHERE user_id=? AND type=? ORDER BY created_at DESC LIMIT ?",
+            [$user_id, $type, $limit]
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Liczba nieprzeczytanych z wyłączeniem podanego typu. */
+function notif_unread_count_excl(int $user_id, string $excl_type): int {
+    try {
+        $row = db_one(
+            "SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND type!=? AND is_read=0",
+            [$user_id, $excl_type]
+        );
+        return (int)($row['c'] ?? 0);
+    } catch (\Throwable $e) { return 0; }
+}
+
+/** Ostatnie powiadomienia z wyłączeniem podanego typu. */
+function notif_latest_excl(int $user_id, string $excl_type, int $limit = 6): array {
+    try {
+        return db_all(
+            "SELECT * FROM notifications WHERE user_id=? AND type!=? ORDER BY created_at DESC LIMIT ?",
+            [$user_id, $excl_type, $limit]
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
 // ── Ogłoszenia ────────────────────────────────────────────────────────────────
 
 /** Dostępne kategorie ogłoszeń (klucz => etykieta). */

@@ -779,9 +779,85 @@ if ($_user) {
     <?php endif; ?>
 
     <?php if ($_user):
-    $_notif_count  = notif_unread_count((int)$_user['id']);
-    $_notif_latest = notif_latest((int)$_user['id'], 6);
+    $_notif_count  = notif_unread_count_excl((int)$_user['id'], 'task');
+    $_notif_latest = notif_latest_excl((int)$_user['id'], 'task', 6);
+    $_task_notif_count  = module_enabled('tasks_enabled') ? notif_unread_count_type((int)$_user['id'], 'task')  : 0;
+    $_task_notif_latest = module_enabled('tasks_enabled') ? notif_latest_type((int)$_user['id'], 'task', 5)    : [];
     ?>
+
+    <?php if (module_enabled('tasks_enabled') && ($_task_notif_count > 0 || true)): ?>
+    <!-- ── Dzwonek Zadania ──────────────────────────────────────────────── -->
+    <div class="dropdown me-1" id="tsk-bell-main">
+      <button type="button" class="nb-icon-btn position-relative"
+              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+              aria-label="Zadania — <?= $_task_notif_count ?> nieprzeczytanych"
+              id="tsk-bell-main-btn"
+              title="Powiadomienia zadań"
+              style="border-color:rgba(234,88,12,.35)">
+        <i class="bi bi-kanban-fill" style="color:#ea580c"></i>
+        <?php if ($_task_notif_count > 0): ?>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
+              id="tsk-bell-main-badge"
+              style="background:#ea580c;font-size:.55rem" aria-hidden="true">
+          <?= $_task_notif_count > 99 ? '99+' : $_task_notif_count ?>
+        </span>
+        <?php else: ?>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill d-none"
+              id="tsk-bell-main-badge"
+              style="background:#ea580c;font-size:.55rem" aria-hidden="true"></span>
+        <?php endif; ?>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end shadow"
+           style="width:300px;max-height:360px;overflow-y:auto" role="menu"
+           aria-label="Powiadomienia modułu Zadania">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+          <span class="fw-semibold d-flex align-items-center gap-2" style="font-size:.85rem">
+            <i class="bi bi-kanban-fill" style="color:#ea580c"></i>Powiadomienia — Zadania
+          </span>
+          <?php if ($_task_notif_count > 0): ?>
+          <button type="button" class="btn btn-link btn-sm p-0 text-muted" style="font-size:.75rem"
+                  id="tsk-bell-main-mark-all">Oznacz przeczytane</button>
+          <?php endif; ?>
+        </div>
+        <?php if (empty($_task_notif_latest)): ?>
+        <div class="text-center py-4 text-muted" style="font-size:.82rem">
+          <i class="bi bi-check2-all d-block mb-1" style="font-size:1.5rem;opacity:.3"></i>
+          Brak powiadomień
+        </div>
+        <?php else: foreach ($_task_notif_latest as $_tn): ?>
+        <a href="<?= h($_tn['url'] ?: APP_URL . '/tasks/dashboard.php') ?>"
+           class="dropdown-item py-2 px-3 <?= $_tn['is_read'] ? '' : 'fw-semibold' ?>"
+           style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           data-notif-id="<?= (int)$_tn['id'] ?>">
+          <div class="d-flex gap-2 align-items-start">
+            <i class="bi bi-kanban-fill mt-1 flex-shrink-0" style="color:#8B5CF6;font-size:.9rem"></i>
+            <div class="flex-grow-1">
+              <div><?= h($_tn['title']) ?></div>
+              <?php if ($_tn['body']): ?>
+              <div class="text-muted fw-normal" style="font-size:.74rem"><?= h(mb_substr($_tn['body'], 0, 80)) ?></div>
+              <?php endif; ?>
+              <div class="text-muted fw-normal" style="font-size:.72rem"><?= h(substr($_tn['created_at'], 0, 16)) ?></div>
+            </div>
+            <?php if (!$_tn['is_read']): ?>
+            <span class="rounded-circle flex-shrink-0" style="width:7px;height:7px;margin-top:5px;background:#ea580c"></span>
+            <?php endif; ?>
+          </div>
+        </a>
+        <?php endforeach; endif; ?>
+        <div class="px-3 py-2 border-top d-flex gap-2">
+          <a href="<?= APP_URL ?>/tasks/dashboard.php"
+             class="btn btn-sm flex-fill" style="background:#fff7ed;color:#c2410c;font-size:.8rem;border:1px solid #fed7aa">
+            <i class="bi bi-kanban me-1"></i>Zadania
+          </a>
+          <a href="<?= APP_URL ?>/tasks/notification_settings.php"
+             class="btn btn-sm flex-fill" style="background:#f1f5f9;color:#374151;font-size:.8rem">
+            <i class="bi bi-gear me-1"></i>Ustawienia
+          </a>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="dropdown me-2" id="notif-bell">
       <button type="button" class="nb-icon-btn position-relative"
               data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
@@ -1427,7 +1503,7 @@ if ($_user) {
     }
   });
 
-  // Oznacz wszystkie w topbarze
+  // Oznacz wszystkie w topbarze (ogólne)
   var markAll = document.getElementById('notif-mark-all');
   if (markAll) {
     markAll.addEventListener('click', function() {
@@ -1437,7 +1513,7 @@ if ($_user) {
         body: JSON.stringify({all: true})
       }).then(function(r) { return r.json(); }).then(function(d) {
         if (d.ok) {
-          document.querySelectorAll('[data-notif-id]').forEach(function(el) {
+          document.querySelectorAll('#notif-bell [data-notif-id]').forEach(function(el) {
             el.classList.remove('fw-semibold');
             var dot = el.querySelector('.bg-primary.rounded-circle');
             if (dot) dot.remove();
@@ -1446,6 +1522,28 @@ if ($_user) {
           if (badge) badge.remove();
           markAll.remove();
         }
+      });
+    });
+  }
+
+  // Oznacz wszystkie — dzwonek Zadania
+  var tskMarkAll = document.getElementById('tsk-bell-main-mark-all');
+  if (tskMarkAll) {
+    tskMarkAll.addEventListener('click', function () {
+      fetch(APP_URL + '/tasks/api/notif_poll.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'mark_all'})
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) return;
+        document.querySelectorAll('#tsk-bell-main [data-notif-id]').forEach(function (el) {
+          el.classList.remove('fw-semibold');
+          var dot = el.querySelector('[style*="ea580c"]');
+          if (dot) dot.remove();
+        });
+        var badge = document.getElementById('tsk-bell-main-badge');
+        if (badge) badge.classList.add('d-none');
+        tskMarkAll.remove();
       });
     });
   }
