@@ -839,89 +839,92 @@ $step_labels = [
   <!-- Nie masz konta? Sprawdź, czy masz umowę -->
   <div class="card shadow-sm mt-3">
     <div class="card-body p-4">
-      <button type="button" class="btn btn-link p-0 text-decoration-none fw-semibold small"
-              data-bs-toggle="collapse" data-bs-target="#detect-box"
-              aria-expanded="<?= ($propose || $detect_done) ? 'true' : 'false' ?>" aria-controls="detect-box">
-        <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Nie masz jeszcze konta? Sprawdź, czy masz umowę
-      </button>
-      <div class="collapse <?= ($propose || $detect_done) ? 'show' : '' ?>" id="detect-box">
-        <p class="text-muted small mt-3 mb-2">
-          Podaj adres e-mail lub nazwisko — sprawdzimy, czy istnieje umowa, dla której nie założono jeszcze konta panelowego,
-          i zaproponujemy jego utworzenie.
-        </p>
-        <form method="post" novalidate>
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_action" value="detect_account">
-          <div class="row g-2">
-            <div class="col-sm-7">
-              <label for="detect_email" class="form-label small fw-semibold">Adres e-mail</label>
-              <input type="email" class="form-control form-control-sm" id="detect_email" name="detect_email"
-                     placeholder="e-mail z umowy" value="<?= h($_POST['detect_email'] ?? '') ?>">
-            </div>
-            <div class="col-sm-5">
-              <label for="detect_surname" class="form-label small fw-semibold">lub nazwisko</label>
-              <input type="text" class="form-control form-control-sm" id="detect_surname" name="detect_surname"
-                     placeholder="nazwisko" value="<?= h($_POST['detect_surname'] ?? '') ?>">
-            </div>
-          </div>
-          <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
-            <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
-          </button>
-        </form>
+      <h6 class="fw-semibold mb-1">
+        <i class="bi bi-question-circle me-1" aria-hidden="true" style="color:#1E6DFF"></i>Nie masz jeszcze konta? Sprawdź, czy masz umowę
+      </h6>
+      <p class="text-muted small mb-3">
+        Podaj adres e-mail lub nazwisko — sprawdzimy, czy istnieje umowa, dla której nie założono jeszcze konta panelowego,
+        i zaproponujemy jego utworzenie.
+      </p>
+      <?php if ($propose): ?>
+      <div class="alert alert-primary d-flex align-items-start gap-2 mb-3" role="status">
+        <i class="bi bi-person-plus-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+        <div class="small">Znaleziono umowę dla <strong><?= h($propose['name'] ?: $propose['email']) ?></strong>
+          (<?= h($propose['type_label']) ?>) bez aktywnego konta. Wypełnij formularz weryfikacji powyżej, aby je założyć.</div>
       </div>
+      <?php elseif ($detect_done): ?>
+      <div class="alert alert-secondary d-flex align-items-start gap-2 mb-3" role="status">
+        <i class="bi bi-info-circle fs-5 flex-shrink-0" aria-hidden="true"></i>
+        <div class="small">Nie znaleziono umowy bez aktywnego konta. Jeśli masz konto — zresetuj hasło powyżej. W razie wątpliwości skontaktuj się z administratorem.</div>
+      </div>
+      <?php endif; ?>
+      <form method="post" novalidate>
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="detect_account">
+        <div class="row g-2">
+          <div class="col-sm-7">
+            <label for="detect_email" class="form-label small fw-semibold">Adres e-mail</label>
+            <input type="email" class="form-control form-control-sm" id="detect_email" name="detect_email"
+                   placeholder="e-mail z umowy" value="<?= h($_POST['detect_email'] ?? ($propose['email'] ?? '')) ?>">
+          </div>
+          <div class="col-sm-5">
+            <label for="detect_surname" class="form-label small fw-semibold">lub nazwisko</label>
+            <input type="text" class="form-control form-control-sm" id="detect_surname" name="detect_surname"
+                   placeholder="nazwisko" value="<?= h($_POST['detect_surname'] ?? '') ?>">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
+          <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
+        </button>
+      </form>
     </div>
   </div>
 
-  <!-- Sprawdź, czy numer umowy istnieje w systemie -->
+  <!-- Sprawdź numer umowy w rejestrze -->
   <div class="card shadow-sm mt-3">
     <div class="card-body p-4">
-      <button type="button" class="btn btn-link p-0 text-decoration-none fw-semibold small"
-              data-bs-toggle="collapse" data-bs-target="#check-contract-box"
-              aria-expanded="<?= $cc_done ? 'true' : 'false' ?>" aria-controls="check-contract-box">
-        <i class="bi bi-file-earmark-search me-1" aria-hidden="true"></i>Sprawdź, czy Twoja umowa jest w systemie
-      </button>
-      <div class="collapse <?= $cc_done ? 'show' : '' ?>" id="check-contract-box">
-        <?php if ($cc_done): ?>
-          <?php if ($cc_result !== null): ?>
-          <div class="alert alert-success d-flex align-items-start gap-2 mt-3 mb-0" role="status">
-            <i class="bi bi-check-circle-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
-            <div class="small">Umowa <strong><?= h($cc_numer) ?></strong> dla adresu <strong><?= h($cc_email) ?></strong>
-              jest zarejestrowana w systemie (typ: <?= h($cc_result) ?>).
-              Aby uzyskać dostęp do konta, skorzystaj z <strong>formularza weryfikacji powyżej</strong>.</div>
-          </div>
-          <?php else: ?>
-          <div class="alert alert-secondary d-flex align-items-start gap-2 mt-3 mb-0" role="status">
-            <i class="bi bi-info-circle fs-5 flex-shrink-0" aria-hidden="true"></i>
-            <div class="small">Nie znaleziono umowy o numerze <strong><?= h($cc_numer) ?></strong>
-              powiązanej z adresem <strong><?= h($cc_email) ?></strong>.
-              Sprawdź dane lub skontaktuj się z administratorem.</div>
-          </div>
-          <?php endif; ?>
+      <h6 class="fw-semibold mb-1">
+        <i class="bi bi-file-earmark-search me-1" aria-hidden="true" style="color:#1E6DFF"></i>Sprawdź numer umowy w systemie
+      </h6>
+      <p class="text-muted small mb-3">
+        Wpisz e-mail i numer umowy, aby potwierdzić, że umowa jest zarejestrowana. Nie wymaga PESEL-u.
+      </p>
+      <?php if ($cc_done): ?>
+        <?php if ($cc_result !== null): ?>
+        <div class="alert alert-success d-flex align-items-start gap-2 mb-3" role="status">
+          <i class="bi bi-check-circle-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div class="small">Umowa <strong><?= h($cc_numer) ?></strong> dla adresu <strong><?= h($cc_email) ?></strong>
+            jest zarejestrowana w systemie (typ: <?= h($cc_result) ?>).
+            Aby uzyskać dostęp do konta, skorzystaj z <strong>formularza weryfikacji powyżej</strong>.</div>
+        </div>
+        <?php else: ?>
+        <div class="alert alert-secondary d-flex align-items-start gap-2 mb-3" role="status">
+          <i class="bi bi-info-circle fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div class="small">Nie znaleziono umowy o numerze <strong><?= h($cc_numer) ?></strong>
+            powiązanej z adresem <strong><?= h($cc_email) ?></strong>.
+            Sprawdź dane lub skontaktuj się z administratorem.</div>
+        </div>
         <?php endif; ?>
-        <p class="text-muted small mt-3 mb-2">
-          Wpisz adres e-mail i numer umowy, aby potwierdzić, że umowa jest zarejestrowana w systemie.
-          Nie wymaga podawania PESEL-u — sprawdza wyłącznie fakt istnienia.
-        </p>
-        <form method="post" novalidate>
-          <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_action" value="check_contract">
-          <div class="row g-2">
-            <div class="col-sm-7">
-              <label for="cc_email" class="form-label small fw-semibold">Adres e-mail z umowy</label>
-              <input type="email" class="form-control form-control-sm" id="cc_email" name="cc_email"
-                     placeholder="e-mail" value="<?= h($cc_email) ?>">
-            </div>
-            <div class="col-sm-5">
-              <label for="cc_numer" class="form-label small fw-semibold">Numer umowy</label>
-              <input type="text" class="form-control form-control-sm" id="cc_numer" name="cc_numer"
-                     placeholder="np. RU/0001/2024/AB" value="<?= h($cc_numer) ?>">
-            </div>
+      <?php endif; ?>
+      <form method="post" novalidate>
+        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="check_contract">
+        <div class="row g-2">
+          <div class="col-sm-7">
+            <label for="cc_email" class="form-label small fw-semibold">Adres e-mail z umowy</label>
+            <input type="email" class="form-control form-control-sm" id="cc_email" name="cc_email"
+                   placeholder="e-mail" value="<?= h($cc_email) ?>" required>
           </div>
-          <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
-            <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
-          </button>
-        </form>
-      </div>
+          <div class="col-sm-5">
+            <label for="cc_numer" class="form-label small fw-semibold">Numer umowy</label>
+            <input type="text" class="form-control form-control-sm" id="cc_numer" name="cc_numer"
+                   placeholder="np. RU/0001/2024/AB" value="<?= h($cc_numer) ?>" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
+          <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
+        </button>
+      </form>
     </div>
   </div>
 
