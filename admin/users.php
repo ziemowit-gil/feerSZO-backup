@@ -606,7 +606,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
           <i class="bi bi-search"></i> Filtruj
         </button>
         <?php if ($filter_search || $filter_role || $filter_active !== ''): ?>
-        <a href="users.php" class="btn btn-sm btn-outline-secondary ms-1">
+        <a href="<?= APP_URL ?>/tozsamosc/uzytkownicy.php" class="btn btn-sm btn-outline-secondary ms-1">
           <i class="bi bi-x-lg"></i> Wyczyść
         </a>
         <?php endif; ?>
@@ -620,7 +620,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-list-ul"></i> Lista użytkowników
     <span class="badge bg-secondary ms-1"><?= count($users) ?></span>
-    <a href="roles.php" class="btn btn-sm btn-outline-secondary ms-auto">
+    <a href="<?= APP_URL ?>/admin/roles.php" class="btn btn-sm btn-outline-secondary ms-auto">
       <i class="bi bi-shield-lock"></i> Zarządzaj rolami
     </a>
   </div>
@@ -631,6 +631,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
           <th>Imię i nazwisko</th>
           <th>E-mail</th>
           <th>Rola</th>
+          <th>MFA</th>
           <th>Aktywny</th>
           <th>Dodano</th>
           <th></th>
@@ -665,6 +666,26 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                 <?php endforeach; ?>
               </select>
             </form>
+          </td>
+          <td>
+            <?php
+              $u_wk   = isset($webauthn_uids[(int)$u['id']]);
+              $u_sms  = ($u['twofa_method'] ?? '') === 'sms';
+              $u_totp = !empty($u['totp_confirmed']) && !empty($u['totp_secret']);
+              $u_mfa  = $u_wk || $u_sms || $u_totp;
+              if ($u_mfa):
+                $u_methods = array_filter([
+                    $u_wk   ? '<i class="bi bi-fingerprint" title="Klucz sprzętowy"></i>' : '',
+                    $u_sms  ? '<i class="bi bi-chat-dots"   title="SMS"></i>' : '',
+                    $u_totp ? '<i class="bi bi-phone"        title="Authenticator"></i>' : '',
+                ]);
+            ?>
+            <span class="badge" style="background:#dcfce7;color:#166534;gap:.25rem;display:inline-flex;align-items:center">
+              <?= implode(' ', $u_methods) ?>
+            </span>
+            <?php else: ?>
+            <span class="badge bg-light text-muted border" title="Brak MFA">—</span>
+            <?php endif; ?>
           </td>
           <td>
             <?php if ($u['is_active']): ?>

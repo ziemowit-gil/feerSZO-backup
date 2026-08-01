@@ -112,9 +112,21 @@ $phone_saved    = $db_user['phone_number'] ?? '';
 $phone_verified = !empty($db_user['phone_verified_at']);
 $phone_pending  = $_SESSION['sec_phone_pending'] ?? '';
 $mfa_method     = $db_user['twofa_method'] ?? '';
-$mfa_active     = $mfa_method !== '';
-$mfa_label      = $mfa_method === 'totp' ? 'Aplikacja Authenticator'
-                : ($mfa_method === 'sms' ? 'Kod SMS' : 'Nieaktywne');
+
+// Klucze sprzętowe WebAuthn
+require_once dirname(__DIR__) . '/includes/webauthn.php';
+$wk_keys_idx = webauthn_get_credentials((int)$db_user['id']);
+$has_wk      = !empty($wk_keys_idx);
+
+$mfa_active = $mfa_method !== '' || $has_wk;
+$mfa_label  = match(true) {
+    $has_wk && $mfa_method === 'totp' => 'Klucz + Authenticator',
+    $has_wk && $mfa_method === 'sms'  => 'Klucz + SMS',
+    $has_wk                            => 'Klucz sprzętowy',
+    $mfa_method === 'totp'             => 'Aplikacja Authenticator',
+    $mfa_method === 'sms'              => 'Kod SMS',
+    default                            => 'Nieaktywne',
+};
 
 // ── Rejestr czynności: RODO (co dzieje się z danymi) + historia umowy ────────
 require_once dirname(__DIR__) . '/includes/rodo.php';
@@ -618,7 +630,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <div class="fw-semibold">Uwierzytelnianie wieloskładnikowe (MFA)
           <span class="tz-badge <?= $mfa_active ? 'tz-badge--ok' : 'tz-badge--warn' ?> ms-1">
             <i class="bi <?= $mfa_active ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill' ?>" aria-hidden="true"></i>
-            <?= $mfa_active ? h($mfa_label) : 'Wymaga konfiguracji' ?>
+            <?= $mfa_active ? h($mfa_label) : 'Brak drugiego składnika' ?>
           </span>
         </div>
         <div class="text-muted small">Drugi składnik logowania chroniący Twoją tożsamość.</div>
@@ -779,23 +791,36 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <!-- ── MFA ── -->
     <h3 class="h6 fw-bold mb-2"><i class="bi bi-shield-check me-1" style="color:#1E6DFF" aria-hidden="true"></i>Konfiguracja telefonu i MFA <span class="lbl-en d-inline">Set up authenticator</span></h3>
     <p class="text-muted small mb-2">Sparuj smartfon z kontem organizacji. Zalecamy aplikację <strong>Microsoft Authenticator</strong>.</p>
+    <?php
+      $totp_on = !empty($db_user['totp_confirmed']) && !empty($db_user['totp_secret']);
+      $sms_on  = $sms_available && $mfa_method === 'sms' && !empty($db_user['twofa_phone']);
+    ?>
     <div class="tz-tiles">
-      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
-        <span class="tz-tile__ico"><i class="bi bi-phone" aria-hidden="true"></i></span>
+      <a class="tz-tile <?= $totp_on ? 'tz-tile--on' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="tz-tile__ico" style="<?= $totp_on ? 'background:#2563eb' : 'background:#9ca3af' ?>"><i class="bi bi-phone" aria-hidden="true"></i></span>
+          <?php if ($totp_on): ?><span class="tz-badge tz-badge--ok" style="font-size:.68rem"><i class="bi bi-check-circle-fill"></i> Aktywne</span><?php endif; ?>
+        </div>
         <span class="fw-semibold d-block">Aplikacja Authenticator</span>
         <span class="lbl-en">TOTP (Microsoft / Google Authenticator)</span>
         <span class="d-block text-muted mt-1" style="font-size:.82rem">Kod jednorazowy z aplikacji — działa offline.</span>
       </a>
       <?php if ($sms_available): ?>
-      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php">
-        <span class="tz-tile__ico"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
+      <a class="tz-tile <?= $sms_on ? 'tz-tile--on' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="tz-tile__ico" style="<?= $sms_on ? 'background:#16a34a' : 'background:#9ca3af' ?>"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
+          <?php if ($sms_on): ?><span class="tz-badge tz-badge--ok" style="font-size:.68rem"><i class="bi bi-check-circle-fill"></i> Aktywne</span><?php endif; ?>
+        </div>
         <span class="fw-semibold d-block">Kod SMS</span>
         <span class="lbl-en">Text message one-time code</span>
         <span class="d-block text-muted mt-1" style="font-size:.82rem">Jednorazowy kod na zweryfikowany numer telefonu.</span>
       </a>
       <?php endif; ?>
-      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
-        <span class="tz-tile__ico" style="background:#047857"><i class="bi bi-fingerprint" aria-hidden="true"></i></span>
+      <a class="tz-tile <?= $has_wk ? 'tz-tile--on' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="tz-tile__ico" style="<?= $has_wk ? 'background:#047857' : 'background:#9ca3af' ?>"><i class="bi bi-fingerprint" aria-hidden="true"></i></span>
+          <?php if ($has_wk): ?><span class="tz-badge tz-badge--ok" style="font-size:.68rem"><i class="bi bi-check-circle-fill"></i> <?= count($wk_keys_idx) ?> klucz<?= count($wk_keys_idx) > 1 ? 'e' : '' ?></span><?php endif; ?>
+        </div>
         <span class="fw-semibold d-block">Klucz / Passkey</span>
         <span class="lbl-en">WebAuthn / FIDO2 / Passkeys</span>
         <span class="d-block text-muted mt-1" style="font-size:.82rem">Biometria, YubiKey lub Windows Hello — ochrona przed phishingiem.</span>
