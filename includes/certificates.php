@@ -331,6 +331,7 @@ function generate_certificate_content(string $type, array $row, array $req): str
         $parts = [];
         if ($h_week) $parts[] = "wymiar: {$h_week} godz./tydzień";
         if ($h_tot)  $parts[] = "przepracowanych łącznie: {$h_tot} godz.";
+        $p4 = "Wymiar zaangażowania: " . implode(', ', $parts) . ".";
     }
 
     // Akapit 5 — cel
@@ -352,6 +353,14 @@ function handle_certificate_upload(string $field): ?string {
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true)) return null;
     if ($f['size'] > 30 * 1024 * 1024) return null;
+
+    $allowed_mimes = [
+        'application/pdf' => ['pdf'],
+        'image/jpeg'      => ['jpg', 'jpeg'],
+        'image/png'       => ['png'],
+    ];
+    $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
+    if (!isset($allowed_mimes[$mime]) || !in_array($ext, $allowed_mimes[$mime], true)) return null;
 
     $dir = UPLOAD_DIR . 'certificates/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);

@@ -2221,10 +2221,14 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <span class="cv-section-title">Zaświadczenia</span>
       <div class="cv-section-action d-flex gap-1 flex-wrap">
         <?php if (is_admin()): ?>
-        <a href="<?= APP_URL ?>/certificates/issue_direct.php?type=<?= $TYPE ?>&id=<?= $id ?>"
-           class="btn btn-sm btn-success">
-          <i class="bi bi-award me-1"></i>Wydaj zaświadczenie
-        </a>
+        <form method="post" action="<?= APP_URL ?>/certificates/issue_direct.php" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="type" value="<?= h($TYPE) ?>">
+          <input type="hidden" name="id"   value="<?= $id ?>">
+          <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-award me-1"></i>Wydaj zaświadczenie
+          </button>
+        </form>
         <?php endif; ?>
         <?php if (!$cert_has_pending && !is_admin()): ?>
         <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">

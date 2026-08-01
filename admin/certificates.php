@@ -12,10 +12,15 @@ require_module_enabled('certificates_enabled', 'Moduł zaświadczeń');
 $filter = $_GET['status'] ?? '';
 $requests = get_all_certificate_requests($filter);
 
-$counts = [];
-foreach (['', 'oczekuje', 'gotowe', 'esign_oczekuje', 'wydane', 'odrzucone'] as $s) {
-    $counts[$s] = count(get_all_certificate_requests($s));
-}
+$counts = ['oczekuje' => 0, 'gotowe' => 0, 'esign_oczekuje' => 0, 'wydane' => 0, 'odrzucone' => 0];
+try {
+    foreach (db_all("SELECT status, COUNT(*) AS c FROM certificate_requests GROUP BY status") as $rc) {
+        if (array_key_exists($rc['status'], $counts)) {
+            $counts[$rc['status']] = (int)$rc['c'];
+        }
+    }
+} catch (\Throwable $e) {}
+$counts[''] = array_sum($counts);
 
 $PAGE_TITLE = 'Wnioski o zaświadczenia';
 include dirname(__DIR__) . '/includes/header.php';

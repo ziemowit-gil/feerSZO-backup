@@ -12,9 +12,11 @@ require_once dirname(__DIR__) . '/includes/certificates.php';
 
 require_login();
 if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); die('Metoda niedozwolona.'); }
+csrf_check();
 
-$type = preg_replace('/[^a-z]/', '', $_GET['type'] ?? '');
-$cid  = (int)($_GET['id'] ?? 0);
+$type = preg_replace('/[^a-z]/', '', $_POST['type'] ?? '');
+$cid  = (int)($_POST['id'] ?? 0);
 if (!$type || !$cid) { http_response_code(400); die('Brak parametrów.'); }
 
 $TABLE = table_for_type($type);

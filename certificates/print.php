@@ -15,6 +15,12 @@ if (!$req || $req['status'] !== 'wydane') {
     die('Zaświadczenie nie zostało znalezione lub nie zostało jeszcze wydane.');
 }
 
+$_cur = current_user();
+if (!is_admin() && (int)($req['requested_by'] ?? 0) !== (int)$_cur['id']) {
+    http_response_code(403);
+    die('Brak dostępu do tego zaświadczenia.');
+}
+
 $type     = $req['contract_type'];
 $cid      = $req['contract_id'];
 $TABLE    = table_for_type($type);
@@ -94,12 +100,24 @@ foreach (preg_split('/\n{2,}/', $raw) as $p) {
 // Kod i URL publicznej weryfikacji (/weryfikuj) — dla każdego wydanego zaświadczenia.
 $verify_code = cert_ensure_verify_code($req_id);
 $verify_url  = certificate_verify_url($verify_code);
-$verify_qr   = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . urlencode($verify_url);
+
+// QR generowany lokalnie (bacon/bacon-qr-code) — bez wysyłania danych do zewnętrznych API.
+$_qr_svg  = (new \BaconQrCode\Writer(
+    new \BaconQrCode\Renderer\ImageRenderer(
+        new \BaconQrCode\Renderer\RendererStyle\RendererStyle(150),
+        new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+    )
+))->writeString($verify_url);
+$verify_qr = 'data:image/svg+xml;base64,' . base64_encode($_qr_svg);
 
 $ean_url = ''; $ean_val = '';
 if ($sign_type === 'elektroniczne') {
     $ean_val = date('dmY', strtotime($issued_date)) . substr(preg_replace('/[^0-9]/', '', $cert_number), -4);
-    $ean_url = "https://barcode.tec-it.com/barcode.ashx?data=" . $ean_val . "&code=EAN13";
+    // Kod kreskowy lokalnie (picqer/php-barcode-generator) — bez zewnętrznego API.
+    $_bg     = new \Picqer\Barcode\BarcodeGeneratorSVG();
+    $ean_url = 'data:image/svg+xml;base64,' . base64_encode(
+        $_bg->getBarcode($ean_val, \Picqer\Barcode\BarcodeGeneratorSVG::TYPE_EAN_13)
+    );
 }
 ?>
 <!DOCTYPE html>
