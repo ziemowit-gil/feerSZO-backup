@@ -240,17 +240,53 @@ include dirname(__DIR__) . '/includes/header.php';
 
         <!-- Treść tekstowa -->
         <div id="section-text" class="mb-3 <?= $sel_mode === 'file' ? 'd-none' : '' ?>">
-          <label class="form-label fw-semibold">
-            <i class="bi bi-file-text"></i> Treść zaświadczenia
-          </label>
-          <textarea name="certificate_content" id="cert_content"
-                    class="form-control font-monospace" rows="18"
-                    style="font-size:.85rem"><?= h($_POST['certificate_content'] ?? $default_content) ?></textarea>
-          <div class="d-flex justify-content-end mt-1">
-            <button type="button" class="btn btn-sm btn-link text-muted p-0"
-                    onclick="resetContent()">
-              <i class="bi bi-arrow-counterclockwise"></i> Przywróć domyślny tekst
-            </button>
+
+          <!-- Nagłówek z zakładkami Edytuj / Podgląd -->
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label fw-semibold mb-0">
+              <i class="bi bi-file-text"></i> Treść zaświadczenia
+            </label>
+            <ul class="nav nav-pills" style="--bs-nav-pills-border-radius:.35rem">
+              <li class="nav-item">
+                <button type="button" class="nav-link active py-1 px-2" style="font-size:.8rem"
+                        id="cert-tab-edit-btn" onclick="certTab('edit')">
+                  <i class="bi bi-pencil"></i> Edytuj
+                </button>
+              </li>
+              <li class="nav-item">
+                <button type="button" class="nav-link py-1 px-2" style="font-size:.8rem"
+                        id="cert-tab-preview-btn" onclick="certTab('preview')">
+                  <i class="bi bi-eye"></i> Podgląd na żywo
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Panel: edytor -->
+          <div id="cert-pane-edit">
+            <textarea name="certificate_content" id="cert_content"
+                      class="form-control font-monospace" rows="18"
+                      style="font-size:.85rem"><?= h($_POST['certificate_content'] ?? $default_content) ?></textarea>
+            <div class="d-flex justify-content-end mt-1">
+              <button type="button" class="btn btn-sm btn-link text-muted p-0"
+                      onclick="resetContent()">
+                <i class="bi bi-arrow-counterclockwise"></i> Przywróć domyślny tekst
+              </button>
+            </div>
+          </div>
+
+          <!-- Panel: podgląd (iframe ładowany z preview.php) -->
+          <div id="cert-pane-preview" class="d-none border rounded position-relative"
+               style="min-height:420px;overflow:hidden">
+            <div id="cert-preview-spinner"
+                 class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center
+                        justify-content-center bg-white bg-opacity-90" style="z-index:5">
+              <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+              <span class="text-muted small">Generowanie podglądu…</span>
+            </div>
+            <iframe id="cert-preview-frame" src="about:blank"
+                    style="width:100%;height:560px;border:0;border-radius:.375rem"
+                    onload="this.previousElementSibling.classList.add('d-none')"></iframe>
           </div>
 
           <!-- Wzór wydruku -->
@@ -553,6 +589,62 @@ document.getElementById('cert_file')?.addEventListener('change', function() {
 });
 
 document.querySelectorAll('[name="issue_mode"]').forEach(r => r.addEventListener('change', updateMode));
+
+// ── Podgląd na żywo (zakładka Podgląd) ───────────────────────────────────────
+(function () {
+    const PREVIEW_URL = <?= json_encode(APP_URL . '/certificates/preview.php') ?>;
+    const REQ_ID      = <?= (int)$req_id ?>;
+    const getCsrf     = () => document.querySelector('[name="_csrf"]')?.value ?? '';
+
+    let _timer = null;
+    let _dirty = true;   // czy treść zmieniła się od ostatniego podglądu
+
+    function showSpinner(show) {
+        const s = document.getElementById('cert-preview-spinner');
+        if (s) s.classList.toggle('d-none', !show);
+    }
+
+    function fetchPreview() {
+        if (!_dirty) return;
+        _dirty = false;
+        const content = document.getElementById('cert_content')?.value ?? '';
+        showSpinner(true);
+        fetch(PREVIEW_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ _csrf: getCsrf(), req_id: REQ_ID, content }),
+        })
+        .then(r => r.ok ? r.text() : Promise.reject(r.status))
+        .then(html => {
+            const frame = document.getElementById('cert-preview-frame');
+            if (frame) {
+                // onload na iframe ukryje spinner; ustawiamy srcdoc
+                showSpinner(true);
+                frame.srcdoc = html;
+            }
+        })
+        .catch(() => showSpinner(false));
+    }
+
+    window.certTab = function (tab) {
+        const isPreview = tab === 'preview';
+        document.getElementById('cert-pane-edit')?.classList.toggle('d-none', isPreview);
+        document.getElementById('cert-pane-preview')?.classList.toggle('d-none', !isPreview);
+        document.getElementById('cert-tab-edit-btn')?.classList.toggle('active', !isPreview);
+        document.getElementById('cert-tab-preview-btn')?.classList.toggle('active', isPreview);
+        if (isPreview) fetchPreview();
+    };
+
+    // Debounce: odśwież podgląd 700 ms po ostatniej zmianie w textarea
+    document.getElementById('cert_content')?.addEventListener('input', () => {
+        _dirty = true;
+        clearTimeout(_timer);
+        _timer = setTimeout(() => {
+            const isPv = !document.getElementById('cert-pane-preview')?.classList.contains('d-none');
+            if (isPv) fetchPreview();
+        }, 700);
+    });
+})();
 </script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
