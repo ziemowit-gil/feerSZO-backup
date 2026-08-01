@@ -962,19 +962,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .wiz-card-subtitle { font-size: .76rem; color: #9CA3AF; margin-top: .05rem; }
 .wiz-card-body { padding: 1.1rem 1.3rem; }
 
-/* Nawigacja kroków */
-.wiz-nav-btns {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 1rem 0 .25rem; margin-top: .75rem;
-  border-top: 1px solid #F3F4F6;
+/* Sticky nawigacja */
+.wiz-sticky-nav {
+  position: sticky; bottom: 0; z-index: 100;
+  background: rgba(255,255,255,.97); backdrop-filter: blur(4px);
+  border-top: 1px solid #E5E7EB; padding: .8rem 1rem;
+  display: flex; align-items: center; gap: .6rem;
+  box-shadow: 0 -4px 12px rgba(0,0,0,.07);
 }
-.wiz-nav-btns .btn {
-  min-width: 110px; font-weight: 600;
-}
-.wiz-nav-btns .btn-primary {
-  background: #1E6DFF; border-color: #1E6DFF;
-}
-.wiz-nav-btns .btn-primary:hover { background: #155EE0; border-color: #155EE0; }
 
 /* Live preview sidebar */
 .wiz-preview {
@@ -1291,12 +1286,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="wiz-nav-btns">
-    <span></span>
-    <button type="button" class="btn btn-primary" onclick="goToStep(2)">
-      Dalej: Wolontariusz <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -1494,14 +1483,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="wiz-nav-btns">
-    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
-      <i class="bi bi-arrow-left me-1"></i>Wstecz
-    </button>
-    <button type="button" class="btn btn-primary" onclick="goToStep(3)">
-      Dalej: Szczegóły <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -1614,14 +1595,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="wiz-nav-btns">
-    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(2)">
-      <i class="bi bi-arrow-left me-1"></i>Wstecz
-    </button>
-    <button type="button" class="btn btn-primary" onclick="goToStep(4)">
-      Dalej: Bezpieczeństwo <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -1760,14 +1733,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="wiz-nav-btns">
-    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(3)">
-      <i class="bi bi-arrow-left me-1"></i>Wstecz
-    </button>
-    <button type="button" class="btn btn-primary" onclick="goToStep(5)">
-      Dalej: Podpis i pliki <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -2146,14 +2111,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="wiz-nav-btns">
-    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(4)">
-      <i class="bi bi-arrow-left me-1"></i>Wstecz
-    </button>
-    <button type="button" class="btn btn-primary" onclick="goToStep(6)">
-      Dalej: Dodatkowe <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -2274,14 +2231,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <i class="bi bi-printer"></i> Nie mam drukarki — zapisz jako PDF do wydruku
     </label>
   </div>
-  <div class="wiz-nav-btns">
-    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(5)">
-      <i class="bi bi-arrow-left me-1"></i>Wstecz
-    </button>
-    <button type="submit" id="btnSave" class="btn btn-success btn-lg px-4">
-      <i class="bi bi-check-lg me-1"></i>Zapisz porozumienie
-    </button>
-  </div>
 </div>
 
 </div><!-- /col-xl-8 -->
@@ -2339,6 +2288,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div><!-- /col-xl-4 -->
 
 </div><!-- /row -->
+
+<!-- ── Sticky nawigacja ──────────────────────────────────────────── -->
+<div class="wiz-sticky-nav">
+  <button type="button" class="btn btn-outline-secondary" id="wizBack" style="display:none"><i class="bi bi-arrow-left me-1"></i>Wstecz</button>
+  <a href="list.php" class="btn btn-link text-muted">Anuluj</a>
+  <div class="ms-auto d-flex gap-2">
+    <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
+    <button type="submit" id="wizSave" class="btn btn-success" style="display:none"><i class="bi bi-check-lg me-1"></i>Zapisz porozumienie</button>
+  </div>
+</div>
+
 </form>
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
@@ -2545,8 +2505,16 @@ function goToStep(n) {
     if (dot) dot.style.background = j <= n ? '#1E6DFF' : '#E5E7EB';
   }
 
+  // Sticky nav
+  document.getElementById('wizBack').style.display = n > 1 ? '' : 'none';
+  document.getElementById('wizNext').style.display = n < _totalSteps ? '' : 'none';
+  document.getElementById('wizSave').style.display = n === _totalSteps ? '' : 'none';
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+document.getElementById('wizNext').addEventListener('click', function () { goToStep(_currentStep + 1); });
+document.getElementById('wizBack').addEventListener('click', function () { goToStep(_currentStep - 1); });
 
 // ── Live summary ──────────────────────────────────────────────────────────────
 function _fv(name) {
