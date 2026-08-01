@@ -763,6 +763,19 @@ body.login-view-feer{
       </span>
       <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
     </a>
+    <div style="border-top:1px solid #e2e8f0;margin:.1rem 0"></div>
+    <a href="<?= APP_URL ?>/user/register.php" class="choice"
+       style="border-color:#bbf7d0"
+       aria-label="Załóż konto — samodzielna rejestracja dla wolontariuszy z umową">
+      <span class="choice-icon" style="background:#f0fdf4;color:#16a34a" aria-hidden="true">
+        <i class="bi bi-person-plus-fill"></i>
+      </span>
+      <span class="choice-body">
+        <span class="choice-title" style="color:#15803d">Załóż konto</span>
+        <span class="choice-sub">Masz umowę wolontariacką? Utwórz konto samodzielnie</span>
+      </span>
+      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
+    </a>
   </div>
 
   <!-- ══ Banner: System Tożsamości ═════════════════════════════════════════ -->
