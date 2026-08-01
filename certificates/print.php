@@ -78,7 +78,10 @@ if ($_logo_file) {
 }
 
 $issued_date = $req['issued_at'] ? date('d.m.Y', strtotime($req['issued_at'])) : date('d.m.Y');
-$cert_number = $req['cert_number'] ?: ('ZAWOL/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
+$cert_type_key   = $req['certificate_type'] ?? 'wolontariat';
+$cert_type_label = CERTIFICATE_TYPES[$cert_type_key]['label'] ?? 'Zaświadczenie';
+$cert_prefix_fb  = cert_type_prefix($cert_type_key);
+$cert_number     = $req['cert_number'] ?: ($cert_prefix_fb . '/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
 $sign_type   = $req['sign_type'] ?? 'papierowe';
 $issuer_name = $req['issued_by_name'] ?? '';
 $has_file    = !empty($req['certificate_file']);
@@ -138,7 +141,7 @@ if ($sign_type === 'elektroniczne') {
   <div><?= h($org_city) ?>, <?= $issued_date ?><br>Nr: <?= h($cert_number) ?></div>
 </header>
 
-<div class="cert-title-main">Zaświadczenie o wolontariacie</div>
+<div class="cert-title-main"><?= h($cert_type_label) ?></div>
 
 <div class="cert-body">
   <?php foreach ($paragraphs as $p): ?><p><?= $p ?></p><?php endforeach; ?>

@@ -12,6 +12,7 @@
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN docusign_envelope_id TEXT"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN verify_code          TEXT"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN ezd_pismo_id         INTEGER"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN certificate_type    TEXT NOT NULL DEFAULT 'wolontariat'"); } catch (\Throwable $e) {}
 })();
 
 /**
@@ -56,6 +57,41 @@ function cert_next_number(string $prefix = 'ZAWOL'): string {
         $seq = 1;
     }
     return "{$prefix}/" . str_pad($seq, 4, '0', STR_PAD_LEFT) . "/{$year}";
+}
+
+// ── Typy zaświadczeń (prefix, etykieta, powiązane typy umów) ─────────────────
+const CERTIFICATE_TYPES = [
+    'wolontariat' => [
+        'label'     => 'Zaświadczenie o wolontariacie',
+        'prefix'    => 'ZAWOL',
+        'desc'      => 'Potwierdza udział w wolontariacie na podstawie umowy wolontariackiej.',
+        'for_types' => ['wolontariat'],
+    ],
+    'zatrudnienie' => [
+        'label'     => 'Zaświadczenie o zatrudnieniu',
+        'prefix'    => 'ZAWPR',
+        'desc'      => 'Potwierdza fakt zatrudnienia, zajmowane stanowisko i okres pracy.',
+        'for_types' => ['praca'],
+    ],
+    'wspolpraca' => [
+        'label'     => 'Zaświadczenie o współpracy / wykonaniu umowy',
+        'prefix'    => 'ZAWWS',
+        'desc'      => 'Potwierdza realizację umowy cywilnoprawnej lub współpracę z organizacją.',
+        'for_types' => ['zlecenie', 'dzielo', 'uslugi', 'powierzenie', 'inne'],
+    ],
+];
+
+/** Zwraca prefix numeracji dla danego typu zaświadczenia. */
+function cert_type_prefix(string $cert_type): string {
+    return CERTIFICATE_TYPES[$cert_type]['prefix'] ?? 'ZAWOL';
+}
+
+/** Zwraca domyślny typ zaświadczenia pasujący do danego typu umowy. */
+function cert_default_type_for_contract(string $contract_type): string {
+    foreach (CERTIFICATE_TYPES as $key => $ct) {
+        if (in_array($contract_type, $ct['for_types'], true)) return $key;
+    }
+    return 'wolontariat';
 }
 
 const CERTIFICATE_STATUSES = [
@@ -137,16 +173,18 @@ function get_pending_certificates_count(): int {
     }
 }
 
-function create_certificate_request(string $type, int $id, ?int $user_id, string $name, string $email, string $cel): int {
+function create_certificate_request(string $type, int $id, ?int $user_id, string $name, string $email, string $cel, string $cert_type = 'wolontariat'): int {
+    if (!array_key_exists($cert_type, CERTIFICATE_TYPES)) $cert_type = 'wolontariat';
     return db_insert('certificate_requests', [
-        'contract_type'   => $type,
-        'contract_id'     => $id,
-        'requested_by'    => $user_id,
-        'requester_name'  => $name,
-        'requester_email' => $email,
-        'cel'             => $cel,
-        'status'          => 'oczekuje',
-        'created_at'      => date('Y-m-d H:i:s'),
+        'contract_type'    => $type,
+        'contract_id'      => $id,
+        'requested_by'     => $user_id,
+        'requester_name'   => $name,
+        'requester_email'  => $email,
+        'cel'              => $cel,
+        'certificate_type' => $cert_type,
+        'status'           => 'oczekuje',
+        'created_at'       => date('Y-m-d H:i:s'),
     ]);
 }
 
@@ -165,7 +203,7 @@ function issue_certificate(int $req_id, int $admin_id, string $content, ?string 
     if (!$req || $req['status'] !== 'oczekuje') return false;
     if (!$content && !$file_path) return false;
 
-    $number    = $req['cert_number'] ?: cert_next_number();
+    $number    = $req['cert_number'] ?: cert_next_number(cert_type_prefix($req['certificate_type'] ?? 'wolontariat'));
     $issuer    = db_one("SELECT name FROM users WHERE id=?", [$admin_id]);
     $issuer_nm = $issuer['name'] ?? '';
 
@@ -288,11 +326,19 @@ function get_contract_person_name(string $type, array $row): string {
 }
 
 /**
- * Generuje treść zaświadczenia (wyłącznie akapity merytoryczne).
- * Nie zawiera tytułu, daty ani linii podpisu — za to odpowiada print.php.
+ * Dispatcher: generuje treść zaświadczenia w zależności od jego typu.
+ * Wynik zawiera wyłącznie akapity merytoryczne (bez tytułu, daty, podpisu).
  * Akapity oddzielone pustą linią (\n\n).
  */
 function generate_certificate_content(string $type, array $row, array $req): string {
+    return match ($req['certificate_type'] ?? 'wolontariat') {
+        'zatrudnienie' => _cert_content_zatrudnienie($type, $row, $req),
+        'wspolpraca'   => _cert_content_wspolpraca($type, $row, $req),
+        default        => _cert_content_wolontariat($type, $row, $req),
+    };
+}
+
+function _cert_content_wolontariat(string $type, array $row, array $req): string {
     $org  = defined('ORG_NAME') ? ORG_NAME : '';
     $name = get_contract_person_name($type, $row);
     $nr   = $row['numer_umowy'] ?? '';
@@ -300,30 +346,18 @@ function generate_certificate_content(string $type, array $row, array $req): str
     $do   = !empty($row['data_zakonczenia']) ? date_pl($row['data_zakonczenia']) : '—';
     $dz   = !empty($row['data_zawarcia'])    ? date_pl($row['data_zawarcia'])    : '—';
 
-    $przedmiot = '';
-    if (!empty($row['przedmiot_porozumienia'])) $przedmiot = $row['przedmiot_porozumienia'];
-    elseif (!empty($row['przedmiot_zlecenia'])) $przedmiot = $row['przedmiot_zlecenia'];
-    elseif (!empty($row['przedmiot_dziela']))   $przedmiot = $row['przedmiot_dziela'];
-    elseif (!empty($row['zakres_dzialan']))      $przedmiot = $row['zakres_dzialan'];
-    elseif (!empty($row['stanowisko']))          $przedmiot = $row['stanowisko'];
-    elseif (!empty($row['zakres_uslug']))        $przedmiot = $row['zakres_uslug'];
+    $przedmiot = $row['przedmiot_porozumienia'] ?? $row['przedmiot_zlecenia']
+        ?? $row['zakres_dzialan'] ?? $row['stanowisko'] ?? '';
 
-    // Akapit 1 — kto, co, kiedy
     $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} jest wolontariuszem/wolontariuszką "
-        . "w {$org} na podstawie porozumienia o Wolontariacie nr {$nr}, "
-        . "zawartego w dniu {$dz}.";
+        . "w {$org} na podstawie porozumienia o Wolontariacie nr {$nr}, zawartego w dniu {$dz}.";
 
-    // Akapit 2 — okres
-    if (!empty($row['bezterminowa'])) {
-        $p2 = "Porozumienie zawarto na czas nieokreślony,  od dnia {$od}.";
-    } else {
-        $p2 = "Okres wolontariatu: od {$od} do {$do}.";
-    }
+    $p2 = !empty($row['bezterminowa'])
+        ? "Porozumienie zawarto na czas nieokreślony, od dnia {$od}."
+        : "Okres wolontariatu: od {$od} do {$do}.";
 
-    // Akapit 3 — zakres (opcjonalnie)
     $p3 = $przedmiot ? "Zakres działań wolontariackich:\n{$przedmiot}" : '';
 
-    // Akapit 4 — godziny (opcjonalnie)
     $p4 = '';
     $h_week = $row['godzin_tygodniowo'] ?? '';
     $h_tot  = $row['godzin_przepracowanych'] ?? '';
@@ -334,12 +368,65 @@ function generate_certificate_content(string $type, array $row, array $req): str
         $p4 = "Wymiar zaangażowania: " . implode(', ', $parts) . ".";
     }
 
-    // Akapit 5 — cel
     $p5 = $req['cel']
         ? "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej w celu: {$req['cel']}."
         : "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej.";
 
     return implode("\n\n", array_filter([$p1, $p2, $p3, $p4, $p5]));
+}
+
+function _cert_content_zatrudnienie(string $type, array $row, array $req): string {
+    $org        = defined('ORG_NAME') ? ORG_NAME : '';
+    $name       = get_contract_person_name($type, $row);
+    $nr         = $row['numer_umowy'] ?? '';
+    $od         = !empty($row['data_rozpoczecia']) ? date_pl($row['data_rozpoczecia']) : '—';
+    $do         = !empty($row['data_zakonczenia']) ? date_pl($row['data_zakonczenia']) : '—';
+    $dz         = !empty($row['data_zawarcia'])    ? date_pl($row['data_zawarcia'])    : '—';
+    $stanowisko = trim($row['stanowisko'] ?? '');
+
+    $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} jest zatrudniony/a w {$org} "
+        . "na podstawie umowy o pracę nr {$nr}, zawartej w dniu {$dz}.";
+
+    $p2 = $stanowisko ? "Zajmowane stanowisko: {$stanowisko}." : '';
+
+    $p3 = !empty($row['czas_nieokreslony'])
+        ? "Umowa zawarta na czas nieokreślony, od dnia {$od}."
+        : "Okres zatrudnienia: od {$od} do {$do}.";
+
+    $p4 = $req['cel']
+        ? "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej w celu: {$req['cel']}."
+        : "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej.";
+
+    return implode("\n\n", array_filter([$p1, $p2, $p3, $p4]));
+}
+
+function _cert_content_wspolpraca(string $type, array $row, array $req): string {
+    $org  = defined('ORG_NAME') ? ORG_NAME : '';
+    $name = get_contract_person_name($type, $row);
+    if (!$name) $name = $row['nazwa_wykonawcy'] ?? $row['nazwa_firmy'] ?? '';
+    $nr   = $row['numer_umowy'] ?? '';
+    $od   = !empty($row['data_rozpoczecia']) ? date_pl($row['data_rozpoczecia']) : '—';
+    $do   = !empty($row['data_zakonczenia']) ? date_pl($row['data_zakonczenia']) : '—';
+    $dz   = !empty($row['data_zawarcia'])    ? date_pl($row['data_zawarcia'])    : '—';
+
+    $przedmiot = $row['przedmiot_zlecenia'] ?? $row['przedmiot_dziela']
+        ?? $row['przedmiot_porozumienia'] ?? $row['zakres_uslug']
+        ?? $row['przedmiot_uslugi']       ?? $row['zakres_dzialan'] ?? '';
+
+    $typ_label = CONTRACT_TYPES[$type] ?? 'umowy';
+
+    $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} wykonał/a zlecenie na rzecz {$org} "
+        . "na podstawie {$typ_label} nr {$nr}, zawartej w dniu {$dz}.";
+
+    $p2 = $przedmiot ? "Przedmiot umowy:\n{$przedmiot}" : '';
+
+    $p3 = "Okres realizacji: od {$od} do {$do}.";
+
+    $p4 = $req['cel']
+        ? "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej w celu: {$req['cel']}."
+        : "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej.";
+
+    return implode("\n\n", array_filter([$p1, $p2, $p3, $p4]));
 }
 
 /**

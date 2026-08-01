@@ -33,9 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $name  = trim($_POST['requester_name'] ?? '');
-    $email = trim($_POST['requester_email'] ?? '');
-    $cel   = trim($_POST['cel'] ?? '');
+    $name      = trim($_POST['requester_name'] ?? '');
+    $email     = trim($_POST['requester_email'] ?? '');
+    $cel       = trim($_POST['cel'] ?? '');
+    $cert_type = $_POST['certificate_type'] ?? '';
+    if (!array_key_exists($cert_type, CERTIFICATE_TYPES)) $cert_type = $default_cert_type;
 
     $errors = [];
     if (!$name)  $errors[] = 'Podaj imię i nazwisko wnioskodawcy.';
@@ -43,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$cel)   $errors[] = 'Podaj cel wydania zaświadczenia.';
 
     if (!$errors) {
-        $req_id = create_certificate_request($type, $id, $user['id'], $name, $email, $cel);
+        $req_id = create_certificate_request($type, $id, $user['id'], $name, $email, $cel, $cert_type);
 
         require_once dirname(__DIR__) . '/includes/approval.php';
         log_contract_action($type, $id, $user['id'], 'certificate_request',
@@ -58,8 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$person_name  = get_contract_person_name($type, $row);
-$PAGE_TITLE   = 'Wniosek o zaświadczenie';
+$person_name = get_contract_person_name($type, $row);
+
+// Domyślny typ zaświadczenia pasujący do tej umowy
+$default_cert_type = cert_default_type_for_contract($type);
+$sel_cert_type     = $_POST['certificate_type'] ?? $default_cert_type;
+if (!array_key_exists($sel_cert_type, CERTIFICATE_TYPES)) $sel_cert_type = $default_cert_type;
+
+$PAGE_TITLE = 'Wniosek o zaświadczenie';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
@@ -102,6 +110,35 @@ include dirname(__DIR__) . '/includes/header.php';
       <input type="hidden" name="type" value="<?= h($type) ?>">
       <input type="hidden" name="id"   value="<?= $id ?>">
 
+      <!-- Rodzaj zaświadczenia -->
+      <div class="mb-4">
+        <label class="form-label fw-semibold">Rodzaj zaświadczenia <span class="text-danger">*</span></label>
+        <div class="d-flex gap-2 flex-wrap" id="cert-type-cards">
+          <?php foreach (CERTIFICATE_TYPES as $ct_key => $ct): ?>
+          <?php $is_native = in_array($type, $ct['for_types'], true); ?>
+          <div class="cert-type-card <?= $sel_cert_type === $ct_key ? 'selected' : '' ?>"
+               style="border:2px solid <?= $sel_cert_type === $ct_key ? '#0d6efd' : '#dee2e6' ?>;
+                      border-radius:.5rem;padding:.65rem .9rem;cursor:pointer;
+                      min-width:170px;flex:1;transition:border-color .15s"
+               onclick="selectCertType('<?= $ct_key ?>')">
+            <input class="form-check-input visually-hidden" type="radio" name="certificate_type"
+                   id="ct_<?= $ct_key ?>" value="<?= $ct_key ?>"
+                   <?= $sel_cert_type === $ct_key ? 'checked' : '' ?>
+                   <?= $has_pending ? 'disabled' : '' ?>>
+            <label class="form-check-label w-100" for="ct_<?= $ct_key ?>" style="cursor:pointer">
+              <div class="fw-semibold small"><?= h($ct['label']) ?></div>
+              <div class="text-muted" style="font-size:.75rem;margin-top:.2rem"><?= h($ct['desc']) ?></div>
+              <?php if (!$is_native): ?>
+              <span class="badge bg-warning text-dark mt-1" style="font-size:.65rem">
+                <i class="bi bi-info-circle"></i> Rzadko stosowane przy tym typie umowy
+              </span>
+              <?php endif; ?>
+            </label>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
       <div class="mb-3">
         <label class="form-label">Imię i nazwisko wnioskodawcy <span class="text-danger">*</span></label>
         <input type="text" name="requester_name" class="form-control"
@@ -137,5 +174,17 @@ include dirname(__DIR__) . '/includes/header.php';
 
 </div>
 </div>
+
+<script>
+function selectCertType(key) {
+    document.querySelectorAll('.cert-type-card').forEach(card => {
+        const radio = card.querySelector('input[type="radio"]');
+        const active = radio.value === key;
+        radio.checked = active;
+        card.style.borderColor = active ? '#0d6efd' : '#dee2e6';
+        card.classList.toggle('selected', active);
+    });
+}
+</script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

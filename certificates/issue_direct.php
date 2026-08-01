@@ -34,10 +34,11 @@ if ($existing) {
 }
 
 // Utwórz nowy wniosek w imieniu admina
-$u    = current_user();
-$name = $row['imie_nazwisko'] ?? $u['name'] ?? '';
-$mail = $row['email'] ?? $u['email'] ?? '';
-$req_id = create_certificate_request($type, $cid, (int)$u['id'], $name, $mail, 'Wydane przez administratora');
+$u         = current_user();
+$name      = $row['imie_nazwisko'] ?? $u['name'] ?? '';
+$mail      = $row['email'] ?? $u['email'] ?? '';
+$cert_type = cert_default_type_for_contract($type);
+$req_id = create_certificate_request($type, $cid, (int)$u['id'], $name, $mail, 'Wydane przez administratora', $cert_type);
 
 flash_set('info', 'Wniosek o zaświadczenie utworzony automatycznie. Wypełnij treść i wydaj.');
 header('Location: ' . APP_URL . '/certificates/issue.php?id=' . $req_id);

@@ -37,7 +37,10 @@ $org_krs   = org_setting('org_krs') ?: '';
 $org_adres = org_setting('org_adres') ?: '';
 
 $issued_date = $req['issued_at'] ? date('d.m.Y', strtotime($req['issued_at'])) : date('d.m.Y');
-$cert_number = $req['cert_number'] ?: ('ZAWOL/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
+$cert_type_key   = $req['certificate_type'] ?? 'wolontariat';
+$cert_type_label = CERTIFICATE_TYPES[$cert_type_key]['label'] ?? 'Zaświadczenie';
+$cert_prefix_fb  = cert_type_prefix($cert_type_key);
+$cert_number     = $req['cert_number'] ?: ($cert_prefix_fb . '/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
 $sign_type   = $req['sign_type'] ?? 'papierowe';
 $issuer_name = $req['issued_by_name'] ?? '';
 
@@ -117,7 +120,7 @@ $cellRight->addText(trim(($org_city ? $org_city . ', ' : '') . 'dnia ' . $issued
 $section->addTextBreak(1);
 
 // ── Tytuł ─────────────────────────────────────────────────────────────────────
-$section->addText('ZAŚWIADCZENIE O WOLONTARIACIE',
+$section->addText(mb_strtoupper($cert_type_label),
     ['bold' => true, 'size' => 16, 'name' => 'Calibri', 'allCaps' => true],
     ['alignment' => Jc::CENTER, 'spaceAfter' => 60, 'spaceBefore' => 60]);
 $section->addText($cert_number, ['size' => 9, 'color' => '555555'], ['alignment' => Jc::CENTER, 'spaceAfter' => 200]);
