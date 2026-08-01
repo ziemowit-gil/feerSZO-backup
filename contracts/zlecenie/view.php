@@ -31,6 +31,8 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 $PAGE_TITLE = 'Umowa zlecenie ' . $row['numer_umowy'];
+$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','obieg','m365','historia','docusign','autenti'])
+    ? $_GET['tab'] : 'umowa';
 
 // ── Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) ────
 $_imp_target  = (is_admin() && !ctx_is_impersonating()) ? impersonation_linked_user($TYPE, $row) : null;
@@ -155,21 +157,21 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="zlecenieTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-umowa-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='umowa') echo ' active'; ?>" id="tab-umowa-btn" data-bs-toggle="tab"
             data-bs-target="#tab-umowa" type="button" role="tab">
       <i class="bi bi-file-text"></i> Umowa
     </button>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-zleceniobiorca-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='zleceniobiorca') echo ' active'; ?>" id="tab-zleceniobiorca-btn" data-bs-toggle="tab"
             data-bs-target="#tab-zleceniobiorca" type="button" role="tab">
       <i class="bi bi-person"></i> Zleceniobiorca
     </button>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-docs-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='docs') echo ' active'; ?>" id="tab-docs-btn" data-bs-toggle="tab"
             data-bs-target="#tab-docs" type="button" role="tab">
       <i class="bi bi-folder2-open"></i> Dokumenty
       <?php if ($_badge_docs): ?>
@@ -179,7 +181,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-rozliczenia-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='rozliczenia') echo ' active'; ?>" id="tab-rozliczenia-btn" data-bs-toggle="tab"
             data-bs-target="#tab-rozliczenia" type="button" role="tab">
       <i class="bi bi-cash-coin"></i> Rozliczenia
       <?php if ($_rozl_open): ?>
@@ -189,7 +191,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-obieg-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='obieg') echo ' active'; ?>" id="tab-obieg-btn" data-bs-toggle="tab"
             data-bs-target="#tab-obieg" type="button" role="tab">
       <i class="bi bi-arrow-repeat"></i> Obieg
       <?php if ($_badge_obieg): ?>
@@ -199,7 +201,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-m365-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='m365') echo ' active'; ?>" id="tab-m365-btn" data-bs-toggle="tab"
             data-bs-target="#tab-m365" type="button" role="tab">
       <i class="bi bi-microsoft"></i> M365
       <?php if ($row['m365_konto']): ?>
@@ -211,7 +213,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-historia-btn" data-bs-toggle="tab"
+    <button class="nav-link<?php if($_tab==='historia') echo ' active'; ?>" id="tab-historia-btn" data-bs-toggle="tab"
             data-bs-target="#tab-historia" type="button" role="tab">
       <i class="bi bi-journal-text"></i> Historia
       <?php if ($audit_log): ?>
@@ -259,7 +261,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <div class="tab-content cv-side-tabs-content" id="zlecenieTabsContent">
 
 <!-- ═══════════════════ TAB 1 — UMOWA ═══════════════════ -->
-<div class="tab-pane fade" id="tab-umowa" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='umowa') echo ' show active'; ?>" id="tab-umowa" role="tabpanel">
 
   <div class="cv-section">
     <div class="cv-section-head">
@@ -397,7 +399,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-umowa -->
 
 <!-- ═══════════════════ TAB 2 — ZLECENIOBIORCA ═══════════════════ -->
-<div class="tab-pane fade" id="tab-zleceniobiorca" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='zleceniobiorca') echo ' show active'; ?>" id="tab-zleceniobiorca" role="tabpanel">
 
   <div class="row g-3">
   <div class="col-lg-8">
@@ -501,7 +503,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-zleceniobiorca -->
 
 <!-- ═══════════════════ TAB 3 — DOKUMENTY ═══════════════════ -->
-<div class="tab-pane fade" id="tab-docs" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='docs') echo ' show active'; ?>" id="tab-docs" role="tabpanel">
 
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
@@ -603,7 +605,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-docs -->
 
 <!-- ═══════════════════ TAB — ROZLICZENIA ═══════════════════ -->
-<div class="tab-pane fade" id="tab-rozliczenia" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='rozliczenia') echo ' show active'; ?>" id="tab-rozliczenia" role="tabpanel">
 
   <?php $_ksieg_addr = org_setting('ksiegowy_email'); ?>
   <div class="card shadow-sm">
@@ -711,7 +713,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-rozliczenia -->
 
 <!-- ═══════════════════ TAB 4 — OBIEG ═══════════════════ -->
-<div class="tab-pane fade" id="tab-obieg" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='obieg') echo ' show active'; ?>" id="tab-obieg" role="tabpanel">
 
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
@@ -884,7 +886,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-obieg -->
 
 <!-- ═══════════════════ TAB 5 — M365 ═══════════════════ -->
-<div class="tab-pane fade" id="tab-m365" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='m365') echo ' show active'; ?>" id="tab-m365" role="tabpanel">
 
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
@@ -1034,7 +1036,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div><!-- /tab-m365 -->
 
 <!-- ═══════════════════ TAB 6 — HISTORIA ═══════════════════ -->
-<div class="tab-pane fade" id="tab-historia" role="tabpanel">
+<div class="tab-pane fade<?php if($_tab==='historia') echo ' show active'; ?>" id="tab-historia" role="tabpanel">
 
   <?php if ($audit_log): ?>
   <ul class="list-group list-group-flush rounded">
