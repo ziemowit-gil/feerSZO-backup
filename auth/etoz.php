@@ -178,7 +178,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <?php endif; ?>
     <p class="left-org"><?= h($org_name) ?></p>
     <?php if ($_tagline): ?><p class="left-tagline"><?= h($_tagline) ?></p><?php endif; ?>
-    <p class="left-about">Wdrożyliśmy jednolity system tożsamości cyfrowej — jeden login i hasło do wszystkich systemów organizacji.</p>
+    <p class="left-about">Wdrożyliśmy jednolity system tożsamości cyfrowej — bez osobnego loginu, 1 hasło do wszystkich systemów organizacji.</p>
   </div>
   <div class="left-footer">
     <div class="left-security"><i class="bi bi-lock-fill" aria-hidden="true"></i> Połączenie szyfrowane HTTPS</div>
@@ -192,10 +192,10 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
   <span class="badge-new">Wdrożono</span>
   <p class="info-eyebrow">System Tożsamości</p>
-  <h1 class="info-heading">eTożsamość —<br>jeden login, jedno&nbsp;hasło</h1>
+  <h1 class="info-heading">eTożsamość —<br>bez loginu, 1&nbsp;hasło</h1>
   <p class="info-lead">
     Zunifikowaliśmy dostęp do wszystkich systemów cyfrowych organizacji.
-    Twój login i hasło działają teraz wszędzie — nie musisz już pamiętać wielu haseł ani logować się osobno do każdego narzędzia.
+    Bez osobnego loginu do każdego systemu — 1 hasło działa teraz wszędzie.
   </p>
 
   <!-- ── Objęte systemy ─────────────────────────────────────────────────── -->
@@ -207,13 +207,13 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <span class="sys-chip ms"><i class="bi bi-files" aria-hidden="true"></i> SharePoint</span>
   </div>
 
-  <!-- ── Zasada 1 login 1 hasło ─────────────────────────────────────────── -->
+  <!-- ── Zasada bez loginu 1 hasło ─────────────────────────────────────── -->
   <div class="highlight" role="note">
-    <div class="highlight-num" aria-hidden="true">1+1</div>
+    <div class="highlight-num" aria-hidden="true">1</div>
     <div class="highlight-body">
-      <h3>Jeden login, jedno hasło — do wszystkiego</h3>
+      <h3>Bez osobnego loginu — 1 hasło do wszystkiego</h3>
       <p>
-        Twój <strong>login to adres e-mail</strong> (służbowy <code>@feer.org.pl</code> lub prywatny z umowy).
+        Twój <strong>adres e-mail</strong> (służbowy <code>@feer.org.pl</code> lub prywatny z umowy) to Twój identyfikator.
         Hasło ustawione w eTożsamości obowiązuje we wszystkich systemach jednocześnie —
         zmiana w jednym miejscu aktualizuje je wszędzie.
       </p>

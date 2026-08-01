@@ -685,7 +685,7 @@ body.login-view-feer{
     <span class="aside-etoz-icon" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
     <span class="aside-etoz-body">
       <span class="aside-etoz-title">eTożsamość</span>
-      <span class="aside-etoz-sub">1 login · 1 hasło · wszystkie systemy</span>
+      <span class="aside-etoz-sub">bez loginu · 1 hasło · wszystkie systemy</span>
     </span>
     <i class="bi bi-arrow-right aside-etoz-arrow" aria-hidden="true"></i>
   </a>
@@ -753,7 +753,7 @@ body.login-view-feer{
       <span style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--c,#2563eb)">eTożsamość</span>
     </div>
     <h1 class="view-title" id="login-title">Zaloguj się</h1>
-    <p class="view-sub">Jeden login i hasło do wszystkich systemów organizacji.</p>
+    <p class="view-sub">Bez osobnego loginu — 1 hasło do wszystkich systemów organizacji.</p>
   </div>
 
   <?php if ($_login_welcome_is_custom): ?>
@@ -812,10 +812,10 @@ body.login-view-feer{
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.18rem;flex-wrap:wrap">
             <span style="font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:4px;line-height:1.4">Nowość</span>
-            <span style="font-size:.92rem;font-weight:700;color:#0f172a">eTożsamość — 1 login, 1 hasło</span>
+            <span style="font-size:.92rem;font-weight:700;color:#0f172a">eTożsamość — bez loginu, 1 hasło</span>
           </div>
           <p style="font-size:.82rem;color:#64748b;margin:0 0 .75rem;line-height:1.5">
-            Zunifikowaliśmy logowanie do wszystkich systemów organizacji. Jeden login i hasło działają teraz w Panelu SZO i Microsoft 365.
+            Zunifikowaliśmy logowanie do wszystkich systemów organizacji. Bez osobnego loginu — 1 hasło działa teraz w Panelu SZO i Microsoft 365.
             <a href="<?= APP_URL ?>/auth/etoz.php" style="color:var(--c,#2563eb);white-space:nowrap">Dowiedz się więcej&nbsp;→</a>
           </p>
           <div style="display:flex;gap:.45rem;flex-wrap:wrap">

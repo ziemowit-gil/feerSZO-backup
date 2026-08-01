@@ -404,7 +404,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 
 <div class="tz-h">
   <h1><i class="bi bi-person-vcard me-2" style="color:#1E6DFF" aria-hidden="true"></i>eTożsamość</h1>
-  <p>Centrum dostępów · 1 login, 1 hasło do wszystkich systemów organizacji</p>
+  <p>Centrum dostępów · bez loginu, 1 hasło do wszystkich systemów organizacji</p>
 </div>
 
 <?php if ($first_visit): ?>
