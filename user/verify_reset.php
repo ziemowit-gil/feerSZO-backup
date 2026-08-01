@@ -843,6 +843,14 @@ $step_labels = [
             <i class="bi bi-file-earmark-search me-1" aria-hidden="true"></i>Sprawdź numer umowy
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link small fw-semibold px-3"
+                  id="tab-register-btn" data-bs-toggle="tab" data-bs-target="#tab-register"
+                  type="button" role="tab" aria-controls="tab-register"
+                  aria-selected="false">
+            <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Załóż konto
+          </button>
+        </li>
       </ul>
     </div>
     <div class="card-body p-4">
@@ -931,6 +939,25 @@ $step_labels = [
               <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
             </button>
           </form>
+        </div>
+
+        <!-- Zakładka: Załóż konto -->
+        <div class="tab-pane fade"
+             id="tab-register" role="tabpanel" aria-labelledby="tab-register-btn">
+          <p class="text-muted small mb-3">
+            Masz podpisaną umowę wolontariacką, ale nie możesz się zalogować? Jeśli konto nie zostało
+            jeszcze założone, możesz je utworzyć samodzielnie kodem SMS.
+          </p>
+          <ul class="small text-muted mb-3 ps-3" style="line-height:1.7">
+            <li>Wymagany <strong>adres e-mail</strong> podany w umowie</li>
+            <li>Wymagane <strong>ostatnie 5 cyfr PESEL</strong> lub numer dokumentu tożsamości</li>
+            <li>Wymagany <strong>numer telefonu</strong> z umowy (kod SMS)</li>
+            <li>Dostępne wyłącznie dla <strong>umów wolontariackich</strong></li>
+          </ul>
+          <a href="<?= APP_URL ?>/user/register.php"
+             class="btn btn-primary btn-sm">
+            <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Przejdź do rejestracji
+          </a>
         </div>
 
       </div>
