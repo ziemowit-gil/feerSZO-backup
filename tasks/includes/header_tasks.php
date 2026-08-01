@@ -625,9 +625,9 @@ body {
       <i class="bi bi-archive" aria-hidden="true"></i>Archiwum zadań
     </a>
 
-    <a class="tsk-nav-link <?= str_contains($_uri,'status=mine') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/index.php?status=mine<?= $_ws_id ? '&ws='.$_ws_id : '' ?>"
-       aria-current="<?= str_contains($_uri,'status=mine') ? 'page' : 'false' ?>">
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/moje') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/moje.php"
+       aria-current="<?= _tsk_active('/tasks/moje') ? 'page' : 'false' ?>">
       <i class="bi bi-person-check" aria-hidden="true"></i>Moje zadania
       <?php if ($_my_count > 0): ?>
       <span class="tsk-nav-badge" aria-label="<?= $_my_count ?> zadań"><?= $_my_count ?></span>
