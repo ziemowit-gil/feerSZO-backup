@@ -340,15 +340,21 @@ include dirname(__DIR__) . '/includes/header.php';
         Kliknij poniżej, gdy chcesz je dostarczyć.
       </p>
 
-      <form method="post" class="mb-3">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="req_id" value="<?= $req_id ?>">
-        <input type="hidden" name="action" value="send_now">
-        <button type="submit" class="btn btn-primary"
-                onclick="return confirm('Wysłać zaświadczenie e-mailem do wnioskodawcy?')">
-          <i class="bi bi-send-check"></i> Wyślij teraz do wnioskodawcy
-        </button>
-      </form>
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="req_id" value="<?= $req_id ?>">
+          <input type="hidden" name="action" value="send_now">
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('Wysłać zaświadczenie e-mailem do wnioskodawcy?')">
+            <i class="bi bi-send-check"></i> Wyślij teraz do wnioskodawcy
+          </button>
+        </form>
+        <a href="<?= APP_URL ?>/certificates/download_pdf.php?id=<?= $req_id ?>"
+           class="btn btn-outline-danger">
+          <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+        </a>
+      </div>
 
       <?php if (!empty($req['certificate_file'])): ?>
       <div class="mb-3">
@@ -372,10 +378,16 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="mb-0">
         <div class="fw-semibold small mb-2"><i class="bi bi-file-text"></i> Treść tekstowa</div>
         <pre class="bg-light border rounded p-3" style="white-space:pre-wrap;font-size:.85rem"><?= h($req['certificate_content']) ?></pre>
-        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req_id ?>"
-           target="_blank" class="btn btn-sm btn-outline-success">
-          <i class="bi bi-printer"></i> Podgląd wydruku
-        </a>
+        <div class="d-flex gap-2 mt-2">
+          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req_id ?>"
+             target="_blank" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-printer"></i> Podgląd wydruku
+          </a>
+          <a href="<?= APP_URL ?>/certificates/download_pdf.php?id=<?= $req_id ?>"
+             class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+          </a>
+        </div>
       </div>
       <?php endif; ?>
     </div>
@@ -439,10 +451,18 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="mb-3">
         <div class="fw-semibold small mb-2"><i class="bi bi-file-text"></i> Treść tekstowa</div>
         <pre class="bg-light border rounded p-3" style="white-space:pre-wrap;font-size:.85rem"><?= h($req['certificate_content']) ?></pre>
-        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req_id ?>"
-           target="_blank" class="btn btn-sm btn-outline-success">
-          <i class="bi bi-printer"></i> Podgląd wydruku
-        </a>
+        <div class="d-flex gap-2 mt-2">
+          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req_id ?>"
+             target="_blank" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-printer"></i> Podgląd wydruku
+          </a>
+          <?php if ($req['status'] === 'wydane'): ?>
+          <a href="<?= APP_URL ?>/certificates/download_pdf.php?id=<?= $req_id ?>"
+             class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+          </a>
+          <?php endif; ?>
+        </div>
       </div>
       <?php endif; ?>
 

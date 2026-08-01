@@ -542,3 +542,64 @@ function _certificate_notify_admins(string $type, array $row, array $req): void 
         approval_send_email($admin['email'], "Nowy wniosek o zaświadczenie — {$org}", $body);
     }
 }
+
+/**
+ * Przygotowuje wszystkie zmienne widoku potrzebne do wydruku/PDF zaświadczenia.
+ * Zwraca: type, row, org, org_city, org_nip, org_krs, org_adres,
+ *         logo_b64, logo_mime, cert_type_key, cert_type_label,
+ *         cert_number, issued_date, sign_type, issuer_name, paragraphs.
+ * Nie generuje kodu QR — robi to wywołujący.
+ */
+function cert_view_vars(array $req): array {
+    $type  = $req['contract_type'];
+    $table = table_for_type($type);
+    $row   = db_one("SELECT * FROM {$table} WHERE id=?", [$req['contract_id']]) ?? [];
+
+    $stored    = org_setting('org_name');
+    $const     = defined('ORG_NAME') ? ORG_NAME : '';
+    $org       = (strlen($const) > strlen($stored)) ? $const : ($stored ?: $const);
+    $org_city  = org_setting('org_miejscowosc') ?: '';
+    $org_nip   = org_setting('org_nip') ?: '';
+    $org_krs   = org_setting('org_krs') ?: '';
+    $org_adres = org_setting('org_adres') ?: '';
+
+    $logo_b64 = ''; $logo_mime = 'image/png';
+    $lf = org_setting('org_logo');
+    if ($lf) {
+        $lp = dirname(__DIR__) . '/assets/logo/' . basename($lf);
+        if (file_exists($lp) && filesize($lp) < 500_000) {
+            $logo_b64  = base64_encode(file_get_contents($lp));
+            $logo_mime = str_ends_with(strtolower($lf), '.svg') ? 'image/svg+xml' : 'image/png';
+        }
+    }
+
+    $cert_type_key   = $req['certificate_type'] ?? 'wolontariat';
+    $cert_type_label = CERTIFICATE_TYPES[$cert_type_key]['label'] ?? 'Zaświadczenie';
+    $cert_number     = $req['cert_number']
+        ?: (cert_type_prefix($cert_type_key) . '/' . str_pad((int)$req['id'], 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
+    $issued_date = $req['issued_at'] ? date('d.m.Y', strtotime($req['issued_at'])) : date('d.m.Y');
+    $sign_type   = $req['sign_type'] ?? 'papierowe';
+    $issuer_name = $req['issued_by_name'] ?? '';
+
+    $raw = trim($req['certificate_content'] ?? '');
+    $raw = preg_replace('/^ZAŚWIADCZENIE\s+/u', '', $raw);
+    $raw = preg_replace('/\s*\.{10,}.*$/su', '', $raw);
+    $raw = preg_replace('/\s*Podpis osoby.*$/su', '', $raw);
+    $raw = preg_replace('/\s*\d{1,2}\s+\w+\s+\d{4}\s*$/u', '', $raw);
+    if ($org && str_ends_with(rtrim($raw), $org)) {
+        $raw = substr($raw, 0, strrpos($raw, $org));
+    }
+    $raw = trim($raw);
+
+    $paragraphs = [];
+    foreach (preg_split('/\n{2,}/', $raw) as $p) {
+        $p = trim($p);
+        if ($p !== '') $paragraphs[] = $p;
+    }
+
+    return compact(
+        'type', 'row', 'org', 'org_city', 'org_nip', 'org_krs', 'org_adres',
+        'logo_b64', 'logo_mime', 'cert_type_key', 'cert_type_label',
+        'cert_number', 'issued_date', 'sign_type', 'issuer_name', 'paragraphs'
+    );
+}

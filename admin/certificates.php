@@ -116,8 +116,12 @@ include dirname(__DIR__) . '/includes/header.php';
              class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-eye"></i> Podgląd
           </a>
+          <a href="<?= APP_URL ?>/certificates/download_pdf.php?id=<?= $req['id'] ?>"
+             class="btn btn-sm btn-outline-danger" title="Pobierz PDF">
+            <i class="bi bi-file-earmark-pdf"></i>
+          </a>
           <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req['id'] ?>"
-             target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd PDF">
+             target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd wydruku">
             <i class="bi bi-printer"></i>
           </a>
           <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $req['id'] ?>"
