@@ -140,9 +140,39 @@ function _vr_detect_contract_no_account(string $email, string $surname): ?array 
     return null;
 }
 
+/**
+ * Sprawdza, czy w rejestrze istnieje umowa o podanym numerze powiązana z danym
+ * adresem e-mail — niezależnie od tego, czy istnieje konto panelowe.
+ * Zwraca etykietę typu umowy (np. 'Wolontariusz') albo null gdy nie znaleziono.
+ * Ujawnia wyłącznie fakt istnienia umowy — bez danych osobowych.
+ */
+function _vr_check_contract_exists(string $email, string $numer): ?string {
+    $email = trim(mb_strtolower($email));
+    $numer = trim($numer);
+    if ($email === '' || $numer === '') return null;
+    $types = [
+        ['umowy_wolontariat', 'email',       'Wolontariusz'],
+        ['umowy_zlecenie',    'email',       'Zleceniobiorca'],
+        ['umowy_praca',       'email_login', 'Pracownik'],
+        ['umowy_dzielo',      'email',       'Wykonawca dzieła'],
+    ];
+    foreach ($types as [$tbl, $ecol, $lbl]) {
+        try {
+            $c = db_one("SELECT id FROM {$tbl} WHERE LOWER({$ecol}) = ? AND numer_umowy = ? LIMIT 1",
+                        [$email, $numer]);
+        } catch (\Throwable $e) { $c = null; }
+        if ($c) return $lbl;
+    }
+    return null;
+}
+
 // ── Odczyt stanu z sesji ──────────────────────────────────────────────────────
 $propose      = null;   // propozycja założenia konta (umowa jest, konta brak)
 $detect_done  = false;  // czy uruchomiono detekcję (do komunikatu „nie znaleziono")
+$cc_done      = false;  // czy uruchomiono sprawdzenie numeru umowy
+$cc_result    = null;   // etykieta typu umowy (jeśli znaleziono) lub null
+$cc_email     = '';
+$cc_numer     = '';
 $reset_step   = (int) ($_SESSION['vr_step']       ?? 1);
 $reset_user_id  = (int) ($_SESSION['vr_user_id']    ?? 0);
 $sms_fails      = (int) ($_SESSION['vr_sms_fails']  ?? 0);
@@ -363,6 +393,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             _vr_rate_record();
             $detect_done = true;
             $propose = _vr_detect_contract_no_account($_POST['detect_email'] ?? '', $_POST['detect_surname'] ?? '');
+        }
+    }
+
+    // ── Sprawdzenie istnienia umowy po e-mail + numer ─────────────────────────
+    elseif ($action === 'check_contract' && $reset_step === 1) {
+        if (!_vr_rate_check()) {
+            $error = VR_ERR_RATE;
+        } else {
+            _vr_rate_record();
+            $cc_done  = true;
+            $cc_email = trim($_POST['cc_email'] ?? '');
+            $cc_numer = trim($_POST['cc_numer'] ?? '');
+            $cc_result = _vr_check_contract_exists($cc_email, $cc_numer);
         }
     }
 
@@ -819,6 +862,59 @@ $step_labels = [
               <label for="detect_surname" class="form-label small fw-semibold">lub nazwisko</label>
               <input type="text" class="form-control form-control-sm" id="detect_surname" name="detect_surname"
                      placeholder="nazwisko" value="<?= h($_POST['detect_surname'] ?? '') ?>">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-outline-primary btn-sm mt-3">
+            <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprawdź, czy numer umowy istnieje w systemie -->
+  <div class="card shadow-sm mt-3">
+    <div class="card-body p-4">
+      <button type="button" class="btn btn-link p-0 text-decoration-none fw-semibold small"
+              data-bs-toggle="collapse" data-bs-target="#check-contract-box"
+              aria-expanded="<?= $cc_done ? 'true' : 'false' ?>" aria-controls="check-contract-box">
+        <i class="bi bi-file-earmark-search me-1" aria-hidden="true"></i>Sprawdź, czy Twoja umowa jest w systemie
+      </button>
+      <div class="collapse <?= $cc_done ? 'show' : '' ?>" id="check-contract-box">
+        <?php if ($cc_done): ?>
+          <?php if ($cc_result !== null): ?>
+          <div class="alert alert-success d-flex align-items-start gap-2 mt-3 mb-0" role="status">
+            <i class="bi bi-check-circle-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+            <div class="small">Umowa <strong><?= h($cc_numer) ?></strong> dla adresu <strong><?= h($cc_email) ?></strong>
+              jest zarejestrowana w systemie (typ: <?= h($cc_result) ?>).
+              Aby uzyskać dostęp do konta, skorzystaj z <strong>formularza weryfikacji powyżej</strong>.</div>
+          </div>
+          <?php else: ?>
+          <div class="alert alert-secondary d-flex align-items-start gap-2 mt-3 mb-0" role="status">
+            <i class="bi bi-info-circle fs-5 flex-shrink-0" aria-hidden="true"></i>
+            <div class="small">Nie znaleziono umowy o numerze <strong><?= h($cc_numer) ?></strong>
+              powiązanej z adresem <strong><?= h($cc_email) ?></strong>.
+              Sprawdź dane lub skontaktuj się z administratorem.</div>
+          </div>
+          <?php endif; ?>
+        <?php endif; ?>
+        <p class="text-muted small mt-3 mb-2">
+          Wpisz adres e-mail i numer umowy, aby potwierdzić, że umowa jest zarejestrowana w systemie.
+          Nie wymaga podawania PESEL-u — sprawdza wyłącznie fakt istnienia.
+        </p>
+        <form method="post" novalidate>
+          <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="check_contract">
+          <div class="row g-2">
+            <div class="col-sm-7">
+              <label for="cc_email" class="form-label small fw-semibold">Adres e-mail z umowy</label>
+              <input type="email" class="form-control form-control-sm" id="cc_email" name="cc_email"
+                     placeholder="e-mail" value="<?= h($cc_email) ?>">
+            </div>
+            <div class="col-sm-5">
+              <label for="cc_numer" class="form-label small fw-semibold">Numer umowy</label>
+              <input type="text" class="form-control form-control-sm" id="cc_numer" name="cc_numer"
+                     placeholder="np. RU/0001/2024/AB" value="<?= h($cc_numer) ?>">
             </div>
           </div>
           <button type="submit" class="btn btn-outline-primary btn-sm mt-3">

@@ -170,6 +170,10 @@ try { cpc_migrate(); } catch (\Throwable $e) {}
 $has_ika     = !empty($db_user['cpc_code']);
 $ika_blocked = !empty($db_user['cpc_blocked_until']) && $db_user['cpc_blocked_until'] > date('Y-m-d H:i:s');
 
+$cc_done        = false;
+$cc_result      = null;
+$cc_numer_input = '';
+
 $errors = [];
 
 /** Maskuje numer: +48 ••• ••• 200. */
@@ -320,6 +324,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
         }
     }
+    elseif ($action === 'tz_check_contract') {
+        $cc_numer_input = trim($_POST['cc_numer'] ?? '');
+        if ($cc_numer_input !== '') {
+            $cc_done = true;
+            $tz_types = [
+                ['umowy_wolontariat', 'email',       'Wolontariusz'],
+                ['umowy_zlecenie',    'email',       'Zleceniobiorca'],
+                ['umowy_praca',       'email_login', 'Pracownik'],
+                ['umowy_dzielo',      'email',       'Wykonawca dzieła'],
+            ];
+            foreach ($tz_types as [$tbl, $ecol, $lbl]) {
+                try {
+                    $c = db_one("SELECT id FROM {$tbl} WHERE LOWER({$ecol}) = ? AND numer_umowy = ? LIMIT 1",
+                                [mb_strtolower($panel_login), $cc_numer_input]);
+                } catch (\Throwable $e) { $c = null; }
+                if ($c) { $cc_result = $lbl; break; }
+            }
+        }
+    }
     elseif ($action === 'ldap_create') {
         // Samodzielne utworzenie/odświeżenie własnego wpisu w katalogu LDAP.
         if (!(defined('LDAP_ENABLED') && LDAP_ENABLED)) {
@@ -448,6 +471,44 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <span>Numer UID został nadany automatycznie przy zawarciu umowy i jest Twoim stałym identyfikatorem w rejestrze tożsamości — nie można go zmienić. Login do panelu (identyfikator sieciowy) jest niezależny od loginu Microsoft 365.
     <span class="lbl-en">UID is assigned at contract creation and is immutable. The panel sign-in may differ from the Microsoft 365 sign-in.</span></span>
   </p>
+
+  <div class="mt-4 pt-3" style="border-top:1px solid var(--tz-line)">
+    <h3 class="h6 fw-semibold mb-2">
+      <i class="bi bi-file-earmark-check me-1" style="color:#1E6DFF" aria-hidden="true"></i>Sprawdź numer umowy
+      <span class="lbl-en d-inline fw-normal text-muted" style="font-size:.78rem">Verify contract number</span>
+    </h3>
+    <?php if ($cc_done): ?>
+      <?php if ($cc_result): ?>
+      <div class="alert alert-success d-flex align-items-start gap-2 py-2 small" role="status">
+        <i class="bi bi-check-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div>Umowa <strong><?= h($cc_numer_input) ?></strong> jest zarejestrowana dla Twojego konta (typ: <?= h($cc_result) ?>).</div>
+      </div>
+      <?php else: ?>
+      <div class="alert alert-secondary d-flex align-items-start gap-2 py-2 small" role="status">
+        <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div>Nie znaleziono umowy o numerze <strong><?= h($cc_numer_input) ?></strong> powiązanej z Twoim loginem. Sprawdź numer lub skontaktuj się z administratorem.</div>
+      </div>
+      <?php endif; ?>
+    <?php endif; ?>
+    <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="tz_check_contract">
+      <div>
+        <label for="tz_cc_numer" class="form-label form-label-sm fw-semibold">
+          Numer umowy <span class="lbl-en fw-normal text-muted">Contract no.</span>
+        </label>
+        <input type="text" id="tz_cc_numer" name="cc_numer" class="form-control form-control-sm"
+               placeholder="np. RU/0001/2024/AB" value="<?= h($cc_numer_input) ?>" style="min-width:220px">
+      </div>
+      <button type="submit" class="tz-btn btn-sm">
+        <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
+      </button>
+    </form>
+    <p class="tz-note mt-2 mb-0" style="border:0;padding-left:0">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <span>Wpisz numer umowy, aby potwierdzić jej obecność w rejestrze systemu. Weryfikacja odbywa się wyłącznie w ramach Twojego konta.</span>
+    </p>
+  </div>
 </section>
 
 <!-- ═══════════ USŁUGI ═══════════ -->
