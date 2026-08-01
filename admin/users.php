@@ -15,8 +15,7 @@ if (!defined('TZ_USERS_CHROME')) {
 }
 $SELF_URL = TZ_USERS_URL;
 ika_require($SELF_URL, 3600);
-require_once dirname(__DIR__) . '/includes/tz_auth.php';
-tz_require_level(TZ_LEVEL_MFA, $SELF_URL, 'Zarządzanie użytkownikami');
+
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
 
 function _users_send_deactivated_email(string $email, string $name): void {
