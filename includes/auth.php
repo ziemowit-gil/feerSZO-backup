@@ -29,11 +29,14 @@ function auth_start(): void {
         }
 
         // SameSite=Lax wymagane przy OAuth (cross-site top-level GET po redirect MS)
+        $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+                 || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
             'httponly' => true,
             'samesite' => 'Lax',
+            'secure'   => $is_https,
         ]);
         session_start();
     }
@@ -98,14 +101,22 @@ function require_login(): void {
         if ($base !== '' && $base !== '/' && str_starts_with($uri, $base . '/')) {
             $uri = substr($uri, strlen($base));
         }
+        // Walidacja same-origin przed przekazaniem jako redirect
+        $full_uri = APP_URL . $uri;
+        if (!str_starts_with($full_uri, APP_URL . '/')) {
+            $full_uri = APP_URL . '/tozsamosc/index.php';
+        }
         $crm_base = crm_alias_base_url();
         if ($crm_base !== null) {
             header('Location: ' . $crm_base . '/crm/login.php?redirect=' . urlencode($crm_base . $uri));
         } else {
-            $full_uri = APP_URL . $uri;
             header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
         }
         exit;
+    }
+    // Sprawdź timeout poziomów MFA/WebAuthn
+    if (function_exists('tz_session_timeout_check')) {
+        tz_session_timeout_check();
     }
 
     // Wymuszenie aktywnej sesji w rejestrze — pozwala zdalnie wylogować użytkownika
@@ -398,6 +409,15 @@ function login_user(array $user): void {
         'microsoft_id' => $user['microsoft_id'] ?? '',
         'portal_scope' => $user['portal_scope'] ?? null,
     ];
+    // Inicjuj poziom zaufania sesji (1 = hasło)
+    if (function_exists('tz_init_on_login')) {
+        tz_init_on_login();
+    } else {
+        $_SESSION['tz_auth_level']      = 1;
+        $_SESSION['tz_auth_granted_at'] = time();
+    }
+    // Fingerprint UA — wykrywanie przejęcia sesji
+    $_SESSION['tz_ua_hash'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
     // Zapisz aktywną sesję w DB
     try {
         require_once __DIR__ . '/auth_security.php';

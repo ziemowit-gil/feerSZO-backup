@@ -177,11 +177,12 @@ $cc_numer_input = '';
 
 $errors = [];
 
-/** Maskuje numer: +48 ••• ••• 200. */
-function tz_mask_phone(string $p): string {
-    $d = preg_replace('/\D/', '', $p);
-    if (strlen($d) < 3) return $p;
-    return '+' . substr($d, 0, max(0, strlen($d) - 9)) . ' ••• ••• ' . substr($d, -3);
+if (!function_exists('tz_mask_phone')) {
+    function tz_mask_phone(string $p): string {
+        $d = preg_replace('/\D/', '', $p);
+        if (strlen($d) < 3) return $p;
+        return '+' . substr($d, 0, max(0, strlen($d) - 9)) . ' ••• ••• ' . substr($d, -3);
+    }
 }
 
 // ═══════════════════════ OBSŁUGA POST ═══════════════════════════════════════

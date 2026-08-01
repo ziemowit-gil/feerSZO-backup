@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/totp.php';
 require_once dirname(__DIR__) . '/includes/webauthn.php';
+require_once dirname(__DIR__) . '/includes/tz_auth.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 
 // Osobne logowanie podsystemu.
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['2fa_pending_secret']);
             $_SESSION['2fa_backup_codes_display'] = $backup;
             log_user_action((int)$user['id'], (int)$user['id'], '2fa_enabled', 'Włączono 2FA TOTP (Tożsamość)');
+            tz_grant_level(TZ_LEVEL_MFA); // Konfiguracja TOTP = udana weryfikacja
             $success = 'totp_enabled';
             $db_user = db_one("SELECT * FROM users WHERE id=?", [$user['id']]);
         }
@@ -93,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE users SET twofa_method='sms' WHERE id=?")->execute([$user['id']]);
                 unset($_SESSION['2fa_sms_setup_sent']);
                 log_user_action((int)$user['id'], (int)$user['id'], '2fa_enabled', 'Włączono 2FA SMS (Tożsamość): ' . $phone_norm);
+                tz_grant_level(TZ_LEVEL_MFA); // Weryfikacja SMS = udany MFA
                 flash_set('success', '2FA SMS zostało włączone.');
                 header('Location: ' . $SELF); exit;
             } else { $errors[] = 'Nieprawidłowy lub wygasły kod. Spróbuj ponownie.'; $success = 'sms_sent'; }

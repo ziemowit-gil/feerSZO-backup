@@ -536,8 +536,30 @@ function webauthn_login_gate(array $user, string $redirect_after): bool {
     webauthn_migrate();
     if (empty($user['webauthn_required'])) return false;
     if (!webauthn_user_has_keys((int)$user['id'])) return false;
+
+    // Ładuj tz_auth.php jeśli jeszcze nie załadowany
+    if (!function_exists('tz_make_challenge')) {
+        @require_once __DIR__ . '/tz_auth.php';
+    }
+
+    // Walidacja same-origin przed zapisem w sesji
+    $safe_redirect = (defined('APP_URL') && str_starts_with($redirect_after, APP_URL . '/'))
+        ? $redirect_after : (defined('APP_URL') ? APP_URL . '/tozsamosc/index.php' : '/');
+
+    if (function_exists('tz_make_challenge')) {
+        // Nowy flow: step_up.php z signed challenge token
+        try {
+            $token = tz_make_challenge(TZ_LEVEL_HARDWARE, $safe_redirect, 'Logowanie');
+            header('Location: ' . APP_URL . '/tozsamosc/step_up.php?t=' . urlencode($token));
+            return true;
+        } catch (\Throwable $e) {
+            // Fallback do starego flow jeśli challenge nie przejdzie
+        }
+    }
+
+    // Legacy fallback (używany zanim tz_auth.php zostało załadowane)
     $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
-    header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($redirect_after));
+    header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($safe_redirect));
     return true;
 }
 
