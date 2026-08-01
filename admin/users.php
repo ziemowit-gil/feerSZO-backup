@@ -366,6 +366,10 @@ $where_sql = $where_parts ? 'WHERE ' . implode(' AND ', $where_parts) : '';
 $users = db_all("SELECT * FROM users $where_sql ORDER BY created_at DESC", $where_params);
 $me    = current_user();
 
+// Migracja WebAuthn — musi być przed zapytaniami na webauthn_credentials
+require_once dirname(__DIR__) . '/includes/webauthn.php';
+try { webauthn_migrate(); } catch (\Throwable $e) {}
+
 // Użytkownicy z kluczem WebAuthn
 $webauthn_uids = [];
 try {
@@ -375,11 +379,8 @@ try {
 } catch (\Throwable $e) {}
 
 // Użytkownicy, dla których admin wymusił klucz WebAuthn przy KAŻDEJ metodzie
-// logowania (3 weryfikacje) — reszta admin/editor może logować się np. samym M365.
 $webauthn_required_uids = [];
 try {
-    require_once dirname(__DIR__) . '/includes/webauthn.php';
-    webauthn_migrate();
     foreach (db_all("SELECT id FROM users WHERE webauthn_required=1") as $wr) {
         $webauthn_required_uids[(int)$wr['id']] = true;
     }
