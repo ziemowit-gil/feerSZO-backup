@@ -9,6 +9,8 @@ require_once dirname(__DIR__) . '/includes/user_sync.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/users.php', 3600);
+require_once dirname(__DIR__) . '/includes/tz_auth.php';
+tz_require_level(TZ_LEVEL_MFA, APP_URL . '/admin/users.php', 'Zarządzanie użytkownikami');
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
 
 function _users_send_deactivated_email(string $email, string $name): void {

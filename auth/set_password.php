@@ -14,7 +14,7 @@ require_once dirname(__DIR__) . '/includes/branding.php';
 auth_start();
 
 if (current_user()) {
-    header('Location: ' . APP_URL . '/portal.php'); exit;
+    header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
 }
 
 $token = trim($_GET['token'] ?? $_POST['token'] ?? '');
@@ -56,7 +56,7 @@ if (!$invalid_token && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) {}
 
         login_user($user);
-        header('Location: ' . APP_URL . '/portal.php'); exit;
+        header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
     }
 }
 

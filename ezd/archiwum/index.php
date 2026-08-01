@@ -5,6 +5,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko'); ezd_require_access();
+require_once dirname(dirname(__DIR__)) . '/includes/tz_auth.php';
+tz_require_level(TZ_LEVEL_MFA, APP_URL . '/ezd/archiwum/index.php', 'Archiwum zakładowe EZD');
 
 $user_id = (int)current_user()['id'];
 

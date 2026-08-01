@@ -6,6 +6,8 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 
 require_role('admin');
+require_once dirname(__DIR__) . '/includes/tz_auth.php';
+tz_require_level(TZ_LEVEL_MFA, APP_URL . '/admin/crm_database.php', 'Baza CRM');
 $PAGE_TITLE = 'Ustawienia bazy CRM';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

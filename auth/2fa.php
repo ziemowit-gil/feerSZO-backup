@@ -9,7 +9,7 @@ auth_start();
 
 // If already fully logged in, go home
 if (current_user()) {
-    header('Location: ' . APP_URL . '/portal.php');
+    header('Location: ' . APP_URL . '/tozsamosc/index.php');
     exit;
 }
 
@@ -21,7 +21,7 @@ if (empty($_SESSION['2fa_uid'])) {
 
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
-    ? $raw_redirect : APP_URL . '/portal.php';
+    ? $raw_redirect : APP_URL . '/tozsamosc/index.php';
 
 $uid    = (int)$_SESSION['2fa_uid'];
 $method = $_SESSION['2fa_method'] ?? '';

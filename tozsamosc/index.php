@@ -511,7 +511,11 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       <dd style="font-size:.78rem;font-family:ui-monospace,monospace"><?= h($microsoft_id ?: '—') ?></dd>
     </div>
     <div><dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd></div>
-    <div><dt>Źródło danych <span class="lbl-en">Data source</span></dt><dd>Umowa <?= h($src_contract['numer_umowy'] ?? '—') ?></dd></div>
+    <div><dt>Źródło danych <span class="lbl-en">Data source</span></dt><dd><?php
+      if ($src_contract) { echo 'Umowa ' . h($src_contract['numer_umowy']); }
+      elseif (function_exists('is_admin') && is_admin()) { echo 'Wpis do KRS – powołanie'; }
+      else { echo '—'; }
+    ?></dd></div>
     <div><dt>UID nadany <span class="lbl-en">Assigned</span></dt><dd><?= h(!empty($db_user['created_at']) ? date('d.m.Y', strtotime($db_user['created_at'])) : ($src_contract['data_zawarcia'] ?? '—')) ?></dd></div>
   </dl>
   <p class="tz-note mb-0">

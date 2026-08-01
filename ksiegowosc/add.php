@@ -8,6 +8,8 @@ require_once __DIR__ . '/../includes/ksiegowosc.php';
 require_once __DIR__ . '/../includes/kdok_ksef.php';
 
 kdok_require_role('upload');
+require_once __DIR__ . '/../includes/tz_auth.php';
+tz_require_level(TZ_LEVEL_MFA, APP_URL . '/ksiegowosc/add.php', 'Dokumenty finansowe');
 kdok_migrate();
 kdok_ksef_migrate();
 
