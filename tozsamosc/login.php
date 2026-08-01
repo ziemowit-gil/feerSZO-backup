@@ -28,6 +28,11 @@ $redirect = APP_URL . '/tozsamosc/index.php';
 // Już zalogowany → prosto do portalu tożsamości.
 if (current_user()) { header('Location: ' . $redirect); exit; }
 
+// Zunifikowane logowanie eTożsamości: przekieruj do głównej strony logowania SZO.
+// Ścieżki M365/Azure (SSO, callback) pozostają bez zmian w auth/ms_callback.php.
+header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($redirect));
+exit;
+
 $ms_available = function_exists('ms_login_available') && ms_login_available();
 $org_name     = defined('ORG_NAME') ? ORG_NAME : '';
 $error = ''; $active = 'local';

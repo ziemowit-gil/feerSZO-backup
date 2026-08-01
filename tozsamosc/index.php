@@ -325,25 +325,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
         }
     }
-    elseif ($action === 'tz_check_contract') {
-        $cc_numer_input = trim($_POST['cc_numer'] ?? '');
-        if ($cc_numer_input !== '') {
-            $cc_done = true;
-            $tz_types = [
-                ['umowy_wolontariat', 'email',       'Wolontariusz'],
-                ['umowy_zlecenie',    'email',       'Zleceniobiorca'],
-                ['umowy_praca',       'email_login', 'Pracownik'],
-                ['umowy_dzielo',      'email',       'Wykonawca dzieła'],
-            ];
-            foreach ($tz_types as [$tbl, $ecol, $lbl]) {
-                try {
-                    $c = db_one("SELECT id FROM {$tbl} WHERE LOWER({$ecol}) = ? AND numer_umowy = ? LIMIT 1",
-                                [mb_strtolower($panel_login), $cc_numer_input]);
-                } catch (\Throwable $e) { $c = null; }
-                if ($c) { $cc_result = $lbl; break; }
-            }
-        }
-    }
     elseif ($action === 'ldap_create') {
         // Samodzielne utworzenie/odświeżenie własnego wpisu w katalogu LDAP.
         if (!(defined('LDAP_ENABLED') && LDAP_ENABLED)) {
@@ -380,21 +361,30 @@ $initials = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtoupper($m2[1]);
 
 // ── Routing sekcja — moduły dostępne dla użytkownika ─────────────────────────
-$_tz_role = $db_user['role'] ?? $user['role'] ?? 'viewer';
-$_tz_entries = portal_entry_points(); // tablica modułów dla scoped/viewer (pusta dla admin/editor)
+$_tz_entries = portal_entry_points();
 if (!$_tz_entries) {
-    // Admin/editor: portal + ewentualnie panel wolontariusza
     $_tz_entries = [
-        ['label'=>'Portal SZO','desc'=>'Moduły zarządcze organizacji','icon'=>'bi-grid-3x3-gap-fill',
-         'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)','url'=>APP_URL.'/portal.php','primary'=>true],
+        ['label'=>'Portal SZO','desc'=>'Moduły zarządcze','icon'=>'bi-grid-3x3-gap-fill',
+         'grad'=>'','color'=>'#1d4ed8','url'=>APP_URL.'/portal.php','primary'=>true],
     ];
     if (function_exists('user_has_volunteer_panel') && user_has_volunteer_panel()) {
-        $_tz_entries[] = module_entry_volunteer_panel();
+        $_e = module_entry_volunteer_panel();
+        $_e['color'] = '#db2777';
+        $_tz_entries[] = $_e;
     }
 }
+// dodaj kolor flat do wpisów z portal_entry_points (mają grad zamiast color)
+$_tz_color_map = ['panel'=>'#db2777','crm'=>'#16a34a','ezd'=>'#1d4ed8','karty30'=>'#c2410c',
+                  'strategy'=>'#7c3aed','szkolenia'=>'#7c3aed','directory'=>'#4f46e5'];
+foreach ($_tz_entries as &$_e) {
+    if (empty($_e['color'])) {
+        $_e['color'] = $_tz_color_map[$_e['key'] ?? ''] ?? '#1d4ed8';
+    }
+}
+unset($_e);
 if ($has_m365) {
     $_tz_entries[] = ['label'=>'Microsoft 365','desc'=>'Outlook, Teams, SharePoint','icon'=>'bi-grid',
-         'grad'=>'linear-gradient(135deg,#0078d4,#00a4ef)','url'=>'https://office.com','primary'=>false,'ext'=>true];
+         'color'=>'#0078d4','url'=>'https://office.com','primary'=>false,'ext'=>true];
 }
 
 $PAGE_TITLE = 'Tożsamość';
@@ -440,38 +430,26 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 </div>
 
 <!-- ══ Routing: przejdź do modułu ═══════════════════════════════════════════ -->
-<section class="tz-card" aria-labelledby="tz-go-h" style="padding:.85rem 1.1rem">
-  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
-    <i class="bi bi-arrow-right-circle-fill" style="color:#1E6DFF;font-size:1rem" aria-hidden="true"></i>
-    <span id="tz-go-h" style="font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6B7280">Przejdź do</span>
-  </div>
-  <div style="display:flex;flex-wrap:wrap;gap:.55rem" role="list">
-    <?php foreach ($_tz_entries as $_te): ?>
-    <a href="<?= h($_te['url']) ?>"
-       <?= !empty($_te['ext']) ? 'target="_blank" rel="noopener"' : '' ?>
-       role="listitem"
-       style="display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;
-              border-radius:11px;padding:.6rem 1rem;min-width:160px;flex:1;max-width:260px;
-              background:<?= h($_te['grad']) ?>;color:#fff;transition:opacity .15s,transform .13s"
-       onmouseover="this.style.opacity='.88';this.style.transform='translateY(-2px)'"
-       onmouseout="this.style.opacity='1';this.style.transform=''"
-       aria-label="Przejdź do: <?= h($_te['label']) ?>">
-      <span style="width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.2);
-                   display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0">
-        <i class="bi <?= h($_te['icon']) ?>" aria-hidden="true"></i>
-      </span>
-      <span style="min-width:0">
-        <span style="display:block;font-size:.87rem;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-          <?= h($_te['label']) ?><?= !empty($_te['ext']) ? '<i class="bi bi-box-arrow-up-right ms-1" style="font-size:.7rem" aria-hidden="true"></i>' : '' ?>
-        </span>
-        <span style="display:block;font-size:.7rem;color:rgba(255,255,255,.8);line-height:1.3;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-          <?= h($_te['desc']) ?>
-        </span>
-      </span>
-    </a>
-    <?php endforeach; ?>
-  </div>
-</section>
+<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.15rem" role="list" aria-label="Przejdź do modułu">
+  <?php foreach ($_tz_entries as $_te): ?>
+  <a href="<?= h($_te['url']) ?>"
+     <?= !empty($_te['ext']) ? 'target="_blank" rel="noopener"' : '' ?>
+     role="listitem"
+     style="display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;
+            border-radius:10px;padding:.55rem .95rem;
+            border:1.5px solid #e5e7eb;background:#fff;color:#111827;
+            font-size:.87rem;font-weight:600;transition:border-color .13s,box-shadow .13s"
+     onmouseover="this.style.borderColor='<?= h($_te['color'] ?? '#1d4ed8') ?>';this.style.boxShadow='0 0 0 3px <?= h($_te['color'] ?? '#1d4ed8') ?>22'"
+     onmouseout="this.style.borderColor='#e5e7eb';this.style.boxShadow='none'"
+     aria-label="Przejdź do: <?= h($_te['label']) ?>">
+    <i class="bi <?= h($_te['icon']) ?>" style="color:<?= h($_te['color'] ?? '#1d4ed8') ?>;font-size:1rem" aria-hidden="true"></i>
+    <?= h($_te['label']) ?>
+    <?php if (!empty($_te['ext'])): ?>
+    <i class="bi bi-box-arrow-up-right" style="font-size:.7rem;color:#9ca3af" aria-hidden="true"></i>
+    <?php endif; ?>
+  </a>
+  <?php endforeach; ?>
+</div>
 
 <nav class="tz-subnav" aria-label="Sekcje tożsamości">
   <span class="seg" role="tablist">
@@ -493,12 +471,12 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <div class="d-flex align-items-center gap-3">
       <span class="tz-ava" aria-hidden="true"><?= h($initials) ?></span>
       <div>
-        <div style="font-weight:600;font-size:1.05rem;line-height:1.2"><?= h($user['name']) ?></div>
-        <div style="font-size:.78rem;opacity:.8"><?= h($account_type_label) ?> · Organizational identity</div>
+        <div style="font-weight:600;font-size:1rem;line-height:1.2;color:#111827"><?= h($user['name']) ?></div>
+        <div style="font-size:.77rem;color:var(--tz-muted)"><?= h($account_type_label) ?> · Organizational identity</div>
       </div>
     </div>
     <div class="text-end">
-      <div style="font-size:.7rem;opacity:.75;text-transform:uppercase;letter-spacing:.05em">Numer UID</div>
+      <div style="font-size:.67rem;color:var(--tz-muted);text-transform:uppercase;letter-spacing:.05em">Numer UID</div>
       <div class="tz-uid"><?= h($uid) ?></div>
     </div>
   </div>
@@ -525,43 +503,6 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <span class="lbl-en">UID is assigned at contract creation and is immutable. The panel sign-in may differ from the Microsoft 365 sign-in.</span></span>
   </p>
 
-  <div class="mt-4 pt-3" style="border-top:1px solid var(--tz-line)">
-    <h3 class="h6 fw-semibold mb-2">
-      <i class="bi bi-file-earmark-check me-1" style="color:#1E6DFF" aria-hidden="true"></i>Sprawdź numer umowy
-      <span class="lbl-en d-inline fw-normal text-muted" style="font-size:.78rem">Verify contract number</span>
-    </h3>
-    <?php if ($cc_done): ?>
-      <?php if ($cc_result): ?>
-      <div class="alert alert-success d-flex align-items-start gap-2 py-2 small" role="status">
-        <i class="bi bi-check-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
-        <div>Umowa <strong><?= h($cc_numer_input) ?></strong> jest zarejestrowana dla Twojego konta (typ: <?= h($cc_result) ?>).</div>
-      </div>
-      <?php else: ?>
-      <div class="alert alert-secondary d-flex align-items-start gap-2 py-2 small" role="status">
-        <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
-        <div>Nie znaleziono umowy o numerze <strong><?= h($cc_numer_input) ?></strong> powiązanej z Twoim loginem. Sprawdź numer lub skontaktuj się z administratorem.</div>
-      </div>
-      <?php endif; ?>
-    <?php endif; ?>
-    <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
-      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_action" value="tz_check_contract">
-      <div>
-        <label for="tz_cc_numer" class="form-label form-label-sm fw-semibold">
-          Numer umowy <span class="lbl-en fw-normal text-muted">Contract no.</span>
-        </label>
-        <input type="text" id="tz_cc_numer" name="cc_numer" class="form-control form-control-sm"
-               placeholder="np. RU/0001/2024/AB" value="<?= h($cc_numer_input) ?>" style="min-width:220px">
-      </div>
-      <button type="submit" class="tz-btn btn-sm">
-        <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź
-      </button>
-    </form>
-    <p class="tz-note mt-2 mb-0" style="border:0;padding-left:0">
-      <i class="bi bi-info-circle" aria-hidden="true"></i>
-      <span>Wpisz numer umowy, aby potwierdzić jej obecność w rejestrze systemu. Weryfikacja odbywa się wyłącznie w ramach Twojego konta.</span>
-    </p>
-  </div>
 </section>
 
 <!-- ═══════════ USŁUGI ═══════════ -->
