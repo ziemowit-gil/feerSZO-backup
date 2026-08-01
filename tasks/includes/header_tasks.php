@@ -604,6 +604,12 @@ body {
       <?php endif; ?>
     </a>
 
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/charts') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/charts.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
+       aria-current="<?= _tsk_active('/tasks/charts') ? 'page' : 'false' ?>">
+      <i class="bi bi-bar-chart-line" aria-hidden="true"></i>Wykresy
+    </a>
+
     <?php if ($_tsk_is_leader): ?>
     <div class="tsk-nav-sep" role="separator"></div>
     <span class="tsk-nav-label">Lider</span>

@@ -13,14 +13,66 @@ require_login();
 $uid  = (int)(current_user()['id'] ?? 0);
 $user = current_user();
 
-$saved       = false;
-$error       = '';
-$test_result = null;   // null | ['ok'=>bool, 'msg'=>string, 'channel'=>string]
+$saved            = false;
+$error            = '';
+$test_result      = null;   // null | ['ok'=>bool, 'msg'=>string, 'channel'=>string]
+$admin_test_result = null;  // null | ['ok'=>bool, 'msg'=>string]
+
+$has_mail = !empty($user['email']);
+require_once dirname(__DIR__) . '/includes/sms.php';
+$has_sms  = sms_is_enabled() && !empty($user['phone_number']);
 
 // ── Zapis ────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '')) {
         $error = 'Nieprawidłowy token CSRF. Odśwież stronę i spróbuj ponownie.';
+    } elseif (($_POST['_action'] ?? '') === 'admin_test_notif') {
+        // ── Admin: test per user ──────────────────────────────────────────
+        $_is_leader_check = (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
+        if (!is_admin() && !$_is_leader_check) {
+            $admin_test_result = ['ok' => false, 'msg' => 'Brak uprawnień.'];
+        } else {
+            $tuid = (int)($_POST['target_uid'] ?? 0);
+            $tch  = in_array($_POST['test_channel'] ?? '', ['email','sms','inapp'], true)
+                    ? $_POST['test_channel'] : 'email';
+            $tu   = $tuid ? (db_one("SELECT id,name,email,phone_number FROM users WHERE id = ?", [$tuid]) ?: []) : [];
+            if (!$tu) {
+                $admin_test_result = ['ok' => false, 'msg' => 'Nie znaleziono użytkownika.'];
+            } elseif ($tch === 'sms') {
+                if (!sms_is_enabled() || empty($tu['phone_number'])) {
+                    $admin_test_result = ['ok' => false, 'msg' => 'SMS niedostępny lub brak numeru telefonu dla tego użytkownika.'];
+                } else {
+                    require_once dirname(__DIR__) . '/includes/sms.php';
+                    $ok = sms_send($tu['phone_number'], 'FEER Zadania [test]: powiadomienia SMS działają poprawnie.');
+                    $admin_test_result = ['ok' => $ok, 'msg' => $ok
+                        ? 'SMS testowy wysłany na ' . $tu['phone_number'] . ' (' . $tu['name'] . ')'
+                        : 'Błąd wysyłki SMS — sprawdź konfigurację bramki.'];
+                }
+            } elseif ($tch === 'inapp') {
+                try {
+                    notif_create((int)$tu['id'], 'Zadania — test', 'To jest testowe powiadomienie systemowe.', APP_URL . '/tasks/notifications.php');
+                    $admin_test_result = ['ok' => true, 'msg' => 'Powiadomienie in-app wysłane dla ' . $tu['name'] . '.'];
+                } catch (\Throwable $e) {
+                    $admin_test_result = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
+                }
+            } else {
+                if (empty($tu['email'])) {
+                    $admin_test_result = ['ok' => false, 'msg' => 'Użytkownik ' . $tu['name'] . ' nie ma adresu e-mail.'];
+                } else {
+                    $html = _feer_email_tpl(
+                        '<p>To jest wiadomość testowa wysłana przez administratora z modułu <strong>Zadania</strong>.</p>'
+                        . '<p style="color:#64748b;font-size:13px">Jeśli ją widzisz — powiadomienia e-mail działają poprawnie.</p>',
+                        'Test powiadomień — Zadania',
+                        APP_URL . '/tasks/notifications.php',
+                        'Przejdź do powiadomień →'
+                    );
+                    $ok = (bool) approval_send_email($tu['email'], 'Test powiadomień — Zadania', $html, 'task_test', (int)$tu['id']);
+                    $admin_test_result = ['ok' => $ok, 'msg' => $ok
+                        ? 'E-mail testowy wysłany na ' . $tu['email'] . ' (' . $tu['name'] . ')'
+                        : 'Nie udało się wysłać na ' . $tu['email'] . ' — sprawdź logi serwera.'];
+                }
+            }
+        }
     } elseif (($_POST['_action'] ?? '') === 'test_notif') {
         // ── Test wysyłki ──────────────────────────────────────────────────
         $ch = $_POST['test_channel'] ?? 'email';
@@ -65,11 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pref     = task_notify_get_pref($uid);
-$csrf     = csrf_token();
-$has_mail = !empty($user['email']);
-require_once dirname(__DIR__) . '/includes/sms.php';
-$has_sms  = sms_is_enabled() && !empty($user['phone_number']);
+$pref = task_notify_get_pref($uid);
+$csrf = csrf_token();
 
 $page_title = 'Powiadomienia — Zadania';
 require_once dirname(__DIR__) . '/includes/header.php';
@@ -425,6 +474,73 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </form>
   </div>
 
+  <?php
+  $is_leader_or_admin = is_admin() || (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
+  if ($is_leader_or_admin):
+    $member_users = db_all("
+        SELECT DISTINCT u.id, u.name, u.email, u.phone_number
+        FROM users u
+        JOIN task_workspace_members twm ON twm.user_id = u.id
+        ORDER BY u.name");
+  ?>
+  <!-- ══ Admin: Test per user ════════════════════════════════════ -->
+  <div class="ns-card mb-3 mt-4">
+    <div class="ns-card-header">
+      <i class="bi bi-person-lines-fill" style="color:#0891b2"></i>
+      Testuj powiadomienia — wybrany użytkownik
+      <span class="sec-badge ms-auto" style="background:#e0f2fe;color:#0369a1">Admin / Lider</span>
+    </div>
+
+    <?php if ($admin_test_result !== null): ?>
+    <div class="px-3 pt-3">
+      <div class="alert alert-<?= $admin_test_result['ok'] ? 'success' : 'warning' ?> d-flex align-items-center gap-2 py-2 mb-0" role="status">
+        <i class="bi <?= $admin_test_result['ok'] ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?>"></i>
+        <?= h($admin_test_result['msg']) ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <form method="post" class="p-3">
+      <input type="hidden" name="_csrf"   value="<?= h($csrf) ?>">
+      <input type="hidden" name="_action" value="admin_test_notif">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-sm-5">
+          <label class="form-label" style="font-size:.8rem;font-weight:600;color:#374151" for="admin_target_uid">
+            <i class="bi bi-person me-1"></i>Użytkownik
+          </label>
+          <select id="admin_target_uid" name="target_uid" class="form-select form-select-sm" required>
+            <option value="">— wybierz —</option>
+            <?php foreach ($member_users as $mu): ?>
+            <option value="<?= (int)$mu['id'] ?>"
+                    data-email="<?= h($mu['email']) ?>"
+                    data-phone="<?= h($mu['phone_number'] ?? '') ?>">
+              <?= h($mu['name']) ?><?= $mu['email'] ? ' ·  ' . h($mu['email']) : '' ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12 col-sm-4">
+          <label class="form-label" style="font-size:.8rem;font-weight:600;color:#374151" for="admin_test_channel">
+            <i class="bi bi-send me-1"></i>Kanał
+          </label>
+          <select id="admin_test_channel" name="test_channel" class="form-select form-select-sm">
+            <option value="email">E-mail</option>
+            <?php if (sms_is_enabled()): ?><option value="sms">SMS</option><?php endif; ?>
+            <option value="inapp">In-app (dzwonek)</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-3">
+          <button type="submit" class="btn btn-sm w-100"
+                  style="background:#0891b2;color:#fff;border:none;font-size:.8rem">
+            <i class="bi bi-send-fill me-1"></i>Wyślij test
+          </button>
+        </div>
+      </div>
+      <div id="admin-test-hint" class="mt-2" style="font-size:.73rem;color:#94a3b8"></div>
+    </form>
+  </div>
+  <?php endif; ?>
+
   <!-- Informacja ───────────────────────────────────────────────── -->
   <div class="ns-info mt-3">
     <div class="ns-info-row">
@@ -457,6 +573,20 @@ function setPreset(name) {
     if (el) el.checked = on.indexOf(k) >= 0;
   });
 }
+// Admin user picker hint
+(function(){
+  var sel = document.getElementById('admin_target_uid');
+  var hint = document.getElementById('admin-test-hint');
+  if (!sel || !hint) return;
+  sel.addEventListener('change', function(){
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) { hint.textContent = ''; return; }
+    var parts = [];
+    if (opt.dataset.email) parts.push('E-mail: ' + opt.dataset.email);
+    if (opt.dataset.phone) parts.push('Tel: ' + opt.dataset.phone);
+    hint.textContent = parts.length ? parts.join('  ·  ') : 'Brak danych kontaktowych';
+  });
+})();
 </script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
