@@ -222,6 +222,12 @@ class M365Graph {
                 'saveToSentItems' => false,
             ]
         );
+        // Graph zwraca 202 bez body przy sukcesie; błąd to {'error':{...}}
+        if ($this->last_error !== null) {
+            throw new \RuntimeException(
+                'Graph sendMail error: ' . json_encode($this->last_error, JSON_UNESCAPED_UNICODE)
+            );
+        }
     }
 
     public function send_welcome_email(string $sender_user_id, string $to_email, string $display_name, string $login, string $password): void {

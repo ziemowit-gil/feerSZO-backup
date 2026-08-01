@@ -215,15 +215,20 @@ function email_log(string $to, string $subject, string $ctx_type = '', ?int $ctx
     } catch (\Throwable $e) {}
 }
 
-function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null): bool {
-    // Rate-limit: max 5 maili do tego samego adresu na dobę (systemowe/akceptacyjne)
-    if (!email_rate_limit_ok($to, 5)) {
+/**
+ * Wysyła e-mail natychmiast (bez kolejkowania gdy M365/SMTP dostępne).
+ * Kolejkuje w mail_queue tylko gdy nie ma M365 ani SMTP.
+ *
+ * Rate-limit: max $rate_limit wiadomości do tego samego adresu na dobę.
+ */
+function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null, int $rate_limit = 5): bool {
+    if (!email_rate_limit_ok($to, $rate_limit)) {
         error_log("[approval_send_email] Rate limit osiągnięty dla: {$to}");
         email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
         return false;
     }
 
-    // Próbuj przez Graph API (M365) — używa publicznej metody
+    // 1. M365 Graph API — wysyłka bezpośrednia
     if (function_exists('m365_setting')) {
         require_once __DIR__ . '/m365.php';
         $sender = m365_setting('m365_sender_user_id');
@@ -236,20 +241,36 @@ function approval_send_email(string $to, string $subject, string $html_body, str
                     return true;
                 }
             } catch (\Exception $e) {
-                error_log("[approval_send_email] Graph API failed: " . $e->getMessage());
+                error_log("[approval_send_email] M365 failed: " . $e->getMessage());
+                email_log($to, $subject, $ctx_type, $ctx_id, 'failed');
+                return false;   // M365 skonfigurowane ale nie działa — nie próbuj innych metod
             }
         }
     }
 
-    // Fallback: mail_queue (SMTP lub PHP mail)
+    // 2. SMTP bezpośrednio (jeśli smtp_host skonfigurowany)
+    require_once __DIR__ . '/mail_queue.php';
+    if (_mail_setting('smtp_host')) {
+        try {
+            $msg = ['to_email' => $to, 'to_name' => '', 'subject' => $subject,
+                    'body_html' => $html_body, 'body_text' => '', 'from_email' => '',
+                    'attachments' => '[]'];
+            $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'));
+            email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'failed');
+            return $ok;
+        } catch (\Throwable $e) {
+            error_log("[approval_send_email] SMTP failed: " . $e->getMessage());
+        }
+    }
+
+    // 3. Brak M365 i SMTP — kolejkuj jako fallback
     try {
-        require_once __DIR__ . '/mail_queue.php';
         mail_queue_add($to, '', $subject, $html_body, '', $ctx_type, $ctx_id, '', true);
-        email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+        email_log($to, $subject, $ctx_type, $ctx_id, 'queued');
         return true;
     } catch (\Throwable $e) {}
 
-    // Ostateczny fallback: PHP mail()
+    // 4. PHP mail() ostateczny fallback
     $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
     $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html_body, $headers);
     email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'failed');

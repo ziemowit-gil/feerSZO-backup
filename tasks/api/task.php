@@ -123,6 +123,12 @@ if ($action === 'create') {
         }
     }
 
+    // Powiadamia liderów obszaru o nowym zadaniu
+    try {
+        require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+        task_notify_created($id, $uid);
+    } catch (\Throwable $e) {}
+
     $task = db_one("SELECT * FROM tasks WHERE id=?", [$id]);
     task_api_ok($task);
 }

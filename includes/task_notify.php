@@ -4,6 +4,7 @@
  * Wymaga: db.php, functions.php, approval.php (approval_send_email)
  *
  * Publiczne API:
+ *   task_notify_created(task_id, by_uid)
  *   task_notify_assigned(task_id, assigned_uid, by_uid)
  *   task_notify_new_comment(task_id, comment_id, body, author_uid)
  *   task_notify_confirmed(task_id, by_uid)
@@ -20,6 +21,61 @@ _tn_schema_heal();
 // ─────────────────────────────────────────────────────────────────────────────
 //  PUBLICZNE FUNKCJE
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Powiadamia adminów i liderów obszaru roboczego o nowym zadaniu.
+ * Wywołuj zaraz po zapisaniu nowego zadania (tasks/api/task.php).
+ */
+function task_notify_created(int $task_id, int $by_uid): void {
+    $task = _tn_task($task_id);
+    if (!$task) return;
+
+    $by_name  = _tn_user_name($by_uid);
+    $task_url = _tn_task_url($task_id);
+    $org      = defined('ORG_NAME') ? ORG_NAME : '';
+    $ws_id    = (int)($task['workspace_id'] ?? 0);
+
+    // Zbierz liderów obszaru (admin/editor w tym workspace) + adminów systemu
+    $leaders = db_all(
+        "SELECT DISTINCT u.id, u.name, u.email
+         FROM users u
+         LEFT JOIN task_workspace_members m ON m.user_id = u.id AND m.workspace_id = ?
+         WHERE u.is_active = 1
+           AND u.email IS NOT NULL AND u.email != ''
+           AND (m.role IN ('admin','editor') OR u.is_admin = 1)
+         LIMIT 20",
+        [$ws_id]
+    );
+
+    foreach ($leaders as $u) {
+        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj twórcy
+        if (!_tn_should_send((int)$u['id'], 'created', $task_id)) continue;
+
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                'Nowe zadanie: ' . $task['title'],
+                $by_name . ' dodał(a) nowe zadanie.',
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
+        $pref = task_notify_get_pref((int)$u['id']);
+        if (!($pref['notify_assigned'] ?? 1)) continue;   // używa tej samej flagi co przypisanie
+
+        $subject = 'Nowe zadanie: ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                 . '<p>Użytkownik <strong>' . htmlspecialchars($by_name) . '</strong> dodał nowe zadanie'
+                 . ' w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
+                 . _tn_task_card($task)
+                 . '<p style="color:#64748b;font-size:13px">Kliknij przycisk poniżej, aby otworzyć zadanie.</p>';
+        $html = _tn_tpl('Nowe zadanie', $subject, $content, $task_url);
+
+        if (_tn_send($u['email'], $subject, $html)) {
+            _tn_log((int)$u['id'], 'created', $task_id);
+        }
+    }
+}
 
 /**
  * Powiadamia użytkownika o przypisaniu do zadania.
@@ -481,7 +537,8 @@ function _tn_log(int $user_id, string $event, int $ref_id, string $channel = 'em
 
 function _tn_send(string $to, string $subject, string $html): bool {
     try {
-        return (bool) approval_send_email($to, $subject, $html);
+        // Rate limit 20/dzień dla powiadomień zadań (więcej niż domyślne 5 systemowych)
+        return (bool) approval_send_email($to, $subject, $html, 'task', null, 20);
     } catch (\Throwable $e) { return false; }
 }
 
