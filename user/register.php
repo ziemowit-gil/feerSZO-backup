@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/branding.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 require_once dirname(__DIR__) . '/includes/password_validator.php';
 
@@ -260,96 +261,174 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$org_name    = defined('ORG_NAME') ? ORG_NAME : '';
+$_b          = branding_load();
+$_tagline    = '';
+try { $_tagline = org_setting('login_tagline') ?: ''; } catch (\Throwable $e) {}
+$org_name    = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju FEER');
 $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
 ?>
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rejestracja — <?= h($org_name) ?></title>
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-        crossorigin="anonymous">
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    :root{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
-    body{background:radial-gradient(1200px 500px at 50% -10%,#e7f0ff 0%,rgba(231,240,255,0) 60%),#F4F6F9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#111827}
-    .wrap{max-width:520px;width:100%}
-    .tz-brandbar{display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:1.25rem}
-    .tz-brandbar .mark{width:34px;height:34px;border-radius:10px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.05rem}
-    .tz-brandbar .txt{font-weight:700;letter-spacing:.02em;color:#1146ad}
-    .tz-brandbar .txt small{display:block;font-weight:500;font-size:.68rem;letter-spacing:.06em;color:#6B7280;text-transform:uppercase}
-    .wrap .card{border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 12px 40px -12px rgba(30,109,255,.25)}
-    .wrap .btn-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c}
-    .wrap .btn-outline-primary{--bs-btn-color:var(--tz-strong);--bs-btn-border-color:var(--tz-line);--bs-btn-hover-bg:var(--tz-50);--bs-btn-hover-color:var(--tz-strong);--bs-btn-hover-border-color:var(--tz)}
-    .wrap .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(30,109,255,.18)}
-    .wrap a{color:var(--tz-strong)}
-    /* Pasek kroków */
-    .step-bar{display:flex;align-items:center;justify-content:center;margin-bottom:2rem}
-    .step-item{display:flex;flex-direction:column;align-items:center;gap:4px}
-    .step-circle{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;border:2px solid}
-    .step-circle.done{background:#1E6DFF;border-color:#1E6DFF;color:#fff}
-    .step-circle.active{background:#fff;border-color:#1E6DFF;color:#1E6DFF}
-    .step-circle.pending{background:#fff;border-color:#dee2e6;color:#adb5bd}
-    .step-label{font-size:.72rem;text-align:center;color:#6c757d;max-width:80px}
-    .step-label.active{color:#1E6DFF;font-weight:600}
-    .step-connector{flex:1;height:2px;background:#dee2e6;margin:0 8px;margin-bottom:20px}
-    .step-connector.done{background:#1E6DFF}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Załóż konto — <?= h($org_name) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php branding_css($_b); ?>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background:#0f172a}
+
+.skip-link{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1.25rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none;font-size:.95rem}
+.skip-link:focus{top:0;outline:3px solid #FBBF24;outline-offset:2px}
+*:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
+*:focus:not(:focus-visible){outline:none}
+
+/* ── Shell ───────────────────────────────────────────────────── */
+.login-shell{min-height:100vh;display:flex;align-items:stretch}
+
+/* ── Lewa ────────────────────────────────────────────────────── */
+.login-left{
+  width:300px;flex-shrink:0;
+  background:linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:2.25rem 1.75rem;
+  border-right:1px solid rgba(255,255,255,.06);
+  position:relative;overflow:hidden;
+}
+.login-left::after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;border:55px solid rgba(255,255,255,.025);bottom:-80px;right:-80px;pointer-events:none}
+.left-logo{max-height:44px;max-width:140px;object-fit:contain;filter:brightness(0)invert(1);opacity:.85;display:block;margin-bottom:1rem}
+.left-icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff;margin-bottom:1rem}
+.left-org{font-size:1.05rem;font-weight:800;color:#fff;margin:0 0 .25rem;line-height:1.3}
+.left-tagline{font-size:.77rem;color:rgba(255,255,255,.45);margin:0 0 1.75rem;line-height:1.5}
+.left-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.6rem}
+.left-step{display:flex;align-items:center;gap:.65rem;font-size:.8rem;color:rgba(255,255,255,.5)}
+.left-step.active{color:#fff}
+.left-step-num{width:24px;height:24px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0;color:rgba(255,255,255,.4)}
+.left-step.done .left-step-num{background:var(--c,#2563eb);border-color:var(--c,#2563eb);color:#fff}
+.left-step.active .left-step-num{background:#fff;border-color:#fff;color:#0f172a}
+.left-footer{position:relative;z-index:1}
+.left-security{display:flex;align-items:center;gap:.4rem;font-size:.73rem;color:rgba(255,255,255,.3);margin-bottom:.4rem}
+.left-copyright{font-size:.68rem;color:rgba(255,255,255,.2)}
+
+/* ── Prawa ───────────────────────────────────────────────────── */
+.login-right{flex:1;background:#F1F5F9;display:flex;align-items:center;justify-content:center;padding:2.5rem 1.5rem;overflow-y:auto}
+.reg-box{width:100%;max-width:480px}
+
+/* ── Nagłówek ────────────────────────────────────────────────── */
+.reg-eyebrow{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--c,#2563eb);margin:0 0 .3rem}
+.reg-heading{font-size:1.55rem;font-weight:800;color:#0f172a;margin:0 0 .5rem;letter-spacing:-.01em}
+.reg-lead{font-size:.88rem;color:#64748b;line-height:1.6;margin:0 0 1.4rem}
+
+/* ── Karta formularza ────────────────────────────────────────── */
+.reg-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.6rem 1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+
+/* ── Pola ────────────────────────────────────────────────────── */
+.form-label{font-size:.83rem;font-weight:600;color:#334155;margin-bottom:.35rem}
+.form-control,.form-select{border-color:#d1d5db;border-radius:8px;font-size:.9rem}
+.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.input-group-text{background:#f8fafc;border-color:#d1d5db;color:#64748b}
+.form-text{font-size:.78rem;color:#94a3b8;margin-top:.3rem}
+
+/* ── Przyciski ───────────────────────────────────────────────── */
+.btn-reg-primary{
+  display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;
+  background:var(--c,#2563eb);color:#fff;border:2px solid var(--c,#2563eb);
+  border-radius:9px;padding:.75rem 1.25rem;font-size:.95rem;font-weight:700;
+  cursor:pointer;min-height:48px;transition:background .15s,border-color .15s;
+}
+.btn-reg-primary:hover{background:var(--c-dark,#1d4ed8);border-color:var(--c-dark,#1d4ed8)}
+.btn-reg-primary.green{background:#16a34a;border-color:#16a34a}
+.btn-reg-primary.green:hover{background:#15803d;border-color:#15803d}
+.btn-back{background:none;border:none;padding:0;font-size:.82rem;color:#64748b;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;margin-top:.65rem}
+.btn-back:hover{color:var(--c,#2563eb)}
+
+/* ── Alerty ──────────────────────────────────────────────────── */
+.reg-alert{display:flex;align-items:flex-start;gap:.6rem;padding:.85rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;line-height:1.55}
+.reg-alert.danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.reg-alert.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+.reg-alert i{flex-shrink:0;margin-top:.1rem}
+
+/* ── Note ────────────────────────────────────────────────────── */
+.reg-note{display:flex;align-items:flex-start;gap:.55rem;padding:.8rem .9rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-top:1rem;font-size:.8rem;color:#64748b;line-height:1.55}
+.reg-note i{flex-shrink:0;color:#94a3b8;margin-top:.1rem}
+.reg-note a{color:var(--c,#2563eb);text-decoration:none}
+.reg-note a:hover{text-decoration:underline}
+
+/* ── SMS input ───────────────────────────────────────────────── */
+.sms-input{letter-spacing:.4em;font-size:1.6rem;font-weight:700;text-align:center;max-width:200px;border-radius:10px;padding:.5rem}
+
+/* ── Stopka ──────────────────────────────────────────────────── */
+.reg-footer{display:flex;align-items:center;justify-content:space-between;padding-top:.9rem;margin-top:.9rem;border-top:1px solid #e2e8f0;font-size:.78rem;color:#94a3b8}
+.reg-footer a{color:#64748b;text-decoration:none}
+.reg-footer a:hover{color:var(--c,#2563eb)}
+
+@media(prefers-contrast:high){.btn-reg-primary{border-width:3px}.reg-card{border-width:2px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+@media(max-width:680px){
+  .login-shell{flex-direction:column}
+  .login-left{width:100%;padding:.9rem 1.25rem;flex-direction:row;align-items:center;gap:.75rem;border-right:none;border-bottom:1px solid rgba(255,255,255,.07)}
+  .login-left::after{display:none}
+  .login-left .left-tagline,.login-left .left-steps,.login-left .left-footer{display:none}
+  .login-left .left-org{font-size:.9rem;margin:0}
+  .login-left .left-logo{margin-bottom:0;max-height:28px}
+  .login-left .left-icon{width:30px;height:30px;font-size:1rem;margin-bottom:0}
+  .login-right{padding:1.25rem 1rem;align-items:flex-start}
+  .reg-box{padding:.25rem 0}
+}
+</style>
 </head>
 <body>
-<div class="wrap">
 
-  <!-- Logo systemu -->
-  <div class="tz-brandbar">
-    <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
-    <span class="txt">System Tożsamości<small><?= h($org_name) ?></small></span>
+<a href="#reg-content" class="skip-link">Przejdź do formularza</a>
+
+<div class="login-shell">
+
+<!-- ══ Lewa — branding ══════════════════════════════════════════════════════ -->
+<aside class="login-left" aria-label="Informacje o organizacji">
+  <div>
+    <?php if ($_b['logo_url']): ?>
+    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="left-logo">
+    <?php else: ?>
+    <div class="left-icon" aria-hidden="true"><i class="bi bi-person-plus-fill"></i></div>
+    <?php endif; ?>
+    <p class="left-org"><?= h($org_name) ?></p>
+    <?php if ($_tagline): ?><p class="left-tagline"><?= h($_tagline) ?></p><?php endif; ?>
+
+    <ol class="left-steps" aria-label="Postęp rejestracji">
+      <?php foreach ($step_labels as $i => $lbl): ?>
+      <li class="left-step <?= $step > $i ? 'done' : ($step === $i ? 'active' : '') ?>">
+        <span class="left-step-num" aria-hidden="true">
+          <?= $step > $i ? '<i class="bi bi-check-lg"></i>' : $i ?>
+        </span>
+        <?= h($lbl) ?>
+      </li>
+      <?php endforeach; ?>
+    </ol>
   </div>
 
-  <!-- Nagłówek -->
-  <div class="text-center mb-4">
-    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
-         style="width:64px;height:64px;background:#eef4ff">
-      <i class="bi bi-person-plus-fill fs-2" style="color:#1E6DFF" aria-hidden="true"></i>
-    </div>
-    <h1 class="h5 fw-bold mb-1">Rejestracja konta</h1>
-    <p class="text-muted small mb-0">Utwórz konto panelowe SZO na podstawie podpisanej umowy</p>
+  <div class="left-footer">
+    <div class="left-security"><i class="bi bi-lock-fill" aria-hidden="true"></i> Połączenie szyfrowane HTTPS</div>
+    <div class="left-copyright">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
   </div>
+</aside>
 
-  <!-- Pasek kroków -->
-  <div class="step-bar">
-    <?php for ($i = 1; $i <= 3; $i++): ?>
-      <?php if ($i > 1): ?>
-        <div class="step-connector<?= $step > $i - 1 ? ' done' : '' ?>"></div>
-      <?php endif; ?>
-      <div class="step-item">
-        <div class="step-circle <?= $step > $i ? 'done' : ($step === $i ? 'active' : 'pending') ?>">
-          <?php if ($step > $i): ?>
-            <i class="bi bi-check-lg" aria-hidden="true"></i>
-          <?php else: ?>
-            <?= $i ?>
-          <?php endif; ?>
-        </div>
-        <span class="step-label<?= $step === $i ? ' active' : '' ?>"><?= h($step_labels[$i]) ?></span>
-      </div>
-    <?php endfor; ?>
-  </div>
+<!-- ══ Prawa — formularz ════════════════════════════════════════════════════ -->
+<div class="login-right">
+<main class="reg-box" id="reg-content" tabindex="-1">
 
-  <!-- Komunikaty -->
   <?php if ($error !== ''): ?>
-  <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
-    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="reg-alert danger" role="alert">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
     <div><?= h($error) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($success !== ''): ?>
-  <div class="alert alert-info d-flex align-items-start gap-2" role="alert">
-    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="reg-alert info" role="status">
+    <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
     <div><?= h($success) ?></div>
   </div>
   <?php endif; ?>
@@ -358,61 +437,50 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
   <!-- KROK 1: Dane umowy                                                      -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php if ($step === 1): ?>
-  <div class="card">
-    <div class="card-body p-4">
-      <h6 class="fw-semibold mb-1">Podaj dane z umowy</h6>
-      <p class="text-muted small mb-3">
-        Wypełnij poniższe pola, aby potwierdzić tożsamość. Po weryfikacji wyślemy
-        jednorazowy kod SMS na numer telefonu podany w umowie.
-      </p>
-      <form method="post" novalidate>
-        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="_action" value="verify">
+  <p class="reg-eyebrow">Krok 1 z 3</p>
+  <h1 class="reg-heading">Dane umowy</h1>
+  <p class="reg-lead">Podaj e-mail i PESEL z umowy — wyślemy kod SMS na numer telefonu z umowy.</p>
 
-        <div class="mb-3">
-          <label for="email" class="form-label fw-semibold small">Adres e-mail</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
-            <input type="email" class="form-control" id="email" name="email"
-                   placeholder="E-mail podany w umowie"
-                   value="<?= h($_POST['email'] ?? '') ?>"
-                   required autofocus autocomplete="email">
-          </div>
-        </div>
+  <div class="reg-card">
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="verify">
 
-        <div class="mb-4">
-          <label for="pesel_or_doc" class="form-label fw-semibold small">
-            PESEL lub numer dokumentu tożsamości
-          </label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>
-            <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
-                   placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
-                   value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
-                   required>
-          </div>
-          <div class="form-text">Ostatnie 5 cyfr PESEL (np. <code>12345</code>) lub pełny numer dokumentu.</div>
+      <div class="mb-3">
+        <label for="email" class="form-label">Adres e-mail</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
+          <input type="email" class="form-control" id="email" name="email"
+                 placeholder="E-mail podany w umowie"
+                 value="<?= h($_POST['email'] ?? '') ?>"
+                 required autofocus autocomplete="email">
         </div>
+      </div>
 
-        <div class="d-grid">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
-          </button>
+      <div class="mb-4">
+        <label for="pesel_or_doc" class="form-label">PESEL lub numer dokumentu</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>
+          <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
+                 placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
+                 value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
+                 required>
         </div>
-      </form>
-    </div>
+        <div class="form-text">Ostatnie 5 cyfr PESEL (np. <code>12345</code>) lub pełny numer dokumentu.</div>
+      </div>
+
+      <button type="submit" class="btn-reg-primary">
+        <i class="bi bi-shield-check" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
+      </button>
+    </form>
   </div>
 
-  <div class="card mt-3" style="border:1px solid var(--tz-line)">
-    <div class="card-body p-3 d-flex align-items-start gap-2">
-      <i class="bi bi-info-circle text-primary flex-shrink-0 mt-1" aria-hidden="true"></i>
-      <div class="small text-muted">
-        Rejestracja jest możliwa wyłącznie dla osób posiadających ważną umowę wolontariacką.
-        Jeśli Twoja umowa jest innego typu (praca, zlecenie), skontaktuj się z administratorem.
-        <br class="d-none d-sm-block">
-        Masz już konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a>
-        lub <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">zresetuj hasło</a>.
-      </div>
+  <div class="reg-note">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+    <div>
+      Rejestracja dostępna wyłącznie dla umów wolontariackich. Przy innym typie umowy skontaktuj się z administratorem.
+      Masz konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a>
+      lub <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">zresetuj hasło</a>.
     </div>
   </div>
 
@@ -420,53 +488,44 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
   <!-- KROK 2: Kod SMS                                                         -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php elseif ($step === 2): ?>
-  <div class="card">
-    <div class="card-body p-4">
-      <h6 class="fw-semibold mb-1">Wprowadź kod SMS</h6>
-      <p class="text-muted small mb-3">
-        Jeśli dane były poprawne, wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy.
-        Kod jest ważny przez <strong>10 minut</strong>.
-      </p>
-      <form method="post" novalidate>
-        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="_action" value="verify_sms">
+  <p class="reg-eyebrow">Krok 2 z 3</p>
+  <h1 class="reg-heading">Kod SMS</h1>
+  <p class="reg-lead">Wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy. Kod ważny przez <strong>10 minut</strong>.</p>
 
-        <div class="mb-4">
-          <label for="sms_code" class="form-label fw-semibold small">Kod SMS (6 cyfr)</label>
-          <div class="input-group" style="max-width:240px">
-            <span class="input-group-text"><i class="bi bi-chat-square-dots" aria-hidden="true"></i></span>
-            <input type="text" class="form-control form-control-lg text-center"
-                   id="sms_code" name="sms_code"
-                   maxlength="6" minlength="6"
-                   inputmode="numeric" pattern="[0-9]{6}"
-                   placeholder="000000"
-                   autocomplete="one-time-code"
-                   required autofocus
-                   style="letter-spacing:.3em;font-size:1.3rem;font-weight:600">
-          </div>
-          <?php if ($sms_fails > 0): ?>
-          <div class="form-text text-danger">
-            Błędna próba <?= $sms_fails ?>/3. Po 3 błędach zaczniesz od nowa.
-          </div>
-          <?php endif; ?>
+  <div class="reg-card">
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="verify_sms">
+
+      <div class="mb-4 text-center">
+        <label for="sms_code" class="form-label d-block mb-2">Kod SMS</label>
+        <input type="text" class="form-control sms-input mx-auto"
+               id="sms_code" name="sms_code"
+               maxlength="6" minlength="6"
+               inputmode="numeric" pattern="[0-9]{6}"
+               placeholder="000000"
+               autocomplete="one-time-code"
+               required autofocus>
+        <?php if ($sms_fails > 0): ?>
+        <div class="form-text text-danger mt-2">
+          Błędna próba <?= $sms_fails ?>/3. Po 3 błędach zaczniesz od nowa.
         </div>
-
-        <div class="d-grid mb-3">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Potwierdź kod
-          </button>
-        </div>
-      </form>
-
-      <div class="text-center">
-        <form method="post" style="display:inline">
-          <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_action" value="restart">
-          <button type="submit" class="btn btn-link btn-sm text-muted p-0">
-            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć i popraw dane
-          </button>
-        </form>
+        <?php endif; ?>
       </div>
+
+      <button type="submit" class="btn-reg-primary">
+        <i class="bi bi-check-circle" aria-hidden="true"></i>Potwierdź kod
+      </button>
+    </form>
+
+    <div class="text-center">
+      <form method="post" style="display:inline">
+        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="restart">
+        <button type="submit" class="btn-back">
+          <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć i popraw dane
+        </button>
+      </form>
     </div>
   </div>
 
@@ -474,66 +533,62 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
   <!-- KROK 3: Hasło                                                           -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php elseif ($step === 3): ?>
-  <div class="card">
-    <div class="card-body p-4">
-      <h6 class="fw-semibold mb-1">Ustaw hasło do konta</h6>
-      <p class="text-muted small mb-3">
-        Tożsamość potwierdzona — Twoje konto zostanie założone po ustawieniu hasła.
-        Hasło musi mieć co najmniej 8 znaków, wielką literę, małą literę i cyfrę.
-      </p>
-      <form method="post" novalidate>
-        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="_action" value="set_password">
+  <p class="reg-eyebrow">Krok 3 z 3</p>
+  <h1 class="reg-heading">Ustaw hasło</h1>
+  <p class="reg-lead">Tożsamość potwierdzona — ustaw hasło, aby dokończyć rejestrację.</p>
 
-        <div class="mb-3">
-          <label for="password_new" class="form-label fw-semibold small">Hasło</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
-            <input type="password" class="form-control" id="password_new" name="password_new"
-                   minlength="8" required autofocus autocomplete="new-password">
-            <button class="btn btn-outline-secondary" type="button" id="togglePwdNew"
-                    aria-label="Pokaż/ukryj hasło">
-              <i class="bi bi-eye" id="eyeNew" aria-hidden="true"></i>
-            </button>
-          </div>
-          <div class="form-text">Min. 8 znaków, wielka litera, mała litera, cyfra.</div>
-        </div>
+  <div class="reg-card">
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="set_password">
 
-        <div class="mb-4">
-          <label for="password_confirm" class="form-label fw-semibold small">Powtórz hasło</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
-            <input type="password" class="form-control" id="password_confirm" name="password_confirm"
-                   minlength="8" required autocomplete="new-password">
-            <button class="btn btn-outline-secondary" type="button" id="togglePwdConfirm"
-                    aria-label="Pokaż/ukryj powtórzone hasło">
-              <i class="bi bi-eye" id="eyeConfirm" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="d-grid">
-          <button type="submit" class="btn btn-success btn-lg">
-            <i class="bi bi-person-check me-1" aria-hidden="true"></i>Załóż konto i zaloguj się
+      <div class="mb-3">
+        <label for="password_new" class="form-label">Hasło</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
+          <input type="password" class="form-control" id="password_new" name="password_new"
+                 minlength="8" required autofocus autocomplete="new-password">
+          <button class="btn btn-outline-secondary" type="button" id="togglePwdNew"
+                  aria-label="Pokaż/ukryj hasło">
+            <i class="bi bi-eye" id="eyeNew" aria-hidden="true"></i>
           </button>
         </div>
-      </form>
-    </div>
+        <div class="form-text">Min. 8 znaków, wielka litera, mała litera, cyfra.</div>
+      </div>
+
+      <div class="mb-4">
+        <label for="password_confirm" class="form-label">Powtórz hasło</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
+          <input type="password" class="form-control" id="password_confirm" name="password_confirm"
+                 minlength="8" required autocomplete="new-password">
+          <button class="btn btn-outline-secondary" type="button" id="togglePwdConfirm"
+                  aria-label="Pokaż/ukryj powtórzone hasło">
+            <i class="bi bi-eye" id="eyeConfirm" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-reg-primary green">
+        <i class="bi bi-person-check" aria-hidden="true"></i>Załóż konto i zaloguj się
+      </button>
+    </form>
   </div>
   <?php endif; ?>
 
-  <!-- Powrót do logowania -->
-  <div class="text-center mt-3">
-    <a href="<?= h(APP_URL . '/auth/login.php') ?>" class="text-muted small text-decoration-none">
-      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do strony logowania
+  <div class="reg-footer">
+    <a href="<?= APP_URL ?>/auth/login.php">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do logowania
     </a>
+    <span><i class="bi bi-lock-fill" aria-hidden="true"></i> HTTPS</span>
   </div>
 
-</div><!-- /.wrap -->
+</main>
+</div><!-- /login-right -->
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmY+ASSbXX+/Y0DmfhVpJkJEYJA3"
-        crossorigin="anonymous"></script>
+</div><!-- /login-shell -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function togglePwd(btnId, inputId, eyeId) {
   var btn = document.getElementById(btnId);
