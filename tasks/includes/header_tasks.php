@@ -139,6 +139,15 @@ try {
 /* ── Skrzynka — nieprzeczytane ─────────────────────────────────────────── */
 $_inbox_unread = 0;
 try { $_inbox_unread = task_msg_unread((int)$_tu['id']); } catch (\Throwable $e) {}
+
+/* ── Konfigurator: czy użytkownik kiedykolwiek skonfigurował powiadomienia? ─ */
+$_tsk_notif_setup_needed = false;
+try {
+    $_tsk_notif_setup_needed = !db_one(
+        "SELECT 1 FROM task_notification_prefs WHERE user_id=?",
+        [(int)$_tu['id']]
+    );
+} catch (\Throwable $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -351,6 +360,23 @@ body {
   font-size: .75rem; color: #9CA3AF; background: #fff;
   display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
 }
+
+/* ── Baner konfiguracji powiadomień e-mail (nowi użytkownicy) ─── */
+#tsk-setup-banner {
+  background: #fffbeb; border: 1px solid #fcd34d;
+  border-radius: 10px; padding: .75rem 1rem;
+  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+  margin-bottom: 1rem; animation: tskBannerIn .25s ease;
+}
+#tsk-setup-banner .tsk-sb-icon {
+  width:36px; height:36px; border-radius:9px;
+  background:#f59e0b; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1rem; flex-shrink:0;
+}
+#tsk-setup-banner .tsk-sb-body { flex:1; min-width:180px; }
+#tsk-setup-banner .tsk-sb-title { font-weight:700; font-size:.88rem; color:#78350f; }
+#tsk-setup-banner .tsk-sb-sub   { font-size:.77rem; color:#92400e; margin-top:.1rem; }
 
 /* ── Baner powiadomień przeglądarkowych ──────────────────────── */
 #tsk-notif-banner {
@@ -710,6 +736,42 @@ if ($_fm): ?>
             style="font-size:.8rem">Nie teraz</button>
   </div>
 </div>
+
+<?php if ($_tsk_notif_setup_needed): ?>
+<!-- Baner konfiguracji powiadomień e-mail — nowi/niekonfigurowany użytkownicy -->
+<div id="tsk-setup-banner" role="alert" aria-live="polite">
+  <div class="tsk-sb-icon" aria-hidden="true"><i class="bi bi-gear-fill"></i></div>
+  <div class="tsk-sb-body">
+    <div class="tsk-sb-title">Skonfiguruj powiadomienia e-mail</div>
+    <div class="tsk-sb-sub">Używasz ustawień domyślnych — wybierz co i kiedy trafia na Twoją skrzynkę.</div>
+  </div>
+  <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+    <a href="<?= APP_URL ?>/tasks/notification_settings.php"
+       class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:.8rem;border:none">
+      <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Skonfiguruj teraz
+    </a>
+    <button type="button" id="tsk-setup-dismiss-btn"
+            class="btn btn-sm btn-outline-secondary" style="font-size:.8rem">Później</button>
+  </div>
+</div>
+<script>
+(function () {
+    var KEY  = 'tskSetupBannerDismissed';
+    var DAYS = 7;
+    var el   = document.getElementById('tsk-setup-banner');
+    var btn  = document.getElementById('tsk-setup-dismiss-btn');
+    if (!el) return;
+    var ts = parseInt(localStorage.getItem(KEY) || '0', 10);
+    if (ts && (Date.now() - ts) < DAYS * 86400 * 1000) {
+        el.style.display = 'none';
+    }
+    if (btn) btn.addEventListener('click', function () {
+        localStorage.setItem(KEY, String(Date.now()));
+        el.style.display = 'none';
+    });
+})();
+</script>
+<?php endif; ?>
 
 <script>
 /* Przełącznik obszaru roboczego — wyszukiwarka */

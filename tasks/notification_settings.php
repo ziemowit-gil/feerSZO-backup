@@ -541,6 +541,138 @@ require_once dirname(__DIR__) . '/includes/header.php';
   </div>
   <?php endif; ?>
 
+  <?php
+  /* ══ Status powiadomień — wszyscy członkowie obszarów ═══════════════════ */
+  if ($is_leader_or_admin):
+      $members_status = [];
+      try {
+          $members_status = db_all("
+              SELECT DISTINCT u.id, u.name, u.email, u.phone_number,
+                     tnp.user_id AS configured_uid,
+                     COALESCE(tnp.notify_sms, 0) AS notify_sms,
+                     tnp.updated_at
+              FROM users u
+              JOIN task_workspace_members twm ON twm.user_id = u.id
+              LEFT JOIN task_notification_prefs tnp ON tnp.user_id = u.id
+              WHERE u.is_active = 1
+              ORDER BY (tnp.user_id IS NULL) DESC, u.name
+          ");
+      } catch (\Throwable $e) {}
+      $unconfigured_count = count(array_filter($members_status, fn($m) => !$m['configured_uid']));
+  endif;
+  ?>
+
+  <?php if ($is_leader_or_admin && $members_status): ?>
+  <!-- ══ Admin: Status powiadomień ══════════════════════════════════════ -->
+  <div class="ns-card mb-3 mt-4" id="ns-member-status">
+    <div class="ns-card-header">
+      <i class="bi bi-people-fill" style="color:#0891b2"></i>
+      Status powiadomień — członkowie obszarów
+      <?php if ($unconfigured_count > 0): ?>
+      <span class="sec-badge ms-auto" style="background:#fef9c3;color:#92400e">
+        <?= $unconfigured_count ?> bez konfiguracji
+      </span>
+      <?php else: ?>
+      <span class="sec-badge ms-auto" style="background:#dcfce7;color:#16a34a">
+        Wszyscy skonfigurowani
+      </span>
+      <?php endif; ?>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="background:#f8fafc;flex-wrap:wrap">
+      <div class="form-check form-switch mb-0" style="font-size:.82rem">
+        <input class="form-check-input" type="checkbox" id="ns-only-uncfg" role="switch">
+        <label class="form-check-label" for="ns-only-uncfg">Tylko niekonfigurowane</label>
+      </div>
+      <div class="ms-auto">
+        <?php if ($unconfigured_count > 0): ?>
+        <button type="button" id="ns-bulk-reminder-btn"
+                class="btn btn-sm" style="background:#0891b2;color:#fff;border:none;font-size:.8rem"
+                data-csrf="<?= h($csrf) ?>">
+          <i class="bi bi-envelope-fill me-1"></i>Wyślij do wszystkich bez konfiguracji
+          (<?= $unconfigured_count ?>)
+        </button>
+        <?php else: ?>
+        <span style="font-size:.79rem;color:#94a3b8">Wszyscy mają własną konfigurację</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div id="ns-bulk-result" style="display:none" class="px-3 pt-2"></div>
+
+    <!-- Tabela -->
+    <div style="overflow-x:auto">
+    <table class="table table-sm mb-0" style="font-size:.82rem">
+      <thead style="background:#f8fafc">
+        <tr>
+          <th class="px-3 py-2">Imię i nazwisko</th>
+          <th class="py-2">E-mail</th>
+          <th class="py-2 text-center">Status</th>
+          <th class="py-2 text-center" title="Ma adres e-mail">
+            <i class="bi bi-envelope"></i>
+          </th>
+          <th class="py-2 text-center" title="SMS włączony">
+            <i class="bi bi-phone"></i>
+          </th>
+          <th class="py-2" style="white-space:nowrap">Ostatnia zmiana</th>
+          <th class="py-2"></th>
+        </tr>
+      </thead>
+      <tbody id="ns-member-tbody">
+        <?php foreach ($members_status as $m):
+            $is_cfg   = (bool)$m['configured_uid'];
+            $has_mail = !empty($m['email']);
+            $has_tel  = !empty($m['phone_number']);
+        ?>
+        <tr data-cfg="<?= $is_cfg ? '1' : '0' ?>" class="ns-member-row">
+          <td class="px-3 py-2 fw-semibold"><?= h($m['name']) ?></td>
+          <td class="py-2" style="color:#475569"><?= h($m['email'] ?: '—') ?></td>
+          <td class="py-2 text-center">
+            <?php if ($is_cfg): ?>
+            <span class="badge" style="background:#dcfce7;color:#15803d;font-size:.7rem">Skonfigurowany</span>
+            <?php else: ?>
+            <span class="badge" style="background:#fef9c3;color:#92400e;font-size:.7rem">Domyślne</span>
+            <?php endif; ?>
+          </td>
+          <td class="py-2 text-center">
+            <?php if ($has_mail): ?>
+            <i class="bi bi-check-circle-fill" style="color:#16a34a" title="Ma adres e-mail"></i>
+            <?php else: ?>
+            <i class="bi bi-x-circle-fill" style="color:#dc2626" title="Brak adresu e-mail"></i>
+            <?php endif; ?>
+          </td>
+          <td class="py-2 text-center">
+            <?php if ($m['notify_sms'] && $has_tel): ?>
+            <i class="bi bi-check-circle-fill" style="color:#16a34a" title="SMS włączony"></i>
+            <?php elseif (!$has_tel): ?>
+            <i class="bi bi-dash-circle" style="color:#94a3b8" title="Brak numeru telefonu"></i>
+            <?php else: ?>
+            <i class="bi bi-x-circle" style="color:#cbd5e1" title="SMS wyłączony"></i>
+            <?php endif; ?>
+          </td>
+          <td class="py-2" style="color:#94a3b8;white-space:nowrap">
+            <?= $m['updated_at'] ? h(substr($m['updated_at'], 0, 16)) : '—' ?>
+          </td>
+          <td class="py-2">
+            <?php if (!$is_cfg && $has_mail): ?>
+            <button type="button" class="btn btn-sm ns-send-reminder-btn"
+                    style="font-size:.73rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd"
+                    data-uid="<?= (int)$m['id'] ?>"
+                    data-csrf="<?= h($csrf) ?>">
+              <i class="bi bi-envelope-fill me-1"></i>Wyślij przypomnienie
+            </button>
+            <?php elseif (!$has_mail): ?>
+            <span style="font-size:.73rem;color:#94a3b8">Brak e-mail</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Informacja ───────────────────────────────────────────────── -->
   <div class="ns-info mt-3">
     <div class="ns-info-row">
@@ -585,6 +717,85 @@ function setPreset(name) {
     if (opt.dataset.email) parts.push('E-mail: ' + opt.dataset.email);
     if (opt.dataset.phone) parts.push('Tel: ' + opt.dataset.phone);
     hint.textContent = parts.length ? parts.join('  ·  ') : 'Brak danych kontaktowych';
+  });
+})();
+
+// ── Status powiadomień — przypomnienia ───────────────────────────────────
+(function () {
+  var API = '<?= APP_URL ?>/tasks/api/send_notif_reminder.php';
+
+  /* Filtr: tylko niekonfigurowane */
+  var checkbox = document.getElementById('ns-only-uncfg');
+  if (checkbox) {
+    checkbox.addEventListener('change', function () {
+      document.querySelectorAll('.ns-member-row').forEach(function (row) {
+        var cfg = row.dataset.cfg === '1';
+        row.style.display = (checkbox.checked && cfg) ? 'none' : '';
+      });
+    });
+  }
+
+  /* Przypomnienie dla pojedynczego użytkownika */
+  document.querySelectorAll('.ns-send-reminder-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var uid  = parseInt(btn.dataset.uid, 10);
+      var csrf = btn.dataset.csrf;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:.85em;height:.85em"></span>Wysyłanie…';
+      fetch(API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({_csrf: csrf, action: 'send', uid: uid})
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          btn.innerHTML = '<i class="bi bi-check-circle-fill me-1" style="color:#16a34a"></i>Wysłano';
+          btn.style.cssText = 'font-size:.73rem;background:#f0fdf4;color:#15803d;border:1px solid #86efac';
+        } else {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1" style="color:#dc2626"></i>'
+                        + (d.msg || 'Błąd');
+          btn.style.cssText = 'font-size:.73rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5';
+        }
+        btn.title = d.msg || '';
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-envelope-fill me-1"></i>Wyślij przypomnienie';
+        btn.style.cssText = 'font-size:.73rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd';
+      });
+    });
+  });
+
+  /* Bulk reminder */
+  var bulkBtn    = document.getElementById('ns-bulk-reminder-btn');
+  var bulkResult = document.getElementById('ns-bulk-result');
+  if (!bulkBtn) return;
+  bulkBtn.addEventListener('click', function () {
+    if (!confirm('Wyślać e-mail z przypomnieniem do wszystkich użytkowników bez własnej konfiguracji?')) return;
+    bulkBtn.disabled = true;
+    bulkBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:.85em;height:.85em"></span>Wysyłanie…';
+    fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({_csrf: bulkBtn.dataset.csrf, action: 'bulk'})
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      bulkBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Gotowe';
+      if (bulkResult) {
+        bulkResult.style.display = '';
+        bulkResult.innerHTML = '<div class="alert alert-' + (d.ok ? 'success' : 'warning')
+          + ' d-flex align-items-center gap-2 py-2 mb-2" style="font-size:.8rem">'
+          + '<i class="bi bi-' + (d.ok ? 'check-circle-fill' : 'exclamation-triangle-fill') + '"></i>'
+          + '<span>' + (d.msg || '') + '</span></div>';
+      }
+    })
+    .catch(function () {
+      bulkBtn.disabled = false;
+      bulkBtn.innerHTML = '<i class="bi bi-envelope-fill me-1"></i>Wyślij do wszystkich bez konfiguracji';
+    });
   });
 })();
 </script>
