@@ -1,0 +1,13 @@
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem;
+  padding: .75rem 1rem; background: #fff; border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.table-card {
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden;
+}
+.center-col { text-align: center; }
+.icon-yes  { color: #16a34a; }
+.icon-no   { color: #d1d5db; }
+.icon-warn { color: #d97706; }

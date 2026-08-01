@@ -1,0 +1,43 @@
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  padding: .75rem 1rem;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+.filter-search { flex: 1 1 220px; min-width: 180px; }
+.filter-select  { flex: 0 1 180px; }
+.filter-date    { flex: 0 1 150px; }
+
+.table-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+
+.lesson-table { width: 100%; }
+
+.date-cell   { font-weight: 600; color: #111827; white-space: nowrap; }
+.mono        { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .88rem; }
+.topic-cell  { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.center-col  { text-align: center; }
+
+.icon-yes { color: #1565C0; font-size: 1.1rem; }
+.icon-no  { color: #d1d5db; font-size: 1.1rem; }
+
+.clickable-row {
+  cursor: pointer;
+  transition: background .15s;
+  &:hover td { background: rgba(21,101,192,.04); }
+  &:focus { outline: 2px solid #1565C0; outline-offset: -2px; }
+}
+
+.menu-danger { color: #dc2626 !important; }
+
+mat-progress-bar { margin-bottom: .5rem; }

@@ -1,0 +1,130 @@
+$sidebar-w: 248px;
+$topbar-h:  56px;
+
+/* ── Container ───────────────────────────────────────────────────── */
+.shell-container {
+  height: 100vh;
+  display: flex;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+.shell-sidenav {
+  width: $sidebar-w;
+  border-right: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidenav-logo {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  height: $topbar-h;
+  padding: 0 1rem;
+  background: #1565C0;
+  flex-shrink: 0;
+
+  &__icon {
+    color: #fff;
+    display: flex;
+    align-items: center;
+  }
+  &__text {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: .5px;
+  }
+}
+
+.sidenav-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: .5rem 0;
+}
+
+/* ── Nav item states ─────────────────────────────────────────────── */
+::ng-deep .mat-mdc-list-item.nav-active {
+  background: rgba(21,101,192,.1) !important;
+  border-right: 3px solid #1565C0;
+
+  .mat-icon, .mdc-list-item__primary-text {
+    color: #1565C0 !important;
+    font-weight: 600;
+  }
+}
+
+::ng-deep .mat-mdc-list-item:focus-visible {
+  outline: 2px solid #1565C0;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* ── Nav groups (expansion panels) ──────────────────────────────── */
+::ng-deep .nav-group {
+  &.mat-expansion-panel {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent;
+  }
+  .nav-group-header.mat-expansion-panel-header {
+    height: 44px;
+    padding: 0 12px;
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #6b7280;
+    background: transparent !important;
+
+    mat-icon { font-size: 1.1rem; margin-right: .4rem; color: #9ca3af; }
+    .mat-expansion-panel-header-title { color: inherit; }
+  }
+
+  .nav-child {
+    padding-left: 2rem !important;
+    height: 40px !important;
+
+    mat-icon { font-size: 1rem; color: #4b5563; }
+    .mdc-list-item__primary-text { font-size: .88rem; }
+  }
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────── */
+.shell-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  height: $topbar-h;
+  background: #1565C0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  padding: 0 .5rem 0 .75rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,.18);
+
+  button { color: #fff; }
+}
+
+.toggle-btn { flex-shrink: 0; }
+
+.topbar-title {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-left: .25rem;
+  opacity: .9;
+}
+
+.topbar-spacer { flex: 1; }
+
+/* ── Main content ────────────────────────────────────────────────── */
+.shell-content {
+  padding: 1.5rem;
+  min-height: calc(100vh - #{$topbar-h});
+  box-sizing: border-box;
+
+  &:focus { outline: none; }
+}

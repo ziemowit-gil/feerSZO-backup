@@ -1,0 +1,80 @@
+<app-page-header title="Obecność" subtitle="Dydaktyka — lista obecności per lekcja" icon="fact_check">
+  <button mat-stroked-button aria-label="Eksportuj listę obecności">
+    <mat-icon aria-hidden="true">download</mat-icon> EKSPORTUJ
+  </button>
+</app-page-header>
+
+<section class="filter-bar" [formGroup]="filterForm" aria-label="Filtry obecności">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" style="flex:0 1 240px">
+    <mat-label>Kurs / Grupa</mat-label>
+    <mat-select formControlName="course_id" aria-label="Wybierz kurs">
+      <mat-option [value]="null">— wybierz kurs —</mat-option>
+      <mat-option *ngFor="let c of courses()" [value]="c.id">{{ c.name }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" style="flex:0 1 280px"
+    *ngIf="filterForm.value.course_id">
+    <mat-label>Lekcja</mat-label>
+    <mat-select formControlName="session_id" aria-label="Wybierz lekcję">
+      <mat-option [value]="null">— wybierz lekcję —</mat-option>
+      <mat-option *ngFor="let s of sessions()" [value]="s.id">
+        {{ s.lesson_date | date:'dd.MM.yyyy' }} {{ s.time_from }}
+        <span *ngIf="s.topic"> — {{ s.topic }}</span>
+        <span class="status-chip ml-1" [ngClass]="statusMap[s.status]?.css">
+          {{ statusMap[s.status]?.label }}
+        </span>
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+</section>
+
+<mat-progress-bar *ngIf="loading()" mode="indeterminate" aria-label="Ładowanie"></mat-progress-bar>
+
+<div class="table-card" *ngIf="filterForm.value.session_id && rows().length">
+  <table mat-table [dataSource]="rows()" aria-label="Lista obecności">
+
+    <ng-container matColumnDef="client_name">
+      <th mat-header-cell *matHeaderCellDef scope="col">Kursant</th>
+      <td mat-cell *matCellDef="let r"><strong>{{ r.client_name }}</strong></td>
+    </ng-container>
+
+    <ng-container matColumnDef="attended">
+      <th mat-header-cell *matHeaderCellDef scope="col" class="center-col">Obecny</th>
+      <td mat-cell *matCellDef="let r" class="center-col">
+        <mat-icon [class]="r.attended ? 'icon-yes' : 'icon-no'"
+                  [attr.aria-label]="r.attended ? 'Obecny' : 'Nieobecny'">
+          {{ r.attended ? 'check_circle' : 'cancel' }}
+        </mat-icon>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="no_show">
+      <th mat-header-cell *matHeaderCellDef scope="col" class="center-col">No-show</th>
+      <td mat-cell *matCellDef="let r" class="center-col">
+        <mat-icon *ngIf="r.no_show" class="icon-warn"
+                  aria-label="Nie pojawił się bez odwołania">warning</mat-icon>
+        <mat-icon *ngIf="!r.no_show" class="icon-no" aria-hidden="true">remove</mat-icon>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="ind_notes">
+      <th mat-header-cell *matHeaderCellDef scope="col">Notatka</th>
+      <td mat-cell *matCellDef="let r">{{ r.ind_notes || '—' }}</td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+  </table>
+</div>
+
+<div *ngIf="!filterForm.value.course_id" class="empty-state" role="status">
+  <mat-icon aria-hidden="true">arrow_upward</mat-icon>
+  <p class="empty-title">Wybierz kurs, a następnie lekcję</p>
+</div>
+
+<div *ngIf="filterForm.value.session_id && !loading() && !rows().length"
+     class="empty-state" role="status">
+  <mat-icon aria-hidden="true">fact_check</mat-icon>
+  <p class="empty-title">Brak wpisów obecności dla tej lekcji</p>
+</div>

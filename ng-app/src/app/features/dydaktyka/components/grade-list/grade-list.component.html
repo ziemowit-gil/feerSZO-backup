@@ -1,0 +1,67 @@
+<app-page-header title="Oceny" subtitle="Dydaktyka — e-dziennik ocen" icon="grade">
+  <button mat-flat-button color="primary" aria-label="Dodaj ocenę">
+    <mat-icon aria-hidden="true">add</mat-icon> DODAJ OCENĘ
+  </button>
+</app-page-header>
+
+<section class="filter-bar" [formGroup]="filterForm" aria-label="Filtr ocen">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" style="flex:0 1 260px">
+    <mat-label>Wybierz kurs</mat-label>
+    <mat-select formControlName="course_id" aria-label="Kurs">
+      <mat-option [value]="null">— wybierz kurs —</mat-option>
+      <mat-option *ngFor="let c of courses()" [value]="c.id">{{ c.name }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+</section>
+
+<mat-progress-bar *ngIf="loading()" mode="indeterminate" aria-label="Ładowanie ocen"></mat-progress-bar>
+
+<div class="table-card" *ngIf="filterForm.value.course_id">
+  <table mat-table [dataSource]="grades()" aria-label="Tabela ocen">
+    <ng-container matColumnDef="client_name">
+      <th mat-header-cell *matHeaderCellDef scope="col">Kursant</th>
+      <td mat-cell *matCellDef="let r">{{ r.client_name }}</td>
+    </ng-container>
+    <ng-container matColumnDef="category">
+      <th mat-header-cell *matHeaderCellDef scope="col">Kategoria</th>
+      <td mat-cell *matCellDef="let r">{{ r.category }}</td>
+    </ng-container>
+    <ng-container matColumnDef="value_text">
+      <th mat-header-cell *matHeaderCellDef scope="col">Ocena</th>
+      <td mat-cell *matCellDef="let r">
+        <span class="grade-badge"
+              [style.background]="gradeColors[r.value_text] || '#e5e7eb'"
+              [attr.aria-label]="'Ocena: ' + r.value_text">
+          {{ r.value_text }}
+        </span>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="weight">
+      <th mat-header-cell *matHeaderCellDef scope="col">Waga</th>
+      <td mat-cell *matCellDef="let r">{{ r.weight }}</td>
+    </ng-container>
+    <ng-container matColumnDef="description">
+      <th mat-header-cell *matHeaderCellDef scope="col">Opis</th>
+      <td mat-cell *matCellDef="let r">{{ r.description || '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="graded_at">
+      <th mat-header-cell *matHeaderCellDef scope="col">Data</th>
+      <td mat-cell *matCellDef="let r">{{ r.graded_at | date:'dd.MM.yyyy' }}</td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    <tr class="mat-row" *matNoDataRow>
+      <td [attr.colspan]="displayedColumns.length">
+        <div class="empty-state" role="status">
+          <mat-icon aria-hidden="true">grade</mat-icon>
+          <p class="empty-title">Brak ocen dla wybranego kursu</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div *ngIf="!filterForm.value.course_id" class="empty-state" role="status">
+  <mat-icon aria-hidden="true">arrow_upward</mat-icon>
+  <p class="empty-title">Wybierz kurs, aby zobaczyć oceny</p>
+</div>

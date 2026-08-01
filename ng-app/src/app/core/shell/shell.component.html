@@ -1,0 +1,109 @@
+<mat-sidenav-container class="shell-container" autosize>
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────── -->
+  <mat-sidenav
+    #sidenav
+    class="shell-sidenav"
+    [mode]="isHandset() ? 'over' : 'side'"
+    [opened]="sidenavOpened()"
+    fixedInViewport
+    role="navigation"
+    aria-label="Nawigacja główna">
+
+    <!-- Logo / branding -->
+    <div class="sidenav-logo" aria-label="feerSZO — Panel administracyjny">
+      <span class="sidenav-logo__icon" aria-hidden="true">
+        <mat-icon>account_balance</mat-icon>
+      </span>
+      <span class="sidenav-logo__text">feerSZO</span>
+    </div>
+
+    <!-- Nav items -->
+    <mat-nav-list class="sidenav-nav" aria-label="Menu główne">
+
+      <ng-container *ngFor="let item of nav">
+
+        <!-- Single link -->
+        <a *ngIf="!isGroup(item)"
+           mat-list-item
+           [routerLink]="item.route"
+           routerLinkActive="nav-active"
+           [routerLinkActiveOptions]="{ exact: item.route === '/start' }"
+           [attr.aria-label]="item.label">
+          <mat-icon matListItemIcon aria-hidden="true">{{ item.icon }}</mat-icon>
+          <span matListItemTitle>{{ item.label }}</span>
+        </a>
+
+        <!-- Group with children -->
+        <mat-expansion-panel *ngIf="isGroup(item)"
+          class="nav-group"
+          [expanded]="true"
+          hideToggle>
+          <mat-expansion-panel-header class="nav-group-header"
+            [attr.aria-label]="item.label + ' — rozwiń menu'">
+            <mat-panel-title>
+              <mat-icon aria-hidden="true">{{ item.icon }}</mat-icon>
+              {{ item.label }}
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+
+          <mat-nav-list>
+            <a *ngFor="let child of item.children"
+               mat-list-item
+               class="nav-child"
+               [routerLink]="child.route"
+               routerLinkActive="nav-active"
+               [attr.aria-label]="child.label">
+              <mat-icon matListItemIcon aria-hidden="true">{{ child.icon }}</mat-icon>
+              <span matListItemTitle>{{ child.label }}</span>
+            </a>
+          </mat-nav-list>
+        </mat-expansion-panel>
+
+      </ng-container>
+
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <!-- ── Main area ─────────────────────────────────────────────────── -->
+  <mat-sidenav-content>
+
+    <!-- Topbar -->
+    <header class="shell-topbar" role="banner">
+      <button mat-icon-button class="toggle-btn"
+              (click)="toggleSidenav()"
+              [attr.aria-label]="sidenavOpened() ? 'Zwiń nawigację' : 'Rozwiń nawigację'"
+              [attr.aria-expanded]="sidenavOpened()">
+        <mat-icon aria-hidden="true">menu</mat-icon>
+      </button>
+
+      <span class="topbar-title" aria-hidden="true">Panel zarządzania</span>
+
+      <div class="topbar-spacer"></div>
+
+      <button mat-icon-button aria-label="Powiadomienia" matTooltip="Powiadomienia">
+        <mat-icon aria-hidden="true">notifications_none</mat-icon>
+      </button>
+
+      <button mat-icon-button aria-label="Ustawienia konta" matTooltip="Konto"
+              [matMenuTriggerFor]="userMenu">
+        <mat-icon aria-hidden="true">account_circle</mat-icon>
+      </button>
+      <mat-menu #userMenu="matMenu">
+        <button mat-menu-item routerLink="/profil">
+          <mat-icon aria-hidden="true">manage_accounts</mat-icon> Profil
+        </button>
+        <mat-divider></mat-divider>
+        <button mat-menu-item>
+          <mat-icon aria-hidden="true">logout</mat-icon> Wyloguj
+        </button>
+      </mat-menu>
+    </header>
+
+    <!-- Page content -->
+    <main id="main-content" class="shell-content" tabindex="-1">
+      <router-outlet></router-outlet>
+    </main>
+
+  </mat-sidenav-content>
+</mat-sidenav-container>

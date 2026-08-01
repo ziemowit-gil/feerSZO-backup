@@ -1,0 +1,115 @@
+<h2 mat-dialog-title id="lesson-dialog-title">
+  <mat-icon aria-hidden="true">{{ isEdit ? 'edit' : 'add_circle' }}</mat-icon>
+  {{ title }}
+</h2>
+
+<mat-dialog-content aria-labelledby="lesson-dialog-title">
+  <form [formGroup]="form" id="lesson-form" (ngSubmit)="save()" novalidate>
+
+    <!-- Kurs -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Kurs / Grupa</mat-label>
+      <mat-select formControlName="course_id" required>
+        <mat-option *ngFor="let c of data.courses" [value]="c.id">{{ c.name }}</mat-option>
+      </mat-select>
+      <mat-error *ngIf="form.get('course_id')?.hasError('required')">Wybierz kurs</mat-error>
+    </mat-form-field>
+
+    <!-- Data -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Data lekcji</mat-label>
+      <input matInput [matDatepicker]="picker" formControlName="lesson_date"
+             required aria-required="true">
+      <mat-datepicker-toggle matIconSuffix [for]="picker"
+        aria-label="Otwórz kalendarz"></mat-datepicker-toggle>
+      <mat-datepicker #picker></mat-datepicker>
+      <mat-error *ngIf="form.get('lesson_date')?.hasError('required')">Podaj datę</mat-error>
+    </mat-form-field>
+
+    <!-- Czas: od – do – czas trwania -->
+    <div class="row-3col">
+      <mat-form-field appearance="outline">
+        <mat-label>Godzina od</mat-label>
+        <input matInput formControlName="time_from" placeholder="08:00"
+               required aria-required="true" inputmode="numeric">
+        <mat-error *ngIf="form.get('time_from')?.hasError('pattern')">Format HH:MM</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Godzina do</mat-label>
+        <input matInput formControlName="time_to" placeholder="09:30"
+               required aria-required="true" inputmode="numeric">
+        <mat-error *ngIf="form.get('time_to')?.hasError('pattern')">Format HH:MM</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Czas trwania (min)</mat-label>
+        <mat-select formControlName="duration_min" required>
+          <mat-option *ngFor="let d of durations" [value]="d">{{ d }} min</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Status -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="status" required>
+        <mat-option *ngFor="let s of statuses" [value]="s.value">{{ s.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!-- Temat -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Temat lekcji</mat-label>
+      <input matInput formControlName="topic" maxlength="255">
+      <mat-hint align="end">{{ form.get('topic')?.value?.length || 0 }}/255</mat-hint>
+    </mat-form-field>
+
+    <!-- Notatki -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notatki (widoczne dla kursanta)</mat-label>
+      <textarea matInput formControlName="notes" rows="2" maxlength="1000"></textarea>
+    </mat-form-field>
+
+    <!-- Notatki prowadzącego -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notatki wewnętrzne prowadzącego</mat-label>
+      <textarea matInput formControlName="instructor_notes" rows="2" maxlength="1000"></textarea>
+    </mat-form-field>
+
+    <!-- Link online -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Link do spotkania online</mat-label>
+      <input matInput formControlName="meeting_url" type="url" placeholder="https://teams.microsoft.com/...">
+      <mat-icon matPrefix aria-hidden="true">videocam</mat-icon>
+    </mat-form-field>
+
+    <!-- Opcje -->
+    <div class="checkbox-row">
+      <mat-checkbox formControlName="has_homework">
+        Zadanie domowe
+      </mat-checkbox>
+    </div>
+
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()"
+          aria-label="Anuluj i zamknij dialog">Anuluj</button>
+  <button mat-flat-button color="primary" form="lesson-form" type="submit"
+          (click)="save()" [attr.aria-label]="isEdit ? 'Zapisz zmiany lekcji' : 'Dodaj lekcję'">
+    <mat-icon aria-hidden="true">{{ isEdit ? 'save' : 'add' }}</mat-icon>
+    {{ isEdit ? 'Zapisz' : 'Dodaj' }}
+  </button>
+</mat-dialog-actions>
+
+<style>
+  mat-dialog-content { min-width: min(520px, 90vw); }
+  .full-width { width: 100%; margin-bottom: .5rem; }
+  .row-3col {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; margin-bottom: .5rem;
+  }
+  .checkbox-row { display: flex; flex-wrap: wrap; gap: 1rem; margin: .25rem 0 .5rem; }
+  mat-icon[ng-reflect-font-icon] { vertical-align: middle; margin-right: .25rem; font-size: 1.1rem; }
+</style>

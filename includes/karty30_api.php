@@ -118,6 +118,15 @@ function k30_api_resources(): array {
             'created_at' => true, 'updated_at' => true, 'created_by' => true,
             'defaults' => ['is_active' => 0],
         ],
+        'attendance' => [
+            'table'    => 'k30_ti_attendance',
+            'fields'   => ['session_id','client_id','attended','notes','ind_notes','no_show','cancel_pending'],
+            'required' => ['session_id','client_id'],
+            'order'    => 'id ASC',
+            'filters'  => ['session_id','client_id'],
+            'created_at' => false, 'updated_at' => false, 'created_by' => false,
+            'defaults' => ['attended' => 0, 'no_show' => 0, 'cancel_pending' => 0],
+        ],
     ];
 }
 

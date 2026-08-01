@@ -1,0 +1,186 @@
+<app-page-header title="Rejestr lekcji" subtitle="Dydaktyka — sesje zajęć" icon="event_note">
+  <button mat-flat-button color="primary" (click)="openAdd()"
+          aria-label="Dodaj nową lekcję">
+    <mat-icon aria-hidden="true">add</mat-icon> DODAJ
+  </button>
+  <button mat-stroked-button
+          matTooltip="Eksportuj do pliku CSV" aria-label="Wygeneruj listę do pliku">
+    <mat-icon aria-hidden="true">download</mat-icon> EKSPORTUJ
+  </button>
+</app-page-header>
+
+<!-- ── Pasek filtrów ─────────────────────────────────────────────────── -->
+<section class="filter-bar" aria-label="Filtry lekcji" [formGroup]="filterForm">
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-search">
+    <mat-label>Szukaj po temacie lub kursie</mat-label>
+    <input matInput formControlName="q" aria-label="Wyszukaj lekcję">
+    <mat-icon matSuffix aria-hidden="true">search</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-select">
+    <mat-label>Kurs</mat-label>
+    <mat-select formControlName="course_id" aria-label="Filtruj po kursie">
+      <mat-option [value]="null">— Wszystkie —</mat-option>
+      <mat-option *ngFor="let c of courses()" [value]="c.id">{{ c.name }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-select">
+    <mat-label>Status</mat-label>
+    <mat-select formControlName="status" aria-label="Filtruj po statusie">
+      <mat-option value="">— Wszystkie —</mat-option>
+      <mat-option value="scheduled">Zaplanowana</mat-option>
+      <mat-option value="completed">Odbyta</mat-option>
+      <mat-option value="cancelled">Odwołana</mat-option>
+      <mat-option value="remote_material">Praca własna</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+    <mat-label>Data od</mat-label>
+    <input matInput [matDatepicker]="pickerFrom" formControlName="date_from"
+           aria-label="Filtruj od daty" (dateChange)="load(true)">
+    <mat-datepicker-toggle matIconSuffix [for]="pickerFrom"
+      aria-label="Wybierz datę od"></mat-datepicker-toggle>
+    <mat-datepicker #pickerFrom></mat-datepicker>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+    <mat-label>Data do</mat-label>
+    <input matInput [matDatepicker]="pickerTo" formControlName="date_to"
+           aria-label="Filtruj do daty" (dateChange)="load(true)">
+    <mat-datepicker-toggle matIconSuffix [for]="pickerTo"
+      aria-label="Wybierz datę do"></mat-datepicker-toggle>
+    <mat-datepicker #pickerTo></mat-datepicker>
+  </mat-form-field>
+
+  <button mat-stroked-button (click)="clearFilters()" aria-label="Wyczyść wszystkie filtry">
+    <mat-icon aria-hidden="true">filter_alt_off</mat-icon> WYCZYŚĆ
+  </button>
+
+</section>
+
+<!-- ── Progress bar ─────────────────────────────────────────────────── -->
+<mat-progress-bar *ngIf="loading()" mode="indeterminate"
+  aria-label="Ładowanie danych" aria-live="polite"></mat-progress-bar>
+
+<!-- ── Tabela ────────────────────────────────────────────────────────── -->
+<div class="table-card" role="region" aria-label="Lista lekcji">
+
+  <table mat-table [dataSource]="sessions()" matSort
+         aria-label="Tabela lekcji" class="lesson-table">
+
+    <!-- Data -->
+    <ng-container matColumnDef="lesson_date">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header scope="col">Data</th>
+      <td mat-cell *matCellDef="let row">
+        <span class="date-cell">{{ row.lesson_date | date:'dd.MM.yyyy':'pl' }}</span>
+      </td>
+    </ng-container>
+
+    <!-- Godzina -->
+    <ng-container matColumnDef="time_from">
+      <th mat-header-cell *matHeaderCellDef scope="col">Godzina</th>
+      <td mat-cell *matCellDef="let row" class="mono">
+        {{ row.time_from }} – {{ row.time_to }}
+      </td>
+    </ng-container>
+
+    <!-- Kurs -->
+    <ng-container matColumnDef="course_name">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header scope="col">Kurs / Grupa</th>
+      <td mat-cell *matCellDef="let row">{{ row.course_name }}</td>
+    </ng-container>
+
+    <!-- Temat -->
+    <ng-container matColumnDef="topic">
+      <th mat-header-cell *matHeaderCellDef scope="col">Temat</th>
+      <td mat-cell *matCellDef="let row" class="topic-cell">
+        <span [matTooltip]="row.topic || ''" matTooltipShowDelay="600">
+          {{ row.topic || '—' }}
+        </span>
+      </td>
+    </ng-container>
+
+    <!-- Status -->
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+      <td mat-cell *matCellDef="let row">
+        <span class="status-chip" [ngClass]="statusColors[row.status]"
+              [attr.aria-label]="'Status: ' + statusLabels[row.status]">
+          {{ statusLabels[row.status] }}
+        </span>
+      </td>
+    </ng-container>
+
+    <!-- Czas trwania -->
+    <ng-container matColumnDef="duration_min">
+      <th mat-header-cell *matHeaderCellDef scope="col">Czas</th>
+      <td mat-cell *matCellDef="let row" class="mono">{{ row.duration_min }} min</td>
+    </ng-container>
+
+    <!-- Zadanie domowe -->
+    <ng-container matColumnDef="has_homework">
+      <th mat-header-cell *matHeaderCellDef scope="col" class="center-col">ZD</th>
+      <td mat-cell *matCellDef="let row" class="center-col">
+        <mat-icon *ngIf="row.has_homework" class="icon-yes"
+                  [attr.aria-label]="'Zadanie domowe'">assignment</mat-icon>
+        <mat-icon *ngIf="!row.has_homework" class="icon-no" aria-hidden="true">remove</mat-icon>
+      </td>
+    </ng-container>
+
+    <!-- Akcje -->
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef scope="col">
+        <span class="sr-only">Akcje</span>
+      </th>
+      <td mat-cell *matCellDef="let row">
+        <button mat-icon-button [matMenuTriggerFor]="rowMenu"
+                [attr.aria-label]="'Akcje dla lekcji ' + row.lesson_date">
+          <mat-icon aria-hidden="true">more_vert</mat-icon>
+        </button>
+        <mat-menu #rowMenu="matMenu">
+          <button mat-menu-item (click)="openEdit(row)">
+            <mat-icon aria-hidden="true">edit</mat-icon> Edytuj
+          </button>
+          <button mat-menu-item (click)="deleteSession(row)" class="menu-danger">
+            <mat-icon aria-hidden="true">delete</mat-icon> Usuń
+          </button>
+        </mat-menu>
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+        class="clickable-row"
+        (click)="openEdit(row)"
+        (keydown.enter)="openEdit(row)"
+        tabindex="0"
+        [attr.aria-label]="'Lekcja ' + row.lesson_date + ' — ' + (row.topic || 'bez tematu')">
+    </tr>
+
+    <!-- Empty state -->
+    <tr class="mat-row" *matNoDataRow>
+      <td [attr.colspan]="displayedColumns.length">
+        <div class="empty-state" role="status" aria-live="polite">
+          <mat-icon aria-hidden="true">event_busy</mat-icon>
+          <p class="empty-title">Nie znaleziono żadnych lekcji</p>
+          <p>Zmień filtry lub dodaj pierwszą lekcję.</p>
+        </div>
+      </td>
+    </tr>
+
+  </table>
+
+  <mat-paginator
+    [length]="total()"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="[10, 20, 50]"
+    [pageIndex]="page"
+    (page)="onPage($event)"
+    aria-label="Stronicowanie listy lekcji"
+    showFirstLastButtons>
+  </mat-paginator>
+
+</div>
