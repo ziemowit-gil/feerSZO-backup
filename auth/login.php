@@ -843,6 +843,9 @@ body.login-view-feer{
   <div class="links">
     <a href="<?= APP_URL ?>/auth/help.php"
        aria-label="Otwórz instrukcję: jak się zalogować i jak ustalić login i hasło">Jak się zalogować?</a>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href="<?= APP_URL ?>/user/register.php"
+       aria-label="Załóż konto — samodzielna rejestracja dla wolontariuszy z umową">Załóż konto</a>
     <?php if ($sel_url): ?>
     <span class="dot" aria-hidden="true">·</span>
     <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?></a>
