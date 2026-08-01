@@ -273,322 +273,349 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Załóż konto — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
 <style>
-*,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0f172a}
+/* ── Reset ───────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  background:#f0f4f8;
+  color:#0d1b2a;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
 
-.skip-link{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1.25rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none;font-size:.95rem}
-.skip-link:focus{top:0;outline:3px solid #FBBF24;outline-offset:2px}
-*:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
+/* ── Focus ───────────────────────────────────────────────────── */
+.skip-link{position:absolute;top:-9em;left:1rem;z-index:999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1rem;border-radius:0 0 6px 6px;font-weight:700;text-decoration:none}
+.skip-link:focus{top:0}
+*:focus-visible{outline:2.5px solid var(--c,#2563eb);outline-offset:3px;border-radius:3px}
 *:focus:not(:focus-visible){outline:none}
 
-/* ── Shell ───────────────────────────────────────────────────── */
-.login-shell{min-height:100vh;display:flex;align-items:stretch}
-
-/* ── Lewa ────────────────────────────────────────────────────── */
-.login-left{
-  width:300px;flex-shrink:0;
-  background:linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
-  display:flex;flex-direction:column;justify-content:space-between;
-  padding:2.25rem 1.75rem;
-  border-right:1px solid rgba(255,255,255,.06);
-  position:relative;overflow:hidden;
+/* ── Progress bar ────────────────────────────────────────────── */
+.pg-rail{position:fixed;top:0;left:0;right:0;height:3px;background:#dde3ea;z-index:100}
+.pg-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--c,#2563eb),#60a5fa);
+  transition:width .4s cubic-bezier(.4,0,.2,1);
+  width:<?= round(($step / 3) * 100) ?>%;
 }
-.login-left::after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;border:55px solid rgba(255,255,255,.025);bottom:-80px;right:-80px;pointer-events:none}
-.left-logo{max-height:44px;max-width:140px;object-fit:contain;filter:brightness(0)invert(1);opacity:.85;display:block;margin-bottom:1rem}
-.left-icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff;margin-bottom:1rem}
-.left-org{font-size:1.05rem;font-weight:800;color:#fff;margin:0 0 .25rem;line-height:1.3}
-.left-tagline{font-size:.77rem;color:rgba(255,255,255,.45);margin:0 0 1.75rem;line-height:1.5}
-.left-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.6rem}
-.left-step{display:flex;align-items:center;gap:.65rem;font-size:.8rem;color:rgba(255,255,255,.5)}
-.left-step.active{color:#fff}
-.left-step-num{width:24px;height:24px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0;color:rgba(255,255,255,.4)}
-.left-step.done .left-step-num{background:var(--c,#2563eb);border-color:var(--c,#2563eb);color:#fff}
-.left-step.active .left-step-num{background:#fff;border-color:#fff;color:#0f172a}
-.left-footer{position:relative;z-index:1}
-.left-security{display:flex;align-items:center;gap:.4rem;font-size:.73rem;color:rgba(255,255,255,.3);margin-bottom:.4rem}
-.left-copyright{font-size:.68rem;color:rgba(255,255,255,.2)}
 
-/* ── Prawa ───────────────────────────────────────────────────── */
-.login-right{flex:1;background:#F1F5F9;display:flex;align-items:center;justify-content:center;padding:2.5rem 1.5rem;overflow-y:auto}
-.reg-box{width:100%;max-width:480px}
-
-/* ── Nagłówek ────────────────────────────────────────────────── */
-.reg-eyebrow{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--c,#2563eb);margin:0 0 .3rem}
-.reg-heading{font-size:1.55rem;font-weight:800;color:#0f172a;margin:0 0 .5rem;letter-spacing:-.01em}
-.reg-lead{font-size:.88rem;color:#64748b;line-height:1.6;margin:0 0 1.4rem}
-
-/* ── Karta formularza ────────────────────────────────────────── */
-.reg-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.6rem 1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-
-/* ── Pola ────────────────────────────────────────────────────── */
-.form-label{font-size:.83rem;font-weight:600;color:#334155;margin-bottom:.35rem}
-.form-control,.form-select{border-color:#d1d5db;border-radius:8px;font-size:.9rem}
-.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
-.input-group-text{background:#f8fafc;border-color:#d1d5db;color:#64748b}
-.form-text{font-size:.78rem;color:#94a3b8;margin-top:.3rem}
-
-/* ── Przyciski ───────────────────────────────────────────────── */
-.btn-reg-primary{
-  display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;
-  background:var(--c,#2563eb);color:#fff;border:2px solid var(--c,#2563eb);
-  border-radius:9px;padding:.75rem 1.25rem;font-size:.95rem;font-weight:700;
-  cursor:pointer;min-height:48px;transition:background .15s,border-color .15s;
+/* ── Top bar ─────────────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.9rem 1.5rem;
+  border-bottom:1px solid #dde3ea;
+  background:#fff;
 }
-.btn-reg-primary:hover{background:var(--c-dark,#1d4ed8);border-color:var(--c-dark,#1d4ed8)}
-.btn-reg-primary.green{background:#16a34a;border-color:#16a34a}
-.btn-reg-primary.green:hover{background:#15803d;border-color:#15803d}
-.btn-back{background:none;border:none;padding:0;font-size:.82rem;color:#64748b;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;margin-top:.65rem}
-.btn-back:hover{color:var(--c,#2563eb)}
+.topbar-brand{display:flex;align-items:center;gap:.55rem;text-decoration:none}
+.topbar-logo{max-height:26px;object-fit:contain}
+.topbar-icon{width:28px;height:28px;border-radius:7px;background:var(--c,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.topbar-org{font-size:.88rem;font-weight:700;color:#0d1b2a;letter-spacing:-.01em}
+.topbar-back{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;color:#64748b;text-decoration:none}
+.topbar-back:hover{color:var(--c,#2563eb)}
 
-/* ── Alerty ──────────────────────────────────────────────────── */
-.reg-alert{display:flex;align-items:flex-start;gap:.6rem;padding:.85rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;line-height:1.55}
-.reg-alert.danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
-.reg-alert.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
-.reg-alert i{flex-shrink:0;margin-top:.1rem}
+/* ── Page body ───────────────────────────────────────────────── */
+.page{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:3rem 1.25rem 4rem}
+.frame{width:100%;max-width:440px}
+
+/* ── Step dots ───────────────────────────────────────────────── */
+.step-dots{display:flex;align-items:center;gap:0;margin-bottom:2.25rem}
+.step-dot-wrap{display:flex;align-items:center;gap:0}
+.step-dot{
+  width:8px;height:8px;border-radius:50%;
+  border:2px solid #c9d2dd;
+  background:transparent;
+  transition:background .25s,border-color .25s,transform .25s;
+}
+.step-dot.done{background:var(--c,#2563eb);border-color:var(--c,#2563eb)}
+.step-dot.active{
+  width:28px;border-radius:4px;
+  background:var(--c,#2563eb);border-color:var(--c,#2563eb);
+}
+.step-line{width:24px;height:2px;background:#c9d2dd;flex-shrink:0}
+.step-line.done{background:var(--c,#2563eb)}
+.step-count{margin-left:auto;font-size:.76rem;font-weight:600;color:#94a3b8;letter-spacing:.04em}
+
+/* ── Heading ─────────────────────────────────────────────────── */
+.heading{font-size:1.75rem;font-weight:800;color:#0d1b2a;letter-spacing:-.025em;line-height:1.15;margin-bottom:.5rem;text-wrap:balance}
+.sub{font-size:.9rem;color:#64748b;line-height:1.6;margin-bottom:2rem}
+.sub strong{color:#475569}
+
+/* ── Alerts ──────────────────────────────────────────────────── */
+.alert{display:flex;align-items:flex-start;gap:.6rem;padding:.85rem 1rem;border-radius:10px;margin-bottom:1.5rem;font-size:.85rem;line-height:1.55}
+.alert i{flex-shrink:0;margin-top:.1rem;font-size:1rem}
+.alert-danger{background:#fef2f2;border:1.5px solid #fca5a5;color:#7f1d1d}
+.alert-info{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a}
+
+/* ── Field ───────────────────────────────────────────────────── */
+.field{margin-bottom:1.25rem}
+.field-label{display:block;font-size:.8rem;font-weight:600;color:#374151;letter-spacing:.02em;margin-bottom:.4rem}
+.field-wrap{position:relative}
+.field-icon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.95rem;pointer-events:none}
+.field-input{
+  width:100%;padding:.75rem .9rem .75rem 2.4rem;
+  border:1.5px solid #d1d5db;border-radius:10px;
+  font-size:.93rem;color:#0d1b2a;
+  background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+  appearance:none;
+}
+.field-input::placeholder{color:#c0c7d0}
+.field-input:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
+.field-input.no-icon{padding-left:.9rem}
+.field-hint{font-size:.76rem;color:#94a3b8;margin-top:.35rem;line-height:1.5}
+.field-hint code{background:#f1f5f9;border-radius:3px;padding:.05em .3em;font-size:.9em}
+
+/* Pokaż/ukryj hasło */
+.pwd-wrap{position:relative}
+.pwd-wrap .field-input{padding-right:2.6rem}
+.pwd-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:.25rem;font-size:1rem;line-height:1;border-radius:4px}
+.pwd-toggle:hover{color:#475569}
+
+/* SMS */
+.sms-wrap{display:flex;justify-content:center;margin-bottom:.5rem}
+.sms-input{
+  width:180px;text-align:center;
+  font-size:2rem;font-weight:700;letter-spacing:.35em;
+  padding:.6rem .5rem;border:1.5px solid #d1d5db;border-radius:12px;
+  color:#0d1b2a;background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+}
+.sms-input:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
+.sms-hint{text-align:center;font-size:.8rem;color:#94a3b8;margin-bottom:1.5rem}
+.sms-hint.err{color:#dc2626}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn-primary{
+  display:flex;align-items:center;justify-content:center;gap:.5rem;
+  width:100%;padding:.8rem 1rem;
+  background:var(--c,#2563eb);color:#fff;
+  border:none;border-radius:10px;
+  font-size:.95rem;font-weight:700;cursor:pointer;min-height:50px;
+  transition:background .15s,transform .1s;
+  letter-spacing:.01em;
+}
+.btn-primary:hover{background:var(--c-dark,#1d4ed8)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary.success-color{background:#16a34a}
+.btn-primary.success-color:hover{background:#15803d}
+
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:.35rem;
+  background:none;border:none;cursor:pointer;
+  font-size:.82rem;color:#64748b;padding:.4rem 0;
+  margin-top:.75rem;
+}
+.btn-ghost:hover{color:var(--c,#2563eb)}
 
 /* ── Note ────────────────────────────────────────────────────── */
-.reg-note{display:flex;align-items:flex-start;gap:.55rem;padding:.8rem .9rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-top:1rem;font-size:.8rem;color:#64748b;line-height:1.55}
-.reg-note i{flex-shrink:0;color:#94a3b8;margin-top:.1rem}
-.reg-note a{color:var(--c,#2563eb);text-decoration:none}
-.reg-note a:hover{text-decoration:underline}
+.note{font-size:.8rem;color:#94a3b8;line-height:1.6;padding-top:1.25rem;margin-top:1.5rem;border-top:1px solid #e5e9ef}
+.note a{color:#64748b;text-decoration:underline;text-underline-offset:2px}
+.note a:hover{color:var(--c,#2563eb)}
 
-/* ── SMS input ───────────────────────────────────────────────── */
-.sms-input{letter-spacing:.4em;font-size:1.6rem;font-weight:700;text-align:center;max-width:200px;border-radius:10px;padding:.5rem}
+/* ── Footer ──────────────────────────────────────────────────── */
+.foot{text-align:center;padding:1.5rem;font-size:.75rem;color:#b0bac7}
+.foot a{color:#94a3b8;text-decoration:none}
+.foot a:hover{color:#64748b}
 
-/* ── Stopka ──────────────────────────────────────────────────── */
-.reg-footer{display:flex;align-items:center;justify-content:space-between;padding-top:.9rem;margin-top:.9rem;border-top:1px solid #e2e8f0;font-size:.78rem;color:#94a3b8}
-.reg-footer a{color:#64748b;text-decoration:none}
-.reg-footer a:hover{color:var(--c,#2563eb)}
-
-@media(prefers-contrast:high){.btn-reg-primary{border-width:3px}.reg-card{border-width:2px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
-
-@media(max-width:680px){
-  .login-shell{flex-direction:column}
-  .login-left{width:100%;padding:.9rem 1.25rem;flex-direction:row;align-items:center;gap:.75rem;border-right:none;border-bottom:1px solid rgba(255,255,255,.07)}
-  .login-left::after{display:none}
-  .login-left .left-tagline,.login-left .left-steps,.login-left .left-footer{display:none}
-  .login-left .left-org{font-size:.9rem;margin:0}
-  .login-left .left-logo{margin-bottom:0;max-height:28px}
-  .login-left .left-icon{width:30px;height:30px;font-size:1rem;margin-bottom:0}
-  .login-right{padding:1.25rem 1rem;align-items:flex-start}
-  .reg-box{padding:.25rem 0}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+@media(max-width:520px){
+  .page{padding:1.75rem 1rem 3rem}
+  .heading{font-size:1.45rem}
+  .topbar{padding:.75rem 1rem}
 }
 </style>
 </head>
 <body>
 
-<a href="#reg-content" class="skip-link">Przejdź do formularza</a>
+<a href="#reg-main" class="skip-link">Przejdź do formularza</a>
 
-<div class="login-shell">
+<!-- Progress bar -->
+<div class="pg-rail" aria-hidden="true"><div class="pg-fill"></div></div>
 
-<!-- ══ Lewa — branding ══════════════════════════════════════════════════════ -->
-<aside class="login-left" aria-label="Informacje o organizacji">
-  <div>
+<!-- Top bar -->
+<header class="topbar">
+  <a href="<?= APP_URL ?>/auth/login.php" class="topbar-brand" aria-label="<?= h($org_name) ?> — strona główna">
     <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="left-logo">
+    <img src="<?= h($_b['logo_url']) ?>" alt="" class="topbar-logo">
     <?php else: ?>
-    <div class="left-icon" aria-hidden="true"><i class="bi bi-person-plus-fill"></i></div>
+    <span class="topbar-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
     <?php endif; ?>
-    <p class="left-org"><?= h($org_name) ?></p>
-    <?php if ($_tagline): ?><p class="left-tagline"><?= h($_tagline) ?></p><?php endif; ?>
+    <span class="topbar-org"><?= h($org_name) ?></span>
+  </a>
+  <a href="<?= APP_URL ?>/auth/login.php" class="topbar-back">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i>Logowanie
+  </a>
+</header>
 
-    <ol class="left-steps" aria-label="Postęp rejestracji">
-      <?php foreach ($step_labels as $i => $lbl): ?>
-      <li class="left-step <?= $step > $i ? 'done' : ($step === $i ? 'active' : '') ?>">
-        <span class="left-step-num" aria-hidden="true">
-          <?= $step > $i ? '<i class="bi bi-check-lg"></i>' : $i ?>
-        </span>
-        <?= h($lbl) ?>
-      </li>
-      <?php endforeach; ?>
-    </ol>
+<!-- Main -->
+<div class="page">
+<main class="frame" id="reg-main" tabindex="-1">
+
+  <!-- Step indicator -->
+  <div class="step-dots" aria-label="Postęp: krok <?= $step ?> z 3" role="status">
+    <?php foreach ($step_labels as $i => $lbl): ?>
+      <?php if ($i > 1): ?>
+        <div class="step-line <?= $step > $i - 1 ? 'done' : '' ?>"></div>
+      <?php endif; ?>
+      <div class="step-dot <?= $step > $i ? 'done' : ($step === $i ? 'active' : '') ?>"
+           title="<?= h($lbl) ?>"></div>
+    <?php endforeach; ?>
+    <span class="step-count"><?= $step ?> / 3</span>
   </div>
 
-  <div class="left-footer">
-    <div class="left-security"><i class="bi bi-lock-fill" aria-hidden="true"></i> Połączenie szyfrowane HTTPS</div>
-    <div class="left-copyright">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
-  </div>
-</aside>
-
-<!-- ══ Prawa — formularz ════════════════════════════════════════════════════ -->
-<div class="login-right">
-<main class="reg-box" id="reg-content" tabindex="-1">
-
+  <!-- Alerts -->
   <?php if ($error !== ''): ?>
-  <div class="reg-alert danger" role="alert">
+  <div class="alert alert-danger" role="alert">
     <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
     <div><?= h($error) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($success !== ''): ?>
-  <div class="reg-alert info" role="status">
+  <div class="alert alert-info" role="status">
     <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
     <div><?= h($success) ?></div>
   </div>
   <?php endif; ?>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 1: Dane umowy                                                      -->
+  <!-- KROK 1                                                                   -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php if ($step === 1): ?>
-  <p class="reg-eyebrow">Krok 1 z 3</p>
-  <h1 class="reg-heading">Dane umowy</h1>
-  <p class="reg-lead">Podaj e-mail i PESEL z umowy — wyślemy kod SMS na numer telefonu z umowy.</p>
+  <h1 class="heading">Dane z&nbsp;umowy</h1>
+  <p class="sub">Podaj e-mail i PESEL z umowy wolontariackiej — wyślemy kod SMS na&nbsp;Twój numer telefonu.</p>
 
-  <div class="reg-card">
-    <form method="post" novalidate>
-      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_action" value="verify">
+  <form method="post" novalidate>
+    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_action" value="verify">
 
-      <div class="mb-3">
-        <label for="email" class="form-label">Adres e-mail</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
-          <input type="email" class="form-control" id="email" name="email"
-                 placeholder="E-mail podany w umowie"
-                 value="<?= h($_POST['email'] ?? '') ?>"
-                 required autofocus autocomplete="email">
-        </div>
+    <div class="field">
+      <label for="email" class="field-label">Adres e-mail</label>
+      <div class="field-wrap">
+        <i class="bi bi-envelope field-icon" aria-hidden="true"></i>
+        <input type="email" class="field-input" id="email" name="email"
+               placeholder="adres@email.pl"
+               value="<?= h($_POST['email'] ?? '') ?>"
+               required autofocus autocomplete="email">
       </div>
-
-      <div class="mb-4">
-        <label for="pesel_or_doc" class="form-label">PESEL lub numer dokumentu</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>
-          <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
-                 placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
-                 value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
-                 required>
-        </div>
-        <div class="form-text">Ostatnie 5 cyfr PESEL (np. <code>12345</code>) lub pełny numer dokumentu.</div>
-      </div>
-
-      <button type="submit" class="btn-reg-primary">
-        <i class="bi bi-shield-check" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
-      </button>
-    </form>
-  </div>
-
-  <div class="reg-note">
-    <i class="bi bi-info-circle" aria-hidden="true"></i>
-    <div>
-      Rejestracja dostępna wyłącznie dla umów wolontariackich. Przy innym typie umowy skontaktuj się z administratorem.
-      Masz konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a>
-      lub <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">zresetuj hasło</a>.
     </div>
-  </div>
+
+    <div class="field">
+      <label for="pesel_or_doc" class="field-label">PESEL lub numer dokumentu</label>
+      <div class="field-wrap">
+        <i class="bi bi-person-vcard field-icon" aria-hidden="true"></i>
+        <input type="text" class="field-input" id="pesel_or_doc" name="pesel_or_doc"
+               placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
+               value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
+               required>
+      </div>
+      <p class="field-hint">Ostatnie 5 cyfr PESEL (np.&nbsp;<code>12345</code>) lub pełny numer dokumentu tożsamości.</p>
+    </div>
+
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-shield-check" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
+    </button>
+  </form>
+
+  <p class="note">
+    Rejestracja wyłącznie dla umów wolontariackich. Inny typ umowy? Skontaktuj się z administratorem.<br>
+    Masz konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a> lub
+    <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">zresetuj hasło</a>.
+  </p>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 2: Kod SMS                                                         -->
+  <!-- KROK 2                                                                   -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php elseif ($step === 2): ?>
-  <p class="reg-eyebrow">Krok 2 z 3</p>
-  <h1 class="reg-heading">Kod SMS</h1>
-  <p class="reg-lead">Wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy. Kod ważny przez <strong>10 minut</strong>.</p>
+  <h1 class="heading">Kod SMS</h1>
+  <p class="sub">Wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy. Kod jest ważny przez&nbsp;<strong>10&nbsp;minut</strong>.</p>
 
-  <div class="reg-card">
-    <form method="post" novalidate>
-      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_action" value="verify_sms">
+  <form method="post" novalidate>
+    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_action" value="verify_sms">
 
-      <div class="mb-4 text-center">
-        <label for="sms_code" class="form-label d-block mb-2">Kod SMS</label>
-        <input type="text" class="form-control sms-input mx-auto"
-               id="sms_code" name="sms_code"
-               maxlength="6" minlength="6"
-               inputmode="numeric" pattern="[0-9]{6}"
-               placeholder="000000"
-               autocomplete="one-time-code"
-               required autofocus>
-        <?php if ($sms_fails > 0): ?>
-        <div class="form-text text-danger mt-2">
-          Błędna próba <?= $sms_fails ?>/3. Po 3 błędach zaczniesz od nowa.
-        </div>
-        <?php endif; ?>
-      </div>
-
-      <button type="submit" class="btn-reg-primary">
-        <i class="bi bi-check-circle" aria-hidden="true"></i>Potwierdź kod
-      </button>
-    </form>
-
-    <div class="text-center">
-      <form method="post" style="display:inline">
-        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="_action" value="restart">
-        <button type="submit" class="btn-back">
-          <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć i popraw dane
-        </button>
-      </form>
+    <div class="sms-wrap">
+      <input type="text" class="sms-input"
+             id="sms_code" name="sms_code"
+             maxlength="6" minlength="6"
+             inputmode="numeric" pattern="[0-9]{6}"
+             placeholder="000000"
+             autocomplete="one-time-code"
+             required autofocus
+             aria-label="Kod SMS — 6 cyfr">
     </div>
-  </div>
+    <?php if ($sms_fails > 0): ?>
+    <p class="sms-hint err">Błędna próba <?= $sms_fails ?>/3 — po 3 błędach zaczniesz od nowa.</p>
+    <?php else: ?>
+    <p class="sms-hint">Wpisz 6 cyfr z wiadomości SMS</p>
+    <?php endif; ?>
+
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-circle" aria-hidden="true"></i>Potwierdź kod
+    </button>
+  </form>
+
+  <form method="post" style="display:block">
+    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_action" value="restart">
+    <button type="submit" class="btn-ghost">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć i popraw dane
+    </button>
+  </form>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 3: Hasło                                                           -->
+  <!-- KROK 3                                                                   -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <?php elseif ($step === 3): ?>
-  <p class="reg-eyebrow">Krok 3 z 3</p>
-  <h1 class="reg-heading">Ustaw hasło</h1>
-  <p class="reg-lead">Tożsamość potwierdzona — ustaw hasło, aby dokończyć rejestrację.</p>
+  <h1 class="heading">Ustaw hasło</h1>
+  <p class="sub">Tożsamość potwierdzona. Wybierz hasło — po jego ustawieniu konto będzie gotowe.</p>
 
-  <div class="reg-card">
-    <form method="post" novalidate>
-      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_action" value="set_password">
+  <form method="post" novalidate>
+    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_action" value="set_password">
 
-      <div class="mb-3">
-        <label for="password_new" class="form-label">Hasło</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
-          <input type="password" class="form-control" id="password_new" name="password_new"
-                 minlength="8" required autofocus autocomplete="new-password">
-          <button class="btn btn-outline-secondary" type="button" id="togglePwdNew"
-                  aria-label="Pokaż/ukryj hasło">
-            <i class="bi bi-eye" id="eyeNew" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="form-text">Min. 8 znaków, wielka litera, mała litera, cyfra.</div>
+    <div class="field">
+      <label for="password_new" class="field-label">Hasło</label>
+      <div class="field-wrap pwd-wrap">
+        <i class="bi bi-lock field-icon" aria-hidden="true"></i>
+        <input type="password" class="field-input" id="password_new" name="password_new"
+               minlength="8" required autofocus autocomplete="new-password">
+        <button type="button" class="pwd-toggle" id="togglePwdNew" aria-label="Pokaż hasło">
+          <i class="bi bi-eye" id="eyeNew" aria-hidden="true"></i>
+        </button>
       </div>
+      <p class="field-hint">Min.&nbsp;8&nbsp;znaków, wielka litera, mała litera, cyfra.</p>
+    </div>
 
-      <div class="mb-4">
-        <label for="password_confirm" class="form-label">Powtórz hasło</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
-          <input type="password" class="form-control" id="password_confirm" name="password_confirm"
-                 minlength="8" required autocomplete="new-password">
-          <button class="btn btn-outline-secondary" type="button" id="togglePwdConfirm"
-                  aria-label="Pokaż/ukryj powtórzone hasło">
-            <i class="bi bi-eye" id="eyeConfirm" aria-hidden="true"></i>
-          </button>
-        </div>
+    <div class="field">
+      <label for="password_confirm" class="field-label">Powtórz hasło</label>
+      <div class="field-wrap pwd-wrap">
+        <i class="bi bi-lock-fill field-icon" aria-hidden="true"></i>
+        <input type="password" class="field-input" id="password_confirm" name="password_confirm"
+               minlength="8" required autocomplete="new-password">
+        <button type="button" class="pwd-toggle" id="togglePwdConfirm" aria-label="Pokaż hasło">
+          <i class="bi bi-eye" id="eyeConfirm" aria-hidden="true"></i>
+        </button>
       </div>
+    </div>
 
-      <button type="submit" class="btn-reg-primary green">
-        <i class="bi bi-person-check" aria-hidden="true"></i>Załóż konto i zaloguj się
-      </button>
-    </form>
-  </div>
+    <button type="submit" class="btn-primary success-color">
+      <i class="bi bi-person-check" aria-hidden="true"></i>Załóż konto i zaloguj się
+    </button>
+  </form>
   <?php endif; ?>
 
-  <div class="reg-footer">
-    <a href="<?= APP_URL ?>/auth/login.php">
-      <i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do logowania
-    </a>
-    <span><i class="bi bi-lock-fill" aria-hidden="true"></i> HTTPS</span>
-  </div>
-
 </main>
-</div><!-- /login-right -->
+</div>
 
-</div><!-- /login-shell -->
+<footer class="foot">
+  &copy; <?= date('Y') ?> <a href="<?= APP_URL ?>/auth/login.php"><?= h($org_name) ?></a>
+</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function togglePwd(btnId, inputId, eyeId) {
   var btn = document.getElementById(btnId);
@@ -598,17 +625,19 @@ function togglePwd(btnId, inputId, eyeId) {
     var eye = document.getElementById(eyeId);
     if (!inp) return;
     var show = inp.type === 'password';
-    inp.type = show ? 'text' : 'password';
+    inp.type  = show ? 'text' : 'password';
+    inp.setAttribute('autocomplete', show ? 'off' : 'new-password');
     if (eye) eye.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    this.setAttribute('aria-label', show ? 'Ukryj hasło' : 'Pokaż hasło');
   });
 }
-togglePwd('togglePwdNew', 'password_new', 'eyeNew');
+togglePwd('togglePwdNew',     'password_new',     'eyeNew');
 togglePwd('togglePwdConfirm', 'password_confirm', 'eyeConfirm');
 
 var smsInput = document.getElementById('sms_code');
 if (smsInput) {
   smsInput.addEventListener('input', function() {
-    if (this.value.replace(/\D/g, '').length === 6) this.form.submit();
+    if (this.value.replace(/\D/g,'').length === 6) this.form.submit();
   });
 }
 </script>
