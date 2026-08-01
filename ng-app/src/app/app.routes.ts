@@ -12,6 +12,11 @@ export const routes: Routes = [
         path: 'dydaktyka',
         loadChildren: () => import('./features/dydaktyka/dydaktyka.routes').then(m => m.DYDAKTYKA_ROUTES),
       },
+      {
+        path: 'ustawienia',
+        loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent),
+        title: 'Ustawienia — feerSZO',
+      },
     ],
   },
   { path: '**', redirectTo: '' },

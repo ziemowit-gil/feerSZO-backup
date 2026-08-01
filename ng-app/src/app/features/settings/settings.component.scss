@@ -1,0 +1,29 @@
+.settings-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  @media (max-width: 860px) { grid-template-columns: 1fr; }
+}
+
+.settings-card { border-radius: 12px !important; }
+.info-card { background: #f8fafc; }
+
+.full-width { width: 100%; }
+.mt { margin-top: .75rem; }
+.my { margin: 1rem 0; }
+
+.info-list {
+  padding-left: 1.25rem; margin: 0;
+  li { margin-bottom: .75rem; line-height: 1.6; }
+  code { background: #e5e7eb; padding: 1px 5px; border-radius: 4px; font-size: .85em; }
+}
+
+.current-label { font-weight: 600; font-size: .85rem; color: #374151; margin-bottom: .5rem; }
+
+.config-pre {
+  background: #1e293b; color: #e2e8f0;
+  border-radius: 8px; padding: 1rem;
+  font-size: .8rem; overflow-x: auto;
+  margin: 0;
+}

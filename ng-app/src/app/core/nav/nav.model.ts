@@ -23,22 +23,5 @@ export const NAV_TREE: NavItem[] = [
       { label: 'Okresy',          icon: 'date_range',     route: '/dydaktyka/okresy' },
     ]
   },
-  {
-    label: 'Umowy', icon: 'description',
-    children: [
-      { label: 'Zlecenie',    icon: 'work',           route: '/umowy/zlecenie' },
-      { label: 'Dzieło',      icon: 'palette',        route: '/umowy/dzielo' },
-      { label: 'Wolontariat', icon: 'volunteer_activism', route: '/umowy/wolontariat' },
-    ]
-  },
-  {
-    label: 'CRM', icon: 'people',
-    children: [
-      { label: 'Kontakty',    icon: 'contacts',       route: '/crm/kontakty' },
-      { label: 'Sprawy',      icon: 'folder_shared',  route: '/crm/sprawy' },
-    ]
-  },
-  { label: 'EZD',        icon: 'inbox',         route: '/ezd' },
-  { label: 'Helpdesk',   icon: 'support_agent', route: '/helpdesk' },
-  { label: 'Zadania',    icon: 'task_alt',      route: '/zadania' },
+  { label: 'Ustawienia', icon: 'settings',      route: '/ustawienia' },
 ];
