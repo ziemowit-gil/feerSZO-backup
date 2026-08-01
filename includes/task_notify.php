@@ -385,15 +385,54 @@ function _tn_sms(int $user_id, string $message, string $event = '', int $ref_id 
     } catch (\Throwable $_) {}
 }
 
-/** Samonaprawa schematu: dodaje kolumnę channel jeśli brakuje. */
+/** Samonaprawa schematu: tworzy tabele i brakujące kolumny. */
 function _tn_schema_heal(): void {
     static $done = false;
     if ($done) return;
     $done = true;
     try {
+        db()->exec("CREATE TABLE IF NOT EXISTS task_notification_prefs (
+            user_id          INTEGER PRIMARY KEY,
+            notify_assigned  INTEGER NOT NULL DEFAULT 1,
+            notify_mentioned INTEGER NOT NULL DEFAULT 1,
+            notify_comment   INTEGER NOT NULL DEFAULT 0,
+            notify_due_1day  INTEGER NOT NULL DEFAULT 1,
+            notify_due_today INTEGER NOT NULL DEFAULT 1,
+            notify_sms       INTEGER NOT NULL DEFAULT 0,
+            notify_confirmed INTEGER NOT NULL DEFAULT 1,
+            notify_rejected  INTEGER NOT NULL DEFAULT 1,
+            updated_at       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )");
+        db()->exec("CREATE TABLE IF NOT EXISTS task_notification_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            event_type TEXT    NOT NULL,
+            ref_id     INTEGER NOT NULL,
+            channel    TEXT    NOT NULL DEFAULT 'email',
+            sent_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )");
+        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_log_dedup
+            ON task_notification_log(user_id, event_type, ref_id, date(sent_at))");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_notif_log_sent
+            ON task_notification_log(sent_at)");
+    } catch (\Throwable $e) {}
+
+    // Dodaj brakujące kolumny na starszych instalacjach
+    try {
         $cols = array_column(db_all("PRAGMA table_info(task_notification_log)"), 'name');
         if (!in_array('channel', $cols, true)) {
             db()->exec("ALTER TABLE task_notification_log ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'");
+        }
+    } catch (\Throwable $e) {}
+    try {
+        $pcols = array_column(db_all("PRAGMA table_info(task_notification_prefs)"), 'name');
+        foreach (['notify_sms INTEGER NOT NULL DEFAULT 0', 'notify_confirmed INTEGER NOT NULL DEFAULT 1', 'notify_rejected INTEGER NOT NULL DEFAULT 1'] as $def) {
+            $col = explode(' ', $def)[0];
+            if (!in_array($col, $pcols, true)) {
+                try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN $def"); } catch (\Throwable $e) {}
+            }
         }
     } catch (\Throwable $e) {}
 }

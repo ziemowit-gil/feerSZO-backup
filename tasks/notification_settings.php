@@ -13,13 +13,39 @@ require_login();
 $uid  = (int)(current_user()['id'] ?? 0);
 $user = current_user();
 
-$saved = false;
-$error = '';
+$saved       = false;
+$error       = '';
+$test_result = null;   // null | ['ok'=>bool, 'msg'=>string, 'channel'=>string]
 
 // ── Zapis ────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '')) {
         $error = 'Nieprawidłowy token CSRF. Odśwież stronę i spróbuj ponownie.';
+    } elseif (($_POST['_action'] ?? '') === 'test_notif') {
+        // ── Test wysyłki ──────────────────────────────────────────────────
+        $ch = $_POST['test_channel'] ?? 'email';
+        if ($ch === 'sms' && $has_sms) {
+            require_once dirname(__DIR__) . '/includes/sms.php';
+            $ok  = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.');
+            $test_result = ['ok' => $ok, 'channel' => 'sms',
+                'msg' => $ok ? 'SMS wysłany na ' . $user['phone_number'] : 'Błąd wysyłki SMS — sprawdź konfigurację bramki.'];
+        } else {
+            if (!$has_mail) {
+                $test_result = ['ok' => false, 'channel' => 'email', 'msg' => 'Brak adresu e-mail w profilu.'];
+            } else {
+                require_once dirname(__DIR__) . '/includes/functions.php';
+                $html = _feer_email_tpl(
+                    '<p>To jest wiadomość testowa z modułu <strong>Zadania</strong>.</p>'
+                    . '<p style="color:#64748b;font-size:13px">Jeśli ją widzisz — powiadomienia e-mail działają poprawnie.</p>',
+                    'Test powiadomień — Zadania',
+                    APP_URL . '/tasks/notifications.php',
+                    'Przejdź do powiadomień →'
+                );
+                $ok = (bool) approval_send_email($user['email'], 'Test powiadomień — Zadania', $html, 'task_test', $uid);
+                $test_result = ['ok' => $ok, 'channel' => 'email',
+                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $user['email'] : 'Nie udało się wysłać — sprawdź konfigurację M365/SMTP lub logi serwera.'];
+            }
+        }
     } else {
         try {
             task_notify_save_pref($uid, [
@@ -354,6 +380,50 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </div>
 
   </form>
+
+  <!-- ══ Test dostarczania ════════════════════════════════════════ -->
+  <div class="ns-card mb-3 mt-4">
+    <div class="ns-card-header">
+      <i class="bi bi-send-fill" style="color:#7c3aed"></i>
+      Testuj dostarczanie
+      <span class="ns-meta ms-auto" style="font-weight:400;font-size:.75rem;color:#94a3b8">Sprawdź czy powiadomienia faktycznie docierają</span>
+    </div>
+
+    <?php if ($test_result !== null): ?>
+    <div class="px-3 pt-3">
+      <div class="alert alert-<?= $test_result['ok'] ? 'success' : 'warning' ?> d-flex align-items-center gap-2 py-2 mb-0" role="status">
+        <i class="bi <?= $test_result['ok'] ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?>"></i>
+        <?= h($test_result['msg']) ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <form method="post" class="ns-row" style="border-bottom:none;flex-wrap:wrap;gap:.75rem">
+      <input type="hidden" name="_csrf"    value="<?= h($csrf) ?>">
+      <input type="hidden" name="_action" value="test_notif">
+      <div class="ns-icon" style="background:#ede9fe;color:#7c3aed">
+        <i class="bi bi-envelope-paper-fill"></i>
+      </div>
+      <div class="ns-label">
+        <div class="ns-label-title">Wyślij powiadomienie testowe</div>
+        <div class="ns-label-desc">Weryfikuje czy e-mail lub SMS faktycznie dochodzi do Ciebie.</div>
+      </div>
+      <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+        <button type="submit" name="test_channel" value="email"
+                class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-size:.8rem"
+                <?= !$has_mail ? 'disabled title="Brak adresu e-mail"' : '' ?>>
+          <i class="bi bi-envelope-fill me-1" aria-hidden="true"></i>Test e-mail
+        </button>
+        <?php if (sms_is_enabled()): ?>
+        <button type="submit" name="test_channel" value="sms"
+                class="btn btn-sm btn-outline-success" style="font-size:.8rem"
+                <?= !$has_sms ? 'disabled title="Brak numeru telefonu"' : '' ?>>
+          <i class="bi bi-chat-dots-fill me-1" aria-hidden="true"></i>Test SMS
+        </button>
+        <?php endif; ?>
+      </div>
+    </form>
+  </div>
 
   <!-- Informacja ───────────────────────────────────────────────── -->
   <div class="ns-info mt-3">

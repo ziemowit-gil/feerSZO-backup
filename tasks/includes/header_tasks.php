@@ -351,6 +351,27 @@ body {
   font-size: .75rem; color: #9CA3AF; background: #fff;
   display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
 }
+
+/* ── Baner powiadomień przeglądarkowych ──────────────────────── */
+#tsk-notif-banner {
+  background: #ecfdf5; border: 1px solid #6ee7b7;
+  border-radius: 10px; padding: .75rem 1rem;
+  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+  margin-bottom: 1rem; animation: tskBannerIn .25s ease;
+}
+@keyframes tskBannerIn {
+  from { opacity:0; transform:translateY(-6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+#tsk-notif-banner .tsk-nb-icon {
+  width:36px; height:36px; border-radius:9px;
+  background:var(--tsk-green); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1rem; flex-shrink:0;
+}
+#tsk-notif-banner .tsk-nb-body { flex:1; min-width:180px; }
+#tsk-notif-banner .tsk-nb-title { font-weight:700; font-size:.88rem; color:#065f46; }
+#tsk-notif-banner .tsk-nb-sub { font-size:.77rem; color:#047857; margin-top:.1rem; }
 </style>
 </head>
 <body>
@@ -667,6 +688,23 @@ if ($_fm): ?>
 </div>
 <?php endif; ?>
 
+<!-- Baner zachęty do powiadomień przeglądarkowych -->
+<div id="tsk-notif-banner" role="alert" aria-live="polite" style="display:none">
+  <div class="tsk-nb-icon" aria-hidden="true"><i class="bi bi-bell-fill"></i></div>
+  <div class="tsk-nb-body">
+    <div class="tsk-nb-title">Włącz powiadomienia w przeglądarce</div>
+    <div class="tsk-nb-sub">Otrzymasz alert na ekranie, gdy pojawi się nowe zadanie lub komentarz — nawet gdy karta jest w tle.</div>
+  </div>
+  <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+    <button type="button" class="btn btn-sm" id="tsk-notif-enable-btn"
+            style="background:var(--tsk-green);color:#fff;font-size:.8rem;border:none">
+      <i class="bi bi-bell-fill me-1" aria-hidden="true"></i>Włącz powiadomienia
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="tsk-notif-dismiss-btn"
+            style="font-size:.8rem">Nie teraz</button>
+  </div>
+</div>
+
 <script>
 /* Przełącznik obszaru roboczego — wyszukiwarka */
 function tskWsFilter(query) {
@@ -694,7 +732,7 @@ function tskWsFilter(query) {
     });
 })();
 
-/* Mini centrum powiadomień — polling + dźwięk */
+/* Mini centrum powiadomień — polling + dźwięk + natywne powiadomienia przeglądarki */
 (function () {
     const APP_URL  = '<?= APP_URL ?>';
     const POLL_MS  = 25000;
@@ -721,6 +759,18 @@ function tskWsFilter(query) {
                 osc.connect(gain).connect(audioCtx.destination);
                 osc.start(now + delay); osc.stop(now + delay + 0.55);
             });
+        } catch (e) {}
+    }
+
+    function tskNativeNotif(title, body, url) {
+        try {
+            if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+            const n = new Notification(title, {
+                body: body || '',
+                icon: APP_URL + '/assets/img/icon-192.png',
+                tag:  'tsk-notif'
+            });
+            if (url) n.onclick = function () { window.focus(); window.location = url; n.close(); };
         } catch (e) {}
     }
 
@@ -763,6 +813,9 @@ function tskWsFilter(query) {
                     tskPlayDing();
                     const btn = document.getElementById('tsk-notif-btn');
                     if (btn) { btn.classList.remove('tsk-notif-shake'); void btn.offsetWidth; btn.classList.add('tsk-notif-shake'); }
+                    /* Powiadomienie natywne przeglądarki — pierwsze nowe powiadomienie z listy */
+                    const newest = (d.latest || []).find(n => !n.is_read);
+                    if (newest) tskNativeNotif(newest.title, newest.body, newest.url);
                 }
                 lastUnread = d.unread;
                 tskApplyUnread(d.unread);
@@ -792,5 +845,47 @@ function tskWsFilter(query) {
     });
 
     setInterval(tskPollNotifications, POLL_MS);
+})();
+
+/* Baner zachęty do powiadomień przeglądarkowych */
+(function () {
+    const DISMISS_KEY     = 'tskNotifBannerDismissed';
+    const DISMISS_DAYS    = 14;
+
+    function bannerShouldShow() {
+        if (typeof Notification === 'undefined') return false;
+        if (Notification.permission !== 'default') return false;
+        const ts = parseInt(localStorage.getItem(DISMISS_KEY) || '0', 10);
+        if (ts && (Date.now() - ts) < DISMISS_DAYS * 86400 * 1000) return false;
+        return true;
+    }
+
+    function bannerHide() {
+        const el = document.getElementById('tsk-notif-banner');
+        if (el) el.style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!bannerShouldShow()) return;
+        const banner = document.getElementById('tsk-notif-banner');
+        if (!banner) return;
+        banner.style.display = '';
+
+        document.getElementById('tsk-notif-enable-btn').addEventListener('click', function () {
+            Notification.requestPermission().then(function (result) {
+                bannerHide();
+                if (result === 'granted') {
+                    /* Potwierdzenie po włączeniu */
+                    try { new Notification('Powiadomienia włączone', { body: 'Będziesz informowany/a o nowych zadaniach i komentarzach.', tag: 'tsk-welcome' }); }
+                    catch (e) {}
+                }
+            }).catch(function () { bannerHide(); });
+        });
+
+        document.getElementById('tsk-notif-dismiss-btn').addEventListener('click', function () {
+            localStorage.setItem(DISMISS_KEY, String(Date.now()));
+            bannerHide();
+        });
+    });
 })();
 </script>
