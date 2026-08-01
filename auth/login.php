@@ -356,6 +356,14 @@ body{
 .aside-hero h1{max-width:26rem;font-size:1.9rem;font-weight:800;line-height:1.2;margin:0;letter-spacing:-.01em}
 .aside-hero p{max-width:26rem;margin:1rem 0 0;color:rgba(255,255,255,.82);font-size:1rem;line-height:1.6}
 .aside-foot{position:relative;display:none;font-size:.8rem;color:rgba(255,255,255,.72)}
+.aside-etoz{position:relative;display:none;align-items:center;gap:.65rem;text-decoration:none;color:inherit;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.75rem .9rem;transition:background .15s}
+.aside-etoz:hover{background:rgba(255,255,255,.12)}
+.aside-etoz-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--c,#2563eb),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.aside-etoz-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+.aside-etoz-title{font-size:.85rem;font-weight:700;color:#fff;line-height:1.2}
+.aside-etoz-sub{font-size:.72rem;color:rgba(255,255,255,.55);letter-spacing:.02em}
+.aside-etoz-arrow{font-size:.8rem;color:rgba(255,255,255,.35);transition:transform .15s}
+.aside-etoz:hover .aside-etoz-arrow{transform:translateX(3px);color:rgba(255,255,255,.7)}
 
 /* ── Prawa strona — formularz ────────────────────────────── */
 .login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;background:#fff}
@@ -370,7 +378,7 @@ body{
   .login-layout{flex-direction:row}
   .login-aside{width:50%;padding:4rem}
   .login-aside-decor .dots{opacity:1}
-  .aside-hero,.aside-foot{display:block}
+  .aside-hero,.aside-foot,.aside-etoz{display:flex}
   .login-panel{padding:2.5rem 2rem}
   .login-mobile-brand{display:none}
 }
@@ -673,6 +681,15 @@ body.login-view-feer{
     <h1>Witaj ponownie</h1>
     <p><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się, aby kontynuować.' ?></p>
   </div>
+
+  <a href="<?= APP_URL ?>/auth/etoz.php" class="aside-etoz" aria-label="eTożsamość — dowiedz się o zunifikowanym logowaniu">
+    <span class="aside-etoz-icon" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
+    <span class="aside-etoz-body">
+      <span class="aside-etoz-title">eTożsamość</span>
+      <span class="aside-etoz-sub">1 login · 1 hasło · wszystkie systemy</span>
+    </span>
+    <i class="bi bi-arrow-right aside-etoz-arrow" aria-hidden="true"></i>
+  </a>
 
   <div class="aside-foot">&copy; <?= date('Y') ?> <?= h($org_name) ?></div>
 </aside>
