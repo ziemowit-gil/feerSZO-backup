@@ -8,9 +8,15 @@ require_once dirname(__DIR__) . '/includes/permissions.php';
 require_once dirname(__DIR__) . '/includes/user_sync.php';
 
 require_role('admin');
-ika_require(APP_URL . '/admin/users.php', 3600);
+// Bezpośrednie wejście → przekieruj do tozsamosc/uzytkownicy.php
+if (!defined('TZ_USERS_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/uzytkownicy.php');
+    exit;
+}
+$SELF_URL = TZ_USERS_URL;
+ika_require($SELF_URL, 3600);
 require_once dirname(__DIR__) . '/includes/tz_auth.php';
-tz_require_level(TZ_LEVEL_MFA, APP_URL . '/admin/users.php', 'Zarządzanie użytkownikami');
+tz_require_level(TZ_LEVEL_MFA, $SELF_URL, 'Zarządzanie użytkownikami');
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
 
 function _users_send_deactivated_email(string $email, string $name): void {
@@ -464,11 +470,18 @@ function orphaned_viewers(): array {
 
 $orphaned = orphaned_viewers();
 
-include dirname(__DIR__) . '/includes/header.php';
+$PAGE_TITLE = 'Użytkownicy';
+$TZ_ACTIVE  = 'uzytkownicy';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
+<style>
+.tz-wrap{max-width:1200px}
+.tz-users-topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem}
+.tz-users-topbar h1{font-size:1.3rem;font-weight:700;color:#111827;margin:0;display:flex;align-items:center;gap:.55rem}
+</style>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-people text-primary"></i> Zarządzanie użytkownikami</h4>
+<div class="tz-users-topbar">
+  <h1><i class="bi bi-people" style="color:var(--tz)" aria-hidden="true"></i> Zarządzanie użytkownikami</h1>
   <div class="d-flex gap-2">
     <a href="<?= APP_URL ?>/admin/user_sync.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-repeat"></i> Sync →testy
@@ -756,7 +769,7 @@ include dirname(__DIR__) . '/includes/header.php';
               </form>
               <?php endif; ?>
               <?php if ((int)$u['id'] !== (int)$me['id'] && $u['is_active']): ?>
-              <form method="post" action="impersonate.php" class="d-inline"
+              <form method="post" action="<?= APP_URL ?>/admin/impersonate.php" class="d-inline"
                     onsubmit="return confirm('Przełączyć na konto <?= h(addslashes($u['name'])) ?>?\nBędziesz widzieć panel tak jak ten użytkownik.')">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                 <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
@@ -1257,4 +1270,4 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
 })();
 </script>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

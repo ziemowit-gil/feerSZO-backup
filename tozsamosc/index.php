@@ -478,6 +478,9 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <?php endif; ?>
     <a href="#rejestr" role="tab" id="tab-rejestr" aria-controls="rejestr" aria-selected="false" tabindex="-1"><i class="bi bi-clock-history" aria-hidden="true"></i>Rejestr czynności</a>
     <a href="#opanelu" role="tab" id="tab-opanelu" aria-controls="opanelu" aria-selected="false" tabindex="-1"><i class="bi bi-info-circle" aria-hidden="true"></i>O panelu</a>
+    <?php if (function_exists('is_admin') && is_admin()): ?>
+    <a href="#administracja" role="tab" id="tab-administracja" aria-controls="administracja" aria-selected="false" tabindex="-1" style="color:#c2410c"><i class="bi bi-shield-fill-gear" aria-hidden="true"></i>Admin</a>
+    <?php endif; ?>
   </span>
 </nav>
 
@@ -1004,6 +1007,39 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <?php endif; ?>
   </div>
 </section>
+
+<?php if (function_exists('is_admin') && is_admin()): ?>
+<section class="tz-card tz-panel" id="administracja" role="tabpanel" aria-labelledby="tab-administracja" tabindex="-1">
+  <div class="tz-card__hd">
+    <i class="bi bi-shield-fill-gear" style="color:#c2410c" aria-hidden="true"></i>
+    <span>Administracja <span class="lbl-en">Admin controls</span></span>
+  </div>
+  <div class="tz-card__bd">
+    <div class="tz-tiles">
+      <a class="tz-tile" href="<?= APP_URL ?>/tozsamosc/uzytkownicy.php">
+        <span class="tz-tile__ico" style="background:#c2410c"><i class="bi bi-people" aria-hidden="true"></i></span>
+        <strong>Użytkownicy</strong>
+        <span class="lbl-en">User management</span>
+      </a>
+      <a class="tz-tile" href="<?= APP_URL ?>/admin/roles.php">
+        <span class="tz-tile__ico" style="background:#4f46e5"><i class="bi bi-diagram-3" aria-hidden="true"></i></span>
+        <strong>Role i uprawnienia</strong>
+        <span class="lbl-en">Roles</span>
+      </a>
+      <a class="tz-tile" href="<?= APP_URL ?>/admin/saml.php">
+        <span class="tz-tile__ico" style="background:#0369a1"><i class="bi bi-boxes" aria-hidden="true"></i></span>
+        <strong>SAML / SSO</strong>
+        <span class="lbl-en">Federation</span>
+      </a>
+      <a class="tz-tile" href="<?= APP_URL ?>/admin/api_keys.php">
+        <span class="tz-tile__ico" style="background:#374151"><i class="bi bi-key-fill" aria-hidden="true"></i></span>
+        <strong>Klucze API</strong>
+        <span class="lbl-en">API Keys</span>
+      </a>
+    </div>
+  </div>
+</section>
+<?php endif; ?>
 
 <script>
 window.__tzFirstVisit = <?= $first_visit ? 'true' : 'false' ?>;
