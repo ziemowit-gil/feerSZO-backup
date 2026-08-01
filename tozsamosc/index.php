@@ -430,6 +430,22 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <?php endif; ?>
 </div>
 
+<!-- ══ Info: wdrożenie iAM ═══════════════════════════════════════════════════ -->
+<div class="tz-card" style="border-left:4px solid #1E6DFF;background:#eef4ff" role="note" aria-label="Informacja o wdrożeniu iAM">
+  <div class="tz-card__bd d-flex flex-wrap align-items-start gap-3 py-3">
+    <i class="bi bi-megaphone-fill fs-4 flex-shrink-0 mt-1" style="color:#1E6DFF" aria-hidden="true"></i>
+    <div class="flex-grow-1" style="min-width:220px">
+      <div class="fw-bold mb-1" style="color:#1e3a8a">Wdrażamy nowy system Zarządzania Tożsamością i Dostępami (iAM)</div>
+      <div class="small" style="color:#1e3a8a;line-height:1.7">
+        Ten panel to centrum tożsamości — loginy, hasła i MFA — zarządzane w jednym miejscu.
+        <strong>Zadania i komunikaty</strong> znajdziesz w <a href="<?= APP_URL ?>/tasks" class="fw-semibold" style="color:#1E6DFF">panelu zadań (/tasks)</a>,
+        a <strong>panel wolontariusza</strong> dostępny jest
+        <a href="<?= APP_URL ?>/panel/" class="fw-semibold" style="color:#db2777">tutaj (/panel/)</a>.
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ Routing: przejdź do modułu ═══════════════════════════════════════════ -->
 <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.15rem" role="list" aria-label="Przejdź do modułu">
   <?php foreach ($_tz_entries as $_te): ?>
