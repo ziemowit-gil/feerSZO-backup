@@ -179,9 +179,9 @@ if ($is_feer) {
 </p>
 <?php if (!$is_feer): ?>
 <p style="text-align:center;margin:.35rem 0 0">
-  <a href="<?= APP_URL ?>/user/verify_reset.php"
+  <a href="<?= APP_URL ?>/user/register.php"
      class="forgot-link" style="font-size:.82rem"
-     aria-label="Masz podpisaną umowę wolontariacką, ale nie masz jeszcze konta? Załóż je po weryfikacji tożsamości">
+     aria-label="Masz podpisaną umowę wolontariacką, ale nie masz jeszcze konta? Załóż je przez samodzielną rejestrację">
     <i class="bi bi-person-plus" aria-hidden="true"></i>
     Masz umowę, ale nie masz jeszcze konta? Załóż je
   </a>
