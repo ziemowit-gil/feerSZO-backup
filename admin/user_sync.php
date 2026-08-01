@@ -9,6 +9,10 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/user_sync.php';
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/sync.php');
+    exit;
+}
 $PAGE_TITLE = 'Synchronizacja kont → testy';
 
 // Źródło konfiguracji: stałe z config.local.php mają priorytet nad bazą.
@@ -116,13 +120,14 @@ if (is_readable($log_path)) {
 $lock_file  = sys_get_temp_dir() . '/umowy_cron_sync_users_to_test.last';
 $last_cron  = file_exists($lock_file) ? (int)file_get_contents($lock_file) : 0;
 
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb" style="font-size:.8rem">
-    <li class="breadcrumb-item"><a href="index.php">Admin</a></li>
-    <li class="breadcrumb-item"><a href="users.php">Użytkownicy</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/admin/index.php">Admin</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/tozsamosc/uzytkownicy.php">Użytkownicy</a></li>
     <li class="breadcrumb-item active">Sync → testy</li>
   </ol>
 </nav>
@@ -385,4 +390,4 @@ function _relative_time(int $ts): string {
 }
 ?>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

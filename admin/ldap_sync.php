@@ -10,6 +10,10 @@ if (is_file(dirname(__DIR__) . '/includes/admin_audit.php')) {
 
 auth_start();
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/ldap.php');
+    exit;
+}
 
 $PAGE_TITLE = 'Synchronizacja kont LDAP';
 $results = [];
@@ -68,7 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $last_sync = ldap_setting('ldap_last_sync');
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -134,4 +139,4 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

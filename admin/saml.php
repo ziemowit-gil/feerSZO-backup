@@ -14,6 +14,10 @@ require_once dirname(__DIR__) . '/includes/saml_idp.php';
 require_once dirname(__DIR__) . '/includes/owncloud.php';
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/saml.php');
+    exit;
+}
 ika_require(APP_URL . '/admin/saml.php', 3600);
 $PAGE_TITLE = 'SAML Identity Provider';
 
@@ -141,7 +145,8 @@ $f = function (string $k, $def = '') use ($edit, $prefill) {
 };
 $editRoles = $edit ? array_filter(array_map('trim', explode(',', (string)$edit['allowed_roles']))) : [];
 
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 <div class="container my-4" style="max-width:1100px">
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -444,4 +449,4 @@ function samlCopy(id, btn) {
 </script>
 <?php
 unset($_SESSION['saml_prefill']);
-include dirname(__DIR__) . '/includes/footer.php';
+include dirname(__DIR__) . '/tozsamosc/_foot.php';

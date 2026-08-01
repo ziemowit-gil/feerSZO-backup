@@ -2,8 +2,16 @@
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_role('admin');
-$PAGE_TITLE = 'Audit log — Panel admina';
-require_once __DIR__ . '/../includes/header.php';
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/audit.php');
+    exit;
+}
+$PAGE_TITLE = 'Dziennik zdarzeń';
+$TZ_ACTIVE = 'administracja';
+require_once dirname(__DIR__) . '/tozsamosc/_head.php';
+?>
+<style>.tz-wrap{max-width:1200px}</style>
+<?php
 
 $pdo = db();
 
@@ -174,7 +182,7 @@ function audit_qs(array $override = []): string {
       </div>
       <div class="col-sm-auto d-flex gap-2">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filtruj</button>
-        <a href="audit_log.php" class="btn btn-outline-secondary btn-sm">Wyczyść</a>
+        <a href="<?= APP_URL ?>/admin/audit_log.php" class="btn btn-outline-secondary btn-sm">Wyczyść</a>
       </div>
     </div>
   </div>
@@ -282,4 +290,4 @@ function audit_qs(array $override = []): string {
 </nav>
 <?php endif; ?>
 
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

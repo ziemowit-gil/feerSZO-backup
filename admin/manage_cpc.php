@@ -9,6 +9,10 @@ require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/ika_admin.php');
+    exit;
+}
 cpc_migrate();
 karty30_migrate();
 
@@ -433,8 +437,10 @@ if (!empty($_GET['cert_generated'])) {
     unset($_SESSION['k30_cert_result']);
 }
 
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
+<style>.tz-wrap{max-width:1100px}</style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">
@@ -1289,4 +1295,4 @@ function downloadPem(userName, keyContent) {
 }
 </script>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

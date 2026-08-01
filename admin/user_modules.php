@@ -11,6 +11,10 @@ require_once dirname(__DIR__) . '/includes/permissions.php';
 require_once dirname(__DIR__) . '/includes/approval.php'; // log_user_action()
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/moduly.php');
+    exit;
+}
 
 $uid = (int)($_GET['uid'] ?? $_POST['user_id'] ?? 0);
 $user = $uid ? db_one("SELECT * FROM users WHERE id = ?", [$uid]) : null;
@@ -51,7 +55,8 @@ $role_perms = $is_admin_role ? [] : role_permissions($user['role']);
 $user_perms = user_permissions($uid);
 
 $PAGE_TITLE = 'Dodatkowe moduły — ' . $user['name'];
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -183,4 +188,4 @@ document.querySelectorAll('input[name^="w["], input[name^="d["]').forEach(functi
 });
 </script>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>

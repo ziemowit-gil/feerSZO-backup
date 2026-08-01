@@ -5,6 +5,10 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 
 require_role('admin');
+if (!defined('TZ_ADMIN_CHROME')) {
+    header('Location: ' . APP_URL . '/tozsamosc/ustawienia.php');
+    exit;
+}
 $PAGE_TITLE = 'Metody logowania';
 
 // ── Inicjalizacja tabel ────────────────────────────────────────────────────
@@ -118,7 +122,8 @@ foreach (array_keys($method_keys) as $k) {
 
 $users = db_all("SELECT id, name, email, login_code, is_active, role FROM users WHERE email != 'serwis@local' ORDER BY name, email");
 
-include dirname(__DIR__) . '/includes/header.php';
+$TZ_ACTIVE = 'administracja';
+include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-4">
@@ -462,4 +467,4 @@ include dirname(__DIR__) . '/includes/header.php';
 
 </div><!-- /row -->
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>
