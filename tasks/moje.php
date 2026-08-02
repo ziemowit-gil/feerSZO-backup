@@ -75,6 +75,14 @@ $recent_done = db_all(
     [$uid]
 );
 
+require_once dirname(__DIR__) . '/includes/functions.php';
+$_mz_brand   = org_setting('sidebar_color') ?: '#1e293b';
+$_mz_initials = '';
+foreach (explode(' ', $user['name'] ?? '') as $part) {
+    $_mz_initials .= mb_strtoupper(mb_substr($part, 0, 1));
+}
+$_mz_initials = mb_substr($_mz_initials, 0, 2);
+
 $PAGE_TITLE      = 'Moje zadania';
 $PAGE_SUBTITLE   = 'Twój pulpit';
 $TASKS_BREADCRUMB = [['label' => 'Zadania', 'url' => APP_URL . '/tasks/dashboard.php'], ['label' => 'Moje zadania']];
@@ -93,6 +101,64 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
   --tz-ink: #111827;
   --tz-50: rgba(5,150,105,.07);
   max-width: 1000px;
+}
+
+/* Hero */
+.mz-hero {
+  position: relative; border-radius: 16px; overflow: hidden;
+  margin-bottom: 1.5rem; min-height: 130px;
+  background-color: <?= h($_mz_brand) ?>;
+  background-size: cover; background-position: center;
+}
+.mz-hero__overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.15) 100%);
+}
+.mz-hero__body {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; gap: 1.1rem;
+  padding: 1.4rem 1.5rem;
+}
+.mz-hero__av {
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 800; color: <?= h($_mz_brand) ?>;
+  background: rgba(255,255,255,.9); border: 3px solid rgba(255,255,255,.6);
+  overflow: hidden; user-select: none;
+}
+.mz-hero__av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.mz-hero__info { flex: 1; min-width: 0; }
+.mz-hero__name { font-size: 1.25rem; font-weight: 800; color: #fff; line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.mz-hero__sub  { font-size: .82rem; color: rgba(255,255,255,.8); margin-top: .2rem; }
+.mz-hero__stats { display: flex; gap: 1.25rem; margin-top: .65rem; flex-wrap: wrap; }
+.mz-hero__stat  { font-size: .78rem; color: rgba(255,255,255,.9); }
+.mz-hero__stat strong { font-size: 1.05rem; font-weight: 800; display: block; line-height: 1.1; }
+.mz-hero__actions { display: flex; gap: .5rem; flex-shrink: 0; }
+.mz-hero__btn {
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+  color: #fff; border-radius: 8px; padding: .35rem .65rem; font-size: .78rem;
+  cursor: pointer; backdrop-filter: blur(4px); transition: background .15s;
+  display: flex; align-items: center; gap: .3rem;
+}
+.mz-hero__btn:hover { background: rgba(255,255,255,.3); }
+/* Formularz zdjęcia */
+.mz-hero__photo-form {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+  background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
+  padding: .65rem 1.2rem; display: none; align-items: center; gap: .65rem;
+}
+.mz-hero__photo-form.visible { display: flex; }
+.mz-hero__photo-inp {
+  flex: 1; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3);
+  color: #fff; border-radius: 8px; padding: .35rem .75rem; font-size: .81rem;
+}
+.mz-hero__photo-inp::placeholder { color: rgba(255,255,255,.5); }
+.mz-hero__photo-inp:focus { outline: none; border-color: rgba(255,255,255,.7); }
+@media (max-width: 600px) {
+  .mz-hero__body   { flex-wrap: wrap; }
+  .mz-hero__actions { position: absolute; top: .85rem; right: .85rem; }
+  .mz-hero__stats  { gap: .85rem; }
 }
 
 /* KPI karty */
@@ -156,6 +222,53 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
 
 <div class="tsk-main-content">
 <div class="mz-wrap">
+
+  <!-- Hero: tło marki lub zdjęcie usera -->
+  <div class="mz-hero" id="mzHero">
+    <div class="mz-hero__overlay" id="mzHeroOverlay"></div>
+    <div class="mz-hero__body">
+      <div class="mz-hero__av" id="mzHeroAv">
+        <?= h($_mz_initials) ?>
+      </div>
+      <div class="mz-hero__info">
+        <div class="mz-hero__name"><?= h($user['name'] ?? '') ?></div>
+        <div class="mz-hero__sub"><?= h($user['email'] ?? '') ?></div>
+        <div class="mz-hero__stats">
+          <div class="mz-hero__stat">
+            <strong><?= $kpi_active ?></strong>Aktywne
+          </div>
+          <?php if ($kpi_overdue): ?>
+          <div class="mz-hero__stat" style="color:#fca5a5">
+            <strong><?= $kpi_overdue ?></strong>Zaległe
+          </div>
+          <?php endif; ?>
+          <div class="mz-hero__stat">
+            <strong><?= $kpi_done_w ?></strong>Ukończone (7 dni)
+          </div>
+        </div>
+      </div>
+      <div class="mz-hero__actions">
+        <button type="button" class="mz-hero__btn" id="mzHeroBgBtn"
+                title="Zmień tło">
+          <i class="bi bi-image" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <!-- Formularz ustawiania własnego zdjęcia -->
+    <div class="mz-hero__photo-form" id="mzPhotoForm">
+      <input type="url" class="mz-hero__photo-inp" id="mzPhotoUrl"
+             placeholder="URL zdjęcia (https://...)">
+      <button type="button" class="mz-hero__btn" id="mzPhotoSave">
+        <i class="bi bi-check2" aria-hidden="true"></i>Ustaw
+      </button>
+      <button type="button" class="mz-hero__btn" id="mzPhotoClear">
+        <i class="bi bi-x" aria-hidden="true"></i>Usuń
+      </button>
+      <button type="button" class="mz-hero__btn" id="mzPhotoClose">
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
 
   <!-- KPI -->
   <div class="mz-kpi-row">
@@ -366,6 +479,61 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
       })
       .catch(function () { btn.disabled = false; });
     });
+  });
+})();
+
+/* --- Hero tła: localStorage mzHeroBg = '' | 'color' | url --- */
+(function () {
+  var BRAND   = '<?= addslashes($_mz_brand) ?>';
+  var LS_KEY  = 'mzHeroBg';
+  var hero    = document.getElementById('mzHero');
+  var overlay = document.getElementById('mzHeroOverlay');
+  var bgBtn   = document.getElementById('mzHeroBgBtn');
+  var photoForm = document.getElementById('mzPhotoForm');
+  var photoUrl  = document.getElementById('mzPhotoUrl');
+  var photoSave = document.getElementById('mzPhotoSave');
+  var photoClear = document.getElementById('mzPhotoClear');
+  var photoClose = document.getElementById('mzPhotoClose');
+
+  function applyBg(val) {
+    if (!val || val === 'color') {
+      hero.style.backgroundImage = '';
+      hero.style.backgroundColor = BRAND;
+      overlay.style.display = 'none';
+    } else {
+      hero.style.backgroundImage = 'url(' + val + ')';
+      hero.style.backgroundColor = BRAND;
+      overlay.style.display = '';
+    }
+  }
+
+  var saved = localStorage.getItem(LS_KEY) || '';
+  applyBg(saved);
+  if (saved && saved !== 'color') {
+    photoUrl.value = saved;
+  }
+
+  bgBtn.addEventListener('click', function () {
+    photoForm.classList.toggle('visible');
+  });
+
+  photoSave.addEventListener('click', function () {
+    var url = photoUrl.value.trim();
+    if (!url) return;
+    localStorage.setItem(LS_KEY, url);
+    applyBg(url);
+    photoForm.classList.remove('visible');
+  });
+
+  photoClear.addEventListener('click', function () {
+    localStorage.removeItem(LS_KEY);
+    photoUrl.value = '';
+    applyBg('');
+    photoForm.classList.remove('visible');
+  });
+
+  photoClose.addEventListener('click', function () {
+    photoForm.classList.remove('visible');
   });
 })();
 </script>
