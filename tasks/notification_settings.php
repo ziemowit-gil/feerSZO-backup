@@ -20,12 +20,34 @@ $admin_test_result = null;  // null | ['ok'=>bool, 'msg'=>string]
 
 $has_mail = !empty($user['email']);
 require_once dirname(__DIR__) . '/includes/sms.php';
+// phone_number nie jest w sesji — ładuj zawsze z DB
+$_db_phone = db_one("SELECT phone_number FROM users WHERE id=?", [$uid]);
+$user['phone_number'] = $_db_phone['phone_number'] ?? null;
 $has_sms  = sms_is_enabled() && !empty($user['phone_number']);
+
+// Tryb fragmentu: zwraca tylko treść (bez header/footer), POST → JSON
+$is_fragment = !empty($_GET['_fragment']);
 
 // ── Zapis ────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '')) {
         $error = 'Nieprawidłowy token CSRF. Odśwież stronę i spróbuj ponownie.';
+    } elseif (($_POST['_action'] ?? '') === 'save_phone') {
+        // ── Zapis numeru telefonu (inline, bez przejścia do profilu) ─────
+        $phone_raw = trim($_POST['phone_number'] ?? '');
+        $phone_new = preg_replace('/[^\d+]/', '', $phone_raw);
+        if ($phone_new !== '' && !preg_match('/^\+?[0-9]{7,15}$/', $phone_new)) {
+            $error = 'Nieprawidłowy numer telefonu (min. 7 cyfr, tylko cyfry lub + na początku).';
+        } else {
+            db()->prepare("UPDATE users SET phone_number=? WHERE id=?")->execute([$phone_new ?: null, $uid]);
+            $user['phone_number'] = $phone_new ?: null;
+            $has_sms = sms_is_enabled() && !empty($user['phone_number']);
+            $saved = true;
+        }
+        if (!$is_fragment && $saved) {
+            flash_set('success', 'Numer telefonu zapisany.');
+            header('Location: notification_settings.php'); exit;
+        }
     } elseif (($_POST['_action'] ?? '') === 'admin_test_notif') {
         // ── Admin: test per user ──────────────────────────────────────────
         $_is_leader_check = (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
@@ -50,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } elseif ($tch === 'inapp') {
                 try {
-                    notif_create((int)$tu['id'], 'Zadania — test', 'To jest testowe powiadomienie systemowe.', APP_URL . '/tasks/notifications.php');
+                    notif_create((int)$tu['id'], 'task', 'Zadania — test', 'To jest testowe powiadomienie systemowe.', APP_URL . '/tasks/notifications.php');
                     $admin_test_result = ['ok' => true, 'msg' => 'Powiadomienie in-app wysłane dla ' . $tu['name'] . '.'];
                 } catch (\Throwable $e) {
                     $admin_test_result = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
@@ -81,6 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ok  = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.');
             $test_result = ['ok' => $ok, 'channel' => 'sms',
                 'msg' => $ok ? 'SMS wysłany na ' . $user['phone_number'] : 'Błąd wysyłki SMS — sprawdź konfigurację bramki.'];
+        } elseif ($ch === 'inapp') {
+            try {
+                notif_create($uid, 'task', 'Zadania — test in-app', 'To jest testowe powiadomienie in-app.', APP_URL . '/tasks/notifications.php');
+                $test_result = ['ok' => true, 'channel' => 'inapp', 'msg' => 'Powiadomienie in-app wysłane — sprawdź dzwonek w nagłówku.'];
+            } catch (\Throwable $e) {
+                $test_result = ['ok' => false, 'channel' => 'inapp', 'msg' => 'Błąd: ' . $e->getMessage()];
+            }
         } else {
             if (!$has_mail) {
                 $test_result = ['ok' => false, 'channel' => 'email', 'msg' => 'Brak adresu e-mail w profilu.'];
@@ -115,18 +144,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Błąd zapisu: ' . $e->getMessage();
         }
     }
+
+    // ── Tryb fragmentu: wszystkie POST → JSON ─────────────────────────────
+    if ($is_fragment) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        if ($error) {
+            echo json_encode(['ok' => false, 'msg' => $error], JSON_UNESCAPED_UNICODE);
+        } elseif ($test_result !== null) {
+            echo json_encode(['ok' => $test_result['ok'], 'msg' => $test_result['msg'],
+                              'is_test' => true, 'channel' => $test_result['channel'] ?? ''], JSON_UNESCAPED_UNICODE);
+        } elseif ($admin_test_result !== null) {
+            echo json_encode(['ok' => $admin_test_result['ok'], 'msg' => $admin_test_result['msg'],
+                              'is_admin_test' => true], JSON_UNESCAPED_UNICODE);
+        } elseif ($saved) {
+            $is_phone_save = ($_POST['_action'] ?? '') === 'save_phone';
+            echo json_encode(['ok' => true,
+                'msg'    => $is_phone_save ? 'Numer telefonu zapisany.' : 'Ustawienia zapisane pomyślnie.',
+                'reload' => $is_phone_save,
+            ], JSON_UNESCAPED_UNICODE);
+        } else {
+            echo json_encode(['ok' => false, 'msg' => 'Błąd.'], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
 }
 
 $pref = task_notify_get_pref($uid);
 $csrf = csrf_token();
 
-$page_title = 'Powiadomienia — Zadania';
-require_once dirname(__DIR__) . '/includes/header.php';
+if (!$is_fragment) {
+    $page_title = 'Powiadomienia — Zadania';
+    require_once dirname(__DIR__) . '/includes/header.php';
+}
 ?>
 
 <style>
 /* ── layout ──────────────────────────────────────────────────── */
-.ns-wrap     { max-width: 720px; }
+.ns-wrap     { max-width: 760px; }
 .ns-header   { background: linear-gradient(135deg,#1e40af,#2563eb); border-radius:12px; padding:1.5rem; color:#fff; margin-bottom:1.75rem; }
 .ns-email-chip { display:inline-flex; align-items:center; gap:.45rem; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:20px; padding:.25rem .75rem; font-size:.82rem; margin-top:.5rem; }
 
@@ -167,9 +222,10 @@ require_once dirname(__DIR__) . '/includes/header.php';
 .ns-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.25rem; background:#f8fafc; border-top:1px solid #e2e8f0; }
 </style>
 
-<div class="ns-wrap py-4 mx-auto">
+<div class="ns-wrap <?= $is_fragment ? 'p-3' : 'py-4' ?> mx-auto">
 
-  <!-- Header karty ─────────────────────────────────────────────── -->
+  <!-- Header karty (ukryty w modalu — modal ma własny nagłówek) ── -->
+  <?php if (!$is_fragment): ?>
   <div class="ns-header">
     <div class="d-flex align-items-center gap-3">
       <div style="width:50px;height:50px;border-radius:12px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">
@@ -193,14 +249,15 @@ require_once dirname(__DIR__) . '/includes/header.php';
       </div>
     </div>
   </div>
+  <?php endif; /* !$is_fragment — koniec ns-header */ ?>
 
-  <?php if ($saved): ?>
+  <?php if ($saved && !$is_fragment): ?>
   <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" role="alert">
     <i class="bi bi-check-circle-fill"></i>
     <span>Ustawienia zapisane pomyślnie.</span>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
-  <?php elseif ($error): ?>
+  <?php elseif ($error && !$is_fragment): ?>
   <div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert">
     <i class="bi bi-exclamation-triangle-fill"></i>
     <?= h($error) ?>
@@ -392,12 +449,52 @@ require_once dirname(__DIR__) . '/includes/header.php';
           <div class="ns-label-title">Powiadomienia SMS</div>
           <div class="ns-label-desc">
             Otrzymuj SMS przy przypisaniu, komentarzu i terminach.
-            <?php if (!$has_sms && sms_is_enabled()): ?>
-              <a href="<?= APP_URL ?>/panel/settings.php" class="text-warning">Dodaj numer telefonu w profilu →</a>
-            <?php elseif (!sms_is_enabled()): ?>
+            <?php if (!sms_is_enabled()): ?>
               SMS wymaga konfiguracji w panelu admina.
             <?php endif; ?>
           </div>
+          <?php if (!$has_sms && sms_is_enabled()): ?>
+          <!-- Inline: dodaj numer bez przechodzenia do profilu -->
+          <form id="ns-phone-form" method="post" action="notification_settings.php<?= $is_fragment ? '?_fragment=1' : '' ?>"
+                class="mt-2" style="max-width:280px" novalidate>
+            <input type="hidden" name="_csrf"    value="<?= h($csrf) ?>">
+            <input type="hidden" name="_action"  value="save_phone">
+            <div class="d-flex gap-2">
+              <input type="tel" name="phone_number" id="ns-phone-input"
+                     class="form-control form-control-sm"
+                     placeholder="np. +48600123456"
+                     value="<?= h($user['phone_number'] ?? '') ?>"
+                     aria-label="Numer telefonu" style="font-size:.83rem">
+              <button type="submit" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
+                <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz
+              </button>
+            </div>
+            <div id="ns-phone-msg" class="mt-1" style="font-size:.73rem"></div>
+          </form>
+          <?php elseif ($has_sms): ?>
+          <div class="mt-1 d-flex align-items-center gap-2">
+            <span style="font-size:.75rem;color:#16a34a">
+              <i class="bi bi-phone-fill me-1"></i><?= h($user['phone_number']) ?>
+            </span>
+            <button type="button" class="btn btn-sm btn-link p-0" style="font-size:.73rem;color:#94a3b8"
+                    id="ns-phone-change-btn">zmień</button>
+          </div>
+          <form id="ns-phone-change-form" method="post" action="notification_settings.php<?= $is_fragment ? '?_fragment=1' : '' ?>"
+                class="mt-2" style="max-width:280px;display:none" novalidate>
+            <input type="hidden" name="_csrf"    value="<?= h($csrf) ?>">
+            <input type="hidden" name="_action"  value="save_phone">
+            <div class="d-flex gap-2">
+              <input type="tel" name="phone_number" id="ns-phone-change-input"
+                     class="form-control form-control-sm"
+                     placeholder="np. +48600123456"
+                     value="<?= h($user['phone_number'] ?? '') ?>"
+                     aria-label="Numer telefonu" style="font-size:.83rem">
+              <button type="submit" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
+                <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz
+              </button>
+            </div>
+          </form>
+          <?php endif; ?>
         </div>
         <div class="ns-switch">
           <div class="form-check form-switch mb-0">
@@ -414,13 +511,19 @@ require_once dirname(__DIR__) . '/includes/header.php';
     <!-- Footer z przyciskami ──────────────────────────────────────── -->
     <div class="ns-card">
       <div class="ns-footer">
+        <?php if (!$is_fragment): ?>
         <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-arrow-left me-1"></i>Wróć do tablicy
         </a>
+        <?php else: ?>
+        <span></span>
+        <?php endif; ?>
         <div class="d-flex align-items-center gap-2">
+          <?php if (!$is_fragment): ?>
           <a href="<?= APP_URL ?>/tasks/notifications.php" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-clock-history me-1"></i>Historia
           </a>
+          <?php endif; ?>
           <button type="submit" class="btn btn-primary btn-sm px-4">
             <i class="bi bi-floppy me-1"></i>Zapisz ustawienia
           </button>
@@ -455,7 +558,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
       </div>
       <div class="ns-label">
         <div class="ns-label-title">Wyślij powiadomienie testowe</div>
-        <div class="ns-label-desc">Weryfikuje czy e-mail lub SMS faktycznie dochodzi do Ciebie.</div>
+        <div class="ns-label-desc">Weryfikuje czy e-mail, SMS lub in-app faktycznie dochodzi do Ciebie.</div>
       </div>
       <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
         <button type="submit" name="test_channel" value="email"
@@ -470,6 +573,10 @@ require_once dirname(__DIR__) . '/includes/header.php';
           <i class="bi bi-chat-dots-fill me-1" aria-hidden="true"></i>Test SMS
         </button>
         <?php endif; ?>
+        <button type="submit" name="test_channel" value="inapp"
+                class="btn btn-sm btn-outline-secondary" style="font-size:.8rem">
+          <i class="bi bi-bell-fill me-1" aria-hidden="true"></i>Test in-app
+        </button>
       </div>
     </form>
   </div>
@@ -798,6 +905,25 @@ function setPreset(name) {
     });
   });
 })();
+
+/* ── Inline zmiana numeru telefonu ─────────────────────────────────────── */
+(function () {
+  var changeBtn  = document.getElementById('ns-phone-change-btn');
+  var changeForm = document.getElementById('ns-phone-change-form');
+  if (changeBtn && changeForm) {
+    changeBtn.addEventListener('click', function () {
+      changeForm.style.display = changeForm.style.display === 'none' ? '' : 'none';
+      if (changeForm.style.display !== 'none') {
+        var inp = changeForm.querySelector('input[type=tel]');
+        if (inp) inp.focus();
+      }
+    });
+  }
+})();
 </script>
 
+<?php if (!$is_fragment): ?>
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php else: ?>
+<?php exit; ?>
+<?php endif; ?>

@@ -543,10 +543,11 @@ body {
                style="background:#f1f5f9;color:#374151;font-size:.8rem">
               <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia
             </a>
-            <a href="<?= APP_URL ?>/tasks/notification_settings.php" class="btn btn-sm flex-fill"
-               style="background:#fffbeb;color:#92400e;font-size:.8rem;border:1px solid #fcd34d">
+            <button type="button" class="btn btn-sm flex-fill"
+                    style="background:#fffbeb;color:#92400e;font-size:.8rem;border:1px solid #fcd34d"
+                    onclick="tskOpenNotifSettings()">
               <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Ustawienia
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -659,7 +660,8 @@ body {
 
     <a class="tsk-nav-link <?= _tsk_active('/tasks/notification_settings') ? 'active' : '' ?>"
        href="<?= APP_URL ?>/tasks/notification_settings.php"
-       aria-current="<?= _tsk_active('/tasks/notification_settings') ? 'page' : 'false' ?>">
+       aria-current="<?= _tsk_active('/tasks/notification_settings') ? 'page' : 'false' ?>"
+       onclick="if(!event.ctrlKey&&!event.metaKey){event.preventDefault();tskOpenNotifSettings();}">
       <i class="bi bi-bell-fill" aria-hidden="true"></i>Powiadomienia — ustawienia
       <?php if ($_tsk_notif_setup_needed): ?>
       <span class="tsk-nav-badge" style="background:#f59e0b;color:#fff" aria-label="do skonfigurowania">!</span>
@@ -759,10 +761,10 @@ if ($_fm): ?>
     <div class="tsk-sb-sub">Używasz ustawień domyślnych — wybierz co i kiedy trafia na Twoją skrzynkę.</div>
   </div>
   <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
-    <a href="<?= APP_URL ?>/tasks/notification_settings.php"
-       class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:.8rem;border:none">
+    <button type="button" onclick="tskOpenNotifSettings()"
+            class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:.8rem;border:none">
       <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Skonfiguruj teraz
-    </a>
+    </button>
     <button type="button" id="tsk-setup-dismiss-btn"
             class="btn btn-sm btn-outline-secondary" style="font-size:.8rem">Później</button>
   </div>
@@ -967,6 +969,125 @@ function tskWsFilter(query) {
             localStorage.setItem(DISMISS_KEY, String(Date.now()));
             bannerHide();
         });
+    });
+})();
+</script>
+
+<!-- ══ Modal: Ustawienia powiadomień ════════════════════════════════════ -->
+<div class="modal fade" id="tskNotifSettingsModal" tabindex="-1"
+     aria-labelledby="tskNotifSettingsModalLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:12px;overflow:hidden">
+      <div class="modal-header py-2 px-3" style="background:#1e40af;border-bottom:none">
+        <h5 class="modal-title h6 fw-bold mb-0 text-white" id="tskNotifSettingsModalLabel">
+          <i class="bi bi-bell-fill me-2" aria-hidden="true"></i>Ustawienia powiadomień
+        </h5>
+        <button type="button" class="btn-close btn-close-white btn-sm"
+                data-bs-dismiss="modal" aria-label="Zamknij ustawienia powiadomień"></button>
+      </div>
+      <div class="modal-body p-0 overflow-auto" id="tskNotifSettingsModalBody" style="max-height:82vh">
+        <div class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Ładowanie…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Modal: Ustawienia powiadomień — AJAX loader ──────────────────────────── */
+(function () {
+    var APP = '<?= APP_URL ?>';
+    var FRAG_URL = APP + '/tasks/notification_settings.php?_fragment=1';
+    var modalEl  = null;
+    var modalInst = null;
+    var loaded   = false;
+
+    function getInst() {
+        if (!modalEl) {
+            modalEl   = document.getElementById('tskNotifSettingsModal');
+            modalInst = bootstrap.Modal.getOrCreateInstance(modalEl);
+        }
+        return modalInst;
+    }
+
+    function getBody() {
+        return document.getElementById('tskNotifSettingsModalBody');
+    }
+
+    function showBanner(body, ok, msg) {
+        var old = body.querySelector('.tsk-ns-alert-wrap');
+        if (old) old.remove();
+        var wrap = document.createElement('div');
+        wrap.className = 'tsk-ns-alert-wrap';
+        wrap.innerHTML = '<div class="alert alert-' + (ok ? 'success' : 'warning')
+            + ' d-flex align-items-center gap-2 py-2 mx-3 mt-3 mb-0" role="status" style="font-size:.83rem">'
+            + '<i class="bi bi-' + (ok ? 'check-circle-fill' : 'exclamation-triangle-fill') + '"></i>'
+            + '<span>' + msg.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
+            + '<button type="button" class="btn-close btn-sm ms-auto py-0" onclick="this.closest(\'.tsk-ns-alert-wrap\').remove()" aria-label="Zamknij"></button>'
+            + '</div>';
+        body.prepend(wrap);
+    }
+
+    function wireBody(body) {
+        body.addEventListener('submit', function (e) {
+            var form = e.target.closest('form');
+            if (!form) return;
+            e.preventDefault();
+            var submitter = e.submitter;
+            var fd = new FormData(form);
+            if (submitter && submitter.name) fd.set(submitter.name, submitter.value);
+
+            var btn = submitter || form.querySelector('[type=submit]');
+            var origHtml = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.85em;height:.85em" aria-hidden="true"></span>'; }
+
+            fetch(FRAG_URL, { method: 'POST', body: fd })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                    showBanner(body, d.ok, d.msg || (d.ok ? 'OK' : 'Błąd'));
+                    if (d.reload) loadContent(true);
+                })
+                .catch(function () {
+                    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                    showBanner(body, false, 'Błąd połączenia. Spróbuj ponownie.');
+                });
+        });
+    }
+
+    function loadContent(force) {
+        var body = getBody();
+        if (!body) return;
+        if (loaded && !force) return;
+        loaded = false;
+        body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Ładowanie…</span></div></div>';
+        fetch(FRAG_URL)
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+                body.innerHTML = '';
+                var frag = document.createRange().createContextualFragment(html);
+                body.appendChild(frag);
+                loaded = true;
+                wireBody(body);
+            })
+            .catch(function () {
+                body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania ustawień powiadomień.</div>';
+            });
+    }
+
+    window.tskOpenNotifSettings = function () {
+        getInst().show();
+        loadContent(false);
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('tskNotifSettingsModal');
+        if (el) {
+            el.addEventListener('hidden.bs.modal', function () { loaded = false; });
+        }
     });
 })();
 </script>
