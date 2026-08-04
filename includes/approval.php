@@ -216,9 +216,13 @@ function email_log(string $to, string $subject, string $ctx_type = '', ?int $ctx
 }
 
 /**
- * Wysyła e-mail natychmiast (bez kolejkowania gdy M365/SMTP dostępne).
- * Kolejkuje w mail_queue tylko gdy nie ma M365 ani SMTP.
+ * Wysyła e-mail z pełnym łańcuchem fallback:
+ *   1. M365 Graph API  (jeśli skonfigurowane i działa)
+ *   2. SMTP bezpośredni (jeśli smtp_host w settings)
+ *   3. mail_queue       (asynchroniczny, cron co 5 min)
+ *   4. PHP mail()       (ostateczny fallback)
  *
+ * Każda metoda loguje wynik do email_send_log.
  * Rate-limit: max $rate_limit wiadomości do tego samego adresu na dobę.
  */
 function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null, int $rate_limit = 5): bool {
@@ -227,6 +231,8 @@ function approval_send_email(string $to, string $subject, string $html_body, str
         email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
         return false;
     }
+
+    require_once __DIR__ . '/mail_queue.php';
 
     // 1. M365 Graph API — wysyłka bezpośrednia
     if (function_exists('m365_setting')) {
@@ -241,34 +247,37 @@ function approval_send_email(string $to, string $subject, string $html_body, str
                     return true;
                 }
             } catch (\Exception $e) {
-                error_log("[approval_send_email] M365 failed: " . $e->getMessage());
-                email_log($to, $subject, $ctx_type, $ctx_id, 'failed');
-                return false;   // M365 skonfigurowane ale nie działa — nie próbuj innych metod
+                // M365 zawiodło — loguj i kontynuuj do SMTP/mail_queue
+                error_log("[approval_send_email] M365 failed (próba SMTP/queue): " . $e->getMessage());
+                email_log($to, $subject, $ctx_type, $ctx_id, 'm365_failed');
             }
         }
     }
 
     // 2. SMTP bezpośrednio (jeśli smtp_host skonfigurowany)
-    require_once __DIR__ . '/mail_queue.php';
     if (_mail_setting('smtp_host')) {
         try {
             $msg = ['to_email' => $to, 'to_name' => '', 'subject' => $subject,
                     'body_html' => $html_body, 'body_text' => '', 'from_email' => '',
                     'attachments' => '[]'];
             $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'));
-            email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'failed');
-            return $ok;
+            email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'smtp_failed');
+            if ($ok) return true;
+            error_log("[approval_send_email] SMTP failed (próba mail_queue): {$to}");
         } catch (\Throwable $e) {
-            error_log("[approval_send_email] SMTP failed: " . $e->getMessage());
+            error_log("[approval_send_email] SMTP exception (próba mail_queue): " . $e->getMessage());
+            email_log($to, $subject, $ctx_type, $ctx_id, 'smtp_failed');
         }
     }
 
-    // 3. Brak M365 i SMTP — kolejkuj jako fallback
+    // 3. mail_queue — asynchroniczny fallback (cron co 5 min)
     try {
         mail_queue_add($to, '', $subject, $html_body, '', $ctx_type, $ctx_id, '', true);
         email_log($to, $subject, $ctx_type, $ctx_id, 'queued');
         return true;
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+        error_log("[approval_send_email] mail_queue failed: " . $e->getMessage());
+    }
 
     // 4. PHP mail() ostateczny fallback
     $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
