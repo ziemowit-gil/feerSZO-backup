@@ -155,18 +155,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $org    = defined('ORG_NAME') ? ORG_NAME : '';
             $subj   = 'Potwierdzenie rejestracji — ' . $event['title'];
             $start  = $event['start_at'] ? date('d.m.Y H:i', strtotime($event['start_at'])) : '';
+            $is_webinar = ($event['type'] ?? '') === 'webinar';
             $html   = '
 <p>Cześć <strong>' . htmlspecialchars($first_name . ' ' . $last_name) . '</strong>,</p>
 <p>Twoja rejestracja na <strong>' . htmlspecialchars($event['title']) . '</strong> została potwierdzona.</p>
 ' . ($start ? '<p><i>Data:</i> ' . htmlspecialchars($start) . '</p>' : '') . '
+' . (!$is_webinar ? '
 <div style="text-align:center;margin:24px 0">
   <span style="font-size:1.6rem;font-weight:900;letter-spacing:.2em;font-family:monospace;
                background:#f5f3ff;border:2px dashed #7c3aed;border-radius:8px;
                padding:10px 24px;display:inline-block;color:#7c3aed">'
                . htmlspecialchars($ticket_code) . '</span>
   <div style="margin-top:8px;font-size:.82rem;color:#64748b">Kod biletu — zachowaj go</div>
-</div>
-' . ($status === 'confirmed' && ($event['type'] ?? '') === 'webinar' && !empty($event['meeting_url']) ? '
+</div>' : '') . '
+' . ($status === 'confirmed' && $is_webinar && !empty($event['meeting_url']) ? '
 <div style="text-align:center;margin:24px 0">
   <a href="' . htmlspecialchars($event['meeting_url']) . '"
      style="background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;padding:12px 28px;border-radius:8px;display:inline-block">
@@ -174,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div style="margin-top:10px;font-size:.82rem;color:#64748b;word-break:break-all">
     Link do spotkania: <a href="' . htmlspecialchars($event['meeting_url']) . '">' . htmlspecialchars($event['meeting_url']) . '</a>
   </div>
-  <div style="margin-top:4px;font-size:.78rem;color:#94a3b8">Zachowaj tę wiadomość — link będzie potrzebny, aby dołączyć.</div>
+  <div style="margin-top:4px;font-size:.78rem;color:#94a3b8">Link będzie aktywny wyłącznie w dniu wydarzenia — zachowaj tę wiadomość.</div>
 </div>' : '') . '
 ' . ($status === 'waitlist' ? '<p style="color:#d97706">⚠️ Zostałeś/aś zapisany/a na listę oczekujących.</p>' : '') . '
 <p style="color:#64748b;font-size:.85rem">Organizator: ' . htmlspecialchars($org) . '</p>';
@@ -273,19 +275,20 @@ body { background:var(--ev-purple-bg); min-height:100vh; }
             <i class="bi bi-check-circle-fill text-success mb-2 d-block" style="font-size:2rem" aria-hidden="true"></i>
             <h2 class="fw-bold fs-5"><?= $status === 'waitlist' ? 'Trafiłeś/aś na listę oczekujących' : 'Rejestracja zakończona pomyślnie!' ?></h2>
             <?php if ($status === 'confirmed'): ?>
+            <?php if ($event['type'] !== 'webinar'): ?>
             <p class="reg-hint mb-2">Twój kod biletu:</p>
             <div class="ticket-code-wrap" aria-label="Kod biletu: <?= h($ticket_code) ?>">
                 <div class="ticket-code" aria-hidden="true"><?= h($ticket_code) ?></div>
             </div>
+            <p class="reg-hint mt-2">Zachowaj ten kod — będzie potrzebny przy wejściu.</p>
+            <?php endif; ?>
             <?php if ($event['type'] === 'webinar' && !empty($event['meeting_url'])): ?>
             <a href="<?= h($event['meeting_url']) ?>" target="_blank" rel="noopener noreferrer"
                class="btn btn-sm mt-3" style="background:var(--ev-purple);color:#fff">
                 <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do wydarzenia online
                 <span class="visually-hidden">(otwiera się w nowej karcie)</span>
             </a>
-            <p class="reg-hint mt-2 mb-0">Link wysłaliśmy też na Twój e-mail.</p>
-            <?php else: ?>
-            <p class="reg-hint mt-2">Zachowaj ten kod — będzie potrzebny przy wejściu.</p>
+            <p class="reg-hint mt-2 mb-0">Link będzie aktywny wyłącznie w dniu wydarzenia. Wysłaliśmy go też na Twój e-mail.</p>
             <?php endif; ?>
             <?php else: ?>
             <p class="reg-hint">Zostaniesz powiadomiony/a, jeśli zwolni się miejsce.</p>
