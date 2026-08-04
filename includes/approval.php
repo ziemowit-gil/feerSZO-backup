@@ -243,10 +243,11 @@ function email_log(string $to, string $subject, string $ctx_type = '', ?int $ctx
  * Każda metoda loguje wynik do email_send_log.
  * Rate-limit: max $rate_limit wiadomości do tego samego adresu na dobę.
  */
-function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null, int $rate_limit = 5): bool {
+function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null, int $rate_limit = 5, string &$via = ''): bool {
     if (!email_rate_limit_ok($to, $rate_limit)) {
         error_log("[approval_send_email] Rate limit osiągnięty dla: {$to}");
         email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
+        $via = 'rate_limited';
         return false;
     }
 
@@ -261,6 +262,7 @@ function approval_send_email(string $to, string $subject, string $html_body, str
             if ($graph->is_configured()) {
                 $graph->send_raw_email($sender, $to, $subject, $html_body);
                 email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+                $via = 'm365';
                 return true;
             }
         } catch (\Exception $e) {
@@ -278,7 +280,7 @@ function approval_send_email(string $to, string $subject, string $html_body, str
                     'attachments' => '[]'];
             $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'));
             email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'smtp_failed');
-            if ($ok) return true;
+            if ($ok) { $via = 'smtp'; return true; }
             error_log("[approval_send_email] SMTP failed (próba mail_queue): {$to}");
         } catch (\Throwable $e) {
             error_log("[approval_send_email] SMTP exception (próba mail_queue): " . $e->getMessage());
@@ -290,6 +292,7 @@ function approval_send_email(string $to, string $subject, string $html_body, str
     try {
         mail_queue_add($to, '', $subject, $html_body, '', $ctx_type, $ctx_id, '', true);
         email_log($to, $subject, $ctx_type, $ctx_id, 'queued');
+        $via = 'queue';
         return true;
     } catch (\Throwable $e) {
         error_log("[approval_send_email] mail_queue failed: " . $e->getMessage());
@@ -299,6 +302,7 @@ function approval_send_email(string $to, string $subject, string $html_body, str
     $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
     $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html_body, $headers);
     email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'failed');
+    $via = $ok ? 'php_mail' : 'failed';
     return $ok;
 }
 

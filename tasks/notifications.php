@@ -176,11 +176,13 @@ function _notif_render_rows(array $rows, array $ev_labels, array $ev_icons, arra
         $col  = $ev_colors[$ev] ?? '#94a3b8';
         $lbl  = $ev_labels[$ev] ?? $ev;
         $time = substr($n['sent_at'] ?? '', 0, 16);
-        $ch   = $n['channel'] ?? 'email';
+        $ch       = $n['channel']  ?? 'email';
+        $delivery = $n['delivery'] ?? 'direct';
+        $is_fail  = ($delivery === 'failed' || $delivery === 'rate_limited');
     ?>
-    <div class="notif-row" data-ev="<?= h($ev) ?>" data-ch="<?= h($ch) ?>">
-      <div class="notif-icon" style="color:<?= h($col) ?>" aria-hidden="true">
-        <i class="bi <?= h($icon) ?>"></i>
+    <div class="notif-row<?= $is_fail ? ' notif-row-failed' : '' ?>" data-ev="<?= h($ev) ?>" data-ch="<?= h($ch) ?>">
+      <div class="notif-icon" style="color:<?= $is_fail ? '#dc2626' : h($col) ?>" aria-hidden="true">
+        <i class="bi <?= $is_fail ? 'bi-exclamation-circle-fill' : h($icon) ?>"></i>
       </div>
       <div class="notif-body">
         <div class="notif-task"><?= h($n['task_title'] ?? '—') ?></div>
@@ -188,12 +190,24 @@ function _notif_render_rows(array $rows, array $ev_labels, array $ev_icons, arra
       </div>
       <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
         <time class="notif-time" datetime="<?= h($n['sent_at']) ?>"><?= h($time) ?></time>
-        <?php if ($ch === 'sms'): ?>
+        <?php if ($is_fail): ?>
+        <span class="notif-ch-badge notif-ch-failed" title="Błąd wysyłki: <?= h($delivery) ?>" aria-label="Błąd">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Błąd
+        </span>
+        <?php elseif ($ch === 'sms'): ?>
         <span class="notif-ch-badge notif-ch-sms" title="Wysłano przez SMS" aria-label="SMS">
           <i class="bi bi-chat-dots-fill" aria-hidden="true"></i>SMS
         </span>
+        <?php elseif ($delivery === 'queue'): ?>
+        <span class="notif-ch-badge notif-ch-queue" title="Wysłano przez kolejkę e-mail" aria-label="Kolejka">
+          <i class="bi bi-hourglass-split" aria-hidden="true"></i>Kolejka
+        </span>
+        <?php elseif ($delivery === 'php_mail'): ?>
+        <span class="notif-ch-badge notif-ch-queue" title="Wysłano przez PHP mail()" aria-label="Fallback">
+          <i class="bi bi-envelope-arrow-up-fill" aria-hidden="true"></i>Fallback
+        </span>
         <?php else: ?>
-        <span class="notif-ch-badge notif-ch-email" title="Wysłano przez e-mail" aria-label="E-mail">
+        <span class="notif-ch-badge notif-ch-email" title="Wysłano przez e-mail (<?= h($delivery) ?>)" aria-label="E-mail">
           <i class="bi bi-envelope-fill" aria-hidden="true"></i>E-mail
         </span>
         <?php endif; ?>
@@ -279,8 +293,12 @@ require_once __DIR__ . '/includes/header_tasks.php';
   font-size: .62rem; font-weight: 700; padding: .1rem .4rem;
   border-radius: 999px; line-height: 1.4; white-space: nowrap;
 }
-.notif-ch-email { background: #eff6ff; color: #1d4ed8; }
-.notif-ch-sms   { background: #f0fdf4; color: #15803d; }
+.notif-ch-email  { background: #eff6ff; color: #1d4ed8; }
+.notif-ch-sms    { background: #f0fdf4; color: #15803d; }
+.notif-ch-queue  { background: #fffbeb; color: #b45309; }
+.notif-ch-failed { background: #fef2f2; color: #dc2626; }
+.notif-row-failed { opacity: .82; }
+.notif-row-failed .notif-task { text-decoration: line-through; color: #94a3b8; }
 
 /* Załaduj więcej */
 .notif-more-wrap { display: flex; justify-content: center; padding: .75rem; border-top: 1px solid #f1f5f9; }

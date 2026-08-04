@@ -1,20 +1,25 @@
 <?php
 /**
- * Moduł powiadomień email — Zadania
- * Wymaga: db.php, functions.php, approval.php (approval_send_email)
+ * task_notify.php — Powiadomienia zadań (e-mail + SMS)
  *
  * Publiczne API:
- *   task_notify_created(task_id, by_uid)
- *   task_notify_assigned(task_id, assigned_uid, by_uid)
- *   task_notify_new_comment(task_id, comment_id, body, author_uid)
- *   task_notify_confirmed(task_id, by_uid)
- *   task_notify_rejected(task_id, by_uid, reason)
- *   task_notify_get_pref(user_id)  → array
- *   task_notify_save_pref(user_id, array)
+ *   task_notify_created($task_id, $by_uid)
+ *   task_notify_assigned($task_id, $assigned_uid, $by_uid)
+ *   task_notify_new_comment($task_id, $comment_id, $body, $author_uid)
+ *   task_notify_due($task_id, $event)
+ *   task_notify_confirmed($task_id, $by_uid)
+ *   task_notify_rejected($task_id, $by_uid, $reason)
+ *   task_notify_get_pref($user_id)  → array
+ *   task_notify_save_pref($user_id, $data)
+ *
+ * Zasady architektury:
+ *   - E-mail i SMS są niezależnymi ścieżkami; błąd/brak jednego nie blokuje drugiego.
+ *   - Dedup działa per-kanał: jeden e-mail i jeden SMS na zdarzenie+odbiorca dziennie.
+ *   - Każdy błąd jest logowany do task_notification_errors (z kontekstem).
  */
 
-require_once __DIR__ . '/approval.php';   // approval_send_email()
-require_once __DIR__ . '/notifications.php';   // notif_create()
+require_once __DIR__ . '/approval.php';
+require_once __DIR__ . '/notifications.php';
 
 _tn_schema_heal();
 
@@ -22,114 +27,83 @@ _tn_schema_heal();
 //  PUBLICZNE FUNKCJE
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Powiadamia adminów i liderów obszaru roboczego o nowym zadaniu.
- * Wywołuj zaraz po zapisaniu nowego zadania (tasks/api/task.php).
- */
 function task_notify_created(int $task_id, int $by_uid): void {
     $task = _tn_task($task_id);
     if (!$task) return;
 
-    $by_name  = _tn_user_name($by_uid);
-    $task_url = _tn_task_url($task_id);
-    $org      = defined('ORG_NAME') ? ORG_NAME : '';
-    $ws_id    = (int)($task['workspace_id'] ?? 0);
+    $by_name = _tn_user_name($by_uid);
+    $ws_id   = (int)($task['workspace_id'] ?? 0);
+    $org     = defined('ORG_NAME') ? ORG_NAME : '';
 
-    // Zbierz liderów obszaru (admin/editor w tym workspace) + adminów systemu
     $leaders = db_all(
         "SELECT DISTINCT u.id, u.name, u.email
          FROM users u
-         LEFT JOIN task_workspace_members m ON m.user_id = u.id AND m.workspace_id = ?
-         WHERE u.is_active = 1
-           AND u.email IS NOT NULL AND u.email != ''
-           AND (m.role IN ('admin','editor') OR u.is_admin = 1)
+         LEFT JOIN task_workspace_members m ON m.user_id=u.id AND m.workspace_id=?
+         WHERE u.is_active=1 AND u.email!=''
+           AND (m.role IN ('admin','editor') OR u.is_admin=1)
          LIMIT 20",
         [$ws_id]
     );
 
     foreach ($leaders as $u) {
-        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj twórcy
-        if (!_tn_should_send((int)$u['id'], 'created', $task_id)) continue;
+        $uid = (int)$u['id'];
+        if ($uid === $by_uid) continue;
 
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                'Nowe zadanie: ' . $task['title'],
-                $by_name . ' dodał(a) nowe zadanie.',
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        _tn_inapp($uid, 'Nowe zadanie: ' . $task['title'],
+            $by_name . ' dodał(a) nowe zadanie.', $task_id);
 
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref['notify_assigned'] ?? 1)) continue;   // używa tej samej flagi co przypisanie
+        $pref = task_notify_get_pref($uid);
+        if (!($pref['notify_assigned'] ?? 1)) continue;
 
         $subject = 'Nowe zadanie: ' . $task['title'];
         $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
-                 . '<p>Użytkownik <strong>' . htmlspecialchars($by_name) . '</strong> dodał nowe zadanie'
-                 . ' w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
-                 . _tn_task_card($task)
-                 . '<p style="color:#64748b;font-size:13px">Kliknij przycisk poniżej, aby otworzyć zadanie.</p>';
-        $html = _tn_tpl('Nowe zadanie', $subject, $content, $task_url);
+            . '<p><strong>' . htmlspecialchars($by_name) . '</strong> dodał(a) nowe zadanie'
+            . ' w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
+            . _tn_task_card($task)
+            . '<p style="color:#64748b;font-size:13px">Kliknij przycisk poniżej, aby otworzyć zadanie.</p>';
 
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], 'created', $task_id);
-        }
+        _tn_email($uid, $u['email'], 'created', $task_id,
+            $subject, _tn_tpl('Nowe zadanie', $subject, $content, _tn_task_url($task_id)));
     }
 }
 
-/**
- * Powiadamia użytkownika o przypisaniu do zadania.
- */
 function task_notify_assigned(int $task_id, int $assigned_uid, int $by_uid): void {
-    if ($assigned_uid === $by_uid) return;   // nie powiadamiaj siebie
+    if ($assigned_uid === $by_uid) return;
 
     $user = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$assigned_uid]);
     if (!$user) return;
 
     $task = _tn_task($task_id);
     if (!$task) return;
-    $by_name = _tn_user_name($by_uid);
 
-    try {
-        notif_create(
-            $assigned_uid, 'task',
-            'Przypisano Cię do zadania: ' . $task['title'],
-            $by_name . ' przypisał(a) Cię do zadania.',
-            '/tasks/index.php?task=' . $task_id
-        );
-    } catch (\Throwable $e) {}
+    $by_name  = _tn_user_name($by_uid);
+    $org      = defined('ORG_NAME') ? ORG_NAME : '';
+    $task_url = _tn_task_url($task_id);
 
-    if (!$user['email']) return;
+    _tn_inapp($assigned_uid, 'Przypisano Cię do zadania: ' . $task['title'],
+        $by_name . ' przypisał(a) Cię do zadania.', $task_id);
 
     $pref = task_notify_get_pref($assigned_uid);
-    if (!($pref['notify_assigned'] ?? 1)) return;
 
-    if (!_tn_should_send($assigned_uid, 'assigned', $task_id)) return;
-
-    $task_url = _tn_task_url($task_id);
-    $org      = defined('ORG_NAME') ? ORG_NAME : '';
-
-    $subject  = 'Przypisano Cię do zadania: ' . $task['title'];
-
-    $content = '
-<p>Cześć <strong>' . htmlspecialchars($user['name']) . '</strong>,</p>
-<p>Użytkownik <strong>' . htmlspecialchars($by_name) . '</strong> przypisał Cię do zadania
-w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
-' . _tn_task_card($task) . '
-<p style="color:#64748b;font-size:13px">Kliknij przycisk poniżej, aby otworzyć zadanie.</p>';
-
-    $html = _tn_tpl('Nowe przypisanie', $subject, $content, $task_url);
-    if (_tn_send($user['email'], $subject, $html)) {
-        _tn_log($assigned_uid, 'assigned', $task_id);
+    // E-mail — niezależna ścieżka
+    if (($pref['notify_assigned'] ?? 1) && $user['email']) {
+        $subject = 'Przypisano Cię do zadania: ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($user['name']) . '</strong>,</p>'
+            . '<p><strong>' . htmlspecialchars($by_name) . '</strong> przypisał(a) Cię do zadania'
+            . ' w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>'
+            . _tn_task_card($task)
+            . '<p style="color:#64748b;font-size:13px">Kliknij przycisk poniżej, aby otworzyć zadanie.</p>';
+        _tn_email($assigned_uid, $user['email'], 'assigned', $task_id,
+            $subject, _tn_tpl('Nowe przypisanie', $subject, $content, $task_url));
     }
-    _tn_sms($assigned_uid, 'FEER SZO. Przypisano Cie do zadania: "' . mb_substr($task['title'], 0, 80) . '".', 'assigned', $task_id);
+
+    // SMS — niezależna ścieżka
+    if (!empty($pref['notify_sms'])) {
+        _tn_sms($assigned_uid, 'sms_assigned', $task_id,
+            'FEER SZO. Przypisano Cię do zadania: "' . mb_substr($task['title'], 0, 80) . '".');
+    }
 }
 
-/**
- * Powiadamia o nowym komentarzu:
- *  – wszystkich przypisanych do zadania (poza autorem) jeśli mają notify_comment=1
- *  – każdego @wspomnianego (jeśli ma notify_mentioned=1)
- */
 function task_notify_new_comment(int $task_id, int $comment_id, string $body, int $author_uid): void {
     $task = _tn_task($task_id);
     if (!$task) return;
@@ -139,230 +113,181 @@ function task_notify_new_comment(int $task_id, int $comment_id, string $body, in
     $org         = defined('ORG_NAME') ? ORG_NAME : '';
     $snippet     = mb_substr($body, 0, 300) . (mb_strlen($body) > 300 ? '…' : '');
 
-    // ── 1. Powiadomienia dla przypisanych (notify_comment) ─────────────────
+    // Przypisani (notify_comment)
     $assignees = db_all(
-        "SELECT u.id, u.name, u.email
-         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+        "SELECT u.id, u.name, u.email FROM task_assignments ta
+         JOIN users u ON u.id=ta.user_id
          WHERE ta.task_id=? AND u.is_active=1",
         [$task_id]
     );
     foreach ($assignees as $u) {
-        if ((int)$u['id'] === $author_uid) continue;
+        $uid = (int)$u['id'];
+        if ($uid === $author_uid) continue;
 
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                $author_name . ' skomentował: ' . $task['title'],
-                mb_substr($snippet, 0, 200),
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        _tn_inapp($uid, $author_name . ' skomentował: ' . $task['title'],
+            mb_substr($snippet, 0, 200), $task_id);
 
-        if (!$u['email']) continue;
+        $pref = task_notify_get_pref($uid);
 
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref['notify_comment'] ?? 0)) continue;
-        if (!_tn_should_send((int)$u['id'], 'comment', $comment_id)) continue;
-
-        $subject = htmlspecialchars($author_name) . ' skomentował: ' . $task['title'];
-        $content = '
-<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
-<p><strong>' . htmlspecialchars($author_name) . '</strong> dodał komentarz do zadania,
-do którego jesteś przypisany/a.</p>
-' . _tn_task_card($task) . '
-<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:10px 14px;
-            margin:14px 0;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5">
-  ' . nl2br(htmlspecialchars($snippet)) . '
-</div>';
-        $html = _tn_tpl('Nowy komentarz', $subject, $content, $task_url);
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], 'comment', $comment_id);
+        if (($pref['notify_comment'] ?? 0) && $u['email']) {
+            $subject = htmlspecialchars($author_name) . ' skomentował: ' . $task['title'];
+            $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                . '<p><strong>' . htmlspecialchars($author_name) . '</strong> dodał komentarz do zadania.</p>'
+                . _tn_task_card($task)
+                . '<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;font-size:14px">'
+                . nl2br(htmlspecialchars($snippet)) . '</div>';
+            _tn_email($uid, $u['email'], 'comment', $comment_id,
+                $subject, _tn_tpl('Nowy komentarz', $subject, $content, $task_url));
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' skomentował zadanie: "' . mb_substr($task['title'], 0, 60) . '".', 'comment', $task_id);
+
+        if (!empty($pref['notify_sms'])) {
+            _tn_sms($uid, 'sms_comment', $task_id,
+                'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' skomentował zadanie: "' . mb_substr($task['title'], 0, 60) . '".');
+        }
     }
 
-    // ── 2. @wzmianki (notify_mentioned) ───────────────────────────────────
+    // @wzmianki (notify_mentioned)
     $all_users = db_all("SELECT id, name, email FROM users WHERE is_active=1");
     $mentioned = _tn_parse_mentions($body, $all_users, $author_uid);
 
     foreach ($mentioned as $u) {
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                $author_name . ' wspomniał Cię w zadaniu: ' . $task['title'],
-                mb_substr($snippet, 0, 200),
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        $uid = (int)$u['id'];
 
-        if (!$u['email']) continue;
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref['notify_mentioned'] ?? 1)) continue;
-        if (!_tn_should_send((int)$u['id'], 'mention', $comment_id)) continue;
+        _tn_inapp($uid, $author_name . ' wspomniał Cię w: ' . $task['title'],
+            mb_substr($snippet, 0, 200), $task_id);
 
-        $subject = htmlspecialchars($author_name) . ' wspomniał Cię w zadaniu: ' . $task['title'];
-        $content = '
-<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
-<p><strong>' . htmlspecialchars($author_name) . '</strong> wspomniał Cię w komentarzu
-do zadania w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
-' . _tn_task_card($task) . '
-<div style="background:#eff6ff;border-left:4px solid #2563eb;padding:10px 14px;
-            margin:14px 0;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5">
-  ' . nl2br(_tn_highlight_mentions(htmlspecialchars($snippet), $u['name'])) . '
-</div>';
-        $html = _tn_tpl('Wspomniano Cię', $subject, $content, $task_url);
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], 'mention', $comment_id);
+        $pref = task_notify_get_pref($uid);
+
+        if (($pref['notify_mentioned'] ?? 1) && $u['email']) {
+            $subject = htmlspecialchars($author_name) . ' wspomniał Cię w zadaniu: ' . $task['title'];
+            $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                . '<p><strong>' . htmlspecialchars($author_name) . '</strong> wspomniał Cię w komentarzu.</p>'
+                . _tn_task_card($task)
+                . '<div style="background:#eff6ff;border-left:4px solid #2563eb;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;font-size:14px">'
+                . nl2br(_tn_highlight_mentions(htmlspecialchars($snippet), $u['name'])) . '</div>';
+            _tn_email($uid, $u['email'], 'mention', $comment_id,
+                $subject, _tn_tpl('Wspomniano Cię', $subject, $content, $task_url));
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' wspomniał Cię w zadaniu: "' . mb_substr($task['title'], 0, 60) . '".', 'mention', $task_id);
+
+        if (!empty($pref['notify_sms'])) {
+            _tn_sms($uid, 'sms_mention', $task_id,
+                'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' wspomniał Cię w zadaniu: "' . mb_substr($task['title'], 0, 60) . '".');
+        }
     }
 }
 
-/**
- * Powiadamia przypisanych o zbliżającym się terminie zadania.
- * $event: 'due_1day' | 'due_today'
- */
 function task_notify_due(int $task_id, string $event): void {
     $task = _tn_task($task_id);
     if (!$task || $task['completed_at']) return;
 
     $task_url  = _tn_task_url($task_id);
-    $org       = defined('ORG_NAME') ? ORG_NAME : '';
     $due_label = $event === 'due_today' ? 'dziś' : 'jutro';
     $due_str   = $task['due_date'] ? date('d.m.Y', strtotime($task['due_date'])) : '';
 
     $assignees = db_all(
-        "SELECT u.id, u.name, u.email
-         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+        "SELECT u.id, u.name, u.email FROM task_assignments ta
+         JOIN users u ON u.id=ta.user_id
          WHERE ta.task_id=? AND u.is_active=1",
         [$task_id]
     );
     foreach ($assignees as $u) {
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                'Termin zadania ' . $due_label . ': ' . $task['title'],
-                $due_str ? ('Termin: ' . $due_str) : '',
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        $uid  = (int)$u['id'];
+        $pref = task_notify_get_pref($uid);
 
-        if (!$u['email']) continue;
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref[$event] ?? 1)) continue;
-        if (!_tn_should_send((int)$u['id'], $event, $task_id)) continue;
+        _tn_inapp($uid, 'Termin zadania ' . $due_label . ': ' . $task['title'],
+            $due_str ? 'Termin: ' . $due_str : '', $task_id);
 
-        $subject = "Termin zadania " . ($event === 'due_today' ? 'dzisiaj' : 'jutro') . ': ' . $task['title'];
-        $content = '
-<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
-<p>Termin poniższego zadania upływa <strong>' . $due_label . ' (' . $due_str . ')</strong>.</p>
-' . _tn_task_card($task) . '
-<p style="color:#64748b;font-size:13px">Pamiętaj o aktualizacji statusu zadania.</p>';
-        $html = _tn_tpl('Zbliżający się termin', $subject, $content, $task_url);
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], $event, $task_id);
+        if (($pref[$event] ?? 1) && $u['email']) {
+            $subject = 'Termin zadania ' . ($event === 'due_today' ? 'dzisiaj' : 'jutro') . ': ' . $task['title'];
+            $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                . '<p>Termin poniższego zadania upływa <strong>' . $due_label . ($due_str ? ' (' . $due_str . ')' : '') . '</strong>.</p>'
+                . _tn_task_card($task);
+            _tn_email($uid, $u['email'], $event, $task_id,
+                $subject, _tn_tpl('Zbliżający się termin', $subject, $content, $task_url));
         }
-        $sms_when = $event === 'due_today' ? 'DZISIAJ' : 'JUTRO';
-        _tn_sms((int)$u['id'], 'FEER SZO. Termin zadania ' . $sms_when . ': "' . mb_substr($task['title'], 0, 80) . '" (' . $due_str . ').', $event, $task_id);
+
+        if (!empty($pref['notify_sms'])) {
+            $when = $event === 'due_today' ? 'DZISIAJ' : 'JUTRO';
+            _tn_sms($uid, 'sms_' . $event, $task_id,
+                'FEER SZO. Termin zadania ' . $when . ': "' . mb_substr($task['title'], 0, 80) . '"' . ($due_str ? ' (' . $due_str . ')' : '') . '.');
+        }
     }
 }
 
-/**
- * Powiadamia przypisanych wykonawców, że lider potwierdził wykonanie zadania.
- */
 function task_notify_confirmed(int $task_id, int $by_uid): void {
-    $task = _tn_task($task_id);
+    $task    = _tn_task($task_id);
     if (!$task) return;
-
-    $by_name  = _tn_user_name($by_uid);
+    $by_name = _tn_user_name($by_uid);
     $task_url = _tn_task_url($task_id);
 
     $assignees = db_all(
-        "SELECT u.id, u.name, u.email
-         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+        "SELECT u.id, u.name, u.email FROM task_assignments ta
+         JOIN users u ON u.id=ta.user_id
          WHERE ta.task_id=? AND u.is_active=1",
         [$task_id]
     );
     foreach ($assignees as $u) {
-        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj siebie
+        $uid = (int)$u['id'];
+        if ($uid === $by_uid) continue;
 
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                'Potwierdzono wykonanie: ' . $task['title'],
-                $by_name . ' potwierdził(a) wykonanie zadania.',
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        _tn_inapp($uid, 'Potwierdzono wykonanie: ' . $task['title'],
+            $by_name . ' potwierdził(a) wykonanie zadania.', $task_id);
 
-        if (!$u['email']) continue;
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref['notify_confirmed'] ?? 1)) continue;
-        if (!_tn_should_send((int)$u['id'], 'confirmed', $task_id)) continue;
+        $pref = task_notify_get_pref($uid);
 
-        $subject = 'Potwierdzono wykonanie zadania: ' . $task['title'];
-        $content = '
-<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
-<p><strong>' . htmlspecialchars($by_name) . '</strong> potwierdził(a) wykonanie zadania,
-które realizujesz.</p>
-' . _tn_task_card($task);
-        $html = _tn_tpl('Wykonanie potwierdzone', $subject, $content, $task_url);
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], 'confirmed', $task_id);
+        if (($pref['notify_confirmed'] ?? 1) && $u['email']) {
+            $subject = 'Potwierdzono wykonanie zadania: ' . $task['title'];
+            $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                . '<p><strong>' . htmlspecialchars($by_name) . '</strong> potwierdził(a) wykonanie zadania.</p>'
+                . _tn_task_card($task);
+            _tn_email($uid, $u['email'], 'confirmed', $task_id,
+                $subject, _tn_tpl('Wykonanie potwierdzone', $subject, $content, $task_url));
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' potwierdził(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 60) . '".', 'confirmed', $task_id);
+
+        if (!empty($pref['notify_sms'])) {
+            _tn_sms($uid, 'sms_confirmed', $task_id,
+                'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' potwierdził(a) wykonanie: "' . mb_substr($task['title'], 0, 60) . '".');
+        }
     }
 }
 
-/**
- * Powiadamia przypisanych wykonawców, że lider odrzucił wykonanie zadania (z powodem).
- */
 function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
-    $task = _tn_task($task_id);
+    $task    = _tn_task($task_id);
     if (!$task) return;
-
     $by_name  = _tn_user_name($by_uid);
     $task_url = _tn_task_url($task_id);
     $reason_h = htmlspecialchars($reason, ENT_QUOTES, 'UTF-8');
 
     $assignees = db_all(
-        "SELECT u.id, u.name, u.email
-         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+        "SELECT u.id, u.name, u.email FROM task_assignments ta
+         JOIN users u ON u.id=ta.user_id
          WHERE ta.task_id=? AND u.is_active=1",
         [$task_id]
     );
     foreach ($assignees as $u) {
-        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj siebie
+        $uid = (int)$u['id'];
+        if ($uid === $by_uid) continue;
 
-        try {
-            notif_create(
-                (int)$u['id'], 'task',
-                'Odrzucono wykonanie: ' . $task['title'],
-                $by_name . ' odrzucił(a) wykonanie. Powód: ' . mb_substr($reason, 0, 200),
-                '/tasks/index.php?task=' . $task_id
-            );
-        } catch (\Throwable $e) {}
+        _tn_inapp($uid, 'Odrzucono wykonanie: ' . $task['title'],
+            $by_name . ' odrzucił(a). Powód: ' . mb_substr($reason, 0, 200), $task_id);
 
-        if (!$u['email']) continue;
-        $pref = task_notify_get_pref((int)$u['id']);
-        if (!($pref['notify_rejected'] ?? 1)) continue;
-        if (!_tn_should_send((int)$u['id'], 'rejected', $task_id)) continue;
+        $pref = task_notify_get_pref($uid);
 
-        $subject = 'Odrzucono wykonanie zadania: ' . $task['title'];
-        $content = '
-<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
-<p><strong>' . htmlspecialchars($by_name) . '</strong> odrzucił(a) wykonanie zadania,
-które realizujesz — konieczna poprawa.</p>
-' . _tn_task_card($task) . '
-<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;
-            margin:14px 0;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5">
-  <strong>Powód:</strong><br>' . nl2br($reason_h) . '
-</div>';
-        $html = _tn_tpl('Wykonanie odrzucone', $subject, $content, $task_url);
-        if (_tn_send($u['email'], $subject, $html)) {
-            _tn_log((int)$u['id'], 'rejected', $task_id);
+        if (($pref['notify_rejected'] ?? 1) && $u['email']) {
+            $subject = 'Odrzucono wykonanie zadania: ' . $task['title'];
+            $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+                . '<p><strong>' . htmlspecialchars($by_name) . '</strong> odrzucił(a) wykonanie — konieczna poprawa.</p>'
+                . _tn_task_card($task)
+                . '<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;font-size:14px">'
+                . '<strong>Powód:</strong><br>' . nl2br($reason_h) . '</div>';
+            _tn_email($uid, $u['email'], 'rejected', $task_id,
+                $subject, _tn_tpl('Wykonanie odrzucone', $subject, $content, $task_url));
         }
-        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' odrzucił(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 50) . '". Powod: ' . mb_substr($reason, 0, 60), 'rejected', $task_id);
+
+        if (!empty($pref['notify_sms'])) {
+            _tn_sms($uid, 'sms_rejected', $task_id,
+                'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' odrzucił(a) zadanie: "' . mb_substr($task['title'], 0, 50) . '". Powód: ' . mb_substr($reason, 0, 60));
+        }
     }
 }
 
@@ -372,32 +297,21 @@ które realizujesz — konieczna poprawa.</p>
 
 function task_notify_get_pref(int $user_id): array {
     try {
-        $row = db_one(
-            "SELECT * FROM task_notification_prefs WHERE user_id=?",
-            [$user_id]
-        );
-    } catch (\Throwable $e) { return _tn_default_prefs(); }
-
-    return $row ? $row : _tn_default_prefs();
+        $row = db_one("SELECT * FROM task_notification_prefs WHERE user_id=?", [$user_id]);
+        return $row ?: _tn_default_prefs();
+    } catch (\Throwable $e) {
+        return _tn_default_prefs();
+    }
 }
 
 function task_notify_save_pref(int $user_id, array $data): void {
-    // migracja: kolumny dodane już po wdrożeniu tabeli — starsze bazy ich nie mają
-    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_sms INTEGER NOT NULL DEFAULT 0"); }
-    catch (\Throwable $e) {}
-    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_confirmed INTEGER NOT NULL DEFAULT 1"); }
-    catch (\Throwable $e) {}
-    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_rejected INTEGER NOT NULL DEFAULT 1"); }
-    catch (\Throwable $e) {}
-
-    $fields  = ['notify_assigned', 'notify_mentioned', 'notify_comment',
-                'notify_due_1day', 'notify_due_today', 'notify_sms', 'notify_confirmed', 'notify_rejected'];
-    $values  = [];
+    $fields = ['notify_assigned', 'notify_mentioned', 'notify_comment',
+               'notify_due_1day', 'notify_due_today', 'notify_sms',
+               'notify_confirmed', 'notify_rejected'];
+    $values = ['user_id' => $user_id, 'updated_at' => date('Y-m-d H:i:s')];
     foreach ($fields as $f) {
         $values[$f] = isset($data[$f]) ? (int)(bool)$data[$f] : 0;
     }
-    $values['user_id']    = $user_id;
-    $values['updated_at'] = date('Y-m-d H:i:s');
 
     $cols = implode(', ', array_keys($values));
     $phs  = implode(', ', array_fill(0, count($values), '?'));
@@ -405,10 +319,14 @@ function task_notify_save_pref(int $user_id, array $data): void {
         fn($k) => "$k=excluded.$k",
         array_filter(array_keys($values), fn($k) => $k !== 'user_id')
     ));
-    db()->prepare(
-        "INSERT INTO task_notification_prefs ($cols) VALUES ($phs)
-         ON CONFLICT(user_id) DO UPDATE SET $upd"
-    )->execute(array_values($values));
+    try {
+        db()->prepare(
+            "INSERT INTO task_notification_prefs ($cols) VALUES ($phs)
+             ON CONFLICT(user_id) DO UPDATE SET $upd"
+        )->execute(array_values($values));
+    } catch (\Throwable $e) {
+        error_log('[task_notify_save_pref] ' . $e->getMessage());
+    }
 }
 
 function _tn_default_prefs(): array {
@@ -424,24 +342,197 @@ function _tn_default_prefs(): array {
     ];
 }
 
-/** Wysyła SMS i loguje do task_notification_log z channel='sms'. */
-function _tn_sms(int $user_id, string $message, string $event = '', int $ref_id = 0): void {
+// ─────────────────────────────────────────────────────────────────────────────
+//  WEWNĘTRZNE HELPERY WYSYŁKI
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Wysyła e-mail z dedup per-kanał (raz na zdarzenie+odbiorca dziennie).
+ * Dedup blokuje tylko e-mail — nie wpływa na SMS ani in-app.
+ * Każda próba (sukces i błąd) jest zapisywana w task_notification_log.
+ */
+function _tn_email(int $user_id, string $to, string $event, int $ref_id,
+                   string $subject, string $html): void {
+    if (!$to) return;
+    if (!_tn_dedup_ok($user_id, $event, $ref_id, 'email')) return;
+
+    $via = '';
+    try {
+        $ok = (bool) approval_send_email($to, $subject, $html, 'task', $ref_id, 20, $via);
+        if ($ok) {
+            _tn_dedup_mark($user_id, $event, $ref_id, 'email', $via ?: 'direct');
+        } else {
+            // Zawsze loguj nieudane próby — widoczne w historii jako "Błąd"
+            _tn_dedup_mark($user_id, $event, $ref_id, 'email', $via ?: 'failed', true);
+            _tn_log_error($user_id, $event, 'email', "approval_send_email zwróciło false [{$via}] dla {$to}");
+        }
+    } catch (\Throwable $e) {
+        _tn_dedup_mark($user_id, $event, $ref_id, 'email', 'failed', true);
+        _tn_log_error($user_id, $event, 'email', $e->getMessage());
+    }
+}
+
+/**
+ * Wysyła SMS z dedup per-kanał (raz na zdarzenie+odbiorca dziennie).
+ * Wymaga: sms_is_enabled()=true i notify_sms=1 w preferencjach użytkownika.
+ */
+function _tn_sms(int $user_id, string $event, int $ref_id, string $message): void {
+    if (!_tn_dedup_ok($user_id, $event, $ref_id, 'sms')) return;
+
     try {
         require_once __DIR__ . '/sms.php';
         if (!sms_is_enabled()) return;
-        $pref = task_notify_get_pref($user_id);
-        if (empty($pref['notify_sms'])) return;
+
         $u = db_one("SELECT phone_number FROM users WHERE id=?", [$user_id]);
         $phone = $u['phone_number'] ?? '';
         if (!$phone) return;
-        $ok = sms_send($phone, $message);
-        if ($ok && $event && $ref_id) {
-            _tn_log($user_id, $event, $ref_id, 'sms');
-        }
-    } catch (\Throwable $_) {}
+
+        sms_send($phone, $message);
+        // sms_send() zwraca void; zakładamy sukces jeśli nie rzuciło wyjątku
+        _tn_dedup_mark($user_id, $event, $ref_id, 'sms', 'sms');
+    } catch (\Throwable $e) {
+        _tn_dedup_mark($user_id, $event, $ref_id, 'sms', 'failed', true);
+        _tn_log_error($user_id, $event, 'sms', $e->getMessage());
+    }
 }
 
-/** Samonaprawa schematu: tworzy tabele i brakujące kolumny. */
+/** Tworzy powiadomienie in-app (zawsze, niezależnie od preferencji e-mail/SMS). */
+function _tn_inapp(int $user_id, string $title, string $body, int $task_id): void {
+    try {
+        notif_create($user_id, 'task', $title, $body, '/tasks/index.php?task=' . $task_id);
+    } catch (\Throwable $e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DEDUP
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _tn_dedup_ok(int $user_id, string $event, int $ref_id, string $channel): bool {
+    try {
+        // Blokuj ponowne wysłanie tylko jeśli poprzedni wpis był sukcesem (nie 'failed')
+        $row = db_one(
+            "SELECT 1 FROM task_notification_log
+             WHERE user_id=? AND event_type=? AND ref_id=? AND channel=?
+               AND delivery != 'failed'
+               AND date(sent_at)=date('now','localtime')",
+            [$user_id, $event, $ref_id, $channel]
+        );
+        return !$row;
+    } catch (\Throwable $e) {
+        return true;
+    }
+}
+
+/**
+ * @param bool $is_error  Gdy true — nie blokuje dedup dla przyszłych prób tego dnia
+ */
+function _tn_dedup_mark(int $user_id, string $event, int $ref_id, string $channel,
+                        string $delivery = 'direct', bool $is_error = false): void {
+    try {
+        if ($is_error) {
+            // Błędy wstawiamy zawsze (nie IGNORE), żeby były widoczne w historii
+            db()->prepare(
+                "INSERT INTO task_notification_log (user_id, event_type, ref_id, channel, delivery)
+                 VALUES (?, ?, ?, ?, ?)"
+            )->execute([$user_id, $event, $ref_id, $channel, $delivery]);
+        } else {
+            db()->prepare(
+                "INSERT OR IGNORE INTO task_notification_log (user_id, event_type, ref_id, channel, delivery)
+                 VALUES (?, ?, ?, ?, ?)"
+            )->execute([$user_id, $event, $ref_id, $channel, $delivery]);
+        }
+    } catch (\Throwable $e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WEWNĘTRZNE HELPERY OGÓLNE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _tn_task(int $task_id): ?array {
+    return db_one(
+        "SELECT t.*, tl.name AS list_name FROM tasks t
+         JOIN task_lists tl ON tl.id=t.list_id
+         WHERE t.id=? AND t.deleted_at IS NULL",
+        [$task_id]
+    ) ?: null;
+}
+
+function _tn_user_name(int $uid): string {
+    $u = db_one("SELECT name FROM users WHERE id=?", [$uid]);
+    return $u['name'] ?? "Użytkownik #{$uid}";
+}
+
+function _tn_task_url(int $task_id): string {
+    return rtrim(APP_URL, '/') . '/tasks/index.php?task=' . $task_id;
+}
+
+function _tn_log_error(int $user_id, string $event, string $channel, string $msg): void {
+    error_log("[task_notify] uid={$user_id} event={$event} ch={$channel}: {$msg}");
+    try {
+        db()->prepare(
+            "INSERT INTO task_notification_errors (task_id, user_id, event_type, channel, error_msg, context)
+             VALUES (0, ?, ?, ?, ?, '{}')"
+        )->execute([$user_id, $event, $channel, mb_substr($msg, 0, 1000)]);
+    } catch (\Throwable $e) {}
+}
+
+function _tn_parse_mentions(string $body, array $all_users, int $exclude_uid): array {
+    $result = [];
+    $seen   = [];
+    usort($all_users, fn($a, $b) => mb_strlen($b['name']) - mb_strlen($a['name']));
+    foreach ($all_users as $u) {
+        if ((int)$u['id'] === $exclude_uid) continue;
+        if (isset($seen[(int)$u['id']])) continue;
+        if (str_contains($body, '@' . $u['name'])) {
+            $result[]                  = $u;
+            $seen[(int)$u['id']]       = true;
+        }
+    }
+    return $result;
+}
+
+function _tn_highlight_mentions(string $escaped_body, string $user_name): string {
+    $esc = htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8');
+    return str_replace('@' . $esc,
+        '<strong style="color:#1d4ed8">@' . $esc . '</strong>', $escaped_body);
+}
+
+function _tn_task_card(array $task): string {
+    $pl = [1 => 'Niski', 2 => 'Normalny', 3 => 'Wysoki', 4 => 'Krytyczny'];
+    $pc = [1 => '#64748b', 2 => '#2563eb', 3 => '#d97706', 4 => '#dc2626'];
+    $p  = (int)($task['priority'] ?? 2);
+    $due = $task['due_date']
+        ? '<br><span style="color:#64748b;font-size:12px">Termin: <strong>'
+          . date('d.m.Y', strtotime($task['due_date'])) . '</strong></span>'
+        : '';
+    return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:14px 0">'
+        . '<div style="font-size:15px;font-weight:600;color:#1e293b;margin-bottom:6px">'
+        . htmlspecialchars($task['title'] ?? '') . '</div>'
+        . '<span style="background:' . $pc[$p] . ';color:#fff;font-size:11px;font-weight:600;'
+        . 'padding:2px 8px;border-radius:20px">' . ($pl[$p] ?? '') . '</span>'
+        . '<span style="color:#94a3b8;font-size:12px;margin-left:8px">· '
+        . htmlspecialchars($task['list_name'] ?? '') . '</span>' . $due . '</div>';
+}
+
+function _tn_tpl(string $header_title, string $preheader, string $content_html, string $cta_url): string {
+    $settings_url = htmlspecialchars(rtrim(APP_URL, '/') . '/tasks/notification_settings.php', ENT_QUOTES, 'UTF-8');
+    $title_h      = htmlspecialchars($header_title, ENT_QUOTES, 'UTF-8');
+
+    $body = '<p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;'
+          . 'letter-spacing:.08em;color:#64748b">Zadania</p>'
+          . '<p style="margin:0 0 18px;font-size:17px;font-weight:700;color:#1e293b">📋 ' . $title_h . '</p>'
+          . $content_html
+          . '<p style="margin:22px 0 0;font-size:12px;color:#94a3b8">'
+          . '<a href="' . $settings_url . '" style="color:#94a3b8;text-decoration:underline">Zarządzaj powiadomieniami</a>'
+          . '</p>';
+
+    return _feer_email_tpl($body, $preheader, $cta_url, 'Otwórz zadanie →');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SCHEMA
+// ─────────────────────────────────────────────────────────────────────────────
+
 function _tn_schema_heal(): void {
     static $done = false;
     if ($done) return;
@@ -466,140 +557,37 @@ function _tn_schema_heal(): void {
             event_type TEXT    NOT NULL,
             ref_id     INTEGER NOT NULL,
             channel    TEXT    NOT NULL DEFAULT 'email',
+            delivery   TEXT    NOT NULL DEFAULT 'direct',
             sent_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )");
-        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_log_dedup
-            ON task_notification_log(user_id, event_type, ref_id, date(sent_at))");
-        db()->exec("CREATE INDEX IF NOT EXISTS idx_notif_log_sent
-            ON task_notification_log(sent_at)");
-    } catch (\Throwable $e) {}
-
-    // Dodaj brakujące kolumny na starszych instalacjach
-    try {
-        $cols = array_column(db_all("PRAGMA table_info(task_notification_log)"), 'name');
-        if (!in_array('channel', $cols, true)) {
-            db()->exec("ALTER TABLE task_notification_log ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'");
-        }
-    } catch (\Throwable $e) {}
-    try {
-        $pcols = array_column(db_all("PRAGMA table_info(task_notification_prefs)"), 'name');
-        foreach (['notify_sms INTEGER NOT NULL DEFAULT 0', 'notify_confirmed INTEGER NOT NULL DEFAULT 1', 'notify_rejected INTEGER NOT NULL DEFAULT 1'] as $def) {
-            $col = explode(' ', $def)[0];
-            if (!in_array($col, $pcols, true)) {
-                try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN $def"); } catch (\Throwable $e) {}
-            }
-        }
-    } catch (\Throwable $e) {}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  WEWNĘTRZNE HELPERY
-// ─────────────────────────────────────────────────────────────────────────────
-
-function _tn_task(int $task_id): ?array {
-    return db_one(
-        "SELECT t.*, tl.name AS list_name FROM tasks t
-         JOIN task_lists tl ON tl.id=t.list_id
-         WHERE t.id=? AND t.deleted_at IS NULL",
-        [$task_id]
-    ) ?: null;
-}
-
-function _tn_user_name(int $uid): string {
-    $u = db_one("SELECT name FROM users WHERE id=?", [$uid]);
-    return $u['name'] ?? "Użytkownik #{$uid}";
-}
-
-function _tn_task_url(int $task_id): string {
-    return rtrim(APP_URL, '/') . '/tasks/index.php?task=' . $task_id;
-}
-
-function _tn_should_send(int $user_id, string $event, int $ref_id): bool {
-    try {
-        $row = db_one(
-            "SELECT 1 FROM task_notification_log
-             WHERE user_id=? AND event_type=? AND ref_id=? AND date(sent_at)=date('now','localtime')",
-            [$user_id, $event, $ref_id]
+        db()->exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_log_dedup
+             ON task_notification_log(user_id, event_type, ref_id, channel, date(sent_at))"
         );
-        return !$row;
-    } catch (\Throwable $e) { return true; }
-}
-
-function _tn_log(int $user_id, string $event, int $ref_id, string $channel = 'email'): void {
-    try {
-        db()->prepare(
-            "INSERT INTO task_notification_log (user_id, event_type, ref_id, channel)
-             VALUES (?, ?, ?, ?)"
-        )->execute([$user_id, $event, $ref_id, $channel]);
     } catch (\Throwable $e) {}
-}
 
-function _tn_send(string $to, string $subject, string $html): bool {
-    try {
-        // Rate limit 20/dzień dla powiadomień zadań (więcej niż domyślne 5 systemowych)
-        return (bool) approval_send_email($to, $subject, $html, 'task', null, 20);
-    } catch (\Throwable $e) { return false; }
-}
-
-/** Parsuje @wzmianki z tekstu i zwraca pasujących aktywnych użytkowników. */
-function _tn_parse_mentions(string $body, array $all_users, int $exclude_uid): array {
-    $result = [];
-    $seen   = [];
-    // Sortuj od najdłuższego do najkrótszego — unikaj częściowych dopasowań
-    usort($all_users, fn($a, $b) => mb_strlen($b['name']) - mb_strlen($a['name']));
-    foreach ($all_users as $u) {
-        if ((int)$u['id'] === $exclude_uid) continue;
-        if (isset($seen[(int)$u['id']])) continue;
-        if (str_contains($body, '@' . $u['name'])) {
-            $result[] = $u;
-            $seen[(int)$u['id']] = true;
-        }
+    // Kolumny dodane po wdrożeniu
+    $add_cols = [
+        'task_notification_prefs' => [
+            'notify_sms       INTEGER NOT NULL DEFAULT 0',
+            'notify_confirmed INTEGER NOT NULL DEFAULT 1',
+            'notify_rejected  INTEGER NOT NULL DEFAULT 1',
+        ],
+        'task_notification_log' => [
+            "channel  TEXT NOT NULL DEFAULT 'email'",
+            "delivery TEXT NOT NULL DEFAULT 'direct'",
+        ],
+    ];
+    foreach ($add_cols as $tbl => $defs) {
+        try {
+            $existing = array_column(db_all("PRAGMA table_info({$tbl})"), 'name');
+            foreach ($defs as $def) {
+                $col = explode(' ', trim($def))[0];
+                if (!in_array($col, $existing, true)) {
+                    try { db()->exec("ALTER TABLE {$tbl} ADD COLUMN {$def}"); } catch (\Throwable $e) {}
+                }
+            }
+        } catch (\Throwable $e) {}
     }
-    return $result;
-}
-
-/** Podświetla @wzmiankę danego użytkownika w treści HTML. */
-function _tn_highlight_mentions(string $escaped_body, string $user_name): string {
-    $esc_name = htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8');
-    return str_replace(
-        '@' . $esc_name,
-        '<strong style="color:#1d4ed8">@' . $esc_name . '</strong>',
-        $escaped_body
-    );
-}
-
-/** Karta zadania (mini-blok) wewnątrz maila. */
-function _tn_task_card(array $task): string {
-    $priority_labels = [1=>'Niski',2=>'Normalny',3=>'Wysoki',4=>'Krytyczny'];
-    $priority_colors = [1=>'#64748b',2=>'#2563eb',3=>'#d97706',4=>'#dc2626'];
-    $p      = (int)($task['priority'] ?? 2);
-    $p_lbl  = $priority_labels[$p] ?? '';
-    $p_clr  = $priority_colors[$p] ?? '#64748b';
-    $due    = $task['due_date'] ? '<br><span style="color:#64748b;font-size:12px">Termin: <strong>' . date('d.m.Y', strtotime($task['due_date'])) . '</strong></span>' : '';
-    $list   = htmlspecialchars($task['list_name'] ?? '');
-    $title  = htmlspecialchars($task['title'] ?? '');
-
-    return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
-                        padding:12px 16px;margin:14px 0">
-  <div style="font-size:15px;font-weight:600;color:#1e293b;margin-bottom:6px">' . $title . '</div>
-  <span style="background:' . $p_clr . ';color:#fff;font-size:11px;font-weight:600;
-               padding:2px 8px;border-radius:20px">' . $p_lbl . '</span>
-  <span style="color:#94a3b8;font-size:12px;margin-left:8px">· ' . $list . '</span>' . $due . '
-</div>';
-}
-
-/** Szablon maila dla powiadomień z modułu Zadania. */
-function _tn_tpl(string $header_title, string $preheader, string $content_html, string $cta_url): string {
-    $settings_url = htmlspecialchars(rtrim(APP_URL, '/') . '/tasks/notification_settings.php', ENT_QUOTES, 'UTF-8');
-    $title_h      = htmlspecialchars($header_title, ENT_QUOTES, 'UTF-8');
-
-    $body = '<p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b">Zadania</p>'
-          . '<p style="margin:0 0 18px;font-size:17px;font-weight:700;color:#1e293b">📋 ' . $title_h . '</p>'
-          . $content_html
-          . '<p style="margin:22px 0 0;font-size:12px;color:#94a3b8">'
-          . '<a href="' . $settings_url . '" style="color:#94a3b8;text-decoration:underline">Zarządzaj powiadomieniami</a>'
-          . '</p>';
-
-    return _feer_email_tpl($body, $preheader, $cta_url, 'Otwórz zadanie →');
 }
