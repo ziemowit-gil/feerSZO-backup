@@ -54,3 +54,4 @@ services:
 networks:
   feer:
     driver: bridge
+    name: docker_feer
