@@ -109,15 +109,22 @@ if ($action === 'create') {
 
     // Opcjonalne przypisania (tryb "Osoba")
     if (!empty($body['assignees']) && is_array($body['assignees'])) {
-        $stmt = db()->prepare(
+        $stmt  = db()->prepare(
             "INSERT OR IGNORE INTO task_assignments (task_id, user_id, assigned_by, assigned_at)
              VALUES (?, ?, ?, ?)"
+        );
+        $stmtM = db()->prepare(
+            "INSERT OR IGNORE INTO task_workspace_members
+             (workspace_id, user_id, role, added_by, added_at)
+             VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
         );
         $ts = date('Y-m-d H:i:s');
         foreach ($body['assignees'] as $auid) {
             $auid = (int)$auid;
             if ($auid <= 0) continue;
             $stmt->execute([$id, $auid, $uid, $ts]);
+            // Gwarantuj dostęp do obszaru (nie nadpisuje istniejącej wyższej roli)
+            $stmtM->execute([$workspace_id, $auid, $uid]);
             $u = db_one("SELECT name FROM users WHERE id=?", [$auid]);
             if ($u) task_log($id, $uid, 'assigned', null, $u['name']);
         }

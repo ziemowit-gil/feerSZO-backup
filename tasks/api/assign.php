@@ -42,6 +42,15 @@ if ($action === 'add') {
             "INSERT OR IGNORE INTO task_assignments (task_id, user_id, assigned_by)
              VALUES (?, ?, ?)"
         )->execute([$task_id, $user_id, $uid]);
+
+        // Użytkownik przypisany do zadania musi widzieć obszar roboczy.
+        // INSERT OR IGNORE — nie nadpisuje istniejącej roli (admin/editor/viewer).
+        db()->prepare(
+            "INSERT OR IGNORE INTO task_workspace_members
+             (workspace_id, user_id, role, added_by, added_at)
+             VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
+        )->execute([(int)$task['workspace_id'], $user_id, $uid]);
+
     } catch (\Throwable $e) {
         task_api_error('Błąd zapisu przypisania: ' . $e->getMessage(), 500);
     }
