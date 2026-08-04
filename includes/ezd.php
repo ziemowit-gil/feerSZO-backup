@@ -357,6 +357,8 @@ function ezd_require_access(): void {
         "ALTER TABLE ezd_teczki     ADD COLUMN rok_brakowania INTEGER",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_at        DATETIME",
         "ALTER TABLE ezd_rpw        ADD COLUMN przekazano_unit_id INTEGER",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN hidden_at         DATETIME",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN hidden_by         INTEGER REFERENCES users(id) ON DELETE SET NULL",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -910,6 +912,8 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
     if (!empty($f['deadline_do'])) { $where[] = "s.deadline<=?"; $params[] = $f['deadline_do']; }
     if (!empty($f['hide_ciagla'])) { $where[] = "COALESCE(s.ciagla,0)=0"; }
     if (!empty($f['hide_old']))    { $where[] = "(s.updated_at >= datetime('now','-14 days') OR COALESCE(s.ciagla,0)=1)"; }
+    // Ukryte koszulki: pomijane na liście domyślnie; przy wyszukiwaniu (q) i show_hidden pokazywane
+    if (empty($f['q']) && empty($f['show_hidden'])) { $where[] = "s.hidden_at IS NULL"; }
     if (!empty($f['mine_or_shared']) && $viewer_id) {
         $where[] = "(s.owner_id=? OR s.created_by=? OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))";
         array_push($params, $viewer_id, $viewer_id, $viewer_id);

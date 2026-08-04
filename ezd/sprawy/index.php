@@ -16,13 +16,15 @@ $mine_f     = !empty($_GET['mine']);
 $dod        = $_GET['deadline_od'] ?? '';
 $ddo        = $_GET['deadline_do'] ?? '';
 $q          = trim($_GET['q']    ?? '');
-$hide_ciagla_f = !empty($_GET['hide_ciagla']);
-$hide_old_f    = !empty($_GET['hide_old']);
+$hide_ciagla_f  = !empty($_GET['hide_ciagla']);
+$hide_old_f     = !empty($_GET['hide_old']);
+$show_hidden_f  = !empty($_GET['show_hidden']);
 
 $filters = [
     'status' => $status_f, 'priority' => $priority_f, 'q' => $q,
     'owner_id' => $owner_f, 'deadline_od' => $dod, 'deadline_do' => $ddo,
     'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f, 'hide_old' => $hide_old_f,
+    'show_hidden' => $show_hidden_f,
 ];
 // ── Masowe przerejestrowanie zaznaczonych koszulek ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'bulk_reregister') {
@@ -120,6 +122,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 /* Przycisk "pełny widok" na wierszu */
 .sp-full-btn{opacity:.45;transition:opacity .15s;padding:.25rem .4rem;border-radius:4px;color:#374151;text-decoration:none;flex-shrink:0;}
 .sprawa-line:hover .sp-full-btn,.sp-full-btn:focus{opacity:1;}
+/* Przycisk ukryj koszulkę */
+.sp-hide-btn{opacity:0;transition:opacity .15s,color .15s;padding:.25rem .4rem;border:none;background:none;border-radius:4px;color:#94a3b8;flex-shrink:0;cursor:pointer;line-height:1;}
+.sprawa-line:hover .sp-hide-btn,.sp-hide-btn:focus{opacity:1;}
+.sp-hide-btn:hover{color:#ef4444;}
+.sprawa-line.is-hidden{opacity:.55;background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(148,163,184,.07) 6px,rgba(148,163,184,.07) 7px);}
+.sprawa-line.is-hidden .sp-hide-btn{opacity:.7;color:#64748b;}
+.sprawa-line.is-hidden .sp-hide-btn:hover{color:#2563eb;}
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -200,6 +209,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <input class="form-check-input" type="checkbox" name="hide_old" value="1" id="f-hide-old" <?= $hide_old_f?'checked':'' ?> onchange="this.form.submit()">
     <label class="form-check-label" for="f-hide-old" style="font-size:.82rem"><i class="bi bi-clock-history me-1 text-muted"></i>Ukryj starsze niż 14 dni</label>
   </div>
+  <?php if(can_edit()): ?>
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="show_hidden" value="1" id="f-show-hidden" <?= $show_hidden_f?'checked':'' ?> onchange="this.form.submit()">
+    <label class="form-check-label" for="f-show-hidden" style="font-size:.82rem"><i class="bi bi-eye-slash me-1 text-secondary"></i>Pokaż ukryte</label>
+  </div>
+  <?php endif; ?>
 </div>
 </form>
 
@@ -219,7 +234,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php foreach($sprawy as $s):
       $lz = ezd_lezy_since($s['dekr_since'] ?? null);
     ?>
-    <div class="sprawa-line">
+    <div class="sprawa-line<?= !empty($s['hidden_at']) ? ' is-hidden' : '' ?>" data-sprawa-id="<?= (int)$s['id'] ?>">
       <?php if(can_edit()): ?>
       <div class="ps-3 pe-1"><input type="checkbox" class="form-check-input bulk-cb" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
       <?php endif; ?>
@@ -230,7 +245,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
        aria-label="Podgląd koszulki: <?= h($s['title']) ?>. Ctrl+klik otwiera pełny widok.">
       <div class="flex-grow-1 overflow-hidden">
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
-        <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
+        <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?><?= !empty($s['hidden_at']) ? ' · <span class="badge bg-secondary" style="font-size:.6rem;vertical-align:middle"><i class="bi bi-eye-slash me-1"></i>ukryta</span>' : '' ?></div>
       </div>
       <div class="dekr-cell">
         <?php if(!empty($s['dekr_wykonawca_name'])): ?>
@@ -251,6 +266,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="text-muted" style="font-size:.73rem;white-space:nowrap" title="Właściciel"><?= h($s['owner_name']??'—') ?></div>
       <i class="bi bi-chevron-right text-muted" style="font-size:.75rem"></i>
     </a>
+    <?php if(can_edit()): ?>
+    <button type="button"
+            class="sp-hide-btn"
+            data-id="<?= (int)$s['id'] ?>"
+            data-hidden="<?= !empty($s['hidden_at']) ? '1' : '0' ?>"
+            title="<?= !empty($s['hidden_at']) ? 'Przywróć na liście' : 'Ukryj koszulkę na liście' ?>"
+            aria-label="<?= !empty($s['hidden_at']) ? 'Przywróć koszulkę na liście' : 'Ukryj koszulkę na liście' ?>">
+      <i class="bi <?= !empty($s['hidden_at']) ? 'bi-eye' : 'bi-eye-slash' ?>"></i>
+    </button>
+    <?php endif; ?>
     </div>
     <?php endforeach; ?>
     <?php if(!$sprawy): ?>
@@ -422,6 +447,54 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   });
   modalEl.addEventListener('hidden.bs.modal', function () {
     if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var CSRF = <?= json_encode(csrf_token()) ?>;
+  var HIDE_URL = '<?= APP_URL ?>/ezd/sprawy/ajax_hide.php';
+  var showHiddenActive = <?= $show_hidden_f ? 'true' : 'false' ?>;
+
+  document.querySelectorAll('.sp-hide-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id     = btn.dataset.id;
+      var isHid  = btn.dataset.hidden === '1';
+      var action = isHid ? 'unhide' : 'hide';
+      var line   = btn.closest('.sprawa-line');
+
+      btn.disabled = true;
+      var fd = new FormData();
+      fd.append('_csrf', CSRF); fd.append('id', id); fd.append('action', action);
+
+      fetch(HIDE_URL, {method:'POST', credentials:'same-origin', body: fd,
+                       headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          btn.disabled = false;
+          if (!data.ok) { alert(data.error || 'Błąd'); return; }
+          var nowHidden = data.hidden;
+          btn.dataset.hidden = nowHidden ? '1' : '0';
+          btn.title = nowHidden ? 'Przywróć na liście' : 'Ukryj koszulkę na liście';
+          btn.setAttribute('aria-label', btn.title);
+          btn.querySelector('i').className = 'bi ' + (nowHidden ? 'bi-eye' : 'bi-eye-slash');
+          if (nowHidden) {
+            line.classList.add('is-hidden');
+            if (!showHiddenActive) {
+              /* jeśli nie wyświetlamy ukrytych — wygaś wiersz i usuń po chwili */
+              line.style.transition = 'opacity .4s';
+              line.style.opacity = '0';
+              setTimeout(function () { line.remove(); }, 420);
+            }
+          } else {
+            line.classList.remove('is-hidden');
+            line.style.opacity = '';
+          }
+        })
+        .catch(function () { btn.disabled = false; alert('Błąd połączenia.'); });
+    });
   });
 })();
 </script>
