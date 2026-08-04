@@ -54,6 +54,17 @@ $waitlist_enabled = org_setting('ev_waitlist_enabled') !== '0';
 // Custom form fields
 $form_fields = db_all("SELECT * FROM ev_form_fields WHERE event_id=? ORDER BY position ASC", [$event['id']]);
 
+// RODO clause — event-specific or global fallback
+$rodo_text = trim($event['rodo_clause'] ?? '');
+if (!$rodo_text) {
+    try { $rodo_text = trim(org_setting('ev_rodo_clause') ?? ''); } catch (\Throwable $_e) {}
+}
+$rodo_text = str_replace(
+    ['{event_title}', '{org_name}'],
+    [$event['title'], defined('ORG_NAME') ? ORG_NAME : ''],
+    $rodo_text
+);
+
 $errors  = [];
 $success = false;
 $ticket_code = '';
@@ -79,6 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $field_errors['field_' . $ff['field_key']] = true;
         }
         $extra_data[$ff['field_key']] = $val;
+    }
+
+    if ($rodo_text && !($_POST['rodo_consent'] ?? '')) {
+        $errors[] = 'Zgoda na przetwarzanie danych osobowych jest wymagana.';
+        $field_errors['rodo_consent'] = true;
     }
 
     if ($reg_not_yet) $errors[] = 'Rejestracja jeszcze nie jest otwarta.';
@@ -447,6 +463,29 @@ body { background:var(--ev-purple-bg); min-height:100vh; }
                 <?php endif; ?>
             </div>
             <?php endforeach; ?>
+
+            <?php if ($rodo_text): ?>
+            <div class="mt-4 p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+                <p class="fw-semibold small mb-2">
+                    <i class="bi bi-shield-check text-success me-1" aria-hidden="true"></i>Klauzula informacyjna RODO
+                </p>
+                <div id="rodo-text" class="small reg-hint mb-3" style="max-height:120px;overflow-y:auto;white-space:pre-wrap"><?= h($rodo_text) ?></div>
+                <div class="form-check">
+                    <input class="form-check-input<?= isset($field_errors['rodo_consent']) ? ' is-invalid' : '' ?>"
+                           type="checkbox" id="rodo_consent" name="rodo_consent" value="1"
+                           required aria-required="true"
+                           <?= isset($field_errors['rodo_consent']) ? 'aria-invalid="true" aria-describedby="err-rodo"' : '' ?>
+                           <?= !empty($_POST['rodo_consent']) ? 'checked' : '' ?>>
+                    <label class="form-check-label small" for="rodo_consent">
+                        Zapoznałem/am się z powyższą klauzulą informacyjną i wyrażam zgodę na przetwarzanie moich danych osobowych w podanym zakresie.
+                        <abbr title="wymagane" aria-label="wymagane" class="text-danger" style="text-decoration:none">*</abbr>
+                    </label>
+                    <?php if (isset($field_errors['rodo_consent'])): ?>
+                    <div id="err-rodo" class="invalid-feedback">Zgoda jest wymagana.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <div class="d-grid mt-4">
                 <button type="submit" class="btn btn-lg"
