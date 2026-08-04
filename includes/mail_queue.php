@@ -300,10 +300,40 @@ function _mail_send(array $msg): bool {
 }
 
 function _mail_setting(string $key): string {
+    // 1. Baza danych (admin panel — najwyższy priorytet)
     try {
         $r = db_one("SELECT value FROM settings WHERE key_=?", [$key]);
-        return $r['value'] ?? '';
-    } catch (\Throwable $e) { return ''; }
+        if (isset($r['value']) && $r['value'] !== '') return $r['value'];
+    } catch (\Throwable $e) {}
+
+    // 2. Zmienne środowiskowe Docker/entrypoint (fallback gdy brak wpisu w DB)
+    //    Mapowanie: klucz ustawienia → nazwa zmiennej środowiskowej
+    static $env = [
+        'smtp_host'        => 'SMTP_HOST',
+        'smtp_port'        => 'SMTP_PORT',
+        'smtp_user'        => 'SMTP_USER',
+        'smtp_pass'        => 'SMTP_PASS',
+        'smtp_from_email'  => 'SMTP_FROM',
+        'notify_from_name' => 'SMTP_FROM_NAME',
+        // SMTP_TLS (entrypoint: tls|starttls|off) → smtp_encryption (kod: ssl|tls|none)
+        'smtp_encryption'  => 'SMTP_TLS',
+    ];
+    if (isset($env[$key])) {
+        $val = getenv($env[$key]);
+        if ($val !== false && $val !== '' && $val !== 'mailpit') {
+            // Normalizacja SMTP_TLS → wartość rozumiana przez _mail_send_smtp()
+            if ($key === 'smtp_encryption') {
+                return match($val) {
+                    'starttls' => 'tls',   // STARTTLS (port 587)
+                    'tls'      => 'ssl',   // czysty SSL (port 465)
+                    default    => 'none',
+                };
+            }
+            return $val;
+        }
+    }
+
+    return '';
 }
 
 function _mail_from(): string {
