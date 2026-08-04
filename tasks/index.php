@@ -644,6 +644,8 @@ $TASKS_WS_ID      = $ws_id;
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
+<?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php'; ?>
+
 <style>
 /* ── Tokeny ─────────────────────────────────────────────────────────────── */
 :root {

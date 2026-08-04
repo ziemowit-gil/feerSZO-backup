@@ -335,6 +335,8 @@ if ($_is_volunteer_only) {
 }
 ?>
 
+<?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php'; ?>
+
 <?php if ($_is_volunteer_only): ?>
 <?php include __DIR__ . '/includes/pv_home.php'; /* nowy widok: styl Tozsamosc, 2 zakladki */ ?>
 <?php else: ?>
