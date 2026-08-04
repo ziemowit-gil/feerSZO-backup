@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // już X.509 + WebAuthn/IKAKS (naruszałoby integralność zapisanej decyzji).
     if ($action === 'update_meta' && (is_admin() || kdok_has_role('upload'))) {
         if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
-            flash_set('danger', 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — edycja danych jest zablokowana.');
+            flash_set('danger', 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — edycja danych jest zablokowana. Aby edytować, cofnij zatwierdzenie.');
             header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
             exit;
         }
@@ -52,13 +52,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Cofnięcie zatwierdzenia — tylko admin lub rola 'ksiegowy'
+    if ($action === 'unlock_doc') {
+        if (!kdok_has_unlock_perm()) {
+            flash_set('danger', 'Brak uprawnień do cofania zatwierdzenia.');
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+        $reason = trim($_POST['unlock_reason'] ?? '');
+        if ($reason === '') {
+            $errors[] = 'Podaj powód cofnięcia zatwierdzenia.';
+        } else {
+            try {
+                kdok_unlock($id, $reason);
+                flash_set('warning', 'Zatwierdzenie cofnięte — dokument jest teraz w trybie edycji.');
+            } catch (Throwable $e) {
+                flash_set('danger', 'Błąd: ' . $e->getMessage());
+            }
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+    }
+
+    // Podmiana pliku PDF/skanu — tylko admin, bez ograniczeń statusu, bez wpisu w historii
+    if ($action === 'replace_file' && is_admin()) {
+        if (empty($_FILES['replace_pdf']['tmp_name'])) {
+            $errors[] = 'Wybierz plik PDF.';
+        } else {
+            $f = $_FILES['replace_pdf'];
+            if ($f['error'] !== UPLOAD_ERR_OK) {
+                $errors[] = 'Błąd uploadu pliku (kod: ' . $f['error'] . ').';
+            } elseif (strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)) !== 'pdf') {
+                $errors[] = 'Dozwolony jest tylko format PDF.';
+            } elseif ($f['size'] > 30 * 1024 * 1024) {
+                $errors[] = 'Plik nie może przekraczać 30 MB.';
+            } else {
+                $dir = UPLOAD_DIR . 'kdok_docs/';
+                if (!is_dir($dir)) mkdir($dir, 0755, true);
+                $name = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.pdf';
+                $dest = $dir . $name;
+                if (!move_uploaded_file($f['tmp_name'], $dest)) {
+                    $errors[] = 'Nie można zapisać pliku.';
+                } else {
+                    kdok_exec(
+                        "UPDATE kdok_documents SET file_path=?, file_sha256=?, file_size=?, updated_at=datetime('now') WHERE id=?",
+                        ['kdok_docs/' . $name, hash_file('sha256', $dest), filesize($dest), $id]
+                    );
+                    flash_set('success', 'Plik został podmieniony.');
+                    header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+                    exit;
+                }
+            }
+        }
+    }
+
+    // Edycja danych finansowych — dostępna gdy 'w_edycji' (admin lub upload)
+    if ($action === 'update_financial_meta' && (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy'))) {
+        if ($doc['status'] !== 'w_edycji') {
+            flash_set('danger', 'Edycja danych finansowych jest możliwa tylko gdy dokument jest w trybie edycji.');
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+        $rachunek = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
+        $nip      = preg_replace('/\D/', '', trim($_POST['nip_dostawcy'] ?? ''));
+        kdok_exec(
+            "UPDATE kdok_documents SET
+                rachunek_bankowy=?, nip_dostawcy=?,
+                kwota_netto=?, kwota_vat=?, kwota_brutto=?, waluta=?, wymaga_mpp=?,
+                centrum_kosztow=?, projekt=?, tytul_przelewu=?,
+                updated_at=datetime('now')
+             WHERE id=?",
+            [
+                $rachunek, $nip,
+                trim($_POST['kwota_netto'] ?? ''), trim($_POST['kwota_vat'] ?? ''),
+                trim($_POST['kwota_brutto'] ?? ''), trim($_POST['waluta'] ?? 'PLN'),
+                !empty($_POST['wymaga_mpp']) ? 1 : 0,
+                trim($_POST['centrum_kosztow'] ?? ''), trim($_POST['projekt'] ?? ''),
+                trim($_POST['tytul_przelewu'] ?? ''), $id,
+            ]
+        );
+        kdok_log($id, 'Zaktualizowano dane finansowe dokumentu');
+        if ($nip && $rachunek) {
+            kdok_dostawcy_upsert($nip, trim($_POST['nip_dostawcy'] ?? ''), $rachunek);
+        }
+        flash_set('success', 'Dane finansowe zaktualizowane.');
+        header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+        exit;
+    }
+
+    // Skierowanie do ponownego obiegu — ze statusu 'w_edycji'
+    if ($action === 'resubmit_doc' && (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy'))) {
+        try {
+            $note = trim($_POST['resubmit_note'] ?? '');
+            kdok_resubmit($id, $note);
+            flash_set('success', 'Dokument skierowany do ponownego obiegu akceptacji.');
+        } catch (Throwable $e) {
+            flash_set('danger', 'Błąd: ' . $e->getMessage());
+        }
+        header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+        exit;
+    }
+
     // Krok akceptacji: meryt / formal / zatwierdza
     if (in_array($action, ['meryt', 'formal', 'zatwierdza'], true)) {
         kdok_require_role($action);
 
-        // Blokada: dokument już zaakceptowany lub odrzucony
-        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
-            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — decyzja jest zablokowana.';
+        // Blokada: dokument zaakceptowany, odrzucony lub w trybie edycji
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony', 'w_edycji'], true)) {
+            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : ($doc['status'] === 'w_edycji' ? 'w trybie edycji' : 'odrzucony')) . ' — decyzja jest zablokowana.';
         }
 
         // Blokada wycofania: krok już podjęty
@@ -93,8 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Zatwierdź wszystkie oczekujące kroki naraz — jedna autoryzacja kluczem WebAuthn
     if ($action === 'accept_all_steps') {
-        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
-            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — decyzja jest zablokowana.';
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony', 'w_edycji'], true)) {
+            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : ($doc['status'] === 'w_edycji' ? 'w trybie edycji' : 'odrzucony')) . ' — decyzja jest zablokowana.';
         }
 
         $auth = null;
@@ -168,7 +269,8 @@ $history = kdok_get_history($id);
 $PAGE_TITLE = 'Dokument ' . $doc['number'];
 // Dokument zatwierdzony lub odrzucony jest zablokowany do edycji (patrz guardy
 // przy akcjach update_meta/reject powyżej — to tylko lustrzana blokada w UI).
-$kdok_locked = in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true);
+$kdok_locked   = in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true);
+$kdok_w_edycji = $doc['status'] === 'w_edycji';
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -190,6 +292,12 @@ require_once __DIR__ . '/../includes/header.php';
     </button>
   </form>
   <?php endif; ?>
+  <?php if (kdok_has_unlock_perm() && in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)): ?>
+  <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#unlockModal"
+          title="Cofnij zatwierdzenie i przekaż do edycji">
+    <i class="bi bi-arrow-counterclockwise"></i> Cofnij zatwierdzenie
+  </button>
+  <?php endif; ?>
   <?php if (is_admin()): ?>
   <a href="<?= APP_URL ?>/ksiegowosc/delete.php?id=<?= $id ?>" class="btn btn-sm btn-outline-danger"
      title="Usuń dokument (wymagany powód + protokół PDF)"><i class="bi bi-trash"></i></a>
@@ -199,6 +307,24 @@ require_once __DIR__ . '/../includes/header.php';
 <?= flash_html() ?>
 <?php if ($errors): ?>
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
+<?php endif; ?>
+
+<?php if ($kdok_w_edycji): ?>
+<div class="alert alert-info d-flex align-items-start gap-2 mb-3">
+  <i class="bi bi-pencil-square fs-4 mt-1"></i>
+  <div class="flex-fill">
+    <strong>Dokument jest w trybie edycji</strong> — zatwierdzenie zostało cofnięte.
+    Wszystkie kroki obiegu zostały zresetowane. Po zakończeniu edycji skieruj dokument
+    do ponownego obiegu akceptacji.
+    <?php if (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy')): ?>
+    <div class="mt-2 d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#resubmitModal">
+        <i class="bi bi-arrow-clockwise"></i> Skieruj do ponownego obiegu
+      </button>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
 <?php endif; ?>
 
 <div class="row g-3">
@@ -227,6 +353,26 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="mb-2 small text-muted">
           <strong>SHA-256:</strong> <code><?= h($doc['file_sha256']) ?></code>
         </div>
+        <?php if (is_admin()): ?>
+        <div class="mb-2">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#replaceFileForm">
+            <i class="bi bi-arrow-repeat"></i> Podmień plik PDF
+          </button>
+          <div class="collapse mt-2" id="replaceFileForm">
+            <form method="post" enctype="multipart/form-data" class="border rounded p-2 bg-light">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="replace_file">
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Nowy plik PDF (max 30 MB)</label>
+                <input type="file" name="replace_pdf" class="form-control form-control-sm" accept=".pdf" required>
+              </div>
+              <button type="submit" class="btn btn-sm btn-warning">
+                <i class="bi bi-upload"></i> Podmień
+              </button>
+            </form>
+          </div>
+        </div>
+        <?php endif; ?>
         <?php endif; ?>
 
         <!-- Metadane dokumentu -->
@@ -333,6 +479,104 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     </div>
 
+    <!-- Edycja danych finansowych — widoczna tylko w trybie 'w_edycji' -->
+    <?php if ($kdok_w_edycji && (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy'))): ?>
+    <div class="card shadow-sm mb-3 border-info">
+      <div class="card-header py-2 bg-info bg-opacity-10">
+        <i class="bi bi-bank2 text-info"></i> <strong>Dane finansowe</strong>
+        <span class="ms-2 badge bg-info text-dark">Edycja odblokowana</span>
+      </div>
+      <div class="card-body">
+        <?php
+        // Pola dat — zablokowane (wyświetlane tylko do odczytu)
+        $frozen = [
+            'Nr faktury'        => $doc['nr_faktury'] ?? '',
+            'Miesiąc/Rok ujęcia'=> ($doc['miesiac'] ?? '') && ($doc['rok'] ?? '') ? sprintf('%02d/%04d', $doc['miesiac'], $doc['rok']) : '',
+            'Termin płatności'  => $doc['termin_platnosci'] ?? '',
+        ];
+        $has_frozen = array_filter($frozen);
+        ?>
+        <?php if ($has_frozen): ?>
+        <div class="mb-3 p-2 rounded bg-light border small">
+          <i class="bi bi-lock-fill text-secondary me-1"></i>
+          <strong>Daty pierwotne — chronione (tylko odczyt):</strong>
+          <div class="row g-2 mt-1">
+            <?php foreach ($frozen as $lbl => $val): if (!$val) continue; ?>
+            <div class="col-auto"><span class="text-muted"><?= h($lbl) ?>:</span> <strong><?= h($val) ?></strong></div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="update_financial_meta">
+          <div class="row g-2 mb-2">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold mb-1">NIP dostawcy</label>
+              <input type="text" name="nip_dostawcy" class="form-control form-control-sm"
+                value="<?= h($doc['nip_dostawcy'] ?? '') ?>" maxlength="20" placeholder="np. 1234563218">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold mb-1">Numer rachunku bankowego</label>
+              <input type="text" name="rachunek_bankowy" class="form-control form-control-sm"
+                value="<?= h($doc['rachunek_bankowy'] ?? '') ?>" maxlength="34" placeholder="26 cyfr lub IBAN">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-4">
+              <label class="form-label small fw-semibold mb-1">Kwota netto</label>
+              <input type="text" name="kwota_netto" class="form-control form-control-sm"
+                value="<?= h($doc['kwota_netto'] ?? '') ?>" maxlength="20">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-semibold mb-1">VAT</label>
+              <input type="text" name="kwota_vat" class="form-control form-control-sm"
+                value="<?= h($doc['kwota_vat'] ?? '') ?>" maxlength="20">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-semibold mb-1">Brutto</label>
+              <input type="text" name="kwota_brutto" class="form-control form-control-sm"
+                value="<?= h($doc['kwota_brutto'] ?? '') ?>" maxlength="20">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-4">
+              <label class="form-label small fw-semibold mb-1">Waluta</label>
+              <select name="waluta" class="form-select form-select-sm">
+                <?php foreach (['PLN','EUR','USD','GBP','CHF'] as $cur): ?>
+                <option value="<?= $cur ?>" <?= ($doc['waluta'] ?? 'PLN') === $cur ? 'selected' : '' ?>><?= $cur ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-sm-8">
+              <label class="form-label small fw-semibold mb-1">Centrum kosztów</label>
+              <input type="text" name="centrum_kosztow" class="form-control form-control-sm"
+                value="<?= h($doc['centrum_kosztow'] ?? '') ?>" maxlength="100">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold mb-1">Projekt</label>
+              <input type="text" name="projekt" class="form-control form-control-sm"
+                value="<?= h($doc['projekt'] ?? '') ?>" maxlength="200">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold mb-1">Tytuł przelewu</label>
+              <input type="text" name="tytul_przelewu" class="form-control form-control-sm"
+                value="<?= h($doc['tytul_przelewu'] ?? '') ?>" maxlength="140">
+            </div>
+          </div>
+          <div class="mb-2 form-check">
+            <input type="checkbox" class="form-check-input" name="wymaga_mpp" id="wymaga_mpp_edit"
+              value="1" <?= !empty($doc['wymaga_mpp']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="wymaga_mpp_edit">Wymaga mechanizmu podzielonej płatności (MPP)</label>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz dane finansowe</button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Kroki akceptacji -->
     <?php
     $steps_config = [
@@ -370,7 +614,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php
     $step    = $doc['steps'][$step_key] ?? null;
     $decided = $step && in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true);
-    $can_act = !$decided && kdok_has_role($step_key) && !in_array($doc['status'], ['odrzucony', 'zaakceptowany']);
+    $can_act = !$decided && kdok_has_role($step_key) && !in_array($doc['status'], ['odrzucony', 'zaakceptowany', 'w_edycji']);
     ?>
     <div class="card shadow-sm mb-3">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
@@ -557,6 +801,65 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button type="submit" class="btn btn-danger">Odrzuć</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: cofnięcie zatwierdzenia -->
+<?php if (kdok_has_unlock_perm()): ?>
+<div class="modal fade" id="unlockModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="unlock_doc">
+      <div class="modal-header bg-warning bg-opacity-75">
+        <h5 class="modal-title"><i class="bi bi-arrow-counterclockwise"></i> Cofnij zatwierdzenie</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning small mb-3">
+          <strong>Uwaga:</strong> Cofnięcie zatwierdzenia resetuje wszystkie kroki obiegu i usuwa wygenerowany PDF końcowy.
+          Daty pierwotne dokumentu (wystawienia, sprzedaży, ujęcia) zostają zachowane.
+          Dokument będzie wymagał ponownej pełnej akceptacji.
+        </div>
+        <label class="form-label fw-semibold">Powód cofnięcia <span class="text-danger">*</span></label>
+        <textarea name="unlock_reason" class="form-control" rows="3"
+          placeholder="Opisz powód cofnięcia zatwierdzenia…" required></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-warning"><i class="bi bi-arrow-counterclockwise"></i> Cofnij zatwierdzenie</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: skierowanie do ponownego obiegu -->
+<?php if (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy')): ?>
+<div class="modal fade" id="resubmitModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="resubmit_doc">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-arrow-clockwise text-success"></i> Skieruj do ponownego obiegu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          Dokument zostanie przekazany do standardowej ścieżki akceptacji. Wszystkie kroki będą musiały
+          zostać ponownie zatwierdzone przez uprawnionych użytkowników.
+        </p>
+        <label class="form-label small fw-semibold mb-1">Uwaga / opis zmian <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+        <textarea name="resubmit_note" class="form-control form-control-sm" rows="2"
+          placeholder="Opisz co zostało zmienione…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-arrow-clockwise"></i> Skieruj do obiegu</button>
       </div>
     </form>
   </div>

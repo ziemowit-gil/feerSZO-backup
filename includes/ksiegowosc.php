@@ -30,6 +30,7 @@ const KDOK_STATUSES = [
     'w_obiegu'      => ['label' => 'W obiegu',      'class' => 'warning'],
     'zaakceptowany' => ['label' => 'Zaakceptowany', 'class' => 'success'],
     'odrzucony'     => ['label' => 'Odrzucony',     'class' => 'danger'],
+    'w_edycji'      => ['label' => 'W edycji',      'class' => 'info'],
 ];
 
 const KDOK_STEPS = [
@@ -43,6 +44,7 @@ const KDOK_ROLES = [
     'formal'     => 'Akceptacja formalna i rachunkowa',
     'meryt'      => 'Akceptacja merytoryczna',
     'zatwierdza' => 'Zatwierdzenie do wypłaty',
+    'ksiegowy'   => 'Główny Księgowy – cofanie zatwierdzeń i edycja po zatwierdzeniu',
 ];
 
 // Typy umów, do których można podpiąć dokument typu "Rachunek do umowy" (zawsze w głównej bazie aplikacji)
@@ -235,6 +237,12 @@ function kdok_migrate(): void {
         'ezd_sprawa_id'          => "INTEGER",
         'oswiadczenie_ksef'      => "INTEGER NOT NULL DEFAULT 0",
         'wyklucz_z_preliminarza' => "INTEGER NOT NULL DEFAULT 0",
+        // Snapshot pierwotnych dat — wypełniany przy pierwszym zaakceptowaniu,
+        // zachowywany nawet po cofnięciu zatwierdzenia i ponownej edycji.
+        'orig_miesiac'          => "INTEGER",
+        'orig_rok'              => "INTEGER",
+        'orig_nr_faktury'       => "TEXT",
+        'orig_termin_platnosci' => "TEXT",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -813,6 +821,16 @@ function kdok_decide_step(array $doc, string $step_key, string $status, int $use
     kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
     if ($new_status === 'zaakceptowany') {
         kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
+        // Snapshot pierwotnych dat — zapisujemy tylko raz (gdy orig_* są jeszcze NULL).
+        kdok_exec(
+            "UPDATE kdok_documents
+                SET orig_miesiac          = COALESCE(orig_miesiac,          miesiac),
+                    orig_rok              = COALESCE(orig_rok,              rok),
+                    orig_nr_faktury       = COALESCE(orig_nr_faktury,       nr_faktury),
+                    orig_termin_platnosci = COALESCE(orig_termin_platnosci, termin_platnosci)
+              WHERE id = ?",
+            [$id]
+        );
         // Rejestracja w EZD (JRWA „Dokumenty księgowe - obieg od zapłaty") — best-effort.
         kdok_register_in_ezd($fresh_doc, $user_id);
         if (org_setting('kdok_archive_enabled') === '1') {
@@ -1048,6 +1066,80 @@ function kdok_get_history(int $doc_id): array {
         "SELECT * FROM kdok_history WHERE doc_id = ? ORDER BY id ASC",
         [$doc_id]
     );
+}
+
+// ── Cofanie zatwierdzenia ─────────────────────────────────────────────────────
+
+/** Admin lub rola 'ksiegowy' mogą cofać zatwierdzenia. */
+function kdok_has_unlock_perm(): bool {
+    return is_admin() || kdok_has_role('ksiegowy');
+}
+
+/**
+ * Cofa zatwierdzenie (lub odrzucenie) dokumentu: ustawia status na 'w_edycji',
+ * resetuje wszystkie kroki obiegu do 'oczekuje' i usuwa wygenerowany PDF końcowy
+ * (rekord + plik), aby można było wygenerować nowy po ponownym zatwierdzeniu.
+ * Daty pierwotne (orig_*) pozostają niezmienione.
+ * Rzuca RuntimeException przy nieprawidłowym stanie dokumentu.
+ */
+function kdok_unlock(int $doc_id, string $reason): void {
+    $doc = kdok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+    if (!in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
+        throw new RuntimeException('Cofnięcie zatwierdzenia jest możliwe tylko dla dokumentów zaakceptowanych lub odrzuconych.');
+    }
+
+    // Resetuj wszystkie kroki do 'oczekuje'
+    kdok_exec(
+        "UPDATE kdok_steps SET status='oczekuje', user_id=NULL, user_name='', decided_at=NULL,
+                cert_cn='', cert_fingerprint='', cert_subject='', notes=''
+          WHERE doc_id=?",
+        [$doc_id]
+    );
+
+    // Usuń wygenerowany PDF końcowy (plik + rekord) — po ponownym zatwierdzeniu wygenerujemy nowy
+    $gen = kdok_one("SELECT file_path FROM kdok_generated_pdf WHERE doc_id=? ORDER BY id DESC LIMIT 1", [$doc_id]);
+    if ($gen && $gen['file_path']) {
+        $abs = UPLOAD_DIR . ltrim($gen['file_path'], '/');
+        if (is_file($abs)) @unlink($abs);
+    }
+    kdok_exec("DELETE FROM kdok_generated_pdf WHERE doc_id=?", [$doc_id]);
+
+    // Zmień status na 'w_edycji' — daty pierwotne (orig_*) pozostają
+    kdok_exec(
+        "UPDATE kdok_documents SET status='w_edycji', updated_at=datetime('now') WHERE id=?",
+        [$doc_id]
+    );
+
+    kdok_log($doc_id, 'Cofnięto zatwierdzenie — dokument przekazany do edycji', $reason);
+}
+
+/**
+ * Skierowanie dokumentu (ze statusu 'w_edycji') z powrotem do obiegu.
+ * Resetuje status na 'nowy' — kroki są już w 'oczekuje' po kdok_unlock().
+ * Przywraca oryginalne daty do pól operacyjnych (jedyne miejsce, gdzie je stosujemy).
+ */
+function kdok_resubmit(int $doc_id, string $note = ''): void {
+    $doc = kdok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+    if ($doc['status'] !== 'w_edycji') {
+        throw new RuntimeException('Dokument nie jest w trybie edycji.');
+    }
+
+    // Przywróć oryginalne daty — jeżeli snapshot istnieje, bierze pierwszeństwo
+    kdok_exec(
+        "UPDATE kdok_documents
+            SET miesiac          = COALESCE(orig_miesiac,          miesiac),
+                rok              = COALESCE(orig_rok,              rok),
+                nr_faktury       = COALESCE(orig_nr_faktury,       nr_faktury),
+                termin_platnosci = COALESCE(orig_termin_platnosci, termin_platnosci),
+                status           = 'nowy',
+                updated_at       = datetime('now')
+          WHERE id=?",
+        [$doc_id]
+    );
+
+    kdok_log($doc_id, 'Skierowano do ponownego obiegu', $note);
 }
 
 // ── Pobieranie dokumentu ──────────────────────────────────────────────────────
