@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . "<p>Metoda: " . (_mail_m365_configured() ? 'Microsoft 365 Graph API' : ((_mail_setting('smtp_host') ? 'SMTP: '._mail_setting('smtp_host') : 'PHP mail()'))) . "</p>"
                 . "</body></html>"
             );
-            // Wymuś natychmiastowe wysłanie z verbose błędem
+            // Wymuś natychmiastowe wysłanie z verbose błędem (próbuje M365→SMTP→SMTP2→mail)
             $msg = db_one("SELECT * FROM mail_queue WHERE id=?", [$mid_test]);
             $method = 'PHP mail()';
             $ok = false; $err = '';
@@ -42,7 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ok = _mail_send_m365($msg);
                 } elseif (_mail_setting('smtp_host')) {
                     $method = 'SMTP: ' . _mail_setting('smtp_host');
-                    $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'));
+                    $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'), 'smtp');
+                } elseif (_mail_setting('smtp2_host')) {
+                    $method = 'SMTP2 (backup): ' . _mail_setting('smtp2_host');
+                    $ok = _mail_send_smtp($msg, _mail_setting('smtp2_host'), 'smtp2');
                 } else {
                     $method = 'PHP mail() — fallback';
                     $ok = _mail_send_native($msg);
@@ -108,11 +111,17 @@ include dirname(__DIR__) . '/includes/header.php';
 $mail_method = 'PHP mail() — brak konfiguracji SMTP/M365';
 $mail_status_class = 'warning';
 if (_mail_m365_configured()) {
-    $mail_method = 'Microsoft 365 Graph API (fundacja@feer.org.pl → Graph)';
+    $mail_method = 'Microsoft 365 Graph API';
+    if (_mail_setting('smtp_host'))  $mail_method .= ' → SMTP1: '  . _mail_setting('smtp_host')  . ':' . (_mail_setting('smtp_port')  ?: 587) . ' (backup)';
+    if (_mail_setting('smtp2_host')) $mail_method .= ' → SMTP2: '  . _mail_setting('smtp2_host') . ':' . (_mail_setting('smtp2_port') ?: 587) . ' (backup)';
     $mail_status_class = 'success';
 } elseif (_mail_setting('smtp_host')) {
     $mail_method = 'SMTP: ' . _mail_setting('smtp_host') . ':' . (_mail_setting('smtp_port') ?: 587);
+    if (_mail_setting('smtp2_host')) $mail_method .= ' → SMTP2: '  . _mail_setting('smtp2_host') . ':' . (_mail_setting('smtp2_port') ?: 587) . ' (backup)';
     $mail_status_class = 'info';
+} elseif (_mail_setting('smtp2_host')) {
+    $mail_method = 'SMTP2 (backup only): ' . _mail_setting('smtp2_host') . ':' . (_mail_setting('smtp2_port') ?: 587);
+    $mail_status_class = 'secondary';
 }
 ?>
 <div class="alert alert-<?= $mail_status_class ?> d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 mb-3">

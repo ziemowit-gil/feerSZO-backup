@@ -33,6 +33,7 @@ function format_iban_pl(string $nrb): string {
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
+                  'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                   'm365_send_from_email','ksiegowy_email',
                   'admin_ip_restrict','admin_ip_whitelist',
                   'ezd_vpn_only','ezd_vpn_allowlist'];
@@ -143,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
+                      'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                       'm365_send_from_email','ksiegowy_email'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($mail_keys as $k) {
@@ -696,8 +698,8 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card-body">
 
     <p class="text-muted small mb-3">
-      Priorytet wysyłki: <strong>M365 Graph API</strong> → <strong>SMTP</strong> → PHP <code>mail()</code>.
-      Jeśli M365 jest skonfigurowane globalnie (w ustawieniach Microsoft 365) i podasz adres nadawcy poniżej — system użyje Graph API.
+      Priorytet wysyłki: <strong>M365 Graph API</strong> → <strong>SMTP (główny)</strong> → <strong>SMTP (backup)</strong> → PHP <code>mail()</code>.
+      Każda metoda jest próbowana po kolei; następna uruchamia się tylko gdy poprzednia zawiedzie.
     </p>
 
     <form method="post">
@@ -768,15 +770,20 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
 
-      <!-- SMTP -->
+      <!-- SMTP główny -->
       <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
-        <i class="bi bi-hdd-network me-1"></i>SMTP (fallback)
+        <i class="bi bi-hdd-network me-1"></i>SMTP — serwer główny
+        <?php if ($saved['smtp_host'] ?? ''): ?>
+          <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 ms-2 px-2 py-1" style="font-size:.7rem;text-transform:none;letter-spacing:0">
+            <i class="bi bi-check-circle me-1"></i><?= h($saved['smtp_host']) ?>:<?= h($saved['smtp_port'] ?? 587) ?>
+          </span>
+        <?php endif; ?>
       </h6>
       <div class="row g-3 mb-4">
         <div class="col-md-5">
           <label class="form-label small fw-semibold">Serwer SMTP</label>
           <input type="text" name="smtp_host" class="form-control form-control-sm"
-                 value="<?= h($saved['smtp_host'] ?? '') ?>" placeholder="smtp.gmail.com">
+                 value="<?= h($saved['smtp_host'] ?? '') ?>" placeholder="smtp.example.com">
         </div>
         <div class="col-md-2">
           <label class="form-label small fw-semibold">Port</label>
@@ -786,7 +793,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="col-md-3">
           <label class="form-label small fw-semibold">Szyfrowanie</label>
           <select name="smtp_encryption" class="form-select form-select-sm">
-            <?php foreach (['tls'=>'STARTTLS (TLS)','ssl'=>'SSL','none'=>'Brak'] as $v=>$l): ?>
+            <?php foreach (['tls'=>'STARTTLS (port 587)','ssl'=>'SSL (port 465)','none'=>'Brak'] as $v=>$l): ?>
             <option value="<?= $v ?>" <?= ($saved['smtp_encryption']??'tls')===$v?'selected':'' ?>><?= $l ?></option>
             <?php endforeach; ?>
           </select>
@@ -794,7 +801,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="col-md-5">
           <label class="form-label small fw-semibold">Login SMTP</label>
           <input type="text" name="smtp_user" class="form-control form-control-sm" autocomplete="off"
-                 value="<?= h($saved['smtp_user'] ?? '') ?>" placeholder="user@gmail.com">
+                 value="<?= h($saved['smtp_user'] ?? '') ?>" placeholder="user@example.com">
         </div>
         <div class="col-md-4">
           <label class="form-label small fw-semibold">Hasło SMTP</label>
@@ -806,6 +813,55 @@ include dirname(__DIR__) . '/includes/header.php';
           <input type="email" name="smtp_from_email" class="form-control form-control-sm"
                  value="<?= h($saved['smtp_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
           <div class="form-text">Pozostaw puste, aby użyć domyślnego nadawcy powyżej.</div>
+        </div>
+      </div>
+
+      <!-- SMTP backup -->
+      <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+        <i class="bi bi-hdd-network-fill me-1"></i>SMTP — serwer backup
+        <span class="badge bg-secondary bg-opacity-10 text-secondary border ms-2 px-2 py-1" style="font-size:.7rem;text-transform:none;letter-spacing:0">
+          używany gdy główny zawiedzie
+        </span>
+        <?php if ($saved['smtp2_host'] ?? ''): ?>
+          <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 ms-1 px-2 py-1" style="font-size:.7rem;text-transform:none;letter-spacing:0">
+            <i class="bi bi-check-circle me-1"></i><?= h($saved['smtp2_host']) ?>:<?= h($saved['smtp2_port'] ?? 587) ?>
+          </span>
+        <?php endif; ?>
+      </h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Serwer SMTP (backup)</label>
+          <input type="text" name="smtp2_host" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp2_host'] ?? '') ?>" placeholder="smtp2.example.com">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Port</label>
+          <input type="number" name="smtp2_port" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp2_port'] ?? '587') ?>" placeholder="587">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Szyfrowanie</label>
+          <select name="smtp2_encryption" class="form-select form-select-sm">
+            <?php foreach (['tls'=>'STARTTLS (port 587)','ssl'=>'SSL (port 465)','none'=>'Brak'] as $v=>$l): ?>
+            <option value="<?= $v ?>" <?= ($saved['smtp2_encryption']??'tls')===$v?'selected':'' ?>><?= $l ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Login SMTP (backup)</label>
+          <input type="text" name="smtp2_user" class="form-control form-control-sm" autocomplete="off"
+                 value="<?= h($saved['smtp2_user'] ?? '') ?>" placeholder="user@backup.com">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Hasło SMTP (backup)</label>
+          <input type="password" name="smtp2_pass" class="form-control form-control-sm" autocomplete="new-password"
+                 value="<?= h($saved['smtp2_pass'] ?? '') ?>" placeholder="••••••••">
+        </div>
+        <div class="col-md-7">
+          <label class="form-label small fw-semibold">Adres e-mail nadawcy (backup)</label>
+          <input type="email" name="smtp2_from_email" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp2_from_email'] ?? '') ?>" placeholder="no-reply@backup.pl">
+          <div class="form-text">Pozostaw puste, aby użyć adresu z SMTP głównego lub domyślnego nadawcy.</div>
         </div>
       </div>
 

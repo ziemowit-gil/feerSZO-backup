@@ -271,8 +271,9 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
 /**
  * Wysyła wiadomość z kolejki. Priorytet:
  *  1. Microsoft 365 Graph API (jeśli skonfigurowane)
- *  2. SMTP (jeśli smtp_host skonfigurowany)
- *  3. PHP mail() — ostatni fallback
+ *  2. SMTP1 (smtp_host)
+ *  3. SMTP2 (smtp2_host) — zapasowy serwer
+ *  4. PHP mail() — ostatni fallback
  */
 function _mail_send(array $msg): bool {
     // 1. M365 Graph API
@@ -281,21 +282,30 @@ function _mail_send(array $msg): bool {
             return _mail_send_m365($msg);
         }
     } catch (\Throwable $e) {
-        // loguj i spróbuj SMTP
         error_log('[mail] M365 failed: ' . $e->getMessage());
     }
 
-    // 2. SMTP
+    // 2. SMTP1
     try {
         $smtp_host = _mail_setting('smtp_host');
         if ($smtp_host) {
-            return _mail_send_smtp($msg, $smtp_host);
+            return _mail_send_smtp($msg, $smtp_host, 'smtp');
         }
     } catch (\Throwable $e) {
-        error_log('[mail] SMTP failed: ' . $e->getMessage());
+        error_log('[mail] SMTP1 failed: ' . $e->getMessage());
     }
 
-    // 3. PHP mail()
+    // 3. SMTP2 (backup)
+    try {
+        $smtp2_host = _mail_setting('smtp2_host');
+        if ($smtp2_host) {
+            return _mail_send_smtp($msg, $smtp2_host, 'smtp2');
+        }
+    } catch (\Throwable $e) {
+        error_log('[mail] SMTP2 failed: ' . $e->getMessage());
+    }
+
+    // 4. PHP mail()
     return _mail_send_native($msg);
 }
 
@@ -309,20 +319,27 @@ function _mail_setting(string $key): string {
     // 2. Zmienne środowiskowe Docker/entrypoint (fallback gdy brak wpisu w DB)
     //    Mapowanie: klucz ustawienia → nazwa zmiennej środowiskowej
     static $env = [
-        'smtp_host'        => 'SMTP_HOST',
-        'smtp_port'        => 'SMTP_PORT',
-        'smtp_user'        => 'SMTP_USER',
-        'smtp_pass'        => 'SMTP_PASS',
-        'smtp_from_email'  => 'SMTP_FROM',
-        'notify_from_name' => 'SMTP_FROM_NAME',
+        'smtp_host'         => 'SMTP_HOST',
+        'smtp_port'         => 'SMTP_PORT',
+        'smtp_user'         => 'SMTP_USER',
+        'smtp_pass'         => 'SMTP_PASS',
+        'smtp_from_email'   => 'SMTP_FROM',
+        'notify_from_name'  => 'SMTP_FROM_NAME',
         // SMTP_TLS (entrypoint: tls|starttls|off) → smtp_encryption (kod: ssl|tls|none)
-        'smtp_encryption'  => 'SMTP_TLS',
+        'smtp_encryption'   => 'SMTP_TLS',
+        // SMTP2 — zapasowy serwer
+        'smtp2_host'        => 'SMTP2_HOST',
+        'smtp2_port'        => 'SMTP2_PORT',
+        'smtp2_user'        => 'SMTP2_USER',
+        'smtp2_pass'        => 'SMTP2_PASS',
+        'smtp2_from_email'  => 'SMTP2_FROM',
+        'smtp2_encryption'  => 'SMTP2_TLS',
     ];
     if (isset($env[$key])) {
         $val = getenv($env[$key]);
         if ($val !== false && $val !== '' && $val !== 'mailpit') {
-            // Normalizacja SMTP_TLS → wartość rozumiana przez _mail_send_smtp()
-            if ($key === 'smtp_encryption') {
+            // Normalizacja *_TLS → wartość rozumiana przez _mail_send_smtp()
+            if (str_ends_with($key, '_encryption')) {
                 return match($val) {
                     'starttls' => 'tls',   // STARTTLS (port 587)
                     'tls'      => 'ssl',   // czysty SSL (port 465)
@@ -463,12 +480,17 @@ function _mail_send_m365(array $msg): bool {
 
 // ── SMTP ──────────────────────────────────────────────────────────────────────
 
-function _mail_send_smtp(array $msg, string $host): bool {
-    $port       = (int)(_mail_setting('smtp_port') ?: 587);
-    $user       = _mail_setting('smtp_user');
-    $pass       = _mail_setting('smtp_pass');
-    $encryption = strtolower(_mail_setting('smtp_encryption') ?: 'tls'); // tls|ssl|none
-    $from       = _mail_from();
+/**
+ * @param string $prefix  'smtp' (główny) lub 'smtp2' (zapasowy)
+ */
+function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): bool {
+    $port       = (int)(_mail_setting("{$prefix}_port") ?: 587);
+    $user       = _mail_setting("{$prefix}_user");
+    $pass       = _mail_setting("{$prefix}_pass");
+    $encryption = strtolower(_mail_setting("{$prefix}_encryption") ?: 'tls'); // tls|ssl|none
+    // Nadawca: dedykowany adres SMTP lub globalny _mail_from()
+    $from_setting = _mail_setting("{$prefix}_from_email");
+    $from       = $from_setting ?: _mail_from();
     $from_name  = _mail_from_name();
 
     // Ustaw timeout i połącz
