@@ -107,6 +107,9 @@ if ($action === 'create') {
     task_start_time_tracking($id, $list_id, $list['name']);
     task_log($id, $uid, 'created', null, $list['name']);
 
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+    require_once dirname(__DIR__, 2) . '/includes/task_notification_service.php';
+
     // Opcjonalne przypisania (tryb "Osoba")
     if (!empty($body['assignees']) && is_array($body['assignees'])) {
         $stmt  = db()->prepare(
@@ -127,13 +130,12 @@ if ($action === 'create') {
             $stmtM->execute([$workspace_id, $auid, $uid]);
             $u = db_one("SELECT name FROM users WHERE id=?", [$auid]);
             if ($u) task_log($id, $uid, 'assigned', null, $u['name']);
+            try { task_notify_assigned($id, $auid, $uid); } catch (\Throwable $e) {}
         }
     }
 
     // Powiadamia liderów obszaru o nowym zadaniu + diagnostyka post-save
     try {
-        require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
-        require_once dirname(__DIR__, 2) . '/includes/task_notification_service.php';
         task_notify_created($id, $uid);
         $diag = (new TaskNotificationService(db()))->runPostSaveTest($id, 'created');
         if (!$diag['ok']) {

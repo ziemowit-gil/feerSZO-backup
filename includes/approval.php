@@ -185,6 +185,24 @@ function log_system_action(int $user_id, string $action, string $note = ''): voi
 
 // ── Wysyłka maili ─────────────────────────────────────────────────────────────
 
+(function () {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS email_send_log (
+            id           INTEGER  PRIMARY KEY AUTOINCREMENT,
+            to_email     TEXT     NOT NULL,
+            subject      TEXT     NOT NULL DEFAULT '',
+            context_type TEXT     NOT NULL DEFAULT '',
+            context_id   INTEGER,
+            sent_by      INTEGER,
+            result       TEXT     NOT NULL DEFAULT 'sent',
+            sent_at      DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_esl_to_sent ON email_send_log(to_email, sent_at, result)");
+    } catch (\Throwable $e) {}
+})();
 
 /**
  * Sprawdź rate-limit: max $max wiadomości do tego samego adresu w ciągu $window sekund.

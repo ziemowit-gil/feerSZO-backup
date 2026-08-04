@@ -606,14 +606,14 @@ class TaskNotificationService
             }
 
             // Sprawdź M365
-            $m365 = $this->db->prepare("SELECT value FROM settings WHERE key='m365_tenant_id' LIMIT 1");
+            $m365 = $this->db->prepare("SELECT value FROM settings WHERE key_='m365_tenant_id' LIMIT 1");
             $m365->execute();
             if ($m365->fetchColumn()) {
                 return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: M365 Graph API skonfigurowany'];
             }
 
             // Sprawdź SMTP
-            $smtp = $this->db->prepare("SELECT value FROM settings WHERE key='smtp_host' LIMIT 1");
+            $smtp = $this->db->prepare("SELECT value FROM settings WHERE key_='smtp_host' LIMIT 1");
             $smtp->execute();
             if ($smtp->fetchColumn()) {
                 return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: SMTP skonfigurowany'];
