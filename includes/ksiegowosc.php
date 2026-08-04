@@ -243,6 +243,9 @@ function kdok_migrate(): void {
         'orig_rok'              => "INTEGER",
         'orig_nr_faktury'       => "TEXT",
         'orig_termin_platnosci' => "TEXT",
+        // Tryb ręczny — obejście obiegu cyfrowego z opisem uzasadnienia
+        'tryb_reczny'      => "INTEGER NOT NULL DEFAULT 0",
+        'tryb_reczny_opis' => "TEXT NOT NULL DEFAULT ''",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -979,6 +982,63 @@ function kdok_create_koszulka_ezd(array $doc, int $user_id): ?int {
         try { kdok_log((int)($doc['id'] ?? 0), 'EZD: nie udało się utworzyć koszulki', $e->getMessage()); } catch (\Throwable $_) {}
         return null;
     }
+}
+
+/**
+ * Zatwierdza dokument w trybie ręcznym: wypełnia wszystkie oczekujące kroki
+ * jako 'ok', zapisuje opis uzasadnienia ręcznego procesu i ustawia status
+ * 'zaakceptowany'. Nie tworzy wpisów w kdok_history.
+ * Dozwolone statusy wejściowe: 'nowy', 'w_obiegu', 'w_edycji'.
+ */
+function kdok_manual_approve(int $doc_id, string $opis, int $user_id): void {
+    $doc = kdok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+    if (!in_array($doc['status'], ['nowy', 'w_obiegu', 'w_edycji'], true)) {
+        throw new RuntimeException('Tryb ręczny jest dostępny tylko dla dokumentów oczekujących lub w edycji.');
+    }
+
+    $user     = current_user();
+    $who      = $user['name'] ?? ('uid:' . $user_id);
+    $notes    = 'Tryb ręczny: ' . $opis;
+    $now      = date('Y-m-d H:i:s');
+
+    foreach (array_keys(KDOK_STEPS) as $step_key) {
+        $existing = $doc['steps'][$step_key] ?? null;
+        if ($existing && in_array($existing['status'], ['ok', 'uwagi'], true)) continue;
+
+        if ($existing) {
+            kdok_exec(
+                "UPDATE kdok_steps SET status='ok', user_id=?, user_name=?, decided_at=?, notes=?,
+                        cert_cn='', cert_fingerprint='', cert_subject='' WHERE id=?",
+                [$user_id, $who, $now, $notes, $existing['id']]
+            );
+        } else {
+            kdok_insert('kdok_steps', [
+                'doc_id'    => $doc_id,
+                'step_type' => $step_key,
+                'status'    => 'ok',
+                'user_id'   => $user_id,
+                'user_name' => $who,
+                'decided_at'=> $now,
+                'notes'     => $notes,
+            ]);
+        }
+    }
+
+    // Snapshot dat (tak samo jak w kdok_decide_step przy zaakceptowaniu)
+    kdok_exec(
+        "UPDATE kdok_documents
+            SET orig_miesiac          = COALESCE(orig_miesiac,          miesiac),
+                orig_rok              = COALESCE(orig_rok,              rok),
+                orig_nr_faktury       = COALESCE(orig_nr_faktury,       nr_faktury),
+                orig_termin_platnosci = COALESCE(orig_termin_platnosci, termin_platnosci),
+                tryb_reczny           = 1,
+                tryb_reczny_opis      = ?,
+                status                = 'zaakceptowany',
+                updated_at            = datetime('now')
+          WHERE id=?",
+        [$opis, $doc_id]
+    );
 }
 
 // ── Numery dokumentów ─────────────────────────────────────────────────────────

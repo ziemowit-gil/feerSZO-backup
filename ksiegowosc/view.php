@@ -140,6 +140,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Zatwierdzenie ręczne — bez obiegu cyfrowego, bez wpisu w historii
+    if ($action === 'manual_approve' && (is_admin() || kdok_has_role('ksiegowy'))) {
+        $opis = trim($_POST['manual_opis'] ?? '');
+        if ($opis === '') {
+            $errors[] = 'Podaj opis ręcznego procesu zatwierdzenia.';
+        } else {
+            try {
+                kdok_manual_approve($id, $opis, (int)$user['id']);
+                flash_set('success', 'Dokument zatwierdzony ręcznie.');
+            } catch (Throwable $e) {
+                flash_set('danger', 'Błąd: ' . $e->getMessage());
+            }
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+    }
+
     // Skierowanie do ponownego obiegu — ze statusu 'w_edycji'
     if ($action === 'resubmit_doc' && (is_admin() || kdok_has_role('upload') || kdok_has_role('ksiegowy'))) {
         try {
@@ -278,6 +295,9 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/ksiegowosc/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0 me-auto"><i class="bi bi-file-earmark-check"></i> <?= h($doc['number']) ?></h4>
   <?= kdok_status_badge($doc['status']) ?>
+  <?php if (!empty($doc['tryb_reczny'])): ?>
+  <span class="badge bg-secondary" title="<?= h($doc['tryb_reczny_opis']) ?>"><i class="bi bi-pencil-fill"></i> Tryb ręczny</span>
+  <?php endif; ?>
   <?php if (is_admin() || kdok_has_role('zatwierdza')): ?>
   <?php if (!empty($doc['wyklucz_z_preliminarza'])): ?>
   <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Poza Preliminarzem</span>
@@ -291,6 +311,12 @@ require_once __DIR__ . '/../includes/header.php';
       <?= !empty($doc['wyklucz_z_preliminarza']) ? 'Przywróć do Preliminarza' : 'Nie dodawaj do Preliminarza' ?>
     </button>
   </form>
+  <?php endif; ?>
+  <?php if ((is_admin() || kdok_has_role('ksiegowy')) && in_array($doc['status'], ['nowy', 'w_obiegu', 'w_edycji'], true)): ?>
+  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualApproveModal"
+          title="Zatwierdź dokument ręcznie — bez obiegu cyfrowego">
+    <i class="bi bi-pencil-square"></i> Zatwierdź ręcznie
+  </button>
   <?php endif; ?>
   <?php if (kdok_has_unlock_perm() && in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)): ?>
   <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#unlockModal"
@@ -375,6 +401,12 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
         <?php endif; ?>
 
+        <?php if (!empty($doc['tryb_reczny']) && ($doc['tryb_reczny_opis'] ?? '') !== ''): ?>
+        <div class="mb-2 p-2 rounded bg-secondary bg-opacity-10 small">
+          <i class="bi bi-pencil-fill text-secondary me-1"></i>
+          <strong>Tryb ręczny:</strong> <?= nl2br(h($doc['tryb_reczny_opis'])) ?>
+        </div>
+        <?php endif; ?>
         <!-- Metadane dokumentu -->
         <hr class="my-2">
         <?php if ($doc['kwota'] || $doc['mpk'] || $doc['grant_name']): ?>
@@ -801,6 +833,36 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button type="submit" class="btn btn-danger">Odrzuć</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: zatwierdzenie ręczne -->
+<?php if (is_admin() || kdok_has_role('ksiegowy')): ?>
+<div class="modal fade" id="manualApproveModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="manual_approve">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square text-secondary"></i> Zatwierdź ręcznie</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-secondary small mb-3">
+          Dokument zostanie zatwierdzony z pominięciem cyfrowego obiegu akceptacji.
+          Opisz, w jaki sposób proces zatwierdzenia został przeprowadzony ręcznie
+          (np. podpis papierowy, decyzja mailowa, protokół z posiedzenia).
+        </div>
+        <label class="form-label fw-semibold">Opis ręcznego procesu <span class="text-danger">*</span></label>
+        <textarea name="manual_opis" class="form-control" rows="4"
+          placeholder="Np. Zatwierdzone podpisem Dyrektora na oryginale faktury w dniu… / Decyzja podjęta na posiedzeniu zarządu z dnia… / E-mail zatwierdzający od …" required></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-dark"><i class="bi bi-check-lg"></i> Zatwierdź ręcznie</button>
       </div>
     </form>
   </div>
