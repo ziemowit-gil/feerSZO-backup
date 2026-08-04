@@ -10,10 +10,11 @@ require_module_enabled('events_enabled', 'Moduł wydarzeń');
 
 // Auto-migracja kolumn dodanych po pierwszym wdrożeniu
 foreach ([
-    "ALTER TABLE ev_events ADD COLUMN rodo_clause    TEXT",
-    "ALTER TABLE ev_events ADD COLUMN notify_new_reg INTEGER NOT NULL DEFAULT 1",
-    "ALTER TABLE ev_events ADD COLUMN notify_email   TEXT",
-    "ALTER TABLE ev_events ADD COLUMN crm_auto_sync  INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE ev_events ADD COLUMN rodo_clause      TEXT",
+    "ALTER TABLE ev_events ADD COLUMN notify_new_reg   INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE ev_events ADD COLUMN notify_email     TEXT",
+    "ALTER TABLE ev_events ADD COLUMN crm_auto_sync    INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE ev_events ADD COLUMN reg_always_open  INTEGER NOT NULL DEFAULT 0",
 ] as $_sql) { try { db()->exec($_sql); } catch (\Throwable $e) {} }
 
 $event_id = (int)($_GET['id'] ?? 0);
@@ -46,9 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
               'crm_group_id','rodo_clause','notify_email'] as $k) {
         $f[$k] = trim($_POST[$k] ?? '');
     }
-    $f['is_public']      = isset($_POST['is_public'])      ? '1' : '0';
-    $f['notify_new_reg'] = isset($_POST['notify_new_reg']) ? '1' : '0';
-    $f['crm_auto_sync']  = isset($_POST['crm_auto_sync'])  ? '1' : '0';
+    $f['is_public']       = isset($_POST['is_public'])       ? '1' : '0';
+    $f['notify_new_reg']  = isset($_POST['notify_new_reg'])  ? '1' : '0';
+    $f['crm_auto_sync']   = isset($_POST['crm_auto_sync'])   ? '1' : '0';
+    $f['reg_always_open'] = isset($_POST['reg_always_open']) ? '1' : '0';
 
     if (!$f['title'])   $errors[] = 'Tytuł jest wymagany.';
     if (!$f['slug'])    $errors[] = 'Slug jest wymagany.';
@@ -65,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             "UPDATE ev_events SET title=?,slug=?,description=?,type=?,venue=?,address=?,meeting_url=?,
              start_at=?,end_at=?,capacity=?,is_public=?,reg_open_at=?,reg_close_at=?,
              pa_webhook_url=?,cover_image=?,crm_group_id=?,
-             rodo_clause=?,notify_new_reg=?,notify_email=?,crm_auto_sync=?,
+             rodo_clause=?,notify_new_reg=?,notify_email=?,crm_auto_sync=?,reg_always_open=?,
              updated_at=? WHERE id=?"
         )->execute([
             $f['title'], $f['slug'], $f['description'], $f['type'],
@@ -80,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             (int)$f['notify_new_reg'],
             $f['notify_email'] ?: null,
             (int)$f['crm_auto_sync'],
+            (int)$f['reg_always_open'],
             date('Y-m-d H:i:s'),
             $event_id,
         ]);
@@ -246,16 +249,30 @@ include dirname(__DIR__) . '/events/includes/header_events.php';
                 </div>
             </div>
 
-            <div class="row g-3 mb-3">
+            <div class="row g-3 mb-3" id="reg-window-fields" <?= ($event['reg_always_open'] ?? 0) ? 'style="opacity:.5;pointer-events:none"' : '' ?>>
                 <div class="col-md-6">
                     <label for="reg_open_at" class="form-label fw-semibold">Otwarcie rejestracji</label>
                     <input type="datetime-local" class="form-control" id="reg_open_at" name="reg_open_at"
                            value="<?= h(str_replace(' ','T', $event['reg_open_at'] ?? '')) ?>">
+                    <div class="form-text">Czas według strefy PL (Europe/Warsaw).</div>
                 </div>
                 <div class="col-md-6">
                     <label for="reg_close_at" class="form-label fw-semibold">Zamknięcie rejestracji</label>
                     <input type="datetime-local" class="form-control" id="reg_close_at" name="reg_close_at"
                            value="<?= h(str_replace(' ','T', $event['reg_close_at'] ?? '')) ?>">
+                    <div class="form-text">Czas według strefy PL (Europe/Warsaw).</div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="reg_always_open" name="reg_always_open"
+                           <?= ($event['reg_always_open'] ?? 0) ? 'checked' : '' ?>
+                           onchange="document.getElementById('reg-window-fields').style.opacity=this.checked?'.5':'1';document.getElementById('reg-window-fields').style.pointerEvents=this.checked?'none':'auto'">
+                    <label class="form-check-label fw-semibold" for="reg_always_open">
+                        Rejestracja ciągle otwarta
+                    </label>
+                    <div class="form-text">Ignoruje daty otwarcia i zamknięcia — rejestracja zawsze dostępna.</div>
                 </div>
             </div>
 
@@ -480,9 +497,10 @@ async function deleteField(id){
             <input type="hidden" name="cover_image"  value="<?= h($event['cover_image'] ?? '') ?>">
             <input type="hidden" name="pa_webhook_url" value="<?= h($event['pa_webhook_url'] ?? '') ?>">
             <input type="hidden" name="crm_group_id"   value="<?= h($event['crm_group_id'] ?? '') ?>">
-            <input type="hidden" name="notify_new_reg" value="<?= h($event['notify_new_reg'] ?? '1') ?>">
-            <input type="hidden" name="notify_email"   value="<?= h($event['notify_email'] ?? '') ?>">
-            <input type="hidden" name="crm_auto_sync"  value="<?= h($event['crm_auto_sync'] ?? '1') ?>">
+            <input type="hidden" name="notify_new_reg"  value="<?= h($event['notify_new_reg'] ?? '1') ?>">
+            <input type="hidden" name="notify_email"    value="<?= h($event['notify_email'] ?? '') ?>">
+            <input type="hidden" name="crm_auto_sync"   value="<?= h($event['crm_auto_sync'] ?? '1') ?>">
+            <input type="hidden" name="reg_always_open" value="<?= h($event['reg_always_open'] ?? '0') ?>">
 
             <div class="d-flex align-items-start gap-3 mb-4 p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
                 <i class="bi bi-shield-check text-success" style="font-size:1.5rem;margin-top:.1rem"></i>
@@ -555,7 +573,8 @@ async function deleteField(id){
     <input type="hidden" name="reg_close_at" value="<?= h($event['reg_close_at']) ?>">
     <input type="hidden" name="cover_image"  value="<?= h($event['cover_image'] ?? '') ?>">
     <input type="hidden" name="pa_webhook_url" value="<?= h($event['pa_webhook_url'] ?? '') ?>">
-    <input type="hidden" name="rodo_clause"    value="<?= h($event['rodo_clause'] ?? '') ?>">
+    <input type="hidden" name="rodo_clause"       value="<?= h($event['rodo_clause'] ?? '') ?>">
+    <input type="hidden" name="reg_always_open"   value="<?= h($event['reg_always_open'] ?? '0') ?>">
 
     <!-- Powiadomienia -->
     <div class="card shadow-sm border-0 mb-4">
@@ -667,10 +686,11 @@ async function deleteField(id){
             <input type="hidden" name="is_public"   value="<?= h($event['is_public']) ?>">
             <input type="hidden" name="reg_open_at" value="<?= h($event['reg_open_at']) ?>">
             <input type="hidden" name="reg_close_at" value="<?= h($event['reg_close_at']) ?>">
-            <input type="hidden" name="rodo_clause"    value="<?= h($event['rodo_clause'] ?? '') ?>">
-            <input type="hidden" name="notify_new_reg" value="<?= h($event['notify_new_reg'] ?? '1') ?>">
-            <input type="hidden" name="notify_email"   value="<?= h($event['notify_email'] ?? '') ?>">
-            <input type="hidden" name="crm_auto_sync"  value="<?= h($event['crm_auto_sync'] ?? '1') ?>">
+            <input type="hidden" name="rodo_clause"      value="<?= h($event['rodo_clause'] ?? '') ?>">
+            <input type="hidden" name="notify_new_reg"  value="<?= h($event['notify_new_reg'] ?? '1') ?>">
+            <input type="hidden" name="notify_email"    value="<?= h($event['notify_email'] ?? '') ?>">
+            <input type="hidden" name="crm_auto_sync"   value="<?= h($event['crm_auto_sync'] ?? '1') ?>">
+            <input type="hidden" name="reg_always_open" value="<?= h($event['reg_always_open'] ?? '0') ?>">
 
             <h6 class="fw-semibold text-muted text-uppercase small mb-3" style="letter-spacing:.06em">Wygląd</h6>
             <div class="mb-3">

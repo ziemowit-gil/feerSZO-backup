@@ -37,12 +37,14 @@ if (!$event['is_public']) {
     }
 }
 
-// Registration window
-$now = date('Y-m-d H:i:s');
+// Registration window — time in Polish timezone (Europe/Warsaw)
+$now = (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Warsaw')))->format('Y-m-d H:i:s');
 $reg_closed  = false;
 $reg_not_yet = false;
-if ($event['reg_open_at']  && $now < $event['reg_open_at'])  $reg_not_yet = true;
-if ($event['reg_close_at'] && $now > $event['reg_close_at']) $reg_closed  = true;
+if (!($event['reg_always_open'] ?? 0)) {
+    if ($event['reg_open_at']  && $now < $event['reg_open_at'])  $reg_not_yet = true;
+    if ($event['reg_close_at'] && $now > $event['reg_close_at']) $reg_closed  = true;
+}
 
 // Capacity check
 $confirmed_count = (int)(db_one("SELECT COUNT(*) AS n FROM ev_registrations WHERE event_id=? AND status='confirmed'", [$event['id']])['n'] ?? 0);

@@ -98,10 +98,11 @@
     )");
 
     // Kolumny dodane po pierwszym wdrożeniu
-    $exec("ALTER TABLE ev_events ADD COLUMN rodo_clause    TEXT");
-    $exec("ALTER TABLE ev_events ADD COLUMN notify_new_reg INTEGER NOT NULL DEFAULT 1");
-    $exec("ALTER TABLE ev_events ADD COLUMN notify_email   TEXT");
-    $exec("ALTER TABLE ev_events ADD COLUMN crm_auto_sync  INTEGER NOT NULL DEFAULT 1");
+    $exec("ALTER TABLE ev_events ADD COLUMN rodo_clause       TEXT");
+    $exec("ALTER TABLE ev_events ADD COLUMN notify_new_reg    INTEGER NOT NULL DEFAULT 1");
+    $exec("ALTER TABLE ev_events ADD COLUMN notify_email      TEXT");
+    $exec("ALTER TABLE ev_events ADD COLUMN crm_auto_sync     INTEGER NOT NULL DEFAULT 1");
+    $exec("ALTER TABLE ev_events ADD COLUMN reg_always_open   INTEGER NOT NULL DEFAULT 0");
 
     // Indeksy
     $exec("CREATE INDEX IF NOT EXISTS idx_ev_reg_event  ON ev_registrations(event_id)");
@@ -475,8 +476,9 @@ function ev_api_event(array $r): array {
         'reg_count'    => $reg_count,
         'spots_left'   => ev_spots_left($r, $reg_count),
         'is_public'    => (bool)$r['is_public'],
-        'reg_open_at'  => $r['reg_open_at'],
-        'reg_close_at' => $r['reg_close_at'],
+        'reg_open_at'     => $r['reg_open_at'],
+        'reg_close_at'    => $r['reg_close_at'],
+        'reg_always_open' => (bool)($r['reg_always_open'] ?? false),
         'cover_image'  => $r['cover_image'],
         'register_url' => ev_register_url($r['slug']),
         'created_at'   => $r['created_at'],
