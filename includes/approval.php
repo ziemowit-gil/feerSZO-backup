@@ -251,24 +251,22 @@ function approval_send_email(string $to, string $subject, string $html_body, str
     }
 
     require_once __DIR__ . '/mail_queue.php';
+    require_once __DIR__ . '/m365.php';
 
     // 1. M365 Graph API — wysyłka bezpośrednia
-    if (function_exists('m365_setting')) {
-        require_once __DIR__ . '/m365.php';
-        $sender = m365_setting('m365_sender_user_id');
-        if ($sender && m365_setting('m365_enabled') === '1') {
-            try {
-                $graph = new M365Graph();
-                if ($graph->is_configured()) {
-                    $graph->send_raw_email($sender, $to, $subject, $html_body);
-                    email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
-                    return true;
-                }
-            } catch (\Exception $e) {
-                // M365 zawiodło — loguj i kontynuuj do SMTP/mail_queue
-                error_log("[approval_send_email] M365 failed (próba SMTP/queue): " . $e->getMessage());
-                email_log($to, $subject, $ctx_type, $ctx_id, 'm365_failed');
+    $sender = m365_setting('m365_sender_user_id');
+    if ($sender && m365_setting('m365_enabled') === '1') {
+        try {
+            $graph = new M365Graph();
+            if ($graph->is_configured()) {
+                $graph->send_raw_email($sender, $to, $subject, $html_body);
+                email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+                return true;
             }
+        } catch (\Exception $e) {
+            // M365 zawiodło — loguj i kontynuuj do SMTP/mail_queue
+            error_log("[approval_send_email] M365 failed (próba SMTP/queue): " . $e->getMessage());
+            email_log($to, $subject, $ctx_type, $ctx_id, 'm365_failed');
         }
     }
 
