@@ -288,7 +288,8 @@ body { background:var(--ev-purple-bg); min-height:100vh; }
                 <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do wydarzenia online
                 <span class="visually-hidden">(otwiera się w nowej karcie)</span>
             </a>
-            <p class="reg-hint mt-2 mb-0">Link będzie aktywny wyłącznie w dniu wydarzenia. Wysłaliśmy go też na Twój e-mail.</p>
+            <p class="reg-hint mt-2 mb-1">Link będzie aktywny wyłącznie w dniu wydarzenia.</p>
+            <p class="reg-hint mb-0">Wysłaliśmy go też na Twój e-mail.</p>
             <?php endif; ?>
             <?php else: ?>
             <p class="reg-hint">Zostaniesz powiadomiony/a, jeśli zwolni się miejsce.</p>
