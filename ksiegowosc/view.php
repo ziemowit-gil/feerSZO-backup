@@ -192,7 +192,7 @@ require_once __DIR__ . '/../includes/header.php';
   <?php endif; ?>
   <?php if (is_admin()): ?>
   <a href="<?= APP_URL ?>/ksiegowosc/delete.php?id=<?= $id ?>" class="btn btn-sm btn-outline-danger"
-     onclick="return confirm('Na pewno usunąć dokument?')"><i class="bi bi-trash"></i></a>
+     title="Usuń dokument (wymagany powód + protokół PDF)"><i class="bi bi-trash"></i></a>
   <?php endif; ?>
 </div>
 

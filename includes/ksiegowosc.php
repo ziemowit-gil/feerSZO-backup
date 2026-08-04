@@ -258,6 +258,24 @@ function kdok_migrate(): void {
     )");
     try { $kdb->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_kdok_dostawcy_nip ON kdok_dostawcy(nip) WHERE nip!=''"); } catch (\Exception $e) {}
 
+    // Rejestr usunięć — zachowuje metadane dokumentu + powód + ścieżkę do protokołu PDF
+    $kdb->exec("CREATE TABLE IF NOT EXISTS kdok_deletion_log (
+        id                  INTEGER PRIMARY KEY " . ($type === 'mysql' ? 'AUTO_INCREMENT' : 'AUTOINCREMENT') . ",
+        doc_id              INTEGER NOT NULL,
+        doc_number          TEXT    NOT NULL DEFAULT '',
+        doc_title           TEXT    NOT NULL DEFAULT '',
+        doc_type            TEXT    NOT NULL DEFAULT '',
+        doc_status          TEXT    NOT NULL DEFAULT '',
+        doc_kwota           TEXT    NOT NULL DEFAULT '',
+        deleted_by          INTEGER,
+        deleted_by_name     TEXT    NOT NULL DEFAULT '',
+        deleted_at          TEXT    NOT NULL DEFAULT " . ($type === 'mysql' ? 'NOW()' : "(datetime('now'))") . ",
+        reason              TEXT    NOT NULL DEFAULT '',
+        protocol_pdf_path   TEXT,
+        protocol_pdf_sha256 TEXT    NOT NULL DEFAULT '',
+        protocol_pdf_size   INTEGER NOT NULL DEFAULT 0
+    )");
+
     // Naprawa danych: starsze dokumenty mogą mieć NULL w polach dodanych przez ALTER TABLE,
     // co powoduje zniknięcie z Preliminarza (NULL NOT IN ('anulowany') = NULL = false).
     try {
@@ -1458,6 +1476,230 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, $pdf->GetY() + 1);
     $pdf->Cell($W, 4, _pdf('SHA-256: ' . ($doc['file_sha256'] ?: '—') . '   |   ' . $doc['number'] . '   |   ' . date('d.m.Y H:i:s')), 0, 1, 'C');
+    $pdf->SetTextColor(0, 0, 0);
+
+    return $pdf;
+}
+
+// ── Protokół usunięcia dokumentu ─────────────────────────────────────────────
+
+/**
+ * Buduje PDF stanowiący protokół usunięcia dokumentu księgowego.
+ * Zawiera: dane dokumentu, powód usunięcia, pełną historię obiegu.
+ */
+function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $reason, string $deleted_by_name): \setasign\Fpdi\Fpdi {
+    $org = defined('ORG_NAME') ? ORG_NAME : '';
+
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/fpdi/autoload_fpdi.php';
+
+    $pdf = new \setasign\Fpdi\Fpdi();
+    $pdf->SetAutoPageBreak(true, 15);
+    $pdf->SetMargins(15, 15, 15);
+
+    $font_dir = __DIR__ . '/fpdf/font/';
+    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
+    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+
+    $pdf->AddPage('L', 'A4');
+    $W   = 267;
+    $LIM = 195;
+
+    // Paleta — ceglany/czerwony akcent (odróżnia od normalnego raportu)
+    $INK    = [33, 43, 54];
+    $ACCENT = [155, 28, 28];   // głęboka czerwień — usunięcie jest operacją krytyczną
+    $TINT   = [254, 240, 240];
+    $LINE   = [220, 210, 210];
+    $WARN   = [155, 28, 28];
+
+    $sectionLabel = function (string $txt) use ($pdf, $W, $ACCENT, $INK, $LINE) {
+        $y = $pdf->GetY();
+        $pdf->SetFillColor(...$ACCENT);
+        $pdf->Rect(15, $y + 0.8, 2.2, 4, 'F');
+        $pdf->SetTextColor(...$INK);
+        $pdf->SetFont('DejaVu', 'B', 8.5);
+        $pdf->SetXY(19, $y);
+        $pdf->Cell($W - 4, 5.6, _pdf(mb_strtoupper($txt)), 0, 1, 'L');
+        $pdf->SetDrawColor(...$LINE);
+        $pdf->SetLineWidth(0.25);
+        $pdf->Line(15, $pdf->GetY() + 0.5, 15 + $W, $pdf->GetY() + 0.5);
+        $pdf->SetY($pdf->GetY() + 2.3);
+        $pdf->SetTextColor(0, 0, 0);
+    };
+
+    // ── Nagłówek ─────────────────────────────────────────────────────────────
+    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetTextColor(120, 128, 132);
+    $pdf->SetXY(15, 15);
+    $pdf->Cell($W * 0.6, 4, _pdf(mb_strtoupper('System EOD Dokumentów Księgowych' . ($org ? ' · ' . $org : ''))), 0, 0, 'L');
+    $pdf->Cell($W * 0.4, 4, _pdf('Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'R');
+    $pdf->SetDrawColor(...$ACCENT);
+    $pdf->SetLineWidth(1.2);
+    $pdf->Line(15, 19.5, 15 + $W, 19.5);
+    $pdf->SetLineWidth(0.2);
+    $pdf->SetTextColor(0, 0, 0);
+
+    // ── Tytuł protokołu ───────────────────────────────────────────────────────
+    $pdf->SetXY(15, 23);
+    $pdf->SetFont('DejaVu', 'B', 8);
+    $pdf->SetTextColor(...$ACCENT);
+    $pdf->Cell($W, 4.5, _pdf('PROTOKÓŁ USUNIĘCIA DOKUMENTU KSIĘGOWEGO'), 0, 1, 'C');
+    $pdf->SetFont('DejaVu', 'B', 14);
+    $pdf->SetTextColor(...$INK);
+    $pdf->SetX(15);
+    $pdf->Cell($W, 8, _pdf($doc['number']), 0, 1, 'C');
+
+    $typLabel = KDOK_TYPES[$doc['type']]['label'] ?? $doc['type'];
+    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->SetX(15);
+    $pdf->Cell($W, 5, _pdf($typLabel . '   ·   ' . $doc['title']), 0, 1, 'C');
+    $pdf->SetTextColor(0, 0, 0);
+
+    $y = $pdf->GetY() + 5;
+    $pdf->SetY($y);
+
+    // ── Dane usuniętego dokumentu ────────────────────────────────────────────
+    $sectionLabel('Dane usuniętego dokumentu');
+
+    $rows = [
+        ['Numer obiegu',    $doc['number']],
+        ['Typ dokumentu',   $typLabel],
+        ['Tytuł',           $doc['title']],
+        ['Status (w chwili usunięcia)', $doc['status']],
+        ['Kwota',           $doc['kwota'] ? $doc['kwota'] . ' PLN' : '—'],
+        ['Dodano',          date('d.m.Y H:i', strtotime($doc['created_at'])) . ' przez ' . $doc['creator_name']],
+        ['Dodano przez',    $doc['creator_name']],
+        ['SHA-256 oryginału', $doc['file_sha256'] ?: '(brak pliku)'],
+    ];
+
+    $pdf->SetFont('DejaVu', '', 7.5);
+    $colL = 60; $colR = $W - $colL;
+    $alt = false;
+    foreach ($rows as [$label, $val]) {
+        if (!$val) continue;
+        $alt = !$alt;
+        $pdf->SetFillColor($alt ? 250 : 255, $alt ? 245 : 255, $alt ? 245 : 255);
+        $linesVal = _pdf_count_lines($pdf, (string)$val, $colR - 4);
+        $rowH = max(5.5, $linesVal * 4 + 1.5);
+        $yRow = $pdf->GetY();
+        $pdf->Cell($colL, $rowH, _pdf($label . ':'), 'B', 0, 'L', true);
+        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->MultiCell($colR, 4, _pdf((string)$val), 'B', 'L', true);
+        $pdf->SetFont('DejaVu', '', 7.5);
+        if ($pdf->GetY() < $yRow + $rowH) $pdf->SetY($yRow + $rowH);
+    }
+
+    $y = $pdf->GetY() + 5;
+    if ($y > $LIM - 30) { $pdf->AddPage('L', 'A4'); $y = 15; }
+    $pdf->SetY($y);
+
+    // ── Powód usunięcia ─────────────────────────────────────────────────────
+    $sectionLabel('Powód usunięcia');
+
+    $reasonBodyW = $W - 8;
+    $pdf->SetFont('DejaVu', '', 9);
+    $reasonLines = _pdf_count_lines($pdf, $reason, $reasonBodyW);
+    $reasonH     = max(16, $reasonLines * 5 + 10);
+    $pdf->SetDrawColor(...$ACCENT);
+    $pdf->SetFillColor(...$TINT);
+    $pdf->SetLineWidth(0.4);
+    $pdf->Rect(15, $pdf->GetY(), $W, $reasonH, 'DF');
+    $pdf->SetFillColor(...$ACCENT);
+    $pdf->Rect(15, $pdf->GetY(), 2.2, $reasonH, 'F');
+    $pdf->SetLineWidth(0.2);
+    $pdf->SetFont('DejaVu', 'B', 7);
+    $pdf->SetTextColor(...$ACCENT);
+    $pdf->SetXY(20, $pdf->GetY() + 2);
+    $pdf->Cell(0, 4, _pdf('POWÓD USUNIĘCIA'), 0, 1);
+    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetTextColor(...$INK);
+    $pdf->SetXY(20, $pdf->GetY() + 0.5);
+    $pdf->MultiCell($reasonBodyW, 5, _pdf($reason), 0, 'L');
+    $pdf->SetTextColor(0, 0, 0);
+
+    $y = $pdf->GetY() + 5;
+    if ($y > $LIM - 20) { $pdf->AddPage('L', 'A4'); $y = 15; }
+    $pdf->SetY($y);
+
+    // ── Autoryzacja usunięcia ────────────────────────────────────────────────
+    $sectionLabel('Autoryzacja usunięcia');
+
+    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetXY(15, $pdf->GetY());
+    $pdf->Cell($W * 0.35, 6.5, _pdf('Usunięto przez:'), 0, 0, 'L');
+    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->Cell($W * 0.65, 6.5, _pdf($deleted_by_name), 0, 1, 'L');
+    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetX(15);
+    $pdf->Cell($W * 0.35, 6.5, _pdf('Data i godzina usunięcia:'), 0, 0, 'L');
+    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->Cell($W * 0.65, 6.5, _pdf(date('d.m.Y H:i:s')), 0, 1, 'L');
+    $pdf->SetTextColor(0, 0, 0);
+
+    $y = $pdf->GetY() + 5;
+    if ($y > $LIM - 30) { $pdf->AddPage('L', 'A4'); $y = 15; }
+    $pdf->SetY($y);
+
+    // ── Historia obiegu dokumentu ────────────────────────────────────────────
+    $sectionLabel('Historia obiegu dokumentu (w chwili usunięcia)');
+
+    $hW = [34, 58, $W - 92];
+    $drawHistoryHeader = function () use ($pdf, $hW, $TINT, $INK) {
+        $pdf->SetFillColor(...$TINT);
+        $pdf->SetTextColor(...$INK);
+        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
+        $pdf->Cell($hW[1], 5.5, _pdf('Użytkownik'),  'B', 0, 'C', true);
+        $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('DejaVu', '', 7.5);
+    };
+    $drawHistoryHeader();
+
+    $alt2 = false;
+    foreach ($history as $row) {
+        $txt   = $row['action'] . ($row['note'] ? ': ' . $row['note'] : '');
+        $lineH = 4.2;
+        $lines = _pdf_count_lines($pdf, $txt, $hW[2] - 4);
+        $rowH  = max(5.5, $lines * $lineH + 1.2);
+
+        if ($pdf->GetY() + $rowH > $LIM) {
+            $pdf->AddPage('L', 'A4');
+            $drawHistoryHeader();
+        }
+        $alt2 = !$alt2;
+        $pdf->SetFillColor($alt2 ? 254 : 255, $alt2 ? 248 : 255, $alt2 ? 248 : 255);
+        $pdf->Cell($hW[0], $rowH, _pdf(date('d.m.Y H:i', strtotime($row['created_at']))), 'B', 0, 'C', true);
+        $pdf->Cell($hW[1], $rowH, _pdf($row['user_name']), 'B', 0, 'L', true);
+        $pdf->MultiCell($hW[2], $lineH, _pdf($txt), 'B', 'L', true);
+    }
+    if (!$history) {
+        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->Cell($W, 5.5, _pdf('(brak wpisów w historii)'), 'B', 1, 'C');
+    }
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->Line(15, $pdf->GetY(), 15 + $W, $pdf->GetY());
+
+    $y = $pdf->GetY() + 5;
+    if ($y > $LIM - 22) { $pdf->AddPage('L', 'A4'); $y = 15; }
+    $pdf->SetY($y);
+
+    // ── Klauzula ─────────────────────────────────────────────────────────────
+    $sectionLabel('Klauzula usunięcia');
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->SetFillColor(...$TINT);
+    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetTextColor(...$INK);
+    $klauzula = 'Niniejszy protokol stanowi dowod trwalego usuniecia dokumentu nr ' . $doc['number']
+        . ' z systemu EOD Dokumentow Ksiegowych ' . $org
+        . '. Operacja zostala przeprowadzona przez uprawnionego administratora systemu'
+        . ' z podaniem przyczyny usniecia. Protokol nalezy przechowywac zgodnie z zasadami archiwizacji dokumentow finansowych.';
+    $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
+    $pdf->SetFont('DejaVu', '', 6);
+    $pdf->SetTextColor(120, 128, 132);
+    $pdf->SetXY(15, $pdf->GetY() + 1);
+    $pdf->Cell($W, 4, _pdf('Dokument usunięty: ' . $doc['number'] . '   |   Przez: ' . $deleted_by_name . '   |   ' . date('d.m.Y H:i:s')), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
 
     return $pdf;

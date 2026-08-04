@@ -94,6 +94,11 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-file-zip"></i> Pobierz ZIP miesiąca
     </a>
     <?php endif; ?>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/ksiegowosc/deletion_log.php" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-trash3"></i> Rejestr usunięć
+    </a>
+    <?php endif; ?>
     <?php if (kdok_has_role('upload')): ?>
     <a href="<?= APP_URL ?>/ksiegowosc/add.php" class="btn btn-primary btn-sm">
       <i class="bi bi-plus-lg"></i> Nowy dokument
