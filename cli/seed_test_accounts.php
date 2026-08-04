@@ -1,10 +1,15 @@
 <?php
 /**
- * cli/seed_test_accounts.php — zakłada konta testowe do QA logowania panelu TI:
- * kursant.pel (pełnoletni), kursant.niep + rodzic.niep (małoletni + opiekun na tym
- * samym koncie), dydaktyk@<domena> (dydaktyk). Dodatkowo zakłada dedykowany
- * "Kurs testowy (TEST)" z instruktorem = konto dydaktyka i zapisuje oba testowe
- * konta kursantów na ten kurs — nie dotyka ŻADNYCH istniejących kursów/kont.
+ * cli/seed_test_accounts.php — zakłada konta testowe do QA:
+ *
+ * SZO (logowanie lokalne, @feer.test — nie blokowane przez office_only):
+ *   admin@<domena>   — rola admin
+ *   editor@<domena>  — rola editor
+ *   viewer@<domena>  — rola viewer
+ *
+ * Panel TI (kursant/dydaktyk):
+ *   kursant.pel (pełnoletni), kursant.niep + rodzic.niep (małoletni + opiekun),
+ *   dydaktyk@<domena> + "Kurs testowy (TEST)" z zapisem obu kursantów.
  *
  * Idempotentne: jeśli dane konto/kurs już istnieje, pomija je (nie nadpisuje hasła).
  *
@@ -15,7 +20,7 @@
  *   php cli/seed_test_accounts.php 'MojeHaslo123!' feer.test
  *
  * Hasło podajesz jako argument — NIE jest zapisane na stałe w tym pliku (żeby nie
- * trafiało do historii gita w plaintext). Domena e-mail dydaktyka domyślnie "feer.test"
+ * trafiało do historii gita w plaintext). Domena e-mail domyślnie "feer.test"
  * (nierozwiązywalna, testowa — RFC 2606 — żeby żaden e-mail nie poszedł naprawdę).
  *
  * Po zakończeniu testów uruchom cli/cleanup_test_accounts.php, żeby usunąć te konta.
@@ -50,6 +55,38 @@ require_once $base . '/includes/db.php';
 
 $hash     = password_hash($password, PASSWORD_DEFAULT);
 $dydEmail = 'dydaktyk@' . $domain;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEKCJA 1: Konta głównego SZO (logowanie lokalne przez @feer.test)
+// account_is_office_only() blokuje tylko @feer.org.pl — @feer.test loguje się
+// e-mailem i hasłem bez żadnych dodatkowych flag.
+// ══════════════════════════════════════════════════════════════════════════════
+
+$szoAccounts = [
+    ['email' => 'admin@'  . $domain, 'name' => 'Admin Testowy (TEST)',  'role' => 'admin'],
+    ['email' => 'editor@' . $domain, 'name' => 'Editor Testowy (TEST)', 'role' => 'editor'],
+    ['email' => 'viewer@' . $domain, 'name' => 'Viewer Testowy (TEST)', 'role' => 'viewer'],
+];
+
+foreach ($szoAccounts as $a) {
+    $existing = db_one("SELECT id FROM users WHERE email=?", [$a['email']]);
+    if ($existing) {
+        echo "POMINIĘTO {$a['email']} — już istnieje (id={$existing['id']}).\n";
+        continue;
+    }
+    $id = db_insert('users', [
+        'name'      => $a['name'],
+        'email'     => $a['email'],
+        'password'  => $hash,
+        'role'      => $a['role'],
+        'is_active' => 1,
+    ]);
+    echo "OK SZO {$a['role']} — login: {$a['email']} (id=$id)\n";
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEKCJA 2: Konta panelu TI (kursant/dydaktyk)
+// ══════════════════════════════════════════════════════════════════════════════
 
 // ── kursant.pel — pełnoletni kursant, własny klient ─────────────────────────
 $acc = db_one("SELECT id FROM k30_ti_student_accounts WHERE login='kursant.pel'");
@@ -114,5 +151,8 @@ foreach (['kursant.pel', 'kursant.niep'] as $login) {
     echo "OK zapis $login na kurs $courseId\n";
 }
 
-echo "\nGotowe. Loginy: kursant.pel, kursant.niep, rodzic.niep, $dydEmail — hasło: to, które podałeś.\n";
+echo "\nGotowe.\n";
+echo "SZO    — admin@{$domain} / editor@{$domain} / viewer@{$domain}\n";
+echo "TI     — kursant.pel / kursant.niep / rodzic.niep / $dydEmail\n";
+echo "Hasło do wszystkich: to, które podałeś.\n";
 echo "Po testach uruchom: php cli/cleanup_test_accounts.php $domain\n";
