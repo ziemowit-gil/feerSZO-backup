@@ -123,11 +123,20 @@ if ($action === 'create') {
         }
     }
 
-    // Powiadamia liderów obszaru o nowym zadaniu
+    // Powiadamia liderów obszaru o nowym zadaniu + diagnostyka post-save
     try {
         require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+        require_once dirname(__DIR__, 2) . '/includes/task_notification_service.php';
         task_notify_created($id, $uid);
-    } catch (\Throwable $e) {}
+        $diag = (new TaskNotificationService(db()))->runPostSaveTest($id, 'created');
+        if (!$diag['ok']) {
+            error_log('[NOTIF_DIAG create] task=' . $id . ' ' . json_encode(array_column(
+                array_filter($diag['checks'], fn($c) => $c['pass'] === false), 'msg'
+            )));
+        }
+    } catch (\Throwable $e) {
+        error_log('[task.php create] notify exception: ' . $e->getMessage());
+    }
 
     $task = db_one("SELECT * FROM tasks WHERE id=?", [$id]);
     task_api_ok($task);

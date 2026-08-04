@@ -16,6 +16,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/tasks.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/task_notify.php';
 
 $now  = date('Y-m-d H:i:s');
 $today = date('Y-m-d');
@@ -107,6 +108,13 @@ foreach ($recurring as $t) {
 
     task_log($new_id, (int)$t['created_by'], 'created', null,
         'Auto: ' . $t['recurrence'] . ' (parent #' . $t['id'] . ')');
+
+    // Powiadom przypisanych o nowej instancji zadania cyklicznego
+    try {
+        task_notify_created($new_id, (int)$t['created_by']);
+    } catch (\Throwable $e) {
+        error_log('[tasks_recurring] notify failed for #' . $new_id . ': ' . $e->getMessage());
+    }
 
     $created++;
     echo "[OK] Utworzono zadanie #{$new_id} \"{$t['title']}\" → termin: $new_due\n";

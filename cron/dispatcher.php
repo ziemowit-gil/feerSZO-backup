@@ -32,6 +32,15 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [6, 8],
     ],
+    'tasks_archive' => [
+        'file'     => __DIR__ . '/tasks_archive.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [3, 5],       // między 3:00 a 5:00
+    ],
+    'tasks_notification_worker' => [
+        'file'     => __DIR__ . '/tasks_notification_worker.php',
+        'interval' => 120,          // co 2 minuty — przetwarza kolejkę powiadomień
+    ],
     'sync_m365' => [
         'file'     => __DIR__ . '/sync_m365.php',
         'interval' => 900,          // co 15 min

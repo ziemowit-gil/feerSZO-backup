@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
+require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 
 require_login();
 
@@ -62,25 +63,32 @@ foreach (array_merge($leaders, $sys_admins) as $r) {
 
 if (!$recipients) task_api_error('Brak liderów do powiadomienia. Skontaktuj się z administratorem.');
 
-$subject = "[{$org}] Problem z zadaniem: {$task['title']}";
-$body_txt = <<<TXT
-Zgłoszenie problemu od: {$actor['name']}
-Obszar:  {$task['ws_name']}
-Zadanie: {$task['title']} (ID: {$task_id})
+$subject   = "[{$org}] Problem z zadaniem: {$task['title']}";
+$actor_h   = htmlspecialchars($actor['name'], ENT_QUOTES, 'UTF-8');
+$task_h    = htmlspecialchars($task['title'], ENT_QUOTES, 'UTF-8');
+$ws_h      = htmlspecialchars($task['ws_name'], ENT_QUOTES, 'UTF-8');
+$message_h = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
+$url_h     = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
-Treść zgłoszenia:
-{$message}
-
----
-Szczegoly zadania: {$url}
-TXT;
-
-$headers = "From: {$from}\r\nReply-To: " . ($actor['email'] ?? $from) . "\r\n"
-         . "Content-Type: text/plain; charset=utf-8\r\n";
+$html_body = <<<HTML
+<p><strong>{$actor_h}</strong> zgłosił problem z zadaniem w systemie <strong>{$org}</strong>.</p>
+<table style="border-collapse:collapse;width:100%;font-size:14px">
+  <tr><td style="padding:4px 8px;color:#64748b">Obszar</td><td style="padding:4px 8px">{$ws_h}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Zadanie</td><td style="padding:4px 8px">{$task_h} (ID: {$task_id})</td></tr>
+</table>
+<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;margin:14px 0;
+            border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5">
+  {$message_h}
+</div>
+<p><a href="{$url_h}">Otwórz zadanie →</a></p>
+HTML;
 
 $sent = 0;
 foreach ($recipients as $r) {
-    if (@mail($r['email'], $subject, $body_txt, $headers)) $sent++;
+    if (!empty($r['email'])) {
+        $ok = approval_send_email($r['email'], $subject, $html_body, 'task', null, 10);
+        if ($ok) $sent++;
+    }
 }
 
 // Wiadomości wewnętrzne do każdego lidera
