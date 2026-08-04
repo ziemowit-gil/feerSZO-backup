@@ -442,6 +442,15 @@ function task_areas_migrate(): void {
     // v15: archiwizacja zadań ukończonych (7 dni po completed_at — patrz cron/tasks_archive.php)
     try { $pdo->exec("ALTER TABLE tasks ADD COLUMN archived_at TEXT DEFAULT NULL"); }
     catch (\Throwable $e) {}
+    // v16: backfill — każdy przypisany do zadania musi być w task_workspace_members
+    try {
+        $pdo->exec("
+            INSERT OR IGNORE INTO task_workspace_members (workspace_id, user_id, role, added_by, added_at)
+            SELECT DISTINCT t.workspace_id, ta.user_id, 'member', ta.assigned_by, datetime('now','localtime')
+            FROM task_assignments ta
+            JOIN tasks t ON t.id = ta.task_id AND t.deleted_at IS NULL
+        ");
+    } catch (\Throwable $e) {}
 }
 
 function task_get_areas(): array {
