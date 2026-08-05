@@ -192,11 +192,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
           <?php if($can_act && $pismo['sprawa_status']!=='closed' && $zext === 'pdf'): ?>
-          <button type="button" class="btn btn-sm btn-outline-primary ezd-rsign-btn flex-shrink-0"
+          <button type="button" class="btn btn-sm ezd-rsign-btn flex-shrink-0"
                   title="Podpisz rSign (kwalifikowany PAdES)"
+                  style="background:#6d28d9;border-color:#6d28d9;color:#fff"
                   data-zal-id="<?= (int)$z['id'] ?>"
                   data-zal-name="<?= h($z['original_name']) ?>">
-            <i class="bi bi-pen"></i>
+            <i class="bi bi-pen-fill me-1"></i>rSign
           </button>
           <?php endif; ?>
           <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
