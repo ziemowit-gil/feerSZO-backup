@@ -26,10 +26,10 @@ if (!$sprawa || !ezd_sprawa_access($sprawa, (int)current_user()['id'])) {
 $uid = (int)current_user()['id'];
 $teczka_id = (int)($sprawa['teczka_id'] ?? 0);
 if ($action === 'hide') {
-    db_run("UPDATE ezd_sprawy SET hidden_at=CURRENT_TIMESTAMP, hidden_by=? WHERE id=?", [$uid, $id]);
+    db()->prepare("UPDATE ezd_sprawy SET hidden_at=CURRENT_TIMESTAMP, hidden_by=? WHERE id=?")->execute([$uid, $id]);
     ezd_log($teczka_id, $id, null, null, $uid, 'sprawa_hide', 'Ukryto koszulkę na liście');
 } else {
-    db_run("UPDATE ezd_sprawy SET hidden_at=NULL, hidden_by=NULL WHERE id=?", [$id]);
+    db()->prepare("UPDATE ezd_sprawy SET hidden_at=NULL, hidden_by=NULL WHERE id=?")->execute([$id]);
     ezd_log($teczka_id, $id, null, null, $uid, 'sprawa_unhide', 'Przywrócono koszulkę na liście');
 }
 
