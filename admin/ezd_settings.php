@@ -24,6 +24,7 @@ $settings_keys = [
     'corr_ezd_jrwa',
     'ezd_rsign_port',
     'ezd_rsign_api_base',
+    'ezd_rsign_data_field',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,8 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
         'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
         'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
-        'ezd_rsign_port'        => max(1, min(65535, (int)($_POST['ezd_rsign_port'] ?? 52117))) ?: '52117',
-        'ezd_rsign_api_base'    => trim($_POST['ezd_rsign_api_base'] ?? '') ?: '/api/v1',
+        'ezd_rsign_port'        => max(1, min(65535, (int)($_POST['ezd_rsign_port'] ?? 7778))) ?: '7778',
+        'ezd_rsign_api_base'    => trim($_POST['ezd_rsign_api_base'] ?? '') ?: '/api/sign',
+        'ezd_rsign_data_field'  => preg_replace('/[^a-zA-Z0-9_]/', '', trim($_POST['ezd_rsign_data_field'] ?? '')) ?: 'signedData',
     ];
     foreach ($values as $key => $val) {
         try {
@@ -129,39 +131,85 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
 
-      <!-- Podpis rSign (CenCert) -->
+      <!-- Podpis kwalifikowany (lokalna aplikacja) -->
       <div class="card shadow-sm mb-4">
-        <div class="card-header fw-semibold"><i class="bi bi-pen-fill me-2 text-primary"></i>Podpis rSign Desktop (CenCert)</div>
+        <div class="card-header fw-semibold"><i class="bi bi-pen-fill me-2 text-primary"></i>Podpis kwalifikowany — lokalna aplikacja</div>
         <div class="card-body">
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold mb-1">Preset aplikacji</label>
+            <div class="d-flex flex-wrap gap-2" id="rsign-presets">
+              <button type="button" class="btn btn-sm btn-outline-secondary rsign-preset-btn"
+                      data-port="7778" data-base="/api/sign" data-field="signedData"
+                      title="SIGILLUM PEM-HEART — macOS/Windows/Linux, port 7778">
+                <i class="bi bi-pen-fill me-1" style="color:#6d28d9"></i>PEM-HEART
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary rsign-preset-btn"
+                      data-port="52117" data-base="/api/v1" data-field="data"
+                      title="CenCert rSign Desktop — Windows, port 52117">
+                <i class="bi bi-pen-fill me-1" style="color:#1d4ed8"></i>rSign (CenCert)
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary rsign-preset-btn"
+                      data-port="7778" data-base="" data-field="data"
+                      title="KIR mSzafir — Windows, port 7778">
+                <i class="bi bi-pen-fill me-1" style="color:#0f6e56"></i>mSzafir (KIR)
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary rsign-preset-btn"
+                      data-port="52117" data-base="/api/v1" data-field="data"
+                      title="Certum proCertum SmartSign — Windows, port 52117">
+                <i class="bi bi-pen-fill me-1" style="color:#b45309"></i>proCertum (Certum)
+              </button>
+            </div>
+            <div class="form-text">Kliknij preset, aby wstępnie uzupełnić pola poniżej — dostosuj ręcznie jeśli port w Twojej aplikacji jest inny.</div>
+          </div>
+
           <div class="row g-3">
-            <div class="col-sm-4" style="max-width:180px">
-              <label class="form-label fw-semibold mb-1" for="ezd_rsign_port">Port rSign Desktop</label>
+            <div class="col-sm-3" style="max-width:160px">
+              <label class="form-label fw-semibold mb-1" for="ezd_rsign_port">Port lokalny</label>
               <input type="number" class="form-control form-control-sm font-monospace"
                      id="ezd_rsign_port" name="ezd_rsign_port"
-                     value="<?= h($cfg['ezd_rsign_port'] ?: '52117') ?>"
-                     min="1" max="65535" placeholder="52117">
-              <div class="form-text">Domyślnie <code>52117</code> — sprawdź w dokumentacji rSign Desktop.</div>
+                     value="<?= h($cfg['ezd_rsign_port'] ?: '7778') ?>"
+                     min="1" max="65535" placeholder="7778">
             </div>
-            <div class="col-sm-5">
+            <div class="col-sm-4">
               <label class="form-label fw-semibold mb-1" for="ezd_rsign_api_base">Ścieżka bazowa API</label>
               <input type="text" class="form-control form-control-sm font-monospace"
                      id="ezd_rsign_api_base" name="ezd_rsign_api_base"
-                     value="<?= h($cfg['ezd_rsign_api_base'] ?: '/api/v1') ?>"
-                     placeholder="/api/v1" maxlength="80">
+                     value="<?= h($cfg['ezd_rsign_api_base'] ?: '/api/sign') ?>"
+                     placeholder="/api/sign" maxlength="80">
               <div class="form-text">
-                Endpoint podpisu: <code>POST localhost:{port}{ścieżka}/sign</code><br>
-                Endpoint statusu: <code>GET localhost:{port}{ścieżka}/status</code> lub <code>/version</code>
+                Endpoint podpisu: <code>POST localhost:{port}{ścieżka}</code>
               </div>
             </div>
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold mb-1" for="ezd_rsign_data_field">Pole odpowiedzi z podpisem</label>
+              <input type="text" class="form-control form-control-sm font-monospace"
+                     id="ezd_rsign_data_field" name="ezd_rsign_data_field"
+                     value="<?= h($cfg['ezd_rsign_data_field'] ?: 'signedData') ?>"
+                     placeholder="signedData" maxlength="40">
+              <div class="form-text">Nazwa pola JSON w odpowiedzi aplikacji, np. <code>signedData</code>, <code>data</code>.</div>
+            </div>
           </div>
+
           <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.8rem">
             <i class="bi bi-info-circle me-1"></i>
-            rSign Desktop (CenCert) musi być uruchomiony lokalnie i mieć włączony lokalny serwer HTTP.
-            Upewnij się, że aplikacja ma włączone CORS dla domeny <code><?= h(parse_url(APP_URL, PHP_URL_HOST) ?: APP_URL) ?></code>.
-            Format podpisu: <strong>PAdES-BASELINE-B</strong> (kwalifikowany podpis elektroniczny na PDF).
+            Aplikacja musi być uruchomiona lokalnie, wystawiać REST API na <code>localhost:{port}</code>
+            i mieć włączone CORS dla domeny <code><?= h(parse_url(APP_URL, PHP_URL_HOST) ?: APP_URL) ?></code>.
+            <strong>PEM-HEART na macOS</strong>: uruchom aplikację, podłącz token/kartę, sprawdź że działa lokalny serwer.
           </div>
         </div>
       </div>
+      <script>
+      document.querySelectorAll('.rsign-preset-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          document.getElementById('ezd_rsign_port').value     = this.dataset.port;
+          document.getElementById('ezd_rsign_api_base').value = this.dataset.base;
+          document.getElementById('ezd_rsign_data_field').value = this.dataset.field;
+          document.querySelectorAll('.rsign-preset-btn').forEach(function(b){ b.classList.remove('btn-secondary','text-white'); b.classList.add('btn-outline-secondary'); });
+          this.classList.remove('btn-outline-secondary'); this.classList.add('btn-secondary','text-white');
+        });
+      });
+      </script>
 
       <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz ustawienia</button>
     </form>

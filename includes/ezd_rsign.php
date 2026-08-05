@@ -1,22 +1,24 @@
 <?php
 /**
- * includes/ezd_rsign.php — Modal „Podpisz rSign" dla EZD.
+ * includes/ezd_rsign.php — Modal „Podpisz kwalifikowanym podpisem" dla EZD.
  *
- * Integracja z rSign Desktop (CenCert) przez lokalny REST na localhost:{port}.
+ * Integracja z lokalną aplikacją podpisującą (PEM-HEART, rSign, mSzafir…)
+ * przez lokalny REST na localhost:{port}.
  * Przycisk: <button class="ezd-rsign-btn"
  *               data-zal-id="123"
- *               data-zal-name="plik.pdf"
- *               title="Podpisz rSign">
+ *               data-zal-name="plik.pdf">
  *
  * Konfiguracja w ustawieniach EZD (admin/ezd_settings.php):
- *   ezd_rsign_port     — port rSign Desktop (domyślnie 52117)
- *   ezd_rsign_api_base — ścieżka bazowa API (domyślnie /api/v1)
+ *   ezd_rsign_port       — port lokalny (PEM-HEART: 7778, rSign/proCertum: 52117)
+ *   ezd_rsign_api_base   — pełna ścieżka endpointu podpisu (np. /api/sign)
+ *   ezd_rsign_data_field — pole JSON z podpisanym dokumentem (signedData lub data)
  */
 if (defined('EZD_RSIGN_MODAL_RENDERED')) return;
 define('EZD_RSIGN_MODAL_RENDERED', 1);
 
-$_rsign_port     = (int)(org_setting('ezd_rsign_port') ?: 52117);
-$_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
+$_rsign_port       = (int)(org_setting('ezd_rsign_port') ?: 7778);
+$_rsign_sign_path  = '/' . ltrim(org_setting('ezd_rsign_api_base') ?: '/api/sign', '/');
+$_rsign_data_field = preg_replace('/[^a-zA-Z0-9_]/', '', org_setting('ezd_rsign_data_field') ?: 'signedData');
 ?>
 <div class="modal fade" id="rsignModal" tabindex="-1" aria-hidden="true" aria-labelledby="rsignModalLabel">
   <div class="modal-dialog modal-dialog-centered">
@@ -73,10 +75,11 @@ $_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
           <!-- Komunikat o braku rSign -->
           <div id="rsign-no-app" class="alert alert-warning py-2 mt-3 mb-0" style="display:none;font-size:.8rem">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>rSign Desktop nie odpowiada</strong> na porcie <span id="rsign-port-hint"><?= (int)$_rsign_port ?></span>.<br>
+            <strong>Aplikacja podpisująca nie odpowiada</strong> na porcie <strong><?= (int)$_rsign_port ?></strong>.<br>
             <ul class="mb-0 ps-3 mt-1">
-              <li>Uruchom aplikację rSign Desktop (CenCert).</li>
-              <li>Podłącz kartę lub token kwalifikowany.</li>
+              <li>Uruchom aplikację (PEM-HEART, rSign, mSzafir itp.).</li>
+              <li>Podłącz token USB lub kartę kwalifikowaną.</li>
+              <li>Sprawdź że lokalny serwer API jest włączony w ustawieniach aplikacji.</li>
               <li>Jeśli port jest inny — zmień go w <a href="<?= APP_URL ?>/admin/ezd_settings.php" target="_blank">Ustawieniach EZD</a>.</li>
             </ul>
           </div>
@@ -97,9 +100,10 @@ $_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
   'use strict';
   if (typeof bootstrap === 'undefined') return;
 
-  var PORT     = <?= (int)$_rsign_port ?>;
-  var API_BASE = <?= json_encode($_rsign_api_base) ?>;
-  var BASE_URL = '<?= APP_URL ?>';
+  var PORT       = <?= (int)$_rsign_port ?>;
+  var SIGN_PATH  = <?= json_encode($_rsign_sign_path) ?>;
+  var DATA_FIELD = <?= json_encode($_rsign_data_field) ?>;
+  var BASE_URL   = '<?= APP_URL ?>';
 
   // ── Stan ────────────────────────────────────────────────────────────────────
   var state = { zalId: 0, zalName: '', csrf: '', docData: '' };
@@ -164,36 +168,34 @@ $_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
   });
 
   async function doSign() {
-    // ── Krok 1: Probe rSign Desktop ──────────────────────────────────────────
+    // ── Krok 1: Probe — sprawdź czy lokalna aplikacja działa ─────────────────
     setStep(1, 'spin');
-    var rSignOk = false;
-    try {
-      var probe = await fetchWithTimeout(
-        'http://localhost:' + PORT + API_BASE + '/status',
-        { method: 'GET', mode: 'cors' },
-        5000
-      );
-      rSignOk = probe.ok || probe.status < 500;
-    } catch(_) {
-      // Spróbuj alternatywnego endpointu
+    var appOk = false;
+    // Próbuj HEAD/OPTIONS na endpoint podpisu — najbardziej niezawodne
+    var probeUrls = [
+      'http://localhost:' + PORT + SIGN_PATH,
+      'http://localhost:' + PORT + '/',
+    ];
+    for (var pi = 0; pi < probeUrls.length && !appOk; pi++) {
       try {
-        var probe2 = await fetchWithTimeout(
-          'http://localhost:' + PORT + API_BASE + '/version',
-          { method: 'GET', mode: 'cors' },
-          3000
-        );
-        rSignOk = probe2.ok || probe2.status < 500;
-      } catch(_2) { rSignOk = false; }
+        var pr = await fetchWithTimeout(probeUrls[pi], { method: 'HEAD', mode: 'cors' }, 3000);
+        appOk = true;
+      } catch(_) {
+        try {
+          var pr2 = await fetchWithTimeout(probeUrls[pi], { method: 'GET', mode: 'cors' }, 3000);
+          appOk = true;
+        } catch(_2) {}
+      }
     }
 
-    if (!rSignOk) {
-      setStep(1, 'err', 'Brak odpowiedzi — rSign Desktop nie działa lub port jest inny.');
+    if (!appOk) {
+      setStep(1, 'err', 'Brak odpowiedzi na porcie ' + PORT + ' — aplikacja nie działa lub port jest inny.');
       setStep(2, 'skip'); setStep(3, 'skip'); setStep(4, 'skip');
       document.getElementById('rsign-no-app').style.display = 'block';
       document.getElementById('rsign-start-btn').disabled = false;
       return;
     }
-    setStep(1, 'ok', 'rSign Desktop odpowiada na porcie ' + PORT + '.');
+    setStep(1, 'ok', 'Aplikacja odpowiada na porcie ' + PORT + '.');
 
     // ── Krok 2: Pobierz dokument z serwera ───────────────────────────────────
     setStep(2, 'spin');
@@ -222,20 +224,23 @@ $_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
     var sizeKB    = Math.round((docRes.size || docRes.data.length * 0.75) / 1024);
     setStep(2, 'ok', docRes.name + ' (' + sizeKB + ' KB) pobrano.');
 
-    // ── Krok 3: Wyślij do rSign Desktop ─────────────────────────────────────
-    setStep(3, 'spin', 'Oczekiwanie na PIN w oknie rSign Desktop…');
+    // ── Krok 3: Wyślij do lokalnej aplikacji podpisującej ────────────────────
+    setStep(3, 'spin', 'Oczekiwanie na PIN / zatwierdzenie w aplikacji…');
     var signedData;
     try {
       var r3 = await fetchWithTimeout(
-        'http://localhost:' + PORT + API_BASE + '/sign',
+        'http://localhost:' + PORT + SIGN_PATH,
         {
           method: 'POST',
           mode: 'cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             data:            state.docData,
+            document:        state.docData,   // PEM-HEART może używać "document"
             fileName:        docRes.name,
+            filename:        docRes.name,
             format:          'PAdES-BASELINE-B',
+            signatureFormat: 'PAdES-BASELINE-B',
             reason:          'Podpisano elektronicznie — EZD',
             location:        'Polska',
           })
@@ -243,22 +248,25 @@ $_rsign_api_base = rtrim(org_setting('ezd_rsign_api_base') ?: '/api/v1', '/');
         120000  // 2 min — użytkownik musi wpisać PIN
       );
       var r3json = await r3.json();
-      if (!r3.ok || r3json.error) {
-        throw new Error(r3json.error || r3json.message || ('HTTP ' + r3.status));
+      if (!r3.ok || r3json.error || r3json.status === 'ERROR') {
+        throw new Error(r3json.error || r3json.message || r3json.errorMessage || ('HTTP ' + r3.status));
       }
-      signedData = r3json.data || r3json.signedData || r3json.document;
-      if (!signedData) throw new Error('Odpowiedź rSign nie zawiera pola "data" z podpisanym dokumentem.');
+      // Obsługa różnych nazw pola z podpisanym dokumentem
+      signedData = r3json[DATA_FIELD] || r3json.data || r3json.signedData || r3json.document || r3json.signedDocument;
+      if (!signedData) {
+        throw new Error('Odpowiedź aplikacji nie zawiera podpisanego dokumentu. Pola w odpowiedzi: ' + Object.keys(r3json).join(', '));
+      }
     } catch(e) {
       setStep(3, 'err', e.message);
       setStep(4, 'skip');
-      showResult(false, '<strong>Błąd rSign:</strong> ' + esc(e.message)
-        + '<br><small>Sprawdź czy PIN został wpisany poprawnie i spróbuj ponownie.</small>');
+      showResult(false, '<strong>Błąd aplikacji podpisującej:</strong> ' + esc(e.message)
+        + '<br><small>Sprawdź PIN, czy token jest podłączony, i spróbuj ponownie.</small>');
       document.getElementById('rsign-start-btn').disabled = false;
       return;
     }
 
     var signedName = docRes.name.replace(/\.pdf$/i, '') + '_podpisany.pdf';
-    setStep(3, 'ok', 'Dokument podpisany przez rSign.');
+    setStep(3, 'ok', 'Dokument podpisany.');
 
     // ── Krok 4: Wyślij podpisany dokument na serwer ──────────────────────────
     setStep(4, 'spin');
