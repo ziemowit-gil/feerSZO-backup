@@ -22,6 +22,8 @@ $settings_keys = [
     'ezd_kdok_jrwa',
     'corr_ezd_auto',
     'corr_ezd_jrwa',
+    'ezd_rsign_port',
+    'ezd_rsign_api_base',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -35,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
         'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
         'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
+        'ezd_rsign_port'        => max(1, min(65535, (int)($_POST['ezd_rsign_port'] ?? 52117))) ?: '52117',
+        'ezd_rsign_api_base'    => trim($_POST['ezd_rsign_api_base'] ?? '') ?: '/api/v1',
     ];
     foreach ($values as $key => $val) {
         try {
@@ -121,6 +125,40 @@ include dirname(__DIR__) . '/includes/header.php';
               <input type="text" class="form-control form-control-sm font-monospace" id="ezd_kdok_jrwa" name="ezd_kdok_jrwa" value="<?= h($cfg['ezd_kdok_jrwa'] ?: 'KSG') ?>" placeholder="KSG">
               <div class="form-text">JRWA „Dokumenty księgowe - obieg od zapłaty". Dokumenty zatwierdzone do wypłaty w <a href="<?= APP_URL ?>/ksiegowosc/index.php">EOD Dok. Księgowych</a> trafiają tu automatycznie.</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Podpis rSign (CenCert) -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold"><i class="bi bi-pen-fill me-2 text-primary"></i>Podpis rSign Desktop (CenCert)</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-sm-4" style="max-width:180px">
+              <label class="form-label fw-semibold mb-1" for="ezd_rsign_port">Port rSign Desktop</label>
+              <input type="number" class="form-control form-control-sm font-monospace"
+                     id="ezd_rsign_port" name="ezd_rsign_port"
+                     value="<?= h($cfg['ezd_rsign_port'] ?: '52117') ?>"
+                     min="1" max="65535" placeholder="52117">
+              <div class="form-text">Domyślnie <code>52117</code> — sprawdź w dokumentacji rSign Desktop.</div>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label fw-semibold mb-1" for="ezd_rsign_api_base">Ścieżka bazowa API</label>
+              <input type="text" class="form-control form-control-sm font-monospace"
+                     id="ezd_rsign_api_base" name="ezd_rsign_api_base"
+                     value="<?= h($cfg['ezd_rsign_api_base'] ?: '/api/v1') ?>"
+                     placeholder="/api/v1" maxlength="80">
+              <div class="form-text">
+                Endpoint podpisu: <code>POST localhost:{port}{ścieżka}/sign</code><br>
+                Endpoint statusu: <code>GET localhost:{port}{ścieżka}/status</code> lub <code>/version</code>
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.8rem">
+            <i class="bi bi-info-circle me-1"></i>
+            rSign Desktop (CenCert) musi być uruchomiony lokalnie i mieć włączony lokalny serwer HTTP.
+            Upewnij się, że aplikacja ma włączone CORS dla domeny <code><?= h(parse_url(APP_URL, PHP_URL_HOST) ?: APP_URL) ?></code>.
+            Format podpisu: <strong>PAdES-BASELINE-B</strong> (kwalifikowany podpis elektroniczny na PDF).
           </div>
         </div>
       </div>

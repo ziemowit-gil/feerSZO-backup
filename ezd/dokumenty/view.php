@@ -103,6 +103,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php elseif (!empty($z['sp_web_url'])): ?>
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
+          <?php if($can_act && strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)) === 'pdf'): ?>
+          <button type="button" class="btn btn-sm btn-outline-primary ezd-rsign-btn flex-shrink-0"
+                  title="Podpisz rSign (kwalifikowany PAdES)"
+                  data-zal-id="<?= (int)$z['id'] ?>"
+                  data-zal-name="<?= h($z['original_name']) ?>">
+            <i class="bi bi-pen"></i>
+          </button>
+          <?php endif; ?>
           <?php if($can_act): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -153,4 +161,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
   </div>
 </div>
+<?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
+<?php include dirname(dirname(__DIR__)) . '/includes/ezd_rsign.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
