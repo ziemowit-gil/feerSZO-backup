@@ -4,9 +4,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled'); ezd_require_access();
-
 header('Content-Type: application/json');
+
+if (!current_user())          { http_response_code(401); echo json_encode(['error'=>'Niezalogowany']); exit; }
+if (!module_enabled('ezd_enabled')) { http_response_code(403); echo json_encode(['error'=>'Moduł wyłączony']); exit; }
+if (!can_read('ezd') && !can_write('ezd')) { http_response_code(403); echo json_encode(['error'=>'Brak dostępu do EZD']); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error'=>'Method']); exit; }
 if (($_POST['_csrf'] ?? '') !== csrf_token()) { http_response_code(403); echo json_encode(['error'=>'CSRF']); exit; }
