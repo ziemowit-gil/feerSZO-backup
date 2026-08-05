@@ -68,6 +68,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [8, 10],
     ],
+    'szkolenia_notifier' => [
+        'file'     => __DIR__ . '/agents/szkolenia_notifier.php',
+        'interval' => 86400,        // sprawdza codziennie, wysyła raz w miesiącu (po 25. dniu)
+        'schedule' => [9, 11],      // między 9:00 a 11:00
+    ],
     'volunteer_account_reminder' => [
         'file'     => __DIR__ . '/volunteer_account_reminder.php',
         'interval' => 86400,        // raz dziennie

@@ -454,6 +454,41 @@ HTML;
 </p>
 HTML;
 
+    // ── Raport brakujących szkoleń wolontariuszy ─────────────────────
+    $szkolenia_body = <<<'HTML'
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Dzień dobry{{greeting}},
+</p>
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Poniżej zestawienie wolontariuszy z aktywnymi umowami, którzy do końca <strong>{{month}}</strong>
+  nie ukończyli wymaganych szkoleń. Łącznie: <strong>{{count}}</strong> os.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="border-collapse:collapse;margin-bottom:24px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+  <thead>
+    <tr style="background:#f1f5f9">
+      <th style="padding:9px 12px;text-align:left;font-size:12px;color:#475569;font-weight:600;border-bottom:2px solid #e2e8f0">Wolontariusz</th>
+      <th style="padding:9px 12px;text-align:left;font-size:12px;color:#475569;font-weight:600;border-bottom:2px solid #e2e8f0;white-space:nowrap">Nr umowy</th>
+      <th style="padding:9px 12px;text-align:left;font-size:12px;color:#475569;font-weight:600;border-bottom:2px solid #e2e8f0">Brakujące szkolenia</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{rows_html}}
+  </tbody>
+</table>
+<p style="margin:0 0 16px;font-size:14px;color:#495057;">
+  Prosimy o kontakt z wymienionymi osobami w celu ustalenia terminu uzupełnienia szkoleń.
+</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{app_url}}" style="background:#1d4ed8;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przejdź do Szkoleń →
+  </a>
+</div>
+<p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wysłana automatycznie przez system. Raport generowany raz w miesiącu.
+</p>
+HTML;
+
     $base = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
 
     $reg = [
@@ -573,6 +608,23 @@ HTML;
                 'login_url'       => ['label' => 'Link do logowania',      'sample' => $base . '/auth/login.php'],
                 'kontakt_email'   => ['label' => 'E-mail kontaktowy (pytania)', 'sample' => 'kontakt@feer.org.pl'],
                 'kontakt_telefon' => ['label' => 'Telefon kontaktowy (pytania)', 'sample' => '+48 123 456 789'],
+            ],
+        ],
+
+        'szkolenia_brakujace' => [
+            'label'       => 'Raport — brakujące szkolenia wolontariuszy',
+            'group'       => 'Szkolenia',
+            'icon'        => 'bi-calendar2-check',
+            'auto'        => true,
+            'description' => 'Miesięczny raport wysyłany do opiekunów: lista wolontariuszy, którzy nie ukończyli wymaganych szkoleń (BHP, szkolenia TidyCal).',
+            'subject'     => 'Brakujące szkolenia wolontariuszy — {{month}}',
+            'body'        => $szkolenia_body,
+            'vars'        => [
+                'greeting'  => ['label' => 'Zwrot grzecznościowy',              'sample' => ', <strong>Anna Nowak</strong>'],
+                'month'     => ['label' => 'Miesiąc raportu',                   'sample' => 'lipca 2026'],
+                'count'     => ['label' => 'Liczba wolontariuszy z brakami',     'sample' => '4'],
+                'rows_html' => ['label' => 'Wiersze tabeli HTML (generowane)',   'sample' => ''],
+                'app_url'   => ['label' => 'Link do modułu Szkolenia',           'sample' => $base . '/szkolenia/'],
             ],
         ],
 

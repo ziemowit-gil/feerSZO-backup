@@ -25,7 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         org_setting_set('tidycal_intro',   trim($_POST['tidycal_intro'] ?? ''));
         $exposed = array_values(array_unique(array_map('intval', (array)($_POST['exposed'] ?? []))));
         org_setting_set('tidycal_exposed_types', json_encode($exposed));
+        $required = array_values(array_unique(array_map('intval', (array)($_POST['required'] ?? []))));
+        org_setting_set('tidycal_required_types', json_encode($required));
+        org_setting_set('tidycal_bhp_required', isset($_POST['tidycal_bhp_required']) ? '1' : '0');
         flash_set('success', 'Ustawienia TidyCal zostały zapisane.');
+        header('Location: ' . APP_URL . '/admin/tidycal_settings.php');
+        exit;
+    }
+
+    if ($action === 'send_notifier') {
+        $agent = dirname(__DIR__) . '/cron/agents/szkolenia_notifier.php';
+        exec(PHP_BINARY . ' ' . escapeshellarg($agent) . ' --force > /dev/null 2>&1 &');
+        flash_set('success', 'Raport brakujących szkoleń został uruchomiony. Wyniki pojawią się w kolejce pocztowej.');
         header('Location: ' . APP_URL . '/admin/tidycal_settings.php');
         exit;
     }
@@ -52,13 +63,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$api_key   = org_setting('tidycal_api_key');
-$enabled   = org_setting('tidycal_enabled') !== '0';
-$intro     = org_setting('tidycal_intro');
-$acc_name  = org_setting('tidycal_account_name');
-$types     = tidycal_types_cache();
-$exposed   = tidycal_exposed_ids();
-$bookings  = tidycal_all_bookings(100);
+$api_key      = org_setting('tidycal_api_key');
+$enabled      = org_setting('tidycal_enabled') !== '0';
+$intro        = org_setting('tidycal_intro');
+$acc_name     = org_setting('tidycal_account_name');
+$types        = tidycal_types_cache();
+$exposed      = tidycal_exposed_ids();
+$bookings     = tidycal_all_bookings(100);
+$required_raw = org_setting('tidycal_required_types');
+$required_ids = $required_raw ? array_map('intval', (array) json_decode($required_raw, true)) : [];
+$bhp_required = org_setting('tidycal_bhp_required') !== '0';
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -143,12 +157,71 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="card-body">
       <textarea name="tidycal_intro" class="form-control" rows="3"
                 placeholder="Opcjonalny tekst widoczny nad kreatorem (np. zasady, kontakt)…"><?= h($intro) ?></textarea>
+    </div>
+  </div>
+
+  <!-- Wymagane szkolenia — konfiguracja notyfikatora -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-shield-check"></i> Wymagane szkolenia (raport miesięczny)</div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">
+        Zaznaczone szkolenia są <strong>wymagane</strong> dla wszystkich aktywnych wolontariuszy.
+        System wysyła opiekunom miesięczny raport (po 25. dniu miesiąca) z listą osób, które ich nie ukończyły.
+      </p>
+
+      <!-- BHP zawsze wymagane -->
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="bhpRequired" name="tidycal_bhp_required" value="1"
+               <?= $bhp_required ? 'checked' : '' ?>>
+        <label class="form-check-label" for="bhpRequired">
+          <strong>Szkolenie BHP</strong>
+          <span class="text-muted small">— pole <code>szkolenie_bhp</code> na umowie wolontariatu</span>
+        </label>
+      </div>
+
+      <!-- Typy TidyCal -->
+      <?php if (!$types): ?>
+        <div class="text-muted small mt-2">Brak pobranych typów szkoleń. Kliknij „Testuj połączenie i pobierz typy".</div>
+      <?php else: ?>
+        <hr class="my-2">
+        <p class="small fw-semibold mb-2">Typy szkoleń TidyCal:</p>
+        <?php foreach ($types as $t): ?>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="req<?= (int)$t['id'] ?>"
+                 name="required[]" value="<?= (int)$t['id'] ?>"
+                 <?= in_array((int)$t['id'], $required_ids, true) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="req<?= (int)$t['id'] ?>">
+            <strong><?= h($t['title']) ?></strong>
+            <?php if ((int)$t['duration'] > 0): ?><span class="text-muted small">· <?= (int)$t['duration'] ?> min</span><?php endif; ?>
+          </label>
+        </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+
       <div class="mt-3">
         <button type="submit" class="btn btn-primary"><i class="bi bi-floppy"></i> Zapisz ustawienia</button>
       </div>
     </div>
   </div>
 </form>
+
+<!-- Trigger ręczny — osobna akcja, nie należy do głównego formularza -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-send"></i> Wyślij raport brakujących szkoleń teraz</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Uruchamia notyfikator natychmiast (tryb <code>--force</code>, niezależnie od daty i znacznika miesięcznego).
+      Maile trafią do kolejki pocztowej i zostaną dostarczone w ciągu kilku minut.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="send_notifier">
+      <button type="submit" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-repeat"></i> Wyślij raport teraz
+      </button>
+    </form>
+  </div>
+</div>
 
 <!-- Osobny formularz dla akcji test (omija required pól) -->
 <form method="post" id="tcTestForm" class="d-none">
