@@ -119,9 +119,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .tl-card.pismo-in{border-left:3px solid #0ea5e9;}
 .tl-card.pismo-out{border-left:3px solid #8b5cf6;}
 .tl-card.pismo-int{border-left:3px solid #94a3b8;}
-/* Przycisk "pełny widok" na wierszu */
-.sp-full-btn{opacity:.45;transition:opacity .15s;padding:.25rem .4rem;border-radius:4px;color:#374151;text-decoration:none;flex-shrink:0;}
-.sprawa-line:hover .sp-full-btn,.sp-full-btn:focus{opacity:1;}
+/* Przycisk "Przejdź do sprawy" na wierszu */
+.sp-full-btn{opacity:.6;transition:opacity .15s,color .15s;padding:.25rem .4rem;border-radius:4px;color:#4f46e5;text-decoration:none;flex-shrink:0;}
+.sprawa-line:hover .sp-full-btn,.sp-full-btn:focus{opacity:1;color:#3730a3;}
 /* Przycisk ukryj koszulkę */
 .sp-hide-btn{opacity:0;transition:opacity .15s,color .15s;padding:.25rem .4rem;border:none;background:none;border-radius:4px;color:#94a3b8;flex-shrink:0;cursor:pointer;line-height:1;}
 .sprawa-line:hover .sp-hide-btn,.sp-hide-btn:focus{opacity:1;}
@@ -265,6 +265,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
       <div class="text-muted" style="font-size:.73rem;white-space:nowrap" title="Właściciel"><?= h($s['owner_name']??'—') ?></div>
       <i class="bi bi-chevron-right text-muted" style="font-size:.75rem"></i>
+    </a>
+    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>"
+       class="sp-full-btn"
+       title="Przejdź do sprawy — pełny widok"
+       aria-label="Przejdź do sprawy: <?= h($s['title']) ?>">
+      <i class="bi bi-box-arrow-in-right" style="font-size:1rem"></i>
     </a>
     <?php if(can_edit()): ?>
     <button type="button"
