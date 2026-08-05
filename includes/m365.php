@@ -92,7 +92,7 @@ class M365Graph {
             $candidate = "{$local}{$i}@{$dom}";
             if (!$this->login_exists($candidate)) return $candidate;
         }
-        return $base;
+        throw new \RuntimeException("Nie można wygenerować unikalnego loginu dla \"{$imie_nazwisko}\" — wszystkie warianty ({$local}1–{$local}99) są zajęte.");
     }
 
     // ── Generowanie hasła ────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ class M365Graph {
 
     public function get_user_by_id(string $id): array {
         try {
-            return $this->http_get("https://graph.microsoft.com/v1.0/users/" . urlencode($id) . "?\$select=id,displayName,userPrincipalName,mail");
+            return $this->http_get("https://graph.microsoft.com/v1.0/users/" . urlencode($id) . "?\$select=id,displayName,userPrincipalName,mail,accountEnabled,assignedLicenses");
         } catch (\Exception $e) {
             return [];
         }

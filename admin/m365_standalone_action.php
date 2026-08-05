@@ -60,16 +60,28 @@ try {
 
             $login    = $graph->unique_login($imie_nazwisko);
             $password = M365Graph::generate_password();
+            $sku      = $przypisz_lic ? m365_setting('m365_license_sku_id') : '';
+
+            // Sprawdź dostępność licencji przed tworzeniem konta w Azure AD
+            if ($sku) {
+                foreach ($graph->get_subscribed_skus() as $s) {
+                    if ($s['skuId'] === $sku) {
+                        $free = ($s['prepaidUnits']['enabled'] ?? 0) - ($s['consumedUnits'] ?? 0);
+                        if ($free <= 0) throw new RuntimeException(
+                            "Brak wolnych licencji M365 ({$s['skuPartNumber']}) — konto nie zostanie utworzone. Zakup dodatkowe licencje."
+                        );
+                        break;
+                    }
+                }
+            }
+
             $azure    = $graph->create_user($login, $imie_nazwisko, $password, $konto_aktywne);
             $user_id  = $azure['id'];
 
             $lic_assigned = 0;
-            if ($przypisz_lic) {
-                $sku = m365_setting('m365_license_sku_id');
-                if ($sku) {
-                    $graph->assign_license($user_id, $sku);
-                    $lic_assigned = 1;
-                }
+            if ($sku) {
+                $graph->assign_license($user_id, $sku);
+                $lic_assigned = 1;
             }
 
             $sent = false;

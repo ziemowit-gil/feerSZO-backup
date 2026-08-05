@@ -97,10 +97,6 @@ try {
         // Optymalizacja: jeśli DB mówi że stan jest zgodny — pomiń wywołanie Graph API
         // (Graph API wywołujemy tylko gdy wykrywamy rozbieżność lub dzisiaj coś się zmienia)
         $expiring_today = false;
-        foreach ($u['contracts'] as $c) {
-            // Sprawdź czy któraś umowa wygasa dokładnie dziś
-            // (wtedy chcemy wymusić synchronizację nawet jeśli db_active jeszcze = 1)
-        }
         // Pobierz daty zakończenia umów aktywnych wczoraj, a nieaktywnych dziś
         foreach ($tables as $table) {
             try {

@@ -42,12 +42,25 @@ try {
         $password = M365Graph::generate_password();
         $enabled  = m365_should_be_active($row);
 
+        // Sprawdź dostępność licencji przed tworzeniem konta w Azure AD
+        $sku = m365_setting('m365_license_sku_id');
+        if ($sku) {
+            foreach ($graph->get_subscribed_skus() as $s) {
+                if ($s['skuId'] === $sku) {
+                    $free = ($s['prepaidUnits']['enabled'] ?? 0) - ($s['consumedUnits'] ?? 0);
+                    if ($free <= 0) throw new RuntimeException(
+                        "Brak wolnych licencji M365 ({$s['skuPartNumber']}) — konto nie zostanie utworzone. Zakup dodatkowe licencje."
+                    );
+                    break;
+                }
+            }
+        }
+
         // Utwórz użytkownika w Azure AD
         $user = $graph->create_user($login, $person_name, $password, $enabled);
         $user_id = $user['id'];
 
         // Przypisz licencję
-        $sku = m365_setting('m365_license_sku_id');
         if ($sku) {
             $graph->assign_license($user_id, $sku);
             $lic_assigned = 1;
@@ -62,6 +75,25 @@ try {
             $graph->send_welcome_email($sender, $person_email, $person_name, $login, $password);
             $sent = true;
         }
+
+        // Zapisz hasło do historii IT (zaszyfrowane) — chroni przed utratą przy odświeżeniu strony
+        try {
+            require_once dirname(__DIR__) . '/includes/it_helpers.php';
+            it_migrate();
+            $svc = db_one("SELECT id FROM it_services WHERE slug='m365'");
+            if ($svc) {
+                it_log_password([
+                    'service_id'    => (int)$svc['id'],
+                    'contract_type' => $type,
+                    'contract_id'   => $id,
+                    'login'         => $login,
+                    'plain'         => $password,
+                    'sent_to_email' => $sent ? ($person_email ?? null) : null,
+                    'notes'         => 'Wygenerowano przy tworzeniu konta M365',
+                    'issued_by'     => current_user()['id'],
+                ]);
+            }
+        } catch (\Throwable $e) {}
 
         // Zapisz do bazy
         db_update($table, [
@@ -85,9 +117,15 @@ try {
         $_SESSION['m365_new_login'] = $login;
         $_SESSION['m365_sent']      = $sent;
 
+        if ($link_result['action'] === 'created') {
+            flash_set('warning',
+                'Automatycznie utworzono konto lokalne dla <strong>' . htmlspecialchars($person_name) . '</strong> (rola: <strong>viewer</strong>). '
+                . 'Zmień rolę w <a href="' . APP_URL . '/admin/users.php">Zarządzaniu użytkownikami</a>, jeśli potrzeba.'
+            );
+        }
         $link_suffix = match($link_result['action']) {
             'linked'  => ' · konto lokalne powiązane',
-            'created' => ' · konto lokalne utworzone',
+            'created' => ' · konto lokalne auto-utworzone (viewer)',
             default   => '',
         };
         flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)'));
