@@ -143,10 +143,8 @@ $_pv_apps = $my_apps ? array_map(fn($a) => [
 /* ── Zakładka „Zadania": tylko gdy moduł włączony (ten sam warunek co widżet) ── */
 $_tasks_tab_on = false;
 try { $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'"); $_tasks_tab_on = ($_tm['value'] ?? '1') !== '0'; } catch (\Throwable $e) {}
-/* Domyślna zakładka: „Zadania" (pierwsza, najważniejsza codziennie); gdy wyłączona → „Formalne". */
-$_default_tab = 'formalne'; // Zadania mają osobny moduł — panel umowy otwiera się na Formalne
 
-/* Helper: render kafelka .tz-tile ----------------------------------------- */
+/* Helper: render kafelka .tz-tile (zachowany dla zgodności wstecznej) */
 $pv_tile = function (array $t): void {
     $badge = (int)($t['badge'] ?? 0);
     $aria  = $t['label'] . ($badge ? " — {$badge} wymaga uwagi" : '');
@@ -159,21 +157,80 @@ $pv_tile = function (array $t): void {
     </a>
     <?php
 };
+
+/* ── BENTO: feed wiadomości (ostatnie 4 z wątku kontraktu) ─────────────── */
+$_bento_msgs = [];
+if ($_active_contract) {
+    try {
+        $_bento_msgs = db_all(
+            "SELECT id, sender_type, sender_name, body, created_at,
+                    CASE WHEN sender_type='admin' AND is_read=0 THEN 1 ELSE 0 END AS is_unread
+             FROM messages
+             WHERE context_type='contract' AND context_id=?
+             ORDER BY created_at DESC LIMIT 4",
+            [(int)$_active_contract['id']]
+        ) ?: [];
+    } catch (\Throwable $e) {}
+}
+
+/* ── BENTO: licznik aktywnych zadań ────────────────────────────────────── */
+$_bento_tasks_pending = 0;
+if ($_tasks_tab_on) {
+    try {
+        $_bento_tasks_pending = (int)(db_one(
+            "SELECT COUNT(*) AS c FROM tasks t JOIN task_assignments ta ON ta.task_id=t.id
+             WHERE ta.user_id=? AND t.deleted_at IS NULL AND t.completed_at IS NULL",
+            [(int)$user['id']]
+        )['c'] ?? 0);
+    } catch (\Throwable $e) {}
+}
+
+/* ── BENTO: łączna liczba spraw wymagających uwagi ─────────────────────── */
+$_pending_total = $my_apps_new + $my_certs_pending + (int)$_zwroty_pending + $my_terms_pending;
+
+/* ── BENTO: wszystkie kafelki akcji (formalne + narzędzia) ─────────────── */
+$_pv_all_actions = array_merge($_pv_formal, $_pv_daily);
+
+/* ── BENTO: helper – inicjały (maks. 2 znaki UTF-8) ────────────────────── */
+$_pv_initials = function (string $name): string {
+    $words = preg_split('/\s+/u', trim($name));
+    return mb_strtoupper(
+        implode('', array_map(fn($w) => mb_substr($w, 0, 1, 'UTF-8'), array_slice($words, 0, 2))),
+        'UTF-8'
+    ) ?: '?';
+};
+
+/* ── BENTO: helper – względny czas ─────────────────────────────────────── */
+$_pv_rel_time = function (string $dt): string {
+    $ts   = strtotime($dt);
+    $diff = time() - $ts;
+    if ($diff < 86400)  return date('H:i', $ts);
+    if ($diff < 172800) return 'wczoraj';
+    if ($diff < 604800) return (int)($diff / 86400) . ' dni temu';
+    return date('d.m', $ts);
+};
 ?>
 <style>
-/* ══ Panel wolontariusza w stylu „Tożsamość" — akcent = --vol-color ═══════ */
+/* ══ Panel wolontariusza — bento grid + komponenty ════════════════════════ */
+/* Zmienne tokenu (światło/ciemność) */
 .pvtz{
   --tz:var(--vol-color,#1E6DFF);
   --tz-strong:<?= h($_vol_dark) ?>;
   --tz-rgb:<?= h($_vol_rgb) ?>;
   --tz-50:rgba(var(--tz-rgb),.08);
   --tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;
+  --tz-bg:#fff;--tz-bg-page:#F4F6F9;
   max-width:960px;margin:0 auto;color:var(--tz-ink);
 }
+@media(prefers-color-scheme:dark){
+  .pvtz{--tz-line:#1e2535;--tz-muted:#94a3b8;--tz-ink:#f1f5f9;--tz-bg:#0f172a;--tz-bg-page:#0a0f1e;--tz-50:rgba(var(--tz-rgb),.16)}
+}
+:root[data-theme="dark"] .pvtz{--tz-line:#1e2535;--tz-muted:#94a3b8;--tz-ink:#f1f5f9;--tz-bg:#0f172a;--tz-bg-page:#0a0f1e;--tz-50:rgba(var(--tz-rgb),.16)}
+:root[data-theme="light"] .pvtz{--tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;--tz-bg:#fff;--tz-bg-page:#F4F6F9;--tz-50:rgba(var(--tz-rgb),.08)}
+
 .pvtz *:focus-visible{outline:3px solid #FBBF24;outline-offset:2px}
-/* Karty Bootstrap (zadania, wydarzenia, rezerwacje) w estetyce tz */
 .pvtz .card{border:1px solid var(--tz-line)!important;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
-.pvtz .card .card-header{border-top-left-radius:14px;border-top-right-radius:14px;background:#fff}
+.pvtz .card .card-header{border-top-left-radius:14px;border-top-right-radius:14px;background:var(--tz-bg)}
 .pvtz .lbl-en{font-size:.72rem;color:var(--tz-muted);font-weight:500;display:block;margin-top:.1rem}
 
 /* Nagłówek strony */
@@ -181,76 +238,34 @@ $pv_tile = function (array $t): void {
 .pvtz .tz-h h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin:0;line-height:1.2}
 .pvtz .tz-h p{color:var(--tz-muted);margin:.2rem 0 0;font-size:.9rem}
 
-/* Karty */
-.pvtz .tz-card{background:#fff;border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08);overflow:hidden;margin-bottom:1.1rem}
+/* Zachowane komponenty ─────────────────────────────────────────────────── */
+.pvtz .tz-card{background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08);overflow:hidden;margin-bottom:1.1rem}
 .pvtz .tz-card__hd{padding:.9rem 1.15rem;border-bottom:1px solid var(--tz-line);display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:.95rem}
 .pvtz .tz-card__hd i{color:var(--tz)}
 .pvtz .tz-card__bd{padding:1.15rem}
-
-/* Pasek statusu umowy */
-.pvtz .pv-status{background:#fff;border:1px solid var(--tz-line);border-left:4px solid var(--tz);border-radius:14px;padding:1rem 1.15rem;box-shadow:0 1px 3px rgba(16,24,40,.08);margin-bottom:1.1rem}
-.pvtz .pv-status-row{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
-.pvtz .pv-status-ic{width:40px;height:40px;border-radius:11px;background:var(--tz-50);color:var(--tz);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
-.pvtz .pv-status-txt{flex:1;min-width:0}
-.pvtz .pv-status-name{font-size:.98rem;font-weight:700;color:var(--tz-ink);line-height:1.25}
-.pvtz .pv-status-meta{font-size:.8rem;color:var(--tz-muted);margin-top:.15rem}
-.pvtz .pv-status-badge{font-size:.76rem;font-weight:700;padding:.25rem .7rem;border-radius:999px;white-space:nowrap;border:1px solid transparent}
-.pvtz .pv-status-badge.is-active{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
-.pvtz .pv-status-badge.is-ended{background:#f3f4f6;color:#4b5563;border-color:#e5e7eb}
-.pvtz .pv-status-prog{margin-top:.85rem}
-.pvtz .pv-status-prog-lbl{display:flex;justify-content:space-between;font-size:.78rem;color:var(--tz-muted);margin-bottom:.3rem}
-.pvtz .pv-status-prog-bar{height:7px;background:var(--tz-line);border-radius:999px;overflow:hidden}
-.pvtz .pv-status-prog-fill{height:7px;background:var(--tz);border-radius:999px}
-
-/* Zakładki */
-.pvtz .tz-subnav{position:sticky;top:0;z-index:5;background:#F4F6F9;padding:.55rem 0 .7rem;margin-bottom:1.1rem}
-.pvtz .tz-subnav .seg{display:flex;gap:.25rem;padding:.3rem;background:#fff;border:1px solid var(--tz-line);border-radius:14px;flex-wrap:wrap;box-shadow:0 1px 2px rgba(16,24,40,.05)}
-.pvtz .tz-subnav a{flex:1 1 auto;justify-content:center;font-size:.9rem;padding:.6rem 1rem;border-radius:10px;text-decoration:none;color:var(--tz-muted);display:inline-flex;align-items:center;gap:.45rem;font-weight:600;min-height:44px}
-.pvtz .tz-subnav a:hover{background:var(--tz-50);color:var(--tz-strong)}
-.pvtz .tz-subnav a.on{background:var(--tz);color:#fff}
-.pvtz .tz-subnav a.on i{color:#fff}
-.pvtz .tz-panel{display:none}
-.pvtz .tz-panel.active{display:block;animation:pvtzfade .2s ease}
-@media(prefers-reduced-motion:reduce){.pvtz .tz-panel.active{animation:none}}
-@keyframes pvtzfade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-/* Teaser "Szukasz zadań?" w zakładce Zadania */
-.pv-tasks-teaser{display:flex;align-items:center;gap:1.1rem;padding:1.4rem 1.6rem;background:linear-gradient(135deg,#9A3412,#EA580C);border-radius:16px;text-decoration:none;color:#fff;margin:.5rem 0;transition:transform .13s,box-shadow .13s}
-.pv-tasks-teaser:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(154,52,18,.35);color:#fff}
-.pv-tasks-teaser__ic{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.65rem;flex-shrink:0}
-.pv-tasks-teaser__body{flex:1;min-width:0}
-.pv-tasks-teaser__label{display:block;font-size:1.1rem;font-weight:800;line-height:1.2}
-.pv-tasks-teaser__sub{display:block;font-size:.82rem;color:rgba(255,255,255,.82);margin-top:.2rem}
-.pv-tasks-teaser__arrow{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;white-space:nowrap;color:rgba(255,255,255,.95)}
-@media(max-width:540px){.pv-tasks-teaser{flex-direction:column;align-items:flex-start;gap:.75rem}.pv-tasks-teaser__arrow{align-self:flex-end}}
 .pvtz .tz-section-h{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--tz-muted);margin:1.4rem 0 .6rem}
 .pvtz .tz-section-h:first-child{margin-top:0}
-
-/* Siatka danych umowy */
 .pvtz .tz-dl{display:grid;grid-template-columns:1fr;margin:0}
 @media(min-width:576px){.pvtz .tz-dl{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:992px){.pvtz .tz-dl{grid-template-columns:repeat(3,1fr)}}
 .pvtz .tz-dl>div{padding:.8rem 1.1rem;border-top:1px solid var(--tz-line)}
 .pvtz .tz-dl dt{font-size:.7rem;color:var(--tz-muted);margin:0;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
-.pvtz .tz-dl dd{font-weight:600;margin:.2rem 0 0;font-size:.94rem;word-break:break-word;color:#0f172a}
+.pvtz .tz-dl dd{font-weight:600;margin:.2rem 0 0;font-size:.94rem;word-break:break-word;color:var(--tz-ink)}
 .pvtz .tz-yes{color:#047857}.pvtz .tz-no{color:var(--tz-muted);font-weight:500}
-
-/* Kafelki */
 .pvtz .tz-tiles{display:grid;gap:.85rem;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
-.pvtz .tz-tile{position:relative;display:flex;flex-direction:column;gap:.15rem;background:#fff;border:1px solid var(--tz-line);border-radius:14px;padding:1.05rem;text-decoration:none;color:inherit;min-height:112px;transition:transform .15s,border-color .15s,box-shadow .15s}
+.pvtz .tz-tile{position:relative;display:flex;flex-direction:column;gap:.15rem;background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:14px;padding:1.05rem;text-decoration:none;color:inherit;min-height:112px;transition:transform .15s,border-color .15s,box-shadow .15s}
 .pvtz .tz-tile:hover,.pvtz .tz-tile:focus-visible{transform:translateY(-2px);border-color:var(--tz);box-shadow:0 8px 24px -6px rgba(var(--tz-rgb),.28);color:inherit}
 .pvtz .tz-tile__ico{width:42px;height:42px;border-radius:11px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:.55rem}
 .pvtz .tz-tile__ttl{font-weight:700;font-size:.9rem;line-height:1.25;color:var(--tz-ink)}
 .pvtz .tz-tile__sub{font-size:.76rem;color:var(--tz-muted)}
 .pvtz .tz-tile__badge{position:absolute;top:.6rem;right:.6rem;min-width:20px;height:20px;padding:0 .35rem;border-radius:999px;background:#dc2626;color:#fff;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center}
-
-/* Konta / dostępy (usługi) */
 .pvtz .tz-svc{display:flex;align-items:flex-start;gap:.9rem;padding:.95rem 0;border-top:1px solid var(--tz-line)}
 .pvtz .tz-svc:first-child{border-top:0;padding-top:.3rem}
 .pvtz .tz-svc__ico{width:44px;height:44px;border-radius:12px;background:var(--tz-50);color:var(--tz-strong);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
 .pvtz .tz-svc__bd{flex:1;min-width:0}
 .pvtz .tz-svc__ttl{font-weight:700;font-size:.95rem}
 .pvtz .tz-kv{font-size:.85rem;color:var(--tz-muted);margin-top:.2rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-.pvtz .tz-kv code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#0f172a;background:var(--tz-50);padding:.1rem .4rem;border-radius:6px;font-size:.85rem;word-break:break-all}
+.pvtz .tz-kv code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tz-ink);background:var(--tz-50);padding:.1rem .4rem;border-radius:6px;font-size:.85rem;word-break:break-all}
 .pvtz .tz-copy{background:none;border:none;padding:.15rem .3rem;cursor:pointer;color:var(--tz-muted);border-radius:6px;line-height:1}
 .pvtz .tz-copy:hover{color:var(--tz);background:var(--tz-50)}
 .pvtz .tz-svc__foot{margin-top:.5rem}
@@ -259,32 +274,112 @@ $pv_tile = function (array $t): void {
 .pvtz .tz-badge{font-size:.72rem;font-weight:600;padding:.18rem .55rem;border-radius:999px;display:inline-flex;align-items:center;gap:.3rem;border:1px solid transparent}
 .pvtz .tz-badge--ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
 .pvtz .tz-badge--wait{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
-
-/* Karta „Uwaga/nudge" i przyciski */
-.pvtz .tz-note{background:#F4F6F9;border:1px solid var(--tz-line);border-radius:14px;padding:.85rem 1.1rem;font-size:.85rem;color:var(--tz-muted);display:flex;gap:.55rem;align-items:flex-start;margin-bottom:1.1rem}
+.pvtz .tz-note{background:var(--tz-bg-page);border:1px solid var(--tz-line);border-radius:14px;padding:.85rem 1.1rem;font-size:.85rem;color:var(--tz-muted);display:flex;gap:.55rem;align-items:flex-start;margin-bottom:1.1rem}
 .pvtz .tz-note i{color:var(--tz);font-size:1.05rem;margin-top:.1rem}
 .pvtz .tz-btn{background:var(--tz-strong);color:#fff;border:none;border-radius:10px;padding:.6rem 1.2rem;font-weight:600;display:inline-flex;align-items:center;gap:.45rem;text-decoration:none;cursor:pointer;min-height:44px}
 .pvtz .tz-btn:hover{filter:brightness(.94);color:#fff}
-.pvtz .tz-btn--ghost{background:#fff;color:var(--tz-strong);border:1px solid var(--tz-line)}
+.pvtz .tz-btn--ghost{background:var(--tz-bg);color:var(--tz-strong);border:1px solid var(--tz-line)}
 .pvtz .tz-btn--ghost:hover{background:var(--tz-50);filter:none}
-.pvtz .tz-empty{background:#fff;border:2px dashed var(--tz-line);border-radius:14px;text-align:center;padding:2rem 1rem;color:var(--tz-muted)}
-
-/* Aktywność (pv_apps_activity.php) — w palecie tz */
-.pvtz .vol-activity{background:#fff;border:1px solid var(--tz-line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.pvtz .tz-empty{background:var(--tz-bg);border:2px dashed var(--tz-line);border-radius:14px;text-align:center;padding:2rem 1rem;color:var(--tz-muted)}
+.pvtz .pv-status-badge{font-size:.76rem;font-weight:700;padding:.25rem .7rem;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.pvtz .pv-status-badge.is-active{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+.pvtz .pv-status-badge.is-ended{background:#f3f4f6;color:#4b5563;border-color:#e5e7eb}
+.pvtz .vol-activity{background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.08)}
 .pvtz .vol-activity-header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.85rem 1.1rem;border-bottom:1px solid var(--tz-line)}
 .pvtz .vol-activity-title{font-size:.95rem;font-weight:700;color:var(--tz-ink);margin:0}
-.pvtz .vol-activity-row{display:flex;align-items:center;gap:.7rem;padding:.7rem 1.1rem;border-bottom:1px solid #F3F4F6;font-size:.86rem}
+.pvtz .vol-activity-row{display:flex;align-items:center;gap:.7rem;padding:.7rem 1.1rem;border-bottom:1px solid var(--tz-line);font-size:.86rem}
 .pvtz .vol-activity-row:last-child{border-bottom:none}
 .pvtz .vol-activity-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
-.pvtz .pv-filter-chips{display:flex;gap:.35rem;flex-wrap:wrap;padding:.6rem 1.1rem;border-bottom:1px solid #F3F4F6}
+.pvtz .pv-filter-chips{display:flex;gap:.35rem;flex-wrap:wrap;padding:.6rem 1.1rem;border-bottom:1px solid var(--tz-line)}
+/* Teaser zadań */
+.pv-tasks-teaser{display:flex;align-items:center;gap:1.1rem;padding:1.4rem 1.6rem;background:linear-gradient(135deg,#9A3412,#EA580C);border-radius:16px;text-decoration:none;color:#fff;transition:transform .13s,box-shadow .13s}
+.pv-tasks-teaser:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(154,52,18,.35);color:#fff}
+.pv-tasks-teaser__ic{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.65rem;flex-shrink:0}
+.pv-tasks-teaser__body{flex:1;min-width:0}
+.pv-tasks-teaser__label{display:block;font-size:1.1rem;font-weight:800;line-height:1.2}
+.pv-tasks-teaser__sub{display:block;font-size:.82rem;color:rgba(255,255,255,.82);margin-top:.2rem}
+.pv-tasks-teaser__arrow{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;white-space:nowrap;color:rgba(255,255,255,.95)}
+@media(max-width:540px){.pv-tasks-teaser{flex-direction:column;align-items:flex-start;gap:.75rem}.pv-tasks-teaser__arrow{align-self:flex-end}}
+
+/* ── Bento grid ─────────────────────────────────────────────────────────── */
+.pv-bento{display:grid;gap:1rem;grid-template-columns:1fr;grid-template-areas:"welcome" "stats" "tasks" "messages" "actions";margin-bottom:1.5rem}
+@media(min-width:640px){
+  .pv-bento{grid-template-columns:2fr 1fr;grid-template-areas:"welcome stats" "tasks messages" "actions actions"}
+}
+.b-welcome{grid-area:welcome}
+.b-stats{grid-area:stats}
+.b-tasks{grid-area:tasks}
+.b-messages{grid-area:messages}
+.b-actions{grid-area:actions}
+
+/* Bento tile (karta) */
+.b-tile{background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 1px 3px rgba(16,24,40,.07);overflow:hidden;display:flex;flex-direction:column}
+.b-tile__hd{display:flex;align-items:center;gap:.6rem;padding:.85rem 1.15rem;border-bottom:1px solid var(--tz-line);font-weight:700;font-size:.92rem;flex-shrink:0;color:var(--tz-ink)}
+.b-tile__hd>i{color:var(--tz);flex-shrink:0}
+.b-tile__more{margin-left:auto;font-size:.78rem;font-weight:600;color:var(--tz-muted);text-decoration:none;display:flex;align-items:center;gap:.3rem;padding:.2rem .4rem;border-radius:6px;white-space:nowrap}
+.b-tile__more:hover{color:var(--tz);background:var(--tz-50)}
+.b-tile__bd{padding:1.15rem;flex:1}
+.b-tile__bd--flush{padding:0;flex:1}
+
+/* Stats aside — 3 kafelki statystyk */
+.b-stats{display:flex;flex-direction:column;gap:1rem}
+@media(max-width:639px){.b-stats{flex-direction:row;flex-wrap:wrap}}
+.pv-stat-tile{flex:1;min-width:0;background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 1px 3px rgba(16,24,40,.07);padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.25rem;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s}
+@media(max-width:639px){.pv-stat-tile{flex:1 1 calc(33.3% - .7rem);min-width:100px}}
+.pv-stat-tile:is(a):hover,.pv-stat-tile:is(a):focus-visible{border-color:var(--tz);box-shadow:0 6px 18px rgba(var(--tz-rgb),.18);color:inherit}
+.pv-stat-tile__ico{color:var(--tz);font-size:1.15rem;margin-bottom:.1rem}
+.pv-stat-tile__val{font-size:1.75rem;font-weight:800;color:var(--tz-ink);line-height:1;font-variant-numeric:tabular-nums}
+.pv-stat-tile__lbl{font-size:.75rem;color:var(--tz-muted);font-weight:500;line-height:1.3}
+.pv-stat-tile--accent{background:var(--tz);border-color:var(--tz)}
+.pv-stat-tile--accent .pv-stat-tile__ico,.pv-stat-tile--accent .pv-stat-tile__val,.pv-stat-tile--accent .pv-stat-tile__lbl{color:#fff}
+.pv-stat-tile--warn{background:#fff7ed;border-color:#fed7aa}
+.pv-stat-tile--warn .pv-stat-tile__ico{color:#c2410c}
+.pv-stat-tile--warn .pv-stat-tile__val{color:#9a3412}
+.pv-stat-tile--warn .pv-stat-tile__lbl{color:#c2410c}
+@media(prefers-color-scheme:dark){.pv-stat-tile--warn{background:#2a1500;border-color:#7c2d12}}
+:root[data-theme="dark"] .pv-stat-tile--warn{background:#2a1500;border-color:#7c2d12}
+
+/* Feed wiadomości */
+.pv-msgfeed{list-style:none;padding:0;margin:0}
+.pv-msg{display:flex;gap:.65rem;padding:.9rem 1.15rem;border-bottom:1px solid var(--tz-line)}
+.pv-msg:last-child{border-bottom:none}
+.pv-msg__av{width:34px;height:34px;border-radius:50%;background:var(--tz-50);color:var(--tz-strong);font-size:.73rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-variant-numeric:tabular-nums}
+.pv-msg__av--admin{background:var(--tz);color:#fff}
+.pv-msg__body{flex:1;min-width:0}
+.pv-msg__meta{font-size:.72rem;color:var(--tz-muted);display:flex;justify-content:space-between;gap:.4rem;margin-bottom:.2rem}
+.pv-msg__meta strong{color:var(--tz-ink);font-weight:600}
+.pv-msg__text{font-size:.86rem;color:var(--tz-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.pv-msg--unread .pv-msg__text{font-weight:600}
+.pv-msg--unread .pv-msg__av--admin{box-shadow:0 0 0 2px var(--tz)}
+
+/* Pasek szybkich akcji */
+.pv-qa-strip{display:flex;flex-wrap:wrap;gap:.5rem;padding:1rem 1.15rem}
+.pv-qa-btn{display:inline-flex;align-items:center;gap:.45rem;padding:.55rem .95rem;border-radius:10px;background:var(--tz-bg);border:1px solid var(--tz-line);text-decoration:none;color:var(--tz-ink);font-size:.86rem;font-weight:600;transition:border-color .15s,box-shadow .13s,transform .1s;min-height:44px;position:relative;white-space:nowrap}
+.pv-qa-btn:hover,.pv-qa-btn:focus-visible{border-color:var(--tz);color:var(--tz-strong);transform:translateY(-1px);box-shadow:0 4px 12px rgba(var(--tz-rgb),.15)}
+.pv-qa-btn>i{color:var(--tz);font-size:1rem}
+.pv-qa-btn__bdg{min-width:17px;height:17px;padding:0 .28rem;border-radius:999px;background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-left:.1rem}
+.pv-qa-btn--always{background:var(--tz-50);border-color:rgba(var(--tz-rgb),.2)}
+.pv-qa-btn--always>i{color:var(--tz-strong)}
+
+/* Timeline na kafelku Welcome */
+.pv-tl{margin:1rem 0 .4rem;padding:0 .25rem}
+.pv-tl__track{height:5px;background:var(--tz-line);border-radius:999px;position:relative}
+.pv-tl__fill{position:absolute;left:0;top:0;height:5px;background:var(--tz);border-radius:999px;transition:width .4s ease}
+.pv-tl__dot{position:absolute;top:-5px;width:14px;height:14px;border-radius:50%;background:var(--tz);border:3px solid var(--tz-bg);box-shadow:0 0 0 2px var(--tz);transform:translateX(-50%);transition:left .4s ease}
+.pv-tl__labels{display:flex;justify-content:space-between;margin-top:.4rem;font-size:.72rem;color:var(--tz-muted)}
+.pv-tl__today{position:absolute;top:2.1rem;transform:translateX(-50%);font-size:.68rem;font-weight:700;color:var(--tz);white-space:nowrap}
+
+@media(prefers-reduced-motion:reduce){.pv-tl__fill,.pv-tl__dot{transition:none}}
 </style>
 
-<div class="pvtz">
+<a class="visually-hidden focusable" href="#pvtz-main">Przejdź do treści głównej</a>
 
-  <!-- ══ Nagłówek + powitanie ══ -->
+<div class="pvtz" id="pvtz-root">
+
+  <!-- Nagłówek: powitanie + przełącznik umowy -->
   <div class="tz-h d-flex flex-wrap align-items-start justify-content-between gap-2">
     <div>
-      <h1><?= h($_greet) ?>, <?= h($_fname_first) ?> 👋</h1>
+      <h1><?= h($_greet) ?>, <?= h($_fname_first) ?></h1>
       <p><?= h(ORG_NAME) ?> · Twój panel współpracy · <?= date('d.m.Y') ?></p>
     </div>
     <?php if (count($contracts) > 1): ?>
@@ -296,60 +391,11 @@ $pv_tile = function (array $t): void {
 
   <?= function_exists('flash_html') ? flash_html() : '' ?>
 
-  <?php if (!$contracts): ?>
-  <!-- Brak umów -->
-  <div class="tz-empty">
-    <i class="bi bi-file-earmark-x" style="font-size:2.5rem;display:block;margin-bottom:.6rem" aria-hidden="true"></i>
-    <p class="fw-semibold mb-1" style="color:#374151">Nie znaleziono umów powiązanych z Twoim kontem.</p>
-    <p class="small mb-0">Skontaktuj się z administratorem, aby powiązać umowę z adresem <?= h($email) ?>.</p>
-  </div>
-  <?php else: ?>
-
-  <?php /* ── Pasek statusu umowy — pełna szerokość, nad zakładkami ── */ ?>
-  <?php if ($_active_row): ?>
-  <section aria-labelledby="pvp-contract-heading">
-    <h2 id="pvp-contract-heading" class="visually-hidden">Status Twojej umowy</h2>
-    <div class="pv-status">
-      <div class="pv-status-row">
-        <span class="pv-status-ic" aria-hidden="true"><i class="bi <?= $_status_icons[$_st] ?? 'bi-circle' ?>"></i></span>
-        <div class="pv-status-txt">
-          <div class="pv-status-name">
-            Porozumienie wolontariackie<?php if ($_active_row['imie_nazwisko'] ?? null): ?> · <?= h($_active_row['imie_nazwisko']) ?><?php endif; ?>
-            <?php if ($_is_guardian): ?><span class="tz-badge tz-badge--wait ms-1"><i class="bi bi-person-hearts" aria-hidden="true"></i>Opiekun</span><?php endif; ?>
-          </div>
-          <?php if (($_active_row['data_zawarcia'] ?? null) || ($_active_contract['data_zakonczenia'] ?? null) || !empty($_active_row['bezterminowa'])): ?>
-          <div class="pv-status-meta">
-            <?php if ($_active_row['data_zawarcia'] ?? null): ?><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?><?php endif; ?>
-            <?php if ($_active_contract['data_zakonczenia'] ?? null): ?> → <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?><?php elseif (!empty($_active_row['bezterminowa'])): ?> → <i class="bi bi-infinity" aria-hidden="true"></i> bezterminowo<?php endif; ?>
-          </div>
-          <?php endif; ?>
-        </div>
-        <span class="pv-status-badge <?= $_ended ? 'is-ended' : 'is-active' ?>"><?= h($_status_labels[$_st] ?? ucfirst($_st)) ?></span>
-      </div>
-      <?php if ($contract_progress && !$_ended): ?>
-      <div class="pv-status-prog">
-        <div class="pv-status-prog-lbl">
-          <span>Pozostało <strong><?= (int)$contract_progress['days_left'] ?></strong> dni</span>
-          <span><?= (int)$contract_progress['pct'] ?>%</span>
-        </div>
-        <div class="pv-status-prog-bar" role="progressbar"
-             aria-valuenow="<?= (int)$contract_progress['pct'] ?>" aria-valuemin="0" aria-valuemax="100"
-             aria-valuetext="Wykorzystano <?= (int)$contract_progress['pct'] ?>%, pozostało <?= (int)$contract_progress['days_left'] ?> dni"
-             aria-label="Postęp umowy">
-          <div class="pv-status-prog-fill" style="width:<?= (int)$contract_progress['pct'] ?>%"></div>
-        </div>
-      </div>
-      <?php endif; ?>
-    </div>
-  </section>
-  <?php endif; ?>
-
-  <?php /* ── Jednorazowe zachęty (nad zakładkami, gdy aktywne) ── */ ?>
   <?php if ($_show_dir_invite): ?>
   <div class="tz-note" role="complementary" aria-label="Zaproszenie do uzupełnienia profilu">
     <i class="bi bi-people-fill" aria-hidden="true"></i>
     <span style="flex:1">
-      <strong style="color:#374151">Uzupełnij swój profil w katalogu.</strong>
+      <strong style="color:var(--tz-ink)">Uzupełnij swój profil w katalogu.</strong>
       Dodaj zdjęcie i krótki opis — łatwiej Cię znajdą i dopasują zadania.
       <a href="<?= APP_URL ?>/directory/profile_edit.php" class="ms-1 fw-semibold" style="color:var(--tz-strong)">Uzupełnij profil →</a>
     </span>
@@ -358,118 +404,275 @@ $pv_tile = function (array $t): void {
   <?php endif; ?>
   <?php if ($_show_sms_nudge): include __DIR__ . '/pv_sms_nudge.php'; endif; ?>
 
-  <?php /* ══════════════ ZAKŁADKI ══════════════ */ ?>
-  <nav class="tz-subnav" aria-label="Sekcje panelu">
-    <span class="seg" role="tablist">
-      <?php if ($_tasks_tab_on): ?>
-      <a href="#zadania" class="<?= $_default_tab==='zadania'?'on':'' ?>" role="tab" id="tab-zadania"
-         aria-controls="zadania" aria-selected="<?= $_default_tab==='zadania'?'true':'false' ?>" <?= $_default_tab==='zadania'?'':'tabindex="-1"' ?>>
-        <i class="bi bi-list-check" aria-hidden="true"></i>Zadania
-      </a>
+  <?php if (!$contracts): ?>
+  <div class="tz-empty">
+    <i class="bi bi-file-earmark-x" style="font-size:2.5rem;display:block;margin-bottom:.6rem" aria-hidden="true"></i>
+    <p class="fw-semibold mb-1" style="color:var(--tz-ink)">Nie znaleziono umów powiązanych z Twoim kontem.</p>
+    <p class="small mb-0">Skontaktuj się z administratorem, aby powiązać umowę z adresem <?= h($email) ?>.</p>
+  </div>
+  <?php else: ?>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       BENTO GRID
+       ════════════════════════════════════════════════════════════════════ -->
+  <main id="pvtz-main" class="pv-bento" aria-label="Panel współpracownika">
+
+    <!-- ── B1: Kafelek powitalny (umowa + timeline) ───────────────────── -->
+    <section class="b-tile b-welcome" aria-labelledby="bw-heading">
+      <?php if ($_active_row):
+        $_ct_type = $_active_contract['contract_type'] ?? 'wolontariat';
+        $_is_wol  = $_ct_type === 'wolontariat';
+        $_pesel   = $_active_row['pesel'] ?? '';
+        $_pesel_msk = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) : '';
+        $_ct_icons = ['wolontariat'=>'bi-heart-fill','zlecenie'=>'bi-person-workspace','dzielo'=>'bi-brush','praca'=>'bi-briefcase-fill'];
+        $_ct_icon  = $_ct_icons[$_ct_type] ?? 'bi-file-earmark-text';
+        $_ct_labels= ['wolontariat'=>'Wolontariat','zlecenie'=>'Umowa zlecenie','dzielo'=>'Umowa o dzieło','praca'=>'Umowa o pracę'];
+        $_ct_label = $_ct_labels[$_ct_type] ?? ucfirst($_ct_type);
+      ?>
+      <div class="b-tile__hd">
+        <span style="width:36px;height:36px;border-radius:10px;background:var(--tz-50);color:var(--tz);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem" aria-hidden="true">
+          <i class="bi <?= $_status_icons[$_st] ?? 'bi-circle' ?>"></i>
+        </span>
+        <div style="flex:1;min-width:0">
+          <div id="bw-heading" style="font-size:.93rem;font-weight:700;line-height:1.2;color:var(--tz-ink)">
+            <?= h($_ct_label) ?><?php if ($_active_row['imie_nazwisko'] ?? null): ?><span style="color:var(--tz-muted);font-weight:500"> · <?= h($_active_row['imie_nazwisko']) ?></span><?php endif; ?>
+            <?php if ($_is_guardian): ?><span class="tz-badge tz-badge--wait ms-1"><i class="bi bi-person-hearts" aria-hidden="true"></i>Opiekun</span><?php endif; ?>
+          </div>
+          <?php if (($_active_row['data_zawarcia'] ?? null) || ($_active_contract['data_zakonczenia'] ?? null) || !empty($_active_row['bezterminowa'])): ?>
+          <div style="font-size:.76rem;color:var(--tz-muted);margin-top:.1rem">
+            <?php if ($_active_row['data_zawarcia'] ?? null): ?>od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?><?php endif; ?>
+            <?php if ($_active_contract['data_zakonczenia'] ?? null): ?> → <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?><?php elseif (!empty($_active_row['bezterminowa'])): ?> → bezterminowo<?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div>
+        <span class="pv-status-badge <?= $_ended ? 'is-ended' : 'is-active' ?>"><?= h($_status_labels[$_st] ?? ucfirst($_st)) ?></span>
+      </div>
+      <div class="b-tile__bd">
+        <?php if (!empty($_active_contract['numer_umowy']) || ($_is_wol && ($_active_row['miejsce_wolontariatu'] ?? null))
+               || ($_is_wol && ($_active_row['godzin_tygodniowo'] ?? null)) || ($_is_wol && ($_active_row['opiekun'] ?? null))
+               || $_pesel || ($_active_row['telefon'] ?? null)): ?>
+        <dl class="tz-dl" style="margin:-1.15rem -1.15rem 0">
+          <?php if (!empty($_active_contract['numer_umowy'])): ?><div><dt>Nr umowy</dt><dd><?= h($_active_contract['numer_umowy']) ?></dd></div><?php endif; ?>
+          <?php if ($_is_wol && ($_active_row['miejsce_wolontariatu'] ?? null)): ?><div><dt>Miejsce</dt><dd><?= h($_active_row['miejsce_wolontariatu']) ?></dd></div><?php endif; ?>
+          <?php if ($_is_wol && ($_active_row['godzin_tygodniowo'] ?? null)): ?><div><dt>Godzin tyg.</dt><dd><?= h($_active_row['godzin_tygodniowo']) ?> h</dd></div><?php endif; ?>
+          <?php if ($_is_wol && ($_active_row['opiekun'] ?? null)): ?><div><dt>Opiekun</dt><dd><?= h($_active_row['opiekun']) ?></dd></div><?php endif; ?>
+          <?php if ($_pesel): ?><div><dt>PESEL</dt><dd style="font-family:ui-monospace,monospace;font-size:.88rem"><?= h($_pesel_msk) ?></dd></div><?php endif; ?>
+          <?php if ($_active_row['telefon'] ?? null): ?><div><dt>Telefon</dt><dd><?= h($_active_row['telefon']) ?></dd></div><?php endif; ?>
+          <?php if ($_is_wol && ($_active_row['godzin_przepracowanych'] ?? null)): ?>
+          <div><dt>Godz. przepracowane</dt><dd><?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h
+            <?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?><small class="text-muted fw-normal">(<?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)</small><?php endif; ?></dd></div>
+          <?php endif; ?>
+          <?php if ($_is_wol): ?>
+          <div><dt>BHP</dt><dd><?= !empty($_active_row['szkolenie_bhp']) ? '<span class="tz-yes"><i class="bi bi-check-circle-fill"></i> Tak</span>' : '<span class="tz-no">Nie</span>' ?></dd></div>
+          <div><dt>NNW</dt><dd><?= !empty($_active_row['ubezpieczenie_nnw']) ? '<span class="tz-yes"><i class="bi bi-check-circle-fill"></i> Tak</span>' : '<span class="tz-no">Nie</span>' ?></dd></div>
+          <?php endif; ?>
+        </dl>
+        <?php endif; ?>
+
+        <?php if ($contract_progress && !$_ended):
+          $pct = min(100, max(0, (int)$contract_progress['pct']));
+        ?>
+        <div class="pv-tl" aria-hidden="true">
+          <div class="pv-tl__track">
+            <div class="pv-tl__fill" style="width:<?= $pct ?>%"></div>
+            <div class="pv-tl__dot" style="left:<?= $pct ?>%"></div>
+            <div class="pv-tl__today" style="left:<?= $pct ?>%">dziś</div>
+          </div>
+          <div class="pv-tl__labels">
+            <span><?= ($_active_row['data_zawarcia'] ?? null) ? date('d.m.Y', strtotime($_active_row['data_zawarcia'])) : 'start' ?></span>
+            <span>pozostało <strong><?= (int)$contract_progress['days_left'] ?></strong> dni</span>
+            <span><?= ($_active_contract['data_zakonczenia'] ?? null) ? date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) : '' ?></span>
+          </div>
+        </div>
+        <div role="progressbar"
+             aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100"
+             aria-valuetext="Wykorzystano <?= $pct ?>% umowy, pozostało <?= (int)$contract_progress['days_left'] ?> dni"
+             aria-label="Postęp umowy" class="visually-hidden"></div>
+        <?php elseif ($_ended): ?>
+        <p class="small mt-3 mb-0" style="color:var(--tz-muted)"><i class="bi bi-flag me-1" aria-hidden="true"></i>Umowa zakończona.</p>
+        <?php endif; ?>
+      </div>
+      <?php else: ?>
+      <div class="b-tile__hd"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span id="bw-heading">Twoja umowa</span></div>
+      <div class="b-tile__bd">
+        <div class="tz-empty" style="border:none;padding:.5rem 0">
+          <p class="mb-0">Brak aktywnej umowy do wyświetlenia.</p>
+        </div>
+      </div>
       <?php endif; ?>
-      <a href="#formalne" class="<?= $_default_tab==='formalne'?'on':'' ?>" role="tab" id="tab-formalne"
-         aria-controls="formalne" aria-selected="<?= $_default_tab==='formalne'?'true':'false' ?>" <?= $_default_tab==='formalne'?'':'tabindex="-1"' ?>>
-        <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalne / Umowa
+    </section>
+
+    <!-- ── B2: Kafelki statystyk ──────────────────────────────────────── -->
+    <aside class="b-stats" aria-label="Twoje statystyki">
+      <?php if ($_tasks_tab_on): ?>
+      <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-stat-tile<?= $_bento_tasks_pending > 0 ? ' pv-stat-tile--accent' : '' ?>" aria-label="Zadania: <?= $_bento_tasks_pending ?> aktywnych">
+        <i class="bi bi-kanban pv-stat-tile__ico" aria-hidden="true"></i>
+        <div class="pv-stat-tile__val"><?= $_bento_tasks_pending ?></div>
+        <div class="pv-stat-tile__lbl">Aktywnych zadań</div>
       </a>
-      <a href="#narzedzia" class="<?= $_default_tab==='narzedzia'?'on':'' ?>" role="tab" id="tab-narzedzia"
-         aria-controls="narzedzia" aria-selected="<?= $_default_tab==='narzedzia'?'true':'false' ?>" <?= $_default_tab==='narzedzia'?'':'tabindex="-1"' ?>>
-        <i class="bi bi-tools" aria-hidden="true"></i>Narzędzia do codziennej pracy
+      <?php else: ?>
+      <div class="pv-stat-tile">
+        <i class="bi bi-kanban pv-stat-tile__ico" aria-hidden="true"></i>
+        <div class="pv-stat-tile__val">—</div>
+        <div class="pv-stat-tile__lbl">Moduł zadań wyłączony</div>
+      </div>
+      <?php endif; ?>
+
+      <a href="<?= APP_URL ?>/panel/apply.php" class="pv-stat-tile<?= $_pending_total > 0 ? ' pv-stat-tile--warn' : '' ?>" aria-label="Sprawy w toku: <?= $_pending_total ?>">
+        <i class="bi bi-bell pv-stat-tile__ico" aria-hidden="true"></i>
+        <div class="pv-stat-tile__val"><?= $_pending_total ?></div>
+        <div class="pv-stat-tile__lbl">Spraw do uwagi</div>
       </a>
-    </span>
-  </nav>
 
-  <?php if ($_tasks_tab_on): ?>
-  <!-- ═══════════ ZAKŁADKA — ZADANIA ═══════════ -->
-  <?php $GLOBALS['_pv_tasks_section_done'] = true; /* panel umowy ma własny teaser; blokuje drugi include w index.php */ ?>
-  <section class="tz-panel <?= $_default_tab==='zadania'?'active':'' ?>" id="zadania" role="tabpanel" aria-labelledby="tab-zadania" tabindex="-1">
-    <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-tasks-teaser" aria-label="Przejdź do modułu Zadania">
-      <span class="pv-tasks-teaser__ic"><i class="bi bi-kanban-fill" aria-hidden="true"></i></span>
-      <span class="pv-tasks-teaser__body">
-        <span class="pv-tasks-teaser__label">Szukasz zadań?</span>
-        <span class="pv-tasks-teaser__sub">Twoje zadania, statusy i terminy znajdziesz w osobnym module.</span>
-      </span>
-      <span class="pv-tasks-teaser__arrow"><i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i> Przejdź do zadań</span>
-    </a>
-  </section>
-  <?php endif; ?>
+      <a href="<?= APP_URL ?>/panel/messages.php" class="pv-stat-tile<?= $msg_unread > 0 ? ' pv-stat-tile--accent' : '' ?>" aria-label="Wiadomości: <?= $msg_unread ?> nowych">
+        <i class="bi bi-chat-dots pv-stat-tile__ico" aria-hidden="true"></i>
+        <div class="pv-stat-tile__val"><?= $msg_unread ?></div>
+        <div class="pv-stat-tile__lbl">Nowych wiadomości</div>
+      </a>
+    </aside>
 
-  <!-- ═══════════ ZAKŁADKA — FORMALNE / UMOWA ═══════════ -->
-  <section class="tz-panel <?= $_default_tab==='formalne'?'active':'' ?>" id="formalne" role="tabpanel" aria-labelledby="tab-formalne" tabindex="-1">
-
-    <?php if ($_active_row):
-      $_ct_type   = $_active_contract['contract_type'] ?? 'wolontariat';
-      $_is_wol    = $_ct_type === 'wolontariat';
-      $_pesel     = $_active_row['pesel'] ?? '';
-      $_pesel_msk = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) : '';
-    ?>
-    <h3 class="tz-section-h">Dane umowy</h3>
-    <div class="tz-card">
-      <div class="tz-card__hd"><i class="bi bi-clipboard-check" aria-hidden="true"></i><span>Szczegóły porozumienia</span></div>
-      <dl class="tz-dl">
-        <?php if (!empty($_active_contract['numer_umowy'])): ?><div><dt>Numer umowy</dt><dd><?= h($_active_contract['numer_umowy']) ?></dd></div><?php endif; ?>
-        <?php if ($_pesel): ?><div><dt>PESEL</dt><dd style="font-family:ui-monospace,monospace"><?= h($_pesel_msk) ?></dd></div><?php endif; ?>
-        <?php if ($_active_row['data_urodzenia'] ?? null): ?><div><dt>Data urodzenia</dt><dd><?= h(date('d.m.Y', strtotime($_active_row['data_urodzenia']))) ?></dd></div><?php endif; ?>
-        <?php if ($_active_row['telefon'] ?? null): ?><div><dt>Telefon</dt><dd><?= h($_active_row['telefon']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['miejsce_wolontariatu'] ?? null)): ?><div><dt>Miejsce wolontariatu</dt><dd><?= h($_active_row['miejsce_wolontariatu']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['godzin_tygodniowo'] ?? null)): ?><div><dt>Godzin tygodniowo</dt><dd><?= h($_active_row['godzin_tygodniowo']) ?> h</dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['godzin_przepracowanych'] ?? null)): ?>
-        <div><dt>Godziny przepracowane</dt><dd><?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h
-          <?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?><small class="text-muted fw-normal">(<?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)</small><?php endif; ?></dd></div>
+    <!-- ── B3: Kafelek zadań ──────────────────────────────────────────── -->
+    <section class="b-tile b-tasks" aria-labelledby="bt-heading">
+      <?php if ($_tasks_tab_on):
+        $GLOBALS['_pv_tasks_section_done'] = true;
+      ?>
+      <div class="b-tile__hd">
+        <i class="bi bi-kanban-fill" aria-hidden="true"></i>
+        <span id="bt-heading">Zadania</span>
+        <?php if ($_bento_tasks_pending): ?>
+        <span class="badge rounded-pill bg-danger ms-1" aria-label="<?= $_bento_tasks_pending ?> aktywnych zadań"><?= $_bento_tasks_pending > 99 ? '99+' : $_bento_tasks_pending ?></span>
         <?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['opiekun'] ?? null)): ?><div><dt>Opiekun</dt><dd><?= h($_active_row['opiekun']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['projekt_program'] ?? null)): ?><div><dt>Projekt / program</dt><dd><?= h($_active_row['projekt_program']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol): ?>
-        <div><dt>Szkolenie BHP</dt><dd><?php if (!empty($_active_row['szkolenie_bhp'])): ?><span class="tz-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Tak<?= ($_active_row['data_szkolenia_bhp'] ?? '') ? ' · '.date('d.m.Y', strtotime($_active_row['data_szkolenia_bhp'])) : '' ?></span><?php else: ?><span class="tz-no">Nie</span><?php endif; ?></dd></div>
-        <div><dt>Ubezpieczenie NNW</dt><dd><?php if (!empty($_active_row['ubezpieczenie_nnw'])): ?><span class="tz-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Tak<?= ($_active_row['numer_polisy_nnw'] ?? '') ? ' · '.h($_active_row['numer_polisy_nnw']) : '' ?></span><?php else: ?><span class="tz-no">Nie</span><?php endif; ?></dd></div>
-        <div><dt>Ubezpieczenie OC</dt><dd><?php if (!empty($_active_row['ubezpieczenie_oc'])): ?><span class="tz-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Tak</span><?php else: ?><span class="tz-no">Nie</span><?php endif; ?></dd></div>
-        <?php if (!empty($_active_row['zwrot_kosztow'])): ?><div><dt>Zwrot kosztów</dt><dd class="tz-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Tak</dd></div><?php endif; ?>
-        <?php if ($_active_row['m365_login'] ?? null): ?><div><dt>Login Microsoft 365</dt><dd style="font-size:.85rem"><?= h($_active_row['m365_login']) ?></dd></div><?php endif; ?>
+        <a href="<?= APP_URL ?>/tasks/dashboard.php" class="b-tile__more">Wszystkie <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <div class="b-tile__bd">
+        <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-tasks-teaser" aria-label="Przejdź do modułu Zadania<?= $_bento_tasks_pending ? ' — '.$_bento_tasks_pending.' aktywnych' : '' ?>">
+          <span class="pv-tasks-teaser__ic" aria-hidden="true"><i class="bi bi-kanban-fill"></i></span>
+          <span class="pv-tasks-teaser__body">
+            <?php if ($_bento_tasks_pending > 0): ?>
+            <span class="pv-tasks-teaser__label"><?= $_bento_tasks_pending ?> aktywn<?= $_bento_tasks_pending === 1 ? 'e zadanie' : ($_bento_tasks_pending < 5 ? 'e zadania' : 'ych zadań') ?></span>
+            <span class="pv-tasks-teaser__sub">Masz otwarte zadania czekające na Twoje działanie.</span>
+            <?php else: ?>
+            <span class="pv-tasks-teaser__label">Moduł zadań</span>
+            <span class="pv-tasks-teaser__sub">Brak przypisanych zadań. Przejdź, by sprawdzić nowe.</span>
+            <?php endif; ?>
+          </span>
+          <span class="pv-tasks-teaser__arrow" aria-hidden="true"><i class="bi bi-arrow-right-circle-fill"></i> Przejdź</span>
+        </a>
+      </div>
+      <?php else: ?>
+      <div class="b-tile__hd">
+        <i class="bi bi-send" aria-hidden="true"></i>
+        <span id="bt-heading">Ostatnie wnioski</span>
+        <a href="<?= APP_URL ?>/panel/apply.php" class="b-tile__more">Złóż nowy <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <div class="b-tile__bd">
+        <?php if ($_pv_apps): ?>
+        <?php include __DIR__ . '/pv_apps_activity.php'; ?>
+        <?php else: ?>
+        <div class="tz-empty" style="border:none;padding:1rem 0">
+          <i class="bi bi-send" style="font-size:1.8rem;display:block;margin-bottom:.5rem;opacity:.55" aria-hidden="true"></i>
+          <p class="fw-semibold mb-2" style="font-size:.9rem">Brak ostatnich wniosków.</p>
+          <a href="<?= APP_URL ?>/panel/apply.php" class="tz-btn" style="font-size:.85rem"><i class="bi bi-send" aria-hidden="true"></i>Wyślij pismo / złóż wniosek</a>
+        </div>
         <?php endif; ?>
-        <?php if ($_active_row['adres'] ?? null): ?><div style="grid-column:1/-1"><dt>Adres</dt><dd style="font-weight:500"><?= h($_active_row['adres']) ?></dd></div><?php endif; ?>
-      </dl>
+      </div>
+      <?php endif; ?>
+    </section>
+
+    <!-- ── B4: Kafelek wiadomości ─────────────────────────────────────── -->
+    <section class="b-tile b-messages" aria-labelledby="bm-heading">
+      <div class="b-tile__hd">
+        <i class="bi bi-chat-dots-fill" aria-hidden="true"></i>
+        <span id="bm-heading">Wiadomości</span>
+        <?php if ($msg_unread): ?>
+        <span class="badge rounded-pill bg-danger ms-1" aria-label="<?= $msg_unread ?> nowych"><?= $msg_unread > 99 ? '99+' : $msg_unread ?></span>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/panel/messages.php" class="b-tile__more">Wszystkie <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <div class="b-tile__bd--flush">
+        <?php if ($_bento_msgs): ?>
+        <ul class="pv-msgfeed" aria-label="Ostatnie wiadomości" role="list">
+          <?php foreach ($_bento_msgs as $_bmsg): ?>
+          <li class="pv-msg<?= $_bmsg['is_unread'] ? ' pv-msg--unread' : '' ?>">
+            <span class="pv-msg__av<?= $_bmsg['sender_type'] === 'admin' ? ' pv-msg__av--admin' : '' ?>" aria-hidden="true"><?= $_pv_initials($_bmsg['sender_name'] ?: 'A') ?></span>
+            <div class="pv-msg__body">
+              <div class="pv-msg__meta">
+                <strong><?= h($_bmsg['sender_name'] ?: 'Administrator') ?></strong>
+                <span><?= $_pv_rel_time($_bmsg['created_at']) ?></span>
+              </div>
+              <div class="pv-msg__text"><?= h($_bmsg['body']) ?></div>
+            </div>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="px-3 py-2 border-top" style="border-color:var(--tz-line)!important">
+          <a href="<?= APP_URL ?>/panel/messages.php" class="d-flex align-items-center gap-1 text-decoration-none" style="font-size:.82rem;font-weight:600;color:var(--tz-strong)">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz nową wiadomość
+          </a>
+        </div>
+        <?php else: ?>
+        <div class="tz-empty" style="border:none;margin:1rem">
+          <i class="bi bi-chat-dots" style="font-size:1.8rem;display:block;margin-bottom:.5rem;opacity:.45" aria-hidden="true"></i>
+          <p class="mb-2" style="font-size:.88rem">Brak wiadomości w tym wątku.</p>
+          <a href="<?= APP_URL ?>/panel/messages.php" class="tz-btn" style="font-size:.82rem"><i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz do nas</a>
+        </div>
+        <?php endif; ?>
+      </div>
+    </section>
+
+    <!-- ── B5: Pasek szybkich akcji (pełna szerokość) ─────────────────── -->
+    <section class="b-tile b-actions" aria-labelledby="bqa-heading">
+      <div class="b-tile__hd">
+        <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+        <span id="bqa-heading">Szybkie akcje</span>
+      </div>
+      <nav class="pv-qa-strip" aria-label="Szybkie akcje" role="navigation">
+        <?php foreach ($_pv_all_actions as $_qa):
+          $_qa_badge = (int)($_qa['badge'] ?? 0);
+          $_qa_aria  = h($_qa['label']) . ($_qa_badge ? " — {$_qa_badge} wymaga uwagi" : '');
+        ?>
+        <a href="<?= h($_qa['href']) ?>" class="pv-qa-btn" aria-label="<?= $_qa_aria ?>">
+          <i class="bi <?= h($_qa['icon']) ?>" aria-hidden="true"></i>
+          <?= h($_qa['label']) ?>
+          <?php if ($_qa_badge): ?><span class="pv-qa-btn__bdg" aria-hidden="true"><?= $_qa_badge > 99 ? '99+' : $_qa_badge ?></span><?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+        <?php if (is_file(dirname(__DIR__, 2) . '/tozsamosc/index.php')): ?>
+        <a href="<?= APP_URL ?>/tozsamosc/" class="pv-qa-btn pv-qa-btn--always">
+          <i class="bi bi-fingerprint" aria-hidden="true"></i>Tożsamość
+        </a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/panel/password.php" class="pv-qa-btn pv-qa-btn--always">
+          <i class="bi bi-gear" aria-hidden="true"></i>Ustawienia konta
+        </a>
+      </nav>
+    </section>
+
+  </main><!-- /.pv-bento -->
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       POD BENTO — Konta i dostępy (M365, Moodle, Canva, Portal)
+       ════════════════════════════════════════════════════════════════════ -->
+  <section class="tz-card" aria-labelledby="pv-accounts-heading">
+    <div class="tz-card__hd">
+      <i class="bi bi-key-fill" aria-hidden="true"></i>
+      <span id="pv-accounts-heading">Konta i dostępy do systemów</span>
     </div>
-    <?php endif; // _active_row ?>
+    <div class="tz-card__bd" style="padding-top:.3rem">
 
-    <h3 class="tz-section-h">Sprawy i dokumenty</h3>
-    <div class="tz-tiles">
-      <?php foreach ($_pv_formal as $t) $pv_tile($t); ?>
-    </div>
-
-    <?php /* ── Ostatnie wnioski (aktywność) ── */ ?>
-    <h3 class="tz-section-h">Ostatnie wnioski</h3>
-    <?php if ($_pv_apps): ?>
-    <?php include __DIR__ . '/pv_apps_activity.php'; ?>
-    <?php else: ?>
-    <div class="tz-empty">
-      <i class="bi bi-send" style="font-size:2rem;display:block;margin-bottom:.6rem;opacity:.6" aria-hidden="true"></i>
-      <p class="fw-semibold mb-1" style="color:#374151">Masz pytanie lub prośbę?</p>
-      <p class="small mb-3">Złóż wniosek lub wyślij pismo bezpośrednio do organizacji.</p>
-      <a href="<?= APP_URL ?>/panel/apply.php" class="tz-btn"><i class="bi bi-send" aria-hidden="true"></i>Wyślij pismo / złóż wniosek</a>
-    </div>
-    <?php endif; ?>
-  </section>
-
-  <!-- ═══════════ ZAKŁADKA 2 — NARZĘDZIA DO CODZIENNEJ PRACY ═══════════ -->
-  <section class="tz-panel <?= $_default_tab==='narzedzia'?'active':'' ?>" id="narzedzia" role="tabpanel" aria-labelledby="tab-narzedzia" tabindex="-1">
-
-    <?php if ($_my_children): ?>
-    <h3 class="tz-section-h">Konta dzieci</h3>
-    <div class="tz-card"><div class="tz-card__bd">
+      <?php if ($_my_children): ?>
+      <h3 class="tz-section-h">Konta dzieci</h3>
       <?php foreach ($_my_children as $_ch): ?>
-      <form method="post" action="<?= APP_URL ?>/auth/enter_child.php"
-            class="tz-svc justify-content-between" style="align-items:center">
+      <form method="post" action="<?= APP_URL ?>/auth/enter_child.php" class="tz-svc justify-content-between" style="align-items:center">
         <span style="min-width:0"><strong><?= h($_ch['name']) ?></strong><br><span class="text-muted" style="font-size:.78rem"><?= h($_ch['email']) ?></span></span>
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="child" value="<?= (int)$_ch['id'] ?>">
         <button class="tz-btn" style="white-space:nowrap"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź na konto</button>
       </form>
       <?php endforeach; ?>
-    </div></div>
-    <?php endif; ?>
+      <?php endif; ?>
 
-    <?php /* ── Konta i dostępy ── */ ?>
-    <h3 class="tz-section-h">Konta i dostępy</h3>
-    <div class="tz-card"><div class="tz-card__bd">
+      <h3 class="tz-section-h">Logowania</h3>
 
       <!-- Portal wolontariusza -->
       <div class="tz-svc">
@@ -483,7 +686,7 @@ $pv_tile = function (array $t): void {
         </div>
       </div>
 
-      <?php /* Microsoft 365 */ ?>
+      <!-- Microsoft 365 -->
       <?php if ($m365_login): ?>
       <div class="tz-svc">
         <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-microsoft"></i></span>
@@ -507,7 +710,7 @@ $pv_tile = function (array $t): void {
       </div>
       <?php endif; ?>
 
-      <?php /* Moodle */ ?>
+      <!-- Moodle -->
       <?php if ($moodle_url): ?>
       <div class="tz-svc">
         <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
@@ -523,7 +726,7 @@ $pv_tile = function (array $t): void {
       </div>
       <?php endif; ?>
 
-      <?php /* Canva */ ?>
+      <!-- Canva -->
       <?php if ($_canva_contract_wolont && $_canva_has_access): ?>
       <div class="tz-svc">
         <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-palette-fill"></i></span>
@@ -581,68 +784,60 @@ $pv_tile = function (array $t): void {
         </div>
       </div>
 
-    </div></div>
-
-    <?php /* ── Narzędzia (kafelki) ── */ ?>
-    <h3 class="tz-section-h">Narzędzia i pomoc</h3>
-    <div class="tz-tiles">
-      <?php foreach ($_pv_daily as $t) $pv_tile($t); ?>
     </div>
-
-    <?php /* ── Wydarzenia i rezerwacje (sekcje wspólne) ── */ ?>
-    <h3 class="tz-section-h">Wydarzenia i rezerwacje</h3>
-    <?php include __DIR__ . '/pv_extra_sections.php'; ?>
-
   </section>
-  <?php endif; // $contracts ?>
 
+  <!-- Ostatnie wnioski (gdy tasks_tab_on = true, activity pokazywana poza kafelkiem) -->
+  <?php if ($_tasks_tab_on && $_pv_apps): ?>
+  <section class="tz-card" aria-labelledby="pv-act-heading">
+    <div class="tz-card__hd"><i class="bi bi-activity" aria-hidden="true"></i><span id="pv-act-heading">Ostatnie wnioski</span></div>
+    <div class="tz-card__bd"><?php include __DIR__ . '/pv_apps_activity.php'; ?></div>
+  </section>
+  <?php endif; ?>
+
+  <!-- Dane wrażliwe umowy (pełny formularz — zgody, RODO, szczegóły) -->
+  <?php if ($_active_row && !empty($_active_row['adres'])): ?>
+  <section class="tz-card" aria-labelledby="pv-addr-heading">
+    <div class="tz-card__hd"><i class="bi bi-person-vcard" aria-hidden="true"></i><span id="pv-addr-heading">Dane kontaktowe</span></div>
+    <dl class="tz-dl">
+      <div style="grid-column:1/-1"><dt>Adres korespondencyjny</dt><dd style="font-weight:500"><?= h($_active_row['adres']) ?></dd></div>
+      <?php if ($_active_row['data_urodzenia'] ?? null): ?><div><dt>Data urodzenia</dt><dd><?= h(date('d.m.Y', strtotime($_active_row['data_urodzenia']))) ?></dd></div><?php endif; ?>
+      <?php if ($_active_row['projekt_program'] ?? null): ?><div><dt>Projekt / program</dt><dd><?= h($_active_row['projekt_program']) ?></dd></div><?php endif; ?>
+    </dl>
+  </section>
+  <?php endif; ?>
+
+  <!-- Wydarzeinia i rezerwacje zasobów -->
+  <?php include __DIR__ . '/pv_extra_sections.php'; ?>
+
+  <?php endif; /* $contracts */ ?>
 </div><!-- /pvtz -->
 
 <script>
 /* Kopiowanie do schowka */
-function pvCopy(text, btn){
-  if(!navigator.clipboard) return;
-  navigator.clipboard.writeText(text).then(function(){
-    var i=btn.querySelector('i'), old=i?i.className:'';
-    if(i){i.className='bi bi-check-lg';btn.style.color='#16a34a';}
-    setTimeout(function(){ if(i){i.className=old||'bi bi-copy';btn.style.color='';} },1600);
+function pvCopy(text, btn) {
+  if (!navigator.clipboard) return;
+  navigator.clipboard.writeText(text).then(function () {
+    var i = btn.querySelector('i'), old = i ? i.className : '';
+    if (i) { i.className = 'bi bi-check-lg'; btn.style.color = '#16a34a'; }
+    setTimeout(function () {
+      if (i) { i.className = old || 'bi bi-copy'; btn.style.color = ''; }
+    }, 1600);
   });
 }
-/* Zakładki: role=tab z obsługą klawiatury (strzałki/Home/End) + #hash */
-(function(){
-  var root=document.querySelector('.pvtz'); if(!root) return;
-  var tabs=[].slice.call(root.querySelectorAll('.tz-subnav .seg a[role="tab"]'));
-  var panels=[].slice.call(root.querySelectorAll('.tz-panel'));
-  if(!tabs.length) return;
-  function activate(id, focusPanel){
-    var found=false;
-    panels.forEach(function(p){var on=p.id===id;p.classList.toggle('active',on);found=found||on;});
-    if(!found){id=panels[0].id;panels.forEach(function(p){p.classList.toggle('active',p.id===id);});}
-    tabs.forEach(function(t){
-      var on=t.getAttribute('aria-controls')===id;
-      t.classList.toggle('on',on);
-      t.setAttribute('aria-selected',on?'true':'false');
-      t.tabIndex=on?0:-1;
-    });
-    if(history.replaceState) history.replaceState(null,'','#'+id);
-    if(focusPanel){var pl=document.getElementById(id);if(pl)pl.focus({preventScroll:true});}
-  }
-  root.querySelectorAll('a[href^="#"]').forEach(function(a){
-    var id=a.getAttribute('href').slice(1), el=document.getElementById(id);
-    if(!el||!el.classList.contains('tz-panel')) return;
-    a.addEventListener('click',function(e){e.preventDefault();activate(id,true);});
+/* Wiadomości: klik → link do pełnego widoku */
+(function () {
+  var feed = document.querySelector('.pv-msgfeed');
+  if (!feed) return;
+  var href = feed.closest('.b-tile') && feed.closest('.b-tile').querySelector('.b-tile__more');
+  if (!href) return;
+  feed.querySelectorAll('.pv-msg').forEach(function (li) {
+    li.style.cursor = 'pointer';
+    li.setAttribute('role', 'link');
+    li.setAttribute('tabindex', '0');
+    li.setAttribute('aria-label', (li.querySelector('.pv-msg__text') || {}).textContent || 'Wiadomość');
+    li.addEventListener('click', function () { location.href = href.href; });
+    li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = href.href; } });
   });
-  tabs.forEach(function(t,i){
-    t.addEventListener('keydown',function(e){
-      var n=null;
-      if(e.key==='ArrowRight'||e.key==='ArrowDown')n=tabs[(i+1)%tabs.length];
-      else if(e.key==='ArrowLeft'||e.key==='ArrowUp')n=tabs[(i-1+tabs.length)%tabs.length];
-      else if(e.key==='Home')n=tabs[0];
-      else if(e.key==='End')n=tabs[tabs.length-1];
-      if(n){e.preventDefault();activate(n.getAttribute('aria-controls'),false);n.focus();}
-    });
-  });
-  var initial=(location.hash||'').slice(1);
-  if(initial && document.getElementById(initial) && document.getElementById(initial).classList.contains('tz-panel')) activate(initial,false);
-})();
+}());
 </script>
