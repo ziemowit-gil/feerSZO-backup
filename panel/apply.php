@@ -153,39 +153,48 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
+<div class="pv-wrap">
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij wniosek</h1>
-  <p class="pv-page-sub">Skontaktuj się z organizacją · <?= date('d.m.Y') ?></p>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Wnioski</h1>
+    <p class="pv-page-sub">Składaj wnioski związane z umową wolontariacką</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
+<?php if ($_is_volunteer_only): ?>
+
 <?php if (!$types): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-tools me-2" aria-hidden="true"></i>Brak typów wniosków</div>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-tools" style="font-size:2.5rem;opacity:.2" aria-hidden="true"></i>
-    <p class="mt-3 mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-tools me-2" aria-hidden="true"></i>Brak typów wniosków</div>
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <i class="bi bi-tools" aria-hidden="true"></i>
+      <p class="mt-3 mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
+    </div>
   </div>
 </div>
 <?php elseif (!$contracts): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Brak umów</div>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-exclamation-circle" style="font-size:2.5rem;opacity:.2" aria-hidden="true"></i>
-    <p class="mt-3 mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Brak umów</div>
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+      <p class="mt-3 mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
+    </div>
   </div>
 </div>
 <?php else: ?>
 
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowe pismo / wniosek</div>
-  <div class="vol-detail-body">
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowe pismo / wniosek</div>
+  <div class="tz-card__bd">
 
     <?php if ($errors): ?>
-    <div class="alert alert-danger">
+    <div class="pv-alert pv-alert-err" role="alert">
       <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
     </div>
     <?php endif; ?>
@@ -204,14 +213,13 @@ if ($_is_volunteer_only) {
                    data-requires-contract="<?= $t['requires_contract'] ?>"
                    data-allow-attachment="<?= $t['allow_attachment'] ?>"
                    <?= $sel ? 'checked' : '' ?> required>
-            <label class="d-flex align-items-center gap-2 w-100 text-start p-3 rounded border"
-                   for="type_<?= $t['id'] ?>"
-                   style="cursor:pointer;background:#fff;transition:.15s">
-              <i class="bi <?= h($t['icon']) ?> flex-shrink-0" style="font-size:1.4rem;color:var(--vol-color)" aria-hidden="true"></i>
+            <label class="tz-card d-flex align-items-center gap-2 w-100 text-start p-3"
+                   for="type_<?= $t['id'] ?>">
+              <i class="bi <?= h($t['icon']) ?> flex-shrink-0" aria-hidden="true"></i>
               <div>
-                <div class="fw-semibold" style="font-size:.88rem"><?= h($t['label']) ?></div>
+                <div class="fw-semibold"><?= h($t['label']) ?></div>
                 <?php if ($t['description']): ?>
-                <div class="text-muted" style="font-size:.73rem"><?= h($t['description']) ?></div>
+                <div class="text-muted"><?= h($t['description']) ?></div>
                 <?php endif; ?>
               </div>
             </label>
@@ -219,10 +227,10 @@ if ($_is_volunteer_only) {
           <?php endforeach; ?>
         </div>
         <?php if ($_term_module): ?>
-        <div class="d-flex align-items-center gap-2 mt-2 p-2 rounded" style="background:#FEF2F2;border:1px solid #FECACA;font-size:.8rem">
-          <i class="bi bi-info-circle text-danger flex-shrink-0" aria-hidden="true"></i>
-          <span class="flex-grow-1 text-muted">Chcesz rozwiązać umowę? Skorzystaj z dedykowanego modułu.</span>
-          <a href="<?= APP_URL ?>/panel/terminations.php" class="btn btn-sm btn-outline-danger py-0 px-2" style="white-space:nowrap">
+        <div class="tz-note mt-2">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <span class="flex-grow-1">Chcesz rozwiązać umowę? Skorzystaj z dedykowanego modułu.</span>
+          <a href="<?= APP_URL ?>/panel/terminations.php" class="tz-btn tz-btn--ghost ms-2">
             <i class="bi bi-file-earmark-x me-1" aria-hidden="true"></i>Zakończ współpracę
           </a>
         </div>
@@ -254,26 +262,31 @@ if ($_is_volunteer_only) {
         <label for="tytul" class="form-label fw-semibold">Tytuł <span class="text-danger">*</span></label>
         <input type="text" id="tytul" name="tytul" class="form-control"
                value="<?= h($_POST['tytul'] ?? '') ?>"
-               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255" required>
+               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255"
+               required aria-required="true">
       </div>
 
       <?php foreach ($types as $t) { ?>
       <div class="type-fields" id="fields-<?= $t['id'] ?>"
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <?php foreach ($t['fields'] as $f) {
-            $val = $_POST['field_' . $f['name']] ?? '';
-            $ph  = h($f['placeholder']);
+            $val   = $_POST['field_' . $f['name']] ?? '';
+            $ph    = h($f['placeholder']);
+            $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
+            $fname = 'field_' . h($f['name']);
         ?>
         <div class="mb-3">
-          <label class="form-label fw-semibold">
+          <label class="form-label fw-semibold" for="<?= $fid ?>">
             <?= h($f['label']) ?>
             <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
           </label>
           <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="field_<?= h($f['name']) ?>" class="form-control" rows="4"
-                    placeholder="<?= $ph ?>"><?= h($val) ?></textarea>
+          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="4"
+                    placeholder="<?= $ph ?>"
+                    <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
           <?php elseif ($f['field_type'] === 'select'): ?>
-          <select name="field_<?= h($f['name']) ?>" class="form-select">
+          <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
+                  <?= $f['required'] ? 'aria-required="true"' : '' ?>>
             <option value="">— wybierz —</option>
             <?php foreach (app_field_options($f) as $opt): ?>
             <option value="<?= h($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= h($opt) ?></option>
@@ -281,23 +294,29 @@ if ($_is_volunteer_only) {
           </select>
           <?php elseif ($f['field_type'] === 'checkbox'): ?>
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="field_<?= h($f['name']) ?>"
+            <input class="form-check-input" type="checkbox" name="<?= $fname ?>"
                    id="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>" value="tak"
-                   <?= $val === 'tak' ? 'checked' : '' ?>>
+                   <?= $val === 'tak' ? 'checked' : '' ?>
+                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>
             <label class="form-check-label" for="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>">Tak</label>
           </div>
           <?php else: ?>
           <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
-                 name="field_<?= h($f['name']) ?>" class="form-control"
-                 value="<?= h($val) ?>" placeholder="<?= $ph ?>">
+                 name="<?= $fname ?>" id="<?= $fid ?>" class="form-control"
+                 value="<?= h($val) ?>" placeholder="<?= $ph ?>"
+                 <?= $f['required'] ? 'aria-required="true"' : '' ?>>
           <?php endif; ?>
         </div>
         <?php } ?>
         <?php if (!$t['fields']): ?>
         <div class="mb-3">
-          <label class="form-label fw-semibold">Treść / opis <span class="text-danger">*</span></label>
-          <textarea name="field__tresc_fallback" class="form-control" rows="5"
-                    placeholder="Opisz szczegółowo swoją sprawę..."><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
+          <label class="form-label fw-semibold" for="fld_fallback_<?= $t['id'] ?>">
+            Treść / opis <span class="text-danger">*</span>
+          </label>
+          <textarea name="field__tresc_fallback" id="fld_fallback_<?= $t['id'] ?>"
+                    class="form-control" rows="5"
+                    placeholder="Opisz szczegółowo swoją sprawę..."
+                    aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
         </div>
         <?php endif; ?>
       </div>
@@ -313,10 +332,10 @@ if ($_is_volunteer_only) {
       </div>
 
       <div class="d-flex gap-2">
-        <button type="submit" style="background:var(--vol-color);color:#fff;border:none;border-radius:8px;padding:.55rem 1.25rem;font-weight:600">
+        <button type="submit" class="tz-btn">
           <i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij
         </button>
-        <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-outline-secondary">Anuluj</a>
+        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost">Anuluj</a>
       </div>
     </form>
   </div>
@@ -325,10 +344,10 @@ if ($_is_volunteer_only) {
 <?php endif; ?>
 
 <?php if ($history): ?>
-<div class="vol-detail-card">
-  <div class="vol-detail-header">
+<div class="tz-card">
+  <div class="tz-card__hd">
     <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Moje wnioski
-    <span class="badge bg-secondary ms-auto"><?= count($history) ?></span>
+    <span class="tz-badge ms-auto"><?= count($history) ?></span>
   </div>
   <?php foreach ($history as $app):
       $st = $status_map[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
@@ -340,14 +359,14 @@ if ($_is_volunteer_only) {
     <div class="vol-activity-icon bg-<?= $st['class'] ?> bg-opacity-15 text-<?= $st['class'] ?>">
       <i class="bi <?= $st_icon ?>" aria-hidden="true"></i>
     </div>
-    <div class="flex-grow-1" style="min-width:0">
+    <div class="flex-grow-1">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold" style="font-size:.88rem"><?= h($app['tytul']) ?></span>
-        <span class="badge bg-<?= $st['class'] ?>"><?= $st['label'] ?></span>
+        <span class="fw-semibold"><?= h($app['tytul']) ?></span>
+        <span class="pv-status-pill pv-sp-<?= $st['class'] ?>"><?= $st['label'] ?></span>
       </div>
-      <div class="text-muted" style="font-size:.78rem"><?= h($app['type_label'] ?? '') ?></div>
+      <div class="text-muted"><?= h($app['type_label'] ?? '') ?></div>
       <?php if ($app['odpowiedz']): ?>
-      <div class="mt-1 p-2 rounded" style="background:var(--vol-bg);font-size:.8rem">
+      <div class="mt-1 p-2 rounded bg-body-secondary">
         <i class="bi bi-reply me-1" aria-hidden="true"></i>
         <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
         <?php if ($app['odpowiedz_at']): ?>
@@ -357,14 +376,14 @@ if ($_is_volunteer_only) {
       <?php endif; ?>
       <?php if ($app['plik']): ?>
       <div class="mt-1">
-        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"
+        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="tz-btn tz-btn--ghost py-0 px-2"
            download target="_blank">
           <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
         </a>
       </div>
       <?php endif; ?>
     </div>
-    <div class="text-muted text-nowrap" style="font-size:.77rem"><?= h(substr($app['created_at'], 0, 10)) ?></div>
+    <div class="text-muted text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></div>
   </div>
   <?php endforeach; ?>
 </div>
@@ -372,42 +391,33 @@ if ($_is_volunteer_only) {
 
 <?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-send text-primary fs-4"></i>
-  </div>
-  <div>
-    <h4 class="mb-0">Wyślij pismo / Złóż wniosek</h4>
-    <div class="text-muted small">Skontaktuj się z organizacją lub złóż wniosek dotyczący Twojej umowy</div>
-  </div>
-</div>
-
-<?= flash_html() ?>
-
 <?php if (!$types): ?>
-<div class="card shadow-sm mb-4">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-tools fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
+<div class="tz-card mb-4">
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <i class="bi bi-tools" aria-hidden="true"></i>
+      <p class="mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
+    </div>
   </div>
 </div>
 <?php elseif (!$contracts): ?>
-<div class="card shadow-sm mb-4">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-exclamation-circle fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
+<div class="tz-card mb-4">
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+      <p class="mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
+    </div>
   </div>
 </div>
 <?php else: ?>
 
 <!-- ── Formularz ─────────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold"><i class="bi bi-pencil-square me-2"></i>Nowe pismo / wniosek</div>
-  <div class="card-body">
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowe pismo / wniosek</div>
+  <div class="tz-card__bd">
 
     <?php if ($errors): ?>
-    <div class="alert alert-danger">
+    <div class="pv-alert pv-alert-err" role="alert">
       <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
     </div>
     <?php endif; ?>
@@ -427,13 +437,13 @@ if ($_is_volunteer_only) {
                    data-requires-contract="<?= $t['requires_contract'] ?>"
                    data-allow-attachment="<?= $t['allow_attachment'] ?>"
                    <?= $sel ? 'checked' : '' ?> required>
-            <label class="btn btn-outline-primary w-100 text-start d-flex align-items-center gap-2 py-2 px-3"
+            <label class="tz-btn tz-btn--ghost w-100 text-start d-flex align-items-center gap-2 py-2 px-3"
                    for="type_<?= $t['id'] ?>">
-              <i class="bi <?= h($t['icon']) ?> fs-5 flex-shrink-0"></i>
+              <i class="bi <?= h($t['icon']) ?> fs-5 flex-shrink-0" aria-hidden="true"></i>
               <div>
-                <div class="small fw-semibold"><?= h($t['label']) ?></div>
+                <div class="fw-semibold"><?= h($t['label']) ?></div>
                 <?php if ($t['description']): ?>
-                <div class="text-muted" style="font-size:.72rem"><?= h($t['description']) ?></div>
+                <div class="text-muted"><?= h($t['description']) ?></div>
                 <?php endif; ?>
               </div>
             </label>
@@ -469,7 +479,8 @@ if ($_is_volunteer_only) {
         <label for="tytul" class="form-label fw-semibold">Tytuł <span class="text-danger">*</span></label>
         <input type="text" id="tytul" name="tytul" class="form-control"
                value="<?= h($_POST['tytul'] ?? '') ?>"
-               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255" required>
+               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255"
+               required aria-required="true">
       </div>
 
       <!-- Krok 4: Dynamiczne pola per typ -->
@@ -477,19 +488,23 @@ if ($_is_volunteer_only) {
       <div class="type-fields" id="fields-<?= $t['id'] ?>"
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <?php foreach ($t['fields'] as $f) {
-            $val = $_POST['field_' . $f['name']] ?? '';
-            $ph  = h($f['placeholder']);
+            $val   = $_POST['field_' . $f['name']] ?? '';
+            $ph    = h($f['placeholder']);
+            $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
+            $fname = 'field_' . h($f['name']);
         ?>
         <div class="mb-3">
-          <label class="form-label fw-semibold">
+          <label class="form-label fw-semibold" for="<?= $fid ?>">
             <?= h($f['label']) ?>
             <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
           </label>
           <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="field_<?= h($f['name']) ?>" class="form-control" rows="4"
-                    placeholder="<?= $ph ?>"><?= h($val) ?></textarea>
+          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="4"
+                    placeholder="<?= $ph ?>"
+                    <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
           <?php elseif ($f['field_type'] === 'select'): ?>
-          <select name="field_<?= h($f['name']) ?>" class="form-select">
+          <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
+                  <?= $f['required'] ? 'aria-required="true"' : '' ?>>
             <option value="">— wybierz —</option>
             <?php foreach (app_field_options($f) as $opt): ?>
             <option value="<?= h($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= h($opt) ?></option>
@@ -497,23 +512,29 @@ if ($_is_volunteer_only) {
           </select>
           <?php elseif ($f['field_type'] === 'checkbox'): ?>
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="field_<?= h($f['name']) ?>"
+            <input class="form-check-input" type="checkbox" name="<?= $fname ?>"
                    id="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>" value="tak"
-                   <?= $val === 'tak' ? 'checked' : '' ?>>
+                   <?= $val === 'tak' ? 'checked' : '' ?>
+                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>
             <label class="form-check-label" for="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>">Tak</label>
           </div>
           <?php else: ?>
           <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
-                 name="field_<?= h($f['name']) ?>" class="form-control"
-                 value="<?= h($val) ?>" placeholder="<?= $ph ?>">
+                 name="<?= $fname ?>" id="<?= $fid ?>" class="form-control"
+                 value="<?= h($val) ?>" placeholder="<?= $ph ?>"
+                 <?= $f['required'] ? 'aria-required="true"' : '' ?>>
           <?php endif; ?>
         </div>
         <?php } ?>
         <?php if (!$t['fields']): ?>
         <div class="mb-3">
-          <label class="form-label fw-semibold">Treść / opis <span class="text-danger">*</span></label>
-          <textarea name="field__tresc_fallback" class="form-control" rows="5"
-                    placeholder="Opisz szczegółowo swoją sprawę..."><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
+          <label class="form-label fw-semibold" for="fld_fallback_<?= $t['id'] ?>">
+            Treść / opis <span class="text-danger">*</span>
+          </label>
+          <textarea name="field__tresc_fallback" id="fld_fallback_<?= $t['id'] ?>"
+                    class="form-control" rows="5"
+                    placeholder="Opisz szczegółowo swoją sprawę..."
+                    aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
         </div>
         <?php endif; ?>
       </div>
@@ -530,10 +551,10 @@ if ($_is_volunteer_only) {
       </div>
 
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send me-2"></i>Wyślij
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij
         </button>
-        <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-outline-secondary">Anuluj</a>
+        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost">Anuluj</a>
       </div>
     </form>
   </div>
@@ -543,51 +564,49 @@ if ($_is_volunteer_only) {
 
 <!-- ── Historia ──────────────────────────────────────────────────────────── -->
 <?php if ($history): ?>
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-clock-history"></i> Moje pisma i wnioski
-    <span class="badge bg-secondary ms-auto"><?= count($history) ?></span>
+<div class="tz-card">
+  <div class="tz-card__hd d-flex align-items-center gap-2">
+    <i class="bi bi-clock-history" aria-hidden="true"></i> Moje pisma i wnioski
+    <span class="tz-badge ms-auto"><?= count($history) ?></span>
   </div>
-  <div class="list-group list-group-flush">
+  <div class="tz-card__bd p-0">
     <?php foreach ($history as $app):
         $st = $status_map[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
         $fields_data = json_decode($app['fields_json'] ?? '{}', true) ?: [];
     ?>
-    <div class="list-group-item px-4 py-3">
-      <div class="d-flex align-items-start gap-3">
-        <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?> text-primary mt-1 flex-shrink-0 fs-5"></i>
-        <div class="flex-grow-1">
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-            <span class="fw-semibold"><?= h($app['tytul']) ?></span>
-            <span class="badge bg-<?= $st['class'] ?>"><?= $st['label'] ?></span>
-            <span class="text-muted small ms-auto text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></span>
-          </div>
-          <div class="text-muted small mb-2"><?= h($app['type_label'] ?? $app['type_id']) ?></div>
-          <?php if ($fields_data): ?>
-          <div class="small text-muted d-flex flex-wrap gap-3 mb-2">
-            <?php foreach ($fields_data as $k => $v) { if ($v): ?>
-            <span><strong><?= h(str_replace('_', ' ', $k)) ?>:</strong> <?= h($v) ?></span>
-            <?php endif; } ?>
-          </div>
-          <?php endif; ?>
-          <?php if ($app['odpowiedz']): ?>
-          <div class="alert alert-success py-2 px-3 mb-0 mt-1 small">
-            <i class="bi bi-reply me-1"></i>
-            <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
-            <?php if ($app['odpowiedz_at']): ?>
-            <span class="text-muted ms-2"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span>
-            <?php endif; ?>
-          </div>
-          <?php endif; ?>
-          <?php if ($app['plik']): ?>
-          <div class="mt-1">
-            <a href="<?= h(letter_file_url($app['plik'])) ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"
-               download target="_blank">
-              <i class="bi bi-paperclip me-1"></i>Załącznik
-            </a>
-          </div>
+    <div class="d-flex align-items-start gap-3 px-4 py-3 border-top">
+      <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?> text-primary mt-1 flex-shrink-0 fs-5" aria-hidden="true"></i>
+      <div class="flex-grow-1">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+          <span class="fw-semibold"><?= h($app['tytul']) ?></span>
+          <span class="pv-status-pill pv-sp-<?= $st['class'] ?>"><?= $st['label'] ?></span>
+          <span class="text-muted small ms-auto text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></span>
+        </div>
+        <div class="text-muted small mb-2"><?= h($app['type_label'] ?? $app['type_id']) ?></div>
+        <?php if ($fields_data): ?>
+        <div class="small text-muted d-flex flex-wrap gap-3 mb-2">
+          <?php foreach ($fields_data as $k => $v) { if ($v): ?>
+          <span><strong><?= h(str_replace('_', ' ', $k)) ?>:</strong> <?= h($v) ?></span>
+          <?php endif; } ?>
+        </div>
+        <?php endif; ?>
+        <?php if ($app['odpowiedz']): ?>
+        <div class="pv-alert pv-alert-ok py-2 px-3 mb-0 mt-1 small">
+          <i class="bi bi-reply me-1" aria-hidden="true"></i>
+          <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
+          <?php if ($app['odpowiedz_at']): ?>
+          <span class="text-muted ms-2"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span>
           <?php endif; ?>
         </div>
+        <?php endif; ?>
+        <?php if ($app['plik']): ?>
+        <div class="mt-1">
+          <a href="<?= h(letter_file_url($app['plik'])) ?>" class="tz-btn tz-btn--ghost py-0 px-2"
+             download target="_blank">
+            <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
+          </a>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
     <?php endforeach; ?>
@@ -620,6 +639,8 @@ if ($_is_volunteer_only) {
     if (checked) switchType(checked);
 })();
 </script>
+
+</div><!-- /.pv-wrap -->
 
 <?php if ($_is_volunteer_only) {
     include __DIR__ . '/includes/footer_panel.php';

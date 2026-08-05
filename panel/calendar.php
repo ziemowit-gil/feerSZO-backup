@@ -80,42 +80,38 @@ $today_str = date('Y-m-d');
 // ── Widok ──────────────────────────────────────────────────────────────────────
 require dirname(__DIR__) . '/panel/includes/header_panel.php';
 ?>
-<div class="container py-4" id="cal-root">
+<div class="pv-wrap" id="cal-root">
 
-  <!-- Nagłówek -->
-  <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
-    <div>
-      <h1 class="h4 mb-0 fw-bold">
-        <i class="bi bi-calendar3 me-2" style="color:var(--vol-color)"></i>Kalendarz organizacji
-      </h1>
+  <div class="pv-page-header">
+    <div class="pv-page-head-main">
+      <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+      <h1 class="pv-page-title"><i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz</h1>
+      <p class="pv-page-sub">Twój harmonogram i terminy</p>
       <?php if ($last_updated): ?>
-        <div class="text-muted small mt-1">
-          <i class="bi bi-clock me-1"></i>Aktualizacja: <?= h($last_updated) ?>
-        </div>
+        <p class="pv-page-sub"><i class="bi bi-clock" aria-hidden="true"></i> Aktualizacja: <?= h($last_updated) ?></p>
       <?php endif; ?>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-      <?php if ($ics_url): ?>
-        <button class="btn btn-sm btn-outline-secondary" id="btn-cal-refresh"
-                aria-label="Odśwież kalendarz">
-          <i class="bi bi-arrow-clockwise me-1"></i>Odśwież
+    <?php if ($ics_url): ?>
+      <div class="pv-page-head-actions">
+        <button class="tz-btn tz-btn--ghost" id="btn-cal-refresh" aria-label="Odśwież kalendarz">
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Odśwież
         </button>
-      <?php endif; ?>
-    </div>
+      </div>
+    <?php endif; ?>
   </div>
 
   <!-- Błąd pobierania -->
   <?php if ($fetch_error): ?>
-    <div class="alert alert-warning d-flex gap-2 align-items-center">
-      <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+    <div class="pv-alert pv-alert-warning" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
       <span><?= h($fetch_error) ?></span>
     </div>
   <?php endif; ?>
 
   <!-- Brak URL -->
   <?php if (!$ics_url && !$fetch_error): ?>
-    <div class="alert alert-info d-flex gap-2 align-items-center">
-      <i class="bi bi-calendar-x fs-4 flex-shrink-0"></i>
+    <div class="pv-alert pv-alert-info" role="alert">
+      <i class="bi bi-calendar-x" aria-hidden="true"></i>
       <div>
         <strong>Kalendarz nie jest skonfigurowany.</strong><br>
         <span class="small">Administrator może ustawić adres ICS kalendarza w
@@ -137,9 +133,9 @@ require dirname(__DIR__) . '/panel/includes/header_panel.php';
 function render_calendar_events(array $by_month, string $today_str): string
 {
     if (empty($by_month)) {
-        return '<div class="text-center text-muted py-5">
-            <i class="bi bi-calendar-check display-4 d-block mb-3 opacity-50"></i>
-            <p class="mb-0">Brak wydarzeń w wybranym zakresie.</p>
+        return '<div class="tz-empty">
+            <i class="bi bi-calendar-check" aria-hidden="true"></i>
+            <p>Brak wydarzeń w wybranym zakresie.</p>
         </div>';
     }
 
@@ -155,18 +151,16 @@ function render_calendar_events(array $by_month, string $today_str): string
         $year  = substr($month_key, 0, 4);
         $label = ($month_names[$m] ?? $m) . ' ' . $year;
 
-        $html .= '<div class="cal-month-group mb-4">';
-        $html .= '<div class="cal-month-label d-flex align-items-center gap-2 mb-2">';
-        $html .= '<i class="bi bi-calendar2-week text-muted"></i>';
-        $html .= '<span class="fw-semibold text-muted small text-uppercase">' . h($label) . '</span>';
-        $html .= '<hr class="flex-grow-1 my-0">';
+        $html .= '<div class="cal-month-group">';
+        $html .= '<div class="cal-month-label">';
+        $html .= '<i class="bi bi-calendar2-week" aria-hidden="true"></i>';
+        $html .= '<span>' . h($label) . '</span>';
+        $html .= '<hr aria-hidden="true">';
         $html .= '</div>';
 
-        $html .= '<div class="list-group shadow-sm">';
         foreach ($month_events as $ev) {
             $html .= render_event_item($ev, $today_str);
         }
-        $html .= '</div>';
         $html .= '</div>';
     }
     return $html;
@@ -190,15 +184,15 @@ function render_event_item(array $ev, string $today_str): string
 
     $time_html = '';
     if ($time_start) {
-        $time_html = '<span class="small fw-semibold">' . h($time_start) . '</span>';
-        if ($time_end) $time_html .= '<span class="text-muted small">–' . h($time_end) . '</span>';
+        $time_html = '<span class="cal-time">' . h($time_start) . '</span>';
+        if ($time_end) $time_html .= '<span class="cal-time-end">–' . h($time_end) . '</span>';
     } else {
-        $time_html = '<span class="badge bg-secondary-subtle text-secondary small">Cały dzień</span>';
+        $time_html = '<span class="tz-badge">Cały dzień</span>';
     }
 
-    $extra_class = $is_past ? ' opacity-60' : '';
+    $extra_class = $is_past ? ' cal-event--past' : '';
     $today_badge = $is_today
-        ? '<span class="badge ms-2" style="background:var(--vol-color);color:var(--vol-on)">Dziś</span>'
+        ? '<span class="tz-badge tz-badge--today">Dziś</span>'
         : '';
 
     // Opis skrócony
@@ -206,46 +200,39 @@ function render_event_item(array $ev, string $today_str): string
     $desc_html = '';
     if ($desc) {
         $short = mb_strtrimwidth(preg_replace('/\s+/', ' ', $desc), 0, 160, '…');
-        $desc_html = '<div class="small text-muted mt-1 cal-desc">' . h($short) . '</div>';
+        $desc_html = '<p class="cal-desc">' . h($short) . '</p>';
     }
 
     // Lokalizacja
     $loc = trim($ev['location'] ?? '');
     $loc_html = '';
     if ($loc) {
-        $loc_html = '<span class="small text-muted ms-2"><i class="bi bi-geo-alt me-1"></i>' . h(mb_strtrimwidth($loc, 0, 60, '…')) . '</span>';
+        $loc_html = '<span class="cal-loc"><i class="bi bi-geo-alt" aria-hidden="true"></i> ' . h(mb_strtrimwidth($loc, 0, 60, '…')) . '</span>';
     }
 
     // Recurrence badge
     $rrule_html = !empty($ev['rrule'])
-        ? '<span class="badge bg-light border text-muted small ms-2"><i class="bi bi-arrow-repeat me-1"></i>Cykliczne</span>'
+        ? '<span class="tz-badge"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Cykliczne</span>'
         : '';
 
-    // Kolor boczny paska — generowany z nazwy kalendarza lub kategorii
-    $bar_color = $is_past ? '#9CA3AF' : 'var(--vol-color)';
+    $past_mod = $is_past ? ' cal-day-badge--past' : '';
 
-    return '<div class="list-group-item list-group-item-action px-0 py-0 border-0 mb-2' . $extra_class . '"
-                 style="border-radius:10px;overflow:hidden;">
-      <div class="d-flex" style="border-radius:10px;border:1px solid #e5e7eb;overflow:hidden;">
-        <!-- Data boczna -->
-        <div class="cal-day-badge d-flex flex-column align-items-center justify-content-center px-3 text-white flex-shrink-0"
-             style="min-width:56px;background:' . $bar_color . ';border-radius:0;">
-          <span class="fw-bold" style="font-size:1.25rem;line-height:1.1">' . h($day_num) . '</span>
-          <span style="font-size:.65rem;text-transform:uppercase;opacity:.85">' . h($day_name) . '</span>
-        </div>
-        <!-- Treść -->
-        <div class="flex-grow-1 py-2 px-3">
-          <div class="d-flex align-items-center flex-wrap gap-1">
-            <span class="fw-semibold">' . h($ev['summary']) . '</span>'
-              . $today_badge . $rrule_html . '
-          </div>
-          <div class="d-flex align-items-center flex-wrap mt-1 gap-1">
-            ' . $time_html . $loc_html . '
-          </div>'
-          . $desc_html . '
-        </div>
+    return '<article class="tz-card cal-event-item' . $extra_class . '" aria-label="' . h($ev['summary']) . '">
+      <div class="tz-card__hd cal-day-badge' . $past_mod . '" aria-hidden="true">
+        <span class="cal-day-num">' . h($day_num) . '</span>
+        <span class="cal-day-name">' . h($day_name) . '</span>
       </div>
-    </div>';
+      <div class="tz-card__bd">
+        <div class="cal-event-title">
+          <span class="cal-summary">' . h($ev['summary']) . '</span>'
+          . $today_badge . $rrule_html . '
+        </div>
+        <div class="cal-event-meta">'
+          . $time_html . $loc_html . '
+        </div>'
+        . $desc_html . '
+      </div>
+    </article>';
 }
 
 function format_day_name(\DateTimeInterface $dt): string
@@ -255,11 +242,6 @@ function format_day_name(\DateTimeInterface $dt): string
 }
 ?>
 
-<style>
-.cal-month-label hr { border-color: #e5e7eb; }
-.opacity-60 { opacity: .6; }
-</style>
-
 <script>
 (function () {
   'use strict';
@@ -268,7 +250,7 @@ function format_day_name(\DateTimeInterface $dt): string
 
   btn.addEventListener('click', async function () {
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Odświeżanie…';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Odświeżanie…';
     try {
       await fetch('<?= APP_URL ?>/panel/calendar.php?_action=refresh', {
         method: 'GET',
@@ -277,7 +259,7 @@ function format_day_name(\DateTimeInterface $dt): string
       window.location.reload();
     } catch (e) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Odśwież';
+      btn.innerHTML = '<i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Odśwież';
     }
   });
 })();

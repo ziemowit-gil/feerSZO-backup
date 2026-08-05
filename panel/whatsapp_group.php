@@ -88,89 +88,155 @@ $PAGE_TITLE = 'WhatsApp — grupa';
 include __DIR__ . '/includes/header_panel.php';
 ?>
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-whatsapp me-2" aria-hidden="true"></i>WhatsApp — grupa</h1>
-  <p class="pv-page-sub">Dołącz do grupy organizacji na WhatsApp</p>
-</div>
+<div class="pv-wrap">
 
-<?= flash_html() ?>
+  <div class="pv-page-header">
+    <div>
+      <a href="<?= APP_URL ?>/panel/" class="pv-page-back">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>Panel
+      </a>
+      <h1 class="pv-page-title">
+        <i class="bi bi-whatsapp" aria-hidden="true"></i>WhatsApp — grupa
+      </h1>
+      <p class="pv-page-sub">Dołącz do grupy organizacji na WhatsApp</p>
+    </div>
+  </div>
 
-<div class="row g-3">
-<div class="<?= $link ? 'col-lg-7' : 'col-12' ?>">
-  <div class="vol-detail-card h-100">
-    <div class="vol-detail-body">
-      <?php if (trim($info) !== ''): ?>
-      <div class="mb-3" style="line-height:1.6;white-space:pre-wrap;word-break:break-word"><?= nl2br(h($info)) ?></div>
-      <?php else: ?>
-      <p class="text-muted mb-3">Brak dodatkowych informacji o grupie.</p>
-      <?php endif; ?>
+  <?= flash_html() ?>
 
-      <div class="alert alert-warning mb-3">
-        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Zasady grupy</div>
-        <ul class="mb-0 ps-3">
+  <?php if (!$link): ?>
+
+    <div class="pv-empty" role="status" aria-live="polite">
+      <i class="bi bi-whatsapp" aria-hidden="true"></i>
+      <div class="pv-empty-title">Link do grupy nie został jeszcze udostępniony</div>
+      <p class="pv-empty-sub">Administrator jeszcze nie dodał zaproszenia do grupy WhatsApp.</p>
+    </div>
+
+    <div class="tz-note" role="note" aria-label="Zasady grupy WhatsApp">
+      <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <div>
+        <strong>Zasady grupy</strong>
+        <ul class="mb-0 mt-1 ps-3">
           <li>Grupa służy tylko do szybkich rozmów i luźnych spraw.</li>
           <li>Zadania ogarniamy w zadaniach w SZO — <a href="https://zadania.feer.org.pl" target="_blank" rel="noopener">zadania.feer.org.pl</a>.</li>
           <li>Nie wysyłamy danych wrażliwych.</li>
         </ul>
       </div>
+    </div>
 
-      <?php if ($link): ?>
-      <a href="<?= h($link) ?>" target="_blank" rel="noopener" class="btn btn-success">
-        <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Dołącz do grupy
-      </a>
+  <?php else: ?>
 
-      <form method="post" class="mt-3 pt-3 border-top d-flex flex-wrap align-items-center gap-2">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="send_link">
-        <span class="text-muted small me-1">Wyślij mi link:</span>
-        <div class="form-check form-check-inline mb-0">
-          <input class="form-check-input" type="checkbox" name="via_email" id="waViaEmail" value="1" <?= $user_email ? 'checked' : 'disabled' ?>>
-          <label class="form-check-label small" for="waViaEmail">e-mailem<?= $user_email ? '' : ' (brak adresu)' ?></label>
+    <div class="row g-3 mb-3">
+
+      <div class="col-lg-7">
+        <div class="tz-card h-100">
+          <div class="tz-card__hd">
+            <i class="bi bi-whatsapp" aria-hidden="true"></i>Informacje o grupie
+          </div>
+          <div class="tz-card__bd">
+
+            <?php if (trim($info) !== ''): ?>
+            <p class="mb-3" style="line-height:1.6;white-space:pre-wrap;word-break:break-word"><?= nl2br(h($info)) ?></p>
+            <?php endif; ?>
+
+            <div class="tz-note mb-3" role="note" aria-label="Zasady grupy WhatsApp">
+              <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+              <div>
+                <strong>Zasady grupy</strong>
+                <ul class="mb-0 mt-1 ps-3">
+                  <li>Grupa służy tylko do szybkich rozmów i luźnych spraw.</li>
+                  <li>Zadania ogarniamy w zadaniach w SZO — <a href="https://zadania.feer.org.pl" target="_blank" rel="noopener">zadania.feer.org.pl</a>.</li>
+                  <li>Nie wysyłamy danych wrażliwych.</li>
+                </ul>
+              </div>
+            </div>
+
+            <a href="<?= h($link) ?>" target="_blank" rel="noopener"
+               class="tz-btn"
+               aria-label="Dołącz do grupy WhatsApp organizacji (otwiera aplikację WhatsApp)">
+              <i class="bi bi-whatsapp" aria-hidden="true"></i>Dołącz do grupy
+            </a>
+
+          </div>
         </div>
-        <div class="form-check form-check-inline mb-0">
-          <input class="form-check-input" type="checkbox" name="via_sms" id="waViaSms" value="1" <?= $user_phone ? '' : 'disabled' ?>>
-          <label class="form-check-label small" for="waViaSms">SMS-em<?= $user_phone ? '' : ' (brak numeru telefonu)' ?></label>
-        </div>
-        <button type="submit" class="btn btn-outline-secondary btn-sm" <?= (!$user_email && !$user_phone) ? 'disabled' : '' ?>>
-          <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
-        </button>
-      </form>
-      <?php else: ?>
-      <div class="alert alert-light border mb-0 small py-2">
-        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Link do grupy nie został jeszcze udostępniony.
       </div>
-      <?php endif; ?>
-    </div>
-  </div>
-</div>
 
-<?php if ($link): ?>
-<div class="col-lg-5">
-  <div class="vol-detail-card h-100">
-    <div class="vol-detail-header"><i class="bi bi-qr-code me-2" aria-hidden="true"></i>Zeskanuj telefonem</div>
-    <div class="vol-detail-body text-center">
-      <div id="waGroupQr" class="mb-2 d-flex justify-content-center" role="img" aria-label="Kod QR do dołączenia do grupy WhatsApp"></div>
-      <p class="text-muted small mb-0">Zeskanuj kod aparatem telefonu, aby otworzyć zaproszenie bezpośrednio w aplikacji WhatsApp.</p>
-    </div>
-  </div>
-</div>
-<?php endif; ?>
-</div>
+      <div class="col-lg-5">
+        <div class="tz-card h-100">
+          <div class="tz-card__hd">
+            <i class="bi bi-qr-code" aria-hidden="true"></i>Zeskanuj telefonem
+          </div>
+          <div class="tz-card__bd text-center">
+            <div id="waGroupQr" class="mb-2 d-flex justify-content-center"
+                 role="img"
+                 aria-label="Kod QR do dołączenia do grupy WhatsApp"></div>
+            <p class="mb-0 small" style="color:var(--tz-muted)">Zeskanuj kod aparatem telefonu, aby otworzyć zaproszenie bezpośrednio w aplikacji WhatsApp.</p>
+          </div>
+        </div>
+      </div>
 
-<?php if ($link): ?>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var container = document.getElementById('waGroupQr');
-    if (!container) return;
-    var url = <?= json_encode($link) ?>;
-    try {
-        new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#128C7E', colorLight: '#ffffff' });
-    } catch (e) {
-        container.innerHTML = '<a href="' + url + '" target="_blank" class="btn btn-outline-success btn-sm">' + url + '</a>';
-    }
-});
-</script>
-<?php endif; ?>
+    </div>
+
+    <div class="tz-card">
+      <div class="tz-card__hd">
+        <i class="bi bi-send" aria-hidden="true"></i>Wyślij mi link
+      </div>
+      <div class="tz-card__bd">
+        <form method="post" aria-label="Formularz wysyłki linku do grupy WhatsApp">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="send_link">
+          <p class="mb-3 small" style="color:var(--tz-muted)">Wyślij sobie link do grupy, żeby mieć go pod ręką na telefonie.</p>
+          <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox"
+                     name="via_email" id="waViaEmail" value="1"
+                     <?= $user_email ? 'checked' : 'disabled' ?>
+                     aria-describedby="waViaEmailHint">
+              <label class="form-check-label" for="waViaEmail">
+                <i class="bi bi-envelope me-1" aria-hidden="true"></i>e-mailem
+              </label>
+              <?php if (!$user_email): ?>
+              <span id="waViaEmailHint" class="tz-badge tz-badge--off ms-1">brak adresu</span>
+              <?php endif; ?>
+            </div>
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox"
+                     name="via_sms" id="waViaSms" value="1"
+                     <?= $user_phone ? '' : 'disabled' ?>
+                     aria-describedby="waViaSmsHint">
+              <label class="form-check-label" for="waViaSms">
+                <i class="bi bi-phone me-1" aria-hidden="true"></i>SMS-em
+              </label>
+              <?php if (!$user_phone): ?>
+              <span id="waViaSmsHint" class="tz-badge tz-badge--off ms-1">brak numeru</span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <button type="submit"
+                  class="tz-btn tz-btn--ghost"
+                  <?= (!$user_email && !$user_phone) ? 'disabled aria-disabled="true"' : '' ?>>
+            <i class="bi bi-send" aria-hidden="true"></i>Wyślij
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var container = document.getElementById('waGroupQr');
+        if (!container) return;
+        var url = <?= json_encode($link) ?>;
+        try {
+            new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#128C7E', colorLight: '#ffffff' });
+        } catch (e) {
+            container.innerHTML = '<a href="' + url + '" target="_blank" rel="noopener" class="tz-btn tz-btn--ghost">' + url + '</a>';
+        }
+    });
+    </script>
+
+  <?php endif; ?>
+
+</div>
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

@@ -74,16 +74,13 @@ $presets = [
 $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
 ?>
 
-<!-- Nagłówek strony -->
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div style="width:44px;height:44px;border-radius:12px;background:var(--vol-bg);
-              display:flex;align-items:center;justify-content:center;
-              font-size:1.3rem;color:var(--vol-color)">
-    <i class="bi bi-palette2" aria-hidden="true"></i>
-  </div>
-  <div>
-    <h1 class="mb-0 fw-bold" style="font-size:1.2rem">Kolor panelu</h1>
-    <div class="text-muted small">Personalizuj kolor akcentu swojego widoku</div>
+<div class="pv-wrap">
+
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-palette" aria-hidden="true"></i>Motyw kolorystyczny</h1>
+    <p class="pv-page-sub">Dostosuj kolor akcentowy swojego panelu</p>
   </div>
 </div>
 
@@ -99,24 +96,22 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
       <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
       <input type="hidden" name="panel_color" id="colorValue" value="<?= h($saved_color) ?>">
 
-      <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header py-2 d-flex align-items-center gap-2"
-             style="font-size:.85rem;font-weight:700">
-          <i class="bi bi-palette me-1" style="color:var(--vol-color)"></i>
+      <div class="tz-card mb-3">
+        <div class="tz-card__hd">
+          <i class="bi bi-palette me-1" aria-hidden="true"></i>
           Wybierz kolor
         </div>
-        <div class="card-body">
+        <div class="tz-card__bd">
 
           <!-- Color picker + wartość hex -->
           <div class="d-flex align-items-center gap-3 mb-3">
+            <label for="colorPicker" class="visually-hidden">Kolor akcentowy panelu</label>
             <input type="color" id="colorPicker" value="<?= h($saved_color) ?>"
-                   aria-label="Picker koloru"
-                   style="width:56px;height:48px;padding:3px;border-radius:10px;
-                          border:1.5px solid #E5E7EB;cursor:pointer">
+                   style="width:56px;height:48px;padding:3px;border-radius:10px;cursor:pointer">
             <div>
               <div id="colorHexLabel"
-                   style="font-size:1.1rem;font-family:monospace;font-weight:700;
-                          color:<?= h($saved_color) ?>">
+                   class="font-monospace fw-bold fs-5"
+                   style="color:<?= h($saved_color) ?>">
                 <?= h($saved_color) ?>
               </div>
               <div class="text-muted small">Bieżący kolor</div>
@@ -125,7 +120,7 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
 
           <!-- Presety -->
           <div class="mb-4">
-            <div class="text-muted fw-semibold mb-2" style="font-size:.8rem">Szybki wybór:</div>
+            <div class="text-muted fw-semibold mb-2 small">Szybki wybór:</div>
             <div class="d-flex flex-wrap gap-2" id="presetGrid" role="group"
                  aria-label="Gotowe kolory panelu">
               <?php foreach ($presets as $hex => $name): ?>
@@ -146,9 +141,7 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
 
           <!-- Przyciski -->
           <div class="d-flex gap-2">
-            <button type="submit" form="colorSaveForm"
-                    class="btn btn-sm fw-semibold px-4"
-                    style="background:var(--vol-color);color:#fff;border:none;border-radius:8px">
+            <button type="submit" form="colorSaveForm" class="tz-btn">
               <i class="bi bi-check-lg me-1"></i>Zapisz kolor
             </button>
           </div>
@@ -162,11 +155,10 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
       <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
       <input type="hidden" name="reset"  value="1">
       <button type="submit"
-              class="btn btn-sm btn-outline-secondary w-100"
-              style="border-radius:8px"
+              class="tz-btn tz-btn--ghost w-100"
               onclick="return confirm('Przywrócić kolor domyślny organizacji?')">
         <i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć kolor domyślny
-        <span class="text-muted ms-1" style="font-size:.8rem">(<?= h($org_color) ?>)</span>
+        <span class="text-muted ms-1 small">(<?= h($org_color) ?>)</span>
       </button>
     </form>
 
@@ -174,12 +166,11 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
 
   <!-- ═══ Podgląd live ════════════════════════════════════════════════════════ -->
   <div class="col-lg-6">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header py-2 d-flex align-items-center gap-2"
-           style="font-size:.85rem;font-weight:700">
-        <i class="bi bi-eye me-1"></i>Podgląd na żywo
+    <div class="tz-card">
+      <div class="tz-card__hd">
+        <i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd na żywo
       </div>
-      <div class="card-body p-3">
+      <div class="tz-card__bd p-3">
 
         <!-- Mini-topbar -->
         <div id="pvTopbar"
@@ -192,7 +183,8 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
           <div style="width:28px;height:28px;border-radius:50%;
                       background:rgba(255,255,255,.25);
                       display:flex;align-items:center;justify-content:center;
-                      font-size:.65rem;color:#fff;font-weight:700">
+                      font-size:.65rem;color:#fff;font-weight:700"
+               aria-hidden="true">
             <?= h($initials) ?>
           </div>
         </div>
@@ -241,35 +233,39 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
           </div>
         </div>
 
-        <div class="text-muted mt-2 text-center" style="font-size:.75rem">
+        <p class="text-muted mt-2 text-center small">
           Podgląd aktualizuje się natychmiast po wyborze koloru
-        </div>
+        </p>
       </div>
     </div>
 
     <!-- Informacja o aktualnym kolorze -->
-    <div class="mt-3 p-3 rounded-3" style="background:#fff;border:1.5px solid #E5E7EB;font-size:.83rem">
-      <div class="d-flex align-items-center gap-2">
-        <div id="pvSwatch"
-             style="width:28px;height:28px;border-radius:7px;
-                    background:<?= h($saved_color) ?>;flex-shrink:0;
-                    border:1px solid rgba(0,0,0,.1)"></div>
-        <div>
-          <div class="fw-semibold">Twój bieżący kolor</div>
-          <div class="text-muted font-monospace" style="font-size:.8rem" id="pvSwatchLabel">
-            <?= h($saved_color) ?>
+    <div class="tz-card mt-3">
+      <div class="tz-card__bd">
+        <div class="d-flex align-items-center gap-2">
+          <div id="pvSwatch"
+               style="width:28px;height:28px;border-radius:7px;
+                      background:<?= h($saved_color) ?>;flex-shrink:0"
+               aria-label="Podgląd bieżącego koloru: <?= h($saved_color) ?>"></div>
+          <div>
+            <div class="fw-semibold">Twój bieżący kolor</div>
+            <div class="text-muted font-monospace small" id="pvSwatchLabel">
+              <?= h($saved_color) ?>
+            </div>
           </div>
+          <?php if (($user_row['panel_color'] ?? '') === ''): ?>
+          <span class="ms-auto badge bg-light text-secondary border small">
+            domyślny organizacji
+          </span>
+          <?php endif; ?>
         </div>
-        <?php if (($user_row['panel_color'] ?? '') === ''): ?>
-        <span class="ms-auto badge bg-light text-secondary border" style="font-size:.72rem">
-          domyślny organizacji
-        </span>
-        <?php endif; ?>
       </div>
     </div>
 
   </div>
 </div>
+
+</div><!-- .pv-wrap -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>
 

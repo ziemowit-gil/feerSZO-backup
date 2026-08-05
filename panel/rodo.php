@@ -54,10 +54,16 @@ if ($_is_volunteer_only) {
 require_once __DIR__ . '/includes/pv_ui.php';
 ?>
 
-<?php pv_page_header('Moje upoważnienia RODO', ['icon' => 'bi-shield-lock']); ?>
+<div class="pv-wrap">
 
-<div class="pv-note">
-  <i class="bi bi-info-circle-fill"></i>
+<?php pv_page_header('Moje upoważnienia RODO', [
+    'icon' => 'bi-shield-lock',
+    'sub'  => 'Zakres i status Twoich upoważnień do przetwarzania danych osobowych',
+    'back' => ['url' => APP_URL . '/panel/', 'label' => 'Panel'],
+]); ?>
+
+<div class="pv-note" role="note" aria-label="Informacja o upoważnieniach RODO">
+  <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
   <div>
     Upoważnienia uprawniają Cię do przetwarzania danych osobowych w ramach wolontariatu.
     Obowiązuje Cię <strong>poufność</strong> przetwarzanych danych — również po zakończeniu współpracy.
@@ -66,85 +72,102 @@ require_once __DIR__ . '/includes/pv_ui.php';
 </div>
 
 <?php if (!$authorizations): ?>
-<div class="pv-empty">
-  <i class="bi bi-shield-check"></i>
+
+<div class="pv-empty" role="status" aria-label="Brak upoważnień">
+  <i class="bi bi-shield-check" aria-hidden="true"></i>
   <div class="pv-empty-title">Brak upoważnień powiązanych z Twoim kontem</div>
   <div class="pv-empty-sub">Jeśli uważasz, że powinno ono istnieć — skontaktuj się z administratorem.</div>
 </div>
+
 <?php else: ?>
-<div class="pv-card">
-  <?php foreach ($authorizations as $a):
-    $scope = json_decode($a['scope_items'] ?? '[]', true) ?: [];
-    $status_map = ['aktywne'=>['bg-success','Aktywne'],'cofnięte'=>['bg-danger','Odwołane'],'wygasłe'=>['bg-secondary','Wygasłe']];
-    [$status_cls, $status_lbl] = $status_map[$a['status']] ?? ['bg-light text-dark border', $a['status']];
-  ?>
-  <div class="card-body <?= $a['status'] !== 'aktywne' ? 'opacity-75' : '' ?>">
 
-    <!-- Nagłówek -->
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-      <div>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <span class="font-monospace fw-bold text-muted" style="font-size:.82rem"><?= h($a['number']) ?></span>
-          <span class="badge <?= $status_cls ?>"><?= h($status_lbl) ?></span>
-          <?php if (!$a['training_done'] && $a['status'] === 'aktywne'): ?>
-          <span class="badge bg-warning text-dark" style="font-size:.72rem">
-            <i class="bi bi-exclamation-circle me-1"></i>Brak szkolenia RODO
-          </span>
-          <?php endif; ?>
-        </div>
-        <div class="mt-1 text-muted small">
-          Wydane przez: <strong><?= h($a['org_name']) ?></strong>
-          · od <?= $a['authorized_from'] ? date('d.m.Y', strtotime($a['authorized_from'])) : '—' ?>
-          <?= $a['authorized_until'] ? ' do ' . date('d.m.Y', strtotime($a['authorized_until'])) : ' (do zakończenia porozumienia)' ?>
-        </div>
+<?php foreach ($authorizations as $a):
+  $scope      = json_decode($a['scope_items'] ?? '[]', true) ?: [];
+  $is_active  = $a['status'] === 'aktywne';
+  $is_revoked = $a['status'] === 'cofnięte';
+  $status_map = [
+      'aktywne'  => ['tz-badge--ok',   'Aktywne'],
+      'cofnięte' => ['tz-badge--wait', 'Odwołane'],
+      'wygasłe'  => ['tz-badge--off',  'Wygasłe'],
+  ];
+  [$badge_cls, $badge_lbl] = $status_map[$a['status']] ?? ['tz-badge--off', $a['status']];
+?>
+<article class="tz-card<?= !$is_active ? ' opacity-75' : '' ?>"
+         aria-label="Upoważnienie <?= h($a['number']) ?>">
+
+  <div class="tz-card__hd">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+    <span class="font-monospace fw-bold" style="font-size:.82rem;color:var(--tz-muted)"><?= h($a['number']) ?></span>
+    <span class="tz-badge <?= $badge_cls ?>" role="status"><?= h($badge_lbl) ?></span>
+    <?php if (!$a['training_done'] && $is_active): ?>
+    <span class="tz-badge tz-badge--wait">
+      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>Brak szkolenia RODO
+    </span>
+    <?php endif; ?>
+    <a href="<?= h(APP_URL) ?>/rodo/print.php?id=<?= (int)$a['id'] ?>"
+       target="_blank" rel="noopener noreferrer"
+       class="tz-btn tz-btn--ghost ms-auto"
+       style="font-size:.82rem;padding:.4rem .9rem;min-height:36px"
+       aria-label="Pobierz lub wydrukuj upoważnienie <?= h($a['number']) ?>">
+      <i class="bi bi-printer" aria-hidden="true"></i>Pobierz / wydrukuj
+    </a>
+  </div>
+
+  <div class="tz-card__bd">
+
+    <dl class="tz-dl" role="list" aria-label="Dane upoważnienia">
+      <div role="listitem">
+        <dt>Wydane przez</dt>
+        <dd><?= h($a['org_name']) ?></dd>
       </div>
-      <a href="<?= APP_URL ?>/rodo/print.php?id=<?= $a['id'] ?>" target="_blank"
-         class="btn btn-sm btn-outline-primary" rel="noopener">
-        <i class="bi bi-printer me-1"></i>Pobierz / wydrukuj
-      </a>
-    </div>
+      <div role="listitem">
+        <dt>Obowiązuje od</dt>
+        <dd><?= $a['authorized_from'] ? h(date('d.m.Y', strtotime($a['authorized_from']))) : '—' ?></dd>
+      </div>
+      <div role="listitem">
+        <dt>Obowiązuje do</dt>
+        <dd><?= $a['authorized_until'] ? h(date('d.m.Y', strtotime($a['authorized_until']))) : 'do zakończenia porozumienia' ?></dd>
+      </div>
+    </dl>
 
-    <!-- Zakres § 2 -->
     <?php if ($scope || $a['scope_custom']): ?>
-    <div class="mb-2">
-      <div class="small fw-semibold text-muted mb-1">Zakres upoważnienia (§ 2):</div>
-      <ul class="mb-0 ps-3" style="font-size:.87rem">
-        <?php foreach ($scope as $k): ?>
-        <li><?= h(RODO_SCOPE_ITEMS[$k] ?? $k) ?></li>
-        <?php endforeach; ?>
-        <?php if ($a['scope_custom']): ?><li><?= h($a['scope_custom']) ?></li><?php endif; ?>
-      </ul>
-    </div>
+    <div class="tz-section-h" id="scope-hd-<?= (int)$a['id'] ?>">Zakres upoważnienia (§&nbsp;2)</div>
+    <ul aria-labelledby="scope-hd-<?= (int)$a['id'] ?>"
+        style="font-size:.87rem;padding-left:1.3rem;margin-bottom:0;color:var(--tz-ink)">
+      <?php foreach ($scope as $k): ?>
+      <li><?= h(RODO_SCOPE_ITEMS[$k] ?? $k) ?></li>
+      <?php endforeach; ?>
+      <?php if ($a['scope_custom']): ?><li><?= h($a['scope_custom']) ?></li><?php endif; ?>
+    </ul>
     <?php endif; ?>
 
-    <!-- Podpis oświadczenia -->
-    <?php if ($a['status'] === 'aktywne'): ?>
-    <div class="mt-2 pt-2 border-top small">
+    <?php if ($is_active): ?>
+    <div class="pv-note mt-3 mb-0<?= $a['vol_signed_at'] ? '' : ' pv-note-warn' ?>"
+         role="status">
       <?php if ($a['vol_signed_at']): ?>
-      <span class="text-success">
-        <i class="bi bi-check-circle-fill me-1"></i>
-        Oświadczenie podpisałeś/aś <?= date('d.m.Y', strtotime($a['vol_signed_at'])) ?>
-      </span>
+      <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+      <div>Oświadczenie podpisałeś/aś <strong><?= h(date('d.m.Y', strtotime($a['vol_signed_at']))) ?></strong></div>
       <?php else: ?>
-      <span class="text-warning">
-        <i class="bi bi-exclamation-circle-fill me-1"></i>
-        Oświadczenie RODO oczekuje na Twój podpis — skontaktuj się z administratorem.
-      </span>
+      <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+      <div>Oświadczenie RODO oczekuje na Twój podpis — skontaktuj się z administratorem.</div>
       <?php endif; ?>
     </div>
     <?php endif; ?>
 
-    <?php if ($a['status'] === 'cofnięte'): ?>
-    <div class="alert alert-danger py-1 mt-2 small mb-0">
-      <i class="bi bi-x-circle-fill me-1"></i>
-      To upoważnienie zostało odwołane. Nie możesz przetwarzać danych osobowych w ramach tej umowy.
+    <?php if ($is_revoked): ?>
+    <div class="pv-alert pv-alert-err mt-3" role="alert">
+      <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
+      <div>To upoważnienie zostało odwołane. Nie możesz przetwarzać danych osobowych w ramach tej umowy.</div>
     </div>
     <?php endif; ?>
+
   </div>
-  <?php if (!array_key_last($authorizations) !== $a): ?><hr class="m-0"><?php endif; ?>
-  <?php endforeach; ?>
-</div>
+</article>
+<?php endforeach; ?>
+
 <?php endif; ?>
+
+</div><!-- /.pv-wrap -->
 
 <?php if ($_is_volunteer_only): ?>
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

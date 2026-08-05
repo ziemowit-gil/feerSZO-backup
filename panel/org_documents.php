@@ -32,7 +32,10 @@ $PAGE_TITLE = 'Dokumenty organizacji — Panel wolontariusza';
 include __DIR__ . '/includes/header_panel.php';
 ?>
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
+<div class="pv-wrap">
+
+<div class="pv-page-header">
+  <a href="<?= APP_URL ?>/panel/" class="pv-page-back"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Panel</a>
   <h1 class="pv-page-title"><i class="bi bi-folder2-open me-2" aria-hidden="true"></i>Dokumenty organizacji</h1>
   <p class="pv-page-sub">Statut, regulaminy, formularze i wzory do pobrania</p>
 </div>
@@ -43,31 +46,35 @@ include __DIR__ . '/includes/header_panel.php';
   </div>
   <?php if (!empty($categories)): ?>
   <div class="col-8 col-sm-auto">
-    <select name="category" class="form-select" aria-label="Kategoria">
+    <select name="category" class="form-select" aria-label="Kategoria dokumentu">
       <option value="">Wszystkie kategorie</option>
       <?php foreach ($categories as $c): ?><option value="<?= h($c) ?>" <?= $filter['category']===$c?'selected':'' ?>><?= h($c) ?></option><?php endforeach; ?>
     </select>
   </div>
   <?php endif; ?>
-  <div class="col-4 col-sm-auto"><button class="btn btn-primary w-100"><i class="bi bi-search" aria-hidden="true"></i></button></div>
+  <div class="col-4 col-sm-auto">
+    <button type="submit" class="tz-btn w-100" aria-label="Szukaj">
+      <i class="bi bi-search" aria-hidden="true"></i>
+    </button>
+  </div>
 </form>
 
 <?php if (empty($docs)): ?>
-<div class="vol-detail-card"><div class="vol-detail-body text-center text-muted py-4">
-  <i class="bi bi-folder2-open d-block mb-2" style="font-size:1.8rem" aria-hidden="true"></i>
-  Brak dokumentów<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.
-</div></div>
+<div class="tz-empty">
+  <i class="bi bi-folder2-open tz-empty__icon" aria-hidden="true"></i>
+  <p class="tz-empty__text">Brak dokumentów<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.</p>
+</div>
 <?php else: ?>
-<div class="list-group pv-list">
+<div class="pv-list list-group">
   <?php foreach ($docs as $d): ?>
   <div class="list-group-item d-flex align-items-start gap-3">
-    <i class="bi <?= h(org_docs_file_icon($d['original_name'])) ?> fs-4 text-primary flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <i class="bi <?= h(org_docs_file_icon($d['original_name'])) ?> fs-4 flex-shrink-0 mt-1" style="color:var(--tz)" aria-hidden="true"></i>
     <div class="flex-grow-1 min-w-0">
       <div class="fw-semibold d-flex align-items-center gap-2 flex-wrap">
         <?= h($d['title']) ?>
-        <span class="badge bg-light text-dark border" style="font-size:.65rem">v<?= h($d['version'] ?? '1') ?></span>
-        <?php if (!empty($d['category'])): ?><span class="badge bg-light text-dark border" style="font-size:.65rem"><i class="bi bi-tag me-1" aria-hidden="true"></i><?= h($d['category']) ?></span><?php endif; ?>
-        <?php if (($d['visibility'] ?? 'all') === 'unit'): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:.65rem"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i><?= h($d['unit_name'] ?: 'Twoja jednostka') ?></span><?php endif; ?>
+        <span class="tz-badge">v<?= h($d['version'] ?? '1') ?></span>
+        <?php if (!empty($d['category'])): ?><span class="tz-badge"><i class="bi bi-tag me-1" aria-hidden="true"></i><?= h($d['category']) ?></span><?php endif; ?>
+        <?php if (($d['visibility'] ?? 'all') === 'unit'): ?><span class="tz-badge tz-badge--wait"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i><?= h($d['unit_name'] ?: 'Twoja jednostka') ?></span><?php endif; ?>
       </div>
       <?php if (!empty($d['description'])): ?><div class="small text-muted"><?= h($d['description']) ?></div><?php endif; ?>
       <div class="small text-muted">
@@ -75,12 +82,14 @@ include __DIR__ . '/includes/header_panel.php';
         <?php if (!empty($d['owner_name'])): ?> · <i class="bi bi-person me-1" aria-hidden="true"></i>Lider: <?= h($d['owner_name']) ?><?php endif; ?>
       </div>
     </div>
-    <a href="<?= APP_URL ?>/org_documents/serve.php?id=<?= (int)$d['id'] ?>&download" class="btn btn-outline-primary btn-sm flex-shrink-0 mt-1" aria-label="Pobierz: <?= h($d['title']) ?>">
+    <a href="<?= APP_URL ?>/org_documents/serve.php?id=<?= (int)$d['id'] ?>&download" class="tz-btn tz-btn--ghost flex-shrink-0 mt-1" aria-label="Pobierz: <?= h($d['title']) ?>">
       <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz
     </a>
   </div>
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+</div><!-- /.pv-wrap -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

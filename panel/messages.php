@@ -155,7 +155,7 @@ if ($_is_volunteer_only) {
 ?>
 
 <style>
-/* ── Chat bubbles (widok wolontariusza) ─────────────────────────────── */
+/* ── Chat bubbles ───────────────────────────────────────────────────── */
 .chat-wrap { display:flex; flex-direction:column; gap:1.25rem; padding:.25rem 0 1rem; }
 .msg-row { display:flex; align-items:flex-end; gap:.6rem; }
 .msg-out { flex-direction:row-reverse; }
@@ -165,36 +165,41 @@ if ($_is_volunteer_only) {
   box-shadow: 0 1px 4px rgba(0,0,0,.08);
 }
 .msg-out .msg-bubble {
-  background: var(--vol-color); color: #fff;
+  background: var(--tz); color: #fff;
   border-radius: 18px 18px 4px 18px;
 }
 .msg-in .msg-bubble {
-  background: #F3F4F6; color: #111827;
+  background: var(--tz-bg-sub, #F3F4F6); color: var(--tz-ink, #111827);
   border-radius: 18px 18px 18px 4px;
 }
-.msg-in.unread .msg-bubble { background: #dcfce7; }
+.msg-in.unread .msg-bubble {
+  background: color-mix(in srgb, #16a34a 12%, var(--tz-bg-sub, #F3F4F6));
+}
 .msg-avatar {
   width:32px; height:32px; border-radius:50%; flex-shrink:0;
-  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  background: var(--tz, #2563eb);
   color:#fff; font-size:.72rem; font-weight:700;
   display:flex; align-items:center; justify-content:center;
 }
-.msg-meta { font-size:.7rem; color:#9CA3AF; margin-top:.25rem; }
+.msg-meta { font-size:.7rem; color:var(--tz-ink-muted, #9CA3AF); margin-top:.25rem; }
 .msg-out .msg-meta { text-align:right; }
 .msg-subject-chip {
   display:inline-flex; align-items:center; gap:.3rem;
   font-size:.73rem; font-weight:600; padding:.15rem .6rem;
-  border-radius:2rem; background:#EFF6FF; color:#2563eb;
-  border:1px solid #BFDBFE; margin-bottom:.35rem;
+  border-radius:2rem;
+  background: color-mix(in srgb, var(--tz, #2563eb) 8%, var(--tz-bg, #fff));
+  color: var(--tz, #2563eb);
+  border: 1px solid color-mix(in srgb, var(--tz, #2563eb) 30%, transparent);
+  margin-bottom:.35rem;
 }
 .msg-subject-chip.to-opiekun { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
 .msg-thread-group { display:flex; flex-direction:column; gap:.5rem; }
 .msg-typing {
   display:inline-flex; align-items:center; gap:.25rem;
-  padding:.5rem .75rem; background:#F3F4F6; border-radius:18px;
-  font-size:.78rem; color:#9CA3AF;
+  padding:.5rem .75rem; background:var(--tz-bg-sub, #F3F4F6); border-radius:18px;
+  font-size:.78rem; color:var(--tz-ink-muted, #9CA3AF);
 }
-.msg-typing span { width:6px;height:6px;border-radius:50%;background:#CBD5E1;animation:pulse 1.2s infinite; }
+.msg-typing span { width:6px;height:6px;border-radius:50%;background:var(--tz-ink-muted,#CBD5E1);animation:pulse 1.2s infinite; }
 .msg-typing span:nth-child(2){animation-delay:.2s}
 .msg-typing span:nth-child(3){animation-delay:.4s}
 @keyframes pulse{0%,80%,100%{transform:scale(.8);opacity:.5}40%{transform:scale(1);opacity:1}}
@@ -202,87 +207,75 @@ if ($_is_volunteer_only) {
   text-align:center; font-size:.72rem; color:#16A34A; font-weight:600;
   padding:.25rem 0; margin:.25rem 0;
 }
-/* Form */
-.msg-compose { background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,.07); overflow:hidden; }
-.msg-compose-header { padding:.75rem 1rem .5rem; border-bottom:1px solid #F3F4F6; }
-.msg-compose-body { padding:.75rem 1rem 1rem; }
+/* ── Recipient selector buttons ──────────────────────────────────── */
 .msg-recipient-btn {
   display:inline-flex; align-items:center; gap:.4rem;
-  padding:.35rem .8rem; border-radius:2rem; border:2px solid #E5E7EB;
-  background:#fff; font-size:.8rem; font-weight:500; color:#374151;
-  cursor:pointer; transition:all .12s; white-space:nowrap;
+  padding:.35rem .8rem; border-radius:2rem;
+  border: 2px solid var(--tz-border, #E5E7EB);
+  background: var(--tz-bg, #fff);
+  font-size:.8rem; font-weight:500; color: var(--tz-ink, #374151);
+  cursor:pointer; transition:all .12s; white-space:nowrap; text-decoration:none;
 }
-.msg-recipient-btn.active { border-color:var(--vol-color); background:color-mix(in srgb,var(--vol-color) 8%,#fff); color:var(--vol-color); font-weight:600; }
-.msg-compose textarea { resize:none; border-radius:10px; border:2px solid #E5E7EB; font-size:.9rem; }
-.msg-compose textarea:focus { border-color:var(--vol-color); box-shadow:0 0 0 3px color-mix(in srgb,var(--vol-color) 15%,transparent); }
-.msg-send-btn {
-  display:inline-flex; align-items:center; gap:.4rem;
-  padding:.55rem 1.25rem; border-radius:10px; border:none;
-  background:var(--vol-color); color:#fff; font-weight:600; font-size:.9rem; cursor:pointer;
-  transition:background .12s, transform .1s;
+.msg-recipient-btn.active {
+  border-color: var(--tz);
+  background: color-mix(in srgb, var(--tz) 8%, var(--tz-bg, #fff));
+  color: var(--tz); font-weight:600;
 }
-.msg-send-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
-@media(prefers-reduced-motion:reduce){.msg-send-btn,.msg-typing span{animation:none;transition:none}}
-
-/* ── Q&A cards (widok admin/editor) ─────────────────────────────────── */
-.qa-question {
-  border-left: 4px solid #2563eb;
-  background: #fff;
+/* ── Q&A cards (admin/editor view) ───────────────────────────────── */
+.qa-question { border-left: 4px solid var(--tz, #2563eb) !important; }
+.qa-answer   { border-left: 4px solid #16a34a !important; background: #f0fdf4; }
+.qa-answer.unread-ans { background: #dcfce7; }
+.qa-hdr-q {
+  background: color-mix(in srgb, var(--tz, #2563eb) 6%, var(--tz-bg, #fff)) !important;
+  border-bottom-color: color-mix(in srgb, var(--tz, #2563eb) 25%, transparent) !important;
 }
-.qa-answer {
-  border-left: 4px solid #16a34a;
-  background: #f0fdf4;
-  margin-left: 1.75rem;
-}
-.qa-answer.unread-ans {
-  background: #dcfce7;
-}
-.qa-hdr-q { background: #eff6ff !important; border-bottom-color: #bfdbfe !important; }
 .qa-hdr-a { background: #dcfce7 !important; border-bottom-color: #bbf7d0 !important; }
-
-/* ── Subject pill ───────────────────────────────────────────────────── */
-.qa-subject {
-  font-weight: 600;
-  font-size: .83rem;
-  color: #1e293b;
-}
-
-/* ── Recipient badge ────────────────────────────────────────────────── */
-.rt-opiekun { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
-.rt-admin   { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+.qa-subject { font-weight:600; font-size:.83rem; color:var(--tz-ink, #1e293b); }
+/* ── Recipient badges ────────────────────────────────────────────── */
+.rt-opiekun { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
+.rt-admin   { background:#e0f2fe; color:#075985; border:1px solid #bae6fd; }
+@media(prefers-reduced-motion:reduce){.msg-typing span{animation:none;transition:none}}
 </style>
+
+<div class="pv-wrap" style="max-width:1100px">
 
 <?php if ($_is_volunteer_only): ?>
 
 <div class="pv-page-header">
-  <h1 class="pv-page-title">
-    <i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Wiadomości
-  </h1>
-  <p class="pv-page-sub">Korespondencja z organizacją</p>
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i> Panel
+    </a>
+    <h1 class="pv-page-title"><i class="bi bi-chat-dots" aria-hidden="true"></i>Wiadomości</h1>
+    <p class="pv-page-sub">Korespondencja z koordynatorem</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
 <?php if (!$contracts): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-exclamation-circle me-2"></i>Brak umów</div>
-  <div class="vol-detail-body">
-    <div class="alert alert-warning mb-0">Nie masz przypisanej żadnej umowy.</div>
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Brak umów</div>
+  <div class="tz-card__bd">
+    <div class="tz-note tz-note--warning mb-0">Nie masz przypisanej żadnej umowy.</div>
   </div>
 </div>
 <?php else: ?>
 
 <?php if (count($contracts) > 1): ?>
-<div class="d-flex gap-2 flex-wrap mb-3">
+<div class="d-flex gap-2 flex-wrap mb-3" role="list" aria-label="Przełącznik umów">
   <?php foreach ($contracts as $c):
     $is_active = $_active && $c['contract_type'] === $_active['contract_type'] && (int)$c['id'] === (int)$_active['id'];
     $unr = msg_unread_thread('contract', (int)$c['id'], 'user');
   ?>
   <a href="?cid=<?= (int)$c['id'] ?>&ctype=<?= h($c['contract_type']) ?>"
-     class="msg-recipient-btn <?= $is_active ? 'active' : '' ?>">
+     class="msg-recipient-btn <?= $is_active ? 'active' : '' ?>"
+     role="listitem"
+     aria-current="<?= $is_active ? 'page' : 'false' ?>"
+     aria-label="Umowa <?= h($c['numer_umowy']) ?><?= $unr ? ", $unr nieprzeczytanych" : '' ?>">
     <i class="bi bi-file-text" aria-hidden="true"></i>
     <?= h($c['numer_umowy']) ?>
-    <?php if ($unr): ?><span class="badge bg-danger"><?= $unr ?></span><?php endif; ?>
+    <?php if ($unr): ?><span class="tz-badge" aria-hidden="true"><?= $unr ?></span><?php endif; ?>
   </a>
   <?php endforeach; ?>
 </div>
@@ -291,10 +284,10 @@ if ($_is_volunteer_only) {
 <?php if ($_active): ?>
 
 <?php if (!$messages): ?>
-<div class="text-center py-5 text-muted" role="status">
-  <i class="bi bi-chat-left-dots" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.75rem" aria-hidden="true"></i>
-  <p class="fw-semibold mb-1">Brak wiadomości</p>
-  <p class="small">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</p>
+<div class="tz-empty mb-3" role="status">
+  <i class="bi bi-chat-left-dots tz-empty__icon" aria-hidden="true" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.75rem"></i>
+  <p class="tz-empty__title fw-semibold mb-1">Brak wiadomości</p>
+  <p class="tz-empty__sub small">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</p>
 </div>
 <?php else: ?>
 <?php
@@ -318,7 +311,8 @@ $_first_unread_shown = false;
     $q = $pair['question'];
     $answers = $pair['answers'];
 ?>
-<div class="msg-thread-group">
+<div class="msg-thread-group"
+     aria-label="<?= $q ? 'Wątek: ' . h(mb_substr($q['subject'] ?? $q['body'] ?? 'Wiadomość', 0, 40)) : 'Odpowiedź admina' ?>">
   <?php if ($q): ?>
   <?php
     $rt = $q['recipient_type'] ?? 'admin';
@@ -372,7 +366,7 @@ $_first_unread_shown = false;
     <div class="msg-avatar" aria-hidden="true">?</div>
     <div class="msg-typing" aria-hidden="true">
       <span></span><span></span><span></span>
-      <span style="width:auto;height:auto;background:none;font-size:.78rem;color:#9CA3AF">Oczekuje na odpowiedź…</span>
+      <span style="width:auto;height:auto;background:none;font-size:.78rem;color:var(--tz-ink-muted,#9CA3AF)">Oczekuje na odpowiedź…</span>
     </div>
   </div>
   <?php endif; ?>
@@ -382,18 +376,18 @@ $_first_unread_shown = false;
 <?php endif; /* messages */ ?>
 
 <!-- Formularz -->
-<div class="msg-compose" role="region" aria-label="Nowa wiadomość">
-  <div class="msg-compose-header">
-    <div class="fw-semibold" style="font-size:.88rem;margin-bottom:.5rem">
-      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadaj nowe pytanie
-    </div>
+<div class="tz-card" role="region" aria-label="Nowa wiadomość">
+  <div class="tz-card__hd">
+    <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadaj nowe pytanie
+  </div>
+  <div class="tz-card__bd">
     <form method="post" action="<?= APP_URL ?>/panel/messages.php" id="msg-form">
       <input type="hidden" name="_csrf"            value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_msg_send"         value="1">
       <input type="hidden" name="msg_ctx_id"        value="<?= (int)$_active['id'] ?>">
       <input type="hidden" name="msg_contract_type" value="<?= h($_active['contract_type']) ?>">
       <input type="hidden" name="recipient_type"    id="recipient_type_hidden" value="opiekun">
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="d-flex gap-2 flex-wrap mb-3">
         <button type="button" class="msg-recipient-btn active" id="btn-opiekun"
                 onclick="selectRecipient('opiekun')" aria-pressed="true">
           <i class="bi bi-person-check" aria-hidden="true"></i>Opiekun umowy
@@ -403,8 +397,6 @@ $_first_unread_shown = false;
           <i class="bi bi-shield-check" aria-hidden="true"></i>Administrator
         </button>
       </div>
-  </div>
-  <div class="msg-compose-body">
       <?php if ($_msg_types): ?>
       <div class="mb-2">
         <label for="msg_type_id" class="form-label small fw-semibold mb-1">Rodzaj <span class="text-muted fw-normal">(opcjonalnie)</span></label>
@@ -419,15 +411,16 @@ $_first_unread_shown = false;
       <div class="mb-2">
         <label for="msg_subject" class="form-label small fw-semibold mb-1">Temat <span class="text-muted fw-normal">(opcjonalnie)</span></label>
         <input type="text" id="msg_subject" name="msg_subject" class="form-control form-control-sm"
-               style="border-radius:8px;border:2px solid #E5E7EB" placeholder="Np. Pytanie o harmonogram…" maxlength="120">
+               style="border-radius:8px" placeholder="Np. Pytanie o harmonogram…" maxlength="120">
       </div>
       <div class="mb-3">
         <label for="msg_body" class="form-label small fw-semibold mb-1">Wiadomość <span class="text-danger">*</span></label>
         <textarea id="msg_body" name="msg_body" class="form-control" rows="4"
+                  aria-label="Nowa wiadomość"
                   placeholder="Opisz swoje pytanie lub prośbę…" required></textarea>
       </div>
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <button type="submit" class="msg-send-btn">
+        <button type="submit" class="tz-btn">
           <i class="bi bi-send-fill" aria-hidden="true"></i>Wyślij
         </button>
         <span class="text-muted" style="font-size:.76rem">
@@ -458,43 +451,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
 
-<div class="d-flex align-items-center gap-2 mb-4">
-  <h4 class="mb-0"><i class="bi bi-chat-left-text text-primary"></i> Moje wiadomości</h4>
-  <?php if ($_active): ?>
-  <span class="badge bg-light text-dark border ms-1"><?= h($_active['numer_umowy']) ?></span>
-  <?php endif; ?>
-  <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-sm btn-outline-secondary ms-auto">
-    <i class="bi bi-arrow-left"></i> Powrót do panelu
-  </a>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i> Panel
+    </a>
+    <h1 class="pv-page-title">
+      <i class="bi bi-chat-dots" aria-hidden="true"></i>Wiadomości
+      <?php if ($_active): ?>
+      <span class="tz-badge ms-1"><?= h($_active['numer_umowy']) ?></span>
+      <?php endif; ?>
+    </h1>
+    <p class="pv-page-sub">Korespondencja z koordynatorem</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
 <?php if (!$contracts): ?>
-<div class="alert alert-warning">Nie masz przypisanej żadnej umowy.</div>
+<div class="tz-note tz-note--warning mb-4">Nie masz przypisanej żadnej umowy.</div>
 
 <?php elseif (count($contracts) > 1): ?>
 <!-- ── Przełącznik umów (wiele umów) ──────────────────────────────────── -->
-<div class="card shadow-sm mb-4 border-primary border-opacity-25">
-  <div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
-    <span class="text-muted small fw-semibold text-nowrap">
-      <i class="bi bi-arrow-left-right text-primary"></i> Umowa:
-    </span>
-    <div class="d-flex gap-2 flex-wrap">
-      <?php foreach ($contracts as $c):
-        $is_active = $_active
-          && $c['contract_type'] === $_active['contract_type']
-          && (int) $c['id'] === (int) $_active['id'];
-        $unr = msg_unread_thread('contract', (int)$c['id'], 'user');
-      ?>
-      <a href="?cid=<?= (int)$c['id'] ?>&ctype=<?= h($c['contract_type']) ?>"
-         class="btn btn-sm <?= $is_active ? 'btn-primary' : 'btn-outline-secondary' ?>">
-        <?= h($c['numer_umowy']) ?>
-        <?php if ($unr): ?>
-        <span class="badge bg-danger ms-1"><?= $unr ?></span>
-        <?php endif; ?>
-      </a>
-      <?php endforeach; ?>
+<div class="tz-card mb-4">
+  <div class="tz-card__bd py-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="text-muted small fw-semibold text-nowrap">
+        <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Umowa:
+      </span>
+      <div class="d-flex gap-2 flex-wrap" role="list" aria-label="Przełącznik umów">
+        <?php foreach ($contracts as $c):
+          $is_active = $_active
+            && $c['contract_type'] === $_active['contract_type']
+            && (int) $c['id'] === (int) $_active['id'];
+          $unr = msg_unread_thread('contract', (int)$c['id'], 'user');
+        ?>
+        <a href="?cid=<?= (int)$c['id'] ?>&ctype=<?= h($c['contract_type']) ?>"
+           class="tz-btn <?= $is_active ? '' : 'tz-btn--ghost' ?>"
+           role="listitem"
+           aria-current="<?= $is_active ? 'page' : 'false' ?>"
+           aria-label="Umowa <?= h($c['numer_umowy']) ?><?= $unr ? ", $unr nieprzeczytanych" : '' ?>">
+          <?= h($c['numer_umowy']) ?>
+          <?php if ($unr): ?>
+          <span class="tz-badge ms-1" aria-hidden="true"><?= $unr ?></span>
+          <?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+      </div>
     </div>
   </div>
 </div>
@@ -504,17 +507,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php if (!$messages): ?>
 <!-- ── Brak wiadomości ────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-chat-left-dots" style="font-size:3rem;opacity:.25"></i>
-    <div class="mt-3 fw-semibold">Brak wiadomości</div>
-    <div class="small mt-1">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</div>
-  </div>
+<div class="tz-empty mb-4" role="status">
+  <i class="bi bi-chat-left-dots tz-empty__icon" aria-hidden="true" style="font-size:3rem;opacity:.25;display:block;margin-bottom:.75rem"></i>
+  <p class="tz-empty__title fw-semibold">Brak wiadomości</p>
+  <p class="tz-empty__sub small mt-1">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</p>
 </div>
 
 <?php else: ?>
 <!-- ── Lista pytań i odpowiedzi ───────────────────────────────────── -->
-<div class="d-flex flex-column gap-3 mb-4">
+<div class="d-flex flex-column gap-3 mb-4" role="log" aria-label="Historia korespondencji" aria-live="polite">
   <?php
   // Group messages: pairs of (question + following answers)
   // We display them grouped: user question followed immediately by admin replies
@@ -541,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $answers = $pair['answers'];
   ?>
 
-  <div>
+  <div aria-label="<?= $q ? 'Wątek: ' . h(mb_substr($q['subject'] ?? $q['body'] ?? 'Wiadomość', 0, 40)) : 'Odpowiedź admina' ?>">
     <?php if ($q): ?>
     <?php
       $rt       = $q['recipient_type'] ?? 'admin';
@@ -551,22 +552,22 @@ document.addEventListener('DOMContentLoaded', function() {
       $subj     = $q['subject'] ?? '';
     ?>
     <!-- pytanie -->
-    <div class="card shadow-sm qa-question mb-2">
-      <div class="card-header py-2 qa-hdr-q d-flex align-items-center gap-2 flex-wrap">
-        <i class="bi bi-question-circle-fill text-primary"></i>
+    <div class="tz-card qa-question mb-2">
+      <div class="tz-card__hd qa-hdr-q d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-question-circle-fill text-primary" aria-hidden="true"></i>
         <?php if ($subj): ?>
         <span class="qa-subject"><?= h($subj) ?></span>
         <?php else: ?>
         <span class="text-muted small">Pytanie</span>
         <?php endif; ?>
-        <span class="badge <?= $rt_cls ?> ms-1">
-          <i class="bi <?= $rt_icon ?> me-1"></i>Do: <?= $rt_label ?>
+        <span class="tz-badge <?= $rt_cls ?> ms-1">
+          <i class="bi <?= $rt_icon ?> me-1" aria-hidden="true"></i>Do: <?= $rt_label ?>
         </span>
         <span class="text-muted small ms-auto" style="font-size:.71rem">
           <?= date('d.m.Y, H:i', strtotime($q['created_at'])) ?>
         </span>
       </div>
-      <div class="card-body py-2 px-3" style="font-size:.9rem;line-height:1.6;white-space:pre-line">
+      <div class="tz-card__bd" style="font-size:.9rem;line-height:1.6;white-space:pre-line">
         <?= h($q['body']) ?>
       </div>
     </div>
@@ -577,9 +578,9 @@ document.addEventListener('DOMContentLoaded', function() {
         $subj_a    = $ans['subject'] ?? '';
     ?>
     <!-- odpowiedź -->
-    <div class="card shadow-sm qa-answer ms-4 <?= $is_unread ? 'unread-ans' : '' ?>">
-      <div class="card-header py-2 qa-hdr-a d-flex align-items-center gap-2 flex-wrap">
-        <i class="bi bi-check-circle-fill text-success"></i>
+    <div class="tz-card qa-answer ms-4 <?= $is_unread ? 'unread-ans' : '' ?>">
+      <div class="tz-card__hd qa-hdr-a d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
         <?php if ($subj_a): ?>
         <span class="qa-subject text-success"><?= h($subj_a) ?></span>
         <?php else: ?>
@@ -589,13 +590,13 @@ document.addEventListener('DOMContentLoaded', function() {
         <span class="text-muted small">— <?= h($ans['sender_name']) ?></span>
         <?php endif; ?>
         <?php if ($is_unread): ?>
-        <span class="badge bg-success ms-1" style="font-size:.65rem">Nowa</span>
+        <span class="tz-badge ms-1" style="font-size:.65rem">Nowa</span>
         <?php endif; ?>
         <span class="text-muted small ms-auto" style="font-size:.71rem">
           <?= date('d.m.Y, H:i', strtotime($ans['created_at'])) ?>
         </span>
       </div>
-      <div class="card-body py-2 px-3" style="font-size:.9rem;line-height:1.6">
+      <div class="tz-card__bd" style="font-size:.9rem;line-height:1.6">
         <?php if ($ans['sender_type'] === 'admin'): ?>
           <?= $ans['body'] /* HTML z CKEditor — zaufany, admin */ ?>
         <?php else: ?>
@@ -608,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php if ($q && !$answers): ?>
     <!-- brak odpowiedzi -->
     <div class="ms-4 text-muted small d-flex align-items-center gap-1 mt-1 mb-1">
-      <i class="bi bi-hourglass-split"></i> Oczekuje na odpowiedź…
+      <i class="bi bi-hourglass-split" aria-hidden="true"></i> Oczekuje na odpowiedź…
     </div>
     <?php endif; ?>
   </div>
@@ -620,12 +621,12 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- ══════════════════════════════════════════════════════════════════
      Formularz nowego pytania
 ══════════════════════════════════════════════════════════════════ -->
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-pencil-square text-primary me-1"></i>
+<div class="tz-card">
+  <div class="tz-card__hd">
+    <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>
     Zadaj nowe pytanie
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
 
     <form method="post" action="<?= APP_URL ?>/panel/messages.php">
       <input type="hidden" name="_csrf"            value="<?= h(csrf_token()) ?>">
@@ -643,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <input class="form-check-input" type="radio"
                    name="recipient_type" id="rt_opiekun" value="opiekun" checked>
             <label class="form-check-label" for="rt_opiekun">
-              <i class="bi bi-person-check text-warning me-1"></i>
+              <i class="bi bi-person-check text-warning me-1" aria-hidden="true"></i>
               <strong>Opiekun umowy</strong>
               <div class="text-muted" style="font-size:.75rem;margin-top:1px">
                 Pytania dot. realizacji umowy, harmonogramu, zadań
@@ -654,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <input class="form-check-input" type="radio"
                    name="recipient_type" id="rt_admin" value="admin">
             <label class="form-check-label" for="rt_admin">
-              <i class="bi bi-shield-check text-info me-1"></i>
+              <i class="bi bi-shield-check text-info me-1" aria-hidden="true"></i>
               <strong>Administrator</strong>
               <div class="text-muted" style="font-size:.75rem;margin-top:1px">
                 Zmiany danych, wynagrodzenie, dokumenty, konto M365
@@ -697,16 +698,17 @@ document.addEventListener('DOMContentLoaded', function() {
         </label>
         <textarea id="msg_body" name="msg_body" class="form-control"
                   rows="5"
+                  aria-label="Nowa wiadomość"
                   placeholder="Opisz szczegółowo swoje pytanie lub prośbę…"
                   required></textarea>
       </div>
 
       <div class="d-flex align-items-center gap-3">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send me-1"></i> Wyślij pytanie
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-send me-1" aria-hidden="true"></i> Wyślij pytanie
         </button>
         <span class="text-muted small">
-          <i class="bi bi-clock me-1"></i>Odpowiadamy zwykle w ciągu 1–2 dni roboczych
+          <i class="bi bi-clock me-1" aria-hidden="true"></i>Odpowiadamy zwykle w ciągu 1–2 dni roboczych
         </span>
       </div>
 
@@ -717,6 +719,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; /* $_active */ ?>
 
 <?php endif; /* $_is_volunteer_only */ ?>
+
+</div><!-- /pv-wrap -->
 
 <?php if ($_is_volunteer_only) {
     include __DIR__ . '/includes/footer_panel.php';

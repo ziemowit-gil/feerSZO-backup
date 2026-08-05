@@ -39,16 +39,21 @@ $docs = ds_list_for_user($uid);
 include __DIR__ . '/includes/header_panel.php';
 ?>
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-pen me-2" aria-hidden="true"></i>Podpisz dokument</h1>
-  <p class="pv-page-sub">Wgraj dokument, podpisz go własnym certyfikatem X.509 poza systemem, wgraj podpisaną wersję.</p>
+<div class="pv-wrap">
+
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-pen" aria-hidden="true"></i>Podpisz dokument</h1>
+    <p class="pv-page-sub">Elektroniczne podpisanie dokumentu</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
-<div class="vol-detail-card mb-3">
-  <div class="vol-detail-header"><i class="bi bi-file-earmark-plus me-2" aria-hidden="true"></i>Nowy dokument do podpisania</div>
-  <div class="vol-detail-body">
+<div class="tz-card mb-3">
+  <div class="tz-card__hd"><i class="bi bi-file-earmark-plus me-2" aria-hidden="true"></i>Nowy dokument do podpisania</div>
+  <div class="tz-card__bd">
     <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="new">
@@ -62,7 +67,7 @@ include __DIR__ . '/includes/header_panel.php';
                accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.txt">
       </div>
       <div class="col-12 col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj</button>
+        <button type="submit" class="tz-btn w-100"><i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj</button>
       </div>
       <div class="col-12 text-muted small">Dozwolone: <?= implode(', ', DOC_SIGN_ALLOWED_ORIGINAL_EXT) ?> — max 20 MB.</div>
     </form>
@@ -70,29 +75,29 @@ include __DIR__ . '/includes/header_panel.php';
 </div>
 
 <?php if (!$docs): ?>
-<div class="vol-detail-card"><div class="vol-detail-body text-center text-muted py-4">
-  <i class="bi bi-pen d-block mb-2" style="font-size:1.8rem" aria-hidden="true"></i>
+<div class="tz-card"><div class="tz-card__bd text-center text-muted py-4">
+  <i class="bi bi-pen d-block mb-2 fs-3" aria-hidden="true"></i>
   Brak dokumentów do podpisania.
 </div></div>
 <?php else: foreach ($docs as $d): $badge = ds_status_badge($d['status']); ?>
-<div class="vol-detail-card mb-3">
-  <div class="vol-detail-header d-flex align-items-center gap-2 flex-wrap">
+<div class="tz-card mb-3">
+  <div class="tz-card__hd d-flex align-items-center gap-2 flex-wrap">
     <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>
     <span class="flex-grow-1"><?= h($d['title']) ?></span>
     <span class="badge bg-<?= h($badge['class']) ?>"><?= h($badge['label']) ?></span>
   </div>
-  <div class="vol-detail-body">
+  <div class="tz-card__bd">
     <div class="d-flex flex-wrap gap-2 mb-2 small text-muted align-items-center">
       <span><i class="bi bi-clock me-1" aria-hidden="true"></i>dodano: <?= h(date_pl($d['created_at'])) ?></span>
       <?php if ($d['original_size']): ?><span><?= h(ds_filesize_human((int)$d['original_size'])) ?></span><?php endif; ?>
     </div>
 
-    <a href="<?= APP_URL ?>/podpisy/serve.php?id=<?= (int)$d['id'] ?>&kind=original" class="btn btn-outline-primary btn-sm mb-2">
+    <a href="<?= APP_URL ?>/podpisy/serve.php?id=<?= (int)$d['id'] ?>&kind=original" class="tz-btn tz-btn--ghost mb-2">
       <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz oryginał
     </a>
 
     <?php if ($d['status'] === 'podpisany'): ?>
-    <div class="alert alert-success mt-2 mb-2">
+    <div class="pv-alert pv-alert-success mt-2 mb-2" role="alert">
       <div class="fw-semibold mb-1"><i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Podpis zweryfikowany</div>
       <div class="small">
         Format: <?= h($d['sig_format'] ?: '—') ?><br>
@@ -107,7 +112,7 @@ include __DIR__ . '/includes/header_panel.php';
         } ?>
       </div>
     </div>
-    <a href="<?= APP_URL ?>/podpisy/serve.php?id=<?= (int)$d['id'] ?>&kind=signed" class="btn btn-success btn-sm">
+    <a href="<?= APP_URL ?>/podpisy/serve.php?id=<?= (int)$d['id'] ?>&kind=signed" class="tz-btn">
       <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz podpisany dokument
     </a>
     <?php else: ?>
@@ -116,11 +121,11 @@ include __DIR__ . '/includes/header_panel.php';
       <input type="hidden" name="_action" value="upload_signed">
       <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
       <div class="col-12 col-md-8">
-        <label class="form-label small mb-1">Wgraj podpisany plik</label>
-        <input type="file" name="signed_file" class="form-control" required>
+        <label class="form-label small mb-1" for="signedFile_<?= (int)$d['id'] ?>">Wgraj podpisany plik</label>
+        <input type="file" name="signed_file" id="signedFile_<?= (int)$d['id'] ?>" class="form-control" required>
       </div>
       <div class="col-12 col-md-4">
-        <button type="submit" class="btn btn-success w-100"><i class="bi bi-patch-check me-1" aria-hidden="true"></i>Wgraj podpisany</button>
+        <button type="submit" class="tz-btn w-100"><i class="bi bi-patch-check me-1" aria-hidden="true"></i>Wgraj podpisany</button>
       </div>
     </form>
     <form method="post" class="mt-2" onsubmit="return confirm('Usunąć ten dokument?');">
@@ -133,5 +138,7 @@ include __DIR__ . '/includes/header_panel.php';
   </div>
 </div>
 <?php endforeach; endif; ?>
+
+</div><!-- .pv-wrap -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

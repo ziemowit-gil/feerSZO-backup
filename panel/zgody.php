@@ -75,80 +75,102 @@ if ($_is_volunteer_only) {
 require_once __DIR__ . '/includes/pv_ui.php';
 ?>
 
-<?php if (function_exists('pv_page_header')): pv_page_header('Zgody i Oświadczenia', ['icon' => 'bi-file-earmark-check']); endif; ?>
+<div class="pv-wrap">
 
-<style>
-.gc-statement h6{margin-top:1.1rem}
-.gc-statement{font-size:.92rem;line-height:1.6;color:#334155}
-.gc-card{border:1px solid #E5E7EB;border-radius:14px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.05);margin-bottom:1.5rem;overflow:hidden}
-.gc-card-head{padding:1rem 1.4rem;border-bottom:1px solid #F3F4F6;background:#FAFBFC;display:flex;align-items:center;gap:.6rem}
-.gc-card-body{padding:1.4rem}
-.gc-doc{max-height:420px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:10px;padding:1.2rem 1.4rem;background:#F9FAFB;margin-bottom:1.25rem}
-</style>
+<?php pv_page_header('Zgody i Oświadczenia', [
+    'icon' => 'bi-file-earmark-check',
+    'back' => ['url' => APP_URL . '/panel/', 'label' => 'Panel'],
+]); ?>
 
 <?= function_exists('flash_html') ? flash_html() : '' ?>
 
 <?php if (!$pending): ?>
-<div class="<?= $_is_volunteer_only ? 'pv-empty' : 'alert alert-success d-flex gap-2' ?>">
+<div class="pv-empty" role="status">
   <i class="bi bi-check2-circle" aria-hidden="true"></i>
-  <div>
-    <?php if ($_is_volunteer_only): ?><div class="pv-empty-title">Brak zgód do odnowienia</div><?php endif; ?>
-    <div class="<?= $_is_volunteer_only ? 'pv-empty-sub' : '' ?>">
-      Wszystkie wymagane zgody przedstawiciela ustawowego są aktualne, albo żadna umowa
-      powiązana z Twoim adresem e-mail (<?= h($email) ?>) nie wymaga takiej zgody.
-    </div>
+  <div class="pv-empty-title">Brak zgód do odnowienia</div>
+  <div class="pv-empty-sub">
+    Wszystkie wymagane zgody przedstawiciela ustawowego są aktualne, albo żadna umowa
+    powiązana z Twoim adresem e-mail (<?= h($email) ?>) nie wymaga takiej zgody.
   </div>
 </div>
 <?php endif; ?>
 
 <?php foreach ($pending as $c): $cid = (int)$c['id']; ?>
-<div class="gc-card">
-  <div class="gc-card-head">
-    <i class="bi bi-file-earmark-person text-primary" aria-hidden="true"></i>
-    <div>
-      <div class="fw-bold"><?= h($c['imie_nazwisko']) ?></div>
-      <div class="text-muted small">Umowa <?= h($c['numer_umowy']) ?></div>
+<div class="tz-card" role="region" aria-labelledby="gc-heading-<?= $cid ?>">
+  <div class="tz-card__hd">
+    <i class="bi bi-file-earmark-person" aria-hidden="true"></i>
+    <div id="gc-heading-<?= $cid ?>">
+      <span><?= h($c['imie_nazwisko']) ?></span>
+      <span class="fw-normal d-block" style="color:var(--tz-muted);font-size:.85rem">Umowa <?= h($c['numer_umowy']) ?></span>
     </div>
+    <span class="tz-badge tz-badge--wait ms-auto" aria-label="Status: wymaga podpisu">Wymaga podpisu</span>
   </div>
-  <div class="gc-card-body">
-    <div class="gc-doc"><?= guardian_consent_statement_html($c, $user['name'] ?? '') ?></div>
+  <div class="tz-card__bd">
 
-    <form method="post">
+    <div class="overflow-auto rounded-3 p-3 mb-3"
+         style="max-height:420px;background:var(--tz-bg-sub);border:1px solid var(--tz-line);font-size:.92rem;line-height:1.6;color:var(--tz-ink)"
+         tabindex="0"
+         role="document"
+         aria-label="Treść oświadczenia przedstawiciela ustawowego">
+      <?= guardian_consent_statement_html($c, $user['name'] ?? '') ?>
+    </div>
+
+    <form method="post" aria-label="Formularz zgody dla <?= h($c['imie_nazwisko']) ?>">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="contract_id" value="<?= $cid ?>">
+
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
-          <label class="form-label small fw-semibold" for="adres-<?= $cid ?>">Adres zamieszkania (przedstawiciela)</label>
-          <input type="text" id="adres-<?= $cid ?>" name="adres" class="form-control form-control-sm"
-                 value="<?= h($c['zgoda_przedstawiciela_adres'] ?? '') ?>" required>
+          <label class="form-label small fw-semibold" for="adres-<?= $cid ?>">
+            Adres zamieszkania (przedstawiciela)
+          </label>
+          <input type="text" id="adres-<?= $cid ?>" name="adres"
+                 class="form-control form-control-sm"
+                 value="<?= h($c['zgoda_przedstawiciela_adres'] ?? '') ?>"
+                 required aria-required="true"
+                 autocomplete="street-address">
         </div>
         <div class="col-sm-3">
-          <label class="form-label small fw-semibold" for="dowod-<?= $cid ?>">Seria i nr dowodu osobistego</label>
-          <input type="text" id="dowod-<?= $cid ?>" name="dowod_seria_nr" class="form-control form-control-sm"
-                 value="<?= h($c['zgoda_przedstawiciela_dowod'] ?? '') ?>" required>
+          <label class="form-label small fw-semibold" for="dowod-<?= $cid ?>">
+            Seria i nr dowodu osobistego
+          </label>
+          <input type="text" id="dowod-<?= $cid ?>" name="dowod_seria_nr"
+                 class="form-control form-control-sm"
+                 value="<?= h($c['zgoda_przedstawiciela_dowod'] ?? '') ?>"
+                 required aria-required="true" autocomplete="off">
         </div>
         <div class="col-sm-3">
-          <label class="form-label small fw-semibold" for="tel-<?= $cid ?>">Numer telefonu</label>
-          <input type="text" id="tel-<?= $cid ?>" name="telefon" class="form-control form-control-sm"
-                 value="<?= h($c['rodzic_telefon'] ?? '') ?>" required>
+          <label class="form-label small fw-semibold" for="tel-<?= $cid ?>">
+            Numer telefonu
+          </label>
+          <input type="text" id="tel-<?= $cid ?>" name="telefon"
+                 class="form-control form-control-sm"
+                 value="<?= h($c['rodzic_telefon'] ?? '') ?>"
+                 required aria-required="true"
+                 inputmode="tel" autocomplete="tel">
         </div>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" id="consent-<?= $cid ?>" name="consent" value="1" required>
+        <input class="form-check-input" type="checkbox"
+               id="consent-<?= $cid ?>" name="consent" value="1"
+               required aria-required="true">
         <label class="form-check-label small" for="consent-<?= $cid ?>">
           Oświadczam, że zapoznałem/am się z treścią Oświadczenia przedstawiciela ustawowego
           powyżej i <strong>wyrażam zgodę</strong> zgodnie z jej treścią.
         </label>
       </div>
 
-      <button type="submit" class="btn" style="background:var(--vol-color,#1D4ED8);color:#fff">
-        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Potwierdzam i wyrażam zgodę
+      <button type="submit" class="tz-btn">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i>Potwierdzam i wyrażam zgodę
       </button>
     </form>
+
   </div>
 </div>
 <?php endforeach; ?>
+
+</div><!-- /.pv-wrap -->
 
 <?php
 if ($_is_volunteer_only) { include __DIR__ . '/includes/footer_panel.php'; }

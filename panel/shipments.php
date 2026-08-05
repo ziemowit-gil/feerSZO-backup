@@ -147,245 +147,255 @@ if ($_is_volunteer_only) {
 } else {
     include dirname(__DIR__) . '/includes/header.php';
 }
-if ($ok_msg) echo '<div class="alert alert-' . h($ok_msg['type']) . ' alert-dismissible fade show py-2">'
-    . h($ok_msg['msg']) . '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
 ?>
-<style>
-.ship-panel-stat { background:#fff; border:1px solid #e2e8f0; border-radius:.5rem; padding:.6rem 1rem; }
-.ship-panel-stat-lbl { font-size:.67rem; text-transform:uppercase; letter-spacing:.09em; color:#94a3b8; font-weight:700; }
-.ship-panel-stat-val { font-size:1.2rem; font-weight:800; color:#1e293b; }
-.ship-row { background:#fff; border:1px solid #e2e8f0; border-radius:.5rem; padding:.75rem 1rem; margin-bottom:.6rem; }
-.ship-row-pending { border-color:#fde68a; background:#fefce8; }
-.ship-row-ordered { border-color:#bfdbfe; background:#eff6ff; }
-.ship-row-delivered { border-color:#bbf7d0; background:#f0fdf4; }
-.dir-pill { font-size:.7rem; font-weight:700; padding:.1rem .45rem; border-radius:.25rem; }
-</style>
+<div class="pv-wrap">
 
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-box-seam me-2" aria-hidden="true"></i>Moje przesyłki</h1>
-  <p class="pv-page-sub">Śledzenie wysyłek i paczek</p>
+<?php if ($ok_msg): ?>
+<div class="pv-alert pv-alert-<?= h($ok_msg['type']) ?>" role="alert">
+  <?= h($ok_msg['msg']) ?>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
 </div>
-<?php echo flash_html(); ?>
 <?php endif; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-box-seam text-primary me-2"></i>Moje przesyłki</h4>
-    <div class="text-muted small mt-1">Przesyłki wysyłane przez FEER oraz zwroty dokumentów</div>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-box-seam" aria-hidden="true"></i> Przesyłki</h1>
+    <p class="pv-page-sub">Zamów dostawę materiałów do wolontariatu</p>
   </div>
   <?php if ($contracts && !$show_form): ?>
-  <a href="?new=1" class="btn btn-primary">
-    <i class="bi bi-arrow-return-left me-1"></i>Odeślij dokumenty / zamów odbiór
-  </a>
+  <div class="pv-page-head-actions">
+    <a href="?new=1" class="tz-btn">
+      <i class="bi bi-arrow-return-left" aria-hidden="true"></i> Odeślij dokumenty / zamów odbiór
+    </a>
+  </div>
   <?php endif; ?>
 </div>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger py-2 small"><ul class="mb-0 ps-3">
-  <?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?>
-</ul></div>
+<div class="tz-note tz-note--danger" role="alert">
+  <ul class="mb-0 ps-3">
+    <?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?>
+  </ul>
+</div>
 <?php endif; ?>
 
 <?php if (!$contracts): ?>
-<div class="alert alert-info small"><i class="bi bi-info-circle me-2"></i>
-  Nie masz aktywnych umów wolontariackich. Moduł przesyłek dostępny po podpisaniu umowy.</div>
+<div class="tz-note tz-note--info">
+  <i class="bi bi-info-circle" aria-hidden="true"></i>
+  Nie masz aktywnych umów wolontariackich. Moduł przesyłek dostępny po podpisaniu umowy.
+</div>
 <?php else: ?>
 
-<!-- Statystyki -->
 <?php
-$total = count($my_shipments);
-$pending = count(array_filter($my_shipments, fn($s) => $s['status'] === 'requested'));
-$ordered = count(array_filter($my_shipments, fn($s) => in_array($s['status'], ['ordered','in_transit'])));
+$total     = count($my_shipments);
+$pending   = count(array_filter($my_shipments, fn($s) => $s['status'] === 'requested'));
+$ordered   = count(array_filter($my_shipments, fn($s) => in_array($s['status'], ['ordered', 'in_transit'])));
 $delivered = count(array_filter($my_shipments, fn($s) => $s['status'] === 'delivered'));
 ?>
-<div class="d-flex gap-2 flex-wrap mb-3">
-  <div class="ship-panel-stat"><div class="ship-panel-stat-lbl">Łącznie</div><div class="ship-panel-stat-val"><?= $total ?></div></div>
+<div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+  <span class="tz-badge">Łącznie: <?= $total ?></span>
   <?php if ($pending): ?>
-  <div class="ship-panel-stat" style="border-color:#fde68a;background:#fefce8">
-    <div class="ship-panel-stat-lbl">Oczekujące</div>
-    <div class="ship-panel-stat-val text-warning"><?= $pending ?></div></div>
+  <span class="tz-badge tz-badge--warning">Oczekujące: <?= $pending ?></span>
   <?php endif; ?>
   <?php if ($ordered): ?>
-  <div class="ship-panel-stat" style="border-color:#bfdbfe;background:#eff6ff">
-    <div class="ship-panel-stat-lbl">W drodze</div>
-    <div class="ship-panel-stat-val text-primary"><?= $ordered ?></div></div>
+  <span class="tz-badge tz-badge--info">W drodze: <?= $ordered ?></span>
   <?php endif; ?>
-  <div class="ship-panel-stat" style="border-color:#bbf7d0;background:#f0fdf4">
-    <div class="ship-panel-stat-lbl">Dostarczone</div>
-    <div class="ship-panel-stat-val text-success"><?= $delivered ?></div></div>
+  <span class="tz-badge tz-badge--success">Dostarczone: <?= $delivered ?></span>
 </div>
 
-<!-- Formularz wniosku o zwrot -->
 <?php if ($show_form): ?>
-<div class="card border-primary border-opacity-50 mb-3" style="border-left:4px solid #2563eb">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-arrow-return-left text-primary me-2"></i>Wniosek o przesyłkę zwrotną / odbiór
+<div class="tz-card mb-3">
+  <div class="tz-card__hd">
+    <i class="bi bi-arrow-return-left" aria-hidden="true"></i> Wniosek o przesyłkę zwrotną / odbiór
   </div>
-  <div class="card-body">
-  <div class="alert alert-info py-2 small mb-3">
-    <i class="bi bi-info-circle me-1"></i>
-    Po złożeniu wniosku administrator zatwierdzi go i wyśle e-mailem etykietę do wydruku lub zamówi kuriera.
-    Wysyłka odbywa się <strong>na koszt FEER</strong>.
-  </div>
-  <form method="post">
-    <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-    <input type="hidden" name="_action"  value="request">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label fw-semibold small">Umowa <span class="text-danger">*</span></label>
-        <select name="contract_id" class="form-select" required>
-          <option value="">— wybierz umowę —</option>
-          <?php foreach ($contracts as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= ($errors && ($_POST['contract_id'] ?? '') == $c['id']) ? 'selected' : '' ?>>
-            <?= h($c['numer_umowy']) ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label fw-semibold small">Co odsyłam / co ma dotrzeć?</label>
-        <select name="purpose" class="form-select">
-          <option value="return_docs" selected>Zwrot dokumentów (podpisane umowy itp.)</option>
-          <option value="documents">Dokumenty od FEER do mnie</option>
-          <option value="equipment">Materiały / ekwipunek</option>
-          <option value="other">Inne</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label fw-semibold small">Typ nadania</label>
-        <select name="pickup_type" class="form-select" id="panelPickupType">
-          <option value="SELF">Sam zaniosę do punktu / paczkomatu</option>
-          <option value="COURIER">Poproszę o kuriera pod drzwi</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label fw-semibold small">Szacowana waga (kg)</label>
-        <div class="input-group">
-          <input name="weight" type="number" step="0.1" min="0.1" max="30"
-                 class="form-control" value="0.3" required>
-          <span class="input-group-text text-muted">kg</span>
-        </div>
-      </div>
-      <div class="col-12">
-        <label class="form-label fw-semibold small">Punkt nadania / paczkomat <span class="text-muted fw-normal">(jeśli wybrałeś/aś "Sam zaniosę")</span></label>
-        <div class="input-group mb-1">
-          <input type="text" id="panelPointSearch" class="form-control form-control-sm"
-                 placeholder="Wpisz kod pocztowy lub miasto…">
-          <select id="panelPointType" class="form-select form-select-sm" style="max-width:120px">
-            <option value="INPOST">InPost</option>
-            <option value="POCZTA">Poczta</option>
-            <option value="UPS">UPS</option>
+  <div class="tz-card__bd">
+    <div class="tz-note tz-note--info mb-3">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      Po złożeniu wniosku administrator zatwierdzi go i wyśle e-mailem etykietę do wydruku lub zamówi kuriera.
+      Wysyłka odbywa się <strong>na koszt FEER</strong>.
+    </div>
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="request">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="ship_contract_id" class="form-label fw-semibold small">
+            Umowa <span class="text-danger" aria-hidden="true">*</span><span class="visually-hidden">(wymagane)</span>
+          </label>
+          <select id="ship_contract_id" name="contract_id" class="form-select"
+                  required aria-required="true">
+            <option value="">— wybierz umowę —</option>
+            <?php foreach ($contracts as $c): ?>
+            <option value="<?= $c['id'] ?>" <?= ($errors && ($_POST['contract_id'] ?? '') == $c['id']) ? 'selected' : '' ?>>
+              <?= h($c['numer_umowy']) ?>
+            </option>
+            <?php endforeach; ?>
           </select>
-          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="panelSearchPoints()">
-            <i class="bi bi-search"></i>
-          </button>
         </div>
-        <div id="panelPointResults" class="border rounded p-1 mb-2 d-none" style="max-height:180px;overflow-y:auto;font-size:.82rem"></div>
-        <div class="input-group input-group-sm" style="max-width:420px">
-          <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
-          <input name="receiver_point_id"   id="panelPointId"   class="form-control font-monospace"
-                 placeholder="ID punktu (np. WAW01N)">
-          <input name="receiver_point_type" id="panelPointType2" class="form-control"
-                 placeholder="typ" style="max-width:90px">
+        <div class="col-md-6">
+          <label for="ship_purpose" class="form-label fw-semibold small">Co odsyłam / co ma dotrzeć?</label>
+          <select id="ship_purpose" name="purpose" class="form-select">
+            <option value="return_docs" selected>Zwrot dokumentów (podpisane umowy itp.)</option>
+            <option value="documents">Dokumenty od FEER do mnie</option>
+            <option value="equipment">Materiały / ekwipunek</option>
+            <option value="other">Inne</option>
+          </select>
         </div>
-        <div class="form-text">
-          Możesz też znaleźć punkt na
-          <a href="https://inpost.pl/znajdz-paczkomat" target="_blank">mapie InPost</a>
-          i wpisać ID ręcznie.
+        <div class="col-md-4">
+          <label for="ship_pickup_type" class="form-label fw-semibold small">Typ nadania</label>
+          <select id="ship_pickup_type" name="pickup_type" class="form-select">
+            <option value="SELF">Sam zaniosę do punktu / paczkomatu</option>
+            <option value="COURIER">Poproszę o kuriera pod drzwi</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="ship_weight" class="form-label fw-semibold small">Szacowana waga (kg)</label>
+          <div class="input-group">
+            <input id="ship_weight" name="weight" type="number" step="0.1" min="0.1" max="30"
+                   class="form-control" value="0.3" required aria-required="true">
+            <span class="input-group-text text-muted">kg</span>
+          </div>
+        </div>
+        <div class="col-12">
+          <label for="panelPointSearch" class="form-label fw-semibold small">
+            Punkt nadania / paczkomat
+            <span class="text-muted fw-normal">(jeśli wybrałeś/aś "Sam zaniosę")</span>
+          </label>
+          <div class="input-group mb-1">
+            <input type="text" id="panelPointSearch" class="form-control form-control-sm"
+                   placeholder="Wpisz kod pocztowy lub miasto…">
+            <select id="panelPointType" class="form-select form-select-sm" style="max-width:120px"
+                    aria-label="Typ punktu nadania">
+              <option value="INPOST">InPost</option>
+              <option value="POCZTA">Poczta</option>
+              <option value="UPS">UPS</option>
+            </select>
+            <button type="button" class="tz-btn tz-btn--ghost btn-sm" onclick="panelSearchPoints()"
+                    aria-label="Szukaj punktów nadania">
+              <i class="bi bi-search" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="panelPointResults" class="border rounded p-1 mb-2 d-none"
+               style="max-height:180px;overflow-y:auto;font-size:.82rem"
+               role="listbox" aria-label="Wyniki wyszukiwania punktów"></div>
+          <div class="input-group input-group-sm" style="max-width:420px">
+            <span class="input-group-text"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
+            <input id="panelPointId" name="receiver_point_id" class="form-control font-monospace"
+                   placeholder="ID punktu (np. WAW01N)" aria-label="ID punktu nadania">
+            <input id="panelPointType2" name="receiver_point_type" class="form-control"
+                   placeholder="typ" style="max-width:90px" aria-label="Typ punktu (kod)">
+          </div>
+          <div class="form-text">
+            Możesz też znaleźć punkt na
+            <a href="https://inpost.pl/znajdz-paczkomat" target="_blank" rel="noopener noreferrer">mapie InPost</a>
+            i wpisać ID ręcznie.
+          </div>
+        </div>
+        <div class="col-12">
+          <label for="ship_comment" class="form-label fw-semibold small">Uwagi dla administratora</label>
+          <textarea id="ship_comment" name="comment" class="form-control" rows="2"
+                    placeholder="Np. adres odbioru kuriera, zawartość przesyłki, szczególne życzenia…"></textarea>
         </div>
       </div>
-      <div class="col-12">
-        <label class="form-label fw-semibold small">Uwagi dla administratora</label>
-        <textarea name="comment" class="form-control" rows="2"
-                  placeholder="Np. adres odbioru kuriera, zawartość przesyłki, szczególne życzenia…"></textarea>
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-send-check" aria-hidden="true"></i> Złóż wniosek
+        </button>
+        <a href="<?= APP_URL ?>/panel/shipments.php" class="tz-btn tz-btn--ghost">Anuluj</a>
       </div>
-    </div>
-    <div class="d-flex gap-2 mt-3">
-      <button type="submit" class="btn btn-primary">
-        <i class="bi bi-send-check me-1"></i>Złóż wniosek
-      </button>
-      <a href="<?= APP_URL ?>/panel/shipments.php" class="btn btn-outline-secondary">Anuluj</a>
-    </div>
-  </form>
+    </form>
   </div>
 </div>
 <?php endif; ?>
 
-<!-- Lista moich przesyłek -->
 <?php if ($my_shipments): ?>
-<?php foreach ($my_shipments as $s):
-  $row_class = match($s['status']) {
-    'requested'  => 'ship-row-pending',
-    'ordered','in_transit' => 'ship-row-ordered',
-    'delivered'  => 'ship-row-delivered',
-    default      => '',
-  };
-  $wurl = $s['waybill_path'] ? APP_URL . '/uploads/' . $s['waybill_path'] : '';
-?>
-<div class="ship-row <?= $row_class ?>">
-  <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
-    <div>
-      <span class="dir-pill me-1 <?= $s['direction'] === 'out' ? 'bg-primary text-white' : 'bg-pink text-white' ?>"
-            style="background:<?= $s['direction'] === 'out' ? '#2563eb' : '#db2777' ?>">
-        <?= $s['direction'] === 'out' ? '→ Do mnie' : '← Do FEER' ?>
-      </span>
-      <span class="small fw-semibold"><?= h(SHIPMENT_PURPOSE[$s['purpose']] ?? $s['purpose']) ?></span>
-      <?php if ($s['numer_umowy']): ?>
-      <span class="text-muted small ms-1">(<?= h($s['numer_umowy']) ?>)</span>
-      <?php endif; ?>
-    </div>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-      <?= shipment_badge($s['status']) ?>
-      <?php if ($wurl): ?>
-      <a href="<?= h($wurl) ?>" target="_blank" class="btn btn-sm btn-outline-dark py-0 px-2">
-        <i class="bi bi-printer me-1"></i>Etykieta PDF
-      </a>
-      <?php endif; ?>
-      <?php if ($s['tracking_url']): ?>
-      <a href="<?= h($s['tracking_url']) ?>" target="_blank" class="btn btn-sm btn-outline-success py-0 px-2">
-        <i class="bi bi-geo-alt me-1"></i>Śledź
-      </a>
-      <?php endif; ?>
-      <?php if ($s['status'] === 'requested'): ?>
-      <form method="post" class="d-inline">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="retract">
-        <input type="hidden" name="shipment_id" value="<?= $s['id'] ?>">
-        <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2">
-          <i class="bi bi-x me-1"></i>Wycofaj
-        </button>
-      </form>
-      <?php endif; ?>
-    </div>
-  </div>
-  <div class="mt-1 small text-muted">
-    <?php if ($s['waybill_number']): ?>
-    <i class="bi bi-upc-scan me-1"></i><span class="font-monospace"><?= h($s['waybill_number']) ?></span> ·
-    <?php endif; ?>
-    <?php if ($s['status'] === 'requested'): ?>
-    <span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Oczekuje na zatwierdzenie przez administratora</span>
-    <?php elseif ($s['status'] === 'ordered'): ?>
-    <span class="text-primary"><i class="bi bi-box-arrow-right me-1"></i>Zamówione — oczekuje na nadanie</span>
-    <?php elseif ($s['status'] === 'in_transit'): ?>
-    <span class="text-info"><i class="bi bi-truck me-1"></i>W dostawie</span>
-    <?php elseif ($s['status'] === 'delivered'): ?>
-    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Dostarczone</span>
-    <?php endif; ?>
-    <span class="ms-2"><?= date_pl($s['created_at']) ?></span>
-  </div>
+<div class="pv-table-wrap">
+  <table class="pv-table">
+    <thead>
+      <tr>
+        <th scope="col">Kierunek / cel</th>
+        <th scope="col">Umowa</th>
+        <th scope="col">Status</th>
+        <th scope="col">Data</th>
+        <th scope="col" class="text-end">Akcje</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($my_shipments as $s):
+      $wurl     = $s['waybill_path'] ? APP_URL . '/uploads/' . $s['waybill_path'] : '';
+      $dirLabel = $s['direction'] === 'out' ? '→ Do mnie' : '← Do FEER';
+      $dirClass = $s['direction'] === 'out' ? 'pv-sp-info' : 'pv-sp-warning';
+    ?>
+    <tr>
+      <td>
+        <span class="pv-status-pill <?= $dirClass ?>"><?= $dirLabel ?></span>
+        <span class="small fw-semibold ms-1"><?= h(SHIPMENT_PURPOSE[$s['purpose']] ?? $s['purpose']) ?></span>
+        <?php if ($s['waybill_number']): ?>
+        <div class="text-muted small font-monospace mt-1">
+          <i class="bi bi-upc-scan" aria-hidden="true"></i> <?= h($s['waybill_number']) ?>
+        </div>
+        <?php endif; ?>
+      </td>
+      <td class="text-muted small"><?= $s['numer_umowy'] ? h($s['numer_umowy']) : '—' ?></td>
+      <td>
+        <?= shipment_badge($s['status']) ?>
+        <?php if ($s['status'] === 'requested'): ?>
+        <div class="small text-warning mt-1"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Oczekuje na zatwierdzenie</div>
+        <?php elseif ($s['status'] === 'ordered'): ?>
+        <div class="small text-primary mt-1"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Oczekuje na nadanie</div>
+        <?php elseif ($s['status'] === 'in_transit'): ?>
+        <div class="small text-info mt-1"><i class="bi bi-truck" aria-hidden="true"></i> W dostawie</div>
+        <?php elseif ($s['status'] === 'delivered'): ?>
+        <div class="small text-success mt-1"><i class="bi bi-check-circle" aria-hidden="true"></i> Dostarczone</div>
+        <?php endif; ?>
+      </td>
+      <td class="small text-muted text-nowrap"><?= date_pl($s['created_at']) ?></td>
+      <td class="text-end">
+        <div class="d-flex gap-1 justify-content-end flex-wrap">
+        <?php if ($wurl): ?>
+        <a href="<?= h($wurl) ?>" target="_blank" rel="noopener noreferrer"
+           class="tz-btn tz-btn--ghost btn-sm"
+           aria-label="Pobierz etykietę PDF dla przesyłki <?= h($s['numer_umowy'] ?? $s['id']) ?>">
+          <i class="bi bi-printer" aria-hidden="true"></i> Etykieta PDF
+        </a>
+        <?php endif; ?>
+        <?php if ($s['tracking_url']): ?>
+        <a href="<?= h($s['tracking_url']) ?>" target="_blank" rel="noopener noreferrer"
+           class="tz-btn tz-btn--ghost btn-sm"
+           aria-label="Śledź przesyłkę <?= h($s['numer_umowy'] ?? $s['id']) ?>">
+          <i class="bi bi-geo-alt" aria-hidden="true"></i> Śledź
+        </a>
+        <?php endif; ?>
+        <?php if ($s['status'] === 'requested'): ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="retract">
+          <input type="hidden" name="shipment_id" value="<?= $s['id'] ?>">
+          <button type="submit" class="tz-btn tz-btn--ghost btn-sm">
+            <i class="bi bi-x" aria-hidden="true"></i> Wycofaj
+          </button>
+        </form>
+        <?php endif; ?>
+        </div>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
 </div>
-<?php endforeach; ?>
 <?php else: ?>
-<div class="text-center py-5 text-muted">
-  <i class="bi bi-box-seam" style="font-size:2.5rem;opacity:.25"></i>
-  <div class="mt-2">Nie masz jeszcze żadnych przesyłek.</div>
-  <a href="?new=1" class="btn btn-primary btn-sm mt-2">
-    <i class="bi bi-arrow-return-left me-1"></i>Odeślij dokumenty
+<div class="tz-empty">
+  <i class="bi bi-box-seam" aria-hidden="true"></i>
+  <p>Nie masz jeszcze żadnych przesyłek.</p>
+  <a href="?new=1" class="tz-btn">
+    <i class="bi bi-arrow-return-left" aria-hidden="true"></i> Odeślij dokumenty
   </a>
 </div>
 <?php endif; ?>
 <?php endif; /* $contracts */ ?>
+
+</div><!-- /.pv-wrap -->
 
 <script>
 function panelSearchPoints() {

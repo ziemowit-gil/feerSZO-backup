@@ -507,13 +507,13 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
           <input type="hidden" name="contract_type"    value="<?= h($c['contract_type']) ?>">
           <input type="hidden" name="contract_id"      value="<?= (int)$c['id'] ?>">
           <button type="submit"
-                  class="btn w-100 text-start <?= $is_active ? 'btn-primary' : 'btn-outline-secondary' ?> d-flex align-items-center gap-3">
+                  class="<?= $is_active ? 'tz-btn' : 'tz-btn tz-btn--ghost' ?> w-100 text-start d-flex align-items-center gap-3">
             <i class="bi <?= $type_icons[$c['contract_type']] ?? 'bi-file-text' ?> fs-5 flex-shrink-0"></i>
             <div class="flex-grow-1">
               <div class="fw-semibold">
                 <?= h($c['numer_umowy'] ?: 'Umowa #' . $c['id']) ?>
                 <?php if (!empty($c['_is_guardian'])): ?>
-                <span class="badge bg-warning text-dark fw-normal ms-1"><i class="bi bi-person-hearts"></i> dziecko</span>
+                <span class="tz-badge ms-1"><i class="bi bi-person-hearts"></i> dziecko</span>
                 <?php endif; ?>
               </div>
               <div class="small opacity-75">

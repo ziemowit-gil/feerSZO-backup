@@ -117,322 +117,314 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
+<div class="pv-wrap">
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-file-earmark-x me-2" aria-hidden="true"></i>Rozwiązanie umowy</h1>
-  <p class="pv-page-sub">Złóż wniosek o rozwiązanie umowy</p>
-</div>
-<?php echo flash_html(); ?>
-
-<div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
-  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
-  <div class="small">
-    <strong>To jest poważna decyzja.</strong> Upewnij się, że chcesz rozwiązać umowę przed złożeniem wniosku.
-    Wniosek wymaga akceptacji administratora — umowa nie zostanie rozwiązana automatycznie.
-  </div>
-</div>
-
-<?php if ($my_requests): ?>
-<div class="vol-data-grid mb-4">
-  <?php foreach ($my_requests as $r):
-      $r_color = $r['status'] === 'oczekuje' ? '#F59E0B' : ($r['status'] === 'zaakceptowany' ? '#10B981' : '#EF4444');
-  ?>
-  <div class="vol-data-item">
-    <div class="vol-data-lbl">Status wniosku</div>
-    <div class="vol-data-val" style="color:<?= $r_color ?>;font-size:.8rem"><?= termination_status_badge($r['status']) ?></div>
-  </div>
-  <?php break; // pokazuj tylko ostatni ?>
-  <?php endforeach; ?>
-</div>
-<?php endif; ?>
-
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-file-earmark-x me-2" aria-hidden="true"></i>Złóż wniosek o rozwiązanie</div>
-  <div class="vol-detail-body">
-
-<?php if (!$contracts): ?>
-<div class="text-center py-3 text-muted">
-  <i class="bi bi-info-circle" style="font-size:2rem;opacity:.25" aria-hidden="true"></i>
-  <p class="mt-2 mb-0 small">Brak aktywnych umów, które można rozwiązać (status: Podpisana, W realizacji lub Obowiązująca).</p>
-</div>
-<?php else: ?>
-
-<?php if ($errors): ?>
-<div class="alert alert-danger small">
-  <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
-</div>
-<?php endif; ?>
-
-<form method="post">
-  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Umowa do rozwiązania <span class="text-danger">*</span></label>
-    <select name="contract_type" id="sel_type" class="form-select" required>
-      <option value="">— wybierz —</option>
-      <?php
-      $by_type = [];
-      foreach ($contracts as $c) $by_type[$c['contract_type']][] = $c;
-      foreach ($by_type as $typ => $list):
-      ?>
-      <optgroup label="<?= h(CONTRACT_TYPES[$typ] ?? $typ) ?>">
-        <?php foreach ($list as $c):
-            $key     = $typ . ':' . $c['id'];
-            $has_p   = isset($pending_map[$key]);
-            $opt_val = $typ . ':' . $c['id'];
-            $sel_c   = ($_POST['contract_type'] ?? '') === $opt_val;
-        ?>
-        <option value="<?= h($opt_val) ?>"
-                <?= $sel_c ? 'selected' : '' ?>
-                <?= $has_p ? 'disabled' : '' ?>>
-          <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
-          <?= $has_p ? ' (wniosek w toku)' : '' ?>
-        </option>
-        <?php endforeach; ?>
-      </optgroup>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
-    <input type="text" name="requester_name" class="form-control"
-           value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required>
-  </div>
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Powód rozwiązania <span class="text-danger">*</span></label>
-    <textarea name="powod" class="form-control" rows="4" required
-              placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
-  </div>
-  <div class="mb-4">
-    <label class="form-label fw-semibold">Proponowana data rozwiązania <span class="text-muted fw-normal small">(opcjonalnie)</span></label>
-    <input type="date" name="proposed_date" class="form-control"
-           value="<?= h($_POST['proposed_date'] ?? '') ?>"
-           min="<?= date('Y-m-d') ?>">
-    <div class="form-text">Pozostaw puste, jeśli data ma zostać ustalona przez administratora.</div>
-  </div>
-  <button type="submit" style="background:#DC2626;color:#fff;border:none;border-radius:8px;padding:.55rem 1.25rem;font-weight:600">
-    <i class="bi bi-send me-1" aria-hidden="true"></i> Złóż wniosek o rozwiązanie
-  </button>
-</form>
-
-<?php endif; ?>
-
-  </div>
-</div>
-
-<?php if ($my_requests): ?>
-<?php
-// Znormalizuj wnioski dla listy z filtrem (panel/includes/pv_term_history.php)
-$_pv_terms = array_map(function ($r) {
-    try {
-        $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
-        $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
-    } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
-    return [
-        'status'        => $r['status'],
-        'type_label'    => CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type'],
-        'nr'            => $c_nr,
-        'powod'         => mb_strimwidth((string)$r['powod'], 0, 80, '…'),
-        'decision_note' => $r['decision_note'] ?? '',
-        'created_pl'    => date_pl($r['created_at']),
-    ];
-}, $my_requests);
-include __DIR__ . '/includes/pv_term_history.php';
-?>
-<?php endif; ?>
-<?php else: ?>
-
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-danger bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-file-earmark-x text-danger fs-4"></i>
-  </div>
-  <div>
-    <h4 class="mb-0">Wniosek o rozwiązanie umowy</h4>
-    <div class="text-muted small"><?= h($user['name']) ?></div>
-  </div>
-  <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-sm btn-outline-secondary ms-auto">
-    <i class="bi bi-arrow-left"></i> Mój panel
-  </a>
-</div>
-
-<?= flash_html() ?>
-
-<div class="row g-4">
-
-<!-- ── Formularz ─────────────────────────────────────────────────────────── -->
-<div class="col-xl-5">
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-file-earmark-x text-danger"></i> Nowy wniosek
-  </div>
-  <div class="card-body">
-
-    <?php if (!$contracts): ?>
-    <div class="alert alert-info small mb-0">
-      <i class="bi bi-info-circle"></i>
-      Brak aktywnych umów powiązanych z Twoim kontem, które można rozwiązać
-      (status: Podpisana, W realizacji lub Obowiązująca).
-    </div>
-
-    <?php else: ?>
-
-    <?php if ($errors): ?>
-    <div class="alert alert-danger small">
-      <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
-    </div>
-    <?php endif; ?>
-
-    <form method="post">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-      <div class="mb-3">
-        <label class="form-label">Umowa do rozwiązania <span class="text-danger">*</span></label>
-        <select name="contract_type" id="sel_type" class="form-select" required>
-          <option value="">— wybierz —</option>
-          <?php
-          $by_type = [];
-          foreach ($contracts as $c) $by_type[$c['contract_type']][] = $c;
-          foreach ($by_type as $typ => $list):
-          ?>
-          <optgroup label="<?= h(CONTRACT_TYPES[$typ] ?? $typ) ?>">
-            <?php foreach ($list as $c):
-                $key     = $typ . ':' . $c['id'];
-                $has_p   = isset($pending_map[$key]);
-                $opt_val = $typ . ':' . $c['id'];
-                $sel_c   = ($_POST['contract_type'] ?? '') === $opt_val;
-            ?>
-            <option value="<?= h($opt_val) ?>"
-                    <?= $sel_c ? 'selected' : '' ?>
-                    <?= $has_p ? 'disabled' : '' ?>>
-              <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
-              <?= $has_p ? ' (wniosek w toku)' : '' ?>
-            </option>
-            <?php endforeach; ?>
-          </optgroup>
-          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Imię i nazwisko <span class="text-danger">*</span></label>
-        <input type="text" name="requester_name" class="form-control"
-               value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Proponowana data rozwiązania <span class="text-muted small">(opcjonalnie)</span></label>
-        <input type="date" name="proposed_date" class="form-control"
-               value="<?= h($_POST['proposed_date'] ?? '') ?>"
-               min="<?= date('Y-m-d') ?>">
-        <div class="form-text">Pozostaw puste, jeśli data ma zostać ustalona przez administratora.</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Powód rozwiązania <span class="text-danger">*</span></label>
-        <textarea name="powod" class="form-control" rows="4" required
-                  placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
-      </div>
-
-      <div class="alert alert-warning small py-2">
-        <i class="bi bi-exclamation-triangle"></i>
-        Wniosek zostanie rozpatrzony przez administratora. Umowa zostanie rozwiązana
-        dopiero po formalnej akceptacji.
-      </div>
-
-      <div class="d-grid">
-        <button type="submit" class="btn btn-danger">
-          <i class="bi bi-send"></i> Złóż wniosek o rozwiązanie
-        </button>
-      </div>
-    </form>
-
-    <?php endif; ?>
-  </div>
-</div>
-</div>
-
-<!-- ── Historia wniosków ──────────────────────────────────────────────────── -->
-<div class="col-xl-7">
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-list-check"></i>
-    Moje wnioski o rozwiązanie
-    <?php if ($my_requests): ?>
-    <span class="badge bg-secondary ms-1"><?= count($my_requests) ?></span>
-    <?php endif; ?>
-  </div>
-
-  <?php if (!$my_requests): ?>
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
-    Brak złożonych wniosków o rozwiązanie.
-  </div>
-  <?php else: ?>
-  <div class="list-group list-group-flush">
-  <?php foreach ($my_requests as $r):
-      try {
-          $c_row = db_one("SELECT numer_umowy, status FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
-          $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
-          $c_status = $c_row['status'] ?? '';
-      } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; $c_status = ''; }
-  ?>
-  <div class="list-group-item px-4 py-3">
-    <div class="d-flex align-items-start gap-3">
-      <div class="mt-1">
-        <?php if ($r['status'] === 'oczekuje'): ?>
-        <i class="bi bi-clock-history text-warning fs-5"></i>
-        <?php elseif ($r['status'] === 'zaakceptowany'): ?>
-        <i class="bi bi-check-circle-fill text-success fs-5"></i>
-        <?php else: ?>
-        <i class="bi bi-x-circle-fill text-danger fs-5"></i>
-        <?php endif; ?>
-      </div>
-      <div class="flex-grow-1 min-w-0">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <span class="fw-semibold small">
-            <?= h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) ?>
-            · <?= h($c_nr) ?>
-          </span>
-          <?= termination_status_badge($r['status']) ?>
-          <?php if ($c_status): ?>
-          <?= status_badge($c_status) ?>
-          <?php endif; ?>
-        </div>
-        <div class="small text-muted mt-1">Powód: <?= h($r['powod']) ?></div>
-        <?php if ($r['proposed_date']): ?>
-        <div class="small text-muted">Proponowana data: <?= date_pl($r['proposed_date']) ?></div>
-        <?php endif; ?>
-        <div class="small text-muted">
-          Złożono: <?= date_pl($r['created_at']) ?>
-          <?php if ($r['decided_at']): ?>
-          · Rozpatrzono: <?= date_pl($r['decided_at']) ?>
-          <?php if ($r['decided_by_name']): ?>
-          przez <?= h($r['decided_by_name']) ?>
-          <?php endif; ?>
-          <?php endif; ?>
-        </div>
-        <?php if ($r['decision_note']): ?>
-        <div class="small mt-1 <?= $r['status'] === 'odrzucony' ? 'text-danger' : 'text-muted' ?>">
-          <i class="bi bi-chat-left-text"></i> <?= h($r['decision_note']) ?>
-        </div>
-        <?php endif; ?>
-      </div>
-      <a href="<?= h(contract_url($r['contract_type'], $r['contract_id'])) ?>"
-         class="btn btn-sm btn-outline-secondary flex-shrink-0">
-        <i class="bi bi-eye"></i>
-      </a>
+  <div class="pv-page-header">
+    <div class="pv-page-head-main">
+      <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+      <h1 class="pv-page-title"><i class="bi bi-file-earmark-x" aria-hidden="true"></i>Rozwiązanie umowy</h1>
+      <p class="pv-page-sub">Wniosek o rozwiązanie umowy wolontariackiej</p>
     </div>
   </div>
-  <?php endforeach; ?>
+
+  <?= flash_html() ?>
+
+  <?php if ($_is_volunteer_only): ?>
+
+  <div class="tz-note">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+    <div>
+      <strong>To jest poważna decyzja.</strong> Upewnij się, że chcesz rozwiązać umowę przed złożeniem wniosku.
+      Wniosek wymaga akceptacji administratora — umowa nie zostanie rozwiązana automatycznie.
+    </div>
+  </div>
+
+  <?php if ($my_requests): ?>
+  <div class="vol-data-grid mb-4">
+    <?php foreach ($my_requests as $r): ?>
+    <div class="vol-data-item">
+      <div class="vol-data-lbl">Status wniosku</div>
+      <div class="vol-data-val"><?= termination_status_badge($r['status']) ?></div>
+    </div>
+    <?php break; // pokazuj tylko ostatni ?>
+    <?php endforeach; ?>
   </div>
   <?php endif; ?>
-</div>
-</div>
+
+  <div class="tz-card mb-4">
+    <div class="tz-card__hd"><i class="bi bi-file-earmark-x" aria-hidden="true"></i>Złóż wniosek o rozwiązanie</div>
+    <div class="tz-card__bd">
+
+      <?php if (!$contracts): ?>
+      <div class="tz-empty">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <p>Brak aktywnych umów, które można rozwiązać (status: Podpisana, W realizacji lub Obowiązująca).</p>
+      </div>
+      <?php else: ?>
+
+      <?php if ($errors): ?>
+      <div class="pv-alert pv-alert-err" role="alert">
+        <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
+      </div>
+      <?php endif; ?>
+
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <div class="mb-3">
+          <label for="sel_type" class="form-label fw-semibold">Umowa do rozwiązania <span class="text-danger" aria-hidden="true">*</span></label>
+          <select name="contract_type" id="sel_type" class="form-select" required aria-required="true">
+            <option value="">— wybierz —</option>
+            <?php
+            $by_type = [];
+            foreach ($contracts as $c) $by_type[$c['contract_type']][] = $c;
+            foreach ($by_type as $typ => $list):
+            ?>
+            <optgroup label="<?= h(CONTRACT_TYPES[$typ] ?? $typ) ?>">
+              <?php foreach ($list as $c):
+                  $key     = $typ . ':' . $c['id'];
+                  $has_p   = isset($pending_map[$key]);
+                  $opt_val = $typ . ':' . $c['id'];
+                  $sel_c   = ($_POST['contract_type'] ?? '') === $opt_val;
+              ?>
+              <option value="<?= h($opt_val) ?>"
+                      <?= $sel_c ? 'selected' : '' ?>
+                      <?= $has_p ? 'disabled' : '' ?>>
+                <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
+                <?= $has_p ? ' (wniosek w toku)' : '' ?>
+              </option>
+              <?php endforeach; ?>
+            </optgroup>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="requester_name" class="form-label fw-semibold">Imię i nazwisko <span class="text-danger" aria-hidden="true">*</span></label>
+          <input type="text" name="requester_name" id="requester_name" class="form-control"
+                 value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required aria-required="true">
+        </div>
+        <div class="mb-3">
+          <label for="powod" class="form-label fw-semibold">Powód rozwiązania <span class="text-danger" aria-hidden="true">*</span></label>
+          <textarea name="powod" id="powod" class="form-control" rows="4" required aria-required="true"
+                    placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
+        </div>
+        <div class="mb-4">
+          <label for="proposed_date" class="form-label fw-semibold">Proponowana data rozwiązania <span class="text-muted fw-normal small">(opcjonalnie)</span></label>
+          <input type="date" name="proposed_date" id="proposed_date" class="form-control"
+                 value="<?= h($_POST['proposed_date'] ?? '') ?>"
+                 min="<?= date('Y-m-d') ?>">
+          <div class="form-text">Pozostaw puste, jeśli data ma zostać ustalona przez administratora.</div>
+        </div>
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-send" aria-hidden="true"></i> Złóż wniosek o rozwiązanie
+        </button>
+      </form>
+
+      <?php endif; ?>
+
+    </div>
+  </div>
+
+  <?php if ($my_requests): ?>
+  <?php
+  // Znormalizuj wnioski dla listy z filtrem (panel/includes/pv_term_history.php)
+  $_pv_terms = array_map(function ($r) {
+      try {
+          $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
+          $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
+      } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
+      return [
+          'status'        => $r['status'],
+          'type_label'    => CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type'],
+          'nr'            => $c_nr,
+          'powod'         => mb_strimwidth((string)$r['powod'], 0, 80, '…'),
+          'decision_note' => $r['decision_note'] ?? '',
+          'created_pl'    => date_pl($r['created_at']),
+      ];
+  }, $my_requests);
+  include __DIR__ . '/includes/pv_term_history.php';
+  ?>
+  <?php endif; ?>
+
+  <?php else: ?>
+
+  <div class="row g-4">
+
+    <!-- ── Formularz ─────────────────────────────────────────────────────────── -->
+    <div class="col-xl-5">
+    <div class="tz-card">
+      <div class="tz-card__hd">
+        <i class="bi bi-file-earmark-x" aria-hidden="true"></i> Nowy wniosek
+      </div>
+      <div class="tz-card__bd">
+
+        <?php if (!$contracts): ?>
+        <div class="tz-note mb-0">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <span>Brak aktywnych umów powiązanych z Twoim kontem, które można rozwiązać
+          (status: Podpisana, W realizacji lub Obowiązująca).</span>
+        </div>
+
+        <?php else: ?>
+
+        <?php if ($errors): ?>
+        <div class="pv-alert pv-alert-err" role="alert">
+          <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
+        </div>
+        <?php endif; ?>
+
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+          <div class="mb-3">
+            <label for="sel_type" class="form-label">Umowa do rozwiązania <span class="text-danger" aria-hidden="true">*</span></label>
+            <select name="contract_type" id="sel_type" class="form-select" required aria-required="true">
+              <option value="">— wybierz —</option>
+              <?php
+              $by_type = [];
+              foreach ($contracts as $c) $by_type[$c['contract_type']][] = $c;
+              foreach ($by_type as $typ => $list):
+              ?>
+              <optgroup label="<?= h(CONTRACT_TYPES[$typ] ?? $typ) ?>">
+                <?php foreach ($list as $c):
+                    $key     = $typ . ':' . $c['id'];
+                    $has_p   = isset($pending_map[$key]);
+                    $opt_val = $typ . ':' . $c['id'];
+                    $sel_c   = ($_POST['contract_type'] ?? '') === $opt_val;
+                ?>
+                <option value="<?= h($opt_val) ?>"
+                        <?= $sel_c ? 'selected' : '' ?>
+                        <?= $has_p ? 'disabled' : '' ?>>
+                  <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
+                  <?= $has_p ? ' (wniosek w toku)' : '' ?>
+                </option>
+                <?php endforeach; ?>
+              </optgroup>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="requester_name" class="form-label">Imię i nazwisko <span class="text-danger" aria-hidden="true">*</span></label>
+            <input type="text" name="requester_name" id="requester_name" class="form-control"
+                   value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required aria-required="true">
+          </div>
+
+          <div class="mb-3">
+            <label for="proposed_date" class="form-label">Proponowana data rozwiązania <span class="text-muted small">(opcjonalnie)</span></label>
+            <input type="date" name="proposed_date" id="proposed_date" class="form-control"
+                   value="<?= h($_POST['proposed_date'] ?? '') ?>"
+                   min="<?= date('Y-m-d') ?>">
+            <div class="form-text">Pozostaw puste, jeśli data ma zostać ustalona przez administratora.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="powod" class="form-label">Powód rozwiązania <span class="text-danger" aria-hidden="true">*</span></label>
+            <textarea name="powod" id="powod" class="form-control" rows="4" required aria-required="true"
+                      placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
+          </div>
+
+          <div class="tz-note mb-3">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <span>Wniosek zostanie rozpatrzony przez administratora. Umowa zostanie rozwiązana
+            dopiero po formalnej akceptacji.</span>
+          </div>
+
+          <div class="d-grid">
+            <button type="submit" class="tz-btn">
+              <i class="bi bi-send" aria-hidden="true"></i> Złóż wniosek o rozwiązanie
+            </button>
+          </div>
+        </form>
+
+        <?php endif; ?>
+      </div>
+    </div>
+    </div>
+
+    <!-- ── Historia wniosków ──────────────────────────────────────────────────── -->
+    <div class="col-xl-7">
+    <div class="tz-card">
+      <div class="tz-card__hd">
+        <i class="bi bi-list-check" aria-hidden="true"></i>
+        Moje wnioski o rozwiązanie
+        <?php if ($my_requests): ?>
+        <span class="tz-badge ms-1"><?= count($my_requests) ?></span>
+        <?php endif; ?>
+      </div>
+
+      <?php if (!$my_requests): ?>
+      <div class="tz-card__bd">
+        <div class="tz-empty">
+          <i class="bi bi-inbox" aria-hidden="true"></i>
+          <p>Brak złożonych wniosków o rozwiązanie.</p>
+        </div>
+      </div>
+      <?php else: ?>
+      <div class="pv-table-wrap">
+        <table class="pv-table">
+          <thead>
+            <tr>
+              <th scope="col">Status</th>
+              <th scope="col">Umowa</th>
+              <th scope="col">Szczegóły</th>
+              <th scope="col"><span class="visually-hidden">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php foreach ($my_requests as $r):
+              try {
+                  $c_row = db_one("SELECT numer_umowy, status FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
+                  $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
+                  $c_status = $c_row['status'] ?? '';
+              } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; $c_status = ''; }
+          ?>
+          <tr>
+            <td><?= termination_status_badge($r['status']) ?></td>
+            <td>
+              <div class="fw-semibold small"><?= h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) ?> · <?= h($c_nr) ?></div>
+              <?php if ($c_status): ?><?= status_badge($c_status) ?><?php endif; ?>
+            </td>
+            <td>
+              <div class="small">Powód: <?= h($r['powod']) ?></div>
+              <?php if ($r['proposed_date']): ?>
+              <div class="small text-muted">Proponowana data: <?= date_pl($r['proposed_date']) ?></div>
+              <?php endif; ?>
+              <div class="small text-muted">
+                Złożono: <?= date_pl($r['created_at']) ?>
+                <?php if ($r['decided_at']): ?>
+                · Rozpatrzono: <?= date_pl($r['decided_at']) ?>
+                <?php if ($r['decided_by_name']): ?>
+                przez <?= h($r['decided_by_name']) ?>
+                <?php endif; ?>
+                <?php endif; ?>
+              </div>
+              <?php if ($r['decision_note']): ?>
+              <div class="small mt-1 <?= $r['status'] === 'odrzucony' ? 'text-danger' : 'text-muted' ?>">
+                <i class="bi bi-chat-left-text" aria-hidden="true"></i> <?= h($r['decision_note']) ?>
+              </div>
+              <?php endif; ?>
+            </td>
+            <td>
+              <a href="<?= h(contract_url($r['contract_type'], $r['contract_id'])) ?>"
+                 class="tz-btn tz-btn--ghost">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+                <span class="visually-hidden">Pokaż umowę</span>
+              </a>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+    </div>
+
+  </div>
+
+  <?php endif; ?>
 
 </div>
-
-<?php endif; ?>
 
 <?php
 if ($_is_volunteer_only) {

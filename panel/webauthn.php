@@ -30,33 +30,22 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-fingerprint me-2" aria-hidden="true"></i>Klucze sprzętowe</h1>
-  <p class="pv-page-sub">Zarządzaj kluczami bezpieczeństwa WebAuthn</p>
-</div>
-<?php echo flash_html(); ?>
-<?php endif; ?>
+<div class="pv-wrap">
 
-<div class="container-xl py-4">
-
-  <!-- Breadcrumb -->
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item">
-        <a href="<?= APP_URL ?>/panel/index.php">Mój panel</a>
-      </li>
-      <li class="breadcrumb-item active">Klucze sprzętowe</li>
-    </ol>
-  </nav>
-
-  <div class="d-flex align-items-center gap-2 mb-4">
-    <i class="bi bi-usb-symbol fs-3 text-primary"></i>
-    <h2 class="h4 mb-0 fw-bold">Klucze sprzętowe (WebAuthn / FIDO2)</h2>
+  <div class="pv-page-header">
+    <div class="pv-page-head-main">
+      <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+      <h1 class="pv-page-title"><i class="bi bi-fingerprint" aria-hidden="true"></i>Klucze bezpieczeństwa</h1>
+      <p class="pv-page-sub">Passkeys i klucze sprzętowe do logowania</p>
+    </div>
   </div>
 
-  <div class="alert alert-info d-flex gap-2 align-items-start">
-    <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+  <?php if ($_is_volunteer_only): ?>
+  <?php echo flash_html(); ?>
+  <?php endif; ?>
+
+  <div class="tz-note mb-4">
+    <i class="bi bi-info-circle-fill flex-shrink-0" aria-hidden="true"></i>
     <div class="small">
       <strong>WebAuthn / FIDO2</strong> — klucze sprzętowe (np. YubiKey) zapewniają
       silne uwierzytelnianie dwuskładnikowe. Po zarejestrowaniu klucza, każde logowanie
@@ -65,85 +54,81 @@ if ($_is_volunteer_only) {
   </div>
 
   <?php if (empty($keys)): ?>
-  <div class="alert alert-warning d-flex gap-2 align-items-center">
-    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+  <div class="tz-note mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
     <span>Brak kluczy — logowanie nie wymaga klucza sprzętowego.</span>
   </div>
   <?php else: ?>
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Nazwa</th>
-              <th>Algorytm</th>
-              <th>Zarejestrowany</th>
-              <th>Ostatnie użycie</th>
-              <th class="text-end">Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($keys as $key): ?>
-            <tr>
-              <td>
-                <i class="bi bi-usb-symbol me-2 text-muted"></i>
-                <?= h($key['name']) ?>
-              </td>
-              <td>
-                <span class="badge bg-secondary-subtle text-secondary border" style="font-size:.73rem">
-                  <?= $key['alg'] == -257 ? 'RSA-SHA256' : 'EC P-256 (ECDSA)' ?>
-                </span>
-              </td>
-              <td class="text-muted small">
-                <?= h($key['created_at'] ? date('d.m.Y H:i', strtotime($key['created_at'])) : '—') ?>
-              </td>
-              <td class="text-muted small">
-                <?= h($key['last_used_at'] ? date('d.m.Y H:i', strtotime($key['last_used_at'])) : 'Nigdy') ?>
-              </td>
-              <td class="text-end">
-                <form method="post" class="d-inline"
-                      onsubmit="return confirm('Usunąć klucz «<?= h(addslashes($key['name'])) ?>»?')">
-                  <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-                  <input type="hidden" name="action"   value="delete">
-                  <input type="hidden" name="cred_id"  value="<?= (int)$key['id'] ?>">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-trash me-1"></i>Usuń
-                  </button>
-                </form>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <div class="pv-table-wrap mb-4">
+    <table class="pv-table">
+      <thead>
+        <tr>
+          <th>Nazwa</th>
+          <th>Algorytm</th>
+          <th>Zarejestrowany</th>
+          <th>Ostatnie użycie</th>
+          <th class="text-end">Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($keys as $key): ?>
+        <tr>
+          <td>
+            <i class="bi bi-usb-symbol me-2 text-muted" aria-hidden="true"></i>
+            <?= h($key['name']) ?>
+          </td>
+          <td>
+            <span class="tz-badge">
+              <?= $key['alg'] == -257 ? 'RSA-SHA256' : 'EC P-256 (ECDSA)' ?>
+            </span>
+          </td>
+          <td class="text-muted small">
+            <?= h($key['created_at'] ? date('d.m.Y H:i', strtotime($key['created_at'])) : '—') ?>
+          </td>
+          <td class="text-muted small">
+            <?= h($key['last_used_at'] ? date('d.m.Y H:i', strtotime($key['last_used_at'])) : 'Nigdy') ?>
+          </td>
+          <td class="text-end">
+            <form method="post" class="d-inline"
+                  onsubmit="return confirm('Usunąć klucz «<?= h(addslashes($key['name'])) ?>»?')">
+              <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+              <input type="hidden" name="action"   value="delete">
+              <input type="hidden" name="cred_id"  value="<?= (int)$key['id'] ?>">
+              <button type="submit" class="tz-btn tz-btn--ghost"
+                      aria-label="Usuń klucz <?= h($key['name']) ?>">
+                <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń
+              </button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
   </div>
   <?php endif; ?>
 
-  <!-- Add new key -->
-  <div class="card border-0 shadow-sm">
-    <div class="card-body">
-      <h5 class="card-title fw-semibold mb-3">
-        <i class="bi bi-plus-circle me-2"></i>Dodaj nowy klucz
-      </h5>
+  <div class="tz-card">
+    <div class="tz-card__hd">
+      <i class="bi bi-plus-circle" aria-hidden="true"></i> Dodaj nowy klucz
+    </div>
+    <div class="tz-card__bd">
       <div class="row g-2 align-items-end">
         <div class="col-sm-5">
-          <label class="form-label small fw-semibold">Nazwa klucza</label>
+          <label class="form-label small fw-semibold" for="keyName">Nazwa klucza</label>
           <input id="keyName" type="text" class="form-control"
                  placeholder="np. YubiKey 5" maxlength="80">
         </div>
         <div class="col-auto">
-          <button id="btnRegister" class="btn btn-primary" onclick="registerKey()">
-            <i class="bi bi-usb-symbol me-2"></i>Dodaj nowy klucz
+          <button id="btnRegister" class="tz-btn" onclick="registerKey()">
+            <i class="bi bi-usb-symbol me-2" aria-hidden="true"></i>Dodaj nowy klucz
           </button>
         </div>
       </div>
-      <div id="regStatus" class="mt-3"></div>
+      <div id="regStatus" class="mt-3" role="alert" aria-live="polite"></div>
     </div>
   </div>
 
-</div>
+</div><!-- /.pv-wrap -->
 
 <input type="hidden" id="csrf_token" value="<?= csrf_token() ?>">
 

@@ -75,102 +75,95 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-microsoft me-2" aria-hidden="true"></i>Zmiana hasła Microsoft 365</h1>
-  <p class="pv-page-sub">Aktualizuj hasło konta Microsoft</p>
-</div>
-<?php endif; ?>
+<div class="pv-wrap">
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-microsoft text-primary fs-4"></i>
+  <div class="pv-page-header">
+    <div class="pv-page-head-main">
+      <a href="<?= APP_URL ?>/panel/m365.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Konto M365</a>
+      <h1 class="pv-page-title"><i class="bi bi-key" aria-hidden="true"></i>Zmiana hasła Microsoft</h1>
+      <p class="pv-page-sub">Zaktualizuj hasło do konta @feer.org.pl</p>
+    </div>
   </div>
-  <div>
-    <h4 class="mb-0">Hasło Microsoft 365</h4>
-    <div class="text-muted small">Zarządzanie kontem Microsoft 365 w organizacji.</div>
-  </div>
-</div>
 
 <?php if (!$m365_row): ?>
 
-<div class="card shadow-sm">
-  <div class="card-body p-4 text-center">
-    <i class="bi bi-microsoft fs-1 text-muted mb-3 d-block"></i>
-    <p class="mb-0 text-muted">Nie posiadasz konta Microsoft 365 przypisanego do Twojego profilu.</p>
-    <p class="small text-muted mt-1">Jeśli uważasz, że to błąd, skontaktuj się z administratorem.</p>
+  <div class="tz-card">
+    <div class="tz-card__bd text-center py-4">
+      <i class="bi bi-microsoft fs-1 text-muted mb-3 d-block" aria-hidden="true"></i>
+      <p class="mb-0 text-muted">Nie posiadasz konta Microsoft 365 przypisanego do Twojego profilu.</p>
+      <p class="small text-muted mt-1">Jeśli uważasz, że to błąd, skontaktuj się z administratorem.</p>
+    </div>
   </div>
-</div>
 
 <?php else: ?>
 
-<div class="row g-3">
-  <div class="col-md-7 col-lg-6">
+  <div class="row g-3">
+    <div class="col-md-7 col-lg-6">
 
-    <?php if ($error): ?>
-    <div class="alert alert-danger d-flex align-items-start gap-2">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-      <div><?= h($error) ?></div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Karta z loginem M365 -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-body p-4">
-        <div class="text-muted small mb-1">Twój adres logowania do Microsoft 365:</div>
-        <div class="fs-5 fw-semibold text-primary">
-          <i class="bi bi-envelope-at me-1"></i><?= h($m365_row['m365_login']) ?>
-        </div>
-        <?php if (!$m365_row['m365_konto_aktywne']): ?>
-        <div class="mt-2">
-          <span class="badge bg-warning text-dark"><i class="bi bi-pause-circle me-1"></i>Konto nieaktywne</span>
-        </div>
-        <?php endif; ?>
+      <?php if ($error): ?>
+      <div class="pv-alert pv-alert-danger d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div><?= h($error) ?></div>
       </div>
-    </div>
+      <?php endif; ?>
 
-    <?php if ($shown_pass): ?>
-    <!-- Wyświetl nowe hasło jednorazowo -->
-    <div class="alert alert-success border-success">
-      <div class="fw-semibold mb-2"><i class="bi bi-check-circle-fill text-success"></i> Hasło zostało zresetowane!</div>
-      <div class="mb-2 small">Twoje nowe hasło do Microsoft 365:</div>
-      <div class="d-flex align-items-center gap-2">
-        <code class="fs-4 p-2 bg-white border rounded flex-grow-1 text-center d-block fw-bold" id="m365pass"><?= h($shown_pass) ?></code>
-        <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText('<?= h($shown_pass) ?>')">
-          <i class="bi bi-clipboard"></i>
-        </button>
+      <!-- Karta z loginem M365 -->
+      <div class="tz-card mb-3">
+        <div class="tz-card__bd">
+          <div class="text-muted small mb-1">Twój adres logowania do Microsoft 365:</div>
+          <div class="fs-5 fw-semibold text-primary">
+            <i class="bi bi-envelope-at me-1" aria-hidden="true"></i><?= h($m365_row['m365_login']) ?>
+          </div>
+          <?php if (!$m365_row['m365_konto_aktywne']): ?>
+          <div class="mt-2">
+            <span class="badge bg-warning text-dark"><i class="bi bi-pause-circle me-1" aria-hidden="true"></i>Konto nieaktywne</span>
+          </div>
+          <?php endif; ?>
+        </div>
       </div>
-      <div class="mt-2 small text-danger"><i class="bi bi-exclamation-triangle"></i> Zapamiętaj je teraz — nie będzie ponownie wyświetlone.</div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Formularz resetu hasła -->
-    <div class="card shadow-sm">
-      <div class="card-body p-4">
-        <p class="text-muted small mb-3">
-          <i class="bi bi-info-circle me-1"></i>
-          Jeśli nie pamiętasz hasła do Outlook/Teams, użyj tej opcji.
-        </p>
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_action" value="reset">
-          <button type="submit" class="btn btn-warning">
-            <i class="bi bi-arrow-repeat me-1"></i> Wygeneruj nowe hasło
+      <?php if ($shown_pass): ?>
+      <!-- Wyświetl nowe hasło jednorazowo -->
+      <div class="pv-alert pv-alert-success" role="alert">
+        <div class="fw-semibold mb-2"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Hasło zostało zresetowane!</div>
+        <div class="mb-2 small">Twoje nowe hasło do Microsoft 365:</div>
+        <div class="d-flex align-items-center gap-2">
+          <code class="fs-4 p-2 bg-white border rounded flex-grow-1 text-center d-block fw-bold" id="m365pass"><?= h($shown_pass) ?></code>
+          <button type="button" class="tz-btn tz-btn--ghost" onclick="navigator.clipboard.writeText('<?= h($shown_pass) ?>')" aria-label="Kopiuj hasło do schowka">
+            <i class="bi bi-clipboard" aria-hidden="true"></i>
           </button>
-        </form>
-        <div class="mt-3 small text-muted">
-          Hasło zostanie wygenerowane automatycznie i wyświetlone jednorazowo.
-          Przy następnym logowaniu do Microsoft 365 zostaniesz poproszony/a o jego zmianę.
+        </div>
+        <div class="mt-2 small text-danger"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Zapamiętaj je teraz — nie będzie ponownie wyświetlone.</div>
+      </div>
+      <?php endif; ?>
+
+      <!-- Formularz resetu hasła -->
+      <div class="tz-card">
+        <div class="tz-card__bd">
+          <p class="text-muted small mb-3">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+            Jeśli nie pamiętasz hasła do Outlook/Teams, użyj tej opcji.
+          </p>
+          <form method="post">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_action" value="reset">
+            <button type="submit" class="tz-btn">
+              <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Wygeneruj nowe hasło
+            </button>
+          </form>
+          <div class="mt-3 small text-muted">
+            Hasło zostanie wygenerowane automatycznie i wyświetlone jednorazowo.
+            Przy następnym logowaniu do Microsoft 365 zostaniesz poproszony/a o jego zmianę.
+          </div>
         </div>
       </div>
-    </div>
 
+    </div>
   </div>
-</div>
 
 <?php endif; ?>
 
+</div><!-- /.pv-wrap -->
 
 <?php
 if ($_is_volunteer_only) {

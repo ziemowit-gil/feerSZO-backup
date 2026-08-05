@@ -208,49 +208,26 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<style>
-/* Skórka „Tożsamość" dla widoku M365 — spójna paleta #1E6DFF */
-.tzskin{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
-.tzskin .card{border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
-.tzskin .card-header{background:#fff;border-bottom:1px solid var(--tz-line);font-weight:600}
-.tzskin .card-header i{color:var(--tz)}
-.tzskin .btn-primary,.tzskin .btn-outline-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c;--bs-btn-color:#fff;--bs-btn-active-bg:#0f3c9c}
-.tzskin .btn-outline-primary{--bs-btn-bg:#fff;--bs-btn-color:var(--tz-strong);--bs-btn-border-color:var(--tz-line);--bs-btn-hover-bg:var(--tz-50);--bs-btn-hover-color:var(--tz-strong);--bs-btn-hover-border-color:var(--tz)}
-.tzskin .badge.bg-success{background:#16a34a!important}
-.tzskin .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(30,109,255,.18)}
-.tzskin .tz-hero{display:flex;align-items:center;gap:.85rem;margin-bottom:1.25rem}
-.tzskin .tz-hero .ico{width:52px;height:52px;border-radius:14px;background:var(--tz-50);color:var(--tz);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.tzskin .tz-hero h1{font-size:1.4rem;font-weight:700;margin:0}
-.tzskin .tz-hero p{color:#6B7280;margin:.1rem 0 0;font-size:.88rem}
-</style>
+<div class="pv-wrap">
 
-<div class="tzskin">
-
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-microsoft me-2" aria-hidden="true"></i>Microsoft 365</h1>
-  <p class="pv-page-sub">Status konta Microsoft 365</p>
-</div>
-<?php endif; ?>
-
-<div class="tz-hero">
-  <div class="ico"><i class="bi bi-microsoft fs-4" aria-hidden="true"></i></div>
-  <div>
-    <h1>Konto Microsoft 365</h1>
-    <p>Status i zarządzanie Twoim kontem organizacyjnym M365</p>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-microsoft" aria-hidden="true"></i>Konto Microsoft 365</h1>
+    <p class="pv-page-sub">Zarządzaj swoim kontem @feer.org.pl</p>
   </div>
 </div>
 
 <?php if ($pass_error): ?>
-<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i><?= h($pass_error) ?></div>
+<div class="pv-alert pv-alert-danger" role="alert"><i class="bi bi-x-circle me-2" aria-hidden="true"></i><?= h($pass_error) ?></div>
 <?php endif; ?>
 
 <?php if ($del_error): ?>
-<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i><?= h($del_error) ?></div>
+<div class="pv-alert pv-alert-danger" role="alert"><i class="bi bi-x-circle me-2" aria-hidden="true"></i><?= h($del_error) ?></div>
 <?php endif; ?>
 
 <?php if ($del_success !== null): ?>
-<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>
+<div class="pv-alert pv-alert-success" role="status"><i class="bi bi-check-circle me-2" aria-hidden="true"></i>
   Konto Microsoft 365<?= $del_success ? ' <strong>' . h($del_success) . '</strong>' : '' ?> zostało usunięte.
   Powiązanie logowania przez Microsoft zostało odłączone.
 </div>
@@ -258,10 +235,10 @@ if ($_is_volunteer_only) {
 
 <!-- ── Hasło zresetowane ──────────────────────────────────────────────────── -->
 <?php if ($pass_success): ?>
-<div class="card border-success shadow-sm mb-4">
-  <div class="card-body">
+<div class="tz-card border-success mb-4">
+  <div class="tz-card__bd">
     <div class="d-flex align-items-center gap-3 mb-3">
-      <i class="bi bi-check-circle-fill text-success fs-3"></i>
+      <i class="bi bi-check-circle-fill text-success fs-3" aria-hidden="true"></i>
       <div>
         <div class="fw-bold">Hasło zostało zresetowane!</div>
         <div class="text-muted small">Zapisz nowe hasło — nie będzie już pokazane.</div>
@@ -269,13 +246,13 @@ if ($_is_volunteer_only) {
     </div>
     <div class="bg-light rounded p-3 d-flex align-items-center gap-3">
       <span class="fw-bold font-monospace fs-5 flex-grow-1" id="new-pass-val"><?= h($pass_success) ?></span>
-      <button type="button" class="btn btn-outline-secondary btn-sm"
-              onclick="navigator.clipboard.writeText('<?= h($pass_success) ?>');this.innerHTML='<i class=\'bi bi-check2\'></i> Skopiowano'">
-        <i class="bi bi-clipboard"></i> Kopiuj
+      <button type="button" class="tz-btn tz-btn--ghost"
+              onclick="navigator.clipboard.writeText('<?= h($pass_success) ?>');this.innerHTML='<i class=\'bi bi-check2\' aria-hidden=\'true\'></i> Skopiowano'">
+        <i class="bi bi-clipboard" aria-hidden="true"></i> Kopiuj
       </button>
     </div>
-    <div class="alert alert-warning py-2 mt-3 small mb-0">
-      <i class="bi bi-exclamation-triangle me-1"></i>
+    <div class="tz-note tz-note--warning mt-3 small mb-0">
+      <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
       Przy pierwszym logowaniu Microsoft może wymagać zmiany hasła na własne.
     </div>
   </div>
@@ -287,16 +264,16 @@ if ($_is_volunteer_only) {
 
   <!-- Konto organizacyjne -->
   <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header fw-semibold d-flex align-items-center gap-2">
-        <i class="bi bi-building text-primary"></i> Konto organizacyjne M365
+    <div class="tz-card h-100">
+      <div class="tz-card__hd fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-building text-primary" aria-hidden="true"></i> Konto organizacyjne M365
       </div>
-      <div class="card-body">
+      <div class="tz-card__bd">
         <?php if ($has_m365): ?>
         <div class="d-flex align-items-center gap-3 mb-3">
           <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
                style="width:44px;height:44px;flex-shrink:0">
-            <i class="bi bi-person-circle text-primary fs-5"></i>
+            <i class="bi bi-person-circle text-primary fs-5" aria-hidden="true"></i>
           </div>
           <div>
             <div class="fw-semibold"><?= h($m365_row['m365_login']) ?></div>
@@ -304,19 +281,19 @@ if ($_is_volunteer_only) {
           </div>
         </div>
 
-        <dl class="row g-1 mb-3 small">
-          <dt class="col-5 text-muted">Status konta</dt>
-          <dd class="col-7 mb-0">
+        <dl class="tz-dl mb-3 small">
+          <dt>Status konta</dt>
+          <dd>
             <?php if ($m365_row['m365_konto_aktywne']): ?>
-            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Aktywne</span>
+            <span class="tz-badge tz-badge--success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Aktywne</span>
             <?php else: ?>
-            <span class="badge bg-warning text-dark"><i class="bi bi-pause-circle me-1"></i>Nieaktywne</span>
+            <span class="tz-badge tz-badge--warning"><i class="bi bi-pause-circle me-1" aria-hidden="true"></i>Nieaktywne</span>
             <?php endif; ?>
           </dd>
-          <dt class="col-5 text-muted">Typ umowy</dt>
-          <dd class="col-7 mb-0 text-capitalize"><?= h($m365_row['_type']) ?></dd>
-          <dt class="col-5 text-muted">Nr umowy</dt>
-          <dd class="col-7 mb-0"><?= h($m365_row['numer_umowy'] ?? '—') ?></dd>
+          <dt>Typ umowy</dt>
+          <dd class="text-capitalize"><?= h($m365_row['_type']) ?></dd>
+          <dt>Nr umowy</dt>
+          <dd><?= h($m365_row['numer_umowy'] ?? '—') ?></dd>
         </dl>
 
         <?php if ($m365_row['m365_konto_aktywne']): ?>
@@ -324,19 +301,19 @@ if ($_is_volunteer_only) {
           <form method="post" onsubmit="return confirm('Zresetować hasło do konta Microsoft 365?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="reset_m365">
-            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
-              <i class="bi bi-key me-1"></i>Resetuj hasło
+            <button type="submit" class="tz-btn tz-btn--ghost w-100">
+              <i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło
             </button>
           </form>
-          <button type="button" class="btn btn-outline-danger btn-sm w-100"
+          <button type="button" class="tz-btn tz-btn--ghost w-100"
                   onclick="var d=document.getElementById('m365-del-zone');d.hidden=!d.hidden;if(!d.hidden)d.querySelector('input[name=confirm_login]').focus();">
-            <i class="bi bi-trash me-1"></i>Usuń konto
+            <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konto
           </button>
         </div>
 
         <!-- Strefa niebezpieczna: usunięcie konta (potwierdzenie loginem) -->
         <div id="m365-del-zone" hidden class="mt-3 p-3 rounded border border-danger-subtle bg-danger bg-opacity-10">
-          <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Usunięcie konta Microsoft 365</div>
+          <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-octagon me-1" aria-hidden="true"></i>Usunięcie konta Microsoft 365</div>
           <p class="small text-muted mb-2">
             Ta operacja jest <strong>nieodwracalna</strong> — usuwa konto z Microsoft 365 / Entra ID wraz z pocztą,
             plikami OneDrive i dostępem do aplikacji. Aby potwierdzić, wpisz swój login:
@@ -349,20 +326,20 @@ if ($_is_volunteer_only) {
             </label>
             <input type="text" class="form-control form-control-sm mb-2" id="confirm_login" name="confirm_login"
                    autocomplete="off" placeholder="<?= h($m365_row['m365_login']) ?>" required>
-            <button type="submit" class="btn btn-danger btn-sm w-100">
-              <i class="bi bi-trash me-1"></i>Usuń konto na stałe
+            <button type="submit" class="tz-btn tz-btn--danger w-100">
+              <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konto na stałe
             </button>
           </form>
         </div>
         <?php else: ?>
-        <div class="alert alert-warning py-2 small mb-0">
-          <i class="bi bi-info-circle me-1"></i>Konto nieaktywne. Skontaktuj się z administratorem.
+        <div class="tz-note tz-note--warning small mb-0">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Konto nieaktywne. Skontaktuj się z administratorem.
         </div>
         <?php endif; ?>
 
         <?php else: ?>
-        <div class="text-center py-3 text-muted">
-          <i class="bi bi-microsoft fs-2 opacity-25 d-block mb-2"></i>
+        <div class="tz-empty">
+          <i class="bi bi-microsoft fs-2 d-block mb-2" aria-hidden="true"></i>
           <p class="small mb-0">Nie masz przypisanego konta Microsoft 365 w organizacji.</p>
         </div>
         <?php endif; ?>
@@ -372,24 +349,24 @@ if ($_is_volunteer_only) {
 
   <!-- Logowanie SSO -->
   <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header fw-semibold d-flex align-items-center gap-2">
-        <i class="bi bi-shield-lock text-success"></i> Logowanie przez Microsoft (SSO)
+    <div class="tz-card h-100">
+      <div class="tz-card__hd fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock text-success" aria-hidden="true"></i> Logowanie przez Microsoft (SSO)
       </div>
-      <div class="card-body">
+      <div class="tz-card__bd">
         <?php if ($ms_linked): ?>
         <div class="d-flex align-items-center gap-3 mb-3">
           <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center"
                style="width:44px;height:44px;flex-shrink:0">
-            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            <i class="bi bi-check-circle-fill text-success fs-5" aria-hidden="true"></i>
           </div>
           <div>
             <div class="fw-semibold text-success">Konto połączone</div>
             <div class="text-muted small">Możesz logować się przez Microsoft</div>
           </div>
         </div>
-        <div class="alert alert-success py-2 small mb-0">
-          <i class="bi bi-shield-check me-1"></i>
+        <div class="tz-note tz-note--success">
+          <i class="bi bi-shield-check me-1" aria-hidden="true"></i>
           Twoje konto jest powiązane z Microsoft 365. Możesz logować się przyciskiem „Zaloguj przez Microsoft" na stronie logowania.
         </div>
 
@@ -397,7 +374,7 @@ if ($_is_volunteer_only) {
         <div class="d-flex align-items-center gap-3 mb-3">
           <div class="rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"
                style="width:44px;height:44px;flex-shrink:0">
-            <i class="bi bi-link-45deg text-warning fs-5"></i>
+            <i class="bi bi-link-45deg text-warning fs-5" aria-hidden="true"></i>
           </div>
           <div>
             <div class="fw-semibold">Konto niepołączone</div>
@@ -405,13 +382,13 @@ if ($_is_volunteer_only) {
           </div>
         </div>
         <a href="<?= h(ms_auth_url(APP_URL . '/panel/m365.php')) ?>"
-           class="btn btn-outline-primary w-100">
-          <i class="bi bi-microsoft me-2"></i>Połącz z kontem Microsoft
+           class="tz-btn tz-btn--ghost w-100">
+          <i class="bi bi-microsoft me-2" aria-hidden="true"></i>Połącz z kontem Microsoft
         </a>
 
         <?php else: ?>
-        <div class="text-center py-3 text-muted">
-          <i class="bi bi-microsoft fs-2 opacity-25 d-block mb-2"></i>
+        <div class="tz-empty">
+          <i class="bi bi-microsoft fs-2 d-block mb-2" aria-hidden="true"></i>
           <p class="small mb-0">Logowanie przez Microsoft nie jest skonfigurowane w tej organizacji.</p>
         </div>
         <?php endif; ?>
@@ -423,11 +400,11 @@ if ($_is_volunteer_only) {
 
 <!-- ── Alias e-mail ───────────────────────────────────────────────────────── -->
 <?php if ($has_m365 && $m365_row['m365_konto_aktywne']): ?>
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-at text-primary"></i> Alias e-mail
+<div class="tz-card mb-4">
+  <div class="tz-card__hd fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-at text-primary" aria-hidden="true"></i> Alias e-mail
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
     <p class="text-muted small mb-3">
       Możesz poprosić o krótszy, łatwiejszy alias e-mail (np. <code>kasia@<?= h($alias_domain) ?></code>)
       obok Twojego głównego adresu <strong><?= h($m365_row['m365_login']) ?></strong>.
@@ -435,8 +412,8 @@ if ($_is_volunteer_only) {
     </p>
 
     <?php if ($alias_submitted): ?>
-    <div class="alert alert-success py-2">
-      <i class="bi bi-check-circle me-1"></i>
+    <div class="tz-note tz-note--success" role="status">
+      <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
       Wniosek o alias <strong><?= h($alias_submitted['alias']) ?></strong> został złożony.
       <?php if (!empty($alias_submitted['ticket'])): ?>
       Zgłoszenie: <strong><?= h($alias_submitted['ticket']) ?></strong>.
@@ -446,7 +423,7 @@ if ($_is_volunteer_only) {
     <?php endif; ?>
 
     <?php if ($alias_error): ?>
-    <div class="alert alert-danger py-2"><i class="bi bi-x-circle me-1"></i><?= h($alias_error) ?></div>
+    <div class="tz-note tz-note--danger" role="alert"><i class="bi bi-x-circle me-1" aria-hidden="true"></i><?= h($alias_error) ?></div>
     <?php endif; ?>
 
     <?php if ($alias_pending): ?>
@@ -455,15 +432,15 @@ if ($_is_volunteer_only) {
       <strong><?= h($alias_pending['requested_alias']) ?></strong>
       <?= ealias_status_badge($alias_pending['status']) ?>
       <?php if (!empty($alias_pending['ticket_id'])): ?>
-      <a class="btn btn-sm btn-outline-secondary ms-auto"
+      <a class="tz-btn tz-btn--ghost ms-auto"
          href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$alias_pending['ticket_id'] ?>">
-        <i class="bi bi-ticket-perforated me-1"></i>Zobacz zgłoszenie
+        <i class="bi bi-ticket-perforated me-1" aria-hidden="true"></i>Zobacz zgłoszenie
       </a>
       <?php endif; ?>
     </div>
     <?php if ($alias_pending['status'] === 'błąd' && !empty($alias_pending['graph_error'])): ?>
-    <div class="alert alert-warning py-2 small mt-2 mb-0">
-      <i class="bi bi-exclamation-triangle me-1"></i>
+    <div class="tz-note tz-note--warning small mt-2 mb-0">
+      <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
       Ostatnia próba ustawienia nie powiodła się — administrator został powiadomiony.
     </div>
     <?php endif; ?>
@@ -483,10 +460,10 @@ if ($_is_volunteer_only) {
         <div id="alias_help" class="form-text">Małe litery, cyfry, kropka, myślnik lub podkreślenie (2–32 znaki).</div>
       </div>
       <div class="col-12 col-sm-auto">
-        <label class="form-label small mb-1 d-none d-sm-block">&nbsp;</label>
-        <button type="submit" class="btn btn-primary w-100"
+        <label class="form-label small mb-1 d-none d-sm-block" aria-hidden="true">&nbsp;</label>
+        <button type="submit" class="tz-btn w-100"
                 onclick="return confirm('Złożyć wniosek o ten alias e-mail?')">
-          <i class="bi bi-send me-1"></i>Złóż wniosek
+          <i class="bi bi-send me-1" aria-hidden="true"></i>Złóż wniosek
         </button>
       </div>
     </form>
@@ -497,32 +474,32 @@ if ($_is_volunteer_only) {
 
 <!-- ── Aplikacje M365 ─────────────────────────────────────────────────────── -->
 <?php if ($has_m365 && $m365_row['m365_konto_aktywne']): ?>
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-grid-3x3-gap me-2"></i>Aplikacje Microsoft 365
+<div class="tz-card mb-4">
+  <div class="tz-card__hd fw-semibold">
+    <i class="bi bi-grid-3x3-gap me-2" aria-hidden="true"></i>Aplikacje Microsoft 365
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
     <p class="text-muted small mb-3">
       Zaloguj się do aplikacji Microsoft 365 używając loginu <strong><?= h($m365_row['m365_login']) ?></strong>
       i swojego hasła.
     </p>
     <?php
     $m365_apps = [
-        ['Outlook',   'https://outlook.office.com',               'bi-envelope-fill',   '#0078d4'],
-        ['Teams',     'https://teams.microsoft.com',              'bi-camera-video-fill','#5059c9'],
-        ['SharePoint','https://sharepoint.com',                   'bi-diagram-2-fill',  '#038387'],
-        ['OneDrive',  'https://onedrive.live.com',                'bi-cloud-fill',       '#0078d4'],
-        ['Word',      'https://office.live.com/start/word.aspx',  'bi-file-word-fill',   '#2b579a'],
-        ['Excel',     'https://office.live.com/start/excel.aspx', 'bi-file-excel-fill',  '#217346'],
+        ['Outlook',    'https://outlook.office.com',               'bi-envelope-fill'],
+        ['Teams',      'https://teams.microsoft.com',              'bi-camera-video-fill'],
+        ['SharePoint', 'https://sharepoint.com',                   'bi-diagram-2-fill'],
+        ['OneDrive',   'https://onedrive.live.com',                'bi-cloud-fill'],
+        ['Word',       'https://office.live.com/start/word.aspx',  'bi-file-word-fill'],
+        ['Excel',      'https://office.live.com/start/excel.aspx', 'bi-file-excel-fill'],
     ];
     ?>
     <div class="row g-2">
-      <?php foreach ($m365_apps as [$name, $url, $icon, $color]): ?>
+      <?php foreach ($m365_apps as [$name, $url, $icon]): ?>
       <div class="col-6 col-sm-4 col-md-2">
         <a href="<?= h($url) ?>" target="_blank" rel="noopener"
-           class="card text-decoration-none text-center py-3 px-2 h-100 border-0 shadow-sm"
+           class="tz-card text-decoration-none text-center py-3 px-2 h-100"
            style="transition:.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-          <i class="bi <?= $icon ?> fs-2 d-block mb-1" style="color:<?= $color ?>"></i>
+          <i class="bi <?= $icon ?> fs-2 d-block mb-1" aria-hidden="true"></i>
           <span class="small fw-semibold text-dark"><?= $name ?></span>
         </a>
       </div>
@@ -532,7 +509,7 @@ if ($_is_volunteer_only) {
 </div>
 <?php endif; ?>
 
-</div><!-- /.tzskin -->
+</div><!-- /.pv-wrap -->
 
 <?php
 if ($_is_volunteer_only) {

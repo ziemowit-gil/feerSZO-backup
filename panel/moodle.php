@@ -102,48 +102,41 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Moje kursy</h1>
-  <p class="pv-page-sub">Kursy e-learningowe</p>
-</div>
-<?php echo flash_html(); ?>
-<?php endif; ?>
+<div class="pv-wrap">
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-mortarboard text-primary fs-4"></i>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-mortarboard" aria-hidden="true"></i>Platforma e-learningowa</h1>
+    <p class="pv-page-sub">Twoje kursy i szkolenia online</p>
   </div>
-  <div>
-    <h4 class="mb-0">Moje kursy</h4>
-    <div class="text-muted small">Przeglądaj dostępne szkolenia i zarządzaj swoimi zapisami</div>
-  </div>
-  <?php if ($moodle_url && count(array_filter($my_enrollments, fn($e) => $e['status'] === 'zatwierdzony'))): ?>
-  <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
-    <i class="bi bi-box-arrow-up-right me-1"></i>Przejdź do Moodle
-  </a>
-  <?php endif; ?>
 </div>
 
-<?php if (!$_is_volunteer_only): ?>
 <?= flash_html() ?>
+
+<?php if ($moodle_url && count(array_filter($my_enrollments, fn($e) => $e['status'] === 'zatwierdzony'))): ?>
+<div class="mb-4">
+  <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="tz-btn tz-btn--ghost"
+     aria-label="Przejdź do platformy Moodle (otwiera nową kartę)">
+    <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Przejdź do Moodle
+  </a>
+</div>
 <?php endif; ?>
 
 <!-- ── Moje zapisy (aktywne) ─────────────────────────────────────────────── -->
 <?php $active_enr = array_filter($my_enrollments, fn($e) => in_array($e['status'], ['zatwierdzony', 'oczekuje'])); ?>
 <?php if ($active_enr): ?>
-<div class="mb-4">
-  <h6 class="fw-bold text-muted text-uppercase small mb-3 letter-spacing-1">Moje zapisy</h6>
+<section class="mb-4" aria-labelledby="sect-moje-zapisy">
+  <h2 class="fw-bold text-muted text-uppercase small mb-3" id="sect-moje-zapisy">Moje zapisy</h2>
   <div class="row g-3">
     <?php foreach ($active_enr as $enr):
         $sm = $status_meta[$enr['status']] ?? ['label' => $enr['status'], 'class' => 'secondary', 'icon' => 'bi-circle'];
     ?>
     <div class="col-md-6 col-xl-4">
-      <div class="card shadow-sm h-100 <?= $enr['status'] === 'zatwierdzony' ? 'border-success border-opacity-50' : 'border-warning border-opacity-50' ?>">
-        <div class="card-body">
+      <div class="tz-card h-100">
+        <div class="tz-card__bd">
           <div class="d-flex align-items-start gap-2 mb-2">
-            <i class="bi bi-book text-primary mt-1 flex-shrink-0 fs-5"></i>
+            <i class="bi bi-book text-primary mt-1 flex-shrink-0 fs-5" aria-hidden="true"></i>
             <div class="flex-grow-1">
               <div class="fw-semibold"><?= h($enr['fullname']) ?></div>
               <?php if ($enr['category']): ?>
@@ -151,24 +144,26 @@ if ($_is_volunteer_only) {
               <?php endif; ?>
             </div>
           </div>
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-<?= $sm['class'] ?>">
-              <i class="bi <?= $sm['icon'] ?> me-1"></i><?= $sm['label'] ?>
+          <div class="mb-2">
+            <span class="tz-badge tz-badge--<?= explode(' ', $sm['class'])[0] ?>">
+              <i class="bi <?= $sm['icon'] ?> me-1" aria-hidden="true"></i><?= $sm['label'] ?>
             </span>
           </div>
           <?php if ($enr['status'] === 'zatwierdzony' && $moodle_url && $enr['moodle_course_id']): ?>
           <a href="<?= h($moodle_url . '/course/view.php?id=' . $enr['moodle_course_id']) ?>"
-             target="_blank" rel="noopener" class="btn btn-sm btn-success w-100">
-            <i class="bi bi-play-circle me-1"></i>Otwórz kurs w Moodle
+             target="_blank" rel="noopener" class="tz-btn w-100"
+             aria-label="Otwórz kurs <?= h($enr['fullname']) ?> w Moodle (nowa karta)">
+            <i class="bi bi-play-circle me-1" aria-hidden="true"></i>Otwórz kurs w Moodle
           </a>
           <?php elseif ($enr['status'] === 'oczekuje'): ?>
           <form method="post" class="mt-1">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="cancel">
             <input type="hidden" name="course_id" value="<?= $enr['course_id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-secondary w-100"
-                    onclick="return confirm('Anulować wniosek o zapis?')">
-              <i class="bi bi-x-lg me-1"></i>Anuluj wniosek
+            <button type="submit" class="tz-btn tz-btn--ghost w-100"
+                    onclick="return confirm('Anulować wniosek o zapis?')"
+                    aria-label="Anuluj wniosek o zapis na kurs <?= h($enr['fullname']) ?>">
+              <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Anuluj wniosek
             </button>
           </form>
           <?php endif; ?>
@@ -177,25 +172,24 @@ if ($_is_volunteer_only) {
     </div>
     <?php endforeach; ?>
   </div>
-</div>
+</section>
 <?php endif; ?>
 
 <!-- ── Dostępne kursy ─────────────────────────────────────────────────────── -->
 <?php if (!$all_courses): ?>
-<div class="card shadow-sm">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-mortarboard fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-0">Brak dostępnych kursów. Administrator wkrótce doda ofertę szkoleniową.</p>
-  </div>
+<div class="tz-empty">
+  <i class="bi bi-mortarboard fs-1 d-block mb-2" aria-hidden="true"></i>
+  <p class="mb-0">Brak dostępnych kursów. Administrator wkrótce doda ofertę szkoleniową.</p>
 </div>
 <?php else: ?>
 
-<h6 class="fw-bold text-muted text-uppercase small mb-3">Dostępne kursy</h6>
+<section aria-labelledby="sect-dostepne-kursy">
+  <h2 class="fw-bold text-muted text-uppercase small mb-3" id="sect-dostepne-kursy">Dostępne kursy</h2>
 
 <?php foreach ($categories as $cat => $cat_courses): ?>
 <?php if (count($categories) > 1): ?>
 <div class="text-muted small fw-semibold mb-2 mt-3 d-flex align-items-center gap-2">
-  <i class="bi bi-folder2 text-primary"></i><?= h($cat) ?>
+  <i class="bi bi-folder2 text-primary" aria-hidden="true"></i><?= h($cat) ?>
 </div>
 <?php endif; ?>
 
@@ -211,10 +205,10 @@ if ($_is_volunteer_only) {
       }
   ?>
   <div class="col-md-6 col-xl-4">
-    <div class="card shadow-sm h-100 <?= $is_enr ? 'opacity-75' : '' ?>">
-      <div class="card-body d-flex flex-column">
+    <div class="tz-card h-100 <?= $is_enr ? 'opacity-75' : '' ?>">
+      <div class="tz-card__bd d-flex flex-column">
         <div class="d-flex align-items-start gap-2 mb-2">
-          <i class="bi bi-book-half text-primary fs-5 flex-shrink-0 mt-1"></i>
+          <i class="bi bi-book-half text-primary fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
           <div>
             <div class="fw-semibold"><?= h($c['fullname']) ?></div>
             <?php if ($c['shortname']): ?>
@@ -231,17 +225,17 @@ if ($_is_volunteer_only) {
 
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
           <?php if ($c['requires_approval']): ?>
-          <span class="badge bg-light text-dark border" style="font-size:.7rem">
-            <i class="bi bi-shield-check me-1"></i>Wymaga zatwierdzenia
+          <span class="tz-badge">
+            <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Wymaga zatwierdzenia
           </span>
           <?php else: ?>
-          <span class="badge bg-light text-dark border" style="font-size:.7rem">
-            <i class="bi bi-lightning me-1"></i>Natychmiastowy zapis
+          <span class="tz-badge">
+            <i class="bi bi-lightning me-1" aria-hidden="true"></i>Natychmiastowy zapis
           </span>
           <?php endif; ?>
 
           <?php if ($spots_left !== null): ?>
-          <span class="badge bg-<?= $spots_left === 0 ? 'danger' : ($spots_left < 5 ? 'warning text-dark' : 'light text-dark border') ?>" style="font-size:.7rem">
+          <span class="tz-badge <?= $spots_left === 0 ? 'tz-badge--danger' : ($spots_left < 5 ? 'tz-badge--warning' : '') ?>">
             <?= $spots_left === 0 ? 'Brak miejsc' : "Wolne miejsca: $spots_left" ?>
           </span>
           <?php endif; ?>
@@ -249,19 +243,20 @@ if ($_is_volunteer_only) {
 
         <?php if ($is_enr): ?>
           <?php $sm = $status_meta[$enr['status']] ?? ['label' => $enr['status'], 'class' => 'secondary', 'icon' => 'bi-circle']; ?>
-          <span class="badge bg-<?= $sm['class'] ?> w-100 py-2">
-            <i class="bi <?= $sm['icon'] ?> me-1"></i><?= $sm['label'] ?>
+          <span class="tz-badge tz-badge--<?= explode(' ', $sm['class'])[0] ?> d-block text-center py-2">
+            <i class="bi <?= $sm['icon'] ?> me-1" aria-hidden="true"></i><?= $sm['label'] ?>
           </span>
         <?php elseif ($spots_left === 0): ?>
-          <button class="btn btn-secondary btn-sm w-100" disabled>Brak wolnych miejsc</button>
+          <button class="tz-btn w-100" disabled aria-disabled="true">Brak wolnych miejsc</button>
         <?php else: ?>
-          <button class="btn btn-primary btn-sm w-100"
+          <button class="tz-btn w-100"
                   data-bs-toggle="modal"
                   data-bs-target="#enrollModal"
                   data-course-id="<?= $c['id'] ?>"
                   data-course-name="<?= h($c['fullname']) ?>"
-                  data-requires-note="<?= $c['requires_approval'] ? '1' : '0' ?>">
-            <i class="bi bi-plus-circle me-1"></i>Zapisz się
+                  data-requires-note="<?= $c['requires_approval'] ? '1' : '0' ?>"
+                  aria-label="Zapisz się na kurs <?= h($c['fullname']) ?>">
+            <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Zapisz się
           </button>
         <?php endif; ?>
       </div>
@@ -270,6 +265,7 @@ if ($_is_volunteer_only) {
   <?php endforeach; ?>
 </div>
 <?php endforeach; ?>
+</section>
 
 <?php endif; ?>
 
@@ -277,35 +273,39 @@ if ($_is_volunteer_only) {
 <?php $past_enr = array_filter($my_enrollments, fn($e) => in_array($e['status'], ['odrzucony', 'anulowany'])); ?>
 <?php if ($past_enr): ?>
 <details class="mt-4">
-  <summary class="text-muted small fw-semibold" style="cursor:pointer">
+  <summary class="text-muted small fw-semibold">
     Historia (odrzucone / anulowane)
   </summary>
-  <div class="list-group list-group-flush mt-2 card shadow-sm">
-    <?php foreach ($past_enr as $enr):
-        $sm = $status_meta[$enr['status']] ?? ['label' => $enr['status'], 'class' => 'secondary', 'icon' => 'bi-circle'];
-    ?>
-    <div class="list-group-item d-flex align-items-center gap-3 py-2 px-3">
-      <i class="bi bi-book text-muted flex-shrink-0"></i>
-      <div class="flex-grow-1">
-        <div class="small fw-semibold"><?= h($enr['fullname']) ?></div>
-        <?php if ($enr['admin_note']): ?>
-        <div class="text-muted" style="font-size:.72rem">Powód: <?= h($enr['admin_note']) ?></div>
-        <?php endif; ?>
-      </div>
-      <span class="badge bg-<?= $sm['class'] ?> flex-shrink-0"><?= $sm['label'] ?></span>
+  <div class="tz-card mt-2">
+    <div class="tz-card__bd p-0">
+      <ul class="list-unstyled mb-0" role="list">
+        <?php foreach ($past_enr as $enr):
+            $sm = $status_meta[$enr['status']] ?? ['label' => $enr['status'], 'class' => 'secondary', 'icon' => 'bi-circle'];
+        ?>
+        <li class="d-flex align-items-center gap-3 py-2 px-3 border-bottom">
+          <i class="bi bi-book text-muted flex-shrink-0" aria-hidden="true"></i>
+          <div class="flex-grow-1">
+            <div class="small fw-semibold"><?= h($enr['fullname']) ?></div>
+            <?php if ($enr['admin_note']): ?>
+            <div class="text-muted small">Powód: <?= h($enr['admin_note']) ?></div>
+            <?php endif; ?>
+          </div>
+          <span class="tz-badge tz-badge--<?= explode(' ', $sm['class'])[0] ?> flex-shrink-0"><?= $sm['label'] ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
     </div>
-    <?php endforeach; ?>
   </div>
 </details>
 <?php endif; ?>
 
 <!-- ── Modal zapisu na kurs ───────────────────────────────────────────────── -->
-<div class="modal fade" id="enrollModal" tabindex="-1">
+<div class="modal fade" id="enrollModal" tabindex="-1" aria-labelledby="enrollModalLabel" aria-modal="true" role="dialog">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-mortarboard me-2"></i>Zapisz się na kurs</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title" id="enrollModalLabel"><i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Zapisz się na kurs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -318,15 +318,15 @@ if ($_is_volunteer_only) {
             <textarea name="note" class="form-control" rows="3"
                       placeholder="Opisz dlaczego chcesz wziąć udział w tym szkoleniu..."></textarea>
           </div>
-          <div id="modal-auto-info" class="alert alert-info py-2 small mb-0" style="display:none">
-            <i class="bi bi-lightning me-1"></i>
+          <div id="modal-auto-info" class="pv-alert pv-alert-info py-2 small mb-0" style="display:none">
+            <i class="bi bi-lightning me-1" aria-hidden="true"></i>
             Ten kurs nie wymaga zatwierdzenia — jeśli Moodle jest skonfigurowane, dostęp zostanie przyznany od razu.
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-check2 me-1"></i>Potwierdź zapis
+          <button type="button" class="tz-btn tz-btn--ghost" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="tz-btn">
+            <i class="bi bi-check2 me-1" aria-hidden="true"></i>Potwierdź zapis
           </button>
         </div>
       </form>
@@ -345,6 +345,7 @@ document.getElementById('enrollModal')?.addEventListener('show.bs.modal', functi
 });
 </script>
 
+</div><!-- /.pv-wrap -->
 
 <?php
 if ($_is_volunteer_only) {

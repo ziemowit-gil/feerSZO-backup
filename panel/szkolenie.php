@@ -37,18 +37,20 @@ $PAGE_TITLE = 'Umów się na szkolenie';
 include __DIR__ . '/includes/header_panel.php';
 ?>
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div style="width:44px;height:44px;border-radius:12px;background:var(--vol-bg);
-              display:flex;align-items:center;justify-content:center;
-              font-size:1.3rem;color:var(--vol-color)">
-    <i class="bi bi-calendar2-check" aria-hidden="true"></i>
-  </div>
-  <div>
-    <h1 class="mb-0 fw-bold" style="font-size:1.2rem">Umów się na szkolenie</h1>
-    <div class="text-muted small">Wybierz szkolenie, dzień i wolny termin — rezerwacja w kilka kliknięć</div>
-  </div>
-</div>
+<div class="pv-wrap">
 
-<?php include dirname(__DIR__) . '/includes/tidycal_book_ui.php'; ?>
+  <div class="pv-page-header">
+    <a href="<?= APP_URL ?>/panel/" class="pv-page-back">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i> Panel
+    </a>
+    <h1 class="pv-page-title">
+      <i class="bi bi-calendar3-event" aria-hidden="true"></i> Umów się na szkolenie
+    </h1>
+    <p class="pv-page-sub">Wybierz szkolenie, dzień i wolny termin — rezerwacja w kilka kliknięć</p>
+  </div>
+
+  <?php include dirname(__DIR__) . '/includes/tidycal_book_ui.php'; ?>
+
+</div>
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

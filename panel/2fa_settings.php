@@ -174,52 +174,41 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Weryfikacja dwuetapowa</h1>
-  <p class="pv-page-sub">Dodatkowe zabezpieczenie konta</p>
-</div>
-<?php echo flash_html(); ?>
-<?php endif; ?>
+<div class="pv-wrap">
 
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-shield-lock text-primary fs-4"></i>
-  </div>
-  <div>
-    <h4 class="mb-0">Uwierzytelnianie dwuetapowe (2FA)</h4>
-    <div class="text-muted small">Konto: <?= h($user['email']) ?></div>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-shield-lock" aria-hidden="true"></i>Weryfikacja dwuetapowa</h1>
+    <p class="pv-page-sub">Zabezpiecz swoje konto dodatkową weryfikacją</p>
   </div>
 </div>
 
-<?php if (!$_is_volunteer_only): ?>
 <?= flash_html() ?>
-<?php endif; ?>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger"><ul class="mb-0">
+<div class="tz-note tz-note--danger" role="alert"><ul class="mb-0">
   <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
 </ul></div>
 <?php endif; ?>
 
 <!-- ── Current status ──────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4">
-  <div class="card-body d-flex align-items-center gap-3">
+<div class="tz-card mb-4">
+  <div class="tz-card__bd d-flex align-items-center gap-3">
     <?php if ($current_method === 'totp'): ?>
-      <i class="bi bi-shield-fill-check text-success fs-2"></i>
+      <i class="bi bi-shield-fill-check text-success fs-2" aria-hidden="true"></i>
       <div>
         <div class="fw-semibold">Aktywna metoda: <span class="text-success">Aplikacja TOTP</span></div>
         <div class="text-muted small">Logowanie wymaga kodu z aplikacji Google/Microsoft Authenticator.</div>
       </div>
     <?php elseif ($current_method === 'sms'): ?>
-      <i class="bi bi-shield-fill-check text-success fs-2"></i>
+      <i class="bi bi-shield-fill-check text-success fs-2" aria-hidden="true"></i>
       <div>
         <div class="fw-semibold">Aktywna metoda: <span class="text-success">Kod SMS</span></div>
         <div class="text-muted small">Logowanie wymaga jednorazowego kodu SMS.</div>
       </div>
     <?php else: ?>
-      <i class="bi bi-shield-x text-secondary fs-2"></i>
+      <i class="bi bi-shield-x text-secondary fs-2" aria-hidden="true"></i>
       <div>
         <div class="fw-semibold text-muted">2FA wyłączone</div>
         <div class="text-muted small">Twoje konto nie jest chronione dodatkowym czynnikiem.</div>
@@ -230,19 +219,19 @@ if ($_is_volunteer_only) {
 
 <!-- ── Disable all 2FA ─────────────────────────────────────────────────── -->
 <?php if ($current_method): ?>
-<div class="card shadow-sm mb-4 border-danger border-opacity-25">
-  <div class="card-header bg-danger bg-opacity-10 text-danger fw-semibold">
-    <i class="bi bi-shield-x"></i> Wyłącz uwierzytelnianie dwuetapowe
+<div class="tz-card tz-card--danger mb-4">
+  <div class="tz-card__hd">
+    <i class="bi bi-shield-x" aria-hidden="true"></i> Wyłącz uwierzytelnianie dwuetapowe
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
     <p class="text-muted small mb-3">
       Po wyłączeniu 2FA konto będzie chronione wyłącznie hasłem. Upewnij się, że masz silne hasło.
     </p>
     <form method="post" onsubmit="return confirm('Na pewno wyłączyć 2FA?')">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="disable_all">
-      <button type="submit" class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-shield-x"></i> Wyłącz 2FA
+      <button type="submit" class="tz-btn tz-btn--ghost">
+        <i class="bi bi-shield-x" aria-hidden="true"></i> Wyłącz 2FA
       </button>
     </form>
   </div>
@@ -251,8 +240,8 @@ if ($_is_volunteer_only) {
 
 <!-- ── Backup codes display (once after enable) ───────────────────────── -->
 <?php if ($backup_codes_show !== null): ?>
-<div class="alert alert-warning border-warning">
-  <div class="fw-semibold mb-2"><i class="bi bi-key-fill"></i> Zapisz kody zapasowe — wyświetlone tylko raz!</div>
+<div class="tz-note tz-note--warning" role="alert">
+  <div class="fw-semibold mb-2"><i class="bi bi-key-fill" aria-hidden="true"></i> Zapisz kody zapasowe — wyświetlone tylko raz!</div>
   <p class="small mb-2">Jeśli zgubisz dostęp do aplikacji, możesz użyć jednego z tych kodów. Każdy działa tylko raz.</p>
   <div class="row row-cols-2 row-cols-md-4 g-2 mb-2">
     <?php foreach ($backup_codes_show as $bc): ?>
@@ -265,14 +254,14 @@ if ($_is_volunteer_only) {
 <?php endif; ?>
 
 <!-- ── TOTP Section ────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-phone"></i> Aplikacja uwierzytelniająca (TOTP)
+<div class="tz-card mb-4">
+  <div class="tz-card__hd">
+    <i class="bi bi-phone" aria-hidden="true"></i> Aplikacja uwierzytelniająca (TOTP)
     <?php if ($current_method === 'totp'): ?>
-      <span class="badge bg-success ms-2">Aktywne</span>
+      <span class="tz-badge tz-badge--success ms-2">Aktywne</span>
     <?php endif; ?>
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
 
     <?php if ($current_method === 'totp'): ?>
     <!-- Already enabled — show disable option -->
@@ -282,8 +271,8 @@ if ($_is_volunteer_only) {
     <form method="post" onsubmit="return confirm('Wyłączyć TOTP?')">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="totp_disable">
-      <button type="submit" class="btn btn-outline-warning btn-sm">
-        <i class="bi bi-shield-minus"></i> Wyłącz TOTP
+      <button type="submit" class="tz-btn tz-btn--ghost">
+        <i class="bi bi-shield-minus" aria-hidden="true"></i> Wyłącz TOTP
       </button>
     </form>
 
@@ -295,17 +284,20 @@ if ($_is_volunteer_only) {
     </p>
 
     <div class="text-center mb-3">
-      <canvas id="qrcode-canvas" class="border rounded p-2"></canvas>
+      <canvas id="qrcode-canvas" class="border rounded p-2"
+              aria-label="Kod QR do konfiguracji aplikacji TOTP — zeskanuj w Google Authenticator lub Microsoft Authenticator"></canvas>
     </div>
 
     <div class="mb-3">
-      <label class="form-label small fw-semibold">Klucz ręczny (jeśli nie możesz skanować QR):</label>
+      <label class="form-label small fw-semibold" for="totp-secret-display">Klucz ręczny (jeśli nie możesz skanować QR):</label>
       <div class="input-group input-group-sm">
         <input type="text" class="form-control font-monospace" readonly
-               value="<?= h($pending_secret) ?>" id="totp-secret-display">
-        <button type="button" class="btn btn-outline-secondary"
-                onclick="navigator.clipboard.writeText(document.getElementById('totp-secret-display').value)">
-          <i class="bi bi-clipboard"></i>
+               value="<?= h($pending_secret) ?>" id="totp-secret-display"
+               aria-label="Klucz TOTP do ręcznego wpisania w aplikacji">
+        <button type="button" class="tz-btn tz-btn--ghost"
+                onclick="navigator.clipboard.writeText(document.getElementById('totp-secret-display').value)"
+                aria-label="Kopiuj klucz TOTP do schowka">
+          <i class="bi bi-clipboard" aria-hidden="true"></i>
         </button>
       </div>
     </div>
@@ -314,17 +306,17 @@ if ($_is_volunteer_only) {
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="totp_confirm">
       <div class="mb-3">
-        <label class="form-label fw-semibold">Krok 3 — Wpisz 6-cyfrowy kod z aplikacji</label>
-        <input type="text" name="code" class="form-control"
+        <label class="form-label fw-semibold" for="totp-code">Krok 3 — Wpisz 6-cyfrowy kod z aplikacji</label>
+        <input type="text" name="code" id="totp-code" class="form-control"
                inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-               placeholder="______" autofocus required
+               placeholder="______" autofocus required aria-required="true"
                style="font-size:1.5rem;letter-spacing:.4rem;text-align:center;font-weight:700">
       </div>
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-shield-check"></i> Potwierdź i włącz 2FA
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-shield-check" aria-hidden="true"></i> Potwierdź i włącz 2FA
         </button>
-        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="btn btn-outline-secondary">Anuluj</a>
+        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="tz-btn tz-btn--ghost">Anuluj</a>
       </div>
     </form>
 
@@ -347,8 +339,8 @@ if ($_is_volunteer_only) {
     <form method="post">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="totp_start">
-      <button type="submit" class="btn btn-primary btn-sm">
-        <i class="bi bi-qr-code"></i> Skonfiguruj aplikację TOTP
+      <button type="submit" class="tz-btn">
+        <i class="bi bi-qr-code" aria-hidden="true"></i> Skonfiguruj aplikację TOTP
       </button>
     </form>
     <?php endif; ?>
@@ -358,14 +350,14 @@ if ($_is_volunteer_only) {
 
 <!-- ── SMS Section ────────────────────────────────────────────────────── -->
 <?php if ($sms_available): ?>
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-chat-dots"></i> Kod SMS
+<div class="tz-card mb-4">
+  <div class="tz-card__hd">
+    <i class="bi bi-chat-dots" aria-hidden="true"></i> Kod SMS
     <?php if ($current_method === 'sms'): ?>
-      <span class="badge bg-success ms-2">Aktywne</span>
+      <span class="tz-badge tz-badge--success ms-2">Aktywne</span>
     <?php endif; ?>
   </div>
-  <div class="card-body">
+  <div class="tz-card__bd">
 
     <?php if ($current_method === 'sms'): ?>
     <p class="text-muted small mb-3">
@@ -374,15 +366,15 @@ if ($_is_volunteer_only) {
     <form method="post" onsubmit="return confirm('Wyłączyć SMS 2FA?')">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sms_disable">
-      <button type="submit" class="btn btn-outline-warning btn-sm">
-        <i class="bi bi-shield-minus"></i> Wyłącz SMS 2FA
+      <button type="submit" class="tz-btn tz-btn--ghost">
+        <i class="bi bi-shield-minus" aria-hidden="true"></i> Wyłącz SMS 2FA
       </button>
     </form>
 
     <?php elseif ($success === 'sms_sent' || $success === 'sms_fallback_email'): ?>
     <!-- Step 2: verify SMS OTP (or email fallback) -->
     <?php if ($success === 'sms_fallback_email'): ?>
-    <div class="alert alert-warning py-2 small mb-3" role="alert">
+    <div class="tz-note tz-note--warning small mb-3" role="alert">
       <i class="bi bi-envelope-exclamation me-1" aria-hidden="true"></i>
       Wysyłka SMS nie powiodła się — kod wysłany na adres e-mail Twojego konta. Sprawdź skrzynkę.
     </div>
@@ -396,17 +388,17 @@ if ($_is_volunteer_only) {
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sms_confirm">
       <div class="mb-3">
-        <label class="form-label fw-semibold">6-cyfrowy kod</label>
-        <input type="text" name="code" class="form-control"
+        <label class="form-label fw-semibold" for="sms-code">6-cyfrowy kod</label>
+        <input type="text" name="code" id="sms-code" class="form-control"
                inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-               placeholder="______" autofocus required
+               placeholder="______" autofocus required aria-required="true"
                style="font-size:1.5rem;letter-spacing:.4rem;text-align:center;font-weight:700">
       </div>
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-success">
-          <i class="bi bi-shield-check"></i> Potwierdź i włącz SMS 2FA
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-shield-check" aria-hidden="true"></i> Potwierdź i włącz SMS 2FA
         </button>
-        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="btn btn-outline-secondary">Anuluj</a>
+        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="tz-btn tz-btn--ghost">Anuluj</a>
       </div>
     </form>
 
@@ -419,17 +411,17 @@ if ($_is_volunteer_only) {
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sms_start">
       <div class="mb-3">
-        <label class="form-label fw-semibold">Numer telefonu</label>
+        <label class="form-label fw-semibold" for="twofa-phone">Numer telefonu</label>
         <div class="input-group">
           <span class="input-group-text fw-semibold text-muted">+48</span>
-          <input type="tel" name="twofa_phone" class="form-control phone-48"
+          <input type="tel" name="twofa_phone" id="twofa-phone" class="form-control phone-48"
                  placeholder="123 456 789"
-                 value="<?= h($db_user['twofa_phone'] ?? '') ?>" required>
+                 value="<?= h($db_user['twofa_phone'] ?? '') ?>" required aria-required="true">
         </div>
         <div class="form-text">Wpisz 9 cyfr — prefiks +48 zostanie dodany automatycznie.</div>
       </div>
-      <button type="submit" class="btn btn-success btn-sm">
-        <i class="bi bi-send"></i> Wyślij kod weryfikacyjny
+      <button type="submit" class="tz-btn">
+        <i class="bi bi-send" aria-hidden="true"></i> Wyślij kod weryfikacyjny
       </button>
     </form>
     <?php endif; ?>
@@ -438,6 +430,7 @@ if ($_is_volunteer_only) {
 </div>
 <?php endif; ?>
 
+</div><!-- /.pv-wrap -->
 
 <?php
 if ($_is_volunteer_only) {

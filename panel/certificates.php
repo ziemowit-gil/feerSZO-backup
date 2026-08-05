@@ -112,31 +112,35 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
+<div class="pv-wrap">
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-award me-2" aria-hidden="true"></i>Zaświadczenia</h1>
-  <p class="pv-page-sub">Wnioskuj o zaświadczenia z organizacji</p>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-patch-check" aria-hidden="true"></i>Zaświadczenia</h1>
+    <p class="pv-page-sub">Twoje zaświadczenia i certyfikaty wolontariackie</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
 <div class="row g-4">
 
+<!-- ── Formularz wniosku ─────────────────────────────────────────────────── -->
 <div class="col-xl-5">
-<div class="vol-detail-card mb-3">
-  <div class="vol-detail-header"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Złóż wniosek</div>
-  <div class="vol-detail-body">
+<div class="tz-card mb-3">
+  <div class="tz-card__hd"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Złóż wniosek o zaświadczenie</div>
+  <div class="tz-card__bd">
 
     <?php if (!$contracts): ?>
-    <div class="text-center py-3 text-muted">
-      <i class="bi bi-exclamation-circle" style="font-size:2rem;opacity:.25" aria-hidden="true"></i>
-      <p class="mt-2 mb-0 small">Nie znaleziono umów powiązanych z Twoim kontem.</p>
+    <div class="tz-empty">
+      <span class="tz-empty__icon"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span>
+      <p class="tz-empty__text">Nie znaleziono umów powiązanych z Twoim kontem.</p>
     </div>
     <?php else: ?>
 
     <?php if ($errors): ?>
-    <div class="alert alert-danger small">
+    <div class="pv-alert pv-alert-danger" role="alert">
       <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
     </div>
     <?php endif; ?>
@@ -145,7 +149,7 @@ if ($_is_volunteer_only) {
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
       <div class="mb-3">
-        <label class="form-label fw-semibold">Umowa <span class="text-danger">*</span></label>
+        <label class="form-label fw-semibold" for="sel_type">Umowa <span class="text-danger" aria-hidden="true">*</span></label>
         <select name="contract_type" id="sel_type" class="form-select" required>
           <option value="">— wybierz umowę —</option>
           <?php
@@ -170,25 +174,25 @@ if ($_is_volunteer_only) {
       </div>
 
       <div class="mb-3">
-        <label class="form-label fw-semibold">Twoje imię i nazwisko <span class="text-danger">*</span></label>
-        <input type="text" name="requester_name" class="form-control"
+        <label class="form-label fw-semibold" for="requester_name">Twoje imię i nazwisko <span class="text-danger" aria-hidden="true">*</span></label>
+        <input type="text" name="requester_name" id="requester_name" class="form-control"
                value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required>
       </div>
 
       <div class="mb-3">
-        <label class="form-label fw-semibold">E-mail do odbioru zaświadczenia <span class="text-danger">*</span></label>
-        <input type="email" name="requester_email" class="form-control"
+        <label class="form-label fw-semibold" for="requester_email">E-mail do odbioru zaświadczenia <span class="text-danger" aria-hidden="true">*</span></label>
+        <input type="email" name="requester_email" id="requester_email" class="form-control"
                value="<?= h($_POST['requester_email'] ?? $user['email']) ?>" required>
         <div class="form-text">Na ten adres zostanie wysłane gotowe zaświadczenie.</div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label fw-semibold">Cel wydania zaświadczenia <span class="text-danger">*</span></label>
-        <textarea name="cel" class="form-control" rows="3" required
-                  placeholder="np. do urzędu skarbowego, dla banku, do ZUS…"><?= h($_POST['cel'] ?? '') ?></textarea>
+        <label class="form-label fw-semibold" for="cel">Cel wydania zaświadczenia <span class="text-danger" aria-hidden="true">*</span></label>
+        <textarea name="cel" id="cel" class="form-control" rows="3" required
+                  placeholder="np. do urzędu skarbowego, dla banku, do ZUS, na potrzeby przetargu…"><?= h($_POST['cel'] ?? '') ?></textarea>
       </div>
 
-      <button type="submit" style="background:var(--vol-color);color:#fff;border:none;border-radius:8px;padding:.55rem 1.25rem;font-weight:600">
+      <button type="submit" class="tz-btn">
         <i class="bi bi-send me-1" aria-hidden="true"></i> Złóż wniosek
       </button>
     </form>
@@ -197,21 +201,24 @@ if ($_is_volunteer_only) {
   </div>
 </div>
 
-<div class="vol-detail-card">
-  <div class="vol-detail-header"><i class="bi bi-info-circle me-2" aria-hidden="true"></i>Jak to działa?</div>
-  <div class="vol-detail-body small text-muted">
+<!-- Informacja -->
+<div class="tz-card">
+  <div class="tz-card__hd"><i class="bi bi-info-circle me-2" aria-hidden="true"></i>Jak to działa?</div>
+  <div class="tz-card__bd small text-muted">
     <ol class="ps-3 mb-0">
       <li class="mb-1">Złóż wniosek wskazując umowę i cel zaświadczenia.</li>
-      <li class="mb-1">Fundacja rozpatrzy wniosek i przygotuje zaświadczenie.</li>
-      <li>Gotowe zaświadczenie otrzymasz e-mailem z linkiem do pobrania PDF.</li>
+      <li class="mb-1">Fundacja rozpatrzy wniosek i przygotuje zaświadczenie<?= $_is_volunteer_only ? '' : ' (wygenerowane lub skan/ePodpis)' ?>.</li>
+      <li>Gotowe zaświadczenie otrzymasz e-mailem z linkiem do <?= $_is_volunteer_only ? 'pobrania PDF' : 'wydruku lub pliku do pobrania' ?>.</li>
     </ol>
   </div>
 </div>
 </div>
 
+<!-- ── Historia wniosków ──────────────────────────────────────────────────── -->
 <div class="col-xl-7">
+
+<?php if ($_is_volunteer_only): ?>
 <?php
-// Znormalizuj wnioski dla listy z filtrem (panel/includes/pv_cert_history.php)
 $_pv_certs = array_map(function ($r) {
     try {
         $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
@@ -229,153 +236,37 @@ $_pv_certs = array_map(function ($r) {
 }, $my_requests);
 include __DIR__ . '/includes/pv_cert_history.php';
 ?>
-</div>
 
-</div><!-- /row -->
+<?php else: /* admin/editor — historia inline */ ?>
 
-<?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
-
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-award text-success fs-4"></i>
-  </div>
-  <div>
-    <h4 class="mb-0">Moje zaświadczenia</h4>
-    <div class="text-muted small"><?= h($user['name']) ?></div>
-  </div>
-  <div class="ms-auto">
-  </div>
-</div>
-
-<?= flash_html() ?>
-
-<div class="row g-4">
-
-<!-- ── Formularz wniosku ──────────────────────────────────────────────────── -->
-<div class="col-xl-5">
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-plus-circle text-primary"></i> Złóż wniosek o zaświadczenie
-  </div>
-  <div class="card-body">
-
-    <?php if (!$contracts): ?>
-    <div class="alert alert-warning small mb-0">
-      <i class="bi bi-exclamation-triangle"></i>
-      Nie znaleziono umów powiązanych z Twoim kontem..
-    </div>
-    <?php else: ?>
-
-    <?php if ($errors): ?>
-    <div class="alert alert-danger small">
-      <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
-    </div>
-    <?php endif; ?>
-
-    <form method="post" id="form-cert-request">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-      <div class="mb-3">
-        <label class="form-label">Umowa <span class="text-danger">*</span></label>
-        <select name="contract_type" id="sel_type" class="form-select" required>
-          <option value="">— wybierz typ —</option>
-          <?php
-          // Grupuj po typie
-          $by_type = [];
-          foreach ($contracts as $c) $by_type[$c['contract_type']][] = $c;
-          foreach ($by_type as $typ => $list):
-          ?>
-          <optgroup label="<?= h(CONTRACT_TYPES[$typ] ?? $typ) ?>">
-            <?php foreach ($list as $c):
-                $opt_val = $typ . ':' . $c['id'];
-                $sel_c   = ($_POST['contract_type'] ?? '') === $opt_val;
-            ?>
-            <option value="<?= h($opt_val) ?>"
-                    <?= $sel_c ? 'selected' : '' ?>>
-              <?= h($c['numer_umowy']) ?>
-              (<?= date_pl($c['data_zawarcia']) ?>)
-              <?= $c['data_zakonczenia'] ? '– ' . date_pl($c['data_zakonczenia']) : '' ?>
-            </option>
-            <?php endforeach; ?>
-          </optgroup>
-          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Twoje imię i nazwisko <span class="text-danger">*</span></label>
-        <input type="text" name="requester_name" class="form-control"
-               value="<?= h($_POST['requester_name'] ?? $user['name']) ?>" required>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">E-mail do odbioru zaświadczenia <span class="text-danger">*</span></label>
-        <input type="email" name="requester_email" class="form-control"
-               value="<?= h($_POST['requester_email'] ?? $user['email']) ?>" required>
-        <div class="form-text">Na ten adres zostanie wysłane gotowe zaświadczenie.</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Cel wydania zaświadczenia <span class="text-danger">*</span></label>
-        <textarea name="cel" class="form-control" rows="3" required
-                  placeholder="np. do urzędu skarbowego, dla banku, do ZUS, na potrzeby przetargu..."><?= h($_POST['cel'] ?? '') ?></textarea>
-      </div>
-
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send"></i> Złóż wniosek
-        </button>
-      </div>
-    </form>
-
-    <?php endif; ?>
-  </div>
-</div>
-
-<!-- Informacja -->
-<div class="card shadow-sm mt-3">
-  <div class="card-body small text-muted">
-    <p class="mb-2"><i class="bi bi-info-circle text-primary"></i> <strong>Jak to działa?</strong></p>
-    <ol class="ps-3 mb-0">
-      <li class="mb-1">Złóż wniosek wskazując umowę i cel zaświadczenia.</li>
-      <li class="mb-1">Fundacja rozpatrzy wniosek i przygotuje zaświadczenie
-          (wygenerowane lub skan/ePodpis).</li>
-      <li>Gotowe zaświadczenie otrzymasz e-mailem z linkiem do wydruku lub pliku do pobrania.</li>
-    </ol>
-  </div>
-</div>
-</div>
-
-<!-- ── Moje wnioski ─────────────────────────────────────────────────────────── -->
-<div class="col-xl-7">
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-list-check text-success"></i>
+<div class="tz-card">
+  <div class="tz-card__hd d-flex align-items-center gap-2">
+    <i class="bi bi-list-check" aria-hidden="true"></i>
     Historia wniosków
     <?php if ($my_requests): ?>
-    <span class="badge bg-secondary ms-1"><?= count($my_requests) ?></span>
+    <span class="tz-badge ms-auto"><?= count($my_requests) ?></span>
     <?php endif; ?>
   </div>
 
   <?php if (!$my_requests): ?>
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-award fs-1 d-block mb-2 opacity-25"></i>
-    Nie masz jeszcze żadnych wniosków o zaświadczenie.
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <span class="tz-empty__icon"><i class="bi bi-award" aria-hidden="true"></i></span>
+      <p class="tz-empty__text">Nie masz jeszcze żadnych wniosków o zaświadczenie.</p>
+    </div>
   </div>
   <?php else: ?>
   <div class="list-group list-group-flush">
   <?php foreach ($my_requests as $r):
-      $stat = CERTIFICATE_STATUSES[$r['status']] ?? ['label' => $r['status'], 'class' => 'secondary'];
-      // Pobierz numer umowy
       try {
           $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
           $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
       } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
+      $c_label = h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) . ' ' . h($c_nr);
   ?>
   <div class="list-group-item px-4 py-3">
     <div class="d-flex align-items-start gap-3">
-      <div class="mt-1">
+      <div class="mt-1" aria-hidden="true">
         <?php if ($r['status'] === 'oczekuje'): ?>
         <i class="bi bi-clock-history text-warning fs-5"></i>
         <?php elseif ($r['status'] === 'wydane'): ?>
@@ -403,22 +294,24 @@ include __DIR__ . '/includes/pv_cert_history.php';
         </div>
         <?php if ($r['rejection_note']): ?>
         <div class="small text-danger mt-1">
-          <i class="bi bi-chat-left-text"></i> <?= h($r['rejection_note']) ?>
+          <i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($r['rejection_note']) ?>
         </div>
         <?php endif; ?>
       </div>
       <div class="flex-shrink-0 d-flex flex-column gap-1 align-items-end">
         <?php if ($r['status'] === 'wydane'): ?>
-        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $r['id'] ?>"
-           target="_blank" class="btn btn-sm btn-success">
-          <i class="bi bi-download"></i> Odbierz
+        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= (int)$r['id'] ?>"
+           target="_blank" class="tz-btn"
+           aria-label="Odbierz zaświadczenie – <?= $c_label ?>">
+          <i class="bi bi-download" aria-hidden="true"></i> Odbierz
         </a>
         <?php elseif ($r['status'] === 'oczekuje'): ?>
         <span class="text-muted small">W trakcie&hellip;</span>
         <?php endif; ?>
         <a href="<?= h(contract_url($r['contract_type'], $r['contract_id'])) ?>"
-           class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-eye"></i>
+           class="tz-btn tz-btn--ghost"
+           aria-label="Podgląd umowy <?= h($c_nr) ?>">
+          <i class="bi bi-eye" aria-hidden="true"></i>
         </a>
       </div>
     </div>
@@ -427,11 +320,14 @@ include __DIR__ . '/includes/pv_cert_history.php';
   </div>
   <?php endif; ?>
 </div>
-</div>
+
+<?php endif; /* $_is_volunteer_only */ ?>
+
+</div><!-- /col-xl-7 -->
 
 </div><!-- /row -->
 
-<?php endif; /* $_is_volunteer_only */ ?>
+</div><!-- /pv-wrap -->
 
 <?php if ($_is_volunteer_only) {
     include __DIR__ . '/includes/footer_panel.php';

@@ -168,158 +168,164 @@ $open_count = count(array_filter($my_tickets, fn($t) => !in_array($t['status'], 
 
 $PAGE_TITLE = 'Helpdesk IT';
 include __DIR__ . '/includes/header_panel.php';
+
+// Mapowanie klasy Bootstrap statusu → modyfikator pv-sp-*
+$sp_map = [
+    'primary'   => 'new',
+    'warning'   => 'pending',
+    'secondary' => 'closed',
+    'danger'    => 'cancelled',
+    'dark'      => 'closed',
+    'info'      => 'draft',
+    'success'   => 'ok',
+];
 ?>
+
+<div class="pv-wrap">
 
 <!-- Nagłówek -->
 <div class="pv-page-header">
   <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
     <h1 class="pv-page-title"><i class="bi bi-headset" aria-hidden="true"></i>Helpdesk IT</h1>
-    <p class="pv-page-sub">Zgłoś problem lub zapytaj o wsparcie techniczne</p>
+    <p class="pv-page-sub">Zgłoś problem lub zapytanie do działu IT</p>
   </div>
 </div>
 
+<?= flash_html() ?>
+
 <?php if ($errors): ?>
-<div class="alert alert-danger py-2 mb-3">
+<div class="pv-alert pv-alert-err" role="alert">
+  <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
   <ul class="mb-0 ps-3">
-    <?php foreach ($errors as $e) echo '<li class="small">' . h($e) . '</li>'; ?>
+    <?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?>
   </ul>
 </div>
 <?php endif; ?>
 
 <!-- ═══ FORMULARZ NOWEGO ZGŁOSZENIA ═════════════════════════════════════════ -->
-<details <?= $errors ? 'open' : '' ?> id="hd-form-section">
-<summary class="mb-3" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:.6rem;
-             background:#fff;border:1.5px solid var(--vol-color);border-radius:12px;
-             padding:.75rem 1.1rem;font-weight:700;font-size:.92rem;color:var(--vol-color);
-             box-shadow:0 1px 4px rgba(0,0,0,.06)">
+<details <?= $errors ? 'open' : '' ?> id="hd-form-section" class="tz-card">
+<summary class="tz-card__hd" style="list-style:none;cursor:pointer">
   <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
   Nowe zgłoszenie IT
   <i class="bi bi-chevron-down ms-auto" id="hdFormChevron" aria-hidden="true"></i>
 </summary>
 
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body">
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
-      <input type="hidden" name="_new_ticket" value="1">
+<div class="tz-card__bd">
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
+    <input type="hidden" name="_new_ticket" value="1">
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold small">Temat <span class="text-danger">*</span></label>
-        <input name="title" class="form-control form-control-sm" required maxlength="200"
-               placeholder="Krótki opis problemu, np. Nie mogę zalogować się do M365"
-               value="<?= h($_POST['title'] ?? '') ?>">
+    <div class="mb-3">
+      <label for="hd-title" class="form-label fw-semibold small">Temat <span class="text-danger" aria-hidden="true">*</span></label>
+      <input id="hd-title" name="title" class="form-control form-control-sm" required aria-required="true" maxlength="200"
+             placeholder="Krótki opis problemu, np. Nie mogę zalogować się do M365"
+             value="<?= h($_POST['title'] ?? '') ?>">
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label for="hd-category" class="form-label fw-semibold small">Kategoria</label>
+        <select id="hd-category" name="category" class="form-select form-select-sm">
+          <?php foreach (HD_CATEGORIES as $k => $v): ?>
+          <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>>
+            <?= h($v) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
       </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-sm-6">
-          <label class="form-label fw-semibold small">Kategoria</label>
-          <select name="category" class="form-select form-select-sm">
-            <?php foreach (HD_CATEGORIES as $k => $v): ?>
-            <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>>
-              <?= h($v) ?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-sm-6">
-          <label class="form-label fw-semibold small">Pilność</label>
+      <div class="col-sm-6">
+        <fieldset>
+          <legend class="form-label fw-semibold small">Pilność</legend>
           <div class="d-flex gap-2 flex-wrap mt-1">
             <?php foreach (HD_PRIORITIES as $k => $p):
               $checked = ($_POST['priority'] ?? 'normalny') === $k; ?>
-            <label class="btn btn-sm btn-outline-<?= h($p['class']) ?> <?= $checked ? 'active' : '' ?>"
-                   style="font-size:.78rem;padding:.2rem .65rem">
+            <label class="tz-btn tz-btn--ghost<?= $checked ? ' active' : '' ?>">
               <input type="radio" name="priority" value="<?= h($k) ?>" class="d-none" <?= $checked ? 'checked' : '' ?>>
               <?= h($p['label']) ?>
             </label>
             <?php endforeach; ?>
           </div>
-        </div>
+        </fieldset>
       </div>
+    </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold small">Opis problemu <span class="text-danger">*</span></label>
-        <textarea name="description" class="form-control form-control-sm" rows="5" required
-                  placeholder="Opisz dokładnie co się dzieje, kiedy problem wystąpił, co już próbowałeś/aś..."><?= h($_POST['description'] ?? '') ?></textarea>
+    <div class="mb-3">
+      <label for="hd-description" class="form-label fw-semibold small">Opis problemu <span class="text-danger" aria-hidden="true">*</span></label>
+      <textarea id="hd-description" name="description" class="form-control form-control-sm" rows="5" required aria-required="true"
+                placeholder="Opisz dokładnie co się dzieje, kiedy problem wystąpił, co już próbowałeś/aś..."><?= h($_POST['description'] ?? '') ?></textarea>
+    </div>
+
+    <div class="mb-3">
+      <label for="hd-attachments" class="form-label fw-semibold small">Załączniki (zrzuty ekranu, logi)</label>
+      <input id="hd-attachments" name="attachments[]" type="file" class="form-control form-control-sm" multiple
+             accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv"
+             aria-label="Dodaj załączniki — PDF, Word, Excel, obrazy, ZIP, TXT">
+      <div class="form-text">Maks. 10 MB / plik. PDF, Word, Excel, obrazy, ZIP, TXT.</div>
+    </div>
+
+    <hr class="my-3">
+
+    <p class="fw-semibold small text-muted mb-2">Twoje dane kontaktowe</p>
+    <div class="row g-2 mb-3">
+      <div class="col-sm-5">
+        <label for="hd-req-name" class="visually-hidden">Imię i nazwisko</label>
+        <input id="hd-req-name" name="req_name" class="form-control form-control-sm" placeholder="Imię i nazwisko"
+               value="<?= h($_POST['req_name'] ?? $u['name'] ?? '') ?>">
       </div>
-
-      <div class="mb-3">
-        <label class="form-label fw-semibold small">Załączniki (zrzuty ekranu, logi)</label>
-        <input name="attachments[]" type="file" class="form-control form-control-sm" multiple
-               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
-        <div class="form-text" style="font-size:.75rem">Maks. 10 MB / plik. PDF, Word, Excel, obrazy, ZIP, TXT.</div>
+      <div class="col-sm-4">
+        <label for="hd-req-email" class="visually-hidden">E-mail</label>
+        <input id="hd-req-email" name="req_email" type="email" class="form-control form-control-sm" placeholder="E-mail"
+               value="<?= h($_POST['req_email'] ?? $u['email'] ?? '') ?>">
       </div>
-
-      <hr class="my-3">
-
-      <div class="fw-semibold small text-muted mb-2">Twoje dane kontaktowe</div>
-      <div class="row g-2 mb-3">
-        <div class="col-sm-5">
-          <input name="req_name" class="form-control form-control-sm" placeholder="Imię i nazwisko"
-                 value="<?= h($_POST['req_name'] ?? $u['name'] ?? '') ?>">
-        </div>
-        <div class="col-sm-4">
-          <input name="req_email" type="email" class="form-control form-control-sm" placeholder="E-mail"
-                 value="<?= h($_POST['req_email'] ?? $u['email'] ?? '') ?>">
-        </div>
-        <div class="col-sm-3">
-          <input name="req_phone" class="form-control form-control-sm" placeholder="Telefon (opcj.)"
-                 value="<?= h($_POST['req_phone'] ?? $pref_phone) ?>">
-        </div>
+      <div class="col-sm-3">
+        <label for="hd-req-phone" class="visually-hidden">Telefon</label>
+        <input id="hd-req-phone" name="req_phone" class="form-control form-control-sm" placeholder="Telefon (opcj.)"
+               value="<?= h($_POST['req_phone'] ?? $pref_phone) ?>">
       </div>
+    </div>
 
-      <button type="submit" class="btn btn-sm fw-semibold px-4"
-              style="background:var(--vol-color);color:#fff;border:none;border-radius:8px">
-        <i class="bi bi-send me-1"></i>Wyślij zgłoszenie
-      </button>
-    </form>
-  </div>
+    <button type="submit" class="tz-btn">
+      <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij zgłoszenie
+    </button>
+  </form>
 </div>
 </details>
 
 <!-- ═══ LISTA MOICH ZGŁOSZEŃ ════════════════════════════════════════════════ -->
-<div class="d-flex align-items-center justify-content-between mb-2">
-  <h2 class="fw-bold mb-0" style="font-size:1rem">
-    <i class="bi bi-list-check me-1" style="color:var(--vol-color)" aria-hidden="true"></i>
-    Moje zgłoszenia
-  </h2>
-  <?php if ($open_count): ?>
-  <span class="badge" style="background:var(--vol-color);font-size:.75rem">
-    <?= $open_count ?> otwartych
-  </span>
-  <?php endif; ?>
-</div>
+<div class="vol-activity">
+  <div class="vol-activity-header">
+    <h2 class="vol-activity-title">
+      <i class="bi bi-list-check me-1" aria-hidden="true"></i>Moje zgłoszenia
+    </h2>
+    <?php if ($open_count): ?>
+    <span class="tz-badge"><?= $open_count ?> otwartych</span>
+    <?php endif; ?>
+  </div>
 
-<?php if (!$my_tickets): ?>
-<div style="background:#fff;border-radius:12px;text-align:center;padding:2.5rem 1rem;
-            box-shadow:0 1px 6px rgba(0,0,0,.05)" id="ticket-0">
-  <i class="bi bi-inbox" style="font-size:2.2rem;color:#D1D5DB;display:block;margin-bottom:.75rem" aria-hidden="true"></i>
-  <p class="text-muted mb-0 small">Nie masz jeszcze żadnych zgłoszeń.<br>Skorzystaj z formularza powyżej, jeśli potrzebujesz pomocy IT.</p>
-</div>
-<?php else: ?>
-<div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.05)">
+  <?php if (!$my_tickets): ?>
+  <div class="tz-card__bd">
+    <div id="ticket-0" class="tz-empty">
+      <div class="tz-empty__icon"><i class="bi bi-headset fs-1" aria-hidden="true"></i></div>
+      <p class="tz-empty__text">Brak zgłoszeń</p>
+    </div>
+  </div>
+  <?php else: ?>
   <?php foreach ($my_tickets as $t):
-    $s   = HD_STATUSES[$t['status']] ?? ['label'=>$t['status'],'class'=>'secondary','icon'=>'bi-circle'];
-    $p   = HD_PRIORITIES[$t['priority']] ?? ['label'=>$t['priority'],'class'=>'secondary'];
+    $s      = HD_STATUSES[$t['status']] ?? ['label'=>$t['status'],'class'=>'secondary','icon'=>'bi-circle'];
+    $p      = HD_PRIORITIES[$t['priority']] ?? ['label'=>$t['priority'],'class'=>'secondary'];
     $closed = in_array($t['status'], ['zamknięte','rozwiązane']);
+    $sp     = $sp_map[$s['class']] ?? 'closed';
   ?>
-  <div id="ticket-<?= $t['id'] ?>"
-       style="display:flex;align-items:flex-start;gap:.75rem;padding:.85rem 1rem;
-              border-bottom:1px solid #F3F4F6;<?= $closed ? 'opacity:.7' : '' ?>">
+  <div id="ticket-<?= $t['id'] ?>" class="vol-activity-row<?= $closed ? ' opacity-75' : '' ?>">
 
-    <!-- Status ikona -->
-    <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;
-                background:var(--vol-bg);color:var(--vol-color);
-                display:flex;align-items:center;justify-content:center;
-                font-size:.95rem;margin-top:.1rem">
-      <i class="bi <?= h($s['icon']) ?>" aria-hidden="true"></i>
+    <div class="vol-activity-icon" aria-hidden="true">
+      <i class="bi <?= h($s['icon']) ?>"></i>
     </div>
 
-    <div style="flex:1;min-width:0">
-      <div style="font-weight:700;font-size:.9rem;color:#111827;
-                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-        <?= h($t['title']) ?>
-      </div>
-      <div style="font-size:.75rem;color:#9CA3AF;margin-top:.1rem">
+    <div class="flex-grow-1" style="min-width:0">
+      <div class="fw-bold small text-truncate"><?= h($t['title']) ?></div>
+      <div class="small text-muted mt-1">
         <span class="font-monospace"><?= h($t['number']) ?></span>
         &middot; <?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?>
         &middot; <?= date('d.m.Y', strtotime($t['updated_at'])) ?>
@@ -329,19 +335,17 @@ include __DIR__ . '/includes/header_panel.php';
       </div>
     </div>
 
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0">
-      <span class="badge bg-<?= h($s['class']) ?>" style="font-size:.68rem">
-        <?= h($s['label']) ?>
-      </span>
-      <span class="badge bg-<?= h($p['class']) ?>" style="font-size:.65rem;opacity:.85">
-        <?= h($p['label']) ?>
-      </span>
+    <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+      <span class="pv-status-pill pv-sp-<?= h($sp) ?>"><?= h($s['label']) ?></span>
+      <span class="tz-badge"><?= h($p['label']) ?></span>
     </div>
   </div>
   <?php endforeach; ?>
+  <div class="text-muted small p-2 text-end"><?= count($my_tickets) ?> zgłoszeń łącznie</div>
+  <?php endif; ?>
 </div>
-<div class="text-muted small mt-1 text-end"><?= count($my_tickets) ?> zgłoszeń łącznie</div>
-<?php endif; ?>
+
+</div><!-- /.pv-wrap -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>
 

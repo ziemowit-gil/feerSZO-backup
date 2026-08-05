@@ -170,20 +170,18 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<style>
-.zwrot-row-detail { background: #f8f9fa; }
-.zwrot-status-bar {
-    display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;
-    margin-bottom: .5rem;
-}
-</style>
-
 <?php if ($_is_volunteer_only): ?>
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-receipt me-2" aria-hidden="true"></i>Zwroty kosztów</h1>
-  <p class="pv-page-sub">Wnioski o zwrot kosztów wolontariatu</p>
+<div class="pv-wrap">
+
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-receipt" aria-hidden="true"></i>Zwroty kosztów</h1>
+    <p class="pv-page-sub">Wnioski o zwrot kosztów poniesionych w ramach wolontariatu</p>
+  </div>
 </div>
+
 <?php echo flash_html(); ?>
 
 <div class="vol-data-grid mb-4">
@@ -192,15 +190,15 @@ if ($_is_volunteer_only) {
     <div class="vol-data-val"><?= count($moje_wnioski) ?></div>
   </div>
   <?php if ($pending_count): ?>
-  <div class="vol-data-item" style="border-color:#FDE68A">
+  <div class="vol-data-item vol-data-item--warn">
     <div class="vol-data-lbl">W toku</div>
-    <div class="vol-data-val" style="color:#D97706"><?= $pending_count ?></div>
+    <div class="vol-data-val"><?= $pending_count ?></div>
   </div>
   <?php endif; ?>
   <?php if ($paid_sum > 0): ?>
-  <div class="vol-data-item" style="border-color:#A7F3D0">
+  <div class="vol-data-item vol-data-item--ok">
     <div class="vol-data-lbl">Wypłacono łącznie</div>
-    <div class="vol-data-val" style="color:#059669;font-size:.85rem"><?= number_format($paid_sum, 2, ',', ' ') ?> PLN</div>
+    <div class="vol-data-val"><?= number_format($paid_sum, 2, ',', ' ') ?> PLN</div>
   </div>
   <?php endif; ?>
 </div>
@@ -209,7 +207,7 @@ if ($_is_volunteer_only) {
 <div class="vol-activity mb-4">
   <div class="vol-activity-header">
     <span class="vol-activity-title"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Historia wniosków</span>
-    <span class="badge bg-secondary"><?= count($moje_wnioski) ?></span>
+    <span class="tz-badge"><?= count($moje_wnioski) ?></span>
   </div>
   <?php foreach ($moje_wnioski as $wniosek):
     $st_map = ['oczekuje' => 'warning', 'weryfikacja' => 'info', 'zatwierdzone' => 'success', 'odrzucony' => 'danger', 'wyplacono' => 'success'];
@@ -220,51 +218,47 @@ if ($_is_volunteer_only) {
     <div class="vol-activity-icon bg-<?= $w_color ?> bg-opacity-15 text-<?= $w_color ?>">
       <i class="bi <?= $w_icon ?>" aria-hidden="true"></i>
     </div>
-    <div class="flex-grow-1" style="min-width:0">
+    <div class="flex-grow-1">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold <?= $wniosek['status'] === 'odrzucony' ? 'text-decoration-line-through' : '' ?>" style="font-size:.85rem"><?= h($wniosek['tytul']) ?></span>
+        <span class="fw-semibold <?= $wniosek['status'] === 'odrzucony' ? 'text-decoration-line-through' : '' ?>"><?= h($wniosek['tytul']) ?></span>
         <?= zwroty_status_badge($wniosek['status']) ?>
       </div>
-      <div class="text-muted" style="font-size:.78rem">
+      <div class="text-muted">
         <?= h($wniosek['numer_umowy'] ?? '—') ?> ·
         <strong><?= number_format((float)$wniosek['kwota'], 2, ',', ' ') ?> PLN</strong>
         <?php if ($wniosek['data_wydatku']): ?> · <?= date('d.m.Y', strtotime($wniosek['data_wydatku'])) ?><?php endif; ?>
       </div>
       <?php if ($wniosek['odrzucenie_powod']): ?>
-      <div class="text-danger" style="font-size:.78rem">
+      <div class="text-danger">
         <i class="bi bi-x-circle me-1" aria-hidden="true"></i><?= h(mb_strimwidth($wniosek['odrzucenie_powod'], 0, 80, '…')) ?>
       </div>
       <?php endif; ?>
     </div>
-    <div class="text-muted text-nowrap" style="font-size:.77rem"><?= h(substr($wniosek['created_at'], 0, 10)) ?></div>
+    <div class="text-muted text-nowrap"><?= h(substr($wniosek['created_at'], 0, 10)) ?></div>
   </div>
   <?php endforeach; ?>
 </div>
 <?php else: ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-receipt" style="font-size:2.5rem;opacity:.2" aria-hidden="true"></i>
-    <p class="mt-3 mb-0 small">Nie złożono jeszcze żadnych wniosków o zwrot kosztów.</p>
-  </div>
+<div class="tz-empty mb-4">
+  <i class="bi bi-receipt" aria-hidden="true"></i>
+  <p>Nie złożono jeszcze żadnych wniosków o zwrot kosztów.</p>
 </div>
 <?php endif; ?>
 
 <?php if (!$moje_umowy): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-file-earmark-x" style="font-size:2.5rem;opacity:.2" aria-hidden="true"></i>
-    <p class="mt-3 fw-semibold mb-1">Brak aktywnych umów z możliwością zwrotu kosztów</p>
-    <p class="small mb-0">Musisz posiadać aktywne porozumienie wolontariackie z włączoną opcją zwrotu kosztów. Skontaktuj się z koordynatorem.</p>
-  </div>
+<div class="tz-empty mb-4">
+  <i class="bi bi-file-earmark-x" aria-hidden="true"></i>
+  <p class="fw-semibold mb-1">Brak aktywnych umów z możliwością zwrotu kosztów</p>
+  <p class="mb-0">Musisz posiadać aktywne porozumienie wolontariackie z włączoną opcją zwrotu kosztów. Skontaktuj się z koordynatorem.</p>
 </div>
 <?php else: ?>
 
-<div class="vol-detail-card" id="form-nowy-wniosek">
-  <div class="vol-detail-header"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Złóż nowy wniosek o zwrot kosztów</div>
-  <div class="vol-detail-body">
+<div class="tz-card" id="form-nowy-wniosek">
+  <div class="tz-card__hd"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Złóż nowy wniosek o zwrot kosztów</div>
+  <div class="tz-card__bd">
 
     <?php if ($errors): ?>
-    <div class="alert alert-danger">
+    <div class="pv-alert pv-alert-danger" role="alert">
       <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i><strong>Sprawdź pola:</strong>
       <ul class="mb-0 mt-1"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
     </div>
@@ -275,8 +269,8 @@ if ($_is_volunteer_only) {
 
       <div class="row g-3">
         <div class="col-12">
-          <label class="form-label fw-semibold">Umowa wolontariacka <span class="text-danger">*</span></label>
-          <select name="umowa_id" id="pp_umowa_id" class="form-select" required
+          <label class="form-label fw-semibold" for="pp_umowa_id">Umowa wolontariacka <span class="text-danger" aria-hidden="true">*</span></label>
+          <select name="umowa_id" id="pp_umowa_id" class="form-select" required aria-required="true"
                   onchange="ppCheckEligibility(this.value)">
             <option value="">— wybierz umowę —</option>
             <?php foreach ($moje_umowy as $u): ?>
@@ -292,29 +286,29 @@ if ($_is_volunteer_only) {
         </div>
 
         <div class="col-12">
-          <label class="form-label fw-semibold">Tytuł wydatku <span class="text-danger">*</span></label>
-          <input type="text" name="tytul" class="form-control" required
+          <label class="form-label fw-semibold" for="pp_tytul">Tytuł wydatku <span class="text-danger" aria-hidden="true">*</span></label>
+          <input type="text" name="tytul" id="pp_tytul" class="form-control" required aria-required="true"
                  placeholder="np. Bilet kolejowy Warszawa–Kraków, materiały do warsztatu…"
                  value="<?= h($_POST['tytul'] ?? '') ?>">
         </div>
 
         <div class="col-sm-4">
-          <label class="form-label fw-semibold">Kwota <span class="text-danger">*</span></label>
+          <label class="form-label fw-semibold" for="pp_kwota">Kwota <span class="text-danger" aria-hidden="true">*</span></label>
           <div class="input-group">
-            <input type="number" name="kwota" step="0.01" min="0.01" class="form-control" required
+            <input type="number" name="kwota" id="pp_kwota" step="0.01" min="0.01" class="form-control" required aria-required="true"
                    placeholder="0,00" value="<?= h($_POST['kwota'] ?? '') ?>">
             <span class="input-group-text">PLN</span>
           </div>
         </div>
         <div class="col-sm-4">
-          <label class="form-label fw-semibold">Data wydatku <span class="text-danger">*</span></label>
-          <input type="date" name="data_wydatku" class="form-control" required
+          <label class="form-label fw-semibold" for="pp_data_wydatku">Data wydatku <span class="text-danger" aria-hidden="true">*</span></label>
+          <input type="date" name="data_wydatku" id="pp_data_wydatku" class="form-control" required aria-required="true"
                  max="<?= date('Y-m-d') ?>"
                  value="<?= h($_POST['data_wydatku'] ?? '') ?>">
         </div>
         <div class="col-sm-4">
-          <label class="form-label fw-semibold">Kategoria</label>
-          <select name="kategoria" class="form-select">
+          <label class="form-label fw-semibold" for="pp_kategoria">Kategoria</label>
+          <select name="kategoria" id="pp_kategoria" class="form-select">
             <option value="">— wybierz —</option>
             <?php foreach (FinanceManager::KATEGORIE as $k => $l): ?>
             <option value="<?= $k ?>" <?= ($_POST['kategoria'] ?? '') === $k ? 'selected' : '' ?>>
@@ -325,8 +319,8 @@ if ($_is_volunteer_only) {
         </div>
 
         <div class="col-12">
-          <label class="form-label fw-semibold">Opis / uzasadnienie</label>
-          <textarea name="opis" class="form-control" rows="3"
+          <label class="form-label fw-semibold" for="pp_opis">Opis / uzasadnienie</label>
+          <textarea name="opis" id="pp_opis" class="form-control" rows="3"
                     placeholder="Krótki opis celu i okoliczności wydatku…"><?= h($_POST['opis'] ?? '') ?></textarea>
         </div>
 
@@ -349,17 +343,20 @@ if ($_is_volunteer_only) {
         </div>
 
         <div class="col-12">
-          <label class="form-label fw-semibold">Załączniki <span class="text-muted fw-normal">(faktury, paragony, bilety)</span></label>
-          <input type="file" name="zalaczniki[]" class="form-control" multiple
-                 accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.doc,.docx">
+          <label class="form-label fw-semibold" for="pp_zalaczniki">
+            Załączniki <span class="fw-normal text-muted">(faktury, paragony, bilety)</span>
+          </label>
+          <input type="file" name="zalaczniki[]" id="pp_zalaczniki" class="form-control" multiple
+                 accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.doc,.docx"
+                 aria-label="Załączniki – faktury, paragony, bilety (PDF, JPG, PNG, Excel, Word, max 10 MB)">
           <div class="form-text">PDF, JPG, PNG, Excel, Word · max 10 MB / plik · można wybrać kilka</div>
         </div>
 
         <div class="col-12 d-flex gap-2">
-          <button type="submit" style="background:var(--vol-color);color:#fff;border:none;border-radius:8px;padding:.55rem 1.25rem;font-weight:600">
+          <button type="submit" class="tz-btn">
             <i class="bi bi-send-check me-1" aria-hidden="true"></i>Złóż wniosek
           </button>
-          <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-outline-secondary">
+          <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost">
             Wróć do panelu
           </a>
         </div>
@@ -370,6 +367,8 @@ if ($_is_volunteer_only) {
 </div>
 
 <?php endif; // moje_umowy ?>
+
+</div><!-- /.pv-wrap -->
 
 <script>
 // ── Eligibility AJAX (reuse istniejącego endpointu) ──────────────────────────
@@ -382,7 +381,7 @@ function ppCheckEligibility(umowa_id) {
         .then(r => r.text())
         .then(html => { box.innerHTML = html; })
         .catch(() => {
-            box.innerHTML = '<div class="alert alert-warning py-1 small mb-0">Nie udało się sprawdzić dostępności.</div>';
+            box.innerHTML = '<div class="pv-alert pv-alert-warning py-1 small mb-0">Nie udało się sprawdzić dostępności.</div>';
         });
 }
 

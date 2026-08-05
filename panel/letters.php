@@ -98,29 +98,38 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<?php if ($_is_volunteer_only): ?>
+<div class="pv-wrap">
 
-<div class="pv-page-header d-flex gap-2 flex-wrap">
-  <h1 class="pv-page-title"><i class="bi bi-archive me-2" aria-hidden="true"></i>Moje pisma</h1>
-  <p class="pv-page-sub">Historia pism i wniosków</p>
+<div class="pv-page-header">
+  <div class="pv-page-head-main">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
+    <h1 class="pv-page-title"><i class="bi bi-envelope-open" aria-hidden="true"></i> Pisma</h1>
+    <p class="pv-page-sub">Korespondencja przychodząca i wychodząca</p>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
 <?php if (!$contracts): ?>
-<div class="vol-detail-card">
-  <div class="vol-detail-header"><i class="bi bi-envelope-x me-2"></i>Brak umów</div>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-envelope-x fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-1">Nie znaleziono umów powiązanych z Twoim kontem.</p>
-    <p class="small mb-0">Poproś administratora o powiązanie umowy z Twoim kontem Microsoft 365.</p>
+
+<div class="tz-card">
+  <div class="tz-card__hd"><i class="bi bi-envelope-x me-2" aria-hidden="true"></i>Brak umów</div>
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <div class="tz-empty__icon"><i class="bi bi-envelope-x" aria-hidden="true"></i></div>
+      <p class="tz-empty__text">Nie znaleziono umów powiązanych z Twoim kontem.<br>
+        Poproś administratora o powiązanie umowy z Twoim kontem Microsoft 365.
+      </p>
+    </div>
   </div>
 </div>
+
 <?php else: ?>
 
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-funnel me-2"></i>Filtry</div>
-  <div class="vol-detail-body">
+<!-- ── Filtry ─────────────────────────────────────────────────────────────── -->
+<div class="tz-card mb-4">
+  <div class="tz-card__hd"><i class="bi bi-funnel me-2" aria-hidden="true"></i>Filtry</div>
+  <div class="tz-card__bd">
     <form method="get" class="d-flex align-items-end gap-3 flex-wrap">
       <div>
         <label class="form-label small mb-1 fw-semibold">Typ pisma</label>
@@ -132,56 +141,65 @@ if ($_is_volunteer_only) {
         </select>
       </div>
       <?php if ($filter_kierunek || $filter_typ): ?>
-      <a href="<?= APP_URL ?>/panel/letters.php" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-x-lg"></i> Wyczyść
+      <a href="<?= APP_URL ?>/panel/letters.php" class="tz-btn tz-btn--ghost">
+        <i class="bi bi-x-lg" aria-hidden="true"></i> Wyczyść
       </a>
       <?php endif; ?>
     </form>
   </div>
 </div>
 
+<!-- ── Lista pism ─────────────────────────────────────────────────────────── -->
 <?php if (!$all_letters): ?>
-<div class="vol-detail-card">
-  <div class="vol-detail-header"><i class="bi bi-envelope-open me-2"></i>Pisma</div>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-envelope-open fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-0">Brak pism<?= $filter_kierunek || $filter_typ ? ' dla wybranych filtrów' : '' ?>.</p>
+
+<div class="tz-card">
+  <div class="tz-card__hd"><i class="bi bi-envelope-open me-2" aria-hidden="true"></i>Pisma</div>
+  <div class="tz-card__bd">
+    <div class="tz-empty">
+      <div class="tz-empty__icon"><i class="bi bi-envelope-open" aria-hidden="true"></i></div>
+      <p class="tz-empty__text">Brak pism<?= $filter_kierunek || $filter_typ ? ' dla wybranych filtrów' : '' ?>.</p>
+    </div>
   </div>
 </div>
-<?php else: ?>
 
-<div class="vol-detail-card">
-  <div class="vol-detail-header">
+<?php elseif ($_is_volunteer_only): ?>
+
+<div class="tz-card">
+  <div class="tz-card__hd">
     <i class="bi bi-envelope-paper me-2" aria-hidden="true"></i>Lista pism
-    <span class="badge bg-secondary ms-auto"><?= $total_count ?></span>
+    <span class="tz-badge ms-auto"><?= $total_count ?></span>
   </div>
   <?php foreach ($all_letters as $l):
-      $dir_meta   = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label' => $l['kierunek'], 'class' => 'secondary', 'icon' => 'bi-arrow-right'];
+      $dir_meta = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label' => $l['kierunek'], 'class' => 'secondary', 'icon' => 'bi-arrow-right'];
   ?>
   <div class="vol-activity-row">
-    <div class="vol-activity-icon" style="background:var(--vol-bg);color:var(--vol-color)">
+    <div class="vol-activity-icon">
       <i class="bi bi-envelope-fill" aria-hidden="true"></i>
     </div>
     <div class="flex-grow-1" style="min-width:0">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold text-truncate" style="font-size:.85rem;max-width:200px" title="<?= h($l['tytul']) ?>"><?= h($l['tytul']) ?></span>
+        <span class="fw-semibold text-truncate" title="<?= h($l['tytul']) ?>"><?= h($l['tytul']) ?></span>
         <?= letter_direction_badge($l['kierunek']) ?>
       </div>
-      <div class="text-muted" style="font-size:.78rem">
+      <div class="text-muted small">
         <?= h($l['_contract_nr']) ?>
         <?php if ($l['typ_pisma']): ?> · <?= letter_type_badge($l['typ_pisma']) ?><?php endif; ?>
       </div>
     </div>
     <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-      <span class="text-muted text-nowrap" style="font-size:.77rem"><?= h($l['data_pisma']) ?></span>
+      <span class="text-muted text-nowrap small"><?= h($l['data_pisma']) ?></span>
       <div class="d-flex gap-1">
         <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $l['id'] ?>"
-           class="btn btn-sm btn-outline-primary py-0 px-2" title="Podgląd" target="_blank">
+           class="tz-btn tz-btn--ghost tz-btn--sm"
+           aria-label="Podgląd pisma: <?= h($l['tytul']) ?>"
+           target="_blank">
           <i class="bi bi-eye" aria-hidden="true"></i>
         </a>
         <?php if ($l['plik']): ?>
         <a href="<?= h(letter_file_url($l['plik'])) ?>"
-           class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz plik" download target="_blank">
+           class="tz-btn tz-btn--ghost tz-btn--sm"
+           aria-label="Pobierz plik: <?= h($l['tytul']) ?>"
+           download target="_blank">
           <i class="bi bi-paperclip" aria-hidden="true"></i>
         </a>
         <?php endif; ?>
@@ -191,95 +209,31 @@ if ($_is_volunteer_only) {
   <?php endforeach; ?>
 </div>
 
-<?php endif; ?>
-<?php endif; ?>
+<?php else: /* admin/editor — widok tabeli */ ?>
 
-<?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
-
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-       style="width:52px;height:52px;flex-shrink:0">
-    <i class="bi bi-envelope-paper text-primary fs-4"></i>
-  </div>
-  <div>
-    <h4 class="mb-0">Moje pisma</h4>
-    <div class="text-muted small">Korespondencja powiązana z Twoimi umowami</div>
-  </div>
-</div>
-
-<?= flash_html() ?>
-
-<?php if (!$contracts): ?>
-<div class="card shadow-sm">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-envelope-x fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-1">Nie znaleziono umów powiązanych z Twoim kontem.</p>
-    <p class="small">Poproś administratora o powiązanie umowy z Twoim kontem Microsoft 365.</p>
-  </div>
-</div>
-<?php else: ?>
-
-<!-- ── Filtry ─────────────────────────────────────────────────────────────── -->
-<form method="get" class="card shadow-sm mb-4">
-  <div class="card-body py-2">
-    <div class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1 fw-semibold">Typ pisma</label>
-        <select name="typ" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">Wszystkie typy</option>
-          <?php foreach (LETTER_TYPES as $k => $t): ?>
-          <option value="<?= h($k) ?>"<?= $filter_typ === $k ? ' selected' : '' ?>>
-            <?= h($t['label']) ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-sm-4 d-flex align-items-end gap-2">
-        <?php if ($filter_kierunek || $filter_typ): ?>
-        <a href="<?= APP_URL ?>/panel/letters.php" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-x-lg"></i> Wyczyść
-        </a>
-        <?php endif; ?>
-        <span class="text-muted small ms-auto">
-        </span>
-      </div>
-    </div>
-  </div>
-</form>
-
-<!-- ── Lista pism ─────────────────────────────────────────────────────────── -->
-<?php if (!$all_letters): ?>
-<div class="card shadow-sm">
-  <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-envelope-open fs-1 d-block mb-2 opacity-25"></i>
-    <p class="mb-0">Brak pism<?= $filter_kierunek || $filter_typ ? ' dla wybranych filtrów' : '' ?>.</p>
-  </div>
-</div>
-<?php else: ?>
-
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover table-sm align-middle mb-0">
-      <thead class="table-light">
+<div class="tz-card">
+  <div class="pv-table-wrap">
+    <table class="pv-table">
+      <thead>
         <tr>
-          <th class="px-3">Kierunek</th>
+          <th>Kierunek</th>
           <th>Typ</th>
           <th>Tytuł</th>
           <th>Data</th>
           <th>Umowa</th>
           <th>Strona</th>
-          <th class="text-end px-3">Akcje</th>
+          <th>Akcje</th>
         </tr>
       </thead>
       <tbody>
       <?php foreach ($all_letters as $l):
-          $dir_meta  = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label' => $l['kierunek'], 'class' => 'secondary', 'icon' => 'bi-arrow-right'];
+          $dir_meta   = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label' => $l['kierunek'], 'class' => 'secondary', 'icon' => 'bi-arrow-right'];
           $side_label = ($l['kierunek'] === 'wychodzące') ? $l['odbiorca'] : $l['nadawca'];
       ?>
         <tr>
-          <td class="px-3"><?= letter_direction_badge($l['kierunek']) ?></td>
+          <td><?= letter_direction_badge($l['kierunek']) ?></td>
           <td><?= letter_type_badge($l['typ_pisma']) ?></td>
-          <td class="fw-semibold" style="max-width:240px">
+          <td class="fw-semibold">
             <span class="text-truncate d-block" title="<?= h($l['tytul']) ?>"><?= h($l['tytul']) ?></span>
           </td>
           <td class="text-muted small text-nowrap"><?= h($l['data_pisma']) ?></td>
@@ -289,22 +243,25 @@ if ($_is_volunteer_only) {
               <?= h($l['_contract_nr']) ?>
             </a>
           </td>
-          <td class="text-muted small" style="max-width:160px">
+          <td class="text-muted small">
             <?php if ($side_label): ?>
             <span class="text-truncate d-block" title="<?= h($side_label) ?>"><?= h($side_label) ?></span>
             <?php else: ?>&mdash;<?php endif; ?>
           </td>
-          <td class="text-end px-3">
+          <td>
             <div class="d-flex justify-content-end gap-1">
               <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $l['id'] ?>"
-                 class="btn btn-sm btn-outline-primary" title="Podgląd" target="_blank">
-                <i class="bi bi-eye"></i>
+                 class="tz-btn tz-btn--ghost tz-btn--sm"
+                 aria-label="Podgląd pisma: <?= h($l['tytul']) ?>"
+                 target="_blank">
+                <i class="bi bi-eye" aria-hidden="true"></i>
               </a>
               <?php if ($l['plik']): ?>
               <a href="<?= h(letter_file_url($l['plik'])) ?>"
-                 class="btn btn-sm btn-outline-secondary" title="Pobierz plik"
+                 class="tz-btn tz-btn--ghost tz-btn--sm"
+                 aria-label="Pobierz plik: <?= h($l['tytul']) ?>"
                  download target="_blank">
-                <i class="bi bi-paperclip"></i>
+                <i class="bi bi-paperclip" aria-hidden="true"></i>
               </a>
               <?php endif; ?>
             </div>
@@ -316,10 +273,10 @@ if ($_is_volunteer_only) {
   </div>
 </div>
 
-<?php endif; ?>
-<?php endif; ?>
+<?php endif; /* !$all_letters / volunteer / admin */ ?>
+<?php endif; /* !$contracts */ ?>
 
-<?php endif; /* $_is_volunteer_only */ ?>
+</div><!-- /pv-wrap -->
 
 <?php if ($_is_volunteer_only) {
     include __DIR__ . '/includes/footer_panel.php';
