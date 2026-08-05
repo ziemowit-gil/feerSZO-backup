@@ -654,6 +654,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm ezd-pdf-btn"
                title="Podgląd PDF"
                data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-eye"></i></a>
+            <?php if($can_act): ?>
+            <button type="button" class="btn btn-xs btn-sm ezd-rsign-btn flex-shrink-0"
+                    title="Podpisz rSign (kwalifikowany PAdES)"
+                    style="background:#6d28d9;border-color:#6d28d9;color:#fff"
+                    data-zal-id="<?= (int)$z['id'] ?>"
+                    data-zal-name="<?= h($z['original_name']) ?>">
+              <i class="bi bi-pen-fill me-1"></i>rSign
+            </button>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
             <button type="button" class="btn btn-xs btn-outline-primary btn-sm ezd-email-btn"
@@ -1249,6 +1258,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
+<?php include dirname(dirname(__DIR__)) . '/includes/ezd_rsign.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_email_modal.php'; ?>
 
 <!-- Modal: przenieś plik do grupy -->
