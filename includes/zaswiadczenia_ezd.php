@@ -148,9 +148,10 @@ function ezd_zas_render(string $szablon, array $dane, array $extra = []): string
 
 /**
  * Wydaje zaświadczenie: generuje numer, renderuje treść,
- * rejestruje pismo wychodzące w EZD (jeśli sprawa podana lub znaleziona).
+ * rejestruje pismo wychodzące w EZD w podanej koszulce.
+ * $sprawa_id_override pozwala podać koszulkę przy wydaniu (nadpisuje przypisaną).
  */
-function ezd_zas_wydaj(int $zas_id, int $user_id): array {
+function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null): array {
     $zas = ezd_zas_get($zas_id);
     if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
     if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
@@ -162,23 +163,8 @@ function ezd_zas_wydaj(int $zas_id, int $user_id): array {
         ['nr_zaswiadczenia' => $nr]
     );
 
-    $sprawa_id = $zas['sprawa_id'] ?: null;
+    $sprawa_id = $sprawa_id_override ?? ($zas['sprawa_id'] ?: null);
     $pismo_id  = null;
-
-    if (!$sprawa_id && $zas['jrwa_id']) {
-        $rok    = (int)date('Y');
-        $teczka = db_one(
-            "SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' LIMIT 1",
-            [$zas['jrwa_id'], $rok]
-        );
-        if ($teczka) {
-            $ciagla = db_one(
-                "SELECT id FROM ezd_sprawy WHERE teczka_id=? AND ciagla=1 AND status='open' LIMIT 1",
-                [$teczka['id']]
-            );
-            if ($ciagla) $sprawa_id = (int)$ciagla['id'];
-        }
-    }
 
     if ($sprawa_id) {
         try {

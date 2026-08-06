@@ -28,7 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['_action'] ?? '';
 
     if ($act === 'wydaj') {
-        $res = ezd_zas_wydaj($id, $user_id);
+        $sprawa_id_override = null;
+        $sprawa_input = trim($_POST['sprawa_picker'] ?? '');
+        if ($sprawa_input !== '') {
+            $found = db_one(
+                "SELECT id FROM ezd_sprawy WHERE znak_sprawy=? OR CAST(id AS TEXT)=? LIMIT 1",
+                [$sprawa_input, $sprawa_input]
+            );
+            if ($found) $sprawa_id_override = (int)$found['id'];
+        }
+        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override);
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
     if ($act === 'weryfikacja') {
@@ -40,19 +49,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_zas_odrzuc($id, $powod, $user_id);
         flash_set('success', 'Wniosek odrzucony.');
     }
-    if ($act === 'przypisz_sprawe') {
-        $sid = (int)($_POST['sprawa_id'] ?? 0);
-        if ($sid) {
-            db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET sprawa_id=?,updated_at=datetime('now') WHERE id=?")->execute([$sid, $id]);
-            flash_set('success', 'Koszulka EZD przypisana.');
-        }
-    }
     header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
 }
 
 $st     = $zas['status'];
 $issued = $st === 'wydane';
 $open   = in_array($st, ['wniosek', 'weryfikacja'], true);
+
+// Otwarte koszulki do datalist (ograniczone do JRWA typu jeśli podane)
+$open_sprawy = [];
+if ($can_mgr) {
+    $jrwa_cond = $zas['jrwa_id']
+        ? "AND t.jrwa_id=" . (int)$zas['jrwa_id']
+        : '';
+    $open_sprawy = db_all(
+        "SELECT s.id, s.znak_sprawy, s.title
+         FROM ezd_sprawy s
+         JOIN ezd_teczki t ON t.id=s.teczka_id
+         WHERE s.status='open' $jrwa_cond
+         ORDER BY s.id DESC LIMIT 200"
+    );
+}
 
 $PAGE_TITLE = 'Zaświadczenie — ' . ($zas['nr_zaswiadczenia'] ?: 'wniosek #' . $id);
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -157,6 +174,31 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="_action" value="wydaj">
+          <div class="mb-2">
+            <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
+              Koszulka EZD
+              <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1" title="Brak przypisanej koszulki"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
+            </label>
+            <?php if($zas['sprawa_id']): ?>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-success bg-opacity-15 text-success font-monospace"><?= h($zas['znak_sprawy']) ?></span>
+              <span class="text-muted" style="font-size:.72rem">przypisana</span>
+            </div>
+            <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm"
+                   placeholder="Inna koszulka (opcjonalnie)">
+            <?php else: ?>
+            <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm"
+                   placeholder="Wpisz znak koszulki…" autofocus>
+            <div class="text-muted mt-1" style="font-size:.71rem"><i class="bi bi-info-circle me-1"></i>Pismo zostanie wpisane do tej koszulki. Możesz wydać bez koszulki.</div>
+            <?php endif; ?>
+            <?php if($open_sprawy): ?>
+            <datalist id="sprawy-list">
+              <?php foreach($open_sprawy as $sp): ?>
+              <option value="<?= h($sp['znak_sprawy']) ?>"><?= h(mb_substr($sp['title'],0,60)) ?></option>
+              <?php endforeach; ?>
+            </datalist>
+            <?php endif; ?>
+          </div>
           <button class="btn btn-success w-100 btn-sm"><i class="bi bi-award-fill me-1"></i>Wydaj zaświadczenie</button>
         </form>
 
@@ -173,22 +215,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </form>
       </div>
     </div>
-
-    <!-- Przypisz koszulkę EZD -->
-    <?php if(!$zas['sprawa_id']): ?>
-    <div class="card shadow-sm mb-3">
-      <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-folder-symlink me-1 text-muted"></i>Przypisz koszulkę EZD</div>
-      <div class="card-body">
-        <form method="post" class="d-flex gap-2">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="przypisz_sprawe">
-          <input type="number" name="sprawa_id" class="form-control form-control-sm" placeholder="ID koszulki" min="1" style="width:120px">
-          <button class="btn btn-outline-primary btn-sm">Przypisz</button>
-        </form>
-        <div class="text-muted mt-1" style="font-size:.72rem">Podaj ID koszulki (z paska adresu).</div>
-      </div>
-    </div>
-    <?php endif; ?>
     <?php endif; ?>
 
     <!-- Podgląd szablonu (przed wydaniem) -->
