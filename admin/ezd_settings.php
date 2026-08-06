@@ -27,8 +27,32 @@ $settings_keys = [
     'ezd_rsign_data_field',
 ];
 
+$_logo_dir = dirname(__DIR__) . '/assets/logo';
+if (!is_dir($_logo_dir)) @mkdir($_logo_dir, 0755, true);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+
+    // Upload logo EZD
+    if (!empty($_FILES['ezd_logo']['tmp_name']) && $_FILES['ezd_logo']['error'] === UPLOAD_ERR_OK) {
+        $ext = strtolower(pathinfo($_FILES['ezd_logo']['name'], PATHINFO_EXTENSION));
+        if (in_array($ext, ['png','jpg','jpeg','svg','gif','webp'])) {
+            $old = org_setting('ezd_logo') ?: '';
+            if ($old && file_exists($_logo_dir . '/' . $old)) @unlink($_logo_dir . '/' . $old);
+            $fname = 'ezd_logo_' . time() . '.' . $ext;
+            if (move_uploaded_file($_FILES['ezd_logo']['tmp_name'], $_logo_dir . '/' . $fname)) {
+                db()->prepare("INSERT INTO settings (key_,value) VALUES ('ezd_logo',?)
+                    ON CONFLICT(key_) DO UPDATE SET value=excluded.value")->execute([$fname]);
+            }
+        }
+    }
+    if (isset($_POST['remove_ezd_logo'])) {
+        $old = org_setting('ezd_logo') ?: '';
+        if ($old && file_exists($_logo_dir . '/' . $old)) @unlink($_logo_dir . '/' . $old);
+        db()->prepare("INSERT INTO settings (key_,value) VALUES ('ezd_logo','')
+            ON CONFLICT(key_) DO UPDATE SET value=excluded.value")->execute([]);
+    }
+
     $values = [
         'ezd_enabled'           => isset($_POST['ezd_enabled'])           ? '1' : '0',
         'ezd_mini'              => isset($_POST['ezd_mini'])              ? '1' : '0',
@@ -80,7 +104,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="row g-4" style="max-width:920px">
   <div class="col-12">
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
       <div class="card shadow-sm mb-4">
@@ -210,6 +234,45 @@ include dirname(__DIR__) . '/includes/header.php';
         });
       });
       </script>
+
+      <!-- Logo EZD -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold"><i class="bi bi-image me-2 text-primary"></i>Logo dla dokumentów EZD</div>
+        <div class="card-body">
+          <p class="text-muted mb-3" style="font-size:.83rem">Logo używane w nagłówku PDF zaświadczeń i dokumentów EZD. Jeśli nie ustawione — używane jest logo ogólne organizacji.</p>
+          <?php
+            $_ezd_logo = org_setting('ezd_logo') ?: '';
+            $_org_logo  = org_setting('org_logo') ?: '';
+          ?>
+          <?php if ($_ezd_logo && file_exists($_logo_dir . '/' . $_ezd_logo)): ?>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="border rounded p-2 bg-white" style="min-width:100px;text-align:center">
+              <img src="<?= APP_URL ?>/assets/logo/<?= h($_ezd_logo) ?>" alt="Logo EZD" style="max-height:60px;max-width:180px">
+            </div>
+            <div>
+              <div class="text-muted mb-1" style="font-size:.78rem"><?= h($_ezd_logo) ?></div>
+              <button type="submit" name="remove_ezd_logo" value="1" class="btn btn-outline-danger btn-sm"
+                      onclick="return confirm('Usunąć logo EZD?')">
+                <i class="bi bi-trash3 me-1"></i>Usuń logo EZD
+              </button>
+            </div>
+          </div>
+          <?php elseif ($_org_logo && file_exists($_logo_dir . '/' . $_org_logo)): ?>
+          <div class="d-flex align-items-center gap-2 mb-3 text-muted" style="font-size:.82rem">
+            <img src="<?= APP_URL ?>/assets/logo/<?= h($_org_logo) ?>" alt="Logo org" style="max-height:36px;max-width:120px;opacity:.5">
+            <span>Używane logo ogólne organizacji (brak dedykowanego logo EZD)</span>
+          </div>
+          <?php endif; ?>
+          <div>
+            <label class="form-label fw-semibold mb-1" style="font-size:.83rem" for="ezd_logo_input">
+              <?= $_ezd_logo ? 'Zastąp logo EZD' : 'Wgraj logo EZD' ?>
+            </label>
+            <input type="file" name="ezd_logo" id="ezd_logo_input" class="form-control form-control-sm"
+                   accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp" style="max-width:360px">
+            <div class="form-text">PNG, SVG, JPG — zalecany PNG z przezroczystym tłem, min. 200×60 px.</div>
+          </div>
+        </div>
+      </div>
 
       <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz ustawienia</button>
     </form>

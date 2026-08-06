@@ -107,6 +107,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <th>Numer</th>
             <th>Typ</th>
             <th>Wnioskodawca</th>
+            <th>Koszulka EZD</th>
             <th class="text-nowrap">Złożono</th>
             <th>Status</th>
             <th style="width:60px"></th>
@@ -119,6 +120,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <td class="font-monospace fw-semibold"><?= $r['nr_zaswiadczenia'] ? h($r['nr_zaswiadczenia']) : '<span class="text-muted">—</span>' ?></td>
             <td><?= h($r['typ_nazwa']) ?></td>
             <td><?= h($r['wnioskodawca_name'] ?: '—') ?></td>
+            <td class="text-nowrap">
+              <?php if (!empty($r['znak_sprawy']) && $r['sprawa_id']): ?>
+              <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$r['sprawa_id'] ?>" class="font-monospace text-decoration-none" title="Przejdź do koszulki"><?= h($r['znak_sprawy']) ?></a>
+              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+            </td>
             <td class="text-nowrap"><?= date_pl(substr($r['created_at'],0,10)) ?></td>
             <td><?= ezd_zas_status_badge($r['status']) ?></td>
             <td class="text-end">
@@ -127,7 +133,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </tr>
         <?php endforeach; ?>
         <?php if(!$rows_new): ?>
-          <tr><td colspan="7" class="text-center text-muted py-5">
+          <tr><td colspan="8" class="text-center text-muted py-5">
             <i class="bi bi-award" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
             Brak zaświadczeń<?= ($q_new||$filter_status||$filter_typ)?' dla wybranych filtrów':'' ?>.
             <?php if(!$q_new && !$filter_status && !$filter_typ): ?>

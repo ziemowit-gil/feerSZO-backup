@@ -173,7 +173,11 @@ function ezd_zas_render(string $szablon, array $dane, array $extra = []): string
 /** Generuje HTML dokumentu zaświadczenia do wydruku/PDF. */
 function ezd_zas_pdf_html(array $zas): string {
     $org  = function_exists('org_setting') ? (org_setting('org_name') ?: '') : (defined('ORG_NAME') ? ORG_NAME : '');
-    $logo = function_exists('org_setting') ? (org_setting('org_logo_path') ?: '') : '';
+    // ezd_logo ma priorytet; fallback na org_logo; ścieżka = assets/logo/{fname}
+    $_lf  = function_exists('org_setting')
+        ? (org_setting('ezd_logo') ?: org_setting('org_logo') ?: '')
+        : '';
+    $logo = $_lf ? dirname(__DIR__) . '/assets/logo/' . $_lf : '';
     $nr   = h($zas['nr_zaswiadczenia'] ?? '');
     $data_wyd = $zas['zatwierdzone_at']
         ? date('d.m.Y', strtotime((string)$zas['zatwierdzone_at']))
@@ -254,7 +258,8 @@ function ezd_zas_pdf_html(array $zas): string {
 </table>
 
 <p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 4pt">ZAŚWIADCZENIE</p>
-<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:20pt">Nr ' . $nr . '</p>
+<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:' . ($zas['znak_sprawy'] ? '4pt' : '20pt') . '">Nr ' . $nr . '</p>
+' . ($zas['znak_sprawy'] ? '<p style="font-size:8pt;text-align:right;color:#888;margin-bottom:16pt">Sprawa: ' . h($zas['znak_sprawy']) . '</p>' : '') . '
 
 <div class="body">' . $body . '</div>
 
