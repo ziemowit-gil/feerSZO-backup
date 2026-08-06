@@ -227,15 +227,6 @@ function ezd_zas_pdf_html(array $zas): string {
         $right_cell = implode('<br>', $lines);
     }
 
-    $header_inner = '
-<table style="width:100%;border-collapse:collapse;border:none">
-  <tr>
-    <td style="width:38%;vertical-align:middle;border:none">' . $logo_html . '</td>
-    <td style="text-align:right;vertical-align:middle;border:none;font-size:9.5pt;line-height:1.5">'
-        . $right_cell . '</td>
-  </tr>
-</table>';
-
     // Podpisujący: z pola typu lub fallback na org + datę
     $podpisujacy = trim($zas['podpisujacy'] ?? '');
     $sig_inner   = $podpisujacy !== ''
@@ -255,13 +246,12 @@ function ezd_zas_pdf_html(array $zas): string {
 </head>
 <body>
 
-<table style="width:100%;border-collapse:collapse;margin-bottom:8pt">
+<table style="width:100%;border-collapse:collapse;margin-bottom:18pt">
   <tr>
-    <td style="width:38%;vertical-align:middle;border:0">' . $logo_html . '</td>
+    <td style="width:50%;vertical-align:middle;border:0">' . $logo_html . '</td>
     <td style="text-align:right;vertical-align:middle;border:0;font-size:9.5pt;line-height:1.5">' . $right_cell . '</td>
   </tr>
 </table>
-<hr style="color:#1e3a5f;background-color:#1e3a5f;height:2pt;border:0;margin-bottom:16pt">
 
 <p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 4pt">ZAŚWIADCZENIE</p>
 <p style="font-size:10pt;text-align:center;color:#555;margin-bottom:20pt">Nr ' . $nr . '</p>
@@ -275,7 +265,6 @@ function ezd_zas_pdf_html(array $zas): string {
   </tr>
 </table>
 
-<div class="footer">Nr ' . $nr . ' &bull; ' . $data_wyd . ' &bull; ' . h($org) . '</div>
 </body>
 </html>';
 }
@@ -284,17 +273,18 @@ function ezd_zas_pdf_html(array $zas): string {
  * Wydaje zaświadczenie: generuje numer per typ, renderuje treść,
  * rejestruje pismo wychodzące w EZD w podanej koszulce.
  */
-function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null): array {
+function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null, string $tresc_override = ''): array {
     $zas = ezd_zas_get($zas_id);
     if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
     if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
 
-    $nr    = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
-    $tresc = ezd_zas_render(
-        $zas['szablon_tresc'],
-        $zas['dane'],
-        ['nr_zaswiadczenia' => $nr]
-    );
+    $nr = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
+    if ($tresc_override !== '') {
+        // Edytowana treść z widoku — podstaw tylko numer (placeholder [NUMER])
+        $tresc = str_replace('[NUMER]', htmlspecialchars($nr, ENT_QUOTES, 'UTF-8'), $tresc_override);
+    } else {
+        $tresc = ezd_zas_render($zas['szablon_tresc'], $zas['dane'], ['nr_zaswiadczenia' => $nr]);
+    }
 
     $sprawa_id = $sprawa_id_override ?? ($zas['sprawa_id'] ?: null);
     $pismo_id  = null;

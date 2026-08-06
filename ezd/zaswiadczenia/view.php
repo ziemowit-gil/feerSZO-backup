@@ -37,7 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             if ($found) $sprawa_id_override = (int)$found['id'];
         }
-        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override);
+        $tresc_override = trim($_POST['tresc_override'] ?? '');
+        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, $tresc_override);
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
 
@@ -238,9 +239,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="tab-content">
           <!-- Z szablonu -->
           <div class="tab-pane show active" id="wp-szablon">
-            <form method="post">
+            <form method="post" id="form-wydaj-szablon">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="wydaj">
+              <?php if($zas['szablon_tresc']): ?>
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">Treść zaświadczenia (możesz edytować)</label>
+                <textarea name="tresc_override" id="tresc-override-editor" class="form-control form-control-sm" rows="6"><?= h(ezd_zas_render($zas['szablon_tresc'], $zas['dane'], ['nr_zaswiadczenia' => '[NUMER]'])) ?></textarea>
+              </div>
+              <?php endif; ?>
               <div class="mb-2">
                 <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
                   Koszulka EZD
@@ -339,5 +346,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 </div>
+
+<?php if($can_mgr && $open && $zas['szablon_tresc']): ?>
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+  selector: '#tresc-override-editor',
+  license_key: 'gpl',
+  menubar: false,
+  branding: false,
+  promotion: false,
+  toolbar: false,
+  statusbar: false,
+  entity_encoding: 'raw',
+  height: 220,
+  content_style: 'body { font-family: system-ui, sans-serif; font-size: 13px; line-height: 1.55; padding: 4px 8px; }',
+});
+document.getElementById('form-wydaj-szablon').addEventListener('submit', function() {
+  if (typeof tinymce !== 'undefined') tinymce.triggerSave();
+});
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
