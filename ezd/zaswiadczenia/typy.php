@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $edit_id   = (int)($_GET['edit'] ?? 0);
 $edit      = $edit_id ? ezd_zas_typ_get($edit_id) : null;
 $typy      = ezd_zas_typy_all();
-$jrwa_list = db_all("SELECT id,symbol,title FROM ezd_jrwa WHERE is_active=1 ORDER BY symbol");
+$jrwa_list = db_all("SELECT id,symbol,title FROM ezd_jrwa ORDER BY sort_order,symbol");
 $PAGE_TITLE = 'Typy zaświadczeń';
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
