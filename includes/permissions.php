@@ -139,10 +139,11 @@ function _permissions_init(): void {
         foreach ($modules as $mod) {
             $ins->execute([$admin_id, $mod, 1, 1, 1]);
             if ($mod !== 'admin') {
-                $ins->execute([$editor_id, $mod, 1, 1, 0]);
-                // EZD: viewer nie ma domyślnego dostępu — trzeba mu przyznać rolę
-                // ezd_user albo indywidualne uprawnienie (moduł wrażliwy, inaczej
-                // niż resztę modułów z domyślnym odczytem dla viewer).
+                // EZD: dostęp tylko per-konto (user_permissions) albo rola ezd_user;
+                // editor i viewer nie dostają EZD przez rolę.
+                if ($mod !== 'ezd') {
+                    $ins->execute([$editor_id, $mod, 1, 1, 0]);
+                }
                 $ins->execute([$viewer_id, $mod, $mod === 'ezd' ? 0 : 1, 0, 0]);
             }
         }
@@ -161,6 +162,13 @@ function _permissions_init(): void {
         $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
             ->execute([$ezd_id, 'ezd', 1, 1, 0]);
     }
+
+    // EZD: wymuś brak dostępu przez rolę dla editor i viewer (dostęp tylko per-konto lub rola ezd_user)
+    try {
+        $pdo->exec("UPDATE role_permissions SET can_read=0, can_write=0, can_delete=0
+                    WHERE module='ezd'
+                    AND role_id IN (SELECT id FROM roles WHERE name IN ('editor','viewer'))");
+    } catch (\Throwable $e) {}
 
     // Idempotentnie dodaj rolę crm_user jeśli nie istnieje (dla istniejących baz)
     $crm_user_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='crm_user'")->fetchColumn();
