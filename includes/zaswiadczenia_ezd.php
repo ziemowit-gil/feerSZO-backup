@@ -28,10 +28,16 @@
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN nr_prefix TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN naglowek_html TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN podpisujacy TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN waznosc_dni INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN qr_enabled INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Plik własny (wydany z uploadu, nie z szablonu)
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_path TEXT"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_mime TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN wazne_do TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN verify_code TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN qr_on_pdf INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_zas_verify_code ON ezd_zaswiadczenia_wlasne(verify_code) WHERE verify_code IS NOT NULL"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +83,9 @@ function ezd_zas_typ_get(int $id): ?array {
     $r = db_one(
         "SELECT zt.*, j.symbol AS jrwa_symbol,
                 COALESCE(zt.naglowek_html,'') AS naglowek_html,
-                COALESCE(zt.podpisujacy,'') AS podpisujacy
+                COALESCE(zt.podpisujacy,'') AS podpisujacy,
+                COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
+                COALESCE(zt.qr_enabled,0) AS qr_enabled
          FROM ezd_zas_typy zt
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id WHERE zt.id=?",
         [$id]
@@ -113,6 +121,8 @@ function ezd_zas_get(int $id): ?array {
                 zt.wymaga_akceptacji, zt.jrwa_id, zt.nr_prefix,
                 COALESCE(zt.naglowek_html,'') AS naglowek_html,
                 COALESCE(zt.podpisujacy,'') AS podpisujacy,
+                COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
+                COALESCE(zt.qr_enabled,0) AS qr_enabled,
                 j.symbol AS jrwa_symbol,
                 u.name AS created_by_name, z.name AS zatw_name,
                 sp.znak_sprawy, p.sygnatura AS pismo_syg
@@ -170,21 +180,26 @@ function ezd_zas_render(string $szablon, array $dane, array $extra = []): string
     }, $szablon);
 }
 
-/** Generuje HTML dokumentu zaświadczenia do wydruku/PDF. */
-function ezd_zas_pdf_html(array $zas): string {
+/**
+ * Generuje HTML dokumentu zaświadczenia do wydruku/PDF.
+ * @param bool $preview Tryb podglądu — numer zastąpiony placeholderem, watermark PROJEKT
+ */
+function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
     $org  = function_exists('org_setting') ? (org_setting('org_name') ?: '') : (defined('ORG_NAME') ? ORG_NAME : '');
-    // ezd_logo ma priorytet; fallback na org_logo; ścieżka = assets/logo/{fname}
     $_lf  = function_exists('org_setting')
         ? (org_setting('ezd_logo') ?: org_setting('org_logo') ?: '')
         : '';
     $logo = $_lf ? dirname(__DIR__) . '/assets/logo/' . $_lf : '';
-    $nr   = h($zas['nr_zaswiadczenia'] ?? '');
+    $nr   = $preview ? '[PODGLĄD]' : h($zas['nr_zaswiadczenia'] ?? '');
     $data_wyd = $zas['zatwierdzone_at']
         ? date('d.m.Y', strtotime((string)$zas['zatwierdzone_at']))
         : date('d.m.Y');
 
-    // Treść: obsługa HTML (TinyMCE) i legacy plain-text
+    // Treść: w podglądzie renderuj szablon z placeholderem
     $raw_body  = $zas['tresc_html'] ?: '';
+    if ($preview && $raw_body === '') {
+        $raw_body = ezd_zas_render($zas['szablon_tresc'] ?? '', $zas['dane'] ?? [], ['nr_zaswiadczenia' => '[NUMER]']);
+    }
     $_trimmed  = ltrim($raw_body);
     $body      = ($_trimmed !== '' && $_trimmed[0] === '<')
                     ? $raw_body
@@ -237,18 +252,46 @@ function ezd_zas_pdf_html(array $zas): string {
         ? nl2br(h($podpisujacy))
         : h($org) . '<br><span style="color:#555;font-size:9pt">' . $data_wyd . '</span>';
 
+    // Data ważności
+    $wazne_do_html = '';
+    if (!empty($zas['wazne_do'])) {
+        $wdt = strtotime($zas['wazne_do']);
+        $wdt_fmt = $wdt ? date('d.m.Y', $wdt) : h($zas['wazne_do']);
+        $expired = $wdt && $wdt < time();
+        $wazne_do_html = '<p style="font-size:8pt;text-align:right;color:' . ($expired ? '#c00' : '#666') . ';margin-bottom:4pt">'
+            . ($expired ? '⚠ Ważne było do: ' : 'Ważne do: ') . $wdt_fmt . '</p>';
+    }
+
+    // QR kod weryfikacyjny
+    $qr_html = '';
+    if (!$preview && !empty($zas['qr_on_pdf']) && !empty($zas['verify_code'])) {
+        try {
+            $verify_url = (defined('APP_URL') ? APP_URL : '') . '/ezd/zaswiadczenia/verify.php?code=' . rawurlencode($zas['verify_code']);
+            $qr  = new \Mpdf\QrCode\QrCode($verify_url, 'M');
+            $png = (new \Mpdf\QrCode\Output\Png())->output($qr, 72);
+            $qr_img = 'data:image/png;base64,' . base64_encode($png);
+            $qr_html = '<img src="' . $qr_img . '" style="width:72px;height:72px" alt="QR">'
+                     . '<br><span style="font-size:7pt;color:#888">Weryfikacja online</span>';
+        } catch (\Throwable $e) {}
+    }
+
+    $watermark = $preview
+        ? '<p style="text-align:center;color:#ccc;font-size:28pt;font-weight:bold;margin:4pt 0 10pt;letter-spacing:8pt">PROJEKT</p>'
+        : '';
+
     return '<!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <style>
-  body   { font-family: ubuntu, "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.65; color: #111; margin: 0; }
-  p      { margin: 0; padding: 0; }
-  .body  { text-align: justify; }
-  .footer{ margin-top: 24pt; font-size: 8pt; color: #999; border-top: 1px solid #ddd; padding-top: 5pt; }
+  body { font-family: ubuntu, "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.65; color: #111; margin: 0; }
+  p    { margin: 0; padding: 0; }
+  .body{ text-align: justify; }
 </style>
 </head>
 <body>
+
+' . $watermark . '
 
 <table style="width:100%;border-collapse:collapse;margin-bottom:18pt">
   <tr>
@@ -258,14 +301,15 @@ function ezd_zas_pdf_html(array $zas): string {
 </table>
 
 <p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 4pt">ZAŚWIADCZENIE</p>
-<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:' . ($zas['znak_sprawy'] ? '4pt' : '20pt') . '">Nr ' . $nr . '</p>
-' . ($zas['znak_sprawy'] ? '<p style="font-size:8pt;text-align:right;color:#888;margin-bottom:16pt">Sprawa: ' . h($zas['znak_sprawy']) . '</p>' : '') . '
+<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:' . ($zas['znak_sprawy'] ? '4pt' : ($wazne_do_html ? '4pt' : '20pt')) . '">Nr ' . $nr . '</p>
+' . ($zas['znak_sprawy'] ? '<p style="font-size:8pt;text-align:right;color:#888;margin-bottom:' . ($wazne_do_html ? '2pt' : '16pt') . '">Sprawa: ' . h($zas['znak_sprawy']) . '</p>' : '') . '
+' . $wazne_do_html . '
 
 <div class="body">' . $body . '</div>
 
 <table style="width:100%;border-collapse:collapse;margin-top:55pt">
   <tr>
-    <td style="width:48%;border:0"></td>
+    <td style="width:48%;vertical-align:bottom;border:0;padding-bottom:4pt;font-size:8pt;color:#aaa">' . $qr_html . '</td>
     <td style="border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
   </tr>
 </table>
@@ -278,17 +322,31 @@ function ezd_zas_pdf_html(array $zas): string {
  * Wydaje zaświadczenie: generuje numer per typ, renderuje treść,
  * rejestruje pismo wychodzące w EZD w podanej koszulce.
  */
-function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null, string $tresc_override = ''): array {
+function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null, string $tresc_override = '', bool $include_qr = false): array {
     $zas = ezd_zas_get($zas_id);
     if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
     if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
 
     $nr = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
     if ($tresc_override !== '') {
-        // Edytowana treść z widoku — podstaw tylko numer (placeholder [NUMER])
         $tresc = str_replace('[NUMER]', htmlspecialchars($nr, ENT_QUOTES, 'UTF-8'), $tresc_override);
     } else {
         $tresc = ezd_zas_render($zas['szablon_tresc'], $zas['dane'], ['nr_zaswiadczenia' => $nr]);
+    }
+
+    // Data ważności
+    $wazne_do = null;
+    $waznosc_dni = (int)($zas['waznosc_dni'] ?? 0);
+    if ($waznosc_dni > 0) {
+        $wazne_do = date('Y-m-d', strtotime("+{$waznosc_dni} days"));
+    }
+
+    // Kod QR weryfikacyjny
+    $verify_code = null;
+    $qr_on_pdf   = 0;
+    if ($include_qr) {
+        $verify_code = bin2hex(random_bytes(16));
+        $qr_on_pdf   = 1;
     }
 
     $sprawa_id = $sprawa_id_override ?? ($zas['sprawa_id'] ?: null);
@@ -307,16 +365,17 @@ function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = nul
                 'status'        => 'wyslane',
                 'rodzaj_medium' => 'inne',
             ], $user_id);
-        } catch (\Throwable $e) { /* pismo opcjonalne */ }
+        } catch (\Throwable $e) {}
     }
 
     db()->prepare(
         "UPDATE ezd_zaswiadczenia_wlasne
-         SET nr_zaswiadczenia=?, tresc_html=?, status='wydane',
+         SET nr_zaswiadczenia=?, tresc_html=?, status='wydane', wazne_do=?,
+             verify_code=?, qr_on_pdf=?,
              zatwierdzone_przez=?, zatwierdzone_at=datetime('now'),
              sprawa_id=?, pismo_id=?, updated_at=datetime('now')
          WHERE id=?"
-    )->execute([$nr, $tresc, $user_id, $sprawa_id, $pismo_id, $zas_id]);
+    )->execute([$nr, $tresc, $wazne_do, $verify_code, $qr_on_pdf, $user_id, $sprawa_id, $pismo_id, $zas_id]);
 
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
@@ -333,6 +392,12 @@ function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string
     $nr        = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
     $sprawa_id = $sprawa_id_override ?? ($zas['sprawa_id'] ?: null);
     $pismo_id  = null;
+
+    $wazne_do    = null;
+    $waznosc_dni = (int)($zas['waznosc_dni'] ?? 0);
+    if ($waznosc_dni > 0) {
+        $wazne_do = date('Y-m-d', strtotime("+{$waznosc_dni} days"));
+    }
 
     if ($sprawa_id) {
         try {
@@ -352,11 +417,11 @@ function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string
 
     db()->prepare(
         "UPDATE ezd_zaswiadczenia_wlasne
-         SET nr_zaswiadczenia=?, status='wydane', plik_path=?, plik_mime=?,
+         SET nr_zaswiadczenia=?, status='wydane', plik_path=?, plik_mime=?, wazne_do=?,
              zatwierdzone_przez=?, zatwierdzone_at=datetime('now'),
              sprawa_id=?, pismo_id=?, updated_at=datetime('now')
          WHERE id=?"
-    )->execute([$nr, $plik_path, $plik_mime, $user_id, $sprawa_id, $pismo_id, $zas_id]);
+    )->execute([$nr, $plik_path, $plik_mime, $wazne_do, $user_id, $sprawa_id, $pismo_id, $zas_id]);
 
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
@@ -373,4 +438,31 @@ function ezd_zas_odrzuc(int $zas_id, string $powod, int $user_id): void {
 /** Usuwa wniosek (tylko admin/manager). Nie usuwa powiązanego pisma EZD. */
 function ezd_zas_delete(int $zas_id): void {
     db()->prepare("DELETE FROM ezd_zaswiadczenia_wlasne WHERE id=?")->execute([$zas_id]);
+}
+
+/** Zaświadczenia złożone przez danego użytkownika (dla panelu wolontariusza). */
+function ezd_zas_my_all(int $user_id): array {
+    return db_all(
+        "SELECT w.id, w.nr_zaswiadczenia, w.status, w.wazne_do, w.created_at,
+                w.plik_path, w.verify_code,
+                zt.nazwa AS typ_nazwa, zt.opis AS typ_opis
+         FROM ezd_zaswiadczenia_wlasne w
+         JOIN ezd_zas_typy zt ON zt.id = w.typ_id
+         WHERE w.created_by = ?
+         ORDER BY w.created_at DESC",
+        [$user_id]
+    );
+}
+
+/** Publiczna weryfikacja zaświadczenia po kodzie — zwraca dane lub null. */
+function ezd_zas_by_verify_code(string $code): ?array {
+    if (strlen($code) < 8) return null;
+    return db_one(
+        "SELECT w.nr_zaswiadczenia, w.wnioskodawca_name, w.status, w.wazne_do,
+                w.zatwierdzone_at, zt.nazwa AS typ_nazwa
+         FROM ezd_zaswiadczenia_wlasne w
+         JOIN ezd_zas_typy zt ON zt.id=w.typ_id
+         WHERE w.verify_code=? AND w.status='wydane'",
+        [$code]
+    );
 }

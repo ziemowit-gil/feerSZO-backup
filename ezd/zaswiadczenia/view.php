@@ -38,7 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($found) $sprawa_id_override = (int)$found['id'];
         }
         $tresc_override = trim($_POST['tresc_override'] ?? '');
-        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, $tresc_override);
+        $include_qr = isset($_POST['include_qr']) ? true : false;
+        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, $tresc_override, $include_qr);
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
 
@@ -159,9 +160,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <dt class="col-sm-3 text-muted fw-normal"><?= $issued?'Wydano':'Weryfikacja' ?></dt>
           <dd class="col-sm-9"><?= date_pl(substr($zas['zatwierdzone_at'],0,10)) ?> <span class="text-muted">(<?= h($zas['zatw_name'] ?? '—') ?>)</span></dd>
           <?php endif; ?>
+          <?php if(!empty($zas['wazne_do'])): ?>
+          <?php $wdt=strtotime($zas['wazne_do']); $expired=$wdt&&$wdt<time(); ?>
+          <dt class="col-sm-3 text-muted fw-normal">Ważne do</dt>
+          <dd class="col-sm-9 <?= $expired?'text-danger fw-semibold':'' ?>">
+            <?= function_exists('date_pl') ? date_pl($zas['wazne_do']) : date('d.m.Y',$wdt) ?>
+            <?= $expired ? '<span class="badge bg-danger ms-1" style="font-size:.65rem">WYGASŁE</span>' : '' ?>
+          </dd>
+          <?php endif; ?>
           <?php if($zas['odrzucone_powod']): ?>
           <dt class="col-sm-3 text-muted fw-normal">Powód odrzucenia</dt>
           <dd class="col-sm-9 text-danger"><?= h($zas['odrzucone_powod']) ?></dd>
+          <?php endif; ?>
+          <?php if(!empty($zas['verify_code']) && $issued): ?>
+          <dt class="col-sm-3 text-muted fw-normal">Kod QR</dt>
+          <dd class="col-sm-9">
+            <a href="<?= APP_URL ?>/ezd/zaswiadczenia/verify.php?code=<?= rawurlencode($zas['verify_code']) ?>" target="_blank" class="text-decoration-none">
+              <i class="bi bi-qr-code me-1"></i>Link weryfikacyjny
+            </a>
+          </dd>
           <?php endif; ?>
           <?php if($zas['znak_sprawy']): ?>
           <dt class="col-sm-3 text-muted fw-normal">Koszulka EZD</dt>
@@ -264,7 +281,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <div class="text-muted mt-1" style="font-size:.71rem"><i class="bi bi-info-circle me-1"></i>Możesz wydać bez koszulki.</div>
                 <?php endif; ?>
               </div>
-              <button class="btn btn-success w-100 btn-sm"><i class="bi bi-award-fill me-1"></i>Wydaj zaświadczenie</button>
+              <?php if($zas['qr_enabled']): ?>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="include_qr" value="1" id="chk-qr-szablon" checked>
+                <label class="form-check-label" for="chk-qr-szablon" style="font-size:.8rem"><i class="bi bi-qr-code me-1"></i>Dodaj kod QR weryfikacyjny do PDF</label>
+              </div>
+              <?php endif; ?>
+              <div class="d-flex gap-2">
+                <a href="<?= APP_URL ?>/ezd/zaswiadczenia/preview.php?id=<?= $id ?>" target="_blank"
+                   class="btn btn-outline-secondary btn-sm flex-grow-1" id="btn-preview-pdf">
+                  <i class="bi bi-eye me-1"></i>Podgląd PDF
+                </a>
+                <button class="btn btn-success btn-sm flex-grow-1"><i class="bi bi-award-fill me-1"></i>Wydaj</button>
+              </div>
             </form>
           </div>
 

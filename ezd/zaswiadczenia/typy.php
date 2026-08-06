@@ -30,14 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pola_raw  = $_POST['szablon_pola'] ?? '[]';
             $pola_data = json_decode($pola_raw, true);
             $pola_json = json_encode($pola_data ?: [], JSON_UNESCAPED_UNICODE);
-            $jrwa_id   = ($_POST['jrwa_id'] ?? '') !== '' ? (int)$_POST['jrwa_id'] : null;
-            $eid       = (int)($_POST['typ_id'] ?? 0);
+            $jrwa_id     = ($_POST['jrwa_id'] ?? '') !== '' ? (int)$_POST['jrwa_id'] : null;
+            $eid         = (int)($_POST['typ_id'] ?? 0);
             $naglowek    = trim($_POST['naglowek_html'] ?? '');
             $podpisujacy = trim($_POST['podpisujacy'] ?? '');
+            $waznosc_dni = max(0, (int)($_POST['waznosc_dni'] ?? 0));
+            $qr_enabled  = isset($_POST['qr_enabled']) ? 1 : 0;
             if ($eid) {
                 db()->prepare(
                     "UPDATE ezd_zas_typy SET kod=?,nazwa=?,opis=?,szablon_tresc=?,szablon_pola=?,
-                     wymaga_akceptacji=?,jrwa_id=?,is_active=?,nr_prefix=?,naglowek_html=?,podpisujacy=? WHERE id=?"
+                     wymaga_akceptacji=?,jrwa_id=?,is_active=?,nr_prefix=?,naglowek_html=?,podpisujacy=?,
+                     waznosc_dni=?,qr_enabled=? WHERE id=?"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -48,13 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $nr_prefix,
                     $naglowek,
                     $podpisujacy,
+                    $waznosc_dni,
+                    $qr_enabled,
                     $eid,
                 ]);
                 flash_set('success', 'Typ zaktualizowany.');
             } else {
                 db()->prepare(
                     "INSERT INTO ezd_zas_typy (kod,nazwa,opis,szablon_tresc,szablon_pola,
-                     wymaga_akceptacji,jrwa_id,is_active,nr_prefix,naglowek_html,podpisujacy,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+                     wymaga_akceptacji,jrwa_id,is_active,nr_prefix,naglowek_html,podpisujacy,
+                     waznosc_dni,qr_enabled,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -65,6 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $nr_prefix,
                     $naglowek,
                     $podpisujacy,
+                    $waznosc_dni,
+                    $qr_enabled,
                     $user_id,
                 ]);
                 flash_set('success', 'Typ zaświadczenia dodany.');
@@ -228,6 +236,29 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <input class="form-check-input" type="checkbox" name="is_active" value="1" id="chk-active"
                        <?= ($edit['is_active']??1)?'checked':'' ?>>
                 <label class="form-check-label" for="chk-active" style="font-size:.82rem">Aktywny</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data ważności i QR -->
+          <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Ważność (dni od wydania)</label>
+              <div class="input-group input-group-sm">
+                <input type="number" name="waznosc_dni" class="form-control" min="0" max="3650"
+                       value="<?= (int)($edit['waznosc_dni'] ?? 0) ?>" placeholder="0 = bezterminowe">
+                <span class="input-group-text">dni</span>
+              </div>
+              <div class="form-text" style="font-size:.72rem">0 = bezterminowe</div>
+            </div>
+            <div class="col-sm-4 d-flex align-items-center">
+              <div>
+                <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Kod QR weryfikacyjny</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="qr_enabled" value="1" id="chk-qr"
+                         <?= ($edit['qr_enabled']??0)?'checked':'' ?>>
+                  <label class="form-check-label" for="chk-qr" style="font-size:.82rem">Włącz QR (domyślnie zaznaczony przy wydaniu)</label>
+                </div>
               </div>
             </div>
           </div>

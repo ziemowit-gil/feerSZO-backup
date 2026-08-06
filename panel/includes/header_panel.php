@@ -349,6 +349,11 @@ try {
     <i class="bi bi-award" aria-hidden="true"></i>Zaświadczenia
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('ezd_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/zaswiadczenia.php" class="pv-nav-link<?= _pv_nav_active('/panel/zaswiadczenia') ?>">
+    <i class="bi bi-award-fill" aria-hidden="true"></i>Zaświadczenia EZD
+  </a>
+  <?php endif; ?>
   <?php if (module_enabled('moodle_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/moodle.php" class="pv-nav-link<?= _pv_nav_active('/panel/moodle') ?>">
     <i class="bi bi-mortarboard" aria-hidden="true"></i>Kursy Moodle
