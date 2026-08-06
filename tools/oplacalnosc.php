@@ -292,14 +292,14 @@ include dirname(__DIR__) . '/includes/header.php';
    ═══════════════════════════════════════════════════════════════════════════ */
 function _opl_render_result(array $r): string {
     [$status_cls, $status_icon] = match($r['status']) {
-        'OPŁACALNE'      => ['success', '✓'],
-        'DO NEGOCJACJI'  => ['warning', '~'],
-        default          => ['danger',  '✗'],
+        'OPŁACALNE'     => ['success', '✓'],
+        'DO NEGOCJACJI' => ['warning', '~'],
+        default         => ['danger',  '✗'],
     };
 
     $tryb_label = $r['tryb'] === 'wyjazdowy' ? 'Wyjazdowy' : 'Online';
+    $w          = $r['worker'];  // perspektywa pracownika
 
-    $breakdown_rows = '';
     $breakdown_labels = [
         'baza'      => 'Koszt bazowy wyjazdu',
         'dojazd'    => 'Wycena czasu dojazdu',
@@ -307,16 +307,19 @@ function _opl_render_result(array $r): string {
         'praca'     => 'Czas pracy (robocizna)',
         'platforma' => 'Opłata za platformę',
     ];
+    $breakdown_rows = '';
     foreach ($r['breakdown'] as $key => $val) {
         if ($val == 0 && $key !== 'bilety') continue;
         $lbl = $breakdown_labels[$key] ?? $key;
-        $breakdown_rows .= '<tr><td class="text-muted ps-4 small">'
-            . '↳ ' . htmlspecialchars($lbl) . '</td>'
+        $breakdown_rows .= '<tr><td class="text-muted ps-4 small">↳ ' . htmlspecialchars($lbl) . '</td>'
             . '<td class="text-end small">' . money($val) . '</td></tr>';
     }
 
-    $roi_bar_pct = max(0, min(100, abs($r['roi'])));
-    $roi_bar_cls = $status_cls === 'success' ? 'bg-success' : ($status_cls === 'warning' ? 'bg-warning' : 'bg-danger');
+    // Paski ROI: fundacja i pracownik
+    $roi_org_pct    = max(0, min(100, abs($r['roi_org'])));
+    $roi_org_cls    = $status_cls === 'success' ? 'bg-success' : ($status_cls === 'warning' ? 'bg-warning' : 'bg-danger');
+    $roi_w_pct      = max(0, min(100, $r['roi_worker']));
+    $roi_w_cls      = $r['roi_worker'] >= 70 ? 'bg-success' : ($r['roi_worker'] >= 50 ? 'bg-warning' : 'bg-danger');
 
     ob_start(); ?>
     <div class="card shadow-sm" id="oplResultCard">
@@ -330,10 +333,9 @@ function _opl_render_result(array $r): string {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
                  viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2
-                       0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4
-                       a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5
-                       a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2
+                       0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4
+                       a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
             </svg>
           </button>
         </div>
@@ -341,7 +343,7 @@ function _opl_render_result(array $r): string {
 
       <div class="card-body">
         <!-- Meta -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-3">
           <div class="col-6">
             <div class="subheader mb-1">Tryb realizacji</div>
             <div class="fw-bold"><?= htmlspecialchars($tryb_label) ?></div>
@@ -353,103 +355,146 @@ function _opl_render_result(array $r): string {
           </div>
         </div>
 
+        <!-- ══ Tabela kosztów (perspektywa fundacji) ══ -->
         <table class="table table-sm table-borderless mb-0">
           <tbody>
-            <!-- Przychód -->
             <tr class="table-light">
               <td class="fw-semibold">Przychód oferowany</td>
               <td class="text-end fw-bold fs-5"><?= money($r['przychod']) ?></td>
             </tr>
-
-            <!-- Koszt bazowy + składowe -->
             <?= _opl_field('Koszt operacyjny bazowy', $r['koszt_bazowy']) ?>
             <?= $breakdown_rows ?>
-
-            <!-- Rezerwa -->
             <?= _opl_field('Rezerwa kosztowa (10 %)', $r['nadwyzka_kosztowa'], 'text-warning') ?>
-
-            <!-- Koszt całkowity -->
             <tr class="border-top">
               <td class="fw-semibold">Koszt całkowity</td>
               <td class="text-end fw-bold text-danger"><?= money($r['koszt_calkowity']) ?></td>
             </tr>
-
-            <!-- Nadwyżka -->
             <tr class="table-light">
               <td class="text-muted">Nadwyżka przed obciążeniami</td>
               <td class="text-end <?= $r['surplus'] >= 0 ? 'text-success' : 'text-danger' ?>">
                 <?= money($r['surplus']) ?>
               </td>
             </tr>
-
-            <!-- ZUS / podatek -->
-            <?php if ($r['zus'] > 0): ?>
-              <?= _opl_field('Składki ZUS (szacunek)', $r['zus'], 'text-muted') ?>
+            <?php if ($r['zus_org'] > 0): ?>
+              <?= _opl_field('Składki ZUS fundacji (szacunek)', $r['zus_org'], 'text-muted') ?>
             <?php endif; ?>
-            <?= _opl_field('Podatek dochodowy (szacunek)', $r['podatek'], 'text-muted') ?>
-            <?= _opl_field('Łączne obciążenia ZUS + US', $r['obciazenia'], 'text-danger') ?>
-
-            <!-- Zysk netto -->
+            <?= _opl_field('Podatek dochodowy (szacunek)', $r['podatek_org'], 'text-muted') ?>
+            <?= _opl_field('Łączne obciążenia ZUS + US', $r['obciazenia_org'], 'text-danger') ?>
             <tr class="border-top border-2">
-              <td class="fw-bold fs-5">Zysk Netto</td>
-              <td class="text-end fw-bold fs-4
-                <?= $r['zysk_netto'] >= 0 ? 'text-success' : 'text-danger' ?>">
+              <td class="fw-bold fs-5">Zysk Netto Fundacji</td>
+              <td class="text-end fw-bold fs-4 <?= $r['zysk_netto'] >= 0 ? 'text-success' : 'text-danger' ?>">
                 <?= money($r['zysk_netto']) ?>
               </td>
             </tr>
           </tbody>
         </table>
 
-        <!-- ROI bar -->
-        <div class="mt-4">
-          <div class="d-flex justify-content-between mb-1">
-            <span class="subheader">Wskaźnik ROI</span>
-            <strong class="text-<?= $status_cls ?>"><?= number_format($r['roi'], 2, ',', ' ') ?> %</strong>
+        <!-- ══ Dwa paski ROI ══ -->
+        <div class="row g-3 mt-3">
+          <!-- ROI fundacji -->
+          <div class="col-6">
+            <div class="p-3 rounded border h-100" style="background:var(--tblr-bg-surface-secondary,#f8f9fa)">
+              <div class="subheader mb-1">ROI Organizacji</div>
+              <div class="d-flex justify-content-between align-items-baseline mb-1">
+                <span class="small text-muted">Zysk / Koszt całkowity</span>
+                <strong class="text-<?= $status_cls ?> fs-5">
+                  <?= number_format($r['roi_org'], 1, ',', ' ') ?> %
+                </strong>
+              </div>
+              <div class="progress" style="height:8px">
+                <div class="progress-bar <?= $roi_org_cls ?>"
+                     style="width:<?= $roi_org_pct ?>%"
+                     role="progressbar"></div>
+              </div>
+              <div class="small text-muted mt-1">
+                Próg: <?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %
+              </div>
+            </div>
           </div>
-          <div class="progress" style="height:10px">
-            <div class="progress-bar <?= $roi_bar_cls ?>"
-                 style="width:<?= $roi_bar_pct ?>%"
-                 role="progressbar"
-                 aria-valuenow="<?= $roi_bar_pct ?>"
-                 aria-valuemin="0" aria-valuemax="100"></div>
-          </div>
-          <div class="d-flex justify-content-between mt-1 small text-muted">
-            <span>0 %</span>
-            <span>Próg akceptacji: <?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %</span>
-            <span>100 %</span>
+
+          <!-- ROI pracownika -->
+          <div class="col-6">
+            <div class="p-3 rounded border h-100" style="background:var(--tblr-bg-surface-secondary,#f8f9fa)">
+              <div class="subheader mb-1">ROI Zleceniobiorcy</div>
+              <div class="d-flex justify-content-between align-items-baseline mb-1">
+                <span class="small text-muted">Netto / Brutto wynagrodzenia</span>
+                <strong class="text-<?= $roi_w_cls === 'bg-success' ? 'success' : ($roi_w_cls === 'bg-warning' ? 'warning' : 'danger') ?> fs-5">
+                  <?= number_format($r['roi_worker'], 1, ',', ' ') ?> %
+                </strong>
+              </div>
+              <div class="progress" style="height:8px">
+                <div class="progress-bar <?= $roi_w_cls ?>"
+                     style="width:<?= $roi_w_pct ?>%"
+                     role="progressbar"></div>
+              </div>
+              <div class="small text-muted mt-1">
+                <?= money($w['gross']) ?> brutto → <?= money($w['net']) ?> netto
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Rekomendacja -->
-        <div class="alert alert-<?= $status_cls ?> mt-4 mb-0" role="alert">
+        <!-- ══ Szczegóły wynagrodzenia pracownika ══ -->
+        <details class="mt-3">
+          <summary class="subheader cursor-pointer user-select-none" style="list-style:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="me-1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+            Rozkład wynagrodzenia zleceniobiorcy
+          </summary>
+          <table class="table table-sm table-borderless mt-2 mb-0">
+            <tbody>
+              <tr class="table-light">
+                <td class="fw-semibold">Wynagrodzenie brutto</td>
+                <td class="text-end fw-bold"><?= money($w['gross']) ?></td>
+              </tr>
+              <?php if ($w['social'] > 0): ?>
+                <tr>
+                  <td class="text-muted ps-4 small">↳ Składki społeczne ZUS (pracownik)</td>
+                  <td class="text-end small text-danger">&minus; <?= money($w['social']) ?></td>
+                </tr>
+              <?php endif; ?>
+              <?php if ($w['health'] > 0): ?>
+                <tr>
+                  <td class="text-muted ps-4 small">↳ Składka zdrowotna NFZ</td>
+                  <td class="text-end small text-danger">&minus; <?= money($w['health']) ?></td>
+                </tr>
+              <?php endif; ?>
+              <tr>
+                <td class="text-muted ps-4 small">↳ Podatek dochodowy (PIT)</td>
+                <td class="text-end small text-danger">&minus; <?= money($w['pit']) ?></td>
+              </tr>
+              <tr class="border-top border-2">
+                <td class="fw-bold">Do wypłaty (netto)</td>
+                <td class="text-end fw-bold text-success"><?= money($w['net']) ?></td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+
+        <!-- ══ Rekomendacja ══ -->
+        <div class="alert alert-<?= $status_cls ?> mt-3 mb-0" role="alert">
           <?php if ($r['status'] === 'OPŁACALNE'): ?>
             <strong>Działanie jest opłacalne.</strong>
-            ROI <?= number_format($r['roi'], 2, ',', ' ') ?> % przekracza próg <?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %.
-            Oferta może zostać przyjęta bez negocjacji cenowych.
+            ROI organizacji <?= number_format($r['roi_org'], 1, ',', ' ') ?> % przekracza próg
+            <?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %. Zleceniobiorca zachowuje
+            <?= number_format($r['roi_worker'], 1, ',', ' ') ?> % stawki brutto.
           <?php elseif ($r['status'] === 'DO NEGOCJACJI'): ?>
-            <strong>Działanie jest na granicy opłacalności.</strong>
-            Zysk netto <?= money($r['zysk_netto']) ?> nie gwarantuje wymaganego ROI
-            (<?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %). Rozważ negocjację wyższego przychodu
-            <?php if ($r['tryb'] === 'wyjazdowy'): ?>
-              lub zmianę trybu na <em>online</em>.
-            <?php else: ?>
-              lub skrócenie czasu pracy.
-            <?php endif; ?>
+            <strong>Na granicy opłacalności.</strong>
+            Zysk fundacji <?= money($r['zysk_netto']) ?> nie gwarantuje ROI
+            <?= OPLACALNOSC_ROI_OK_THRESHOLD ?> %.
+            <?= $r['tryb'] === 'wyjazdowy' ? 'Rozważ tryb online lub negocjuj wyższy przychód.' : 'Wynegocjuj wyższy przychód lub skróć czas pracy.' ?>
           <?php else: ?>
             <strong>Działanie jest stratne.</strong>
             Koszty przewyższają przychód o <?= money(abs($r['zysk_netto'])) ?>.
-            <?php if ($r['tryb'] === 'wyjazdowy'): ?>
-              Przeanalizuj możliwość realizacji w trybie <em>online</em> lub wynegocjuj wyższe wynagrodzenie.
-            <?php else: ?>
-              Wynegocjuj wyższy przychód lub ogranicz czas zaangażowania.
-            <?php endif; ?>
+            <?= $r['tryb'] === 'wyjazdowy' ? 'Przeanalizuj tryb online lub wynegocjuj wyższe wynagrodzenie.' : 'Wynegocjuj wyższy przychód lub ogranicz zaangażowanie.' ?>
           <?php endif; ?>
         </div>
       </div><!-- /card-body -->
 
       <div class="card-footer text-muted small d-print-none">
-        Obliczenia mają charakter szacunkowy. Ostateczne obciążenia zależą od indywidualnej
-        sytuacji podatkowej i tytułu ubezpieczenia wykonawcy.
+        Obliczenia szacunkowe. Ostateczne obciążenia zależą od sytuacji podatkowej i tytułu ubezpieczenia.
       </div>
     </div><!-- /card result -->
     <?php

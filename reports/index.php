@@ -203,4 +203,25 @@ include dirname(__DIR__) . '/includes/header.php';
 </script>
 <?php endif; ?>
 
+<div class="row mt-3">
+<div class="col-12">
+<div class="card shadow-sm border-primary-subtle">
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <i class="bi bi-calculator text-primary fs-5"></i>
+  Kalkulator opłacalności działań
+</div>
+<div class="card-body">
+  <p class="text-muted small mb-3">
+    Ocena opłacalności zleceń zewnętrznych — dwie perspektywy ROI:
+    organizacji (Zysk / Koszt całkowity) i zleceniobiorcy (Netto / Brutto wynagrodzenia).
+    Obsługuje tryb online i wyjazdowy, modele umowa zlecenie / dzieło / B2B.
+  </p>
+  <a href="<?= APP_URL ?>/reports/oplacalnosc.php" class="btn btn-primary">
+    <i class="bi bi-graph-up-arrow me-1"></i> Otwórz kalkulator
+  </a>
+</div>
+</div>
+</div>
+</div>
+
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
