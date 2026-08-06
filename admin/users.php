@@ -193,6 +193,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Dostęp do EZD (per-konto, ponad rolę)
+    elseif ($action === 'ezd_toggle') {
+        require_once dirname(__DIR__) . '/includes/permissions.php';
+        $uid   = (int)($_POST['user_id'] ?? 0);
+        $me_id = (int)current_user()['id'];
+        if ($uid && db_one("SELECT id FROM users WHERE id=?", [$uid])) {
+            $cur = db_one("SELECT can_read,can_write FROM user_permissions WHERE user_id=? AND module='ezd'", [$uid]);
+            if ($cur) {
+                user_permission_set($uid, 'ezd', false, false, false, $me_id);
+                log_user_action($uid, $me_id, 'note', 'EZD: cofnięto dostęp per-konto');
+                flash_set('success', 'Cofnięto dostęp EZD (per-konto).');
+            } else {
+                user_permission_set($uid, 'ezd', true, true, false, $me_id);
+                log_user_action($uid, $me_id, 'note', 'EZD: nadano dostęp per-konto (odczyt + zapis)');
+                flash_set('success', 'Nadano dostęp do EZD (per-konto, odczyt + zapis).');
+            }
+        }
+        header('Location: users.php' . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
+        exit;
+    }
+
     // RESET PASSWORD (random)
     elseif ($action === 'reset_pass') {
         $uid = intval($_POST['user_id'] ?? 0);
@@ -398,6 +419,22 @@ $extra_mod_counts = [];
 try {
     foreach (db_all("SELECT user_id, COUNT(*) AS c FROM user_permissions GROUP BY user_id") as $em) {
         $extra_mod_counts[(int)$em['user_id']] = (int)$em['c'];
+    }
+} catch (\Throwable $e) {}
+
+// Użytkownicy z per-konto grantem EZD (user_permissions.module='ezd')
+$ezd_perm_uids = [];
+try {
+    foreach (db_all("SELECT user_id FROM user_permissions WHERE module='ezd' AND (can_read=1 OR can_write=1)") as $ep) {
+        $ezd_perm_uids[(int)$ep['user_id']] = true;
+    }
+} catch (\Throwable $e) {}
+
+// Role posiadające dostęp do EZD (rp.can_read LUB can_write)
+$role_ezd_names = [];
+try {
+    foreach (db_all("SELECT r.name FROM roles r JOIN role_permissions rp ON rp.role_id=r.id WHERE rp.module='ezd' AND (rp.can_read=1 OR rp.can_write=1)") as $re) {
+        $role_ezd_names[$re['name']] = true;
     }
 } catch (\Throwable $e) {}
 
@@ -642,6 +679,25 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                   <i class="bi bi-palette<?= $has_canva ? '-fill' : '' ?>"></i>
                 </button>
               </form>
+              <?php
+              $has_ezd_role = !empty($role_ezd_names[$u['role']]) || $u['role'] === 'admin';
+              $has_ezd_perm = isset($ezd_perm_uids[(int)$u['id']]);
+              $has_ezd_any  = $has_ezd_role || $has_ezd_perm;
+              if (module_enabled('ezd_enabled')): ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('<?= $has_ezd_perm ? 'Cofnąć dostęp EZD (per-konto) dla' : 'Nadać dostęp do EZD (odczyt+zapis per-konto) dla' ?> <?= h(addslashes($u['name'])) ?>?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="action" value="ezd_toggle">
+                <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+                <button type="submit"
+                        class="btn btn-sm position-relative <?= $has_ezd_any ? 'text-white' : 'btn-outline-secondary' ?>"
+                        style="<?= $has_ezd_perm ? 'background:#b45309;border-color:#b45309' : ($has_ezd_role ? 'background:#78350f;border-color:#78350f;opacity:.7' : '') ?>"
+                        title="<?= $has_ezd_role ? 'EZD: dostęp przez rolę' . ($has_ezd_perm ? ' + per-konto' : '') : ($has_ezd_perm ? 'EZD: dostęp per-konto — kliknij, aby cofnąć' : 'Nadaj dostęp EZD (per-konto)') ?>">
+                  <i class="bi bi-archive<?= $has_ezd_any ? '-fill' : '' ?>"></i>
+                  <?php if ($has_ezd_role): ?><span class="badge rounded-pill bg-warning text-dark position-absolute top-0 start-100 translate-middle" style="font-size:.55rem" title="Dostęp przez rolę">R</span><?php endif; ?>
+                </button>
+              </form>
+              <?php endif; ?>
               <?php $extra_n = $extra_mod_counts[(int)$u['id']] ?? 0; ?>
               <a href="<?= APP_URL ?>/admin/user_modules.php?uid=<?= intval($u['id']) ?>"
                  class="btn btn-sm position-relative <?= $extra_n ? 'text-white' : 'btn-outline-secondary' ?>"
