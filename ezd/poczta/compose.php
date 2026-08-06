@@ -193,7 +193,7 @@ $PAGE_TITLE = 'Nowa wiadomość' . ($sprawa ? ' — ' . h($sprawa['znak_sprawy']
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="container-fluid px-3 px-md-4" style="max-width:1060px">
+<div class="container-fluid px-3 px-md-4">
 
   <!-- Breadcrumb -->
   <nav aria-label="breadcrumb" style="font-size:.82rem" class="mb-3">
@@ -385,14 +385,12 @@ const _SPRAWA_ID = <?= $sprawa_id ?: 'null' ?>;
 tinymce.init({
   selector: '#bodyEditor',
   license_key: 'gpl',
-  language: 'pl',
-  language_url: _APP_URL + '/assets/js/tinymce/langs/pl.js',
   promotion: false,
   branding: false,
   menubar: 'edit format insert table',
   toolbar: 'undo redo | blocks | bold italic underline strikethrough | forecolor backcolor | '
          + 'alignleft aligncenter alignright | bullist numlist | link image | removeformat',
-  plugins: 'lists link image table code paste',
+  plugins: 'lists link image table code',
   height: 360,
   content_style: [
     'body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; color: #1f2937; padding: 12px 16px; }',

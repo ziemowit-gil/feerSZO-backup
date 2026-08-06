@@ -61,14 +61,15 @@ $status_tabs = [
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="container-fluid px-3 px-md-4" style="max-width:1400px">
+<div class="container-fluid px-3 px-md-4">
 
-  <!-- Nagłówek ─────────────────────────────────────────────────────────────── -->
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h5 class="mb-0 fw-bold">
-      <i class="bi bi-envelope-fill me-2" style="color:#2563eb"></i>Poczta EZD
+  <!-- Wiersz 1: nagłówek + przycisk ──────────────────────────────────────────── -->
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+    <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+      <i class="bi bi-envelope-fill" style="color:#2563eb"></i>
+      Poczta EZD
       <?php if ($unread_count): ?>
-      <span class="badge bg-danger ms-1 fs-6" style="font-size:.65rem!important;vertical-align:middle"><?= $unread_count ?></span>
+      <span class="badge bg-danger rounded-pill" style="font-size:.65rem"><?= $unread_count ?></span>
       <?php endif; ?>
     </h5>
     <div class="d-flex gap-2">
@@ -83,202 +84,167 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <div class="row g-3">
+  <!-- Wiersz 2: zakładki folderów (poziome nav-pills) ───────────────────────── -->
+  <div class="d-flex align-items-center gap-1 flex-wrap mb-2">
+    <?php foreach ($status_tabs as $key => [$label, $icon, $color]): ?>
+    <a href="?status=<?= $key ?><?= $filters['q'] ? '&q='.h(urlencode($filters['q'])) : '' ?>"
+       class="btn btn-sm <?= $filters['status'] === $key ? "btn-{$color}" : 'btn-outline-secondary' ?>">
+      <i class="bi <?= $icon ?> me-1"></i><?= $label ?>
+      <?php if ($key === 'unread' && $unread_count): ?>
+      <span class="badge bg-danger rounded-pill ms-1" style="font-size:.6rem"><?= $unread_count ?></span>
+      <?php endif; ?>
+    </a>
+    <?php endforeach; ?>
 
-    <!-- Lewy panel: filtry ────────────────────────────────────────────────── -->
-    <div class="col-12 col-lg-2">
-
-      <!-- Zakładki statusu -->
-      <div class="list-group list-group-flush mb-3" style="font-size:.85rem">
-        <?php foreach ($status_tabs as $key => [$label, $icon, $color]): ?>
-        <a href="?status=<?= $key ?><?= $filters['q'] ? '&q=' . h(urlencode($filters['q'])) : '' ?>"
-           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 <?= $filters['status'] === $key ? "active list-group-item-{$color}" : '' ?>">
-          <i class="bi <?= $icon ?>"></i>
-          <span class="flex-grow-1"><?= $label ?></span>
-          <?php if ($key === 'unread' && $unread_count): ?>
-          <span class="badge bg-danger rounded-pill"><?= $unread_count ?></span>
-          <?php endif; ?>
-        </a>
+    <!-- Filtr inline po prawej -->
+    <form method="get" class="d-flex gap-1 ms-auto align-items-center flex-wrap">
+      <input type="hidden" name="status" value="<?= h($filters['status']) ?>">
+      <div class="input-group input-group-sm" style="width:200px">
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="Szukaj…" value="<?= h($filters['q']) ?>">
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+      </div>
+      <?php if ($mailboxes): ?>
+      <select name="mailbox_id" class="form-select form-select-sm" style="width:auto;max-width:160px" onchange="this.form.submit()" title="Skrzynka">
+        <option value="">Wszystkie skrzynki</option>
+        <?php foreach ($mailboxes as $mb): ?>
+        <option value="<?= $mb['id'] ?>" <?= $filters['mailbox_id'] == $mb['id'] ? 'selected' : '' ?>><?= h($mb['mailbox']) ?></option>
         <?php endforeach; ?>
-      </div>
+      </select>
+      <?php endif; ?>
+      <select name="assigned_to" class="form-select form-select-sm" style="width:auto;max-width:150px" onchange="this.form.submit()" title="Przypisane do">
+        <option value="">Wszyscy</option>
+        <?php foreach ($users as $u): ?>
+        <option value="<?= $u['id'] ?>" <?= $filters['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= h($u['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <?php if ($filters['q'] || $filters['sprawa_id'] || $filters['assigned_to'] || $filters['mailbox_id']): ?>
+      <a href="?status=<?= h($filters['status']) ?>" class="btn btn-sm btn-outline-danger" title="Wyczyść filtry"><i class="bi bi-x-lg"></i></a>
+      <?php endif; ?>
+    </form>
+  </div>
 
-      <!-- Filtry dodatkowe -->
-      <form method="get" class="vstack gap-2" style="font-size:.82rem">
-        <input type="hidden" name="status" value="<?= h($filters['status']) ?>">
+  <!-- Wiersz 3: lista wiadomości (pełna szerokość) ─────────────────────────── -->
+  <?php if (empty($rows)): ?>
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.3"></i>
+    <p class="mt-2 mb-0">Brak wiadomości w tej skrzynce.</p>
+  </div>
+  <?php else: ?>
 
-        <div>
-          <label class="form-label mb-1 fw-semibold text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Szukaj</label>
-          <div class="input-group input-group-sm">
-            <input type="text" name="q" class="form-control" placeholder="temat, adres…" value="<?= h($filters['q']) ?>">
-            <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+  <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.82rem">
+    <span class="text-muted"><?= number_format($total) ?> wiadomości</span>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-mark-all-read">
+      <i class="bi bi-check2-all me-1"></i>Oznacz wszystkie jako przeczytane
+    </button>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="list-group list-group-flush" id="inbox-list">
+      <?php foreach ($rows as $row):
+        $is_unread   = !$row['is_read'] && $row['direction'] === 'in';
+        $has_sprawa  = !empty($row['znak_sprawy']);
+        $sender_disp = $row['direction'] === 'in'
+                       ? ($row['from_name'] ?: $row['from_email'] ?: '—')
+                       : ('➜ ' . ($row['to_email'] ?? ($row['from_email'] ?? '—')));
+        $sent_dt    = strtotime($row['sent_at'] ?? 'now');
+        $today      = date('d.m.Y') === date('d.m.Y', $sent_dt);
+        $sent_label = $today ? date('H:i', $sent_dt) : date('d.m.Y', $sent_dt);
+      ?>
+      <div class="list-group-item list-group-item-action p-0 inbox-item <?= $is_unread ? 'inbox-unread' : '' ?>"
+           data-id="<?= (int)$row['id'] ?>" style="cursor:pointer">
+        <div class="d-flex align-items-center gap-2 px-3 py-2">
+
+          <!-- Checkbox -->
+          <div class="form-check flex-shrink-0" onclick="event.stopPropagation()">
+            <input type="checkbox" class="form-check-input inbox-check" value="<?= (int)$row['id'] ?>">
           </div>
-        </div>
 
-        <?php if ($mailboxes): ?>
-        <div>
-          <label class="form-label mb-1 fw-semibold text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Skrzynka</label>
-          <select name="mailbox_id" class="form-select form-select-sm" onchange="this.form.submit()">
-            <option value="">Wszystkie</option>
-            <?php foreach ($mailboxes as $mb): ?>
-            <option value="<?= $mb['id'] ?>" <?= $filters['mailbox_id'] == $mb['id'] ? 'selected' : '' ?>>
-              <?= h($mb['mailbox']) ?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
+          <!-- Kierunek -->
+          <i class="bi <?= $row['direction']==='in' ? 'bi-envelope-arrow-down-fill text-primary' : 'bi-envelope-arrow-up-fill text-success' ?> flex-shrink-0"
+             style="font-size:1rem;opacity:.8"></i>
 
-        <div>
-          <label class="form-label mb-1 fw-semibold text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Przypisane do</label>
-          <select name="assigned_to" class="form-select form-select-sm" onchange="this.form.submit()">
-            <option value="">Wszyscy</option>
-            <?php foreach ($users as $u): ?>
-            <option value="<?= $u['id'] ?>" <?= $filters['assigned_to'] == $u['id'] ? 'selected' : '' ?>>
-              <?= h($u['name']) ?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+          <!-- Nadawca (stała szerokość) -->
+          <div class="flex-shrink-0 text-truncate <?= $is_unread ? 'fw-bold' : '' ?>"
+               style="width:180px;font-size:.85rem" title="<?= h($sender_disp) ?>">
+            <?= h($sender_disp) ?>
+          </div>
 
-        <?php if ($filters['q'] || $filters['sprawa_id'] || $filters['assigned_to'] || $filters['mailbox_id']): ?>
-        <a href="?status=<?= h($filters['status']) ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle me-1"></i>Wyczyść filtry</a>
-        <?php endif; ?>
-      </form>
-    </div><!-- /left panel -->
-
-    <!-- Główna lista wiadomości ───────────────────────────────────────────── -->
-    <div class="col-12 col-lg-10">
-
-      <?php if (empty($rows)): ?>
-      <div class="text-center text-muted py-5">
-        <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.3"></i>
-        <p class="mt-2 mb-0">Brak wiadomości w tej skrzynce.</p>
-      </div>
-      <?php else: ?>
-
-      <!-- Pasek akcji zbiorowych -->
-      <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.82rem">
-        <span class="text-muted"><?= number_format($total) ?> wiadomości</span>
-        <div class="ms-auto d-flex gap-1">
-          <button class="btn btn-sm btn-outline-secondary" id="btn-mark-all-read" title="Oznacz wszystkie jako przeczytane">
-            <i class="bi bi-check2-all me-1"></i>Przeczytane
-          </button>
-        </div>
-      </div>
-
-      <!-- Tabela wiadomości -->
-      <div class="card shadow-sm border-0">
-        <div class="list-group list-group-flush" id="inbox-list">
-          <?php foreach ($rows as $row):
-            $is_unread   = !$row['is_read'] && $row['direction'] === 'in';
-            $has_sprawa  = !empty($row['znak_sprawy']);
-            $sender_disp = $row['direction'] === 'in'
-                           ? ($row['from_name'] ?: $row['from_email'] ?: '—')
-                           : ('➜ ' . ($row['to_email'] ?? ($row['from_email'] ?? '—')));
-            $sent_dt     = strtotime($row['sent_at'] ?? 'now');
-            $sent_label  = date('d.m.Y H:i', $sent_dt);
-          ?>
-          <div class="list-group-item list-group-item-action p-0 <?= $is_unread ? 'list-group-item-primary' : '' ?> inbox-item"
-               data-id="<?= (int)$row['id'] ?>"
-               style="cursor:pointer">
-            <div class="d-flex align-items-start p-2 gap-2">
-
-              <!-- Checkbox -->
-              <div class="form-check mt-1 flex-shrink-0" onclick="event.stopPropagation()">
-                <input type="checkbox" class="form-check-input inbox-check" value="<?= (int)$row['id'] ?>">
-              </div>
-
-              <!-- Ikona i badge -->
-              <div class="flex-shrink-0 text-center" style="width:2rem;padding-top:2px">
-                <i class="bi <?= $row['direction']==='in' ? 'bi-envelope-arrow-down text-primary' : 'bi-envelope-arrow-up text-success' ?>"
-                   style="font-size:1.1rem"></i>
-              </div>
-
-              <!-- Treść -->
-              <div class="flex-grow-1 overflow-hidden">
-                <div class="d-flex align-items-baseline justify-content-between gap-1">
-                  <span class="<?= $is_unread ? 'fw-bold' : '' ?> text-truncate" style="font-size:.88rem">
-                    <?= h($sender_disp) ?>
-                  </span>
-                  <span class="text-muted flex-shrink-0" style="font-size:.75rem"><?= $sent_label ?></span>
-                </div>
-                <div class="text-truncate <?= $is_unread ? 'fw-semibold' : '' ?>" style="font-size:.83rem">
-                  <?= h($row['subject'] ?? '(bez tematu)') ?>
-                </div>
-                <div class="d-flex gap-1 flex-wrap mt-1">
-                  <?php if ($has_sprawa): ?>
-                  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$row['ezd_sprawa_id'] ?>"
-                     class="badge rounded-pill text-bg-info text-decoration-none" style="font-size:.68rem"
-                     onclick="event.stopPropagation()">
-                    <i class="bi bi-folder2-open me-1"></i><?= h($row['znak_sprawy']) ?>
-                  </a>
-                  <?php else: ?>
-                  <span class="badge rounded-pill text-bg-warning" style="font-size:.68rem">
-                    <i class="bi bi-question-circle me-1"></i>nieprzypisana
-                  </span>
-                  <?php endif; ?>
-                  <?php if ($row['assigned_user'] ?? ''): ?>
-                  <span class="badge rounded-pill text-bg-secondary" style="font-size:.68rem">
-                    <i class="bi bi-person me-1"></i><?= h($row['assigned_user']) ?>
-                  </span>
-                  <?php endif; ?>
-                  <?php if ($row['has_attachments'] ?? 0): ?>
-                  <span class="badge rounded-pill text-bg-light border" style="font-size:.68rem;color:#555">
-                    <i class="bi bi-paperclip"></i>
-                  </span>
-                  <?php endif; ?>
-                </div>
-              </div>
-
-              <!-- Akcje (widoczne na hover) -->
-              <div class="flex-shrink-0 inbox-actions d-flex gap-1" onclick="event.stopPropagation()" style="opacity:0;transition:opacity .15s">
-                <!-- Odpowiedź -->
-                <a href="<?= APP_URL ?>/ezd/poczta/compose.php?reply_to=<?= (int)$row['id'] ?><?= $has_sprawa ? '&sprawa_id='.(int)$row['ezd_sprawa_id'] : '' ?>"
-                   class="btn btn-sm btn-outline-primary py-0 px-1" title="Odpowiedz">
-                  <i class="bi bi-reply"></i>
-                </a>
-                <!-- Przypisz do sprawy -->
-                <?php if (!$has_sprawa): ?>
-                <button class="btn btn-sm btn-outline-success py-0 px-1 btn-assign-sprawa"
-                        data-id="<?= (int)$row['id'] ?>" title="Przypisz do sprawy">
-                  <i class="bi bi-folder-plus"></i>
-                </button>
-                <?php endif; ?>
-                <!-- Przypisz do osoby -->
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1 btn-assign-user"
-                        data-id="<?= (int)$row['id'] ?>" title="Przypisz do osoby">
-                  <i class="bi bi-person-check"></i>
-                </button>
-                <!-- Archiwizuj -->
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1 btn-archive"
-                        data-id="<?= (int)$row['id'] ?>" title="Archiwizuj">
-                  <i class="bi bi-archive"></i>
-                </button>
-              </div>
-
+          <!-- Temat + badges -->
+          <div class="flex-grow-1 overflow-hidden">
+            <span class="text-truncate d-block <?= $is_unread ? 'fw-semibold' : '' ?>" style="font-size:.85rem">
+              <?= h($row['subject'] ?? '(bez tematu)') ?>
+            </span>
+            <div class="d-flex gap-1 flex-wrap mt-1">
+              <?php if ($has_sprawa): ?>
+              <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$row['ezd_sprawa_id'] ?>"
+                 class="badge rounded-pill text-bg-info text-decoration-none" style="font-size:.65rem"
+                 onclick="event.stopPropagation()">
+                <i class="bi bi-folder2-open me-1"></i><?= h($row['znak_sprawy']) ?>
+              </a>
+              <?php else: ?>
+              <span class="badge rounded-pill text-bg-warning" style="font-size:.65rem">
+                <i class="bi bi-question-circle me-1"></i>nieprzypisana
+              </span>
+              <?php endif; ?>
+              <?php if ($row['assigned_user'] ?? ''): ?>
+              <span class="badge rounded-pill text-bg-secondary" style="font-size:.65rem">
+                <i class="bi bi-person me-1"></i><?= h($row['assigned_user']) ?>
+              </span>
+              <?php endif; ?>
+              <?php if ($row['has_attachments'] ?? 0): ?>
+              <span class="badge rounded-pill text-bg-light border" style="font-size:.65rem;color:#6b7280">
+                <i class="bi bi-paperclip"></i>
+              </span>
+              <?php endif; ?>
             </div>
           </div>
-          <?php endforeach; ?>
+
+          <!-- Data -->
+          <span class="flex-shrink-0 text-muted" style="font-size:.78rem;min-width:3rem;text-align:right"><?= $sent_label ?></span>
+
+          <!-- Akcje (hover) -->
+          <div class="flex-shrink-0 inbox-actions d-flex gap-1 ms-1" onclick="event.stopPropagation()"
+               style="opacity:0;transition:opacity .15s">
+            <a href="<?= APP_URL ?>/ezd/poczta/compose.php?reply_to=<?= (int)$row['id'] ?><?= $has_sprawa ? '&sprawa_id='.(int)$row['ezd_sprawa_id'] : '' ?>"
+               class="btn btn-sm btn-outline-primary py-0 px-2" title="Odpowiedz">
+              <i class="bi bi-reply"></i>
+            </a>
+            <?php if (!$has_sprawa): ?>
+            <button class="btn btn-sm btn-outline-success py-0 px-2 btn-assign-sprawa"
+                    data-id="<?= (int)$row['id'] ?>" title="Przypisz do sprawy">
+              <i class="bi bi-folder-plus"></i>
+            </button>
+            <?php endif; ?>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-assign-user"
+                    data-id="<?= (int)$row['id'] ?>" title="Przypisz osobę">
+              <i class="bi bi-person-check"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-archive"
+                    data-id="<?= (int)$row['id'] ?>" title="Archiwizuj">
+              <i class="bi bi-archive"></i>
+            </button>
+          </div>
+
         </div>
       </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
 
-      <!-- Paginacja -->
-      <?php if ($pages > 1): ?>
-      <nav class="mt-3" aria-label="Paginacja poczty">
-        <ul class="pagination pagination-sm justify-content-center">
-          <?php for ($p = 1; $p <= $pages; $p++): ?>
-          <li class="page-item <?= $p === $filters['page'] ? 'active' : '' ?>">
-            <a class="page-link" href="?<?= http_build_query(array_merge($filters, ['page' => $p])) ?>"><?= $p ?></a>
-          </li>
-          <?php endfor; ?>
-        </ul>
-      </nav>
-      <?php endif; ?>
+  <!-- Paginacja -->
+  <?php if ($pages > 1): ?>
+  <nav class="mt-3" aria-label="Paginacja poczty">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+      <?php for ($p = 1; $p <= $pages; $p++): ?>
+      <li class="page-item <?= $p === $filters['page'] ? 'active' : '' ?>">
+        <a class="page-link" href="?<?= http_build_query(array_merge($filters, ['page' => $p])) ?>"><?= $p ?></a>
+      </li>
+      <?php endfor; ?>
+    </ul>
+  </nav>
+  <?php endif; ?>
 
-      <?php endif; ?>
-    </div><!-- /main -->
-
-  </div><!-- /row -->
+  <?php endif; ?>
 </div><!-- /container -->
 
 <!-- Modal: Przypisz do sprawy ────────────────────────────────────────────────── -->
@@ -341,7 +307,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <style>
 .inbox-item:hover .inbox-actions { opacity: 1 !important; }
 .inbox-item:hover { background: #f8fafc; }
-.inbox-item.list-group-item-primary:hover { background: #dbeafe; }
+.inbox-item.inbox-unread { background: #eff6ff; border-left: 3px solid #3b82f6; }
+.inbox-item.inbox-unread:hover { background: #dbeafe; }
+@media (prefers-color-scheme: dark) {
+  .inbox-item.inbox-unread { background: #1e3a5f; border-left-color: #60a5fa; }
+  .inbox-item.inbox-unread:hover { background: #1e3461; }
+  .inbox-item:hover { background: #1e2535; }
+}
 </style>
 
 <script>
@@ -355,8 +327,8 @@ document.querySelectorAll('.inbox-item').forEach(el => {
     fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({_csrf:CSRF, action:'mark_read', id})
     });
-    // Usuń pogrubienie
-    this.classList.remove('list-group-item-primary');
+    // Usuń oznaczenie nieprzeczytanej
+    this.classList.remove('inbox-unread');
     this.querySelector('.fw-bold')?.classList.replace('fw-bold','');
     this.querySelector('.fw-semibold')?.classList.replace('fw-semibold','');
 
