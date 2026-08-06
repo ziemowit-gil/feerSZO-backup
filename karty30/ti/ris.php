@@ -44,6 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_ris
     header('Location: ris.php'); exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_ezd_teczka') {
+    csrf_check();
+    if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+    $val = (int)($_POST['ti_report_ezd_teczka_id'] ?? 0);
+    db()->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES ('ti_report_ezd_teczka_id', ?)")->execute([$val ?: '']);
+    flash_set('success', 'Teczka EZD zapisana.');
+    header('Location: ris.php'); exit;
+}
+
 $PAGE_TITLE = 'Dane do RIS';
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -97,5 +106,36 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
   </div>
 </div>
+
+<?php if (is_admin() && module_enabled('ezd_enabled')): ?>
+<?php
+$ezd_teczka_id = (int)($S('ti_report_ezd_teczka_id') ?: 0);
+$ezd_teczki = [];
+try { $ezd_teczki = db_all("SELECT id, symbol, title FROM ezd_teczki ORDER BY symbol, title"); } catch (\Throwable $e) {}
+?>
+<div class="row g-4 mt-2">
+  <div class="col-lg-7">
+    <form method="post" class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold"><i class="bi bi-folder2-open me-2 text-teal"></i>EZD — teczka dla raportów TI</div>
+      <div class="card-body">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="save_ezd_teczka">
+        <p class="text-body-secondary small mb-3">Wygenerowane raporty (per prowadzący / grupę / uczestnika / WUP) oraz wgrane podpisane sprawozdania zostaną automatycznie zapisane jako pisma EZD w wybranej teczce pod sprawą <em>Raporty TI RRRR</em>.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="f_ezd_teczka">Teczka (segregator EZD)</label>
+          <select name="ti_report_ezd_teczka_id" id="f_ezd_teczka" class="form-select">
+            <option value="0">— wyłączone (nie wysyłaj do EZD) —</option>
+            <?php foreach ($ezd_teczki as $t): ?>
+            <option value="<?= (int)$t['id'] ?>" <?= $ezd_teczka_id===(int)$t['id']?'selected':'' ?>><?= h(trim($t['symbol'] . ' ' . $t['title'])) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php if (!$ezd_teczki): ?><div class="form-text text-warning">Brak teczek EZD — utwórz teczki w module EZD.</div><?php endif; ?>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz teczke EZD</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

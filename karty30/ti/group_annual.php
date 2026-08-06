@@ -129,8 +129,14 @@ try {
         . 'Należności/Wpłaty dotyczą wybranego roku; Saldo (+ nadpłata / − niedopłata) jest bieżące '
         . 'i dotyczy CAŁEGO konta kursanta (wszystkie jego grupy).'), 0, 'L');
 
+    $__pdfData = $pdf->Output('S');
+    $__fname   = 'raport_grupa_rok_' . $year . '.pdf';
     while (ob_get_level() > 0) ob_end_clean();
-    $pdf->Output('D', 'raport_grupa_rok_' . $year . '.pdf');
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $__fname . '"');
+    header('Content-Length: ' . strlen($__pdfData));
+    echo $__pdfData;
+    try { ti_report_to_ezd($__pdfData, $__fname, 'Raport roczny — per grupa · ' . $year, (int)current_user()['id']); } catch (\Throwable $e) { error_log('[ti_rpt_ezd] ' . $e->getMessage()); }
     exit;
 } catch (\Throwable $e) {
     error_log('[group_annual] ' . $year . ': ' . $e->getMessage());

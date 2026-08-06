@@ -197,8 +197,14 @@ try {
         . 'Należności/Zapłacone dotyczą rozliczeń wystawionych w danym miesiącu; Wpłaty — kwot zaksięgowanych wg daty wpłaty. '
         . 'Saldo konta jest bieżące (całościowe).'), 0, 'L');
 
+    $__pdfData = $pdf->Output('S');
+    $__fname   = 'raport_uczestnik_rok_' . $year . '.pdf';
     while (ob_get_level() > 0) ob_end_clean();
-    $pdf->Output('D', 'raport_uczestnik_rok_' . $year . '.pdf');
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $__fname . '"');
+    header('Content-Length: ' . strlen($__pdfData));
+    echo $__pdfData;
+    try { ti_report_to_ezd($__pdfData, $__fname, 'Raport roczny — per uczestnik · ' . $year, (int)current_user()['id']); } catch (\Throwable $e) { error_log('[ti_rpt_ezd] ' . $e->getMessage()); }
     exit;
 } catch (\Throwable $e) {
     error_log('[participant_annual] ' . $year . ': ' . $e->getMessage());

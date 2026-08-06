@@ -5134,3 +5134,45 @@ function k30_ti_instructors(): array {
          ORDER BY u.name COLLATE NOCASE"
     );
 }
+
+/**
+ * Zapisuje wygenerowany PDF raportu TI jako pismo EZD w skonfigurowanej teczce.
+ * Jeśli EZD wyłączone lub ustawienie ti_report_ezd_teczka_id nie skonfigurowane — cicho pomija.
+ * Wywołuj w try-catch; nigdy nie powinno przerwać pobierania pliku przez użytkownika.
+ */
+function ti_report_to_ezd(string $pdfData, string $filename, string $title, int $user_id, bool $signed = false): void {
+    if (!function_exists('module_enabled') || !module_enabled('ezd_enabled')) return;
+    $teczka_id = (int)((db_one("SELECT value FROM settings WHERE key_='ti_report_ezd_teczka_id'") ?: [])['value'] ?? 0);
+    if (!$teczka_id) return;
+    if (!function_exists('ezd_pismo_create')) {
+        require_once __DIR__ . '/ezd.php';
+    }
+    // Sprawa roczna w teczce — "Raporty TI YYYY"; znajdź lub utwórz
+    $rok = (int)date('Y');
+    $sprawa_title = 'Raporty TI ' . $rok;
+    $sprawa = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? AND status!='closed' LIMIT 1",
+                     [$teczka_id, $sprawa_title]);
+    $sprawa_id = $sprawa ? (int)$sprawa['id'] : ezd_sprawa_create([
+        'teczka_id'   => $teczka_id,
+        'title'       => $sprawa_title,
+        'description' => 'Automatycznie generowane raporty z modułu Dydaktyka TI.',
+        'status'      => 'active',
+        'owner_id'    => $user_id,
+    ], $user_id);
+    // Pismo wychodzące — raport wygenerowany przez organizację
+    $pid = ezd_pismo_create([
+        'sprawa_id'    => $sprawa_id,
+        'kierunek'     => 'wychodzace',
+        'title'        => ($signed ? '[Podpisany] ' : '') . $title,
+        'status'       => 'zakonczone',
+        'owner_id'     => $user_id,
+        'data_pisma'   => date('Y-m-d'),
+        'data_wysylki' => date('Y-m-d'),
+    ], $user_id);
+    // Zapisz bajty PDF do pliku tymczasowego i dołącz jako załącznik
+    $tmp = sys_get_temp_dir() . '/ti_rpt_' . uniqid('', true) . '.pdf';
+    if (@file_put_contents($tmp, $pdfData) !== false) {
+        try { ezd_attach_path($tmp, $filename, $sprawa_id, $pid, $user_id); } catch (\Throwable $e) {}
+        @unlink($tmp);
+    }
+}

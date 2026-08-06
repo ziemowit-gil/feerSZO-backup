@@ -115,6 +115,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'upload_s
                 $name = 'sprawozdanie_WUP_' . $r['period_from'] . '_' . $r['period_to'] . '_podpisane.pdf';
                 db()->prepare("UPDATE k30_ti_wup_reports SET signed_path=?, signed_name=?, signed_by=?, signed_at=CURRENT_TIMESTAMP WHERE id=?")
                     ->execute([$dest, $name, $user_id, $rid]);
+                try {
+                    $__pdfBytes = file_get_contents($dest);
+                    if ($__pdfBytes !== false) {
+                        $__ptxt = date('d.m.Y', strtotime($r['period_from'])) . ' – ' . date('d.m.Y', strtotime($r['period_to']));
+                        ti_report_to_ezd($__pdfBytes, $name, 'Sprawozdanie do WUP ' . $__ptxt, $user_id, true);
+                    }
+                } catch (\Throwable $e) { error_log('[ti_rpt_ezd_signed] ' . $e->getMessage()); }
                 flash_set('success', 'Wgrano podpisane sprawozdanie.');
             } else {
                 flash_set('error', 'Nie udało się zapisać pliku na serwerze.');
@@ -444,9 +451,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $pdf->Cell($sigW, 4, $pl($mgrN !== '' ? $mgrN : '(podpis i pieczęć kierownika)'), 0, 1, 'C');
         if ($mgrN !== '') { $pdf->SetX($sigX); $pdf->Cell($sigW, 4, $pl($mgrT), 0, 1, 'C'); }
 
+        $__pdfData = $pdf->Output('S');
+        $__fname   = 'sprawozdanie_WUP_' . $from . '_' . $to . '.pdf';
         while (ob_get_level() > 0) ob_end_clean();
-        $disp = (($_POST['disp'] ?? '') === 'inline') ? 'I' : 'D';  // I=podgląd inline, D=pobranie
-        $pdf->Output($disp, 'sprawozdanie_WUP_' . $from . '_' . $to . '.pdf');
+        header('Content-Type: application/pdf');
+        $__disp = (($_POST['disp'] ?? '') === 'inline') ? 'inline' : 'attachment';
+        header('Content-Disposition: ' . $__disp . '; filename="' . $__fname . '"');
+        header('Content-Length: ' . strlen($__pdfData));
+        echo $__pdfData;
+        try { ti_report_to_ezd($__pdfData, $__fname, 'Sprawozdanie do WUP ' . $period_txt, $user_id); } catch (\Throwable $e) { error_log('[ti_rpt_ezd_wup] ' . $e->getMessage()); }
         exit;
     } catch (\Throwable $e) {
         error_log('[wup_report] ' . $from . '..' . $to . ': ' . $e->getMessage());

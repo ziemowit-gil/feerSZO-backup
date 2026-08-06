@@ -126,8 +126,14 @@ try {
         'Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności (statusy „odbyła się"/„zmiana '
         . 'indywidualna"). „Uczestnicy" = aktywni zapisani do grupy. Kursy bez listy obecności nie mają frekwencji.'), 0, 'L');
 
+    $__pdfData = $pdf->Output('S');
+    $__fname   = $file_name . '.pdf';
     while (ob_get_level() > 0) ob_end_clean();
-    $pdf->Output('D', $file_name . '.pdf');
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $__fname . '"');
+    header('Content-Length: ' . strlen($__pdfData));
+    echo $__pdfData;
+    try { ti_report_to_ezd($__pdfData, $__fname, $report_title, (int)current_user()['id']); } catch (\Throwable $e) { error_log('[ti_rpt_ezd] ' . $e->getMessage()); }
     exit;
 } catch (\Throwable $e) {
     error_log('[' . ($err_tag ?? 'instructor_report') . '] ' . $e->getMessage());

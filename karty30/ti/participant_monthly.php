@@ -170,8 +170,14 @@ try {
         . '„praca własna prowadzącego" i odwołane lekcje nie wchodzą do mianownika). '
         . 'Saldo konta jest bieżące (całościowe), niezależne od wybranego miesiąca.'), 0, 'L');
 
+    $__pdfData = $pdf->Output('S');
+    $__fname   = 'raport_uczestnik_' . $ym . '.pdf';
     while (ob_get_level() > 0) ob_end_clean();
-    $pdf->Output('D', 'raport_uczestnik_' . $ym . '.pdf');
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $__fname . '"');
+    header('Content-Length: ' . strlen($__pdfData));
+    echo $__pdfData;
+    try { ti_report_to_ezd($__pdfData, $__fname, 'Raport miesięczny — per uczestnik · ' . $month_label, (int)current_user()['id']); } catch (\Throwable $e) { error_log('[ti_rpt_ezd] ' . $e->getMessage()); }
     exit;
 } catch (\Throwable $e) {
     error_log('[participant_monthly] ' . $ym . ': ' . $e->getMessage());
