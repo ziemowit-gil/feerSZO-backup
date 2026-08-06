@@ -315,8 +315,6 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <div class="body">' . $body . '</div>
 
-' . (!$preview && empty($zas['plik_path']) ? '<p style="font-size:7.5pt;color:#777;margin-top:14pt;font-style:italic;line-height:1.4">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</p>' : '') . '
-
 ' . $wazne_do_before_sig . '
 
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
@@ -325,6 +323,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
     <td style="width:52%;border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
   </tr>
 </table>
+
+' . (!$preview && empty($zas['plik_path']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
 
 </body>
 </html>';
