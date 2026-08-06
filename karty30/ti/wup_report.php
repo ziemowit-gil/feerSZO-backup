@@ -209,6 +209,93 @@ asort($zeroInstr, SORT_NATURAL | SORT_FLAG_CASE);
 
 $employed = count($instrAll);
 
+// ── Ostatni okres dydaktyczny (z k30_ti_periods) ─────────────────────────────────
+@require_once dirname(dirname(__DIR__)) . '/includes/ti_periods.php';
+if (function_exists('ti_periods_migrate')) ti_periods_migrate();
+
+$lastPeriod      = null;
+$lastPeriodStats = null;
+try {
+    $lastPeriod = db_one(
+        "SELECT * FROM k30_ti_periods WHERE type!='vacation' ORDER BY date_from DESC LIMIT 1"
+    );
+} catch (\Throwable $_lpe) {}
+
+if ($lastPeriod) {
+    $lp_from  = $lastPeriod['date_from'];
+    $lp_to    = $lastPeriod['date_to'];
+    $lp_grand = ['groups'=>0,'lessons'=>0,'mins'=>0,'participants'=>0,'cancelled'=>0,'online'=>0,'onsite'=>0];
+    $lp_ids   = [];
+
+    foreach (k30_ti_courses(false) as $_lco) {
+        if (!empty($_lco['wup_exclude']))           continue;
+        if (stripos((string)$_lco['name'], 'test') !== false) continue;
+        $_lcid = (int)$_lco['id'];
+        $_lw = db_one(
+            "SELECT COALESCE(SUM(duration_min),0) AS mins, COUNT(*) AS lessons FROM k30_ti_sessions
+             WHERE course_id=? AND lesson_date BETWEEN ? AND ?
+               AND status IN ('held','individual_change','remote_material')",
+            [$_lcid, $lp_from, $lp_to]);
+        $_ll = (int)$_lw['lessons'];
+        if ($_ll === 0) continue;
+        $_lcanc = (int)(db_one(
+            "SELECT COUNT(*) AS c FROM k30_ti_sessions WHERE course_id=? AND lesson_date BETWEEN ? AND ? AND status='cancelled'",
+            [$_lcid, $lp_from, $lp_to])['c'] ?? 0);
+        $_lids = array_map('intval', array_column(db_all(
+            "SELECT e.client_id FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id=e.client_id
+             WHERE e.course_id=? AND e.status='active' AND LOWER(cl.name) NOT LIKE '%test%'", [$_lcid]), 'client_id'));
+        foreach ($_lids as $_lid) $lp_ids[$_lid] = true;
+        $lp_grand['groups']++;
+        $lp_grand['lessons']      += $_ll;
+        $lp_grand['mins']         += (int)$_lw['mins'];
+        $lp_grand['participants'] += count($_lids);
+        $lp_grand['cancelled']    += $_lcanc;
+        if (!empty($_lco['is_online'])) $lp_grand['online'] += $_ll; else $lp_grand['onsite'] += $_ll;
+    }
+
+    // Porównanie: 1. lekcja (MIN id) vs ostatnia lekcja (MAX id) każdej grupy
+    $_lp_crit = "s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change','remote_material')
+                 AND c.wup_exclude=0 AND LOWER(c.name) NOT LIKE '%test%'";
+    $_lp_join = "FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id WHERE $_lp_crit GROUP BY s.course_id";
+    $lp_first_sids = array_values(array_filter(array_column(
+        db_all("SELECT MIN(s.id) AS sid $_lp_join", [$lp_from, $lp_to]), 'sid')));
+    $lp_last_sids  = array_values(array_filter(array_column(
+        db_all("SELECT MAX(s.id) AS sid $_lp_join", [$lp_from, $lp_to]), 'sid')));
+
+    $lp_att_first = 0; $lp_att_last = 0;
+    if ($lp_first_sids) {
+        $ph = implode(',', array_fill(0, count($lp_first_sids), '?'));
+        $lp_att_first = (int)(db_one("SELECT COALESCE(SUM(attended),0) AS s FROM k30_ti_attendance WHERE session_id IN ($ph)", $lp_first_sids)['s'] ?? 0);
+    }
+    if ($lp_last_sids) {
+        $ph = implode(',', array_fill(0, count($lp_last_sids), '?'));
+        $lp_att_last = (int)(db_one("SELECT COALESCE(SUM(attended),0) AS s FROM k30_ti_attendance WHERE session_id IN ($ph)", $lp_last_sids)['s'] ?? 0);
+    }
+
+    // Frekwencja % w tym okresie
+    $lp_frRow = db_one(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(a.attended),0) AS present
+         FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id=a.session_id
+         JOIN k30_ti_courses c ON c.id=s.course_id JOIN k30_clients cl ON cl.id=a.client_id
+         WHERE s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change','remote_material')
+           AND c.track_attendance=1 AND c.wup_exclude=0 AND LOWER(c.name) NOT LIKE '%test%' AND LOWER(cl.name) NOT LIKE '%test%'",
+        [$lp_from, $lp_to]);
+    $lp_fr_total = (int)($lp_frRow['total'] ?? 0);
+    $lp_fr_pres  = (int)($lp_frRow['present'] ?? 0);
+    $lp_frek_pct = $lp_fr_total > 0 ? round(100 * $lp_fr_pres / $lp_fr_total, 1) : null;
+
+    $lastPeriodStats = [
+        'grand'      => $lp_grand,
+        'ids'        => $lp_ids,
+        'att_first'  => $lp_att_first,
+        'att_last'   => $lp_att_last,
+        'att_diff'   => $lp_att_last - $lp_att_first,
+        'first_cnt'  => count($lp_first_sids),
+        'last_cnt'   => count($lp_last_sids),
+        'frek_pct'   => $lp_frek_pct,
+    ];
+}
+
 // Uczestnicy z niepełnosprawnością (umowa PFRON)
 $disabled = 0;
 if ($all_ids) {
@@ -417,6 +504,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $kv('Liczba grup (kursów)', (string)$grand['groups']);
         $pdf->Ln(3);
 
+        // ── Ostatni okres dydaktyczny — sekcja PDF ────────────────────────────────
+        if ($lastPeriod && $lastPeriodStats) {
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 90) $pdf->AddPage();
+            $_ls = $lastPeriodStats;
+            $_lt = date('d.m.Y', strtotime($lastPeriod['date_from'])) . ' – ' . date('d.m.Y', strtotime($lastPeriod['date_to']));
+            $_ltype = function_exists('ti_period_type_label') ? ti_period_type_label($lastPeriod['type']) : $lastPeriod['type'];
+
+            $pdf->SetFont('DejaVu', 'B', 10);
+            $pdf->MultiCell($W, 6, $pl('Ostatni okres dydaktyczny: ' . $lastPeriod['name']), 0, 'L');
+            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(90, 90, 90);
+            $pdf->MultiCell($W, 4, $pl($_lt . '  (' . $_ltype . ')'), 0, 'L');
+            $pdf->SetTextColor(0, 0, 0); $pdf->Ln(1);
+
+            $kv2 = function (string $k, string $v, bool $sub = false) use ($pdf, $pl, $W) {
+                $pdf->SetFont('DejaVu', $sub ? '' : 'B', 8.5);
+                $pdf->SetFillColor($sub ? 247 : 220, $sub ? 249 : 234, $sub ? 253 : 220);
+                $pdf->Cell($W * 0.70, 6, $pl(($sub ? '     ' : '') . $k), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 9);
+                $pdf->Cell($W * 0.30, 6, $pl($v), 1, 1, 'R', true);
+            };
+            $kv2('Grupy (kursy)', (string)$_ls['grand']['groups']);
+            $kv2('Uczestnicy (aktywni, unikalni)', (string)count($_ls['ids']));
+            $kv2('Zajęcia odbyte — ogółem', (string)$_ls['grand']['lessons']);
+            $kv2('w tym online / zdalnie', (string)$_ls['grand']['online'], true);
+            $kv2('w tym stacjonarnie', (string)$_ls['grand']['onsite'], true);
+            $kv2('Czas — godz. dyd.', $fmtHd($_ls['grand']['mins']));
+            $kv2('Czas — godz. zegarowe', $fmtH($_ls['grand']['mins']));
+            $kv2('Zajęcia odwołane', (string)$_ls['grand']['cancelled']);
+            $kv2('Frekwencja (cały okres)', $_ls['frek_pct'] === null ? 'brak danych' : (number_format($_ls['frek_pct'], 1, ',', ' ') . ' %'));
+            $pdf->Ln(2);
+
+            // Porównanie 1. ↔ ostatnia lekcja każdej grupy
+            if ($_ls['first_cnt'] > 0) {
+                if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
+                $pdf->SetFont('DejaVu', 'B', 9.5);
+                $pdf->MultiCell($W, 5.5, $pl('Zmiana frekwencji: 1. lekcja → ostatnia lekcja każdej grupy'), 0, 'L');
+                $pdf->SetFont('DejaVu', '', 8.5);
+                $_diff    = $_ls['att_diff'];
+                $_sign    = $_diff >= 0 ? '+' : '';
+                $_cA = $W * 0.46; $_cN = $W * 0.18;
+                $pdf->SetFillColor(224, 240, 224);
+                $pdf->Cell($_cA, 6, $pl('1. lekcja każdej grupy'), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(224, 240, 224);
+                $pdf->Cell($_cN, 6, (string)$_ls['att_first'], 1, 0, 'R', true);
+                $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetFillColor(245, 247, 250);
+                $pdf->Cell($_cA - $_cN, 6, $pl('→  Ostatnia lekcja każdej grupy'), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(224, 240, 224);
+                $pdf->Cell($_cN, 6, (string)$_ls['att_last'], 1, 1, 'R', true);
+                $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetFillColor(245, 247, 250);
+                $pdf->Cell($W - $_cN, 6, $pl('Różnica (obecni na ostatniej − 1. lekcji)'), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 9);
+                $pdf->SetFillColor($_diff >= 0 ? 220 : 255, $_diff >= 0 ? 242 : 220, $_diff >= 0 ? 220 : 220);
+                $pdf->Cell($_cN, 6, $pl($_sign . $_diff), 1, 1, 'R', true);
+            }
+            $pdf->Ln(3);
+        }
+
         // Istotne zmiany w strukturze organizacji
         $struct = trim((string)$fld('structural_changes', ''));
         $pdf->SetFont('DejaVu', 'B', 9.5);
@@ -570,6 +714,62 @@ if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.p
         </table>
       </div>
     </div>
+
+    <?php if ($lastPeriod && $lastPeriodStats):
+          $_ls = $lastPeriodStats;
+          $_lpt = date('d.m.Y', strtotime($lastPeriod['date_from'])) . ' – ' . date('d.m.Y', strtotime($lastPeriod['date_to']));
+          $_ltype_meta = function_exists('ti_period_type_meta') ? ti_period_type_meta($lastPeriod['type']) : ['icon'=>'bi-calendar3','color'=>'#6b7280','bg'=>'#f9fafb','short'=>$lastPeriod['type']];
+    ?>
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-header bg-white d-flex align-items-center gap-2 fw-semibold">
+        <i class="bi <?= h($_ltype_meta['icon']) ?>" style="color:<?= h($_ltype_meta['color']) ?>" aria-hidden="true"></i>
+        Ostatni okres dydaktyczny: <?= h($lastPeriod['name']) ?>
+        <span class="badge ms-1 fw-normal" style="font-size:.7rem;background:<?= h($_ltype_meta['bg']) ?>;color:<?= h($_ltype_meta['color']) ?>"><?= h($_ltype_meta['short']) ?></span>
+        <span class="text-body-secondary fw-normal ms-auto" style="font-size:.78rem"><?= h($_lpt) ?></span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" style="font-size:.85rem">
+          <tbody>
+            <tr><td>Grupy (kursy)</td><td class="text-end fw-bold"><?= (int)$_ls['grand']['groups'] ?></td></tr>
+            <tr><td>Uczestnicy (aktywni, unikalni)</td><td class="text-end fw-bold"><?= count($_ls['ids']) ?></td></tr>
+            <tr><td>Zajęcia odbyte</td><td class="text-end fw-bold"><?= (int)$_ls['grand']['lessons'] ?></td></tr>
+            <tr><td class="ps-4 text-body-secondary">online / zdalnie</td><td class="text-end"><?= (int)$_ls['grand']['online'] ?></td></tr>
+            <tr><td class="ps-4 text-body-secondary">stacjonarnie</td><td class="text-end"><?= (int)$_ls['grand']['onsite'] ?></td></tr>
+            <tr><td>Czas — godz. dyd.</td><td class="text-end fw-bold"><?= $fmtHd((int)$_ls['grand']['mins']) ?></td></tr>
+            <tr><td>Czas — godz. zegarowe</td><td class="text-end fw-bold"><?= $fmtH((int)$_ls['grand']['mins']) ?></td></tr>
+            <tr><td>Zajęcia odwołane</td><td class="text-end fw-bold"><?= (int)$_ls['grand']['cancelled'] ?></td></tr>
+            <tr><td>Frekwencja (cały okres)</td><td class="text-end fw-bold"><?= $_ls['frek_pct']===null ? '—' : number_format($_ls['frek_pct'],1,',',' ').' %' ?></td></tr>
+          </tbody>
+        </table>
+        <?php if ($_ls['first_cnt'] > 0): ?>
+        <div class="border-top px-3 py-2" style="background:#f8fafc">
+          <div class="fw-semibold mb-2" style="font-size:.8rem;color:#374151">
+            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Zmiana frekwencji: 1.&nbsp;lekcja → ostatnia lekcja każdej grupy
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="text-center">
+              <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em">1.&nbsp;lekcja</div>
+              <div class="fw-bold" style="font-size:1.5rem;line-height:1"><?= (int)$_ls['att_first'] ?></div>
+              <div class="text-muted" style="font-size:.68rem">obecnych</div>
+            </div>
+            <div class="text-muted" style="font-size:1.2rem">→</div>
+            <div class="text-center">
+              <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em">Ostatnia lekcja</div>
+              <div class="fw-bold" style="font-size:1.5rem;line-height:1"><?= (int)$_ls['att_last'] ?></div>
+              <div class="text-muted" style="font-size:.68rem">obecnych</div>
+            </div>
+            <div class="text-center ms-2">
+              <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em">Różnica</div>
+              <?php $_diff = (int)$_ls['att_diff']; $_sign = $_diff >= 0 ? '+' : ''; ?>
+              <div class="fw-bold <?= $_diff > 0 ? 'text-success' : ($_diff < 0 ? 'text-danger' : 'text-muted') ?>" style="font-size:1.5rem;line-height:1"><?= $_sign . $_diff ?></div>
+              <div style="font-size:.68rem;color:<?= $_diff > 0 ? '#16a34a' : ($_diff < 0 ? '#dc2626' : '#94a3b8') ?>"><?= $_diff > 0 ? 'wzrost' : ($_diff < 0 ? 'spadek' : 'bez zmian') ?></div>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Pola sprawozdania + generowanie -->
