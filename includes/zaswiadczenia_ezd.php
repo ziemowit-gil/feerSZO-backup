@@ -27,6 +27,7 @@
     // Kolumny dodane po pierwszym wdrożeniu — healed
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN nr_prefix TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN naglowek_html TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN podpisujacy TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +72,8 @@ function ezd_zas_typy_all(bool $only_active = false): array {
 function ezd_zas_typ_get(int $id): ?array {
     $r = db_one(
         "SELECT zt.*, j.symbol AS jrwa_symbol,
-                COALESCE(zt.naglowek_html,'') AS naglowek_html
+                COALESCE(zt.naglowek_html,'') AS naglowek_html,
+                COALESCE(zt.podpisujacy,'') AS podpisujacy
          FROM ezd_zas_typy zt
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id WHERE zt.id=?",
         [$id]
@@ -105,7 +107,9 @@ function ezd_zas_get(int $id): ?array {
     $r = db_one(
         "SELECT w.*, zt.nazwa AS typ_nazwa, zt.szablon_tresc, zt.szablon_pola,
                 zt.wymaga_akceptacji, zt.jrwa_id, zt.nr_prefix,
-                COALESCE(zt.naglowek_html,'') AS naglowek_html, j.symbol AS jrwa_symbol,
+                COALESCE(zt.naglowek_html,'') AS naglowek_html,
+                COALESCE(zt.podpisujacy,'') AS podpisujacy,
+                j.symbol AS jrwa_symbol,
                 u.name AS created_by_name, z.name AS zatw_name,
                 sp.znak_sprawy, p.sygnatura AS pismo_syg
          FROM ezd_zaswiadczenia_wlasne w
@@ -167,59 +171,79 @@ function ezd_zas_pdf_html(array $zas): string {
     $org  = function_exists('org_setting') ? (org_setting('org_name') ?: '') : (defined('ORG_NAME') ? ORG_NAME : '');
     $logo = function_exists('org_setting') ? (org_setting('org_logo_path') ?: '') : '';
     $nr   = h($zas['nr_zaswiadczenia'] ?? '');
-    $body = nl2br($zas['tresc_html'] ?: '');
-
     $data_wyd = $zas['zatwierdzone_at']
         ? date('d.m.Y', strtotime((string)$zas['zatwierdzone_at']))
         : date('d.m.Y');
 
-    // Nagłówek: z pola naglowek_html (z podstawionymi tokenami) lub domyślny logo+org
+    // Treść: obsługa HTML (TinyMCE) i legacy plain-text
+    $raw_body  = $zas['tresc_html'] ?: '';
+    $_trimmed  = ltrim($raw_body);
+    $body      = ($_trimmed !== '' && $_trimmed[0] === '<')
+                    ? $raw_body
+                    : nl2br(h($raw_body));
+
+    // Logo jako data-URI
+    $logo_html = '';
+    if ($logo && file_exists($logo)) {
+        $mime = mime_content_type($logo);
+        $b64  = base64_encode(file_get_contents($logo));
+        $logo_html = '<img src="data:' . $mime . ';base64,' . $b64
+                   . '" style="max-height:55px;max-width:175px;display:block">';
+    }
+
+    // Nagłówek: własny (z tokenami) lub domyślny logo-lewo / nazwa-centrum
     $naglowek_raw = trim($zas['naglowek_html'] ?? '');
     if ($naglowek_raw !== '') {
-        // Podstaw tokeny systemowe w nagłówku
-        $naglowek_html = ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
+        $header_inner = ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
             'nr_zaswiadczenia' => $zas['nr_zaswiadczenia'] ?? '',
             'data_wydania'     => $data_wyd,
             'organizacja'      => $org,
         ]);
     } else {
-        $logo_html = '';
-        if ($logo && file_exists($logo)) {
-            $mime = mime_content_type($logo);
-            $b64  = base64_encode(file_get_contents($logo));
-            $logo_html = '<img src="data:' . $mime . ';base64,' . $b64
-                       . '" style="max-height:60px;max-width:220px;margin-bottom:6pt"><br>';
-        }
-        $naglowek_html = $logo_html . '<div class="org">' . h($org) . '</div>';
+        $header_inner = '
+<table style="width:100%;border-collapse:collapse;border:none">
+  <tr>
+    <td style="width:22%;vertical-align:middle;border:none">' . $logo_html . '</td>
+    <td style="text-align:center;vertical-align:middle;border:none">
+      <span style="font-size:13pt;font-weight:bold;letter-spacing:.5pt">' . h($org) . '</span>
+    </td>
+    <td style="width:22%;border:none"></td>
+  </tr>
+</table>';
     }
+
+    // Podpisujący: z pola typu lub fallback na org + datę
+    $podpisujacy = trim($zas['podpisujacy'] ?? '');
+    $sig_inner   = $podpisujacy !== ''
+        ? nl2br(h($podpisujacy))
+        : h($org) . '<br><span style="color:#555;font-size:9pt">' . $data_wyd . '</span>';
 
     return '<!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <style>
-  body     { font-family: "DejaVu Serif", serif; font-size: 11pt; line-height: 1.6; color: #000; margin: 0; }
-  .header  { text-align: center; margin-bottom: 24pt; border-bottom: 1px solid #999; padding-bottom: 12pt; }
-  .org     { font-size: 13pt; font-weight: bold; }
-  .title   { font-size: 18pt; font-weight: bold; letter-spacing: 2pt; margin: 20pt 0 4pt; text-align: center; }
-  .nr      { font-size: 11pt; text-align: center; color: #444; margin-bottom: 24pt; }
-  .body    { margin: 0 8pt; text-align: justify; }
+  body     { font-family: ubuntu, "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.65; color: #111; margin: 0; }
+  .header  { padding-bottom: 10pt; margin-bottom: 18pt;
+             border-bottom: 2px solid #1e3a5f; }
+  .title   { font-size: 17pt; font-weight: bold; letter-spacing: 3pt; text-transform: uppercase;
+             text-align: center; margin: 16pt 0 4pt; }
+  .nr      { font-size: 10pt; text-align: center; color: #555; margin-bottom: 22pt; }
+  .body    { text-align: justify; }
   .sig     { margin-top: 60pt; text-align: right; }
-  .sig-box { display: inline-block; border-top: 1px solid #000; width: 200pt;
-             text-align: center; padding-top: 6pt; font-size: 9pt; }
-  .footer  { margin-top: 30pt; font-size: 8pt; color: #888;
-             border-top: 1px solid #ddd; padding-top: 6pt; }
+  .sig-box { display: inline-block; border-top: 1px solid #333; min-width: 195pt;
+             text-align: center; padding-top: 6pt; font-size: 9.5pt; line-height: 1.4; }
+  .footer  { margin-top: 26pt; font-size: 8pt; color: #aaa;
+             border-top: 1px solid #e5e5e5; padding-top: 5pt; }
 </style>
 </head>
 <body>
-<div class="header">' . $naglowek_html . '</div>
-<div class="title">ZAŚWIADCZENIE</div>
+<div class="header">' . $header_inner . '</div>
+<div class="title">Zaświadczenie</div>
 <div class="nr">Nr ' . $nr . '</div>
 <div class="body">' . $body . '</div>
-<div class="sig">
-  <div class="sig-box">' . h($org) . '<br>' . $data_wyd . '</div>
-</div>
-<div class="footer">Zaświadczenie nr ' . $nr . ' &bull; ' . $data_wyd . ' &bull; ' . h($org) . '</div>
+<div class="sig"><div class="sig-box">' . $sig_inner . '</div></div>
+<div class="footer">Nr ' . $nr . ' &bull; ' . $data_wyd . ' &bull; ' . h($org) . '</div>
 </body>
 </html>';
 }

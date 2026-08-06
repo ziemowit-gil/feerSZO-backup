@@ -30,16 +30,39 @@ try {
     $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
 
-    $mpdf = new \Mpdf\Mpdf([
+    // Szukaj czcionki Ubuntu (Linux/macOS/lokalny override)
+    $ubuntu_cfg = [];
+    foreach ([
+        ROOT_DIR . '/assets/fonts/ubuntu',
+        '/usr/share/fonts/truetype/ubuntu',
+        '/usr/share/fonts/truetype/ubuntu-font-family',
+        '/usr/share/fonts/ubuntu',
+    ] as $_udir) {
+        if (is_dir($_udir) && file_exists($_udir . '/Ubuntu-R.ttf')) {
+            $ubuntu_cfg = [
+                'fontDir'  => [$_udir],
+                'fontdata' => ['ubuntu' => [
+                    'R'  => 'Ubuntu-R.ttf',
+                    'B'  => 'Ubuntu-B.ttf',
+                    'I'  => 'Ubuntu-RI.ttf',
+                    'BI' => 'Ubuntu-BI.ttf',
+                ]],
+                'default_font' => 'ubuntu',
+            ];
+            break;
+        }
+    }
+
+    $mpdf = new \Mpdf\Mpdf(array_merge([
         'mode'          => 'utf-8',
         'format'        => 'A4',
         'margin_left'   => 25,
         'margin_right'  => 25,
         'margin_top'    => 20,
         'margin_bottom' => 20,
-        'default_font'  => 'dejavuserif',
+        'default_font'  => 'dejavusans',
         'tempDir'       => $mpdf_tmp,
-    ]);
+    ], $ubuntu_cfg));
 
     $nr = $zas['nr_zaswiadczenia'] ?? 'zaswiadczenie';
     $mpdf->SetTitle('Zaświadczenie ' . $nr);
