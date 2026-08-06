@@ -791,6 +791,105 @@ class M365Graph {
         };
     }
 
+    // ── SharePoint folder/file helpers (Workspaces module) ───────────────────
+
+    /**
+     * Tworzy folder na SharePoint lub zwraca dane istniejącego (idempotentne).
+     *
+     * @param  string $drive_id    Drive ID biblioteki SP
+     * @param  string $parent_path Ścieżka rodzica od korzenia ('' = korzeń), bez / na obu końcach
+     * @param  string $folder_name Nazwa nowego folderu
+     * @return array  ['id'=>string, 'name'=>string, 'webUrl'=>string]
+     * @throws \RuntimeException gdy SP zwróci nieoczekiwany błąd
+     */
+    public function sp_create_folder(string $drive_id, string $parent_path, string $folder_name): array {
+        $folder_name = trim($folder_name);
+        $parent_path = trim($parent_path, '/');
+
+        $url = $parent_path === ''
+            ? "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root/children"
+            : "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root:/"
+              . implode('/', array_map('rawurlencode', explode('/', $parent_path)))
+              . ":/children";
+
+        $resp = $this->http_post($url, [
+            'name'                              => $folder_name,
+            'folder'                            => (object)[],
+            '@microsoft.graph.conflictBehavior' => 'fail',
+        ]);
+
+        if (!empty($resp['id'])) {
+            return ['id' => $resp['id'], 'name' => $resp['name'] ?? $folder_name, 'webUrl' => $resp['webUrl'] ?? ''];
+        }
+
+        // 409 nameAlreadyExists — pobierz istniejący folder
+        $code = $resp['error']['code'] ?? '';
+        if ($this->last_status() === 409 || $code === 'nameAlreadyExists') {
+            $full = $parent_path ? "{$parent_path}/{$folder_name}" : $folder_name;
+            $enc  = implode('/', array_map('rawurlencode', explode('/', $full)));
+            $item = $this->http_get("https://graph.microsoft.com/v1.0/drives/{$drive_id}/root:/{$enc}");
+            if (!empty($item['id'])) {
+                return ['id' => $item['id'], 'name' => $item['name'] ?? $folder_name, 'webUrl' => $item['webUrl'] ?? ''];
+            }
+        }
+
+        throw new \RuntimeException(
+            "Nie udało się utworzyć folderu \"{$folder_name}\". Błąd: "
+            . json_encode($resp['error'] ?? $resp)
+        );
+    }
+
+    /**
+     * Wgrywa plik do folderu identyfikowanego przez item ID (bez znajomości pełnej ścieżki).
+     * Małe pliki (≤4 MB) — prosty PUT; większe — upload session (chunked).
+     *
+     * @param  string $drive_id       Drive ID
+     * @param  string $folder_item_id Item ID folderu (z sp_create_folder)
+     * @param  string $filename       Docelowa nazwa pliku w SP
+     * @param  string $local_path     Ścieżka lokalnego pliku
+     * @return array  Metadane z Graph (['id', 'name', 'size', 'webUrl', ...])
+     */
+    public function sp_upload_to_folder(string $drive_id, string $folder_item_id, string $filename, string $local_path): array {
+        if (!file_exists($local_path)) {
+            throw new \RuntimeException("Plik lokalny nie istnieje: {$local_path}");
+        }
+        $size     = filesize($local_path);
+        $enc_name = rawurlencode($filename);
+        $base_url = "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/{$folder_item_id}:/{$enc_name}";
+
+        if ($size <= 4 * 1024 * 1024) {
+            $mime = $this->sp_mime(strtolower(pathinfo($filename, PATHINFO_EXTENSION)));
+            $ctx  = stream_context_create(['http' => [
+                'method'        => 'PUT',
+                'header'        => "Authorization: Bearer {$this->token()}\r\nContent-Type: {$mime}\r\n",
+                'content'       => file_get_contents($local_path),
+                'ignore_errors' => true,
+            ]]);
+            $resp = json_decode(@file_get_contents("{$base_url}:/content", false, $ctx) ?: '{}', true) ?? [];
+            $this->capture_status($http_response_header ?? []);
+            return $resp;
+        }
+
+        return $this->sp_upload_large("{$base_url}:/createUploadSession", $local_path, $size);
+    }
+
+    /**
+     * Listuje zawartość folderu (pliki i podfoldery).
+     *
+     * @param  string $drive_id Drive ID
+     * @param  string $item_id  Item ID folderu
+     * @return array  [{id, name, size, file, folder, webUrl, lastModifiedDateTime}, ...]
+     */
+    public function sp_list_folder(string $drive_id, string $item_id): array {
+        $url  = "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/{$item_id}/children";
+        $url .= '?' . http_build_query([
+            '$select' => 'id,name,size,file,folder,webUrl,lastModifiedDateTime,createdDateTime',
+            '$top'    => 200,
+        ]);
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
     // ══ OUTLOOK CONTACTS (delta sync) ════════════════════════════════════════
 
     /**

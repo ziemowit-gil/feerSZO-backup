@@ -321,6 +321,8 @@ function _menu_editor(): array {
         $obs_g[] = _mi('Obiegi','/obiegi/index.php','bi-diagram-2',['match'=>'/obiegi/','badge'=>$cnt['obieg'],'kw'=>'obiegi bpm procesy']);
     if (module_enabled('tasks_enabled'))
         $obs_g[] = _mi('Zadania','/tasks/dashboard.php','bi-kanban',['match'=>'/tasks/','kw'=>'zadania tablica kanban']);
+    if (module_enabled('tasks_enabled'))
+        $obs_g[] = _mi('Koszulki','/workspaces/index.php','bi-folder2-open',['match'=>'/workspaces/','kw'=>'koszulki workspace pliki sharepoint']);
     if (module_enabled('helpdesk_enabled')) {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);
         if ($cnt['alias_op'])
@@ -359,7 +361,7 @@ function _menu_editor(): array {
     $nodes[] = [
         'id'=>'biuro','label'=>'Biuro','icon'=>'bi-briefcase','badge'=>$cnt['obieg']+$cnt['hd']+$cnt['msg']+($cnt['alias_op']?$cnt['alias']:0),
         'end'=>true,
-        'active'=>_menu_hit('/obiegi/')||_menu_hit('/tasks/')||_menu_hit('/helpdesk/')||_menu_hit('/admin/email_aliasy')||_menu_hit('/admin/messages')||_menu_hit('/events/')||_menu_hit('/poczta/')
+        'active'=>_menu_hit('/obiegi/')||_menu_hit('/tasks/')||_menu_hit('/workspaces/')||_menu_hit('/helpdesk/')||_menu_hit('/admin/email_aliasy')||_menu_hit('/admin/messages')||_menu_hit('/events/')||_menu_hit('/poczta/')
                  ||_menu_hit('/reports/')||_menu_hit('/correspondence/')||_menu_hit('/procedures/')||_menu_hit('/wsparcie_ou/')||_menu_hit('/podpisy/')||_menu_hit('/admin/org_documents')||_menu_hit('/resolutions/')||_menu_hit('/tools/oplacalnosc')
                  ||_menu_hit('/dostepnosc/')||_menu_hit('/asysta/')||_menu_hit('/extforms/'),
         'groups'=>[
