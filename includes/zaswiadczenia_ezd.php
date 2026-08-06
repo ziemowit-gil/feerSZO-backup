@@ -314,6 +314,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <div class="body">' . $body . '</div>
 
+' . (!$preview && empty($zas['plik_path']) ? '<p style="font-size:8pt;color:#777;margin-top:14pt;font-style:italic">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym osoby upoważnionej.</p>' : '') . '
+
 ' . $wazne_do_before_sig . '
 
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
