@@ -305,7 +305,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
   </tr>
 </table>
 
-<p style="font-size:9.5pt;margin-bottom:10pt">' . $miasto_data . '</p>
+<p style="font-size:9.5pt;text-align:right;margin-bottom:10pt">' . $miasto_data . '</p>
 
 <p style="font-size:17pt;font-weight:bold;text-align:center;margin:0 0 10pt">ZAŚWIADCZENIE</p>
 
