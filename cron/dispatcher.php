@@ -154,6 +154,11 @@ $AGENTS = [
         'interval' => 60,           // co minutę — konsumuje kolejkę RabbitMQ „poczta_skanowanie"
         'schedule' => [6, 23],
     ],
+    'ezd_mail_ingest' => [
+        'file'     => __DIR__ . '/ezd_mail_ingest.php',
+        'interval' => 300,          // co 5 min — match [EZD:ZNAK] i Inbox Ogólny
+        'schedule' => [6, 23],      // w godzinach pracy (M365 Graph jest tu ograniczony)
+    ],
 ];
 
 // Agenci aktywni tylko w środowisku Docker

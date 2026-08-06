@@ -28,6 +28,8 @@
 10 3 * * * www-data php /var/www/html/cron/tasks_archive.php >> /var/log/feer_cron.log 2>&1
 
 # Dispatcher (orchestrator) — co 5 minut
+# Zarządza m.in.: mail_queue, poczta_dispatch/worker, ezd_mail_ingest,
+# tasks_*, sync_*, backup, campaign_send — patrz cron/dispatcher.php $AGENTS
 */5 * * * * www-data php /var/www/html/cron/dispatcher.php >> /var/log/feer_cron.log 2>&1
 
 # Synchronizacja kont do LDAP (jednokierunkowa) — codziennie o 7:30.

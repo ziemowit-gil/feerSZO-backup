@@ -155,6 +155,7 @@ function _menu_ezd(): array {
 function _menu_ezd_items(): array {
     return [
         _mi('Pulpit EZD','/ezd/index.php','bi-building-gear',['match'=>'/ezd/index.php','kw'=>'ezd biurko']),
+        _mi('Poczta EZD','/ezd/poczta/index.php','bi-envelope-fill',['match'=>'/ezd/poczta/','kw'=>'poczta email korespondencja inbox']),
         _mi('Dziennik podawczy','/ezd/rpw/index.php','bi-mailbox2',['match'=>'/ezd/rpw/','kw'=>'rpw korespondencja wpływ']),
         _mi('Koszulki','/ezd/sprawy/index.php','bi-folder2-open',['match'=>'/ezd/sprawy/','kw'=>'sprawa koszulka']),
         _mi('Segregatory aktowe','/ezd/teczki/index.php','bi-archive',['match'=>'/ezd/teczki/','kw'=>'teczka segregator akta']),
