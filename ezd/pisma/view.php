@@ -57,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $recipient = trim($_POST['recipient_email'] ?? '');
         $subject   = trim($_POST['mail_subject']    ?? '');
         $body_raw  = trim($_POST['mail_body']       ?? '');
+        $cc_list   = mail_parse_addr_list($_POST['cc_emails']  ?? '');
+        $bcc_list  = mail_parse_addr_list($_POST['bcc_emails'] ?? '');
         $zids      = array_filter(array_map('intval', (array)($_POST['zal_ids'] ?? [])));
         if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
             flash_set('error', 'Podaj prawidłowy adres e-mail odbiorcy.');
@@ -80,16 +82,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $subj      = $subject ?: $pismo['sygnatura'] . ' — ' . $pismo['title'];
                 $body_html = $body_raw ? nl2br(htmlspecialchars($body_raw, ENT_QUOTES, 'UTF-8')) : '';
                 mail_queue_add($recipient, $recipient, $subj,
-                    $body_html, $body_raw, 'ezd_pismo', $id, '', false, $attachments);
+                    $body_html, $body_raw, 'ezd_pismo', $id, '', false, $attachments, '', $cc_list, $bcc_list);
                 ezd_log(null, $sprawa_id, $id, null, $user_id, 'pismo_email_sent',
-                    'Wysłano mailem do: ' . $recipient . '; pliki: ' . implode(', ', array_column($attachments, 'name')));
+                    'Wysłano mailem do: ' . $recipient
+                    . ($cc_list  ? '; DW: '  . implode(', ', $cc_list)  : '')
+                    . ($bcc_list ? '; UDW: ' . implode(', ', $bcc_list) : '')
+                    . '; pliki: ' . implode(', ', array_column($attachments, 'name')));
                 $med_upd = $pismo['rodzaj_medium'] !== 'email' ? ",rodzaj_medium='email'" : '';
                 if (!$pismo['data_wysylki']) {
                     db()->prepare("UPDATE ezd_pisma SET data_wysylki=date('now')$med_upd,updated_at=datetime('now') WHERE id=?")->execute([$id]);
                 } elseif ($pismo['rodzaj_medium'] !== 'email') {
                     db()->prepare("UPDATE ezd_pisma SET rodzaj_medium='email',updated_at=datetime('now') WHERE id=?")->execute([$id]);
                 }
-                flash_set('success', 'Wiadomość e-mail wysłana na adres ' . htmlspecialchars($recipient, ENT_QUOTES) . '.');
+                $cc_info = $cc_list ? ' (DW: ' . h(implode(', ', $cc_list)) . ')' : '';
+                flash_set('success', 'Wiadomość e-mail wysłana na adres ' . h($recipient) . $cc_info . '.');
             }
         }
     }
@@ -318,6 +324,20 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold" style="font-size:.84rem">Adres e-mail odbiorcy <span class="text-danger">*</span></label>
           <input type="email" name="recipient_email" class="form-control form-control-sm" required placeholder="odbiorca@example.com"
                  value="<?= h($pismo['odbiorca'] && filter_var($pismo['odbiorca'], FILTER_VALIDATE_EMAIL) ? $pismo['odbiorca'] : '') ?>">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem" for="pem_cc">DW <span class="text-muted fw-normal">(Do Wiadomości)</span></label>
+            <input type="text" id="pem_cc" name="cc_emails" class="form-control form-control-sm"
+                   placeholder="kopia@example.com, inna@example.com"
+                   aria-describedby="pem_cc_help">
+            <div id="pem_cc_help" class="form-text">Kilka adresów: oddziel przecinkami.</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem" for="pem_bcc">UDW <span class="text-muted fw-normal">(Ukryta kopia)</span></label>
+            <input type="text" id="pem_bcc" name="bcc_emails" class="form-control form-control-sm"
+                   placeholder="ukryta@example.com">
+          </div>
         </div>
         <div class="mb-3">
           <label class="form-label fw-semibold" style="font-size:.84rem">Temat</label>

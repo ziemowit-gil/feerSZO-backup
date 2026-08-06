@@ -40,6 +40,9 @@
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
     // Nadawca nadrzędny (np. skrzynka zalogowanego usera M365) — v1.9
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN from_email TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // DW / UDW (JSON array of email strings) — v2.0
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN cc_emails  TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN bcc_emails TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
 })();
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -86,6 +89,20 @@ function mail_queue_save_attachment(array $uploaded_file): ?array {
     ];
 }
 
+/**
+ * Rozkłada string z adresami (przecinki/średniki/spacje) na tablicę walidowanych adresów.
+ */
+function mail_parse_addr_list(string $raw): array {
+    $out = [];
+    foreach (preg_split('/[\s,;]+/', trim($raw)) as $e) {
+        $e = trim($e);
+        if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) {
+            $out[] = $e;
+        }
+    }
+    return array_values(array_unique($out));
+}
+
 function mail_queue_add(
     string $to_email,
     string $to_name,
@@ -97,7 +114,9 @@ function mail_queue_add(
     string $scheduled_at = '',
     bool   $immediate    = false,
     array  $attachments  = [],  // [['path'=>..., 'name'=>..., 'mime'=>..., 'size'=>...], ...]
-    string $from_email   = ''   // nadawca nadrzędny (np. skrzynka usera M365); '' = nadawca systemowy
+    string $from_email   = '',  // nadawca nadrzędny (np. skrzynka usera M365); '' = nadawca systemowy
+    array  $cc_emails    = [],  // DW — Do Wiadomości
+    array  $bcc_emails   = []   // UDW — Ukryta Do Wiadomości
 ): int {
     if (!$body_text) {
         $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
@@ -105,14 +124,16 @@ function mail_queue_add(
         $body_text = trim($body_text);
     }
     $att_json = $attachments ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '[]';
+    $cc_json  = $cc_emails   ? json_encode($cc_emails,   JSON_UNESCAPED_UNICODE) : '[]';
+    $bcc_json = $bcc_emails  ? json_encode($bcc_emails,  JSON_UNESCAPED_UNICODE) : '[]';
     db()->prepare(
-        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email)
-         VALUES (?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email,cc_emails,bcc_emails)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([
         $to_email, $to_name, $subject, $body_html, $body_text,
         $context_type, $context_id,
         $scheduled_at ?: date('Y-m-d H:i:s'),
-        $att_json, $from_email,
+        $att_json, $from_email, $cc_json, $bcc_json,
     ]);
     $mail_id = (int)db()->lastInsertId();
 
@@ -436,6 +457,20 @@ function _mail_send_m365(array $msg): bool {
         'saveToSentItems' => false,
     ];
 
+    // DW / UDW
+    $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
+    $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];
+    if ($cc_list) {
+        $payload['message']['ccRecipients'] = array_map(
+            fn($e) => ['emailAddress' => ['address' => $e]], $cc_list
+        );
+    }
+    if ($bcc_list) {
+        $payload['message']['bccRecipients'] = array_map(
+            fn($e) => ['emailAddress' => ['address' => $e]], $bcc_list
+        );
+    }
+
     // Wysyłka z konta konkretnego użytkownika: nie wymuszaj nadawcy/nazwy organizacji
     // (skrzynka sama poda swoją tożsamość) i zostaw kopię w „Elementach wysłanych".
     if ($from_override) {
@@ -537,6 +572,10 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     // Koperta
     $send("MAIL FROM:<{$from}>");
     $send("RCPT TO:<{$msg['to_email']}>");
+    $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
+    $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];
+    foreach ($cc_list  as $e) { $send("RCPT TO:<{$e}>"); }
+    foreach ($bcc_list as $e) { $send("RCPT TO:<{$e}>"); }
     $send("DATA");
 
     // Załączniki
@@ -555,6 +594,7 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $data  = "Date: {$date}\r\n";
     $data .= "From: {$from_enc}\r\n";
     $data .= "To: {$to_enc}\r\n";
+    if ($cc_list) { $data .= "Cc: " . implode(', ', $cc_list) . "\r\n"; }
     $data .= "Subject: {$subj_enc}\r\n";
     $data .= "MIME-Version: 1.0\r\n";
 
@@ -626,6 +666,10 @@ function _mail_send_native(array $msg): bool {
     $headers .= "From: =?UTF-8?B?" . base64_encode($from_name) . "?= <{$from_email}>\r\n";
     $headers .= "Reply-To: {$from_email}\r\n";
     $headers .= "X-Mailer: RejestrUmow/2026\r\n";
+    $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
+    $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];
+    if ($cc_list)  { $headers .= "Cc: "  . implode(', ', $cc_list)  . "\r\n"; }
+    if ($bcc_list) { $headers .= "Bcc: " . implode(', ', $bcc_list) . "\r\n"; }
 
     $to      = $msg['to_name']
         ? "=?UTF-8?B?" . base64_encode($msg['to_name']) . "?= <{$msg['to_email']}>"
