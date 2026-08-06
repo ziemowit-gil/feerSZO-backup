@@ -15,11 +15,14 @@ $_pv_title  = $PAGE_TITLE ?? 'Panel wolontariusza';
 $_pv_uri    = $_SERVER['REQUEST_URI'] ?? '';
 $_pv_org    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
-// Migracja kolumny per-user panel_color
+// Migracja kolumn per-user
 try { db()->exec("ALTER TABLE users ADD COLUMN panel_color TEXT"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE users ADD COLUMN panel_theme TEXT"); } catch (\Throwable $e) {}
 
-// Kolor: najpierw per-user, fallback na org setting
-$_pv_user_row  = db_one("SELECT panel_color FROM users WHERE id=?", [(int)(current_user()['id'] ?? 0)]);
+// Kolor i motyw: per-user, fallback na org setting
+$_pv_user_row  = db_one("SELECT panel_color, panel_theme FROM users WHERE id=?", [(int)(current_user()['id'] ?? 0)]);
+$_pv_theme     = in_array($_pv_user_row['panel_theme'] ?? '', ['light','dark','hc'], true)
+    ? $_pv_user_row['panel_theme'] : '';
 $_vol_color    = (($_pv_user_row['panel_color'] ?? '') !== '')
     ? $_pv_user_row['panel_color']
     : (org_setting('volunteer_color') ?: '#1D4ED8');
@@ -63,7 +66,7 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
 }
 ?>
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl"<?= $_pv_theme ? ' data-theme="'.h($_pv_theme).'"' : '' ?>>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -80,25 +83,42 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
   --vol-color: <?= h($_vol_color) ?>;
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
+  /* Tokeny layoutu (navbar / sidebar / body) */
+  --pvl-body:#F0F2F5;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
+  --pvl-txt:#374151;--pvl-sub:#9CA3AF;
+  --pvl-btn:#fff;--pvl-btn-b:#E5E7EB;--pvl-btn-t:#374151;
+  --pvl-div:#F3F4F6;--pvl-brand:#111827;
+  --bs-offcanvas-bg:var(--pvl-nav);
 }
+/* Ciemny motyw systemowy (nie nadpisuje explicit light/hc) */
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-theme="hc"]){
+    --pvl-body:#090e1a;--pvl-nav:#0f172a;--pvl-nav-b:#1e2535;
+    --pvl-txt:#cbd5e0;--pvl-sub:#64748b;
+    --pvl-btn:#1e2535;--pvl-btn-b:#2d3748;--pvl-btn-t:#e2e8f0;
+    --pvl-div:#1e2535;--pvl-brand:#f1f5f9;
+  }
+}
+:root[data-theme="dark"]{--pvl-body:#090e1a;--pvl-nav:#0f172a;--pvl-nav-b:#1e2535;--pvl-txt:#cbd5e0;--pvl-sub:#64748b;--pvl-btn:#1e2535;--pvl-btn-b:#2d3748;--pvl-btn-t:#e2e8f0;--pvl-div:#1e2535;--pvl-brand:#f1f5f9}
+:root[data-theme="hc"]{--pvl-body:#fff;--pvl-nav:#fff;--pvl-nav-b:#000;--pvl-txt:#000;--pvl-sub:#111;--pvl-btn:#fff;--pvl-btn-b:#000;--pvl-btn-t:#000;--pvl-div:#000;--pvl-brand:#000}
 /* Akcenty Bootstrap idą kolorem panelu (przyciski .btn-primary, linki) */
 :root{--bs-primary:var(--vol-color);--bs-link-color:var(--vol-color);--bs-link-hover-color:var(--vol-color)}
 .btn-primary{--bs-btn-bg:var(--vol-color);--bs-btn-border-color:var(--vol-color);--bs-btn-hover-bg:var(--vol-color);--bs-btn-hover-border-color:var(--vol-color);--bs-btn-active-bg:var(--vol-color);--bs-btn-active-border-color:var(--vol-color)}
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0}
-body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
 
 /* Skip link */
 .pv-skip{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--vol-color);color:var(--vol-on);padding:.75rem 1.5rem;border-radius:0 0 8px 8px;font-size:1rem;font-weight:700;text-decoration:none;border:3px solid #FBBF24}
 .pv-skip:focus{top:0}
 *:focus-visible{outline:3px solid #FBBF24 !important;outline-offset:3px !important;border-radius:3px}
 
-/* Górny pasek (navbar) — jasny, w stylu panelu kursanta */
-.pv-navbar{background:#fff;border-bottom:1px solid #E5E7EB;box-shadow:0 1px 3px rgba(0,0,0,.04);position:sticky;top:0;z-index:1040}
-.pv-menu-btn{border:1px solid #E5E7EB;background:#fff;border-radius:9px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:#374151;cursor:pointer;flex-shrink:0;transition:border-color .12s,color .12s}
+/* Górny pasek (navbar) */
+.pv-navbar{background:var(--pvl-nav);border-bottom:1px solid var(--pvl-nav-b);box-shadow:0 1px 3px rgba(0,0,0,.04);position:sticky;top:0;z-index:1040}
+.pv-menu-btn{border:1px solid var(--pvl-btn-b);background:var(--pvl-btn);border-radius:9px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--pvl-btn-t);cursor:pointer;flex-shrink:0;transition:border-color .12s,color .12s}
 .pv-menu-btn:hover{border-color:var(--vol-color);color:var(--vol-color)}
-.pv-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:#111827;font-weight:800;font-size:.98rem;min-width:0}
-.pv-brand:hover{color:#111827}
+.pv-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--pvl-brand);font-weight:800;font-size:.98rem;min-width:0}
+.pv-brand:hover{color:var(--pvl-brand)}
 .pv-brand-icon{width:34px;height:34px;background:var(--vol-color);color:var(--vol-on);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
 .pv-brand-sub{font-size:.66rem;opacity:.6;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 .pv-avatar{width:36px;height:36px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;cursor:pointer;border:none;line-height:1}
@@ -107,20 +127,20 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;min-heigh
 .pv-offcanvas{max-width:285px}
 .pv-offcanvas .offcanvas-header{background:var(--vol-color);color:var(--vol-on)}
 .pv-offcanvas .offcanvas-body{display:flex;flex-direction:column;padding:.35rem 0}
-.pv-nav-label{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;padding:.85rem 1rem .3rem;user-select:none}
-.pv-nav-link{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;border-radius:8px;font-size:.88rem;font-weight:500;color:#374151;text-decoration:none;transition:background .1s,color .1s,border-color .1s;margin:.05rem .5rem;border-left:3px solid transparent}
-.pv-nav-link i{font-size:1rem;width:20px;text-align:center;flex-shrink:0;color:#9CA3AF;transition:color .1s}
+.pv-nav-label{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pvl-sub);padding:.85rem 1rem .3rem;user-select:none}
+.pv-nav-link{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;border-radius:8px;font-size:.88rem;font-weight:500;color:var(--pvl-txt);text-decoration:none;transition:background .1s,color .1s,border-color .1s;margin:.05rem .5rem;border-left:3px solid transparent}
+.pv-nav-link i{font-size:1rem;width:20px;text-align:center;flex-shrink:0;color:var(--pvl-sub);transition:color .1s}
 .pv-nav-link:hover{background:var(--vol-bg);color:var(--vol-color);border-left-color:var(--vol-color)}
 .pv-nav-link:hover i{color:var(--vol-color)}
 .pv-nav-link.pv-active{background:var(--vol-bg);color:var(--vol-color);font-weight:700;border-left-color:var(--vol-color)}
 .pv-nav-link.pv-active i{color:var(--vol-color)}
 .pv-nav-link .pv-badge{margin-left:auto;background:var(--vol-color);color:var(--vol-on);font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:10px;min-width:18px;text-align:center}
-.pv-nav-divider{height:1px;background:#F3F4F6;margin:.4rem .75rem}
-.pv-sidebar-bottom{margin-top:auto;border-top:1px solid #F3F4F6;padding:.5rem}
+.pv-nav-divider{height:1px;background:var(--pvl-div);margin:.4rem .75rem}
+.pv-sidebar-bottom{margin-top:auto;border-top:1px solid var(--pvl-div);padding:.5rem}
 
 /* Treść — wyśrodkowany kontener */
 #pv-main{flex:1 0 auto;width:100%}
-.pv-footer{border-top:1px solid #E5E7EB;padding:.6rem 1.5rem;font-size:.75rem;color:#9CA3AF;background:#fff;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
+.pv-footer{border-top:1px solid var(--pvl-nav-b);padding:.6rem 1.5rem;font-size:.75rem;color:var(--pvl-sub);background:var(--pvl-nav);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
 
 /* Live region */
 .pv-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
@@ -128,6 +148,15 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;min-heigh
 @media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} }
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Wysoki kontrast — layout */
+[data-theme="hc"] .pv-navbar{border-bottom-width:2px;box-shadow:none}
+[data-theme="hc"] .pv-menu-btn{border-width:2px}
+[data-theme="hc"] .pv-nav-link:hover,[data-theme="hc"] .pv-nav-link.pv-active{background:#000;color:#fff;border-left-color:#000}
+[data-theme="hc"] .pv-nav-link:hover i,[data-theme="hc"] .pv-nav-link.pv-active i{color:#fff}
+[data-theme="hc"] .pv-nav-divider{height:2px}
+[data-theme="hc"] .pv-footer{border-top-width:2px}
+[data-theme="hc"] .dropdown-menu{border:2px solid #000}
+[data-theme="hc"] .dropdown-item:hover,[data-theme="hc"] .dropdown-item:focus{background:#000;color:#fff}
 </style>
 <?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
 <?php require_once __DIR__ . '/pv_styles.php'; ?>
@@ -200,7 +229,7 @@ try {
             <div class="text-muted small"><?= h($_pu['email']??'') ?></div>
           </li>
           <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia konta</a></li>
-          <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/panel_color.php"><i class="bi bi-palette2 me-2" aria-hidden="true"></i>Kolor panelu</a></li>
+          <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/panel_color.php"><i class="bi bi-palette2 me-2" aria-hidden="true"></i>Motyw i kontrast</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Wyloguj się</a></li>
         </ul>
@@ -414,7 +443,7 @@ try {
     <i class="bi bi-gear" aria-hidden="true"></i>Ustawienia konta
   </a>
   <a href="<?= APP_URL ?>/panel/panel_color.php" class="pv-nav-link<?= _pv_nav_active('/panel/panel_color') ?>">
-    <i class="bi bi-palette2" aria-hidden="true"></i>Kolor panelu
+    <i class="bi bi-palette2" aria-hidden="true"></i>Motyw i kontrast
   </a>
 
   <div class="pv-sidebar-bottom">

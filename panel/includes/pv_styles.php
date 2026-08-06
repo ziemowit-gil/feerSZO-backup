@@ -44,6 +44,7 @@ $_pv_dark = (function (string $hex): string {
 }
 :root[data-theme="dark"]{--tz-line:#1e2535;--tz-muted:#94a3b8;--tz-ink:#f1f5f9;--tz-bg:#0f172a;--tz-bg-page:#090e1a;--tz-bg-sub:#111827;--tz-50:rgba(var(--tz-rgb),.16)}
 :root[data-theme="light"]{--tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;--tz-bg:#fff;--tz-bg-page:#F4F6F9;--tz-bg-sub:#F8FAFC;--tz-50:rgba(var(--tz-rgb),.08)}
+:root[data-theme="hc"]{--tz-line:#000;--tz-muted:#111;--tz-ink:#000;--tz-bg:#fff;--tz-bg-page:#fff;--tz-bg-sub:#f5f5f5;--tz-50:rgba(0,0,0,.1)}
 
 /* Nagłówek strony */
 .pv-page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.3rem}
@@ -187,4 +188,24 @@ $_pv_dark = (function (string $hex): string {
 .pv-stat-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:2rem;background:var(--tz-bg);border:1px solid var(--tz-line);font-size:.79rem;font-weight:500;color:#374151;box-shadow:0 1px 2px rgba(16,24,40,.05);text-decoration:none}
 .pv-stat-pill:hover{border-color:var(--tz);color:var(--tz)}
 .pv-stat-num{font-weight:700;color:var(--tz)}
+
+/* Wysoki kontrast — wzmocnione obrysy, brak cieni */
+[data-theme="hc"] .tz-card,[data-theme="hc"] .pv-card,[data-theme="hc"] .vol-detail-card{box-shadow:none;border-width:2px;border-color:#000}
+[data-theme="hc"] .tz-tile{box-shadow:none;border-width:2px;border-color:#000}
+[data-theme="hc"] .tz-tile:hover,[data-theme="hc"] .tz-tile:focus-visible{box-shadow:none;border-color:#000;background:#000;color:#fff}
+[data-theme="hc"] .tz-tile:hover .tz-tile__ttl,[data-theme="hc"] .tz-tile:focus-visible .tz-tile__ttl,[data-theme="hc"] .tz-tile:hover .tz-tile__sub,[data-theme="hc"] .tz-tile:focus-visible .tz-tile__sub{color:#fff}
+[data-theme="hc"] .tz-btn{border:2px solid #000}
+[data-theme="hc"] .tz-btn--ghost{border:2px solid #000}
+[data-theme="hc"] .tz-note,[data-theme="hc"] .pv-note{border-width:2px;border-color:#000}
+[data-theme="hc"] .pv-table-wrap{border-width:2px;border-color:#000}
+[data-theme="hc"] .pv-table th{border-bottom:3px solid #000}
+[data-theme="hc"] .pv-table tr:hover td{background:rgba(0,0,0,.08)}
+[data-theme="hc"] .tz-badge{border-width:2px}
+[data-theme="hc"] .tz-badge--ok{background:#fff;color:#000;border-color:#000}
+[data-theme="hc"] .tz-badge--wait{background:#fff;color:#000;border-color:#000}
+[data-theme="hc"] .tz-badge--off{background:#f5f5f5;color:#000;border-color:#000}
+[data-theme="hc"] .pv-status-pill{background:#fff;color:#000;border:2px solid #000}
+[data-theme="hc"] .vol-activity,[data-theme="hc"] .pv-list.list-group{border-width:2px;border-color:#000}
+[data-theme="hc"] .tz-empty{border-width:3px;border-color:#000}
+[data-theme="hc"] .vol-activity-row{border-bottom-color:#000}
 </style>

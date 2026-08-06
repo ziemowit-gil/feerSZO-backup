@@ -10,15 +10,31 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_login();
 $cu = current_user();
 
-// Migracja: kolumna panel_color w users
+// Migracja: kolumny motywu
 try { db()->exec("ALTER TABLE users ADD COLUMN panel_color TEXT"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE users ADD COLUMN panel_theme TEXT"); } catch (\Throwable $e) {}
 
-// Pobierz aktualny kolor
-$user_row    = db_one("SELECT panel_color FROM users WHERE id=?", [(int)$cu['id']]);
+// Pobierz aktualny kolor i motyw
+$user_row    = db_one("SELECT panel_color, panel_theme FROM users WHERE id=?", [(int)$cu['id']]);
 $org_color   = org_setting('volunteer_color') ?: '#2563eb';
 $saved_color = ($user_row['panel_color'] ?? '') ?: $org_color;
+$saved_theme = $user_row['panel_theme'] ?? '';
 
-// ─── POST ─────────────────────────────────────────────────────────────────────
+// ─── POST — zmiana wersji kontrastowej ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['theme_action'])) {
+    csrf_check();
+    $ok_themes = ['', 'light', 'dark', 'hc'];
+    $t = trim($_POST['panel_theme'] ?? '');
+    if (!in_array($t, $ok_themes, true)) {
+        flash_set('danger', 'Nieprawidłowa wersja kontrastowa.');
+    } else {
+        db()->prepare("UPDATE users SET panel_theme = ? WHERE id=?")->execute([$t ?: null, (int)$cu['id']]);
+        flash_set('success', 'Wersja kontrastowa zapisana!');
+    }
+    header('Location: panel_color.php'); exit;
+}
+
+// ─── POST — kolor ─────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
@@ -39,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: panel_color.php'); exit;
 }
 
-$PAGE_TITLE = 'Kolor panelu';
+$PAGE_TITLE = 'Motyw i kontrast';
 include __DIR__ . '/includes/header_panel.php';
 
 // Helper do generowania jasnego tła (identyczny z header_panel.php)
@@ -79,8 +95,8 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
 <div class="pv-page-header">
   <div class="pv-page-head-main">
     <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
-    <h1 class="pv-page-title"><i class="bi bi-palette" aria-hidden="true"></i>Motyw kolorystyczny</h1>
-    <p class="pv-page-sub">Dostosuj kolor akcentowy swojego panelu</p>
+    <h1 class="pv-page-title"><i class="bi bi-palette" aria-hidden="true"></i>Motyw i kontrast</h1>
+    <p class="pv-page-sub">Dostosuj kolor akcentowy i wersję kontrastową panelu</p>
   </div>
 </div>
 
@@ -265,6 +281,92 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
   </div>
 </div>
 
+<!-- ═══ Wersja kontrastowa ════════════════════════════════════════════════════ -->
+<style>
+.theme-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
+@media(min-width:600px){.theme-grid{grid-template-columns:repeat(4,1fr)}}
+.theme-card{display:flex;flex-direction:column;align-items:center;text-align:center;
+  border:2px solid var(--tz-line);border-radius:14px;padding:.9rem .7rem .75rem;
+  cursor:pointer;transition:border-color .12s,background .12s;position:relative}
+.theme-card:hover{border-color:var(--tz)}
+.theme-card--active{border-color:var(--tz);background:var(--tz-50)}
+.theme-preview{width:100%;height:56px;border-radius:10px;margin-bottom:.65rem;overflow:hidden;
+  border:1.5px solid var(--tz-line);position:relative;flex-shrink:0}
+.theme-preview--system{background:linear-gradient(135deg,#f4f6f9 50%,#0f172a 50%)}
+.theme-preview--light{background:#f4f6f9}
+.theme-preview--dark{background:#0f172a}
+.theme-preview--hc{background:#fff;border:2px solid #000}
+/* Pasek nawigacji w miniaturce */
+.theme-preview::before{content:'';position:absolute;top:0;left:0;right:0;height:14px}
+.theme-preview--system::before{background:linear-gradient(90deg,<?= h($saved_color) ?> 50%,<?= h($saved_color) ?> 50%)}
+.theme-preview--light::before{background:<?= h($saved_color) ?>}
+.theme-preview--dark::before{background:<?= h($saved_color) ?>}
+.theme-preview--hc::before{background:#000}
+/* Kafelki w miniaturce */
+.theme-preview::after{content:'';position:absolute;top:21px;left:5px;right:5px;height:8px;border-radius:3px}
+.theme-preview--light::after{background:#dde3ee}
+.theme-preview--dark::after{background:#1e2535}
+.theme-preview--hc::after{background:#000;border-radius:2px}
+.theme-preview--system::after{background:linear-gradient(90deg,#dde3ee 50%,#1e2535 50%)}
+.theme-card__ico{font-size:1.2rem;color:var(--tz);margin-bottom:.25rem}
+.theme-card__name{font-weight:700;font-size:.9rem;color:var(--tz-ink);line-height:1.2}
+.theme-card__desc{font-size:.7rem;color:var(--tz-muted);margin-top:.2rem;line-height:1.35}
+.theme-card__check{position:absolute;top:.45rem;right:.45rem;width:20px;height:20px;
+  border-radius:50%;background:var(--tz);color:#fff;font-size:.7rem;
+  display:flex;align-items:center;justify-content:center}
+</style>
+<form method="post" id="themeForm" class="mt-2">
+  <input type="hidden" name="_csrf"        value="<?= csrf_token() ?>">
+  <input type="hidden" name="theme_action" value="1">
+
+  <div class="tz-card">
+    <div class="tz-card__hd">
+      <i class="bi bi-circle-half me-1" aria-hidden="true"></i>
+      Wersja kontrastowa
+    </div>
+    <div class="tz-card__bd">
+      <p class="text-muted small mb-3">
+        Wybierz sposób wyświetlania panelu — jasno, ciemno lub z bardzo wysokim kontrastem (WCAG&nbsp;AA+).
+      </p>
+
+      <div class="theme-grid" role="radiogroup" aria-label="Wersja kontrastowa panelu">
+
+        <?php
+        $themes = [
+            ''      => ['ico' => 'bi-circle-half',      'name' => 'Systemowy',       'desc' => 'Podąża za ustawieniami systemu operacyjnego'],
+            'light' => ['ico' => 'bi-sun',               'name' => 'Jasny',           'desc' => 'Białe tło, standardowy kontrast'],
+            'dark'  => ['ico' => 'bi-moon-stars',        'name' => 'Ciemny',          'desc' => 'Ciemne tło, mniej zmęczenia oczu'],
+            'hc'    => ['ico' => 'bi-universal-access',  'name' => 'Wysoki kontrast', 'desc' => 'Maksymalny kontrast, WCAG AA+'],
+        ];
+        foreach ($themes as $val => $th):
+            $is_active = ($saved_theme === $val);
+        ?>
+        <label class="theme-card<?= $is_active ? ' theme-card--active' : '' ?>">
+          <input type="radio" name="panel_theme" value="<?= h($val) ?>"
+                 class="visually-hidden"
+                 <?= $is_active ? 'checked' : '' ?>>
+          <div class="theme-preview theme-preview--<?= h($val ?: 'system') ?>"
+               aria-hidden="true"></div>
+          <i class="bi <?= h($th['ico']) ?> theme-card__ico" aria-hidden="true"></i>
+          <span class="theme-card__name"><?= h($th['name']) ?></span>
+          <span class="theme-card__desc"><?= h($th['desc']) ?></span>
+          <?php if ($is_active): ?>
+          <span class="theme-card__check" aria-label="Aktywny motyw"><i class="bi bi-check-lg"></i></span>
+          <?php endif; ?>
+        </label>
+        <?php endforeach; ?>
+
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="tz-btn">
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz wersję kontrastową
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
 </div><!-- .pv-wrap -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>
@@ -337,6 +439,24 @@ $initials = mb_strtoupper(mb_substr($cu['name'] ?? 'U', 0, 1));
         e.preventDefault();
         applyColor(this.dataset.color);
       }
+    });
+  });
+})();
+
+// Podgląd na żywo zmiany motywu
+(function(){
+  var radios = document.querySelectorAll('[name="panel_theme"]');
+  var html   = document.documentElement;
+  radios.forEach(function(r){
+    r.addEventListener('change', function(){
+      if (this.value) {
+        html.setAttribute('data-theme', this.value);
+      } else {
+        html.removeAttribute('data-theme');
+      }
+      // Zaznacz aktywną kartę
+      document.querySelectorAll('.theme-card').forEach(function(c){ c.classList.remove('theme-card--active'); });
+      this.closest('.theme-card').classList.add('theme-card--active');
     });
   });
 })();
