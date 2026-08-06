@@ -39,7 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $tresc_override = trim($_POST['tresc_override'] ?? '');
         $include_qr = isset($_POST['include_qr']) ? true : false;
+        $z_urzedu   = isset($_POST['z_urzedu']) ? 1 : 0;
         $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, $tresc_override, $include_qr);
+        if ($res['ok']) {
+            db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+        }
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
 
@@ -59,7 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $found = db_one("SELECT id FROM ezd_sprawy WHERE znak_sprawy=? OR CAST(id AS TEXT)=? LIMIT 1", [$sprawa_input, $sprawa_input]);
                     if ($found) $sprawa_id_override = (int)$found['id'];
                 }
+                $z_urzedu = isset($_POST['z_urzedu']) ? 1 : 0;
                 $res = ezd_zas_wydaj_plik($id, $user_id, $plik_path, $plik_mime, $sprawa_id_override);
+                if ($res['ok']) {
+                    db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+                }
                 flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane (plik własny).' : $res['error']);
             } else {
                 flash_set('error', 'Błąd zapisu pliku na serwerze.');
@@ -94,7 +102,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($found) $sprawa_id_override = (int)$found['id'];
         }
         $include_qr = isset($_POST['include_qr']);
+        $z_urzedu   = isset($_POST['z_urzedu']) ? 1 : 0;
         $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, '', $include_qr, true);
+        if ($res['ok']) {
+            db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+        }
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Wydano ręcznie — numer: ' . h($res['nr']) : $res['error']);
     }
     if ($act === 'assign_qr') {
@@ -175,6 +187,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <dl class="row mb-0" style="font-size:.83rem">
           <dt class="col-sm-3 text-muted fw-normal">Typ</dt>
           <dd class="col-sm-9 fw-semibold"><?= h($zas['typ_nazwa']) ?></dd>
+          <?php if(!empty($zas['z_urzedu'])): ?>
+          <dt class="col-sm-3 text-muted fw-normal">Inicjatywa</dt>
+          <dd class="col-sm-9"><span class="badge bg-secondary bg-opacity-15 text-secondary border"><i class="bi bi-building me-1"></i>Z urzędu (inicjatywa organizacji)</span></dd>
+          <?php endif; ?>
           <dt class="col-sm-3 text-muted fw-normal">Wnioskodawca</dt>
           <dd class="col-sm-9"><?= h($zas['wnioskodawca_name']) ?></dd>
           <?php if($zas['wnioskodawca_email']): ?>
@@ -319,6 +335,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <label class="form-check-label" for="chk-qr-szablon" style="font-size:.8rem"><i class="bi bi-qr-code me-1"></i>Dodaj kod QR weryfikacyjny do PDF</label>
               </div>
               <?php endif; ?>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="z_urzedu" value="1" id="chk-zurzedu-szablon">
+                <label class="form-check-label" for="chk-zurzedu-szablon" style="font-size:.8rem"><i class="bi bi-building me-1"></i>Wystawione z inicjatywy organizacji (z urzędu)</label>
+              </div>
               <div class="d-flex gap-2">
                 <a href="<?= APP_URL ?>/ezd/zaswiadczenia/preview.php?id=<?= $id ?>" target="_blank"
                    class="btn btn-outline-secondary btn-sm flex-grow-1" id="btn-preview-pdf">
@@ -349,6 +369,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php else: ?>
                 <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Wpisz znak koszulki…">
                 <?php endif; ?>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="z_urzedu" value="1" id="chk-zurzedu-plik">
+                <label class="form-check-label" for="chk-zurzedu-plik" style="font-size:.8rem"><i class="bi bi-building me-1"></i>Wystawione z inicjatywy organizacji (z urzędu)</label>
               </div>
               <button class="btn btn-success w-100 btn-sm"><i class="bi bi-upload me-1"></i>Wydaj (z pliku)</button>
             </form>
@@ -381,6 +405,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <label class="form-check-label" for="chk-qr-recznie" style="font-size:.8rem"><i class="bi bi-qr-code me-1"></i>Dodaj kod QR weryfikacyjny</label>
               </div>
               <?php endif; ?>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="z_urzedu" value="1" id="chk-zurzedu-recznie">
+                <label class="form-check-label" for="chk-zurzedu-recznie" style="font-size:.8rem"><i class="bi bi-building me-1"></i>Wystawione z inicjatywy organizacji (z urzędu)</label>
+              </div>
               <button class="btn btn-warning w-100 btn-sm"><i class="bi bi-pencil me-1"></i>Wystawiono ręcznie — nadaj numer</button>
             </form>
           </div>

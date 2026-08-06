@@ -38,6 +38,7 @@
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN verify_code TEXT"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN qr_on_pdf INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_zas_verify_code ON ezd_zaswiadczenia_wlasne(verify_code) WHERE verify_code IS NOT NULL"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN z_urzedu INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -520,7 +521,7 @@ function ezd_zas_attach_pdf_to_sprawa(int $zas_id, int $sprawa_id, int $user_id)
             }
         }
 
-        $mpdf = new \Mpdf\Mpdf(array_merge(['mode'=>'utf-8','format'=>'A4','margin_left'=>25,'margin_right'=>25,'margin_top'=>20,'margin_bottom'=>20,'default_font'=>'dejavusans','tempDir'=>$mpdf_tmp], $ubuntu_cfg));
+        $mpdf = new \Mpdf\Mpdf(array_merge(['mode'=>'utf-8','format'=>'A4','margin_left'=>25,'margin_right'=>25,'margin_top'=>35,'margin_bottom'=>20,'default_font'=>'dejavusans','tempDir'=>$mpdf_tmp], $ubuntu_cfg));
         $mpdf->WriteHTML(ezd_zas_pdf_html($zas));
         $pdf_string = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 
