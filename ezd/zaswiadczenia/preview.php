@@ -55,7 +55,7 @@ try {
         'format'        => 'A4',
         'margin_left'   => 25,
         'margin_right'  => 25,
-        'margin_top'    => 20,
+        'margin_top'    => 0,
         'margin_bottom' => 20,
         'default_font'  => 'dejavusans',
         'tempDir'       => $mpdf_tmp,
