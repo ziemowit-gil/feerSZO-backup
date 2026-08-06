@@ -419,6 +419,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .tl-title{font-weight:700;font-size:.86rem;color:#1e293b;margin:.1rem 0}
 .tl-meta{font-size:.7rem;color:#94a3b8;display:flex;flex-wrap:wrap;gap:.3rem .7rem}
 
+/* ── Pasek postępu etapu obiegu ─────────────── */
+.sp-etap-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.55rem 1.1rem;margin-bottom:.75rem}
+
 /* ── Drag-and-Drop pliki koszulki ────────────── */
 .sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:10px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
 .sp-dz-overlay.active{display:flex}
@@ -464,7 +467,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <div class="sp-meta-divider"></div>
   <div class="sp-meta-field">
-    <span class="sp-meta-label">Segregator (JRWA)</span>
+    <span class="sp-meta-label">Wykaz akt</span>
     <span class="sp-meta-val"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold text-dark"><?= h($sprawa['teczka_symbol']) ?></a></span>
   </div>
   <div class="sp-meta-divider"></div>
@@ -536,16 +539,30 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 
+<?php if(!$mini && $wf_steps): ?>
+<div class="sp-etap-bar mb-2">
+  <div class="ezd-stepper">
+    <?php foreach ($wf_steps as $i => $st):
+      $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
+    <div class="ezd-step ezd-step-<?= $state ?>">
+      <div class="ezd-step-dot"><i class="bi <?= $state === 'done' ? 'bi-check-lg' : ($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
+      <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Opis koszulki -->
 <?php if($sprawa['description']): ?>
 <div class="mb-3 text-muted" style="font-size:.84rem;line-height:1.55"><?= nl2br(h($sprawa['description'])) ?></div>
 <?php endif; ?>
 
-<!-- ══ Akta sprawy ═════════════════════════════════════════════════════════════ -->
+<!-- ══ Dokumenty w koszulce ══════════════════════════════════════════════════════ -->
 <div id="files">
   <div class="sp-akta-hdr">
     <div class="flex-grow-1">
-      <span class="sp-akta-title"><i class="bi bi-folder2-open me-1"></i>Akta sprawy</span>
+      <span class="sp-akta-title"><i class="bi bi-folder2-open me-1"></i>Dokumenty w koszulce</span>
       <span class="sp-akta-count">(<?= count($zalaczniki) ?>)</span>
     </div>
     <?php if($can_act): ?>
@@ -848,7 +865,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                  'wychodzace'   => ['↑ Wychodzące','primary']];
           $qm = ['papier'=>['bi-file-earmark-text','Papier'],
                  'email' =>['bi-at','E-mail'],
-                 'epuap' =>['bi-shield-lock','ePUAP'],
+                 'epuap' =>['bi-mailbox2','eDoręczenia'],
                  'faks'  =>['bi-printer','Faks']];
           foreach($qk as $kv=>[$klabel,$kclass]): ?>
           <div class="d-flex align-items-center gap-2">
@@ -939,7 +956,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="col-md-6">
         <dl class="row mb-0" style="font-size:.84rem;row-gap:.4rem">
           <dt class="col-5 text-muted fw-normal">Znak koszulki</dt><dd class="col-7 mb-0 font-monospace fw-bold"><?= h($sprawa['znak_sprawy']) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Segregator</dt><dd class="col-7 mb-0"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold"><?= h($sprawa['teczka_symbol']) ?></a></dd>
+          <dt class="col-5 text-muted fw-normal">Wykaz akt</dt><dd class="col-7 mb-0"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold"><?= h($sprawa['teczka_symbol']) ?></a></dd>
           <dt class="col-5 text-muted fw-normal">Właściciel</dt><dd class="col-7 mb-0"><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '<span class="text-muted">—</span>' ?></dd>
           <dt class="col-5 text-muted fw-normal">Status</dt><dd class="col-7 mb-0"><?= ezd_status_badge_sprawa($sprawa['status']) ?></dd>
           <dt class="col-5 text-muted fw-normal">Priorytet</dt><dd class="col-7 mb-0"><?= ezd_priority_badge($sprawa['priority']) ?></dd>
@@ -1088,7 +1105,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <span class="fw-semibold" style="font-size:.82rem">Etap obiegu:</span>
         <?= ezd_etap_badge($cur_etap) ?>
-        <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
+        <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.6rem">wg Wykazu <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
         <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="text-muted" style="font-size:.72rem"><i class="bi bi-pencil me-1"></i>Edytuj workflow</a><?php endif; ?>
       </div>
       <div class="ezd-stepper">
@@ -1423,7 +1440,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php foreach(EZD_MEDIA as $mv=>$ml): ?><option value="<?= $mv ?>" <?= $mv==='papier'?'selected':'' ?>><?= h($ml['label']) ?></option><?php endforeach; ?>
               </select>
               <div id="pm-epuap-warn" class="alert alert-warning py-1 px-2 mt-1" style="font-size:.75rem;display:none">
-                <i class="bi bi-exclamation-triangle me-1"></i>Pismo przez ePUAP/eDoręczenia wymaga <strong>podpisu elektronicznego</strong> na załączonym pliku PDF.
+                <i class="bi bi-exclamation-triangle me-1"></i>Pismo przez eDoręczenia wymaga <strong>podpisu elektronicznego</strong> na załączonym pliku PDF.
               </div>
             </div>
             <div class="col-6">

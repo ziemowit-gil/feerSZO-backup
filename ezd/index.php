@@ -595,7 +595,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="tab-pane fade" id="tab-nowe-pisma">
           <?php if ($nowe_pisma_jedn): foreach ($nowe_pisma_jedn as $p):
             $k = EZD_KIERUNKI[$p['kierunek']] ?? ['icon'=>'bi-envelope','class'=>'secondary'];
-            $med = ['papier'=>'','email'=>'E-mail','epuap'=>'ePUAP','faks'=>'Faks','inne'=>''][$p['rodzaj_medium']??''] ?? '';
+            $med = ['papier'=>'','email'=>'E-mail','epuap'=>'eDoręczenia','faks'=>'Faks','inne'=>''][$p['rodzaj_medium']??''] ?? '';
           ?>
           <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom ezdd-row-link"
                style="font-size:.8rem;cursor:pointer"

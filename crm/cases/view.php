@@ -1615,7 +1615,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
                   <option value="kurier">Kurier</option>
                   <option value="edoreczenia">eDoręczenia (PURDE)</option>
                   <option value="osobisty">Odbiór osobisty</option>
-                  <option value="epuap">ePUAP</option>
+                  <option value="epuap">eDoręczenia (ePUAP)</option>
                   <option value="fax">Fax</option>
                   <option value="inny">Inny</option>
                 </select>

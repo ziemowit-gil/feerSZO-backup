@@ -50,7 +50,7 @@ function _corr_init(): void {
 const CORR_MEDIA = [
     'papier' => ['label' => 'Papierowe',            'icon' => 'bi-file-earmark-text'],
     'email'  => ['label' => 'E-mail',               'icon' => 'bi-at'],
-    'epuap'  => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'epuap'  => ['label' => 'e-Doręczenia',         'icon' => 'bi-mailbox2'],
     'faks'   => ['label' => 'Faks',                 'icon' => 'bi-printer'],
     'inne'   => ['label' => 'Inne',                 'icon' => 'bi-question-circle'],
 ];

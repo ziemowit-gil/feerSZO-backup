@@ -25,7 +25,7 @@ $dekr      = ezd_dekretacje_by_sprawa($id);
 $pend      = count(array_filter($dekr, fn($d) => $d['status'] === 'oczekuje'));
 $csrf      = csrf_token();
 
-$media_icons = ['papier'=>'bi-file-earmark-text','email'=>'bi-at','epuap'=>'bi-shield-lock','faks'=>'bi-printer','inne'=>'bi-question-circle'];
+$media_icons = ['papier'=>'bi-file-earmark-text','email'=>'bi-at','epuap'=>'bi-mailbox2','faks'=>'bi-printer','inne'=>'bi-question-circle'];
 
 $uid = 'kp' . $id; // unikalne prefiksy id dla WCAG (wielokrotne otwieranie tego samego)
 ?>
@@ -101,7 +101,7 @@ $uid = 'kp' . $id; // unikalne prefiksy id dla WCAG (wielokrotne otwieranie tego
                  'wychodzace'   => ['↑ Wychodzące','primary']];
           $qm = ['papier'=>['bi-file-earmark-text','Papier'],
                  'email' =>['bi-at','E-mail'],
-                 'epuap' =>['bi-shield-lock','ePUAP'],
+                 'epuap' =>['bi-mailbox2','eDoręczenia'],
                  'faks'  =>['bi-printer','Faks']];
           foreach($qk as $kv=>[$klabel,$kclass]): ?>
           <div class="d-flex align-items-center gap-2">

@@ -663,7 +663,7 @@ const EZD_KIERUNKI = [
 const EZD_MEDIA = [
     'papier' => ['label' => 'Papierowe',        'icon' => 'bi-file-earmark-text'],
     'email'  => ['label' => 'E-mail',           'icon' => 'bi-at'],
-    'epuap'  => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'epuap'  => ['label' => 'e-Doręczenia',         'icon' => 'bi-mailbox2'],
     'faks'   => ['label' => 'Faks',             'icon' => 'bi-printer'],
     'inne'   => ['label' => 'Inne',             'icon' => 'bi-question-circle'],
 ];
@@ -689,7 +689,7 @@ const EZD_RPW_TYPY = [
     'polecony'  => ['label' => 'List polecony',   'icon' => 'bi-envelope-paper'],
     'paczka'    => ['label' => 'Paczka',          'icon' => 'bi-box-seam'],
     'email'     => ['label' => 'E-mail',          'icon' => 'bi-at'],
-    'epuap'     => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'epuap'     => ['label' => 'e-Doręczenia',         'icon' => 'bi-mailbox2'],
     'fax'       => ['label' => 'Faks',            'icon' => 'bi-printer'],
     'osobiscie' => ['label' => 'Złożone osobiście', 'icon' => 'bi-person-walking'],
     'inne'      => ['label' => 'Inne',            'icon' => 'bi-question-circle'],
