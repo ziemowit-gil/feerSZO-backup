@@ -33,7 +33,7 @@ try {
     // Szukaj czcionki Ubuntu (Linux/macOS/lokalny override)
     $ubuntu_cfg = [];
     foreach ([
-        ROOT_DIR . '/assets/fonts/ubuntu',
+        dirname(dirname(__DIR__)) . '/assets/fonts/ubuntu',
         '/usr/share/fonts/truetype/ubuntu',
         '/usr/share/fonts/truetype/ubuntu-font-family',
         '/usr/share/fonts/ubuntu',
