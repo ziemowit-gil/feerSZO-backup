@@ -21,8 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['_action'] ?? '';
 
     if ($act === 'save_typ') {
-        $kod   = preg_replace('/[^a-z0-9_]/', '', strtolower(trim($_POST['kod'] ?? '')));
-        $nazwa = trim($_POST['nazwa'] ?? '');
+        $kod      = preg_replace('/[^a-z0-9_]/', '', strtolower(trim($_POST['kod'] ?? '')));
+        $nazwa    = trim($_POST['nazwa'] ?? '');
+        $nr_prefix = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', trim($_POST['nr_prefix'] ?? '')));
         if (!$kod || !$nazwa) {
             flash_set('error', 'Kod i nazwa są wymagane.');
         } else {
@@ -31,10 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pola_json = json_encode($pola_data ?: [], JSON_UNESCAPED_UNICODE);
             $jrwa_id   = ($_POST['jrwa_id'] ?? '') !== '' ? (int)$_POST['jrwa_id'] : null;
             $eid       = (int)($_POST['typ_id'] ?? 0);
+            $naglowek = trim($_POST['naglowek_html'] ?? '');
             if ($eid) {
                 db()->prepare(
                     "UPDATE ezd_zas_typy SET kod=?,nazwa=?,opis=?,szablon_tresc=?,szablon_pola=?,
-                     wymaga_akceptacji=?,jrwa_id=?,is_active=? WHERE id=?"
+                     wymaga_akceptacji=?,jrwa_id=?,is_active=?,nr_prefix=?,naglowek_html=? WHERE id=?"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -42,13 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (int)($_POST['wymaga_akceptacji'] ?? 1),
                     $jrwa_id,
                     (int)($_POST['is_active'] ?? 1),
+                    $nr_prefix,
+                    $naglowek,
                     $eid,
                 ]);
                 flash_set('success', 'Typ zaktualizowany.');
             } else {
                 db()->prepare(
                     "INSERT INTO ezd_zas_typy (kod,nazwa,opis,szablon_tresc,szablon_pola,
-                     wymaga_akceptacji,jrwa_id,is_active,created_by) VALUES (?,?,?,?,?,?,?,?,?)"
+                     wymaga_akceptacji,jrwa_id,is_active,nr_prefix,naglowek_html,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -56,6 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (int)($_POST['wymaga_akceptacji'] ?? 1),
                     $jrwa_id,
                     (int)($_POST['is_active'] ?? 1),
+                    $nr_prefix,
+                    $naglowek,
                     $user_id,
                 ]);
                 flash_set('success', 'Typ zaświadczenia dodany.');
@@ -162,17 +168,29 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <div class="card-body">
           <div class="row g-3 mb-3">
-            <div class="col-sm-5">
+            <div class="col-sm-4">
               <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Kod (unikalny, a–z, cyfry, _)</label>
               <input type="text" name="kod" class="form-control form-control-sm font-monospace"
                      value="<?= h($edit['kod'] ?? '') ?>" required
                      pattern="[a-z0-9_]+" <?= $edit?'readonly':'' ?>>
               <?php if($edit): ?><div class="text-muted mt-1" style="font-size:.72rem">Kodu nie można zmienić po zapisaniu.</div><?php endif; ?>
             </div>
-            <div class="col-sm-7">
+            <div class="col-sm-5">
               <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Nazwa wyświetlana</label>
               <input type="text" name="nazwa" class="form-control form-control-sm"
                      value="<?= h($edit['nazwa'] ?? '') ?>" required>
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label fw-semibold mb-1" style="font-size:.78rem">
+                Prefiks numeru
+                <span class="text-muted" title="Litery i cyfry, np. WOL, ZATR" style="cursor:help">(?)</span>
+              </label>
+              <div class="input-group input-group-sm">
+                <input type="text" name="nr_prefix" class="form-control font-monospace text-uppercase"
+                       value="<?= h($edit['nr_prefix'] ?? '') ?>" placeholder="ZAS"
+                       pattern="[A-Za-z0-9\-]*" maxlength="10">
+              </div>
+              <div class="text-muted mt-1" style="font-size:.71rem">Format: PREFIX/rok/nnn</div>
             </div>
           </div>
 
@@ -208,6 +226,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                        <?= ($edit['is_active']??1)?'checked':'' ?>>
                 <label class="form-check-label" for="chk-active" style="font-size:.82rem">Aktywny</label>
               </div>
+            </div>
+          </div>
+
+          <!-- Nagłówek PDF -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold mb-1" style="font-size:.78rem">
+              Nagłówek dokumentu PDF
+              <span class="text-muted ms-1" style="font-size:.72rem;font-weight:normal">(opcjonalny — jeśli puste, wstawia logo + nazwę org.)</span>
+            </label>
+            <textarea name="naglowek_html" class="form-control form-control-sm font-monospace" rows="4"
+                      placeholder="<strong>{{organizacja}}</strong><br>ul. Przykładowa 1, 00-001 Warszawa<br>tel. +48 000 000 000"><?= h($edit['naglowek_html'] ?? '') ?></textarea>
+            <div class="text-muted mt-1" style="font-size:.72rem">
+              <i class="bi bi-info-circle me-1"></i>Obsługuje HTML i tokeny:
+              <span class="token-badge me-1" onclick="insertNaglowek('{{organizacja}}')">{{organizacja}}</span>
+              <span class="token-badge me-1" onclick="insertNaglowek('{{nr_zaswiadczenia}}')">{{nr_zaswiadczenia}}</span>
+              <span class="token-badge" onclick="insertNaglowek('{{data_wydania}}')">{{data_wydania}}</span>
             </div>
           </div>
 
@@ -321,6 +355,13 @@ document.getElementById('btn-add-pole').addEventListener('click', () => {
 
 function insertToken(token) {
   const ta = document.getElementById('szablon-tresc');
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.substring(0,s) + token + ta.value.substring(e);
+  ta.selectionStart = ta.selectionEnd = s + token.length;
+  ta.focus();
+}
+function insertNaglowek(token) {
+  const ta = document.querySelector('[name="naglowek_html"]');
   const s = ta.selectionStart, e = ta.selectionEnd;
   ta.value = ta.value.substring(0,s) + token + ta.value.substring(e);
   ta.selectionStart = ta.selectionEnd = s + token.length;

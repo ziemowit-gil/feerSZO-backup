@@ -49,6 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_zas_odrzuc($id, $powod, $user_id);
         flash_set('success', 'Wniosek odrzucony.');
     }
+    if ($act === 'delete_zas') {
+        if (!is_admin()) { flash_set('error', 'Tylko administrator może usuwać zaświadczenia.'); }
+        else {
+            ezd_zas_delete($id);
+            flash_set('success', 'Wniosek usunięty.');
+            header('Location:' . APP_URL . '/ezd/zaswiadczenia/index.php'); exit;
+        }
+    }
     header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
 }
 
@@ -95,9 +103,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php if($issued): ?><span class="font-monospace"><?= h($zas['nr_zaswiadczenia']) ?></span><?php else: ?>Wniosek o zaświadczenie<?php endif; ?>
         </span>
         <?= ezd_zas_status_badge($st) ?>
-        <div class="ms-auto">
+        <div class="ms-auto d-flex gap-2">
           <?php if($issued): ?>
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>" target="_blank"
+             class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
           <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Drukuj</button>
+          <?php endif; ?>
+          <?php if(is_admin()): ?>
+          <form method="post" onsubmit="return confirm('Na pewno usunąć ten wniosek/zaświadczenie? Operacja jest nieodwracalna.')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="delete_zas">
+            <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i></button>
+          </form>
           <?php endif; ?>
         </div>
       </div>
