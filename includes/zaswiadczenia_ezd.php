@@ -318,8 +318,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
   <tr>
+    <td style="border:0;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">' . $qr_html . '</td>
     <td style="width:52%;border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
-    <td style="border:0;text-align:right;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">' . $qr_html . '</td>
   </tr>
 </table>
 
