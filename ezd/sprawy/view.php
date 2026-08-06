@@ -359,6 +359,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+
+// Workflow — zmienne używane w metabarze, stepperze i tabie "Przebieg"
+$wf_steps  = ezd_sprawa_workflow($sprawa);
+$wf_keys   = array_column($wf_steps, 'key');
+$cur_etap  = $sprawa['etap'] ?: ($wf_keys[0] ?? 'wszczeta');
+$cur_idx   = array_search($cur_etap, $wf_keys, true);
+if ($cur_idx === false) $cur_idx = -1;
+$next_etap = $wf_keys[$cur_idx + 1] ?? null;
+$next_step = $next_etap !== null ? ($wf_steps[$cur_idx + 1] ?? null) : null;
+$wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 ?>
 
 <style>
@@ -488,19 +498,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <span class="sp-meta-val <?= $sprawa['deadline']<date('Y-m-d')&&!$is_closed?'overdue':'' ?>">
       <?= date_pl($sprawa['deadline']) ?>
       <?php if($sprawa['deadline']<date('Y-m-d')&&!$is_closed): ?><i class="bi bi-exclamation-circle-fill text-danger ms-1"></i><?php endif; ?>
-    </span>
-  </div>
-  <?php endif; ?>
-  <?php if(!$mini): ?>
-  <div class="sp-meta-divider"></div>
-  <div class="sp-meta-field">
-    <span class="sp-meta-label">Etap obiegu</span>
-    <span class="sp-meta-val"><?php
-      $wf_steps = ezd_sprawa_workflow($sprawa);
-      $wf_keys  = array_column($wf_steps, 'key');
-      $cur_etap = $sprawa['etap'] ?: ($wf_keys[0] ?? 'wszczeta');
-    ?><?= ezd_etap_badge($cur_etap) ?>
-    <?php if($can_act): ?><button type="button" class="btn btn-link p-0 ms-1 border-0" style="font-size:.68rem" data-bs-toggle="modal" data-bs-target="#etapModal"><i class="bi bi-arrow-left-right"></i></button><?php endif; ?>
     </span>
   </div>
   <?php endif; ?>
@@ -1093,13 +1090,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <!-- PRZEBIEG SPRAWY: stepper + log -->
   <?php if(!$mini): ?>
   <div class="tab-pane fade sp-tab-pane" id="tab-przebieg">
-    <?php
-      $cur_idx  = array_search($cur_etap, $wf_keys, true);
-      if ($cur_idx === false) $cur_idx = -1;
-      $next_etap = $wf_keys[$cur_idx+1] ?? null;
-      $next_step = $next_etap !== null ? $wf_steps[$cur_idx+1] : null;
-      $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
-    ?>
     <?php if($wf_steps): ?>
     <div class="mb-3">
       <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
