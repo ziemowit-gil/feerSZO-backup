@@ -221,26 +221,34 @@ function ezd_zas_pdf_html(array $zas): string {
 <head>
 <meta charset="UTF-8">
 <style>
-  body     { font-family: ubuntu, "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.65; color: #111; margin: 0; }
-  .header  { padding-bottom: 10pt; margin-bottom: 18pt;
-             border-bottom: 2px solid #1e3a5f; }
-  .title   { font-size: 17pt; font-weight: bold; letter-spacing: 3pt; text-transform: uppercase;
-             text-align: center; margin: 16pt 0 4pt; }
-  .nr      { font-size: 10pt; text-align: center; color: #555; margin-bottom: 22pt; }
-  .body    { text-align: justify; }
-  .sig     { margin-top: 60pt; text-align: right; }
-  .sig-box { display: inline-block; border-top: 1px solid #333; min-width: 195pt;
-             text-align: center; padding-top: 6pt; font-size: 9.5pt; line-height: 1.4; }
-  .footer  { margin-top: 26pt; font-size: 8pt; color: #aaa;
-             border-top: 1px solid #e5e5e5; padding-top: 5pt; }
+  body   { font-family: ubuntu, "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.65; color: #111; margin: 0; }
+  p      { margin: 0; padding: 0; }
+  .body  { text-align: justify; }
+  .footer{ margin-top: 24pt; font-size: 8pt; color: #999; border-top: 1px solid #ddd; padding-top: 5pt; }
 </style>
 </head>
 <body>
-<div class="header">' . $header_inner . '</div>
-<div class="title">Zaświadczenie</div>
-<div class="nr">Nr ' . $nr . '</div>
+
+<table style="width:100%;border-collapse:collapse;margin-bottom:8pt">
+  <tr>
+    <td style="width:38%;vertical-align:middle;border:0">' . $logo_html . '</td>
+    <td style="text-align:right;vertical-align:middle;border:0;font-size:9.5pt;line-height:1.5">' . $right_cell . '</td>
+  </tr>
+</table>
+<hr style="color:#1e3a5f;background-color:#1e3a5f;height:2pt;border:0;margin-bottom:16pt">
+
+<p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 4pt">ZAŚWIADCZENIE</p>
+<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:20pt">Nr ' . $nr . '</p>
+
 <div class="body">' . $body . '</div>
-<div class="sig"><div class="sig-box">' . $sig_inner . '</div></div>
+
+<table style="width:100%;border-collapse:collapse;margin-top:55pt">
+  <tr>
+    <td style="width:48%;border:0"></td>
+    <td style="border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
+  </tr>
+</table>
+
 <div class="footer">Nr ' . $nr . ' &bull; ' . $data_wyd . ' &bull; ' . h($org) . '</div>
 </body>
 </html>';
