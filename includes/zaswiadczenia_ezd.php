@@ -153,11 +153,11 @@ function ezd_zas_create(int $typ_id, string $name, string $email, array $dane, i
 
 /**
  * Generuje kolejny numer zaświadczenia w danym roku, per typ.
- * Format: {prefix}/{rok}/{n} — prefix z nr_prefix typu, fallback 'ZAS'.
+ * Format: {PREFIX}/{rok}/{nnn} — np. ZAS/2026/001
  */
 function ezd_zas_next_nr(int $typ_id, int $year): string {
     $typ    = db_one("SELECT nr_prefix FROM ezd_zas_typy WHERE id=?", [$typ_id]);
-    $prefix = trim($typ['nr_prefix'] ?? '');
+    $prefix = strtoupper(trim($typ['nr_prefix'] ?? ''));
     if ($prefix === '') $prefix = 'ZAS';
 
     $n = (int)(db_one(
@@ -236,9 +236,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
         // org_adres już zawiera kod pocztowy i miasto — nie dopisujemy org_miejscowosc
         if ($org_adres) $lines[] = h($org_adres);
         $legal = array_filter([
-            $org_krs   ? 'KRS: '   . h($org_krs)   : '',
-            $org_nip   ? 'NIP: '   . h($org_nip)   : '',
-            $org_regon ? 'REGON: ' . h($org_regon) : '',
+            $org_krs ? 'KRS: ' . h($org_krs) : '',
+            $org_nip ? 'NIP: ' . h($org_nip) : '',
         ]);
         if ($legal) $lines[] = implode('&nbsp;&nbsp;', $legal);
         if ($org_www) $lines[] = h($org_www);
@@ -299,9 +298,20 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
   </tr>
 </table>
 
-<p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 4pt">ZAŚWIADCZENIE</p>
-<p style="font-size:10pt;text-align:center;color:#555;margin-bottom:' . ($zas['znak_sprawy'] ? '4pt' : ($wazne_do_html ? '4pt' : '20pt')) . '">Nr ' . $nr . '</p>
-' . ($zas['znak_sprawy'] ? '<p style="font-size:8pt;text-align:right;color:#888;margin-bottom:' . ($wazne_do_html ? '2pt' : '16pt') . '">Sprawa: ' . h($zas['znak_sprawy']) . '</p>' : '') . '
+<p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 10pt">ZAŚWIADCZENIE</p>
+
+<table style="width:100%;border-collapse:collapse;margin-bottom:18pt">
+  <tr>
+    <td style="border:0;font-size:9.5pt;line-height:1.7;vertical-align:top">
+      <span style="color:#888">Znak:</span> <strong>' . $nr . '</strong>' .
+      ($zas['znak_sprawy'] ? '<br><span style="color:#888">Sprawa:</span> <strong>' . h($zas['znak_sprawy']) . '</strong>' : '') . '
+    </td>
+    <td style="border:0;text-align:right;font-size:9pt;color:#666;vertical-align:top">' .
+      ($zas['zatwierdzone_at'] ? date('d.m.Y', strtotime((string)$zas['zatwierdzone_at'])) : date('d.m.Y')) . '<br>' .
+      (function_exists('org_setting') ? (org_setting('org_miejscowosc') ?: '') : '') . '
+    </td>
+  </tr>
+</table>
 ' . $wazne_do_html . '
 
 <div class="body">' . $body . '</div>
@@ -321,13 +331,15 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
  * Wydaje zaświadczenie: generuje numer per typ, renderuje treść,
  * rejestruje pismo wychodzące w EZD w podanej koszulce.
  */
-function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null, string $tresc_override = '', bool $include_qr = false): array {
+function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = null, string $tresc_override = '', bool $include_qr = false, bool $manual = false): array {
     $zas = ezd_zas_get($zas_id);
     if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
     if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
 
     $nr = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
-    if ($tresc_override !== '') {
+    if ($manual) {
+        $tresc = '';  // wydanie ręczne — treść pusta, numer nadany
+    } elseif ($tresc_override !== '') {
         $tresc = str_replace('[NUMER]', htmlspecialchars($nr, ENT_QUOTES, 'UTF-8'), $tresc_override);
     } else {
         $tresc = ezd_zas_render($zas['szablon_tresc'], $zas['dane'], ['nr_zaswiadczenia' => $nr]);
@@ -376,6 +388,11 @@ function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = nul
          WHERE id=?"
     )->execute([$nr, $tresc, $wazne_do, $verify_code, $qr_on_pdf, $user_id, $sprawa_id, $pismo_id, $zas_id]);
 
+    // Auto-kopia PDF do plików sprawy (tylko gdy ma szablon — plik własny obsługuje ezd_zas_wydaj_plik)
+    if ($sprawa_id && !$manual) {
+        ezd_zas_attach_pdf_to_sprawa($zas_id, $sprawa_id, $user_id);
+    }
+
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
 
@@ -422,6 +439,27 @@ function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string
          WHERE id=?"
     )->execute([$nr, $plik_path, $plik_mime, $wazne_do, $user_id, $sprawa_id, $pismo_id, $zas_id]);
 
+    // Auto-kopia pliku własnego do plików sprawy
+    if ($sprawa_id && file_exists($plik_path)) {
+        try {
+            $dir = UPLOAD_DIR . 'ezd/' . $sprawa_id . '/';
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            $nr_safe = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $nr);
+            $ext  = pathinfo($plik_path, PATHINFO_EXTENSION) ?: 'pdf';
+            $fname = 'zaswiadczenie_' . $nr_safe . '.' . $ext;
+            $dest  = $dir . $fname;
+            if (!file_exists($dest)) {
+                copy($plik_path, $dest);
+                db()->prepare(
+                    "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
+                     VALUES (?,?,?,?,?,?,?)"
+                )->execute([$sprawa_id, $pismo_id, $fname, $nr . '.' . $ext, $plik_mime, filesize($plik_path), $user_id]);
+            }
+        } catch (\Throwable $e) {
+            error_log('[ezd_zas_attach_plik] ' . $e->getMessage());
+        }
+    }
+
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
 
@@ -451,6 +489,69 @@ function ezd_zas_my_all(int $user_id): array {
          ORDER BY w.created_at DESC",
         [$user_id]
     );
+}
+
+/**
+ * Generuje PDF zaświadczenia i zapisuje jako załącznik do powiązanej sprawy EZD.
+ * Wymaga vendor/autoload.php (mPDF). Nie rzuca — błędy loguje.
+ */
+function ezd_zas_attach_pdf_to_sprawa(int $zas_id, int $sprawa_id, int $user_id): void {
+    $zas = ezd_zas_get($zas_id);
+    if (!$zas) return;
+
+    try {
+        require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+
+        $ubuntu_cfg = [];
+        foreach ([
+            dirname(__DIR__) . '/assets/fonts/ubuntu',
+            '/usr/share/fonts/truetype/ubuntu',
+            '/usr/share/fonts/truetype/ubuntu-font-family',
+            '/usr/share/fonts/ubuntu',
+        ] as $_udir) {
+            if (is_dir($_udir) && file_exists($_udir . '/Ubuntu-R.ttf')) {
+                $ubuntu_cfg = ['fontDir' => [$_udir], 'fontdata' => ['ubuntu' => ['R'=>'Ubuntu-R.ttf','B'=>'Ubuntu-B.ttf','I'=>'Ubuntu-RI.ttf','BI'=>'Ubuntu-BI.ttf']], 'default_font' => 'ubuntu'];
+                break;
+            }
+        }
+
+        $mpdf = new \Mpdf\Mpdf(array_merge(['mode'=>'utf-8','format'=>'A4','margin_left'=>25,'margin_right'=>25,'margin_top'=>20,'margin_bottom'=>20,'default_font'=>'dejavusans','tempDir'=>$mpdf_tmp], $ubuntu_cfg));
+        $mpdf->WriteHTML(ezd_zas_pdf_html($zas));
+        $pdf_string = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+
+        $dir = UPLOAD_DIR . 'ezd/' . $sprawa_id . '/';
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+
+        $nr_safe = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $zas['nr_zaswiadczenia'] ?? 'zaswiadczenie');
+        $fname   = 'zaswiadczenie_' . $nr_safe . '.pdf';
+        // Zabezpieczenie przed nadpisaniem
+        $dest = $dir . $fname;
+        if (file_exists($dest)) {
+            $fname = 'zaswiadczenie_' . $nr_safe . '_' . time() . '.pdf';
+            $dest  = $dir . $fname;
+        }
+
+        file_put_contents($dest, $pdf_string);
+
+        $pismo_id = $zas['pismo_id'] ?: null;
+        db()->prepare(
+            "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
+             VALUES (?,?,?,?,?,?,?)"
+        )->execute([
+            $sprawa_id,
+            $pismo_id,
+            $fname,
+            ($zas['nr_zaswiadczenia'] ?? 'zaswiadczenie') . '.pdf',
+            'application/pdf',
+            strlen($pdf_string),
+            $user_id,
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[ezd_zas_attach_pdf] ' . $e->getMessage());
+    }
 }
 
 /**

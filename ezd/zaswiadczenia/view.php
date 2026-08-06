@@ -83,6 +83,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location:' . APP_URL . '/ezd/zaswiadczenia/index.php'); exit;
         }
     }
+    if ($act === 'wydaj_recznie') {
+        $sprawa_id_override = null;
+        $sprawa_input = trim($_POST['sprawa_picker'] ?? '');
+        if ($sprawa_input !== '') {
+            $found = db_one(
+                "SELECT id FROM ezd_sprawy WHERE znak_sprawy=? OR CAST(id AS TEXT)=? LIMIT 1",
+                [$sprawa_input, $sprawa_input]
+            );
+            if ($found) $sprawa_id_override = (int)$found['id'];
+        }
+        $include_qr = isset($_POST['include_qr']);
+        $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, '', $include_qr, true);
+        flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Wydano ręcznie — numer: ' . h($res['nr']) : $res['error']);
+    }
     if ($act === 'assign_qr') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
@@ -252,7 +266,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </form>
         <?php endif; ?>
 
-        <!-- Tryb wydania: z szablonu / plik własny -->
+        <!-- Tryb wydania: z szablonu / plik własny / ręcznie -->
         <ul class="nav nav-pills" style="font-size:.77rem" id="wydaj-nav">
           <li class="nav-item">
             <button type="button" class="nav-link active py-1 px-2" data-bs-toggle="pill" data-bs-target="#wp-szablon">
@@ -262,6 +276,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <li class="nav-item">
             <button type="button" class="nav-link py-1 px-2" data-bs-toggle="pill" data-bs-target="#wp-plik">
               <i class="bi bi-upload me-1"></i>Plik własny
+            </button>
+          </li>
+          <li class="nav-item">
+            <button type="button" class="nav-link py-1 px-2" data-bs-toggle="pill" data-bs-target="#wp-recznie">
+              <i class="bi bi-pencil me-1"></i>Ręcznie
             </button>
           </li>
         </ul>
@@ -332,6 +351,37 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php endif; ?>
               </div>
               <button class="btn btn-success w-100 btn-sm"><i class="bi bi-upload me-1"></i>Wydaj (z pliku)</button>
+            </form>
+          </div>
+        </div>
+
+          <!-- Ręcznie -->
+          <div class="tab-pane" id="wp-recznie">
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="wydaj_recznie">
+              <div class="alert alert-warning py-2 mb-2" style="font-size:.75rem">
+                <i class="bi bi-exclamation-triangle me-1"></i>Nadaje numer zaświadczenia bez generowania treści z szablonu. Zaświadczenie zostało wystawione poza systemem.
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
+                  Koszulka EZD
+                  <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
+                </label>
+                <?php if($zas['sprawa_id']): ?>
+                <span class="badge bg-success bg-opacity-15 text-success font-monospace d-block mb-1"><?= h($zas['znak_sprawy']) ?></span>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Inna koszulka (opcjonalnie)">
+                <?php else: ?>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Wpisz znak koszulki…">
+                <?php endif; ?>
+              </div>
+              <?php if($zas['qr_enabled']): ?>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="include_qr" value="1" id="chk-qr-recznie">
+                <label class="form-check-label" for="chk-qr-recznie" style="font-size:.8rem"><i class="bi bi-qr-code me-1"></i>Dodaj kod QR weryfikacyjny</label>
+              </div>
+              <?php endif; ?>
+              <button class="btn btn-warning w-100 btn-sm"><i class="bi bi-pencil me-1"></i>Wystawiono ręcznie — nadaj numer</button>
             </form>
           </div>
         </div>
