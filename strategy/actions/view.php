@@ -166,6 +166,58 @@ include dirname(__DIR__) . '/includes/header_strategy.php';
   </div>
 </div>
 
+<?php if ($action['korzysci'] || $action['dla_kogo']): ?>
+<div class="row g-3 mb-3">
+  <?php if ($action['korzysci']): ?>
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-stars text-warning"></i> <?= h($action['korzysci_tytul'] ?: 'Korzyści') ?>
+      </div>
+      <div class="card-body">
+        <?php
+          $lines = array_filter(array_map('trim', explode("\n", $action['korzysci'])));
+          if (count($lines) > 1):
+        ?>
+        <ul class="mb-0 ps-3">
+          <?php foreach ($lines as $line): ?>
+          <li><?= h($line) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <?php else: ?>
+        <p class="mb-0"><?= nl2br(h($action['korzysci'])) ?></p>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($action['dla_kogo']): ?>
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-people-fill text-primary"></i> Dla kogo
+      </div>
+      <div class="card-body">
+        <?php
+          $lines = array_filter(array_map('trim', explode("\n", $action['dla_kogo'])));
+          if (count($lines) > 1):
+        ?>
+        <ul class="mb-0 ps-3">
+          <?php foreach ($lines as $line): ?>
+          <li><?= h($line) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <?php else: ?>
+        <p class="mb-0"><?= nl2br(h($action['dla_kogo'])) ?></p>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <!-- Financing -->
 <h5 class="mb-2"><i class="bi bi-currency-euro text-success"></i> Finansowanie</h5>
 <?php if ($linked_grants): ?>

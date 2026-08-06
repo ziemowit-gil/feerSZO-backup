@@ -72,6 +72,11 @@
         wartosc_realizowana DECIMAL(10,2) DEFAULT 0
     )");
 
+    // Korzyści i grupa docelowa
+    try { $pdo->exec("ALTER TABLE actions ADD COLUMN korzysci_tytul TEXT NOT NULL DEFAULT 'Korzyści'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE actions ADD COLUMN korzysci TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE actions ADD COLUMN dla_kogo TEXT"); } catch (\Throwable $e) {}
+
     // Powiązanie umów wolontariatu z działaniem lub grantem
     try { $pdo->exec("ALTER TABLE umowy_wolontariat ADD COLUMN action_id INTEGER REFERENCES actions(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE umowy_wolontariat ADD COLUMN grant_id INTEGER REFERENCES grants(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}

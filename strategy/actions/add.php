@@ -34,7 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $allowed = ['nazwa','typ','opis','status','koordynator_id',
                     'data_od','data_do','cykliczne','czestotliwosc',
-                    'lokalizacja','forma','link_online','wlasne_dzialanie'];
+                    'lokalizacja','forma','link_online','wlasne_dzialanie',
+                    'korzysci_tytul','korzysci','dla_kogo'];
         $data = array_intersect_key($row, array_flip($allowed));
 
         $data['cykliczne']        = isset($row['cykliczne']) ? 1 : 0;
@@ -205,6 +206,33 @@ include dirname(__DIR__) . '/includes/header_strategy.php';
     <div class="col-md-4 mb-3" id="link-online-row" style="<?= in_array($row['forma'] ?? '', ['online','hybrydowe']) ? '' : 'display:none' ?>">
       <label class="form-label">Link online</label>
       <input name="link_online" type="url" class="form-control" value="<?= h($row['link_online'] ?? '') ?>">
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 3b. Korzyści i grupa docelowa -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-stars"></i> Korzyści i grupa docelowa</div>
+<div class="card-body">
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <div class="d-flex gap-2 align-items-center mb-1">
+        <label class="form-label mb-0 fw-semibold">Korzyści</label>
+        <select name="korzysci_tytul" class="form-select form-select-sm" style="width:auto">
+          <option value="Korzyści"   <?= ($row['korzysci_tytul'] ?? 'Korzyści') === 'Korzyści' ? 'selected' : '' ?>>Korzyści</option>
+          <option value="Co zyskasz" <?= ($row['korzysci_tytul'] ?? '') === 'Co zyskasz'       ? 'selected' : '' ?>>Co zyskasz</option>
+        </select>
+      </div>
+      <textarea name="korzysci" class="form-control" rows="5"
+                placeholder="Każda korzyść w nowej linii lub jako ciągły opis…"><?= h($row['korzysci'] ?? '') ?></textarea>
+      <div class="form-text">Każda korzyść w osobnej linii = lista punktowana w podglądzie.</div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label fw-semibold">Dla kogo</label>
+      <textarea name="dla_kogo" class="form-control" rows="5"
+                placeholder="Każda grupa w nowej linii lub jako ciągły opis…"><?= h($row['dla_kogo'] ?? '') ?></textarea>
+      <div class="form-text">Każda grupa docelowa w osobnej linii = lista punktowana w podglądzie.</div>
     </div>
   </div>
 </div>
