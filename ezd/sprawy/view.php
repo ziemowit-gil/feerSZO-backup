@@ -418,6 +418,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .tl-syg{font-family:monospace;font-size:.7rem;color:#64748b;font-weight:600}
 .tl-title{font-weight:700;font-size:.86rem;color:#1e293b;margin:.1rem 0}
 .tl-meta{font-size:.7rem;color:#94a3b8;display:flex;flex-wrap:wrap;gap:.3rem .7rem}
+
+/* ── Drag-and-Drop pliki koszulki ────────────── */
+.sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:10px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
+.sp-dz-overlay.active{display:flex}
+.sp-dz-msg{text-align:center;color:#2563eb;font-size:.95rem;font-weight:700;pointer-events:none;padding:1.5rem;text-shadow:0 1px 3px rgba(255,255,255,.8)}
+.sp-dz-progress{position:fixed;bottom:1.5rem;right:1.5rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem 1.1rem;box-shadow:0 4px 24px rgba(0,0,0,.13);z-index:9999;min-width:260px;font-size:.82rem;display:none}
+.sp-dz-progress.visible{display:block}
 </style>
 
 <!-- Breadcrumb -->
@@ -1889,5 +1896,143 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
   panel.addEventListener('hidden.bs.offcanvas', function() { lastId = null; });
 })();
 </script>
+
+<?php if($can_act): ?>
+<script>
+(function(){
+  var filesDiv = document.getElementById('files');
+  if (!filesDiv) return;
+
+  filesDiv.style.position = 'relative';
+
+  // Overlay "Upuść pliki tutaj"
+  var overlay = document.createElement('div');
+  overlay.className = 'sp-dz-overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = '<div class="sp-dz-msg">'
+    + '<i class="bi bi-cloud-arrow-up d-block mb-2" style="font-size:3rem"></i>'
+    + 'Upuść pliki, aby dodać do koszulki'
+    + '</div>';
+  filesDiv.appendChild(overlay);
+
+  // Toast postępu przesyłania
+  var prog = document.createElement('div');
+  prog.className = 'sp-dz-progress';
+  prog.innerHTML = '<div class="d-flex align-items-center gap-2 mb-2">'
+    + '<div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Przesyłanie…</span></div>'
+    + '<span id="sp-dz-prog-msg" class="text-truncate" style="max-width:180px">Przesyłanie…</span>'
+    + '</div>'
+    + '<div class="progress" style="height:5px">'
+    + '<div class="progress-bar bg-primary" id="sp-dz-prog-bar" style="width:0%;transition:width .3s"></div>'
+    + '</div>';
+  document.body.appendChild(prog);
+
+  var progMsg = document.getElementById('sp-dz-prog-msg');
+  var progBar = document.getElementById('sp-dz-prog-bar');
+
+  function getCsrf() {
+    var el = document.querySelector('#ezd-upload-form input[name="_csrf"]')
+          || document.querySelector('#ezd-quick-upload-form input[name="_csrf"]');
+    return el ? el.value : '';
+  }
+
+  function hasFiles(e) {
+    var types = e.dataTransfer ? e.dataTransfer.types : [];
+    for (var i = 0; i < types.length; i++) { if (types[i] === 'Files') return true; }
+    return false;
+  }
+
+  function showToast(msg, ok) {
+    var t = document.createElement('div');
+    t.className = 'position-fixed bottom-0 end-0 m-3 alert alert-' + (ok ? 'success' : 'danger') + ' py-2 px-3 shadow';
+    t.style.cssText = 'font-size:.82rem;z-index:10000;max-width:340px';
+    t.innerHTML = '<i class="bi bi-' + (ok ? 'check-circle' : 'exclamation-circle') + '-fill me-2"></i>' + msg;
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 4500);
+  }
+
+  var dragCount = 0;
+  var uploadUrl = '<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>';
+
+  filesDiv.addEventListener('dragenter', function(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragCount++;
+    overlay.classList.add('active');
+  });
+
+  filesDiv.addEventListener('dragover', function(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  filesDiv.addEventListener('dragleave', function(e) {
+    dragCount--;
+    if (dragCount <= 0) { dragCount = 0; overlay.classList.remove('active'); }
+  });
+
+  filesDiv.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dragCount = 0;
+    overlay.classList.remove('active');
+    var all = Array.from(e.dataTransfer.files);
+    var files = all.filter(function(f){ return f.size > 0 && f.size <= 26214400; });
+    if (!files.length) {
+      showToast('Brak plików do przesłania (maks. 25 MB na plik).', false);
+      return;
+    }
+    if (files.length < all.length) {
+      showToast('Pominięto ' + (all.length - files.length) + ' plik(i) przekraczający 25 MB.', false);
+    }
+    uploadFiles(files);
+  });
+
+  // Zapobiega otwarciu pliku przez przeglądarkę przy upuszczeniu poza strefą
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) { e.preventDefault(); });
+
+  function uploadFiles(files) {
+    var total = files.length;
+    var i = 0;
+    prog.classList.add('visible');
+
+    function uploadNext() {
+      if (i >= total) {
+        progMsg.textContent = 'Gotowe!';
+        progBar.style.width = '100%';
+        setTimeout(function() {
+          prog.classList.remove('visible');
+          window.location.href = uploadUrl + '#files';
+        }, 700);
+        return;
+      }
+      var file = files[i];
+      progMsg.textContent = (total > 1 ? ((i + 1) + '/' + total + ' — ') : '') + file.name;
+      progBar.style.width = Math.round((i / total) * 100) + '%';
+
+      var fd = new FormData();
+      fd.append('_csrf', getCsrf());
+      fd.append('_action', 'upload');
+      fd.append('file', file);
+
+      fetch(uploadUrl, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        redirect: 'follow'
+      })
+      .then(function() { i++; uploadNext(); })
+      .catch(function() {
+        showToast('Błąd połączenia: ' + file.name, false);
+        i++; uploadNext();
+      });
+    }
+
+    uploadNext();
+  }
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
