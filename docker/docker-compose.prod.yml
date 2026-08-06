@@ -160,6 +160,17 @@ services:
       - "traefik.http.routers.feer-ezd-srv-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.feer-ezd-srv-http.service=feer"
 
+      # ezd.ngosystem.pl → /ezd (za Cloudflare proxy — bez certresolver)
+      - "traefik.http.routers.ngo-ezd.rule=Host(`ezd.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-ezd.entrypoints=websecure"
+      - "traefik.http.routers.ngo-ezd.tls=true"
+      - "traefik.http.routers.ngo-ezd.middlewares=sec-headers@docker,ezd-prefix@docker"
+      - "traefik.http.routers.ngo-ezd.service=feer"
+      - "traefik.http.routers.ngo-ezd-http.rule=Host(`ezd.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-ezd-http.entrypoints=web"
+      - "traefik.http.routers.ngo-ezd-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.ngo-ezd-http.service=feer"
+
       # ══════════════════════════════════════════════════════════════════════
       #  PRZEKIEROWANIA ngosystem.pl → feer.org.pl (301 Permanent)
       #
