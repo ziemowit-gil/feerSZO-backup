@@ -94,110 +94,108 @@ include __DIR__ . '/includes/header_k30.php';
 ?>
 
 <style>
-/* ── KPI cards ─────────────────────────────────────────────── */
-.kpi {
-  background: #fff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1rem 1.1rem 1rem;
-  text-decoration: none;
-  display: block;
-  transition: box-shadow .15s, border-color .15s;
-  position: relative;
-  overflow: hidden;
-}
-.kpi:hover, .kpi:focus-visible {
-  box-shadow: 0 4px 18px rgba(0,0,0,.10);
-  border-color: #94a3b8;
-}
-.kpi::before {
-  content:'';
-  position:absolute;
-  top:0; left:0; right:0;
-  height:3px;
-  background: var(--kpi-color, #6366f1);
-}
-.kpi-icon {
-  width:36px; height:36px; border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
-  font-size:1rem; margin-bottom:.6rem;
-  background: var(--kpi-bg, #eff6ff);
-  color: var(--kpi-color, #2563eb);
-}
-.kpi-val {
-  font-size:1.85rem; font-weight:800; line-height:1;
-  color: var(--kpi-color, #1e293b);
-  margin-bottom:.2rem;
-}
-.kpi-lbl { font-size:.75rem; color:#64748b; font-weight:500; }
-.kpi-sub { font-size:.7rem; color:#94a3b8; margin-top:.15rem; }
-
 /* ── Panel cards ────────────────────────────────────────────── */
 .panel {
-  background:#fff; border:1.5px solid #e2e8f0;
-  border-radius:12px; overflow:hidden;
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
 }
 .panel-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:.7rem 1rem; border-bottom:1px solid #f1f5f9;
-  font-size:.82rem; font-weight:700; color:#1e293b;
+  padding:.8rem 1.15rem;
+  border-bottom:1px solid #f1f5f9;
+  font-size:.83rem; font-weight:700; color:#0f172a;
+  background:linear-gradient(180deg,#f8fafc 0%,#fff 100%);
 }
 .panel-row {
   display:flex; align-items:center; gap:.75rem;
-  padding:.65rem 1rem; border-bottom:1px solid #f8fafc;
-  font-size:.83rem; color: #1e293b;
+  padding:.7rem 1.15rem; border-bottom:1px solid #f8fafc;
+  font-size:.83rem; color:#1e293b;
   text-decoration:none; transition:background .1s;
 }
 .panel-row:last-child { border-bottom:none; }
-.panel-row:hover { background:#f8fafc; }
+.panel-row:hover { background:#fafbfc; }
 a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 
 /* Quick-action buttons */
-.qa { display:flex; align-items:center; gap:.6rem; padding:.55rem .9rem; border-radius:8px; font-size:.84rem; font-weight:600; text-decoration:none; transition:background .12s, color .12s; border:1.5px solid transparent; }
+.qa { display:flex; align-items:center; gap:.55rem; padding:.6rem 1rem; border-radius:10px; font-size:.84rem; font-weight:600; text-decoration:none; transition:all .13s; border:1.5px solid transparent; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 .qa:focus-visible { outline:3px solid #facc15; outline-offset:2px; }
-.qa-primary   { background:#0f4c91; color:#fff; }
-.qa-primary:hover { background:#0c3d78; color:#fff; }
-.qa-outline   { background:#fff; border-color:#cbd5e1; color:#374151; }
-.qa-outline:hover { background:#f1f5f9; color:#1e293b; }
-.qa-warn      { background:#fff; border-color:#f59e0b; color:#92400e; }
-.qa-warn:hover { background:#fffbeb; color:#78350f; }
+.qa-primary   { background:#c2410c; color:#fff; }
+.qa-primary:hover { background:#9a3412; color:#fff; box-shadow:0 4px 14px rgba(194,65,12,.28); transform:translateY(-1px); }
+.qa-outline   { background:#fff; border-color:#e2e8f0; color:#374151; }
+.qa-outline:hover { background:#f8fafc; border-color:#cbd5e1; color:#0f172a; }
+.qa-warn      { background:#fff; border-color:#fcd34d; color:#92400e; }
+.qa-warn:hover { background:#fef9e7; border-color:#f59e0b; color:#78350f; }
 
 /* ── Waiting priority badge ─────────────────────────────────── */
-.wp { display:inline-flex;align-items:center;gap:.25rem;padding:.15em .5em;border-radius:4px;font-size:.7rem;font-weight:700 }
+.wp { display:inline-flex; align-items:center; gap:.25rem; padding:.2em .6em; border-radius:5px; font-size:.7rem; font-weight:700; }
 
-/* ── Panele modułów (2 działające moduły) ───────────────────── */
-.mod-panel { display:flex; flex-direction:column; height:100%; border-top:3px solid var(--mod,#6366f1); }
-.mod-head { display:flex; align-items:center; gap:.8rem; padding:1rem 1.1rem; border-bottom:1px solid #f1f5f9; }
-.mod-ic { width:46px; height:46px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.35rem; background:var(--mod,#6366f1); color:#fff; }
-.mod-title { font-size:1.05rem; font-weight:800; margin:0; line-height:1.2; color:#0f172a; }
-.mod-sub { font-size:.76rem; color:#64748b; }
+/* ── Panele modułów ─────────────────────────────────────────── */
+.mod-panel {
+  display:flex; flex-direction:column; height:100%;
+  border-top:3px solid var(--mod,#6366f1);
+  border-radius:16px; overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.mod-head {
+  display:flex; align-items:center; gap:.85rem;
+  padding:1.1rem 1.2rem;
+  border-bottom:1px solid #f1f5f9;
+  background:linear-gradient(160deg,#f8fafc 0%,#fff 100%);
+}
+.mod-ic {
+  width:50px; height:50px; border-radius:13px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem;
+  background:var(--mod,#6366f1);
+  color:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.15);
+}
+.mod-title { font-size:1.08rem; font-weight:800; margin:0; line-height:1.2; color:#0f172a; letter-spacing:-.01em; }
+.mod-sub { font-size:.76rem; color:#64748b; margin-top:.12rem; }
 .mod-cta { white-space:nowrap; }
-/* Mini KPI w panelu modułu */
-.mod-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#eef0f4; border-bottom:1px solid #f1f5f9; }
-.mstat { background:#fff; padding:.7rem .8rem; text-decoration:none; display:block; transition:background .12s; }
-.mstat:hover { background:#f8fafc; }
-.mstat-val { font-size:1.45rem; font-weight:800; line-height:1; color:var(--mod,#1e293b); }
-.mstat-lbl { font-size:.7rem; color:#64748b; font-weight:600; margin-top:.2rem; }
-.mstat-sub { font-size:.64rem; color:#94a3b8; }
+
+/* Mini KPI grid w panelu modułu */
+.mod-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#dde1e9; border-bottom:1px solid #eef0f4; }
+.mstat { background:#fff; padding:.8rem .9rem; text-decoration:none; display:block; transition:background .12s; }
+.mstat:hover { background:#fafbfc; }
+.mstat-val { font-size:1.6rem; font-weight:900; line-height:1; color:var(--mod,#1e293b); letter-spacing:-.02em; }
+.mstat-lbl { font-size:.67rem; color:#64748b; font-weight:700; margin-top:.22rem; text-transform:uppercase; letter-spacing:.05em; }
+.mstat-sub { font-size:.63rem; color:#94a3b8; margin-top:.1rem; }
+
 /* Lista skrótów modułu */
-.mod-links { display:flex; flex-wrap:wrap; gap:.4rem; padding:.85rem 1rem; margin-top:auto; border-top:1px solid #f1f5f9; }
-.mod-link { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:600; text-decoration:none; color:#374151; border:1.5px solid #e2e8f0; border-radius:7px; padding:.3rem .6rem; transition:background .12s,border-color .12s,color .12s; }
-.mod-link:hover { background:#fff7ed; border-color:#fb923c; color:#c2410c; }
-.mod-mini { display:flex; align-items:center; gap:.6rem; padding:.5rem 1rem; border-bottom:1px solid #f8fafc; font-size:.82rem; text-decoration:none; color:#1e293b; }
+.mod-links { display:flex; flex-wrap:wrap; gap:.4rem; padding:.85rem 1rem; margin-top:auto; border-top:1px solid #f1f5f9; background:#fafbfc; }
+.mod-link {
+  display:inline-flex; align-items:center; gap:.35rem;
+  font-size:.78rem; font-weight:600;
+  text-decoration:none; color:#374151;
+  border:1.5px solid #e2e8f0;
+  border-radius:8px; padding:.3rem .65rem;
+  background:#fff;
+  transition:all .12s;
+}
+.mod-link:hover { background:#fff7ed; border-color:#fb923c; color:#c2410c; transform:translateY(-1px); box-shadow:0 2px 6px rgba(194,65,12,.12); }
+
+.mod-mini { display:flex; align-items:center; gap:.7rem; padding:.6rem 1.15rem; border-bottom:1px solid #f8fafc; font-size:.82rem; text-decoration:none; color:#1e293b; transition:background .1s; }
 .mod-mini:last-of-type { border-bottom:0; }
-.mod-mini:hover { background:#f8fafc; }
-.mod-mini-date { flex-shrink:0; width:42px; text-align:center; }
+.mod-mini:hover { background:#fafbfc; }
+.mod-mini-date {
+  flex-shrink:0; width:46px; text-align:center;
+  background:#f1f5f9; border-radius:9px; padding:.3rem .2rem;
+}
 </style>
 
 <!-- Nagłówek strony -->
-<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+<div class="d-flex align-items-start align-items-md-center gap-3 mb-4 flex-wrap">
   <div role="img" aria-label="Dydaktyka"
-       style="width:46px;height:46px;border-radius:11px;background:#c2410c;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-    <i class="bi bi-card-checklist text-white" style="font-size:1.3rem" aria-hidden="true"></i>
+       style="width:54px;height:54px;border-radius:15px;background:linear-gradient(135deg,#c2410c 0%,#ea580c 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(194,65,12,.3)">
+    <i class="bi bi-card-checklist text-white" style="font-size:1.5rem" aria-hidden="true"></i>
   </div>
   <div>
-    <h1 class="h4 mb-0 fw-bold">Dydaktyka — Karty 30</h1>
-    <p class="text-muted mb-0" style="font-size:.84rem">Dwa moduły: <strong>Konsultacje i wizyty</strong> · <strong>Dydaktyka (TI)</strong></p>
+    <h1 class="mb-0 fw-black" style="font-size:1.45rem;letter-spacing:-.025em;color:#0f172a">Dydaktyka — Karty 30</h1>
+    <p class="text-muted mb-0" style="font-size:.83rem;margin-top:.1rem">Dwa moduły: <strong>Konsultacje i wizyty</strong> · <strong>Dydaktyka (TI)</strong></p>
   </div>
   <?php if ($can_write): ?>
   <nav class="ms-auto d-flex gap-2 flex-wrap" aria-label="Szybkie akcje">
@@ -219,10 +217,11 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 
 <!-- M365 — alert administracyjny (gdy konta wygasają) -->
 <?php if (is_admin() && ($m365_exp7 > 0 || $m365_expired > 0)): ?>
-<a href="<?= APP_URL ?>/karty30/admin/m365.php" class="d-flex align-items-center gap-2 text-decoration-none mb-3 p-2 rounded"
-   style="border:1.5px solid <?= $m365_expired ? '#dc2626' : '#f59e0b' ?>;background:<?= $m365_expired ? '#fef2f2' : '#fffbeb' ?>;color:<?= $m365_expired ? '#7f1d1d' : '#78350f' ?>;font-size:.85rem">
-  <i class="bi bi-microsoft" aria-hidden="true"></i>
+<a href="<?= APP_URL ?>/karty30/admin/m365.php" class="d-flex align-items-center gap-2 text-decoration-none mb-3 px-3 py-2 rounded-3"
+   style="border:1.5px solid <?= $m365_expired ? '#dc2626' : '#f59e0b' ?>;background:<?= $m365_expired ? '#fef2f2' : '#fffbeb' ?>;color:<?= $m365_expired ? '#7f1d1d' : '#78350f' ?>;font-size:.84rem;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+  <i class="bi bi-microsoft flex-shrink-0" aria-hidden="true"></i>
   <span><strong><?= $m365_exp7 ?></strong> kont M365 wygasa w ciągu 7 dni<?= $m365_expired ? ', <strong>'.$m365_expired.'</strong> już wygasło' : '' ?> — kliknij, aby zarządzać.</span>
+  <i class="bi bi-chevron-right ms-auto opacity-50" aria-hidden="true"></i>
 </a>
 <?php endif; ?>
 
@@ -231,14 +230,14 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 
   <!-- Moduł 1: Konsultacje i wizyty -->
   <div class="col-lg-6">
-    <div class="panel mod-panel" style="--mod:#0f4c91">
+    <div class="mod-panel" style="--mod:#0f4c91;background:#fff">
       <div class="mod-head">
         <div class="mod-ic" aria-hidden="true"><i class="bi bi-clipboard2-pulse-fill"></i></div>
         <div>
           <h2 class="mod-title">Konsultacje i wizyty</h2>
           <div class="mod-sub">Beneficjenci · harmonogram · konsultacje · PFRON</div>
         </div>
-        <a class="btn btn-primary btn-sm ms-auto mod-cta" href="<?= APP_URL ?>/karty30/schedules/index.php" aria-label="Otwórz moduł Konsultacje i wizyty">Otwórz</a>
+        <a class="qa qa-outline ms-auto mod-cta" href="<?= APP_URL ?>/karty30/schedules/index.php" aria-label="Otwórz moduł Konsultacje i wizyty" style="font-size:.78rem;padding:.35rem .7rem">Otwórz <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
       <div class="mod-kpis">
         <a class="mstat" href="<?= APP_URL ?>/karty30/clients/index.php" aria-label="Beneficjentów: <?= $stats['clients'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['clients'] ?></div><div class="mstat-lbl" aria-hidden="true">Beneficjentów</div></a>
@@ -274,14 +273,14 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 
   <!-- Moduł 2: Dydaktyka (TI) -->
   <div class="col-lg-6">
-    <div class="panel mod-panel" style="--mod:#c2410c">
+    <div class="mod-panel" style="--mod:#c2410c;background:#fff">
       <div class="mod-head">
         <div class="mod-ic" aria-hidden="true"><i class="bi bi-pc-display"></i></div>
         <div>
           <h2 class="mod-title">Dydaktyka (TI)</h2>
           <div class="mod-sub">Kursy · lekcje · zadania · e-dziennik</div>
         </div>
-        <a class="btn btn-primary btn-sm ms-auto mod-cta" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Otwórz moduł Dydaktyka TI">Otwórz</a>
+        <a class="qa qa-outline ms-auto mod-cta" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Otwórz moduł Dydaktyka TI" style="font-size:.78rem;padding:.35rem .7rem">Otwórz <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
       <div class="mod-kpis">
         <a class="mstat" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Aktywnych kursów: <?= $ti['courses'] ?>"><div class="mstat-val" aria-hidden="true"><?= $ti['courses'] ?></div><div class="mstat-lbl" aria-hidden="true">Kursy</div></a>
@@ -318,7 +317,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 </section>
 
 <!-- ══ Szczegóły: kolejka oczekujących + informacje bieżące ════════ -->
-<div class="row g-3">
+<div class="row g-3 mt-0">
 
   <!-- Oczekujący na termin (moduł Konsultacje) -->
   <div class="col-lg-7">
@@ -392,41 +391,86 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
       <div class="panel-head" id="info-heading">
         <span><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Informacje bieżące</span>
       </div>
-      <div class="p-3" style="font-size:.84rem">
-        <dl class="row g-1 mb-0">
-          <dt class="col-6 text-muted fw-normal">Data</dt>
-          <dd class="col-6 fw-semibold mb-1"><?= date('d.m.Y, l') ?></dd>
+      <div class="p-0">
 
-          <?php if ($due_today > 0): ?>
-          <dt class="col-6 text-muted fw-normal">Należności dziś</dt>
-          <dd class="col-6 fw-semibold text-danger mb-1"><?= number_format($due_today, 2, ',', ' ') ?> zł</dd>
-          <?php endif; ?>
+        <div class="panel-row">
+          <div style="width:28px;height:28px;border-radius:7px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-calendar3 text-primary" style="font-size:.85rem" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Data</div>
+            <div class="fw-semibold" style="font-size:.84rem"><?= date('d.m.Y, l') ?></div>
+          </div>
+        </div>
 
-          <dt class="col-6 text-muted fw-normal">Godz. PFRON (m-c)</dt>
-          <dd class="col-6 fw-semibold mb-1"><?= number_format($pfron_month, 2, ',', '') ?> h</dd>
+        <?php if ($due_today > 0): ?>
+        <div class="panel-row">
+          <div style="width:28px;height:28px;border-radius:7px;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-cash-coin" style="font-size:.85rem;color:#dc2626" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Należności dziś</div>
+            <div class="fw-bold text-danger" style="font-size:.9rem"><?= number_format($due_today, 2, ',', ' ') ?> zł</div>
+          </div>
+        </div>
+        <?php endif; ?>
 
-          <dt class="col-6 text-muted fw-normal">Lekcje TI dziś</dt>
-          <dd class="col-6 fw-semibold mb-1"><?= (int)$ti['lessons_today'] ?></dd>
+        <div class="panel-row">
+          <div style="width:28px;height:28px;border-radius:7px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-building-fill-check" style="font-size:.85rem;color:#16a34a" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Godz. PFRON (m-c)</div>
+            <div class="fw-semibold" style="font-size:.84rem"><?= number_format($pfron_month, 2, ',', '') ?> h</div>
+          </div>
+        </div>
 
-          <?php if ($ti['hw_tograde']): ?>
-          <dt class="col-6 text-muted fw-normal">Zadań do oceny</dt>
-          <dd class="col-6 mb-1"><a href="<?= APP_URL ?>/karty30/ti/homework.php" class="fw-semibold" style="color:#b45309"><?= (int)$ti['hw_tograde'] ?></a></dd>
-          <?php endif; ?>
+        <div class="panel-row">
+          <div style="width:28px;height:28px;border-radius:7px;background:#fff7ed;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-pc-display" style="font-size:.85rem;color:#c2410c" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Lekcje TI dziś</div>
+            <div class="fw-semibold" style="font-size:.84rem"><?= (int)$ti['lessons_today'] ?></div>
+          </div>
+        </div>
 
-          <?php if ($stats['blacklist']): ?>
-          <dt class="col-6 text-muted fw-normal">Czarna lista</dt>
-          <dd class="col-6 mb-1">
-            <a href="<?= APP_URL ?>/karty30/blacklist/index.php" class="text-danger fw-semibold">
-              <?= $stats['blacklist'] ?> os.
-            </a>
-          </dd>
-          <?php endif; ?>
+        <?php if ($ti['hw_tograde']): ?>
+        <a href="<?= APP_URL ?>/karty30/ti/homework.php" class="panel-row text-decoration-none">
+          <div style="width:28px;height:28px;border-radius:7px;background:#fefce8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-journal-check" style="font-size:.85rem;color:#b45309" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Zadań do oceny</div>
+            <div class="fw-bold" style="font-size:.9rem;color:#b45309"><?= (int)$ti['hw_tograde'] ?></div>
+          </div>
+          <i class="bi bi-chevron-right text-muted opacity-50" aria-hidden="true"></i>
+        </a>
+        <?php endif; ?>
 
-          <dt class="col-6 text-muted fw-normal">Oczekujących pilnych</dt>
-          <dd class="col-6 fw-semibold <?= $stats['waiting_urgent'] > 0 ? 'text-danger' : 'text-muted' ?> mb-1">
-            <?= $stats['waiting_urgent'] ?> os.
-          </dd>
-        </dl>
+        <?php if ($stats['blacklist']): ?>
+        <a href="<?= APP_URL ?>/karty30/blacklist/index.php" class="panel-row text-decoration-none">
+          <div style="width:28px;height:28px;border-radius:7px;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-slash-circle" style="font-size:.85rem;color:#dc2626" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Czarna lista</div>
+            <div class="fw-bold text-danger" style="font-size:.9rem"><?= $stats['blacklist'] ?> os.</div>
+          </div>
+          <i class="bi bi-chevron-right text-muted opacity-50" aria-hidden="true"></i>
+        </a>
+        <?php endif; ?>
+
+        <div class="panel-row <?= $stats['waiting_urgent'] > 0 ? '' : '' ?>">
+          <div style="width:28px;height:28px;border-radius:7px;background:<?= $stats['waiting_urgent'] > 0 ? '#fef2f2' : '#f1f5f9' ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-hourglass-split" style="font-size:.85rem;color:<?= $stats['waiting_urgent'] > 0 ? '#dc2626' : '#64748b' ?>" aria-hidden="true"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Oczekujących pilnych</div>
+            <div class="fw-semibold <?= $stats['waiting_urgent'] > 0 ? 'text-danger' : 'text-muted' ?>" style="font-size:.84rem"><?= $stats['waiting_urgent'] ?> os.</div>
+          </div>
+        </div>
+
       </div>
     </section>
   </div>

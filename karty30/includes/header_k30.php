@@ -72,12 +72,13 @@ function _k30_active(string $path): bool {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
-/* ── Kolor marki: pomarańcz nałożony na standardowe tokeny Bootstrap ──────── */
 :root {
-  --bs-primary:#c2410c;            /* orange-700 — biały tekst kontrast ~5:1 (AA) */
+  --bs-primary:#c2410c;
   --bs-primary-rgb:194,65,12;
   --bs-link-color-rgb:194,65,12;
   --bs-link-hover-color-rgb:154,52,18;
+  --k30-top:#0f172a;
+  --k30-accent:#c2410c;
 }
 .btn-primary {
   --bs-btn-bg:#c2410c; --bs-btn-border-color:#c2410c;
@@ -88,43 +89,114 @@ function _k30_active(string $path): bool {
 .btn-outline-primary {
   --bs-btn-color:#c2410c; --bs-btn-border-color:#c2410c;
   --bs-btn-hover-bg:#c2410c; --bs-btn-hover-border-color:#c2410c;
+  --bs-btn-hover-color:#fff;
   --bs-btn-active-bg:#9a3412; --bs-btn-active-border-color:#9a3412;
 }
 .bg-primary { background-color:#c2410c !important; }
 .text-primary { color:#c2410c !important; }
 .link-primary { color:#c2410c !important; }
 
-/* ── WCAG: widoczny, spójny focus dla klawiatury ─────────────────────────── */
 *:focus-visible {
-  outline:3px solid #facc15 !important;   /* żółty — widoczny na każdym tle */
+  outline:3px solid #facc15 !important;
   outline-offset:2px !important;
   box-shadow:none !important;
 }
-/* ── WCAG 2.4.1: skip linki ──────────────────────────────────────────────── */
 .skip-link {
   position:absolute; left:.75rem; top:-200%; z-index:1090;
   transition:top .15s ease;
 }
 .skip-link:focus { top:.5rem; }
 
-/* Aktywna pozycja menu — wyróżnienie niezależne od koloru (pogrubienie + tło) */
-.navbar .nav-link.active,
-.navbar .dropdown-item.active { font-weight:700; }
+/* ── Top bar (ciemny granat) ────────────────────────────────── */
+.k30-topbar {
+  background: var(--k30-top);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.k30-topbar .navbar-brand { letter-spacing:-.01em; }
+.k30-topbar .btn-outline-light {
+  border-color:rgba(255,255,255,.2);
+  color:rgba(255,255,255,.7);
+  font-size:.78rem;
+}
+.k30-topbar .btn-outline-light:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.35); }
 
-/* Szerokie, wielokolumnowe rozwijane menu — mieści się na niskich ekranach (np. 13") */
+/* ── Pasek nawigacji ────────────────────────────────────────── */
+.k30-subnav {
+  background:#fff;
+  border-bottom:1px solid #e2e8f0;
+  box-shadow:0 2px 8px rgba(0,0,0,.05);
+}
+.k30-subnav .nav-link {
+  position:relative;
+  font-size:.84rem;
+  padding:.65rem .75rem;
+  color:#475569;
+  transition:color .12s;
+}
+.k30-subnav .nav-link:hover { color:#0f172a; }
+.k30-subnav .nav-link.active {
+  color:var(--k30-accent) !important;
+  font-weight:700;
+}
+.k30-subnav .nav-link.active::after {
+  content:'';
+  position:absolute;
+  bottom:0; left:.5rem; right:.5rem;
+  height:2px;
+  background:var(--k30-accent);
+  border-radius:2px 2px 0 0;
+}
+.k30-subnav .dropdown-item.active { font-weight:700; }
+
+/* ── Mega menu ──────────────────────────────────────────────── */
 .k30-mega {
-  min-width: min(560px, 92vw);
-  max-height: calc(100vh - 110px);  /* pod paskami nagłówka — nigdy poza okno */
-  overflow-y: auto;                                       /* gdy i tak za wysokie → przewijanie */
+  min-width:min(580px,92vw);
+  max-height:calc(100vh - 110px);
+  overflow-y:auto;
+  border:0 !important;
+  border-radius:14px !important;
+  box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.07) !important;
+  margin-top:.4rem !important;
+  padding:0.5rem !important;
 }
-.k30-mega .dropdown-header { padding:.25rem .5rem; }
-.k30-mega .dropdown-item   { padding-top:.3rem; padding-bottom:.3rem; }  /* gęściej = niżej */
-@media (max-width: 991.98px){ .k30-mega { min-width: 0; max-height: none; } }  /* w zwiniętym menu pełna lista */
-@media (min-width: 768px){ .border-start-md { border-left: 1px solid var(--bs-border-color); } }
+.k30-mega .dropdown-header {
+  padding:.3rem .6rem .2rem;
+  font-size:.68rem;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#94a3b8;
+  font-weight:700;
+}
+.k30-mega .dropdown-item {
+  padding:.38rem .65rem;
+  border-radius:7px;
+  margin:1px 2px;
+  font-size:.845rem;
+  color:#1e293b;
+}
+.k30-mega .dropdown-item:hover,
+.k30-mega .dropdown-item:focus { background:#fff7ed; color:var(--k30-accent); }
+.k30-mega .dropdown-item[aria-current="page"] { background:#fff3e8; color:var(--k30-accent); font-weight:600; }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition:none !important; animation:none !important; }
+/* Zwykłe (wąskie) dropdown */
+.dropdown-menu:not(.k30-mega) {
+  border:0 !important;
+  border-radius:12px !important;
+  box-shadow:0 6px 24px rgba(0,0,0,.12) !important;
+  padding:.4rem !important;
+  margin-top:.4rem !important;
 }
+.dropdown-menu:not(.k30-mega) .dropdown-item {
+  border-radius:7px;
+  font-size:.875rem;
+}
+.dropdown-menu:not(.k30-mega) .dropdown-item:hover { background:#f8fafc; }
+
+@media (max-width:991.98px){
+  .k30-mega { min-width:0; max-height:none; border-radius:0!important; margin-top:0!important; }
+}
+@media (min-width:768px){ .border-start-md { border-left:1px solid var(--bs-border-color); } }
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after { transition:none !important; animation:none !important; } }
 </style>
 </head>
 <body>
@@ -140,15 +212,15 @@ function _k30_active(string $path): bool {
 <header class="sticky-top shadow-sm">
 
   <!-- ══ Pasek marki + użytkownik ═══════════════════════════════════════════ -->
-  <nav class="navbar navbar-dark bg-primary py-1" aria-label="Pasek górny">
+  <nav class="navbar navbar-dark py-1 k30-topbar" aria-label="Pasek górny">
     <div class="container-fluid">
       <a href="<?= APP_URL ?>/karty30/index.php" class="navbar-brand d-flex align-items-center gap-2 fw-bold" aria-label="Dydaktyka Karty 30 — strona główna">
-        <span class="d-inline-flex align-items-center justify-content-center bg-white bg-opacity-25 rounded" style="width:34px;height:34px" aria-hidden="true">
-          <i class="bi bi-card-checklist fs-5"></i>
+        <span class="d-inline-flex align-items-center justify-content-center rounded-2" style="width:34px;height:34px;background:#c2410c;flex-shrink:0" aria-hidden="true">
+          <i class="bi bi-card-checklist text-white" style="font-size:1.05rem"></i>
         </span>
         <span class="lh-1">
-          Dydaktyka
-          <small class="d-block fw-normal opacity-75" style="font-size:.68rem">Karty 30<?= $_org_name ? ' · ' . h(mb_substr($_org_name, 0, 20, 'UTF-8')) : '' ?></small>
+          <span style="font-size:.97rem">Dydaktyka</span>
+          <small class="d-block fw-normal opacity-60" style="font-size:.65rem;letter-spacing:.02em">KARTY 30<?= $_org_name ? ' · ' . h(mb_strtoupper(mb_substr($_org_name, 0, 18, 'UTF-8'), 'UTF-8')) : '' ?></small>
         </span>
       </a>
 
@@ -212,7 +284,7 @@ function _k30_active(string $path): bool {
             || _k30_active('/karty30/reports') || _k30_active('/karty30/blacklist')
             || _k30_active('/karty30/admin/');
   ?>
-  <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom py-1" id="k30-nav" aria-label="Nawigacja modułu">
+  <nav class="navbar navbar-expand-lg py-0 k30-subnav" id="k30-nav" aria-label="Nawigacja modułu">
     <div class="container-fluid">
       <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse"
               data-bs-target="#k30-menu" aria-controls="k30-menu" aria-expanded="false"
@@ -341,8 +413,8 @@ function _k30_active(string $path): bool {
 <?php $_brw = dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; if (is_file($_brw)) require_once $_brw; ?>
 
 <!-- Notka o zmianie nazwy modułu -->
-<div class="alert alert-info border-0 border-bottom rounded-0 mb-0 py-2 small d-flex align-items-center gap-2" role="note">
-  <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+<div class="border-bottom mb-0 py-2 small d-flex align-items-center gap-2 px-3" style="background:#f0f9ff;color:#0c4a6e;font-size:.78rem" role="note">
+  <i class="bi bi-info-circle-fill flex-shrink-0" style="color:#0284c7" aria-hidden="true"></i>
   <span>Moduł zmienił nazwę z „TyfloKonsultacje" na <strong>„Dydaktyka"</strong>. Dawne konsultacje znajdziesz w sekcji „Konsultacje i raporty".</span>
 </div>
 
