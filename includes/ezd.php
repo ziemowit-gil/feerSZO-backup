@@ -337,6 +337,22 @@ function ezd_is_manager(?int $user_id = null): bool {
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Workflow przekazania do podpisu
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_sign_requests (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        zal_id        INTEGER NOT NULL REFERENCES ezd_zalaczniki(id) ON DELETE CASCADE,
+        sprawa_id     INTEGER NOT NULL REFERENCES ezd_sprawy(id) ON DELETE CASCADE,
+        requested_by  INTEGER NOT NULL REFERENCES users(id),
+        requested_to  INTEGER NOT NULL REFERENCES users(id),
+        status        TEXT    NOT NULL DEFAULT 'oczekuje',
+        notes         TEXT    NOT NULL DEFAULT '',
+        signed_zal_id INTEGER REFERENCES ezd_zalaczniki(id) ON DELETE SET NULL,
+        confirmed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        confirmed_at  DATETIME,
+        requested_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        signed_at     DATETIME
+    )");
+
     // Szablony pism / dokumentów — korespondencja seryjna (mail merge)
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_szablony (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3700,6 +3716,166 @@ function _ezd_check_sprawa_open(array $sprawa): void {
 }
 
 // ── Wykrywanie i walidacja podpisu el. — wydzielone do includes/sigcheck.php ──
+// ── Workflow podpisu ──────────────────────────────────────────────────────────
+
+const EZD_SIGN_STATUSES = [
+    'oczekuje'    => ['label' => 'Oczekuje na podpis', 'class' => 'warning'],
+    'podpisane'   => ['label' => 'Podpisane',           'class' => 'success'],
+    'potwierdzone'=> ['label' => 'Potwierdzone',        'class' => 'primary'],
+    'odrzucone'   => ['label' => 'Odrzucone',           'class' => 'danger'],
+    'anulowane'   => ['label' => 'Anulowane',           'class' => 'secondary'],
+];
+
+function ezd_sign_request_create(int $zal_id, int $sprawa_id, int $requested_by, int $requested_to, string $notes): int {
+    $id = (int)db_insert(
+        "INSERT INTO ezd_sign_requests (zal_id,sprawa_id,requested_by,requested_to,notes) VALUES (?,?,?,?,?)",
+        [$zal_id, $sprawa_id, $requested_by, $requested_to, $notes]
+    );
+    // Powiadomienie dla podpisującego
+    $zal  = db_one("SELECT original_name FROM ezd_zalaczniki WHERE id=?", [$zal_id]);
+    $from = db_one("SELECT name FROM users WHERE id=?", [$requested_by]);
+    $sp   = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$sprawa_id]);
+    $msg  = 'Prośba o podpis dokumentu „' . ($zal['original_name'] ?? '—') . '" '
+          . 'w koszulce ' . ($sp['znak_sprawy'] ?? '—') . ' od ' . ($from['name'] ?? '—');
+    if (function_exists('NotificationService')) {
+        try { (new NotificationService())->toUser($requested_to, $msg, APP_URL.'/ezd/podpis/view.php?id='.$id); } catch (\Throwable $_) {}
+    }
+    ezd_log(null, $sprawa_id, null, null, $requested_by, 'sign_request', 'Do podpisu: ' . ($zal['original_name'] ?? '—') . ' → user#' . $requested_to);
+    return $id;
+}
+
+function ezd_sign_request_get(int $id): ?array {
+    return db_one(
+        "SELECT r.*,
+                z.original_name AS zal_name, z.filename AS zal_filename, z.sprawa_id AS zal_sprawa_id,
+                ub.name AS requested_by_name,
+                ut.name AS requested_to_name,
+                sz.original_name AS signed_name
+         FROM ezd_sign_requests r
+         LEFT JOIN ezd_zalaczniki z ON z.id=r.zal_id
+         LEFT JOIN users ub ON ub.id=r.requested_by
+         LEFT JOIN users ut ON ut.id=r.requested_to
+         LEFT JOIN ezd_zalaczniki sz ON sz.id=r.signed_zal_id
+         WHERE r.id=?", [$id]) ?: null;
+}
+
+function ezd_sign_requests_by_sprawa(int $sprawa_id): array {
+    return db_all(
+        "SELECT r.*,
+                z.original_name AS zal_name,
+                ub.name AS requested_by_name,
+                ut.name AS requested_to_name
+         FROM ezd_sign_requests r
+         LEFT JOIN ezd_zalaczniki z ON z.id=r.zal_id
+         LEFT JOIN users ub ON ub.id=r.requested_by
+         LEFT JOIN users ut ON ut.id=r.requested_to
+         WHERE r.sprawa_id=?
+         ORDER BY r.requested_at DESC", [$sprawa_id]);
+}
+
+function ezd_sign_requests_pending_for_user(int $user_id): array {
+    return db_all(
+        "SELECT r.*,
+                z.original_name AS zal_name,
+                ub.name AS requested_by_name,
+                s.znak_sprawy
+         FROM ezd_sign_requests r
+         LEFT JOIN ezd_zalaczniki z ON z.id=r.zal_id
+         LEFT JOIN users ub ON ub.id=r.requested_by
+         LEFT JOIN ezd_sprawy s ON s.id=r.sprawa_id
+         WHERE r.requested_to=? AND r.status='oczekuje'
+         ORDER BY r.requested_at ASC", [$user_id]);
+}
+
+function ezd_sign_requests_awaiting_confirm(int $user_id): array {
+    return db_all(
+        "SELECT r.*,
+                z.original_name AS zal_name,
+                ut.name AS requested_to_name,
+                s.znak_sprawy
+         FROM ezd_sign_requests r
+         LEFT JOIN ezd_zalaczniki z ON z.id=r.zal_id
+         LEFT JOIN users ut ON ut.id=r.requested_to
+         LEFT JOIN ezd_sprawy s ON s.id=r.sprawa_id
+         WHERE r.requested_by=? AND r.status='podpisane'
+         ORDER BY r.signed_at DESC", [$user_id]);
+}
+
+function ezd_sign_request_upload(int $id, int $user_id, string $tmp, string $orig, string $mime): array {
+    $req = ezd_sign_request_get($id);
+    if (!$req) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
+    if ($req['status'] !== 'oczekuje') return ['ok' => false, 'error' => 'Wniosek nie oczekuje na podpis.'];
+    if ((int)$req['requested_to'] !== $user_id && !is_admin()) return ['ok' => false, 'error' => 'Brak uprawnień.'];
+
+    $sprawa_id = (int)$req['sprawa_id'];
+    $dir = UPLOAD_DIR . 'ezd/' . $sprawa_id . '/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+
+    // Nowa nazwa: bazowa_oryginału + _signed
+    $base = pathinfo($req['zal_name'], PATHINFO_FILENAME);
+    $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION)) ?: 'pdf';
+    $filename = $base . '_signed_' . time() . '.' . $ext;
+
+    if (!move_uploaded_file($tmp, $dir . $filename)) return ['ok' => false, 'error' => 'Błąd zapisu pliku.'];
+
+    $signed_zal_id = (int)db_insert(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,filename,original_name,mime_type,file_size,wersja,uploaded_by,converted_from_id)
+         VALUES (?,?,?,?,?,1,?,?)",
+        [$sprawa_id, $filename, $base . '_signed.' . $ext, $mime, filesize($dir . $filename), $user_id, $req['zal_id']]
+    );
+
+    db()->prepare("UPDATE ezd_sign_requests SET status='podpisane', signed_zal_id=?, signed_at=datetime('now') WHERE id=?")
+        ->execute([$signed_zal_id, $id]);
+
+    // Powiadom nadawcę
+    $to = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    $sp = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$sprawa_id]);
+    $msg = 'Dokument „' . $req['zal_name'] . '" w koszulce ' . ($sp['znak_sprawy'] ?? '—') . ' został podpisany przez ' . ($to['name'] ?? '—');
+    if (function_exists('NotificationService')) {
+        try { (new NotificationService())->toUser((int)$req['requested_by'], $msg, APP_URL.'/ezd/podpis/view.php?id='.$id); } catch (\Throwable $_) {}
+    }
+    ezd_log(null, $sprawa_id, null, null, $user_id, 'sign_uploaded', 'Podpisano: ' . $req['zal_name']);
+    return ['ok' => true, 'signed_zal_id' => $signed_zal_id];
+}
+
+function ezd_sign_request_confirm(int $id, int $user_id): void {
+    $req = ezd_sign_request_get($id);
+    if (!$req || $req['status'] !== 'podpisane') return;
+    if ((int)$req['requested_by'] !== $user_id && !is_admin()) return;
+    db()->prepare("UPDATE ezd_sign_requests SET status='potwierdzone', confirmed_by=?, confirmed_at=datetime('now') WHERE id=?")
+        ->execute([$user_id, $id]);
+    ezd_log(null, (int)$req['sprawa_id'], null, null, $user_id, 'sign_confirmed', 'Potwierdzono zwrot: ' . $req['zal_name']);
+}
+
+function ezd_sign_request_cancel(int $id, int $user_id): void {
+    $req = ezd_sign_request_get($id);
+    if (!$req || $req['status'] !== 'oczekuje') return;
+    if ((int)$req['requested_by'] !== $user_id && !is_admin()) return;
+    db()->prepare("UPDATE ezd_sign_requests SET status='anulowane' WHERE id=?")->execute([$id]);
+    ezd_log(null, (int)$req['sprawa_id'], null, null, $user_id, 'sign_cancelled', 'Anulowano prośbę: ' . $req['zal_name']);
+}
+
+function ezd_sign_request_reject(int $id, int $user_id, string $notes): void {
+    $req = ezd_sign_request_get($id);
+    if (!$req || $req['status'] !== 'oczekuje') return;
+    if ((int)$req['requested_to'] !== $user_id && !is_admin()) return;
+    db()->prepare("UPDATE ezd_sign_requests SET status='odrzucone', notes=? WHERE id=?")->execute([$notes, $id]);
+    $from = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    $sp   = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [(int)$req['sprawa_id']]);
+    $msg  = 'Prośba o podpis „' . $req['zal_name'] . '" w koszulce ' . ($sp['znak_sprawy'] ?? '—') . ' została odrzucona przez ' . ($from['name'] ?? '—');
+    if (function_exists('NotificationService')) {
+        try { (new NotificationService())->toUser((int)$req['requested_by'], $msg, APP_URL.'/ezd/podpis/view.php?id='.$id); } catch (\Throwable $_) {}
+    }
+    ezd_log(null, (int)$req['sprawa_id'], null, null, $user_id, 'sign_rejected', 'Odrzucono: ' . $req['zal_name']);
+}
+
+function ezd_sign_status_badge(string $status): string {
+    $s = EZD_SIGN_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . ' bg-opacity-20 text-' . $s['class'] . ' border border-' . $s['class'] . '-subtle">' . h($s['label']) . '</span>';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 require_once __DIR__ . '/sigcheck.php';
 
 // ── Archiwum zakładowe (spisy zdawczo-odbiorcze, brakowanie) ──────────────────

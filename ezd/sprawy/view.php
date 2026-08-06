@@ -31,8 +31,9 @@ $users       = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name
 $podsprawy   = ezd_podsprawy_by_parent($id);
 $dokumenty   = ezd_dokumenty_by_sprawa($id);
 $notatki     = ezd_notatki_by_sprawa($id);
-$grupy       = ezd_grupy_by_sprawa($id);
-$shares      = ezd_sprawa_share_list($id);
+$grupy         = ezd_grupy_by_sprawa($id);
+$sign_requests = ezd_sign_requests_by_sprawa($id);
+$shares        = ezd_sprawa_share_list($id);
 try { $strony = db_all("SELECT s.*, c.imie_nazwisko AS crm_name FROM ezd_strony s LEFT JOIN crm_contacts c ON c.id=s.crm_id WHERE s.sprawa_id=? ORDER BY s.created_at", [$id]); } catch (\Throwable $e) { $strony = []; }
 
 // Pliki repozytorium pogrupowane: grupa_id => [pliki], 0 => bez grupy
@@ -103,6 +104,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_zal_delete((int)($_POST['zal_id'] ?? 0), $user_id);
         flash_set('success', 'Plik usunięty.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+
+    if ($action === 'request_sign') {
+        if (!$can_act) { http_response_code(403); exit; }
+        $zal_id_s = (int)($_POST['zal_id'] ?? 0);
+        $to_user  = (int)($_POST['sign_user_id'] ?? 0);
+        $notes_s  = trim($_POST['sign_notes'] ?? '');
+        if ($zal_id_s && $to_user) {
+            ezd_sign_request_create($zal_id_s, $id, $user_id, $to_user, $notes_s);
+            flash_set('success', 'Prośba o podpis wysłana.');
+        } else {
+            flash_set('error', 'Wybierz dokument i osobę podpisującą.');
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#sign-requests'); exit;
     }
 
     if ($action === 'pismo_add' && $can_create_pismo) {
@@ -705,6 +720,12 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm" title="Pobierz plik"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
+            <button type="button" class="btn btn-xs btn-outline-warning btn-sm ezd-sign-req-btn"
+                    title="Przekaż do podpisu"
+                    data-zal-id="<?= (int)$z['id'] ?>"
+                    data-zal-name="<?= h($z['original_name']) ?>">
+              <i class="bi bi-pen"></i>
+            </button>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="del_file">
@@ -798,6 +819,82 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     <?php endif; ?>
   </div>
 </div>
+
+<!-- ══ Sekcja podpisów ════════════════════════════════════════════════════════ -->
+<?php if($sign_requests): ?>
+<div id="sign-requests" class="mt-3">
+  <div class="sp-akta-hdr">
+    <div class="flex-grow-1">
+      <span class="sp-akta-title"><i class="bi bi-pen me-1"></i>Przekazane do podpisu</span>
+      <span class="sp-akta-count">(<?= count($sign_requests) ?>)</span>
+    </div>
+  </div>
+  <div class="sp-akta-body">
+    <table class="table table-sm mb-0" style="font-size:.8rem">
+      <thead class="table-light"><tr><th>Dokument</th><th>Do</th><th>Status</th><th>Data</th><th></th></tr></thead>
+      <tbody>
+        <?php foreach($sign_requests as $sr): ?>
+        <tr>
+          <td><?= h($sr['zal_name']) ?></td>
+          <td><?= h($sr['requested_to_name']) ?></td>
+          <td><?= ezd_sign_status_badge($sr['status']) ?></td>
+          <td class="text-muted"><?= h(substr($sr['requested_at'],0,10)) ?></td>
+          <td><a href="<?= APP_URL ?>/ezd/podpis/view.php?id=<?= $sr['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm">Szczegóły</a></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: Przekaż do podpisu -->
+<div class="modal fade" id="signRequestModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-semibold" style="font-size:.95rem"><i class="bi bi-pen me-2 text-warning"></i>Przekaż do podpisu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="request_sign">
+        <input type="hidden" name="zal_id" id="signReqZalId">
+        <div class="modal-body">
+          <p class="text-muted mb-3" style="font-size:.82rem">Dokument: <strong id="signReqZalName"></strong></p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold mb-1" style="font-size:.8rem">Osoba podpisująca <span class="text-danger">*</span></label>
+            <select name="sign_user_id" class="form-select form-select-sm" required>
+              <option value="">— wybierz —</option>
+              <?php foreach($users as $u): ?>
+              <?php if((int)$u['id'] !== $user_id): ?>
+              <option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option>
+              <?php endif; ?>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold mb-1" style="font-size:.8rem">Uwagi dla podpisującego</label>
+            <textarea name="sign_notes" class="form-control form-control-sm" rows="2" placeholder="np. kwalifikowany podpis elektroniczny, termin…"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning btn-sm"><i class="bi bi-pen me-1"></i>Wyślij prośbę o podpis</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.getElementById('signReqZalId').value = btn.dataset.zalId;
+    document.getElementById('signReqZalName').textContent = btn.dataset.zalName;
+    new bootstrap.Modal(document.getElementById('signRequestModal')).show();
+  });
+});
+</script>
 
 <!-- ══ Tabs ════════════════════════════════════════════════════════════════════ -->
 <ul class="nav sp-tabs mt-3" id="sprawaTabs">

@@ -162,6 +162,8 @@ function _menu_ezd_items(): array {
         _mi('Pełnomocnictwa','/ezd/pelnomocnictwa/index.php','bi-person-vcard',['match'=>'/ezd/pelnomocnictwa/']),
         _mi('Zaświadczenia','/ezd/zaswiadczenia/index.php','bi-award',['match'=>'/ezd/zaswiadczenia/']),
         _mi('Wolontariusze bez umowy','/ezd/wolontariusze/index.php','bi-heart',['match'=>'/ezd/wolontariusze/']),
+        _mi('Terminarz','/ezd/terminarz.php','bi-calendar3',['match'=>'/ezd/terminarz','kw'=>'terminarz kalendarz terminy']),
+        _mi('Do podpisu','/ezd/podpis/index.php','bi-pen',['match'=>'/ezd/podpis/','kw'=>'podpis dokumenty']),
     ];
 }
 

@@ -33,6 +33,10 @@ $my_dekr = db_all(
     [$user_id]
 );
 
+// Moje dokumenty do podpisu + czekające na potwierdzenie
+$my_sign_pending  = ezd_sign_requests_pending_for_user($user_id);
+$my_sign_awaiting = ezd_sign_requests_awaiting_confirm($user_id);
+
 // Moje koszulki
 $my_sprawy = db_all(
     "SELECT s.*, t.symbol AS teczka_symbol,
@@ -708,6 +712,38 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="text-muted text-center py-3" style="font-size:.8rem">Brak oczekujących zadań</div>
       <?php endif; ?>
     </div>
+
+    <!-- Dokumenty do podpisu -->
+    <?php if($my_sign_pending || $my_sign_awaiting): ?>
+    <div class="ezdd-card mb-3">
+      <div class="d-flex align-items-center justify-content-between px-3 pt-3 pb-2">
+        <span style="font-size:.8rem;font-weight:700;color:#374151">
+          <i class="bi bi-pen text-warning me-1"></i>Dokumenty do podpisu
+        </span>
+        <a href="<?= APP_URL ?>/ezd/podpis/index.php" style="font-size:.7rem">Wszystkie</a>
+      </div>
+      <?php foreach(array_slice($my_sign_pending, 0, 3) as $sr): ?>
+      <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.78rem">
+        <span class="badge bg-warning text-dark" style="font-size:.6rem">DO PODPISU</span>
+        <div class="flex-grow-1 overflow-hidden">
+          <a href="<?= APP_URL ?>/ezd/podpis/view.php?id=<?= $sr['id'] ?>" class="text-decoration-none fw-semibold d-block text-truncate"><?= h($sr['zal_name']) ?></a>
+          <div class="text-muted" style="font-size:.68rem"><?= h($sr['znak_sprawy']) ?> · od: <?= h($sr['requested_by_name']) ?></div>
+        </div>
+        <a href="<?= APP_URL ?>/ezd/podpis/view.php?id=<?= $sr['id'] ?>" class="btn btn-xs btn-warning btn-sm">Podpisz</a>
+      </div>
+      <?php endforeach; ?>
+      <?php foreach(array_slice($my_sign_awaiting, 0, 2) as $sr): ?>
+      <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.78rem">
+        <span class="badge bg-success" style="font-size:.6rem">POTWIERDŹ</span>
+        <div class="flex-grow-1 overflow-hidden">
+          <a href="<?= APP_URL ?>/ezd/podpis/view.php?id=<?= $sr['id'] ?>" class="text-decoration-none fw-semibold d-block text-truncate"><?= h($sr['zal_name']) ?></a>
+          <div class="text-muted" style="font-size:.68rem"><?= h($sr['znak_sprawy']) ?> · podpisał: <?= h($sr['requested_to_name']) ?></div>
+        </div>
+        <a href="<?= APP_URL ?>/ezd/podpis/view.php?id=<?= $sr['id'] ?>" class="btn btn-xs btn-success btn-sm">Potwierdź</a>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     <!-- Ostatnia aktywność -->
     <div class="ezdd-card">

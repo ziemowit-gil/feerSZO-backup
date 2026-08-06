@@ -8,11 +8,15 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $id  = (int)($_GET['id'] ?? 0);
 $doc = ezd_dokument_get($id);
 if (!$doc) { flash_set('error','Dokument nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+
+$user_id = (int)current_user()['id'];
+$_sprawa = ezd_sprawa_get((int)$doc['sprawa_id']);
+$_access = $_sprawa ? ezd_sprawa_access($_sprawa, $user_id) : null;
+if ($_access !== 'write') { flash_set('error','Brak dostępu do edycji.'); header('Location:'.APP_URL.'/ezd/dokumenty/view.php?id='.$id); exit; }
 if ($doc['sprawa_status'] === 'closed' && !is_admin()) {
     flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/dokumenty/view.php?id='.$id); exit;
 }

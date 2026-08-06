@@ -5,11 +5,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $sprawa_id = (int)($_GET['sprawa_id'] ?? 0);
 $sprawa    = ezd_sprawa_get($sprawa_id);
 if (!$sprawa) { flash_set('error','Koszulka nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+
+$user_id = (int)current_user()['id'];
+$_access = ezd_sprawa_access($sprawa, $user_id);
+if ($_access !== 'write') { flash_set('error','Brak dostępu do tej koszulki.'); header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$sprawa_id); exit; }
 if ($sprawa['status'] === 'closed' && !is_admin()) {
     flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$sprawa_id); exit;
 }

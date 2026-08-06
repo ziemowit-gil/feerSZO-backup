@@ -15,12 +15,15 @@ if (!$doc) { flash_set('error','Dokument nie istnieje.'); header('Location:'.APP
 
 $sprawa_id = (int)$doc['sprawa_id'];
 $user_id   = (int)current_user()['id'];
-$can_act   = can_edit() && $doc['sprawa_status'] !== 'closed';
+$_sprawa   = ezd_sprawa_get($sprawa_id);
+$_access   = $_sprawa ? ezd_sprawa_access($_sprawa, $user_id) : null;
+if (!$_access) { flash_set('error','Brak dostępu do tej koszulki.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
+$can_act   = $_access === 'write' && $doc['sprawa_status'] !== 'closed';
 $PAGE_TITLE = $doc['sygnatura'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    if (!can_edit()) { http_response_code(403); exit; }
+    if (!$can_act && $_POST['_action'] !== 'delete') { http_response_code(403); exit; }
     $action = $_POST['_action'] ?? '';
     try {
         if ($action === 'upload') {

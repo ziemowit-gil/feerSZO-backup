@@ -11,18 +11,23 @@ $umowa = ezd_umowa_get($id);
 if (!$umowa) { flash_set('error','Umowa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 
 $sprawa_id = (int)$umowa['sprawa_id'];
+$user_id   = (int)current_user()['id'];
+$_sprawa   = ezd_sprawa_get($sprawa_id);
+$_access   = $_sprawa ? ezd_sprawa_access($_sprawa, $user_id) : null;
+if (!$_access) { flash_set('error','Brak dostępu do tej koszulki.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
+
 $PAGE_TITLE = $umowa['sygnatura'];
 $zal = ezd_zalaczniki_by($sprawa_id, null, $id);
-$user_id = (int)current_user()['id'];
+$can_act = $_access === 'write' && $umowa['sprawa_status'] !== 'closed';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['_action'] ?? '';
-    if ($action === 'upload' && can_edit()) {
+    if ($action === 'upload' && $can_act) {
         $err = ezd_upload('file', $sprawa_id, $user_id, null, $id);
         flash_set($err ? 'error' : 'success', $err ?? 'Plik dodany.');
     }
-    if ($action === 'del_file' && can_edit()) {
+    if ($action === 'del_file' && $can_act) {
         ezd_zal_delete((int)($_POST['zid'] ?? 0), $user_id);
         flash_set('success','Plik usunięty.');
     }
