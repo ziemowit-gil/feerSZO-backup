@@ -400,6 +400,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <i class="bi bi-envelope-paper"></i>eDoręczenia
           </button>
         </div>
+        <div class="col-6">
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="ezdd-qa">
+            <i class="bi bi-award"></i>Zaświadczenia
+          </a>
+        </div>
       </div>
     </div>
 
