@@ -40,6 +40,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override);
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
+
+    if ($act === 'wydaj_plik') {
+        if (empty($_FILES['plik']['tmp_name']) || $_FILES['plik']['error'] !== UPLOAD_ERR_OK) {
+            flash_set('error', 'Nie wybrano pliku lub błąd przesyłania (max ' . ini_get('upload_max_filesize') . ').');
+        } else {
+            $upload_dir = UPLOAD_DIR . 'zaswiadczenia/';
+            if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
+            $ext      = strtolower(pathinfo($_FILES['plik']['name'], PATHINFO_EXTENSION)) ?: 'bin';
+            $plik_path = $upload_dir . 'zas_' . $id . '_' . time() . '.' . $ext;
+            $plik_mime = $_FILES['plik']['type'] ?: 'application/octet-stream';
+            if (move_uploaded_file($_FILES['plik']['tmp_name'], $plik_path)) {
+                $sprawa_id_override = null;
+                $sprawa_input = trim($_POST['sprawa_picker'] ?? '');
+                if ($sprawa_input !== '') {
+                    $found = db_one("SELECT id FROM ezd_sprawy WHERE znak_sprawy=? OR CAST(id AS TEXT)=? LIMIT 1", [$sprawa_input, $sprawa_input]);
+                    if ($found) $sprawa_id_override = (int)$found['id'];
+                }
+                $res = ezd_zas_wydaj_plik($id, $user_id, $plik_path, $plik_mime, $sprawa_id_override);
+                flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane (plik własny).' : $res['error']);
+            } else {
+                flash_set('error', 'Błąd zapisu pliku na serwerze.');
+            }
+        }
+    }
     if ($act === 'weryfikacja') {
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET status='weryfikacja',updated_at=datetime('now') WHERE id=? AND status='wniosek'")->execute([$id]);
         flash_set('success', 'Wniosek przyjęty do weryfikacji.');
@@ -177,9 +201,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <!-- Prawa: akcje -->
   <div class="col-lg-4">
     <?php if($can_mgr && $open): ?>
+    <?php if($open_sprawy): ?>
+    <datalist id="sprawy-list">
+      <?php foreach($open_sprawy as $sp): ?>
+      <option value="<?= h($sp['znak_sprawy']) ?>"><?= h(mb_substr($sp['title'],0,60)) ?></option>
+      <?php endforeach; ?>
+    </datalist>
+    <?php endif; ?>
+
     <div class="card shadow-sm mb-3 border-primary" style="border-width:1.5px!important">
       <div class="card-header fw-semibold text-primary" style="font-size:.88rem"><i class="bi bi-person-check me-1"></i>Akcje weryfikatora</div>
       <div class="card-body d-flex flex-column gap-2">
+
         <?php if($st === 'wniosek' && $zas['wymaga_akceptacji']): ?>
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -188,36 +221,71 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </form>
         <?php endif; ?>
 
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="wydaj">
-          <div class="mb-2">
-            <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
-              Koszulka EZD
-              <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1" title="Brak przypisanej koszulki"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
-            </label>
-            <?php if($zas['sprawa_id']): ?>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="badge bg-success bg-opacity-15 text-success font-monospace"><?= h($zas['znak_sprawy']) ?></span>
-              <span class="text-muted" style="font-size:.72rem">przypisana</span>
-            </div>
-            <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm"
-                   placeholder="Inna koszulka (opcjonalnie)">
-            <?php else: ?>
-            <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm"
-                   placeholder="Wpisz znak koszulki…" autofocus>
-            <div class="text-muted mt-1" style="font-size:.71rem"><i class="bi bi-info-circle me-1"></i>Pismo zostanie wpisane do tej koszulki. Możesz wydać bez koszulki.</div>
-            <?php endif; ?>
-            <?php if($open_sprawy): ?>
-            <datalist id="sprawy-list">
-              <?php foreach($open_sprawy as $sp): ?>
-              <option value="<?= h($sp['znak_sprawy']) ?>"><?= h(mb_substr($sp['title'],0,60)) ?></option>
-              <?php endforeach; ?>
-            </datalist>
-            <?php endif; ?>
+        <!-- Tryb wydania: z szablonu / plik własny -->
+        <ul class="nav nav-pills" style="font-size:.77rem" id="wydaj-nav">
+          <li class="nav-item">
+            <button type="button" class="nav-link active py-1 px-2" data-bs-toggle="pill" data-bs-target="#wp-szablon">
+              <i class="bi bi-file-earmark-text me-1"></i>Z szablonu
+            </button>
+          </li>
+          <li class="nav-item">
+            <button type="button" class="nav-link py-1 px-2" data-bs-toggle="pill" data-bs-target="#wp-plik">
+              <i class="bi bi-upload me-1"></i>Plik własny
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <!-- Z szablonu -->
+          <div class="tab-pane show active" id="wp-szablon">
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="wydaj">
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
+                  Koszulka EZD
+                  <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1" title="Brak przypisanej koszulki"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
+                </label>
+                <?php if($zas['sprawa_id']): ?>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-success bg-opacity-15 text-success font-monospace"><?= h($zas['znak_sprawy']) ?></span>
+                  <span class="text-muted" style="font-size:.72rem">przypisana</span>
+                </div>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Inna koszulka (opcjonalnie)">
+                <?php else: ?>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Wpisz znak koszulki…">
+                <div class="text-muted mt-1" style="font-size:.71rem"><i class="bi bi-info-circle me-1"></i>Możesz wydać bez koszulki.</div>
+                <?php endif; ?>
+              </div>
+              <button class="btn btn-success w-100 btn-sm"><i class="bi bi-award-fill me-1"></i>Wydaj zaświadczenie</button>
+            </form>
           </div>
-          <button class="btn btn-success w-100 btn-sm"><i class="bi bi-award-fill me-1"></i>Wydaj zaświadczenie</button>
-        </form>
+
+          <!-- Plik własny -->
+          <div class="tab-pane" id="wp-plik">
+            <form method="post" enctype="multipart/form-data">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="wydaj_plik">
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">Plik zaświadczenia (PDF)</label>
+                <input type="file" name="plik" class="form-control form-control-sm" accept=".pdf,application/pdf" required>
+                <div class="text-muted mt-1" style="font-size:.71rem"><i class="bi bi-info-circle me-1"></i>Numer zostanie nadany automatycznie. Treść z szablonu nie jest generowana.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">Koszulka EZD
+                  <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
+                </label>
+                <?php if($zas['sprawa_id']): ?>
+                <span class="badge bg-success bg-opacity-15 text-success font-monospace d-block mb-1"><?= h($zas['znak_sprawy']) ?></span>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Inna koszulka (opcjonalnie)">
+                <?php else: ?>
+                <input type="text" name="sprawa_picker" list="sprawy-list" class="form-control form-control-sm" placeholder="Wpisz znak koszulki…">
+                <?php endif; ?>
+              </div>
+              <button class="btn btn-success w-100 btn-sm"><i class="bi bi-upload me-1"></i>Wydaj (z pliku)</button>
+            </form>
+          </div>
+        </div>
 
         <hr class="my-1">
 

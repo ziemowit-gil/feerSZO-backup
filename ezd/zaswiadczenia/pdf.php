@@ -24,6 +24,19 @@ $can_mgr  = ezd_is_manager() || can_edit();
 $is_owner = (int)$zas['created_by'] === $user_id;
 if (!$can_mgr && !$is_owner) { http_response_code(403); exit('Brak dostępu.'); }
 
+// Zaświadczenie wydane jako plik własny — serwuj bezpośrednio
+if (!empty($zas['plik_path']) && file_exists($zas['plik_path'])) {
+    $mime     = $zas['plik_mime'] ?: 'application/pdf';
+    $ext      = pathinfo($zas['plik_path'], PATHINFO_EXTENSION) ?: 'pdf';
+    $safe_nr  = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $zas['nr_zaswiadczenia'] ?? 'zaswiadczenie');
+    header('Content-Type: ' . $mime);
+    header('Content-Disposition: inline; filename="' . $safe_nr . '.' . $ext . '"');
+    header('Content-Length: ' . filesize($zas['plik_path']));
+    header('Cache-Control: private, max-age=3600');
+    readfile($zas['plik_path']);
+    exit;
+}
+
 try {
     require_once dirname(dirname(__DIR__)) . '/vendor/autoload.php';
 

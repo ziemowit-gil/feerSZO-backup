@@ -29,6 +29,10 @@
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN naglowek_html TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN podpisujacy TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
+    // Plik własny (wydany z uploadu, nie z szablonu)
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_path TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_mime TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
         typ_id               INTEGER NOT NULL REFERENCES ezd_zas_typy(id),
@@ -191,15 +195,37 @@ function ezd_zas_pdf_html(array $zas): string {
                    . '" style="max-height:60px;max-width:190px;display:block">';
     }
 
-    // Prawa kolumna nagłówka: naglowek_html (z tokenami) lub fallback nazwa org
+    // Prawa kolumna nagłówka: naglowek_html (z tokenami) lub auto z org settings
     $naglowek_raw = trim($zas['naglowek_html'] ?? '');
-    $right_cell   = $naglowek_raw !== ''
-        ? ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
+    if ($naglowek_raw !== '') {
+        $right_cell = ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
             'nr_zaswiadczenia' => $zas['nr_zaswiadczenia'] ?? '',
             'data_wydania'     => $data_wyd,
             'organizacja'      => $org,
-          ])
-        : '<strong>' . h($org) . '</strong>';
+        ]);
+    } else {
+        // Buduj z org settings: nazwa, adres, KRS/NIP/REGON, strona www
+        $_os = function_exists('org_setting') ? 'org_setting' : null;
+        $_g  = fn($k) => $_os ? (org_setting($k) ?: '') : '';
+        $org_adres    = trim($_g('org_adres'));
+        $org_miasto   = trim($_g('org_miasto') ?: $_g('org_miejscowosc'));
+        $org_nip      = trim($_g('org_nip'));
+        $org_krs      = trim($_g('org_krs'));
+        $org_regon    = trim($_g('org_regon'));
+        $org_www      = trim($_g('org_www')) ?: 'feer.org.pl';
+
+        $lines = ['<strong><em>' . h($org) . '</em></strong>'];
+        $adres_full = trim($org_adres . ($org_adres && $org_miasto ? ', ' : '') . $org_miasto);
+        if ($adres_full) $lines[] = h($adres_full);
+        $legal = array_filter([
+            $org_krs   ? 'KRS: '   . h($org_krs)   : '',
+            $org_nip   ? 'NIP: '   . h($org_nip)   : '',
+            $org_regon ? 'REGON: ' . h($org_regon) : '',
+        ]);
+        if ($legal) $lines[] = implode('&nbsp;&nbsp;', $legal);
+        if ($org_www) $lines[] = h($org_www);
+        $right_cell = implode('<br>', $lines);
+    }
 
     $header_inner = '
 <table style="width:100%;border-collapse:collapse;border:none">
@@ -296,6 +322,46 @@ function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = nul
              sprawa_id=?, pismo_id=?, updated_at=datetime('now')
          WHERE id=?"
     )->execute([$nr, $tresc, $user_id, $sprawa_id, $pismo_id, $zas_id]);
+
+    return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
+}
+
+/**
+ * Wydaje zaświadczenie jako zewnętrzny plik (PDF/inny) — numer nadany,
+ * tresc_html pozostaje puste. Plik serwowany przez pdf.php bezpośrednio.
+ */
+function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string $plik_mime, ?int $sprawa_id_override = null): array {
+    $zas = ezd_zas_get($zas_id);
+    if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
+    if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
+
+    $nr        = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
+    $sprawa_id = $sprawa_id_override ?? ($zas['sprawa_id'] ?: null);
+    $pismo_id  = null;
+
+    if ($sprawa_id) {
+        try {
+            $pismo_id = ezd_pismo_create([
+                'sprawa_id'     => $sprawa_id,
+                'kierunek'      => 'wychodzace',
+                'title'         => 'Zaświadczenie ' . $nr . ' — ' . $zas['wnioskodawca_name'],
+                'tresc'         => '',
+                'odbiorca'      => $zas['wnioskodawca_name'],
+                'data_pisma'    => date('Y-m-d'),
+                'data_wysylki'  => date('Y-m-d'),
+                'status'        => 'wyslane',
+                'rodzaj_medium' => 'inne',
+            ], $user_id);
+        } catch (\Throwable $e) {}
+    }
+
+    db()->prepare(
+        "UPDATE ezd_zaswiadczenia_wlasne
+         SET nr_zaswiadczenia=?, status='wydane', plik_path=?, plik_mime=?,
+             zatwierdzone_przez=?, zatwierdzone_at=datetime('now'),
+             sprawa_id=?, pismo_id=?, updated_at=datetime('now')
+         WHERE id=?"
+    )->execute([$nr, $plik_path, $plik_mime, $user_id, $sprawa_id, $pismo_id, $zas_id]);
 
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
