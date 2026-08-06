@@ -83,6 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location:' . APP_URL . '/ezd/zaswiadczenia/index.php'); exit;
         }
     }
+    if ($act === 'assign_qr') {
+        $code = ezd_zas_assign_qr($id);
+        flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
+    }
     header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
 }
 
@@ -133,7 +137,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php if($issued): ?>
           <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>" target="_blank"
              class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-          <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Drukuj</button>
+          <?php if($can_mgr && empty($zas['verify_code']) && empty($zas['plik_path'])): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="assign_qr">
+            <button class="btn btn-outline-secondary btn-sm" title="Generuj kod QR weryfikacyjny"><i class="bi bi-qr-code"></i></button>
+          </form>
+          <?php elseif(!empty($zas['verify_code'])): ?>
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/verify.php?code=<?= rawurlencode($zas['verify_code']) ?>" target="_blank"
+             class="btn btn-outline-secondary btn-sm" title="Strona weryfikacji QR"><i class="bi bi-qr-code-scan"></i></a>
+          <?php endif; ?>
           <?php endif; ?>
           <?php if(is_admin()): ?>
           <form method="post" onsubmit="return confirm('Na pewno usunąć ten wniosek/zaświadczenie? Operacja jest nieodwracalna.')">

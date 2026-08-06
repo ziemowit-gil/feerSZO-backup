@@ -227,15 +227,14 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
         $_os = function_exists('org_setting') ? 'org_setting' : null;
         $_g  = fn($k) => $_os ? (org_setting($k) ?: '') : '';
         $org_adres    = trim($_g('org_adres'));
-        $org_miasto   = trim($_g('org_miasto') ?: $_g('org_miejscowosc'));
         $org_nip      = trim($_g('org_nip'));
         $org_krs      = trim($_g('org_krs'));
         $org_regon    = trim($_g('org_regon'));
         $org_www      = trim($_g('org_www')) ?: 'feer.org.pl';
 
         $lines = ['<strong><em>' . h($org) . '</em></strong>'];
-        $adres_full = trim($org_adres . ($org_adres && $org_miasto ? ', ' : '') . $org_miasto);
-        if ($adres_full) $lines[] = h($adres_full);
+        // org_adres już zawiera kod pocztowy i miasto — nie dopisujemy org_miejscowosc
+        if ($org_adres) $lines[] = h($org_adres);
         $legal = array_filter([
             $org_krs   ? 'KRS: '   . h($org_krs)   : '',
             $org_nip   ? 'NIP: '   . h($org_nip)   : '',
@@ -452,6 +451,22 @@ function ezd_zas_my_all(int $user_id): array {
          ORDER BY w.created_at DESC",
         [$user_id]
     );
+}
+
+/**
+ * Retroaktywne przypisanie kodu QR do już wydanego zaświadczenia.
+ * Nie nadpisuje istniejącego verify_code.
+ */
+function ezd_zas_assign_qr(int $zas_id): ?string {
+    $zas = db_one("SELECT id, status, verify_code, plik_path FROM ezd_zaswiadczenia_wlasne WHERE id=?", [$zas_id]);
+    if (!$zas || $zas['status'] !== 'wydane') return null;
+    if ($zas['verify_code']) return $zas['verify_code'];   // już ma — nic nie rób
+    if (!empty($zas['plik_path'])) return null;             // plik własny — QR bez sensu
+    $code = bin2hex(random_bytes(16));
+    db()->prepare(
+        "UPDATE ezd_zaswiadczenia_wlasne SET verify_code=?, qr_on_pdf=1, updated_at=datetime('now') WHERE id=?"
+    )->execute([$code, $zas_id]);
+    return $code;
 }
 
 /** Publiczna weryfikacja zaświadczenia po kodzie — zwraca dane lub null. */

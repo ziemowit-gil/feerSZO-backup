@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+// zaswiadczenia_ezd.php inicjalizuje schemat — nie wymaga zalogowania
 require_once dirname(dirname(__DIR__)) . '/includes/zaswiadczenia_ezd.php';
 
 $code = trim($_GET['code'] ?? '');
