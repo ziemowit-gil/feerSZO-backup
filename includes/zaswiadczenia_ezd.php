@@ -250,15 +250,22 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
         ? nl2br(h($podpisujacy))
         : h($org) . '<br><span style="color:#555;font-size:9pt">' . $data_wyd . '</span>';
 
-    // Data ważności
-    $wazne_do_html = '';
+    // Data ważności — wyświetlana przed podpisem, czcionka jak treść
+    $wazne_do_before_sig = '';
     if (!empty($zas['wazne_do'])) {
-        $wdt = strtotime($zas['wazne_do']);
-        $wdt_fmt = $wdt ? date('d.m.Y', $wdt) : h($zas['wazne_do']);
+        $wdt     = strtotime($zas['wazne_do']);
+        $wdt_fmt = $wdt ? (function_exists('date_pl') ? date_pl(date('Y-m-d', $wdt)) : date('d.m.Y', $wdt)) : h($zas['wazne_do']);
         $expired = $wdt && $wdt < time();
-        $wazne_do_html = '<p style="font-size:8pt;text-align:right;color:' . ($expired ? '#c00' : '#666') . ';margin-bottom:4pt">'
-            . ($expired ? '⚠ Ważne było do: ' : 'Ważne do: ') . $wdt_fmt . '</p>';
+        $wazne_do_before_sig = '<p style="margin-top:16pt;' . ($expired ? 'color:#c00;' : '') . '">'
+            . ($expired ? '⚠ ' : '') . 'Zaświadczenie ważne do: <strong>' . $wdt_fmt . '</strong>'
+            . ($expired ? ' — <em>WYGASŁE</em>' : '') . '</p>';
     }
+
+    // Miejscowość + data wydania (format urzędowy)
+    $miejscowosc = function_exists('org_setting') ? trim(org_setting('org_miejscowosc') ?: '') : '';
+    $data_iso    = $zas['zatwierdzone_at'] ? substr((string)$zas['zatwierdzone_at'], 0, 10) : date('Y-m-d');
+    $data_dl     = function_exists('date_pl') ? date_pl($data_iso) : date('d.m.Y', strtotime($data_iso));
+    $miasto_data = ($miejscowosc ? h($miejscowosc) . ', ' : '') . 'dnia ' . $data_dl . ' r.';
 
     // QR kod weryfikacyjny
     $qr_html = '';
@@ -291,32 +298,27 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 ' . $watermark . '
 
-<table style="width:100%;border-collapse:collapse;margin-bottom:18pt">
+<table style="width:100%;border-collapse:collapse;margin-bottom:14pt">
   <tr>
     <td style="width:50%;vertical-align:middle;border:0">' . $logo_html . '</td>
     <td style="text-align:right;vertical-align:middle;border:0;font-size:9.5pt;line-height:1.5">' . $right_cell . '</td>
   </tr>
 </table>
 
-<p style="font-size:17pt;font-weight:bold;text-align:center;margin:14pt 0 10pt">ZAŚWIADCZENIE</p>
+<p style="font-size:9.5pt;margin-bottom:10pt">' . $miasto_data . '</p>
 
-<table style="width:100%;border-collapse:collapse;margin-bottom:18pt">
-  <tr>
-    <td style="border:0;font-size:9.5pt;line-height:1.7;vertical-align:top">
-      <span style="color:#888">Znak:</span> <strong>' . $nr . '</strong>' .
-      ($zas['znak_sprawy'] ? '<br><span style="color:#888">Sprawa:</span> <strong>' . h($zas['znak_sprawy']) . '</strong>' : '') . '
-    </td>
-    <td style="border:0;text-align:right;font-size:9pt;color:#666;vertical-align:top">' .
-      ($zas['zatwierdzone_at'] ? date('d.m.Y', strtotime((string)$zas['zatwierdzone_at'])) : date('d.m.Y')) . '<br>' .
-      (function_exists('org_setting') ? (org_setting('org_miejscowosc') ?: '') : '') . '
-    </td>
-  </tr>
-</table>
-' . $wazne_do_html . '
+<p style="font-size:17pt;font-weight:bold;text-align:center;margin:0 0 10pt">ZAŚWIADCZENIE</p>
+
+<p style="font-size:9.5pt;line-height:1.7;margin-bottom:18pt">
+  <span style="color:#888">Znak:</span> <strong>' . $nr . '</strong>' .
+  ($zas['znak_sprawy'] ? '&nbsp;&nbsp;&nbsp;<span style="color:#888">Sprawa:</span> <strong>' . h($zas['znak_sprawy']) . '</strong>' : '') . '
+</p>
 
 <div class="body">' . $body . '</div>
 
-<table style="width:100%;border-collapse:collapse;margin-top:55pt">
+' . $wazne_do_before_sig . '
+
+<table style="width:100%;border-collapse:collapse;margin-top:50pt">
   <tr>
     <td style="width:48%;vertical-align:bottom;border:0;padding-bottom:4pt;font-size:8pt;color:#aaa">' . $qr_html . '</td>
     <td style="border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
