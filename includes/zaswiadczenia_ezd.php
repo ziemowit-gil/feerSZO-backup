@@ -307,12 +307,10 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <p style="font-size:9.5pt;text-align:right;margin-bottom:10pt">' . $miasto_data . '</p>
 
-<p style="font-size:17pt;font-weight:bold;text-align:center;margin:0 0 10pt">ZAŚWIADCZENIE</p>
+<p style="font-size:17pt;font-weight:bold;text-align:center;margin:0 0 2pt">ZAŚWIADCZENIE</p>
+<p style="font-size:11pt;text-align:center;margin-bottom:14pt">Nr ' . $nr . '</p>
 
-<p style="font-size:9.5pt;line-height:1.7;margin-bottom:18pt">
-  <span style="color:#888">Znak:</span> <strong>' . $nr . '</strong>' .
-  ($zas['znak_sprawy'] ? '&nbsp;&nbsp;&nbsp;<span style="color:#888">Sprawa:</span> <strong>' . h($zas['znak_sprawy']) . '</strong>' : '') . '
-</p>
+' . ($zas['znak_sprawy'] ? '<p style="font-size:9.5pt;margin-bottom:14pt"><span style="color:#888">Sprawa:</span> <strong>' . h($zas['znak_sprawy']) . '</strong></p>' : '') . '
 
 <div class="body">' . $body . '</div>
 
