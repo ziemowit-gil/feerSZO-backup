@@ -521,7 +521,7 @@ function ezd_zas_attach_pdf_to_sprawa(int $zas_id, int $sprawa_id, int $user_id)
             }
         }
 
-        $mpdf = new \Mpdf\Mpdf(array_merge(['mode'=>'utf-8','format'=>'A4','margin_left'=>25,'margin_right'=>25,'margin_top'=>35,'margin_bottom'=>20,'default_font'=>'dejavusans','tempDir'=>$mpdf_tmp], $ubuntu_cfg));
+        $mpdf = new \Mpdf\Mpdf(array_merge(['mode'=>'utf-8','format'=>'A4','margin_left'=>25,'margin_right'=>25,'margin_top'=>20,'margin_bottom'=>20,'default_font'=>'dejavusans','tempDir'=>$mpdf_tmp], $ubuntu_cfg));
         $mpdf->WriteHTML(ezd_zas_pdf_html($zas));
         $pdf_string = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 

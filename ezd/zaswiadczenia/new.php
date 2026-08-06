@@ -50,7 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location:' . APP_URL . '/ezd/zaswiadczenia/new.php?typ_id=' . $typ_id); exit;
     }
 
-    $id = ezd_zas_create($typ_id, $name, $email, $dane, $user_id);
+    $id       = ezd_zas_create($typ_id, $name, $email, $dane, $user_id);
+    $z_urzedu = isset($_POST['z_urzedu']) ? 1 : 0;
+    if ($z_urzedu) {
+        db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=1 WHERE id=?")->execute([$id]);
+    }
 
     // Jeśli nie wymaga akceptacji → od razu wydaj
     if (!$typ['wymaga_akceptacji']) {
@@ -130,6 +134,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Adres e-mail kontaktowy</label>
             <input type="email" name="wnioskodawca_email" class="form-control form-control-sm"
                    value="<?= h($user['email'] ?? '') ?>">
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="z_urzedu" value="1" id="chk-zurzedu-new">
+              <label class="form-check-label" for="chk-zurzedu-new" style="font-size:.85rem">
+                <i class="bi bi-building me-1"></i>Wystawione z inicjatywy organizacji (z urzędu)
+              </label>
+            </div>
           </div>
           <?php if($typ['pola']): ?>
           <hr class="my-3">

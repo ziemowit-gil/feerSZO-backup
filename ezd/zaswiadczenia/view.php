@@ -377,7 +377,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <button class="btn btn-success w-100 btn-sm"><i class="bi bi-upload me-1"></i>Wydaj (z pliku)</button>
             </form>
           </div>
-        </div>
 
           <!-- Ręcznie -->
           <div class="tab-pane" id="wp-recznie">
@@ -385,11 +384,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="wydaj_recznie">
               <div class="alert alert-warning py-2 mb-2" style="font-size:.75rem">
-                <i class="bi bi-exclamation-triangle me-1"></i>Nadaje numer zaświadczenia bez generowania treści z szablonu. Zaświadczenie zostało wystawione poza systemem.
+                <i class="bi bi-exclamation-triangle me-1"></i>Nadaje numer bez generowania treści z szablonu. Zaświadczenie wystawione poza systemem.
               </div>
               <div class="mb-2">
-                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">
-                  Koszulka EZD
+                <label class="form-label fw-semibold mb-1" style="font-size:.74rem">Koszulka EZD
                   <?php if(!$zas['sprawa_id']): ?><span class="text-warning ms-1"><i class="bi bi-exclamation-triangle-fill"></i></span><?php endif; ?>
                 </label>
                 <?php if($zas['sprawa_id']): ?>
