@@ -58,6 +58,13 @@ if ($k30_enabled) { try { $k30_today = (int)(db_one("SELECT COUNT(*) AS c FROM k
 
 $crm_enabled = module_enabled('crm_enabled') && (can_read('crm') || is_admin());
 
+// Moduł EZD (Wirtualne biurko)
+$ezd_enabled = module_enabled('ezd_enabled') && (can_read('ezd') || is_admin());
+$ezd_open = 0;
+if ($ezd_enabled) {
+    try { $ezd_open = (int)(db_one("SELECT COUNT(*) AS c FROM ezd_sprawy WHERE status != 'closed'")['c'] ?? 0); } catch(\Throwable $e) {}
+}
+
 // Moduł rezerwacji szkoleń (TidyCal)
 require_once __DIR__ . '/includes/tidycal.php';
 $szkolenia_enabled = tidycal_enabled() && (can_read('szkolenia') || is_admin());
@@ -121,6 +128,16 @@ $modules = [
         'url'    => APP_URL . '/crm/dashboard.php',
         'access' => $crm_enabled,
         'stat'   => $stats['crm'] . ' kontaktów',
+        'badge'  => null,
+    ],
+    [
+        'title'  => 'EZD',
+        'desc'   => 'Wirtualne biurko — sprawy, pisma, teczki, dekretacje',
+        'icon'   => 'bi-folder2-open',
+        'grad'   => 'linear-gradient(135deg,#134E4A,#0D9488)',
+        'url'    => APP_URL . '/ezd/index.php',
+        'access' => $ezd_enabled,
+        'stat'   => $ezd_open . ' otwartych spraw',
         'badge'  => null,
     ],
     [
