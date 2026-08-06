@@ -336,6 +336,7 @@ function _menu_editor(): array {
     $kanc = [];
     if (module_enabled('reports_enabled'))
         $kanc[] = _mi('Raporty','/reports/index.php','bi-bar-chart-line',['match'=>'/reports/','kw'=>'raporty statystyki']);
+    $kanc[] = _mi('Opłacalność działań','/tools/oplacalnosc.php','bi-calculator',['match'=>'/tools/oplacalnosc','kw'=>'opłacalność kalkulator roi zlecenie wyjazd']);
     $kanc[] = _mi('Korespondencja','/correspondence/index.php','bi-mailbox',['match'=>'/correspondence/','kw'=>'korespondencja listy']);
     $kanc[] = _mi('Procedury','/procedures/index.php','bi-list-task',['match'=>'/procedures/index','kw'=>'procedury instrukcje']);
     $kanc[] = _mi('Asystent AI (procedury)','/procedures/asystent.php','bi-robot',['match'=>'/procedures/asystent','kw'=>'asystent ai wyszukiwanie procedury dokumentacja chat pytania']);
@@ -359,7 +360,7 @@ function _menu_editor(): array {
         'id'=>'biuro','label'=>'Biuro','icon'=>'bi-briefcase','badge'=>$cnt['obieg']+$cnt['hd']+$cnt['msg']+($cnt['alias_op']?$cnt['alias']:0),
         'end'=>true,
         'active'=>_menu_hit('/obiegi/')||_menu_hit('/tasks/')||_menu_hit('/helpdesk/')||_menu_hit('/admin/email_aliasy')||_menu_hit('/admin/messages')||_menu_hit('/events/')||_menu_hit('/poczta/')
-                 ||_menu_hit('/reports/')||_menu_hit('/correspondence/')||_menu_hit('/procedures/')||_menu_hit('/wsparcie_ou/')||_menu_hit('/podpisy/')||_menu_hit('/admin/org_documents')||_menu_hit('/resolutions/')
+                 ||_menu_hit('/reports/')||_menu_hit('/correspondence/')||_menu_hit('/procedures/')||_menu_hit('/wsparcie_ou/')||_menu_hit('/podpisy/')||_menu_hit('/admin/org_documents')||_menu_hit('/resolutions/')||_menu_hit('/tools/oplacalnosc')
                  ||_menu_hit('/dostepnosc/')||_menu_hit('/asysta/')||_menu_hit('/extforms/'),
         'groups'=>[
             ['label'=>'Obsługa','badge'=>$cnt['obieg']+$cnt['hd']+$cnt['msg'],'items'=>$obs_g],
