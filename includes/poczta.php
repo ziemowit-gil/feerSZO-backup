@@ -253,6 +253,10 @@ class PocztaScanService
             $chk->execute([$internet_id, $cid]);
             if ($chk->fetchColumn()) continue;
 
+            // Dane nadawcy dla Inbox Ogólnego (from_name / from_email)
+            $from_addr = $msg['from']['emailAddress']['address'] ?? '';
+            $from_name = $msg['from']['emailAddress']['name']    ?? '';
+
             $comm_id = db_insert('crm_communications', [
                 'contact_id'          => $cid,
                 'channel'             => 'email',
@@ -266,11 +270,30 @@ class PocztaScanService
                 'mailbox_id'          => $mailbox_id,
                 'has_attachments'     => $has_attach,
                 'sent_at'             => $sent_at,
+                'from_email'          => $from_addr,
+                'from_name'           => $from_name,
+                'is_read'             => 0,
+                'inbox_status'        => 'active',
             ]);
             $result['created']++;
 
             if ($has_attach) {
                 $this->store_attachments($comm_id, $mailbox, $msg_id, $cid, $download_attachments, $max_attach_kb);
+            }
+
+            // Hook EZD: wykryj numer sprawy w temacie i linkuj.
+            // Działa tylko gdy moduł EZD jest aktywny — lazy require przez module_enabled().
+            if ($direction === 'in' && function_exists('module_enabled') && module_enabled('ezd_enabled')) {
+                try {
+                    static $_ezd_mail_loaded = false;
+                    if (!$_ezd_mail_loaded) {
+                        require_once __DIR__ . '/ezd_mail.php';
+                        $_ezd_mail_loaded = true;
+                    }
+                    (new EzdMailService())->handleIncomingComm($comm_id);
+                } catch (\Throwable $e) {
+                    // Błąd EZD-hookowania nie przerywa skanowania skrzynki
+                }
             }
         }
     }
