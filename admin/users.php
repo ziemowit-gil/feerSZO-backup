@@ -210,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Nadano dostęp do EZD (per-konto, odczyt + zapis).');
             }
         }
-        header('Location: users.php' . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
+        header('Location: ' . $SELF_URL . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role'] ?? '') : ''));
         exit;
     }
 
@@ -430,13 +430,6 @@ try {
     }
 } catch (\Throwable $e) {}
 
-// Role posiadające dostęp do EZD (rp.can_read LUB can_write)
-$role_ezd_names = [];
-try {
-    foreach (db_all("SELECT r.name FROM roles r JOIN role_permissions rp ON rp.role_id=r.id WHERE rp.module='ezd' AND (rp.can_read=1 OR rp.can_write=1)") as $re) {
-        $role_ezd_names[$re['name']] = true;
-    }
-} catch (\Throwable $e) {}
 
 // Liczba aktywnych sesji na użytkownika (dla przycisku zdalnego wylogowania)
 $session_counts = [];
@@ -680,21 +673,18 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                 </button>
               </form>
               <?php
-              $has_ezd_role = !empty($role_ezd_names[$u['role']]) || $u['role'] === 'admin';
               $has_ezd_perm = isset($ezd_perm_uids[(int)$u['id']]);
-              $has_ezd_any  = $has_ezd_role || $has_ezd_perm;
               if (module_enabled('ezd_enabled')): ?>
               <form method="post" class="d-inline"
-                    onsubmit="return confirm('<?= $has_ezd_perm ? 'Cofnąć dostęp EZD (per-konto) dla' : 'Nadać dostęp do EZD (odczyt+zapis per-konto) dla' ?> <?= h(addslashes($u['name'])) ?>?')">
+                    onsubmit="return confirm('<?= $has_ezd_perm ? 'Cofnąć dostęp EZD dla' : 'Nadać dostęp do EZD (odczyt+zapis) dla' ?> <?= h(addslashes($u['name'])) ?>?')">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                 <input type="hidden" name="action" value="ezd_toggle">
                 <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
                 <button type="submit"
-                        class="btn btn-sm position-relative <?= $has_ezd_any ? 'text-white' : 'btn-outline-secondary' ?>"
-                        style="<?= $has_ezd_perm ? 'background:#b45309;border-color:#b45309' : ($has_ezd_role ? 'background:#78350f;border-color:#78350f;opacity:.7' : '') ?>"
-                        title="<?= $has_ezd_role ? 'EZD: dostęp przez rolę' . ($has_ezd_perm ? ' + per-konto' : '') : ($has_ezd_perm ? 'EZD: dostęp per-konto — kliknij, aby cofnąć' : 'Nadaj dostęp EZD (per-konto)') ?>">
-                  <i class="bi bi-archive<?= $has_ezd_any ? '-fill' : '' ?>"></i>
-                  <?php if ($has_ezd_role): ?><span class="badge rounded-pill bg-warning text-dark position-absolute top-0 start-100 translate-middle" style="font-size:.55rem" title="Dostęp przez rolę">R</span><?php endif; ?>
+                        class="btn btn-sm <?= $has_ezd_perm ? 'text-white' : 'btn-outline-secondary' ?>"
+                        style="<?= $has_ezd_perm ? 'background:#b45309;border-color:#b45309' : '' ?>"
+                        title="<?= $has_ezd_perm ? 'EZD: dostęp nadany — kliknij, aby cofnąć' : 'Nadaj dostęp EZD' ?>">
+                  <i class="bi bi-archive<?= $has_ezd_perm ? '-fill' : '' ?>"></i>
                 </button>
               </form>
               <?php endif; ?>
