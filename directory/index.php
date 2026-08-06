@@ -114,10 +114,20 @@ include __DIR__ . '/includes/header_dir.php';
   </form>
 </section>
 
-<p class="text-muted mb-3" style="font-size:.8rem"
-   aria-live="polite" aria-atomic="true" id="dirResultCount">
-  <i class="bi bi-people me-1" aria-hidden="true"></i><?= h($result_label) ?>
-</p>
+<div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+  <p class="text-muted mb-0" style="font-size:.8rem"
+     aria-live="polite" aria-atomic="true" id="dirResultCount">
+    <i class="bi bi-people me-1" aria-hidden="true"></i><span id="dirCountLabel"><?= h($result_label) ?></span>
+  </p>
+  <div class="btn-group dir-view-toggle btn-group-sm" id="dirViewToggle" role="group" aria-label="Tryb widoku">
+    <button type="button" class="btn btn-outline-secondary" id="viewGrid" aria-pressed="true" title="Kafelki">
+      <i class="bi bi-grid-3x3-gap"></i>
+    </button>
+    <button type="button" class="btn btn-outline-secondary" id="viewList" aria-pressed="false" title="Lista">
+      <i class="bi bi-list-ul"></i>
+    </button>
+  </div>
+</div>
 
 <section aria-label="Lista współpracowników" aria-describedby="dirResultCount">
 <?php if (empty($people)): ?>
@@ -129,7 +139,7 @@ include __DIR__ . '/includes/header_dir.php';
     <?php endif; ?>
   </div>
 <?php else: ?>
-  <ul class="row g-3 list-unstyled" role="list">
+  <ul class="row g-3 list-unstyled dir-people-grid" id="dirPeopleList" role="list">
     <?php foreach ($people as $person):
         $display = directory_display_name($person);
         $phone_display = $person['phone_public']
@@ -139,8 +149,10 @@ include __DIR__ . '/includes/header_dir.php';
         if ($person['position_name']) $parts[] = $person['position_name'];
         if ($person['unit_name'])     $parts[] = 'jednostka ' . $person['unit_name'];
         if ($phone_display)           $parts[] = 'tel. ' . $phone_display;
+        $search_text = mb_strtolower($display . ' ' . ($person['position_name'] ?? '') . ' ' . ($person['unit_name'] ?? '') . ' ' . $person['email'], 'UTF-8');
     ?>
-    <li class="col-6 col-md-4 col-lg-3" role="listitem">
+    <li class="col-6 col-md-4 col-lg-3" role="listitem"
+        data-text="<?= h($search_text) ?>">
       <a href="<?= APP_URL ?>/directory/profile.php?id=<?= (int)$person['id'] ?>"
          class="dir-person-card"
          aria-label="<?= h(implode(', ', $parts)) ?> — otwórz profil">
@@ -159,7 +171,108 @@ include __DIR__ . '/includes/header_dir.php';
     </li>
     <?php endforeach; ?>
   </ul>
+  <div id="dirNoResults" class="text-center py-5 d-none" style="color:var(--dir-text-muted)" role="status">
+    <i class="bi bi-search" aria-hidden="true" style="font-size:2.5rem;opacity:.3;display:block;margin-bottom:.75rem"></i>
+    <p class="mb-1">Brak wyników dla wpisanej frazy.</p>
+    <button class="btn btn-outline-secondary btn-sm mt-1" onclick="document.getElementById('dir-q').value='';dirFilter()">Wyczyść</button>
+  </div>
 <?php endif; ?>
 </section>
+
+<script>
+(function () {
+  // ── View toggle (grid / list) ─────────────────────────────────────
+  var STORAGE_KEY = 'dirView';
+  var list  = document.getElementById('dirPeopleList');
+  var btnG  = document.getElementById('viewGrid');
+  var btnL  = document.getElementById('viewList');
+
+  function applyView(v) {
+    if (!list) return;
+    var isGrid = v !== 'list';
+    list.classList.toggle('list-view', !isGrid);
+    if (btnG) { btnG.setAttribute('aria-pressed', isGrid ? 'true' : 'false'); btnG.classList.toggle('active', isGrid); }
+    if (btnL) { btnL.setAttribute('aria-pressed', !isGrid ? 'true' : 'false'); btnL.classList.toggle('active', !isGrid); }
+    // In list view collapse column classes
+    if (list) {
+      Array.from(list.children).forEach(function (li) {
+        if (!isGrid) {
+          li.dataset.origClass = li.className;
+          li.className = 'dir-list-li';
+        } else if (li.dataset.origClass) {
+          li.className = li.dataset.origClass;
+        }
+      });
+    }
+    try { localStorage.setItem(STORAGE_KEY, v); } catch(e) {}
+  }
+
+  if (btnG) btnG.addEventListener('click', function () { applyView('grid'); });
+  if (btnL) btnL.addEventListener('click', function () { applyView('list'); });
+
+  // Restore saved view
+  try {
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) applyView(saved);
+    else applyView('grid');
+  } catch(e) { applyView('grid'); }
+
+  // ── Live search (text filter) ────────────────────────────────────
+  var input     = document.getElementById('dir-q');
+  var noResults = document.getElementById('dirNoResults');
+  var counter   = document.getElementById('dirCountLabel');
+  var allTotal  = <?= $count ?>;
+  var timer;
+
+  function normalize(s) {
+    return s.toLowerCase()
+      .replace(/ą/g,'a').replace(/ć/g,'c').replace(/ę/g,'e')
+      .replace(/ł/g,'l').replace(/ń/g,'n').replace(/ó/g,'o')
+      .replace(/ś/g,'s').replace(/ź/g,'z').replace(/ż/g,'z');
+  }
+
+  function dirFilter() {
+    if (!list) return;
+    var term = normalize((input ? input.value : '').trim());
+    var items = Array.from(list.children);
+    var visible = 0;
+    items.forEach(function (li) {
+      var text = normalize(li.dataset.text || '');
+      var show = !term || text.indexOf(term) !== -1;
+      li.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    // Update count label
+    if (counter) {
+      if (!term) {
+        counter.textContent = allTotal === 1 ? '1 osoba' : allTotal + ' ' + (allTotal < 5 ? 'osoby' : 'osób');
+      } else {
+        counter.textContent = visible === 0 ? 'Brak wyników'
+          : visible + ' ' + (visible === 1 ? 'osoba' : (visible < 5 ? 'osoby' : 'osób')) + ' — wyniki filtrowania';
+      }
+    }
+    // Show/hide empty state
+    if (noResults) noResults.classList.toggle('d-none', visible > 0 || !term);
+    if (list)      list.style.display = (visible === 0 && term) ? 'none' : '';
+  }
+
+  // Make dirFilter global for the "Wyczyść" button
+  window.dirFilter = dirFilter;
+
+  if (input) {
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(dirFilter, 180);
+    });
+    // Prevent form submit on Enter when filtering live
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && input.value.trim()) {
+        e.preventDefault();
+        dirFilter();
+      }
+    });
+  }
+})();
+</script>
 
 <?php include __DIR__ . '/includes/footer_dir.php'; ?>
