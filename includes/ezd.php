@@ -391,6 +391,8 @@ function ezd_is_manager(?int $user_id = null): bool {
         "ALTER TABLE ezd_rpw        ADD COLUMN przekazano_unit_id INTEGER",
         "ALTER TABLE ezd_sprawy     ADD COLUMN hidden_at         DATETIME",
         "ALTER TABLE ezd_sprawy     ADD COLUMN hidden_by         INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN close_reason      TEXT",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN closed_by         INTEGER REFERENCES users(id) ON DELETE SET NULL",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -1456,7 +1458,7 @@ function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
 
     if ($etap === $last && empty($s['ciagla']) && $s['status'] !== 'closed') {
         // Ostatni krok → zamknięcie sprawy
-        db()->prepare("UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now') WHERE id=?")->execute([$id]);
+        db()->prepare("UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now'), closed_by=? WHERE id=?")->execute([$user_id, $id]);
         db()->prepare("UPDATE ezd_dekretacje SET status='zakonczone',completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'")->execute([$id]);
     } elseif ($s['status'] === 'closed' && $etap !== $last) {
         // Cofnięcie z zamknięcia → ponowne otwarcie
@@ -1467,6 +1469,21 @@ function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
     }
 
     ezd_log(null, $id, null, null, $user_id, 'etap_change', 'Etap obiegu: ' . $from_lbl . ' → ' . $etap_lbl);
+}
+
+function ezd_sprawa_close(int $id, int $user_id, string $reason): void {
+    $s = ezd_sprawa_get($id);
+    if (!$s) throw new \RuntimeException('Koszulka nie istnieje.');
+    if ($s['status'] === 'closed') throw new \RuntimeException('Koszulka jest już zamknięta.');
+    $reason = trim($reason);
+    if ($reason === '') throw new \RuntimeException('Podaj powód zamknięcia.');
+    db()->prepare(
+        "UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now'), close_reason=?, closed_by=?, updated_at=datetime('now') WHERE id=?"
+    )->execute([$reason, $user_id, $id]);
+    db()->prepare(
+        "UPDATE ezd_dekretacje SET status='zakonczone', completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'"
+    )->execute([$id]);
+    ezd_log(null, $id, null, null, $user_id, 'sprawa_closed', 'Zamknięto koszulkę. Powód: ' . $reason);
 }
 
 /** Generuje BPMN 2.0 XML z liniowej ścieżki kroków (start → zadania → koniec). */

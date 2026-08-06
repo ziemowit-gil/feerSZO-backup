@@ -371,6 +371,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '?share=1#tab-uczestnicy'); exit;
     }
 
+    if ($action === 'close_sprawa' && $can_act) {
+        try {
+            ezd_sprawa_close($id, $user_id, $_POST['close_reason'] ?? '');
+            flash_set('success', 'Koszulka zamknięta.');
+        } catch (\Throwable $e) {
+            flash_set('error', $e->getMessage());
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
+    }
+
     header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
 }
 
@@ -469,9 +479,10 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 
 <?php if ($is_closed): ?>
 <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-2" style="font-size:.82rem">
-  <i class="bi bi-lock-fill"></i>
+  <i class="bi bi-lock-fill flex-shrink-0"></i>
   <span>Koszulka <strong>zamknięta</strong> — dodawanie treści i edycja są zablokowane.
-  <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>">Przywróć</a><?php endif; ?></span>
+  <?php if(!empty($sprawa['close_reason'])): ?> Powód: <em><?= h($sprawa['close_reason']) ?></em>.<?php endif; ?>
+  <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="ms-2">Przywróć</a><?php endif; ?></span>
 </div>
 <?php endif; ?>
 
@@ -548,6 +559,11 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
       <i class="bi bi-stars me-1"></i>Przerejestruj
     </a>
     <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+    <?php endif; ?>
+    <?php if($can_act): ?>
+    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal" title="Zamknij koszulkę">
+      <i class="bi bi-lock me-1"></i>Zamknij
+    </button>
     <?php endif; ?>
   </div>
 </div>
@@ -1066,6 +1082,7 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
           </dd>
           <dt class="col-5 text-muted fw-normal">Otwarto</dt><dd class="col-7 mb-0"><?= date_pl($sprawa['created_at']) ?></dd>
           <?php if($sprawa['closed_at']): ?><dt class="col-5 text-muted fw-normal">Zamknięto</dt><dd class="col-7 mb-0"><?= date_pl($sprawa['closed_at']) ?></dd><?php endif; ?>
+          <?php if(!empty($sprawa['close_reason'])): ?><dt class="col-5 text-muted fw-normal">Powód zamknięcia</dt><dd class="col-7 mb-0 text-muted" style="white-space:pre-line;font-size:.79rem"><?= h($sprawa['close_reason']) ?></dd><?php endif; ?>
           <dt class="col-5 text-muted fw-normal">Pliki</dt><dd class="col-7 mb-0"><?= count($zalaczniki) ?></dd>
           <dt class="col-5 text-muted fw-normal">Pisma</dt><dd class="col-7 mb-0"><?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?></dd>
           <?php if($sprawa['description']): ?>
@@ -1225,6 +1242,11 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
             <?php endforeach; ?>
           </select>
         </form>
+        <div class="ms-auto">
+          <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal">
+            <i class="bi bi-lock me-1"></i>Zamknij koszulkę
+          </button>
+        </div>
       </div>
       <?php endif; ?>
     </div>
@@ -1368,6 +1390,34 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
   }
 })();
 </script>
+
+<?php if($can_act): ?>
+<!-- Modal: Zamknij koszulkę -->
+<div class="modal fade" id="zamknijModal" tabindex="-1" aria-labelledby="zamknijModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h6 mb-0" id="zamknijModalLabel"><i class="bi bi-lock-fill text-danger me-2"></i>Zamknij koszulkę</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="close_sprawa">
+        <div class="modal-body">
+          <p class="text-muted mb-3" style="font-size:.84rem">Po zamknięciu dodawanie treści i edycja koszulki zostaną zablokowane. Powód będzie widoczny w nagłówku i metadanych.</p>
+          <label class="form-label fw-semibold mb-1" style="font-size:.8rem">Powód zamknięcia <span class="text-danger">*</span></label>
+          <textarea name="close_reason" class="form-control form-control-sm" rows="3"
+                    placeholder="np. sprawa rozstrzygnięta, zadanie wykonane…" required maxlength="500"></textarea>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-lock-fill me-1"></i>Zamknij koszulkę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/ezd_rsign.php'; ?>
