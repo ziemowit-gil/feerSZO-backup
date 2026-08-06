@@ -8,7 +8,28 @@ require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biur
 $id     = (int)($_GET['id']??0);
 $teczka = ezd_teczka_get($id);
 if (!$teczka) { flash_set('error','Segregator nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
-$sprawy  = ezd_sprawy_by_teczka($id);
+
+$user_id       = (int)current_user()['id'];
+$can_mgr_share = ezd_is_manager() || (int)($teczka['owner_id'] ?? 0) === $user_id;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $action = $_POST['_action'] ?? '';
+    if ($action === 'teczka_share_add' && $can_mgr_share) {
+        $su_id  = (int)($_POST['share_user_id'] ?? 0);
+        $su_upr = $_POST['share_uprawnienie'] ?? 'odczyt';
+        if ($su_id) { ezd_teczka_share_add($id, $su_id, $su_upr, $user_id); flash_set('success','Dostęp nadany.'); }
+    }
+    if ($action === 'teczka_share_del' && $can_mgr_share) {
+        ezd_teczka_share_del($id, (int)($_POST['share_user_id'] ?? 0), $user_id);
+        flash_set('success','Dostęp odebrany.');
+    }
+    header('Location:'.APP_URL.'/ezd/teczki/view.php?id='.$id.'#access'); exit;
+}
+
+$shares   = $can_mgr_share ? ezd_teczka_share_list($id) : [];
+$all_users = $can_mgr_share ? db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name") : [];
+$sprawy   = ezd_sprawy_by_teczka($id);
 $PAGE_TITLE = $teczka['symbol'].' — '.$teczka['title'];
 $status_f = $_GET['status'] ?? '';
 if ($status_f) $sprawy = array_filter($sprawy, fn($s)=>$s['status']===$status_f);
@@ -98,4 +119,56 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
   </div>
 </div>
+<?php if($can_mgr_share): ?>
+<div class="card shadow-sm mt-4" id="access">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-person-lock me-1 text-secondary"></i>Dostęp do segregatora</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted mb-3" style="font-size:.81rem">
+      Osoby wymienione poniżej widzą <strong>wszystkie koszulki</strong> tego segregatora niezależnie od współdzielenia per-koszulka.
+    </p>
+    <?php if($shares): ?>
+    <ul class="list-group list-group-flush mb-3">
+      <?php foreach($shares as $sh): ?>
+      <li class="list-group-item d-flex align-items-center gap-2 px-0" style="font-size:.84rem">
+        <i class="bi bi-person-circle text-muted"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold"><?= h($sh['user_name']) ?></div>
+          <div class="text-muted" style="font-size:.72rem"><?= h(EZD_TECZKA_UPRAWNIENIA[$sh['uprawnienie']] ?? $sh['uprawnienie']) ?></div>
+        </div>
+        <form method="post" onsubmit="return confirm('Odebrać dostęp?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="teczka_share_del">
+          <input type="hidden" name="share_user_id" value="<?= (int)$sh['user_id'] ?>">
+          <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle"></i></button>
+        </form>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
+    <p class="text-muted" style="font-size:.82rem">Brak dodatkowego dostępu per-segregator.</p>
+    <?php endif; ?>
+    <form method="post" class="d-flex gap-2 flex-wrap align-items-end border-top pt-3">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="teczka_share_add">
+      <div>
+        <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Osoba</label>
+        <select name="share_user_id" class="form-select form-select-sm" required style="min-width:200px">
+          <option value="">— wybierz osobę —</option>
+          <?php foreach($all_users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Uprawnienie</label>
+        <select name="share_uprawnienie" class="form-select form-select-sm">
+          <?php foreach(EZD_TECZKA_UPRAWNIENIA as $v=>$l): ?><option value="<?= $v ?>"><?= h($l) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1"></i>Nadaj dostęp</button>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

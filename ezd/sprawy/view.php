@@ -46,9 +46,10 @@ foreach ($zalaczniki as $z) {
 }
 
 $is_closed        = $sprawa['status'] === 'closed';
-$can_edit_case    = $access === 'write';           // zarządzanie sprawą (metadane, współdzielenie) — niezależnie od zamknięcia
-$can_act          = $can_edit_case && !$is_closed; // dodawanie treści do sprawy — tylko gdy otwarta
-$can_manage_share = ezd_sprawa_can_manage_share($sprawa, $user_id);
+$can_edit_case      = $access === 'write';                                        // metadane + współdzielenie
+$can_act            = $can_edit_case && !$is_closed;                             // pełna edycja treści
+$can_create_pismo   = in_array($access, ['write','pisma'], true) && !$is_closed; // tworzenie pism (poziom pisma+)
+$can_manage_share   = ezd_sprawa_can_manage_share($sprawa, $user_id);
 $mini             = ezd_mini(); // tryb uproszczony — ukrywa metrykę i obieg/workflow
 
 // Tylko PDF-y z podpisem elektronicznym ze wszystkich plików repozytorium koszulki
@@ -104,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
-    if ($action === 'pismo_add' && $can_act) {
+    if ($action === 'pismo_add' && $can_create_pismo) {
         try {
             $pid = ezd_pismo_create([
                 'sprawa_id'     => $id,
@@ -852,7 +853,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 
   <!-- PISMA: timeline -->
   <div class="tab-pane fade show active sp-tab-pane" id="tab-pisma">
-    <?php if($can_act): ?>
+    <?php if($can_create_pismo): ?>
     <div class="mb-3">
       <div class="d-flex align-items-start gap-2 flex-wrap">
         <!-- Quick-pick: kierunek × medium -->

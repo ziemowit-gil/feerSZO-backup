@@ -13,10 +13,15 @@
  * takiego uprawnienia (np. zwykły viewer bez roli EZD) nie wchodzi wcale.
  */
 function ezd_require_access(): void {
-    if (can_read('ezd') || can_write('ezd')) return;
+    if (can_read('ezd') || can_write('ezd') || can_delete('ezd')) return;
     flash_set('error', 'Nie masz dostępu do modułu Wirtualne biurko.');
     header('Location: ' . APP_URL . '/index.php');
     exit;
+}
+
+/** Czy użytkownik jest EZD-administratorem — może zarządzać dostępem innych bez bycia adminem systemu. */
+function ezd_is_manager(?int $user_id = null): bool {
+    return is_admin() || can_delete('ezd');
 }
 
 // ── Auto-migracja ─────────────────────────────────────────────────────────────
@@ -274,6 +279,17 @@ function ezd_require_access(): void {
         added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         added_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(sprawa_id, user_id)
+    )");
+
+    // Dostęp per-segregator (Wykaz akt) — obejmuje wszystkie koszulki w danym segregatorze
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_teczka_users (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        teczka_id   INTEGER NOT NULL REFERENCES ezd_teczki(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        uprawnienie TEXT    NOT NULL DEFAULT 'odczyt',
+        added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        added_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(teczka_id, user_id)
     )");
 
     // Przekazanie dostępu do konkretnych plików (niezależnie od dostępu do całej sprawy)
@@ -1064,8 +1080,53 @@ function ezd_sprawa_update(int $id, array $d, int $user_id): void {
 
 const EZD_SPRAWA_UPRAWNIENIA = [
     'odczyt' => 'Odczyt',
-    'edycja' => 'Odczyt i edycja',
+    'pisma'  => 'Odczyt + dodawanie pism',
+    'edycja' => 'Pełna edycja',
 ];
+
+const EZD_TECZKA_UPRAWNIENIA = [
+    'odczyt' => 'Odczyt wszystkich koszulek segregatora',
+    'edycja' => 'Edycja wszystkich koszulek segregatora',
+];
+
+// ── Dostęp per-segregator (Wykaz akt) ────────────────────────────────────────
+
+/** Lista osób z dostępem do segregatora. */
+function ezd_teczka_share_list(int $teczka_id): array {
+    return db_all(
+        "SELECT tu.*, u.name AS user_name, b.name AS added_by_name
+         FROM ezd_teczka_users tu
+         JOIN users u ON u.id = tu.user_id
+         LEFT JOIN users b ON b.id = tu.added_by
+         WHERE tu.teczka_id = ?
+         ORDER BY u.name",
+        [$teczka_id]
+    );
+}
+
+/** Poziom dostępu użytkownika do segregatora (null/odczyt/edycja). */
+function ezd_teczka_access(int $teczka_id, int $user_id): ?string {
+    $r = db_one("SELECT uprawnienie FROM ezd_teczka_users WHERE teczka_id=? AND user_id=?",
+        [$teczka_id, $user_id]);
+    return $r['uprawnienie'] ?? null;
+}
+
+function ezd_teczka_share_add(int $teczka_id, int $user_id, string $uprawnienie, int $by_user_id): void {
+    if (!array_key_exists($uprawnienie, EZD_TECZKA_UPRAWNIENIA)) $uprawnienie = 'odczyt';
+    db()->prepare(
+        "INSERT OR REPLACE INTO ezd_teczka_users (teczka_id,user_id,uprawnienie,added_by) VALUES (?,?,?,?)"
+    )->execute([$teczka_id, $user_id, $uprawnienie, $by_user_id]);
+    $u = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    ezd_log(null, null, null, null, $by_user_id, 'teczka_share_add',
+        'Dostęp do segregatora #' . $teczka_id . ': ' . ($u['name'] ?? $user_id) . ' (' . EZD_TECZKA_UPRAWNIENIA[$uprawnienie] . ')');
+}
+
+function ezd_teczka_share_del(int $teczka_id, int $user_id, int $by_user_id): void {
+    db()->prepare("DELETE FROM ezd_teczka_users WHERE teczka_id=? AND user_id=?")->execute([$teczka_id, $user_id]);
+    $u = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    ezd_log(null, null, null, null, $by_user_id, 'teczka_share_del',
+        'Odebrano dostęp do segregatora #' . $teczka_id . ': ' . ($u['name'] ?? $user_id));
+}
 
 /** Lista osób, z którymi współdzielona jest sprawa (poza właścicielem/rolą). */
 function ezd_sprawa_share_list(int $sprawa_id): array {
@@ -1107,19 +1168,40 @@ function ezd_sprawa_share_remove(int $sprawa_id, int $user_id, int $by_user_id):
  * Kolejność: admin/rola z zapisem do EZD i właściciel/twórca → write; jawne współdzielenie →
  * wg uprawnienia; rola z odczytem do EZD → read; w przeciwnym razie brak dostępu.
  */
+/**
+ * Poziom dostępu użytkownika do koszulki.
+ * Zwraca: 'write' | 'pisma' | 'read' | null
+ *
+ * Hierarchia (pierwsza pasująca wygrywa):
+ *   admin / can_write('ezd')          → write
+ *   właściciel / referent koszulki    → write
+ *   współdzielenie koszulki 'edycja'  → write
+ *   współdzielenie koszulki 'pisma'   → pisma (może dodawać pisma, nie pliki)
+ *   współdzielenie koszulki 'odczyt'  → read
+ *   dostęp per-segregator  'edycja'   → write
+ *   dostęp per-segregator  'odczyt'   → read
+ *   can_read('ezd')                   → read
+ */
 function ezd_sprawa_access(array $sprawa, int $user_id): ?string {
     if (is_admin() || can_write('ezd')) return 'write';
     if ((int)($sprawa['owner_id'] ?? 0) === $user_id || (int)($sprawa['created_by'] ?? 0) === $user_id) return 'write';
     $share = ezd_sprawa_share_get((int)$sprawa['id'], $user_id);
     if ($share === 'edycja') return 'write';
+    if ($share === 'pisma')  return 'pisma';
     if ($share === 'odczyt') return 'read';
+    // Dostęp odziedziczony po segregatorze
+    $teczka_acc = (int)($sprawa['teczka_id'] ?? 0)
+        ? ezd_teczka_access((int)$sprawa['teczka_id'], $user_id)
+        : null;
+    if ($teczka_acc === 'edycja') return 'write';
+    if ($teczka_acc === 'odczyt') return 'read';
     if (can_read('ezd')) return 'read';
     return null;
 }
 
 /** Może zarządzać listą współdzielenia (nie mylić z dostępem do treści sprawy). */
 function ezd_sprawa_can_manage_share(array $sprawa, int $user_id): bool {
-    return is_admin() || can_write('ezd')
+    return ezd_is_manager() || can_write('ezd')
         || (int)($sprawa['owner_id'] ?? 0) === $user_id
         || (int)($sprawa['created_by'] ?? 0) === $user_id;
 }
