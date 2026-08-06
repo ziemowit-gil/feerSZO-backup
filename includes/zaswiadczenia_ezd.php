@@ -188,29 +188,27 @@ function ezd_zas_pdf_html(array $zas): string {
         $mime = mime_content_type($logo);
         $b64  = base64_encode(file_get_contents($logo));
         $logo_html = '<img src="data:' . $mime . ';base64,' . $b64
-                   . '" style="max-height:55px;max-width:175px;display:block">';
+                   . '" style="max-height:60px;max-width:190px;display:block">';
     }
 
-    // Nagłówek: własny (z tokenami) lub domyślny logo-lewo / nazwa-centrum
+    // Prawa kolumna nagłówka: naglowek_html (z tokenami) lub fallback nazwa org
     $naglowek_raw = trim($zas['naglowek_html'] ?? '');
-    if ($naglowek_raw !== '') {
-        $header_inner = ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
+    $right_cell   = $naglowek_raw !== ''
+        ? ezd_zas_render($naglowek_raw, $zas['dane'] ?? [], [
             'nr_zaswiadczenia' => $zas['nr_zaswiadczenia'] ?? '',
             'data_wydania'     => $data_wyd,
             'organizacja'      => $org,
-        ]);
-    } else {
-        $header_inner = '
+          ])
+        : '<strong>' . h($org) . '</strong>';
+
+    $header_inner = '
 <table style="width:100%;border-collapse:collapse;border:none">
   <tr>
-    <td style="width:22%;vertical-align:middle;border:none">' . $logo_html . '</td>
-    <td style="text-align:center;vertical-align:middle;border:none">
-      <span style="font-size:13pt;font-weight:bold;letter-spacing:.5pt">' . h($org) . '</span>
-    </td>
-    <td style="width:22%;border:none"></td>
+    <td style="width:38%;vertical-align:middle;border:none">' . $logo_html . '</td>
+    <td style="text-align:right;vertical-align:middle;border:none;font-size:9.5pt;line-height:1.5">'
+        . $right_cell . '</td>
   </tr>
 </table>';
-    }
 
     // Podpisujący: z pola typu lub fallback na org + datę
     $podpisujacy = trim($zas['podpisujacy'] ?? '');

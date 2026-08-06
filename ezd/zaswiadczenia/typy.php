@@ -235,11 +235,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <!-- Nagłówek PDF -->
           <div class="mb-3">
             <label class="form-label fw-semibold mb-1" style="font-size:.78rem">
-              Nagłówek dokumentu PDF
-              <span class="text-muted ms-1" style="font-size:.72rem;font-weight:normal">(opcjonalny — jeśli puste, wstawia logo + nazwę org.)</span>
+              Prawa kolumna nagłówka PDF
+              <span class="text-muted ms-1" style="font-size:.72rem;font-weight:normal">(dane org. obok logo — jeśli puste, wstawia tylko nazwę org.)</span>
             </label>
             <textarea name="naglowek_html" id="naglowek-html" class="form-control form-control-sm" rows="4"
-                      placeholder="<strong>{{organizacja}}</strong><br>ul. Przykładowa 1, 00-001 Warszawa<br>tel. +48 000 000 000"><?= h($edit['naglowek_html'] ?? '') ?></textarea>
+                      placeholder="<strong><em>{{organizacja}}</em></strong><br>ul. Przykładowa 1, 33-300 Miasto<br>KRS: 0000000000 NIP: 0000000000<br>www.przyklad.pl"><?= h($edit['naglowek_html'] ?? '') ?></textarea>
             <div class="text-muted mt-1" style="font-size:.72rem">
               <i class="bi bi-info-circle me-1"></i>Obsługuje HTML i tokeny:
               <span class="token-badge me-1" onclick="insertNaglowek('{{organizacja}}')">{{organizacja}}</span>
