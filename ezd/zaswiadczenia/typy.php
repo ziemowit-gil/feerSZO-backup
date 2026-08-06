@@ -412,13 +412,15 @@ const _TINY_COMMON = {
 tinymce.init(Object.assign({}, _TINY_COMMON, {
   selector: '#szablon-tresc',
   plugins: 'lists link code',
-  toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | link | code',
+  toolbar: false,
+  statusbar: false,
   height: 280,
 }));
 tinymce.init(Object.assign({}, _TINY_COMMON, {
   selector: '#naglowek-html',
   plugins: 'lists link code table',
-  toolbar: 'undo redo | bold italic underline | alignleft aligncenter alignright | table | link | code',
+  toolbar: false,
+  statusbar: false,
   height: 165,
 }));
 </script>
