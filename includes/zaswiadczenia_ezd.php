@@ -314,7 +314,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <div class="body">' . $body . '</div>
 
-' . (!$preview && empty($zas['plik_path']) ? '<p style="font-size:8pt;color:#777;margin-top:14pt;font-style:italic">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym osoby upoważnionej.</p>' : '') . '
+' . (!$preview && empty($zas['plik_path']) ? '<p style="font-size:7.5pt;color:#777;margin-top:14pt;font-style:italic;line-height:1.4">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</p>' : '') . '
 
 ' . $wazne_do_before_sig . '
 
