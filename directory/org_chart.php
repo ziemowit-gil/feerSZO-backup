@@ -48,73 +48,122 @@ include __DIR__ . '/includes/header_dir.php';
 ?>
 
 <style>
-/* ── Drzewo org ───────────────────────────────────────────────── */
+/* ── Drzewo org — styl kart ────────────────────────────────────── */
 .oc-tree { }
 .oc-node { position: relative; }
-.oc-children { margin-left: 1.5rem; border-left: 2px solid var(--dir-border); padding-left: .25rem; }
 
-.oc-row {
-  display: flex; align-items: center; gap: .55rem;
-  padding: .45rem .75rem;
-  border-radius: 8px;
-  cursor: default;
-  transition: background .1s;
+/* Dashed connector dla dzieci */
+.oc-children {
+  margin-left: 1.4rem;
+  padding-left: .85rem;
+  border-left: 2px dashed #C7D2FE;
+  padding-top: .2rem;
 }
-.oc-row:hover { background: var(--dir-primary-bg); }
-.oc-row.focused { background: var(--dir-primary-bg); border-left: 3px solid var(--dir-primary); border-radius: 0 8px 8px 0; }
-/* Focus ring for keyboard navigation */
-[role="treeitem"]:focus { outline: 2px solid var(--dir-primary); outline-offset: -2px; border-radius: 8px; }
-[role="treeitem"]:focus .oc-row { background: var(--dir-primary-bg); }
 
+/* Węzeł = karta */
+.oc-row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .5rem .75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--dir-border);
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  cursor: pointer;
+  margin-bottom: 5px;
+  transition: border-color .14s, box-shadow .14s, background .12s;
+}
+.oc-row:hover {
+  border-color: var(--dir-primary-light);
+  background: var(--dir-primary-bg);
+  box-shadow: 0 3px 10px rgba(79,70,229,.1);
+}
+[role="treeitem"].focused > .oc-row {
+  border-color: var(--dir-primary);
+  background: var(--dir-primary-bg);
+  box-shadow: 0 3px 12px rgba(79,70,229,.14);
+  border-left-width: 3px;
+}
+[role="treeitem"]:focus { outline: 2px solid var(--dir-primary); outline-offset: 1px; border-radius: 10px; }
+
+/* Toggle chevron */
 .oc-toggle {
   background: none; border: none; padding: 0;
-  color: var(--dir-text-light); font-size: .75rem;
+  color: var(--dir-primary-light); font-size: .78rem;
   width: 18px; flex-shrink: 0; cursor: pointer;
-  transition: transform .15s;
+  transition: transform .15s, color .1s;
   display: flex; align-items: center; justify-content: center;
 }
 .oc-toggle:hover { color: var(--dir-primary); }
 .oc-toggle.open { transform: rotate(90deg); }
 
-.oc-icon { font-size: .9rem; color: var(--dir-primary); flex-shrink: 0; }
-.oc-name { font-size: .88rem; font-weight: 600; color: var(--dir-text); flex: 1; min-width: 0; }
-.oc-code { font-size: .65rem; font-family: monospace; background: #F1F5F9; color: #475569; padding: .1rem .4rem; border-radius: 4px; flex-shrink: 0; }
-.oc-head { font-size: .76rem; color: var(--dir-text-muted); white-space: nowrap; flex-shrink: 0; }
-.oc-head a { color: inherit; text-decoration: none; }
-.oc-head a:hover { color: var(--dir-primary); text-decoration: underline; }
-.oc-count { font-size: .72rem; background: var(--dir-primary-bg); color: var(--dir-primary);
-            border: 1px solid var(--dir-primary-light); border-radius: 10px;
-            padding: .05rem .45rem; flex-shrink: 0; font-weight: 600; }
+/* Ikonka jednostki — kolorowe pudełko */
+.oc-unit-icon {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+  color: var(--dir-primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .88rem; flex-shrink: 0;
+}
+[role="treeitem"].focused > .oc-row .oc-unit-icon,
+.oc-row:hover .oc-unit-icon {
+  background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
+}
+
+/* Treść węzła */
+.oc-unit-body { flex: 1; min-width: 0; }
+.oc-name { font-size: .86rem; font-weight: 600; color: var(--dir-text); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oc-unit-meta { font-size: .7rem; color: var(--dir-text-light); display: block; margin-top: .05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Pozostałe elementy wiersza */
+.oc-code { font-size: .63rem; font-family: monospace; background: #F1F5F9; color: #475569; padding: .1rem .38rem; border-radius: 4px; flex-shrink: 0; }
+.oc-count {
+  font-size: .7rem; background: var(--dir-primary-bg); color: var(--dir-primary);
+  border: 1px solid var(--dir-primary-light); border-radius: 10px;
+  padding: .05rem .42rem; flex-shrink: 0; font-weight: 700; min-width: 20px; text-align: center;
+}
 .oc-inactive { opacity: .45; }
 
-/* Panel szczegółów jednostki */
+/* ── Panel szczegółów ─────────────────────────────────────────── */
 .oc-detail {
   background: #fff; border: 1px solid var(--dir-border);
-  border-radius: 12px; padding: 1.25rem 1.5rem; margin-top: 1.5rem;
+  border-radius: 14px; padding: 0; overflow: hidden;
 }
-.oc-detail-title { font-size: 1.05rem; font-weight: 700; color: var(--dir-text); margin-bottom: .25rem; }
-.oc-detail-meta  { font-size: .8rem; color: var(--dir-text-muted); margin-bottom: 1rem; }
+.oc-detail-header {
+  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #C7D2FE;
+  display: flex; align-items: center; gap: .75rem;
+}
+.oc-detail-header-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--dir-primary-dark), var(--dir-primary));
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0;
+}
+.oc-detail-title { font-size: 1rem; font-weight: 700; color: var(--dir-text); margin: 0; line-height: 1.2; }
+.oc-detail-meta  { font-size: .77rem; color: var(--dir-text-muted); margin-top: .15rem; }
+.oc-detail-body  { padding: 1rem 1.25rem; }
 
 /* Karta członka jednostki */
 .oc-member-card {
   display: flex; align-items: center; gap: .65rem;
-  padding: .55rem .75rem; border-radius: 8px;
+  padding: .5rem .65rem; border-radius: 9px;
   text-decoration: none; color: inherit;
-  transition: background .1s;
+  border: 1px solid transparent;
+  transition: background .1s, border-color .1s;
 }
-.oc-member-card:hover { background: var(--dir-primary-bg); color: inherit; }
-.oc-member-name { font-size: .86rem; font-weight: 600; color: var(--dir-text); }
-.oc-member-pos  { font-size: .74rem; color: var(--dir-text-muted); }
+.oc-member-card:hover { background: var(--dir-primary-bg); border-color: var(--dir-primary-light); color: inherit; }
+.oc-member-name { font-size: .85rem; font-weight: 600; color: var(--dir-text); }
+.oc-member-pos  { font-size: .72rem; color: var(--dir-text-muted); }
 .oc-member-head-badge {
-  font-size: .65rem; font-weight: 700; padding: .1rem .4rem;
+  font-size: .62rem; font-weight: 700; padding: .1rem .38rem;
   background: #FEF9C3; color: #A16207; border-radius: 4px;
   border: 1px solid #FDE68A; white-space: nowrap; flex-shrink: 0;
 }
 
-/* Karta jednostki zewnętrznej (katalog) */
+/* Karta jednostki zewnętrznej */
 .oc-ext-card {
-  display: flex; flex-direction: column; gap: .35rem;
-  height: 100%;
+  display: flex; flex-direction: column; gap: .35rem; height: 100%;
   background: #fff; border: 1px solid var(--dir-border);
   border-radius: 12px; padding: .9rem 1rem;
   cursor: pointer; transition: box-shadow .12s, border-color .12s;
@@ -134,8 +183,8 @@ include __DIR__ . '/includes/header_dir.php';
 .oc-ext-meta a:hover { color: var(--dir-primary); text-decoration: underline; }
 
 @media (max-width: 640px) {
-  .oc-code, .oc-head { display: none; }
-  .oc-children { margin-left: .85rem; }
+  .oc-code { display: none; }
+  .oc-children { margin-left: .85rem; padding-left: .5rem; }
 }
 </style>
 
@@ -477,48 +526,56 @@ include __DIR__ . '/includes/footer_dir.php';
 
 function dir_render_tree(array $nodes, int $level = 1, int $focus_id = 0): void {
     foreach ($nodes as $node):
-        $has_ch  = !empty($node['children']);
-        $active  = $node['status'] === 'active';
-        $focused = (int)$node['id'] === $focus_id;
-        $head    = null;
+        $has_ch       = !empty($node['children']);
+        $active       = $node['status'] === 'active';
+        $focused      = (int)$node['id'] === $focus_id;
+        $head         = null;
         try { $head = org_unit_head((int)$node['id']); } catch (\Throwable $e) {}
         $member_count = (int)($node['member_count'] ?? 0);
+        $a11y         = h($node['name'])
+            . ($node['code'] ? ', kod: ' . h($node['code']) : '')
+            . ($head ? ', kierownik: ' . h($head['user_name']) : '')
+            . ', ' . $member_count . ' ' . ($member_count === 1 ? 'wolontariusz' : 'wolontariuszy');
         ?>
         <li role="treeitem"
             aria-level="<?= $level ?>"
-            <?php if ($has_ch): ?>aria-expanded="true"<?php endif; ?>
+            <?= $has_ch ? 'aria-expanded="true"' : '' ?>
             tabindex="-1"
             data-unit="<?= (int)$node['id'] ?>"
             class="oc-node<?= $focused ? ' focused' : '' ?><?= $active ? '' : ' oc-inactive' ?>"
-            aria-label="<?= h($node['name']) ?><?= $node['code'] ? ', kod: ' . h($node['code']) : '' ?><?= $head ? ', kierownik: ' . h($head['user_name']) : '' ?>, <?= $member_count ?> <?= $member_count === 1 ? 'wolontariusz' : 'wolontariuszy' ?>">
+            aria-label="<?= $a11y ?>">
 
           <div class="oc-row">
-            <!-- Toggle chevron -->
+            <!-- Toggle -->
             <?php if ($has_ch): ?>
-            <button class="oc-toggle open"
-                    tabindex="-1"
-                    aria-label="Zwiń jednostkę <?= h($node['name']) ?>"
-                    aria-hidden="true">
+            <button class="oc-toggle open" tabindex="-1" aria-hidden="true"
+                    aria-label="Zwiń <?= h($node['name']) ?>">
               <i class="bi bi-chevron-right" aria-hidden="true"></i>
             </button>
             <?php else: ?>
             <span style="width:18px;flex-shrink:0" aria-hidden="true"></span>
             <?php endif; ?>
 
-            <i class="oc-icon bi bi-diagram-3" aria-hidden="true"></i>
+            <!-- Ikonka kolorowa -->
+            <span class="oc-unit-icon" aria-hidden="true">
+              <i class="bi bi-<?= $has_ch ? 'diagram-3' : 'folder2' ?>"></i>
+            </span>
 
-            <span class="oc-name"><?= h($node['name']) ?></span>
+            <!-- Treść -->
+            <div class="oc-unit-body" aria-hidden="true">
+              <span class="oc-name"><?= h($node['name']) ?></span>
+              <?php if ($head): ?>
+              <span class="oc-unit-meta">
+                <i class="bi bi-person me-1" style="font-size:.65rem"></i><?= h($head['user_name']) ?>
+              </span>
+              <?php endif; ?>
+            </div>
+
             <?php if ($node['code']): ?>
             <span class="oc-code" aria-hidden="true"><?= h($node['code']) ?></span>
             <?php endif; ?>
 
-            <?php if ($head): ?>
-            <span class="oc-head d-none d-sm-inline" aria-hidden="true">
-              <i class="bi bi-person-fill me-1" aria-hidden="true" style="font-size:.7rem"></i><?= h($head['user_name']) ?>
-            </span>
-            <?php endif; ?>
-
-            <span class="oc-count" aria-hidden="true">
+            <span class="oc-count" aria-hidden="true" title="<?= $member_count ?> wolontariuszy">
               <?= $member_count ?>
             </span>
           </div>
@@ -595,18 +652,22 @@ function dir_render_unit_detail(int $unit_id): void {
         ", [$unit_id]);
     } catch (\Throwable $e) {}
 
-    echo '<div class="oc-detail">';
-    echo '<div class="oc-detail-title">'
-       . '<i class="bi bi-diagram-3 me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>'
-       . h($unit['name'])
-       . '</div>';
+    // Nowy header panelu z gradientem
+    $meta_parts = [];
+    if ($unit['short_name'])  $meta_parts[] = h($unit['short_name']);
+    if ($unit['location'])    $meta_parts[] = '<i class="bi bi-geo-alt me-1"></i>' . h($unit['location']);
+    if ($unit['phone'])       $meta_parts[] = '<i class="bi bi-telephone me-1"></i>' . h($unit['phone']);
+    if ($unit['parent_name']) $meta_parts[] = '<i class="bi bi-arrow-up-right me-1"></i>' . h($unit['parent_name']);
 
-    $meta = [];
-    if ($unit['short_name']) $meta[] = h($unit['short_name']);
-    if ($unit['location'])   $meta[] = '<i class="bi bi-geo-alt me-1" aria-hidden="true"></i>' . h($unit['location']);
-    if ($unit['phone'])      $meta[] = '<i class="bi bi-telephone me-1" aria-hidden="true"></i>' . h($unit['phone']);
-    if ($unit['parent_name']) $meta[] = '<i class="bi bi-arrow-up-right me-1" aria-hidden="true"></i>' . h($unit['parent_name']);
-    if ($meta) echo '<div class="oc-detail-meta">' . implode(' &nbsp;·&nbsp; ', $meta) . '</div>';
+    echo '<div class="oc-detail">';
+    echo '<div class="oc-detail-header">'
+       . '<div class="oc-detail-header-icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></div>'
+       . '<div>'
+       . '<div class="oc-detail-title">' . h($unit['name']) . '</div>'
+       . ($meta_parts ? '<div class="oc-detail-meta">' . implode(' &nbsp;·&nbsp; ', $meta_parts) . '</div>' : '')
+       . '</div>'
+       . '</div>';
+    echo '<div class="oc-detail-body">';
 
     if ($unit['description']) {
         echo '<p class="small text-muted mb-3" style="white-space:pre-wrap">' . h($unit['description']) . '</p>';
@@ -619,9 +680,10 @@ function dir_render_unit_detail(int $unit_id): void {
            . '</p>';
     } else {
         $count = count($members);
-        echo '<div class="mb-1" style="font-size:.75rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.06em">';
-        echo '<i class="bi bi-people me-1" aria-hidden="true"></i>Wolontariusze (' . $count . ')';
-        echo '</div>';
+        echo '<div class="mb-2 d-flex align-items-center gap-2">'
+           . '<span style="font-size:.72rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.07em"><i class="bi bi-people me-1" aria-hidden="true"></i>Wolontariusze</span>'
+           . '<span class="oc-count">' . $count . '</span>'
+           . '</div>';
         echo '<ul class="list-unstyled mb-0">';
         foreach ($members as $m) {
             $display = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
@@ -672,6 +734,7 @@ function dir_render_unit_detail(int $unit_id): void {
         }
         echo '</ul>';
     }
-    echo '</div>';
+    echo '</div>'; // oc-detail-body
+    echo '</div>'; // oc-detail
 }
 ?>

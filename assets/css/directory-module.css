@@ -137,6 +137,53 @@ body {
   text-transform: uppercase; color: var(--dir-text-light);
   padding: .75rem .75rem .2rem 1rem; display: block;
 }
+/* ── Sidebar: karta użytkownika ─────────────────────────────── */
+.dir-sidebar-user {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .9rem .9rem .75rem;
+  border-bottom: 1px solid var(--dir-border);
+  flex-shrink: 0;
+}
+.dir-sidebar-user-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--dir-primary-dark), var(--dir-primary));
+  color: #fff; font-size: .82rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; text-decoration: none;
+  border: 2px solid rgba(99,102,241,.25);
+  transition: opacity .12s;
+}
+.dir-sidebar-user-avatar:hover { opacity: .85; }
+.dir-sidebar-user-body { flex: 1; min-width: 0; }
+.dir-sidebar-user-name {
+  font-size: .84rem; font-weight: 600; color: var(--dir-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.25;
+}
+.dir-sidebar-user-link {
+  font-size: .72rem; color: var(--dir-primary);
+  text-decoration: none; line-height: 1;
+}
+.dir-sidebar-user-link:hover { text-decoration: underline; }
+
+/* ── Colored nav icon boxes ─────────────────────────────────── */
+.dir-nav-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--c, var(--dir-primary-bg));
+  color: var(--t, var(--dir-primary));
+  display: flex; align-items: center; justify-content: center;
+  font-size: .82rem; flex-shrink: 0;
+  transition: transform .12s;
+}
+.dir-nav-item:hover .dir-nav-icon { transform: scale(1.1); }
+.dir-nav-item.active .dir-nav-icon { transform: scale(1.08); }
+
+/* Override plain icon styles when using dir-nav-icon */
+.dir-nav-item .dir-nav-icon + span { flex: 1; }
+.dir-nav-item i { font-size: inherit; width: auto; color: inherit; }
+
+.dir-nav-group { padding: .4rem 0; }
+
 .dir-nav-divider { height: 1px; background: #F3F4F6; margin: .4rem .75rem; }
 
 .dir-nav-item {

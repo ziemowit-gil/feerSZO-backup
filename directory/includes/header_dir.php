@@ -180,16 +180,32 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
 <nav class="dir-sidebar" id="dirSidebar"
      aria-label="Nawigacja modułu Katalog współpracowników">
 
-  <div role="list">
+  <!-- Karta zalogowanego użytkownika -->
+  <?php if ($_cu): ?>
+  <div class="dir-sidebar-user">
+    <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
+       class="dir-sidebar-user-avatar" aria-label="Mój profil: <?= h($_cu_name) ?>">
+      <?= h($_cu_initials) ?>
+    </a>
+    <div class="dir-sidebar-user-body">
+      <div class="dir-sidebar-user-name"><?= h(explode(' ', $_cu_name)[0] ?? $_cu_name) ?></div>
+      <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
+         class="dir-sidebar-user-link">Mój profil</a>
+    </div>
+  </div>
+  <?php endif; ?>
 
+  <!-- Nawigacja główna -->
+  <div class="dir-nav-group" role="list">
     <span class="dir-nav-section-label" role="presentation">Katalog</span>
 
     <div role="listitem">
       <a href="<?= APP_URL ?>/directory/"
-         class="dir-nav-item<?= $_on_index ? ' active" aria-current="page' : '' ?>"
-         <?= !$_on_index ? '' : '' ?>>
-        <i class="bi bi-people-fill" aria-hidden="true"></i>
-        <span>Wszyscy współpracownicy</span>
+         class="dir-nav-item<?= $_on_index ? ' active" aria-current="page' : '' ?>">
+        <span class="dir-nav-icon" style="--c:#EEF2FF;--t:#4F46E5" aria-hidden="true">
+          <i class="bi bi-people-fill"></i>
+        </span>
+        <span>Wszyscy</span>
       </a>
     </div>
 
@@ -197,15 +213,19 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
     <div role="listitem">
       <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
          class="dir-nav-item<?= $_on_own_profile ? ' active" aria-current="page' : '' ?>">
-        <i class="bi bi-person-badge" aria-hidden="true"></i>
+        <span class="dir-nav-icon" style="--c:#F0FDFA;--t:#0D9488" aria-hidden="true">
+          <i class="bi bi-person-badge"></i>
+        </span>
         <span>Mój profil</span>
       </a>
     </div>
     <div role="listitem">
       <a href="<?= APP_URL ?>/directory/profile_edit.php"
          class="dir-nav-item<?= $_on_edit ? ' active" aria-current="page' : '' ?>">
-        <i class="bi bi-pencil-square" aria-hidden="true"></i>
-        <span>Edytuj swój profil</span>
+        <span class="dir-nav-icon" style="--c:#FFFBEB;--t:#D97706" aria-hidden="true">
+          <i class="bi bi-pencil-square"></i>
+        </span>
+        <span>Edytuj profil</span>
       </a>
     </div>
     <?php endif; ?>
@@ -213,21 +233,24 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
     <div role="listitem">
       <a href="<?= APP_URL ?>/directory/org_chart.php"
          class="dir-nav-item<?= $_on_org ? ' active" aria-current="page' : '' ?>">
-        <i class="bi bi-diagram-3" aria-hidden="true"></i>
-        <span>Struktura organizacyjna</span>
+        <span class="dir-nav-icon" style="--c:#E0F2FE;--t:#0284C7" aria-hidden="true">
+          <i class="bi bi-diagram-3"></i>
+        </span>
+        <span>Struktura org.</span>
       </a>
     </div>
-
   </div>
 
   <?php if (is_admin()): ?>
   <div class="dir-nav-divider" role="separator" aria-hidden="true"></div>
-  <div role="list">
+  <div class="dir-nav-group" role="list">
     <span class="dir-nav-section-label" role="presentation">Administrator</span>
     <div role="listitem">
       <a href="<?= APP_URL ?>/admin/profile_fields.php"
          class="dir-nav-item<?= $_on_admin_fields ? ' active" aria-current="page' : '' ?>">
-        <i class="bi bi-card-list" aria-hidden="true"></i>
+        <span class="dir-nav-icon" style="--c:#FFF1F2;--t:#E11D48" aria-hidden="true">
+          <i class="bi bi-card-list"></i>
+        </span>
         <span>Pola profilu</span>
       </a>
     </div>
@@ -237,7 +260,9 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
   <div class="dir-sidebar-bottom" role="list">
     <div role="listitem">
       <a href="<?= APP_URL ?>/index.php" class="dir-nav-item">
-        <i class="bi bi-box-arrow-left" aria-hidden="true"></i>
+        <span class="dir-nav-icon" style="--c:#F1F5F9;--t:#64748B" aria-hidden="true">
+          <i class="bi bi-box-arrow-left"></i>
+        </span>
         <span>System główny</span>
       </a>
     </div>
