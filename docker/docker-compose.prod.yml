@@ -133,6 +133,33 @@ services:
       - "traefik.http.routers.feer-logowanie-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.feer-logowanie-http.service=feer"
 
+      # ── Middleware: prefix /ezd dla domen EZD ─────────────────────────────
+      - "traefik.http.middlewares.ezd-prefix.addprefix.prefix=/ezd"
+
+      # ezd.feer.org.pl → /ezd (Wirtualne biurko — wejście publiczne)
+      - "traefik.http.routers.feer-ezd.rule=Host(`ezd.feer.org.pl`)"
+      - "traefik.http.routers.feer-ezd.entrypoints=websecure"
+      - "traefik.http.routers.feer-ezd.tls=true"
+      - "traefik.http.routers.feer-ezd.tls.certresolver=le"
+      - "traefik.http.routers.feer-ezd.middlewares=sec-headers@docker,ezd-prefix@docker"
+      - "traefik.http.routers.feer-ezd.service=feer"
+      - "traefik.http.routers.feer-ezd-http.rule=Host(`ezd.feer.org.pl`)"
+      - "traefik.http.routers.feer-ezd-http.entrypoints=web"
+      - "traefik.http.routers.feer-ezd-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-ezd-http.service=feer"
+
+      # ezd-prod-srv.feer.org.pl → /ezd (serwer produkcyjny / dostęp serwerowy)
+      - "traefik.http.routers.feer-ezd-srv.rule=Host(`ezd-prod-srv.feer.org.pl`)"
+      - "traefik.http.routers.feer-ezd-srv.entrypoints=websecure"
+      - "traefik.http.routers.feer-ezd-srv.tls=true"
+      - "traefik.http.routers.feer-ezd-srv.tls.certresolver=le"
+      - "traefik.http.routers.feer-ezd-srv.middlewares=sec-headers@docker,ezd-prefix@docker"
+      - "traefik.http.routers.feer-ezd-srv.service=feer"
+      - "traefik.http.routers.feer-ezd-srv-http.rule=Host(`ezd-prod-srv.feer.org.pl`)"
+      - "traefik.http.routers.feer-ezd-srv-http.entrypoints=web"
+      - "traefik.http.routers.feer-ezd-srv-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-ezd-srv-http.service=feer"
+
       # ══════════════════════════════════════════════════════════════════════
       #  PRZEKIEROWANIA ngosystem.pl → feer.org.pl (301 Permanent)
       #
