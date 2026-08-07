@@ -811,7 +811,24 @@ require_once __DIR__ . '/includes/header_tasks.php';
           <tr id="frow-<?= $fid ?>">
             <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
             <td class="text-truncate" style="max-width:220px">
-              <span title="<?= h($f['name']) ?>"><?= h($f['name']) ?></span>
+              <?php if ($previewable): ?>
+              <button class="btn btn-link p-0 text-body text-truncate btn-preview"
+                      style="font-size:inherit;text-decoration:none;max-width:200px;vertical-align:baseline"
+                      data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
+                      data-name="<?= h($f['name']) ?>" title="<?= h($f['name']) ?>">
+                <?= h($f['name']) ?>
+              </button>
+              <?php elseif ($docPreview && $f['web_url']): ?>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener"
+                 class="text-body text-decoration-none" title="Otwórz w Office Online">
+                <?= h($f['name']) ?>
+              </a>
+              <?php else: ?>
+              <a href="<?= h($dl_url) ?>" class="text-body text-decoration-none"
+                 title="Pobierz <?= h($f['name']) ?>">
+                <?= h($f['name']) ?>
+              </a>
+              <?php endif; ?>
               <button class="badge rounded-pill border-0 ms-1 btn-file-tasks
                              <?= $task_count ? 'text-bg-info' : 'text-bg-light text-muted' ?>"
                       style="font-size:.6rem; cursor:pointer"

@@ -17,20 +17,40 @@ $typ_id  = (int)($_GET['typ_id'] ?? $_POST['typ_id'] ?? 0);
 $typy    = ezd_zas_typy_all(true);
 
 // Prefill z umowy: ?prefill_type=wolontariat&prefill_id=NNN
-$prefill_vals = [];
+$prefill_vals   = [];
+$_prefill_ctype = '';  // contract_type do zapisania przy tworzeniu
+$_prefill_cid   = 0;  // contract_id do zapisania przy tworzeniu
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $_ptype = preg_replace('/[^a-z]/', '', strtolower($_GET['prefill_type'] ?? ''));
     $_pid   = (int)($_GET['prefill_id'] ?? 0);
     if ($_ptype && $_pid) {
+        // Mapowanie: typ umowy → kod typu zaświadczenia EZD
+        $_ct_map = [
+            'wolontariat' => 'zaswiadczenie_wolontariat',
+            'praca'       => 'zaswiadczenie_zatrudnienie',
+            'zlecenie'    => 'zaswiadczenie_wspolpraca',
+            'dzielo'      => 'zaswiadczenie_wspolpraca',
+            'uslugi'      => 'zaswiadczenie_wspolpraca',
+            'inne'        => 'zaswiadczenie_wspolpraca',
+            'powierzenie' => 'zaswiadczenie_wspolpraca',
+        ];
+        $_preferred_kod = $_ct_map[$_ptype] ?? 'zaswiadczenie_umowy';
+
         if (!$typ_id) {
-            $_zas_umowy = db_one("SELECT id FROM ezd_zas_typy WHERE kod='zaswiadczenie_umowy' AND is_active=1");
-            if ($_zas_umowy) $typ_id = (int)$_zas_umowy['id'];
+            $_zr = db_one("SELECT id FROM ezd_zas_typy WHERE kod=? AND is_active=1", [$_preferred_kod]);
+            if (!$_zr) $_zr = db_one("SELECT id FROM ezd_zas_typy WHERE kod='zaswiadczenie_umowy' AND is_active=1");
+            if ($_zr) $typ_id = (int)$_zr['id'];
         }
+
+        $_prefill_ctype = $_ptype;
+        $_prefill_cid   = $_pid;
+
         $_sfmt  = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
-        $_smap  = ['podpisana'=>'aktywna','w realizacji'=>'aktywna','obowiązująca'=>'aktywna',
-                   'zawieszona'=>'zawieszona','zakończona'=>'zakończona','rozwiązana'=>'rozwiązana'];
-        $_tlab  = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowa zlecenie',
-                   'praca'=>'Umowa o pracę','dzielo'=>'Umowa o dzieło'];
+        $_bezterm = fn(array $c) => !empty($c['bezterminowa']) || !empty($c['czas_nieokreslony']);
+        $_tlab  = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowy zlecenie',
+                   'praca'=>'Umowy o pracę','dzielo'=>'Umowy o dzieło',
+                   'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
+
         try {
             if ($_ptype === 'wolontariat') {
                 $_c = db_one(
@@ -40,35 +60,74 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                             w.status,
                             COALESCE(w.miejsce_wolontariatu,'') AS miejsce,
                             COALESCE(w.wolontariat_typ,'') AS wolontariat_typ,
+                            COALESCE(w.przedmiot_porozumienia,'') AS przedmiot_porozumienia,
                             COALESCE(p.name,'') AS stanowisko_name
                      FROM umowy_wolontariat w
                      LEFT JOIN org_positions p ON p.id = w.org_position_id
                      WHERE w.id=?",
                     [$_pid]
                 );
-            } else {
-                $_ptable = 'umowy_' . $_ptype;
+                if ($_c) {
+                    $prefill_vals = [
+                        // typ wolontariat
+                        'imie_nazwisko'  => $_c['imie_nazwisko'] ?? '',
+                        'numer_umowy'    => $_c['numer_umowy'] ?? '',
+                        'data_zawarcia'  => $_sfmt($_c['data_zawarcia']),
+                        'data_od'        => $_sfmt($_c['data_rozpoczecia']),
+                        'data_do'        => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                        'zakres_dzialan' => $_c['przedmiot_porozumienia'] ?: ($_c['wolontariat_typ'] ?? ''),
+                        // typ ogólny
+                        'typ_umowy'      => 'Porozumienie wolontariackie',
+                        'stanowisko'     => $_c['stanowisko_name'] ?: ($_c['wolontariat_typ'] ?? ''),
+                        'miejsce'        => $_c['miejsce'] ?? '',
+                        'status_umowy'   => ['podpisana'=>'aktywna','w realizacji'=>'aktywna',
+                            'obowiązująca'=>'aktywna','zawieszona'=>'zawieszona',
+                            'zakończona'=>'zakończona','rozwiązana'=>'rozwiązana'][$_c['status'] ?? ''] ?? '',
+                    ];
+                }
+            } elseif ($_ptype === 'praca') {
                 $_c = db_one(
-                    "SELECT imie_nazwisko, numer_umowy, data_zawarcia,
-                            data_rozpoczecia, data_zakonczenia,
-                            COALESCE(bezterminowa,0) AS bezterminowa, status,
-                            '' AS miejsce, '' AS wolontariat_typ, '' AS stanowisko_name
-                     FROM {$_ptable} WHERE id=?",
-                    [$_pid]
+                    "SELECT imie_nazwisko, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
+                            COALESCE(czas_nieokreslony,0) AS czas_nieokreslony, status,
+                            COALESCE(stanowisko,'') AS stanowisko
+                     FROM umowy_praca WHERE id=?", [$_pid]
                 );
-            }
-            if (!empty($_c)) {
-                $prefill_vals = [
-                    'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
-                    'typ_umowy'     => $_tlab[$_ptype] ?? 'Inne',
-                    'numer_umowy'   => $_c['numer_umowy'] ?? '',
-                    'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
-                    'data_od'       => $_sfmt($_c['data_rozpoczecia']),
-                    'data_do'       => $_c['bezterminowa'] ? 'bezterminowe' : $_sfmt($_c['data_zakonczenia']),
-                    'stanowisko'    => $_c['stanowisko_name'] ?: ($_c['wolontariat_typ'] ?? ''),
-                    'miejsce'       => $_c['miejsce'] ?? '',
-                    'status_umowy'  => $_smap[$_c['status'] ?? ''] ?? ($_c['status'] ?? ''),
-                ];
+                if ($_c) {
+                    $prefill_vals = [
+                        'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                        'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                        'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                        'stanowisko'    => $_c['stanowisko'] ?? '',
+                        'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                        'data_do'       => !empty($_c['czas_nieokreslony']) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                        'typ_umowy'     => 'Umowa o pracę',
+                    ];
+                }
+            } else {
+                $_tables = ['zlecenie'=>'umowy_zlecenie','dzielo'=>'umowy_dzielo',
+                            'uslugi'=>'umowy_uslugi','inne'=>'umowy_inne','powierzenie'=>'umowy_inne'];
+                $_ptable = $_tables[$_ptype] ?? null;
+                if ($_ptable) {
+                    $_przedmiot_col = ['zlecenie'=>'przedmiot_zlecenia','dzielo'=>'przedmiot_dziela',
+                                       'uslugi'=>'przedmiot_uslugi','inne'=>'','powierzenie'=>''][$_ptype] ?? '';
+                    $_c = db_one(
+                        "SELECT imie_nazwisko, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
+                                COALESCE(bezterminowa,0) AS bezterminowa, status"
+                        . ($_przedmiot_col ? ", COALESCE({$_przedmiot_col},'') AS przedmiot" : ", '' AS przedmiot")
+                        . " FROM {$_ptable} WHERE id=?", [$_pid]
+                    );
+                    if ($_c) {
+                        $prefill_vals = [
+                            'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                            'typ_umowy'     => $_tlab[$_ptype] ?? 'Innej umowy',
+                            'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                            'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                            'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                            'data_do'       => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                            'przedmiot'     => $_c['przedmiot'] ?? '',
+                        ];
+                    }
+                }
             }
         } catch (\Throwable $e) { /* brak tabeli lub kolumny — ignoruj */ }
     }
@@ -108,7 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location:' . APP_URL . '/ezd/zaswiadczenia/new.php?typ_id=' . $typ_id); exit;
     }
 
-    $id       = ezd_zas_create($typ_id, $name, $email, $dane, $user_id);
+    $_post_ctype = trim($_POST['_contract_type'] ?? '');
+    $_post_cid   = (int)($_POST['_contract_id'] ?? 0);
+    $id       = ezd_zas_create($typ_id, $name, $email, $dane, $user_id, $_post_ctype, $_post_cid);
     $z_urzedu = isset($_POST['z_urzedu']) ? 1 : 0;
     if ($z_urzedu) {
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=1 WHERE id=?")->execute([$id]);
@@ -177,6 +238,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="typ_id" value="<?= $typ_id ?>">
+      <?php if ($_prefill_ctype && $_prefill_cid): ?>
+      <input type="hidden" name="_contract_type" value="<?= h($_prefill_ctype) ?>">
+      <input type="hidden" name="_contract_id"   value="<?= $_prefill_cid ?>">
+      <?php endif; ?>
       <div class="card shadow-sm">
         <div class="card-header">
           <div class="fw-semibold" style="font-size:.88rem"><i class="bi bi-award me-1 text-primary"></i><?= h($typ['nazwa']) ?></div>

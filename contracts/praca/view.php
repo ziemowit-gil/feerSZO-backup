@@ -655,57 +655,7 @@ $_letters = get_contract_letters($TYPE, $id);
 <?php endif; ?>
 </div>
 
-<?php
-require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
-$cert_requests    = get_certificate_requests($TYPE, $id);
-$cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
-?>
-<div class="card shadow-sm mb-3 no-print">
-<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-  <span><i class="bi bi-award"></i> Zaświadczenia</span>
-  <?php if (!$cert_has_pending): ?>
-  <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-    <i class="bi bi-plus-lg"></i> Złóż wniosek
-  </a>
-  <?php else: ?>
-  <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
-  <?php endif; ?>
-</div>
-<?php if ($cert_requests): ?>
-<div class="table-responsive">
-<table class="table table-sm table-hover mb-0">
-  <thead class="table-light"><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
-  <tbody>
-  <?php foreach ($cert_requests as $cr): ?>
-  <tr>
-    <td><?= h($cr['requester_name']) ?></td>
-    <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
-    <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
-    <td><?= certificate_status_badge($cr['status']) ?></td>
-    <td class="text-end text-nowrap">
-      <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
-      <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
-        <i class="bi bi-award"></i> Wydaj
-      </a>
-      <?php elseif ($cr['status'] === 'wydane'): ?>
-      <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd PDF">
-        <i class="bi bi-printer"></i> Drukuj
-      </a>
-          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $cr['id'] ?>"
-             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX">
-            <i class="bi bi-file-earmark-word"></i> DOCX
-          </a>
-      <?php endif; ?>
-    </td>
-  </tr>
-  <?php endforeach; ?>
-  </tbody>
-</table>
-</div>
-<?php else: ?>
-<div class="card-body text-muted small">Brak wniosków o zaświadczenia.</div>
-<?php endif; ?>
-</div>
+<?php include dirname(dirname(__DIR__)) . '/includes/_contract_certs_ezd.php'; ?>
 
 
 

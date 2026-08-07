@@ -8,7 +8,6 @@ require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
-require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
 require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
 require_once dirname(dirname(__DIR__)) . '/includes/autenti.php';
@@ -96,7 +95,7 @@ if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'X
         $_b_approval = db_one("SELECT status FROM contract_approvals WHERE contract_type=? AND contract_id=? ORDER BY id DESC LIMIT 1", [$TYPE, $id]);
         $_b_amendments = db_all("SELECT status FROM contract_amendments WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
         $_b_edit_req   = db_all("SELECT status FROM edit_requests WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
-        $_b_cert       = db_all("SELECT status FROM certificate_requests WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
+        $_b_cert       = db_all("SELECT status FROM ezd_zaswiadczenia_wlasne WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
         $_b_zwroty     = (new FinanceManager())->listForContract($id, $TYPE);
         $_b_obieg = 0;
         if ($_b_approval && $_b_approval['status'] === 'oczekuje') $_b_obieg++;
@@ -107,7 +106,7 @@ if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'X
             'ok'            => true,
             'msg_unread'    => (int)msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user'),
             'badge_obieg'   => $_b_obieg,
-            'badge_docs'    => count(array_filter($_b_cert, fn($r) => $r['status'] === 'oczekuje')),
+            'badge_docs'    => count(array_filter($_b_cert, fn($r) => $r['status'] === 'wniosek')),
             'zwroty_pending'=> count(array_filter($_b_zwroty, fn($z) => in_array($z['status'],['oczekuje','weryfikacja']))),
         ]);
     } catch (\Throwable $e) {
@@ -518,8 +517,8 @@ $edit_requests    = get_edit_requests($TYPE, $id);
 $approval         = get_current_approval($TYPE, $id);
 $audit_log        = get_audit_log($TYPE, $id);
 $_letters         = get_contract_letters($TYPE, $id);
-$cert_requests    = get_certificate_requests($TYPE, $id);
-$cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
+require_once dirname(dirname(__DIR__)) . '/includes/zaswiadczenia_ezd.php';
+$_ezd_certs       = ezd_zas_for_contract($TYPE, $id);
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 
 // Zwroty kosztów
@@ -547,7 +546,7 @@ if ($approval && $approval['status'] === 'oczekuje') $_badge_obieg++;
 $_badge_obieg += count(array_filter($amendments, fn($a) => $a['status'] === 'oczekuje'));
 $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 
-$_badge_docs = count(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
+$_badge_docs = count(array_filter($_ezd_certs, fn($r) => $r['status'] === 'wniosek'));
 
 // ── Zadania powiązane z umową ─────────────────────────────────────────────────
 $_tasks_enabled = true;
@@ -2214,62 +2213,37 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <?php endif; ?>
   </div>
 
-  <!-- Zaświadczenia -->
+  <!-- Zaświadczenia (EZD) -->
   <div class="cv-section">
     <div class="cv-section-head">
       <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-award"></i></div>
       <span class="cv-section-title">Zaświadczenia</span>
-      <div class="cv-section-action d-flex gap-1 flex-wrap">
-        <?php if (is_admin()): ?>
-        <form method="post" action="<?= APP_URL ?>/certificates/issue_direct.php" style="display:inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="type" value="<?= h($TYPE) ?>">
-          <input type="hidden" name="id"   value="<?= $id ?>">
-          <button type="submit" class="btn btn-sm btn-success">
-            <i class="bi bi-award me-1"></i>Wydaj zaświadczenie
-          </button>
-        </form>
-        <?php endif; ?>
-        <?php if (module_enabled('ezd_enabled') && (is_admin() || can_read('ezd') || can_write('ezd'))): ?>
-        <a href="<?= APP_URL ?>/ezd/zaswiadczenia/new.php?prefill_type=wolontariat&prefill_id=<?= $id ?>"
-           class="btn btn-sm btn-outline-secondary" title="Zaświadczenie o posiadanej umowie (EZD)">
-          <i class="bi bi-file-earmark-check me-1"></i>Zaświadczenie EZD
+      <?php if (module_enabled('ezd_enabled') && (is_admin() || can_read('ezd') || can_write('ezd'))): ?>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/ezd/zaswiadczenia/new.php?prefill_type=<?= $TYPE ?>&prefill_id=<?= $id ?>"
+           class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg me-1"></i>Nowe zaświadczenie
         </a>
-        <?php endif; ?>
-        <?php if (!$cert_has_pending && !is_admin()): ?>
-        <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-plus-lg"></i> Złóż wniosek
-        </a>
-        <?php elseif ($cert_has_pending && !is_admin()): ?>
-        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
-        <?php endif; ?>
       </div>
+      <?php endif; ?>
     </div>
-    <?php if ($cert_requests): ?>
+    <?php if ($_ezd_certs): ?>
     <div class="table-responsive">
     <table class="cv-table">
-      <thead><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Wnioskodawca</th><th>Typ</th><th>Data</th><th>Status</th><th></th></tr></thead>
       <tbody>
-      <?php foreach ($cert_requests as $cr): ?>
+      <?php foreach ($_ezd_certs as $_ez): ?>
       <tr>
-        <td><?= h($cr['requester_name']) ?></td>
-        <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
-        <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
-        <td><?= certificate_status_badge($cr['status']) ?></td>
+        <td><?= h($_ez['wnioskodawca_name']) ?></td>
+        <td class="small text-muted"><?= h($_ez['typ_nazwa']) ?></td>
+        <td class="small text-nowrap"><?= date_pl($_ez['created_at']) ?></td>
+        <td><?= ezd_zas_status_badge($_ez['status']) ?></td>
         <td class="text-end text-nowrap">
-          <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
-          <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
-            <i class="bi bi-award"></i> Wydaj
-          </a>
-          <?php elseif ($cr['status'] === 'wydane'): ?>
-          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank"
-             class="btn btn-sm btn-outline-success" title="Podgląd i druk PDF">
-            <i class="bi bi-printer"></i> Drukuj
-          </a>
-          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $cr['id'] ?>"
-             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX (Word)">
-            <i class="bi bi-file-earmark-word"></i> DOCX
-          </a>
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/view.php?id=<?= $_ez['id'] ?>"
+             class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+          <?php if (!empty($_ez['tresc_html']) || !empty($_ez['plik_path'])): ?>
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $_ez['id'] ?>"
+             target="_blank" class="btn btn-sm btn-outline-success"><i class="bi bi-printer"></i></a>
           <?php endif; ?>
         </td>
       </tr>
@@ -2278,7 +2252,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </table>
     </div>
     <?php else: ?>
-    <div class="text-muted small">Brak wniosków o zaświadczenia.</div>
+    <div class="text-muted small">Brak zaświadczeń EZD dla tej umowy.</div>
     <?php endif; ?>
   </div>
 

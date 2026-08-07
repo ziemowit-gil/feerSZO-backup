@@ -39,6 +39,10 @@
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN qr_on_pdf INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_zas_verify_code ON ezd_zaswiadczenia_wlasne(verify_code) WHERE verify_code IS NOT NULL"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN z_urzedu INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Powiązanie z umową (przeniesienie modelu z certificates.php)
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN contract_type TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN contract_id INTEGER"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_zas_contract ON ezd_zaswiadczenia_wlasne(contract_type,contract_id) WHERE contract_type IS NOT NULL"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,13 +147,34 @@ function ezd_zas_get(int $id): ?array {
     return $r;
 }
 
-function ezd_zas_create(int $typ_id, string $name, string $email, array $dane, int $user_id): int {
+function ezd_zas_create(
+    int $typ_id, string $name, string $email, array $dane, int $user_id,
+    string $contract_type = '', int $contract_id = 0
+): int {
     db()->prepare(
         "INSERT INTO ezd_zaswiadczenia_wlasne
-         (typ_id,wnioskodawca_name,wnioskodawca_email,dane_json,status,created_by)
-         VALUES (?,?,?,?,?,?)"
-    )->execute([$typ_id, $name, $email, json_encode($dane, JSON_UNESCAPED_UNICODE), 'wniosek', $user_id]);
+         (typ_id,wnioskodawca_name,wnioskodawca_email,dane_json,status,created_by,contract_type,contract_id)
+         VALUES (?,?,?,?,?,?,?,?)"
+    )->execute([
+        $typ_id, $name, $email, json_encode($dane, JSON_UNESCAPED_UNICODE), 'wniosek', $user_id,
+        $contract_type ?: null, $contract_id ?: null,
+    ]);
     return (int)db()->lastInsertId();
+}
+
+/** Zaświadczenia EZD powiązane z daną umową. */
+function ezd_zas_for_contract(string $type, int $id): array {
+    try {
+        return db_all(
+            "SELECT w.*, zt.nazwa AS typ_nazwa, u.name AS created_by_name
+             FROM ezd_zaswiadczenia_wlasne w
+             JOIN ezd_zas_typy zt ON zt.id=w.typ_id
+             LEFT JOIN users u ON u.id=w.created_by
+             WHERE w.contract_type=? AND w.contract_id=?
+             ORDER BY w.created_at DESC",
+            [$type, $id]
+        );
+    } catch (\Throwable $e) { return []; }
 }
 
 /**
@@ -586,64 +611,145 @@ function ezd_zas_by_verify_code(string $code): ?array {
     );
 }
 
-// Seed: typ „Zaświadczenie o posiadanej umowie" — wstawia raz, idempotentnie.
+// ── Seedy wbudowanych typów zaświadczeń — idempotentne ──────────────────────
 (function () {
     static $done = false;
     if ($done) return;
     $done = true;
     try { db()->query("SELECT 1 FROM ezd_zas_typy LIMIT 1"); } catch (\Throwable $e) { return; }
-    if (db_one("SELECT id FROM ezd_zas_typy WHERE kod='zaswiadczenie_umowy'")) return;
 
-    $pola = [
-        ['name'=>'imie_nazwisko', 'label'=>'Imię i nazwisko',               'type'=>'text',   'required'=>true],
-        ['name'=>'typ_umowy',     'label'=>'Typ umowy',                       'type'=>'select', 'required'=>true,
-         'options'=>['Porozumienie wolontariackie','Umowa o pracę','Umowa zlecenie','Umowa o dzieło','Inne']],
-        ['name'=>'numer_umowy',   'label'=>'Numer umowy / porozumienia',      'type'=>'text',   'required'=>true],
-        ['name'=>'data_zawarcia', 'label'=>'Data zawarcia (dd.mm.rrrr)',       'type'=>'text',   'required'=>false],
-        ['name'=>'data_od',       'label'=>'Obowiązuje od (dd.mm.rrrr)',       'type'=>'text',   'required'=>true],
-        ['name'=>'data_do',       'label'=>'Obowiązuje do (dd.mm.rrrr lub „bezterminowe")', 'type'=>'text', 'required'=>false],
-        ['name'=>'stanowisko',    'label'=>'Stanowisko / funkcja / rola',      'type'=>'text',   'required'=>false],
-        ['name'=>'miejsce',       'label'=>'Miejsce realizacji',               'type'=>'text',   'required'=>false],
-        ['name'=>'status_umowy',  'label'=>'Status umowy',                     'type'=>'select', 'required'=>true,
-         'options'=>['aktywna','zawieszona','zakończona','rozwiązana']],
-    ];
+    $_tbl = fn(array $rows) => (function () use ($rows) {
+        $t = '<table style="width:100%;border-collapse:collapse;margin:0 0 16pt;font-size:10.5pt"><tbody>';
+        foreach ($rows as [$l, $k]) {
+            $t .= '<tr><td style="padding:5pt 10pt;font-weight:bold;width:42%;border:1px solid #ccc;background:#f5f5f5">'
+                . $l . '</td><td style="padding:5pt 10pt;border:1px solid #ccc">' . $k . '</td></tr>';
+        }
+        return $t . '</tbody></table>';
+    })();
 
-    $rows = [
-        ['Imię i nazwisko',              '{{imie_nazwisko}}'],
-        ['Typ umowy',                    '{{typ_umowy}}'],
-        ['Numer umowy / porozumienia',   '{{numer_umowy}}'],
-        ['Data zawarcia',                '{{data_zawarcia}}'],
-        ['Obowiązuje od',                '{{data_od}}'],
-        ['Obowiązuje do',                '{{data_do}}'],
-        ['Stanowisko / funkcja / rola',  '{{stanowisko}}'],
-        ['Miejsce realizacji',           '{{miejsce}}'],
-        ['Status umowy',                 '{{status_umowy}}'],
-    ];
+    $_ins = function (string $kod, string $nazwa, string $opis, string $tresc, array $pola, string $prefix) {
+        if (db_one("SELECT id FROM ezd_zas_typy WHERE kod=?", [$kod])) return;
+        try {
+            db()->prepare(
+                "INSERT INTO ezd_zas_typy
+                 (kod,nazwa,opis,szablon_tresc,szablon_pola,wymaga_akceptacji,is_active,nr_prefix,qr_enabled)
+                 VALUES (?,?,?,?,?,1,1,?,1)"
+            )->execute([$kod, $nazwa, $opis, $tresc, json_encode($pola, JSON_UNESCAPED_UNICODE), $prefix]);
+        } catch (\Throwable $e) { error_log('[ezd_zas seed] ' . $e->getMessage()); }
+    };
 
-    $tbl = '<table style="width:100%;border-collapse:collapse;margin:0 0 16pt;font-size:10.5pt"><tbody>';
-    foreach ($rows as [$lbl, $tok]) {
-        $tbl .= '<tr>'
-              . '<td style="padding:5pt 10pt;font-weight:bold;width:42%;border:1px solid #ccc;background:#f5f5f5">' . $lbl . '</td>'
-              . '<td style="padding:5pt 10pt;border:1px solid #ccc">' . $tok . '</td>'
-              . '</tr>';
-    }
-    $tbl .= '</tbody></table>';
+    // 1. Zaświadczenie o wolontariacie
+    $_ins(
+        'zaswiadczenie_wolontariat',
+        'Zaświadczenie o wolontariacie',
+        'Potwierdza udział w wolontariacie na podstawie porozumienia wolontariackiego.',
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> był(a) wolontariuszem/wolontariuszką w <strong>{{organizacja}}</strong> na podstawie Porozumienia o Wolontariacie nr <strong>{{numer_umowy}}</strong>, zawartego dnia {{data_zawarcia}}.</p>' . "\n\n"
+        . $_tbl([
+            ['Numer porozumienia',    '{{numer_umowy}}'],
+            ['Data zawarcia',         '{{data_zawarcia}}'],
+            ['Okres wolontariatu od', '{{data_od}}'],
+            ['Okres wolontariatu do', '{{data_do}}'],
+            ['Zakres działań',        '{{zakres_dzialan}}'],
+        ]) . "\n\n"
+        . '<p>{{cel_akapit}}</p>',
+        [
+            ['name'=>'imie_nazwisko',  'label'=>'Imię i nazwisko',                          'type'=>'text',     'required'=>true],
+            ['name'=>'numer_umowy',    'label'=>'Numer porozumienia',                        'type'=>'text',     'required'=>true],
+            ['name'=>'data_zawarcia',  'label'=>'Data zawarcia (dd.mm.rrrr)',                'type'=>'text',     'required'=>false],
+            ['name'=>'data_od',        'label'=>'Okres od (dd.mm.rrrr)',                     'type'=>'text',     'required'=>true],
+            ['name'=>'data_do',        'label'=>'Okres do (dd.mm.rrrr lub „bezterminowo")',  'type'=>'text',     'required'=>false],
+            ['name'=>'zakres_dzialan', 'label'=>'Zakres działań wolontariackich',            'type'=>'textarea', 'required'=>false],
+            ['name'=>'cel_akapit',     'label'=>'Cel zaświadczenia (akapit końcowy)',         'type'=>'text',     'required'=>false],
+        ],
+        'ZAWOL'
+    );
 
-    $tresc = '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że '
-           . '<strong>{{imie_nazwisko}}</strong> zawarł(a) z <strong>{{organizacja}}</strong> '
-           . 'umowę / porozumienie na następujących warunkach:</p>'
-           . "\n\n" . $tbl . "\n\n"
-           . '<p>Zaświadczenie wydano na wniosek zainteresowanego / z inicjatywy organizacji.</p>';
+    // 2. Zaświadczenie o zatrudnieniu
+    $_ins(
+        'zaswiadczenie_zatrudnienie',
+        'Zaświadczenie o zatrudnieniu',
+        'Potwierdza fakt zatrudnienia na podstawie umowy o pracę.',
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> jest/był(a) zatrudniony(a) w <strong>{{organizacja}}</strong> na podstawie umowy o pracę nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
+        . $_tbl([
+            ['Numer umowy o pracę',   '{{numer_umowy}}'],
+            ['Data zawarcia',         '{{data_zawarcia}}'],
+            ['Stanowisko',            '{{stanowisko}}'],
+            ['Zatrudnienie od',       '{{data_od}}'],
+            ['Zatrudnienie do',       '{{data_do}}'],
+        ]) . "\n\n"
+        . '<p>{{cel_akapit}}</p>',
+        [
+            ['name'=>'imie_nazwisko', 'label'=>'Imię i nazwisko',                          'type'=>'text', 'required'=>true],
+            ['name'=>'numer_umowy',   'label'=>'Numer umowy o pracę',                       'type'=>'text', 'required'=>true],
+            ['name'=>'data_zawarcia', 'label'=>'Data zawarcia (dd.mm.rrrr)',                'type'=>'text', 'required'=>false],
+            ['name'=>'stanowisko',    'label'=>'Zajmowane stanowisko',                      'type'=>'text', 'required'=>false],
+            ['name'=>'data_od',       'label'=>'Zatrudnienie od (dd.mm.rrrr)',               'type'=>'text', 'required'=>true],
+            ['name'=>'data_do',       'label'=>'Zatrudnienie do (dd.mm.rrrr lub „bezterminowo")', 'type'=>'text', 'required'=>false],
+            ['name'=>'cel_akapit',    'label'=>'Cel zaświadczenia (akapit końcowy)',         'type'=>'text', 'required'=>false],
+        ],
+        'ZAWPR'
+    );
 
-    db()->prepare(
-        "INSERT INTO ezd_zas_typy
-         (kod, nazwa, opis, szablon_tresc, szablon_pola, wymaga_akceptacji, is_active, nr_prefix, qr_enabled)
-         VALUES (?,?,?,?,?,1,1,'ZAS-UM',1)"
-    )->execute([
+    // 3. Zaświadczenie o współpracy / wykonaniu umowy
+    $_ins(
+        'zaswiadczenie_wspolpraca',
+        'Zaświadczenie o współpracy / wykonaniu umowy',
+        'Potwierdza realizację umowy cywilnoprawnej lub współpracę z organizacją.',
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> wykonał(a) zlecenie na rzecz <strong>{{organizacja}}</strong> na podstawie {{typ_umowy}} nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
+        . $_tbl([
+            ['Typ umowy',              '{{typ_umowy}}'],
+            ['Numer umowy',            '{{numer_umowy}}'],
+            ['Data zawarcia',          '{{data_zawarcia}}'],
+            ['Okres realizacji od',    '{{data_od}}'],
+            ['Okres realizacji do',    '{{data_do}}'],
+            ['Przedmiot umowy',        '{{przedmiot}}'],
+        ]) . "\n\n"
+        . '<p>{{cel_akapit}}</p>',
+        [
+            ['name'=>'imie_nazwisko', 'label'=>'Imię i nazwisko / nazwa firmy', 'type'=>'text', 'required'=>true],
+            ['name'=>'typ_umowy',     'label'=>'Typ umowy', 'type'=>'select', 'required'=>true,
+             'options'=>['Umowy zlecenie','Umowy o dzieło','Umowy o świadczenie usług','Umowy współpracy','Innej umowy']],
+            ['name'=>'numer_umowy',   'label'=>'Numer umowy',                                  'type'=>'text',     'required'=>true],
+            ['name'=>'data_zawarcia', 'label'=>'Data zawarcia (dd.mm.rrrr)',                    'type'=>'text',     'required'=>false],
+            ['name'=>'data_od',       'label'=>'Realizacja od (dd.mm.rrrr)',                    'type'=>'text',     'required'=>true],
+            ['name'=>'data_do',       'label'=>'Realizacja do (dd.mm.rrrr)',                    'type'=>'text',     'required'=>false],
+            ['name'=>'przedmiot',     'label'=>'Przedmiot umowy',                               'type'=>'textarea', 'required'=>false],
+            ['name'=>'cel_akapit',    'label'=>'Cel zaświadczenia (akapit końcowy)',             'type'=>'text',     'required'=>false],
+        ],
+        'ZAWWS'
+    );
+
+    // 4. Ogólne zaświadczenie o posiadanej umowie (tabela danych)
+    $_ins(
         'zaswiadczenie_umowy',
         'Zaświadczenie o posiadanej umowie',
         'Zaświadczenie potwierdzające zawarcie umowy lub porozumienia z organizacją. Dane umowy w formie tabeli.',
-        $tresc,
-        json_encode($pola, JSON_UNESCAPED_UNICODE),
-    ]);
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> zawarł(a) z <strong>{{organizacja}}</strong> umowę / porozumienie na następujących warunkach:</p>' . "\n\n"
+        . $_tbl([
+            ['Imię i nazwisko',             '{{imie_nazwisko}}'],
+            ['Typ umowy',                   '{{typ_umowy}}'],
+            ['Numer umowy / porozumienia',  '{{numer_umowy}}'],
+            ['Data zawarcia',               '{{data_zawarcia}}'],
+            ['Obowiązuje od',               '{{data_od}}'],
+            ['Obowiązuje do',               '{{data_do}}'],
+            ['Stanowisko / funkcja / rola', '{{stanowisko}}'],
+            ['Miejsce realizacji',          '{{miejsce}}'],
+            ['Status umowy',                '{{status_umowy}}'],
+        ]) . "\n\n"
+        . '<p>Zaświadczenie wydano na wniosek zainteresowanego / z inicjatywy organizacji.</p>',
+        [
+            ['name'=>'imie_nazwisko', 'label'=>'Imię i nazwisko',               'type'=>'text',   'required'=>true],
+            ['name'=>'typ_umowy',     'label'=>'Typ umowy', 'type'=>'select', 'required'=>true,
+             'options'=>['Porozumienie wolontariackie','Umowa o pracę','Umowa zlecenie','Umowa o dzieło','Inne']],
+            ['name'=>'numer_umowy',   'label'=>'Numer umowy / porozumienia',    'type'=>'text',   'required'=>true],
+            ['name'=>'data_zawarcia', 'label'=>'Data zawarcia (dd.mm.rrrr)',     'type'=>'text',   'required'=>false],
+            ['name'=>'data_od',       'label'=>'Obowiązuje od (dd.mm.rrrr)',     'type'=>'text',   'required'=>true],
+            ['name'=>'data_do',       'label'=>'Obowiązuje do (lub „bezterminowe")', 'type'=>'text', 'required'=>false],
+            ['name'=>'stanowisko',    'label'=>'Stanowisko / funkcja / rola',   'type'=>'text',   'required'=>false],
+            ['name'=>'miejsce',       'label'=>'Miejsce realizacji',             'type'=>'text',   'required'=>false],
+            ['name'=>'status_umowy',  'label'=>'Status umowy', 'type'=>'select', 'required'=>true,
+             'options'=>['aktywna','zawieszona','zakończona','rozwiązana']],
+        ],
+        'ZAS-UM'
+    );
 })();
