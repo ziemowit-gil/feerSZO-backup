@@ -638,12 +638,29 @@ function ezd_zas_by_verify_code(string $code): ?array {
         } catch (\Throwable $e) { error_log('[ezd_zas seed] ' . $e->getMessage()); }
     };
 
+    // Idempotentna aktualizacja istniejących typów — wstrzykuje pole byl_jest jeśli brak
+    $_upd_byl_jest = function (string $kod, string $tresc_find, string $tresc_replace) {
+        $row = db_one("SELECT id, szablon_pola, szablon_tresc FROM ezd_zas_typy WHERE kod=?", [$kod]);
+        if (!$row) return;
+        $pola = json_decode($row['szablon_pola'] ?: '[]', true) ?: [];
+        if (in_array('byl_jest', array_column($pola, 'name'))) return;
+        $nowe = ['name'=>'byl_jest','label'=>'Jest / był(a)','type'=>'select','required'=>true,'options'=>['jest','był/była']];
+        $cel_idx = array_search('cel_akapit', array_column($pola, 'name'));
+        if ($cel_idx !== false) array_splice($pola, $cel_idx, 0, [$nowe]);
+        else $pola[] = $nowe;
+        $tresc = str_replace($tresc_find, $tresc_replace, $row['szablon_tresc']);
+        try {
+            db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?, szablon_tresc=? WHERE kod=?")
+                ->execute([json_encode($pola, JSON_UNESCAPED_UNICODE), $tresc, $kod]);
+        } catch (\Throwable $e) { error_log('[ezd_zas seed byl_jest] ' . $e->getMessage()); }
+    };
+
     // 1. Zaświadczenie o wolontariacie
     $_ins(
         'zaswiadczenie_wolontariat',
         'Zaświadczenie o wolontariacie',
         'Potwierdza udział w wolontariacie na podstawie porozumienia wolontariackiego.',
-        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> był(a) wolontariuszem/wolontariuszką w <strong>{{organizacja}}</strong> na podstawie Porozumienia o Wolontariacie nr <strong>{{numer_umowy}}</strong>, zawartego dnia {{data_zawarcia}}.</p>' . "\n\n"
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> {{byl_jest}} wolontariuszem/wolontariuszką w <strong>{{organizacja}}</strong> na podstawie Porozumienia o Wolontariacie nr <strong>{{numer_umowy}}</strong>, zawartego dnia {{data_zawarcia}}.</p>' . "\n\n"
         . $_tbl([
             ['Numer porozumienia',    '{{numer_umowy}}'],
             ['Data zawarcia',         '{{data_zawarcia}}'],
@@ -659,9 +676,16 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'data_od',        'label'=>'Okres od (dd.mm.rrrr)',                     'type'=>'text',     'required'=>true],
             ['name'=>'data_do',        'label'=>'Okres do (dd.mm.rrrr lub „bezterminowo")',  'type'=>'text',     'required'=>false],
             ['name'=>'zakres_dzialan', 'label'=>'Zakres działań wolontariackich',            'type'=>'textarea', 'required'=>false],
+            ['name'=>'byl_jest',       'label'=>'Jest / był(a)',                             'type'=>'select',   'required'=>true,
+             'options'=>['jest','był/była']],
             ['name'=>'cel_akapit',     'label'=>'Cel zaświadczenia (akapit końcowy)',         'type'=>'text',     'required'=>false],
         ],
         'ZAWOL'
+    );
+    $_upd_byl_jest(
+        'zaswiadczenie_wolontariat',
+        'był(a) wolontariuszem/wolontariuszką',
+        '{{byl_jest}} wolontariuszem/wolontariuszką'
     );
 
     // 2. Zaświadczenie o zatrudnieniu
@@ -669,7 +693,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
         'zaswiadczenie_zatrudnienie',
         'Zaświadczenie o zatrudnieniu',
         'Potwierdza fakt zatrudnienia na podstawie umowy o pracę.',
-        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> jest/był(a) zatrudniony(a) w <strong>{{organizacja}}</strong> na podstawie umowy o pracę nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> {{byl_jest}} zatrudniony(a) w <strong>{{organizacja}}</strong> na podstawie umowy o pracę nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
         . $_tbl([
             ['Numer umowy o pracę',   '{{numer_umowy}}'],
             ['Data zawarcia',         '{{data_zawarcia}}'],
@@ -685,9 +709,16 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'stanowisko',    'label'=>'Zajmowane stanowisko',                      'type'=>'text', 'required'=>false],
             ['name'=>'data_od',       'label'=>'Zatrudnienie od (dd.mm.rrrr)',               'type'=>'text', 'required'=>true],
             ['name'=>'data_do',       'label'=>'Zatrudnienie do (dd.mm.rrrr lub „bezterminowo")', 'type'=>'text', 'required'=>false],
+            ['name'=>'byl_jest',      'label'=>'Jest / był(a)',                             'type'=>'select', 'required'=>true,
+             'options'=>['jest','był/była']],
             ['name'=>'cel_akapit',    'label'=>'Cel zaświadczenia (akapit końcowy)',         'type'=>'text', 'required'=>false],
         ],
         'ZAWPR'
+    );
+    $_upd_byl_jest(
+        'zaswiadczenie_zatrudnienie',
+        'jest/był(a) zatrudniony(a)',
+        '{{byl_jest}} zatrudniony(a)'
     );
 
     // 3. Zaświadczenie o współpracy / wykonaniu umowy
@@ -695,7 +726,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
         'zaswiadczenie_wspolpraca',
         'Zaświadczenie o współpracy / wykonaniu umowy',
         'Potwierdza realizację umowy cywilnoprawnej lub współpracę z organizacją.',
-        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> wykonał(a) zlecenie na rzecz <strong>{{organizacja}}</strong> na podstawie {{typ_umowy}} nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong> {{byl_jest}} wykonawcą zlecenia na rzecz <strong>{{organizacja}}</strong> na podstawie {{typ_umowy}} nr <strong>{{numer_umowy}}</strong>, zawartej dnia {{data_zawarcia}}.</p>' . "\n\n"
         . $_tbl([
             ['Typ umowy',              '{{typ_umowy}}'],
             ['Numer umowy',            '{{numer_umowy}}'],
@@ -714,9 +745,16 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'data_od',       'label'=>'Realizacja od (dd.mm.rrrr)',                    'type'=>'text',     'required'=>true],
             ['name'=>'data_do',       'label'=>'Realizacja do (dd.mm.rrrr)',                    'type'=>'text',     'required'=>false],
             ['name'=>'przedmiot',     'label'=>'Przedmiot umowy',                               'type'=>'textarea', 'required'=>false],
+            ['name'=>'byl_jest',      'label'=>'Jest / był(a)',                                 'type'=>'select',   'required'=>true,
+             'options'=>['jest','był/była']],
             ['name'=>'cel_akapit',    'label'=>'Cel zaświadczenia (akapit końcowy)',             'type'=>'text',     'required'=>false],
         ],
         'ZAWWS'
+    );
+    $_upd_byl_jest(
+        'zaswiadczenie_wspolpraca',
+        'wykonał(a) zlecenie na rzecz',
+        '{{byl_jest}} wykonawcą zlecenia na rzecz'
     );
 
     // 4. Ogólne zaświadczenie o posiadanej umowie (tabela danych)

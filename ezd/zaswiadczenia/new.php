@@ -45,11 +45,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $_prefill_ctype = $_ptype;
         $_prefill_cid   = $_pid;
 
-        $_sfmt  = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
+        $_sfmt    = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
         $_bezterm = fn(array $c) => !empty($c['bezterminowa']) || !empty($c['czas_nieokreslony']);
-        $_tlab  = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowy zlecenie',
-                   'praca'=>'Umowy o pracę','dzielo'=>'Umowy o dzieło',
-                   'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
+        $_tlab    = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowy zlecenie',
+                     'praca'=>'Umowy o pracę','dzielo'=>'Umowy o dzieło',
+                     'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
+        // Aktywne statusy → "jest", zakończone → "był/była"
+        $_byl_jest = fn(string $st) =>
+            in_array($st, ['podpisana','w realizacji','obowiązująca','aktywna','w trakcie'], true)
+                ? 'jest' : 'był/była';
 
         try {
             if ($_ptype === 'wolontariat') {
@@ -58,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                             w.data_rozpoczecia, w.data_zakonczenia,
                             COALESCE(w.bezterminowa,0) AS bezterminowa,
                             w.status,
+                            COALESCE(w.email,'') AS email,
                             COALESCE(w.miejsce_wolontariatu,'') AS miejsce,
                             COALESCE(w.wolontariat_typ,'') AS wolontariat_typ,
                             COALESCE(w.przedmiot_porozumienia,'') AS przedmiot_porozumienia,
@@ -69,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 );
                 if ($_c) {
                     $prefill_vals = [
+                        '_email'         => $_c['email'],
+                        'byl_jest'       => $_byl_jest($_c['status'] ?? ''),
                         // typ wolontariat
                         'imie_nazwisko'  => $_c['imie_nazwisko'] ?? '',
                         'numer_umowy'    => $_c['numer_umowy'] ?? '',
@@ -89,11 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 $_c = db_one(
                     "SELECT imie_nazwisko, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
                             COALESCE(czas_nieokreslony,0) AS czas_nieokreslony, status,
-                            COALESCE(stanowisko,'') AS stanowisko
+                            COALESCE(stanowisko,'') AS stanowisko,
+                            COALESCE(email,'') AS email
                      FROM umowy_praca WHERE id=?", [$_pid]
                 );
                 if ($_c) {
                     $prefill_vals = [
+                        '_email'        => $_c['email'],
+                        'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
                         'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
                         'numer_umowy'   => $_c['numer_umowy'] ?? '',
                         'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
@@ -103,21 +113,64 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                         'typ_umowy'     => 'Umowa o pracę',
                     ];
                 }
+            } elseif ($_ptype === 'dzielo') {
+                // dzielo: brak data_rozpoczecia, przedmiot w opis_dziela
+                $_c = db_one(
+                    "SELECT imie_nazwisko, numer_umowy, data_zawarcia,
+                            COALESCE(data_zakonczenia, termin_oddania,'') AS data_zakonczenia,
+                            COALESCE(bezterminowa,0) AS bezterminowa, status,
+                            COALESCE(email,'') AS email,
+                            COALESCE(opis_dziela,'') AS przedmiot
+                     FROM umowy_dzielo WHERE id=?", [$_pid]
+                );
+                if ($_c) {
+                    $prefill_vals = [
+                        '_email'        => $_c['email'],
+                        'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
+                        'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                        'typ_umowy'     => 'Umowy o dzieło',
+                        'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                        'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                        'data_od'       => $_sfmt($_c['data_zawarcia']),
+                        'data_do'       => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                        'przedmiot'     => $_c['przedmiot'] ?? '',
+                    ];
+                }
             } else {
-                $_tables = ['zlecenie'=>'umowy_zlecenie','dzielo'=>'umowy_dzielo',
-                            'uslugi'=>'umowy_uslugi','inne'=>'umowy_inne','powierzenie'=>'umowy_inne'];
+                $_tables = [
+                    'zlecenie'    => 'umowy_zlecenie',
+                    'uslugi'      => 'umowy_uslugi',
+                    'inne'        => 'umowy_inne',
+                    'powierzenie' => 'umowy_inne',
+                ];
                 $_ptable = $_tables[$_ptype] ?? null;
                 if ($_ptable) {
-                    $_przedmiot_col = ['zlecenie'=>'przedmiot_zlecenia','dzielo'=>'przedmiot_dziela',
-                                       'uslugi'=>'przedmiot_uslugi','inne'=>'','powierzenie'=>''][$_ptype] ?? '';
+                    $_przedmiot_col = [
+                        'zlecenie'    => 'przedmiot_zlecenia',
+                        'uslugi'      => 'przedmiot_uslugi',
+                        'inne'        => 'przedmiot_umowy',
+                        'powierzenie' => 'przedmiot_umowy',
+                    ][$_ptype] ?? '';
+                    // imie_nazwisko różni się per tabela
+                    $_name_col = [
+                        'uslugi'      => "COALESCE(imie_nazwisko, nazwa_wykonawcy,'') AS imie_nazwisko",
+                        'inne'        => "COALESCE(imie_nazwisko, strona_umowy,'') AS imie_nazwisko",
+                        'powierzenie' => "COALESCE(imie_nazwisko, strona_umowy,'') AS imie_nazwisko",
+                    ][$_ptype] ?? "COALESCE(imie_nazwisko,'') AS imie_nazwisko";
+                    // bezterminowa vs czas_nieokreslony
+                    $_bezterm_col = in_array($_ptype, ['inne','powierzenie'])
+                        ? "COALESCE(czas_nieokreslony,0) AS bezterminowa"
+                        : "COALESCE(bezterminowa,0) AS bezterminowa";
                     $_c = db_one(
-                        "SELECT imie_nazwisko, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
-                                COALESCE(bezterminowa,0) AS bezterminowa, status"
+                        "SELECT {$_name_col}, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
+                                {$_bezterm_col}, status, COALESCE(email,'') AS email"
                         . ($_przedmiot_col ? ", COALESCE({$_przedmiot_col},'') AS przedmiot" : ", '' AS przedmiot")
                         . " FROM {$_ptable} WHERE id=?", [$_pid]
                     );
                     if ($_c) {
                         $prefill_vals = [
+                            '_email'        => $_c['email'] ?? '',
+                            'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
                             'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
                             'typ_umowy'     => $_tlab[$_ptype] ?? 'Innej umowy',
                             'numer_umowy'   => $_c['numer_umowy'] ?? '',
@@ -251,12 +304,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="mb-3">
             <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Imię i nazwisko wnioskodawcy <span class="text-danger">*</span></label>
             <input type="text" name="wnioskodawca_name" class="form-control form-control-sm"
-                   value="<?= h($user['name'] ?? '') ?>" required>
+                   value="<?= h($prefill_vals['imie_nazwisko'] ?? $user['name'] ?? '') ?>" required>
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold mb-1" style="font-size:.78rem">Adres e-mail kontaktowy</label>
             <input type="email" name="wnioskodawca_email" class="form-control form-control-sm"
-                   value="<?= h($user['email'] ?? '') ?>">
+                   value="<?= h($prefill_vals['_email'] ?? $user['email'] ?? '') ?>">
           </div>
           <div class="mb-3">
             <div class="form-check">
