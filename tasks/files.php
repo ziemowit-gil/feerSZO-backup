@@ -149,31 +149,49 @@ if ($overview_mode) {
 <?php if (empty($ov_workspaces)): ?>
 <div class="tf-ws-empty">
   <i class="bi bi-folder2 d-block mb-2" style="font-size:2.5rem; opacity:.3"></i>
-  <p class="mb-0">Brak dostępu do żadnego obszaru roboczego.</p>
+  <p class="mb-2">Nie masz jeszcze żadnych obszarów roboczych.</p>
+  <?php if ($any_can_manage): ?>
+  <a href="<?= APP_URL ?>/tasks/settings/workspaces.php" class="btn btn-sm btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Utwórz obszar
+  </a>
+  <?php endif; ?>
 </div>
 <?php else: ?>
 
 <!-- Siatka obszarów roboczych -->
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-4">
   <?php foreach ($ov_workspaces as $ov_ws):
-    $wsColor = $ov_ws['color'] ?: '#3b82f6';
-    $wsIcon  = $ov_ws['icon']  ?: 'bi-kanban';
-    $fc = (int)($ov_ws['folder_count'] ?? 0);
-    $ff = (int)($ov_ws['file_count']   ?? 0);
+    $wsColor    = $ov_ws['color'] ?: '#3b82f6';
+    $wsIcon     = $ov_ws['icon']  ?: 'bi-kanban';
+    $fc         = (int)($ov_ws['folder_count'] ?? 0);
+    $ff         = (int)($ov_ws['file_count']   ?? 0);
+    $can_init   = $fc === 0 && $sp_ok && in_array($ov_ws['ws_role'], ['admin','editor']);
   ?>
   <div class="col">
-    <a href="?ws=<?= (int)$ov_ws['id'] ?>" class="tf-ws-card">
-      <div class="tf-ws-card-icon" style="background:<?= h($wsColor) ?>">
-        <i class="bi <?= h($wsIcon) ?>"></i>
-      </div>
-      <div class="flex-grow-1 min-width-0">
-        <div class="fw-semibold text-truncate"><?= h($ov_ws['name']) ?></div>
-        <small class="text-muted">
-          <?= $fc ?> <?= $fc === 1 ? 'folder' : 'folderów' ?> · <?= $ff ?> <?= $ff === 1 ? 'plik' : 'plików' ?>
-        </small>
-      </div>
+    <div class="tf-ws-card">
+      <a href="?ws=<?= (int)$ov_ws['id'] ?>"
+         class="d-flex align-items-center gap-3 flex-grow-1 text-decoration-none text-body min-width-0">
+        <div class="tf-ws-card-icon" style="background:<?= h($wsColor) ?>">
+          <i class="bi <?= h($wsIcon) ?>"></i>
+        </div>
+        <div class="flex-grow-1 min-width-0">
+          <div class="fw-semibold text-truncate"><?= h($ov_ws['name']) ?></div>
+          <small class="text-muted">
+            <?= $fc ?> <?= $fc === 1 ? 'folder' : 'folderów' ?> · <?= $ff ?> <?= $ff === 1 ? 'plik' : 'plików' ?>
+          </small>
+        </div>
+      </a>
+      <?php if ($can_init): ?>
+      <button class="btn btn-sm btn-outline-warning py-0 px-2 btn-init-ws flex-shrink-0"
+              data-ws-id="<?= (int)$ov_ws['id'] ?>"
+              title="Utwórz foldery dla zadań w SharePoint"
+              style="font-size:.75rem; white-space:nowrap">
+        <i class="bi bi-magic me-1"></i>Inicjuj
+      </button>
+      <?php else: ?>
       <i class="bi bi-chevron-right text-muted flex-shrink-0" style="font-size:.75rem"></i>
-    </a>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endforeach; ?>
 </div>
@@ -455,6 +473,27 @@ document.getElementById('ovUploadWsId')?.addEventListener('change', async functi
   } else {
     folderSel.innerHTML = '<option value="">Brak folderów w tym obszarze</option>';
   }
+});
+
+// ── Inicjuj foldery obszaru (overview) ───────────────────────────────────
+document.querySelectorAll('.btn-init-ws').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const wsId = +btn.dataset.wsId;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę…';
+    const r = await wsApi({action: 'init_ws_folders', workspace_id: wsId});
+    if (r.ok) {
+      btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${r.created} folderów`;
+      btn.className = 'btn btn-sm btn-success py-0 px-2 flex-shrink-0';
+      btn.style.fontSize = '.75rem';
+      setTimeout(() => window.location.href = `?ws=${wsId}`, 900);
+    } else {
+      btn.innerHTML = '<i class="bi bi-x-lg me-1"></i>Błąd';
+      btn.className = 'btn btn-sm btn-danger py-0 px-2 flex-shrink-0';
+      btn.disabled = false;
+    }
+  });
 });
 
 // ── Upload (overview): wyślij ─────────────────────────────────────────────

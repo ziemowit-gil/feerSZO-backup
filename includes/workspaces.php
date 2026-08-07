@@ -69,6 +69,7 @@ require_once __DIR__ . '/tasks.php';
     foreach ([
         "ALTER TABLE ws_folders ADD COLUMN site_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE ws_files   ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ws_folders ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
@@ -517,6 +518,89 @@ function ws_sp_init_workspace(int $ws_id): void {
     } catch (\Throwable $e) {
         error_log('[ws_sp_init_workspace] ws=' . $ws_id . ' ' . $e->getMessage());
     }
+}
+
+/**
+ * Tworzy podfolder SP dla konkretnego zadania w jego workspace.
+ * Idempotentne — jeśli folder już istnieje w DB (task_id), pomija.
+ * Zwraca istniejący lub nowo utworzony ws_folders row, lub null przy błędzie.
+ */
+function ws_sp_create_task_folder(int $task_id, ?int $user_id = null): ?array {
+    if (!ws_available()) return null;
+
+    // sprawdź czy folder już istnieje
+    $existing = db_one("SELECT * FROM ws_folders WHERE task_id = ?", [$task_id]);
+    if ($existing) return $existing;
+
+    $task = db_one("SELECT id, title, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]);
+    if (!$task || !(int)$task['workspace_id']) return null;
+
+    $ws_id = (int)$task['workspace_id'];
+    $name  = ws_sanitize_folder_name($task['title']);
+    if (!$name) $name = 'Zadanie-' . $task_id;
+
+    try {
+        $graph    = new M365Graph();
+        $drive_id = ws_sp_drive_id();
+        $root     = ws_sp_root_folder();
+        $ws_name  = ws_sanitize_folder_name(
+            db_one("SELECT name FROM task_workspaces WHERE id=?", [$ws_id])['name'] ?? 'obszar'
+        );
+
+        $graph->sp_create_folder($drive_id, '',           $root);
+        $graph->sp_create_folder($drive_id, $root,        $ws_name);
+        $sp_item = $graph->sp_create_folder($drive_id, "{$root}/{$ws_name}", $name);
+
+        $remote_path = "{$root}/{$ws_name}/{$name}";
+        $uid = $user_id ?? (current_user()['id'] ?? null);
+
+        $fid = db_insert('ws_folders', [
+            'workspace_id'     => $ws_id,
+            'task_id'          => $task_id,
+            'name'             => $task['title'],
+            'description'      => '',
+            'provider'         => 'sharepoint',
+            'remote_folder_id' => $sp_item['id'],
+            'remote_path'      => $remote_path,
+            'drive_id'         => $drive_id,
+            'created_by'       => $uid,
+        ]);
+
+        return db_one("SELECT * FROM ws_folders WHERE id = ?", [$fid]);
+    } catch (\Throwable $e) {
+        error_log('[ws_sp_create_task_folder] task=' . $task_id . ' ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Inicjalizuje foldery SP dla wszystkich zadań w danym workspace.
+ * Pomija zadania, które już mają folder (task_id w ws_folders).
+ * Zwraca liczbę nowo utworzonych folderów.
+ */
+function ws_init_task_folders(int $ws_id, ?int $user_id = null): int {
+    if (!ws_available()) return 0;
+
+    $tasks = db_all(
+        "SELECT id, title FROM tasks WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at",
+        [$ws_id]
+    );
+    if (empty($tasks)) return 0;
+
+    // Wczytaj już istniejące task_id folderów dla tego workspace
+    $existing_task_ids = array_column(
+        db_all("SELECT task_id FROM ws_folders WHERE workspace_id = ? AND task_id IS NOT NULL", [$ws_id]),
+        'task_id'
+    );
+    $existing_task_ids = array_map('intval', $existing_task_ids);
+
+    $created = 0;
+    foreach ($tasks as $t) {
+        if (in_array((int)$t['id'], $existing_task_ids, true)) continue;
+        $result = ws_sp_create_task_folder((int)$t['id'], $user_id);
+        if ($result) $created++;
+    }
+    return $created;
 }
 
 // ── Listowanie workspaces per użytkownik ──────────────────────────────────────

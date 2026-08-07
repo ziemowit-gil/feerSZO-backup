@@ -203,6 +203,20 @@ $resp = match($action) {
         return ['ok' => true, 'files' => $rows];
     })(),
 
+    // ── Inicjalizacja folderów zadań dla workspace ────────────────────────
+    'init_ws_folders' => (function () use ($body, $user_id): array {
+        $ws_id = (int)($body['workspace_id'] ?? 0);
+        if (!$ws_id) return ['ok' => false, 'error' => 'Brak workspace_id.'];
+        ws_require_access($ws_id, 'editor');
+        ws_sp_init_workspace($ws_id);
+        $created = ws_init_task_folders($ws_id, $user_id);
+        $total   = (int)(db_one(
+            "SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND deleted_at IS NULL",
+            [$ws_id]
+        )['n'] ?? 0);
+        return ['ok' => true, 'created' => $created, 'total' => $total];
+    })(),
+
     // ── Lista folderów w workspace (do pickerów w overview) ───────────────
     'list_folders' => (function () use ($body): array {
         $ws_id = (int)($body['workspace_id'] ?? 0);
