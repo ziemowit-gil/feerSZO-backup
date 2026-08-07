@@ -94,6 +94,21 @@ function crm_alias_base_url(): ?string {
     return ($https ? 'https' : 'http') . '://' . $host;
 }
 
+/**
+ * Zwraca "schemat://host" gdy request przyszedł na alias EZD (ezd.feer.org.pl,
+ * ezd.ngosystem.pl, ezd-prod-srv.feer.org.pl), inaczej null. Traefik AddPrefix
+ * dodaje /ezd/ do URI, więc redirect po zalogowaniu musi wskazywać na ezd.*
+ * z ścieżką BEZ prefiksu /ezd (Traefik sam go dołoży).
+ */
+function ezd_alias_base_url(): ?string {
+    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+    static $EZD_HOSTS = ['ezd.feer.org.pl', 'ezd.ngosystem.pl', 'ezd-prod-srv.feer.org.pl'];
+    if (!in_array($host, $EZD_HOSTS, true)) return null;
+    $https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    return ($https ? 'https' : 'http') . '://' . $host;
+}
+
 function require_login(): void {
     if (!current_user()) {
         $uri  = $_SERVER['REQUEST_URI'] ?? '/';
@@ -107,8 +122,14 @@ function require_login(): void {
             $full_uri = APP_URL . '/tozsamosc/index.php';
         }
         $crm_base = crm_alias_base_url();
+        $ezd_base = ezd_alias_base_url();
         if ($crm_base !== null) {
             header('Location: ' . $crm_base . '/crm/login.php?redirect=' . urlencode($crm_base . $uri));
+        } elseif ($ezd_base !== null) {
+            // Traefik AddPrefix dodał /ezd — zdejmij, żeby po logowaniu i powrocie
+            // na ezd.* Traefik nie podwoił prefiksu (/ezd/ezd/).
+            $ezd_rel = preg_replace('#^/ezd(?=/|$)#', '', $uri) ?: '/';
+            header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($ezd_base . $ezd_rel));
         } else {
             header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
         }
