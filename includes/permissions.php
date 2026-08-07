@@ -40,7 +40,7 @@ const PERMISSION_MODULES = [
  */
 const MODULE_REGISTRY = [
     'crm'           => ['label'=>'CRM',            'url'=>'/crm/dashboard.php',               'paths'=>['/crm/'],          'icon'=>'bi-diagram-2-fill',     'grad'=>'linear-gradient(135deg,#14532D,#16A34A)'],
-    'ezd'           => ['label'=>'Wirtualne biurko', 'url'=>'/ezd/index.php',                   'paths'=>['/ezd/'],          'icon'=>'bi-archive-fill',       'grad'=>'linear-gradient(135deg,#7C2D12,#B45309)'],
+    'ezd'           => ['label'=>'Wirtualne biurko', 'url'=>'/ezd/index.php',                   'paths'=>['/ezd/'],          'icon'=>'bi-folder2-open',       'grad'=>'linear-gradient(135deg,#134E4A,#0D9488)'],
     'umowy'         => ['label'=>'Umowy',          'url'=>'/contracts/wolontariat/list.php',  'paths'=>['/contracts/'],    'icon'=>'bi-file-earmark-text',  'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)'],
     'osoby'         => ['label'=>'Strony umów',    'url'=>'/persons/index.php',               'paths'=>['/persons/'],      'icon'=>'bi-people-fill',        'grad'=>'linear-gradient(135deg,#3730A3,#6366F1)'],
     'granty'        => ['label'=>'Granty',         'url'=>'/grants/index.php',                'paths'=>['/grants/'],       'icon'=>'bi-cash-coin',          'grad'=>'linear-gradient(135deg,#14532D,#15803D)'],

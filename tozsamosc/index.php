@@ -385,9 +385,13 @@ if (!$_tz_entries) {
         $_e['color'] = '#db2777';
         $_tz_entries[] = $_e;
     }
+    if (module_enabled('ezd_enabled') && (can_read('ezd') || is_admin())) {
+        $_ez = module_entry('ezd');
+        if ($_ez) $_tz_entries[] = $_ez;
+    }
 }
 // dodaj kolor flat do wpisów z portal_entry_points (mają grad zamiast color)
-$_tz_color_map = ['panel'=>'#db2777','crm'=>'#16a34a','ezd'=>'#1d4ed8','karty30'=>'#c2410c',
+$_tz_color_map = ['panel'=>'#db2777','crm'=>'#16a34a','ezd'=>'#0D9488','karty30'=>'#c2410c',
                   'strategy'=>'#7c3aed','szkolenia'=>'#7c3aed','directory'=>'#4f46e5'];
 foreach ($_tz_entries as &$_e) {
     if (empty($_e['color'])) {
@@ -556,6 +560,19 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <div class="text-muted small">Logowanie: <?= h($panel_login) ?> · dostęp bezterminowy w okresie obowiązywania umowy</div>
       </div>
     </div>
+    <!-- Wirtualne biurko EZD -->
+    <?php if (module_enabled('ezd_enabled') && (can_read('ezd') || is_admin())): ?>
+    <div class="tz-svc">
+      <span class="tz-svc__ico" style="background:#f0fdf9"><i class="bi bi-folder2-open" style="color:#0D9488" aria-hidden="true"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">Wirtualne biurko (EZD)
+          <span class="tz-badge tz-badge--ok ms-1"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Aktywny</span>
+        </div>
+        <div class="text-muted small">Sprawy, pisma, teczki, dekretacje — system obiegu dokumentów.</div>
+      </div>
+      <a href="<?= APP_URL ?>/ezd/index.php" class="tz-btn--ghost tz-btn btn-sm">Otwórz</a>
+    </div>
+    <?php endif; ?>
     <!-- Microsoft 365 -->
     <div class="tz-svc">
       <span class="tz-svc__ico"><i class="bi bi-microsoft" aria-hidden="true"></i></span>

@@ -133,6 +133,7 @@ if (is_file($ROOT.'/panel/calendar.php')) $_pv_daily[] = ['href'=>APP_URL.'/pane
 if (module_enabled('procedures_enabled')) $_pv_daily[] = ['href'=>APP_URL.'/panel/procedures.php','icon'=>'bi-journal-text','label'=>'Procedury','sub'=>'instrukcje i wzory'];
 if (module_enabled('org_documents_enabled')) $_pv_daily[] = ['href'=>APP_URL.'/panel/org_documents.php','icon'=>'bi-folder2-open','label'=>'Dokumenty organizacji','sub'=>'statut, regulaminy'];
 if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')) $_pv_daily[] = ['href'=>APP_URL.'/panel/whatsapp_group.php','icon'=>'bi-whatsapp','label'=>'Grupa WhatsApp','sub'=>'dołącz do grupy'];
+if (module_enabled('ezd_enabled') && can_read('ezd')) $_pv_daily[] = ['href'=>APP_URL.'/ezd/index.php','icon'=>'bi-folder2-open','label'=>'Wirtualne biurko','sub'=>'sprawy i pisma'];
 
 /* ── Aktywność: ostatnie wnioski ─────────────────────────────────────────── */
 $_pv_apps = $my_apps ? array_map(fn($a) => [
