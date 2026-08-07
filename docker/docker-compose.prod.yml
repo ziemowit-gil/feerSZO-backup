@@ -149,10 +149,10 @@ services:
       - "traefik.http.routers.feer-ezd-http.service=feer"
 
       # ezd-prod-srv.feer.org.pl → /ezd (serwer produkcyjny / dostęp serwerowy)
+      # Brak wpisu DNS → bez certresolver (dodaj gdy DNS gotowy)
       - "traefik.http.routers.feer-ezd-srv.rule=Host(`ezd-prod-srv.feer.org.pl`)"
       - "traefik.http.routers.feer-ezd-srv.entrypoints=websecure"
       - "traefik.http.routers.feer-ezd-srv.tls=true"
-      - "traefik.http.routers.feer-ezd-srv.tls.certresolver=le"
       - "traefik.http.routers.feer-ezd-srv.middlewares=sec-headers@docker,ezd-prefix@docker"
       - "traefik.http.routers.feer-ezd-srv.service=feer"
       - "traefik.http.routers.feer-ezd-srv-http.rule=Host(`ezd-prod-srv.feer.org.pl`)"
