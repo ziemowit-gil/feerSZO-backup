@@ -2230,6 +2230,12 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           </button>
         </form>
         <?php endif; ?>
+        <?php if (module_enabled('ezd_enabled') && (is_admin() || can_read('ezd') || can_write('ezd'))): ?>
+        <a href="<?= APP_URL ?>/ezd/zaswiadczenia/new.php?prefill_type=wolontariat&prefill_id=<?= $id ?>"
+           class="btn btn-sm btn-outline-secondary" title="Zaświadczenie o posiadanej umowie (EZD)">
+          <i class="bi bi-file-earmark-check me-1"></i>Zaświadczenie EZD
+        </a>
+        <?php endif; ?>
         <?php if (!$cert_has_pending && !is_admin()): ?>
         <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
           <i class="bi bi-plus-lg"></i> Złóż wniosek

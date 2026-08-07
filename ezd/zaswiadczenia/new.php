@@ -16,6 +16,64 @@ $user    = current_user();
 $typ_id  = (int)($_GET['typ_id'] ?? $_POST['typ_id'] ?? 0);
 $typy    = ezd_zas_typy_all(true);
 
+// Prefill z umowy: ?prefill_type=wolontariat&prefill_id=NNN
+$prefill_vals = [];
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $_ptype = preg_replace('/[^a-z]/', '', strtolower($_GET['prefill_type'] ?? ''));
+    $_pid   = (int)($_GET['prefill_id'] ?? 0);
+    if ($_ptype && $_pid) {
+        if (!$typ_id) {
+            $_zas_umowy = db_one("SELECT id FROM ezd_zas_typy WHERE kod='zaswiadczenie_umowy' AND is_active=1");
+            if ($_zas_umowy) $typ_id = (int)$_zas_umowy['id'];
+        }
+        $_sfmt  = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
+        $_smap  = ['podpisana'=>'aktywna','w realizacji'=>'aktywna','obowiązująca'=>'aktywna',
+                   'zawieszona'=>'zawieszona','zakończona'=>'zakończona','rozwiązana'=>'rozwiązana'];
+        $_tlab  = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowa zlecenie',
+                   'praca'=>'Umowa o pracę','dzielo'=>'Umowa o dzieło'];
+        try {
+            if ($_ptype === 'wolontariat') {
+                $_c = db_one(
+                    "SELECT w.imie_nazwisko, w.numer_umowy, w.data_zawarcia,
+                            w.data_rozpoczecia, w.data_zakonczenia,
+                            COALESCE(w.bezterminowa,0) AS bezterminowa,
+                            w.status,
+                            COALESCE(w.miejsce_wolontariatu,'') AS miejsce,
+                            COALESCE(w.wolontariat_typ,'') AS wolontariat_typ,
+                            COALESCE(p.name,'') AS stanowisko_name
+                     FROM umowy_wolontariat w
+                     LEFT JOIN org_positions p ON p.id = w.org_position_id
+                     WHERE w.id=?",
+                    [$_pid]
+                );
+            } else {
+                $_ptable = 'umowy_' . $_ptype;
+                $_c = db_one(
+                    "SELECT imie_nazwisko, numer_umowy, data_zawarcia,
+                            data_rozpoczecia, data_zakonczenia,
+                            COALESCE(bezterminowa,0) AS bezterminowa, status,
+                            '' AS miejsce, '' AS wolontariat_typ, '' AS stanowisko_name
+                     FROM {$_ptable} WHERE id=?",
+                    [$_pid]
+                );
+            }
+            if (!empty($_c)) {
+                $prefill_vals = [
+                    'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                    'typ_umowy'     => $_tlab[$_ptype] ?? 'Inne',
+                    'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                    'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                    'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                    'data_do'       => $_c['bezterminowa'] ? 'bezterminowe' : $_sfmt($_c['data_zakonczenia']),
+                    'stanowisko'    => $_c['stanowisko_name'] ?: ($_c['wolontariat_typ'] ?? ''),
+                    'miejsce'       => $_c['miejsce'] ?? '',
+                    'status_umowy'  => $_smap[$_c['status'] ?? ''] ?? ($_c['status'] ?? ''),
+                ];
+            }
+        } catch (\Throwable $e) { /* brak tabeli lub kolumny — ignoruj */ }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
@@ -156,17 +214,20 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               $fn   = 'pole_' . ($pole['name'] ?? '');
               $type = $pole['type'] ?? 'text';
               $req  = !empty($pole['required']) ? 'required' : '';
+              $pval = $prefill_vals[$pole['name'] ?? ''] ?? '';
               if ($type === 'textarea'): ?>
-            <textarea name="<?= h($fn) ?>" class="form-control form-control-sm" rows="3" <?= $req ?>></textarea>
+            <textarea name="<?= h($fn) ?>" class="form-control form-control-sm" rows="3" <?= $req ?>><?= h($pval) ?></textarea>
             <?php elseif ($type === 'select'): ?>
             <select name="<?= h($fn) ?>" class="form-select form-select-sm" <?= $req ?>>
               <option value="">— wybierz —</option>
-              <?php foreach($pole['options'] ?? [] as $opt): ?><option><?= h($opt) ?></option><?php endforeach; ?>
+              <?php foreach($pole['options'] ?? [] as $opt): ?>
+              <option <?= $opt === $pval ? 'selected' : '' ?>><?= h($opt) ?></option>
+              <?php endforeach; ?>
             </select>
             <?php elseif ($type === 'date'): ?>
-            <input type="date" name="<?= h($fn) ?>" class="form-control form-control-sm" <?= $req ?>>
+            <input type="date" name="<?= h($fn) ?>" class="form-control form-control-sm" <?= $req ?> value="<?= h($pval) ?>">
             <?php else: ?>
-            <input type="text" name="<?= h($fn) ?>" class="form-control form-control-sm" <?= $req ?>>
+            <input type="text" name="<?= h($fn) ?>" class="form-control form-control-sm" <?= $req ?> value="<?= h($pval) ?>">
             <?php endif; ?>
           </div>
           <?php endforeach; ?>
