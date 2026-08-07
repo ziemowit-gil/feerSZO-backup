@@ -143,6 +143,20 @@ $resp = match($action) {
         return ws_unlink_file_from_task($file_id, $task_id);
     })(),
 
+    // ── Zadania powiązane z plikiem ───────────────────────────────────────────
+    'tasks_for_file' => (function () use ($body): array {
+        $file_id = (int)($body['file_id'] ?? 0);
+        if (!$file_id) return ['ok' => false, 'error' => 'Brak file_id.', 'tasks' => []];
+
+        $file = ws_get_file($file_id);
+        if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'tasks' => []];
+
+        ws_require_access((int)$file['workspace_id']);
+
+        $tasks = ws_tasks_for_file($file_id);
+        return ['ok' => true, 'tasks' => $tasks];
+    })(),
+
     // ── Pliki powiązane z zadaniem ────────────────────────────────────────────
     'files_for_task' => (function () use ($body): array {
         $task_id = (int)($body['task_id'] ?? 0);

@@ -210,22 +210,26 @@ include dirname(__DIR__) . '/includes/header.php';
                   'tar','gz'         => 'bi-file-earmark-zip text-secondary',
                   default            => 'bi-file-earmark text-muted',
               };
-              $task_count = (int)db_one(
+              $task_count = (int)(db_one(
                   "SELECT COUNT(*) AS n FROM ws_task_files WHERE file_id=?",
                   [$f['id']]
-              )['n'];
+              )['n'] ?? 0);
+              $fid = (int)$f['id'];
             ?>
-            <tr>
+            <tr id="frow-<?= $fid ?>">
               <td class="ps-3">
                 <i class="bi <?= $icon ?>" style="font-size:1.1rem"></i>
               </td>
               <td class="text-truncate" style="max-width:220px">
                 <span title="<?= h($f['name']) ?>"><?= h($f['name']) ?></span>
-                <?php if ($task_count): ?>
-                <span class="badge rounded-pill text-bg-info ms-1" style="font-size:.6rem" title="Powiązane zadania">
+                <!-- klikalny badge — pokazuje/ukrywa wiersz z zadaniami -->
+                <button class="badge rounded-pill border-0 ms-1 btn-file-tasks
+                               <?= $task_count ? 'text-bg-info' : 'text-bg-light text-muted' ?>"
+                        style="font-size:.6rem;cursor:pointer"
+                        data-file-id="<?= $fid ?>"
+                        title="<?= $task_count ? 'Pokaż powiązane zadania' : 'Brak powiązanych zadań — przypisz' ?>">
                   <i class="bi bi-check2-square me-1"></i><?= $task_count ?>
-                </span>
-                <?php endif; ?>
+                </button>
               </td>
               <td class="d-none d-md-table-cell text-muted"><?= ws_format_size((int)$f['file_size']) ?></td>
               <td class="d-none d-lg-table-cell text-muted text-truncate" style="max-width:120px">
@@ -236,24 +240,31 @@ include dirname(__DIR__) . '/includes/header.php';
               </td>
               <td class="text-end pe-2">
                 <div class="d-flex gap-1 justify-content-end">
-                  <!-- Pobierz -->
-                  <a href="<?= APP_URL ?>/workspaces/api.php?action=download&id=<?= (int)$f['id'] ?>&_csrf=<?= urlencode(csrf_token()) ?>"
+                  <a href="<?= APP_URL ?>/workspaces/api.php?action=download&id=<?= $fid ?>&_csrf=<?= urlencode(csrf_token()) ?>"
                      class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
                     <i class="bi bi-download"></i>
                   </a>
-                  <!-- Przypisz do zadania -->
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-link-task"
-                          data-id="<?= (int)$f['id'] ?>" data-name="<?= h($f['name']) ?>"
+                          data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>"
                           title="Przypisz do zadania">
                     <i class="bi bi-link-45deg"></i>
                   </button>
-                  <!-- Usuń -->
                   <?php if ($can_manage): ?>
                   <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-delete-file"
-                          data-id="<?= (int)$f['id'] ?>" title="Usuń plik">
+                          data-id="<?= $fid ?>" title="Usuń plik">
                     <i class="bi bi-trash3"></i>
                   </button>
                   <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+            <!-- Wiersz detali: zadania powiązane z tym plikiem (lazy-load) -->
+            <tr id="ftasks-<?= $fid ?>" class="file-tasks-row" style="display:none">
+              <td colspan="6" class="p-0 ps-5 pe-3 pb-2 bg-light" style="border-top:none">
+                <div class="file-tasks-content py-2" id="ftasks-content-<?= $fid ?>">
+                  <span class="text-muted small">
+                    <span class="spinner-border spinner-border-sm me-1"></span>Wczytuję…
+                  </span>
                 </div>
               </td>
             </tr>
@@ -316,6 +327,8 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php foreach ($tasks as $t):
           $done     = (bool)$t['is_done_state'];
           $overdue  = !$done && $t['due_date'] && $t['due_date'] < date('Y-m-d');
+          $tid      = (int)$t['id'];
+          $lf       = (int)$t['linked_files'];
           $priority = match($t['priority'] ?? '') {
               'high'   => ['bi-dot text-danger',   'Wysoki'],
               'medium' => ['bi-dot text-warning',  'Średni'],
@@ -323,7 +336,7 @@ include dirname(__DIR__) . '/includes/header.php';
               default  => ['bi-dot text-muted',    ''],
           };
         ?>
-        <tr class="<?= $done ? 'text-muted' : '' ?>">
+        <tr id="trow-<?= $tid ?>" class="<?= $done ? 'text-muted' : '' ?>">
           <td class="ps-3">
             <div class="d-flex align-items-center gap-1">
               <i class="bi <?= $priority[0] ?>" style="font-size:1.2rem" title="Priorytet: <?= $priority[1] ?>"></i>
@@ -337,19 +350,30 @@ include dirname(__DIR__) . '/includes/header.php';
             <?= $t['due_date'] ? date('d.m.Y', strtotime($t['due_date'])) : '—' ?>
           </td>
           <td class="d-none d-lg-table-cell">
-            <?php if ($t['linked_files']): ?>
-            <span class="badge rounded-pill text-bg-info" style="font-size:.65rem">
-              <i class="bi bi-paperclip me-1"></i><?= (int)$t['linked_files'] ?>
-            </span>
-            <?php else: ?>
-            <span class="text-muted">—</span>
-            <?php endif; ?>
+            <!-- klikalny badge — pokazuje/ukrywa pliki zadania -->
+            <button class="badge rounded-pill border-0 btn-task-files
+                           <?= $lf ? 'text-bg-info' : 'text-bg-light text-muted' ?>"
+                    style="font-size:.65rem;cursor:pointer"
+                    data-task-id="<?= $tid ?>"
+                    title="<?= $lf ? 'Pokaż pliki z koszulki' : 'Brak powiązanych plików — dołącz' ?>">
+              <i class="bi bi-paperclip me-1"></i><?= $lf ?>
+            </button>
           </td>
           <td class="text-end pe-2">
-            <a href="<?= APP_URL ?>/tasks/?task=<?= (int)$t['id'] ?>&ws=<?= $ws_id ?>"
-               class="btn btn-sm btn-outline-secondary py-0 px-2">
-              <i class="bi bi-eye"></i>
+            <a href="<?= APP_URL ?>/tasks/?task=<?= $tid ?>&ws=<?= $ws_id ?>"
+               class="btn btn-sm btn-outline-secondary py-0 px-2" title="Otwórz zadanie">
+              <i class="bi bi-box-arrow-up-right"></i>
             </a>
+          </td>
+        </tr>
+        <!-- Wiersz detali: pliki z koszulki powiązane z tym zadaniem -->
+        <tr id="tfiles-<?= $tid ?>" class="task-files-row" style="display:none">
+          <td colspan="5" class="p-0 ps-4 pe-3 pb-2 bg-light" style="border-top:none">
+            <div class="task-files-content py-2" id="tfiles-content-<?= $tid ?>">
+              <span class="text-muted small">
+                <span class="spinner-border spinner-border-sm me-1"></span>Wczytuję…
+              </span>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -422,10 +446,242 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <script>
-const CSRF    = <?= json_encode(csrf_token()) ?>;
-const API     = <?= json_encode(APP_URL . '/workspaces/api.php') ?>;
-const WS_ID   = <?= $ws_id ?>;
+const CSRF      = <?= json_encode(csrf_token()) ?>;
+const API       = <?= json_encode(APP_URL . '/workspaces/api.php') ?>;
+const TASKS_URL = <?= json_encode(APP_URL . '/tasks/') ?>;
+const WS_ID     = <?= $ws_id ?>;
 const FOLDER_ID = <?= $active_folder_id ?: 'null' ?>;
+
+// ── Pomocnicze ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function wsApi(payload) {
+  return fetch(API, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({_csrf: CSRF, ...payload})
+  }).then(r => r.json()).catch(() => ({ok: false, error: 'Błąd połączenia.'}));
+}
+
+// ── Ikona pliku wg rozszerzenia ───────────────────────────────────────────────
+function fileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (['jpg','jpeg','png','gif','webp'].includes(ext)) return 'bi-file-earmark-image text-info';
+  if (ext === 'pdf')                                   return 'bi-file-earmark-pdf text-danger';
+  if (['doc','docx'].includes(ext))                    return 'bi-file-earmark-word text-primary';
+  if (['xls','xlsx'].includes(ext))                    return 'bi-file-earmark-excel text-success';
+  if (['zip','7z'].includes(ext))                      return 'bi-file-earmark-zip text-secondary';
+  return 'bi-file-earmark text-muted';
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TAB A: Plik → lista powiązanych zadań
+// ────────────────────────────────────────────────────────────────────────────
+
+async function loadFileTasksRow(fileId) {
+  const el = document.getElementById(`ftasks-content-${fileId}`);
+  if (!el) return;
+
+  const r = await wsApi({action: 'tasks_for_file', file_id: fileId});
+  if (!r.ok) { el.innerHTML = `<span class="text-danger small">${r.error}</span>`; return; }
+
+  if (!r.tasks?.length) {
+    el.innerHTML = '<span class="text-muted small">Brak powiązanych zadań.</span>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="text-muted small me-1">Zadania:</span>
+      ${r.tasks.map(t => `
+        <span class="badge rounded-pill text-bg-secondary d-inline-flex align-items-center gap-1"
+              style="font-size:.72rem">
+          <a href="${TASKS_URL}?task=${t.id}&ws=${WS_ID}"
+             class="text-white text-decoration-none" target="_blank">
+            ${escHtml(t.title)}
+          </a>
+          <button type="button"
+                  class="btn-close btn-close-white flex-shrink-0"
+                  style="font-size:.45rem"
+                  title="Odepnij od zadania"
+                  data-file-id="${fileId}" data-task-id="${t.id}"
+                  onclick="unlinkFileTask(this)"></button>
+        </span>`).join('')}
+    </div>`;
+}
+
+window.unlinkFileTask = async function(btn) {
+  if (!confirm('Odpiąć plik od tego zadania?')) return;
+  const fileId = +btn.dataset.fileId;
+  const taskId = +btn.dataset.taskId;
+  const r = await wsApi({action: 'unlink_task', file_id: fileId, task_id: taskId});
+  if (r.ok) {
+    await loadFileTasksRow(fileId);
+    // zaktualizuj licznik w badgu
+    const badge = document.querySelector(`.btn-file-tasks[data-file-id="${fileId}"]`);
+    if (badge) {
+      const cur = parseInt(badge.textContent.trim()) || 1;
+      const next = Math.max(0, cur - 1);
+      badge.innerHTML = `<i class="bi bi-check2-square me-1"></i>${next}`;
+      if (next === 0) badge.className = badge.className.replace('text-bg-info', 'text-bg-light text-muted');
+    }
+  } else alert(r.error);
+};
+
+document.querySelectorAll('.btn-file-tasks').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const fileId  = btn.dataset.fileId;
+    const detRow  = document.getElementById(`ftasks-${fileId}`);
+    if (!detRow) return;
+    const isOpen  = detRow.style.display !== 'none';
+    detRow.style.display = isOpen ? 'none' : '';
+    if (!isOpen) await loadFileTasksRow(fileId);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TAB B: Zadanie → lista powiązanych plików z koszulki
+// ────────────────────────────────────────────────────────────────────────────
+
+async function loadTaskFilesRow(taskId) {
+  const el = document.getElementById(`tfiles-content-${taskId}`);
+  if (!el) return;
+
+  const r = await wsApi({action: 'files_for_task', task_id: taskId});
+  if (!r.ok) { el.innerHTML = `<span class="text-danger small">${r.error}</span>`; return; }
+
+  const attachBtn = `
+    <button class="btn btn-sm btn-outline-primary py-0 px-2 mt-1 btn-attach-to-task"
+            data-task-id="${taskId}" style="font-size:.75rem">
+      <i class="bi bi-link-45deg me-1"></i>Dołącz plik z koszulki
+    </button>`;
+
+  if (!r.files?.length) {
+    el.innerHTML = `<div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="text-muted small">Brak powiązanych plików.</span>${attachBtn}</div>`;
+    bindAttachBtn(el.querySelector('.btn-attach-to-task'));
+    return;
+  }
+
+  const fileRows = r.files.map(f => `
+    <div class="d-flex align-items-center gap-2 py-1 border-bottom" style="font-size:.82rem"
+         id="tfile-row-${taskId}-${f.id}">
+      <i class="bi ${fileIcon(f.name)} flex-shrink-0"></i>
+      <span class="text-truncate flex-grow-1" style="max-width:220px" title="${escHtml(f.name)}">
+        ${escHtml(f.name)}
+      </span>
+      <span class="text-muted flex-shrink-0" style="font-size:.73rem">${f.size_label}</span>
+      <a href="${f.download_url}" class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0" title="Pobierz">
+        <i class="bi bi-download" style="font-size:.8rem"></i>
+      </a>
+      <button type="button"
+              class="btn btn-sm btn-outline-danger py-0 px-1 flex-shrink-0"
+              title="Odepnij"
+              onclick="unlinkTaskFile(this, ${taskId}, ${f.id})">
+        <i class="bi bi-x-lg" style="font-size:.75rem"></i>
+      </button>
+    </div>`).join('');
+
+  el.innerHTML = `<div>${fileRows}</div><div class="mt-2">${attachBtn}</div>`;
+  el.querySelectorAll('.btn-attach-to-task').forEach(b => bindAttachBtn(b));
+}
+
+window.unlinkTaskFile = async function(btn, taskId, fileId) {
+  if (!confirm('Odpiąć plik od zadania?')) return;
+  const r = await wsApi({action: 'unlink_task', file_id: fileId, task_id: taskId});
+  if (r.ok) {
+    document.getElementById(`tfile-row-${taskId}-${fileId}`)?.remove();
+    // zaktualizuj licznik
+    const badge = document.querySelector(`.btn-task-files[data-task-id="${taskId}"]`);
+    if (badge) {
+      const cur  = parseInt(badge.textContent.trim()) || 1;
+      const next = Math.max(0, cur - 1);
+      badge.innerHTML = `<i class="bi bi-paperclip me-1"></i>${next}`;
+      if (next === 0) badge.className = badge.className.replace('text-bg-info', 'text-bg-light text-muted');
+    }
+  } else alert(r.error);
+};
+
+// Picker: dołącz plik do zadania (otwiera mini-search z plików workspace)
+function bindAttachBtn(btn) {
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const taskId = btn.dataset.taskId;
+    const existing = btn.closest('.task-files-content')?.querySelector('.attach-picker');
+    if (existing) { existing.remove(); return; }
+
+    const picker = document.createElement('div');
+    picker.className = 'attach-picker mt-2 border rounded p-2 bg-white';
+    picker.style.fontSize = '.82rem';
+    picker.innerHTML = `
+      <div class="input-group input-group-sm mb-1">
+        <input type="text" class="form-control attach-search" placeholder="Szukaj pliku w koszulce…">
+        <button class="btn btn-outline-secondary attach-search-btn" type="button">
+          <i class="bi bi-search"></i>
+        </button>
+        <button class="btn btn-outline-secondary attach-close-btn" type="button">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div class="attach-results list-group" style="max-height:160px;overflow-y:auto"></div>`;
+
+    btn.after(picker);
+    const inp  = picker.querySelector('.attach-search');
+    const res  = picker.querySelector('.attach-results');
+    inp.focus();
+
+    async function doSearch(q) {
+      res.innerHTML = '<div class="list-group-item py-1 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Szukam…</div>';
+      const r = await wsApi({action: 'list_ws_files', workspace_id: WS_ID, q});
+      if (!r.ok || !r.files?.length) {
+        res.innerHTML = '<div class="list-group-item py-1 small text-muted">Brak plików.</div>'; return;
+      }
+      res.innerHTML = r.files.map(f =>
+        `<button type="button"
+                 class="list-group-item list-group-item-action py-1 px-2 d-flex gap-2 align-items-center ws-pick-file"
+                 data-file-id="${f.id}">
+           <i class="bi ${fileIcon(f.name)} flex-shrink-0"></i>
+           <span class="text-truncate flex-grow-1">${escHtml(f.name)}</span>
+           <small class="text-muted flex-shrink-0">${f.size_label}</small>
+         </button>`).join('');
+
+      res.querySelectorAll('.ws-pick-file').forEach(row => {
+        row.addEventListener('click', async () => {
+          row.disabled = true;
+          const r2 = await wsApi({action: 'link_task', file_id: +row.dataset.fileId, task_id: +taskId});
+          if (r2.ok) {
+            picker.remove();
+            await loadTaskFilesRow(taskId);
+            const badge = document.querySelector(`.btn-task-files[data-task-id="${taskId}"]`);
+            if (badge) {
+              const next = (parseInt(badge.textContent.trim()) || 0) + 1;
+              badge.innerHTML = `<i class="bi bi-paperclip me-1"></i>${next}`;
+              badge.className = badge.className.replace('text-bg-light text-muted', 'text-bg-info');
+            }
+          } else { alert(r2.error); row.disabled = false; }
+        });
+      });
+    }
+
+    picker.querySelector('.attach-search-btn').addEventListener('click', () => doSearch(inp.value.trim()));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(inp.value.trim()); });
+    picker.querySelector('.attach-close-btn').addEventListener('click', () => picker.remove());
+    doSearch('');
+  });
+}
+
+document.querySelectorAll('.btn-task-files').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const taskId  = btn.dataset.taskId;
+    const detRow  = document.getElementById(`tfiles-${taskId}`);
+    if (!detRow) return;
+    const isOpen  = detRow.style.display !== 'none';
+    detRow.style.display = isOpen ? 'none' : '';
+    if (!isOpen) await loadTaskFilesRow(taskId);
+  });
+});
 
 // ── Nowy folder ───────────────────────────────────────────────────────────────
 document.getElementById('btnCreateFolder')?.addEventListener('click', async () => {
@@ -505,8 +761,12 @@ document.querySelectorAll('.btn-delete-file').forEach(btn => {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({_csrf: CSRF, action: 'delete_file', id: +btn.dataset.id})
     }).then(r => r.json());
-    if (r.ok) btn.closest('tr').remove();
-    else alert(r.error || 'Błąd usuwania.');
+    if (r.ok) {
+      const row = btn.closest('tr');
+      const fileId = btn.dataset.id;
+      document.getElementById(`ftasks-${fileId}`)?.remove();
+      row?.remove();
+    } else alert(r.error || 'Błąd usuwania.');
   });
 });
 
