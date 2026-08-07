@@ -430,7 +430,12 @@ body {
         foreach ($_tsk_workspaces as $_wsRow) {
             if ((int)$_wsRow['id'] === (int)$_ws_id) { $_tsk_cur_ws = $_wsRow; break; }
         }
-        $_tsk_view_qs = isset($_GET['view']) ? '&view=' . urlencode($_GET['view']) : '';
+        // tasks/files.php ustawia $TASKS_FILES_VIEW = true — WS switcher zmienia URL na files.php
+        $_tsk_on_files = $TASKS_FILES_VIEW ?? false;
+        $_tsk_view_qs  = $_tsk_on_files ? '' : (isset($_GET['view']) ? '&view=' . urlencode($_GET['view']) : '');
+        $_tsk_ws_base  = $_tsk_on_files
+            ? (APP_URL . '/tasks/files.php')
+            : (APP_URL . '/tasks/index.php');
     ?>
     <div class="dropdown d-none d-sm-block" id="tsk-ws-switch-wrap">
       <button type="button" class="tsk-ws-switch-btn" id="tsk-ws-switch-btn"
@@ -454,6 +459,7 @@ body {
                  oninput="tskWsFilter(this.value)">
         </div>
         <div class="tsk-ws-switch-list" id="tsk-ws-switch-list">
+          <?php if (!$_tsk_on_files): ?>
           <a href="<?= APP_URL ?>/tasks/index.php<?= $_tsk_view_qs ? '?' . ltrim($_tsk_view_qs, '&') : '' ?>"
              class="tsk-ws-switch-item <?= !$_ws_id ? 'active' : '' ?>"
              data-name="wszystkie zadania"
@@ -462,8 +468,9 @@ body {
             <span class="flex-grow-1">Wszystkie zadania</span>
           </a>
           <div class="tsk-ws-switch-sep" role="separator"></div>
+          <?php endif; ?>
           <?php foreach ($_tsk_workspaces as $ws): ?>
-          <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws['id'] ?><?= $_tsk_view_qs ?>"
+          <a href="<?= $_tsk_ws_base ?>?ws=<?= $ws['id'] ?><?= $_tsk_view_qs ?>"
              class="tsk-ws-switch-item <?= (int)$_ws_id === (int)$ws['id'] ? 'active' : '' ?>"
              data-name="<?= h(mb_strtolower($ws['name'])) ?>"
              aria-current="<?= (int)$_ws_id === (int)$ws['id'] ? 'page' : 'false' ?>">
@@ -618,6 +625,12 @@ body {
       <?php if ($_open_count > 0): ?>
       <span class="tsk-nav-badge" aria-label="<?= $_open_count ?> wolnych"><?= $_open_count ?></span>
       <?php endif; ?>
+    </a>
+
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/files') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/files.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
+       aria-current="<?= _tsk_active('/tasks/files') ? 'page' : 'false' ?>">
+      <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki projektowe
     </a>
 
     <a class="tsk-nav-link <?= _tsk_active('/tasks/archive') ? 'active' : '' ?>"

@@ -17,8 +17,8 @@ require_once dirname(__DIR__) . '/includes/workspaces.php';
 
 require_login();
 
-// ── Proxy pobierania (GET) ────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'download') {
+// ── Proxy pobierania i podglądu (GET) ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['action'] ?? '', ['download','preview'])) {
     $token = $_GET['_csrf'] ?? '';
     if (!hash_equals(csrf_token(), $token)) {
         http_response_code(403);
@@ -26,7 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'downloa
         exit;
     }
     $file_id = (int)($_GET['id'] ?? 0);
-    ws_proxy_download($file_id, current_user()['id'] ?? null);
+    $inline  = ($_GET['action'] === 'preview');
+    ws_proxy_download($file_id, current_user()['id'] ?? null, $inline);
     exit;
 }
 

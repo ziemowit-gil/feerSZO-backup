@@ -440,7 +440,7 @@ function ws_tasks_for_file(int $file_id): array {
  * @param  int      $file_id  ws_files.id
  * @param  int|null $user_id  Pobierający (null = aktualny)
  */
-function ws_proxy_download(int $file_id, ?int $user_id = null): void {
+function ws_proxy_download(int $file_id, ?int $user_id = null, bool $inline = false): void {
     $file = ws_get_file($file_id);
     if (!$file) {
         http_response_code(404);
@@ -476,9 +476,10 @@ function ws_proxy_download(int $file_id, ?int $user_id = null): void {
         $filename = $file['original_name'] ?: $file['name'] ?: 'plik';
         $mime     = $file['mime_type'] ?: 'application/octet-stream';
 
+        $disp = $inline ? 'inline' : 'attachment';
         header('Content-Type: ' . $mime);
         header('Content-Length: ' . strlen($bytes));
-        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
+        header('Content-Disposition: ' . $disp . '; filename="' . addslashes($filename) . '"');
         header('Cache-Control: private, no-store');
         header('X-Content-Type-Options: nosniff');
 
