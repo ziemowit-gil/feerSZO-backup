@@ -322,7 +322,7 @@ function _menu_editor(): array {
     if (module_enabled('tasks_enabled'))
         $obs_g[] = _mi('Zadania','/tasks/dashboard.php','bi-kanban',['match'=>'/tasks/','kw'=>'zadania tablica kanban']);
     if (module_enabled('tasks_enabled'))
-        $obs_g[] = _mi('Pliki projektowe','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe workspace koszulki sharepoint']);
+        $obs_g[] = _mi('Pliki','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe workspace koszulki sharepoint']);
     if (module_enabled('helpdesk_enabled')) {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);
         if ($cnt['alias_op'])

@@ -85,6 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (\Throwable $e) {}
             }
             ws_sp_init_workspace($id);
+            foreach ((array)($_POST['folders'] ?? []) as $fname) {
+                $fname = trim($fname);
+                if ($fname !== '') {
+                    try { ws_create_folder($id, $fname, '', $uid); } catch (\Throwable $e) {}
+                }
+            }
             flash_set('success', 'Obszar „' . $name . '" utworzony z domyślnymi listami.');
         }
         goto redirect;
@@ -576,7 +582,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
 <!-- ── Modal: Nowy obszar ──────────────────────────────────────────────── -->
 <div class="modal fade" id="wsModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
+  <div class="modal-dialog">
     <div class="modal-content">
       <form method="post">
         <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
@@ -586,20 +592,35 @@ require_once dirname(__DIR__) . '/includes/header.php';
           <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3">
+          <div class="mb-2">
             <label class="form-label small fw-semibold">Nazwa *</label>
             <input type="text" name="name" class="form-control form-control-sm" required maxlength="120"
                    placeholder="np. Projekt FEER 2026">
           </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Kolor</label>
-            <input type="color" name="color" class="form-control form-control-sm form-control-color" value="#2563eb">
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label small fw-semibold">Kolor</label>
+              <input type="color" name="color" class="form-control form-control-sm form-control-color" value="#2563eb">
+            </div>
+            <div class="col">
+              <label class="form-label small fw-semibold">Ikona (bez bi-)</label>
+              <input type="text" name="icon" class="form-control form-control-sm" value="kanban" placeholder="kanban">
+            </div>
           </div>
-          <div class="mb-0">
-            <label class="form-label small fw-semibold">Ikona (bez bi-)</label>
-            <input type="text" name="icon" class="form-control form-control-sm"
-                   value="kanban" placeholder="kanban">
+          <?php if (ws_available()): ?>
+          <hr class="my-2">
+          <div>
+            <label class="form-label small fw-semibold mb-1">
+              <i class="bi bi-folder2-open me-1 text-primary"></i>Foldery w SharePoint
+              <span class="text-muted fw-normal">(opcjonalnie)</span>
+            </label>
+            <div id="adminWsFolderList" class="d-flex flex-column gap-1 mb-1"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="adminWsAddFolder" style="font-size:.8rem">
+              <i class="bi bi-folder-plus me-1"></i>Dodaj folder
+            </button>
+            <div class="form-text" style="font-size:.72rem">Foldery zostaną automatycznie utworzone w SharePoint po zapisaniu obszaru.</div>
           </div>
+          <?php endif; ?>
         </div>
         <div class="modal-footer py-2">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -611,6 +632,21 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 </div>
+<script>
+document.getElementById('adminWsAddFolder')?.addEventListener('click', function() {
+  const list = document.getElementById('adminWsFolderList');
+  const row  = document.createElement('div');
+  row.className = 'd-flex gap-1 align-items-center';
+  row.innerHTML = `
+    <input type="text" name="folders[]" class="form-control form-control-sm flex-grow-1"
+           placeholder="Nazwa folderu" maxlength="120" style="font-size:.83rem">
+    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń" onclick="this.closest('div').remove()">
+      <i class="bi bi-x-lg" style="font-size:.75rem"></i>
+    </button>`;
+  list.appendChild(row);
+  row.querySelector('input').focus();
+});
+</script>
 
 <!-- ── Modal: Kolumna ──────────────────────────────────────────────────── -->
 <div class="modal fade" id="listModal" tabindex="-1">

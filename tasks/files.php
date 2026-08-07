@@ -64,7 +64,7 @@ if ($active_folder_id) {
 }
 
 $PAGE_TITLE       = h($workspace['name']) . ' — Pliki';
-$PAGE_SUBTITLE    = 'Pliki projektowe';
+$PAGE_SUBTITLE    = 'Pliki';
 $TASKS_BREADCRUMB = h($workspace['name']);
 $TASKS_WS_ID      = $ws_id;
 $TASKS_FILES_VIEW = true;  // sygnał dla header_tasks.php: switcher WS → files.php
@@ -446,7 +446,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <!-- ══ Footer ═══════════════════════════════════════════════════════════ -->
 <footer class="tsk-footer">
   <span><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> — Moduł Zadań</span>
-  <span><i class="bi bi-folder2-open me-1"></i>Pliki projektowe</span>
+  <span><i class="bi bi-folder2-open me-1"></i>Pliki</span>
 </footer>
 
 <script>

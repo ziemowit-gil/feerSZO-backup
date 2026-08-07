@@ -630,7 +630,7 @@ body {
     <a class="tsk-nav-link <?= _tsk_active('/tasks/files') ? 'active' : '' ?>"
        href="<?= APP_URL ?>/tasks/files.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
        aria-current="<?= _tsk_active('/tasks/files') ? 'page' : 'false' ?>">
-      <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki projektowe
+      <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki
     </a>
 
     <a class="tsk-nav-link <?= _tsk_active('/tasks/archive') ? 'active' : '' ?>"
