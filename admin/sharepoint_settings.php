@@ -108,6 +108,13 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card shadow-sm">
     <div class="card-header fw-semibold"><i class="bi bi-list-check"></i> Sprawdzenie warunków wstępnych</div>
     <div class="card-body">
+      <div class="alert alert-info py-2 small mb-3 d-flex gap-2 align-items-start">
+        <i class="bi bi-folder2-open flex-shrink-0 mt-1"></i>
+        <div>
+          <strong>Wymagane do modułu Pliki</strong> — menedżer plików obszarów roboczych (<em>Zadania → Pliki</em>)
+          przechowuje wszystkie pliki w SharePoint. Bez tej konfiguracji moduł Pliki nie będzie działał.
+        </div>
+      </div>
       <p class="text-muted small mb-3">Zanim skonfigurujesz SharePoint, upewnij się że poniższe warunki są spełnione:</p>
 
       <div class="prereq-item">
@@ -345,6 +352,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="card-header fw-semibold"><i class="bi bi-info-circle"></i> Jak to działa</div>
     <div class="card-body small text-muted">
       <ul class="ps-3 mb-0">
+        <li class="mb-1"><strong>Moduł Pliki</strong> (<em>Zadania → Pliki</em>) — pliki obszarów roboczych i zadań są przechowywane wyłącznie w SharePoint; bez tej konfiguracji moduł nie działa.</li>
         <li class="mb-1">Każdy plik wgrany przez użytkownika (umowy, potwierdzenia, załączniki) jest automatycznie kopiowany do wybranej biblioteki SharePoint.</li>
         <li class="mb-1">Struktura folderów odzwierciedla typy umów: <code>dzielo/</code>, <code>zlecenie/</code>, <code>wolontariat/</code> itd.</li>
         <li class="mb-1">Pliki do 4 MB — jednym żądaniem; większe — przez sesję upload (chunked).</li>
