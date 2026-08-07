@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
+require_once dirname(dirname(__DIR__)) . '/includes/workspaces.php';
 
 require_login();
 require_module_enabled('tasks_enabled', 'Moduł zadań');
@@ -93,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($to_add as $a) {
                 try { db()->prepare("INSERT OR IGNORE INTO task_workspace_members (workspace_id, user_id, role, added_by, added_at) VALUES (?,?,'admin',?,?)")->execute([$id,(int)$a['id'],$uid,$now_ts]); } catch (\Throwable $e) {}
             }
+            ws_sp_init_workspace($id);
             flash_set('success', 'Obszar „' . $name . '" utworzony.');
             header('Location: ' . $SELF . '?ws=' . $id); exit;
         }

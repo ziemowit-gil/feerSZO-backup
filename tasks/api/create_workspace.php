@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
+require_once dirname(dirname(__DIR__)) . '/includes/workspaces.php';
 
 require_login();
 require_role('admin', 'editor');
@@ -89,6 +90,9 @@ if ($task_id) {
         task_log($task_id, $uid, 'moved', null, $name);
     }
 }
+
+// Auto-utwórz folder SP dla nowego workspace (nieblokujące)
+ws_sp_init_workspace($ws_id);
 
 $ws_url = rtrim(APP_URL, '/') . '/tasks/index.php?ws=' . $ws_id;
 

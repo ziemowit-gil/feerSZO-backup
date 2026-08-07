@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/tasks.php';
+require_once dirname(__DIR__) . '/includes/workspaces.php';
 
 require_role('admin');
 $uid = (int)(current_user()['id'] ?? 0);
@@ -83,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )->execute([$id, (int)$adm['id'], $uid, $now_ts]);
                 } catch (\Throwable $e) {}
             }
+            ws_sp_init_workspace($id);
             flash_set('success', 'Obszar „' . $name . '" utworzony z domyślnymi listami.');
         }
         goto redirect;

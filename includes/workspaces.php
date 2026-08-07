@@ -493,6 +493,32 @@ function ws_proxy_download(int $file_id, ?int $user_id = null, bool $inline = fa
     }
 }
 
+// ── Inicjalizacja folderu SP przy tworzeniu workspace ─────────────────────────
+
+/**
+ * Tworzy folder workspace w SharePoint: {sp_root}/{sanitized_name}/
+ * Idempotentne — bezpieczne przy ponownym wywołaniu.
+ * Nie rzuca wyjątków — błędy SP są logowane, workspace istnieje niezależnie od SP.
+ */
+function ws_sp_init_workspace(int $ws_id): void {
+    if (!ws_available()) return;
+
+    $workspace = db_one("SELECT name FROM task_workspaces WHERE id=?", [$ws_id]);
+    if (!$workspace) return;
+
+    try {
+        $drive_id = ws_sp_drive_id();
+        $root     = ws_sp_root_folder();
+        $ws_name  = ws_sanitize_folder_name($workspace['name']);
+        $graph    = new M365Graph();
+
+        $graph->sp_create_folder($drive_id, '',     $root);
+        $graph->sp_create_folder($drive_id, $root,  $ws_name);
+    } catch (\Throwable $e) {
+        error_log('[ws_sp_init_workspace] ws=' . $ws_id . ' ' . $e->getMessage());
+    }
+}
+
 // ── Listowanie workspaces per użytkownik ──────────────────────────────────────
 
 /**
