@@ -59,6 +59,33 @@ COMPOSE="docker compose \
   -f ${SCRIPT_DIR}/docker-compose.prod.yml \
   --env-file ${ENV_FILE}"
 
+# ── KROK 0: DNS resolver (systemd-resolved) ───────────────────────────────────
+if [[ $STATUS_ONLY -eq 0 ]] && command -v systemctl &>/dev/null; then
+    section "0. DNS resolver (systemd-resolved)"
+    if ! systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+        warn "systemd-resolved nie działa — uruchamiam…"
+        systemctl restart systemd-resolved 2>/dev/null || true
+        sleep 2
+        if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+            ok "systemd-resolved uruchomiony"
+        else
+            warn "systemd-resolved wciąż nie działa — Docker DNS może nie działać w kontenerach"
+            warn "Spróbuj ręcznie: sudo systemctl enable --now systemd-resolved"
+        fi
+    else
+        ok "systemd-resolved działa"
+    fi
+
+    # Sprawdź czy DNS w ogóle odpowiada
+    if ! host -W 3 acme-v02.api.letsencrypt.org &>/dev/null 2>&1; then
+        warn "DNS lookup nie działa — sprawdź /etc/resolv.conf:"
+        cat /etc/resolv.conf | head -5 || true
+        warn "Jeśli brak 'nameserver', dodaj: echo 'nameserver 8.8.8.8' >> /etc/resolv.conf"
+    else
+        ok "DNS działa (lookup acme-v02.api.letsencrypt.org OK)"
+    fi
+fi
+
 # ── STATUS ────────────────────────────────────────────────────────────────────
 section "Stan"
 
