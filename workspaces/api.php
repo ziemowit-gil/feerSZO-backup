@@ -162,6 +162,32 @@ $resp = match($action) {
         return ['ok' => true, 'files' => $files];
     })(),
 
+    // ── Lista plików w workspace (do pickera w detail.php zadania) ────────────
+    'list_ws_files' => (function () use ($body): array {
+        $ws_id = (int)($body['workspace_id'] ?? 0);
+        $q     = trim($body['q'] ?? '');
+        if (!$ws_id) return ['ok' => false, 'files' => [], 'error' => 'Brak workspace_id.'];
+
+        ws_require_access($ws_id, 'viewer');
+
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+        $rows = db_all(
+            "SELECT f.id, f.name, f.original_name, f.file_size, f.folder_id
+             FROM ws_files f
+             JOIN ws_folders fld ON fld.id = f.folder_id
+             WHERE fld.workspace_id = ? AND f.deleted_at IS NULL
+               AND (? = '%%' OR f.name LIKE ? OR f.original_name LIKE ?)
+             ORDER BY f.created_at DESC
+             LIMIT 60",
+            [$ws_id, $like, $like, $like]
+        );
+        foreach ($rows as &$r) {
+            $r['size_label'] = ws_format_size((int)$r['file_size']);
+            unset($r['folder_id']);
+        }
+        return ['ok' => true, 'files' => $rows];
+    })(),
+
     default => ['ok' => false, 'error' => "Nieznana akcja: {$action}"]
 };
 

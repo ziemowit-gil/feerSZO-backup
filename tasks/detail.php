@@ -63,6 +63,15 @@ $files = [];
 try { $files = db_all("SELECT * FROM task_files WHERE task_id=? ORDER BY created_at", [$id]); }
 catch (\Throwable $e) {}
 
+// Pliki z Koszulek (workspaces) powiązane z zadaniem
+$ws_linked_files = [];
+$ws_for_task     = null;
+try {
+    require_once dirname(__DIR__) . '/includes/workspaces.php';
+    $ws_linked_files = ws_files_for_task($id);
+    $ws_for_task     = db_one("SELECT id, name FROM task_workspaces WHERE id=?", [$task['workspace_id']]);
+} catch (\Throwable $e) {}
+
 $subtasks = [];
 try { $subtasks = db_all("SELECT * FROM task_subtasks WHERE task_id=? ORDER BY position, id", [$id]); }
 catch (\Throwable $e) {}
@@ -1276,6 +1285,81 @@ function td_render_mentions(string $text, array $users): string {
   <div id="td-upload-status" class="small text-muted mt-2 d-none" aria-live="polite">
     <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
     <span id="td-upload-msg">Wysyłanie…</span>
+  </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- ══ PLIKI Z KOSZULEK (workspaces) ══════════════════════════════════════ -->
+<?php if ($ws_for_task): ?>
+<div class="td-section">
+  <div class="td-label">
+    <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki z Koszulek
+    <?php if ($ws_linked_files): ?>
+    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= count($ws_linked_files) ?></span>
+    <?php endif; ?>
+    <span class="text-muted ms-1" style="font-size:.72rem;font-weight:400"><?= h($ws_for_task['name']) ?></span>
+  </div>
+
+  <div id="td-ws-files">
+    <?php foreach ($ws_linked_files as $wf):
+      $ext  = strtolower(pathinfo($wf['original_name'] ?: $wf['name'], PATHINFO_EXTENSION));
+      $icon = match(true) {
+          in_array($ext, ['jpg','jpeg','png','gif','webp'], true) => 'image',
+          $ext === 'pdf'                                          => 'pdf',
+          in_array($ext, ['xls','xlsx','csv'], true)              => 'spreadsheet',
+          in_array($ext, ['doc','docx'], true)                    => 'word',
+          in_array($ext, ['zip','7z'], true)                      => 'zip',
+          default                                                 => 'text',
+      };
+      $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . (int)$wf['id'] . '&_csrf=' . urlencode($csrf);
+    ?>
+    <div class="td-file-row" id="wsfile-<?= $wf['id'] ?>">
+      <i class="bi bi-file-earmark-<?= $icon ?> flex-shrink-0" style="color:#3b82f6" aria-hidden="true"></i>
+      <span class="td-file-name text-truncate" style="flex:1;min-width:0" title="<?= h($wf['name']) ?>">
+        <?= h($wf['name']) ?>
+      </span>
+      <span class="text-muted flex-shrink-0" style="font-size:.7rem"><?= ws_format_size((int)$wf['file_size']) ?></span>
+      <a href="<?= h($dl_url) ?>"
+         class="td-file-dl flex-shrink-0"
+         title="Pobierz przez backend" aria-label="Pobierz <?= h($wf['name']) ?>">
+        <i class="bi bi-download" aria-hidden="true"></i>
+      </a>
+      <?php if ($can_edit): ?>
+      <button type="button"
+              class="btn-close flex-shrink-0 td-ws-unlink"
+              data-file-id="<?= (int)$wf['id'] ?>"
+              data-task-id="<?= $id ?>"
+              aria-label="Odepnij plik <?= h($wf['name']) ?>"
+              style="font-size:.55rem"></button>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+    <?php if (empty($ws_linked_files)): ?>
+    <p class="text-muted small mb-0" id="td-ws-empty">Brak powiązanych plików z koszulki.</p>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($can_edit): ?>
+  <div class="mt-2">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="td-ws-link-btn"
+            data-task-id="<?= $id ?>" data-ws-id="<?= (int)$task['workspace_id'] ?>">
+      <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Dodaj z koszulki
+    </button>
+  </div>
+
+  <!-- Inline picker plików z koszulki -->
+  <div id="td-ws-picker" class="mt-2" style="display:none">
+    <div class="input-group input-group-sm mb-1">
+      <input type="text" id="td-ws-search" class="form-control" placeholder="Szukaj pliku…" autocomplete="off">
+      <button class="btn btn-outline-secondary" id="td-ws-search-btn" type="button">
+        <i class="bi bi-search" aria-hidden="true"></i>
+      </button>
+      <button class="btn btn-outline-secondary" id="td-ws-picker-close" type="button">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div id="td-ws-results" class="list-group" style="max-height:180px;overflow-y:auto;font-size:.82rem"></div>
   </div>
   <?php endif; ?>
 </div>
@@ -3226,6 +3310,110 @@ window.tdNotifyLeader = function() {
             if (err) { err.textContent = 'Błąd połączenia z serwerem.'; err.classList.remove('d-none'); }
         });
 };
+
+// ── Pliki z Koszulek — link / unlink ─────────────────────────────────────────
+(function() {
+    const WS_API = <?= json_encode(APP_URL . '/workspaces/api.php') ?>;
+    const CSRF_W = <?= json_encode($csrf) ?>;
+
+    // Odepnij plik od zadania
+    document.querySelectorAll('.td-ws-unlink').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!confirm('Odpiąć ten plik od zadania?')) return;
+            const r = await fetch(WS_API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({_csrf: CSRF_W, action: 'unlink_task',
+                                      file_id: +btn.dataset.fileId, task_id: +btn.dataset.taskId})
+            }).then(r => r.json()).catch(() => ({ok: false, error: 'Błąd połączenia.'}));
+            if (r.ok) {
+                document.getElementById('wsfile-' + btn.dataset.fileId)?.remove();
+                const badge = document.querySelector('#td-ws-files ~ .badge, .td-label .badge');
+                // Pokaż komunikat jeśli lista pusta
+                if (!document.querySelector('#td-ws-files .td-file-row')) {
+                    let p = document.getElementById('td-ws-empty');
+                    if (!p) {
+                        p = document.createElement('p');
+                        p.id = 'td-ws-empty';
+                        p.className = 'text-muted small mb-0';
+                        p.textContent = 'Brak powiązanych plików z koszulki.';
+                        document.getElementById('td-ws-files')?.appendChild(p);
+                    }
+                }
+            } else alert(r.error || 'Błąd odpinania.');
+        });
+    });
+
+    // Otwórz / zamknij picker
+    const linkBtn    = document.getElementById('td-ws-link-btn');
+    const picker     = document.getElementById('td-ws-picker');
+    const closeBtn   = document.getElementById('td-ws-picker-close');
+    const searchInput = document.getElementById('td-ws-search');
+    const searchBtn  = document.getElementById('td-ws-search-btn');
+    const resultsList = document.getElementById('td-ws-results');
+
+    if (!linkBtn || !picker) return;
+
+    linkBtn.addEventListener('click', () => {
+        picker.style.display = picker.style.display === 'none' ? '' : 'none';
+        if (picker.style.display !== 'none') {
+            searchInput?.focus();
+            doSearch('');
+        }
+    });
+    closeBtn?.addEventListener('click', () => { picker.style.display = 'none'; });
+
+    async function doSearch(q) {
+        if (!resultsList) return;
+        resultsList.innerHTML = '<div class="list-group-item text-muted py-1"><span class="spinner-border spinner-border-sm me-1"></span>Szukam…</div>';
+        const r = await fetch(WS_API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({_csrf: CSRF_W, action: 'list_ws_files',
+                                  workspace_id: linkBtn.dataset.wsId, q})
+        }).then(r => r.json()).catch(() => ({ok: false, files: []}));
+
+        if (!r.ok || !r.files?.length) {
+            resultsList.innerHTML = '<div class="list-group-item text-muted py-1 small">Brak dostępnych plików.</div>';
+            return;
+        }
+        resultsList.innerHTML = r.files.map(f =>
+            `<button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center gap-2 td-ws-pick"
+                     data-file-id="${f.id}" data-name="${escHtml(f.name)}">
+               <i class="bi bi-file-earmark text-primary flex-shrink-0" aria-hidden="true"></i>
+               <span class="text-truncate flex-grow-1">${escHtml(f.name)}</span>
+               <small class="text-muted flex-shrink-0">${f.size_label}</small>
+             </button>`
+        ).join('');
+
+        resultsList.querySelectorAll('.td-ws-pick').forEach(row => {
+            row.addEventListener('click', async () => {
+                const fileId = +row.dataset.fileId;
+                const taskId = TID;
+                row.disabled = true;
+                row.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + row.dataset.name;
+
+                const r2 = await fetch(WS_API, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({_csrf: CSRF_W, action: 'link_task', file_id: fileId, task_id: taskId})
+                }).then(r => r.json()).catch(() => ({ok: false, error: 'Błąd połączenia.'}));
+
+                if (r2.ok) {
+                    picker.style.display = 'none';
+                    // Przeładuj offcanvas żeby zobaczyć nowy plik
+                    if (typeof openTask === 'function') openTask(taskId);
+                } else {
+                    alert(r2.error || 'Błąd łączenia.');
+                    row.disabled = false;
+                }
+            });
+        });
+    }
+
+    searchBtn?.addEventListener('click', () => doSearch(searchInput.value.trim()));
+    searchInput?.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(searchInput.value.trim()); });
+})();
 
 })();
 </script>
