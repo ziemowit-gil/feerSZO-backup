@@ -194,6 +194,77 @@ function helpdesk_migrate(): void {
         $s = db_one("SELECT id FROM settings WHERE key_='bug_report_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['bug_report_enabled', '1']);
     } catch (\Throwable $e) {}
+
+    // Szablony e-mail — edytowalne przez admina; domyślne zachowanie zachowuje się
+    // jak dotychczas gdy is_active=0 (wiersz istnieje, ale wyłączony).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS helpdesk_email_templates (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_       TEXT NOT NULL UNIQUE,
+        label      TEXT NOT NULL,
+        subject    TEXT NOT NULL DEFAULT '',
+        body_html  TEXT NOT NULL DEFAULT '',
+        placeholders TEXT NOT NULL DEFAULT '[]',
+        is_active  INTEGER NOT NULL DEFAULT 0,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Seed — rekordy seed tworzone raz (puste body; aktywacja przez admina)
+    $tpl_seed = [
+        ['status_change',    'Zmiana statusu zgłoszenia',
+         '[{{org}}] Zmiana statusu zgłoszenia #{{number}}: {{new_status}}',
+         '["{{requester_name}}","{{number}}","{{title}}","{{old_status}}","{{new_status}}","{{track_url}}","{{org}}","{{note}}"]'],
+        ['new_msg_to_user',  'Nowa odpowiedź dla zgłaszającego',
+         '[{{org}}] Nowa odpowiedź na zgłoszenie #{{number}}',
+         '["{{requester_name}}","{{number}}","{{title}}","{{from_name}}","{{message_body}}","{{track_url}}","{{org}}"]'],
+        ['new_msg_to_agent', 'Nowa odpowiedź od zgłaszającego (do agenta)',
+         '[{{org}}] Odpowiedź zgłaszającego — #{{number}} {{title}}',
+         '["{{agent_name}}","{{number}}","{{title}}","{{from_name}}","{{message_body}}","{{view_url}}","{{org}}"]'],
+        ['assigned',         'Przypisanie zgłoszenia do agenta',
+         '[{{org}}] Przypisano Ci zgłoszenie #{{number}}',
+         '["{{agent_name}}","{{number}}","{{title}}","{{view_url}}","{{org}}"]'],
+        ['escalation_op',    'Podbicie zgłoszenia — powiadomienie operatora',
+         '[PILNE] Podbicie zgłoszenia #{{number}} — brak reakcji',
+         '["{{number}}","{{title}}","{{escalation_number}}","{{days_waiting}}","{{reason}}","{{view_url}}","{{org}}"]'],
+        ['escalation_req',   'Podbicie zgłoszenia — potwierdzenie dla zgłaszającego',
+         '[{{org}}] Zgłoszenie #{{number}} podbite — przekazano do 3. linii wsparcia',
+         '["{{requester_name}}","{{number}}","{{title}}","{{escalation_number}}","{{track_url}}","{{org}}"]'],
+        ['shared_ticket',    'Udostępnienie zgłoszenia innej osobie',
+         '[{{number}}] Udostępniono Ci zgłoszenie — {{title}}',
+         '["{{to_name}}","{{by_name}}","{{number}}","{{title}}","{{note}}","{{track_url}}","{{org}}"]'],
+    ];
+    try {
+        $ins_tpl = $pdo->prepare(
+            "INSERT OR IGNORE INTO helpdesk_email_templates (key_, label, subject, placeholders) VALUES (?,?,?,?)"
+        );
+        foreach ($tpl_seed as [$k, $l, $s, $ph]) $ins_tpl->execute([$k, $l, $s, $ph]);
+    } catch (\Throwable $e) {}
+}
+
+// ── Szablony e-mail — obsługa niestandardowych szablonów ──────────────────────
+
+/**
+ * Zwraca niestandardowy szablon e-mail (jeśli aktywny), lub null.
+ * $data = ['requester_name' => ..., 'number' => ..., ...] — podstawiane do {{klucz}}.
+ */
+function hd_email_tpl(string $key, array $data = []): ?array {
+    try {
+        $row = db_one(
+            "SELECT subject, body_html FROM helpdesk_email_templates WHERE key_=? AND is_active=1 AND body_html != ''",
+            [$key]
+        );
+        if (!$row) return null;
+        $subject  = hd_tpl_replace($row['subject'],  $data);
+        $body     = hd_tpl_replace($row['body_html'], $data);
+        return ['subject' => $subject, 'body' => $body];
+    } catch (\Throwable $e) { return null; }
+}
+
+/** Zamienia {{klucz}} na wartości z $data (HTML-escaped). */
+function hd_tpl_replace(string $tpl, array $data): string {
+    foreach ($data as $k => $v) {
+        $tpl = str_replace('{{' . $k . '}}', htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'), $tpl);
+    }
+    return $tpl;
 }
 
 // ── Baner powitalny (tylko przy 1. logowaniu) ──────────────────────────────────
@@ -279,12 +350,20 @@ function hd_share_ticket(array $ticket, string $email, string $name = '', string
     $title = h($ticket['title']);
     $to_h  = h($name ?: $email);
     $by_h  = $by !== '' ? h($by) : $org;
+    $_sh_data = ['to_name' => $name ?: $email, 'by_name' => $by ?: $org,
+                 'number' => $num, 'title' => $ticket['title'],
+                 'note' => $note, 'track_url' => $url, 'org' => $org];
+    $_sh_tpl  = hd_email_tpl('shared_ticket', $_sh_data);
     $note_block = trim($note) !== ''
         ? '<div style="background:#f8f9fa;border-left:3px solid #6c757d;padding:10px 14px;margin:14px 0;border-radius:0 4px 4px 0;font-size:.9em">'
           . nl2br(h($note)) . '</div>'
         : '';
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        if ($_sh_tpl) {
+            mail_queue_add($email, $name, $_sh_tpl['subject'], $_sh_tpl['body']);
+            return true;
+        }
         mail_queue_add(
             $email, $name,
             "[{$ticket['number']}] Udostępniono Ci zgłoszenie — {$ticket['title']}",
@@ -493,7 +572,11 @@ function hd_notify_escalation_requester(array $ticket, string $number): void {
     $num   = h($ticket['number']);
     $title = h($ticket['title']);
     $name  = h($ticket['requester_name']);
-    $html  = <<<HTML
+    $_er_data = ['requester_name' => $ticket['requester_name'], 'number' => $num,
+                 'title' => $ticket['title'], 'escalation_number' => $number,
+                 'track_url' => $url, 'org' => $org];
+    $_er_tpl  = hd_email_tpl('escalation_req', $_er_data);
+    $html  = $_er_tpl ? $_er_tpl['body'] : <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
   <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Zgłoszenie podbite — {$org} Helpdesk</h2>
@@ -515,7 +598,8 @@ function hd_notify_escalation_requester(array $ticket, string $number): void {
 HTML;
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
-        mail_queue_add($email, $ticket['requester_name'] ?? '', "[{$ticket['number']}] Zgłoszenie podbite — przekazano do 3. linii wsparcia", $html);
+        $_er_subj = $_er_tpl ? $_er_tpl['subject'] : "[{$ticket['number']}] Zgłoszenie podbite — przekazano do 3. linii wsparcia";
+        mail_queue_add($email, $ticket['requester_name'] ?? '', $_er_subj, $html);
     } catch (\Throwable $e) {}
 }
 
@@ -700,11 +784,14 @@ function hd_notify_escalation(array $ticket, string $number, string $reason, int
     $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
     $num   = h($ticket['number']);
     $title = h($ticket['title']);
+    $_eo_data = ['number' => $num, 'title' => $ticket['title'], 'escalation_number' => $number,
+                 'days_waiting' => $days, 'reason' => $reason, 'view_url' => $url, 'org' => $org];
+    $_eo_tpl  = hd_email_tpl('escalation_op', $_eo_data);
     $reason_block = trim($reason) !== ''
         ? '<div style="background:#fff7ed;border-left:3px solid #ea580c;padding:10px 14px;margin:12px 0;border-radius:0 4px 4px 0;font-size:.9em">'
           . nl2br(h($reason)) . '</div>'
         : '';
-    $html = <<<HTML
+    $html = $_eo_tpl ? $_eo_tpl['body'] : <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
   <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Podbicie zgłoszenia — brak reakcji</h2>
@@ -723,7 +810,7 @@ function hd_notify_escalation(array $ticket, string $number, string $reason, int
   </p>
 </div></body></html>
 HTML;
-    $subject = "[PILNE] Podbicie zgłoszenia {$ticket['number']} — brak reakcji";
+    $subject = $_eo_tpl ? $_eo_tpl['subject'] : "[PILNE] Podbicie zgłoszenia {$ticket['number']} — brak reakcji";
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         if (!empty($ticket['assigned_to'])) {
@@ -1029,10 +1116,15 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
     if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         try {
             require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            $_sc_data = ['requester_name' => $ticket['requester_name'], 'number' => $num,
+                         'title' => $ticket['title'], 'old_status' => $old_label,
+                         'new_status' => $new_label, 'note' => $note,
+                         'track_url' => $track_url, 'org' => $org];
+            $_sc_tpl  = hd_email_tpl('status_change', $_sc_data);
             mail_queue_add(
                 $email, $ticket['requester_name'],
-                "[{$num}] Zmiana statusu zgłoszenia: {$new_label}",
-                _hd_email_status($ticket, $old_label, $new_label, $note, $org, $track_url)
+                $_sc_tpl ? $_sc_tpl['subject'] : "[{$num}] Zmiana statusu zgłoszenia: {$new_label}",
+                $_sc_tpl ? $_sc_tpl['body']    : _hd_email_status($ticket, $old_label, $new_label, $note, $org, $track_url)
             );
         } catch (\Throwable $e) {}
     }
@@ -1043,10 +1135,16 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
             $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
             if ($op && !empty($op['email']) && $op['email'] !== $email) {
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+                $_sc_op_data = ['requester_name' => $ticket['requester_name'],
+                                'agent_name' => $op['name'] ?? '', 'number' => $num,
+                                'title' => $ticket['title'], 'old_status' => $old_label,
+                                'new_status' => $new_label, 'note' => $note,
+                                'view_url' => $view_url, 'track_url' => $track_url, 'org' => $org];
+                $_sc_op_tpl  = hd_email_tpl('status_change', $_sc_op_data);
                 mail_queue_add(
                     $op['email'], $op['name'] ?? '',
-                    "[{$num}] Status: {$new_label} — {$ticket['title']}",
-                    _hd_email_status($ticket, $old_label, $new_label, $note, $org, $view_url)
+                    $_sc_op_tpl ? $_sc_op_tpl['subject'] : "[{$num}] Status: {$new_label} — {$ticket['title']}",
+                    $_sc_op_tpl ? $_sc_op_tpl['body']    : _hd_email_status($ticket, $old_label, $new_label, $note, $org, $view_url)
                 );
             }
         } catch (\Throwable $e) {}
@@ -1069,10 +1167,14 @@ function hd_notify_new_message(array $ticket, array $message): void {
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             try {
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+                $_nm_u_data = ['requester_name' => $ticket['requester_name'], 'number' => $num,
+                               'title' => $ticket['title'], 'message_body' => $message['body'],
+                               'agent_name' => $message['user_name'], 'track_url' => $track_url, 'org' => $org];
+                $_nm_u_tpl  = hd_email_tpl('new_msg_to_user', $_nm_u_data);
                 mail_queue_add(
                     $email, $ticket['requester_name'],
-                    "[{$num}] Nowa odpowiedź na zgłoszenie",
-                    _hd_email_message($ticket, $message, $org, $track_url, false)
+                    $_nm_u_tpl ? $_nm_u_tpl['subject'] : "[{$num}] Nowa odpowiedź na zgłoszenie",
+                    $_nm_u_tpl ? $_nm_u_tpl['body']    : _hd_email_message($ticket, $message, $org, $track_url, false)
                 );
             } catch (\Throwable $e) {}
         }
@@ -1095,8 +1197,12 @@ function hd_notify_new_message(array $ticket, array $message): void {
     if ($is_from_requester) {
         try {
             require_once dirname(__DIR__) . '/includes/mail_queue.php';
-            $subject = "[{$num}] Odpowiedź zgłaszającego: {$ticket['title']}";
-            $body_html = _hd_email_message($ticket, $message, $org, $view_url, true);
+            $_nm_a_data = ['requester_name' => $ticket['requester_name'], 'number' => $num,
+                           'title' => $ticket['title'], 'message_body' => $message['body'],
+                           'from_name' => $message['user_name'], 'view_url' => $view_url, 'org' => $org];
+            $_nm_a_tpl  = hd_email_tpl('new_msg_to_agent', $_nm_a_data);
+            $subject    = $_nm_a_tpl ? $_nm_a_tpl['subject'] : "[{$num}] Odpowiedź zgłaszającego: {$ticket['title']}";
+            $body_html  = $_nm_a_tpl ? $_nm_a_tpl['body']   : _hd_email_message($ticket, $message, $org, $view_url, true);
             if (!empty($ticket['assigned_to'])) {
                 // Powiadom przypisanego operatora
                 $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
@@ -1118,13 +1224,21 @@ function hd_notify_new_message(array $ticket, array $message): void {
 
 function hd_notify_assigned(array $ticket, array $operator): void {
     if (empty($operator['email'])) return;
-    $org = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $url = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
-    $num = $ticket['number'];
-    $name = h($operator['name'] ?? $operator['email']);
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $num   = $ticket['number'];
+    $name  = h($operator['name'] ?? $operator['email']);
     $title = h($ticket['title']);
+    $_as_data = ['agent_name' => $operator['name'] ?? $operator['email'],
+                 'number' => $num, 'title' => $ticket['title'],
+                 'view_url' => $url, 'org' => $org];
+    $_as_tpl  = hd_email_tpl('assigned', $_as_data);
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        if ($_as_tpl) {
+            mail_queue_add($operator['email'], $operator['name'] ?? '', $_as_tpl['subject'], $_as_tpl['body']);
+            return;
+        }
         mail_queue_add(
             $operator['email'], $operator['name'] ?? '',
             "[{$num}] Przypisano Ci nowe zgłoszenie IT",
