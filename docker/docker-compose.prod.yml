@@ -132,18 +132,6 @@ services:
       - "traefik.http.routers.feer-ti-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.feer-ti-http.service=feer"
 
-      # ── kurs.feer.org.pl ──────────────────────────────────────────────────
-      - "traefik.http.routers.feer-kurs.rule=Host(`kurs.feer.org.pl`)"
-      - "traefik.http.routers.feer-kurs.entrypoints=websecure"
-      - "traefik.http.routers.feer-kurs.tls=true"
-      - "traefik.http.routers.feer-kurs.tls.certresolver=le"
-      - "traefik.http.routers.feer-kurs.middlewares=sec-headers@docker"
-      - "traefik.http.routers.feer-kurs.service=feer"
-      - "traefik.http.routers.feer-kurs-http.rule=Host(`kurs.feer.org.pl`)"
-      - "traefik.http.routers.feer-kurs-http.entrypoints=web"
-      - "traefik.http.routers.feer-kurs-http.middlewares=https-redirect@docker"
-      - "traefik.http.routers.feer-kurs-http.service=feer"
-
       # ── zadania.feer.org.pl ───────────────────────────────────────────────
       - "traefik.http.routers.feer-zadania.rule=Host(`zadania.feer.org.pl`)"
       - "traefik.http.routers.feer-zadania.entrypoints=websecure"
@@ -191,20 +179,6 @@ services:
       - "traefik.http.routers.ngo-ti-http.entrypoints=web"
       - "traefik.http.routers.ngo-ti-http.service=feer"
       - "traefik.http.routers.ngo-ti-http.middlewares=ngo-ti-redir@docker"
-
-      # ── kurs.ngosystem.pl → kurs.feer.org.pl (Cloudflare — bez certresolver)
-      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.regex=^https?://kurs\\.ngosystem\\.pl(.*)"
-      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.replacement=https://kurs.feer.org.pl$${1}"
-      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.permanent=true"
-      - "traefik.http.routers.ngo-kurs.rule=Host(`kurs.ngosystem.pl`)"
-      - "traefik.http.routers.ngo-kurs.entrypoints=websecure"
-      - "traefik.http.routers.ngo-kurs.tls=true"
-      - "traefik.http.routers.ngo-kurs.service=feer"
-      - "traefik.http.routers.ngo-kurs.middlewares=ngo-kurs-redir@docker"
-      - "traefik.http.routers.ngo-kurs-http.rule=Host(`kurs.ngosystem.pl`)"
-      - "traefik.http.routers.ngo-kurs-http.entrypoints=web"
-      - "traefik.http.routers.ngo-kurs-http.service=feer"
-      - "traefik.http.routers.ngo-kurs-http.middlewares=ngo-kurs-redir@docker"
 
       # ── ezd.ngosystem.pl → ezd.feer.org.pl (Cloudflare — bez certresolver)
       - "traefik.http.middlewares.ngo-ezd-redir.redirectregex.regex=^https?://ezd\\.ngosystem\\.pl(.*)"
