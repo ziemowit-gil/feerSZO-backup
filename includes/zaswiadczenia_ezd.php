@@ -275,9 +275,10 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
     $_wystawca_h = h($zas['zatw_name'] ?? '');
     if ($podpisujacy !== '') {
         $sig_inner = nl2br(str_replace('{{wystawca}}', $_wystawca_h, h($podpisujacy)));
+    } elseif ($_wystawca_h) {
+        $sig_inner = '<strong>' . $_wystawca_h . '</strong>';
     } else {
-        $sig_inner = ($_wystawca_h ? '<strong>' . $_wystawca_h . '</strong><br>' : '')
-                   . h($org) . '<br><span style="color:#555;font-size:9pt">' . $data_wyd . '</span>';
+        $sig_inner = h($org) . '<br><span style="color:#555;font-size:9pt">' . $data_wyd . '</span>';
     }
 
     // Data ważności — wyświetlana przed podpisem, czcionka jak treść
@@ -766,9 +767,9 @@ function ezd_zas_by_verify_code(string $code): ?array {
         try { db()->prepare("UPDATE ezd_zas_typy SET waznosc_dni=30 WHERE kod=? AND COALESCE(waznosc_dni,0)=0")->execute([$_k]); }
         catch (\Throwable $e) {}
     }
-    // Ustaw podpisujacy = "{{wystawca}}\nPrezes" dla wszystkich 4 typów gdzie puste
+    // Ustaw podpisujacy = "{{wystawca}}\nPrezes" dla 4 typów gdzie nie ma jeszcze tokenu
     foreach (['zaswiadczenie_wolontariat','zaswiadczenie_zatrudnienie','zaswiadczenie_wspolpraca','zaswiadczenie_umowy'] as $_k) {
-        try { db()->prepare("UPDATE ezd_zas_typy SET podpisujacy=? WHERE kod=? AND COALESCE(podpisujacy,'')=''")->execute(["{{wystawca}}\nPrezes", $_k]); }
+        try { db()->prepare("UPDATE ezd_zas_typy SET podpisujacy=? WHERE kod=? AND COALESCE(podpisujacy,'') NOT LIKE '%{{wystawca}}%'")->execute(["{{wystawca}}\nPrezes", $_k]); }
         catch (\Throwable $e) {}
     }
 
