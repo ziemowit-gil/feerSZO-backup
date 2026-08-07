@@ -43,7 +43,7 @@ $PERMISSION_GROUPS = [
             ['name' => 'Mail.Send',                 'module' => 'Wysyłanie maili przez Graph',       'required' => true,  'desc' => 'Wysyłanie e-maili jako dowolny użytkownik'],
             ['name' => 'Contacts.Read',             'module' => 'Synchronizacja kontaktów Outlook',  'required' => false, 'desc' => 'Odczyt kontaktów użytkowników (delta sync)'],
             ['name' => 'Calendars.Read',            'module' => 'Synchronizacja kalendarzy Outlook', 'required' => false, 'desc' => 'Odczyt kalendarzy i zdarzeń (delta sync)'],
-            ['name' => 'Sites.ReadWrite.All',       'module' => 'SharePoint — pliki i listy',        'required' => false, 'desc' => 'Zapis i odczyt plików w SharePoint Online'],
+            ['name' => 'Sites.ReadWrite.All',       'module' => 'Moduł Pliki, backup SP, sync umów', 'required' => true,  'desc' => 'Zapis i odczyt plików oraz folderów w SharePoint (wymagane przez moduł Pliki)'],
             ['name' => 'GroupMember.ReadWrite.All', 'module' => 'Zarządzanie członkostwem grup',     'required' => false, 'desc' => 'Dodawanie i usuwanie członków grup M365'],
         ],
     ],

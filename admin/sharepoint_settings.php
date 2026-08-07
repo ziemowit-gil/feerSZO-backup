@@ -13,7 +13,33 @@ $keys = ['sp_enabled','sp_site_url','sp_library','sp_base_folder'];
 $cfg  = [];
 foreach ($keys as $k) $cfg[$k] = m365_setting($k);
 
-$m365_ok = (new M365Graph())->is_configured();
+$graph     = new M365Graph();
+$m365_ok   = $graph->is_configured();
+$client_id = m365_setting('m365_graph_client_id');
+$tenant_id = m365_setting('m365_tenant_id');
+
+// Sprawdź czy Sites.ReadWrite.All jest nadane
+$sp_perm_granted = null;
+$sp_perm_error   = null;
+if ($m365_ok) {
+    try {
+        $perm = $graph->get_granted_permissions();
+        if (!empty($perm['error'])) {
+            $sp_perm_error = $perm['error'];
+        } else {
+            $sp_perm_granted = in_array('Sites.ReadWrite.All', $perm['application'] ?? [], true);
+        }
+    } catch (\Throwable $e) {
+        $sp_perm_error = $e->getMessage();
+    }
+}
+
+$portal_api_url     = $client_id
+    ? "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/{$client_id}/isMSAApp~/false"
+    : '';
+$portal_consent_url = ($tenant_id && $client_id)
+    ? "https://login.microsoftonline.com/{$tenant_id}/adminconsent?client_id={$client_id}"
+    : '';
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -134,14 +160,60 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
 
       <div class="prereq-item">
-        <span class="prereq-icon text-info">ℹ️</span>
-        <div>
-          <strong>Uprawnienie Azure AD:</strong> <code>Sites.ReadWrite.All</code>
-          <div class="small text-muted mt-1">
-            Dodaj w Azure Portal → App registrations → API permissions → Microsoft Graph →
-            Application permissions → <code>Sites.ReadWrite.All</code> → Grant admin consent.
+        <?php if ($sp_perm_granted === true): ?>
+          <span class="prereq-icon text-success">✅</span>
+          <div>
+            <strong>Uprawnienie Azure AD</strong> — <code>Sites.ReadWrite.All</code>
+            <span class="badge bg-success ms-1">Nadane</span>
           </div>
-        </div>
+        <?php elseif ($sp_perm_granted === false): ?>
+          <span class="prereq-icon text-danger">❌</span>
+          <div>
+            <strong>Uprawnienie Azure AD</strong> — <code>Sites.ReadWrite.All</code>
+            <span class="badge bg-danger ms-1">Brak</span>
+            <div class="small text-muted mt-1">
+              Dodaj: Azure Portal → App registrations → API permissions → Microsoft Graph
+              → Application permissions → <code>Sites.ReadWrite.All</code> → Grant admin consent.
+            </div>
+            <?php if ($portal_api_url || $portal_consent_url): ?>
+            <div class="d-flex gap-2 mt-2 flex-wrap">
+              <?php if ($portal_api_url): ?>
+              <a href="<?= h($portal_api_url) ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-danger">
+                <i class="bi bi-plus-circle me-1"></i>Dodaj uprawnienie w Azure
+              </a>
+              <?php endif; ?>
+              <?php if ($portal_consent_url): ?>
+              <a href="<?= h($portal_consent_url) ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-patch-check me-1"></i>Grant Admin Consent
+              </a>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
+          </div>
+        <?php else: ?>
+          <span class="prereq-icon text-info">ℹ️</span>
+          <div>
+            <strong>Uprawnienie Azure AD</strong> — <code>Sites.ReadWrite.All</code> (Application)
+            <?php if ($sp_perm_error): ?>
+              <span class="badge bg-secondary ms-1" title="<?= h($sp_perm_error) ?>">Nie sprawdzono</span>
+            <?php elseif (!$m365_ok): ?>
+              <span class="badge bg-secondary ms-1">Skonfiguruj M365 aby zweryfikować</span>
+            <?php else: ?>
+              <span class="badge bg-secondary ms-1">Nie zweryfikowano</span>
+            <?php endif; ?>
+            <div class="small text-muted mt-1">
+              Dodaj w Azure Portal → App registrations → API permissions → Microsoft Graph
+              → Application permissions → <code>Sites.ReadWrite.All</code> → Grant admin consent.
+              <?php if ($portal_api_url): ?>
+              <a href="<?= h($portal_api_url) ?>" target="_blank" rel="noopener" class="ms-1">
+                Otwórz Azure Portal <i class="bi bi-box-arrow-up-right"></i>
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
 
       <div class="prereq-item">
