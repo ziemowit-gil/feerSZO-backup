@@ -19,17 +19,503 @@ $user    = current_user();
 $uid     = (int)$user['id'];
 
 // ── Workspace ──────────────────────────────────────────────────────────────
-$workspaces  = task_user_workspaces($uid);
-$ws_id_param = (int)($_GET['ws'] ?? 0);
-$ws_id       = $ws_id_param;
+$workspaces    = task_user_workspaces($uid);
+$ws_id_param   = (int)($_GET['ws'] ?? 0);
+$ws_id         = $ws_id_param;
+$overview_mode = ($ws_id === 0);
 
 if ($ws_id && $workspaces && !in_array($ws_id, array_column($workspaces, 'id'), false)) {
-    header('Location: ' . APP_URL . '/tasks/files.php?ws=' . (int)$workspaces[0]['id']);
+    header('Location: ' . APP_URL . '/tasks/files.php');
     exit;
 }
-if (!$ws_id && $workspaces) {
-    $ws_id = (int)$workspaces[0]['id'];
+
+if ($overview_mode) {
+    // Dane dla widoku ogólnego — wszystkie obszary z liczebnościami
+    $ov_workspaces = ws_list_user_workspaces($uid);
+
+    $recent_files = empty($ov_workspaces) ? [] : db_all(
+        "SELECT f.id, f.name, f.original_name, f.file_size, f.created_at,
+                fo.id AS folder_id, fo.name AS folder_name,
+                tw.id AS ws_id, tw.name AS ws_name, tw.color AS ws_color,
+                u.name AS uploader_name
+         FROM ws_files f
+         JOIN ws_folders fo ON fo.id = f.folder_id
+         JOIN task_workspaces tw ON tw.id = fo.workspace_id
+         JOIN task_workspace_members twm ON twm.workspace_id = tw.id AND twm.user_id = ?
+         LEFT JOIN users u ON u.id = f.uploaded_by
+         WHERE tw.is_active = 1 AND f.deleted_at IS NULL
+         ORDER BY f.created_at DESC LIMIT 10",
+        [$uid]
+    );
+    $any_can_manage = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor'])));
+    $any_can_upload = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor','member'])));
+    $sp_ok = ws_available();
+
+    $PAGE_TITLE       = 'Pliki';
+    $PAGE_SUBTITLE    = 'Pliki';
+    $TASKS_BREADCRUMB = null;
+    $TASKS_WS_ID      = 0;
+    $TASKS_FILES_VIEW = true;
+    require_once __DIR__ . '/includes/header_tasks.php';
+?>
+
+<style>
+:root {
+  --tk-focus:   #2563eb;
+  --tk-border:  #e2e8f0;
+  --tk-bg-soft: #f8fafc;
+  --tk-text:    #0f172a;
+  --tk-muted:   #64748b;
+  --tk-radius:  .5rem;
 }
+.tf-toolbar {
+  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+  background: #fff; border: 1px solid var(--tk-border);
+  border-radius: var(--tk-radius); padding: .55rem .75rem;
+  margin-bottom: .85rem;
+}
+.tf-view-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .22rem .65rem; border-radius: 2rem; font-size: .77rem; font-weight: 600;
+  border: 1.5px solid transparent; text-decoration: none;
+  background: #f1f5f9; color: var(--tk-muted); transition: all .12s; white-space: nowrap;
+}
+.tf-view-btn.active { background: var(--tsk-green, #059669); color: #fff; border-color: var(--tsk-green, #059669); }
+.tf-view-btn:hover:not(.active) { border-color: #94a3b8; }
+.tf-sep { width: 1px; height: 1.3rem; background: #e2e8f0; flex-shrink: 0; }
+.tf-wrap { background: #fff; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); overflow: hidden; }
+.tf-file-icon { font-size: 1.1rem; }
+
+.tf-ws-card {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .85rem 1rem;
+  background: #fff; border: 1px solid var(--tk-border);
+  border-radius: var(--tk-radius);
+  text-decoration: none; color: inherit;
+  transition: box-shadow .12s, border-color .12s;
+  height: 100%;
+}
+.tf-ws-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.09); border-color: #94a3b8; color: inherit; }
+.tf-ws-card-icon {
+  width: 2.5rem; height: 2.5rem; border-radius: .5rem;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 1.15rem; flex-shrink: 0;
+}
+.tf-ws-empty {
+  border: 2px dashed var(--tk-border); background: var(--tk-bg-soft);
+  border-radius: var(--tk-radius); padding: 3rem 1rem;
+  text-align: center; color: var(--tk-muted);
+}
+</style>
+
+<main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
+<?php require_once dirname(dirname(__DIR__)) . '/includes/banner_rewrite.php' ?>
+
+<!-- Pasek narzędzi — widoki + akcje -->
+<div class="tf-toolbar">
+  <a href="<?= APP_URL ?>/tasks/index.php?view=list" class="tf-view-btn">
+    <i class="bi bi-list-ul"></i>Lista
+  </a>
+  <a href="<?= APP_URL ?>/tasks/index.php?view=kanban" class="tf-view-btn">
+    <i class="bi bi-kanban"></i>Kanban
+  </a>
+  <a href="<?= APP_URL ?>/tasks/files.php" class="tf-view-btn active">
+    <i class="bi bi-folder2-open"></i>Pliki
+  </a>
+
+  <div class="tf-sep" aria-hidden="true"></div>
+  <span style="font-size:.78rem; color:var(--tk-muted)"><?= count($ov_workspaces) ?> obszarów</span>
+
+  <?php if ($sp_ok && ($any_can_manage || $any_can_upload)): ?>
+  <div class="ms-auto d-flex gap-2">
+    <?php if ($any_can_manage): ?>
+    <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.8rem"
+            data-bs-toggle="modal" data-bs-target="#ovNewFolderModal">
+      <i class="bi bi-folder-plus me-1"></i>Nowy folder
+    </button>
+    <?php endif; ?>
+    <?php if ($any_can_upload): ?>
+    <button class="btn btn-sm btn-primary py-0 px-2" style="font-size:.8rem"
+            data-bs-toggle="modal" data-bs-target="#ovUploadModal">
+      <i class="bi bi-upload me-1"></i>Wgraj plik
+    </button>
+    <?php endif; ?>
+  </div>
+  <?php else: ?>
+  <div class="ms-auto"></div>
+  <?php endif; ?>
+</div>
+
+<?php if (empty($ov_workspaces)): ?>
+<div class="tf-ws-empty">
+  <i class="bi bi-folder2 d-block mb-2" style="font-size:2.5rem; opacity:.3"></i>
+  <p class="mb-0">Brak dostępu do żadnego obszaru roboczego.</p>
+</div>
+<?php else: ?>
+
+<!-- Siatka obszarów roboczych -->
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-4">
+  <?php foreach ($ov_workspaces as $ov_ws):
+    $wsColor = $ov_ws['color'] ?: '#3b82f6';
+    $wsIcon  = $ov_ws['icon']  ?: 'bi-kanban';
+    $fc = (int)($ov_ws['folder_count'] ?? 0);
+    $ff = (int)($ov_ws['file_count']   ?? 0);
+  ?>
+  <div class="col">
+    <a href="?ws=<?= (int)$ov_ws['id'] ?>" class="tf-ws-card">
+      <div class="tf-ws-card-icon" style="background:<?= h($wsColor) ?>">
+        <i class="bi <?= h($wsIcon) ?>"></i>
+      </div>
+      <div class="flex-grow-1 min-width-0">
+        <div class="fw-semibold text-truncate"><?= h($ov_ws['name']) ?></div>
+        <small class="text-muted">
+          <?= $fc ?> <?= $fc === 1 ? 'folder' : 'folderów' ?> · <?= $ff ?> <?= $ff === 1 ? 'plik' : 'plików' ?>
+        </small>
+      </div>
+      <i class="bi bi-chevron-right text-muted flex-shrink-0" style="font-size:.75rem"></i>
+    </a>
+  </div>
+  <?php endforeach; ?>
+</div>
+
+<!-- Ostatnie pliki (cross-workspace) -->
+<?php if (!empty($recent_files)): ?>
+<div class="tf-wrap">
+  <div class="d-flex align-items-center px-3 py-2 border-bottom"
+       style="font-size:.8rem; font-weight:700; color:var(--tk-muted); text-transform:uppercase; letter-spacing:.04em">
+    <i class="bi bi-clock-history me-1"></i>Ostatnio dodane
+    <span class="badge text-bg-secondary rounded-pill ms-2" style="font-size:.6rem"><?= count($recent_files) ?></span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th style="width:2rem" class="ps-3"></th>
+          <th>Nazwa</th>
+          <th class="d-none d-md-table-cell">Obszar / Folder</th>
+          <th class="d-none d-md-table-cell">Rozmiar</th>
+          <th class="d-none d-lg-table-cell">Data</th>
+          <th class="text-end pe-3">Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($recent_files as $rf):
+        $ext  = strtolower(pathinfo($rf['original_name'] ?? $rf['name'], PATHINFO_EXTENSION));
+        $icon = match($ext) {
+            'pdf'        => 'bi-file-earmark-pdf text-danger',
+            'doc','docx' => 'bi-file-earmark-word text-primary',
+            'xls','xlsx' => 'bi-file-earmark-excel text-success',
+            'ppt','pptx' => 'bi-file-earmark-ppt text-warning',
+            'jpg','jpeg','png','gif','webp' => 'bi-file-earmark-image text-info',
+            'zip','7z','tar','gz'           => 'bi-file-earmark-zip text-secondary',
+            default      => 'bi-file-earmark text-muted',
+        };
+        $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
+        $rfid   = (int)$rf['id'];
+        $rf_ws  = (int)$rf['ws_id'];
+        $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $rfid . '&_csrf=' . urlencode(csrf_token());
+        $pv_url = APP_URL . '/workspaces/api.php?action=preview&id='  . $rfid . '&_csrf=' . urlencode(csrf_token());
+      ?>
+      <tr>
+        <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
+        <td class="text-truncate" style="max-width:200px">
+          <a href="?ws=<?= $rf_ws ?>&folder=<?= (int)$rf['folder_id'] ?>"
+             class="text-decoration-none text-body" title="<?= h($rf['name']) ?>">
+            <?= h($rf['name']) ?>
+          </a>
+        </td>
+        <td class="d-none d-md-table-cell text-muted" style="font-size:.78rem">
+          <a href="?ws=<?= $rf_ws ?>" class="text-decoration-none text-muted fw-semibold">
+            <?= h($rf['ws_name']) ?>
+          </a>
+          <span class="text-muted"> / <?= h($rf['folder_name']) ?></span>
+        </td>
+        <td class="d-none d-md-table-cell text-muted"><?= ws_format_size((int)$rf['file_size']) ?></td>
+        <td class="d-none d-lg-table-cell text-muted"><?= date('d.m.Y', strtotime($rf['created_at'])) ?></td>
+        <td class="text-end pe-2">
+          <div class="d-flex gap-1 justify-content-end">
+            <?php if ($previewable): ?>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-ov-preview"
+                    data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
+                    data-name="<?= h($rf['name']) ?>" title="Podgląd">
+              <i class="bi bi-eye"></i>
+            </button>
+            <?php endif; ?>
+            <a href="<?= h($dl_url) ?>"
+               class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
+              <i class="bi bi-download"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; // recent_files ?>
+<?php endif; // ov_workspaces not empty ?>
+
+</main>
+
+<!-- ══ Modals (overview) ═══════════════════════════════════════════════════ -->
+
+<!-- Nowy folder (z wyborem obszaru) -->
+<?php if ($sp_ok && $any_can_manage): ?>
+<div class="modal fade" id="ovNewFolderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-folder-plus me-1 text-primary"></i>Nowy folder</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-2">
+        <div id="ovFolderAlert" class="alert alert-danger py-1 small" style="display:none"></div>
+        <label class="form-label small fw-semibold mb-1">Obszar roboczy <span class="text-danger">*</span></label>
+        <select id="ovFolderWsId" class="form-select form-select-sm mb-3">
+          <option value="">— wybierz obszar —</option>
+          <?php foreach ($ov_workspaces as $ov_ws): ?>
+          <?php if (in_array($ov_ws['ws_role'], ['admin','editor'])): ?>
+          <option value="<?= (int)$ov_ws['id'] ?>"><?= h($ov_ws['name']) ?></option>
+          <?php endif; ?>
+          <?php endforeach; ?>
+        </select>
+        <label class="form-label small fw-semibold mb-1">Nazwa folderu <span class="text-danger">*</span></label>
+        <input type="text" id="ovFolderName" class="form-control form-control-sm mb-2" placeholder="np. Dokumenty">
+        <label class="form-label small fw-semibold mb-1">Opis (opcjonalnie)</label>
+        <input type="text" id="ovFolderDesc" class="form-control form-control-sm" placeholder="Krótki opis">
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button class="btn btn-sm btn-primary" id="ovBtnCreateFolder">
+          <i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Wgraj plik (z wyborem obszaru + folderu) -->
+<?php if ($sp_ok && $any_can_upload): ?>
+<div class="modal fade" id="ovUploadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-upload me-1 text-primary"></i>Wgraj plik</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-2">
+        <div id="ovUploadAlert" class="alert alert-danger py-1 small" style="display:none"></div>
+        <label class="form-label small fw-semibold mb-1">Obszar roboczy <span class="text-danger">*</span></label>
+        <select id="ovUploadWsId" class="form-select form-select-sm mb-3">
+          <option value="">— wybierz obszar —</option>
+          <?php foreach ($ov_workspaces as $ov_ws): ?>
+          <?php if (in_array($ov_ws['ws_role'], ['admin','editor','member'])): ?>
+          <option value="<?= (int)$ov_ws['id'] ?>"><?= h($ov_ws['name']) ?></option>
+          <?php endif; ?>
+          <?php endforeach; ?>
+        </select>
+        <label class="form-label small fw-semibold mb-1">Folder <span class="text-danger">*</span></label>
+        <select id="ovUploadFolderId" class="form-select form-select-sm mb-3" disabled>
+          <option value="">— najpierw wybierz obszar —</option>
+        </select>
+        <label class="form-label small fw-semibold mb-1">Plik(i) <span class="text-danger">*</span></label>
+        <input type="file" id="ovUploadFile" class="form-control form-control-sm" multiple>
+        <div id="ovUploadProgress" style="display:none" class="mt-2">
+          <div class="progress" style="height:4px">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="ovUploadBar" style="width:0%"></div>
+          </div>
+          <small class="text-muted" id="ovUploadStatus"></small>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button class="btn btn-sm btn-primary" id="ovBtnUpload">
+          <i class="bi bi-upload me-1"></i>Wgraj
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Podgląd (reused) -->
+<div class="modal fade" id="ovPreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold" id="ovPreviewTitle">
+          <i class="bi bi-eye me-1 text-primary"></i>Podgląd
+        </h6>
+        <a id="ovPreviewDownload" href="#" class="btn btn-sm btn-outline-primary py-0 px-2 me-2">
+          <i class="bi bi-download me-1"></i>Pobierz
+        </a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" style="min-height:70vh">
+        <div id="ovPreviewSpinner" class="d-flex align-items-center justify-content-center" style="min-height:70vh">
+          <span class="spinner-border text-primary"></span>
+        </div>
+        <iframe id="ovPreviewIframe" src="about:blank" style="display:none;width:100%;height:75vh;border:0"></iframe>
+        <div id="ovPreviewImgWrap" style="display:none;text-align:center;padding:1rem">
+          <img id="ovPreviewImg" src="" alt="" style="max-width:100%;max-height:75vh;object-fit:contain">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="tsk-footer">
+  <span><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> — Moduł Zadań</span>
+  <span><i class="bi bi-folder2-open me-1"></i>Pliki</span>
+</footer>
+
+<script>
+const CSRF = <?= json_encode(csrf_token()) ?>;
+const API  = <?= json_encode(APP_URL . '/workspaces/api.php') ?>;
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+async function wsApi(payload) {
+  return fetch(API, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({_csrf: CSRF, ...payload})
+  }).then(r => r.json()).catch(() => ({ok: false, error: 'Błąd połączenia.'}));
+}
+
+// ── Podgląd (overview) ────────────────────────────────────────────────────
+const ovPreviewModal   = new bootstrap.Modal(document.getElementById('ovPreviewModal'));
+const ovPreviewIframe  = document.getElementById('ovPreviewIframe');
+const ovPreviewImg     = document.getElementById('ovPreviewImg');
+const ovPreviewImgWrap = document.getElementById('ovPreviewImgWrap');
+const ovPreviewSpinner = document.getElementById('ovPreviewSpinner');
+
+document.querySelectorAll('.btn-ov-preview').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const url = btn.dataset.url, ext = btn.dataset.ext, name = btn.dataset.name;
+    document.getElementById('ovPreviewTitle').textContent = name;
+    document.getElementById('ovPreviewDownload').href = url.replace('action=preview','action=download');
+    ovPreviewSpinner.style.display  = '';
+    ovPreviewIframe.style.display   = 'none';
+    ovPreviewImgWrap.style.display  = 'none';
+    ovPreviewIframe.src = 'about:blank';
+    ovPreviewModal.show();
+    if (['jpg','jpeg','png','gif','webp'].includes(ext)) {
+      ovPreviewImg.onload = () => { ovPreviewSpinner.style.display = 'none'; ovPreviewImgWrap.style.display = ''; };
+      ovPreviewImg.src = url;
+    } else {
+      ovPreviewIframe.onload = () => { ovPreviewSpinner.style.display = 'none'; ovPreviewIframe.style.display = ''; };
+      ovPreviewIframe.src = url;
+    }
+  });
+});
+document.getElementById('ovPreviewModal').addEventListener('hidden.bs.modal', () => {
+  ovPreviewIframe.src = 'about:blank';
+  ovPreviewImg.src = '';
+  ovPreviewImgWrap.style.display = ovPreviewIframe.style.display = 'none';
+});
+
+// ── Nowy folder (overview) ────────────────────────────────────────────────
+document.getElementById('ovBtnCreateFolder')?.addEventListener('click', async () => {
+  const wsId    = +document.getElementById('ovFolderWsId').value;
+  const name    = document.getElementById('ovFolderName').value.trim();
+  const desc    = document.getElementById('ovFolderDesc').value.trim();
+  const alertEl = document.getElementById('ovFolderAlert');
+  alertEl.style.display = 'none';
+  if (!wsId) { alertEl.textContent = 'Wybierz obszar roboczy.'; alertEl.style.display = ''; return; }
+  if (!name) { alertEl.textContent = 'Podaj nazwę folderu.';    alertEl.style.display = ''; return; }
+  const btn = document.getElementById('ovBtnCreateFolder');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę…';
+  const r = await wsApi({action: 'create_folder', workspace_id: wsId, name, description: desc});
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint';
+  if (r.ok) {
+    window.location.href = `?ws=${wsId}&folder=${r.folder.id}`;
+  } else { alertEl.textContent = r.error || 'Błąd.'; alertEl.style.display = ''; }
+});
+
+// ── Upload (overview): zmiana obszaru → wczytaj foldery ──────────────────
+document.getElementById('ovUploadWsId')?.addEventListener('change', async function () {
+  const wsId     = +this.value;
+  const folderSel = document.getElementById('ovUploadFolderId');
+  folderSel.innerHTML = '<option value="">Wczytuję…</option>';
+  folderSel.disabled  = true;
+  if (!wsId) {
+    folderSel.innerHTML = '<option value="">— najpierw wybierz obszar —</option>';
+    return;
+  }
+  const r = await wsApi({action: 'list_folders', workspace_id: wsId});
+  if (r.ok && r.folders.length) {
+    folderSel.innerHTML = '<option value="">— wybierz folder —</option>' +
+      r.folders.map(f => `<option value="${f.id}">${escHtml(f.name)}</option>`).join('');
+    folderSel.disabled = false;
+  } else {
+    folderSel.innerHTML = '<option value="">Brak folderów w tym obszarze</option>';
+  }
+});
+
+// ── Upload (overview): wyślij ─────────────────────────────────────────────
+document.getElementById('ovBtnUpload')?.addEventListener('click', async () => {
+  const wsId     = +document.getElementById('ovUploadWsId').value;
+  const folderId = +document.getElementById('ovUploadFolderId').value;
+  const files    = document.getElementById('ovUploadFile').files;
+  const alertEl  = document.getElementById('ovUploadAlert');
+  alertEl.style.display = 'none';
+  if (!wsId)     { alertEl.textContent = 'Wybierz obszar roboczy.'; alertEl.style.display = ''; return; }
+  if (!folderId) { alertEl.textContent = 'Wybierz folder.';          alertEl.style.display = ''; return; }
+  if (!files.length) { alertEl.textContent = 'Wybierz plik.';        alertEl.style.display = ''; return; }
+
+  const progress = document.getElementById('ovUploadProgress');
+  const bar      = document.getElementById('ovUploadBar');
+  const status   = document.getElementById('ovUploadStatus');
+  const btn      = document.getElementById('ovBtnUpload');
+  btn.disabled   = true;
+
+  for (const file of files) {
+    progress.style.display = '';
+    bar.style.width = '0%';
+    bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    status.textContent = `Wgrywam: ${file.name}…`;
+    const fd = new FormData();
+    fd.append('_csrf', CSRF);
+    fd.append('action', 'upload_file');
+    fd.append('folder_id', folderId);
+    fd.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable) bar.style.width = Math.round(e.loaded / e.total * 100) + '%';
+    });
+    await new Promise(resolve => {
+      xhr.onload = () => {
+        const r = JSON.parse(xhr.responseText || '{}');
+        if (r.ok) {
+          status.textContent = `✓ ${file.name} wgrano`;
+          bar.style.width = '100%';
+          bar.classList.remove('progress-bar-animated');
+        } else {
+          status.textContent = `✗ ${r.error || 'Błąd wgrywania.'}`;
+          bar.classList.remove('bg-primary');
+          bar.classList.add('bg-danger');
+        }
+        resolve();
+      };
+      xhr.open('POST', API); xhr.send(fd);
+    });
+  }
+  btn.disabled = false;
+  setTimeout(() => window.location.href = `?ws=${wsId}&folder=${folderId}`, 700);
+});
+</script>
+
+<?php
+include dirname(__DIR__) . '/includes/footer.php';
+exit; // ← overview mode ends here — below is per-workspace code
+}
+
+// ── Per-workspace mode ──────────────────────────────────────────────────────
 
 if (!$ws_id) {
     http_response_code(403);

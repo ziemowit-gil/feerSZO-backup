@@ -203,6 +203,18 @@ $resp = match($action) {
         return ['ok' => true, 'files' => $rows];
     })(),
 
+    // ── Lista folderów w workspace (do pickerów w overview) ───────────────
+    'list_folders' => (function () use ($body): array {
+        $ws_id = (int)($body['workspace_id'] ?? 0);
+        if (!$ws_id) return ['ok' => false, 'folders' => [], 'error' => 'Brak workspace_id.'];
+        ws_require_access($ws_id, 'viewer');
+        $folders = ws_list_folders($ws_id);
+        return ['ok' => true, 'folders' => array_map(
+            fn($f) => ['id' => (int)$f['id'], 'name' => $f['name']],
+            $folders
+        )];
+    })(),
+
     default => ['ok' => false, 'error' => "Nieznana akcja: {$action}"]
 };
 
