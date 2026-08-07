@@ -165,6 +165,7 @@ HTML
 
 $PAGE_TITLE = 'Nowe zgłoszenie IT — Helpdesk';
 include dirname(__DIR__) . '/includes/header.php';
+echo hd_ui_css();
 
 // Prefill z danych użytkownika
 $pref_name  = $u['name'] ?? '';
@@ -175,37 +176,71 @@ try {
     if ($pu && !empty($pu['telefon'])) $pref_phone = $pu['telefon'];
 } catch (\Throwable $e) {}
 ?>
+<style>
+.hd-new-hero {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1.1rem 1.25rem; border-radius: 12px; margin-bottom: 1.5rem;
+  background: linear-gradient(120deg, var(--hd-accent) 0%, #7c3aed 100%); color: #fff;
+  box-shadow: 0 4px 24px rgba(79,70,229,.25);
+}
+.hd-new-hero-icon {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center;
+  font-size: 1.35rem; flex-shrink: 0;
+}
+.hd-new-card {
+  background: var(--hd-panel); border: 1px solid var(--hd-bd); border-radius: 12px;
+  box-shadow: var(--hd-shadow);
+}
+.hd-new-card-body { padding: 1.25rem 1.4rem; }
+.hd-new-sec-head {
+  font-size: .75rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--hd-tx3); font-weight: 700; margin-bottom: .65rem;
+}
+.hd-pri-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .32rem .75rem; border-radius: 8px; border: 1.5px solid var(--hd-bd);
+  font-size: .8rem; cursor: pointer; background: var(--hd-panel); color: var(--hd-tx2);
+  transition: all .12s; user-select: none;
+}
+.hd-pri-btn.active-pri { border-color: var(--hd-accent); background: var(--hd-accent-l); color: var(--hd-accent); font-weight: 600; }
+.hd-info-card {
+  background: var(--hd-panel); border: 1px solid var(--hd-bd); border-radius: 10px;
+  overflow: hidden; margin-bottom: .75rem;
+}
+.hd-info-card-head { padding: .5rem .85rem; font-size: .78rem; font-weight: 700; background: var(--hd-bg); border-bottom: 1px solid var(--hd-bd-l); }
+.hd-info-card-body { padding: .7rem .85rem; font-size: .8rem; }
+</style>
 
-<div class="d-flex align-items-center gap-3 mb-4 p-3 rounded-3 shadow-sm"
-     style="background:linear-gradient(90deg,#1e40af,#2563EB);color:#fff">
-  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm btn-light" aria-label="Wróć do konsoli">
+<!-- Hero -->
+<div class="hd-new-hero">
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none" aria-label="Wróć do konsoli">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <div class="d-flex align-items-center justify-content-center rounded-circle bg-white bg-opacity-25 flex-shrink-0"
-       style="width:46px;height:46px"><i class="bi bi-plus-circle fs-4"></i></div>
+  <div class="hd-new-hero-icon"><i class="bi bi-plus-circle"></i></div>
   <div>
-    <div class="fw-bold fs-5">Nowe zgłoszenie IT</div>
-    <div class="small opacity-75">Helpdesk — opisz problem, a zajmiemy się nim zgodnie z priorytetem (SLA).</div>
+    <div style="font-weight:800;font-size:1.05rem">Nowe zgłoszenie IT</div>
+    <div style="font-size:.82rem;opacity:.8">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger py-2"><ul class="mb-0 ps-3">
-  <?php foreach ($errors as $e) echo '<li class="small">' . h($e) . '</li>'; ?>
+<div class="alert alert-danger py-2 mb-3"><ul class="mb-0 ps-3">
+  <?php foreach ($errors as $e) echo '<li style="font-size:.85rem">' . h($e) . '</li>'; ?>
 </ul></div>
 <?php endif; ?>
 
 <div class="row g-4">
 <div class="col-lg-8">
 
-<div class="card border-0 shadow-sm">
-  <div class="card-body">
+<div class="hd-new-card">
+  <div class="hd-new-card-body">
     <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
       <!-- Temat -->
       <div class="mb-3">
-        <label class="form-label fw-semibold">Temat zgłoszenia <span class="text-danger">*</span></label>
+        <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Temat zgłoszenia <span class="text-danger">*</span></label>
         <input name="title" class="form-control" required maxlength="200"
                placeholder="Krótki opis problemu, np. Nie mogę zalogować się do VPN"
                value="<?= h($_POST['title'] ?? '') ?>">
@@ -214,7 +249,7 @@ try {
       <!-- Kategoria + Priorytet -->
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">Kategoria</label>
+          <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Kategoria</label>
           <select name="category" class="form-select">
             <?php foreach (HD_CATEGORIES as $k => $v): ?>
             <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>><?= h($v) ?></option>
@@ -222,12 +257,11 @@ try {
           </select>
         </div>
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">Pilność</label>
+          <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Pilność</label>
           <div class="d-flex gap-2 flex-wrap mt-1">
             <?php foreach (HD_PRIORITIES as $k => $p): $checked = ($_POST['priority'] ?? 'normalny') === $k; ?>
-            <label class="btn btn-sm btn-outline-<?= $p['class'] ?> <?= $checked ? 'active' : '' ?>"
-                   style="font-size:.82rem">
-              <input type="radio" name="priority" value="<?= h($k) ?>" class="d-none" <?= $checked ? 'checked' : '' ?>>
+            <label class="hd-pri-btn <?= $checked ? 'active-pri' : '' ?>">
+              <input type="radio" name="priority" value="<?= h($k) ?>" class="visually-hidden hd-pri-radio" <?= $checked ? 'checked' : '' ?>>
               <?= h($p['label']) ?>
             </label>
             <?php endforeach; ?>
@@ -237,58 +271,54 @@ try {
 
       <!-- Opis -->
       <div class="mb-3">
-        <label class="form-label fw-semibold">Opis problemu <span class="text-danger">*</span></label>
+        <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Opis problemu <span class="text-danger">*</span></label>
         <textarea name="description" class="form-control" rows="6" required
                   placeholder="Opisz dokładnie co się dzieje, kiedy problem wystąpił, jakie komunikaty błędu widzisz, co już próbowałeś/aś zrobić..."><?= h($_POST['description'] ?? '') ?></textarea>
-        <div class="form-text">Im więcej szczegółów, tym szybciej rozwiążemy problem.</div>
+        <div class="form-text" style="font-size:.77rem">Im więcej szczegółów, tym szybciej rozwiążemy problem.</div>
       </div>
 
       <!-- Załączniki -->
       <div class="mb-4">
-        <label class="form-label fw-semibold">Załączniki <span class="text-muted fw-normal">(zrzuty ekranu, logi)</span></label>
+        <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Załączniki <span style="color:var(--hd-tx3);font-weight:400">(zrzuty ekranu, logi)</span></label>
         <input name="attachments[]" type="file" class="form-control" multiple
                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
-        <div class="form-text">Maks. 10 MB / plik. Dozwolone: PDF, Word, Excel, obrazy, ZIP, TXT.</div>
+        <div class="form-text" style="font-size:.77rem">Maks. 10 MB / plik. Dozwolone: PDF, Word, Excel, obrazy, ZIP, TXT.</div>
       </div>
 
-      <hr class="my-4">
-
-      <!-- Dane kontaktowe -->
-      <div class="mb-1">
-        <span class="fw-semibold">Dane kontaktowe</span>
-        <span class="text-muted small ms-2">(wypełnione automatycznie z Twojego profilu)</span>
-      </div>
-      <div class="row g-3 mb-4">
-        <div class="col-sm-5">
-          <label class="form-label small">Imię i nazwisko</label>
-          <input name="req_name" class="form-control form-control-sm" value="<?= h($_POST['req_name'] ?? $pref_name) ?>">
-        </div>
-        <div class="col-sm-4">
-          <label class="form-label small">E-mail</label>
-          <input name="req_email" type="email" class="form-control form-control-sm" value="<?= h($_POST['req_email'] ?? $pref_email) ?>">
-        </div>
-        <div class="col-sm-3">
-          <label class="form-label small">Telefon <span class="text-muted">(opcjonalnie)</span></label>
-          <input name="req_phone" class="form-control form-control-sm" value="<?= h($_POST['req_phone'] ?? $pref_phone) ?>" placeholder="48XXXXXXXXX">
+      <div class="border-top mb-3 pt-3" style="border-color:var(--hd-bd-l)!important">
+        <div class="hd-new-sec-head">Dane kontaktowe <span style="text-transform:none;font-weight:400;color:var(--hd-tx3);letter-spacing:0">(wypełnione z profilu)</span></div>
+        <div class="row g-3">
+          <div class="col-sm-5">
+            <label class="form-label small mb-1">Imię i nazwisko</label>
+            <input name="req_name" class="form-control form-control-sm" value="<?= h($_POST['req_name'] ?? $pref_name) ?>">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small mb-1">E-mail</label>
+            <input name="req_email" type="email" class="form-control form-control-sm" value="<?= h($_POST['req_email'] ?? $pref_email) ?>">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small mb-1">Telefon <span style="color:var(--hd-tx3)">(opcjon.)</span></label>
+            <input name="req_phone" class="form-control form-control-sm" value="<?= h($_POST['req_phone'] ?? $pref_phone) ?>" placeholder="48XXXXXXXXX">
+          </div>
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary px-4">
-        <i class="bi bi-send me-1"></i>Wyślij zgłoszenie
-      </button>
-      <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-outline-secondary ms-2">Anuluj</a>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4" style="background:var(--hd-accent);border-color:var(--hd-accent)">
+          <i class="bi bi-send-fill me-1"></i>Wyślij zgłoszenie
+        </button>
+        <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-outline-secondary">Anuluj</a>
+      </div>
     </form>
   </div>
 </div>
 
 </div><!-- /col-8 -->
 <div class="col-lg-4">
-  <div class="card border-0 shadow-sm">
-    <div class="card-header fw-semibold bg-light py-2" style="font-size:.85rem">
-      <i class="bi bi-info-circle text-primary me-1"></i>Jak opisać problem?
-    </div>
-    <div class="card-body small">
-      <ul class="ps-3 mb-0" style="line-height:1.8">
+  <div class="hd-info-card">
+    <div class="hd-info-card-head"><i class="bi bi-info-circle me-1" style="color:var(--hd-accent)"></i>Jak opisać problem?</div>
+    <div class="hd-info-card-body">
+      <ul class="ps-3 mb-0" style="line-height:1.9;color:var(--hd-tx2)">
         <li>Co dokładnie próbowałeś/aś zrobić?</li>
         <li>Kiedy problem wystąpił po raz pierwszy?</li>
         <li>Czy pojawia się zawsze, czy sporadycznie?</li>
@@ -297,29 +327,27 @@ try {
       </ul>
     </div>
   </div>
-  <div class="card border-0 shadow-sm mt-3">
-    <div class="card-header fw-semibold bg-light py-2" style="font-size:.85rem">
-      <i class="bi bi-lightning text-warning me-1"></i>Priorytety
-    </div>
-    <div class="card-body small">
+  <div class="hd-info-card">
+    <div class="hd-info-card-head"><i class="bi bi-speedometer2 me-1" style="color:#f59e0b"></i>Priorytety SLA</div>
+    <div class="hd-info-card-body p-0">
       <?php foreach (HD_PRIORITIES as $k => $p): ?>
-      <div class="mb-2">
-        <div class="d-flex align-items-center gap-2">
-          <?= hd_priority_badge($k) ?>
-          <span class="text-muted"><?= match($k) {
+      <div class="d-flex align-items-start gap-2 px-3 py-2" style="border-bottom:1px solid var(--hd-bd-l)">
+        <?= hd_priority_badge($k) ?>
+        <div>
+          <div style="font-size:.79rem;color:var(--hd-tx2)"><?= match($k) {
             'krytyczny' => 'Całkowity brak możliwości pracy',
             'wysoki'    => 'Poważne utrudnienie pracy',
             'normalny'  => 'Standardowy problem',
             'niski'     => 'Drobna niedogodność',
             default     => ''
-          } ?></span>
+          } ?></div>
+          <?php if (!empty($p['sla_response']) || !empty($p['sla_resolve'])): ?>
+          <div style="font-size:.72rem;color:var(--hd-tx3)">
+            reakcja <?= hd_fmt_secs((int)($p['sla_response'] ?? 0) * 60) ?>
+            · rozwiązanie <?= hd_fmt_secs((int)($p['sla_resolve'] ?? 0) * 60) ?>
+          </div>
+          <?php endif; ?>
         </div>
-        <?php if (!empty($p['sla_response']) || !empty($p['sla_resolve'])): ?>
-        <div class="text-muted ms-1" style="font-size:.72rem">
-          <i class="bi bi-speedometer2 me-1"></i>reakcja <?= hd_fmt_secs((int)($p['sla_response'] ?? 0) * 60) ?>
-          · rozwiązanie <?= hd_fmt_secs((int)($p['sla_resolve'] ?? 0) * 60) ?>
-        </div>
-        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
@@ -328,13 +356,10 @@ try {
 </div>
 
 <script>
-// Podświetlanie aktywnego przycisku priorytetu
-document.querySelectorAll('[name="priority"]').forEach(function(r) {
-  r.closest('label').querySelector('input').addEventListener('change', function() {
-    document.querySelectorAll('[name="priority"]').forEach(function(x) {
-      x.closest('label').classList.remove('active');
-    });
-    this.closest('label').classList.add('active');
+document.querySelectorAll('.hd-pri-radio').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.querySelectorAll('.hd-pri-btn').forEach(function(l) { l.classList.remove('active-pri'); });
+    this.closest('.hd-pri-btn').classList.add('active-pri');
   });
 });
 </script>
