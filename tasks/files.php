@@ -30,8 +30,22 @@ if ($ws_id && $workspaces && !in_array($ws_id, array_column($workspaces, 'id'), 
 }
 
 if ($overview_mode) {
-    // Dane dla widoku ogólnego — wszystkie obszary z liczebnościami
-    $ov_workspaces = ws_list_user_workspaces($uid);
+    // Buduj dane kart z już załadowanych $workspaces (unika problemu z is_admin vs my_role)
+    $ov_workspaces = array_map(function ($ws) use ($uid) {
+        $wsid = (int)$ws['id'];
+        $fc   = (int)(db_one(
+            "SELECT COUNT(*) AS n FROM ws_folders WHERE workspace_id=?", [$wsid]
+        )['n'] ?? 0);
+        $ff   = (int)(db_one(
+            "SELECT COUNT(*) AS n FROM ws_files f
+             JOIN ws_folders fo ON fo.id=f.folder_id
+             WHERE fo.workspace_id=? AND f.deleted_at IS NULL",
+            [$wsid]
+        )['n'] ?? 0);
+        // my_role istnieje dla non-admin, admin widzi wszystko
+        $ws_role = $ws['my_role'] ?? (is_admin() ? 'admin' : (ws_user_role($wsid, $uid) ?: 'viewer'));
+        return array_merge($ws, ['folder_count' => $fc, 'file_count' => $ff, 'ws_role' => $ws_role]);
+    }, $workspaces);
 
     $recent_files = empty($ov_workspaces) ? [] : db_all(
         "SELECT f.id, f.name, f.original_name, f.file_size, f.created_at,
@@ -578,6 +592,20 @@ $folders    = ws_list_folders($ws_id);
 $sp_ok      = ws_available();
 $role       = ws_user_role($ws_id, $uid);
 
+// Auto-inicjuj strukturę SP gdy obszar jest pusty i użytkownik ma uprawnienia
+$auto_initialized = false;
+$auto_created     = 0;
+if (empty($folders) && $can_manage && $sp_ok) {
+    try {
+        ws_sp_init_workspace($ws_id);
+        $auto_created     = ws_init_task_folders($ws_id, $uid);
+        $folders          = ws_list_folders($ws_id);
+        $auto_initialized = true;
+    } catch (\Throwable $e) {
+        error_log('[files.php auto-init] ws=' . $ws_id . ' ' . $e->getMessage());
+    }
+}
+
 $active_folder_id = (int)($_GET['folder'] ?? ($folders[0]['id'] ?? 0));
 $active_folder    = null;
 $files            = [];
@@ -855,15 +883,30 @@ require_once __DIR__ . '/includes/header_tasks.php';
     </div>
 
     <?php else: ?>
+    <?php if ($auto_initialized): ?>
+    <div class="tf-wrap py-5 text-center text-muted">
+      <i class="bi bi-check-circle d-block mb-2 text-success" style="font-size:2.5rem"></i>
+      <p class="mb-1">Folder obszaru został utworzony w SharePoint.</p>
+      <?php if ($auto_created > 0): ?>
+      <p class="small mb-2">Zainicjalizowano <?= $auto_created ?> <?= $auto_created === 1 ? 'folder zadania' : ($auto_created < 5 ? 'foldery zadań' : 'folderów zadań') ?>.</p>
+      <?php endif; ?>
+      <?php if ($can_manage): ?>
+      <button class="btn btn-sm btn-primary mt-1" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+        <i class="bi bi-folder-plus me-1"></i>Utwórz folder
+      </button>
+      <?php endif; ?>
+    </div>
+    <?php else: ?>
     <div class="tf-wrap py-5 text-center text-muted">
       <i class="bi bi-folder2 d-block mb-2" style="font-size:2.5rem; opacity:.3"></i>
-      <p>Brak folderów w tym workspace.</p>
+      <p>Brak folderów w tym obszarze.</p>
       <?php if ($can_manage && $sp_ok): ?>
       <button class="btn btn-sm btn-primary mt-1" data-bs-toggle="modal" data-bs-target="#newFolderModal">
         <i class="bi bi-folder-plus me-1"></i>Utwórz pierwszy folder
       </button>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
     <?php endif; ?>
 
   </div><!-- /col-lg-9 -->
