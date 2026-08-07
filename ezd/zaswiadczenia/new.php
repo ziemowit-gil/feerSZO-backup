@@ -54,6 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $_byl_jest = fn(string $st) =>
             in_array($st, ['podpisana','w realizacji','obowiązująca','aktywna','w trakcie'], true)
                 ? 'jest' : 'był/była';
+        // Status umowy → etykieta dla pola status_umowy (ZAS-UM)
+        $_st_umowy = fn(string $st) => [
+            'podpisana'    => 'aktywna', 'w realizacji' => 'aktywna',
+            'obowiązująca' => 'aktywna', 'aktywna'      => 'aktywna',
+            'w trakcie'    => 'aktywna', 'zawieszona'   => 'zawieszona',
+            'zakończona'   => 'zakończona', 'rozwiązana' => 'rozwiązana',
+        ][$st] ?? '';
 
         try {
             if ($_ptype === 'wolontariat') {
@@ -87,9 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                         'typ_umowy'      => 'Porozumienie wolontariackie',
                         'stanowisko'     => $_c['stanowisko_name'] ?: ($_c['wolontariat_typ'] ?? ''),
                         'miejsce'        => $_c['miejsce'] ?? '',
-                        'status_umowy'   => ['podpisana'=>'aktywna','w realizacji'=>'aktywna',
-                            'obowiązująca'=>'aktywna','zawieszona'=>'zawieszona',
-                            'zakończona'=>'zakończona','rozwiązana'=>'rozwiązana'][$_c['status'] ?? ''] ?? '',
+                        'status_umowy'   => $_st_umowy($_c['status'] ?? ''),
                     ];
                 }
             } elseif ($_ptype === 'praca') {
@@ -105,12 +110,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                         '_email'        => $_c['email'],
                         'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
                         'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                        'typ_umowy'     => 'Umowa o pracę',
                         'numer_umowy'   => $_c['numer_umowy'] ?? '',
                         'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
-                        'stanowisko'    => $_c['stanowisko'] ?? '',
                         'data_od'       => $_sfmt($_c['data_rozpoczecia']),
                         'data_do'       => !empty($_c['czas_nieokreslony']) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
-                        'typ_umowy'     => 'Umowa o pracę',
+                        'stanowisko'    => $_c['stanowisko'] ?? '',
+                        'miejsce'       => '',
+                        'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
                     ];
                 }
             } elseif ($_ptype === 'dzielo') {
@@ -134,6 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                         'data_od'       => $_sfmt($_c['data_zawarcia']),
                         'data_do'       => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
                         'przedmiot'     => $_c['przedmiot'] ?? '',
+                        'stanowisko'    => '',
+                        'miejsce'       => '',
+                        'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
                     ];
                 }
             } else {
@@ -178,6 +188,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                             'data_od'       => $_sfmt($_c['data_rozpoczecia']),
                             'data_do'       => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
                             'przedmiot'     => $_c['przedmiot'] ?? '',
+                            'stanowisko'    => '',
+                            'miejsce'       => '',
+                            'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
                         ];
                     }
                 }

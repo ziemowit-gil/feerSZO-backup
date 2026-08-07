@@ -757,6 +757,20 @@ function ezd_zas_by_verify_code(string $code): ?array {
         '{{byl_jest}} wykonawcą zlecenia na rzecz'
     );
 
+    // Ważność 30 dni dla wszystkich 4 typów (tylko gdzie waznosc_dni=0/NULL — nie nadpisuje)
+    foreach (['zaswiadczenie_wolontariat','zaswiadczenie_zatrudnienie','zaswiadczenie_wspolpraca','zaswiadczenie_umowy'] as $_k) {
+        try { db()->prepare("UPDATE ezd_zas_typy SET waznosc_dni=30 WHERE kod=? AND COALESCE(waznosc_dni,0)=0")->execute([$_k]); }
+        catch (\Throwable $e) {}
+    }
+    // Propaguj podpisujacy z istniejących typów do ZAS-UM jeśli brak
+    $_ref_pod = db_one(
+        "SELECT podpisujacy FROM ezd_zas_typy WHERE kod IN ('zaswiadczenie_wolontariat','zaswiadczenie_zatrudnienie','zaswiadczenie_wspolpraca') AND COALESCE(podpisujacy,'')!='' LIMIT 1"
+    );
+    if ($_ref_pod) {
+        try { db()->prepare("UPDATE ezd_zas_typy SET podpisujacy=? WHERE kod='zaswiadczenie_umowy' AND COALESCE(podpisujacy,'')=''")->execute([$_ref_pod['podpisujacy']]); }
+        catch (\Throwable $e) {}
+    }
+
     // 4. Ogólne zaświadczenie o posiadanej umowie (tabela danych)
     $_ins(
         'zaswiadczenie_umowy',
