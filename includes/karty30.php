@@ -1180,6 +1180,21 @@ HTML;
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_comm_log_created ON k30_ti_comm_log(created_at)");
 
+    // Reguły zajęć stałych (cyklicznych) — wzorzec przechowywany w DB
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_series (
+        id             INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        course_id      INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        time_from      TEXT    NOT NULL DEFAULT '',
+        time_to        TEXT    NOT NULL DEFAULT '',
+        interval_weeks INTEGER NOT NULL DEFAULT 1,
+        date_from      TEXT    NOT NULL,
+        date_to        TEXT    NOT NULL,
+        topic          TEXT    NOT NULL DEFAULT '',
+        created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN series_id INTEGER"); } catch (\Throwable $e) {}
+
     // Jednorazowe tokeny impersonacji dla paneli dydaktyk/kursant
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_imp_tokens (
         token      TEXT     NOT NULL PRIMARY KEY,

@@ -239,6 +239,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Zajęcia stałe — nowa reguła cykliczna (z zapisem wzorca)
+    if ($op === 'save_recurring_rule') {
+        dyd_token_check();
+        $date_from  = trim($_POST['date_from'] ?? '');
+        $date_to    = trim($_POST['date_to'] ?? '');
+        $tf         = trim($_POST['time_from'] ?? '');
+        $tt         = trim($_POST['time_to'] ?? '');
+        $topic      = trim($_POST['topic'] ?? '');
+        $every      = max(1, min(8, (int)($_POST['interval_weeks'] ?? 1)));
+        if (!$date_from || !$date_to || $date_to < $date_from) {
+            flash_set('danger', 'Podaj poprawny zakres dat.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $dur = 60;
+        if ($tf && $tt) { $m = (strtotime('1970-01-01 '.$tt) - strtotime('1970-01-01 '.$tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        $rule_id = db_insert('k30_ti_series', [
+            'course_id'      => $course_id,
+            'time_from'      => $tf,
+            'time_to'        => $tt,
+            'interval_weeks' => $every,
+            'date_from'      => $date_from,
+            'date_to'        => $date_to,
+            'topic'          => $topic,
+            'created_by'     => $uid,
+            'created_at'     => date('Y-m-d H:i:s'),
+        ]);
+        $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
+        $d = $date_from;
+        $created = 0;
+        while ($d <= $date_to && $created < 104) {
+            $sid = db_insert('k30_ti_sessions', [
+                'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
+                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'), 'series_id' => $rule_id,
+            ]);
+            foreach ($enrollees as $e) {
+                try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
+                catch (\Throwable $ex) {}
+            }
+            $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
+            $created++;
+        }
+        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji (co {$every} tyg.).");
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Usunięcie reguły zajęć stałych
+    if ($op === 'delete_recurring_rule') {
+        dyd_token_check();
+        $rule_id = (int)($_POST['rule_id'] ?? 0);
+        $rule = db_one("SELECT id FROM k30_ti_series WHERE id=? AND course_id=?", [$rule_id, $course_id]);
+        if ($rule) {
+            if (!empty($_POST['del_future'])) {
+                db_exec("DELETE FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [$rule_id]);
+                db_exec("DELETE FROM k30_ti_series WHERE id=?", [$rule_id]);
+                flash_set('success', 'Usunięto reguły zajęć stałych i nadchodzące lekcje.');
+            } else {
+                db_exec("UPDATE k30_ti_sessions SET series_id=NULL WHERE series_id=?", [$rule_id]);
+                db_exec("DELETE FROM k30_ti_series WHERE id=?", [$rule_id]);
+                flash_set('success', 'Usunięto reguły zajęć stałych (istniejące lekcje zachowane).');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     if ($op === 'save_attendance') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if (dyd_owns_session($uid, $sid)) {
@@ -752,6 +817,11 @@ if ($cur_course) {
     $materials    = k30_ti_materials_list($cur_course);
     $all_sessions = db_all("SELECT id, lesson_date, topic FROM k30_ti_sessions WHERE course_id=? ORDER BY lesson_date DESC, id DESC", [$cur_course]);
 }
+
+$recurring_rules = $cur_course ? db_all(
+    "SELECT * FROM k30_ti_series WHERE course_id=? ORDER BY date_from",
+    [$cur_course]
+) : [];
 
 // Liczba oczekujących próśb o odwołanie udziału w kursie (do licznika)
 $pending_cancel_total = $cur_course ? (int)(db_one(
@@ -1387,6 +1457,12 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSeries">
             <i class="bi bi-calendar-plus me-1"></i>Seria
           </button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addRecurring">
+            <i class="bi bi-arrow-repeat me-1"></i>Zajęcia stałe
+          </button>
+          <a href="plan_print.php?instructor_id=<?= $uid ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-printer me-1"></i>Wydruk planu
+          </a>
           <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
             <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
           </button>
@@ -1422,6 +1498,69 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             $_grouped[$_mk][] = $_sx;
         }
       ?>
+      <?php if ($recurring_rules): ?>
+      <div class="mb-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="fw-semibold small"><i class="bi bi-arrow-repeat text-primary me-1"></i>Zajęcia stałe</span>
+          <span class="badge bg-primary rounded-pill"><?= count($recurring_rules) ?></span>
+        </div>
+        <div class="row g-2">
+          <?php foreach ($recurring_rules as $rr):
+            $rr_dow = ['Nd','Pn','Wt','Śr','Cz','Pt','So'][(int)date('w', strtotime((string)$rr['date_from']))];
+            $rr_upcoming = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [(int)$rr['id']])['n'] ?? 0);
+          ?>
+          <div class="col-md-6">
+            <div class="card card-body py-2 px-3 border">
+              <div class="d-flex align-items-start gap-2">
+                <div class="flex-grow-1">
+                  <div class="fw-semibold small"><?= h($rr['topic'] ?: '—') ?></div>
+                  <div class="text-body-secondary small">
+                    Co <?= (int)$rr['interval_weeks'] ?> tyg. · <?= $rr_dow ?>
+                    <?= $rr['time_from'] ? ' · ' . h($rr['time_from']) . '–' . h($rr['time_to']) : '' ?>
+                    · <?= h($rr['date_from']) ?> → <?= h($rr['date_to']) ?>
+                  </div>
+                  <div class="text-body-secondary small"><?= $rr_upcoming ?> nadchodzących lekcji</div>
+                </div>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots-vertical"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <form method="post" onsubmit="return confirm('Usunąć tylko regułę (lekcje pozostają)?')">
+                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                        <input type="hidden" name="_op" value="delete_recurring_rule">
+                        <input type="hidden" name="_tab" value="lekcje">
+                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                        <input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>">
+                        <button type="submit" class="dropdown-item">
+                          <i class="bi bi-x-circle me-2 text-warning"></i>Usuń regułę (lekcje zostają)
+                        </button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post" onsubmit="return confirm('Usunąć regułę ORAZ nadchodzące zaplanowane lekcje z tej serii?')">
+                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                        <input type="hidden" name="_op" value="delete_recurring_rule">
+                        <input type="hidden" name="_tab" value="lekcje">
+                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                        <input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>">
+                        <input type="hidden" name="del_future" value="1">
+                        <button type="submit" class="dropdown-item text-danger">
+                          <i class="bi bi-trash me-2"></i>Usuń regułę + nadchodzące lekcje
+                        </button>
+                      </form>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <div id="dyd-list-lekcje">
         <?php if (!$sessions): ?>
         <div class="text-body-secondary py-4 text-center">
@@ -1700,6 +1839,77 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         </form>
       </div></div>
     </div>
+
+    <!-- Modal: zajęcia stałe (z zapisem reguły) -->
+    <div class="modal fade" id="addRecurring" tabindex="-1" aria-labelledby="addRecurring_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="save_recurring_rule">
+          <input type="hidden" name="_tab" value="lekcje">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addRecurring_t"><i class="bi bi-arrow-repeat me-2"></i>Zajęcia stałe</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-body-secondary small">Definiuje cykliczne zajęcia — wzorzec jest zapisany i widoczny w widoku kursu. Lekcje są tworzone automatycznie na wskazany zakres.</p>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label fw-semibold" for="rec_date_from">Od <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="rec_date_from" name="date_from" required value="<?= h(date('Y-m-d')) ?>">
+              </div>
+              <div class="col-6">
+                <label class="form-label fw-semibold" for="rec_date_to">Do <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="rec_date_to" name="date_to" required value="<?= h(date('Y-m-d', strtotime('+3 months'))) ?>">
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label" for="rec_time_from">Godzina od</label>
+                <select class="form-select" id="rec_time_from" name="time_from"><?= ti_time_options('') ?></select>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="rec_time_to">Godzina do</label>
+                <select class="form-select" id="rec_time_to" name="time_to"><?= ti_time_options('') ?></select>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label" for="rec_interval">Co ile tygodni</label>
+                <input type="number" class="form-control" id="rec_interval" name="interval_weeks" min="1" max="8" value="1">
+              </div>
+              <div class="col-6 d-flex align-items-end">
+                <span class="text-body-secondary small" id="rec_count_hint"></span>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="rec_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
+              <input type="text" class="form-control" id="rec_topic" name="topic" placeholder="np. Ćwiczenia praktyczne">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Zapisz i utwórz lekcje</button>
+          </div>
+        </form>
+      </div></div>
+    </div>
+    <script>
+    (function(){
+      var df=document.getElementById('rec_date_from'), dt=document.getElementById('rec_date_to'),
+          iv=document.getElementById('rec_interval'), hint=document.getElementById('rec_count_hint');
+      function upd(){
+        var f=df?df.value:'',t=dt?dt.value:'',iw=parseInt(iv?iv.value:1)||1;
+        if(f&&t&&t>=f){
+          var ms=new Date(t)-new Date(f), d=Math.floor(ms/86400000)+1;
+          var n=Math.ceil(d/(iw*7));
+          hint.textContent='≈'+n+' lekcji';
+        }else hint.textContent='';
+      }
+      [df,dt,iv].forEach(function(el){if(el)el.addEventListener('change',upd);});
+    })();
+    </script>
 
     <!-- Modal: widok kalendarza lekcji -->
     <?php if ($all_sessions):
