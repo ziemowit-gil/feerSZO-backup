@@ -5,16 +5,17 @@
  */
 $project_root = dirname(__DIR__, 3);
 require_once $project_root . '/config.php';
+require_once $project_root . '/includes/db.php';
+require_once $project_root . '/includes/functions.php';
 
 $base_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
            . '://' . ($_SERVER['HTTP_HOST'] ?? 'ti.feer.org.pl');
 
 $new_ui_url = rtrim(KURSANT_NEW_UI_URL, '/') . '/';
 
-$pfron_root = $project_root . '/includes/pfron.php';
 $pfron_on = false;
-if (file_exists($pfron_root)) {
-    require_once $pfron_root;
+if (file_exists($project_root . '/includes/pfron.php')) {
+    require_once $project_root . '/includes/pfron.php';
     $pfron_on = k30_pfron_enabled();
 }
 ?><!DOCTYPE html>
