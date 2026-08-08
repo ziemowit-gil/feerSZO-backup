@@ -14,7 +14,7 @@ import { MatDialog, MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angu
 import { MatCardModule } from '@angular/material/card';
 import { Inject } from '@angular/core';
 import { PlannerService } from '../../core/services/planner.service';
-import { TokenWallet, TokenTransaction, TokenPrice } from '../../core/models/planner.models';
+import { TokenWallet, TokenTransaction, TokenPrice, Basket, CheckoutResult } from '../../core/models/planner.models';
 
 @Component({
   selector: 'app-grant-dialog',
@@ -200,7 +200,7 @@ export class PriceDialogComponent {
                 <ng-container matColumnDef="level"><th mat-header-cell *matHeaderCellDef>Poziom</th><td mat-cell *matCellDef="let p">{{ p.level || '—' }}</td></ng-container>
                 <ng-container matColumnDef="price">
                   <th mat-header-cell *matHeaderCellDef>Cena</th>
-                  <td mat-cell *matCellDef="let p"><strong>{{ p.price }} żet.</strong></td>
+                  <td mat-cell *matCellDef="let p"><strong>{{ p.tokens_required ?? p.price }} żet.</strong></td>
                 </ng-container>
                 <ng-container matColumnDef="actions">
                   <th mat-header-cell *matHeaderCellDef></th>
@@ -211,6 +211,114 @@ export class PriceDialogComponent {
               </table>
               @if (!prices().length) { <div class="empty-state"><mat-icon>sell</mat-icon><p>Brak reguł cenowych.</p></div> }
             </div>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- TAB 3: Koszyk -->
+      <mat-tab label="Koszyk">
+        <div style="padding:16px 0">
+          <div class="lookup-row">
+            <span style="font-size:13px;color:var(--t2)">Koszyk klienta (ID):</span>
+            <input #bCid type="number" placeholder="np. 42" class="id-input"/>
+            <button mat-stroked-button (click)="loadBasket(+bCid.value)">Wczytaj</button>
+          </div>
+
+          @if (basketLoading()) { <mat-spinner [diameter]="28" style="margin:16px auto"/> }
+
+          @if (basket()) {
+            <mat-card class="wallet-card" style="margin-bottom:16px">
+              <mat-card-content>
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                  <div>
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)">Status koszyka</div>
+                    <div style="font-weight:700;font-size:1.1rem">
+                      <span [class]="basketStatusClass(basket()!.status)">{{ basket()!.status }}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)">Razem żetonów</div>
+                    <div class="stat-val amber" style="font-size:1.4rem">{{ basket()!.total_tokens }}</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button mat-flat-button color="primary" [disabled]="checkout() || basket()!.status !== 'open'"
+                            (click)="doCheckout(basket()!.client_id)">
+                      @if (checkout()) { Realizuję… } @else { <mat-icon>shopping_cart_checkout</mat-icon> Realizuj }
+                    </button>
+                    <button mat-stroked-button color="warn" [disabled]="basket()!.status !== 'open'"
+                            (click)="doCancel(basket()!.client_id)">
+                      <mat-icon>delete_sweep</mat-icon> Anuluj
+                    </button>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+
+            <!-- Pozycje koszyka -->
+            <div class="table-wrap">
+              <table mat-table [dataSource]="basket()!.items">
+                <ng-container matColumnDef="session">
+                  <th mat-header-cell *matHeaderCellDef>Sesja ID</th>
+                  <td mat-cell *matCellDef="let item">{{ item.session_id }}</td>
+                </ng-container>
+                <ng-container matColumnDef="date">
+                  <th mat-header-cell *matHeaderCellDef>Data</th>
+                  <td mat-cell *matCellDef="let item">{{ item.lesson_date }}, {{ item.time_from }}–{{ item.time_to }}</td>
+                </ng-container>
+                <ng-container matColumnDef="course">
+                  <th mat-header-cell *matHeaderCellDef>Kurs</th>
+                  <td mat-cell *matCellDef="let item">{{ item.course_id }}</td>
+                </ng-container>
+                <ng-container matColumnDef="tokens">
+                  <th mat-header-cell *matHeaderCellDef>Żetony</th>
+                  <td mat-cell *matCellDef="let item"><strong>{{ item.tokens_reserved }}</strong></td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let item">{{ item.status }}</td>
+                </ng-container>
+                <ng-container matColumnDef="remove">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let item">
+                    <button mat-icon-button color="warn" [disabled]="basket()!.status !== 'open'"
+                            (click)="removeItem(basket()!.client_id, item.id)" matTooltip="Usuń z koszyka">
+                      <mat-icon>remove_circle_outline</mat-icon>
+                    </button>
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="basketCols"></tr>
+                <tr mat-row *matRowDef="let row; columns: basketCols"></tr>
+              </table>
+              @if (!basket()!.items.length) {
+                <div class="empty-state"><mat-icon>shopping_cart</mat-icon><p>Koszyk jest pusty.</p></div>
+              }
+            </div>
+
+            <!-- Dodaj pozycję ręcznie -->
+            @if (basket()!.status === 'open') {
+              <div class="add-item-row">
+                <span style="font-size:13px;color:var(--t2)">Dodaj sesję (ID):</span>
+                <input #sessId type="number" placeholder="session_id" class="id-input"/>
+                <button mat-stroked-button (click)="addItem(basket()!.client_id, +sessId.value)">
+                  <mat-icon>add</mat-icon> Dodaj
+                </button>
+              </div>
+            }
+          }
+
+          @if (checkoutResult()) {
+            <mat-card class="wallet-card" style="margin-top:16px;border-left:4px solid #2DD58A">
+              <mat-card-content>
+                <div style="display:flex;gap:8px;align-items:center;color:#2DD58A;font-weight:700;margin-bottom:8px">
+                  <mat-icon>check_circle</mat-icon> Realizacja zakończona
+                </div>
+                <div style="font-size:13px;color:var(--t2)">
+                  Zakupiono <strong>{{ checkoutResult()!.purchased }}</strong> sesji ·
+                  Wydano <strong>{{ checkoutResult()!.tokens_spent }}</strong> żetonów ·
+                  Pozostałe saldo: <strong style="color:#2DD58A">{{ checkoutResult()!.wallet_balance }}</strong>
+                </div>
+              </mat-card-content>
+            </mat-card>
           }
         </div>
       </mat-tab>
@@ -238,17 +346,27 @@ export class PriceDialogComponent {
     .tx-refund { padding: 2px 6px; border-radius: 3px; background: rgba(59,130,246,.12); color: #60A5FA; font-size: 11px; }
     .empty-state { display: flex; flex-direction: column; align-items: center; padding: 40px; color: var(--t3); gap: 8px; }
     .empty-state mat-icon { font-size: 36px; width: 36px; height: 36px; }
+    .basket-open   { color: #2DD58A; font-weight: 700; }
+    .basket-pending{ color: #FBBF24; font-weight: 700; }
+    .basket-checked_out { color: #60A5FA; font-weight: 700; }
+    .basket-cancelled   { color: #6B7280; font-weight: 700; }
+    .add-item-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; background: var(--sur-hi); border-radius: 6px; border: 1px dashed var(--bor); }
   `],
 })
 export class TokensComponent implements OnInit {
-  wallet       = signal<TokenWallet | null>(null);
-  transactions = signal<TokenTransaction[]>([]);
-  prices       = signal<TokenPrice[]>([]);
-  txLoading    = signal(false);
-  priceLoading = signal(false);
+  wallet          = signal<TokenWallet | null>(null);
+  transactions    = signal<TokenTransaction[]>([]);
+  prices          = signal<TokenPrice[]>([]);
+  basket          = signal<Basket | null>(null);
+  checkoutResult  = signal<CheckoutResult | null>(null);
+  txLoading       = signal(false);
+  priceLoading    = signal(false);
+  basketLoading   = signal(false);
+  checkout        = signal(false);
 
   txCols    = ['type', 'amount', 'note', 'date'];
   priceCols = ['course', 'mentor', 'path', 'level', 'price', 'actions'];
+  basketCols = ['session', 'date', 'course', 'tokens', 'status', 'remove'];
 
   constructor(private planner: PlannerService, private dialog: MatDialog, private snack: MatSnackBar) {}
 
@@ -269,6 +387,51 @@ export class TokensComponent implements OnInit {
     this.planner.getPrices().subscribe({ next: p => { this.prices.set(p); this.priceLoading.set(false); }, error: () => this.priceLoading.set(false) });
   }
 
+  loadBasket(clientId: number): void {
+    if (!clientId) return;
+    this.basketLoading.set(true);
+    this.checkoutResult.set(null);
+    this.planner.getBasket(clientId).subscribe({
+      next: b => { this.basket.set(b); this.basketLoading.set(false); },
+      error: () => { this.snack.open('Brak koszyka dla tego klienta.', '', { duration: 2000 }); this.basketLoading.set(false); },
+    });
+  }
+
+  addItem(clientId: number, sessionId: number): void {
+    if (!sessionId) return;
+    this.planner.addToBasket(clientId, sessionId).subscribe({
+      next: b => { this.basket.set(b); this.snack.open('Dodano do koszyka.', '', { duration: 2000 }); },
+      error: e => this.snack.open(`Błąd: ${e.message}`, '', { duration: 3000 }),
+    });
+  }
+
+  removeItem(clientId: number, itemId: number): void {
+    this.planner.removeFromBasket(clientId, itemId).subscribe({
+      next: b => { this.basket.set(b); this.snack.open('Usunięto pozycję.', '', { duration: 2000 }); },
+      error: () => this.snack.open('Błąd usunięcia.', '', { duration: 2000 }),
+    });
+  }
+
+  doCheckout(clientId: number): void {
+    this.checkout.set(true);
+    this.planner.checkoutBasket(clientId).subscribe({
+      next: r => {
+        this.checkoutResult.set(r);
+        this.basket.set(null);
+        this.checkout.set(false);
+        this.snack.open(`Zrealizowano ${r.purchased} sesji!`, '', { duration: 4000 });
+      },
+      error: e => { this.snack.open(`Błąd realizacji: ${e.message}`, '', { duration: 4000 }); this.checkout.set(false); },
+    });
+  }
+
+  doCancel(clientId: number): void {
+    this.planner.cancelBasket(clientId).subscribe({
+      next: () => { this.basket.set(null); this.snack.open('Koszyk anulowany.', '', { duration: 2000 }); },
+      error: () => this.snack.open('Błąd anulowania.', '', { duration: 2000 }),
+    });
+  }
+
   openGrant(): void {
     this.dialog.open(GrantDialogComponent, { width: '420px', data: null, panelClass: 'planner-dialog' })
       .afterClosed().subscribe((w: TokenWallet | null) => { if (w) this.snack.open(`Przyznano żetony. Saldo: ${w.balance}`, '', { duration: 3000 }); });
@@ -284,4 +447,5 @@ export class TokensComponent implements OnInit {
   }
 
   txClass(type: string): string { return `tx-${type}`; }
+  basketStatusClass(s: string): string { return `basket-${s}`; }
 }
