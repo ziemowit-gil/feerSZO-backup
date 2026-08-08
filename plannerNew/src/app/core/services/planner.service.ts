@@ -66,10 +66,11 @@ export class PlannerService {
   getSessions(params: Record<string, string> = {}): Observable<PaginatedResponse<Session>> {
     return this.api.get<PaginatedResponse<Session>>('sessions', params);
   }
-  getSessionsForWeek(dateFrom: string, dateTo: string, draftId?: number | null): Observable<Session[]> {
+  getSessionsForWeek(dateFrom: string, dateTo: string, draftId?: number | null, courseId?: number | null): Observable<Session[]> {
     const params: Record<string, string> = { date_from: dateFrom, date_to: dateTo, limit: '500' };
     if (draftId != null) params['draft'] = String(draftId);
-    else params['draft'] = ''; // published
+    else params['draft'] = '';
+    if (courseId) params['course'] = String(courseId);
     return this.getSessions(params).pipe(map(r => r.data));
   }
   createSession(session: Partial<Session>): Observable<Session> {

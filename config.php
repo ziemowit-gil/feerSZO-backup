@@ -103,6 +103,11 @@ if (!defined('LDAP_BIND_PW'))   define('LDAP_BIND_PW',   getenv('LDAP_BIND_PW') 
 if (!defined('LDAP_BASE_DN'))   define('LDAP_BASE_DN',   getenv('LDAP_BASE_DN') ?: 'dc=feer,dc=org,dc=pl');
 if (!defined('LDAP_USERS_OU'))  define('LDAP_USERS_OU',  getenv('LDAP_USERS_OU') ?: 'ou=users,dc=feer,dc=org,dc=pl');
 
+// ── SZO Planner ───────────────────────────────────────────────────────────────
+// URL aplikacji Angular SZO Planner. Lokalnie: http://localhost:4201
+// W produkcji: https://szo-planner.feer.org.pl
+if (!defined('SZO_PLANNER_URL')) define('SZO_PLANNER_URL', getenv('SZO_PLANNER_URL') ?: 'http://localhost:4201');
+
 // ── Ścieżki ───────────────────────────────────────────────────────────────────
 if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/uploads/');
 if (!defined('APP_URL'))    define('APP_URL', (function() {

@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CdkDragDrop, CdkDrag, CdkDropList, CdkDropListGroup, transferArrayItem } from '@angular/cdk/drag-drop';
 import { PlannerService } from '../../core/services/planner.service';
+import { PlannerContextService } from '../../core/services/planner-context.service';
 import { Session, Draft, Room, ConflictResult } from '../../core/models/planner.models';
 import { SessionDialogComponent, SessionDialogData } from '../sessions/session-dialog.component';
 
@@ -301,6 +302,7 @@ export class TimetableComponent implements OnInit, AfterViewInit {
     private planner: PlannerService,
     private dialog: MatDialog,
     private snack: MatSnackBar,
+    readonly ctx: PlannerContextService,
   ) {}
 
   ngOnInit(): void {
@@ -326,7 +328,7 @@ export class TimetableComponent implements OnInit, AfterViewInit {
     const from = this.weekStart().toISOString().slice(0, 10);
     const end  = new Date(this.weekStart()); end.setDate(end.getDate() + 6);
     const to   = end.toISOString().slice(0, 10);
-    this.planner.getSessionsForWeek(from, to, this.selectedDraftId).subscribe({
+    this.planner.getSessionsForWeek(from, to, this.selectedDraftId, this.ctx.courseId()).subscribe({
       next: s => { this.sessions.set(s); this.loading.set(false); },
       error: () => { this.loading.set(false); },
     });

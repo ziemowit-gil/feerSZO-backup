@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SlicePipe } from '@angular/common';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from './core/services/api.service';
+import { PlannerContextService } from './core/services/planner-context.service';
 
 interface NavItem { icon: string; label: string; route: string; }
 
@@ -55,7 +56,18 @@ interface NavItem { icon: string; label: string; route: string; }
             <mat-icon>menu</mat-icon>
           </button>
           <span class="bar-title">SZO Planner</span>
+          @if (ctx.courseId()) {
+            <span class="course-badge">
+              <mat-icon class="course-icon">school</mat-icon>
+              Kurs #{{ ctx.courseId() }}
+            </span>
+          }
           <span class="bar-spacer"></span>
+          @if (ctx.sourceApp() === 'ti') {
+            <a mat-stroked-button class="ti-back-btn" href="javascript:history.back()" matTooltip="Wróć do panelu TI">
+              <mat-icon>arrow_back</mat-icon> Panel TI
+            </a>
+          }
           <a mat-icon-button routerLink="/auth" matTooltip="Ustawienia API" class="bar-btn">
             <mat-icon>settings</mat-icon>
           </a>
@@ -146,27 +158,64 @@ interface NavItem { icon: string; label: string; route: string; }
     }
     .menu-btn { color: var(--t2) !important; }
     .bar-title { font-size: .9rem; font-weight: 700; color: var(--t1); margin-left: 4px; letter-spacing: -.01em; }
+    .course-badge {
+      display: flex; align-items: center; gap: 4px;
+      font-size: .75rem; font-weight: 600; color: var(--acc);
+      background: var(--acc-muted); padding: 3px 10px; border-radius: 20px;
+      margin-left: 8px;
+    }
+    .course-icon { font-size: 14px !important; width: 14px !important; height: 14px !important; }
     .bar-spacer { flex: 1; }
+    .ti-back-btn {
+      font-size: 12px !important; height: 32px !important;
+      color: var(--t2) !important; border-color: var(--bor) !important;
+      margin-right: 4px;
+    }
     .bar-btn { color: var(--t2) !important; }
 
     /* ── Content ── */
     .content-wrap { padding: 28px; overflow-y: auto; height: calc(100vh - 56px); }
   `],
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   navOpen = signal(true);
 
   navItems: NavItem[] = [
-    { icon: 'calendar_month', label: 'Timetable',     route: '/timetable' },
-    { icon: 'event',          label: 'Sesje',          route: '/sessions' },
-    { icon: 'meeting_room',   label: 'Sale',           route: '/rooms' },
-    { icon: 'history',        label: 'Drafty',         route: '/drafts' },
-    { icon: 'token',          label: 'Żetony',         route: '/tokens' },
-    { icon: 'fork_right',     label: 'Ścieżki tech',  route: '/tech-paths' },
-    { icon: 'manage_accounts',label: 'Konfiguracja',   route: '/auth' },
+    { icon: 'calendar_month', label: 'Timetable',    route: '/timetable' },
+    { icon: 'event',          label: 'Sesje',         route: '/sessions' },
+    { icon: 'meeting_room',   label: 'Sale',          route: '/rooms' },
+    { icon: 'history',        label: 'Drafty',        route: '/drafts' },
+    { icon: 'token',          label: 'Żetony',        route: '/tokens' },
+    { icon: 'fork_right',     label: 'Ścieżki tech', route: '/tech-paths' },
+    { icon: 'manage_accounts',label: 'Konfiguracja',  route: '/auth' },
   ];
 
-  constructor(private apiService: ApiService) {}
+  constructor(private apiService: ApiService, readonly ctx: PlannerContextService) {}
+
+  ngOnInit(): void {
+    this.readLaunchParams();
+  }
+
+  private readLaunchParams(): void {
+    const p = new URLSearchParams(window.location.search);
+    const token  = p.get('token');
+    const apiUrl = p.get('api_url');
+    const courseId = p.get('course_id');
+    const source = p.get('source');
+
+    // Auto-configure API from TI launch params
+    if (token && apiUrl) {
+      this.apiService.saveConfig({ baseUrl: apiUrl, apiKey: token });
+      // Remove sensitive params from URL
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('token');
+      clean.searchParams.delete('api_url');
+      window.history.replaceState({}, '', clean.toString());
+    }
+
+    if (courseId) this.ctx.courseId.set(parseInt(courseId, 10));
+    if (source)   this.ctx.sourceApp.set(source);
+  }
 
   apiUrl(): string {
     return this.apiService.getConfig().baseUrl || '(nie skonfigurowano)';
