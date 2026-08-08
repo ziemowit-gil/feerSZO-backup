@@ -154,13 +154,19 @@ if (!$student_id) json_err('Nieautoryzowany dostęp.', 401);
 function load_student(int $sid): array {
     global $pdo;
     $s = $pdo->prepare("
-        SELECT a.*, c.first_name, c.last_name, c.email, c.phone
+        SELECT a.*, c.name AS client_name, c.email AS client_email, c.phone AS client_phone
         FROM k30_ti_student_accounts a
         JOIN k30_clients c ON c.id = a.client_id
         WHERE a.id = ?
     ");
     $s->execute([$sid]);
-    return $s->fetch(PDO::FETCH_ASSOC) ?: [];
+    $row = $s->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return [];
+    // k30_clients ma tylko 'name' — rozdzielamy na first/last
+    $parts = explode(' ', trim($row['client_name'] ?? ''), 2);
+    $row['first_name'] = $parts[0] ?? '';
+    $row['last_name']  = $parts[1] ?? '';
+    return $row;
 }
 
 // ── Route dispatch ────────────────────────────────────────────────────────────
@@ -175,7 +181,7 @@ switch ($action) {
             SELECT s.id, s.course_id,
                    k.name AS course_name,
                    k.status,
-                   CONCAT(u.first_name,' ',u.last_name) AS instructor_name,
+                   (u.first_name || ' ' || u.last_name) AS instructor_name,
                    s.start_date,
                    s.end_date
             FROM k30_ti_schedules s
@@ -219,7 +225,7 @@ switch ($action) {
         $nl_stmt = $pdo->prepare("
             SELECT l.id, l.schedule_id, l.date, l.time_from, l.time_to,
                    k.name AS course_name,
-                   CONCAT(u.first_name,' ',u.last_name) AS instructor_name,
+                   (u.first_name || ' ' || u.last_name) AS instructor_name,
                    r.name AS room_name, l.meeting_url
             FROM k30_ti_lessons l
             JOIN k30_ti_schedules s ON s.id = l.schedule_id
@@ -267,17 +273,18 @@ switch ($action) {
                 'ms_upn'                => $acc['ms_upn'] ?? null,
                 'notify_email_messages' => (int)($acc['notify_email_messages'] ?? 0),
                 'notify_sms_messages'   => (int)($acc['notify_sms_messages'] ?? 0),
-                'notify_email_dyd'      => (int)($acc['notify_email_dyd'] ?? 0),
-                'notify_sms_dyd'        => (int)($acc['notify_sms_dyd'] ?? 0),
+                'notify_email_dyd'      => (int)($acc['notify_email_dydaktyka'] ?? 0),
+                'notify_sms_dyd'        => (int)($acc['notify_sms_dydaktyka'] ?? 0),
                 'notify_sms_lessons'    => (int)($acc['notify_sms_lessons'] ?? 0),
                 'owncloud_login'        => $acc['owncloud_login'] ?? null,
             ],
             'client'         => [
                 'id'         => (int)$acc['client_id'],
-                'first_name' => $acc['first_name'],
-                'last_name'  => $acc['last_name'],
-                'email'      => $acc['email'],
-                'phone'      => $acc['phone'],
+                'name'       => $acc['client_name'] ?? '',
+                'first_name' => $acc['first_name'] ?? '',
+                'last_name'  => $acc['last_name'] ?? '',
+                'email'      => $acc['client_email'] ?? '',
+                'phone'      => $acc['client_phone'] ?? null,
             ],
             'active_courses'   => array_values($active),
             'inactive_courses' => array_values($inactive),
@@ -313,7 +320,7 @@ switch ($action) {
                    l.status, l.notes, l.rating, l.meeting_url,
                    l.cancel_requested, l.reschedule_proposed,
                    k.name AS course_name,
-                   CONCAT(u.first_name,' ',u.last_name) AS instructor_name,
+                   (u.first_name || ' ' || u.last_name) AS instructor_name,
                    r.name AS room_name
             FROM k30_ti_lessons l
             JOIN k30_ti_schedules s ON s.id = l.schedule_id
