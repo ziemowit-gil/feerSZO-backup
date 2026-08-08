@@ -1,0 +1,279 @@
+// Domain models for the kursant (student) panel
+
+export interface LoginResponse {
+  success: boolean;
+  token: string;
+  student: StudentAccount;
+  client: ClientInfo;
+  must_change_password: boolean;
+}
+
+export interface StudentAccount {
+  id: number;
+  client_id: number;
+  login: string;
+  login_alias: string | null;
+  is_minor: boolean;
+  must_change_password: boolean;
+  push_enabled: number;
+  notify_email_messages: number;
+  notify_sms_messages: number;
+  notify_email_dyd: number;
+  notify_sms_dyd: number;
+  notify_sms_lessons: number;
+  ms_upn: string | null;
+  ms_user_id: string | null;
+  moodle_username: string | null;
+  moodle_user_id: number | null;
+  owncloud_login: string | null;
+}
+
+export interface ClientInfo {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+}
+
+export interface Course {
+  id: number;
+  name: string;
+  status: 'active' | 'inactive' | 'completed';
+  instructor_name: string;
+  start_date: string;
+  end_date: string | null;
+  lesson_count: number;
+  completed_count: number;
+  progress_pct: number;
+  next_lesson_date: string | null;
+}
+
+export interface DashboardData {
+  student: StudentAccount;
+  client: ClientInfo;
+  active_courses: Course[];
+  inactive_courses: Course[];
+  next_lesson: Lesson | null;
+  streak_days: number;
+  notices_unread: number;
+  msg_unread: number;
+  terms_pending: number;
+  cal_ical: string;
+  cal_gcal: string;
+}
+
+export type LessonStatus =
+  | 'planned' | 'held' | 'cancelled' | 'excused' | 'absence' | 'remote_material';
+
+export interface Lesson {
+  id: number;
+  course_id: number;
+  course_name: string;
+  date: string;
+  time_from: string;
+  time_to: string;
+  status: LessonStatus;
+  instructor_name: string;
+  room_name: string | null;
+  notes: string | null;
+  rating: number | null;
+  cancel_requested: boolean;
+  reschedule_proposed: boolean;
+  meeting_url: string | null;
+}
+
+export interface Homework {
+  id: number;
+  session_id: number;
+  course_id: number;
+  course_name: string;
+  session_date: string;
+  title: string;
+  description: string;
+  due_date: string | null;
+  status: 'pending' | 'submitted' | 'graded';
+  submitted_at: string | null;
+  submission_body: string | null;
+  submission_file_url: string | null;
+  grade: string | null;
+  feedback: string | null;
+}
+
+export interface Material {
+  id: number;
+  course_id: number;
+  course_name: string;
+  title: string;
+  type: string;
+  file_url: string;
+  added_at: string;
+}
+
+export interface DydGroup {
+  session_id: number;
+  session_date: string;
+  course_name: string;
+  materials: Material[];
+  homeworks: Homework[];
+}
+
+export interface Grade {
+  id: number;
+  course_id: number;
+  course_name: string;
+  date: string;
+  type: string;
+  value: string;
+  weight: number;
+  comment: string | null;
+}
+
+export interface GradesByCourse {
+  course_id: number;
+  course_name: string;
+  grades: Grade[];
+  average: number | null;
+}
+
+export interface CurriculumItem {
+  id: number;
+  course_id: number;
+  course_name: string;
+  order_no: number;
+  title: string;
+  description: string | null;
+  is_completed: boolean;
+  completed_at: string | null;
+}
+
+export interface TestItem {
+  id: number;
+  course_id: number;
+  course_name: string;
+  title: string;
+  description: string | null;
+  available_from: string | null;
+  available_to: string | null;
+  time_limit_min: number | null;
+  max_attempts: number;
+  attempts_used: number;
+  last_score: number | null;
+  max_score: number;
+  last_attempt_at: string | null;
+  status: 'available' | 'completed' | 'expired' | 'locked';
+}
+
+export interface Notice {
+  id: number;
+  title: string;
+  body: string;
+  created_at: string;
+  is_read: boolean;
+  category: string | null;
+}
+
+export interface Message {
+  id: number;
+  sender: 'staff' | 'student';
+  sender_name: string;
+  subject: string;
+  body: string;
+  created_at: string;
+  is_read: boolean;
+}
+
+export interface BillingEntry {
+  id: number;
+  type: 'payment' | 'charge';
+  amount: number;
+  description: string;
+  date: string;
+  status: string;
+  invoice_url: string | null;
+}
+
+export interface BillingData {
+  balance: number;
+  currency: string;
+  entries: BillingEntry[];
+}
+
+export interface License {
+  id: number;
+  software_name: string;
+  license_key: string | null;
+  assigned_at: string;
+  expires_at: string | null;
+  download_url: string | null;
+  notes: string | null;
+}
+
+export interface ActivityLogEntry {
+  id: number;
+  action: string;
+  description: string;
+  ip: string | null;
+  created_at: string;
+}
+
+export interface Term {
+  id: number;
+  title: string;
+  type: string;
+  version: string;
+  file_url: string | null;
+  is_accepted: boolean;
+  accepted_at: string | null;
+  required: boolean;
+}
+
+export interface AuthorizedPerson {
+  id: number;
+  name: string;
+  relation: string;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface VlabServer {
+  id: number;
+  hostname: string;
+  port: number;
+  username: string;
+  status: 'running' | 'stopped' | 'provisioning';
+  expires_at: string | null;
+  type: 'shared' | 'dedicated';
+  web_terminal_url: string | null;
+}
+
+export interface OnlineState {
+  ms_provisioned: boolean;
+  ms_upn: string | null;
+  ms_temp_password: string | null;
+  ms_tenant_name: string | null;
+  moodle_provisioned: boolean;
+  moodle_username: string | null;
+  moodle_url: string | null;
+  zoom_link: string | null;
+  teams_link: string | null;
+  active_lesson_url: string | null;
+}
+
+export interface OwnCloudState {
+  provisioned: boolean;
+  login: string | null;
+  webdav_url: string | null;
+  files_app_url: string | null;
+  quota_bytes: number | null;
+  used_bytes: number | null;
+}
+
+export interface ApiResponse<T = void> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
