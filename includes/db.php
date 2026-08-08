@@ -72,3 +72,7 @@ function db_all(string $sql, array $params = []): array {
     $stmt->execute($params);
     return $stmt->fetchAll();
 }
+
+function db_exec(string $sql, array $params = []): void {
+    db()->prepare($sql)->execute($params);
+}

@@ -25,6 +25,11 @@ const SZO_PHASES = [
     'continuation' => 'Kontynuacja',
 ];
 
+function szo_setting(string $key, mixed $default = null): mixed {
+    $row = db_one("SELECT value FROM settings WHERE key_=?", [$key]);
+    return $row ? $row['value'] : $default;
+}
+
 function ti_planner_migrate(): void {
     static $done = false;
     if ($done) return;
@@ -154,11 +159,11 @@ function szo_schedule_create(int $instructor_id, string $title, int $num_days = 
     ti_planner_migrate();
     $num_days = max(2, min(7, $num_days));
     $settings = json_encode([
-        'dailyStartTime'   => '09:00',
-        'dailyEndTime'     => '17:00',
-        'maxDailyMinutes'  => 480,
-        'lunchDuration'    => 60,
-        'breakIntervalMax' => 90,
+        'dailyStartTime'   => szo_setting('szo_daily_start', '09:00'),
+        'dailyEndTime'     => szo_setting('szo_daily_end', '17:00'),
+        'maxDailyMinutes'  => (int)szo_setting('szo_max_daily_minutes', 480),
+        'lunchDuration'    => (int)szo_setting('szo_lunch_duration', 60),
+        'breakIntervalMax' => (int)szo_setting('szo_break_interval', 90),
         'autoBufferMin'    => 15,
         'lunchAt'          => '12:30',
     ]);

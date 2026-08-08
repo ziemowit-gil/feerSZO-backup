@@ -144,7 +144,9 @@ switch ($action) {
             $start_min = min($starts) ?: 480;
             $end_min   = max($ends)   ?: 1020;
         }
-        $max_min = max(60, $end_min - $start_min - 60); // minus 60 min przerwa obiadowa
+        $cfg_max  = (int)szo_setting('szo_max_daily_minutes', 480);
+        $raw_max  = max(60, $end_min - $start_min - 60); // minus 60 min przerwa obiadowa
+        $max_min  = min($raw_max, $cfg_max);              // nie przekraczaj ustawienia admina
 
         // ── Liczba zaplanowanych zajęć z grupą (ostatnie 4 tygodnie) ──
         $load_stats = ['sessions' => 0, 'sessions_per_week' => 0, 'committed_min' => 0];

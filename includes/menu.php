@@ -419,6 +419,7 @@ function _menu_editor(): array {
             _mi('Płatności / PayU','/admin/payu_settings.php','bi-wallet2',['match'=>'/admin/payu_settings','kw'=>'payu płatności']),
             _mi('Magazyn plików / ownCloud','/admin/owncloud_settings.php','bi-cloud-arrow-up',['match'=>'/admin/owncloud_settings','kw'=>'owncloud magazyn']),
             _mi('API i webhooki','/admin/api_manage.php','bi-key',['match'=>'/admin/api_manage','kw'=>'api webhooki klucze']),
+            _mi('SZO Planner','/admin/szo_settings.php','bi-calendar3-week',['match'=>'/admin/szo_settings','kw'=>'szo planner harmonogram czas pracy']),
         ];
         // aktywność (jak w header): /admin/ poza sekcjami przeniesionymi indziej
         $admin_active = _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
