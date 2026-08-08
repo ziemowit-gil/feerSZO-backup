@@ -188,7 +188,7 @@ export class TimetableComponent implements OnInit {
   conflictIds = signal<Set<number>>(new Set());
 
   selectedDraftId: number | null = null;
-  private weekStart = this.getMonday(new Date());
+  private weekStart = signal(this.getMonday(new Date()));
 
   hours = Array.from({ length: 12 }, (_, i) => `${(DAY_START + i).toString().padStart(2, '0')}:00`);
 
@@ -202,7 +202,7 @@ export class TimetableComponent implements OnInit {
 
   weekDays = computed(() => {
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(this.weekStart);
+      const d = new Date(this.weekStart());
       d.setDate(d.getDate() + i);
       const today = new Date();
       return {
@@ -215,9 +215,9 @@ export class TimetableComponent implements OnInit {
   });
 
   weekLabel = computed(() => {
-    const end = new Date(this.weekStart);
+    const end = new Date(this.weekStart());
     end.setDate(end.getDate() + 6);
-    const from = this.weekStart.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+    const from = this.weekStart().toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
     const to   = end.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
     return `${from} – ${to}`;
   });
@@ -236,8 +236,8 @@ export class TimetableComponent implements OnInit {
 
   loadSessions(): void {
     this.loading.set(true);
-    const from = this.weekStart.toISOString().slice(0, 10);
-    const end  = new Date(this.weekStart); end.setDate(end.getDate() + 6);
+    const from = this.weekStart().toISOString().slice(0, 10);
+    const end  = new Date(this.weekStart()); end.setDate(end.getDate() + 6);
     const to   = end.toISOString().slice(0, 10);
     this.planner.getSessionsForWeek(from, to, this.selectedDraftId).subscribe({
       next: s => { this.sessions.set(s); this.loading.set(false); },
@@ -245,9 +245,9 @@ export class TimetableComponent implements OnInit {
     });
   }
 
-  prevWeek(): void { this.weekStart.setDate(this.weekStart.getDate() - 7); this.loadSessions(); }
-  nextWeek(): void { this.weekStart.setDate(this.weekStart.getDate() + 7); this.loadSessions(); }
-  goToday():  void { this.weekStart = this.getMonday(new Date()); this.loadSessions(); }
+  prevWeek(): void { const d = new Date(this.weekStart()); d.setDate(d.getDate() - 7); this.weekStart.set(d); this.loadSessions(); }
+  nextWeek(): void { const d = new Date(this.weekStart()); d.setDate(d.getDate() + 7); this.weekStart.set(d); this.loadSessions(); }
+  goToday():  void { this.weekStart.set(this.getMonday(new Date())); this.loadSessions(); }
 
   sessionsFor(iso: string): Session[] {
     return this.sessions().filter(s => s.lesson_date === iso);

@@ -2094,6 +2094,7 @@ function k30_create_series(array $base_data, array $dates): array {
 const K30_TI_DAYS = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',0=>'Niedziela'];
 
 const K30_TI_SESSION_STATUSES = [
+    'draft'             => ['label'=>'Szkic (SZO Planner)',                           'color'=>'#9CA3AF', 'bg'=>'#F9FAFB'],
     'planned'           => ['label'=>'Zaplanowana',                                   'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
     'held'              => ['label'=>'Odbyła się',                                    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
     'individual_change' => ['label'=>'Zajęcia indywidualne',                          'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],

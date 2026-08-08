@@ -150,7 +150,7 @@ function szo_schedule_get(int $id, int $instructor_id): ?array {
     return $s;
 }
 
-function szo_schedule_create(int $instructor_id, string $title, int $num_days = 3): int {
+function szo_schedule_create(int $instructor_id, string $title, int $num_days = 3, ?int $course_id = null): int {
     ti_planner_migrate();
     $num_days = max(2, min(7, $num_days));
     $settings = json_encode([
@@ -163,8 +163,8 @@ function szo_schedule_create(int $instructor_id, string $title, int $num_days = 
         'lunchAt'          => '12:30',
     ]);
     db_exec(
-        "INSERT INTO k30_szo_schedules (instructor_id, title, num_days, settings_json) VALUES (?,?,?,?)",
-        [$instructor_id, $title, $num_days, $settings]
+        "INSERT INTO k30_szo_schedules (instructor_id, course_id, title, num_days, settings_json) VALUES (?,?,?,?,?)",
+        [$instructor_id, $course_id ?: null, $title, $num_days, $settings]
     );
     $sid = (int)db()->lastInsertId();
 

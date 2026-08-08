@@ -2,7 +2,7 @@
 /**
  * _tab_planner.php — Tab SZO Planner w panelu dydaktyka.
  *
- * Zmienne dostępne z index.php: $uid, $cur_course, dyd_token()
+ * Zmienne dostępne z index.php: $uid, $cur_course, $courses, $my_avail, dyd_token()
  */
 
 ti_planner_migrate();
@@ -11,6 +11,64 @@ $pl_blocks    = szo_blocks_list($uid);
 
 $sel_sid      = (int)($_GET['sid'] ?? ($pl_schedules[0]['id'] ?? 0));
 $sel_schedule = $sel_sid ? szo_schedule_get($sel_sid, $uid) : null;
+
+// Dostępność prowadzącego z modułu TI
+$pl_avail      = $my_avail ?? ti_instructor_availability($uid);
+$avail_by_dow  = [];
+foreach ($pl_avail as $a) { $avail_by_dow[(int)$a['day_of_week']][] = $a; }
+
+// Statystyki obciążenia dla wybranego kursu
+$pl_course_id   = (int)($sel_schedule['course_id'] ?? 0);
+$pl_load_stats  = null;
+if ($pl_course_id) {
+    $pl_load_stats = db_one(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(duration_min),0) AS total_min
+         FROM k30_ti_sessions
+         WHERE course_id=? AND status IN ('planned','held')
+           AND lesson_date >= date('now') AND lesson_date <= date('now','+28 days')",
+        [$pl_course_id]
+    );
+}
+
+// Wzorzec zajęć wszystkich aktywnych kursów (sekcja Planowanie)
+$pl_courses_plan = db_all(
+    "SELECT c.id, c.name, u.name AS instructor_name,
+            COUNT(s.id) AS sessions_4w,
+            COALESCE(GROUP_CONCAT(s.duration_min ORDER BY s.duration_min), '') AS dur_list
+     FROM k30_ti_courses c
+     LEFT JOIN k30_ti_sessions s ON s.course_id=c.id
+            AND s.status IN ('planned','held')
+            AND s.lesson_date >= date('now')
+            AND s.lesson_date <= date('now','+28 days')
+     LEFT JOIN users u ON u.id=c.instructor_id
+     WHERE c.status != 'cancelled' AND c.is_active = 1
+     GROUP BY c.id
+     ORDER BY c.name",
+    []
+);
+
+// Helper: z listy minut → wzorzec NxXh, MxYh
+function pl_pattern(string $dur_list): string {
+    if ($dur_list === '') return '—';
+    $mins = array_map('intval', explode(',', $dur_list));
+    $counts = array_count_values($mins);
+    arsort($counts);
+    $parts = [];
+    foreach ($counts as $min => $cnt) {
+        $h = $min >= 60 ? round($min / 60, 1) . 'h' : $min . 'min';
+        $parts[] = ($cnt > 1 ? $cnt . '×' : '') . $h;
+    }
+    return implode(' + ', $parts);
+}
+
+// Wspólne okno dostępności → domyślne daily_settings dla JS
+$pl_start_min = 480; $pl_end_min = 1020;
+if ($pl_avail) {
+    $starts = array_map(fn($a) => ti_hm2min($a['time_from']), $pl_avail);
+    $ends   = array_map(fn($a) => ti_hm2min($a['time_to']),   $pl_avail);
+    $pl_start_min = min($starts) ?: 480;
+    $pl_end_min   = max($ends)   ?: 1020;
+}
 
 // JSON dla JS
 $js_blocks   = json_encode(array_values($pl_blocks), JSON_UNESCAPED_UNICODE);
@@ -64,6 +122,17 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
 [data-cat=icebreaker] {--blk-bg:rgba(219,39,119,.10);  --blk-border:rgba(219,39,119,.30);  --blk-label:#f472b6}
 [data-cat=qa]         {--blk-bg:rgba(6,182,212,.10);   --blk-border:rgba(6,182,212,.30);   --blk-label:#2dd4bf}
 @media(max-width:768px){.szo-layout{grid-template-columns:1fr}.szo-lib{max-height:160px;flex-direction:row;flex-wrap:wrap}.szo-days{grid-template-columns:1fr}}
+/* Siatka dostępności */
+.szo-avail-grid{display:flex;gap:6px;flex-wrap:wrap}
+.szo-avail-day{text-align:center;min-width:40px}
+.szo-avail-day--off{opacity:.3;filter:grayscale(1)}
+.szo-avail-day__label{font-size:.7rem;font-weight:700;letter-spacing:.04em;margin-bottom:3px;color:var(--bs-secondary-color)}
+.szo-avail-day--on .szo-avail-day__label{color:var(--bs-success)}
+.szo-avail-slot{font-size:.65rem;background:rgba(25,135,84,.15);border:1px solid rgba(25,135,84,.35);color:var(--bs-success);border-radius:4px;padding:2px 4px;margin-bottom:2px;white-space:nowrap}
+.szo-avail-day--off .szo-avail-slot-none{width:20px;height:4px;background:var(--bs-border-color);border-radius:2px;margin:6px auto}
+/* Sekcja planowania */
+.szo-plan-tbl td,.szo-plan-tbl th{font-size:.8rem;vertical-align:middle}
+.szo-pattern-badge{font-family:var(--bs-font-monospace);font-size:.72rem;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);color:var(--bs-primary);border-radius:4px;padding:2px 7px;white-space:nowrap}
 </style>
 
 <div class="mt-3">
@@ -74,13 +143,139 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
         <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Nowy harmonogram
       </button>
       <?php if ($sel_schedule): ?>
-      <button class="btn btn-sm btn-warning" id="szoBtnAuto">
-        <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>Generuj Auto-Plan
-      </button>
+      <div class="btn-group" role="group" aria-label="Generowanie planu">
+        <button class="btn btn-sm btn-warning" id="szoBtnAuto" title="Pełne zaplanowanie od zera przez silnik SZO">
+          <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>Auto-Plan
+        </button>
+        <button class="btn btn-sm btn-outline-warning" id="szoBtnMpp" title="MPP — zachowaj obecne rozmieszczenie, zoptymalizuj resztę">
+          <i class="bi bi-pin-angle me-1" aria-hidden="true"></i>MPP
+        </button>
+      </div>
       <button class="btn btn-sm btn-success" id="szoBtnSave">
         <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz
       </button>
       <?php endif; ?>
+    </div>
+  </div>
+
+  <?php /* ── Siatka dostępności prowadzącego ────────────────────────────── */ ?>
+  <?php
+  $dow_labels = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'];
+  $avail_exists = !empty($pl_avail);
+  ?>
+  <div class="d-flex flex-wrap gap-3 mb-3 align-items-start">
+    <div>
+      <div class="small fw-semibold text-body-secondary mb-1">
+        <i class="bi bi-clock-history me-1"></i>Dostępność prowadzącego
+        <?php if (!$avail_exists): ?>
+          <span class="text-warning ms-1" title="Brak ustawionych okien dostępności w zakładce Dostępność">(nie ustawiona)</span>
+        <?php endif; ?>
+      </div>
+      <div class="szo-avail-grid">
+        <?php for ($dow = 1; $dow <= 7; $dow++): $slots = $avail_by_dow[$dow % 7] ?? []; $has = !empty($slots); ?>
+        <div class="szo-avail-day <?= $has ? 'szo-avail-day--on' : 'szo-avail-day--off' ?>">
+          <div class="szo-avail-day__label"><?= $dow_labels[$dow - 1] ?></div>
+          <?php if ($has): ?>
+            <?php foreach ($slots as $sl): ?>
+            <div class="szo-avail-slot"><?= h($sl['time_from']) ?>–<?= h(substr($sl['time_to'], 0, 5)) ?></div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div class="szo-avail-slot-none"></div>
+          <?php endif; ?>
+        </div>
+        <?php endfor; ?>
+      </div>
+      <?php if ($avail_exists): ?>
+      <div class="text-body-secondary mt-1" style="font-size:.7rem">
+        Okno dzienne: <strong><?= gmdate('G:i', $pl_start_min * 60) ?>–<?= gmdate('G:i', $pl_end_min * 60) ?></strong>
+        &nbsp;·&nbsp;maks. <strong><?= round(($pl_end_min - $pl_start_min - 60) / 60, 1) ?> h</strong>/dzień
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($pl_load_stats && $pl_course_id): ?>
+    <div class="border-start ps-3">
+      <div class="small fw-semibold text-body-secondary mb-1">
+        <i class="bi bi-calendar-week me-1"></i>Obciążenie (następne 4 tygodnie)
+      </div>
+      <div class="small">
+        <span class="fw-semibold"><?= (int)$pl_load_stats['cnt'] ?></span>
+        <span class="text-body-secondary"> zapl. zajęć</span>
+        &nbsp;·&nbsp;
+        <span class="fw-semibold"><?= round((int)$pl_load_stats['total_min'] / 60, 1) ?> h</span>
+        <span class="text-body-secondary"> łącznie</span>
+        &nbsp;·&nbsp;
+        <span class="fw-semibold">~<?= (int)ceil((int)$pl_load_stats['cnt'] / 4) ?></span>
+        <span class="text-body-secondary"> zajęć/tydz.</span>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($sel_schedule && $sel_schedule['course_id']): ?>
+    <?php $pl_cname = $sel_schedule['course_name'] ?? ('Kurs #' . $sel_schedule['course_id']); ?>
+    <div class="border-start ps-3">
+      <div class="small fw-semibold text-body-secondary mb-1">
+        <i class="bi bi-people me-1"></i>Powiązana grupa
+      </div>
+      <span class="badge text-bg-primary"><?= h($pl_cname) ?></span>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <?php /* ── Sekcja: Planowanie grup ───────────────────────────────────── */ ?>
+  <div class="mb-3">
+    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+            type="button" data-bs-toggle="collapse" data-bs-target="#szoPlanSection" aria-expanded="false">
+      <i class="bi bi-table" aria-hidden="true"></i>
+      <span>Planowanie grup</span>
+      <i class="bi bi-chevron-down ms-1" style="font-size:.7rem" aria-hidden="true"></i>
+    </button>
+    <div class="collapse mt-2" id="szoPlanSection">
+      <div class="card card-body p-2" style="font-size:.82rem">
+        <?php if ($pl_courses_plan): ?>
+        <div class="table-responsive">
+          <table class="table table-sm szo-plan-tbl mb-0">
+            <thead>
+              <tr>
+                <th>Grupa</th>
+                <th>Prowadzący</th>
+                <th>Zajęcia (4 tyg.)</th>
+                <th>Wzorzec</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($pl_courses_plan as $cp): ?>
+              <?php $pat = pl_pattern($cp['dur_list']); ?>
+              <tr>
+                <td><?= h($cp['name']) ?></td>
+                <td class="text-body-secondary"><?= h($cp['instructor_name'] ?? '—') ?></td>
+                <td class="text-center">
+                  <?php if ($cp['sessions_4w'] > 0): ?>
+                  <span class="badge text-bg-secondary"><?= (int)$cp['sessions_4w'] ?> × (~<?= (int)ceil((int)$cp['sessions_4w'] / 4) ?>/tydz.)</span>
+                  <?php else: ?>
+                  <span class="text-body-secondary">brak</span>
+                  <?php endif; ?>
+                </td>
+                <td><span class="szo-pattern-badge"><?= h($pat) ?></span></td>
+                <td>
+                  <button class="btn btn-sm btn-outline-primary py-0 px-2 szo-copy-course-btn"
+                          data-course-id="<?= (int)$cp['id'] ?>"
+                          data-course-name="<?= h($cp['name']) ?>"
+                          data-bs-toggle="modal" data-bs-target="#szoPlannerNewScheduleModal"
+                          title="Utwórz harmonogram dla tej grupy">
+                    <i class="bi bi-copy me-1" aria-hidden="true"></i>Kopiuj do harmonogramu
+                  </button>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <?php else: ?>
+        <p class="text-body-secondary mb-0">Brak aktywnych kursów.</p>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 
@@ -150,7 +345,7 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
 
 <!-- ── MODAL: Nowy harmonogram ────────────────────── -->
 <div class="modal fade" id="szoPlannerNewScheduleModal" tabindex="-1" aria-labelledby="szoNewSchedLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <div class="modal-dialog">
     <form class="modal-content" id="szoNewSchedForm">
       <div class="modal-header">
         <h3 class="modal-title h6 fw-bold" id="szoNewSchedLabel">Nowy harmonogram</h3>
@@ -158,12 +353,31 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
       </div>
       <div class="modal-body">
         <div class="mb-3">
-          <label class="form-label small fw-semibold" for="szoSchedTitle">Nazwa</label>
+          <label class="form-label small fw-semibold" for="szoSchedTitle">Nazwa harmonogramu</label>
           <input type="text" class="form-control form-control-sm" id="szoSchedTitle" name="title"
                  placeholder="np. Szkolenie przywódcze IX 2025" required maxlength="200">
         </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="szoSchedCourse">
+            Powiązana grupa <span class="text-body-secondary fw-normal">(opcjonalnie)</span>
+          </label>
+          <select class="form-select form-select-sm" id="szoSchedCourse" name="course_id">
+            <option value="">— bez grupy —</option>
+            <?php foreach ($courses as $c): ?>
+            <option value="<?= (int)$c['id'] ?>"
+                    data-pattern="<?= h(pl_pattern('')); /* brak sesji przy tworzeniu */ ?>"
+              <?= ($pl_course_id && $pl_course_id === (int)$c['id']) ? 'selected' : '' ?>>
+              <?= h($c['name']) ?>
+              <?php if ($c['instructor_name'] ?? ''): ?>
+                <span class="text-body-secondary">(<?= h($c['instructor_name']) ?>)</span>
+              <?php endif; ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text text-body-secondary" id="szoCoursePatternHint" style="font-size:.75rem"></div>
+        </div>
         <div class="mb-0">
-          <label class="form-label small fw-semibold" for="szoSchedDays">Liczba dni</label>
+          <label class="form-label small fw-semibold" for="szoSchedDays">Liczba dni szkolenia</label>
           <select class="form-select form-select-sm" id="szoSchedDays" name="num_days">
             <option value="2">2 dni</option>
             <option value="3" selected>3 dni</option>
@@ -174,7 +388,7 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
       </div>
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <button type="submit" class="btn btn-sm btn-primary">Utwórz</button>
+        <button type="submit" class="btn btn-sm btn-primary">Utwórz harmonogram</button>
       </div>
     </form>
   </div>
@@ -498,59 +712,72 @@ function attachGlobalDnD() {
   });
 }
 
-/* ── Auto-Schedule ──────────────────────────────────── */
-window.szoAutoSchedule = function() {
-  if (!confirm('Generuj Auto-Plan? Istniejące rozmieszczenie bloków zostanie zastąpione.')) return;
+/* ── Server-Side Solve (silnik Python) ──────────────── */
+async function szoServerSolve(mode) {
+  if (mode === 'auto' && !confirm('Generuj Auto-Plan przez silnik SZO?\nIstniejące rozmieszczenie bloków zostanie zastąpione.')) return;
 
-  const all = [...state.library, ...Object.values(state.days).flat()];
-  const uniqueAll = [...new Set(all)];
-  Object.keys(state.days).forEach(dn => { state.days[dn] = []; });
-  state.library = [];
+  const btnId = mode === 'auto' ? 'szoBtnAuto' : 'szoBtnMpp';
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Planowanie…'; }
 
-  const placed = new Set();
-  const dayNums = Object.keys(state.days).map(Number).sort((a,b)=>a-b);
+  try {
+    const fd = new FormData();
+    fd.append('action', 'schedule_solve');
+    fd.append('schedule_id', SID);
+    fd.append('mode', mode);
+    fd.append('_token', TOKEN);
+    const r = await fetch(AJAX, {method:'POST', body:fd, headers:{'X-CSRF-Token':TOKEN}});
+    const j = await r.json();
+    if (!j.ok) { alert('Błąd silnika: ' + j.msg); return; }
 
-  function blockScore(id, phase) {
-    const b = ALL_BLOCKS[id];
-    if (!b) return 0;
-    const key = (b.category === 'theory' && b.difficulty >= 3) ? 'theory_hard'
-      : b.category === 'theory' ? 'theory'
-      : (b.category === 'workshop' && b.difficulty >= 3) ? 'workshop_hard'
-      : b.category === 'workshop' ? 'workshop'
-      : b.category;
-    return (PRIORITY[phase] || PRIORITY.continuation)[key] || 1;
+    // Zaktualizuj lokalny stan z serwera
+    if (j.schedule && j.schedule.days) {
+      j.schedule.days.forEach(d => {
+        state.days[d.day_number]   = (d.block_order || []).map(Number);
+        state.phases[d.day_number] = d.phase;
+      });
+      const placed = new Set(Object.values(state.days).flat());
+      state.library = Object.keys(ALL_BLOCKS).map(Number).filter(id => !placed.has(id));
+    }
+
+    renderAll();
+    // Pokaż wynik z silnika w panelu walidacji
+    if (j.score !== null && j.score !== undefined) {
+      szoRenderSolverResult(j.score, j.violations || [], j.placed || 0, j.unplaced || 0, j.mpp_moves, j.avail_window);
+    }
+  } catch(e) {
+    alert('Błąd połączenia z silnikiem SZO: ' + e.message);
+    console.error('szo solve error', e);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = mode === 'auto'
+        ? '<i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>Auto-Plan'
+        : '<i class="bi bi-pin-angle me-1" aria-hidden="true"></i>MPP';
+    }
   }
+}
 
-  dayNums.forEach((dn, i) => {
-    const phase = state.phases[dn] || 'foundation';
-    const sorted = uniqueAll
-      .filter(id => !placed.has(id))
-      .map(id => ({id, score: blockScore(id, phase)}))
-      .sort((a,b) => b.score - a.score);
-
-    let dayMin = 0, acc = 0;
-    sorted.forEach(({id, score}) => {
-      if (score < 3) return;
-      const b = ALL_BLOCKS[id];
-      if (!b || dayMin + b.duration_min > 420) return;
-      if (acc >= 90 && b.category !== 'break' && b.category !== 'buffer') {
-        // Szukaj przerwy do wstrzyknięcia
-        const brk = sorted.find(x => !placed.has(x.id) && (ALL_BLOCKS[x.id]?.category === 'break' || ALL_BLOCKS[x.id]?.category === 'buffer') && x.id !== id);
-        if (brk) { state.days[dn].push(brk.id); placed.add(brk.id); dayMin += ALL_BLOCKS[brk.id].duration_min; acc = 0; }
-      }
-      if (placed.has(id)) return;
-      state.days[dn].push(id);
-      placed.add(id);
-      dayMin += b.duration_min;
-      acc = (b.category === 'break' || b.category === 'buffer') ? 0 : acc + b.duration_min;
-    });
+function szoRenderSolverResult(score, violations, placed, unplaced, mppMoves, availWin) {
+  const panel = document.getElementById('szoValidation');
+  if (!panel) return;
+  const scoreClr = score >= 80 ? 'text-success' : score >= 50 ? 'text-warning' : 'text-danger';
+  let html = `<span class="${scoreClr} fw-bold me-3">${Math.round(score)}/100</span>`;
+  if (placed)  html += `<span class="szo-val-ok me-2">✓ ${placed} bloków</span>`;
+  if (unplaced) html += `<span class="szo-val-warn me-2">⚠ ${unplaced} bez miejsca</span>`;
+  if (mppMoves != null) html += `<span class="text-body-secondary me-2 small">MPP: ${mppMoves} przesunięć</span>`;
+  if (availWin) html += `<span class="text-body-secondary small me-2">⏱ okno: ${fmt(availWin.start_min)}–${fmt(availWin.end_min)}</span>`;
+  violations.forEach(v => {
+    const cls = v.level === 'HARD' ? 'szo-val-err' : 'szo-val-warn';
+    html += `<span class="${cls}">${v.level === 'HARD' ? '✕' : '△'} ${esc(v.message)}</span>`;
   });
+  if (!violations.length && score >= 80) html += '<span class="szo-val-ok"><i class="bi bi-check-circle me-1"></i>Plan spójny</span>';
+  panel.innerHTML = html;
+}
 
-  // Reszta wraca do biblioteki
-  state.library = uniqueAll.filter(id => !placed.has(id));
-  renderAll();
-  scheduleSave();
-};
+function fmt(min) {
+  return String(Math.floor(min/60)).padStart(2,'0') + ':' + String(min%60).padStart(2,'0');
+}
 
 /* ── Zapis (debounced) ──────────────────────────────── */
 function scheduleSave() {
@@ -586,9 +813,13 @@ async function doSave() {
 const saveBtn = document.getElementById('szoBtnSave');
 if (saveBtn) saveBtn.addEventListener('click', () => { clearTimeout(saveTimer); doSave(); });
 
-/* ── Przycisk Auto-Plan ─────────────────────────────── */
+/* ── Przycisk Auto-Plan (silnik Python) ─────────────── */
 const autoBtn = document.getElementById('szoBtnAuto');
-if (autoBtn) autoBtn.addEventListener('click', window.szoAutoSchedule);
+if (autoBtn) autoBtn.addEventListener('click', () => szoServerSolve('auto'));
+
+/* ── Przycisk MPP ───────────────────────────────────── */
+const mppBtn = document.getElementById('szoBtnMpp');
+if (mppBtn) mppBtn.addEventListener('click', () => szoServerSolve('mpp'));
 
 /* ── Usuń harmonogram ───────────────────────────────── */
 const delBtn = document.getElementById('szoBtnDelSchedule');
