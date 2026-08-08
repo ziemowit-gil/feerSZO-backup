@@ -338,6 +338,13 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; }
     background: rgba(194,65,12,.2);
     color: #fb923c;
   }
+
+  &.nav-item--switch {
+    color: rgba(255,255,255,.35);
+    font-size: .82rem;
+    .material-symbols-outlined { font-size: 1.1rem; }
+    &:hover, &:focus-visible { color: rgba(255,255,255,.7); }
+  }
 }
 
 .nav-section-label {

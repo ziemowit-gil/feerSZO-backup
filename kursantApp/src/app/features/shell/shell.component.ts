@@ -128,6 +128,11 @@ interface Badges { msg: number; notices: number; terms: number; }
           </ul>
 
           <div class="sidebar-footer">
+            <a class="nav-item nav-item--switch" href="/karty30/ti/kursant/chooser.php"
+               aria-label="Zmień interfejs — przejdź do wyboru panelu">
+              <span class="material-symbols-outlined" aria-hidden="true">swap_horiz</span>
+              <span>Zmień interfejs</span>
+            </a>
             <button class="nav-item" (click)="logout()" aria-label="Wyloguj się z panelu">
               <span class="material-symbols-outlined" aria-hidden="true">logout</span>
               <span>Wyloguj</span>
