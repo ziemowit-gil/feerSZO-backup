@@ -53,7 +53,22 @@ class PostivoClient
     }
 
     /**
+     * Pobiera metadane API: nośniki (z usługami), papiery, koperty.
+     *
+     * @return array ['carriers' => [...], 'papers' => [...], 'envelope_templates' => [...]]
+     * @throws RuntimeException
+     */
+    public function get_metadata(): array
+    {
+        return $this->request('GET', '/metadata');
+    }
+
+    /**
      * Tworzy zlecenie wysyłki listu — POST /shipment.
+     *
+     * Konfiguracja wysyłki pochodzi z ustawień (kolejność priorytetu):
+     *   1. inline_config gdy postivo_carrier_id + postivo_service_id są ustawione
+     *   2. predefined_config_id gdy postivo_config_id jest ustawione (tryb legacy)
      *
      * @param array $params Wymagane:
      *   recipient_name (string), address_line1 (string), city (string), postcode (string)
@@ -70,17 +85,12 @@ class PostivoClient
             );
         }
 
-        $config_id = (int)postivo_setting('postivo_config_id');
-        if (!$config_id) {
-            throw new RuntimeException(
-                'Brak ID konfiguracji Postivo.pl. Ustaw "ID konfiguracji" w: Administracja → Postivo (poczta).'
-            );
-        }
-
         $pdf_path = $params['pdf_path'] ?? '';
         if (!$pdf_path || !file_exists($pdf_path)) {
             throw new RuntimeException('Plik PDF nie istnieje: ' . $pdf_path);
         }
+
+        $options = $this->_build_shipment_options();
 
         $recipient = [
             'name'      => $params['recipient_name'],
@@ -99,9 +109,7 @@ class PostivoClient
                 'file_stream' => base64_encode(file_get_contents($pdf_path)),
                 'file_name'   => basename($pdf_path),
             ]],
-            'options' => [
-                'predefined_config_id' => $config_id,
-            ],
+            'options' => $options,
         ];
 
         $result   = $this->request('POST', '/shipment', $payload);
@@ -150,6 +158,48 @@ class PostivoClient
     }
 
     /**
+     * Buduje blok options dla POST /shipment i POST /shipment/price.
+     * @throws RuntimeException gdy brak konfiguracji nośnika/usługi
+     */
+    private function _build_shipment_options(): array
+    {
+        $carrier_id = (int)postivo_setting('postivo_carrier_id');
+        $service_id = (int)postivo_setting('postivo_service_id');
+
+        if ($carrier_id && $service_id) {
+            $inline = [
+                'carrier_id' => $carrier_id,
+                'service_id' => $service_id,
+            ];
+            if ($paper_id = (int)postivo_setting('postivo_paper_id')) {
+                $inline['paper_id'] = $paper_id;
+            }
+            if ($envelope_id = (int)postivo_setting('postivo_envelope_id')) {
+                $inline['envelope_id'] = $envelope_id;
+            }
+            if (postivo_setting('postivo_color_print') === '1') {
+                $inline['color_print'] = true;
+            }
+            if (postivo_setting('postivo_duplex_print') === '1') {
+                $inline['duplex_print'] = true;
+            }
+            if (postivo_setting('postivo_envelope_color_print') === '1') {
+                $inline['envelope_color_print'] = true;
+            }
+            return ['inline_config' => $inline];
+        }
+
+        // Tryb legacy — pojedynczy predefined_config_id
+        if ($config_id = (int)postivo_setting('postivo_config_id')) {
+            return ['predefined_config_id' => $config_id];
+        }
+
+        throw new RuntimeException(
+            'Brak konfiguracji wysyłki. Skonfiguruj nośnik i usługę w: Administracja → Postivo (poczta).'
+        );
+    }
+
+    /**
      * Sprawdza szacowaną cenę wysyłki — POST /shipment/price.
      *
      * @param  array $params — tak samo jak send_letter()
@@ -161,13 +211,14 @@ class PostivoClient
             return null;
         }
 
-        $config_id = (int)postivo_setting('postivo_config_id');
-        $pdf_path  = $params['pdf_path'] ?? '';
-        if (!$config_id || !$pdf_path || !file_exists($pdf_path)) {
+        $pdf_path = $params['pdf_path'] ?? '';
+        if (!$pdf_path || !file_exists($pdf_path)) {
             return null;
         }
 
         try {
+            $options = $this->_build_shipment_options();
+
             $recipient = [
                 'name'      => $params['recipient_name'] ?? 'Test',
                 'address'   => $params['address_line1']  ?? '',
@@ -182,9 +233,7 @@ class PostivoClient
                     'file_stream' => base64_encode(file_get_contents($pdf_path)),
                     'file_name'   => basename($pdf_path),
                 ]],
-                'options' => [
-                    'predefined_config_id' => $config_id,
-                ],
+                'options' => $options,
             ];
 
             $result = $this->request('POST', '/shipment/price', $payload);

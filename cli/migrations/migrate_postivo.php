@@ -58,11 +58,18 @@ foreach ($new_columns as $col => $type) {
 // ── Ustawienia domyślne ───────────────────────────────────────────────────────
 
 $defaults = [
-    'postivo_enabled'        => '0',
-    'postivo_api_key'        => '',
-    'postivo_config_id'      => '',
-    'postivo_return_address' => '',
-    'postivo_sender_name'    => '',
+    'postivo_enabled'              => '0',
+    'postivo_api_key'              => '',
+    'postivo_config_id'            => '',   // legacy — zastąpiony przez inline_config
+    'postivo_carrier_id'           => '',
+    'postivo_service_id'           => '',
+    'postivo_paper_id'             => '',
+    'postivo_envelope_id'          => '',
+    'postivo_color_print'          => '0',
+    'postivo_duplex_print'         => '0',
+    'postivo_envelope_color_print' => '0',
+    'postivo_return_address'       => '',
+    'postivo_sender_name'          => '',
 ];
 
 foreach ($defaults as $key => $val) {

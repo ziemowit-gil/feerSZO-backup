@@ -8,15 +8,23 @@ require_once dirname(__DIR__) . '/includes/postivo.php';
 require_role('admin');
 $PAGE_TITLE = 'Postivo (poczta)';
 
-// ── Załaduj bieżącą konfigurację ──────────────────────────────────────────────
 $cfg = [
-    'postivo_enabled'        => postivo_setting('postivo_enabled'),
-    'postivo_api_key'        => postivo_setting('postivo_api_key'),
-    'postivo_config_id'      => postivo_setting('postivo_config_id'),
-    'postivo_sender_name'    => postivo_setting('postivo_sender_name'),
-    'postivo_return_address' => postivo_setting('postivo_return_address'),
+    'postivo_enabled'             => postivo_setting('postivo_enabled'),
+    'postivo_api_key'             => postivo_setting('postivo_api_key'),
+    'postivo_carrier_id'          => postivo_setting('postivo_carrier_id'),
+    'postivo_service_id'          => postivo_setting('postivo_service_id'),
+    'postivo_paper_id'            => postivo_setting('postivo_paper_id'),
+    'postivo_envelope_id'         => postivo_setting('postivo_envelope_id'),
+    'postivo_color_print'         => postivo_setting('postivo_color_print'),
+    'postivo_duplex_print'        => postivo_setting('postivo_duplex_print'),
+    'postivo_envelope_color_print'=> postivo_setting('postivo_envelope_color_print'),
+    'postivo_sender_name'         => postivo_setting('postivo_sender_name'),
+    'postivo_return_address'      => postivo_setting('postivo_return_address'),
 ];
 
+$client     = new PostivoClient();
+$configured = $client->is_configured();
+$enabled    = $cfg['postivo_enabled'] === '1';
 $test_result = null;
 
 // ── Obsługa POST ──────────────────────────────────────────────────────────────
@@ -28,11 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $api_key = trim($_POST['postivo_api_key'] ?? '');
 
         $save = [
-            'postivo_enabled'        => !empty($_POST['postivo_enabled']) ? '1' : '0',
-            'postivo_api_key'        => $api_key ?: $cfg['postivo_api_key'],
-            'postivo_config_id'      => trim($_POST['postivo_config_id']      ?? ''),
-            'postivo_sender_name'    => trim($_POST['postivo_sender_name']    ?? ''),
-            'postivo_return_address' => trim($_POST['postivo_return_address'] ?? ''),
+            'postivo_enabled'              => !empty($_POST['postivo_enabled']) ? '1' : '0',
+            'postivo_api_key'              => $api_key ?: $cfg['postivo_api_key'],
+            'postivo_carrier_id'           => trim($_POST['postivo_carrier_id']           ?? ''),
+            'postivo_service_id'           => trim($_POST['postivo_service_id']           ?? ''),
+            'postivo_paper_id'             => trim($_POST['postivo_paper_id']             ?? ''),
+            'postivo_envelope_id'          => trim($_POST['postivo_envelope_id']          ?? ''),
+            'postivo_color_print'          => !empty($_POST['postivo_color_print'])          ? '1' : '0',
+            'postivo_duplex_print'         => !empty($_POST['postivo_duplex_print'])         ? '1' : '0',
+            'postivo_envelope_color_print' => !empty($_POST['postivo_envelope_color_print']) ? '1' : '0',
+            'postivo_sender_name'          => trim($_POST['postivo_sender_name']          ?? ''),
+            'postivo_return_address'       => trim($_POST['postivo_return_address']       ?? ''),
         ];
 
         foreach ($save as $k => $v) {
@@ -44,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Odśwież cache — wyczyść statyczne zmienne przez reload
         flash_set('success', 'Ustawienia Postivo.pl zapisane.');
         header('Location: postivo_settings.php');
         exit;
@@ -60,9 +73,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$client     = new PostivoClient();
-$configured = $client->is_configured();
-$enabled    = $cfg['postivo_enabled'] === '1';
+// ── Załaduj metadane z API (nośniki, usługi, papiery, koperty) ────────────────
+$meta       = null;
+$meta_error = null;
+if ($configured) {
+    try {
+        $meta = $client->get_metadata();
+    } catch (RuntimeException $e) {
+        $meta_error = $e->getMessage();
+    }
+}
+
+$carriers           = $meta['carriers']           ?? [];
+$papers             = $meta['papers']             ?? [];
+$envelope_templates = $meta['envelope_templates'] ?? [];
+
+// Spłaszcz koperty do prostej listy [{envelope_id, envelope_name, max_sheets, group_name}]
+$envelopes = [];
+foreach ($envelope_templates as $group) {
+    foreach ($group['envelope'] ?? [] as $env) {
+        $envelopes[] = array_merge($env, ['group_name' => $group['envelope_group_name'] ?? '']);
+    }
+}
+
+// Znajdź wybrane nazwy dla panelu statusu
+$carrier_name = '';
+$service_name = '';
+$saved_cid    = (int)$cfg['postivo_carrier_id'];
+$saved_sid    = (int)$cfg['postivo_service_id'];
+foreach ($carriers as $c) {
+    if ($c['carrier_id'] === $saved_cid) {
+        $carrier_name = $c['carrier_name'];
+        foreach ($c['services'] as $s) {
+            if ($s['service_id'] === $saved_sid) {
+                $service_name = $s['service_name'];
+                break;
+            }
+        }
+        break;
+    }
+}
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -110,54 +160,179 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="bi bi-key"></i> Autoryzacja API</div>
     <div class="card-body">
-      <div class="mb-0">
-        <label class="form-label fw-semibold small">
-          Klucz API <span class="text-danger">*</span>
-        </label>
-        <input type="password" name="postivo_api_key"
-               class="form-control form-control-sm font-monospace"
-               placeholder="<?= $configured
-                   ? '(zapisany — zostaw puste by nie zmieniać)'
-                   : 'Wklej klucz API z panelu Postivo.pl' ?>"
-               autocomplete="new-password">
-        <?php if ($configured): ?>
-        <div class="form-text text-success">
-          <i class="bi bi-check-circle"></i> Klucz API zapisany.
-        </div>
-        <?php else: ?>
-        <div class="form-text">
-          Pobierz klucz API w panelu <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a>
-          (Ustawienia → API).
-        </div>
-        <?php endif; ?>
+      <label class="form-label fw-semibold small">
+        Klucz API <span class="text-danger">*</span>
+      </label>
+      <input type="password" name="postivo_api_key"
+             class="form-control form-control-sm font-monospace"
+             placeholder="<?= $configured ? '(zapisany — zostaw puste by nie zmieniać)' : 'Wklej klucz API z panelu Postivo.pl' ?>"
+             autocomplete="new-password">
+      <?php if ($configured): ?>
+      <div class="form-text text-success">
+        <i class="bi bi-check-circle"></i> Klucz API zapisany.
       </div>
+      <?php else: ?>
+      <div class="form-text">
+        Pobierz klucz API w panelu <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a>
+        (Ustawienia → API). Po zapisaniu klucza strona automatycznie załaduje dostępne nośniki i usługi.
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 
-  <!-- ── ID konfiguracji ────────────────────────────────────────────────────── -->
+  <!-- ── Konfiguracja wysyłki ───────────────────────────────────────────────── -->
   <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-gear"></i> Konfiguracja wysyłki</div>
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-send"></i> Konfiguracja wysyłki</span>
+      <?php if ($configured && $meta_error): ?>
+        <span class="badge bg-warning text-dark small">
+          <i class="bi bi-exclamation-triangle"></i> Błąd ładowania opcji
+        </span>
+      <?php elseif ($configured && $meta): ?>
+        <span class="badge bg-success small">
+          <i class="bi bi-check-circle"></i> Opcje załadowane z API
+        </span>
+      <?php endif; ?>
+    </div>
     <div class="card-body">
-      <div class="mb-0">
-        <label class="form-label fw-semibold small">
-          ID konfiguracji wstępnej <span class="text-danger">*</span>
-        </label>
-        <input type="number" name="postivo_config_id" min="1"
-               class="form-control form-control-sm font-monospace"
-               value="<?= h($cfg['postivo_config_id']) ?>"
-               placeholder="np. 42">
-        <div class="form-text">
-          Numeryczne ID konfiguracji z panelu Postivo.pl (Konfiguracje → ID). Określa nośnik,
-          usługę, papier, druk kolorowy i nadawcę. Utwórz konfigurację raz w Postivo,
-          a wszystkie listy będą ją używać automatycznie.
-        </div>
+
+      <?php if ($meta_error): ?>
+      <div class="alert alert-warning py-2 small mb-3">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Nie udało się załadować opcji z API: <?= h($meta_error) ?>
+        Wartości można wpisać ręcznie (ID numeryczne).
       </div>
+      <?php endif; ?>
+
+      <?php if (!$configured): ?>
+      <div class="alert alert-info py-2 small mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        Najpierw zapisz klucz API — opcje nośnika i usługi załadują się automatycznie z Postivo.pl.
+      </div>
+      <?php else: ?>
+
+      <div class="row g-3">
+
+        <!-- Nośnik -->
+        <div class="col-12">
+          <label class="form-label fw-semibold small" for="postivo_carrier_id">
+            Nośnik <span class="text-danger">*</span>
+          </label>
+          <?php if ($carriers): ?>
+          <select name="postivo_carrier_id" id="postivo_carrier_id" class="form-select form-select-sm" required>
+            <option value="">— wybierz nośnika —</option>
+            <?php foreach ($carriers as $c): ?>
+            <option value="<?= $c['carrier_id'] ?>" <?= $saved_cid === $c['carrier_id'] ? 'selected' : '' ?>>
+              <?= h($c['carrier_name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <?php else: ?>
+          <input type="number" name="postivo_carrier_id" id="postivo_carrier_id" min="1"
+                 class="form-control form-control-sm font-monospace"
+                 value="<?= h($cfg['postivo_carrier_id']) ?>" placeholder="ID nośnika">
+          <?php endif; ?>
+        </div>
+
+        <!-- Usługa -->
+        <div class="col-12">
+          <label class="form-label fw-semibold small" for="postivo_service_id">
+            Usługa <span class="text-danger">*</span>
+          </label>
+          <?php if ($carriers): ?>
+          <select name="postivo_service_id" id="postivo_service_id" class="form-select form-select-sm" required>
+            <option value="">— najpierw wybierz nośnika —</option>
+          </select>
+          <?php else: ?>
+          <input type="number" name="postivo_service_id" id="postivo_service_id" min="1"
+                 class="form-control form-control-sm font-monospace"
+                 value="<?= h($cfg['postivo_service_id']) ?>" placeholder="ID usługi">
+          <?php endif; ?>
+        </div>
+
+        <!-- Papier -->
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold small" for="postivo_paper_id">
+            Papier <span class="text-muted fw-normal">(opcjonalnie)</span>
+          </label>
+          <?php if ($papers): ?>
+          <select name="postivo_paper_id" id="postivo_paper_id" class="form-select form-select-sm">
+            <option value="">— domyślny —</option>
+            <?php foreach ($papers as $p): ?>
+            <option value="<?= $p['paper_id'] ?>" <?= (int)$cfg['postivo_paper_id'] === $p['paper_id'] ? 'selected' : '' ?>>
+              <?= h($p['paper_name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <?php else: ?>
+          <input type="number" name="postivo_paper_id" id="postivo_paper_id" min="1"
+                 class="form-control form-control-sm font-monospace"
+                 value="<?= h($cfg['postivo_paper_id']) ?>" placeholder="ID papieru (opcja)">
+          <?php endif; ?>
+        </div>
+
+        <!-- Koperta -->
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold small" for="postivo_envelope_id">
+            Koperta <span class="text-muted fw-normal">(opcjonalnie)</span>
+          </label>
+          <?php if ($envelopes): ?>
+          <select name="postivo_envelope_id" id="postivo_envelope_id" class="form-select form-select-sm">
+            <option value="">— domyślna —</option>
+            <?php foreach ($envelopes as $e): ?>
+            <option value="<?= $e['envelope_id'] ?>" <?= (int)$cfg['postivo_envelope_id'] === $e['envelope_id'] ? 'selected' : '' ?>>
+              <?= h($e['group_name'] ? $e['group_name'] . ' — ' . $e['envelope_name'] : $e['envelope_name']) ?>
+              <?php if ($e['max_sheets']): ?>(max <?= $e['max_sheets'] ?> ark.)<?php endif; ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <?php else: ?>
+          <input type="number" name="postivo_envelope_id" id="postivo_envelope_id" min="1"
+                 class="form-control form-control-sm font-monospace"
+                 value="<?= h($cfg['postivo_envelope_id']) ?>" placeholder="ID koperty (opcja)">
+          <?php endif; ?>
+        </div>
+
+        <!-- Opcje druku -->
+        <div class="col-12">
+          <label class="form-label fw-semibold small d-block">Opcje druku</label>
+          <div class="d-flex flex-wrap gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="postivo_color_print"
+                     id="postivo_color_print" value="1"
+                     <?= $cfg['postivo_color_print'] === '1' ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="postivo_color_print">
+                Druk kolorowy
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="postivo_duplex_print"
+                     id="postivo_duplex_print" value="1"
+                     <?= $cfg['postivo_duplex_print'] === '1' ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="postivo_duplex_print">
+                Druk dwustronny
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="postivo_envelope_color_print"
+                     id="postivo_envelope_color_print" value="1"
+                     <?= $cfg['postivo_envelope_color_print'] === '1' ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="postivo_envelope_color_print">
+                Druk kolorowy koperty
+              </label>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /row -->
+      <?php endif; // configured ?>
+
     </div>
   </div>
 
   <!-- ── Dane nadawcy ───────────────────────────────────────────────────────── -->
   <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane nadawcy</div>
+    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane nadawcy (informacyjne)</div>
     <div class="card-body">
       <div class="mb-3">
         <label class="form-label fw-semibold small">Nazwa nadawcy</label>
@@ -165,7 +340,9 @@ include dirname(__DIR__) . '/includes/header.php';
                class="form-control form-control-sm"
                value="<?= h($cfg['postivo_sender_name']) ?>"
                placeholder="np. Fundacja XYZ">
-        <div class="form-text">Wyświetlana na kopercie jako nadawca listu.</div>
+        <div class="form-text">
+          Nadawca jest konfigurowany w koncie Postivo.pl (panel → Nadawcy). To pole jest pomocnicze — przechowuje nazwę dla celów audytowych.
+        </div>
       </div>
       <div class="mb-0">
         <label class="form-label fw-semibold small">Adres zwrotny</label>
@@ -173,7 +350,7 @@ include dirname(__DIR__) . '/includes/header.php';
                   class="form-control form-control-sm"
                   placeholder="ul. Przykładowa 1&#10;00-001 Warszawa"><?= h($cfg['postivo_return_address']) ?></textarea>
         <div class="form-text">
-          Adres do zwrotu niedoręczonej przesyłki. Wpisz każdą linię adresu w osobnym wierszu.
+          Adres zwrotny do wglądu. Rzeczywisty adres zwrotny pochodzi z konta Postivo.pl.
         </div>
       </div>
     </div>
@@ -191,15 +368,15 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card-header fw-semibold"><i class="bi bi-wifi"></i> Test połączenia</div>
   <div class="card-body">
     <?php if ($test_result !== null): ?>
-    <div class="alert alert-<?= $test_result['ok'] === true ? 'success' : ($test_result['ok'] === false ? 'danger' : 'info') ?> py-2 small mb-3 d-flex align-items-start gap-2">
-      <i class="bi bi-<?= $test_result['ok'] === true ? 'check-circle-fill' : ($test_result['ok'] === false ? 'x-circle-fill' : 'info-circle-fill') ?> mt-1 flex-shrink-0"></i>
+    <div class="alert alert-<?= $test_result['ok'] === true ? 'success' : 'danger' ?> py-2 small mb-3 d-flex align-items-start gap-2">
+      <i class="bi bi-<?= $test_result['ok'] ? 'check-circle-fill' : 'x-circle-fill' ?> mt-1 flex-shrink-0"></i>
       <?= h($test_result['msg']) ?>
     </div>
     <?php endif; ?>
     <form method="post">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="test">
-      <button type="submit" class="btn btn-sm btn-outline-primary">
+      <button type="submit" class="btn btn-sm btn-outline-primary" <?= !$configured ? 'disabled' : '' ?>>
         <i class="bi bi-arrow-right-circle"></i> Testuj połączenie z API
       </button>
     </form>
@@ -230,14 +407,31 @@ include dirname(__DIR__) . '/includes/header.php';
           <?= $configured ? 'Zapisany' : 'Brak' ?>
         </span>
       </div>
+      <?php
+        $has_ship_cfg = ($saved_cid && $saved_sid) || postivo_setting('postivo_config_id');
+      ?>
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="text-muted">Nazwa nadawcy</span>
-        <span class="fw-semibold"><?= h($cfg['postivo_sender_name'] ?: '—') ?></span>
+        <span class="text-muted">Nośnik</span>
+        <span class="fw-semibold text-end" style="max-width:60%">
+          <?= $carrier_name ? h($carrier_name) : ($saved_cid ? 'ID ' . $saved_cid : '—') ?>
+        </span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted">Usługa</span>
+        <span class="fw-semibold text-end" style="max-width:60%">
+          <?= $service_name ? h($service_name) : ($saved_sid ? 'ID ' . $saved_sid : '—') ?>
+        </span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted">Druk kolorowy</span>
+        <span class="badge <?= $cfg['postivo_color_print'] === '1' ? 'bg-primary' : 'bg-secondary' ?>">
+          <?= $cfg['postivo_color_print'] === '1' ? 'Tak' : 'Nie' ?>
+        </span>
       </div>
       <div class="d-flex justify-content-between align-items-center">
-        <span class="text-muted">Adres zwrotny</span>
-        <span class="badge <?= $cfg['postivo_return_address'] ? 'bg-success' : 'bg-secondary' ?>">
-          <?= $cfg['postivo_return_address'] ? 'Ustawiony' : 'Brak' ?>
+        <span class="text-muted">Konfiguracja wysyłki</span>
+        <span class="badge <?= $has_ship_cfg ? 'bg-success' : 'bg-danger' ?>">
+          <?= $has_ship_cfg ? 'Gotowa' : 'Brak' ?>
         </span>
       </div>
     </div>
@@ -256,12 +450,13 @@ include dirname(__DIR__) . '/includes/header.php';
       <ol class="ps-3 mb-2">
         <li>Zarejestruj konto na <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a></li>
         <li>Doładuj konto lub podaj dane do faktury</li>
-        <li>Pobierz klucz API z panelu użytkownika</li>
-        <li>Wklej klucz powyżej i zapisz konfigurację</li>
+        <li>Pobierz klucz API z panelu (Ustawienia → API)</li>
+        <li>Wklej klucz i zapisz — opcje nośnika/usługi załadują się automatycznie</li>
+        <li>Wybierz nośnik, usługę i opcje druku</li>
       </ol>
       <p class="mb-0 fw-semibold">Cennik:</p>
       <ul class="ps-3 mb-0">
-        <li>Cena zależy od wybranej konfiguracji (nośnik, usługa, papier)</li>
+        <li>Cena zależy od wybranej usługi i opcji druku</li>
         <li>Druk i kopertowanie wliczone w cenę</li>
         <li>Szczegóły na <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a></li>
       </ul>
@@ -280,7 +475,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <li>Do pisma musi być załączony plik PDF</li>
         <li>Wypełnij adres odbiorcy w formularzu</li>
         <li>Kliknij <em>Wyślij listem poleconym</em></li>
-        <li>System przekaże PDF do Postivo.pl</li>
+        <li>System przekaże PDF do Postivo.pl z wybraną konfiguracją</li>
         <li>Status przesyłki możesz odświeżać na stronie pisma</li>
       </ol>
       <p class="mb-0 text-muted">
@@ -291,5 +486,37 @@ include dirname(__DIR__) . '/includes/header.php';
 
 </div><!-- /col-xl-5 -->
 </div><!-- /row -->
+
+<?php if ($carriers): ?>
+<script>
+(function () {
+  const CARRIERS = <?= json_encode($carriers, JSON_UNESCAPED_UNICODE) ?>;
+  const savedSid = <?= (int)$cfg['postivo_service_id'] ?>;
+
+  const carrierSel = document.getElementById('postivo_carrier_id');
+  const serviceSel = document.getElementById('postivo_service_id');
+  if (!carrierSel || !serviceSel) return;
+
+  function updateServices() {
+    const cid = parseInt(carrierSel.value, 10);
+    serviceSel.innerHTML = '<option value="">— wybierz usługę —</option>';
+    if (!cid) return;
+    const carrier = CARRIERS.find(c => c.carrier_id === cid);
+    if (!carrier) return;
+    carrier.services.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.service_id;
+      opt.textContent = s.service_name
+        + (s.service_return_fee ? ' (zwrot: ' + s.service_return_fee.toFixed(2) + ' zł)' : '');
+      if (s.service_id === savedSid) opt.selected = true;
+      serviceSel.appendChild(opt);
+    });
+  }
+
+  carrierSel.addEventListener('change', updateServices);
+  updateServices();
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
