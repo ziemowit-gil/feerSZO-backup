@@ -1,4 +1,11 @@
 <?php
+// ti.feer.org.pl / → chooser (public, no login required)
+if (in_array($_SERVER['HTTP_HOST'] ?? '', ['ti.feer.org.pl', 'ti.ngosystem.pl'], true)
+    && preg_replace('/\?.*/', '', $_SERVER['REQUEST_URI'] ?? '/') === '/') {
+    header('Location: /karty30/ti/kursant/chooser.php', true, 302);
+    exit;
+}
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';

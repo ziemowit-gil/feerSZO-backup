@@ -16,7 +16,8 @@
 #   bash apply-prod.sh --pull          # git pull --ff-only, potem przeładuj
 #   bash apply-prod.sh --prune         # przeładuj + usuń osierocone kontenery
 #   bash apply-prod.sh --mysql         # wariant z MySQL
-#   bash apply-prod.sh --ng            # dołącz serwis Angular (ng-ui, /newUI/)
+#   bash apply-prod.sh --ng            # dołącz serwis Angular (ng-ui, szo.feer.org.pl/newUI/)
+#   bash apply-prod.sh --kursant       # dołącz panel kursanta (kursant-ui, ti.feer.org.pl/newUI/)
 #   bash apply-prod.sh --build         # dodatkowo przebuduj obraz (jak rebuild)
 #   bash apply-prod.sh --dry-run       # tylko pokaż polecenie, nic nie uruchamiaj
 #   bash apply-prod.sh -y              # bez pytania o potwierdzenie
@@ -37,18 +38,19 @@ die()  { echo -e "${RED}✖ $*${RESET}" >&2; exit 1; }
 usage() { grep '^#' "$0" | sed 's/^# \{0,1\}//' | sed '1d'; exit 0; }
 
 # ── Argumenty ─────────────────────────────────────────────────────────────────
-USE_MYSQL=0; DO_PULL=0; DO_BUILD=0; DO_PRUNE=0; DRY_RUN=0; ASSUME_YES=0; USE_NG=0
+USE_MYSQL=0; DO_PULL=0; DO_BUILD=0; DO_PRUNE=0; DRY_RUN=0; ASSUME_YES=0; USE_NG=0; USE_KURSANT=0
 for arg in "$@"; do
     case "$arg" in
-        -h|--help)  usage ;;
-        --mysql)    USE_MYSQL=1 ;;
-        --ng)       USE_NG=1 ;;
-        --pull)     DO_PULL=1 ;;
-        --build)    DO_BUILD=1 ;;
-        --prune)    DO_PRUNE=1 ;;
-        --dry-run)  DRY_RUN=1 ;;
-        -y|--yes)   ASSUME_YES=1 ;;
-        *)          die "Nieznana flaga: $arg (użyj --help)" ;;
+        -h|--help)   usage ;;
+        --mysql)     USE_MYSQL=1 ;;
+        --ng)        USE_NG=1 ;;
+        --kursant)   USE_KURSANT=1 ;;
+        --pull)      DO_PULL=1 ;;
+        --build)     DO_BUILD=1 ;;
+        --prune)     DO_PRUNE=1 ;;
+        --dry-run)   DRY_RUN=1 ;;
+        -y|--yes)    ASSUME_YES=1 ;;
+        *)           die "Nieznana flaga: $arg (użyj --help)" ;;
     esac
 done
 
@@ -60,8 +62,9 @@ COMPOSE="docker compose \
   -f ${SCRIPT_DIR}/docker-compose.yml \
   -f ${SCRIPT_DIR}/docker-compose.prod.yml \
   --env-file ${ENV_FILE}"
-[[ $USE_MYSQL -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.mysql.yml"
-[[ $USE_NG    -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.ng.yml"
+[[ $USE_MYSQL   -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.mysql.yml"
+[[ $USE_NG      -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.ng.yml"
+[[ $USE_KURSANT -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.kursant.yml"
 
 UP_ARGS="up -d"
 [[ $DO_BUILD -eq 1 ]] && UP_ARGS="${UP_ARGS} --build"
@@ -70,7 +73,8 @@ UP_ARGS="up -d"
 # ── Plan ──────────────────────────────────────────────────────────────────────
 echo -e "${BOLD}━━ apply-prod ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 info "Tryb DB:      $([[ $USE_MYSQL -eq 1 ]] && echo MySQL || echo SQLite)"
-info "Angular UI:   $([[ $USE_NG -eq 1 ]] && echo 'tak (ng-ui → /newUI/)' || echo nie)"
+info "Angular UI:   $([[ $USE_NG -eq 1 ]] && echo 'tak (ng-ui → szo/newUI/)' || echo nie)"
+info "Kursant UI:   $([[ $USE_KURSANT -eq 1 ]] && echo 'tak (kursant-ui → ti/newUI/)' || echo nie)"
 info "git pull:     $([[ $DO_PULL -eq 1 ]] && echo 'tak (--ff-only)' || echo 'nie (bieżące drzewo)')"
 info "Rebuild:      $([[ $DO_BUILD -eq 1 ]] && echo tak || echo 'nie (tylko recreate)')"
 info "Remove-orphans: $([[ $DO_PRUNE -eq 1 ]] && echo tak || echo nie)"

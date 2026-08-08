@@ -4,6 +4,8 @@
 # Użycie:
 #   bash rebuild.sh              # SQLite (domyślnie)
 #   bash rebuild.sh --mysql      # z MySQL
+#   bash rebuild.sh --ng         # dołącz ng-ui (szo.feer.org.pl/newUI/) — buduje też ng-ui
+#   bash rebuild.sh --kursant    # dołącz kursant-ui (ti.feer.org.pl/newUI/) — buduje też kursant-ui
 #   bash rebuild.sh --no-pull    # przebuduj bez sync z origin (np. po ręcznej edycji)
 #   bash rebuild.sh --no-cache   # wymusza pełny rebuild bez cache (po zmianie Dockerfile)
 
@@ -23,10 +25,14 @@ section() { echo -e "\n${BOLD}━━ $* ━━━━━━━━━━━━━�
 
 # ── Argumenty ─────────────────────────────────────────────────────────────────
 USE_MYSQL=0
+USE_NG=0
+USE_KURSANT=0
 SKIP_PULL=0
 NO_CACHE=0
 for arg in "$@"; do
     [[ "$arg" == "--mysql"    ]] && USE_MYSQL=1
+    [[ "$arg" == "--ng"       ]] && USE_NG=1
+    [[ "$arg" == "--kursant"  ]] && USE_KURSANT=1
     [[ "$arg" == "--no-pull"  ]] && SKIP_PULL=1
     [[ "$arg" == "--no-cache" ]] && NO_CACHE=1
 done
@@ -46,6 +52,8 @@ if [[ $USE_MYSQL -eq 1 ]]; then
 else
     info "Tryb: SQLite (domyślny)"
 fi
+[[ $USE_NG      -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.ng.yml"; info "Angular UI: ng-ui (szo/newUI/)"; }
+[[ $USE_KURSANT -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.kursant.yml"; info "Kursant UI: kursant-ui (ti/newUI/)"; }
 
 # ── 1. Synchronizacja kodu z origin ─────────────────────────────────────────────
 # Zawsze ustawiamy lokalne repo dokładnie na stanie origin (hard reset).
@@ -64,13 +72,16 @@ fi
 
 # ── 2. Przebuduj obraz app ─────────────────────────────────────────────────────
 section "2. Budowanie obrazu"
+BUILD_SERVICES="app"
+[[ $USE_NG      -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} ng-ui"
+[[ $USE_KURSANT -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} kursant-ui"
 if [[ $NO_CACHE -eq 1 ]]; then
     info "Tryb: --no-cache (pełny rebuild bez warstw cache)"
-    $COMPOSE build --no-cache --pull app
+    $COMPOSE build --no-cache --pull ${BUILD_SERVICES}
 else
-    $COMPOSE build --pull app
+    $COMPOSE build --pull ${BUILD_SERVICES}
 fi
-ok "Obraz zbudowany"
+ok "Obraz(y) zbudowane: ${BUILD_SERVICES}"
 
 # ── 3. Restart usług ──────────────────────────────────────────────────────────
 section "3. Restart"

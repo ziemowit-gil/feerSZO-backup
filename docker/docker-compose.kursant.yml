@@ -1,0 +1,45 @@
+# ── Kursant UI (Angular) — ti.feer.org.pl/newUI/ ─────────────────────────────
+#
+# Użycie DEV (z override.yml):
+#   docker compose -f docker-compose.yml -f docker-compose.kursant.yml up -d kursant-ui
+#
+# Użycie PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.kursant.yml --env-file .env.prod up -d
+#
+# Odpowiada za serwowanie panelu kursanta (Angular 19) pod:
+#   https://ti.feer.org.pl/newUI/
+#
+# Chooser (stary vs nowy interfejs) jest pod:
+#   https://ti.feer.org.pl/  →  karty30/ti/kursant/chooser.php
+
+services:
+
+  kursant-ui:
+    build:
+      context: ../kursantApp
+      dockerfile: Dockerfile
+    image: feer-kursant-ui:latest
+    container_name: feer-kursant-ui
+    restart: unless-stopped
+    networks:
+      - feer
+    labels:
+      - "traefik.enable=true"
+
+      # ── Router HTTPS ──────────────────────────────────────────────────────
+      - "traefik.http.routers.kursant-ui.rule=Host(`ti.feer.org.pl`) && PathPrefix(`/newUI/`)"
+      - "traefik.http.routers.kursant-ui.entrypoints=websecure"
+      - "traefik.http.routers.kursant-ui.tls=true"
+      - "traefik.http.routers.kursant-ui.tls.certresolver=le"
+      - "traefik.http.routers.kursant-ui.middlewares=ti-strip@docker,sec-headers@docker"
+      - "traefik.http.services.kursant-ui.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.kursant-ui-http.rule=Host(`ti.feer.org.pl`) && PathPrefix(`/newUI/`)"
+      - "traefik.http.routers.kursant-ui-http.entrypoints=web"
+      - "traefik.http.routers.kursant-ui-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.kursant-ui-http.service=kursant-ui"
+
+      # ── Middleware: strip /newUI prefix przed nginx ───────────────────────
+      - "traefik.http.middlewares.ti-strip.stripprefix.prefixes=/newUI"
