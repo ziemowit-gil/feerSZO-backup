@@ -32,7 +32,7 @@ function ti_m365_setting(string $key, string $default = ''): string {
 
 /**
  * Instancja M365Graph dla Zajęć TI — korzysta z konfiguracji ustawionej już w
- * „Karty 30 → M365" (karty30/admin/m365.php, klucze k30_m365_*). Tryb „własny"
+ * „Dydaktyka 3 → M365" (karty30/admin/m365.php, klucze k30_m365_*). Tryb „własny"
  * = oddzielne creds; tryb domyślny = główny tenant organizacji (m365_*).
  * Dzięki temu nie duplikujemy konfiguracji w panelu Nauki online.
  */
@@ -54,7 +54,7 @@ function m365_training(): M365Graph {
     ]);
 }
 
-/** Czy konta MS można tworzyć — konfiguracja M365 (Karty 30 → M365) jest kompletna. */
+/** Czy konta MS można tworzyć — konfiguracja M365 (Dydaktyka 3 → M365) jest kompletna. */
 function ti_ms_enabled(): bool {
     return m365_training()->is_configured();
 }

@@ -210,7 +210,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                   <i class="bi bi-card-list text-primary me-1"></i>Może być użyty w modelu Karty
                 </label>
               </div>
-              <div class="form-text" style="font-size:.73rem">Zasób pojawi się w systemie rezerwacji podczas dodawania terminu Karty 30.</div>
+              <div class="form-text" style="font-size:.73rem">Zasób pojawi się w systemie rezerwacji podczas dodawania terminu Dydaktyka 3.</div>
             </div>
           </div>
 

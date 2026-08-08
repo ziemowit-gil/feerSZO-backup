@@ -4,7 +4,7 @@
  * Sekcja na kurs: frekwencja uczestników w tej grupie + ich rozliczenia
  * (należności/wpłaty w miesiącu) i bieżące saldo konta. Podsumowanie grupy: śr. frekwencja.
  * GET: ?m=YYYY-MM (domyślnie bieżący), ?course_id=N (opcjonalnie — jedna grupa).
- * Dostęp: pracownik K30 / administrator. Wynik: tylko PDF.
+ * Dostęp: pracownik D3 / administrator. Wynik: tylko PDF.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';

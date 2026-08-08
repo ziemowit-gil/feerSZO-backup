@@ -67,7 +67,7 @@ $users = db_all("SELECT DISTINCT user_id, user_name FROM k30_access_log WHERE us
 
 $act_badge = ['view' => 'secondary', 'edit' => 'warning', 'print' => 'info', 'export' => 'dark'];
 
-$PAGE_TITLE = 'Rejestr dostępu (RODO) — Karty 30';
+$PAGE_TITLE = 'Rejestr dostępu (RODO) — Dydaktyka 3';
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 

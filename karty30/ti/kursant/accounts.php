@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/ti/kursant/accounts.php — Zarządzanie kontami kursantów (admin K30).
+ * karty30/ti/kursant/accounts.php — Zarządzanie kontami kursantów (admin D3).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
@@ -642,7 +642,7 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/ti/index.php">Zajęcia TI</a></li>
   <li class="breadcrumb-item active">Konta kursantów</li>
 </ol></nav>

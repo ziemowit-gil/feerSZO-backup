@@ -1,6 +1,6 @@
 <?php
 /**
- * cli/k30_smoke.php — Smoke-testy REST API Karty 30 (CRUD / 401 / 404 / 422 / 429 / OpenAPI).
+ * cli/k30_smoke.php — Smoke-testy REST API Dydaktyka 3 (CRUD / 401 / 404 / 422 / 429 / OpenAPI).
  *
  * Użycie:
  *   php cli/k30_smoke.php                      # sam uruchamia php -S i testuje
@@ -93,7 +93,7 @@ function check(string $name, bool $ok, string $extra = '') {
     else     { $fail++; echo "  \033[31m✗\033[0m $name" . ($extra ? "  ($extra)" : '') . "\n"; }
 }
 
-echo "Smoke-testy API Karty 30 → $base\n\n";
+echo "Smoke-testy API Dydaktyka 3 → $base\n\n";
 
 $RW = smoke_make_key('__SMOKE_RW__', ['karty30:read', 'karty30:write']);
 

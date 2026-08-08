@@ -1,7 +1,7 @@
 <?php
 /**
  * Oświadczenie administratora o wystawieniu upoważnienia i dokonaniu zmian w systemie.
- * Dostęp tylko dla administratora / pracownika K30.
+ * Dostęp tylko dla administratora / pracownika D3.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';

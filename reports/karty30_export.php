@@ -1,6 +1,6 @@
 <?php
 /**
- * reports/karty30_export.php — Raporty modułu Karty 30 (Dydaktyka/TI) do druku.
+ * reports/karty30_export.php — Raporty modułu Dydaktyka 3 (Dydaktyka/TI) do druku.
  * Spójne z modelem raportów umów (reports/export.php): format=print|csv.
  *
  * report=courses  — lista kursów TI
@@ -15,7 +15,7 @@ require_once dirname(__DIR__) . '/includes/permissions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 
 require_login();
-if (!(can_read('karty30') || is_admin())) { http_response_code(403); die('Brak dostępu do modułu Karty 30.'); }
+if (!(can_read('karty30') || is_admin())) { http_response_code(403); die('Brak dostępu do modułu Dydaktyka 3.'); }
 karty30_migrate();
 
 $report = $_GET['report'] ?? 'courses';
@@ -35,7 +35,7 @@ $money = fn($x) => number_format((float)$x, 2, ',', ' ');
 $title = ''; $meta = ''; $columns = []; $data = []; $footer = null;
 
 if ($report === 'courses') {
-    $title = 'Kursy TI — Karty 30';
+    $title = 'Kursy TI — Dydaktyka 3';
     $rows = db_all(
         "SELECT c.name, COALESCE(u.name,'—') AS instr, c.location,
                 (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled,
@@ -66,7 +66,7 @@ if ($report === 'courses') {
 }
 
 elseif ($report === 'lessons') {
-    $title = 'Lekcje i frekwencja — Karty 30';
+    $title = 'Lekcje i frekwencja — Dydaktyka 3';
     $meta  = 'Miesiąc: ' . ucfirst($ym_label);
     $rows = db_all(
         "SELECT s.lesson_date, c.name AS course, COALESCE(u.name,'—') AS instr,
@@ -104,7 +104,7 @@ elseif ($report === 'lessons') {
 }
 
 else { // payouts
-    $title = 'Wypłaty prowadzących — Karty 30';
+    $title = 'Wypłaty prowadzących — Dydaktyka 3';
     $meta  = 'Miesiąc: ' . ucfirst($ym_label) . ' · lekcje odbyte z kursów ze stawką brutto-brutto';
     $by = k30_ti_payouts_by_instructor($ym);
     $columns = [

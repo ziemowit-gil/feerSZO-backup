@@ -214,7 +214,7 @@ function _k30_active(string $path): bool {
   <!-- ══ Pasek marki + użytkownik ═══════════════════════════════════════════ -->
   <nav class="navbar navbar-dark py-1 k30-topbar" aria-label="Pasek górny">
     <div class="container-fluid">
-      <a href="<?= APP_URL ?>/karty30/index.php" class="navbar-brand d-flex align-items-center gap-2 fw-bold" aria-label="Dydaktyka Karty 30 — strona główna">
+      <a href="<?= APP_URL ?>/karty30/index.php" class="navbar-brand d-flex align-items-center gap-2 fw-bold" aria-label="Dydaktyka 3 — strona główna">
         <span class="d-inline-flex align-items-center justify-content-center rounded-2" style="width:34px;height:34px;background:#c2410c;flex-shrink:0" aria-hidden="true">
           <i class="bi bi-card-checklist text-white" style="font-size:1.05rem"></i>
         </span>

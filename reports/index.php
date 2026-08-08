@@ -146,9 +146,9 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?php if ($k30_reports): ?>
-<!-- ── Karty 30 — Dydaktyka / TI ──────────────────────────────────────────── -->
+<!-- ── Dydaktyka 3 — Dydaktyka / TI ──────────────────────────────────────────── -->
 <div class="d-flex align-items-center mb-3 mt-4 gap-2 flex-wrap">
-  <h4 class="mb-0"><i class="bi bi-card-checklist" style="color:#7c3aed"></i> Raporty — Karty 30 (Dydaktyka)</h4>
+  <h4 class="mb-0"><i class="bi bi-card-checklist" style="color:#7c3aed"></i> Raporty — Dydaktyka 3 (Dydaktyka)</h4>
   <div class="ms-auto d-flex align-items-center gap-1">
     <label for="k30repM" class="form-label small mb-0 text-muted">Miesiąc:</label>
     <input type="month" id="k30repM" value="<?= date('Y-m') ?>" class="form-control form-control-sm" style="width:auto">

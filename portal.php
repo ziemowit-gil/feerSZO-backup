@@ -142,7 +142,7 @@ $modules = [
     ],
     [
         'title'  => 'Dydaktyka',
-        'desc'   => 'Zajęcia TI, beneficjenci, wizyty (Karty 30)',
+        'desc'   => 'Zajęcia TI, beneficjenci, wizyty (Dydaktyka 3)',
         'icon'   => 'bi-card-checklist',
         'grad'   => 'linear-gradient(135deg,#7c2d12,#c2410c)',
         'url'    => APP_URL . '/karty30/index.php',

@@ -26,7 +26,7 @@ if (!$cons) {
     exit;
 }
 
-$PAGE_TITLE = 'Konsultacja — Karty 30';
+$PAGE_TITLE = 'Konsultacja — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin();
 
 // RODO: rejestr dostępu do danych wrażliwych konsultacji
@@ -195,7 +195,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/index.php">Start</a></li>
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <li class="breadcrumb-item"><a href="index.php">Konsultacje</a></li>
     <li class="breadcrumb-item active">Konsultacja #<?= $id ?></li>
   </ol>

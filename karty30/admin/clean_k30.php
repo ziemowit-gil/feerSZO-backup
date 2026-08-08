@@ -1,13 +1,13 @@
 <?php
 /**
- * karty30/admin/clean_k30.php — Skrypt czyszczący dane modułu K30.
+ * karty30/admin/clean_k30.php — Skrypt czyszczący dane modułu D3.
  * Dostępny wyłącznie dla administratora.
  *
  * Operacje (każda osobno potwierdzona):
  *  - Wyczyść harmonogram (terminy)
  *  - Wyczyść konsultacje
  *  - Wyczyść listę oczekujących
- *  - Wyczyść konta M365 K30 (z bazy — NIE usuwa kont z Azure)
+ *  - Wyczyść konta M365 D3 (z bazy — NIE usuwa kont z Azure)
  *  - Wyczyść zajęcia TI (kursy, lekcje, obecność, rozliczenia)
  *  - Wyczyść WSZYSTKO (wszystkie tabele k30_*)
  */
@@ -21,7 +21,7 @@ k30_require_access();
 karty30_migrate();
 require_role('admin');
 
-$PAGE_TITLE = 'Czyszczenie danych K30';
+$PAGE_TITLE = 'Czyszczenie danych D3';
 
 // Definicje operacji czyszczenia
 $OPS = [
@@ -81,7 +81,7 @@ $OPS = [
     ],
     'clients' => [
         'label'   => 'Beneficjenci i wszystkie dane',
-        'desc'    => 'Usuwa WSZYSTKICH beneficjentów i kaskadowo całe dane K30 (terminy, konsultacje, PFRON, TI, kolejka, M365).',
+        'desc'    => 'Usuwa WSZYSTKICH beneficjentów i kaskadowo całe dane D3 (terminy, konsultacje, PFRON, TI, kolejka, M365).',
         'icon'    => 'bi-people-fill',
         'color'   => '#dc2626',
         'tables'  => ['k30_waiting_list','k30_ti_billing','k30_ti_attendance','k30_ti_sessions','k30_ti_enrollments','k30_ti_student_accounts','k30_ti_courses','k30_pfron_contracts','k30_schedules','k30_consultations','k30_clients'],
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
             authlog_write((int)(current_user()['id'] ?? 0), 'k30_clean',
                 current_user()['email'] ?? '',
-                "Czyszczenie K30 [{$op}]: usunięto {$affected} rekordów"
+                "Czyszczenie D3 [{$op}]: usunięto {$affected} rekordów"
             );
         } catch (\Throwable $el) {}
         flash_set('success', 'Operacja "' . $def['label'] . '" zakonczona. Usunieto ' . $affected . ' rekordow.');
@@ -155,7 +155,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item active">Czyszczenie danych</li>
 </ol></nav>
 

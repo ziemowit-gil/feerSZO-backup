@@ -13,7 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ti_messages.php';
 k30_require_access();
 karty30_migrate();
 
-$PAGE_TITLE = 'Zajęcia TI — Karty 30';
+$PAGE_TITLE = 'Zajęcia TI — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin();
 $msg_unread_staff = ti_msg_unread_for_staff();
 $can_delete = is_admin(); // usuwanie kursów — tylko administrator (globalnie)
@@ -131,7 +131,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item active">Zajęcia TI</li>
 </ol></nav>
 

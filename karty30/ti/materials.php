@@ -116,7 +116,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
   <li class="breadcrumb-item active">Materiały / eLearning</li>
 </ol></nav>

@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = $_POST['_op'] ?? '';
 
     if ($op === 'save_ms') {
-        // Konfiguracja połączenia M365 jest w „Karty 30 → M365". Tu zapisujemy tylko
+        // Konfiguracja połączenia M365 jest w „Dydaktyka 3 → M365". Tu zapisujemy tylko
         // ustawienie specyficzne dla Nauki online: kalendarz szkoleń Teams.
         m365_save_setting('m365t_meetings_user', trim($_POST['m365t_meetings_user'] ?? ''));
         flash_set('success', 'Zapisano.');
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'test_ms') {
         if (!ti_ms_enabled()) {
-            $test_result = ['ok' => false, 'msg' => 'Microsoft 365 nie jest skonfigurowane — uzupełnij dane w „Karty 30 → M365".'];
+            $test_result = ['ok' => false, 'msg' => 'Microsoft 365 nie jest skonfigurowane — uzupełnij dane w „Dydaktyka 3 → M365".'];
         } else {
             $r = m365_training()->test_connection();
             $test_result = $r['ok']
@@ -112,7 +112,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
   <li class="breadcrumb-item active">Nauka online</li>
 </ol></nav>
@@ -139,7 +139,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </p>
 
 <div class="row g-4">
-  <!-- Microsoft 365 — używa konfiguracji z „Karty 30 → M365" -->
+  <!-- Microsoft 365 — używa konfiguracji z „Dydaktyka 3 → M365" -->
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header fw-semibold"><i class="bi bi-microsoft me-1"></i>Microsoft 365 (konta kursantów)</div>
@@ -147,7 +147,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <p class="small mb-2">
           <i class="bi bi-info-circle me-1"></i>
           Połączenie z Microsoft 365 (tenant, aplikacja, domena, licencje) konfigurujesz raz w
-          <a href="<?= APP_URL ?>/karty30/admin/m365.php">Karty 30 → M365</a>.
+          <a href="<?= APP_URL ?>/karty30/admin/m365.php">Dydaktyka 3 → M365</a>.
           Nauka online korzysta z tej samej konfiguracji — nie trzeba jej tu powielać.
         </p>
         <p class="small mb-3">

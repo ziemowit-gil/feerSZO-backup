@@ -248,7 +248,7 @@ function res_is_available_at(int $resource_id, string $date, string $time_from =
 }
 
 /**
- * Zasoby dostępne dla Karty 30 — aktywne, z flagą k30_enabled=1.
+ * Zasoby dostępne dla Dydaktyka 3 — aktywne, z flagą k30_enabled=1.
  * Opcjonalnie filtrowane po dacie/godzinach.
  */
 function res_k30_available(string $date = '', string $time_from = '', string $time_to = ''): array {

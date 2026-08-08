@@ -76,7 +76,7 @@ function _ika_parse_destination(string $url): array {
     $map = [
         '/admin/users'             => ['bi-people',              '#6d28d9', 'Panel administratora', 'Zarządzanie użytkownikami'],
         '/admin/'                  => ['bi-shield-lock',          '#6d28d9', 'Panel administratora', 'Ustawienia systemu'],
-        '/karty30/'                => ['bi-person-vcard',         '#dc2626', 'Dydaktyka',            'Karty 30 — dydaktyka i konsultacje'],
+        '/karty30/'                => ['bi-person-vcard',         '#dc2626', 'Dydaktyka',            'Dydaktyka 3 — dydaktyka i konsultacje'],
         '/crm/contact'             => ['bi-person-fill',          '#059669', 'CRM',                  'Profil kontaktu' . $id_str],
         '/crm/case'                => ['bi-briefcase-fill',       '#059669', 'CRM',                  'Sprawa' . $id_str],
         '/crm/letter'              => ['bi-envelope-paper-fill',  '#059669', 'CRM — Pisma',          'Pismo' . $id_str],

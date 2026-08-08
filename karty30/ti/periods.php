@@ -161,7 +161,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
 <?= flash_html() ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb mb-0">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
   <li class="breadcrumb-item active" aria-current="page">Okresy nauczania</li>
 </ol></nav>

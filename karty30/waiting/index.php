@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/waiting/index.php — Lista oczekujących na konsultację K30.
+ * karty30/waiting/index.php — Lista oczekujących na konsultację D3.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -12,7 +12,7 @@ k30_require_access();
 karty30_migrate();
 
 $can_write = can_write('karty30') || is_admin();
-$PAGE_TITLE = 'Lista oczekujących — K30';
+$PAGE_TITLE = 'Lista oczekujących — D3';
 
 // SMS — sprawdź dostępność
 $sms_ok = false;
@@ -118,7 +118,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item active">Lista oczekujących</li>
 </ol></nav>
 

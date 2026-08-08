@@ -1,7 +1,7 @@
 <?php
 /**
  * Panel kursanta TI — logowanie.
- * Całkowicie niezależne od systemu głównego i K30.
+ * Całkowicie niezależne od systemu głównego i D3.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';

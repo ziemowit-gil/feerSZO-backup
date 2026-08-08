@@ -1,6 +1,6 @@
 <?php
 /**
- * includes/karty30.php — Moduł Dydaktyka / Karty 30 (d. TyfloKonsultacje).
+ * includes/karty30.php — Moduł Dydaktyka / Dydaktyka 3 (d. TyfloKonsultacje).
  * Auto-migracja tabel k30_* + funkcje pomocnicze.
  */
 
@@ -1293,7 +1293,7 @@ function k30_require_access(): void {
         if (!empty($row['k30_consultant'])) return;
     } catch (\Throwable $e) {}
 
-    flash_set('danger', 'Brak dostępu do modułu Karty 30.');
+    flash_set('danger', 'Brak dostępu do modułu Dydaktyka 3.');
     header('Location: ' . APP_URL . '/index.php');
     exit;
 }
@@ -1449,7 +1449,7 @@ function k30_crm_group_id(): int {
 
         $gid = db_insert('crm_groups', [
             'name'        => 'Beneficjenci — Konsultacje Tyflo',
-            'description' => 'Beneficjenci programu TyfloKonsultacje / Karty 30 — dodawani automatycznie',
+            'description' => 'Beneficjenci programu TyfloKonsultacje / Dydaktyka 3 — dodawani automatycznie',
             'color'       => '#7C3AED',
             'icon'        => 'bi-card-checklist',
             'auto_source' => 'k30_beneficjenci',

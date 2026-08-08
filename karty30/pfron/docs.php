@@ -20,7 +20,7 @@ if ($pfron && !$client_id) $client_id = (int)($pfron['client_id'] ?? 0);
 $client     = $client_id ? db_one("SELECT * FROM k30_clients WHERE id=?", [$client_id]) : null;
 $pfron_list = $client_id ? k30_pfron_contracts_for_client($client_id) : [];
 
-$PAGE_TITLE = 'Dokumenty PFRON — Karty 30';
+$PAGE_TITLE = 'Dokumenty PFRON — Dydaktyka 3';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -170,7 +170,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <?php if ($client): ?>
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/clients/view.php?id=<?= $client_id ?>#pfron"><?= h($client['name']) ?></a></li>
     <?php endif; ?>

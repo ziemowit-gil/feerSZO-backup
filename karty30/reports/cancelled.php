@@ -8,7 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 k30_require_access();
 karty30_migrate();
 
-$PAGE_TITLE = 'Odwołane terminy — Karty 30';
+$PAGE_TITLE = 'Odwołane terminy — Dydaktyka 3';
 
 $date_from = $_GET['date_from'] ?? date('Y-m-01');
 $date_to   = $_GET['date_to']   ?? date('Y-m-d');
@@ -51,7 +51,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/index.php">Start</a></li>
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <li class="breadcrumb-item"><a href="index.php">Raporty</a></li>
     <li class="breadcrumb-item active">Odwołane terminy</li>
   </ol>

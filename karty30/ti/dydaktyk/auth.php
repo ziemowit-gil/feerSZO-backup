@@ -5,7 +5,7 @@
  * Osobna sesja (jak panel kursanta), więc działa też na subdomenie ti.* —
  * niezależnie od sesji głównej SZO. Logowanie odbywa się danymi z SZO
  * (e-mail + hasło). Dostęp mają doradcy TI (k30_consultant), pracownicy
- * modułu Karty 30 (zapis) oraz administratorzy.
+ * modułu Dydaktyka 3 (zapis) oraz administratorzy.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
@@ -134,25 +134,25 @@ function dyd_token_check(): void {
     }
 }
 
-/** Czy zalogowany dydaktyk jest pracownikiem K30 (widzi wszystkie kursy). */
+/** Czy zalogowany dydaktyk jest pracownikiem D3 (widzi wszystkie kursy). */
 function dyd_is_staff(): bool {
     $s = dyd_current();
     return $s ? !empty($s['is_staff']) : false;
 }
 
-/** Czy dydaktyk może zarządzać kursem (własny kurs lub pracownik K30). */
+/** Czy dydaktyk może zarządzać kursem (własny kurs lub pracownik D3). */
 function dyd_owns_course(int $uid, int $course_id): bool {
     if (!$course_id) return false;
     return dyd_is_staff() || k30_ti_instructor_owns_course($uid, $course_id);
 }
 
-/** Czy dydaktyk może zarządzać lekcją (jej kurs jest jego — lub pracownik K30). */
+/** Czy dydaktyk może zarządzać lekcją (jej kurs jest jego — lub pracownik D3). */
 function dyd_owns_session(int $uid, int $session_id): bool {
     if (!$session_id) return false;
     return dyd_is_staff() || k30_ti_instructor_owns_session($uid, $session_id);
 }
 
-/** Kursy, którymi dydaktyk może zarządzać (własne; pracownik K30 — wszystkie). */
+/** Kursy, którymi dydaktyk może zarządzać (własne; pracownik D3 — wszystkie). */
 function dyd_courses(int $uid): array {
     return dyd_is_staff() ? k30_ti_courses(false) : k30_ti_instructor_courses($uid, false);
 }

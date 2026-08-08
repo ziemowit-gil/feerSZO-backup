@@ -1,6 +1,6 @@
 <?php
 /**
- * api/v1/openapi.php — Specyfikacja OpenAPI 3.0 dla API Karty 30.
+ * api/v1/openapi.php — Specyfikacja OpenAPI 3.0 dla API Dydaktyka 3.
  * Generowana z includes/karty30_api.php (jedno źródło prawdy → brak rozjazdu).
  * Zwraca JSON do importu w Postman / Swagger UI.
  */
@@ -44,9 +44,9 @@ foreach ($resources as $name => $cfg) {
 $spec = [
     'openapi' => '3.0.3',
     'info' => [
-        'title'       => 'Karty 30 API (Dydaktyka)',
+        'title'       => 'Dydaktyka 3 API (Dydaktyka)',
         'version'     => '1.0',
-        'description' => "REST API modułu Karty 30 — System Obsługi Organizacji (FEER).\n\n"
+        'description' => "REST API modułu Dydaktyka 3 — System Obsługi Organizacji (FEER).\n\n"
                        . "Routing przez parametr `resource` (jeden plik). Uwierzytelnianie: Bearer token "
                        . "(`Authorization: Bearer <klucz>`) lub `?api_key=`. Odczyt: scope `karty30:read`, "
                        . "zapis: `karty30:write`. Limit zapytań per klucz (429 + Retry-After). "
@@ -54,7 +54,7 @@ $spec = [
     ],
     'servers' => [['url' => $base]],
     'security' => [['bearerAuth' => []]],
-    'tags' => [['name' => 'karty30', 'description' => 'Zasoby modułu Karty 30']],
+    'tags' => [['name' => 'karty30', 'description' => 'Zasoby modułu Dydaktyka 3']],
     'paths' => [
         '/karty30.php' => [
             'get' => [

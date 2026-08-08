@@ -9,7 +9,7 @@ k30_require_access();
 ika_require(APP_URL . '/karty30/index.php');
 karty30_migrate();
 
-$PAGE_TITLE = 'Dydaktyka — Karty 30';
+$PAGE_TITLE = 'Dydaktyka — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin() || k30_is_consultant();
 
 // ── Statystyki ──────────────────────────────────────────────────────────────
@@ -194,7 +194,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
     <i class="bi bi-card-checklist text-white" style="font-size:1.5rem" aria-hidden="true"></i>
   </div>
   <div>
-    <h1 class="mb-0 fw-black" style="font-size:1.45rem;letter-spacing:-.025em;color:#0f172a">Dydaktyka — Karty 30</h1>
+    <h1 class="mb-0 fw-black" style="font-size:1.45rem;letter-spacing:-.025em;color:#0f172a">Dydaktyka — Dydaktyka 3</h1>
     <p class="text-muted mb-0" style="font-size:.83rem;margin-top:.1rem">Dwa moduły: <strong>Konsultacje i wizyty</strong> · <strong>Dydaktyka (TI)</strong></p>
   </div>
   <?php if ($can_write): ?>

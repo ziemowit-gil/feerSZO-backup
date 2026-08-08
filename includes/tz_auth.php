@@ -235,7 +235,7 @@ function tz_module_label_from_url(string $url): string {
         '/crm/'         => 'CRM',
         '/admin/'       => 'Panel administracyjny',
         '/ksiegowosc/'  => 'Moduł finansowy',
-        '/karty30/'     => 'Karty 30',
+        '/karty30/'     => 'Dydaktyka 3',
         '/panel/'       => 'Panel wolontariusza',
         '/tozsamosc/'   => 'System Tożsamości',
         '/obiegi/'      => 'Obiegi',

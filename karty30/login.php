@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/login.php — Samodzielne wejście do modułu Dydaktyka (Karty 30).
+ * karty30/login.php — Samodzielne wejście do modułu Dydaktyka (Dydaktyka 3).
  *
  * Branded ekran logowania modułu. Aby NIE obchodzić zabezpieczeń systemu
  * (brute-force, 2FA, WebAuthn, wymuszona zmiana hasła), formularz wysyła dane
@@ -20,7 +20,7 @@ $index = $APP . '/karty30/index.php';
 // Dokąd wrócić po zalogowaniu — tylko adresy w obrębie aplikacji.
 $raw      = $_GET['redirect'] ?? '';
 $redirect = ($raw && str_starts_with($raw, $APP . '/')) ? $raw : $index;
-// Domyślnie wracamy do modułu Karty 30 (a nie do portalu).
+// Domyślnie wracamy do modułu Dydaktyka 3 (a nie do portalu).
 if (!str_contains($redirect, '/karty30/')) $redirect = $index;
 
 // Już zalogowany z dostępem → prosto do modułu.
@@ -144,7 +144,7 @@ body {
          style="width:64px;height:64px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25)">
       <i class="bi bi-card-checklist text-white" style="font-size:2rem"></i>
     </div>
-    <h1 class="text-white fw-black mb-1" style="font-size:1.6rem;letter-spacing:-.02em;line-height:1.2">Dydaktyka<br>Karty 30</h1>
+    <h1 class="text-white fw-black mb-1" style="font-size:1.6rem;letter-spacing:-.02em;line-height:1.2">Dydaktyka 3</h1>
     <p class="text-white mb-4" style="opacity:.65;font-size:.875rem;max-width:280px;line-height:1.5">Zintegrowany system obsługi beneficjentów, konsultacji i edukacji.</p>
 
     <div class="d-flex flex-column gap-2" style="max-width:260px">

@@ -14,7 +14,7 @@ if (!can_write('karty30') && !is_admin()) {
     exit;
 }
 
-$PAGE_TITLE = 'Nowy beneficjent — Karty 30';
+$PAGE_TITLE = 'Nowy beneficjent — Dydaktyka 3';
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

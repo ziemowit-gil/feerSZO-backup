@@ -525,7 +525,7 @@ if ($_user) {
     elseif ($_on_actions) { $_sw_icon = 'bi-calendar-event';  $_sw_label = 'Działania'; }
     elseif ($_on_events)  { $_sw_icon = 'bi-calendar-event-fill'; $_sw_label = 'Wydarzenia'; }
     elseif ($_on_poczta)  { $_sw_icon = 'bi-envelope-fill';   $_sw_label = 'Poczta'; }
-    elseif ($_on_k30)     { $_sw_icon = 'bi-card-checklist';  $_sw_label = 'Karty 30'; }
+    elseif ($_on_k30)     { $_sw_icon = 'bi-card-checklist';  $_sw_label = 'Dydaktyka 3'; }
     elseif ($_on_certs)   { $_sw_icon = 'bi-award-fill';      $_sw_label = 'Zaświadczenia'; }
     elseif ($_on_rodo)    { $_sw_icon = 'bi-shield-lock-fill'; $_sw_label = 'RODO'; }
     ?>
@@ -552,7 +552,7 @@ if ($_user) {
     $__add('Katalog',       APP_URL.'/directory/',                     'bi-person-lines-fill', '#4338ca','#eef2ff', $_on_dir,     'Relacje i ludzie');
     // Dydaktyka
     if (can_read('karty30')) {
-        $__add('Karty 30',  APP_URL.'/karty30/index.php',              'bi-card-checklist',    '#6d28d9','#f5f3ff', $_on_k30,     'Dydaktyka');
+        $__add('Dydaktyka 3',  APP_URL.'/karty30/index.php',              'bi-card-checklist',    '#6d28d9','#f5f3ff', $_on_k30,     'Dydaktyka');
     } else {
         $_dyd_show = false;
         if ($_u = current_user()) { try { $_dyd_show = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$_u['id']])['k30_consultant']); } catch (\Throwable $e) {} }

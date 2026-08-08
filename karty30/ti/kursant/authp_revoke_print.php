@@ -1,7 +1,7 @@
 <?php
 /**
  * Dokument odwołania upoważnienia do wglądu w panel kursanta.
- * Dostęp tylko dla administratora / pracownika K30.
+ * Dostęp tylko dla administratora / pracownika D3.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';

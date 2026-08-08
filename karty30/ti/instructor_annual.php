@@ -4,7 +4,7 @@
  * Sekcja na prowadzącego: jego grupy z liczbą lekcji odbytych/odwołanych i frekwencją grupy,
  * plus podsumowanie prowadzącego (łączne lekcje + śr. frekwencja). Tylko frekwencja (bez kwot).
  * GET: ?y=YYYY (domyślnie bieżący), ?instructor_id=N (opcjonalnie — jeden prowadzący).
- * Dostęp: pracownik K30 / administrator. Wynik: tylko PDF.
+ * Dostęp: pracownik D3 / administrator. Wynik: tylko PDF.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';

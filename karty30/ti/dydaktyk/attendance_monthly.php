@@ -3,7 +3,7 @@
  * karty30/ti/dydaktyk/attendance_monthly.php — Raport miesięczny frekwencji.
  * GET: ?month=YYYY-MM  (domyślnie bieżący miesiąc)
  *      ?course_id=N    (opcjonalnie — tylko jeden kurs; domyślnie wszystkie dostępne)
- * Dostęp: zalogowany dydaktyk (własne kursy; pracownik K30 — wszystkie).
+ * Dostęp: zalogowany dydaktyk (własne kursy; pracownik D3 — wszystkie).
  */
 require_once __DIR__ . '/auth.php';
 

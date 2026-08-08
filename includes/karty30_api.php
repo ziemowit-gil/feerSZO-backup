@@ -1,6 +1,6 @@
 <?php
 /**
- * includes/karty30_api.php — Wspólna konfiguracja zasobów REST API Karty 30.
+ * includes/karty30_api.php — Wspólna konfiguracja zasobów REST API Dydaktyka 3.
  * Jedno źródło prawdy dla: api/v1/karty30.php (CRUD) oraz api/v1/openapi.php (spec).
  */
 

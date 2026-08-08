@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/admin/m365.php — Microsoft 365 dla K30.
+ * karty30/admin/m365.php — Microsoft 365 dla D3.
  *
  * Osobny tenant M365 (odrębne dane niż tenant głównej org).
  * Funkcje:
@@ -22,7 +22,7 @@ k30_require_access();
 karty30_migrate();
 if (!is_admin()) { flash_set('danger','Tylko administrator.'); header('Location: ../index.php'); exit; }
 
-$PAGE_TITLE = 'M365 — Karty 30';
+$PAGE_TITLE = 'M365 — Dydaktyka 3';
 
 // ── Ustawienia K30-M365 (osobna przestrzeń kluczy) ───────────────────────────
 function k30_m365_setting(string $key, string $default = ''): string {
@@ -44,7 +44,7 @@ function k30_m365_save(string $key, string $value): void {
 }
 
 /**
- * Tworzy instancję M365Graph dla K30.
+ * Tworzy instancję M365Graph dla D3.
  *
  * Tryb "własny" (use_own=1): oddzielne dane tenant/client/secret/domena z k30_m365_* settings.
  * Tryb "główny" (use_own=0, domyślny): używa produkcyjnych ustawień M365 głównej organizacji
@@ -159,7 +159,7 @@ function k30_m365_friendly_error(string $raw): string {
             <ul class="mb-0 mt-1">
               <li>Czy <strong>Tenant ID</strong> odpowiada katalogowi, w którym zarejestrowałeś aplikację w Azure Portal?</li>
               <li>Otwórz <a href="https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/Overview" target="_blank">Azure AD → Przegląd</a> i skopiuj <strong>Identyfikator katalogu (dzierżawcy)</strong>.</li>
-              <li>Upewnij się że używasz Tenant ID katalogu K30, nie głównego tenanta organizacji.</li>
+              <li>Upewnij się że używasz Tenant ID katalogu D3, nie głównego tenanta organizacji.</li>
             </ul>',
         700011 => 'Brak zgody administratora. W Azure Portal uruchom <em>Grant admin consent</em> dla tej aplikacji.',
         70011  => 'Nieprawidłowy scope. Aplikacja powinna używać <code>https://graph.microsoft.com/.default</code>.',
@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result    = $graph->test_connection();
             $org_label = $result['org_name'] ?? '?';
             $doms      = implode(', ', array_slice($result['domains'] ?? [], 0, 3));
-            flash_set('success', 'Połączenie z M365 K30 działa. Organizacja: ' . h($org_label) . ($doms ? ' · ' . h($doms) : ''));
+            flash_set('success', 'Połączenie z M365 D3 działa. Organizacja: ' . h($org_label) . ($doms ? ' · ' . h($doms) : ''));
         } catch (\Throwable $e) {
             flash_set('danger', k30_m365_friendly_error($e->getMessage()));
         }
@@ -583,13 +583,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item active">Microsoft 365</li>
 </ol></nav>
 
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold">
-    <i class="bi bi-microsoft text-primary me-2"></i>Microsoft 365 — Karty 30
+    <i class="bi bi-microsoft text-primary me-2"></i>Microsoft 365 — Dydaktyka 3
   </h4>
   <span class="badge <?= $is_conf ? 'bg-success' : 'bg-warning text-dark' ?>">
     <?= $is_conf ? 'Skonfigurowane' : 'Wymaga konfiguracji' ?>
@@ -630,7 +630,7 @@ endif; ?>
   <div class="col-lg-5">
     <div class="card border-0 shadow-sm">
       <div class="card-header fw-semibold">
-        <i class="bi bi-gear me-2"></i>Konfiguracja M365 — Karty 30
+        <i class="bi bi-gear me-2"></i>Konfiguracja M365 — Dydaktyka 3
       </div>
       <div class="card-body">
         <form method="post">
@@ -646,7 +646,7 @@ endif; ?>
                      onchange="toggleTenantMode(false)">
               <label class="form-check-label" for="m_main">
                 <strong>Produkcyjny M365 organizacji</strong>
-                <div class="text-muted small">Używa konfiguracji z Administracja → Microsoft 365 (ten sam App, inna domena K30)</div>
+                <div class="text-muted small">Używa konfiguracji z Administracja → Microsoft 365 (ten sam App, inna domena D3)</div>
                 <?php if ($main_m365_ok): ?>
                 <div class="text-success small"><i class="bi bi-check-circle me-1"></i>Skonfigurowany: <?= h(m365_setting('m365_domain') ?: '—') ?></div>
                 <?php else: ?>
@@ -685,7 +685,7 @@ endif; ?>
           </div><!-- /own_tenant_fields -->
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Domena K30 (loginy kont)</label>
+            <label class="form-label fw-semibold">Domena D3 (loginy kont)</label>
             <input type="text" class="form-control font-monospace" name="domain"
                    value="<?= h($cfg_domain) ?>" placeholder="np. beneficjenci.org.pl">
             <div class="form-text">Login = ID@<strong><?= h($cfg_domain ?: 'twoja-domena.pl') ?></strong> (np. 4271@<?= h($cfg_domain ?: 'domena.pl') ?>)</div>

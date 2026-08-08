@@ -49,7 +49,7 @@ if ($pfron_id) {
     );
 }
 
-$PAGE_TITLE = 'Szkolenia PFRON — Karty 30';
+$PAGE_TITLE = 'Szkolenia PFRON — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin();
 
 $remaining = $pfron ? k30_pfron_hours_remaining($pfron_id) : 0;
@@ -59,7 +59,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <?php if ($client): ?>
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/clients/view.php?id=<?= $client_id ?>#pfron"><?= h($client['name']) ?></a></li>
     <?php endif; ?>

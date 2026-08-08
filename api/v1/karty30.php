@@ -1,6 +1,6 @@
 <?php
 /**
- * REST API — Karty 30 (Dydaktyka: konsultacje/wizyty + zajęcia TI)
+ * REST API — Dydaktyka 3 (Dydaktyka: konsultacje/wizyty + zajęcia TI)
  * Bearer token (Authorization: Bearer <key>) lub ?api_key=<key>.
  * Uprawnienia: karty30:read (odczyt), karty30:write (zapis).
  *

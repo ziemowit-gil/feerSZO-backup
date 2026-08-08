@@ -4,7 +4,7 @@
  * Dla każdego aktywnego kursanta: frekwencja (per kurs, cały rok) + rozliczenia
  * z rozbiciem na miesiące (należności / zapłacone / wpłaty) + bieżące saldo konta.
  * GET: ?y=YYYY (domyślnie bieżący), ?course_id=N (opcjonalnie), ?client_id=N (opcjonalnie).
- * Dostęp: pracownik K30 / administrator. Wynik: tylko PDF.
+ * Dostęp: pracownik D3 / administrator. Wynik: tylko PDF.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';

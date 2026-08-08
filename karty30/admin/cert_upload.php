@@ -23,7 +23,7 @@ if (!is_admin()) {
     exit;
 }
 
-$PAGE_TITLE = 'Certyfikaty x509 doradców — Karty 30';
+$PAGE_TITLE = 'Certyfikaty x509 doradców — Dydaktyka 3';
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 $errors = [];

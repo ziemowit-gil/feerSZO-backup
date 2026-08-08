@@ -12,7 +12,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center gap-2 py-3 small text-body-secondary" style="max-width:1320px">
     <span>
       <i class="bi bi-card-checklist me-1 text-primary" aria-hidden="true"></i>
-      <strong>Dydaktyka</strong> — Karty 30<?php if ($_org_f): ?> · <?= h($_org_f) ?><?php endif; ?>
+      <strong>Dydaktyka</strong> — Dydaktyka 3<?php if ($_org_f): ?> · <?= h($_org_f) ?><?php endif; ?>
     </span>
     <span class="d-flex align-items-center gap-2">
       Platforma NGO

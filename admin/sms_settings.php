@@ -611,13 +611,13 @@ $provider_label = match($cfg['sms_provider']) {
 </div>
 </div>
 
-<!-- Konfiguracja pod Karty 30 / Dydaktyka -->
+<!-- Konfiguracja pod Dydaktyka 3 / Dydaktyka -->
 <div class="card shadow-sm mt-3">
-<div class="card-header fw-semibold"><i class="bi bi-card-checklist text-primary"></i> Konfiguracja SMS dla modułu „Dydaktyka" (Karty 30)</div>
+<div class="card-header fw-semibold"><i class="bi bi-card-checklist text-primary"></i> Konfiguracja SMS dla modułu „Dydaktyka" (Dydaktyka 3)</div>
 <div class="card-body small">
   <p class="mb-2">
     Ustawienia SMS są <strong>wspólne dla całego Systemu Obsługi Organizacji</strong> — moduł
-    Karty 30 korzysta z tej samej konfiguracji. Fallback (np. Twilio) działa automatycznie
+    Dydaktyka 3 korzysta z tej samej konfiguracji. Fallback (np. Twilio) działa automatycznie
     we wszystkich miejscach poniżej.
   </p>
 
@@ -630,7 +630,7 @@ $provider_label = match($cfg['sms_provider']) {
     <li>Zapisz i wyślij <em>testowy SMS</em>. Aby przetestować fallback, możesz tymczasowo „popsuć" głównego (np. błędny token) — SMS i tak dojdzie przez Twilio.</li>
   </ol>
 
-  <p class="fw-semibold mb-1">Gdzie Karty 30 wysyła SMS:</p>
+  <p class="fw-semibold mb-1">Gdzie Dydaktyka 3 wysyła SMS:</p>
   <ul class="ps-3 mb-2">
     <li>Powiadomienia kursantów: lekcje, oceny, wiadomości (TI → Komunikacja).</li>
     <li>Powiadomienia o rozliczeniach (TI → Rozliczenia).</li>

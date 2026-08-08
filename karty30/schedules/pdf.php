@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/schedules/pdf.php — Karta terminu K30 do wydruku / zapisu jako PDF.
+ * karty30/schedules/pdf.php — Karta terminu D3 do wydruku / zapisu jako PDF.
  *
  * Wydruk uruchamiany przez window.print() lub ręcznie z przeglądarki.
  * Strona jest czysta: brak sidebara, brak nawigacji.
@@ -55,7 +55,7 @@ if ($schedule['series_id']) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Karta terminu K30 #<?= $id ?> — <?= h($org) ?></title>
+<title>Karta terminu D3 #<?= $id ?> — <?= h($org) ?></title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1e293b; background: #fff; }
@@ -129,7 +129,7 @@ table.info tr:nth-child(even) td { background: #f8fafc; }
   <div class="header">
     <div>
       <div class="org-name"><?= h($org) ?></div>
-      <div class="doc-title">Karta terminu konsultacji — Dydaktyka / Karty 30</div>
+      <div class="doc-title">Karta terminu konsultacji — Dydaktyka / Dydaktyka 3</div>
       <?php if ($series_info): ?>
       <div style="margin-top:6px"><span class="series-badge">↻ <?= h($series_info) ?></span></div>
       <?php endif; ?>
@@ -255,7 +255,7 @@ table.info tr:nth-child(even) td { background: #f8fafc; }
 
   <!-- Stopka -->
   <div class="footer-note">
-    <?= h($org) ?> · Karta terminu K30 #<?= $id ?> · Wygenerowano <?= date('d.m.Y H:i') ?>
+    <?= h($org) ?> · Karta terminu D3 #<?= $id ?> · Wygenerowano <?= date('d.m.Y H:i') ?>
   </div>
 
 </div>

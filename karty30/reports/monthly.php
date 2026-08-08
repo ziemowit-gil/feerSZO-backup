@@ -48,7 +48,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-$PAGE_TITLE = 'Raport miesięczny — Karty 30';
+$PAGE_TITLE = 'Raport miesięczny — Dydaktyka 3';
 
 $total_minutes = array_sum(array_column($rows, 'duration_minutes'));
 $total_hours   = round($total_minutes / 60, 2);
@@ -63,7 +63,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/index.php">Start</a></li>
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <li class="breadcrumb-item"><a href="index.php">Raporty</a></li>
     <li class="breadcrumb-item active">Miesięczny</li>
   </ol>

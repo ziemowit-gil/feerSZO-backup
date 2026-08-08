@@ -16,7 +16,7 @@ if (!can_write('karty30') && !is_admin()) {
     exit;
 }
 
-$PAGE_TITLE = 'Nowy termin — Karty 30';
+$PAGE_TITLE = 'Nowy termin — Dydaktyka 3';
 $errors = [];
 
 $prefill_client_id = (int)($_GET['client_id'] ?? 0);
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . ($res_row['name'] ?? '') . '" — dostępny: ' . $hours . '.';
             }
         } else {
-            // Kolizja z innym terminem K30 na tym samym zasobie
+            // Kolizja z innym terminem D3 na tym samym zasobie
             $time_end_check = date('H:i', strtotime($time) + $duration * 60);
             $collision = db_one(
                 "SELECT s.id, c.name AS client_name, TIME(s.start_time) AS t_start,
@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $contact_id = k30_sync_to_crm($client, (int)(current_user()['id'] ?? 0));
                     if ($contact_id) {
                         $type_label = $invoice_type === 'personal' ? 'Imienna' : 'Firmowa';
-                        $note_body = "Prośba o FV ({$type_label}) do terminu K30 (" . $date . "):\n"
+                        $note_body = "Prośba o FV ({$type_label}) do terminu D3 (" . $date . "):\n"
                             . "Nazwa: " . $invoice_name . "\n"
                             . ($invoice_nip ? "NIP: " . $invoice_nip . "\n" : '')
                             . "Adres: " . $invoice_address
@@ -210,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Aktywność CRM
                         k30_log_crm_activity(
                             $contact_id, 'task',
-                            'Faktura — termin K30 ' . $date,
+                            'Faktura — termin D3 ' . $date,
                             $note_body,
                             $start_time, 'planned', '',
                             (int)(current_user()['id'] ?? 0)
@@ -228,8 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 notif_migrate();
 
                 $client_name = $client['name'] ?? 'beneficjent';
-                $notif_title = 'Prośba o FV — K30 — ' . $client_name . ' (' . $date . ')';
-                $notif_body  = "Beneficjent <strong>{$client_name}</strong> zażądał faktury do terminu K30 ({$date})."
+                $notif_title = 'Prośba o FV — D3 — ' . $client_name . ' (' . $date . ')';
+                $notif_body  = "Beneficjent <strong>{$client_name}</strong> zażądał faktury do terminu D3 ({$date})."
                     . "\n\nDane:\n• Firma: {$invoice_name}\n• NIP: {$invoice_nip}\n• Adres: {$invoice_address}"
                     . ($invoice_email ? "\n• E-mail faktury: {$invoice_email}" : '');
                 $notif_url   = APP_URL . '/karty30/schedules/view.php?id=' . $id;
@@ -248,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div style="background:#1e293b;padding:22px 30px;color:#fff;font-size:17px;font-weight:700">{$org} — Prośba o FV — K30</div>
   <div style="padding:26px 30px;font-size:14px;color:#374151;line-height:1.6">
     <p>Cześć <strong>{$rn}</strong>,</p>
-    <p>Beneficjent <strong>{$client_name}</strong> zażądał wystawienia faktury do terminu K30 w dniu <strong>{$date}</strong>.</p>
+    <p>Beneficjent <strong>{$client_name}</strong> zażądał wystawienia faktury do terminu D3 w dniu <strong>{$date}</strong>.</p>
     <table style="border-collapse:collapse;width:100%;font-size:13px;margin:16px 0">
       <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;width:140px">Firma / Imię</td><td style="padding:8px 12px;border:1px solid #e2e8f0">{$invoice_name}</td></tr>
       <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600">NIP</td><td style="padding:8px 12px;border:1px solid #e2e8f0">{$invoice_nip}</td></tr>
@@ -287,7 +287,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/index.php">Start</a></li>
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <li class="breadcrumb-item"><a href="index.php">Harmonogram</a></li>
     <li class="breadcrumb-item active">Nowy termin</li>
   </ol>
@@ -638,7 +638,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php else: ?>
           <div class="alert alert-warning py-2 small mt-2">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            Brak zasobów dla Karty 30. <a href="<?= APP_URL ?>/resources/admin/resources.php">Skonfiguruj zasoby</a>.
+            Brak zasobów dla Dydaktyka 3. <a href="<?= APP_URL ?>/resources/admin/resources.php">Skonfiguruj zasoby</a>.
           </div>
           <?php endif; ?>
         </div>

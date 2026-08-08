@@ -2,7 +2,7 @@
 /**
  * karty30/ti/dydaktyk/self_work.php — Raport „Praca własna prowadzącego" (PDF)
  * dostępny z panelu prowadzącego. Zakres: kursy zalogowanego prowadzącego
- * (pracownik K30 — wszystkie). Lekcje o statusie remote_material w miesiącu.
+ * (pracownik D3 — wszystkie). Lekcje o statusie remote_material w miesiącu.
  * GET: ?month=YYYY-MM (domyślnie bieżący), ?course_id=N (opcjonalnie — jeden kurs).
  */
 require_once __DIR__ . '/auth.php';

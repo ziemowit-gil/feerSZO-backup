@@ -118,7 +118,7 @@ $QT = K30_TI_QUESTION_TYPES;
 ?>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
   <li class="breadcrumb-item"><a href="tests.php?course=<?= $course_id ?>">Testy</a></li>
   <li class="breadcrumb-item active"><?= h($test['title']) ?></li>

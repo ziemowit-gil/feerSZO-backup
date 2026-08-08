@@ -8,7 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 k30_require_access();
 karty30_migrate();
 
-$PAGE_TITLE = 'Harmonogram — Karty 30';
+$PAGE_TITLE = 'Harmonogram — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin();
 
 $search    = trim($_GET['q']         ?? '');
@@ -64,7 +64,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/index.php">Start</a></li>
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
     <li class="breadcrumb-item active">Harmonogram</li>
   </ol>
 </nav>

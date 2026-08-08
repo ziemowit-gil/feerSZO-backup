@@ -26,8 +26,8 @@ const AM_API_PERMISSIONS = [
     'users:read'       => 'Użytkownicy — odczyt',
     'crm:read'         => 'CRM — odczyt kontaktów',
     'crm:write'        => 'CRM — zapis kontaktów (twórz / edytuj / usuń)',
-    'karty30:read'     => 'Karty 30 — odczyt (beneficjenci, wizyty, konsultacje, TI)',
-    'karty30:write'    => 'Karty 30 — zapis (twórz / edytuj / usuń)',
+    'karty30:read'     => 'Dydaktyka 3 — odczyt (beneficjenci, wizyty, konsultacje, TI)',
+    'karty30:write'    => 'Dydaktyka 3 — zapis (twórz / edytuj / usuń)',
     'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
     'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
     'ezd:read'         => 'EZD Wirtualne biurko — odczyt (teczki, sprawy, pisma)',
@@ -425,7 +425,7 @@ function switchTab(name) {
         Operacje zapisu są audytowane (RODO).
       </p>
 
-      <h6 class="fw-semibold"><i class="bi bi-card-checklist text-primary me-1"></i>Karty 30 — <code><?= h($api_base) ?>/karty30.php</code></h6>
+      <h6 class="fw-semibold"><i class="bi bi-card-checklist text-primary me-1"></i>Dydaktyka 3 — <code><?= h($api_base) ?>/karty30.php</code></h6>
       <p class="mb-1">Routing <code>?resource=&lt;R&gt;&amp;id=N</code>; metody GET/POST/PATCH/DELETE. Scope: <code>karty30:read</code> / <code>karty30:write</code>.</p>
       <ul class="mb-2">
         <li><strong>Zasoby:</strong> <code>clients</code>, <code>schedules</code>, <code>consultations</code>, <code>waiting</code>, <code>courses</code>, <code>enrollments</code>, <code>lessons</code>, <code>homework</code>, <code>materials</code>, <code>grades</code>, <code>tests</code></li>

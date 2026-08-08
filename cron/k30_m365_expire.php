@@ -1,6 +1,6 @@
 <?php
 /**
- * Automatyczne wyłączanie wygasłych kont M365 dla Karty 30.
+ * Automatyczne wyłączanie wygasłych kont M365 dla Dydaktyka 3.
  * Uruchamiany z CLI (cron), np. raz dziennie.
  *
  * Wyłącza (accountEnabled=false) konta, których data ważności minęła:
