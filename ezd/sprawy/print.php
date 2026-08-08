@@ -304,16 +304,6 @@ if ($out === 'pdf') {
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
 
-// Wykryj załączniki z podpisem elektronicznym (dla opcji „Uwierzytelnione")
-$signed_zal_ids = [];
-foreach ($zalaczniki as $_sz) {
-    $_sp = $zal_path($_sz);
-    if (is_file($_sp)) {
-        $_si = ezd_signature_info($_sp, $_sz['original_name']);
-        if ($_si['signed']) $signed_zal_ids[(int)$_sz['id']] = true;
-    }
-}
-$any_signed = !empty($signed_zal_ids);
 
 $PAGE_TITLE = 'Drukuj koszulkę — ' . $sprawa['znak_sprawy'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -341,15 +331,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .pr-doc__name{font-size:.87rem;font-weight:600;color:#1c2333;}
 .pr-doc__meta{font-size:.72rem;color:#8a94a6;margin-top:1px;}
 .pr-foot{font-size:.74rem;color:#94a3b8;padding:9px 16px;border-top:1px solid #f2f4f9;background:#fafbfc;}
-.uwierz-label{display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#16a34a;cursor:pointer;user-select:none;white-space:nowrap}
-.uwierz-label input{accent-color:#16a34a}
 </style>
-<script>
-function eqdToggleUwierz(cb) {
-  var btn = document.getElementById(cb.dataset.hrefTarget);
-  if (btn) btn.href = cb.checked ? cb.dataset.hrefAuth : cb.dataset.hrefBase;
-}
-</script>
 
 <div style="max-width:820px">
 
@@ -388,23 +370,18 @@ function eqdToggleUwierz(cb) {
           <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> scalonych w jeden plik.
         </div>
       </div>
-      <div class="d-flex align-items-center gap-2 flex-shrink-0 flex-wrap">
-        <a id="btn-full-pdf"
-           href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf"
+      <div class="d-flex flex-column gap-1 flex-shrink-0">
+        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf"
            target="_blank" rel="noopener"
            class="btn btn-danger btn-sm" style="white-space:nowrap">
           <i class="bi bi-download me-1"></i>Pobierz PDF
         </a>
-        <?php if ($any_signed): ?>
-        <label class="uwierz-label" title="Dodaj stronę uwierzytelnienia — tylko dla dokumentów z podpisem elektronicznym">
-          <input type="checkbox"
-                 data-href-target="btn-full-pdf"
-                 data-href-base="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf"
-                 data-href-auth="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;uwierzytelnienie=1"
-                 onchange="eqdToggleUwierz(this)">
-          <i class="bi bi-shield-check"></i>Uwierzytelnione
-        </label>
-        <?php endif; ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&uwierzytelnienie=1"
+           target="_blank" rel="noopener"
+           class="btn btn-outline-success btn-sm" style="white-space:nowrap"
+           title="PDF z adnotacją uwierzytelnienia — kopia dokumentu elektronicznego z EZD">
+          <i class="bi bi-shield-check me-1"></i>Uwierzytelnione PDF
+        </a>
       </div>
     </div>
   </div>
@@ -429,21 +406,15 @@ function eqdToggleUwierz(cb) {
         </div>
         <?php if ($printable): ?>
         <div class="d-flex flex-column gap-1 flex-shrink-0 align-items-end">
-          <a id="btn-zal-<?= (int)$z['id'] ?>"
-             href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
+          <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
              target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" style="white-space:nowrap">
             <i class="bi bi-file-earmark-pdf me-1"></i>PDF
           </a>
-          <?php if (!empty($signed_zal_ids[(int)$z['id']])): ?>
-          <label class="uwierz-label" title="Dokument zawiera podpis elektroniczny — dodaj stronę uwierzytelnienia">
-            <input type="checkbox"
-                   data-href-target="btn-zal-<?= (int)$z['id'] ?>"
-                   data-href-base="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;zal=<?= (int)$z['id'] ?>"
-                   data-href-auth="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;zal=<?= (int)$z['id'] ?>&amp;uwierzytelnienie=1"
-                   onchange="eqdToggleUwierz(this)">
-            <i class="bi bi-shield-check"></i>Uwierzytelnione
-          </label>
-          <?php endif; ?>
+          <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>&uwierzytelnienie=1"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="white-space:nowrap"
+             title="Kopia uwierzytelniona — dokument elektroniczny z EZD">
+            <i class="bi bi-shield-check me-1"></i>Uwierzytelnione
+          </a>
         </div>
         <?php else: ?>
         <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1"
