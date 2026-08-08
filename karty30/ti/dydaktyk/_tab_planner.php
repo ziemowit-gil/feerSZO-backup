@@ -156,9 +156,10 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
             data-cid="<?= $cur_cid_for_planner ?>"
             data-token-url="<?= h($token_endpoint) ?>"
             data-planner-url="<?= h($planner_app_url) ?>">
-      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz planer
+      <i class="bi bi-calendar2-week me-1" aria-hidden="true"></i>Otwórz planer
     </button>
   </div>
+
 
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-calendar3-week text-primary me-2" aria-hidden="true"></i>SZO Planner — Harmonogramy zajęć</h2>
@@ -1111,7 +1112,11 @@ if (pushForm) {
       if (cid && cid !== '0') url.searchParams.set('course_id', cid);
       url.searchParams.set('source', 'ti');
 
-      window.open(url.toString(), '_blank', 'noopener');
+      var iframe = document.getElementById('szoModalIframe');
+      iframe.src = '';
+      var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('szoModal'));
+      modal.show();
+      iframe.src = url.toString();
     } catch (err) {
       alert('Nie udało się otworzyć planera:\n' + err.message);
     } finally {
@@ -1119,5 +1124,36 @@ if (pushForm) {
       btn.innerHTML = origHtml;
     }
   });
+
+  // Wyczyść iframe po zamknięciu modala (zatrzymuje Angular app)
+  document.getElementById('szoModal').addEventListener('hide.bs.modal', function () {
+    document.getElementById('szoModalIframe').src = '';
+  });
 })();
 </script>
+
+<!-- Modal SZO Planner -->
+<div class="modal fade" id="szoModal" tabindex="-1" aria-label="SZO Planner" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content border-0">
+      <div class="modal-header py-2 px-3" style="background:#1e2235;border-bottom:1px solid #2d3252">
+        <span class="fw-bold text-light d-flex align-items-center gap-2" style="font-size:.9rem">
+          <i class="bi bi-calendar2-week text-primary" aria-hidden="true"></i>SZO Planner
+        </span>
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body p-0 position-relative">
+        <div id="szoModalSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="z-index:10">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <div class="small text-muted">Ładowanie planera…</div>
+        </div>
+        <iframe id="szoModalIframe"
+                src=""
+                style="width:100%;height:100%;border:none;display:block"
+                allow="clipboard-write"
+                onload="document.getElementById('szoModalSpinner').style.display='none'">
+        </iframe>
+      </div>
+    </div>
+  </div>
+</div>
