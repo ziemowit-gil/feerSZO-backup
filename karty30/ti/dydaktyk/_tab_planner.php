@@ -353,12 +353,12 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
       <div class="szo-day" id="szoDay<?= (int)$day['day_number'] ?>col">
         <div class="szo-day-header">
           <div class="szo-day-title">Dzień <?= (int)$day['day_number'] ?></div>
-          <div class="szo-day-phase" id="szoPhase<?= (int)$day['day_number'] ?>"><?= h(SZO_PHASES[$day['phase']] ?? $day['phase']) ?></div>
           <div class="szo-ebar"><div class="szo-ebar-fill" id="szoEbar<?= (int)$day['day_number'] ?>"></div></div>
           <div class="szo-day-stats">
             <span id="szoStat<?= (int)$day['day_number'] ?>">0 / 480 min</span>
             <span id="szoEnergy<?= (int)$day['day_number'] ?>">○ 0</span>
           </div>
+          <div class="szo-day-load" id="szoCycLoad<?= (int)$day['day_number'] ?>" style="display:none;font-size:.65rem;color:var(--bs-warning);margin-top:2px"></div>
         </div>
         <div class="szo-blocks-list" id="szoDayBlocks<?= (int)$day['day_number'] ?>" data-day="<?= (int)$day['day_number'] ?>"></div>
       </div>
@@ -504,23 +504,21 @@ const CAT_LABELS = {
   theory:'Teoria', workshop:'Warsztat', break:'Przerwa',
   buffer:'Bufor', summary:'Synteza', icebreaker:'Icebreaker', qa:'Q&A'
 };
-const PHASE_LABELS = {
-  foundation:'Fundamenty', intensive:'Intensywna',
-  synthesis:'Synteza', continuation:'Kontynuacja'
-};
-const PRIORITY = {
-  foundation: {icebreaker:10, theory:8, theory_hard:4, workshop:4, workshop_hard:2, summary:1, qa:3, break:6, buffer:4},
-  intensive:  {icebreaker:3,  theory:5, theory_hard:7, workshop:8, workshop_hard:10, summary:3, qa:4, break:6, buffer:5},
-  synthesis:  {icebreaker:2,  theory:3, theory_hard:1, workshop:7, workshop_hard:4, summary:10, qa:9, break:5, buffer:5},
-  continuation:{icebreaker:3, theory:5, theory_hard:5, workshop:7, workshop_hard:7, summary:6, qa:6, break:6, buffer:5},
-};
+/* Obciążenie cykliczne per dzień_tygodnia (z k30_ti_weekly_plan prowadzącego) */
+const CYC_LOAD = <?= json_encode(
+    array_column(
+        db_all("SELECT day_of_week, COALESCE(SUM(duration_min),0) AS min_sum
+                FROM k30_ti_weekly_plan WHERE instructor_id=? GROUP BY day_of_week", [$uid]),
+        'min_sum', 'day_of_week'
+    ) ?: new stdClass
+) ?>;
 
 /* ── Stan aplikacji ─────────────────────────────────── */
 let ALL_BLOCKS = {};       // id => block object
 let state = {
   library: [],             // [block_id, ...]
   days: {},                // day_number => [block_id, ...]
-  phases: {},              // day_number => phase string
+  dayDates: {},            // day_number => 'YYYY-MM-DD' | ''
 };
 let dragging = null;       // {blockId, source:'library'|'day', dayNum?}
 let saveTimer = null;
@@ -535,9 +533,12 @@ function init() {
 
   // Stan dni z serwera
   SERVER_DAYS.forEach(d => {
-    state.days[d.day_number]   = (d.block_order || []).map(Number);
-    state.phases[d.day_number] = d.phase || 'foundation';
+    state.days[d.day_number]     = (d.block_order || []).map(Number);
+    state.dayDates[d.day_number] = d.day_date || '';
   });
+
+  // Pokaż obciążenie cykliczne per dzień
+  SERVER_DAYS.forEach(d => updateCycLoad(d.day_number, d.day_date || ''));
 
   // Bloki w bibliotece = wszystkie bloki minus umieszczone w dniach
   const placed = new Set(Object.values(state.days).flat());
@@ -545,6 +546,21 @@ function init() {
 
   renderAll();
   attachGlobalDnD();
+}
+
+/* ── Obciążenie cykliczne ────────────────────────────── */
+function updateCycLoad(dayNum, dayDate) {
+  const el = document.getElementById('szoCycLoad' + dayNum);
+  if (!el) return;
+  if (!dayDate) { el.style.display = 'none'; return; }
+  // day_of_week: 0=Nd,1=Pn..6=Sb
+  const d = new Date(dayDate + 'T00:00:00');
+  const dow = d.getDay();  // 0=Sun,1=Mon..6=Sat
+  const cyc = CYC_LOAD[dow] || 0;
+  if (!cyc) { el.style.display = 'none'; return; }
+  const dh = (cyc / 45).toFixed(1);
+  el.style.display = 'block';
+  el.innerHTML = `<i class="bi bi-calendar-week me-1"></i>Cykliczne: ${cyc} min (${dh}gh)`;
 }
 
 /* ── Render ─────────────────────────────────────────── */
@@ -609,8 +625,7 @@ function renderDay(dayNum) {
   if (st) st.textContent = total + ' / 480 min';
   const en = document.getElementById('szoEnergy' + dayNum);
   if (en) en.textContent = energy > 0 ? '⚡ +' + energy : energy < 0 ? '🔋 ' + energy : '○ 0';
-  const ph = document.getElementById('szoPhase' + dayNum);
-  if (ph) ph.textContent = PHASE_LABELS[state.phases[dayNum]] || state.phases[dayNum] || '';
+  updateCycLoad(dayNum, state.dayDates[dayNum] || '');
 }
 
 function renderValidation() {
@@ -639,13 +654,6 @@ function renderValidation() {
       }
     });
 
-    if (dn === 3 || state.phases[dn] === 'synthesis') {
-      ids.forEach(id => {
-        const b = ALL_BLOCKS[id];
-        if (b && b.category === 'theory' && b.difficulty >= 4)
-          issues.push({t:'warn', m:`Dzień ${dn}: ciężka teoria (poz. ${b.difficulty}) w fazie syntezy`});
-      });
-    }
   });
 
   if (!issues.length) {
@@ -764,8 +772,7 @@ async function szoServerSolve(mode) {
     // Zaktualizuj lokalny stan z serwera
     if (j.schedule && j.schedule.days) {
       j.schedule.days.forEach(d => {
-        state.days[d.day_number]   = (d.block_order || []).map(Number);
-        state.phases[d.day_number] = d.phase;
+        state.days[d.day_number] = (d.block_order || []).map(Number);
       });
       const placed = new Set(Object.values(state.days).flat());
       state.library = Object.keys(ALL_BLOCKS).map(Number).filter(id => !placed.has(id));
@@ -820,7 +827,7 @@ async function doSave() {
   if (!SID) return;
   const days = Object.keys(state.days).map(Number).map(dn => ({
     day_number: dn,
-    phase: state.phases[dn] || 'foundation',
+    phase: 'foundation',
     block_order: state.days[dn] || [],
   }));
   try {
@@ -996,6 +1003,14 @@ if (pushModal) {
 /* ── Formularz "Wrzuć do SZO" ───────────────────────── */
 const pushForm = document.getElementById('szoPushForm');
 if (pushForm) {
+  pushForm.querySelectorAll('input[type=date][data-day]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const dn = +inp.dataset.day;
+      state.dayDates[dn] = inp.value;
+      updateCycLoad(dn, inp.value);
+    });
+  });
+
   pushForm.addEventListener('submit', async e => {
     e.preventDefault();
     const dayDates = {};
