@@ -30,16 +30,18 @@ if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error',
 // Klasyfikacja JRWA (symbol, hasło, kategoria archiwalna) — dziedziczona z segregatora
 $jrwa = !empty($sprawa['jrwa_id']) ? ezd_jrwa_get((int)$sprawa['jrwa_id']) : null;
 
-$out   = $_GET['out'] ?? '';
-$zalId = (int)($_GET['zal'] ?? 0);
+$out              = $_GET['out'] ?? '';
+$zalId            = (int)($_GET['zal'] ?? 0);
+$uwierzytelnienie = !empty($_GET['uwierzytelnienie']);
 
 // Wydruk sprawy = operacja na danych osobowych → wymaga re-autoryzacji IKA
 // (Indywidualny Kod Autoryzacyjny). Bramka egzekwuje politykę wg roli i wraca
 // na dokładnie ten sam URL wydruku (zachowując out/zal). Musi być PRZED outputem.
 ika_require(APP_URL . '/ezd/sprawy/print.php?' . http_build_query(array_filter([
-    'id'  => $id,
-    'out' => $out !== '' ? $out : null,
-    'zal' => $zalId ?: null,
+    'id'               => $id,
+    'out'              => $out !== '' ? $out : null,
+    'zal'              => $zalId ?: null,
+    'uwierzytelnienie' => $uwierzytelnienie ? '1' : null,
 ])));
 
 $zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
@@ -231,9 +233,68 @@ if ($out === 'pdf') {
         }
     }
 
+    // ── Strona uwierzytelnienia ──────────────────────────────────────────────────
+    if ($uwierzytelnienie) {
+        $pdf->AddPage('P', 'A4');
+        $_W     = 180;
+        $_cNavy = [22, 53, 102]; $_cInk = [28, 35, 51]; $_cMuted = [124, 132, 146]; $_cLine = [224, 229, 237];
+        $_tc    = fn(array $c) => $pdf->SetTextColor($c[0], $c[1], $c[2]);
+        $_fc    = fn(array $c) => $pdf->SetFillColor($c[0], $c[1], $c[2]);
+        $_dc    = fn(array $c) => $pdf->SetDrawColor($c[0], $c[1], $c[2]);
+
+        $_fc($_cNavy); $pdf->Rect(15, 15, $_W, 14, 'F');
+        $pdf->SetFont('DejaVu', 'B', 12); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetXY(19, 18.5);
+        $pdf->Cell($_W - 8, 8, $pl('UWIERZYTELNIENIE WYDRUKU'), 0, 1, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetY(15 + 14 + 10);
+
+        $pdf->SetX(15);
+        $pdf->SetFont('DejaVu', '', 10.5); $_tc($_cInk);
+        $pdf->MultiCell($_W, 6.5, $pl(
+            'Niniejszy wydruk stanowi kopię dokumentu elektronicznego.' . "\n" .
+            'Dokumentacja prowadzona jest w systemie EZD (Elektroniczne Zarządzanie Dokumentacją).'
+        ), 0, 'J');
+        $pdf->Ln(5);
+
+        $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(5);
+
+        $_authRows = [['Znak sprawy', $sprawa['znak_sprawy'] ?: '—']];
+        if ($org_name) $_authRows[] = ['Organizacja', $org_name];
+        $_authRows[] = ['Data i godzina wydruku', date('d.m.Y H:i:s')];
+        foreach ($_authRows as [$_lbl, $_val]) {
+            $pdf->SetX(15);
+            $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+            $pdf->Cell(65, 5.5, $pl($_lbl . ':'), 0, 0);
+            $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+            $pdf->Cell($_W - 65, 5.5, $pl($_val), 0, 1);
+        }
+        $pdf->SetTextColor(0, 0, 0);
+
+        $pdf->Ln(5); $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(12);
+
+        $_colW = ($_W - 10) / 2;
+        $pdf->SetX(15);
+        $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+        $pdf->Cell($_colW, 5, $pl('Miejscowość i data:'), 0, 0);
+        $pdf->Cell($_colW, 5, $pl('Podpis osoby poświadczającej:'), 0, 1);
+        $_authY = $pdf->GetY() + 14;
+        $_dc([0, 0, 0]);
+        $pdf->Line(15, $_authY, 15 + $_colW - 5, $_authY);
+        $pdf->Line(15 + $_colW + 5, $_authY, 195, $_authY);
+        $pdf->SetY($_authY + 4);
+        $pdf->SetX(15);
+        $pdf->SetFont('DejaVu', '', 7); $_tc($_cMuted);
+        $pdf->Cell($_colW - 5, 4, $pl('(miejscowość, data wydruku)'), 0, 0, 'C');
+        $pdf->Cell(10, 4, '', 0, 0);
+        $pdf->Cell($_colW - 5, 4, $pl('(własnoręczny podpis osoby poświadczającej)'), 0, 1, 'C');
+        $pdf->SetTextColor(0, 0, 0);
+    }
+
     $base = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $sprawa['znak_sprawy'] ?: ('koszulka_' . $id));
     $base = trim($base, '_') ?: ('koszulka_' . $id);
     if ($zalId) $base .= '_dokument';
+    if ($uwierzytelnienie) $base .= '_uwierzytelnione';
 
     // Czyść ewentualne bufory przed strumieniem PDF
     while (ob_get_level() > 0) { ob_end_clean(); }
@@ -242,6 +303,18 @@ if ($out === 'pdf') {
 }
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
+
+// Wykryj załączniki z podpisem elektronicznym (dla opcji „Uwierzytelnione")
+$signed_zal_ids = [];
+foreach ($zalaczniki as $_sz) {
+    $_sp = $zal_path($_sz);
+    if (is_file($_sp)) {
+        $_si = ezd_signature_info($_sp, $_sz['original_name']);
+        if ($_si['signed']) $signed_zal_ids[(int)$_sz['id']] = true;
+    }
+}
+$any_signed = !empty($signed_zal_ids);
+
 $PAGE_TITLE = 'Drukuj koszulkę — ' . $sprawa['znak_sprawy'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -268,7 +341,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .pr-doc__name{font-size:.87rem;font-weight:600;color:#1c2333;}
 .pr-doc__meta{font-size:.72rem;color:#8a94a6;margin-top:1px;}
 .pr-foot{font-size:.74rem;color:#94a3b8;padding:9px 16px;border-top:1px solid #f2f4f9;background:#fafbfc;}
+.uwierz-label{display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#16a34a;cursor:pointer;user-select:none;white-space:nowrap}
+.uwierz-label input{accent-color:#16a34a}
 </style>
+<script>
+function eqdToggleUwierz(cb) {
+  var btn = document.getElementById(cb.dataset.hrefTarget);
+  if (btn) btn.href = cb.checked ? cb.dataset.hrefAuth : cb.dataset.hrefBase;
+}
+</script>
 
 <div style="max-width:820px">
 
@@ -307,10 +388,24 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> scalonych w jeden plik.
         </div>
       </div>
-      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener"
-         class="btn btn-danger btn-sm flex-shrink-0" style="white-space:nowrap">
-        <i class="bi bi-download me-1"></i>Pobierz PDF
-      </a>
+      <div class="d-flex align-items-center gap-2 flex-shrink-0 flex-wrap">
+        <a id="btn-full-pdf"
+           href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf"
+           target="_blank" rel="noopener"
+           class="btn btn-danger btn-sm" style="white-space:nowrap">
+          <i class="bi bi-download me-1"></i>Pobierz PDF
+        </a>
+        <?php if ($any_signed): ?>
+        <label class="uwierz-label" title="Dodaj stronę uwierzytelnienia — tylko dla dokumentów z podpisem elektronicznym">
+          <input type="checkbox"
+                 data-href-target="btn-full-pdf"
+                 data-href-base="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf"
+                 data-href-auth="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;uwierzytelnienie=1"
+                 onchange="eqdToggleUwierz(this)">
+          <i class="bi bi-shield-check"></i>Uwierzytelnione
+        </label>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 
@@ -333,10 +428,23 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="pr-doc__meta"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
         </div>
         <?php if ($printable): ?>
-        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
-           target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger flex-shrink-0" style="white-space:nowrap">
-          <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-        </a>
+        <div class="d-flex flex-column gap-1 flex-shrink-0 align-items-end">
+          <a id="btn-zal-<?= (int)$z['id'] ?>"
+             href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" style="white-space:nowrap">
+            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+          </a>
+          <?php if (!empty($signed_zal_ids[(int)$z['id']])): ?>
+          <label class="uwierz-label" title="Dokument zawiera podpis elektroniczny — dodaj stronę uwierzytelnienia">
+            <input type="checkbox"
+                   data-href-target="btn-zal-<?= (int)$z['id'] ?>"
+                   data-href-base="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;zal=<?= (int)$z['id'] ?>"
+                   data-href-auth="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;zal=<?= (int)$z['id'] ?>&amp;uwierzytelnienie=1"
+                   onchange="eqdToggleUwierz(this)">
+            <i class="bi bi-shield-check"></i>Uwierzytelnione
+          </label>
+          <?php endif; ?>
+        </div>
         <?php else: ?>
         <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1"
            class="btn btn-sm btn-outline-secondary flex-shrink-0" style="white-space:nowrap" title="Format nie-PDF — pobierz oryginał">
