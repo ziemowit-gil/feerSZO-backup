@@ -20,6 +20,12 @@ require_once __DIR__ . '/auth.php'; // student_start() + student_token() (konten
 
 karty30_migrate();
 pfron_migrate();
+
+if (!k30_pfron_enabled()) {
+    http_response_code(404);
+    die('Portal PFRON jest wyłączony w tej instalacji.');
+}
+
 student_start();
 
 $err = ''; $info = '';

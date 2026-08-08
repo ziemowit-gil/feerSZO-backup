@@ -22,6 +22,16 @@ const PFRON_UNLOCK_TTL   = 1800;  // 30 min ważności odblokowania
 const PFRON_MAX_ATTEMPTS = 5;     // prób 2FA na okno
 const PFRON_LOCK_SECONDS = 600;   // 10 min blokady po przekroczeniu
 
+/**
+ * Czy obsługa PFRON jest włączona w tej instalacji.
+ * Domyślnie true — wyłącza się przez admin → Cennik → przełącznik PFRON.
+ */
+function k30_pfron_enabled(): bool {
+    static $val = null;
+    if ($val === null) $val = (org_setting('k30_pfron_enabled') !== '0');
+    return $val;
+}
+
 /** Tworzy WYŁĄCZNIE tabelę audytu — nie dotyka tabel danych PFRON. */
 function pfron_migrate(): void {
     static $done = false;

@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 karty30_migrate();
@@ -31,14 +32,16 @@ $schedules = db_all(
 
 // Mapa klientów z aktywnymi umowami PFRON (do sugestii w formularzu)
 $pfron_client_map = [];
-foreach (db_all(
-    "SELECT pc.id AS pfron_id, pc.client_id, pc.contract_number
-     FROM k30_pfron_contracts pc WHERE pc.status='active'"
-) as $pc) {
-    $pfron_client_map[(int)$pc['client_id']] = [
-        'pfron_id' => (int)$pc['pfron_id'],
-        'contract' => $pc['contract_number'],
-    ];
+if (k30_pfron_enabled()) {
+    foreach (db_all(
+        "SELECT pc.id AS pfron_id, pc.client_id, pc.contract_number
+         FROM k30_pfron_contracts pc WHERE pc.status='active'"
+    ) as $pc) {
+        $pfron_client_map[(int)$pc['client_id']] = [
+            'pfron_id' => (int)$pc['pfron_id'],
+            'contract' => $pc['contract_number'],
+        ];
+    }
 }
 
 // Build schedule map for AJAX autofill
@@ -140,6 +143,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </select>
       </div>
 
+      <?php if (k30_pfron_enabled()): ?>
       <!-- Sugestia PFRON — widoczna gdy wybrany beneficjent ma aktywną umowę PFRON -->
       <div id="pfron-suggestion" class="alert alert-warning d-none d-flex gap-2 align-items-start py-2 mb-3" role="status" aria-live="polite">
         <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
@@ -154,6 +158,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <button type="button" class="btn-close btn-sm ms-auto flex-shrink-0" aria-label="Zamknij"
                 onclick="document.getElementById('pfron-suggestion').classList.add('d-none')"></button>
       </div>
+      <?php endif; ?>
 
       <div class="mb-3">
         <label class="form-label">Konsultant</label>

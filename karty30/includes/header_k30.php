@@ -21,6 +21,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 
@@ -346,6 +347,7 @@ function _k30_active(string $path): bool {
             </div>
           </li>
 
+          <?php if (k30_pfron_enabled()): ?>
           <!-- ══ PFRON ══ -->
           <li class="nav-item dropdown">
             <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_pfron ? 'active' : '' ?>"
@@ -358,6 +360,7 @@ function _k30_active(string $path): bool {
                 <i class="bi bi-file-earmark-pdf me-2 text-danger" aria-hidden="true"></i>Dokumenty PFRON</a>
             </div>
           </li>
+          <?php endif; ?>
 
           <!-- ══ Konsultacje tyflo ══ -->
           <li class="nav-item dropdown">

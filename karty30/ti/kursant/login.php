@@ -7,6 +7,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once __DIR__ . '/auth.php';
 
@@ -136,9 +137,11 @@ include __DIR__ . '/_layout_head.php';
         <a href="parent.php" class="btn btn-outline-secondary w-100 kp-tile-1">
           <i class="bi bi-people me-2" aria-hidden="true"></i>Rodzic / opiekun lub osoba upoważniona
         </a>
+        <?php if (k30_pfron_enabled()): ?>
         <a href="pfron.php" class="btn btn-outline-secondary w-100 kp-tile-6">
           <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
         </a>
+        <?php endif; ?>
         <a href="../dydaktyk/login.php" class="btn btn-outline-secondary w-100 kp-tile-2">
           <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)
         </a>

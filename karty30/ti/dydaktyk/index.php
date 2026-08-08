@@ -56,7 +56,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'planner'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'planner', 'cykliczne'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -107,8 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Dostępność prowadzącego (własna, niezależna od kursu) ───────────────────
     if ($op === 'avail_add') {
-        $dw = (int)($_POST['day_of_week'] ?? -1);
-        if (!ti_avail_add($uid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '')) {
+        $dw       = (int)($_POST['day_of_week'] ?? -1);
+        $av_st    = in_array($_POST['status'] ?? '', ['draft','approved'], true) ? $_POST['status'] : 'approved';
+        if (!ti_avail_add($uid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '', $av_st)) {
             flash_set('danger', 'Podaj poprawny dzień oraz godziny od–do (od < do).');
         } else {
             flash_set('success', 'Dodano okno dostępności.');
@@ -119,6 +120,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ti_avail_delete((int)($_POST['avail_id'] ?? 0), $uid);
         flash_set('success', 'Usunięto okno dostępności.');
         header('Location: index.php?tab=dostepnosc'); exit;
+    }
+    if ($op === 'avail_status') {
+        $status = in_array($_POST['status'] ?? '', ['draft','approved'], true) ? $_POST['status'] : 'approved';
+        ti_avail_set_status((int)($_POST['avail_id'] ?? 0), $uid, $status);
+        flash_set('success', TI_AVAIL_STATUS[$status]['label'] . ' — status dostępności zmieniony.');
+        header('Location: index.php?tab=dostepnosc'); exit;
+    }
+    if ($op === 'weekly_autoassign') {
+        $n = ti_weekly_autoassign($uid);
+        flash_set($n ? 'success' : 'info', $n ? "Auto-rozkład: przypisano $n kursów." : 'Brak kursów do przypisania lub brak wolnych okien.');
+        header('Location: index.php?tab=cykliczne'); exit;
     }
 
     // ── Reset prywatnego adresu kanału iCal (subskrypcja kalendarza lekcji) ─────
@@ -1226,6 +1238,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php if (isset($my_avail) && count($my_avail) > 0): ?>
     <span class="badge bg-secondary" style="font-size:.65rem"><?= count($my_avail) ?></span>
     <?php endif; ?>
+  </a>
+  <a class="dyd-gb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
+     <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
+    <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
   </a>
   <a class="dyd-gb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
      <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
@@ -2771,16 +2787,39 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <div class="border rounded p-2 h-100">
               <div class="fw-semibold mb-2"><i class="bi bi-calendar-day me-1 text-primary" aria-hidden="true"></i><?= h(K30_TI_DAYS[$dw]) ?></div>
               <?php if (!$wins): ?><div class="text-body-secondary small mb-2">— niedostępny —</div><?php endif; ?>
-              <?php foreach ($wins as $w): ?>
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="badge text-bg-primary"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
-                <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć to okno dostępności?')">
-                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op" value="avail_delete">
-                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                  <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
-                  <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń okno" aria-label="Usuń okno <?= h(K30_TI_DAYS[$dw]) ?> <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?>"><i class="bi bi-trash" aria-hidden="true"></i></button>
-                </form>
+              <?php foreach ($wins as $w):
+                $av_st  = $w['status'] ?? 'approved';
+                $av_cfg = TI_AVAIL_STATUS[$av_st] ?? TI_AVAIL_STATUS['approved'];
+                $is_draft = $av_st === 'draft';
+              ?>
+              <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                <span class="badge text-bg-<?= $av_cfg['color'] ?>"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
+                <span class="badge rounded-pill text-bg-<?= $av_cfg['color'] ?> text-opacity-75" style="font-size:.62rem">
+                  <?= h($av_cfg['label']) ?>
+                </span>
+                <div class="ms-auto d-flex gap-1">
+                  <form method="post" style="display:inline">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="avail_status">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
+                    <input type="hidden" name="status" value="<?= $is_draft ? 'approved' : 'draft' ?>">
+                    <button class="btn btn-sm btn-outline-<?= $is_draft ? 'success' : 'secondary' ?> py-0 px-2"
+                            title="<?= $is_draft ? 'Zatwierdź' : 'Cofnij do szkicu' ?>">
+                      <i class="bi bi-<?= $is_draft ? 'check-circle' : 'arrow-counterclockwise' ?>" aria-hidden="true"></i>
+                    </button>
+                  </form>
+                  <form method="post" style="display:inline" onsubmit="return confirm('Usunąć to okno dostępności?')">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="avail_delete">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń okno"
+                            aria-label="Usuń okno <?= h(K30_TI_DAYS[$dw]) ?> <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?>">
+                      <i class="bi bi-trash" aria-hidden="true"></i>
+                    </button>
+                  </form>
+                </div>
               </div>
               <?php endforeach; ?>
             </div>
@@ -2808,6 +2847,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <div class="col-sm-3">
             <label class="form-label fw-semibold" for="av_to">Do</label>
             <select class="form-select" id="av_to" name="time_to"><?= ti_time_options('13:00') ?></select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold" for="av_status">Status</label>
+            <select class="form-select" id="av_status" name="status">
+              <option value="approved">Zatwierdzona</option>
+              <option value="draft">Planowana (szkic)</option>
+            </select>
           </div>
           <div class="col-sm-2">
             <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
@@ -3317,6 +3363,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php if ($tab === 'planner'): ?>
   <?php include __DIR__ . '/_tab_planner.php'; ?>
   <?php endif; /* planner */ ?>
+
+  <?php if ($tab === 'cykliczne'): ?>
+  <?php include __DIR__ . '/_tab_cykliczne.php'; ?>
+  <?php endif; /* cykliczne */ ?>
 
   <?php endif; /* $courses */ ?>
 

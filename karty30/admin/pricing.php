@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 karty30_migrate();
@@ -17,6 +18,14 @@ $PAGE_TITLE = 'Cennik D3 — Dydaktyka 3';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = $_POST['_op'] ?? '';
+
+    // Przełącznik PFRON
+    if ($op === 'toggle_pfron') {
+        $val = (isset($_POST['pfron_enabled']) && $_POST['pfron_enabled'] === '1') ? '1' : '0';
+        org_setting_set('k30_pfron_enabled', $val);
+        flash_set('success', $val === '1' ? 'Obsługa PFRON włączona.' : 'Obsługa PFRON wyłączona.');
+        header('Location: pricing.php'); exit;
+    }
 
     // Globalny limit bezpłatnych godzin
     if ($op === 'save_limit') {
@@ -86,6 +95,33 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Przełącznik PFRON -->
+<div class="card border-0 shadow-sm mb-4" style="max-width:500px">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-building-fill-check text-primary"></i>Obsługa PFRON
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Wyłączenie ukrywa wszystkie elementy związane z PFRON: menu, stat na dashboardzie,
+      tryb rozliczenia PFRON w harmonogramie, kartę beneficjenta, portal kursanta
+      i kafelek logowania. Dane historyczne pozostają w bazie bez zmian.
+    </p>
+    <form method="post" action="pricing.php">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"   value="toggle_pfron">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="pfronEnabledSwitch" name="pfron_enabled" value="1"
+               <?= k30_pfron_enabled() ? 'checked' : '' ?>
+               onchange="this.form.submit()">
+        <label class="form-check-label fw-semibold" for="pfronEnabledSwitch">
+          <?= k30_pfron_enabled() ? '<span class="text-success">Włączona</span>' : '<span class="text-secondary">Wyłączona</span>' ?>
+        </label>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- Limit bezpłatnych godzin -->
 <div class="card border-0 shadow-sm mb-4" style="max-width:500px">

@@ -351,6 +351,71 @@ switch ($action) {
         planner_ok(['created' => $created], "Wrzucono {$created} zajęć jako Szkice do grupy.");
     }
 
+    /* ── Tygodniowy plan cykliczny ───────────────────────────────────────────── */
+
+    case 'weekly_slot_save': {
+        $slot_id     = (int)($_POST['slot_id']     ?? 0);
+        $course_id   = (int)($_POST['course_id']   ?? 0);
+        $dow         = (int)($_POST['day_of_week'] ?? 0);
+        $time_from   = substr(trim($_POST['time_from']   ?? '09:00'), 0, 5);
+        $duration    = max(15, min(480, (int)($_POST['duration_min'] ?? 90)));
+        $status      = in_array($_POST['status'] ?? '', ['draft','approved'], true)
+                       ? $_POST['status'] : 'draft';
+        $notes       = substr(trim($_POST['notes'] ?? ''), 0, 200);
+
+        if (!$course_id) planner_err('Wybierz kurs.');
+        if (!db_one("SELECT id FROM k30_ti_courses WHERE id=? AND instructor_id=?", [$course_id, $uid]))
+            planner_err('Kurs nie należy do Ciebie.');
+
+        // Sprawdź dzienny limit (nie przekraczaj TI_WEEKLY_MAX_MIN)
+        $day_sum = (int)(db_one(
+            "SELECT COALESCE(SUM(duration_min),0) AS s FROM k30_ti_weekly_plan
+             WHERE instructor_id=? AND day_of_week=?" . ($slot_id ? " AND id!=?" : ""),
+            $slot_id ? [$uid, $dow, $slot_id] : [$uid, $dow]
+        )['s'] ?? 0);
+        if ($day_sum + $duration > TI_WEEKLY_MAX_MIN)
+            planner_err("Przekroczony dzienny limit ({$day_sum}+{$duration} > " . TI_WEEKLY_MAX_MIN . " min).");
+
+        if ($slot_id) {
+            // Edycja istniejącego
+            if (!db_one("SELECT id FROM k30_ti_weekly_plan WHERE id=? AND instructor_id=?", [$slot_id, $uid]))
+                planner_err('Slot nie istnieje.');
+            db_exec(
+                "UPDATE k30_ti_weekly_plan SET course_id=?, day_of_week=?, time_from=?,
+                 duration_min=?, status=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                [$course_id, $dow, $time_from, $duration, $status, $notes, $slot_id]
+            );
+            planner_ok(['id' => $slot_id], 'Slot zaktualizowany.');
+        }
+        $id = ti_weekly_plan_save($uid, $course_id, $dow, $time_from, $duration, $status, $notes);
+        planner_ok(['id' => $id], 'Slot zapisany.');
+    }
+
+    case 'weekly_slot_delete': {
+        $slot_id = (int)($_POST['slot_id'] ?? 0);
+        if (!$slot_id) planner_err('Brak ID slotu.');
+        ti_weekly_plan_delete($slot_id, $uid);
+        planner_ok([], 'Slot usunięty.');
+    }
+
+    case 'weekly_slot_status': {
+        $slot_id = (int)($_POST['slot_id'] ?? 0);
+        $status  = in_array($_POST['status'] ?? '', ['draft','approved'], true)
+                   ? $_POST['status'] : 'draft';
+        if (!$slot_id) planner_err('Brak ID slotu.');
+        ti_weekly_plan_set_status($slot_id, $uid, $status);
+        planner_ok([], 'Status zmieniony.');
+    }
+
+    case 'avail_set_status': {
+        $avail_id = (int)($_POST['avail_id'] ?? 0);
+        $status   = in_array($_POST['status'] ?? '', ['draft','approved'], true)
+                    ? $_POST['status'] : 'approved';
+        if (!$avail_id) planner_err('Brak ID dostępności.');
+        ti_avail_set_status($avail_id, $uid, $status);
+        planner_ok([], 'Status dostępności zmieniony.');
+    }
+
     default:
         planner_err('Nieznana akcja.');
 }

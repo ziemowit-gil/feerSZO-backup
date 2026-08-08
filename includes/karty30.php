@@ -1195,6 +1195,25 @@ HTML;
     )");
     try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN series_id INTEGER"); } catch (\Throwable $e) {}
 
+    // ── Status dostępności prowadzących (zatwierdzona / szkic) ────────────────
+    try { $pdo->exec("ALTER TABLE k30_ti_instructor_availability ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'"); } catch (\Throwable $e) {}
+
+    // ── Tygodniowy plan zajęć cyklicznych (Planer IT) ─────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_weekly_plan (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        instructor_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        course_id       INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        day_of_week     INTEGER NOT NULL,
+        time_from       TEXT    NOT NULL,
+        duration_min    INTEGER NOT NULL DEFAULT 90,
+        status          TEXT    NOT NULL DEFAULT 'draft',
+        notes           TEXT    NOT NULL DEFAULT '',
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_wplan_course_day ON k30_ti_weekly_plan(course_id, day_of_week)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_wplan_instr ON k30_ti_weekly_plan(instructor_id, day_of_week)");
+
     // Jednorazowe tokeny impersonacji dla paneli dydaktyk/kursant
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_imp_tokens (
         token      TEXT     NOT NULL PRIMARY KEY,
@@ -4892,26 +4911,41 @@ function ti_hm2min(string $hm): int {
     return (int)substr($hm, 0, 2) * 60 + (int)substr($hm, 3, 2);
 }
 
-/** Aktywne okna dostępności prowadzącego, posortowane Pn→Nd, potem od godziny. */
-function ti_instructor_availability(int $instructor_id): array {
+const TI_AVAIL_STATUS = [
+    'approved' => ['label' => 'Zatwierdzona',    'color' => 'success'],
+    'draft'    => ['label' => 'Planowana (szkic)', 'color' => 'warning'],
+];
+
+const TI_WEEKLY_DH_MIN   = 45;   // 1 godzina dydaktyczna = 45 min
+const TI_WEEKLY_MAX_DH    = 4;    // maks. 4 godziny dydaktyczne dziennie
+const TI_WEEKLY_MAX_MIN   = TI_WEEKLY_DH_MIN * TI_WEEKLY_MAX_DH;  // = 180 min
+
+/**
+ * Aktywne okna dostępności prowadzącego, posortowane Pn→Nd, potem od godziny.
+ * @param string|null $status  null = wszystkie, 'approved'|'draft' = filtr
+ */
+function ti_instructor_availability(int $instructor_id, ?string $status = null): array {
     if (!$instructor_id) return [];
+    $where = "instructor_id=? AND is_active=1";
+    $params = [$instructor_id];
+    if ($status !== null) { $where .= " AND status=?"; $params[] = $status; }
     return db_all(
         "SELECT * FROM k30_ti_instructor_availability
-         WHERE instructor_id=? AND is_active=1
-         ORDER BY (day_of_week + 6) % 7, time_from",
-        [$instructor_id]
+         WHERE $where ORDER BY (day_of_week + 6) % 7, time_from",
+        $params
     );
 }
 
 /** Dodaj okno dostępności. Zwraca false przy błędnych godzinach. */
-function ti_avail_add(int $instructor_id, int $dow, string $from, string $to): bool {
+function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, string $status = 'approved'): bool {
     $from = substr(trim($from), 0, 5);
     $to   = substr(trim($to), 0, 5);
     if (!$instructor_id || $dow < 0 || $dow > 6) return false;
     if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
+    if (!array_key_exists($status, TI_AVAIL_STATUS)) $status = 'approved';
     db_insert('k30_ti_instructor_availability', [
         'instructor_id' => $instructor_id, 'day_of_week' => $dow,
-        'time_from' => $from, 'time_to' => $to, 'is_active' => 1,
+        'time_from' => $from, 'time_to' => $to, 'is_active' => 1, 'status' => $status,
     ]);
     return true;
 }
@@ -4919,6 +4953,158 @@ function ti_avail_add(int $instructor_id, int $dow, string $from, string $to): b
 function ti_avail_delete(int $id, int $instructor_id): void {
     db()->prepare("DELETE FROM k30_ti_instructor_availability WHERE id=? AND instructor_id=?")
         ->execute([$id, $instructor_id]);
+}
+
+function ti_avail_set_status(int $id, int $instructor_id, string $status): void {
+    if (!array_key_exists($status, TI_AVAIL_STATUS)) return;
+    db_exec("UPDATE k30_ti_instructor_availability SET status=? WHERE id=? AND instructor_id=?",
+            [$status, $id, $instructor_id]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TYGODNIOWY PLAN ZAJĘĆ CYKLICZNYCH (k30_ti_weekly_plan)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TI_WEEKLY_STATUS = [
+    'draft'    => ['label' => 'Szkic',          'color' => 'warning'],
+    'approved' => ['label' => 'Zatwierdzona',   'color' => 'success'],
+];
+
+function ti_weekly_plan_list(int $instructor_id): array {
+    return db_all(
+        "SELECT wp.*, c.name AS course_name, c.duration_min AS course_dur
+         FROM k30_ti_weekly_plan wp
+         JOIN k30_ti_courses c ON c.id = wp.course_id
+         WHERE wp.instructor_id=?
+         ORDER BY (wp.day_of_week + 6) % 7, wp.time_from",
+        [$instructor_id]
+    );
+}
+
+function ti_weekly_plan_save(int $instructor_id, int $course_id, int $dow,
+                              string $time_from, int $duration_min,
+                              string $status = 'draft', string $notes = ''): int {
+    $time_from    = substr(trim($time_from), 0, 5);
+    $duration_min = max(15, min(480, $duration_min));
+    $dow          = max(0, min(6, $dow));
+    if (!array_key_exists($status, TI_WEEKLY_STATUS)) $status = 'draft';
+
+    $existing = db_one(
+        "SELECT id FROM k30_ti_weekly_plan WHERE course_id=? AND day_of_week=?",
+        [$course_id, $dow]
+    );
+    if ($existing) {
+        db_exec(
+            "UPDATE k30_ti_weekly_plan SET instructor_id=?, time_from=?, duration_min=?,
+             status=?, notes=?, updated_at=CURRENT_TIMESTAMP
+             WHERE id=?",
+            [$instructor_id, $time_from, $duration_min, $status, trim($notes), $existing['id']]
+        );
+        return (int)$existing['id'];
+    }
+    db_exec(
+        "INSERT INTO k30_ti_weekly_plan
+         (instructor_id, course_id, day_of_week, time_from, duration_min, status, notes)
+         VALUES (?,?,?,?,?,?,?)",
+        [$instructor_id, $course_id, $dow, $time_from, $duration_min, $status, trim($notes)]
+    );
+    return (int)db()->lastInsertId();
+}
+
+function ti_weekly_plan_delete(int $id, int $instructor_id): void {
+    db_exec("DELETE FROM k30_ti_weekly_plan WHERE id=? AND instructor_id=?", [$id, $instructor_id]);
+}
+
+function ti_weekly_plan_set_status(int $id, int $instructor_id, string $status): void {
+    if (!array_key_exists($status, TI_WEEKLY_STATUS)) return;
+    db_exec("UPDATE k30_ti_weekly_plan SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND instructor_id=?",
+            [$status, $id, $instructor_id]);
+}
+
+/**
+ * Greedy auto-assign wszystkich niezaplanowanych kursów prowadzącego.
+ * Respektuje dostępność (status='approved') i limit TI_WEEKLY_MAX_MIN na dzień.
+ * Zwraca liczbę przypisanych kursów.
+ */
+function ti_weekly_autoassign(int $instructor_id): int {
+    $avail = ti_instructor_availability($instructor_id, 'approved');
+    if (!$avail) return 0;
+
+    // Zbuduj mapę dostępności per dzień
+    $avail_by_dow = [];
+    foreach ($avail as $a) { $avail_by_dow[(int)$a['day_of_week']][] = $a; }
+
+    // Istniejące sloty — sumy minut per dzień
+    $existing = ti_weekly_plan_list($instructor_id);
+    $day_used = [];  // dow => minutes used
+    $assigned_courses = [];
+    foreach ($existing as $e) {
+        $dow = (int)$e['day_of_week'];
+        $day_used[$dow] = ($day_used[$dow] ?? 0) + (int)$e['duration_min'];
+        $assigned_courses[$e['course_id']][$dow] = true;
+    }
+
+    // Nieprzypisane kursy — pobierz aktywne bez pełnego pokrycia
+    $courses = db_all(
+        "SELECT c.id, c.name, c.duration_min FROM k30_ti_courses c
+         WHERE c.instructor_id=? AND c.is_active=1 AND c.status!='cancelled'
+         ORDER BY c.duration_min ASC, c.name ASC",
+        [$instructor_id]
+    );
+
+    $assigned = 0;
+    foreach ($courses as $c) {
+        $cid     = (int)$c['id'];
+        $dur     = (int)($c['duration_min'] ?: 90);
+
+        // Sprawdź czy kurs ma już slot na każdy dzień, w którym jest dostępność
+        // — jeśli nie, spróbuj przypisać do pierwszego wolnego
+        $sorted_dows = array_keys($avail_by_dow);
+        // Sort: Pn-Sb (1..6,0)
+        usort($sorted_dows, fn($a, $b) => (($a + 6) % 7) - (($b + 6) % 7));
+
+        foreach ($sorted_dows as $dow) {
+            if (isset($assigned_courses[$cid][$dow])) continue;  // już zaplanowany ten dzień
+
+            $used = $day_used[$dow] ?? 0;
+            if ($used + $dur > TI_WEEKLY_MAX_MIN) continue;      // przekroczyłoby limit
+
+            // Znajdź pierwszą wolną godzinę w dostępności tego dnia
+            $windows = $avail_by_dow[$dow];
+            usort($windows, fn($a, $b) => strcmp($a['time_from'], $b['time_from']));
+
+            // Istniejące sloty w tym dniu (do sprawdzenia kolizji)
+            $slots_that_day = array_filter($existing, fn($e) => (int)$e['day_of_week'] === $dow);
+
+            foreach ($windows as $win) {
+                $win_start = ti_hm2min($win['time_from']);
+                $win_end   = ti_hm2min($win['time_to']);
+                if ($win_end - $win_start < $dur) continue;  // okno za krótkie
+
+                // Znajdź pierwszy wolny czas w oknie
+                $candidate = $win_start;
+                foreach ($slots_that_day as $s) {
+                    $s_start = ti_hm2min($s['time_from']);
+                    $s_end   = $s_start + (int)$s['duration_min'];
+                    if ($candidate >= $s_start && $candidate < $s_end) {
+                        $candidate = $s_end;
+                    }
+                }
+                if ($candidate + $dur > $win_end) continue;
+
+                $tf = sprintf('%02d:%02d', intdiv($candidate, 60), $candidate % 60);
+                ti_weekly_plan_save($instructor_id, $cid, $dow, $tf, $dur, 'draft');
+                $day_used[$dow] = ($day_used[$dow] ?? 0) + $dur;
+                $assigned_courses[$cid][$dow] = true;
+                // Dorzuć do $existing dla kolejnych iteracji kolizji
+                $existing[] = ['day_of_week' => $dow, 'time_from' => $tf, 'duration_min' => $dur, 'course_id' => $cid];
+                $slots_that_day[] = ['day_of_week' => $dow, 'time_from' => $tf, 'duration_min' => $dur, 'course_id' => $cid];
+                $assigned++;
+                break;  // jedno przypisanie per kurs per uruchomienie
+            }
+        }
+    }
+    return $assigned;
 }
 
 /**

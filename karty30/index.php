@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
+require_once dirname(__DIR__) . '/includes/pfron.php';
 
 k30_require_access();
 ika_require(APP_URL . '/karty30/index.php');
@@ -28,11 +29,11 @@ $stats = [
 ];
 
 // Godziny PFRON — łącznie bezpłatne tego miesiąca
-$pfron_month = (float)(db_one(
+$pfron_month = k30_pfron_enabled() ? (float)(db_one(
     "SELECT COALESCE(SUM(s.free_hours),0) AS h FROM k30_schedules s
      WHERE s.billing_type='pfron' AND s.status NOT IN ('cancelled','rejected')
      AND strftime('%Y-%m',s.start_time)=strftime('%Y-%m','now')"
-)['h'] ?? 0);
+)['h'] ?? 0) : 0.0;
 
 // Należności (kwoty do zapłaty, nieodbyłe terminy)
 $due_today = (float)(db_one(
@@ -244,7 +245,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
         <a class="mstat" href="<?= APP_URL ?>/karty30/schedules/index.php" aria-label="Wizyt dziś: <?= $stats['today'] ?>, w tygodniu: <?= $stats['week'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['today'] ?></div><div class="mstat-lbl" aria-hidden="true">Wizyt dziś</div><div class="mstat-sub" aria-hidden="true"><?= $stats['week'] ?> w tygodniu</div></a>
         <a class="mstat" href="<?= APP_URL ?>/karty30/waiting/index.php" aria-label="Oczekuje na termin: <?= $stats['waiting'] ?><?= $stats['waiting_urgent'] ? ', w tym pilnych: '.$stats['waiting_urgent'] : '' ?>"><div class="mstat-val" aria-hidden="true" style="<?= $stats['waiting_urgent']?'color:#dc2626':'' ?>"><?= $stats['waiting'] ?></div><div class="mstat-lbl" aria-hidden="true">Oczekuje</div><?php if ($stats['waiting_urgent']): ?><div class="mstat-sub" aria-hidden="true" style="color:#dc2626"><?= $stats['waiting_urgent'] ?> pilnych</div><?php endif; ?></a>
         <a class="mstat" href="<?= APP_URL ?>/karty30/consultations/index.php" aria-label="Konsultacji łącznie: <?= $stats['consultations'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['consultations'] ?></div><div class="mstat-lbl" aria-hidden="true">Konsultacji</div></a>
-        <div class="mstat" aria-label="Godziny PFRON w tym miesiącu: <?= number_format($pfron_month,1,',','') ?>"><div class="mstat-val" aria-hidden="true"><?= number_format($pfron_month,1,',','') ?></div><div class="mstat-lbl" aria-hidden="true">Godz. PFRON</div><div class="mstat-sub" aria-hidden="true"><?= date('m/Y') ?></div></div>
+        <?php if (k30_pfron_enabled()): ?><div class="mstat" aria-label="Godziny PFRON w tym miesiącu: <?= number_format($pfron_month,1,',','') ?>"><div class="mstat-val" aria-hidden="true"><?= number_format($pfron_month,1,',','') ?></div><div class="mstat-lbl" aria-hidden="true">Godz. PFRON</div><div class="mstat-sub" aria-hidden="true"><?= date('m/Y') ?></div></div><?php endif; ?>
         <a class="mstat" href="<?= APP_URL ?>/karty30/schedules/calendar.php" aria-label="Kalendarz wizyt"><div class="mstat-val" aria-hidden="true" style="font-size:1.2rem"><i class="bi bi-calendar-week"></i></div><div class="mstat-lbl" aria-hidden="true">Kalendarz</div></a>
       </div>
       <div role="list" aria-label="Najbliższe terminy">
@@ -415,6 +416,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
         </div>
         <?php endif; ?>
 
+        <?php if (k30_pfron_enabled()): ?>
         <div class="panel-row">
           <div style="width:28px;height:28px;border-radius:7px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <i class="bi bi-building-fill-check" style="font-size:.85rem;color:#16a34a" aria-hidden="true"></i>
@@ -424,6 +426,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
             <div class="fw-semibold" style="font-size:.84rem"><?= number_format($pfron_month, 2, ',', '') ?> h</div>
           </div>
         </div>
+        <?php endif; ?>
 
         <div class="panel-row">
           <div style="width:28px;height:28px;border-radius:7px;background:#fff7ed;display:flex;align-items:center;justify-content:center;flex-shrink:0">

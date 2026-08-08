@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 karty30_migrate();
@@ -505,15 +506,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php
         $bt_val  = $_POST['billing_type'] ?? 'free';
         $cid_pre = (int)($_POST['client_id'] ?? $prefill_client_id ?? 0);
-        $pfron_contracts = $cid_pre ? k30_pfron_contracts_for_client($cid_pre) : [];
+        $pfron_contracts = k30_pfron_enabled() && $cid_pre ? k30_pfron_contracts_for_client($cid_pre) : [];
         $pfron_active    = array_filter($pfron_contracts, fn($c) => $c['status'] === 'active');
+        $_billing_types  = K30_BILLING_TYPES;
+        if (!k30_pfron_enabled()) unset($_billing_types['pfron']);
       ?>
       <div class="mb-3">
         <label class="form-label fw-semibold">
           <i class="bi bi-credit-card me-1 text-primary"></i>Tryb rozliczenia <span class="text-danger">*</span>
         </label>
         <div class="d-flex gap-2 flex-wrap mb-2">
-          <?php foreach (K30_BILLING_TYPES as $bt_key => $bt): ?>
+          <?php foreach ($_billing_types as $bt_key => $bt): ?>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="billing_type"
                    id="bt_<?= $bt_key ?>" value="<?= $bt_key ?>"
@@ -534,6 +537,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div id="bt_desc_paid"  class="form-text" style="display:<?= $bt_val==='paid'  ?'':'none' ?>">
           Pełna odpłatność według cennika.
         </div>
+        <?php if (k30_pfron_enabled()): ?>
         <div id="bt_desc_pfron" class="form-text" style="display:<?= $bt_val==='pfron' ?'':'none' ?>">
           Finansowanie z PFRON. Godziny bezpłatne w ramach limitu umowy, nadwyżka wg cennika.
         </div>
@@ -568,6 +572,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <?php endif; ?>
         </div>
+        <?php endif; // k30_pfron_enabled ?>
       </div>
 
       <script>

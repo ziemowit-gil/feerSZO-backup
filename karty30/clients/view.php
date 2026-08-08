@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 karty30_migrate();
@@ -287,6 +288,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <!-- ── Umowy PFRON ──────────────────────────────────────────────────────────── -->
+<?php if (k30_pfron_enabled()): ?>
 <?php
   $pfron_contracts = k30_pfron_contracts_for_client($id);
   $pfron_edit_id   = (int)($_GET['pfron_edit'] ?? 0);
@@ -487,5 +489,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </div>
 <?php endif; ?>
+
+<?php endif; // k30_pfron_enabled ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
