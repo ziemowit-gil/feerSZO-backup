@@ -135,7 +135,31 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
 .szo-pattern-badge{font-family:var(--bs-font-monospace);font-size:.72rem;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);color:var(--bs-primary);border-radius:4px;padding:2px 7px;white-space:nowrap}
 </style>
 
+<?php
+// Konfiguracja planera — URL aplikacji Angular
+$planner_app_url = defined('SZO_PLANNER_URL') ? SZO_PLANNER_URL : 'http://localhost:4201';
+$token_endpoint  = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_token.php';
+$cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ?? 0));
+?>
 <div class="mt-3">
+
+  <?php /* ── Kafelek nowego planera ────────────────────────────────────── */ ?>
+  <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded-3 border" style="background:linear-gradient(135deg,#1e2235 0%,#2d3252 100%)">
+    <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-2 bg-primary bg-opacity-25" style="width:48px;height:48px">
+      <i class="bi bi-calendar2-week text-primary fs-4" aria-hidden="true"></i>
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-bold text-light" style="font-size:.95rem">SZO Planner 2.0</div>
+      <div class="text-body-secondary small">Interaktywny kalendarz z drag &amp; drop, żetonami i wykrywaniem konfliktów</div>
+    </div>
+    <button class="btn btn-primary btn-sm fw-semibold flex-shrink-0" id="btnOpenNewPlanner"
+            data-cid="<?= $cur_cid_for_planner ?>"
+            data-token-url="<?= h($token_endpoint) ?>"
+            data-planner-url="<?= h($planner_app_url) ?>">
+      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz planer
+    </button>
+  </div>
+
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-calendar3-week text-primary me-2" aria-hidden="true"></i>SZO Planner — Harmonogramy zajęć</h2>
     <div class="ms-auto d-flex gap-2 flex-wrap">
@@ -674,7 +698,7 @@ function attachGlobalDnD() {
     tgt.classList.remove('drag-over');
 
     const targetDay  = +tgt.dataset.day;
-    const targetSlot = +(tgt.dataset.slot ?? tgt.dataset.day && state.days[targetDay].indexOf(+tgt.dataset.bid));
+    const targetSlot = +(tgt.dataset.slot ?? (tgt.dataset.day && state.days[targetDay].indexOf(+tgt.dataset.bid)));
     const { blockId, source, dayNum: srcDay } = dragging;
 
     // Remove from source
@@ -1045,3 +1069,40 @@ if (pushForm) {
   </div>
 </div>
 <?php endif; ?>
+
+<script>
+/* ── Otwieranie Nowego Planera SZO ─────────────────────────────────────── */
+(function () {
+  var btn = document.getElementById('btnOpenNewPlanner');
+  if (!btn) return;
+
+  btn.addEventListener('click', async function () {
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Otwieranie…';
+
+    try {
+      var cid        = btn.dataset.cid || '0';
+      var tokenUrl   = btn.dataset.tokenUrl;
+      var plannerUrl = btn.dataset.plannerUrl;
+
+      var resp = await fetch(tokenUrl + '?course_id=' + encodeURIComponent(cid));
+      if (!resp.ok) { var e = await resp.json().catch(function(){return{}}); throw new Error(e.error || 'HTTP ' + resp.status); }
+      var data = await resp.json();
+
+      var url = new URL(plannerUrl);
+      url.searchParams.set('token',   data.token);
+      url.searchParams.set('api_url', data.api_url);
+      if (cid && cid !== '0') url.searchParams.set('course_id', cid);
+      url.searchParams.set('source', 'ti');
+
+      window.open(url.toString(), '_blank', 'noopener');
+    } catch (err) {
+      alert('Nie udało się otworzyć planera:\n' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  });
+})();
+</script>

@@ -27,11 +27,14 @@ function api_auth_migrate(): void {
         )
     ");
 
-    // Per-key limit zapytań/min (0/NULL = limit domyślny API_RATE_PER_MIN)
+    // Schema healing — add new columns if missing
     try {
         $cols = array_column(db_all("PRAGMA table_info(api_keys)"), 'name');
         if (!in_array('rate_limit', $cols, true)) {
             db()->exec("ALTER TABLE api_keys ADD COLUMN rate_limit INTEGER");
+        }
+        if (!in_array('expires_at', $cols, true)) {
+            db()->exec("ALTER TABLE api_keys ADD COLUMN expires_at TEXT");
         }
     } catch (\Throwable $e) {}
 
@@ -175,6 +178,11 @@ function api_require(string ...$permissions): void {
 
     if (!$row) {
         api_error('Unauthorized', 401);
+    }
+
+    // Check token expiry (NULL = permanent)
+    if ($row['expires_at'] !== null && strtotime($row['expires_at']) < time()) {
+        api_error('Token wygasł. Zaloguj się ponownie w panelu TI.', 401);
     }
 
     // Check permissions

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, AfterViewInit, signal, computed, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -40,23 +40,31 @@ const BLOCK_COLORS: Record<string, string> = {
     <div class="tt-page">
       <!-- Toolbar -->
       <div class="tt-toolbar">
-        <button mat-icon-button (click)="prevWeek()"><mat-icon>chevron_left</mat-icon></button>
-        <span class="week-label">{{ weekLabel() }}</span>
-        <button mat-icon-button (click)="nextWeek()"><mat-icon>chevron_right</mat-icon></button>
-        <button mat-button (click)="goToday()">Dziś</button>
+        <div class="week-nav">
+          <button mat-icon-button class="nav-btn" (click)="prevWeek()" matTooltip="Poprzedni tydzień">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <span class="week-label">{{ weekLabel() }}</span>
+          <button mat-icon-button class="nav-btn" (click)="nextWeek()" matTooltip="Następny tydzień">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+          <button mat-stroked-button class="today-btn" (click)="goToday()">Dziś</button>
+        </div>
 
         <div class="spacer"></div>
 
-        <mat-select [(ngModel)]="selectedDraftId" (ngModelChange)="loadSessions()" placeholder="Plan (opublikowany)" class="draft-select">
-          <mat-option [value]="null">Opublikowany plan</mat-option>
+        <mat-select [(ngModel)]="selectedDraftId" (ngModelChange)="loadSessions()"
+                    placeholder="Plan (opublikowany)" class="draft-select">
+          <mat-option [value]="null">
+            <mat-icon style="font-size:16px;vertical-align:middle;margin-right:4px">public</mat-icon>
+            Opublikowany plan
+          </mat-option>
           @for (d of drafts(); track d.id) {
-            <mat-option [value]="d.id">
-              [{{ d.status.toUpperCase() }}] {{ d.title }}
-            </mat-option>
+            <mat-option [value]="d.id">[{{ d.status }}] {{ d.title }}</mat-option>
           }
         </mat-select>
 
-        <button mat-flat-button color="primary" (click)="openSessionDialog()">
+        <button mat-flat-button color="primary" (click)="openSessionDialog()" class="add-btn">
           <mat-icon>add</mat-icon> Nowa sesja
         </button>
       </div>
@@ -64,21 +72,23 @@ const BLOCK_COLORS: Record<string, string> = {
       <!-- Legend -->
       <div class="tt-legend">
         @for (bt of blockTypes; track bt.key) {
-          <span class="legend-chip" [style.border-color]="bt.color">
-            <span class="legend-dot" [style.background]="bt.color"></span>{{ bt.label }}
+          <span class="legend-chip" [style.--c]="bt.color">
+            <span class="legend-dot"></span>{{ bt.label }}
           </span>
         }
+        <span class="legend-sep">|</span>
+        <span class="sessions-count">{{ sessions().length }} sesji w tym tygodniu</span>
       </div>
 
       @if (loading()) {
-        <div class="loading-wrap"><mat-spinner [diameter]="40"/></div>
+        <div class="loading-wrap"><mat-spinner [diameter]="36"/></div>
       } @else {
         <!-- Calendar grid -->
-        <div class="tt-grid-wrap">
+        <div class="tt-grid-wrap" #gridWrap>
           <div class="tt-grid" cdkDropListGroup>
             <!-- Time axis -->
             <div class="time-col">
-              <div class="day-header"></div>
+              <div class="day-header-placeholder"></div>
               @for (h of hours; track h) {
                 <div class="time-slot" [style.height.px]="HOUR_PX">{{ h }}</div>
               }
@@ -86,10 +96,11 @@ const BLOCK_COLORS: Record<string, string> = {
 
             <!-- Day columns -->
             @for (day of weekDays(); track day.iso) {
-              <div class="day-col">
+              <div class="day-col" [class.weekend]="day.isWeekend">
                 <div class="day-header" [class.today]="day.isToday">
-                  <div class="day-name">{{ day.name }}</div>
-                  <div class="day-date">{{ day.date }}</div>
+                  <span class="day-name">{{ day.name }}</span>
+                  <span class="day-date" [class.today-num]="day.isToday">{{ day.date }}</span>
+                  @if (day.isToday) { <span class="today-dot"></span> }
                 </div>
 
                 <div class="day-body"
@@ -106,19 +117,22 @@ const BLOCK_COLORS: Record<string, string> = {
                          [cdkDragData]="s"
                          [style.top.px]="timeToY(s.time_from)"
                          [style.height.px]="durationToH(s.time_from, s.time_to)"
-                         [style.background]="blockColor(s.block_type)"
+                         [style.--bc]="blockColor(s.block_type)"
                          [class.conflict]="hasConflict(s)"
                          [class.draft]="s.draft_id !== null"
                          [matTooltip]="sessionTooltip(s)"
+                         matTooltipPosition="right"
                          (click)="$event.stopPropagation(); openSessionDialog(s)">
                       <div class="sb-time">{{ s.time_from }}–{{ s.time_to }}</div>
                       <div class="sb-title">{{ s.topic || ('Sesja #' + s.id) }}</div>
                       <div class="sb-meta">
-                        <mat-icon inline>{{ modeIcon(s.mode) }}</mat-icon>
-                        {{ blockLabel(s.block_type) }}
-                        @if (s.draft_id) { <span class="draft-badge">DRAFT</span> }
+                        <mat-icon class="sb-icon">{{ modeIcon(s.mode) }}</mat-icon>
+                        <span>{{ blockLabel(s.block_type) }}</span>
+                        @if (s.draft_id) { <span class="draft-badge">SZKIC</span> }
                       </div>
-                      <div cdkDragHandle class="drag-handle"><mat-icon inline>drag_indicator</mat-icon></div>
+                      <div cdkDragHandle class="drag-handle">
+                        <mat-icon class="drag-icon">drag_indicator</mat-icon>
+                      </div>
                     </div>
                   }
                 </div>
@@ -130,55 +144,114 @@ const BLOCK_COLORS: Record<string, string> = {
     </div>
   `,
   styles: [`
-    .tt-page { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 90px); overflow: hidden; }
+    .tt-page { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 112px); overflow: hidden; }
 
-    .tt-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .week-label { font-weight: 700; font-size: .95rem; min-width: 180px; text-align: center; }
-    .spacer { flex: 1; }
-    .draft-select { width: 240px; }
+    /* ── Toolbar ── */
+    .tt-toolbar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+      background: var(--sur); border: 1px solid var(--bor);
+      border-radius: 10px; padding: 6px 10px;
+      overflow-x: auto;
+    }
+    .week-nav { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+    .nav-btn { color: var(--t2) !important; }
+    .week-label {
+      font-weight: 700; font-size: .88rem; min-width: 148px; text-align: center;
+      color: var(--t1); padding: 0 2px; white-space: nowrap;
+    }
+    .today-btn {
+      font-size: 12px !important; padding: 0 10px !important; height: 32px !important;
+      margin-left: 4px; border-color: var(--bor) !important; color: var(--t2) !important;
+      flex-shrink: 0;
+    }
+    .spacer { flex: 1; min-width: 8px; }
+    .draft-select { width: 190px; font-size: 13px; flex-shrink: 0; }
+    .add-btn { height: 36px !important; font-size: 13px !important; flex-shrink: 0; white-space: nowrap; }
 
-    .tt-legend { display: flex; gap: 8px; flex-wrap: wrap; }
-    .legend-chip { display: flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 3px 9px; border-radius: 12px; border: 1px solid; background: transparent; }
-    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    /* ── Legend ── */
+    .tt-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 2px; }
+    .legend-chip {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11.5px; color: var(--t2);
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex-shrink: 0; }
+    .legend-sep { color: var(--bor); font-size: 16px; line-height: 1; }
+    .sessions-count { font-size: 11.5px; color: var(--t3); }
 
     .loading-wrap { display: flex; justify-content: center; padding: 60px; }
 
-    .tt-grid-wrap { overflow: auto; flex: 1; }
-    .tt-grid { display: grid; grid-template-columns: 52px repeat(7, 1fr); min-width: 780px; }
+    /* ── Grid ── */
+    .tt-grid-wrap { overflow: auto; flex: 1; border: 1px solid var(--bor); border-radius: 10px; background: var(--sur); }
+    .tt-grid { display: grid; grid-template-columns: 48px repeat(7, 1fr); min-width: 700px; }
 
     .time-col { display: flex; flex-direction: column; }
-    .time-slot { display: flex; align-items: flex-start; justify-content: flex-end; padding-right: 8px; font-size: 10.5px; color: var(--t3); border-top: 1px solid var(--bor); box-sizing: border-box; }
+    .day-header-placeholder { height: 52px; border-bottom: 1px solid var(--bor); background: var(--sur-hi); }
+    .time-slot {
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      padding: 4px 6px 0; font-size: 10px; color: var(--t3);
+      border-top: 1px solid var(--bor); box-sizing: border-box;
+      user-select: none;
+    }
 
     .day-col { display: flex; flex-direction: column; border-left: 1px solid var(--bor); }
-    .day-header { height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 2px solid var(--bor); background: var(--sur); font-size: 11px; gap: 2px; }
-    .day-header.today { background: rgba(232,148,26,.08); border-bottom-color: var(--acc); }
-    .day-name { font-weight: 700; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--t2); }
-    .day-date { font-size: 1rem; font-weight: 800; color: var(--t1); }
-
-    .day-body { position: relative; background: repeating-linear-gradient(to bottom, transparent, transparent calc(var(--hpx, 64px) - 1px), var(--bor) calc(var(--hpx, 64px) - 1px), var(--bor) var(--hpx, 64px)); cursor: pointer; }
-
-    .session-block {
-      position: absolute; left: 3px; right: 3px;
-      border-radius: 5px; padding: 4px 6px;
-      font-size: 11px; color: #fff;
-      box-shadow: 0 1px 4px rgba(0,0,0,.3);
-      overflow: hidden; cursor: pointer; user-select: none;
-      transition: box-shadow .15s, opacity .15s;
+    .day-col.weekend { background: var(--sur-hi); }
+    .day-header {
+      height: 52px; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; border-bottom: 2px solid var(--bor);
+      background: var(--sur-hi); gap: 1px; position: sticky; top: 0; z-index: 5;
     }
-    .session-block:hover { box-shadow: 0 2px 10px rgba(0,0,0,.4); opacity: .95; }
+    .day-header.today { background: rgba(79,70,229,.06); border-bottom-color: var(--acc); }
+    .day-name { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--t3); }
+    .day-date { font-size: 1.1rem; font-weight: 800; color: var(--t1); line-height: 1; }
+    .day-date.today-num {
+      background: var(--acc); color: #fff;
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .9rem;
+    }
+    .today-dot { display: none; }
+
+    .day-body {
+      position: relative;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent, transparent calc(var(--hpx, 64px) - 1px),
+        var(--bor) calc(var(--hpx, 64px) - 1px),
+        var(--bor) var(--hpx, 64px)
+      );
+      cursor: pointer;
+    }
+    .weekend .day-body { background-color: rgba(0,0,0,.018); }
+
+    /* ── Session block ── */
+    .session-block {
+      position: absolute; left: 4px; right: 4px;
+      border-radius: 6px; padding: 5px 7px 5px 9px;
+      font-size: 11px; color: #fff;
+      background: var(--bc);
+      border-left: 3px solid rgba(255,255,255,.4);
+      box-shadow: 0 1px 3px rgba(0,0,0,.25);
+      overflow: hidden; cursor: pointer; user-select: none;
+      transition: box-shadow .12s, transform .12s;
+    }
+    .session-block:hover { box-shadow: 0 3px 12px rgba(0,0,0,.3); transform: translateY(-1px); }
     .session-block.conflict { outline: 2px solid #F87171; }
-    .session-block.draft { opacity: .75; border: 1px dashed rgba(255,255,255,.5); }
-    .sb-time  { font-size: 10px; opacity: .85; }
-    .sb-title { font-weight: 700; line-height: 1.2; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sb-meta  { font-size: 10px; opacity: .8; display: flex; gap: 4px; align-items: center; }
-    .draft-badge { background: rgba(255,255,255,.25); padding: 0 4px; border-radius: 3px; }
-    .drag-handle { position: absolute; right: 4px; top: 4px; cursor: grab; opacity: .6; }
+    .session-block.draft { opacity: .78; border-left-style: dashed; }
+    .sb-time  { font-size: 9.5px; opacity: .82; font-weight: 500; letter-spacing: .02em; }
+    .sb-title { font-weight: 700; line-height: 1.25; margin: 2px 0 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sb-meta  { font-size: 10px; opacity: .82; display: flex; gap: 3px; align-items: center; }
+    .sb-icon  { font-size: 11px !important; width: 11px !important; height: 11px !important; }
+    .draft-badge { background: rgba(255,255,255,.25); padding: 0 4px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+    .drag-handle { position: absolute; right: 3px; top: 3px; cursor: grab; opacity: 0; transition: opacity .12s; }
+    .session-block:hover .drag-handle { opacity: .7; }
+    .drag-icon { font-size: 14px !important; width: 14px !important; height: 14px !important; }
     .drag-handle:active { cursor: grabbing; }
-    .cdk-drag-preview { border-radius: 5px; box-shadow: 0 4px 20px rgba(0,0,0,.5); opacity: .9; }
+    .cdk-drag-preview { border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.4); opacity: .92; z-index: 9999; }
     .cdk-drag-placeholder { opacity: 0; }
   `],
 })
-export class TimetableComponent implements OnInit {
+export class TimetableComponent implements OnInit, AfterViewInit {
+  @ViewChild('gridWrap') gridWrap?: ElementRef<HTMLDivElement>;
   readonly HOUR_PX = HOUR_PX;
 
   loading  = signal(false);
@@ -205,11 +278,13 @@ export class TimetableComponent implements OnInit {
       const d = new Date(this.weekStart());
       d.setDate(d.getDate() + i);
       const today = new Date();
+      const dow = d.getDay(); // 0=Sun, 6=Sat
       return {
         iso: d.toISOString().slice(0, 10),
         name: d.toLocaleDateString('pl-PL', { weekday: 'short' }),
         date: d.getDate().toString(),
         isToday: d.toDateString() === today.toDateString(),
+        isWeekend: dow === 0 || dow === 6,
       };
     });
   });
@@ -232,6 +307,18 @@ export class TimetableComponent implements OnInit {
     this.planner.getDrafts().subscribe(d => this.drafts.set(d));
     this.planner.getRooms().subscribe(r => this.rooms.set(r));
     this.loadSessions();
+  }
+
+  ngAfterViewInit(): void { this.scrollToNow(); }
+
+  scrollToNow(): void {
+    setTimeout(() => {
+      const el = this.gridWrap?.nativeElement;
+      if (!el) return;
+      const now = new Date();
+      const targetH = now.getHours() - DAY_START - 1; // 1h before current time
+      el.scrollTop = Math.max(0, targetH * HOUR_PX);
+    }, 80);
   }
 
   loadSessions(): void {
