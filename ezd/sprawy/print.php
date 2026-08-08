@@ -33,6 +33,12 @@ $jrwa = !empty($sprawa['jrwa_id']) ? ezd_jrwa_get((int)$sprawa['jrwa_id']) : nul
 $out              = $_GET['out'] ?? '';
 $zalId            = (int)($_GET['zal'] ?? 0);
 $uwierzytelnienie = !empty($_GET['uwierzytelnienie']);
+$drukujacy        = substr(strip_tags(trim($_GET['drukujacy']   ?? '')), 0, 100);
+$cel              = substr(strip_tags(trim($_GET['cel']         ?? '')), 0, 200);
+$podpisujacy      = substr(strip_tags(trim($_GET['podpisujacy'] ?? '')), 0, 100);
+$stanowisko       = substr(strip_tags(trim($_GET['stanowisko']  ?? '')), 0, 100);
+$has_sig          = !empty($_GET['has_sig']);
+$sig_type         = substr(strip_tags(trim($_GET['sig_type']    ?? '')), 0, 80);
 
 // Wydruk sprawy = operacja na danych osobowych → wymaga re-autoryzacji IKA
 // (Indywidualny Kod Autoryzacyjny). Bramka egzekwuje politykę wg roli i wraca
@@ -42,6 +48,12 @@ ika_require(APP_URL . '/ezd/sprawy/print.php?' . http_build_query(array_filter([
     'out'              => $out !== '' ? $out : null,
     'zal'              => $zalId ?: null,
     'uwierzytelnienie' => $uwierzytelnienie ? '1' : null,
+    'drukujacy'        => $drukujacy   !== '' ? $drukujacy   : null,
+    'cel'              => $cel         !== '' ? $cel         : null,
+    'podpisujacy'      => $podpisujacy !== '' ? $podpisujacy : null,
+    'stanowisko'       => $stanowisko  !== '' ? $stanowisko  : null,
+    'has_sig'          => $has_sig ? '1' : null,
+    'sig_type'         => $sig_type    !== '' ? $sig_type    : null,
 ])));
 
 $zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
@@ -238,10 +250,12 @@ if ($out === 'pdf') {
         $pdf->AddPage('P', 'A4');
         $_W     = 180;
         $_cNavy = [22, 53, 102]; $_cInk = [28, 35, 51]; $_cMuted = [124, 132, 146]; $_cLine = [224, 229, 237];
+        $_cGrn  = [21, 128, 61];
         $_tc    = fn(array $c) => $pdf->SetTextColor($c[0], $c[1], $c[2]);
         $_fc    = fn(array $c) => $pdf->SetFillColor($c[0], $c[1], $c[2]);
         $_dc    = fn(array $c) => $pdf->SetDrawColor($c[0], $c[1], $c[2]);
 
+        // Nagłówek
         $_fc($_cNavy); $pdf->Rect(15, 15, $_W, 14, 'F');
         $pdf->SetFont('DejaVu', 'B', 12); $pdf->SetTextColor(255, 255, 255);
         $pdf->SetXY(19, 18.5);
@@ -249,30 +263,78 @@ if ($out === 'pdf') {
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetY(15 + 14 + 10);
 
+        // Klauzula
         $pdf->SetX(15);
         $pdf->SetFont('DejaVu', '', 10.5); $_tc($_cInk);
         $pdf->MultiCell($_W, 6.5, $pl(
             'Niniejszy wydruk stanowi kopię dokumentu elektronicznego.' . "\n" .
             'Dokumentacja prowadzona jest w systemie EZD (Elektroniczne Zarządzanie Dokumentacją).'
         ), 0, 'J');
-        $pdf->Ln(5);
+        $pdf->Ln(4);
 
-        $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(5);
-
-        $_authRows = [['Znak sprawy', $sprawa['znak_sprawy'] ?: '—']];
-        if ($org_name) $_authRows[] = ['Organizacja', $org_name];
-        $_authRows[] = ['Data i godzina wydruku', date('d.m.Y H:i:s')];
-        foreach ($_authRows as [$_lbl, $_val]) {
+        // Metadata: znak + org
+        $_authMeta = [['Znak sprawy', $sprawa['znak_sprawy'] ?: '—']];
+        if ($org_name) $_authMeta[] = ['Organizacja', $org_name];
+        foreach ($_authMeta as [$_lbl, $_val]) {
             $pdf->SetX(15);
             $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
-            $pdf->Cell(65, 5.5, $pl($_lbl . ':'), 0, 0);
+            $pdf->Cell(55, 5.5, $pl($_lbl . ':'), 0, 0);
             $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
-            $pdf->Cell($_W - 65, 5.5, $pl($_val), 0, 1);
+            $pdf->Cell($_W - 55, 5.5, $pl($_val), 0, 1);
         }
         $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(3);
 
-        $pdf->Ln(5); $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(12);
+        // Tabela: Data i godzina | Osoba drukująca | Cel wydruku
+        $_dc($_cLine);
+        $_c1 = 55; $_c2 = 65; $_c3 = $_W - $_c1 - $_c2;
+        $_fc([241, 245, 249]); $pdf->SetFont('DejaVu', '', 7.5); $_tc($_cMuted);
+        $pdf->SetX(15);
+        $pdf->Cell($_c1, 6, $pl('DATA I GODZINA WYDRUKU'), 1, 0, 'C', true);
+        $pdf->Cell($_c2, 6, $pl('OSOBA DRUKUJĄCA'), 1, 0, 'C', true);
+        $pdf->Cell($_c3, 6, $pl('CEL WYDRUKU'), 1, 1, 'C', true);
+        $_fc([255, 255, 255]); $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+        $pdf->SetX(15);
+        $pdf->Cell($_c1, 9, $pl(date('d.m.Y H:i:s')), 1, 0, 'C', true);
+        $pdf->Cell($_c2, 9, $pl($drukujacy ?: '—'), 1, 0, 'C', true);
+        $pdf->Cell($_c3, 9, $pl($cel ?: '—'), 1, 1, 'C', true);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(5);
 
+        // Sekcja podpisu elektronicznego (gdy dokument ma podpis el.)
+        if ($has_sig || $podpisujacy !== '' || $stanowisko !== '') {
+            $_fc([240, 253, 244]); $_dc([187, 247, 208]);
+            $pdf->SetX(15);
+            $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cGrn);
+            $_sigHdr = 'PODPIS ELEKTRONICZNY' . ($sig_type !== '' ? '  (' . $sig_type . ')' : '');
+            $pdf->Cell($_W, 6.5, $pl($_sigHdr), 1, 1, 'L', true);
+            $_fc([255, 255, 255]);
+            if ($podpisujacy !== '') {
+                $pdf->SetX(15);
+                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->Cell(55, 5.5, $pl('Kto podpisał:'), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+                $pdf->Cell($_W - 55, 5.5, $pl($podpisujacy), 1, 1, 'L', true);
+            }
+            if ($stanowisko !== '') {
+                $pdf->SetX(15);
+                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->Cell(55, 5.5, $pl('Stanowisko:'), 1, 0, 'L', true);
+                $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+                $pdf->Cell($_W - 55, 5.5, $pl($stanowisko), 1, 1, 'L', true);
+            }
+            if ($podpisujacy === '' && $stanowisko === '') {
+                $pdf->SetX(15);
+                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->Cell($_W, 5.5, $pl('Dokument opatrzony podpisem elektronicznym.'), 1, 1, 'L', true);
+            }
+            $_dc($_cLine);
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->Ln(5);
+        }
+
+        // Linie na poświadczenie
+        $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(10);
         $_colW = ($_W - 10) / 2;
         $pdf->SetX(15);
         $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
@@ -304,6 +366,16 @@ if ($out === 'pdf') {
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
 
+// Wykryj podpisy elektroniczne — przechowaj pełną info dla pre-fill modala
+$signed_zal_ids = []; // int(id) => ['signed'=>true, 'signer'=>?string, 'type'=>string, ...]
+foreach ($zalaczniki as $_sz) {
+    $_sp = $zal_path($_sz);
+    if (is_file($_sp)) {
+        $_si = ezd_signature_info($_sp, $_sz['original_name']);
+        if ($_si['signed']) $signed_zal_ids[(int)$_sz['id']] = $_si;
+    }
+}
+$any_signed = !empty($signed_zal_ids);
 
 $PAGE_TITLE = 'Drukuj koszulkę — ' . $sprawa['znak_sprawy'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -376,12 +448,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
            class="btn btn-danger btn-sm" style="white-space:nowrap">
           <i class="bi bi-download me-1"></i>Pobierz PDF
         </a>
-        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&uwierzytelnienie=1"
-           target="_blank" rel="noopener"
-           class="btn btn-outline-success btn-sm" style="white-space:nowrap"
-           title="PDF z adnotacją uwierzytelnienia — kopia dokumentu elektronicznego z EZD">
+        <?php if ($any_signed): ?>
+        <button type="button" class="btn btn-outline-success btn-sm" style="white-space:nowrap"
+                onclick="eqdUwierzModal('<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;uwierzytelnienie=1', {signer:'',type:'<?= addslashes(count($signed_zal_ids) === 1 ? array_values($signed_zal_ids)[0]['type'] : '') ?>'})">
           <i class="bi bi-shield-check me-1"></i>Uwierzytelnione PDF
-        </a>
+        </button>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -410,11 +482,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
              target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" style="white-space:nowrap">
             <i class="bi bi-file-earmark-pdf me-1"></i>PDF
           </a>
-          <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>&uwierzytelnienie=1"
-             target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" style="white-space:nowrap"
-             title="Kopia uwierzytelniona — dokument elektroniczny z EZD">
+          <?php if (!empty($signed_zal_ids[(int)$z['id']])): ?>
+          <?php $_si_js = json_encode(['signer' => $signed_zal_ids[(int)$z['id']]['signer'] ?? '', 'type' => $signed_zal_ids[(int)$z['id']]['type'] ?? ''], JSON_UNESCAPED_UNICODE); ?>
+          <button type="button" class="btn btn-sm btn-outline-success" style="white-space:nowrap"
+                  title="Kopia uwierzytelniona — dokument z podpisem elektronicznym"
+                  onclick="eqdUwierzModal('<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&amp;out=pdf&amp;zal=<?= (int)$z['id'] ?>&amp;uwierzytelnienie=1', <?= h($_si_js) ?>)">
             <i class="bi bi-shield-check me-1"></i>Uwierzytelnione
-          </a>
+          </button>
+          <?php endif; ?>
         </div>
         <?php else: ?>
         <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1"
@@ -432,5 +507,96 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <?php endif; ?>
 
 </div>
+
+<!-- Modal uwierzytelnienia -->
+<div class="modal fade" id="uwierzModal" tabindex="-1" aria-labelledby="uwierzModalLabel" aria-modal="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="background:#f0fdf4;border-bottom:1px solid #bbf7d0">
+        <h6 class="modal-title fw-bold" id="uwierzModalLabel">
+          <i class="bi bi-shield-check text-success me-2"></i>Kopia uwierzytelniona — uzupełnij dane
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="font-size:.86rem">
+        <div class="mb-3">
+          <label class="form-label fw-semibold mb-1">Osoba drukująca</label>
+          <input type="text" id="uwierz-drukujacy" class="form-control form-control-sm" placeholder="Imię i nazwisko">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold mb-1">Cel wydruku</label>
+          <input type="text" id="uwierz-cel" class="form-control form-control-sm" placeholder="np. do akt sprawy, dla strony…">
+        </div>
+        <div id="uwierz-podpis-sekcja" style="display:none">
+          <hr class="my-2">
+          <p class="fw-semibold text-success mb-2" style="font-size:.8rem">
+            <i class="bi bi-pen me-1"></i>Podpis elektroniczny
+            <span id="uwierz-typ-label" class="text-muted fw-normal ms-1" style="font-size:.75rem"></span>
+          </p>
+          <div class="mb-2">
+            <label class="form-label fw-semibold mb-1">Kto podpisał</label>
+            <input type="text" id="uwierz-podpisujacy" class="form-control form-control-sm" placeholder="Imię i nazwisko podpisującego">
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold mb-1">Stanowisko</label>
+            <input type="text" id="uwierz-stanowisko" class="form-control form-control-sm" placeholder="np. Dyrektor, Prezes Zarządu…">
+          </div>
+        </div>
+        <div class="text-muted mt-3" style="font-size:.75rem">
+          <i class="bi bi-clock me-1"></i>Data i godzina wydruku zostaną uzupełnione automatycznie.
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <a id="uwierz-pobierz" href="#" target="_blank" rel="noopener" class="btn btn-success btn-sm"
+           onclick="return eqdUwierzPobierz(this)">
+          <i class="bi bi-download me-1"></i>Pobierz PDF
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _uwierzBase  = '';
+var _uwierzUser  = '<?= addslashes(current_user()['name'] ?? '') ?>';
+
+var _uwierzSigInfo = null;
+
+function eqdUwierzModal(baseUrl, sigInfo) {
+  _uwierzBase    = baseUrl;
+  _uwierzSigInfo = sigInfo;
+  document.getElementById('uwierz-drukujacy').value = _uwierzUser;
+  document.getElementById('uwierz-cel').value        = '';
+  var podpSek = document.getElementById('uwierz-podpis-sekcja');
+  if (sigInfo) {
+    podpSek.style.display = '';
+    document.getElementById('uwierz-podpisujacy').value = sigInfo.signer || '';
+    document.getElementById('uwierz-stanowisko').value  = '';
+    var typEl = document.getElementById('uwierz-typ-label');
+    if (typEl) typEl.textContent = sigInfo.type ? '(' + sigInfo.type + ')' : '';
+  } else {
+    podpSek.style.display = 'none';
+    document.getElementById('uwierz-podpisujacy').value = '';
+    document.getElementById('uwierz-stanowisko').value  = '';
+  }
+  new bootstrap.Modal(document.getElementById('uwierzModal')).show();
+}
+
+function eqdUwierzPobierz(a) {
+  var d   = encodeURIComponent(document.getElementById('uwierz-drukujacy').value.trim());
+  var c   = encodeURIComponent(document.getElementById('uwierz-cel').value.trim());
+  var p   = encodeURIComponent(document.getElementById('uwierz-podpisujacy').value.trim());
+  var st  = encodeURIComponent(document.getElementById('uwierz-stanowisko').value.trim());
+  var hs  = _uwierzSigInfo ? '&has_sig=1' : '';
+  var sgt = _uwierzSigInfo && _uwierzSigInfo.type ? '&sig_type=' + encodeURIComponent(_uwierzSigInfo.type) : '';
+  a.href  = _uwierzBase + '&drukujacy=' + d + '&cel=' + c + '&podpisujacy=' + p + '&stanowisko=' + st + hs + sgt;
+  setTimeout(function () {
+    var m = bootstrap.Modal.getInstance(document.getElementById('uwierzModal'));
+    if (m) m.hide();
+  }, 400);
+  return true;
+}
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
