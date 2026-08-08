@@ -8,11 +8,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../includes/db.php';
-require_once __DIR__ . '/../../functions.php';
+require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/karty30.php';
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
-$allowed_origins = ['http://localhost:4201', 'http://localhost:4200'];
+$allowed_origins = ['http://localhost:4202', 'http://localhost:4201', 'http://localhost:4200'];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origin, $allowed_origins, true)) {
     header("Access-Control-Allow-Origin: {$origin}");
@@ -68,7 +68,7 @@ if ($action === 'login' && $method === 'POST') {
     karty30_migrate();
 
     $stmt = $pdo->prepare("
-        SELECT a.*, c.first_name, c.last_name, c.email, c.phone
+        SELECT a.*, c.name AS client_name, c.email, c.phone
         FROM k30_ti_student_accounts a
         JOIN k30_clients c ON c.id = a.client_id
         WHERE (a.login = :login OR a.login_alias = :login)
@@ -104,23 +104,21 @@ if ($action === 'login' && $method === 'POST') {
         'push_enabled'          => (int)($acc['push_enabled'] ?? 0),
         'notify_email_messages' => (int)($acc['notify_email_messages'] ?? 0),
         'notify_sms_messages'   => (int)($acc['notify_sms_messages'] ?? 0),
-        'notify_email_dyd'      => (int)($acc['notify_email_dyd'] ?? 0),
-        'notify_sms_dyd'        => (int)($acc['notify_sms_dyd'] ?? 0),
+        'notify_email_dyd'      => (int)($acc['notify_email_dydaktyka'] ?? 0),
+        'notify_sms_dyd'        => (int)($acc['notify_sms_dydaktyka'] ?? 0),
         'notify_sms_lessons'    => (int)($acc['notify_sms_lessons'] ?? 0),
         'ms_upn'                => $acc['ms_upn'] ?? null,
         'ms_user_id'            => $acc['ms_user_id'] ?? null,
         'moodle_username'       => $acc['moodle_username'] ?? null,
         'moodle_user_id'        => isset($acc['moodle_user_id']) ? (int)$acc['moodle_user_id'] : null,
         'owncloud_login'        => $acc['owncloud_login'] ?? null,
-        'first_name'            => $acc['first_name'],
-        'last_name'             => $acc['last_name'],
+        'name'                  => $acc['client_name'],
     ];
     $client = [
-        'id'         => (int)$acc['client_id'],
-        'first_name' => $acc['first_name'],
-        'last_name'  => $acc['last_name'],
-        'email'      => $acc['email'],
-        'phone'      => $acc['phone'],
+        'id'    => (int)$acc['client_id'],
+        'name'  => $acc['client_name'],
+        'email' => $acc['email'],
+        'phone' => $acc['phone'],
     ];
 
     echo json_encode([

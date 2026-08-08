@@ -1,13 +1,13 @@
 {
   "/api": {
-    "target": "https://szo.feer.org.pl",
-    "secure": true,
+    "target": "http://localhost:3000",
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "info"
   },
   "/karty30/ti/kursant": {
-    "target": "https://szo.feer.org.pl",
-    "secure": true,
+    "target": "http://localhost:3000",
+    "secure": false,
     "changeOrigin": true
   }
 }

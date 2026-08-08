@@ -26,6 +26,14 @@ export interface StudentAccount {
   moodle_username: string | null;
   moodle_user_id: number | null;
   owncloud_login: string | null;
+  name: string;
+}
+
+export interface ClientInfo {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
 }
 
 export interface ClientInfo {
