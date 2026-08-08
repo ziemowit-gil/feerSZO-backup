@@ -12,8 +12,17 @@
 #
 # Chooser (stary vs nowy interfejs) jest pod:
 #   https://ti.feer.org.pl/  →  karty30/ti/kursant/chooser.php
+#
+# Zmienne konfiguracyjne (w .env.prod):
+#   KURSANT_NEW_UI_URL=https://ti.feer.org.pl/newUI   ← PHP chooser → link do nowego UI
+#   KURSANT_API_TARGET=https://szo.feer.org.pl         ← dev proxy (npm start)
 
 services:
+
+  # Nadpisuje env w serwisie app (PHP) — chooser użyje KURSANT_NEW_UI_URL
+  app:
+    environment:
+      KURSANT_NEW_UI_URL: ${KURSANT_NEW_UI_URL:-https://ti.feer.org.pl/newUI}
 
   kursant-ui:
     build:

@@ -75,15 +75,6 @@ if (file_exists($pfron_root)) {
     }
 
     /* ── Header ── */
-    .org {
-      font-size: .7rem;
-      font-weight: 600;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: .75rem;
-    }
-
     h1 {
       font-size: 2rem;
       font-weight: 800;
@@ -218,11 +209,8 @@ if (file_exists($pfron_root)) {
 
   <main id="main" class="wrap">
 
-    <p class="org">FEER · Centrum TI</p>
-    <h1>Panel<br>Kursanta</h1>
+    <h1>Wybierz<br>interfejs</h1>
     <hr>
-
-    <p class="section-label">Wybierz interfejs</p>
 
     <nav class="choices" aria-label="Wybór interfejsu">
       <a href="<?= htmlspecialchars($new_ui_url) ?>"
