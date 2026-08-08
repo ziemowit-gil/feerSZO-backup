@@ -78,6 +78,16 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [8, 10],      // między 8:00 a 10:00
     ],
+    'guardian_consent_renewal' => [
+        'file'     => __DIR__ . '/guardian_consent_renewal.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [7, 9],       // między 7:00 a 9:00
+    ],
+    'minor_volunteer_periodic_verification' => [
+        'file'     => __DIR__ . '/minor_volunteer_periodic_verification.php',
+        'interval' => 86400,        // raz dziennie (cykl 90-dniowy sprawdzany wewnątrz)
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'never_logged_in_reminder' => [
         'file'     => __DIR__ . '/agents/never_logged_in_reminder.php',
         'interval' => 86400,        // raz dziennie
@@ -99,6 +109,11 @@ $AGENTS = [
     ],
     'sync_m365_reverse' => [
         'file'     => __DIR__ . '/sync_m365_reverse.php',
+        'interval' => 3600,         // co godzinę
+        'schedule' => [1, 23],
+    ],
+    'sync_ldap' => [
+        'file'     => __DIR__ . '/sync_ldap.php',
         'interval' => 3600,         // co godzinę
         'schedule' => [1, 23],
     ],
