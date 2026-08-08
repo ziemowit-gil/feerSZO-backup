@@ -13,8 +13,8 @@ export class PlannerService {
   constructor(private api: ApiService) {}
 
   // ── ROOMS ─────────────────────────────────────────────────────────────
-  getRooms(): Observable<Room[]> {
-    return this.api.get<ApiResponse<Room[]>>('rooms').pipe(map(r => r.data));
+  getRooms(params: Record<string, string> = {}): Observable<Room[]> {
+    return this.api.get<ApiResponse<Room[]>>('rooms', params).pipe(map(r => r.data));
   }
   getRoom(id: number): Observable<Room> {
     return this.api.get<ApiResponse<Room>>('rooms', { id: String(id) }).pipe(map(r => r.data));

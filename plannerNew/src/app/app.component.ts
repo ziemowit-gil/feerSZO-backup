@@ -43,7 +43,7 @@ interface NavItem { icon: string; label: string; route: string; }
           <button mat-icon-button (click)="navOpen.set(!navOpen())" matTooltip="Menu">
             <mat-icon>menu</mat-icon>
           </button>
-          <span class="toolbar-title">Planner — Szkoła Programowania</span>
+          <span class="toolbar-title">SZO Planner</span>
           <span class="spacer"></span>
           <a mat-icon-button routerLink="/auth" matTooltip="Ustawienia API">
             <mat-icon>settings</mat-icon>

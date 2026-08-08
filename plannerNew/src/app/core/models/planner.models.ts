@@ -21,6 +21,8 @@ export interface Session {
   meeting_url: string;
 }
 
+export type RoomModeSupport = 'onsite' | 'remote' | 'hybrid' | 'all';
+
 export interface Room {
   id: number;
   name: string;
@@ -29,15 +31,13 @@ export interface Room {
   has_projector: number;
   has_dual_mon: number;
   laptop_pool_cnt: number;
-  mode_support: string;
+  mode_support: RoomModeSupport;
   location: string;
   notes: string;
   is_active: number;
-  // Extended fields used in UI
-  type?: string;
+  // Extended optional fields
   building?: string;
   floor?: string;
-  amenities?: string[];
 }
 
 export interface TechPath {

@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, signal } from '@angular/core';
+import { Component, Inject, OnInit, signal, computed } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -73,13 +73,17 @@ export interface SessionDialogData {
         </div>
         <div class="row2">
           <mat-form-field appearance="outline">
-            <mat-label>Sala</mat-label>
+            <mat-label>Sala / platforma</mat-label>
             <mat-select formControlName="room_id">
               <mat-option [value]="null">— brak —</mat-option>
-              @for (r of data.rooms; track r.id) {
-                <mat-option [value]="r.id">{{ r.name }} ({{ r.capacity }}os.)</mat-option>
+              @for (r of filteredRooms(); track r.id) {
+                <mat-option [value]="r.id">
+                  {{ r.mode_support === 'remote' ? '🌐' : r.mode_support === 'hybrid' ? '⚡' : '🏫' }}
+                  {{ r.name }} ({{ r.capacity }}os.)
+                </mat-option>
               }
             </mat-select>
+            <mat-hint>Filtruje sale zgodnie z trybem sesji</mat-hint>
           </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Draft</mat-label>
@@ -147,6 +151,17 @@ export class SessionDialogComponent implements OnInit {
   saving   = signal(false);
   checking = signal(false);
   conflicts = signal<ConflictResult | null>(null);
+  selectedMode = signal<string>('onsite');
+
+  filteredRooms = computed(() => {
+    const mode = this.selectedMode();
+    return this.data.rooms.filter(r => {
+      if (mode === 'remote')  return r.mode_support === 'remote'  || r.mode_support === 'all';
+      if (mode === 'onsite')  return r.mode_support === 'onsite'  || r.mode_support === 'all';
+      if (mode === 'hybrid')  return r.mode_support === 'hybrid'  || r.mode_support === 'all';
+      return true;
+    });
+  });
 
   get isEdit(): boolean { return !!this.data.session; }
 
@@ -171,7 +186,13 @@ export class SessionDialogComponent implements OnInit {
     });
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.selectedMode.set(this.form.value.mode ?? 'onsite');
+    this.form.get('mode')?.valueChanges.subscribe(m => {
+      this.selectedMode.set(m);
+      this.form.patchValue({ room_id: null });
+    });
+  }
 
   checkOnly(): void {
     this.checking.set(true);
