@@ -15,6 +15,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
@@ -55,7 +56,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'planner'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -1243,6 +1244,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <a class="dyd-gb-link <?= $tab==='dysk'?'active':'' ?>" href="index.php?tab=dysk"
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
+  </a>
+  <a class="dyd-gb-link <?= $tab==='planner'?'active':'' ?>" href="index.php?tab=planner"
+     <?= $tab==='planner'?'aria-current="page"':'' ?>>
+    <i class="bi bi-calendar3-week" aria-hidden="true"></i>Planner
   </a>
 </nav>
 
@@ -3308,6 +3313,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endif; ?>
   </div>
   <?php endif; /* dysk */ ?>
+
+  <?php if ($tab === 'planner'): ?>
+  <?php include __DIR__ . '/_tab_planner.php'; ?>
+  <?php endif; /* planner */ ?>
 
   <?php endif; /* $courses */ ?>
 
