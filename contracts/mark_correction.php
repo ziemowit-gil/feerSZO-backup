@@ -17,7 +17,7 @@ require_once dirname(__DIR__) . '/includes/contract_correction.php';
 require_once dirname(__DIR__) . '/includes/zlecenie_schema.php';
 require_once dirname(__DIR__) . '/includes/wolontariat_schema.php';
 
-require_role('admin', 'editor'); // TODO: zawęzić do dedykowanej roli audytora, gdy powstanie
+require_role('admin', 'editor');
 csrf_check();
 
 $type   = $_POST['type'] ?? '';
