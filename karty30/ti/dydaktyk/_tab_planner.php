@@ -154,6 +154,13 @@ $ajax_url    = h(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php');
       <button class="btn btn-sm btn-success" id="szoBtnSave">
         <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz
       </button>
+      <?php if ($sel_schedule && $sel_schedule['course_id']): ?>
+      <button class="btn btn-sm btn-outline-info" id="szoBtnPush"
+              data-bs-toggle="modal" data-bs-target="#szoPushModal"
+              title="Wrzuć do SZO jako szkice zajęć">
+        <i class="bi bi-box-arrow-in-down me-1" aria-hidden="true"></i>Wrzuć do SZO
+      </button>
+      <?php endif; ?>
       <?php endif; ?>
     </div>
   </div>
@@ -920,5 +927,121 @@ function esc(s) {
 
 init();
 
+/* ── "Kopiuj do harmonogramu" (sekcja planowania) ────── */
+document.querySelectorAll('.szo-copy-course-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cid  = btn.dataset.courseId;
+    const name = btn.dataset.courseName;
+    const sel = document.getElementById('szoSchedCourse');
+    if (sel) sel.value = cid;
+    const titleInp = document.getElementById('szoSchedTitle');
+    if (titleInp && !titleInp.value) titleInp.value = 'Harmonogram — ' + name;
+  });
+});
+
+/* ── Podpowiedź kursu w modalu nowego harmonogramu ───── */
+const courseSelect = document.getElementById('szoSchedCourse');
+if (courseSelect) {
+  courseSelect.addEventListener('change', () => {
+    // Placeholder: wzorzec zajęć pobieramy po stronie PHP już w <option>
+    // — tu można rozszerzyć o AJAX
+  });
+}
+
+/* ── Modal "Wrzuć do SZO" — wypełnij daty ──────────── */
+const pushModal = document.getElementById('szoPushModal');
+if (pushModal) {
+  pushModal.addEventListener('show.bs.modal', () => {
+    const cont = document.getElementById('szoPushDatesBody');
+    if (!cont) return;
+    const dayNums = Object.keys(state.days).map(Number).sort((a,b)=>a-b);
+    cont.innerHTML = dayNums.map(dn => {
+      const cnt = (state.days[dn] || []).length;
+      const mins = (state.days[dn] || []).reduce((s, id) => s + (ALL_BLOCKS[id]?.duration_min || 0), 0);
+      return `<div class="mb-2">
+        <label class="form-label small fw-semibold" for="szoPushDate${dn}">
+          Dzień ${dn} <span class="fw-normal text-body-secondary">${cnt} bloków · ${mins} min</span>
+        </label>
+        <input type="date" class="form-control form-control-sm" id="szoPushDate${dn}"
+               name="day_date_${dn}" data-day="${dn}" required>
+      </div>`;
+    }).join('');
+  });
+}
+
+/* ── Formularz "Wrzuć do SZO" ───────────────────────── */
+const pushForm = document.getElementById('szoPushForm');
+if (pushForm) {
+  pushForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const dayDates = {};
+    pushForm.querySelectorAll('input[type=date][data-day]').forEach(inp => {
+      if (inp.value) dayDates[inp.dataset.day] = inp.value;
+    });
+    const courseId = pushForm.querySelector('[name=push_course_id]')?.value || '';
+
+    const btn = pushForm.querySelector('[type=submit]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Wrzucam…'; }
+
+    try {
+      const fd = new FormData();
+      fd.append('action', 'schedule_push');
+      fd.append('schedule_id', SID);
+      fd.append('course_id', courseId);
+      fd.append('day_dates', JSON.stringify(dayDates));
+      fd.append('_token', TOKEN);
+      const r = await fetch(AJAX, {method:'POST', body:fd, headers:{'X-CSRF-Token':TOKEN}});
+      const j = await r.json();
+      if (j.ok) {
+        bootstrap.Modal.getInstance(pushModal).hide();
+        alert('✓ ' + j.msg);
+      } else {
+        alert('Błąd: ' + j.msg);
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Wrzuć do SZO'; }
+    }
+  });
+}
+
 })();
 </script>
+
+<?php if ($sel_schedule): ?>
+<!-- ── MODAL: Wrzuć do SZO ──────────────────────────── -->
+<div class="modal fade" id="szoPushModal" tabindex="-1" aria-labelledby="szoPushLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <form class="modal-content" id="szoPushForm">
+      <div class="modal-header">
+        <h3 class="modal-title h6 fw-bold" id="szoPushLabel">
+          <i class="bi bi-box-arrow-in-down me-2" aria-hidden="true"></i>Wrzuć do SZO jako Szkice
+        </h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-body-secondary mb-3">
+          Każdy blok stanie się osobną lekcją ze statusem <strong>Szkic</strong>.
+          Godziny wyznacza okno dostępności prowadzącego.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="szoPushCourse">Grupa</label>
+          <select class="form-select form-select-sm" id="szoPushCourse" name="push_course_id" required>
+            <option value="">— wybierz —</option>
+            <?php foreach ($courses as $c): ?>
+            <option value="<?= (int)$c['id'] ?>"
+              <?= ($pl_course_id && $pl_course_id === (int)$c['id']) ? 'selected' : '' ?>>
+              <?= h($c['name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div id="szoPushDatesBody"><!-- daty wstrzykuje JS --></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-sm btn-info">Wrzuć do SZO</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
