@@ -477,6 +477,14 @@ html.kp-metro-notice-dismissed .kp-metro-notice { display:none !important; }
       </span>
       <div class="d-flex align-items-center gap-3">
         <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
+        <?php if (defined('KURSANT_NEW_UI_URL')): ?>
+        <a href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/') ?>"
+           class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1"
+           title="Przejdź do nowej wersji panelu">
+          <i class="bi bi-stars" aria-hidden="true"></i>
+          <span class="d-none d-sm-inline">Nowy panel</span>
+        </a>
+        <?php endif; ?>
         <button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm" aria-label="Zmien schemat kolorow" title="Schemat kolorow">
           <i class="bi bi-palette" aria-hidden="true"></i>
         </button>

@@ -134,6 +134,12 @@ include __DIR__ . '/_layout_head.php';
       <hr class="my-4">
 
       <div class="kp-login-tiles">
+        <?php if (defined('KURSANT_NEW_UI_URL')): ?>
+        <a href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/') ?>"
+           class="btn btn-outline-primary w-100">
+          <i class="bi bi-stars me-2" aria-hidden="true"></i>Wypróbuj nowy panel (Angular)
+        </a>
+        <?php endif; ?>
         <a href="parent.php" class="btn btn-outline-secondary w-100 kp-tile-1">
           <i class="bi bi-people me-2" aria-hidden="true"></i>Rodzic / opiekun lub osoba upoważniona
         </a>
