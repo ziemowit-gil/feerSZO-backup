@@ -1179,6 +1179,49 @@ HTML;
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_comm_log_created ON k30_ti_comm_log(created_at)");
+
+    // Jednorazowe tokeny impersonacji dla paneli dydaktyk/kursant
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_imp_tokens (
+        token      TEXT     NOT NULL PRIMARY KEY,
+        type       TEXT     NOT NULL,
+        target_id  INTEGER  NOT NULL,
+        admin_id   INTEGER  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL
+    )");
+}
+
+// ── Impersonation helpers ─────────────────────────────────────────────────────
+
+/**
+ * Tworzy jednorazowy token impersonacji (ważny 30 s).
+ * @param  string $type      'dyd' lub 'stu'
+ * @param  int    $target_id users.id (dyd) lub k30_ti_student_accounts.id (stu)
+ * @param  int    $admin_id  aktywny admin SZO
+ * @return string token (hex 32)
+ */
+function k30_imp_token_create(string $type, int $target_id, int $admin_id): string {
+    $token = bin2hex(random_bytes(32));
+    db_insert('k30_imp_tokens', [
+        'token'     => $token,
+        'type'      => $type,
+        'target_id' => $target_id,
+        'admin_id'  => $admin_id,
+        'expires_at' => date('Y-m-d H:i:s', time() + 30),
+    ]);
+    // Czyść stare tokeny przy okazji
+    db_exec("DELETE FROM k30_imp_tokens WHERE expires_at < datetime('now')");
+    return $token;
+}
+
+/**
+ * Weryfikuje i konsumuje token. Zwraca ['type'=>..., 'target_id'=>..., 'admin_id'=>...] lub null.
+ */
+function k30_imp_token_consume(string $token): ?array {
+    $row = db_one("SELECT * FROM k30_imp_tokens WHERE token=? AND expires_at >= datetime('now')", [$token]);
+    if (!$row) return null;
+    db_exec("DELETE FROM k30_imp_tokens WHERE token=?", [$token]);
+    return $row;
 }
 
 // Konfiguracja statusów harmonogramu
