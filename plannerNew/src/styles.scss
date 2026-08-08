@@ -1,0 +1,205 @@
+/* ─── SZO Planner — Global Styles ─────────────────────────────────────── */
+
+/* ─── CSS Tokens — Light ─── */
+:root {
+  --bg:     #F0F2F5;
+  --sur:    #FFFFFF;
+  --sur-hi: #F5F7FA;
+  --bor:    #E2E5EA;
+  --acc:    #4F46E5;          /* Indigo-600 */
+  --acc-hi: #6366F1;
+  --t1:     #111827;
+  --t2:     #6B7280;
+  --t3:     #9CA3AF;
+}
+
+/* ─── CSS Tokens — Dark (OS preference) ─── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:     #0F1117;
+    --sur:    #1A1D27;
+    --sur-hi: #222533;
+    --bor:    #2D3148;
+    --acc:    #6366F1;
+    --acc-hi: #818CF8;
+    --t1:     #F1F3F8;
+    --t2:     #8B92A8;
+    --t3:     #555D75;
+  }
+}
+
+/* ─── Manual theme toggle overrides ─── */
+:root[data-theme="light"] {
+  --bg:     #F0F2F5;
+  --sur:    #FFFFFF;
+  --sur-hi: #F5F7FA;
+  --bor:    #E2E5EA;
+  --acc:    #4F46E5;
+  --acc-hi: #6366F1;
+  --t1:     #111827;
+  --t2:     #6B7280;
+  --t3:     #9CA3AF;
+}
+
+:root[data-theme="dark"] {
+  --bg:     #0F1117;
+  --sur:    #1A1D27;
+  --sur-hi: #222533;
+  --bor:    #2D3148;
+  --acc:    #6366F1;
+  --acc-hi: #818CF8;
+  --t1:     #F1F3F8;
+  --t2:     #8B92A8;
+  --t3:     #555D75;
+}
+
+/* ─── Base ─── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--t1);
+}
+
+/* ─── Angular Material theme overrides ─── */
+.mat-app-background { background: var(--bg) !important; }
+
+.mat-mdc-card {
+  background: var(--sur) !important;
+  border: 1px solid var(--bor);
+  border-radius: 8px !important;
+}
+
+.mat-mdc-form-field-subscript-wrapper { margin-bottom: 0; }
+
+/* Table */
+.mat-mdc-table {
+  background: var(--sur) !important;
+  color: var(--t1) !important;
+}
+.mat-mdc-header-cell {
+  color: var(--t2) !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: var(--sur-hi) !important;
+  border-bottom: 1px solid var(--bor) !important;
+}
+.mat-mdc-cell {
+  color: var(--t1) !important;
+  border-bottom: 1px solid var(--bor) !important;
+  font-size: 13.5px;
+}
+.mat-mdc-row:last-child td { border-bottom: none !important; }
+.mat-mdc-row:hover td { background: var(--sur-hi); }
+
+/* Sidenav */
+.mat-sidenav {
+  background: var(--sur) !important;
+  border-right: 1px solid var(--bor) !important;
+}
+.mat-sidenav-content { background: var(--bg) !important; }
+
+/* Tabs */
+.mat-mdc-tab-header { border-bottom: 1px solid var(--bor); }
+.mat-mdc-tab:not(.mdc-tab--active) { opacity: 0.65; }
+
+/* Dialog */
+.planner-dialog .mat-mdc-dialog-container {
+  background: var(--sur) !important;
+  border: 1px solid var(--bor);
+  border-radius: 10px !important;
+  padding: 0 !important;
+}
+
+.mat-mdc-dialog-title {
+  padding: 20px 24px 8px !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: var(--t1) !important;
+}
+.mat-mdc-dialog-content { padding: 0 24px 12px !important; }
+.mat-mdc-dialog-actions { padding: 12px 24px 20px !important; border-top: 1px solid var(--bor); }
+
+/* Snackbar */
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--sur);
+  --mdc-snackbar-supporting-text-color: var(--t1);
+  border: 1px solid var(--bor) !important;
+  border-radius: 6px !important;
+}
+
+/* Form fields */
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-outline-color: var(--bor);
+  --mdc-outlined-text-field-hover-outline-color: var(--acc);
+  --mdc-outlined-text-field-focus-outline-color: var(--acc);
+  --mdc-outlined-text-field-input-text-color: var(--t1);
+  --mdc-outlined-text-field-label-text-color: var(--t2);
+  --mdc-outlined-text-field-container-color: var(--sur);
+}
+
+/* Chips */
+.mat-mdc-chip { font-size: 11px !important; }
+
+/* Progress spinner */
+.mat-mdc-progress-spinner circle { stroke: var(--acc) !important; }
+
+/* Buttons */
+.mat-mdc-button:not([disabled]) { color: var(--acc) !important; }
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-flat-button.mat-primary { background: var(--acc) !important; color: #fff !important; }
+
+/* Icon button hover */
+.mat-mdc-icon-button:hover { background: var(--sur-hi) !important; }
+
+/* Menu */
+.mat-mdc-menu-panel {
+  background: var(--sur) !important;
+  border: 1px solid var(--bor) !important;
+  border-radius: 8px !important;
+}
+.mat-mdc-menu-item { color: var(--t1) !important; }
+.mat-mdc-menu-item:hover { background: var(--sur-hi) !important; }
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bor) transparent;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bor); border-radius: 3px; }
+
+/* ─── Page layout utility ─── */
+.page-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ─── Timetable ─── */
+.timetable-session {
+  position: absolute;
+  left: 4px; right: 4px;
+  border-radius: 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+  font-size: 11.5px;
+  line-height: 1.3;
+  overflow: hidden;
+  user-select: none;
+  transition: filter 0.12s;
+  color: #fff;
+}
+.timetable-session:hover { filter: brightness(1.1); }
+.timetable-session .sess-time { font-size: 10px; opacity: 0.85; }
+.timetable-session .sess-topic { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ─── Reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -20,6 +20,9 @@
  *   wallet           — portfele żetonów
  *   prices           — cennik żetonów
  *   basket           — koszyk uczestnika
+ *   szo-blocks       — biblioteka bloków modułowych (k30_szo_blocks)
+ *   szo-schedules    — harmonogramy SZO (k30_szo_schedules + days)
+ *   szo-solve        — mostek do Python solvera (FastAPI :8765)
  */
 
 declare(strict_types=1);
@@ -359,5 +362,249 @@ match ($resource) {
         api_error('Nieobsługiwana kombinacja metoda/akcja.', 405);
     })(),
 
-    default => api_error("Nieznany zasób '$resource'. Dostępne: rooms, laptops, meetings, tech-paths, sessions, instructors, check-conflicts, drafts, cycle-templates, audit, wallet, prices, basket.", 404),
+    /* ── BIBLIOTEKA BLOKÓW SZO ──────────────────────────────────────────── */
+    'szo-blocks' => (function () use ($method, $id) {
+        require_once dirname(__DIR__, 2) . '/includes/ti_planner.php';
+        ti_planner_migrate();
+        $uid = (int)($GLOBALS['api_current_key']['created_by'] ?? 0);
+
+        if ($method === 'GET' && $id) {
+            $b = szo_block_get($id);
+            if (!$b) api_error('Blok nie istnieje.', 404);
+            $b['tags']      = json_decode($b['tags']      ?? '[]', true);
+            $b['resources'] = json_decode($b['resources'] ?? '[]', true);
+            api_json(['data' => $b]);
+        }
+        if ($method === 'GET') {
+            $instr = $uid ?: (int)($_GET['instructor_id'] ?? 0);
+            if (!$instr) api_error('Wymagany instructor_id lub token właściciela.', 400);
+            $blocks = szo_blocks_list($instr);
+            foreach ($blocks as &$b) {
+                $b['tags']      = json_decode($b['tags']      ?? '[]', true);
+                $b['resources'] = json_decode($b['resources'] ?? '[]', true);
+            }
+            api_json(['data' => $blocks]);
+        }
+        if ($method === 'POST') {
+            $d = pl_input();
+            if (!$uid && !isset($d['instructor_id'])) api_error('Wymagany instructor_id.', 400);
+            $d['instructor_id'] = $uid ?: (int)$d['instructor_id'];
+            if (empty($d['title'])) api_error('Pole title jest wymagane.', 400);
+            if (isset($d['tags']) && is_string($d['tags'])) {
+                $d['tags'] = array_filter(array_map('trim', explode(',', $d['tags'])));
+            }
+            $new_id = szo_block_save($d);
+            api_json(['data' => szo_block_get($new_id)], 201);
+        }
+        if ($method === 'PUT' && $id) {
+            $existing = szo_block_get($id);
+            if (!$existing) api_error('Blok nie istnieje.', 404);
+            if ($uid && (int)$existing['instructor_id'] !== $uid) api_error('Brak dostępu.', 403);
+            $d = pl_input();
+            if (isset($d['tags']) && is_string($d['tags'])) {
+                $d['tags'] = array_filter(array_map('trim', explode(',', $d['tags'])));
+            }
+            szo_block_save($d, $id);
+            $b = szo_block_get($id);
+            $b['tags']      = json_decode($b['tags']      ?? '[]', true);
+            $b['resources'] = json_decode($b['resources'] ?? '[]', true);
+            api_json(['data' => $b]);
+        }
+        if ($method === 'DELETE' && $id) {
+            $existing = szo_block_get($id);
+            if (!$existing) api_error('Blok nie istnieje.', 404);
+            if ($uid && (int)$existing['instructor_id'] !== $uid) api_error('Brak dostępu.', 403);
+            szo_block_delete($id, (int)$existing['instructor_id']);
+            api_json(['data' => ['deleted' => true]]);
+        }
+        api_error('Nieobsługiwana metoda.', 405);
+    })(),
+
+    /* ── HARMONOGRAMY SZO ───────────────────────────────────────────────── */
+    'szo-schedules' => (function () use ($method, $id, $action) {
+        require_once dirname(__DIR__, 2) . '/includes/ti_planner.php';
+        ti_planner_migrate();
+        $uid = (int)($GLOBALS['api_current_key']['created_by'] ?? 0);
+        if (!$uid && !isset($_GET['instructor_id'])) api_error('Wymagany token właściciela lub ?instructor_id=.', 400);
+        $instr = $uid ?: (int)$_GET['instructor_id'];
+
+        if ($method === 'GET' && $id) {
+            $s = szo_schedule_get($id, $instr);
+            if (!$s) api_error('Harmonogram nie istnieje.', 404);
+            $s['settings'] = json_decode($s['settings_json'] ?? '{}', true);
+            api_json(['data' => $s]);
+        }
+        if ($method === 'GET') {
+            $list = szo_schedules_list($instr);
+            foreach ($list as &$s) {
+                $s['settings'] = json_decode($s['settings_json'] ?? '{}', true);
+            }
+            api_json(['data' => $list]);
+        }
+        if ($method === 'POST' && !$id) {
+            $d = pl_input();
+            $title    = trim($d['title'] ?? '');
+            $num_days = max(2, min(7, (int)($d['num_days'] ?? 3)));
+            if ($title === '') api_error('Pole title jest wymagane.', 400);
+            $sid = szo_schedule_create($instr, $title, $num_days);
+            api_json(['data' => szo_schedule_get($sid, $instr)], 201);
+        }
+        if ($method === 'PUT' && $id && $action === 'days') {
+            $d    = pl_input();
+            $days = $d['days'] ?? [];
+            if (!is_array($days)) api_error('Pole days musi być tablicą.', 400);
+            if (!szo_schedule_save_days($id, $instr, $days)) api_error('Harmonogram nie istnieje.', 404);
+            api_json(['data' => szo_schedule_get($id, $instr)]);
+        }
+        if ($method === 'DELETE' && $id) {
+            if (!db_one("SELECT id FROM k30_szo_schedules WHERE id=? AND instructor_id=?", [$id, $instr])) {
+                api_error('Harmonogram nie istnieje.', 404);
+            }
+            szo_schedule_delete($id, $instr);
+            api_json(['data' => ['deleted' => true]]);
+        }
+        api_error('Nieobsługiwana metoda lub parametry.', 405);
+    })(),
+
+    /* ── SOLVER (mostek do FastAPI Python :8765) ────────────────────────── */
+    'szo-solve' => (function () use ($method) {
+        if ($method !== 'POST') api_error('Tylko POST.', 405);
+        require_once dirname(__DIR__, 2) . '/includes/ti_planner.php';
+        ti_planner_migrate();
+
+        $d = pl_input();
+        $schedule_id = (int)($d['schedule_id'] ?? 0);
+        $mode        = in_array($d['mode'] ?? '', ['auto','mpp'], true) ? $d['mode'] : 'auto';
+        $uid         = (int)($GLOBALS['api_current_key']['created_by'] ?? 0);
+
+        if (!$schedule_id) api_error('Wymagany schedule_id.', 400);
+
+        $schedule = $uid
+            ? szo_schedule_get($schedule_id, $uid)
+            : db_one("SELECT * FROM k30_szo_schedules WHERE id=?", [$schedule_id]);
+        if (!$schedule) api_error('Harmonogram nie istnieje.', 404);
+
+        $instr = (int)$schedule['instructor_id'];
+        $blocks = szo_blocks_list($instr);
+
+        // Zbuduj payload dla Python solvera
+        $payload_blocks = [];
+        foreach ($blocks as $b) {
+            $payload_blocks[] = [
+                'id'              => (int)$b['id'],
+                'title'           => $b['title'],
+                'category'        => $b['category'],
+                'duration_min'    => (int)$b['duration_min'],
+                'difficulty'      => (int)$b['difficulty'],
+                'energy_impact'   => (int)$b['energy_impact'],
+                'min_break_after' => (int)$b['min_break_after'],
+                'locked'          => (bool)$b['locked'],
+            ];
+        }
+
+        $num_days = (int)$schedule['num_days'];
+        $phases   = ['foundation','intensive','synthesis','continuation','continuation','continuation','continuation'];
+        $payload_days = [];
+        foreach ($schedule['days'] as $day) {
+            $payload_days[] = [
+                'day_number' => (int)$day['day_number'],
+                'phase'      => $day['phase'] ?? ($phases[$day['day_number'] - 1] ?? 'continuation'),
+                'day_date'   => $day['day_date'] ?? null,
+            ];
+        }
+
+        // Istniejące sloty (z block_order w dniach) → existing_slots dla MPP
+        $existing_slots = [];
+        if ($mode === 'mpp') {
+            $start_time = '09:00';
+            $settings   = json_decode($schedule['settings_json'] ?? '{}', true) ?: [];
+            $start_min  = 0;
+            if (!empty($settings['dailyStartTime'])) {
+                [$h, $m] = explode(':', $settings['dailyStartTime']);
+                $start_min = (int)$h * 60 + (int)$m;
+            }
+            foreach ($schedule['days'] as $day) {
+                $cursor = $start_min ?: 540; // 09:00
+                foreach ($day['block_order'] as $bid) {
+                    $bid = (int)$bid;
+                    $blk = null;
+                    foreach ($blocks as $b) { if ((int)$b['id'] === $bid) { $blk = $b; break; } }
+                    if (!$blk) continue;
+                    $existing_slots[] = [
+                        'block_id'   => $bid,
+                        'day_number' => (int)$day['day_number'],
+                        'start_min'  => $cursor,
+                        'locked'     => false,
+                    ];
+                    $cursor += (int)$blk['duration_min'] + 10;
+                }
+            }
+        }
+
+        $settings_raw = json_decode($schedule['settings_json'] ?? '{}', true) ?: [];
+        $daily_settings = [
+            'start_time'         => $settings_raw['dailyStartTime']  ?? '09:00',
+            'end_time'           => $settings_raw['dailyEndTime']    ?? '17:00',
+            'max_minutes'        => (int)($settings_raw['maxDailyMinutes'] ?? 480),
+            'lunch_at'           => $settings_raw['lunchAt']         ?? '12:30',
+            'lunch_duration'     => (int)($settings_raw['lunchDuration'] ?? 60),
+            'break_interval_max' => (int)($settings_raw['breakIntervalMax'] ?? 90),
+            'auto_buffer_min'    => (int)($settings_raw['autoBufferMin'] ?? 10),
+        ];
+
+        $python_payload = json_encode([
+            'blocks'         => $payload_blocks,
+            'days'           => $payload_days,
+            'daily_settings' => $daily_settings,
+            'b2b_rules'      => [],
+            'mode'           => $mode,
+            'existing_slots' => $existing_slots,
+        ]);
+
+        $engine_url = defined('SZOPLANNER_ENGINE') ? SZOPLANNER_ENGINE : 'http://127.0.0.1:8765';
+        $ctx = stream_context_create([
+            'http' => [
+                'method'         => 'POST',
+                'header'         => "Content-Type: application/json\r\nAccept: application/json\r\n",
+                'content'        => $python_payload,
+                'timeout'        => 30,
+                'ignore_errors'  => true,
+            ],
+        ]);
+        $resp = @file_get_contents($engine_url . '/solve', false, $ctx);
+        if ($resp === false) {
+            api_error('Python engine niedostępny. Uruchom: uvicorn main:app --port 8765 w engine-python/.', 502);
+        }
+        $result = json_decode($resp, true);
+        if (!is_array($result)) api_error('Nieprawidłowa odpowiedź solvera.', 502);
+
+        // Przetłumacz sloty solvera na block_order per dzień i zapisz
+        if (!empty($result['ok']) && !empty($result['slots'])) {
+            $day_orders = [];
+            foreach ($result['slots'] as $slot) {
+                $dn  = (int)$slot['day_number'];
+                $bid = (int)$slot['block_id'];
+                $day_orders[$dn][] = ['bid' => $bid, 'start' => (int)$slot['start_min']];
+            }
+            $days_to_save = [];
+            foreach ($schedule['days'] as $day) {
+                $dn = (int)$day['day_number'];
+                $order_raw = $day_orders[$dn] ?? [];
+                usort($order_raw, fn($a, $b) => $a['start'] - $b['start']);
+                $days_to_save[] = [
+                    'day_number'  => $dn,
+                    'phase'       => $day['phase'],
+                    'day_date'    => $day['day_date'] ?? null,
+                    'block_order' => array_column($order_raw, 'bid'),
+                ];
+            }
+            szo_schedule_save_days($schedule_id, $instr, $days_to_save);
+        }
+
+        // Dołącz pełny harmonogram do odpowiedzi
+        $result['schedule'] = szo_schedule_get($schedule_id, $instr);
+        api_json(['data' => $result]);
+    })(),
+
+    default => api_error("Nieznany zasób '$resource'. Dostępne: rooms, laptops, meetings, tech-paths, sessions, instructors, check-conflicts, drafts, cycle-templates, audit, wallet, prices, basket, szo-blocks, szo-schedules, szo-solve.", 404),
 };
