@@ -57,7 +57,7 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
                      [attr.aria-required]="true">
               <button matIconSuffix type="button" mat-icon-button
                       [attr.aria-label]="showCurr() ? 'Ukryj obecne hasło' : 'Pokaż obecne hasło'"
-                      (click)="showCurr.update(v=>!v)">
+                      (click)="toggleCurr()">
                 <span class="material-symbols-outlined" aria-hidden="true">
                   {{ showCurr() ? 'visibility_off' : 'visibility' }}
                 </span>
@@ -75,7 +75,7 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
                      [attr.aria-required]="true">
               <button matIconSuffix type="button" mat-icon-button
                       [attr.aria-label]="showNew() ? 'Ukryj nowe hasło' : 'Pokaż nowe hasło'"
-                      (click)="showNew.update(v=>!v)">
+                      (click)="toggleNew()">
                 <span class="material-symbols-outlined" aria-hidden="true">
                   {{ showNew() ? 'visibility_off' : 'visibility' }}
                 </span>
@@ -224,6 +224,9 @@ export class UstawieniaComponent implements OnInit {
 
   showCurr = signal(false);
   showNew  = signal(false);
+
+  toggleCurr(): void { this.showCurr.set(!this.showCurr()); }
+  toggleNew(): void  { this.showNew.set(!this.showNew()); }
 
   changingPwd  = signal(false);
   pwdMsg       = signal<string | null>(null);

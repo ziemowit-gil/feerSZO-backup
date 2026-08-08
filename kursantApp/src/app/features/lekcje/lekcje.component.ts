@@ -123,7 +123,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
                       } @else {
                         <button mat-stroked-button
                                 class="btn-small"
-                                aria-label="Oceń lekcję z {{ lesson.date }}"
+                                [attr.aria-label]="'Oceń lekcję z ' + lesson.date"
                                 (click)="openRatingDialog(lesson)">
                           Oceń
                         </button>
@@ -138,14 +138,14 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
                         @if (!lesson.cancel_requested) {
                           <button mat-stroked-button
                                   class="btn-small btn-danger"
-                                  aria-label="Odwołaj lekcję z {{ lesson.date }}"
+                                  [attr.aria-label]="'Odwołaj lekcję z ' + lesson.date"
                                   (click)="cancelLesson(lesson)">
                             Odwołaj
                           </button>
                         } @else {
                           <button mat-stroked-button
                                   class="btn-small"
-                                  aria-label="Cofnij prośbę odwołania lekcji z {{ lesson.date }}"
+                                  [attr.aria-label]="'Cofnij prośbę odwołania lekcji z ' + lesson.date"
                                   (click)="uncancelLesson(lesson)">
                             Cofnij
                           </button>

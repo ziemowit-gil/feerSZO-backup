@@ -32,7 +32,7 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
     }
 
     @for (course of courses(); track course.course_id) {
-      <section class="k-card" aria-labelledby="course-{{ course.course_id }}-heading">
+      <section class="k-card" [attr.aria-labelledby]="'course-' + course.course_id + '-heading'">
         <div class="course-header">
           <h2 class="k-card-title" id="course-{{ course.course_id }}-heading">
             <span class="material-symbols-outlined" aria-hidden="true">school</span>

@@ -6,6 +6,7 @@ export interface LoginResponse {
   student: StudentAccount;
   client: ClientInfo;
   must_change_password: boolean;
+  error?: string;
 }
 
 export interface StudentAccount {
@@ -32,12 +33,6 @@ export interface StudentAccount {
 export interface ClientInfo {
   id: number;
   name: string;
-  email: string;
-  phone: string;
-}
-
-export interface ClientInfo {
-  id: number;
   first_name: string;
   last_name: string;
   email: string;

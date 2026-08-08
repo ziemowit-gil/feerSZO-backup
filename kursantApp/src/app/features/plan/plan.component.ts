@@ -34,7 +34,7 @@ interface CourseGroup { course_id: number; course_name: string; items: Curriculu
     }
 
     @for (group of courseGroups(); track group.course_id) {
-      <section class="k-card" aria-labelledby="plan-course-{{ group.course_id }}">
+      <section class="k-card" [attr.aria-labelledby]="'plan-course-' + group.course_id">
         <div class="plan-course-header">
           <h2 class="k-card-title mt-0" id="plan-course-{{ group.course_id }}">
             <span class="material-symbols-outlined" aria-hidden="true">school</span>

@@ -95,7 +95,7 @@ import { AuthService } from '../../core/auth/auth.service';
                       mat-icon-button
                       [attr.aria-label]="showPwd() ? 'Ukryj hasło' : 'Pokaż hasło'"
                       [attr.aria-pressed]="showPwd()"
-                      (click)="showPwd.update(v => !v)">
+                      (click)="togglePwd()">
                 <span class="material-symbols-outlined" aria-hidden="true">
                   {{ showPwd() ? 'visibility_off' : 'visibility' }}
                 </span>
@@ -321,6 +321,8 @@ export class LoginComponent {
   loading  = signal(false);
   error    = signal<string | null>(null);
   showPwd  = signal(false);
+
+  togglePwd(): void { this.showPwd.set(!this.showPwd()); }
 
   loginErrors = () => {
     const c = this.form.controls.login;

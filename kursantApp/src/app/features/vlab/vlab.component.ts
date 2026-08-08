@@ -63,7 +63,7 @@ import { VlabServer } from '../../core/models/kursant.models';
               @if (srv.web_terminal_url && srv.status === 'running') {
                 <button mat-flat-button
                         (click)="openTerminal(srv)"
-                        aria-label="Otwórz terminal WWW dla {{ srv.hostname }}">
+                        [attr.aria-label]="'Otwórz terminal WWW dla ' + srv.hostname">
                   <span class="material-symbols-outlined" aria-hidden="true">terminal</span>
                   Terminal WWW
                 </button>

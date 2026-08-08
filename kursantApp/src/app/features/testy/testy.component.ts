@@ -96,7 +96,7 @@ const TEST_STATUS_LABELS: Record<string, string> = {
             <a [href]="testUrl(test.id)"
                mat-flat-button
                class="test-start-btn"
-               aria-label="Rozpocznij test: {{ test.title }}">
+               [attr.aria-label]="'Rozpocznij test: ' + test.title">
               <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
               Rozpocznij test
             </a>

@@ -1,6 +1,6 @@
 import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -285,7 +285,8 @@ export class ZadaniaComponent implements OnInit {
   loading    = signal(true);
   groups     = signal<DydGroup[]>([]);
   submitMsg  = signal<string | null>(null);
-  submitForms: Record<number, ReturnType<typeof this.fb.nonNullable.group>> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  submitForms: Record<number, FormGroup<any>> = {};
   submitting: Record<number, boolean> = {};
   selectedFiles: Record<number, File> = {};
 
