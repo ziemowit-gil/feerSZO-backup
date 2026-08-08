@@ -108,6 +108,10 @@ if (!defined('LDAP_USERS_OU'))  define('LDAP_USERS_OU',  getenv('LDAP_USERS_OU')
 // W produkcji: https://szo-planner.feer.org.pl
 if (!defined('SZO_PLANNER_URL')) define('SZO_PLANNER_URL', getenv('SZO_PLANNER_URL') ?: 'http://localhost:4201');
 
+// URL nowego panelu kursanta (Angular 19). Lokalnie: http://localhost:4202
+// W produkcji: https://ti.feer.org.pl/newUI/
+if (!defined('KURSANT_NEW_UI_URL')) define('KURSANT_NEW_UI_URL', getenv('KURSANT_NEW_UI_URL') ?: 'http://localhost:4202');
+
 // ── Ścieżki ───────────────────────────────────────────────────────────────────
 if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/uploads/');
 if (!defined('APP_URL'))    define('APP_URL', (function() {
