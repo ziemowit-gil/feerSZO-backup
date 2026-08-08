@@ -22,6 +22,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/push.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -30,6 +31,11 @@ k30_ti_notif_migrate();
 ti_notices_migrate();
 pfron_migrate();
 helpdesk_migrate();
+
+// Streak + push — migracje schematu (bezpieczne ALTER TABLE)
+try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN login_streak INTEGER NOT NULL DEFAULT 0"); } catch(\Exception $e){}
+try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN last_login_date TEXT"); } catch(\Exception $e){}
+try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN push_subscription TEXT"); } catch(\Exception $e){}
 
 // Zakończenie podglądu administratora („zaloguj jako") — wróć do listy kont kursantów.
 if (isset($_GET['stop_impersonation'])) {
@@ -82,6 +88,20 @@ $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student[
 // Konto usunięte/zablokowane w trakcie sesji → wyloguj
 if (!$account || empty($account['is_active'])) { student_logout(); header('Location: login.php'); exit; }
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]) ?: [];
+
+// ── Streak aktywności — aktualizuj raz dziennie ────────────────────────────
+$today_str = date('Y-m-d');
+if (($account['last_login_date'] ?? '') !== $today_str) {
+    $yesterday  = date('Y-m-d', strtotime('-1 day'));
+    $new_streak = ($account['last_login_date'] === $yesterday)
+                ? (int)$account['login_streak'] + 1
+                : 1;
+    db_exec("UPDATE k30_ti_student_accounts SET login_streak=?, last_login_date=? WHERE id=?",
+        [$new_streak, $today_str, (int)$account['id']]);
+    $account['login_streak']    = $new_streak;
+    $account['last_login_date'] = $today_str;
+}
+$streak = (int)($account['login_streak'] ?? 0);
 
 // ── Odwołanie / przywrócenie udziału w lekcji przez Beneficjenta ─────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -549,6 +569,27 @@ $courses          = k30_ti_client_courses($student['client_id']);
 $active_courses   = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') === 'active'));
 $inactive_courses = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') !== 'active'));
 
+// ── Pasek postępu kursu ────────────────────────────────────────────────────
+$progress_total = 0;
+$progress_done  = 0;
+foreach ($courses as $c) {
+    $cid = (int)$c['course_id'];
+    try {
+        $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_curriculum WHERE course_id=?", [$cid])['n'] ?? 0);
+    } catch (\Exception $e) { $tot = 0; }
+    if ($tot === 0) {
+        // Fallback: liczba lekcji z k30_ti_lessons jako denominator
+        $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lessons WHERE course_id=?", [$cid])['n'] ?? 0);
+    }
+    $don = (int)(db_one(
+        "SELECT COUNT(*) AS n FROM k30_ti_lessons WHERE course_id=? AND client_id=? AND status IN ('held','remote_material')",
+        [$cid, (int)$student['client_id']]
+    )['n'] ?? 0);
+    $progress_total += $tot;
+    $progress_done  += $don;
+}
+$progress_pct = $progress_total > 0 ? round($progress_done / $progress_total * 100) : 0;
+
 // Następna zaplanowana lekcja (do widgetu na dashboardzie)
 $next_lesson = db_one(
     "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
@@ -715,6 +756,10 @@ $KP_TOPBAR = [
     'logout' => 'index.php?logout=1',
     'notifications' => ob_get_clean(),
 ];
+// VAPID public key — przekazywany do JS przez data-atrybut na <body>
+$_vapid = push_vapid_keys();
+$vapid_public_key = $_vapid['public'];
+$KP_BODY_CLASS = ($KP_BODY_CLASS ?? '');
 include __DIR__ . '/_layout_head.php';
 ?>
 
@@ -1256,6 +1301,88 @@ document.addEventListener('DOMContentLoaded', function() {
     </a>
   </div>
 
+  <!-- ── Pasek postępu kursu ─────────────────────────────────────────────── -->
+  <?php if ($progress_total > 0): ?>
+  <div class="mb-3">
+    <div class="d-flex justify-content-between small text-body-secondary mb-1">
+      <span><i class="bi bi-graph-up me-1"></i>Postęp kursu</span>
+      <span><?= $progress_done ?>/<?= $progress_total ?> lekcji (<?= $progress_pct ?>%)</span>
+    </div>
+    <div class="progress" style="height:8px" role="progressbar"
+         aria-valuenow="<?= $progress_pct ?>" aria-valuemin="0" aria-valuemax="100"
+         aria-label="Postęp kursu <?= $progress_pct ?>%">
+      <div class="progress-bar bg-primary" style="width:<?= $progress_pct ?>%"></div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Dashboard widżety ─────────────────────────────────────────────── -->
+  <?php
+    $instructors_for_quick = db_all(
+        "SELECT DISTINCT u.id, u.name FROM users u
+         JOIN k30_ti_lessons l ON l.instructor_id = u.id
+         WHERE l.client_id=? AND l.lesson_date >= date('now','-30 days')
+         ORDER BY l.lesson_date DESC LIMIT 5",
+        [(int)$student['client_id']]
+    );
+  ?>
+  <div class="row g-3 mb-4">
+    <!-- Następna lekcja -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card h-100 border-0 shadow-sm kp-dash-card">
+        <div class="card-body">
+          <div class="text-body-secondary small mb-1"><i class="bi bi-calendar-check me-1"></i>Następna lekcja</div>
+          <?php if ($next_lesson): ?>
+            <div class="fw-bold"><?= date('d.m', strtotime($next_lesson['lesson_date'])) ?></div>
+            <div class="small text-body-secondary"><?= h($next_lesson['course_name']) ?></div>
+            <?php if (!empty($next_lesson['time_from'])): ?>
+            <div class="small text-body-secondary"><?= substr((string)$next_lesson['time_from'], 0, 5) ?><?= !empty($next_lesson['time_to']) ? '–'.substr((string)$next_lesson['time_to'], 0, 5) : '' ?></div>
+            <?php endif; ?>
+          <?php else: ?>
+            <div class="small text-body-secondary">Brak zaplanowanych</div>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+    <!-- Zadania do oddania -->
+    <div class="col-sm-6 col-lg-3">
+      <a href="?tab=zadania" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
+        <div class="card-body">
+          <div class="text-body-secondary small mb-1"><i class="bi bi-journal-check me-1"></i>Zadania do oddania</div>
+          <div class="fw-bold fs-4 <?= $hw_pending_total > 0 ? 'text-warning' : '' ?>"><?= $hw_pending_total ?></div>
+          <div class="small text-body-secondary"><?= $hw_pending_total > 0 ? 'Wymaga uwagi' : 'Wszystko oddane' ?></div>
+        </div>
+      </a>
+    </div>
+    <!-- Wiadomości -->
+    <div class="col-sm-6 col-lg-3">
+      <a href="?tab=wiadomosci" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
+        <div class="card-body">
+          <div class="text-body-secondary small mb-1"><i class="bi bi-envelope me-1"></i>Nowe wiadomości</div>
+          <div class="fw-bold fs-4 <?= $msg_unread > 0 ? 'text-primary' : '' ?>"><?= (int)$msg_unread ?></div>
+          <div class="small text-body-secondary"><?= $msg_unread > 0 ? 'Nieprzeczytane' : 'Brak nowych' ?></div>
+        </div>
+      </a>
+    </div>
+    <!-- Streak aktywności -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card h-100 border-0 shadow-sm kp-dash-card">
+        <div class="card-body">
+          <div class="text-body-secondary small mb-1"><i class="bi bi-fire me-1"></i>Streak aktywności</div>
+          <div class="fw-bold fs-4 <?= $streak >= 7 ? 'text-danger' : ($streak >= 3 ? 'text-warning' : '') ?>"><?= $streak ?></div>
+          <div class="small text-body-secondary"><?= $streak === 1 ? 'dzień z rzędu' : 'dni z rzędu' ?></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php if ($instructors_for_quick): ?>
+  <div class="mb-4">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
+      <i class="bi bi-chat-dots me-1"></i>Napisz do prowadzącego
+    </button>
+  </div>
+  <?php endif; ?>
+
   <!-- ── Duży skrót do eLearning — widoczny po zalogowaniu ────────────────────── -->
   <div class="card border-0 shadow-sm mb-4 text-bg-primary">
     <div class="card-body d-flex flex-wrap align-items-center gap-3">
@@ -1263,7 +1390,6 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="flex-grow-1 min-width-0">
         <h2 class="h5 fw-bold mb-1">Dydaktyka / eLearning</h2>
         <p class="mb-1">Materiały do nauki, zadania domowe i oceny — wszystko w jednym miejscu.</p>
-        <p class="small mb-0"><i class="bi bi-stars me-1" aria-hidden="true"></i>Nowość — docelowo eLearning prawdopodobnie zastąpi zadania z Moodle.</p>
       </div>
       <a href="?tab=zadania" class="btn btn-light btn-lg fw-semibold flex-shrink-0">
         <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do eLearning
@@ -1574,7 +1700,32 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
-<?php elseif ($tab === 'lekcje'): ?>
+<?php elseif ($tab === 'lekcje'):
+  // ── Mini-kalendarz — dane ────────────────────────────────────────────────
+  $cal_month = (int)($_GET['cal_m'] ?? date('n'));
+  $cal_year  = (int)($_GET['cal_y'] ?? date('Y'));
+  if ($cal_month < 1)  { $cal_month = 12; $cal_year--; }
+  if ($cal_month > 12) { $cal_month = 1;  $cal_year++; }
+  $cal_first = mktime(0, 0, 0, $cal_month, 1, $cal_year);
+  $cal_days  = (int)date('t', $cal_first);
+  $cal_lessons_raw = db_all(
+      "SELECT lesson_date, status FROM k30_ti_lessons
+       WHERE client_id=? AND lesson_date LIKE ?",
+      [(int)$student['client_id'], sprintf('%04d-%02d-%%', $cal_year, $cal_month)]
+  );
+  $cal_by_day = [];
+  foreach ($cal_lessons_raw as $r) {
+      $d = (int)substr($r['lesson_date'], 8, 2);
+      $cal_by_day[$d][] = $r['status'];
+  }
+  // Nawigacja miesiąc poprzedni / następny
+  $cal_prev_m = $cal_month - 1; $cal_prev_y = $cal_year;
+  if ($cal_prev_m < 1) { $cal_prev_m = 12; $cal_prev_y--; }
+  $cal_next_m = $cal_month + 1; $cal_next_y = $cal_year;
+  if ($cal_next_m > 12) { $cal_next_m = 1; $cal_next_y++; }
+  $months_pl_long = [1=>'Styczeń',2=>'Luty',3=>'Marzec',4=>'Kwiecień',5=>'Maj',6=>'Czerwiec',
+                     7=>'Lipiec',8=>'Sierpień',9=>'Wrzesień',10=>'Październik',11=>'Listopad',12=>'Grudzień'];
+?>
 
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
@@ -1657,6 +1808,65 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
+  <!-- ── Mini-kalendarz lekcji ──────────────────────────────────────────── -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2 py-2">
+      <i class="bi bi-calendar3 text-primary" aria-hidden="true"></i>
+      <span class="fw-semibold flex-grow-1"><?= h($months_pl_long[$cal_month]) ?> <?= $cal_year ?></span>
+      <a href="?tab=lekcje&cal_m=<?= $cal_prev_m ?>&cal_y=<?= $cal_prev_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Poprzedni miesiąc">
+        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+      </a>
+      <a href="?tab=lekcje&cal_m=<?= $cal_next_m ?>&cal_y=<?= $cal_next_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Następny miesiąc">
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </a>
+    </div>
+    <div class="card-body p-2">
+      <?php
+        $cal_dow_first = (int)date('N', $cal_first); // 1=Pon .. 7=Nd
+        $today_d = (int)date('d'); $today_m = (int)date('n'); $today_y = (int)date('Y');
+        $cal_dow_names = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+        $col = 0;
+      ?>
+      <table class="kp-mini-cal" aria-label="Kalendarz <?= h($months_pl_long[$cal_month]) ?> <?= $cal_year ?>">
+        <thead>
+          <tr><?php foreach ($cal_dow_names as $dn): ?><th><?= h($dn) ?></th><?php endforeach; ?></tr>
+        </thead>
+        <tbody>
+          <tr>
+          <?php
+          // Puste komórki przed pierwszym dniem
+          for ($i = 1; $i < $cal_dow_first; $i++, $col++) { echo '<td></td>'; }
+          for ($day = 1; $day <= $cal_days; $day++, $col++) {
+              if ($col > 0 && $col % 7 === 0) echo '</tr><tr>';
+              $is_today = ($day === $today_d && $cal_month === $today_m && $cal_year === $today_y);
+              $statuses = $cal_by_day[$day] ?? [];
+              echo '<td' . ($is_today ? ' class="cal-today"' : '') . '>';
+              echo '<span>' . $day . '</span>';
+              if ($statuses) {
+                  echo '<div class="d-flex justify-content-center flex-wrap" style="gap:1px;margin-top:2px">';
+                  foreach (array_slice($statuses, 0, 3) as $st) {
+                      $dotcls = in_array($st, ['held','remote_material'], true) ? 'cal-dot-held'
+                              : (in_array($st, ['cancelled','removed','excused'], true) ? 'cal-dot-cancelled' : 'cal-dot-planned');
+                      echo '<span class="cal-dot ' . $dotcls . '" aria-hidden="true"></span>';
+                  }
+                  echo '</div>';
+              }
+              echo '</td>';
+          }
+          // Puste komórki do końca wiersza
+          $remaining = 7 - ($col % 7);
+          if ($remaining < 7) for ($i = 0; $i < $remaining; $i++) echo '<td></td>';
+          ?>
+          </tr>
+        </tbody>
+      </table>
+      <div class="d-flex gap-3 mt-2 px-1" style="font-size:.72rem">
+        <span class="d-flex align-items-center gap-1"><span class="cal-dot cal-dot-held"></span>odbyta</span>
+        <span class="d-flex align-items-center gap-1"><span class="cal-dot cal-dot-planned"></span>zaplanowana</span>
+        <span class="d-flex align-items-center gap-1"><span class="cal-dot cal-dot-cancelled"></span>odwołana</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Lista lekcji — zwijane grupy: nadchodzące / minione -->
   <?php
@@ -3595,6 +3805,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
+      <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
       <a href="#ust-cal"    class="ust-navlink btn btn-sm text-start"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Kalendarz</a>
     </nav>
   </div>
@@ -3909,6 +4120,28 @@ document.addEventListener('DOMContentLoaded', function() {
         <script>document.addEventListener('DOMContentLoaded', function(){ if (window.bootstrap) new bootstrap.Modal(document.getElementById('phonesModal')).show(); });</script>
         <?php endif; ?>
         <?php endif; ?>
+      </div>
+    </section>
+
+    <!-- 2b. Powiadomienia push -->
+    <section id="ust-push" class="card" aria-labelledby="ust-push-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-bell text-primary" aria-hidden="true"></i>
+        <h2 id="ust-push-h" class="h6 fw-bold mb-0">Powiadomienia push</h2>
+      </div>
+      <div class="card-body">
+        <p class="small text-body-secondary mb-3">
+          Otrzymuj powiadomienia przeglądarkowe o nowych wiadomościach od prowadzącego i ocenach — nawet gdy panel jest zamknięty.
+        </p>
+        <button type="button" class="btn btn-primary btn-sm kp-push-enable-btn" onclick="kpEnablePush()" style="display:none">
+          <i class="bi bi-bell-fill me-1"></i>Włącz powiadomienia
+        </button>
+        <span class="kp-push-enabled text-success small" style="display:none">
+          <i class="bi bi-check-circle me-1"></i>Powiadomienia push włączone
+        </span>
+        <span class="kp-push-unsupported text-body-secondary small" style="display:none">
+          <i class="bi bi-info-circle me-1"></i>Twoja przeglądarka nie obsługuje powiadomień push.
+        </span>
       </div>
     </section>
 
@@ -4643,5 +4876,69 @@ $authp_list = db_all(
 <?php endif; ?>
 
 </main>
+
+<!-- ── Modal: szybka wiadomość do prowadzącego (z dashboardu) ──────────── -->
+<?php if (!empty($instructors_for_quick ?? [])): ?>
+<div class="modal fade" id="modalQuickMsg" tabindex="-1" aria-labelledby="modalQuickMsgLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h2 class="modal-title h5 fw-bold" id="modalQuickMsgLabel"><i class="bi bi-chat-dots me-2"></i>Szybka wiadomość</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="msg_new">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Prowadzący</label>
+            <select name="thread_subject" class="form-select form-select-sm">
+              <?php foreach ($instructors_for_quick as $ins): ?>
+              <option value="Wiadomość do: <?= h($ins['name']) ?>"><?= h($ins['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="quickMsgBody">Wiadomość</label>
+            <textarea name="body" id="quickMsgBody" class="form-control form-control-sm" rows="4" required placeholder="Napisz wiadomość…" maxlength="4000"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Wyślij</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ── Bottom nav — widoczny tylko na mobile (<= lg) ────────────────────── -->
+<nav class="d-lg-none fixed-bottom bg-body border-top" style="padding-bottom:env(safe-area-inset-bottom)" aria-label="Nawigacja główna (mobile)">
+  <div class="d-flex justify-content-around py-1">
+    <a href="?tab=dane" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='dane' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
+      <i class="bi bi-house<?= $tab==='dane' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
+      <span style="font-size:.65rem">Dane</span>
+    </a>
+    <a href="?tab=lekcje" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='lekcje' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
+      <i class="bi bi-calendar<?= $tab==='lekcje' ? '-check-fill' : '-check' ?>" style="font-size:1.3rem"></i>
+      <span style="font-size:.65rem">Lekcje</span>
+    </a>
+    <a href="?tab=zadania" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 position-relative <?= $tab==='zadania' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
+      <i class="bi bi-journal<?= $tab==='zadania' ? '-check' : '' ?>" style="font-size:1.3rem"></i>
+      <?php if ($hw_pending_total > 0): ?><span class="position-absolute badge rounded-pill bg-warning text-dark" style="top:0;right:4px;font-size:.55rem;padding:.2em .4em"><?= $hw_pending_total ?></span><?php endif; ?>
+      <span style="font-size:.65rem">Zadania</span>
+    </a>
+    <a href="?tab=wiadomosci" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 position-relative <?= $tab==='wiadomosci' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
+      <i class="bi bi-envelope<?= $tab==='wiadomosci' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
+      <?php if ($msg_unread > 0): ?><span class="position-absolute badge rounded-pill bg-primary" style="top:0;right:4px;font-size:.55rem;padding:.2em .4em"><?= $msg_unread ?></span><?php endif; ?>
+      <span style="font-size:.65rem">Wiad.</span>
+    </a>
+    <a href="?tab=ustawienia" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='ustawienia' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
+      <i class="bi bi-gear<?= $tab==='ustawienia' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
+      <span style="font-size:.65rem">Więcej</span>
+    </a>
+  </div>
+</nav>
 
 <?php include __DIR__ . '/_layout_foot.php'; ?>

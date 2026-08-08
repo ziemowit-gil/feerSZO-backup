@@ -113,6 +113,33 @@
 })();
 </script>
 <script>
+// Powrót do ostatniej zakładki (poza 'dane') po wejściu na stronę bez ?tab=
+(function(){
+  var TAB_KEY = 'kp_last_tab';
+  var SKIP = ['dane'];
+  // Odczytaj aktualny tab z URL
+  var urlTab = (new URLSearchParams(window.location.search)).get('tab') || 'dane';
+  if (urlTab === 'dane' || urlTab === '') {
+    // Sprawdź zapisaną zakładkę
+    try {
+      var saved = localStorage.getItem(TAB_KEY);
+      if (saved && SKIP.indexOf(saved) === -1) {
+        location.replace('?tab=' + encodeURIComponent(saved));
+      }
+    } catch(e) {}
+  }
+  // Zapisuj przy kliknięciu linków zakładek
+  document.addEventListener('click', function(e) {
+    var a = e.target.closest('a[href*="?tab="]');
+    if (!a) return;
+    var m = a.getAttribute('href').match(/[?&]tab=([^&]+)/);
+    if (m && SKIP.indexOf(decodeURIComponent(m[1])) === -1) {
+      try { localStorage.setItem(TAB_KEY, decodeURIComponent(m[1])); } catch(e) {}
+    }
+  });
+})();
+</script>
+<script>
 // Miernik siły hasła — czysto informacyjny (nie blokuje wysyłki), wołany z oninput na polu "nowe hasło".
 // prefix identyfikuje parę elementów: #<prefix>-bar (pasek) i #<prefix>-text (opis dla czytnika ekranu).
 function kpPwMeter(input, prefix) {
@@ -138,6 +165,65 @@ function kpPwMeter(input, prefix) {
   bar.style.width = levels.pct + '%';
   bar.className = 'progress-bar ' + levels.cls;
   text.textContent = 'Siła hasła: ' + levels.label;
+}
+</script>
+<script>
+// ── Web Push — rejestracja Service Workera i obsługa przycisku ───────────────
+(function(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    // Przeglądarka nie obsługuje push — ukryj przycisk, pokaż info
+    document.querySelectorAll('.kp-push-unsupported').forEach(function(el){ el.style.display = ''; });
+    return;
+  }
+  navigator.serviceWorker.register('push_sw.js').then(function(reg) {
+    window._kp_sw_reg = reg;
+    return reg.pushManager.getSubscription();
+  }).then(function(sub) {
+    if (sub) {
+      document.querySelectorAll('.kp-push-enabled').forEach(function(el){ el.style.display = ''; });
+      document.querySelectorAll('.kp-push-enable-btn').forEach(function(btn){ btn.style.display = 'none'; });
+    } else {
+      document.querySelectorAll('.kp-push-enable-btn').forEach(function(btn){ btn.style.display = ''; });
+    }
+  }).catch(function(){
+    document.querySelectorAll('.kp-push-enable-btn').forEach(function(btn){ btn.style.display = ''; });
+  });
+})();
+
+function kpEnablePush() {
+  if (!window._kp_sw_reg) { alert('Service Worker nie jest jeszcze załadowany. Odśwież stronę.'); return; }
+  var vapidKey = document.body.getAttribute('data-vapid-key') || '';
+  if (!vapidKey) { alert('Klucz VAPID nie jest skonfigurowany — skontaktuj się z administratorem.'); return; }
+  window._kp_sw_reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidKey)
+  }).then(function(sub) {
+    return fetch('push_subscribe.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'subscribe', subscription: sub.toJSON()})
+    });
+  }).then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      document.querySelectorAll('.kp-push-enable-btn').forEach(function(b){ b.style.display = 'none'; });
+      document.querySelectorAll('.kp-push-enabled').forEach(function(e){ e.style.display = ''; });
+    } else {
+      alert('Nie udało się włączyć powiadomień: ' + (data.error || 'nieznany błąd'));
+    }
+  }).catch(function(e){
+    console.warn('Push subscribe failed', e);
+    alert('Nie udało się włączyć powiadomień. Sprawdź, czy Twoja przeglądarka ma zezwolenie na powiadomienia dla tej strony.');
+  });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = window.atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
 }
 </script>
 </body>

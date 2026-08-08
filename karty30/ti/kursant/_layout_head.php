@@ -240,6 +240,25 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 .kp-a11y-panel[hidden] { display:none; }
 @media (max-width:575.98px){ .kp-a11y-panel { top:auto; bottom:.5rem; } }
 
+/* ── Bottom nav mobile ──────────────────────────────────────────────────── */
+@media (max-width:991.98px) {
+  main { padding-bottom: 70px !important; }
+}
+/* ── Progress bar postępu kursu ─────────────────────────────────────────── */
+.kp-progress { height: 8px; border-radius: 4px; }
+/* ── Dashboard cards ────────────────────────────────────────────────────── */
+.kp-dash-card { transition: box-shadow .15s; }
+.kp-dash-card:hover { box-shadow: 0 .25rem .75rem rgba(0,0,0,.12) !important; }
+/* ── Mini-kalendarz lekcji ──────────────────────────────────────────────── */
+.kp-mini-cal { width: 100%; table-layout: fixed; font-size: .82rem; }
+.kp-mini-cal th { text-align: center; padding: .25rem; color: var(--bs-secondary-color); font-weight: 600; }
+.kp-mini-cal td { text-align: center; padding: .3rem .1rem; vertical-align: top; }
+.kp-mini-cal .cal-today { background: rgba(var(--bs-primary-rgb),.1); border-radius: .3rem; }
+.kp-mini-cal .cal-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin: 1px; }
+.kp-mini-cal .cal-dot-held { background: #22c55e; }
+.kp-mini-cal .cal-dot-planned { background: #3b82f6; }
+.kp-mini-cal .cal-dot-cancelled { background: #94a3b8; }
+
 /* ══ Motyw Metro (kafle, ostre kąty, płaskie kolory — Windows 8 / Modern UI) ══ */
 /* Ogólny reset kształtu: bez zaokrągleń i cieni w całym panelu */
 [data-kp-scheme="metro"] .card, [data-kp-scheme="metro"] .btn, [data-kp-scheme="metro"] .badge,
@@ -389,7 +408,7 @@ html.kp-metro-notice-dismissed .kp-metro-notice { display:none !important; }
 [data-kp-scheme="metro"] .dropdown-divider { display:none; }
 </style>
 </head>
-<body class="<?= h($KP_BODY_CLASS) ?>">
+<body class="<?= h($KP_BODY_CLASS) ?>"<?php if (!empty($vapid_public_key ?? '')): ?> data-vapid-key="<?= h($vapid_public_key) ?>"<?php endif; ?>>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
 
 <!-- ══ Menu dostępności (a11y) ══════════════════════════════════════════════ -->
