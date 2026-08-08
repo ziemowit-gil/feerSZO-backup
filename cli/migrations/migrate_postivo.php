@@ -60,6 +60,7 @@ foreach ($new_columns as $col => $type) {
 $defaults = [
     'postivo_enabled'        => '0',
     'postivo_api_key'        => '',
+    'postivo_config_id'      => '',
     'postivo_return_address' => '',
     'postivo_sender_name'    => '',
 ];

@@ -396,14 +396,12 @@ if (can_edit() && postivo_setting('postivo_enabled') === '1'):
             <label class="form-label form-label-sm fw-semibold mb-1">Kraj</label>
             <select name="country" class="form-select form-select-sm">
               <option value="PL" selected>PL — Polska</option>
-              <!-- TODO: Dodaj inne kraje jeśli Postivo.pl obsługuje wysyłkę zagraniczną -->
             </select>
           </div>
 
           <div class="col-6 d-flex align-items-end">
             <div class="form-text text-muted mb-1">
-              <!-- TODO: Zastąp szacowaną ceną z API gdy dostępne -->
-              <i class="bi bi-tag"></i> Koszt: ~wyliczany po wysłaniu
+              <i class="bi bi-tag"></i> Koszt: wyliczany przez Postivo.pl
             </div>
           </div>
         </div>

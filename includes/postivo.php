@@ -1,12 +1,8 @@
 <?php
 /**
  * Integracja z Postivo.pl — wysyłka fizycznych listów pocztą.
- *
- * TODO: Gdy otrzymasz dostęp do API Postivo.pl, zaktualizuj:
- *   - Endpointy w PostivoClient::request()
- *   - Strukturę payloadu w PostivoClient::send_letter()
- *   - Strukturę odpowiedzi w PostivoClient::get_status() i get_price()
- *   - Dokumentacja API (spekulatywny URL): https://postivo.pl/api-docs
+ * API: https://api.postivo.pl/rest/v1/
+ * Auth: Bearer token, generowany w ustawieniach konta Postivo.
  */
 
 function postivo_setting(string $key): string {
@@ -21,38 +17,50 @@ function postivo_setting(string $key): string {
 class PostivoClient
 {
     private string $api_key;
-    private string $base_url = 'https://api.postivo.pl/v1';
+    private string $base_url = 'https://api.postivo.pl/rest/v1';
 
     public function __construct()
     {
         $this->api_key = postivo_setting('postivo_api_key');
     }
 
-    /**
-     * Sprawdza czy klucz API jest skonfigurowany.
-     */
     public function is_configured(): bool
     {
         return $this->api_key !== '';
     }
 
     /**
-     * Tworzy zlecenie wysyłki listu przez Postivo.pl.
+     * Testuje połączenie — GET /account. Zwraca saldo konta przy sukcesie.
      *
-     * @param array $params Wymagane klucze:
-     *   - recipient_name  (string)
-     *   - address_line1   (string)
-     *   - address_line2   (string, opcjonalny)
-     *   - city            (string)
-     *   - postcode        (string)
-     *   - country         (string, domyślnie 'PL')
-     *   - pdf_path        (string, lokalna ścieżka do pliku PDF)
+     * @return array ['ok' => bool, 'msg' => string, 'balance' => float|null]
+     */
+    public function ping(): array
+    {
+        if (!$this->is_configured()) {
+            return ['ok' => false, 'msg' => 'Brak klucza API.', 'balance' => null];
+        }
+        try {
+            $result  = $this->request('GET', '/account');
+            $balance = isset($result['balance']) ? (float)$result['balance'] : null;
+            $msg     = 'Połączenie nawiązane pomyślnie.';
+            if ($balance !== null) {
+                $msg .= ' Saldo konta: ' . number_format($balance, 2, ',', ' ') . ' zł.';
+            }
+            return ['ok' => true, 'msg' => $msg, 'balance' => $balance];
+        } catch (RuntimeException $e) {
+            return ['ok' => false, 'msg' => $e->getMessage(), 'balance' => null];
+        }
+    }
+
+    /**
+     * Tworzy zlecenie wysyłki listu — POST /shipment.
      *
-     * @return array Tablica z kluczem 'id' (identyfikator zlecenia w Postivo)
-     * @throws RuntimeException przy błędzie API lub braku konfiguracji
+     * @param array $params Wymagane:
+     *   recipient_name (string), address_line1 (string), city (string), postcode (string)
+     *   Opcjonalne: address_line2 (string), country (string, domyślnie 'PL'), pdf_path (string)
      *
-     * TODO: Dostosuj endpoint i strukturę payloadu po uzyskaniu dokumentacji API Postivo.pl
-     * TODO: Postivo.pl API docs: https://postivo.pl/api-docs (spekulatywny URL)
+     * @return array ['id' => string]
+     * @throws RuntimeException
      */
     public function send_letter(array $params): array
     {
@@ -62,98 +70,126 @@ class PostivoClient
             );
         }
 
+        $config_id = (int)postivo_setting('postivo_config_id');
+        if (!$config_id) {
+            throw new RuntimeException(
+                'Brak ID konfiguracji Postivo.pl. Ustaw "ID konfiguracji" w: Administracja → Postivo (poczta).'
+            );
+        }
+
         $pdf_path = $params['pdf_path'] ?? '';
         if (!$pdf_path || !file_exists($pdf_path)) {
             throw new RuntimeException('Plik PDF nie istnieje: ' . $pdf_path);
         }
 
-        // TODO: Replace with actual Postivo.pl API endpoint and params when docs are available
-        // TODO: Postivo.pl API docs: https://postivo.pl/api-docs (speculative URL)
-        // TODO: Verify field names — 'recipient', 'content', 'sender', 'options' are speculative
+        $recipient = [
+            'name'      => $params['recipient_name'],
+            'address'   => $params['address_line1'],
+            'post_code' => $params['postcode'],
+            'city'      => $params['city'],
+            'country'   => $params['country'] ?? 'PL',
+        ];
+        if (!empty($params['address_line2'])) {
+            $recipient['name2'] = $params['address_line2'];
+        }
+
         $payload = [
-            'recipient' => [
-                'name'     => $params['recipient_name'],
-                'address1' => $params['address_line1'],
-                'address2' => $params['address_line2'] ?? '',
-                'city'     => $params['city'],
-                'postcode' => $params['postcode'],
-                'country'  => $params['country'] ?? 'PL',
+            'recipients' => $recipient,
+            'documents'  => [[
+                'file_stream' => base64_encode(file_get_contents($pdf_path)),
+                'file_name'   => basename($pdf_path),
+            ]],
+            'options' => [
+                'predefined_config_id' => $config_id,
             ],
-            'content'   => [
-                // TODO: Confirm whether Postivo expects 'pdf_base64', 'pdf_url', or another format
-                'type' => 'pdf_base64',
-                'data' => base64_encode(file_get_contents($pdf_path)),
-            ],
-            'sender'    => [
-                'name'    => postivo_setting('postivo_sender_name'),
-                'address' => postivo_setting('postivo_return_address'),
-            ],
-            // TODO: Confirm option names — 'registered' (list polecony), 'color' (druk kolorowy)
-            'options'   => ['registered' => true, 'color' => false],
         ];
 
-        // TODO: Confirm POST /letters endpoint path in Postivo.pl API
-        $result = $this->request('POST', '/letters', $payload);
+        $result   = $this->request('POST', '/shipment', $payload);
+        $shipment = $result[0] ?? $result;
+        $id       = $shipment['id'] ?? '';
 
-        // TODO: Adjust key name — Postivo may return 'id', 'letter_id', 'job_id', etc.
-        if (empty($result['id'])) {
+        if (!$id) {
             throw new RuntimeException(
-                'Postivo.pl nie zwróciło identyfikatora zlecenia. Odpowiedź: ' . json_encode($result)
+                'Postivo.pl nie zwróciło ID zlecenia. Odpowiedź: ' . json_encode($result)
             );
         }
 
-        return $result;
+        return ['id' => $id];
     }
 
     /**
-     * Pobiera status zlecenia wysyłki z Postivo.pl.
+     * Pobiera status zlecenia — GET /shipment/{id}.
      *
-     * @param string $postivo_id Identyfikator zlecenia w Postivo
-     * @return array Tablica z kluczami: status, tracking, updated_at
-     *
-     * TODO: Dostosuj endpoint i klucze odpowiedzi po uzyskaniu dokumentacji API Postivo.pl
+     * @param  string $postivo_id
+     * @return array ['status' => string, 'tracking' => string, 'updated_at' => string]
+     * @throws RuntimeException
      */
     public function get_status(string $postivo_id): array
     {
-        if (!$this->is_configured()) {
-            return [
-                'status'     => 'unknown',
-                'tracking'   => '',
-                'updated_at' => '',
-            ];
-        }
+        $result = $this->request('GET', '/shipment/' . urlencode($postivo_id));
 
-        // TODO: Confirm GET /letters/{id} endpoint in Postivo.pl API
-        $result = $this->request('GET', '/letters/' . urlencode($postivo_id));
+        // Response: [{ shipment_details: {...}, status_events: [...] }]
+        $item   = $result[0] ?? $result;
+        $detail = $item['shipment_details'] ?? $item;
+        $code   = strtoupper($detail['status']['code'] ?? '');
+
+        $status = match($code) {
+            'ACCEPTED'   => 'processing',
+            'PROCESSING' => 'processing',
+            'SENT'       => 'sent',
+            'DELIVERED'  => 'delivered',
+            'FAILED'     => 'failed',
+            default      => strtolower($code) ?: 'unknown',
+        };
 
         return [
-            // TODO: Adjust key names to match actual Postivo.pl API response
-            // Possible statuses: draft, processing, sent, delivered, failed
-            'status'     => $result['status']     ?? 'unknown',
-            'tracking'   => $result['tracking']   ?? $result['tracking_number'] ?? '',
-            'updated_at' => $result['updated_at'] ?? $result['modified_at']     ?? '',
+            'status'     => $status,
+            'tracking'   => $detail['tracking_number']  ?? '',
+            'updated_at' => $detail['status']['date']   ?? '',
         ];
     }
 
     /**
-     * Pobiera szacowaną cenę wysyłki listu.
+     * Sprawdza szacowaną cenę wysyłki — POST /shipment/price.
      *
-     * @param string $postivo_id Identyfikator zlecenia w Postivo
-     * @return float|null Cena w PLN lub null jeśli niedostępna
-     *
-     * TODO: Dostosuj endpoint i klucze odpowiedzi po uzyskaniu dokumentacji API Postivo.pl
+     * @param  array $params — tak samo jak send_letter()
+     * @return float|null Cena w PLN lub null przy błędzie
      */
-    public function get_price(string $postivo_id): ?float
+    public function get_price(array $params): ?float
     {
         if (!$this->is_configured()) {
             return null;
         }
 
+        $config_id = (int)postivo_setting('postivo_config_id');
+        $pdf_path  = $params['pdf_path'] ?? '';
+        if (!$config_id || !$pdf_path || !file_exists($pdf_path)) {
+            return null;
+        }
+
         try {
-            // TODO: Confirm GET /letters/{id}/price endpoint in Postivo.pl API
-            $result = $this->request('GET', '/letters/' . urlencode($postivo_id) . '/price');
-            // TODO: Adjust key name — may be 'price', 'amount', 'total', etc.
-            return isset($result['price']) ? (float)$result['price'] : null;
+            $recipient = [
+                'name'      => $params['recipient_name'] ?? 'Test',
+                'address'   => $params['address_line1']  ?? '',
+                'post_code' => $params['postcode']        ?? '',
+                'city'      => $params['city']            ?? '',
+                'country'   => $params['country']         ?? 'PL',
+            ];
+
+            $payload = [
+                'recipients' => $recipient,
+                'documents'  => [[
+                    'file_stream' => base64_encode(file_get_contents($pdf_path)),
+                    'file_name'   => basename($pdf_path),
+                ]],
+                'options' => [
+                    'predefined_config_id' => $config_id,
+                ],
+            ];
+
+            $result = $this->request('POST', '/shipment/price', $payload);
+            $item   = $result[0] ?? $result;
+            return isset($item['price']) ? (float)$item['price'] : null;
         } catch (RuntimeException $e) {
             return null;
         }
@@ -162,28 +198,18 @@ class PostivoClient
     /**
      * Wykonuje żądanie HTTP do API Postivo.pl.
      *
-     * @param string $method GET lub POST
-     * @param string $path   Ścieżka API (np. '/letters')
-     * @param array  $data   Dane do wysłania (dla POST)
-     * @return array Zdekodowana odpowiedź JSON
-     * @throws RuntimeException przy błędzie HTTP lub cURL
-     *
-     * TODO: Dostosuj nagłówki autoryzacji, Content-Type i obsługę błędów
-     *       po uzyskaniu dokumentacji API Postivo.pl
+     * @throws RuntimeException przy błędzie cURL lub odpowiedzi HTTP 4xx/5xx
      */
     private function request(string $method, string $path, array $data = []): array
     {
-        $url = $this->base_url . $path;
-
-        // TODO: Postivo.pl może wymagać innego nagłówka autoryzacji
-        //       np. 'X-API-Key', 'Api-Key', 'Authorization: Basic ...', itp.
+        $url     = $this->base_url . $path;
         $headers = [
             'Authorization: Bearer ' . $this->api_key,
             'Content-Type: application/json',
             'Accept: application/json',
         ];
 
-        $ch = curl_init($url);
+        $ch   = curl_init($url);
         $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $headers,
@@ -218,9 +244,9 @@ class PostivoClient
             );
         }
 
-        // TODO: Adjust error detection — Postivo may use different HTTP codes or error fields
         if ($http_code < 200 || $http_code >= 300) {
-            $msg = $decoded['message'] ?? $decoded['error'] ?? $decoded['detail'] ?? 'HTTP ' . $http_code;
+            // RFC 9457 error format: detail > title > message > fallback
+            $msg = $decoded['detail'] ?? $decoded['title'] ?? $decoded['message'] ?? ('HTTP ' . $http_code);
             throw new RuntimeException('Błąd API Postivo.pl: ' . $msg);
         }
 

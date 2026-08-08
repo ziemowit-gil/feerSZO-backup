@@ -107,7 +107,6 @@ if ($action === 'send') {
     try {
         $client = new PostivoClient();
 
-        // TODO: Wywołanie API Postivo.pl — dostosuj po uzyskaniu dokumentacji
         $result = $client->send_letter([
             'recipient_name' => $recipient_name,
             'address_line1'  => $address_line1,
@@ -162,7 +161,6 @@ if ($action === 'refresh_status') {
     try {
         $client = new PostivoClient();
 
-        // TODO: Wywołanie API Postivo.pl — dostosuj po uzyskaniu dokumentacji
         $status_data = $client->get_status($letter['postivo_job_id']);
 
         db()->prepare(

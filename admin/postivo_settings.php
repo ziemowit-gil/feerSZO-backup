@@ -12,6 +12,7 @@ $PAGE_TITLE = 'Postivo (poczta)';
 $cfg = [
     'postivo_enabled'        => postivo_setting('postivo_enabled'),
     'postivo_api_key'        => postivo_setting('postivo_api_key'),
+    'postivo_config_id'      => postivo_setting('postivo_config_id'),
     'postivo_sender_name'    => postivo_setting('postivo_sender_name'),
     'postivo_return_address' => postivo_setting('postivo_return_address'),
 ];
@@ -28,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $save = [
             'postivo_enabled'        => !empty($_POST['postivo_enabled']) ? '1' : '0',
-            // Zachowaj istniejący klucz API jeśli pole pozostało puste
             'postivo_api_key'        => $api_key ?: $cfg['postivo_api_key'],
+            'postivo_config_id'      => trim($_POST['postivo_config_id']      ?? ''),
             'postivo_sender_name'    => trim($_POST['postivo_sender_name']    ?? ''),
             'postivo_return_address' => trim($_POST['postivo_return_address'] ?? ''),
         ];
@@ -50,27 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'test') {
-        // TODO: Gdy otrzymasz klucz API Postivo.pl, zastąp poniższy blok prawdziwym testem połączenia.
-        // Przykład prawdziwego testu (odkomentuj po uzyskaniu API key):
-        //
-        // try {
-        //     $client = new PostivoClient();
-        //     if (!$client->is_configured()) {
-        //         $test_result = ['ok' => false, 'msg' => 'Brak klucza API — najpierw zapisz konfigurację.'];
-        //     } else {
-        //         // TODO: Zastąp prawdziwym endpointem testowym/ping z dokumentacji Postivo.pl
-        //         $test_result = ['ok' => true, 'msg' => 'Połączenie z Postivo.pl nawiązane pomyślnie.'];
-        //     }
-        // } catch (\Exception $e) {
-        //     $test_result = ['ok' => false, 'msg' => $e->getMessage()];
-        // }
-
-        // Placeholder — aktywny do czasu uzyskania konta Postivo.pl
-        $test_result = [
-            'ok'  => null, // null = informacja (nie sukces/błąd)
-            'msg' => 'TODO: Test połączenia będzie dostępny po uzyskaniu klucza API Postivo.pl. '
-                   . 'Załóż konto na postivo.pl, a następnie wklej klucz API w polu powyżej i zapisz ustawienia.',
-        ];
+        $client = new PostivoClient();
+        if (!$client->is_configured()) {
+            $test_result = ['ok' => false, 'msg' => 'Brak klucza API — najpierw zapisz konfigurację.'];
+        } else {
+            $test_result = $client->ping();
+        }
     }
 }
 
@@ -140,11 +126,31 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
         <?php else: ?>
         <div class="form-text">
-          Pobierz klucz API po założeniu konta na
-          <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a>.
-          <!-- TODO: Zaktualizuj link do panelu gdy poznasz dokładny URL -->
+          Pobierz klucz API w panelu <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a>
+          (Ustawienia → API).
         </div>
         <?php endif; ?>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ID konfiguracji ────────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-gear"></i> Konfiguracja wysyłki</div>
+    <div class="card-body">
+      <div class="mb-0">
+        <label class="form-label fw-semibold small">
+          ID konfiguracji wstępnej <span class="text-danger">*</span>
+        </label>
+        <input type="number" name="postivo_config_id" min="1"
+               class="form-control form-control-sm font-monospace"
+               value="<?= h($cfg['postivo_config_id']) ?>"
+               placeholder="np. 42">
+        <div class="form-text">
+          Numeryczne ID konfiguracji z panelu Postivo.pl (Konfiguracje → ID). Określa nośnik,
+          usługę, papier, druk kolorowy i nadawcę. Utwórz konfigurację raz w Postivo,
+          a wszystkie listy będą ją używać automatycznie.
+        </div>
       </div>
     </div>
   </div>
@@ -198,8 +204,7 @@ include dirname(__DIR__) . '/includes/header.php';
       </button>
     </form>
     <div class="form-text mt-2">
-      <!-- TODO: Zaktualizuj opis testu po uzyskaniu dostępu do API Postivo.pl -->
-      Test będzie wysyłał zapytanie do API Postivo.pl i sprawdzał poprawność klucza.
+      Wysyła zapytanie do GET /account i sprawdza poprawność klucza. Przy sukcesie pokazuje saldo konta.
     </div>
   </div>
 </div>
@@ -254,12 +259,11 @@ include dirname(__DIR__) . '/includes/header.php';
         <li>Pobierz klucz API z panelu użytkownika</li>
         <li>Wklej klucz powyżej i zapisz konfigurację</li>
       </ol>
-      <!-- TODO: Zaktualizuj ceny po uzyskaniu aktualnego cennika Postivo.pl -->
-      <p class="mb-0 fw-semibold">Cennik <span class="text-muted fw-normal">(orientacyjny)</span>:</p>
+      <p class="mb-0 fw-semibold">Cennik:</p>
       <ul class="ps-3 mb-0">
-        <li>List polecony krajowy: ~5–8 zł</li>
+        <li>Cena zależy od wybranej konfiguracji (nośnik, usługa, papier)</li>
         <li>Druk i kopertowanie wliczone w cenę</li>
-        <li>Szczegóły na <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl/cennik</a></li>
+        <li>Szczegóły na <a href="https://postivo.pl" target="_blank" rel="noopener">postivo.pl</a></li>
       </ul>
     </div>
   </div>
