@@ -176,9 +176,14 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Nagłówki bezpieczeństwa
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-XSS-Protection "1; mode=block"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Chatbot publiczny (/chatbot/*) może być osadzony w iframe na zewnętrznych stronach.
+    # Dla wszystkich pozostałych ścieżek obowiązuje SAMEORIGIN.
+    SetEnvIf Request_URI "^/chatbot/" feer_chatbot_embed
+    Header always set X-Frame-Options "SAMEORIGIN" "env=!feer_chatbot_embed"
+    Header always set Content-Security-Policy "frame-ancestors *" "env=feer_chatbot_embed"
 </IfModule>
 
 # Własne strony błędów

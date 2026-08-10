@@ -161,7 +161,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <i class="bi bi-box-arrow-up-right"></i>
     </a>
   </div>
-  <div class="d-flex gap-2 align-items-center">
+  <div class="d-flex gap-2 align-items-center mb-3">
     <form method="post" onsubmit="return confirm('Wygenerować nowy link? Obecny link natychmiast przestanie działać u wszystkich, którzy go mają.');">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="chatbot_rotate">
@@ -171,14 +171,80 @@ include dirname(__DIR__) . '/includes/header.php';
     </form>
     <span class="small text-muted">Rotacja unieważnia poprzedni adres.</span>
   </div>
+
+  <?php
+    $embed_token = asai_public_token();
+    $embed_js    = APP_URL . '/chatbot/embed.js';
+    $embed_snip  = '<script async src="' . $embed_js . '"' . "\n"
+                 . '        data-token="' . $embed_token . '"' . "\n"
+                 . '        data-title="Asystent AI"' . "\n"
+                 . '        data-accent="#2563eb"></script>';
+    $embed_iframe = '<iframe src="' . $chatbot_url . '"' . "\n"
+                  . '        width="100%" height="600"' . "\n"
+                  . '        style="border:none;border-radius:16px"' . "\n"
+                  . '        title="Asystent AI" allow="clipboard-write">' . "\n"
+                  . '</iframe>';
+  ?>
+  <hr class="my-2">
+  <p class="small fw-semibold mb-1"><i class="bi bi-code-slash me-1"></i>Osadź na stronie</p>
+  <p class="small text-muted mb-2">
+    Skopiuj jeden z poniższych snippetów i wklej na dowolnej stronie (intranet, strona www organizacji).
+  </p>
+
+  <ul class="nav nav-tabs nav-tabs-sm mb-2" id="embedTabs" role="tablist" style="font-size:.8rem">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabWidget" type="button">
+      <i class="bi bi-chat-dots me-1"></i>Pływający przycisk
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabIframe" type="button">
+      <i class="bi bi-window me-1"></i>Osadzony w stronie
+    </button></li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tabWidget">
+      <div class="position-relative">
+        <pre id="cbSnipWidget" class="bg-light border rounded p-2 small font-monospace mb-1" style="white-space:pre-wrap;word-break:break-all;font-size:.72rem"><?= htmlspecialchars($embed_snip, ENT_QUOTES) ?></pre>
+        <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1" id="cbCopyWidget" title="Kopiuj snippet">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
+      <div class="form-text">Pojawi się pływający przycisk <i class="bi bi-robot"></i> w prawym dolnym rogu strony.
+        Możesz zmienić <code>data-accent</code> na kolor organizacji lub dodać <code>data-side="left"</code>.</div>
+    </div>
+    <div class="tab-pane fade" id="tabIframe">
+      <div class="position-relative">
+        <pre id="cbSnipIframe" class="bg-light border rounded p-2 small font-monospace mb-1" style="white-space:pre-wrap;word-break:break-all;font-size:.72rem"><?= htmlspecialchars($embed_iframe, ENT_QUOTES) ?></pre>
+        <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1" id="cbCopyIframe" title="Kopiuj snippet">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
+      <div class="form-text">Chatbot pojawi się w miejscu wklejenia kodu — przydatny na dedykowanej podstronie lub w portalu intranetowym.</div>
+    </div>
+  </div>
+
   <script>
-  document.getElementById('cbCopy')?.addEventListener('click', function(){
-    const inp = document.getElementById('cbLink');
-    navigator.clipboard.writeText(inp.value).then(()=>{
-      const i=this.querySelector('i'); i.className='bi bi-check2 text-success';
-      setTimeout(()=>i.className='bi bi-clipboard', 1500);
-    }).catch(()=>{ inp.select(); document.execCommand('copy'); });
-  });
+  (function(){
+    function copySnip(srcId, btnId){
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', function(){
+        const txt = document.getElementById(srcId).textContent;
+        navigator.clipboard.writeText(txt).then(()=>{
+          const i = this.querySelector('i'); i.className = 'bi bi-check2 text-success';
+          setTimeout(()=>i.className = 'bi bi-clipboard', 1800);
+        }).catch(()=>{ const el=document.getElementById(srcId); const r=document.createRange(); r.selectNode(el); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); document.execCommand('copy'); });
+      });
+    }
+    document.getElementById('cbCopy')?.addEventListener('click', function(){
+      const inp = document.getElementById('cbLink');
+      navigator.clipboard.writeText(inp.value).then(()=>{
+        const i=this.querySelector('i'); i.className='bi bi-check2 text-success';
+        setTimeout(()=>i.className='bi bi-clipboard', 1500);
+      }).catch(()=>{ inp.select(); document.execCommand('copy'); });
+    });
+    copySnip('cbSnipWidget','cbCopyWidget');
+    copySnip('cbSnipIframe','cbCopyIframe');
+  })();
   </script>
   <?php endif; ?>
 </div>
