@@ -217,6 +217,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    if ($op === 'sms_week_group') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+        if (!sms_is_enabled()) {
+            flash_set('danger', 'SMS jest wyłączony. Skonfiguruj w Administracja → Ustawienia SMS.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $mon = date('Y-m-d', strtotime('monday this week'));
+        $sun = date('Y-m-d', strtotime('sunday this week'));
+        $week_sessions = db_all(
+            "SELECT s.lesson_date, s.time_from, s.time_to, c.name AS course_name
+             FROM k30_ti_sessions s
+             JOIN k30_ti_courses c ON c.id = s.course_id
+             WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ?
+             ORDER BY s.lesson_date, s.time_from",
+            [$course_id, $mon, $sun]
+        );
+        if (empty($week_sessions)) {
+            flash_set('info', 'Brak lekcji w bieżącym tygodniu dla tego kursu.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $sms_text = ti_build_week_sms($week_sessions);
+        $n = ti_lesson_sms_notify($course_id, $sms_text);
+        flash_set(
+            $n > 0 ? 'success' : 'info',
+            $n > 0
+                ? "SMS z planem tygodnia wysłany do {$n} " . ($n === 1 ? 'kursanta.' : 'kursantów.')
+                : 'Żaden kursant nie ma włączonych powiadomień SMS.'
+        );
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // Seria lekcji — powtarzalne co N tygodni
     if ($op === 'save_lesson_series') {
         $date  = trim($_POST['lesson_date'] ?? '');
@@ -1475,6 +1506,15 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
             <i class="bi bi-calendar-check me-1"></i>Subskrybuj / pobierz
           </button>
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Wysłać SMS z terminami lekcji w tym tygodniu do wszystkich kursantów grupy?')">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="sms_week_group">
+            <input type="hidden" name="course_id"  value="<?= $cur_course ?>">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-chat-left-text me-1"></i>SMS do grupy
+            </button>
+          </form>
           <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSeries">
             <i class="bi bi-calendar-plus me-1"></i>Seria
           </button>

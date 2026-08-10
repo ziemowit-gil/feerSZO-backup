@@ -2885,6 +2885,52 @@ function k30_ti_sms_numbers(array $row): array {
     return $out;
 }
 
+/**
+ * Buduje treść SMS z planem lekcji bieżącego tygodnia dla podanego kursu.
+ * Bez polskich liter (GSM-7, 1 wiadomość). Format:
+ *   FEER <nazwa> tyg. DD-DD.MM:
+ *   Pn DD.MM: HH:MM-HH:MM[, HH:MM-HH:MM]
+ *   …
+ *   Razem: N lekcji
+ * Zwraca pusty string gdy brak sesji.
+ */
+function ti_build_week_sms(array $sessions): string {
+    if (empty($sessions)) return '';
+    static $short = [1=>'Pn',2=>'Wt',3=>'Sr',4=>'Czw',5=>'Pt',6=>'Sb',0=>'Nd'];
+    $replace = ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
+                'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z'];
+    $ascii = fn(string $s) => str_replace(array_keys($replace), array_values($replace), $s);
+
+    $mon = date('Y-m-d', strtotime('monday this week'));
+    $sun = date('Y-m-d', strtotime('sunday this week'));
+    $header_range = date('d', strtotime($mon)) . '-' . date('d.m', strtotime($sun));
+
+    $course_name = $ascii(mb_substr((string)($sessions[0]['course_name'] ?? ''), 0, 15));
+
+    $by_day = [];
+    foreach ($sessions as $s) {
+        $by_day[(string)$s['lesson_date']][] = $s;
+    }
+    ksort($by_day);
+
+    $lines = ["FEER {$course_name} tyg. {$header_range}:"];
+    $total = 0;
+    foreach ($by_day as $date => $day_s) {
+        $dow = (int)date('w', strtotime($date));
+        $label = ($short[$dow] ?? '?') . ' ' . date('d.m', strtotime($date));
+        $slots = [];
+        foreach ($day_s as $s) {
+            $tf = substr((string)($s['time_from'] ?? ''), 0, 5);
+            $tt = substr((string)($s['time_to']   ?? ''), 0, 5);
+            $slots[] = ($tf && $tt) ? "{$tf}-{$tt}" : ($tf ?: '?');
+            $total++;
+        }
+        $lines[] = "{$label}: " . implode(', ', $slots);
+    }
+    $lines[] = 'Razem: ' . $total . ' ' . ($total === 1 ? 'lekcja' : ($total < 5 ? 'lekcje' : 'lekcji'));
+    return implode("\n", $lines);
+}
+
 // ── Kanał iCal lekcji kursanta (subskrypcja Google/Apple/Outlook) ─────────────
 
 /** Token prywatnego kanału iCal kursanta (utwórz, jeśli brak). */
