@@ -106,6 +106,75 @@ class ZoomAPI {
         return $out;
     }
 
+    private function post(string $path, array $body): array {
+        $json = json_encode($body);
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
+                             . "Content-Type: application/json\r\n",
+            'content'       => $json,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ]]);
+        $resp = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
+        $data   = json_decode($resp, true) ?: [];
+        $status = 0;
+        if (!empty($http_response_header)) {
+            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
+            $status = (int)($sm[1] ?? 0);
+        }
+        if ($status >= 400) {
+            throw new \RuntimeException('Zoom API: ' . ($data['message'] ?? ('HTTP ' . $status)));
+        }
+        return $data;
+    }
+
+    private function request_delete(string $path): void {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'DELETE',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n",
+            'ignore_errors' => true,
+            'timeout'       => 10,
+        ]]);
+        @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+    }
+
+    /**
+     * Tworzy spotkanie cykliczne bez stałego terminu (typ 3).
+     * Generuje stały join_url — idealny jako link per kurs.
+     * Zwraca ['meeting_id'=>string, 'join_url'=>string].
+     */
+    public function create_meeting(string $topic, string $agenda = ''): array {
+        $body = [
+            'topic'    => $topic,
+            'type'     => 3,
+            'settings' => [
+                'host_video'        => true,
+                'participant_video' => true,
+                'join_before_host'  => true,
+                'mute_upon_entry'   => false,
+                'approval_type'     => 0,
+                'audio'             => 'both',
+                'auto_recording'    => 'none',
+            ],
+        ];
+        if ($agenda !== '') $body['agenda'] = $agenda;
+        $data = $this->post('/users/' . rawurlencode($this->userId) . '/meetings', $body);
+        return [
+            'meeting_id' => (string)($data['id'] ?? ''),
+            'join_url'   => (string)($data['join_url'] ?? ''),
+        ];
+    }
+
+    /** Usuwa spotkanie Zoom. Brak spotkania traktuje jako OK. */
+    public function delete_meeting(string $meeting_id): void {
+        if ($meeting_id === '') return;
+        try {
+            $this->request_delete('/meetings/' . rawurlencode($meeting_id));
+        } catch (\Throwable $e) {}
+    }
+
     /** Test połączenia — zwraca ['ok'=>bool,'msg'=>string]. */
     public function test_connection(): array {
         try {

@@ -27,6 +27,23 @@ function ti_notices_migrate(): void {
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_notice_active ON k30_ti_notices(is_active, created_at)");
     } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — komunikat o przejściu na Zoom od 1 września 2026
+    try {
+        $seeded = db_one("SELECT value FROM settings WHERE key_='ti_notice_zoom_2026_seeded'");
+        if (!$seeded) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_zoom_2026_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'all', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Od 1 września 2026 zajęcia odbywają się przez Zoom',
+                'Od 1 września 2026 wszystkie zajęcia TI prowadzone są zdalnie przez platformę Zoom.'
+                . "\n\nLink do kursu znajdziesz w zakładce Moje lekcje — wyświetla się przy każdej zaplanowanej lekcji."
+                . "\nJeśli masz pytania, skontaktuj się z prowadzącym lub biurem placówki.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
 }
 
 function ti_notices_list_active_for_instructor(): array {

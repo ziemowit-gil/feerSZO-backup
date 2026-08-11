@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_messages.php';
+require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 
 k30_require_access();
 karty30_migrate();
@@ -28,6 +29,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete')
         flash_set('success', 'Kurs usunięty.');
     }
     header('Location: index.php'); exit;
+}
+
+// Generowanie linku Zoom dla kursu przez API
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'generate_zoom_link') {
+    csrf_check();
+    if (!$can_write) { http_response_code(403); die('Brak uprawnień.'); }
+    $cid = (int)($_POST['course_id'] ?? 0);
+    if (!$cid) { flash_set('danger', 'Nie podano kursu.'); header('Location: index.php'); exit; }
+    if (!zoom_enabled()) {
+        flash_set('danger', 'Zoom nie jest skonfigurowany — przejdź do Nauka online → Zoom.');
+        header('Location: index.php?edit=' . $cid); exit;
+    }
+    $course = db_one("SELECT name, zoom_meeting_id FROM k30_ti_courses WHERE id=?", [$cid]);
+    if (!$course) { flash_set('danger', 'Kurs nie istnieje.'); header('Location: index.php'); exit; }
+    try {
+        $api = new ZoomAPI();
+        if (($course['zoom_meeting_id'] ?? '') !== '') {
+            $api->delete_meeting((string)$course['zoom_meeting_id']);
+        }
+        $m = $api->create_meeting((string)$course['name'], 'Zajęcia TI');
+        db()->prepare("UPDATE k30_ti_courses SET default_meeting_url=?, zoom_meeting_id=? WHERE id=?")
+             ->execute([$m['join_url'], $m['meeting_id'], $cid]);
+        flash_set('success', 'Link Zoom wygenerowany i zapisany jako stały link grupy.');
+    } catch (\Throwable $e) {
+        flash_set('danger', 'Błąd Zoom API: ' . h($e->getMessage()));
+    }
+    header('Location: index.php?edit=' . $cid); exit;
 }
 
 // Globalne stawki potrąceń od wynagrodzenia prowadzących — tylko administrator
@@ -134,6 +162,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka 3</a></li>
   <li class="breadcrumb-item active">Zajęcia TI</li>
 </ol></nav>
+
+<div class="alert alert-info border-info d-flex align-items-start gap-2 mb-3" role="alert">
+  <i class="bi bi-camera-video-fill fs-5 text-primary flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div>
+    <strong>Od 1 września 2026 zajęcia odbywają się przez Zoom.</strong>
+    Każdy kurs powinien mieć stały link grupowy — możesz go wygenerować automatycznie przyciskiem
+    <em>„Wygeneruj link Zoom"</em> w edycji kursu (wymaga skonfigurowanej integracji Zoom w
+    <a href="online_admin.php" class="alert-link">Nauka online</a>).
+  </div>
+</div>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
@@ -347,10 +385,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <label class="form-label">
           <i class="bi bi-camera-video me-1 text-primary"></i>Stały link do zajęć online (grupa)
         </label>
-        <input type="url" class="form-control" name="default_meeting_url"
-               value="<?= h($f['default_meeting_url'] ?? '') ?>"
-               placeholder="https://… (Teams/Zoom/Meet)">
-        <div class="form-text">Wspólny link dla wszystkich lekcji tej grupy. Można nadpisać linkiem konkretnej lekcji.</div>
+        <div class="input-group">
+          <input type="url" class="form-control" name="default_meeting_url"
+                 value="<?= h($f['default_meeting_url'] ?? '') ?>"
+                 placeholder="https://… (Teams/Zoom/Meet)">
+          <?php if (!empty($f['id']) && zoom_enabled()): ?>
+          <button type="button" class="btn btn-outline-primary"
+                  data-bs-toggle="modal" data-bs-target="#zoomGenModal"
+                  title="Wygeneruj stały link przez Zoom API">
+            <i class="bi bi-camera-video me-1"></i>Wygeneruj Zoom
+          </button>
+          <?php endif; ?>
+        </div>
+        <div class="form-text">
+          Wspólny link dla wszystkich lekcji tej grupy. Można nadpisać linkiem konkretnej lekcji.
+          <?php if (!empty($f['zoom_meeting_id'])): ?>
+          <span class="text-success"><i class="bi bi-check-circle me-1"></i>Powiązane spotkanie Zoom: <code><?= h($f['zoom_meeting_id']) ?></code></span>
+          <?php endif; ?>
+        </div>
       </div>
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
@@ -657,5 +709,47 @@ bmToggle();
   });
 })();
 </script>
+
+<?php if (!empty($edit_row) && zoom_enabled()): ?>
+<!-- Modal potwierdzenia wygenerowania linku Zoom -->
+<div class="modal fade" id="zoomGenModal" tabindex="-1" aria-labelledby="zoomGenLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"        value="generate_zoom_link">
+        <input type="hidden" name="course_id"  value="<?= (int)$edit_row['id'] ?>">
+        <div class="modal-header">
+          <h5 class="modal-title" id="zoomGenLabel">
+            <i class="bi bi-camera-video text-primary me-2"></i>Wygeneruj stały link Zoom
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p>Zostanie utworzone nowe spotkanie Zoom dla kursu <strong><?= h($edit_row['name']) ?></strong> (typ: cykliczne bez stałego terminu — generuje stały link).</p>
+          <?php if (!empty($edit_row['zoom_meeting_id'])): ?>
+          <div class="alert alert-warning py-2 mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Kurs ma już powiązane spotkanie Zoom (<code><?= h($edit_row['zoom_meeting_id']) ?></code>). Zostanie ono usunięte i zastąpione nowym.
+          </div>
+          <?php elseif (!empty($edit_row['default_meeting_url'])): ?>
+          <div class="alert alert-warning py-2 mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Bieżący link (<code><?= h(mb_substr($edit_row['default_meeting_url'], 0, 60)) ?>…</code>) zostanie zastąpiony nowym linkiem Zoom.
+          </div>
+          <?php endif; ?>
+          <p class="text-muted small mb-0">Link zostanie zapisany jako stały link grupy i wyświetlony kursantom przy każdej lekcji.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-camera-video me-1"></i>Generuj i zapisz
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
