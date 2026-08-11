@@ -643,6 +643,120 @@ function ezd_is_manager(?int $user_id = null): bool {
                 ->execute(['442', 'Patronaty honorowe i nagrody', 'B10', 'Patronaty instytucjonalne i wyróżnienia honorowe przyznane Fundacji', 4452, $id44]);
         }
     } catch (\Throwable $e) {}
+
+    // ── §6 Cele Statutu + §7 formy realizacji — idempotentne ──────────────────
+    // Guard: symbol '31' z tytułem §6. Pozwala na wielokrotne bezpieczne uruchomienie.
+    try {
+        $has6 = $pdo->query(
+            "SELECT 1 FROM ezd_jrwa WHERE symbol='31' AND title LIKE 'Przeciwdziałanie%' LIMIT 1"
+        )->fetchColumn();
+
+        if (!$has6) {
+            $findJ = $pdo->prepare("SELECT id FROM ezd_jrwa WHERE symbol=? LIMIT 1");
+            $insJ  = $pdo->prepare(
+                "INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order,parent_id) VALUES (?,?,?,?,?,?)"
+            );
+            $updJ  = $pdo->prepare("UPDATE ezd_jrwa SET title=?,kat_arch=?,description=? WHERE symbol=?");
+
+            $upsertJ = function (string $sym, string $tit, string $kat, string $desc, int $ord, ?int $pid)
+                use ($findJ, $insJ, $updJ, $pdo): int {
+                $findJ->execute([$sym]);
+                $existing = $findJ->fetchColumn();
+                if ($existing !== false) {
+                    $updJ->execute([$tit, $kat, $desc, $sym]);
+                    return (int)$existing;
+                }
+                $insJ->execute([$sym, $tit, $kat, $desc, $ord, $pid]);
+                return (int)$pdo->lastInsertId();
+            };
+
+            $addIfMissing = function (string $sym, string $tit, string $kat, string $desc, int $ord, ?int $pid)
+                use ($findJ, $insJ, $pdo): int {
+                $findJ->execute([$sym]);
+                $existing = $findJ->fetchColumn();
+                if ($existing !== false) return (int)$existing;
+                $insJ->execute([$sym, $tit, $kat, $desc, $ord, $pid]);
+                return (int)$pdo->lastInsertId();
+            };
+
+            // Klasa 3 — korzeń §6
+            $id3 = $upsertJ('3', 'Działalność merytoryczna — Cele Fundacji §6 Statutu', '',
+                'Wg §6 Statutu. Podklasy 31–39 = 9 celów; segregatory 3x.NNN = indywidualne działania.', 30, null);
+
+            // Klasa 30 — planowanie i monitoring
+            $upsertJ('30', 'Planowanie i monitorowanie działalności statutowej', 'B10',
+                'Plany działań, harmonogramy, sprawozdania merytoryczne wewnętrzne', 300, $id3);
+
+            // Klasy 31–39 = cele §6 Statutu
+            $cele6 = [
+                '31' => ['Przeciwdziałanie wykluczeniu społecznemu',                '','§6 pkt 1 Statutu', 310],
+                '32' => ['Działalność edukacyjna',                                 '','§6 pkt 2 Statutu', 320],
+                '33' => ['Promocja i organizacja wolontariatu',                    '','§6 pkt 3 Statutu', 330],
+                '34' => ['Podnoszenie kwalifikacji zawodowych os. z niepełnospr.', '','§6 pkt 4 Statutu', 340],
+                '35' => ['Promowanie samorozwoju os. z niepełnosprawnościami',     '','§6 pkt 5 Statutu', 350],
+                '36' => ['Działania na rzecz osób starszych',                      '','§6 pkt 6 Statutu', 360],
+                '37' => ['Integracja osób z niepełnosprawnościami',                '','§6 pkt 7 Statutu', 370],
+                '38' => ['Promowanie tyfloinformatyki',                            '','§6 pkt 8 Statutu', 380],
+                '39' => ['Działalność na rzecz NGO i aktywizacja społeczeństwa',   '','§6 pkt 9 Statutu', 390],
+            ];
+            $ids6 = [];
+            foreach ($cele6 as $sym => [$tit, $kat, $desc, $ord]) {
+                $ids6[$sym] = $upsertJ($sym, $tit, $kat, $desc, $ord, $id3);
+            }
+
+            // Segregatory §7 (formy realizacji) pod każdym celem §6
+            $formy7 = [
+                '31' => [
+                    ['311','Spotkania i konferencje — wykluczenie społeczne','B5','§7 pkt 2,3',10],
+                    ['312','Szkolenia, warsztaty i praktyki zawodowe','B5','§7 pkt 7,8',20],
+                    ['313','Dokumentacja i sprawozdania działań','B10','Raporty, analizy, ewaluacje',30],
+                ],
+                '32' => [
+                    ['321','Wydawnictwa i portal internetowy','B10','§7 pkt 1,10',10],
+                    ['322','Współpraca z podmiotami edukacyjnymi','B10','§7 pkt 4',20],
+                    ['323','Kursy, szkolenia i warsztaty edukacyjne','B5','§7 pkt 7',30],
+                    ['324','Organizacja wydarzeń online — edukacja','B5','§7 pkt 12',40],
+                ],
+                '33' => [
+                    ['331','Rekrutacja wolontariuszy i porozumienia','B10','§7 pkt 9',10],
+                    ['332','Szkolenia, akcje i dokumentacja wolontariatu','B5','§7 pkt 7,9',20],
+                ],
+                '34' => [
+                    ['341','Doradztwo zawodowe i technologie wspomagające (AT)','B5','§7 pkt 5',10],
+                    ['342','Kursy, szkolenia i warsztaty zawodowe','B5','§7 pkt 7',20],
+                    ['343','Praktyki i staże dla osób z niepełnosprawnościami','B10','§7 pkt 8',30],
+                ],
+                '35' => [
+                    ['351','Prezentacje i pokazy technologii wspomagających','B5','§7 pkt 6',10],
+                    ['352','Warsztaty samorozwojowe','B5','§7 pkt 7',20],
+                ],
+                '36' => [
+                    ['361','Spotkania i konferencje dla seniorów','B5','§7 pkt 2,3',10],
+                    ['362','Szkolenia i warsztaty dla seniorów','B5','§7 pkt 7',20],
+                ],
+                '37' => [
+                    ['371','Imprezy i wydarzenia integracyjne','B5','§7 pkt 2,12',10],
+                    ['372','Programy wsparcia, doradztwa i asysty','B5','§7 pkt 5,7',20],
+                ],
+                '38' => [
+                    ['381','Doradztwo i konsultacje tyfloinformatyczne','B5','§7 pkt 5',10],
+                    ['382','Prezentacje, demonstracje i pokazy AT','B5','§7 pkt 6',20],
+                    ['383','Szkolenia tyfloinformatyczne','B5','§7 pkt 7',30],
+                ],
+                '39' => [
+                    ['391','Szkolenia i warsztaty dla organizacji pozarządowych','B5','§7 pkt 11',10],
+                    ['392','Inicjatywy i programy aktywizacyjne','B5','§7 pkt 13',20],
+                ],
+            ];
+            foreach ($formy7 as $parentSym => $kids) {
+                if (empty($ids6[$parentSym])) continue;
+                $pid = $ids6[$parentSym];
+                foreach ($kids as [$sym, $tit, $kat, $desc, $ord]) {
+                    $addIfMissing($sym, $tit, $kat, $desc, $ord, $pid);
+                }
+            }
+        }
+    } catch (\Throwable $e) {}
 })();
 
 // ── Stałe ────────────────────────────────────────────────────────────────────

@@ -13,6 +13,13 @@
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/functions.php';
+if (PHP_SAPI !== 'cli') {
+    require_login();
+    if (!is_admin()) { http_response_code(403); echo "403 — tylko administrator może uruchomić tę migrację.\n"; exit; }
+    header('Content-Type: text/plain; charset=utf-8');
+}
 require_once __DIR__ . '/includes/ezd.php';   // uruchamia migrację tabeli
 
 $pdo = db();

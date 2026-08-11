@@ -71,7 +71,7 @@ if (!empty($_POST['_ajax']) && ($_POST['op'] ?? '') === 'apply_one') {
     }
 
     db()->prepare("UPDATE ezd_sprawy SET jrwa_id=?, updated_at=datetime('now','localtime') WHERE id=?")->execute([$jrwa['id'], $sid]);
-    ezd_log($sid, 'sprawa', 'ai_reklasyfikacja', "AI zaproponowało → {$kod_jrwa}", (int)current_user()['id']);
+    ezd_log(null, $sid, null, null, (int)current_user()['id'], 'ai_reklasyfikacja', "AI zaproponowało → {$kod_jrwa}");
 
     echo json_encode(['ok'=>true, 'kod'=>$kod_jrwa, 'sprawa_id'=>$sid]);
     exit;
