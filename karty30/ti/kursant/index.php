@@ -1909,7 +1909,10 @@ document.addEventListener('DOMContentLoaded', function() {
     $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session, $resch_pending) {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
-            $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url'] : (string)($l['course_meeting_url'] ?? '');
+            $enroll_link = trim((string)($l['enrollment_meeting_url'] ?? ''));
+            $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url']
+                      : ($enroll_link !== '' ? $enroll_link
+                      : (string)($l['course_meeting_url'] ?? ''));
           ?>
           <tr>
             <td class="text-nowrap">

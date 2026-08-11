@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 
 k30_require_access();
 karty30_migrate();
@@ -43,6 +44,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $cid = (int)($_POST['client_id'] ?? 0);
         db()->prepare("UPDATE k30_ti_enrollments SET status='inactive' WHERE course_id=? AND client_id=?")->execute([$id,$cid]);
         flash_set('success','Uczestnik wypisany.');
+        header('Location: course.php?id='.$id.'#uczestnicy'); exit;
+    }
+
+    if ($op === 'gen_student_zoom' || $op === 'clear_student_zoom') {
+        $cid = (int)($_POST['client_id'] ?? 0);
+        $en  = $cid ? db_one("SELECT * FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [$id,$cid]) : null;
+        if (!$en) { flash_set('danger','Uczestnik nie znaleziony.'); header('Location: course.php?id='.$id.'#uczestnicy'); exit; }
+        if (!zoom_enabled()) { flash_set('warning','Integracja Zoom nie jest skonfigurowana — przejdź do Ustawień TI.'); header('Location: course.php?id='.$id.'#uczestnicy'); exit; }
+        $api = new ZoomAPI();
+        if (!empty($en['zoom_meeting_id'])) {
+            try { $api->delete_meeting($en['zoom_meeting_id']); } catch (\Throwable $e2) {}
+        }
+        if ($op === 'clear_student_zoom') {
+            db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id='', zoom_meeting_url='' WHERE course_id=? AND client_id=?")->execute([$id,$cid]);
+            flash_set('success','Stały link Zoom uczestnika usunięty.');
+        } else {
+            $cname = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid])['name'] ?? (string)$cid;
+            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI');
+            db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id=?, zoom_meeting_url=? WHERE course_id=? AND client_id=?")
+                 ->execute([$m['meeting_id'], $m['join_url'], $id, $cid]);
+            flash_set('success','Stały link Zoom wygenerowany dla uczestnika '.$cname.'.');
+        }
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
     }
 
@@ -256,8 +279,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <?php endif; ?>
               </td>
               <td><span class="badge <?= $e['status']==='active'?'bg-success':'bg-secondary' ?>"><?= $e['status']==='active'?'Aktywny':'Nieaktywny' ?></span></td>
-              <td class="text-end">
-                <?php if ($e['status']==='active'): ?>
+              <td class="text-end" style="white-space:nowrap">
+                <?php if ($e['status']==='active' && $can_write && zoom_enabled()): ?>
+                <button type="button" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1"
+                        data-bs-toggle="modal" data-bs-target="#zoomStu<?= (int)$e['client_id'] ?>"
+                        title="<?= !empty($e['zoom_meeting_url']) ? 'Regeneruj / usuń stały link Zoom' : 'Wygeneruj stały link Zoom' ?>">
+                  <i class="bi bi-camera-video"></i>
+                  <?php if (!empty($e['zoom_meeting_url'])): ?><span class="badge text-bg-success ms-1" style="font-size:.6rem">Zoom</span><?php endif; ?>
+                </button>
+                <?php endif; ?>
+                <?php if ($e['status']==='active' && $can_write): ?>
                 <form method="post" class="d-inline" onsubmit="return confirm('Wypisać uczestnika?')">
                   <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
                   <input type="hidden" name="_op"       value="unenroll">
@@ -334,6 +365,56 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; endif; ?>
+
+      <!-- Modale: stały link Zoom per kursant -->
+      <?php if ($can_write && zoom_enabled()): foreach ($enrollments as $e): if ($e['status'] !== 'active') continue; ?>
+      <div class="modal fade" id="zoomStu<?= (int)$e['client_id'] ?>" tabindex="-1" aria-labelledby="zoomStuLbl<?= (int)$e['client_id'] ?>" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2 class="modal-title h5" id="zoomStuLbl<?= (int)$e['client_id'] ?>">
+                <i class="bi bi-camera-video text-primary me-2" aria-hidden="true"></i>Stały link Zoom — <?= h($e['client_name']) ?>
+              </h2>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+              <?php if (!empty($e['zoom_meeting_url'])): ?>
+              <div class="alert alert-success py-2 mb-3">
+                <i class="bi bi-check-circle me-1"></i>Aktywny link:<br>
+                <a href="<?= h($e['zoom_meeting_url']) ?>" target="_blank" rel="noopener" class="small"><?= h($e['zoom_meeting_url']) ?></a>
+                <div class="text-muted" style="font-size:.72rem">ID spotkania: <?= h($e['zoom_meeting_id']) ?></div>
+              </div>
+              <p class="mb-0">Generowanie nowego linku <strong>usunie</strong> bieżące spotkanie Zoom i stworzy nowe (stały URL się zmieni).</p>
+              <?php else: ?>
+              <p>Zostanie utworzone nowe spotkanie Zoom (typ: cykliczne bez stałego terminu) dla kursanta <strong><?= h($e['client_name']) ?></strong>.</p>
+              <p class="text-muted small mb-0">Link będzie wyświetlany kursantowi przy każdej zaplanowanej lekcji w zakładce <em>Moje lekcje</em> oraz w zakładce <em>Szkolenia online</em>.</p>
+              <?php endif; ?>
+            </div>
+            <div class="modal-footer">
+              <?php if (!empty($e['zoom_meeting_url'])): ?>
+              <form method="post" class="me-auto">
+                <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op"       value="clear_student_zoom">
+                <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash me-1"></i>Usuń link
+                </button>
+              </form>
+              <?php endif; ?>
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op"       value="gen_student_zoom">
+                <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-camera-video me-1"></i><?= !empty($e['zoom_meeting_url']) ? 'Regeneruj link' : 'Wygeneruj link' ?>
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>

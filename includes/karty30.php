@@ -410,6 +410,9 @@ function karty30_migrate(): void {
         // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
+        // Stały link Zoom per kursant (per zapis) — nadrzędny nad stałym linkiem kursu
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_id  TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_url TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -2786,6 +2789,7 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     // migracją (brak kolumny track_attendance) zapytanie musi zadziałać bez niej.
     $build = fn(string $extra) =>
         "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                e.zoom_meeting_url AS enrollment_meeting_url,
                 {$extra}
                 a.attended, a.ind_notes,
                 a.cancelled AS att_cancelled, a.cancel_pending AS att_cancel_pending,
@@ -2795,6 +2799,7 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
                 r.rating AS my_rating, r.comment AS my_comment
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=?
          LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
          LEFT JOIN k30_ti_lesson_ratings r ON r.session_id=s.id AND r.client_id=?
          WHERE s.course_id IN (
@@ -2802,7 +2807,7 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
          )
          ORDER BY s.lesson_date DESC, s.time_from DESC
          LIMIT " . max(1, $limit);
-    $p = [$client_id, $client_id, $client_id];
+    $p = [$client_id, $client_id, $client_id, $client_id];
     try {
         return db_all($build("c.track_attendance AS course_track_attendance,"), $p);
     } catch (\Throwable $e) {

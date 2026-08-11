@@ -339,26 +339,42 @@ function ti_upcoming_meetings(?int $clientId = null): array {
         }
     } catch (\Throwable $e) { /* ignoruj */ }
 
-    // (b) Stałe linki per kurs — zarówno wygenerowane przez API, jak i wklejone ręcznie.
+    // (b) Stałe linki per kurs/kursant.
+    //     Gdy clientId podany: enrollment.zoom_meeting_url > course.default_meeting_url.
     //     Platforma wykrywana z URL-a (zoom.us → zoom, teams.microsoft → teams, reszta → other).
+    $ti_perm_detect_plat = static function(string $url): string {
+        if (str_contains($url, 'zoom.us'))             return 'zoom';
+        if (str_contains($url, 'teams.microsoft'))     return 'teams';
+        return 'other';
+    };
     try {
-        $sql_perm = "SELECT c.id AS course_id, c.name AS course_name, c.default_meeting_url
-                     FROM k30_ti_courses c
-                     WHERE c.default_meeting_url != ''
-                       AND c.status = 'active'";
-        $params_perm = [];
         if ($clientId !== null) {
-            $sql_perm .= " AND c.id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')";
-            $params_perm[] = $clientId;
+            // Dla konkretnego kursanta — bierz enrollment-level link, fallback do kursu
+            $rows = db_all(
+                "SELECT c.id AS course_id, c.name AS course_name,
+                        CASE WHEN e.zoom_meeting_url != '' THEN e.zoom_meeting_url
+                             ELSE c.default_meeting_url END AS link_url
+                 FROM k30_ti_courses c
+                 JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
+                 WHERE c.status='active'
+                   AND (e.zoom_meeting_url != '' OR c.default_meeting_url != '')",
+                [$clientId]
+            );
+        } else {
+            // Widok ogólny (admin) — tylko linki na poziomie kursu
+            $rows = db_all(
+                "SELECT c.id AS course_id, c.name AS course_name, c.default_meeting_url AS link_url
+                 FROM k30_ti_courses c
+                 WHERE c.default_meeting_url != '' AND c.status='active'",
+                []
+            );
         }
-        foreach (db_all($sql_perm, $params_perm) as $row) {
-            $url = $row['default_meeting_url'];
-            if (str_contains($url, 'zoom.us'))               $plat = 'zoom';
-            elseif (str_contains($url, 'teams.microsoft'))   $plat = 'teams';
-            else                                              $plat = 'other';
+        foreach ($rows as $row) {
+            $url = (string)($row['link_url'] ?? '');
+            if ($url === '') continue;
             $items[] = [
                 'title'       => $row['course_name'],
-                'platform'    => $plat,
+                'platform'    => $ti_perm_detect_plat($url),
                 'join_url'    => $url,
                 'starts_at'   => '',
                 'course_id'   => (int)$row['course_id'],
