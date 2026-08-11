@@ -339,7 +339,32 @@ function ti_upcoming_meetings(?int $clientId = null): array {
         }
     } catch (\Throwable $e) { /* ignoruj */ }
 
-    // (b) Teams — kalendarz tenanta szkoleniowego
+    // (b) Stałe linki Zoom per kurs — wygenerowane przez API (typ 3, no fixed time).
+    //     Nie trafiają do /meetings?type=upcoming, więc ciągniemy bezpośrednio z DB.
+    try {
+        $sql_zoom = "SELECT c.id AS course_id, c.name AS course_name, c.default_meeting_url
+                     FROM k30_ti_courses c
+                     WHERE c.default_meeting_url != ''
+                       AND c.zoom_meeting_id   != ''
+                       AND c.status = 'active'";
+        $params_zoom = [];
+        if ($clientId !== null) {
+            $sql_zoom .= " AND c.id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')";
+            $params_zoom[] = $clientId;
+        }
+        foreach (db_all($sql_zoom, $params_zoom) as $row) {
+            $items[] = [
+                'title'       => $row['course_name'],
+                'platform'    => 'zoom',
+                'join_url'    => $row['default_meeting_url'],
+                'starts_at'   => '',
+                'course_id'   => (int)$row['course_id'],
+                'course_name' => $row['course_name'],
+            ];
+        }
+    } catch (\Throwable $e) { /* ignoruj */ }
+
+    // (c) Teams — kalendarz tenanta szkoleniowego
     $calUser = org_setting('m365t_meetings_user');
     if (ti_ms_enabled() && $calUser !== '') {
         try {
@@ -358,10 +383,16 @@ function ti_upcoming_meetings(?int $clientId = null): array {
         } catch (\Throwable $e) { /* ignoruj */ }
     }
 
-    // (c) Zoom
+    // (d) Zoom API — spotkania z datą (typ 1/2); per-kursowe stałe linki (typ 3) już w (b).
+    //     Pomijamy join_url, które już dodaliśmy z DB, żeby uniknąć duplikatów.
     if (zoom_enabled()) {
+        $db_zoom_urls = array_column(
+            array_filter($items, fn($i) => $i['platform'] === 'zoom'),
+            'join_url'
+        );
         try {
             foreach ((new ZoomAPI())->upcoming_meetings() as $m) {
+                if (in_array($m['join_url'], $db_zoom_urls, true)) continue;
                 $items[] = [
                     'title'       => $m['title'],
                     'platform'    => 'zoom',

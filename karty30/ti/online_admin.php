@@ -43,8 +43,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (($_POST['zoom_client_secret'] ?? '') !== '') {
             m365_save_setting('zoom_client_secret', $_POST['zoom_client_secret']);
         }
-        flash_set('success', 'Konfiguracja Zoom zapisana.');
-        header('Location: online_admin.php'); exit;
+        // Po zapisie od razu testuj połączenie — wynik pokazujemy bez przekierowania
+        if (zoom_enabled()) {
+            $r = (new ZoomAPI())->test_connection();
+            $test_result = ['ok' => $r['ok'], 'msg' => 'Zoom: ' . $r['msg']];
+            if ($r['ok']) flash_set('success', 'Konfiguracja zapisana. Połączenie OK.');
+            else          flash_set('warning', 'Konfiguracja zapisana, ale test nieudany: ' . $r['msg']);
+        } else {
+            flash_set('success', 'Konfiguracja Zoom zapisana (integracja wyłączona).');
+            header('Location: online_admin.php'); exit;
+        }
     }
 
     if ($op === 'test_ms') {
@@ -56,11 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? ['ok' => true,  'msg' => 'Microsoft OK. Organizacja: ' . ($r['org_name'] ?? '?') . ' — domeny: ' . implode(', ', $r['domains'] ?? [])]
                 : ['ok' => false, 'msg' => 'Microsoft: ' . ($r['error'] ?? 'błąd')];
         }
-    }
-
-    if ($op === 'test_zoom') {
-        $r = (new ZoomAPI())->test_connection();
-        $test_result = ['ok' => $r['ok'], 'msg' => 'Zoom: ' . $r['msg']];
     }
 
     if ($op === 'meeting_save') {
@@ -194,14 +197,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input class="form-control form-control-sm" type="password" name="zoom_client_secret" value="" placeholder="<?= $ms_set('zoom_client_secret') !== '' ? '••••••••' : '' ?>"></div>
           <div class="mb-3"><label class="form-label small">Użytkownik (e-mail lub „me")</label>
             <input class="form-control form-control-sm" name="zoom_user_id" value="<?= h($ms_set('zoom_user_id')) ?>" placeholder="me"></div>
-          <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>
+          <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz i testuj</button>
         </form>
-        <form method="post" class="mt-2">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_op" value="test_zoom">
-          <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug me-1"></i>Test połączenia Zoom</button>
-        </form>
-        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace. Wymagane scopy: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>.</div>
+        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace. Scopy: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>. Zapis automatycznie weryfikuje połączenie.</div>
       </div>
     </div>
   </div>

@@ -1471,59 +1471,64 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
         <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
         <div class="ms-auto d-flex gap-2">
-          <?php if ($all_sessions): ?>
+          <!-- Więcej — wszystkie drugorzędne akcje w jednym dropdown -->
           <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-              <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-three-dots me-1"></i>Więcej
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="attendance_pdf.php?course_id=<?= $cur_course ?>">
-                <i class="bi bi-table me-2"></i>Lista obecnosci (caly kurs)
+              <li><h6 class="dropdown-header">Dodaj lekcje</h6></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addSeries">
+                <i class="bi bi-calendar-plus me-2"></i>Seria lekcji
               </a></li>
-              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= date('Y-m') ?>">
-                <i class="bi bi-calendar-month me-2"></i>Raport miesiecny (biezacy)
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addRecurring">
+                <i class="bi bi-arrow-repeat me-2"></i>Zajęcia stałe (cykliczne)
               </a></li>
-              <li><a class="dropdown-item" href="self_work.php?month=<?= date('Y-m') ?>">
-                <i class="bi bi-person-workspace me-2"></i>Praca wlasna (biezacy mies.)
-              </a></li>
+              <?php if ($all_sessions): ?>
               <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Raporty PDF</h6></li>
+              <li><a class="dropdown-item" href="attendance_pdf.php?course_id=<?= $cur_course ?>">
+                <i class="bi bi-table me-2"></i>Lista obecności (cały kurs)
+              </a></li>
               <?php
-                $prev = date('Y-m', strtotime('-1 month'));
+                $prev  = date('Y-m', strtotime('-1 month'));
                 $prev2 = date('Y-m', strtotime('-2 months'));
               ?>
-              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev ?>">
-                <i class="bi bi-calendar-month me-2"></i>Raport: <?= $prev ?>
+              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= date('Y-m') ?>">
+                <i class="bi bi-calendar-month me-2"></i>Raport bieżący (<?= date('Y-m') ?>)
               </a></li>
-              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev2 ?>">
-                <i class="bi bi-calendar-month me-2"></i>Raport: <?= $prev2 ?>
+              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev ?>">
+                <i class="bi bi-calendar-month me-2"></i>Raport <?= $prev ?>
+              </a></li>
+              <li><a class="dropdown-item" href="self_work.php?month=<?= date('Y-m') ?>">
+                <i class="bi bi-person-workspace me-2"></i>Praca własna (bieżący)
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Kalendarz</h6></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalModal">
+                <i class="bi bi-calendar3 me-2"></i>Podgląd kalendarza
+              </a></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
+                <i class="bi bi-calendar-check me-2"></i>Subskrybuj / pobierz
+              </a></li>
+              <li><a class="dropdown-item" href="plan_print.php?instructor_id=<?= $uid ?>" target="_blank">
+                <i class="bi bi-printer me-2"></i>Wydruk planu tygodniowego
+              </a></li>
+              <?php endif; ?>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#" id="dyd-sms-week-trigger">
+                <i class="bi bi-chat-left-text me-2"></i>SMS z planem do grupy
               </a></li>
             </ul>
           </div>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalModal">
-            <i class="bi bi-calendar3 me-1"></i>Kalendarz
-          </button>
-          <?php endif; ?>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
-            <i class="bi bi-calendar-check me-1"></i>Subskrybuj / pobierz
-          </button>
-          <form method="post" class="d-inline"
+          <!-- ukryty formularz SMS — wyzwalany przez dropdown item -->
+          <form method="post" id="dyd-sms-week-form" class="d-none"
                 onsubmit="return confirm('Wysłać SMS z terminami lekcji w tym tygodniu do wszystkich kursantów grupy?')">
-            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-            <input type="hidden" name="_op"        value="sms_week_group">
-            <input type="hidden" name="course_id"  value="<?= $cur_course ?>">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">
-              <i class="bi bi-chat-left-text me-1"></i>SMS do grupy
-            </button>
+            <input type="hidden" name="_token"    value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"       value="sms_week_group">
+            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
           </form>
-          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSeries">
-            <i class="bi bi-calendar-plus me-1"></i>Seria
-          </button>
-          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addRecurring">
-            <i class="bi bi-arrow-repeat me-1"></i>Zajęcia stałe
-          </button>
-          <a href="plan_print.php?instructor_id=<?= $uid ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-printer me-1"></i>Wydruk planu
-          </a>
+          <!-- główna akcja -->
           <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
             <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
           </button>
@@ -1784,49 +1789,56 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <?php endif; ?>
 
               <!-- Akcje -->
-              <div class="d-flex flex-wrap align-items-center gap-1 pt-1" style="border-top:1px solid var(--bs-border-color-translucent)">
+              <div class="d-flex align-items-center gap-1 pt-1" style="border-top:1px solid var(--bs-border-color-translucent)">
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
                   <i class="bi bi-people me-1"></i>Obecność
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
-                  <i class="bi bi-pencil me-1"></i>Edytuj
-                </button>
-                <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
-                <button type="button" class="btn btn-sm btn-outline-secondary"
-                        onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>)">
-                  <i class="bi bi-calendar2-range me-1"></i>Przenieś
-                </button>
-                <?php endif; ?>
-                <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-list-check me-1"></i>Szczegóły
-                </a>
-                <!-- Odwołanie / przywrócenie — po prawej -->
-                <div class="ms-auto d-flex gap-1 align-items-center">
-                  <?php if ($s['status'] === 'cancelled'): ?>
-                  <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
-                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                    <input type="hidden" name="_op" value="uncancel_session">
-                    <input type="hidden" name="_tab" value="lekcje">
-                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć</button>
-                  </form>
-                  <?php elseif (!$is_past): ?>
-                  <button type="button" class="btn btn-sm btn-outline-danger"
-                          onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>)">
-                    <i class="bi bi-x-circle me-1"></i>Odwołaj
+                <div class="dropdown ms-auto">
+                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots"></i>
                   </button>
-                  <?php else: ?>
-                  <span class="text-body-secondary small"><i class="bi bi-lock me-1"></i>Zablokowane</span>
-                  <?php endif; ?>
-                  <form method="post" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
-                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                    <input type="hidden" name="_op" value="delete_lesson">
-                    <input type="hidden" name="_tab" value="lekcje">
-                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                    <button class="btn btn-sm btn-outline-danger" title="Usuń lekcję"><i class="bi bi-trash"></i></button>
-                  </form>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
+                      <i class="bi bi-pencil me-2"></i>Edytuj
+                    </a></li>
+                    <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
+                    <li><a class="dropdown-item" href="#"
+                           onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>); return false">
+                      <i class="bi bi-calendar2-range me-2"></i>Przenieś
+                    </a></li>
+                    <?php endif; ?>
+                    <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>">
+                      <i class="bi bi-list-check me-2"></i>Szczegóły
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <?php if ($s['status'] === 'cancelled'): ?>
+                    <li>
+                      <form method="post" class="d-grid" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
+                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                        <input type="hidden" name="_op" value="uncancel_session">
+                        <input type="hidden" name="_tab" value="lekcje">
+                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                        <button class="dropdown-item"><i class="bi bi-arrow-counterclockwise me-2"></i>Przywróć lekcję</button>
+                      </form>
+                    </li>
+                    <?php elseif (!$is_past): ?>
+                    <li><a class="dropdown-item text-danger" href="#"
+                           onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>); return false">
+                      <i class="bi bi-x-circle me-2"></i>Odwołaj lekcję
+                    </a></li>
+                    <?php endif; ?>
+                    <li>
+                      <form method="post" class="d-grid" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
+                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                        <input type="hidden" name="_op" value="delete_lesson">
+                        <input type="hidden" name="_tab" value="lekcje">
+                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                        <button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Usuń lekcję</button>
+                      </form>
+                    </li>
+                  </ul>
                 </div>
               </div>
 
@@ -3519,6 +3531,13 @@ document.addEventListener('input', function(e){
   // Pokaż / ukryj komunikat „brak wyników"
   var msg = list.querySelector('.dyd-filter-empty');
   if (msg) msg.style.display = (q && shown === 0) ? '' : 'none';
+});
+</script>
+<script>
+// SMS do grupy — wyzwalany przez dropdown item (form jest ukryty)
+document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', function(e) {
+  e.preventDefault();
+  document.getElementById('dyd-sms-week-form')?.requestSubmit();
 });
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
