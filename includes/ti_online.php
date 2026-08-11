@@ -339,24 +339,27 @@ function ti_upcoming_meetings(?int $clientId = null): array {
         }
     } catch (\Throwable $e) { /* ignoruj */ }
 
-    // (b) Stałe linki Zoom per kurs — wygenerowane przez API (typ 3, no fixed time).
-    //     Nie trafiają do /meetings?type=upcoming, więc ciągniemy bezpośrednio z DB.
+    // (b) Stałe linki per kurs — zarówno wygenerowane przez API, jak i wklejone ręcznie.
+    //     Platforma wykrywana z URL-a (zoom.us → zoom, teams.microsoft → teams, reszta → other).
     try {
-        $sql_zoom = "SELECT c.id AS course_id, c.name AS course_name, c.default_meeting_url
+        $sql_perm = "SELECT c.id AS course_id, c.name AS course_name, c.default_meeting_url
                      FROM k30_ti_courses c
                      WHERE c.default_meeting_url != ''
-                       AND c.zoom_meeting_id   != ''
                        AND c.status = 'active'";
-        $params_zoom = [];
+        $params_perm = [];
         if ($clientId !== null) {
-            $sql_zoom .= " AND c.id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')";
-            $params_zoom[] = $clientId;
+            $sql_perm .= " AND c.id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')";
+            $params_perm[] = $clientId;
         }
-        foreach (db_all($sql_zoom, $params_zoom) as $row) {
+        foreach (db_all($sql_perm, $params_perm) as $row) {
+            $url = $row['default_meeting_url'];
+            if (str_contains($url, 'zoom.us'))               $plat = 'zoom';
+            elseif (str_contains($url, 'teams.microsoft'))   $plat = 'teams';
+            else                                              $plat = 'other';
             $items[] = [
                 'title'       => $row['course_name'],
-                'platform'    => 'zoom',
-                'join_url'    => $row['default_meeting_url'],
+                'platform'    => $plat,
+                'join_url'    => $url,
                 'starts_at'   => '',
                 'course_id'   => (int)$row['course_id'],
                 'course_name' => $row['course_name'],
