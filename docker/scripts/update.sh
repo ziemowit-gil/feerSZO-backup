@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# update.sh — git pull kodu + graceful reload Apache (bez rebuildu obrazu)
+# update.sh — git pull kodu + restart Apache + migracje (bez rebuildu obrazu)
 #
 # Używaj gdy zmieniły się tylko pliki PHP/HTML/JS/CSS.
 # Dla zmian w Dockerfile lub php.prod.ini użyj rebuild.sh.
+#
+# UWAGA: php.prod.ini ma opcache.validate_timestamps=0 — graceful reload
+# nie czyści OPcache (workers dziedziczą SHM z procesu-rodzica). Skrypt
+# robi pełny restart Apache, który reinicjalizuje moduł PHP i niszczy stary SHM.
 #
 # Użycie:
 #   bash docker/update.sh           # prod + testy (jeśli działa)
@@ -114,7 +118,7 @@ run_migrations() {
     fi
 }
 
-# ── Funkcja: odśwież Apache + OPcache w kontenerze ────────────────────────────
+# ── Funkcja: restart Apache + weryfikacja ─────────────────────────────────────
 reload_container() {
     local container="$1"
     local label="$2"
@@ -128,15 +132,28 @@ reload_container() {
         return
     fi
 
-    # Pełny restart Apache (nie graceful) — wymagany, bo php.prod.ini ma
-    # opcache.validate_timestamps=0. Graceful nie czyści OPcache (SHM
-    # współdzielony przez forked workers); restart zeruje cache w ~1 s.
-    docker exec "${container}" apache2ctl restart 2>/dev/null \
-        || docker exec "${container}" service apache2 restart 2>/dev/null \
-        || docker exec "${container}" kill -HUP 1 2>/dev/null \
-        || true
+    # apache2ctl restart = SIGHUP do głównego procesu Apache → reinicjalizuje
+    # moduł PHP (php_module_shutdown + php_module_init) → nowy segment SHM OPcache.
+    # NIE używamy: kill -HUP 1 (PID 1 w Docker to często entrypoint, nie Apache).
+    info "${label}: restart Apache (czyści OPcache)..."
+    if docker exec "${container}" apache2ctl restart 2>/dev/null; then
+        : # ok
+    elif docker exec "${container}" service apache2 restart 2>/dev/null; then
+        : # ok (fallback dla starszych obrazów)
+    else
+        # Ostateczność: wyślij SIGHUP bezpośrednio do procesu apache2
+        docker exec "${container}" bash -c \
+            'kill -HUP $(cat /var/run/apache2/apache2.pid 2>/dev/null || pgrep -x apache2 | head -1) 2>/dev/null' \
+            || true
+    fi
 
-    ok "${label}: Apache zrestartowany, OPcache wyczyszczony"
+    # Krótkie oczekiwanie na przejście Apache + weryfikacja procesu
+    sleep 2
+    if docker exec "${container}" pgrep -x apache2 &>/dev/null; then
+        ok "${label}: Apache aktywny, OPcache wyczyszczony"
+    else
+        warn "${label}: Apache może nie odpowiadać — sprawdź ręcznie: docker exec ${container} apache2ctl status"
+    fi
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
