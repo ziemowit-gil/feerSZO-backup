@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth/auth.service';
 import { KursantApiService } from '../../core/services/kursant-api.service';
+import { PushService } from '../../core/services/push.service';
 
 interface NavItem {
   path: string;
@@ -298,7 +299,10 @@ export class ShellComponent implements OnInit {
     return this.NAV_ITEMS.filter(item => !(isMinor && item.hideMinor));
   });
 
+  private push = inject(PushService);
+
   ngOnInit(): void {
+    this.push.init();
     this.api.getDashboard().subscribe({
       next: res => {
         if (res.success && res.data) {

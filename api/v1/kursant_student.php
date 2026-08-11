@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/karty30.php';
+require_once __DIR__ . '/../../includes/push.php';
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
 $allowed_origins = ['http://localhost:4202', 'http://localhost:4201', 'http://localhost:4200'];
@@ -994,6 +995,34 @@ switch ($action) {
             'ical'  => "{$cal_base}?token={$new_token}",
             'gcal'  => 'https://calendar.google.com/calendar/r?cid=' . urlencode("webcal://szo.feer.org.pl/karty30/ti/kursant/ical.php?token={$new_token}"),
         ]);
+    }
+
+    // ── GET: push_vapid_key ───────────────────────────────────────────────────
+    case 'push_vapid_key': {
+        if ($method !== 'GET') json_err('Method not allowed', 405);
+        $keys = push_vapid_keys();
+        json_ok(['vapid_public_key' => $keys['public']]);
+    }
+
+    // ── POST: push_subscribe ──────────────────────────────────────────────────
+    case 'push_subscribe': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sub  = isset($body['subscription']) ? json_encode($body['subscription']) : null;
+        if (!$sub || strlen($sub) > 4000) json_err('Brak danych subskrypcji.');
+        try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN push_subscription TEXT"); } catch (\PDOException) {}
+        try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN push_enabled INTEGER NOT NULL DEFAULT 0"); } catch (\PDOException) {}
+        $pdo->prepare("UPDATE k30_ti_student_accounts SET push_subscription=?, push_enabled=1 WHERE id=?")
+            ->execute([$sub, $student_id]);
+        json_ok(null, 'Powiadomienia push włączone.');
+    }
+
+    // ── POST: push_unsubscribe ────────────────────────────────────────────────
+    case 'push_unsubscribe': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $pdo->prepare("UPDATE k30_ti_student_accounts SET push_subscription=NULL, push_enabled=0 WHERE id=?")
+            ->execute([$student_id]);
+        json_ok(null, 'Powiadomienia push wyłączone.');
     }
 
     default:

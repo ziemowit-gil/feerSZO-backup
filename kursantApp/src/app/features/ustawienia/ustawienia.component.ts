@@ -9,6 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { KursantApiService } from '../../core/services/kursant-api.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { PushService } from '../../core/services/push.service';
 
 function passwordMatch(control: AbstractControl): ValidationErrors | null {
   const pwd  = control.get('new_password');
@@ -153,10 +154,62 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
 
       <!-- Tab 3: Notifications -->
       <mat-tab label="Powiadomienia">
+        <section class="k-card tab-content" aria-labelledby="push-heading">
+          <h2 class="k-card-title" id="push-heading">
+            <span class="material-symbols-outlined" aria-hidden="true">notification_add</span>
+            Powiadomienia push
+          </h2>
+
+          @if (!push.isSupported) {
+            <div class="k-alert info" role="note">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              Twoja przeglądarka nie obsługuje powiadomień push.
+            </div>
+          }
+
+          @if (push.isSupported && push.permDenied()) {
+            <div class="k-alert warning" role="alert">
+              <span class="material-symbols-outlined" aria-hidden="true">block</span>
+              Powiadomienia zablokowane w przeglądarce. Odblokuj je w ustawieniach strony i odśwież stronę.
+            </div>
+          }
+
+          @if (push.isSupported && !push.permDenied()) {
+            <div class="push-row">
+              <div>
+                <p class="push-label">
+                  {{ push.enabled() ? 'Powiadomienia push włączone' : 'Powiadomienia push wyłączone' }}
+                </p>
+                <p class="text-muted text-sm" style="margin:0">
+                  Otrzymuj powiadomienia o wiadomościach i aktualnościach nawet gdy przeglądarka jest w tle.
+                </p>
+              </div>
+              @if (push.enabled()) {
+                <button mat-stroked-button
+                        class="btn-push-off"
+                        [disabled]="push.loading()"
+                        (click)="disablePush()"
+                        aria-label="Wyłącz powiadomienia push">
+                  <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
+                  Wyłącz
+                </button>
+              } @else {
+                <button mat-flat-button
+                        [disabled]="push.loading()"
+                        (click)="enablePush()"
+                        aria-label="Włącz powiadomienia push">
+                  <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
+                  Włącz
+                </button>
+              }
+            </div>
+          }
+        </section>
+
         <section class="k-card tab-content" aria-labelledby="notif-heading">
           <h2 class="k-card-title" id="notif-heading">
             <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-            Preferencje powiadomień
+            Powiadomienia e-mail i SMS
           </h2>
 
           <form [formGroup]="notifForm" (ngSubmit)="saveNotifs()" novalidate>
@@ -214,6 +267,27 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
     }
 
     mat-checkbox { display: block; margin-bottom: .4rem; }
+
+    .push-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .75rem 0;
+      flex-wrap: wrap;
+    }
+
+    .push-label {
+      font-weight: 600;
+      margin: 0 0 .2rem;
+      color: #111827;
+      font-size: .95rem;
+    }
+
+    .btn-push-off {
+      color: #6b7280 !important;
+      border-color: #d1d5db !important;
+    }
   `],
 })
 export class UstawieniaComponent implements OnInit {
@@ -221,6 +295,7 @@ export class UstawieniaComponent implements OnInit {
   private api   = inject(KursantApiService);
   private auth  = inject(AuthService);
   private snack = inject(MatSnackBar);
+  push = inject(PushService);
 
   showCurr = signal(false);
   showNew  = signal(false);
@@ -307,6 +382,18 @@ export class UstawieniaComponent implements OnInit {
         if (res.success) this.snack.open('Adres e-mail zmieniony.', 'OK', { duration: 3000 });
       },
       error: () => this.savingEmail.set(false),
+    });
+  }
+
+  enablePush(): void {
+    this.push.enable().catch(() => {
+      this.snack.open('Nie udało się włączyć powiadomień push.', 'OK', { duration: 4000 });
+    });
+  }
+
+  disablePush(): void {
+    this.push.disable().catch(() => {
+      this.snack.open('Błąd podczas wyłączania powiadomień push.', 'OK', { duration: 4000 });
     });
   }
 
