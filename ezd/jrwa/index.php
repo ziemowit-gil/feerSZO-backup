@@ -58,9 +58,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="text-muted" style="font-size:.8rem;margin-top:.15rem">Jednolity Rzeczowy Wykaz Akt — klasyfikacja i kwalifikacja archiwalna</div>
   </div>
   <?php if (is_admin()): ?>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#jrwa-form">
-    <i class="bi bi-plus-lg me-1"></i><?= $edit ? 'Edytuj hasło' : 'Dodaj hasło' ?>
-  </button>
+  <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/ezd/jrwa/ai_reklasyfikuj.php" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-robot me-1"></i>AI Reklasyfikacja
+    </a>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#jrwa-form">
+      <i class="bi bi-plus-lg me-1"></i><?= $edit ? 'Edytuj hasło' : 'Dodaj hasło' ?>
+    </button>
+  </div>
   <?php endif; ?>
 </div>
 

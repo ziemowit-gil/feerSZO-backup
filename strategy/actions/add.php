@@ -35,11 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowed = ['nazwa','typ','opis','status','koordynator_id',
                     'data_od','data_do','cykliczne','czestotliwosc',
                     'lokalizacja','forma','link_online','wlasne_dzialanie',
-                    'korzysci_tytul','korzysci','dla_kogo'];
+                    'korzysci_tytul','korzysci','dla_kogo','cel_statutowy'];
         $data = array_intersect_key($row, array_flip($allowed));
 
         $data['cykliczne']        = isset($row['cykliczne']) ? 1 : 0;
         $data['wlasne_dzialanie'] = isset($row['wlasne_dzialanie']) ? 1 : 0;
+        $data['cel_statutowy']    = !empty($data['cel_statutowy']) ? (int)$data['cel_statutowy'] : null;
 
         foreach (['koordynator_id','data_od','data_do','czestotliwosc','link_online','lokalizacja'] as $f) {
             if (isset($data[$f]) && trim((string)$data[$f]) === '') $data[$f] = null;
@@ -49,6 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data['updated_at'] = date('Y-m-d H:i:s');
 
         $action_id = db_insert('actions', $data);
+
+        // Auto-segregator JRWA
+        if ($data['cel_statutowy']) {
+            action_ensure_jrwa($action_id, (int)$data['cel_statutowy'], trim($data['nazwa']));
+        }
 
         // Save action_grants
         $grant_ids   = $_POST['grant_id'] ?? [];
@@ -142,6 +148,20 @@ include dirname(__DIR__) . '/includes/header_strategy.php';
         <option value="">— brak —</option>
         <?php foreach ($users as $u): ?>
         <option value="<?= $u['id'] ?>" <?= ($row['koordynator_id'] ?? '') == $u['id'] ? 'selected' : '' ?>><?= h($u['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label">
+        Cel statutowy §6
+        <small class="text-muted ms-1">— auto-tworzy segregator EZD</small>
+      </label>
+      <select name="cel_statutowy" class="form-select">
+        <option value="">— nie przypisano —</option>
+        <?php foreach (ACTION_CELE as $k => $lbl): ?>
+        <option value="<?= $k ?>" <?= ($row['cel_statutowy'] ?? '') == $k ? 'selected' : '' ?>>
+          §6 pkt <?= $k ?> — <?= h($lbl) ?>
+        </option>
         <?php endforeach; ?>
       </select>
     </div>

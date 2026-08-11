@@ -80,7 +80,82 @@
     // Powiązanie umów wolontariatu z działaniem lub grantem
     try { $pdo->exec("ALTER TABLE umowy_wolontariat ADD COLUMN action_id INTEGER REFERENCES actions(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE umowy_wolontariat ADD COLUMN grant_id INTEGER REFERENCES grants(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+
+    // Cel statutowy §6 + powiązany segregator EZD JRWA
+    try { $pdo->exec("ALTER TABLE actions ADD COLUMN cel_statutowy INTEGER"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE actions ADD COLUMN jrwa_id INTEGER REFERENCES ezd_jrwa(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
 })();
+
+// ── JRWA auto-segregator ───────────────────────────────────────────────────────
+
+/** Mapa: cel_statutowy (1-9) → symbol klasy JRWA §6 */
+const ACTION_CEL_JRWA = [
+    1 => '31', 2 => '32', 3 => '33', 4 => '34', 5 => '35',
+    6 => '36', 7 => '37', 8 => '38', 9 => '39',
+];
+
+/** Etykiety §6 celów */
+const ACTION_CELE = [
+    1 => 'Przeciwdziałanie wykluczeniu społecznemu',
+    2 => 'Działalność edukacyjna',
+    3 => 'Promocja i organizacja wolontariatu',
+    4 => 'Podnoszenie kwalifikacji zawodowych os. z niepełnospr.',
+    5 => 'Promowanie samorozwoju os. z niepełnosprawnościami',
+    6 => 'Działania na rzecz osób starszych',
+    7 => 'Integracja osób z niepełnosprawnościami',
+    8 => 'Promowanie tyfloinformatyki',
+    9 => 'Działalność na rzecz NGO i aktywizacja społeczeństwa',
+];
+
+/**
+ * Tworzy segregator JRWA dla działania (jeśli już nie ma).
+ * Symbol: {klasa-§6}.{NNN} np. 32.001
+ * Zwraca jrwa_id lub null gdy ezd_jrwa nie istnieje/brak celu.
+ */
+function action_ensure_jrwa(int $action_id, int $cel_statutowy, string $nazwa): ?int {
+    if (!isset(ACTION_CEL_JRWA[$cel_statutowy])) return null;
+    try {
+        $pdo = db();
+        $parentSym = ACTION_CEL_JRWA[$cel_statutowy];
+        $parent = $pdo->prepare("SELECT id FROM ezd_jrwa WHERE symbol=? LIMIT 1");
+        $parent->execute([$parentSym]);
+        $pid = $parent->fetchColumn();
+        if (!$pid) return null;
+        $pid = (int)$pid;
+
+        // Sprawdź czy action już ma jrwa_id
+        $existing = db_one("SELECT jrwa_id FROM actions WHERE id=?", [$action_id]);
+        if (!empty($existing['jrwa_id'])) {
+            return (int)$existing['jrwa_id'];
+        }
+
+        // Ustal kolejny numer w tej klasie
+        $last = $pdo->prepare("SELECT symbol FROM ezd_jrwa WHERE parent_id=? AND symbol LIKE ? ORDER BY symbol DESC LIMIT 1");
+        $last->execute([$pid, $parentSym . '.%']);
+        $lastSym = $last->fetchColumn();
+        if ($lastSym) {
+            $n = (int)substr($lastSym, strrpos($lastSym, '.') + 1) + 1;
+        } else {
+            $n = 1;
+        }
+        $sym = $parentSym . '.' . str_pad($n, 3, '0', STR_PAD_LEFT);
+
+        // Wstaw segregator
+        $ins = $pdo->prepare(
+            "INSERT INTO ezd_jrwa (symbol, title, kat_arch, description, sort_order, parent_id)
+             VALUES (?,?,?,?,?,?)"
+        );
+        $ins->execute([$sym, $nazwa, 'B5', "Działanie #{$action_id}", $n * 10, $pid]);
+        $jrwa_id = (int)$pdo->lastInsertId();
+
+        // Zapisz z powrotem na działanie
+        $pdo->prepare("UPDATE actions SET jrwa_id=? WHERE id=?")->execute([$jrwa_id, $action_id]);
+        return $jrwa_id;
+    } catch (\Throwable $e) {
+        error_log('[action_ensure_jrwa] ' . $e->getMessage());
+        return null;
+    }
+}
 
 // ── Helpery ────────────────────────────────────────────────────────────────────
 
