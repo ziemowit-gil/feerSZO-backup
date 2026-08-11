@@ -128,17 +128,15 @@ reload_container() {
         return
     fi
 
-    # Graceful Apache reload (bez utraty połączeń)
-    docker exec "${container}" apache2ctl graceful 2>/dev/null \
-        || docker exec "${container}" kill -USR1 1 2>/dev/null \
+    # Pełny restart Apache (nie graceful) — wymagany, bo php.prod.ini ma
+    # opcache.validate_timestamps=0. Graceful nie czyści OPcache (SHM
+    # współdzielony przez forked workers); restart zeruje cache w ~1 s.
+    docker exec "${container}" apache2ctl restart 2>/dev/null \
+        || docker exec "${container}" service apache2 restart 2>/dev/null \
+        || docker exec "${container}" kill -HUP 1 2>/dev/null \
         || true
 
-    # Touch plików PHP → OPcache zwaliduje je przy następnym żądaniu
-    docker exec "${container}" find /var/www/html \
-        -name "*.php" -newer /var/www/html/config.php \
-        -exec touch {} \; 2>/dev/null || true
-
-    ok "${label}: Apache przeładowany, OPcache odświeżony"
+    ok "${label}: Apache zrestartowany, OPcache wyczyszczony"
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
