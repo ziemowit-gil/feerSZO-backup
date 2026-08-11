@@ -201,7 +201,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="hidden" name="_op" value="test_zoom">
           <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug me-1"></i>Test połączenia Zoom</button>
         </form>
-        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace (scopes: meeting:read, user:read).</div>
+        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace. Wymagane scopy: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>.</div>
       </div>
     </div>
   </div>
