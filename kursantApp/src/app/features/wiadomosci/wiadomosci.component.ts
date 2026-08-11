@@ -147,7 +147,7 @@ import { Message } from '../../core/models/kursant.models';
       display: inline-block;
       width: 7px; height: 7px;
       border-radius: 50%;
-      background: #e05a1e;
+      background: #c2410c;
       margin-left: .35rem;
       vertical-align: middle;
     }
@@ -178,6 +178,7 @@ export class WiadomosciComponent implements OnInit, AfterViewInit {
         if (res.success && res.data) {
           this.messages.set(res.data);
           this.api.markMessagesRead().subscribe();
+          setTimeout(() => this.scrollToBottom(), 50);
         }
       },
       error: () => this.loading.set(false),

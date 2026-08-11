@@ -218,30 +218,30 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
     }
 
     .k-select {
-      background: rgba(255,255,255,.07);
-      border: 1px solid rgba(255,255,255,.15);
+      background: #f8fafc;
+      border: 1px solid #d1d5db;
       border-radius: .5rem;
-      color: #e8e8f0;
+      color: #111827;
       padding: .5rem .875rem;
       font-size: .875rem;
       cursor: pointer;
 
-      &:focus-visible { outline: 2px solid #e05a1e; outline-offset: 2px; }
+      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
 
-      option { background: #1a1a2e; }
+      option { background: #fff; }
     }
 
     .online-badge {
       display: inline-flex;
       align-items: center;
-      color: #93c5fd;
+      color: #1d4ed8;
       margin-left: .4rem;
       .material-symbols-outlined { font-size: 1rem; }
     }
 
     .stars-display { display: flex; gap: 2px; }
-    .star { font-size: 1rem; color: rgba(255,255,255,.2); }
-    .star.filled { color: #fbbf24; }
+    .star { font-size: 1rem; color: #d1d5db; }
+    .star.filled { color: #f59e0b; }
 
     .btn-small {
       font-size: .78rem !important;
@@ -251,7 +251,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
       line-height: 1.5 !important;
     }
 
-    .btn-danger { color: #fca5a5 !important; border-color: rgba(239,68,68,.3) !important; }
+    .btn-danger { color: #b91c1c !important; border-color: #fca5a5 !important; }
 
     .action-cell { display: flex; gap: .5rem; }
 
@@ -259,7 +259,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
       position: fixed;
       inset: 0;
       z-index: 400;
-      background: rgba(0,0,0,.6);
+      background: rgba(0,0,0,.45);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -279,13 +279,13 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
       border: none;
       cursor: pointer;
       padding: .25rem;
-      color: rgba(255,255,255,.2);
+      color: #d1d5db;
       transition: color .15s;
       border-radius: .25rem;
 
       .material-symbols-outlined { font-size: 2rem; }
-      &.active { color: #fbbf24; }
-      &:focus-visible { outline: 2px solid #e05a1e; outline-offset: 2px; }
+      &.active { color: #f59e0b; }
+      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
     }
   `],
 })

@@ -104,11 +104,11 @@ interface CourseGroup { course_id: number; course_name: string; items: Curriculu
       align-items: flex-start;
       gap: .875rem;
       padding: .75rem 0;
-      border-bottom: 1px solid rgba(255,255,255,.05);
-      color: rgba(255,255,255,.5);
+      border-bottom: 1px solid #e5e7eb;
+      color: #9ca3af;
 
       &:last-child { border-bottom: none; }
-      &.completed { color: #e8e8f0; }
+      &.completed { color: #111827; }
     }
 
     .item-checkbox {
@@ -118,7 +118,7 @@ interface CourseGroup { course_id: number; course_name: string; items: Curriculu
       .material-symbols-outlined { font-size: 1.2rem; }
     }
 
-    .completed .item-checkbox .material-symbols-outlined { color: #22c55e; }
+    .completed .item-checkbox .material-symbols-outlined { color: #15803d; }
 
     .item-content {
       display: flex;

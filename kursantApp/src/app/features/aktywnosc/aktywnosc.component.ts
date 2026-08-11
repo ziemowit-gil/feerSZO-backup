@@ -66,11 +66,12 @@ import { ActivityLogEntry } from '../../core/models/kursant.models';
     .action-chip {
       display: inline-block;
       padding: .15rem .5rem;
-      background: rgba(255,255,255,.07);
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
       border-radius: .35rem;
       font-size: .8rem;
       font-family: monospace;
-      color: rgba(255,255,255,.7);
+      color: #374151;
     }
   `],
 })

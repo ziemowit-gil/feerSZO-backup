@@ -104,7 +104,7 @@ import { Term } from '../../core/models/kursant.models';
   styles: [`
     .term-card {
       border-left: 3px solid transparent;
-      &.pending { border-left-color: #eab308; }
+      &.pending { border-left-color: #d97706; }
     }
 
     .term-header {
@@ -120,23 +120,23 @@ import { Term } from '../../core/models/kursant.models';
     .required-dot {
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #eab308;
+      background: #d97706;
       flex-shrink: 0;
     }
 
-    .term-title { font-size: 1rem; font-weight: 600; margin: 0 0 .2rem; }
+    .term-title { font-size: 1rem; font-weight: 600; margin: 0 0 .2rem; color: #111827; }
 
     .pdf-link {
       display: inline-flex;
       align-items: center;
       gap: .3rem;
-      color: #93c5fd;
+      color: #1d4ed8;
       text-decoration: none;
       font-size: .875rem;
       padding: .3rem .625rem;
       border-radius: .4rem;
 
-      &:hover { background: rgba(147,197,253,.1); }
+      &:hover { background: #eff6ff; }
       .material-symbols-outlined { font-size: 1rem; }
     }
 
@@ -146,7 +146,7 @@ import { Term } from '../../core/models/kursant.models';
       display: inline-flex;
       align-items: center;
       gap: .35rem;
-      color: #4ade80;
+      color: #15803d;
       font-size: .875rem;
       font-weight: 500;
 

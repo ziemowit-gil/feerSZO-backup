@@ -69,7 +69,7 @@ import { Notice } from '../../core/models/kursant.models';
       position: relative;
       border-left: 3px solid transparent;
 
-      &.unread { border-left-color: #e05a1e; }
+      &.unread { border-left-color: #c2410c; }
     }
 
     .notice-header {
@@ -84,20 +84,20 @@ import { Notice } from '../../core/models/kursant.models';
       display: inline-block;
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #e05a1e;
+      background: #c2410c;
       margin-right: .5rem;
       vertical-align: middle;
     }
 
-    .notice-title { font-size: 1rem; font-weight: 600; margin: 0 0 .2rem; display: inline; }
+    .notice-title { font-size: 1rem; font-weight: 600; margin: 0 0 .2rem; display: inline; color: #111827; }
 
     .notice-body {
       font-size: .9rem;
       line-height: 1.6;
-      color: rgba(255,255,255,.8);
+      color: #374151;
 
       p { margin: 0 0 .5rem; }
-      a { color: #93c5fd; }
+      a { color: #1d4ed8; }
     }
 
     .btn-read { font-size: .78rem !important; padding: .2rem .6rem !important; height: auto !important; }

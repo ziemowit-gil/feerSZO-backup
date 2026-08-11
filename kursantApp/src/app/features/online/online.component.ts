@@ -150,18 +150,19 @@ import { OnlineState } from '../../core/models/kursant.models';
 
     .info-label {
       font-size: .8rem;
-      color: rgba(255,255,255,.45);
+      color: #6b7280;
       min-width: 130px;
       text-transform: uppercase;
       letter-spacing: .05em;
     }
 
     .info-value {
-      background: rgba(255,255,255,.08);
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
       padding: .25rem .625rem;
       border-radius: .35rem;
       font-size: .875rem;
-      color: #e8e8f0;
+      color: #111827;
       word-break: break-all;
     }
   `],

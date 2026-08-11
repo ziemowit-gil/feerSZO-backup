@@ -1,5 +1,5 @@
 import {
-  Component, signal, inject, computed, HostListener, effect,
+  Component, signal, inject, computed, HostListener, OnInit,
 } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth/auth.service';
+import { KursantApiService } from '../../core/services/kursant-api.service';
 
 interface NavItem {
   path: string;
@@ -157,8 +158,8 @@ interface Badges { msg: number; notices: number; terms: number; }
       height: 56px;
       min-height: 56px;
       padding: 0 1rem;
-      background: #12121f;
-      border-bottom: 1px solid rgba(255,255,255,.07);
+      background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
       z-index: 100;
     }
 
@@ -171,12 +172,12 @@ interface Badges { msg: number; notices: number; terms: number; }
       align-items: center;
       gap: .5rem;
       text-decoration: none;
-      color: #fff;
+      color: #111827;
       font-weight: 600;
       font-size: 1rem;
       flex-shrink: 0;
 
-      .brand-icon { color: #e05a1e; font-size: 1.4rem; }
+      .brand-icon { color: #c2410c; font-size: 1.4rem; }
     }
 
     .topbar-spacer { flex: 1; }
@@ -190,11 +191,11 @@ interface Badges { msg: number; notices: number; terms: number; }
         position: relative;
         display: flex;
         align-items: center;
-        color: rgba(255,255,255,.6);
+        color: #6b7280;
         padding: .4rem;
         border-radius: .5rem;
         text-decoration: none;
-        &:hover { color: #fff; background: rgba(255,255,255,.07); }
+        &:hover { color: #111827; background: #f3f4f6; }
         .notif-badge { position: absolute; top: 0; right: 0; transform: translate(25%, -25%); }
       }
     }
@@ -204,11 +205,11 @@ interface Badges { msg: number; notices: number; terms: number; }
       align-items: center;
       gap: .5rem;
       padding-left: .5rem;
-      border-left: 1px solid rgba(255,255,255,.1);
+      border-left: 1px solid #e5e7eb;
 
       .user-name {
         font-size: .85rem;
-        color: rgba(255,255,255,.6);
+        color: #6b7280;
         @media (max-width: 600px) { display: none; }
       }
     }
@@ -233,13 +234,13 @@ interface Badges { msg: number; notices: number; terms: number; }
       flex-shrink: 0;
     }
 
-    .sidebar-user-name { font-weight: 600; font-size: .9rem; display: block; }
-    .sidebar-user-login { display: block; }
+    .sidebar-user-name { font-weight: 600; font-size: .9rem; display: block; color: #111827; }
+    .sidebar-user-login { display: block; color: #6b7280; font-size: .8rem; }
 
     .sidebar-footer {
       margin-top: auto;
       padding: .5rem 0 1rem;
-      border-top: 1px solid rgba(255,255,255,.07);
+      border-top: 1px solid #e5e7eb;
     }
 
     .ms-auto { margin-left: auto; }
@@ -248,8 +249,9 @@ interface Badges { msg: number; notices: number; terms: number; }
     @media (max-width: 768px) { main#main-content { padding: 1rem; } }
   `],
 })
-export class ShellComponent {
+export class ShellComponent implements OnInit {
   private auth = inject(AuthService);
+  private api  = inject(KursantApiService);
 
   student       = this.auth.student;
   sidebarOpen   = signal(false);
@@ -258,14 +260,14 @@ export class ShellComponent {
   studentName = computed(() => {
     const s = this.student();
     if (!s) return '';
-    return `${(s as any).first_name ?? ''} ${(s as any).last_name ?? ''}`.trim() || s.login;
+    return s.name || s.login;
   });
 
   studentInitials = computed(() => {
-    const name = this.studentName();
-    const parts = name.split(' ');
+    const name = this.studentName().trim();
+    const parts = name.split(/\s+/);
     return parts.length >= 2
-      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
       : name.slice(0, 2).toUpperCase();
   });
 
@@ -295,6 +297,21 @@ export class ShellComponent {
     const isMinor = this.student()?.is_minor ?? false;
     return this.NAV_ITEMS.filter(item => !(isMinor && item.hideMinor));
   });
+
+  ngOnInit(): void {
+    this.api.getDashboard().subscribe({
+      next: res => {
+        if (res.success && res.data) {
+          this.badges.set({
+            msg:     res.data.msg_unread,
+            notices: res.data.notices_unread,
+            terms:   res.data.terms_pending,
+          });
+        }
+      },
+      error: () => {},
+    });
+  }
 
   toggleSidebar() { this.sidebarOpen.update(v => !v); }
   closeSidebar()  { this.sidebarOpen.set(false); }

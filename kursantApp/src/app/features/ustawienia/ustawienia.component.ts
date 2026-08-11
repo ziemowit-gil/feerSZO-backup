@@ -209,7 +209,7 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: rgba(255,255,255,.4);
+      color: #6b7280;
       margin-bottom: .5rem;
     }
 

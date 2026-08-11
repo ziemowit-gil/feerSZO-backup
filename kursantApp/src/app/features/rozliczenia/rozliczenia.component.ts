@@ -112,7 +112,7 @@ import { BillingData } from '../../core/models/kursant.models';
       font-size: .85rem;
       text-transform: uppercase;
       letter-spacing: .07em;
-      color: rgba(255,255,255,.45);
+      color: #6b7280;
       margin: 0 0 .5rem;
 
       .material-symbols-outlined { font-size: 1rem; }
@@ -123,21 +123,21 @@ import { BillingData } from '../../core/models/kursant.models';
       font-weight: 700;
       margin: 0;
 
-      &.positive { color: #4ade80; }
-      &.negative { color: #fca5a5; }
+      &.positive { color: #15803d; }
+      &.negative { color: #b91c1c; }
     }
 
     .amount {
       font-weight: 600;
-      &.positive { color: #4ade80; }
-      &.negative { color: #fca5a5; }
+      &.positive { color: #15803d; }
+      &.negative { color: #b91c1c; }
     }
 
     .invoice-link {
       display: inline-flex;
       align-items: center;
       gap: .25rem;
-      color: #93c5fd;
+      color: #1d4ed8;
       text-decoration: none;
       font-size: .875rem;
 

@@ -181,7 +181,7 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
     </mat-accordion>
   `,
   styles: [`
-    .session-panel { background: #1a1a2e !important; margin-bottom: .5rem !important; }
+    .session-panel { background: #f8fafc !important; margin-bottom: .5rem !important; }
 
     .panel-badge {
       display: inline-flex;
@@ -189,11 +189,11 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       padding: .15rem .5rem;
       border-radius: 2rem;
       font-size: .75rem;
-      background: rgba(255,255,255,.08);
-      color: rgba(255,255,255,.6);
+      background: #f3f4f6;
+      color: #374151;
       margin-right: .4rem;
 
-      &.warning { background: rgba(234,179,8,.15); color: #fde047; }
+      &.warning { background: #fffbeb; color: #92400e; }
     }
 
     .section-label {
@@ -203,7 +203,7 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       font-size: .85rem;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: rgba(255,255,255,.4);
+      color: #9ca3af;
       margin-bottom: .75rem;
     }
 
@@ -215,18 +215,18 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       gap: .5rem;
       font-size: .9rem;
 
-      .material-symbols-outlined { font-size: 1rem; opacity: .5; }
-      a { color: #93c5fd; }
+      .material-symbols-outlined { font-size: 1rem; color: #9ca3af; }
+      a { color: #1d4ed8; }
     }
 
     .hw-card {
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.06);
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
       border-radius: .5rem;
       padding: 1rem;
       margin-bottom: .75rem;
 
-      &.hw-done { opacity: .7; }
+      &.hw-done { opacity: .75; }
     }
 
     .hw-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
@@ -240,13 +240,13 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       display: flex;
       align-items: center;
       gap: .4rem;
-      color: #e05a1e;
+      color: #c2410c;
       font-size: .875rem;
       font-weight: 500;
       list-style: none;
       padding: .25rem 0;
 
-      &:focus-visible { outline: 2px solid #e05a1e; outline-offset: 2px; border-radius: 3px; }
+      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; border-radius: 3px; }
       &::-webkit-details-marker { display: none; }
     }
 
@@ -264,14 +264,14 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       align-items: center;
       gap: .35rem;
       padding: .4rem .875rem;
-      border: 1px solid rgba(255,255,255,.2);
+      border: 1px solid #d1d5db;
       border-radius: .4rem;
-      color: rgba(255,255,255,.7);
+      color: #374151;
       font-size: .875rem;
       cursor: pointer;
       transition: border-color .15s, color .15s;
 
-      &:hover { border-color: #e05a1e; color: #fff; }
+      &:hover { border-color: #c2410c; color: #c2410c; }
     }
 
     .file-input { position: absolute; opacity: 0; width: 0; height: 0; }

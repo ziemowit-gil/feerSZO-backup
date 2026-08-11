@@ -166,21 +166,23 @@ import { VlabServer } from '../../core/models/kursant.models';
     }
 
     .meta-label {
-      color: rgba(255,255,255,.45);
+      color: #6b7280;
       font-size: .8rem;
       min-width: 100px;
     }
 
     .info-value {
-      background: rgba(255,255,255,.08);
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
       padding: .2rem .5rem;
       border-radius: .3rem;
       font-size: .85rem;
+      color: #111827;
     }
 
     .server-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
 
-    .btn-danger { color: #fca5a5 !important; border-color: rgba(239,68,68,.3) !important; }
+    .btn-danger { color: #b91c1c !important; border-color: #fca5a5 !important; }
 
     .terminal-section { margin-top: 1rem; }
     .mb-0 { margin-bottom: 0 !important; }
@@ -192,6 +194,7 @@ import { VlabServer } from '../../core/models/kursant.models';
       margin-bottom: 1rem;
     }
 
+    /* Terminal iframe celowo ciemny — ttyd renderuje ciemny terminal */
     .terminal-iframe {
       width: 100%;
       height: 500px;

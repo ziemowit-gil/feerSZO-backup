@@ -99,14 +99,14 @@ import { License } from '../../core/models/kursant.models';
       display: inline-flex;
       align-items: center;
       gap: .3rem;
-      color: #93c5fd;
+      color: #1d4ed8;
       text-decoration: none;
       font-size: .875rem;
       flex-shrink: 0;
       padding: .25rem .5rem;
       border-radius: .4rem;
 
-      &:hover { background: rgba(147,197,253,.1); }
+      &:hover { background: #eff6ff; }
       .material-symbols-outlined { font-size: 1rem; }
     }
 
@@ -117,24 +117,26 @@ import { License } from '../../core/models/kursant.models';
       flex-wrap: wrap;
     }
 
-    .meta-label { color: rgba(255,255,255,.4); font-size: .8rem; min-width: 100px; }
+    .meta-label { color: #6b7280; font-size: .8rem; min-width: 100px; }
 
     .key-wrap { display: flex; align-items: center; gap: .4rem; }
 
     .lic-key {
-      background: rgba(255,255,255,.07);
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
       padding: .25rem .625rem;
       border-radius: .35rem;
       font-size: .875rem;
       letter-spacing: .05em;
       word-break: break-all;
+      color: #111827;
     }
 
     .copy-btn {
       background: none;
-      border: 1px solid rgba(255,255,255,.15);
+      border: 1px solid #d1d5db;
       border-radius: .35rem;
-      color: rgba(255,255,255,.5);
+      color: #6b7280;
       cursor: pointer;
       padding: .2rem .4rem;
       display: flex;
@@ -142,8 +144,8 @@ import { License } from '../../core/models/kursant.models';
       transition: color .15s, border-color .15s;
 
       .material-symbols-outlined { font-size: 1rem; }
-      &:hover { color: #fff; border-color: rgba(255,255,255,.3); }
-      &:focus-visible { outline: 2px solid #e05a1e; outline-offset: 2px; }
+      &:hover { color: #111827; border-color: #9ca3af; }
+      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
     }
 
     .lic-notes { margin: 0; }

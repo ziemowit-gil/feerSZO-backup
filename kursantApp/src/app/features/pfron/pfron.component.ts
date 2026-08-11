@@ -147,15 +147,15 @@ import { KursantApiService } from '../../core/services/kursant-api.service';
       display: inline-flex;
       align-items: center;
       gap: .4rem;
-      color: #93c5fd;
+      color: #1d4ed8;
       text-decoration: none;
       font-size: .9rem;
       margin-top: 1rem;
       padding: .5rem .875rem;
-      border: 1px solid rgba(147,197,253,.3);
+      border: 1px solid #bfdbfe;
       border-radius: .5rem;
 
-      &:hover { background: rgba(147,197,253,.08); }
+      &:hover { background: #eff6ff; }
     }
   `],
 })

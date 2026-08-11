@@ -97,11 +97,12 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
       display: flex;
       align-items: center;
       gap: .35rem;
-      background: rgba(255,255,255,.06);
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
       border-radius: .5rem;
       padding: .3rem .75rem;
       font-size: .875rem;
-      color: rgba(255,255,255,.7);
+      color: #374151;
 
       .material-symbols-outlined { font-size: 1rem; }
     }

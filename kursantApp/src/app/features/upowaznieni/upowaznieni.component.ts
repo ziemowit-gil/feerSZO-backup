@@ -126,7 +126,7 @@ import { AuthorizedPerson } from '../../core/models/kursant.models';
       flex-shrink: 0;
     }
 
-    .person-name { font-size: 1rem; font-weight: 600; margin: 0 0 .15rem; }
+    .person-name { font-size: 1rem; font-weight: 600; margin: 0 0 .15rem; color: #111827; }
 
     .person-details {
       margin: 0;
@@ -145,7 +145,7 @@ import { AuthorizedPerson } from '../../core/models/kursant.models';
         display: flex;
         align-items: center;
         gap: .3rem;
-        color: rgba(255,255,255,.45);
+        color: #6b7280;
         min-width: 80px;
         font-weight: normal;
         font-size: .8rem;
@@ -155,8 +155,9 @@ import { AuthorizedPerson } from '../../core/models/kursant.models';
 
       dd {
         margin: 0;
+        color: #111827;
 
-        a { color: #93c5fd; text-decoration: none; }
+        a { color: #1d4ed8; text-decoration: none; }
         a:hover { text-decoration: underline; }
       }
     }

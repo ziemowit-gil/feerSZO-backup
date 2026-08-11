@@ -182,7 +182,7 @@ import { DashboardData } from '../../core/models/kursant.models';
       font-size: .8rem;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: rgba(255,255,255,.45);
+      color: #6b7280;
       margin: 0;
 
       .material-symbols-outlined { font-size: 1rem; }
@@ -192,12 +192,12 @@ import { DashboardData } from '../../core/models/kursant.models';
       font-size: 2rem;
       font-weight: 700;
       margin: .25rem 0 0;
-      color: #fff;
+      color: #111827;
 
-      &.streak { color: #fb923c; }
+      &.streak { color: #c2410c; }
     }
 
-    .summary-card-sub { margin: 0; font-size: .85rem; color: rgba(255,255,255,.5); }
+    .summary-card-sub { margin: 0; font-size: .85rem; color: #6b7280; }
 
     .mt-2 { margin-top: .75rem; }
 
@@ -208,7 +208,7 @@ import { DashboardData } from '../../core/models/kursant.models';
       flex-direction: column;
       gap: .5rem;
       padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255,255,255,.06);
+      border-bottom: 1px solid #e5e7eb;
 
       &:last-child { border-bottom: none; padding-bottom: 0; }
     }
@@ -230,16 +230,16 @@ import { DashboardData } from '../../core/models/kursant.models';
       align-items: center;
       gap: .4rem;
       padding: .5rem 1rem;
-      border: 1px solid rgba(255,255,255,.15);
+      border: 1px solid #d1d5db;
       border-radius: .5rem;
-      color: rgba(255,255,255,.7);
+      color: #374151;
       text-decoration: none;
       font-size: .875rem;
       transition: border-color .15s, color .15s;
 
       .material-symbols-outlined { font-size: 1rem; }
 
-      &:hover, &:focus-visible { border-color: #e05a1e; color: #fff; }
+      &:hover, &:focus-visible { border-color: #c2410c; color: #c2410c; }
     }
   `],
 })

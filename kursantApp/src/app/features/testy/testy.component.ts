@@ -134,7 +134,7 @@ const TEST_STATUS_LABELS: Record<string, string> = {
       align-items: center;
       gap: .25rem;
       font-size: .8rem;
-      color: rgba(255,255,255,.5);
+      color: #6b7280;
 
       .material-symbols-outlined { font-size: .95rem; }
     }
@@ -145,12 +145,12 @@ const TEST_STATUS_LABELS: Record<string, string> = {
       gap: .25rem;
     }
 
-    .score-val { font-size: 1.75rem; font-weight: 700; color: #4ade80; }
-    .score-max { font-size: 1.1rem; color: rgba(255,255,255,.4); }
+    .score-val { font-size: 1.75rem; font-weight: 700; color: #15803d; }
+    .score-max { font-size: 1.1rem; color: #9ca3af; }
 
     .test-start-btn { margin-top: .5rem !important; }
 
-    .test-completed { border-color: rgba(59,130,246,.2); }
+    .test-completed { border-color: #bfdbfe; }
     .test-expired   { opacity: .6; }
     .test-locked    { opacity: .5; }
   `],

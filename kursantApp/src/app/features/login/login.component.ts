@@ -149,18 +149,18 @@ import { AuthService } from '../../core/auth/auth.service';
     .login-layout {
       display: flex;
       min-height: 100vh;
-      background: #0f0f1a;
+      background: #f1f5f9;
     }
 
+    /* Panel z terminalem — celowo ciemny (terminal = czarne tło) */
     .login-art {
       flex: 1;
-      background: linear-gradient(135deg, #12121f 0%, #1a1a2e 100%);
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 3rem;
-      border-right: 1px solid rgba(255,255,255,.07);
 
       @media (max-width: 768px) { display: none; }
     }
@@ -171,7 +171,7 @@ import { AuthService } from '../../core/auth/auth.service';
       background: #0a0a14;
       border-radius: .875rem;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.12);
       font-family: 'Courier New', monospace;
       font-size: .85rem;
     }
@@ -200,33 +200,41 @@ import { AuthService } from '../../core/auth/auth.service';
       line-height: 1.8;
 
       p { margin: 0; }
-      .term-prompt { color: #e05a1e; }
-      .term-cmd    { color: #e8e8f0; }
-      .term-ok     { color: #22c55e; }
+      .term-prompt { color: #fb923c; }
+      .term-cmd    { color: #e2e8f0; }
+      .term-ok     { color: #4ade80; }
       .term-out    { color: rgba(255,255,255,.5); padding-left: 1rem; }
       .term-hl     { color: #93c5fd; }
       .blink       { animation: blink 1s step-end infinite; }
+      @media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
     }
 
     @keyframes blink { 50% { opacity: 0; } }
 
     .login-tagline {
       margin-top: 2rem;
-      color: rgba(255,255,255,.4);
-      font-size: 1.1rem;
+      color: rgba(255,255,255,.45);
+      font-size: 1.05rem;
       text-align: center;
       line-height: 1.6;
     }
 
+    /* Jasny panel z formularzem */
     .login-form-panel {
       width: 100%;
-      max-width: 460px;
+      max-width: 480px;
+      background: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 2rem 1.5rem;
+      padding: 2.5rem 2rem;
+      box-shadow: -4px 0 24px rgba(0,0,0,.06);
 
-      @media (max-width: 768px) { max-width: none; }
+      @media (max-width: 768px) {
+        max-width: none;
+        box-shadow: none;
+        padding: 2rem 1.25rem;
+      }
     }
 
     .login-form-wrap {
@@ -241,7 +249,7 @@ import { AuthService } from '../../core/auth/auth.service';
 
       .material-symbols-outlined {
         font-size: 3.5rem;
-        color: #e05a1e;
+        color: #c2410c;
       }
     }
 
@@ -250,11 +258,12 @@ import { AuthService } from '../../core/auth/auth.service';
       font-size: 1.75rem;
       font-weight: 700;
       margin: 0 0 .35rem;
+      color: #111827;
     }
 
     .login-subtitle {
       text-align: center;
-      color: rgba(255,255,255,.45);
+      color: #6b7280;
       margin: 0 0 1.75rem;
       font-size: .9rem;
     }
@@ -276,6 +285,7 @@ import { AuthService } from '../../core/auth/auth.service';
       justify-content: center;
       gap: .5rem;
 
+      &:hover:not(:disabled) { background: #9a3409 !important; }
       &:disabled { opacity: .6; }
     }
 
@@ -283,7 +293,7 @@ import { AuthService } from '../../core/auth/auth.service';
       display: flex;
       flex-direction: column;
       gap: .5rem;
-      border-top: 1px solid rgba(255,255,255,.08);
+      border-top: 1px solid #e5e7eb;
       padding-top: 1.25rem;
     }
 
@@ -291,7 +301,7 @@ import { AuthService } from '../../core/auth/auth.service';
       display: flex;
       align-items: center;
       gap: .5rem;
-      color: rgba(255,255,255,.5);
+      color: #6b7280;
       font-size: .875rem;
       text-decoration: none;
       padding: .4rem .5rem;
@@ -301,8 +311,8 @@ import { AuthService } from '../../core/auth/auth.service';
       .material-symbols-outlined { font-size: 1.1rem; }
 
       &:hover, &:focus-visible {
-        color: rgba(255,255,255,.85);
-        background: rgba(255,255,255,.05);
+        color: #111827;
+        background: #f3f4f6;
       }
     }
   `],

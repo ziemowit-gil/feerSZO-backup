@@ -111,16 +111,16 @@ import { OwnCloudState } from '../../core/models/kursant.models';
       font-size: .8rem;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: rgba(255,255,255,.4);
+      color: #6b7280;
       margin: 0 0 .25rem;
     }
 
-    .quota-value { font-size: 1.35rem; font-weight: 700; margin: 0; }
+    .quota-value { font-size: 1.35rem; font-weight: 700; margin: 0; color: #111827; }
 
     .quota-pct {
       font-size: 1.75rem;
       font-weight: 700;
-      color: rgba(255,255,255,.5);
+      color: #374151;
     }
 
     .actions-row { display: flex; flex-direction: column; gap: 1rem; }
@@ -135,13 +135,15 @@ import { OwnCloudState } from '../../core/models/kursant.models';
       font-size: .875rem;
     }
 
-    .meta-label { color: rgba(255,255,255,.4); min-width: 90px; font-size: .8rem; }
+    .meta-label { color: #6b7280; min-width: 90px; font-size: .8rem; }
 
     .info-code {
-      background: rgba(255,255,255,.08);
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
       padding: .2rem .5rem;
       border-radius: .3rem;
       font-size: .85rem;
+      color: #111827;
       word-break: break-all;
     }
 

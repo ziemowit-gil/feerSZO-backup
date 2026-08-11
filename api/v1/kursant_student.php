@@ -114,11 +114,14 @@ if ($action === 'login' && $method === 'POST') {
         'owncloud_login'        => $acc['owncloud_login'] ?? null,
         'name'                  => $acc['client_name'],
     ];
+    $name_parts = explode(' ', trim($acc['client_name'] ?? ''), 2);
     $client = [
-        'id'    => (int)$acc['client_id'],
-        'name'  => $acc['client_name'],
-        'email' => $acc['email'],
-        'phone' => $acc['phone'],
+        'id'         => (int)$acc['client_id'],
+        'name'       => $acc['client_name'],
+        'first_name' => $name_parts[0] ?? '',
+        'last_name'  => $name_parts[1] ?? '',
+        'email'      => $acc['email'],
+        'phone'      => $acc['phone'],
     ];
 
     echo json_encode([
