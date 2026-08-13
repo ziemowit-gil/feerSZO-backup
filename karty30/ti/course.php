@@ -208,8 +208,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <div class="d-flex align-items-center mb-4 gap-2 flex-wrap">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i><?= h($course['name']) ?></h4>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i><?= h($course['name']) ?>
+      <?php if (!empty($course['subject_abbr'])): ?>
+      <span class="badge text-bg-primary font-monospace ms-1 align-middle" style="font-size:.7rem"><?= h($course['subject_abbr']) ?></span>
+      <?php endif; ?>
+      <?php if (!empty($course['group_code'])): ?>
+      <span class="badge bg-light text-secondary border font-monospace ms-1 align-middle" style="font-size:.7rem"><?= h($course['group_code']) ?></span>
+      <?php endif; ?>
+    </h4>
     <div class="text-muted small mt-1">
+      <?php if (!empty($course['subject_name'])): ?>
+      <span class="me-2"><i class="bi bi-tags me-1"></i><?= h($course['subject_name']) ?></span>
+      <?php endif; ?>
       <?php if ($course['instructor_name']): ?>
       <i class="bi bi-person me-1"></i><?= h($course['instructor_name']) ?>
       <?php endif; ?>

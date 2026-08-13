@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
         'is_online'           => isset($_POST['is_online']) ? 1 : 0,
         'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
+        'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -118,6 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     } else {
         $data['created_by'] = current_user()['id'] ?? null;
         $data['created_at'] = date('Y-m-d H:i:s');
+        // Generuj kod grupy (3 cyfry + /YY) jeśli nie przekazano
+        $data['group_code']  = trim($_POST['group_code'] ?? '') ?: k30_ti_generate_group_code();
         $cid = db_insert('k30_ti_courses', $data);
         flash_set('success','Kurs utworzony.');
         header('Location: course.php?id='.$cid);
@@ -125,11 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     exit;
 }
 
-$courses     = k30_ti_courses(false);
-$edit_id     = (int)($_GET['edit'] ?? 0);
-$edit_row    = $edit_id ? k30_ti_course_get($edit_id) : null;
-$show_new    = isset($_GET['new']);
-$instructors = k30_get_consultants();
+$courses       = k30_ti_courses(false);
+$edit_id       = (int)($_GET['edit'] ?? 0);
+$edit_row      = $edit_id ? k30_ti_course_get($edit_id) : null;
+$show_new      = isset($_GET['new']);
+$instructors   = k30_get_consultants();
+$subject_types = k30_ti_subject_types(false);
 
 // Odwołania — przegląd dla kadry/administratora (ze wszystkich kursów).
 // Prośby kursantów czekające na potwierdzenie + ostatnio odwołane lekcje.
@@ -282,6 +286,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <?php if ($_unr_cnt): ?><span class="badge bg-danger ms-1"><?= (int)$_unr_cnt ?></span><?php endif; ?>
       </a></li>
       <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="subject_types.php"><i class="bi bi-tags me-2"></i>Rodzaje zajęć</a></li>
       <li><a class="dropdown-item" href="terms_admin.php"><i class="bi bi-file-earmark-text me-2"></i>Regulaminy</a></li>
     </ul>
   </div>
@@ -347,7 +352,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1];
+  $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1,'subject_type_id'=>null,'group_code'=>''];
 ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:580px">
   <div class="card-header fw-semibold"><?= $edit_row ? 'Edytuj: '.h($f['name']) : 'Nowy kurs TI' ?></div>
@@ -361,11 +366,75 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <form method="post">
       <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="course_id"  value="<?= (int)($f['id']??0) ?>">
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Nazwa kursu <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" name="name" value="<?= h($f['name']) ?>" required
-               placeholder="np. Obsługa komputera, MS Office, Internet dla seniorów">
+
+      <?php /* ── Rodzaj zajęć + kod grupy ── */ ?>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold"><i class="bi bi-tags me-1 text-primary"></i>Rodzaj zajęć</label>
+          <select class="form-select" name="subject_type_id" id="st_select">
+            <option value="">— nie określono —</option>
+            <?php foreach ($subject_types as $st): if (!$st['is_active'] && (int)($f['subject_type_id']??0) !== (int)$st['id']) continue; ?>
+            <option value="<?= (int)$st['id'] ?>"
+                    data-abbr="<?= h($st['abbreviation']) ?>"
+                    <?= (int)($f['subject_type_id']??0)===(int)$st['id']?'selected':'' ?>>
+              <?= h($st['abbreviation']) ?> — <?= h($st['name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <?php if (is_admin()): ?>
+          <div class="form-text"><a href="subject_types.php" target="_blank"><i class="bi bi-gear me-1"></i>Zarządzaj rodzajami</a></div>
+          <?php endif; ?>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Kod grupy</label>
+          <?php if (!$edit_row): ?>
+          <div class="input-group">
+            <input type="text" class="form-control font-monospace" name="group_code" id="gc_input"
+                   placeholder="np. 742/<?= date('y') ?>" maxlength="6"
+                   aria-describedby="gc_help">
+            <button type="button" class="btn btn-outline-secondary" onclick="tiGenCode()" title="Wygeneruj losowy kod">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+          <div id="gc_help" class="form-text">3 cyfry + /<?= date('y') ?> — auto-generowany przy tworzeniu</div>
+          <?php else: ?>
+          <input type="text" class="form-control font-monospace bg-light" value="<?= h($f['group_code']) ?>" readonly>
+          <div class="form-text">Niezmienny po utworzeniu grupy</div>
+          <?php endif; ?>
+        </div>
       </div>
+
+      <?php /* ── Nazwa grupy ── */ ?>
+      <?php if (!$edit_row): ?>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
+        <div class="row g-2 mb-1">
+          <div class="col-5">
+            <input type="text" class="form-control form-control-sm" id="helper_first"
+                   placeholder="Imię kursanta" autocomplete="off">
+          </div>
+          <div class="col-5">
+            <input type="text" class="form-control form-control-sm" id="helper_last"
+                   placeholder="Nazwisko kursanta" autocomplete="off">
+          </div>
+          <div class="col-2 d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="tiAutoName()" title="Wygeneruj nazwę">
+              <i class="bi bi-magic"></i>
+            </button>
+          </div>
+        </div>
+        <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
+               placeholder="np. ANG.Jan.K 742/<?= date('y') ?>">
+        <div class="form-text">Format: <code>SKRÓT.Imię.I Kod</code> — możesz edytować lub użyć generatora.</div>
+      </div>
+      <?php else: ?>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" name="name" value="<?= h($f['name']) ?>" required
+               placeholder="np. ANG.Jan.K 742/<?= date('y') ?>">
+      </div>
+      <?php endif; ?>
+
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label class="form-label fw-semibold">Prowadzący</label>
@@ -503,11 +572,20 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="flex-grow-1 min-width-0">
             <div class="fw-bold text-truncate"><?= h($c['name']) ?></div>
+            <?php if (!empty($c['subject_name'])): ?>
+            <div class="small mb-1">
+              <span class="badge text-bg-primary font-monospace"><?= h($c['subject_abbr']) ?></span>
+              <span class="text-muted ms-1"><?= h($c['subject_name']) ?></span>
+            </div>
+            <?php endif; ?>
             <?php if ($c['instructor_name']): ?>
             <div class="text-muted small"><i class="bi bi-person me-1"></i><?= h($c['instructor_name']) ?></div>
             <?php endif; ?>
             <?php if ($c['location']): ?>
             <div class="text-muted small"><i class="bi bi-geo-alt me-1"></i><?= h($c['location']) ?></div>
+            <?php endif; ?>
+            <?php if (!empty($c['group_code'])): ?>
+            <div class="text-muted small font-monospace"><i class="bi bi-hash me-1"></i><?= h($c['group_code']) ?></div>
             <?php endif; ?>
           </div>
           <?php if (!empty($c['is_subgroup'])): ?>
@@ -638,6 +716,56 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <script>
+// ── Generator kodu grupy ──────────────────────────────────────────────────────
+function tiGenCode() {
+  var n   = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+  var yr  = '<?= date('y') ?>';
+  var val = n + '/' + yr;
+  var inp = document.getElementById('gc_input');
+  if (inp) { inp.value = val; tiAutoName(); }
+}
+
+// ── Auto-generowanie nazwy grupy ─────────────────────────────────────────────
+function tiAutoName() {
+  var sel   = document.getElementById('st_select');
+  var gc    = document.getElementById('gc_input');
+  var fn    = document.getElementById('helper_first');
+  var ln    = document.getElementById('helper_last');
+  var name  = document.getElementById('name_input');
+  if (!sel || !name) return;
+
+  var abbr  = '';
+  var opt   = sel.options[sel.selectedIndex];
+  if (opt && opt.dataset.abbr) abbr = opt.dataset.abbr;
+
+  var first = fn ? fn.value.trim() : '';
+  var last  = ln ? ln.value.trim() : '';
+  var code  = gc ? gc.value.trim() : '';
+
+  if (!abbr) { return; }
+
+  // ANG.Jan.K 742/26
+  var parts = [abbr];
+  if (first) parts.push(first);
+  if (last)  parts.push(last.charAt(0).toUpperCase());
+  var result = parts.join('.') + (code ? ' ' + code : '');
+  name.value = result;
+}
+
+// Nasłuchuj zmian na selekcie rodzaju zajęć i polach pomocniczych
+(function(){
+  var sel = document.getElementById('st_select');
+  var fn  = document.getElementById('helper_first');
+  var ln  = document.getElementById('helper_last');
+  if (sel) sel.addEventListener('change', tiAutoName);
+  if (fn)  fn.addEventListener('input',   tiAutoName);
+  if (ln)  ln.addEventListener('input',   tiAutoName);
+  // Auto-generuj kod przy załadowaniu formularza nowego kursu
+  var gc = document.getElementById('gc_input');
+  if (gc && !gc.value) tiGenCode();
+})();
+
+// ── Model rozliczania ─────────────────────────────────────────────────────────
 function bmToggle() {
   var sel = document.getElementById('bm_select');
   if (!sel) return;

@@ -417,6 +417,22 @@ function karty30_migrate(): void {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
 
+    // ── Rodzaje zajęć TI ──────────────────────────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_subject_types (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        abbreviation TEXT    NOT NULL UNIQUE,
+        name         TEXT    NOT NULL,
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    foreach ([
+        "ALTER TABLE k30_ti_courses ADD COLUMN subject_type_id INTEGER REFERENCES k30_ti_subject_types(id) ON DELETE SET NULL",
+        "ALTER TABLE k30_ti_courses ADD COLUMN group_code      TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
     // ── Moduł wiadomości kursant ↔ prowadzący ─────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_messages (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2478,18 +2494,33 @@ function k30_ti_courses(bool $active_only = true): array {
     if ($active_only) $w .= ' AND c.is_active=1';
     return db_all(
         "SELECT c.*, u.name AS instructor_name,
+                st.abbreviation AS subject_abbr, st.name AS subject_name,
                 (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count
          FROM k30_ti_courses c
          LEFT JOIN users u ON u.id=c.instructor_id
+         LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id
          $w ORDER BY c.name",
     );
 }
 
 function k30_ti_course_get(int $id): ?array {
     return db_one(
-        "SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c
-         LEFT JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [$id]
+        "SELECT c.*, u.name AS instructor_name,
+                st.abbreviation AS subject_abbr, st.name AS subject_name
+         FROM k30_ti_courses c
+         LEFT JOIN users u ON u.id=c.instructor_id
+         LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id
+         WHERE c.id=?", [$id]
     ) ?: null;
+}
+
+function k30_ti_subject_types(bool $active_only = true): array {
+    $w = $active_only ? 'WHERE is_active=1' : '';
+    return db_all("SELECT * FROM k30_ti_subject_types $w ORDER BY sort_order, abbreviation");
+}
+
+function k30_ti_generate_group_code(): string {
+    return str_pad((string)random_int(0, 999), 3, '0', STR_PAD_LEFT) . '/' . date('y');
 }
 
 // Zapisy
