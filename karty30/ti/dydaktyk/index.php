@@ -118,7 +118,8 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia'], true)) $tab = 'pulpit';
+if ($tab === 'rozliczenia' && !dyd_is_staff()) $tab = 'pulpit';
 
 // ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
 $_force_pick = isset($_GET['pick']);  // ?pick=1 z przycisku "Zmień grupę"
@@ -2003,6 +2004,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
   </a>
+  <?php if (dyd_is_staff() && $cur_course): ?>
+  <a class="dyd-gb-link <?= $tab==='rozliczenia'?'active':'' ?>"
+     href="index.php?course=<?= $cur_course ?>&tab=rozliczenia"
+     <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
+    <i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia
+  </a>
+  <?php endif; ?>
 
 </nav>
 
@@ -2228,6 +2236,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php /* ═══════════════════════ OCENY (e-dziennik) ═══════════════════════ */ ?>
     <?php if ($tab === 'oceny'): ?>
     <?php include __DIR__ . '/_tab_oceny.php'; ?>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ ROZLICZENIA (staff/admin) ═══════════════════════ */ ?>
+    <?php if ($tab === 'rozliczenia' && dyd_is_staff()): ?>
+    <?php include __DIR__ . '/_tab_rozliczenia.php'; ?>
     <?php endif; ?>
 
   </div><!-- /dyd-tabpane kurs -->
