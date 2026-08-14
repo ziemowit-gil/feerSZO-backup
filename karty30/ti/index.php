@@ -105,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'is_online'           => isset($_POST['is_online']) ? 1 : 0,
         'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
         'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
+        'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -352,7 +353,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1,'subject_type_id'=>null,'group_code'=>''];
+  $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1,'subject_type_id'=>null,'group_code'=>'','class_type'=>'individual'];
 ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:580px">
   <div class="card-header fw-semibold"><?= $edit_row ? 'Edytuj: '.h($f['name']) : 'Nowy kurs TI' ?></div>
@@ -366,6 +367,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <form method="post">
       <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="course_id"  value="<?= (int)($f['id']??0) ?>">
+
+      <?php /* ── Typ zajęć (indywidualne/grupowe) ── */ ?>
+      <div class="mb-3">
+        <label class="form-label fw-semibold"><i class="bi bi-people me-1 text-primary"></i>Typ zajęć</label>
+        <div class="d-flex gap-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="class_type" id="ct_individual" value="individual"
+                   <?= ($f['class_type']??'individual')==='individual'?'checked':'' ?>>
+            <label class="form-check-label" for="ct_individual"><i class="bi bi-person me-1"></i>Indywidualne</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="class_type" id="ct_group" value="group"
+                   <?= ($f['class_type']??'')==='group'?'checked':'' ?>>
+            <label class="form-check-label" for="ct_group"><i class="bi bi-people me-1"></i>Grupowe</label>
+          </div>
+        </div>
+      </div>
 
       <?php /* ── Rodzaj zajęć + kod grupy ── */ ?>
       <div class="row g-3 mb-3">

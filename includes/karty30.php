@@ -429,6 +429,7 @@ function karty30_migrate(): void {
     foreach ([
         "ALTER TABLE k30_ti_courses ADD COLUMN subject_type_id INTEGER REFERENCES k30_ti_subject_types(id) ON DELETE SET NULL",
         "ALTER TABLE k30_ti_courses ADD COLUMN group_code      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN class_type      TEXT NOT NULL DEFAULT 'individual'",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
