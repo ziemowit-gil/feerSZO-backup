@@ -1072,8 +1072,9 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
           <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
           <?php else: ?>
           <?php if ($pend): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1"></i>czeka</span><?php endif; ?>
-          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" title="Nie pojawił się na zajęciach" onclick="dydNoShow(<?= (int)$s['id'] ?>,<?= $cid ?>,<?= htmlspecialchars(json_encode($r['client_name']), ENT_QUOTES) ?>)"><i class="bi bi-dash-circle"></i></button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Odwołaj udział (nie liczone do ceny)" onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-x-circle"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" title="Zaznacz jako obecny" onclick="dydMarkPresent(this)"><i class="bi bi-check-circle me-1"></i>Obecny</button>
+          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" title="Nie pojawił się na zajęciach" onclick="dydNoShow(<?= (int)$s['id'] ?>,<?= $cid ?>,<?= htmlspecialchars(json_encode($r['client_name']), ENT_QUOTES) ?>)"><i class="bi bi-dash-circle me-1"></i>Nie pojawił się</button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Odwołaj udział (nie liczone do ceny)" onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-x-circle me-1"></i>Odwołaj</button>
           <?php endif; ?>
         </div>
         <?php endforeach; ?>
@@ -3454,6 +3455,10 @@ function dydRestoreAtt(sid, cid) {
   document.getElementById('daa_sid').value = sid;
   document.getElementById('daa_cid').value = cid;
   document.getElementById('dydAttAction').submit();
+}
+function dydMarkPresent(btn) {
+  var cb = btn.closest('.list-group-item').querySelector('input[type=checkbox]');
+  if (cb && !cb.disabled) { cb.checked = true; }
 }
 function dydNoShow(sid, cid, name) {
   document.getElementById('dns_sid').value = sid;
