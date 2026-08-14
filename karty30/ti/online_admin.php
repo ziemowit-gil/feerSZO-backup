@@ -195,11 +195,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input class="form-control form-control-sm" name="zoom_client_id" value="<?= h($ms_set('zoom_client_id')) ?>"></div>
           <div class="mb-2"><label class="form-label small">Client secret <span class="text-muted">(puste = bez zmian)</span></label>
             <input class="form-control form-control-sm" type="password" name="zoom_client_secret" value="" placeholder="<?= $ms_set('zoom_client_secret') !== '' ? '••••••••' : '' ?>"></div>
-          <div class="mb-3"><label class="form-label small">Użytkownik (e-mail lub „me")</label>
-            <input class="form-control form-control-sm" name="zoom_user_id" value="<?= h($ms_set('zoom_user_id')) ?>" placeholder="me"></div>
+          <div class="mb-3"><label class="form-label small">Utwórz w imieniu — e-mail hosta spotkań</label>
+            <input class="form-control form-control-sm" name="zoom_user_id" value="<?= h($ms_set('zoom_user_id')) ?>" placeholder="edukacja@feer.org.pl">
+            <div class="form-text">Spotkania tworzone są na tym koncie Zoom (API: <code>POST /users/{host}/meetings</code>). Wpisz adres e-mail konta lub <code>me</code> (właściciel aplikacji).</div>
+          </div>
           <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz i testuj</button>
         </form>
-        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace. Scopy: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>. Zapis automatycznie weryfikuje połączenie.</div>
+        <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace z zakresami: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>. Zapis automatycznie weryfikuje połączenie.</div>
       </div>
     </div>
   </div>
