@@ -25,6 +25,12 @@ RewriteRule ^kursant/?$       /karty30/ti/kursant/index.php [L]
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteRule ^kursant/(.+)$    /karty30/ti/kursant/$1 [L]
 
+# login.php na subdomenie ti.* → centralny formularz logowania TI (kursant+dydaktyk).
+# Musi być PRZED catch-all'em; bez tego kursant/login.php → ../login.php → catch-all
+# → kursant/login.php → pętla nieskończona.
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
+
 # Domyślnie cała subdomena ti.* serwuje panel kursanta. Wykluczamy już-przepisane
 # ścieżki /karty30/ (kursant i dydaktyk — by nie zapętlić) oraz statykę.
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
@@ -34,6 +40,9 @@ RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
 # Identyczny mechanizm jak ti*., tylko bez aliasu /dydaktyk.
+RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
+RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
+
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
