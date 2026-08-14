@@ -629,9 +629,11 @@ $progress_pct = $progress_total > 0 ? round($progress_done / $progress_total * 1
 // Następna zaplanowana lekcja (do widgetu na dashboardzie)
 try {
     $next_lesson = db_one(
-        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name,
+                u.name AS instructor_name
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN users u ON u.id=c.instructor_id
          JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
          WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
          ORDER BY s.lesson_date, s.time_from LIMIT 1",
@@ -1392,6 +1394,9 @@ document.addEventListener('DOMContentLoaded', function() {
           <?php if ($next_lesson): ?>
             <div class="fw-bold"><?= date('d.m', strtotime($next_lesson['lesson_date'])) ?></div>
             <div class="small text-body-secondary"><?= h($next_lesson['course_name']) ?></div>
+            <?php if (!empty($next_lesson['instructor_name'])): ?>
+            <div class="small text-body-secondary"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($next_lesson['instructor_name']) ?></div>
+            <?php endif; ?>
             <?php if (!empty($next_lesson['time_from'])): ?>
             <div class="small text-body-secondary"><?= substr((string)$next_lesson['time_from'], 0, 5) ?><?= !empty($next_lesson['time_to']) ? '–'.substr((string)$next_lesson['time_to'], 0, 5) : '' ?></div>
             <?php endif; ?>
@@ -1909,18 +1914,21 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 
   <!-- ── Mini-kalendarz lekcji ──────────────────────────────────────────── -->
-  <div class="card mb-4">
+  <div class="card mb-4" id="kpCalCard">
     <div class="card-header d-flex align-items-center gap-2 py-2">
       <i class="bi bi-calendar3 text-primary" aria-hidden="true"></i>
       <span class="fw-semibold flex-grow-1"><?= h($months_pl_long[$cal_month]) ?> <?= $cal_year ?></span>
-      <a href="?tab=lekcje&cal_m=<?= $cal_prev_m ?>&cal_y=<?= $cal_prev_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Poprzedni miesiąc">
+      <a href="?tab=lekcje&cal_m=<?= $cal_prev_m ?>&cal_y=<?= $cal_prev_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 kp-cal-nav" aria-label="Poprzedni miesiąc">
         <i class="bi bi-chevron-left" aria-hidden="true"></i>
       </a>
-      <a href="?tab=lekcje&cal_m=<?= $cal_next_m ?>&cal_y=<?= $cal_next_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Następny miesiąc">
+      <a href="?tab=lekcje&cal_m=<?= $cal_next_m ?>&cal_y=<?= $cal_next_y ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 kp-cal-nav" aria-label="Następny miesiąc">
         <i class="bi bi-chevron-right" aria-hidden="true"></i>
       </a>
+      <button type="button" id="kpCalToggle" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-expanded="true" aria-controls="kpCalBody" title="Schowaj/pokaż kalendarz">
+        <i class="bi bi-chevron-up kp-cal-icon" aria-hidden="true"></i>
+      </button>
     </div>
-    <div class="card-body p-2">
+    <div class="card-body p-2" id="kpCalBody">
       <?php
         $cal_dow_first = (int)date('N', $cal_first); // 1=Pon .. 7=Nd
         $today_d = (int)date('d'); $today_m = (int)date('n'); $today_y = (int)date('Y');
@@ -1967,6 +1975,32 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     </div>
   </div>
+<script>
+(function(){
+  var body = document.getElementById('kpCalBody');
+  var btn  = document.getElementById('kpCalToggle');
+  var icon = btn ? btn.querySelector('.kp-cal-icon') : null;
+  var KEY  = 'kp_cal_collapsed';
+  function applyState(collapsed){
+    if (!body || !btn) return;
+    if (collapsed) {
+      body.style.display = 'none';
+      btn.setAttribute('aria-expanded','false');
+      if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
+    } else {
+      body.style.display = '';
+      btn.setAttribute('aria-expanded','true');
+      if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+    }
+  }
+  applyState(localStorage.getItem(KEY) === '1');
+  if (btn) btn.addEventListener('click', function(){
+    var collapsed = localStorage.getItem(KEY) !== '1';
+    localStorage.setItem(KEY, collapsed ? '1' : '0');
+    applyState(collapsed);
+  });
+})();
+</script>
 
   <!-- Lista lekcji — zwijane grupy: nadchodzące / minione -->
   <?php
