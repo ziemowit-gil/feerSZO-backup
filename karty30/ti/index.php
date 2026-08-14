@@ -406,27 +406,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       </div>
 
       <?php /* ── Nazwa grupy ── */ ?>
-      <?php if (!$edit_row): ?>
       <div class="mb-3">
         <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
-        <div class="input-group mb-1">
-          <input type="text" class="form-control" id="helper_fullname"
-                 placeholder="Imię i nazwisko kursanta (np. Jan Kowalski)" autocomplete="off">
-          <button type="button" class="btn btn-outline-primary" onclick="tiAutoName()" title="Wygeneruj nazwę grupy">
-            <i class="bi bi-magic me-1"></i>Generuj
-          </button>
-        </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. INF.JanKowalski.742<?= date('y') ?>">
-        <div class="form-text">Format: <code>Skrót.ImięNazwisko.kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
+               placeholder="np. INF.742<?= date('y') ?>">
+        <div class="form-text">Format: <code>Skrót.kod</code> — generowany automatycznie po wybraniu rodzaju zajęć.</div>
       </div>
-      <?php else: ?>
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" name="name" value="<?= h($f['name']) ?>" required
-               placeholder="np. ANG.Jan.K 742/<?= date('y') ?>">
-      </div>
-      <?php endif; ?>
 
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
@@ -720,34 +705,24 @@ function tiGenCode() {
 
 // ── Auto-generowanie nazwy grupy ─────────────────────────────────────────────
 function tiAutoName() {
-  var sel  = document.getElementById('st_select');
-  var gc   = document.getElementById('gc_input');
-  var full = document.getElementById('helper_fullname');
-  var out  = document.getElementById('name_input');
+  var sel = document.getElementById('st_select');
+  var gc  = document.getElementById('gc_input');
+  var out = document.getElementById('name_input');
   if (!sel || !out) return;
 
   var opt  = sel.options[sel.selectedIndex];
   var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
-  var subj = (opt && opt.dataset.name) ? opt.dataset.name : '';
   if (!abbr) return;
 
-  var words = full ? full.value.trim().split(/\s+/).filter(Boolean) : [];
-  var code  = gc ? gc.value.trim() : '';
-
-  // Format: Skrót.ImięNazwisko.kod  →  INF.JanKowalski.742/26
-  var namePart = words.join('');
-  var parts = [abbr];
-  if (namePart) parts.push(namePart);
-  if (code)     parts.push(code);
-  out.value = parts.join('.');
+  var code = gc ? gc.value.trim() : '';
+  // Format: Skrót.kod  →  INF.74226
+  out.value = abbr + (code ? '.' + code : '');
 }
 
 // Nasłuchuj zmian
 (function(){
-  var sel  = document.getElementById('st_select');
-  var full = document.getElementById('helper_fullname');
-  if (sel)  sel.addEventListener('change', tiAutoName);
-  if (full) full.addEventListener('input',  tiAutoName);
+  var sel = document.getElementById('st_select');
+  if (sel) sel.addEventListener('change', tiAutoName);
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
 })();
