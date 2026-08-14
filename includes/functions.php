@@ -223,54 +223,55 @@ function flash_get(): ?array {
 function flash_html(): string {
     $f = flash_get();
     if (!$f) return '';
-    // Zamień typ Bootstrap na dane toastu
     $type = $f['type'];
     $cfg = match($type) {
-        'success' => ['icon' => 'bi-check-circle-fill', 'color' => '#16A34A', 'bg' => '#F0FDF4', 'border' => '#86EFAC', 'delay' => 4000],
+        'success' => ['icon' => 'bi-check-circle-fill', 'color' => '#15803d', 'bg' => '#f0fdf4', 'border' => '#86efac', 'stripe' => '#22c55e', 'delay' => 5000, 'live' => 'polite'],
         'danger',
-        'error'   => ['icon' => 'bi-x-circle-fill',     'color' => '#DC2626', 'bg' => '#FEF2F2', 'border' => '#FCA5A5', 'delay' => 7000],
-        'warning' => ['icon' => 'bi-exclamation-triangle-fill', 'color' => '#D97706', 'bg' => '#FFFBEB', 'border' => '#FCD34D', 'delay' => 6000],
-        default   => ['icon' => 'bi-info-circle-fill',  'color' => '#0284C7', 'bg' => '#F0F9FF', 'border' => '#7DD3FC', 'delay' => 4500],
+        'error'   => ['icon' => 'bi-x-circle-fill',     'color' => '#b91c1c', 'bg' => '#fef2f2', 'border' => '#fca5a5', 'stripe' => '#ef4444', 'delay' => 0,    'live' => 'assertive'],
+        'warning' => ['icon' => 'bi-exclamation-triangle-fill', 'color' => '#b45309', 'bg' => '#fffbeb', 'border' => '#fcd34d', 'stripe' => '#f59e0b', 'delay' => 7000, 'live' => 'polite'],
+        default   => ['icon' => 'bi-info-circle-fill',  'color' => '#0369a1', 'bg' => '#f0f9ff', 'border' => '#7dd3fc', 'stripe' => '#38bdf8', 'delay' => 5000, 'live' => 'polite'],
     };
-    $msg   = h($f['msg']);
-    $icon  = $cfg['icon'];
-    $color = $cfg['color'];
-    $bg    = $cfg['bg'];
-    $brd   = $cfg['border'];
-    $delay = $cfg['delay'];
+    $msg    = h($f['msg']);
+    $icon   = $cfg['icon'];
+    $color  = $cfg['color'];
+    $bg     = $cfg['bg'];
+    $brd    = $cfg['border'];
+    $stripe = $cfg['stripe'];
+    $delay  = $cfg['delay'];
+    $live   = $cfg['live'];
+    $autodismiss = $delay > 0
+        ? "setTimeout(function(){var t=document.getElementById('_flash_toast');if(t)t.style.animation='_flashOut .25s ease forwards';setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},260);},{$delay});"
+        : '';
     return <<<HTML
-<div id="_flash_toast_wrap" aria-live="polite" aria-atomic="true"
-     style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;min-width:300px;max-width:440px">
+<div id="_flash_wrap"
+     role="alert" aria-live="{$live}" aria-atomic="true"
+     style="position:fixed;top:0;left:0;right:0;z-index:10000;pointer-events:none">
   <div id="_flash_toast"
-       role="alert" aria-live="assertive"
-       style="background:{$bg};border:1px solid {$brd};border-radius:12px;
-              box-shadow:0 4px 24px rgba(0,0,0,.13);padding:.85rem 1.1rem;
-              display:flex;align-items:flex-start;gap:.7rem;
-              animation:_toastIn .25s cubic-bezier(.34,1.56,.64,1) both">
-    <i class="bi {$icon}" style="color:{$color};font-size:1.15rem;flex-shrink:0;margin-top:.05rem"></i>
-    <div style="flex:1;font-size:.88rem;color:#1E293B;line-height:1.4">{$msg}</div>
-    <button type="button" onclick="document.getElementById('_flash_toast_wrap').remove()"
-            style="background:none;border:none;padding:0;color:#94A3B8;cursor:pointer;font-size:1rem;line-height:1;flex-shrink:0;margin-top:.1rem">
-      <i class="bi bi-x-lg"></i>
+       style="background:{$bg};border-bottom:3px solid {$stripe};
+              box-shadow:0 4px 20px rgba(0,0,0,.14);
+              padding:1rem 1.5rem;
+              display:flex;align-items:center;gap:.9rem;
+              pointer-events:auto;
+              animation:_flashIn .22s cubic-bezier(.16,.84,.44,1) both">
+    <i class="bi {$icon}" style="color:{$color};font-size:1.4rem;flex-shrink:0" aria-hidden="true"></i>
+    <span style="flex:1;font-size:.95rem;font-weight:500;color:#0f172a;line-height:1.45">{$msg}</span>
+    <button type="button"
+            onclick="(function(){var t=document.getElementById('_flash_toast');if(t)t.style.animation='_flashOut .2s ease forwards';setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},220);})()"
+            aria-label="Zamknij powiadomienie"
+            style="background:none;border:none;padding:.25rem;color:#64748b;cursor:pointer;
+                   border-radius:6px;line-height:1;font-size:1.1rem;flex-shrink:0">
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
     </button>
   </div>
 </div>
 <style>
-@keyframes _toastIn  { from { opacity:0; transform:translateY(12px) scale(.96); } to { opacity:1; transform:none; } }
-@keyframes _toastOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(8px) scale(.97); } }
+@keyframes _flashIn  { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:none; } }
+@keyframes _flashOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(-100%); } }
+@media (prefers-color-scheme:dark) {
+  #_flash_toast { background:{$bg} !important; }
+}
 </style>
-<script>
-(function() {
-  var delay = {$delay};
-  var wrap  = document.getElementById('_flash_toast_wrap');
-  if (!wrap) return;
-  setTimeout(function() {
-    var t = document.getElementById('_flash_toast');
-    if (t) t.style.animation = '_toastOut .2s ease forwards';
-    setTimeout(function() { if (wrap && wrap.parentNode) wrap.remove(); }, 220);
-  }, delay);
-})();
-</script>
+<script>(function(){ {$autodismiss} })();</script>
 HTML;
 }
 
