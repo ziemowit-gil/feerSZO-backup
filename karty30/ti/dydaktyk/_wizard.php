@@ -292,6 +292,16 @@ if (empty($dyd_wizard_sessions)) return;
     }
   };
 
+  // Otwarcie modalu z zewnątrz z danymi z listy lekcji
+  window.wizOpenExt = function(sid) {
+    var ext = (window.DYD_EXT_SESSIONS || {})[String(sid)];
+    if (!ext) return;
+    if (!SESSIONS.find(function(s){ return s.id === sid; })) {
+      SESSIONS.push({ id: sid, label: ext.label, topic: ext.topic, attendees: ext.attendees });
+    }
+    wizOpen(sid);
+  };
+
   // Otwarcie modalu z zewnątrz: wizOpen(sid)
   window.wizOpen = function(sid) {
     if (sid) {

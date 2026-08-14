@@ -323,6 +323,18 @@
                     data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
               <i class="bi bi-people me-1"></i>Obecność
             </button>
+            <?php $_meet_url = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? ''))); ?>
+            <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
+            <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
+              <i class="bi bi-camera-video-fill me-1"></i>Dołącz do lekcji
+            </a>
+            <?php endif; ?>
+            <?php if (($is_past || $is_today) && $s['status'] === 'planned'): ?>
+            <button type="button" class="btn btn-sm btn-success"
+                    onclick="wizOpenExt(<?= (int)$s['id'] ?>)">
+              <i class="bi bi-journal-text me-1"></i>Uzupełnij dokumentację
+            </button>
+            <?php endif; ?>
             <div class="ms-auto d-flex gap-1">
               <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
                       data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"
@@ -374,6 +386,28 @@
     <?php endforeach; // grouped months ?>
   </div><!-- /dyd-list-lekcje -->
 </div>
+
+<?php
+// Dane do kreatora (wizOpenExt) — zaplanowane lekcje z dziś lub przeszłości
+$_ext_for_wiz = array_filter($sessions, fn($s) => $s['status'] === 'planned' && $s['lesson_date'] <= $_today);
+$_wiz_ext_data = [];
+foreach ($_ext_for_wiz as $_we) {
+    $_watt = k30_ti_session_attendance((int)$_we['id']);
+    $_wiz_ext_data[(int)$_we['id']] = [
+        'label'     => ($_we['time_from'] ? substr($_we['time_from'],0,5).'–'.substr($_we['time_to']??'',0,5).' · ' : '') . ($_we['course_name'] ?? ''),
+        'topic'     => (string)($_we['topic'] ?? ''),
+        'attendees' => array_values(array_map(fn($a) => [
+            'id'        => (int)$a['client_id'],
+            'name'      => (string)($a['client_name'] ?? ''),
+            'attended'  => (int)($a['attended'] ?? 0),
+            'cancelled' => (int)($a['cancelled'] ?? 0),
+            'pending'   => (int)($a['cancel_pending'] ?? 0),
+            'no_show'   => (int)($a['no_show'] ?? 0),
+        ], $_watt)),
+    ];
+}
+?>
+<script>window.DYD_EXT_SESSIONS = <?= json_encode($_wiz_ext_data, JSON_UNESCAPED_UNICODE) ?>;</script>
 
 <!-- Modale: dodawanie + edycja lekcji -->
 <div class="modal fade" id="addL" tabindex="-1" aria-labelledby="addL_t" aria-hidden="true">
