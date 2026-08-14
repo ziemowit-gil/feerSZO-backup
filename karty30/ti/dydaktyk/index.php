@@ -352,6 +352,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dysk'); exit;
     }
 
+    // Komunikaty placówki — nie wymagają course_id
+    if ($op === 'mark_notice') {
+        $nid = (int)($_POST['notice_id'] ?? 0);
+        if ($nid) ti_notices_mark_read_instructor($nid, $uid);
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+    if ($op === 'mark_all_notices') {
+        ti_notices_mark_all_read_instructor($uid);
+        flash_set('success', 'Wszystkie komunikaty oznaczone jako przeczytane.');
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+
     // Pozostałe operacje wymagają własności kursu.
     if (!dyd_owns_course($uid, $course_id)) { http_response_code(403); exit('Brak uprawnień do tego kursu.'); }
 
@@ -1099,16 +1111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Wiadomość wysłana.');
         }
         header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
-    }
-    if ($op === 'mark_notice') {
-        $nid = (int)($_POST['notice_id'] ?? 0);
-        if ($nid) ti_notices_mark_read_instructor($nid, $uid);
-        header('Location: index.php?tab=komunikaty'); exit;
-    }
-    if ($op === 'mark_all_notices') {
-        ti_notices_mark_all_read_instructor($uid);
-        flash_set('success', 'Wszystkie komunikaty oznaczone jako przeczytane.');
-        header('Location: index.php?tab=komunikaty'); exit;
     }
 }
 
