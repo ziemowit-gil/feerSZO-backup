@@ -160,7 +160,31 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
     </button>
   </div>
 
+  <div class="alert alert-info d-flex align-items-start gap-2 py-2 mb-3" role="note">
+    <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <span class="small"><strong>SZOPlanner służy wyłącznie do planowania nowego roku szkolnego.</strong>
+    Bieżące zajęcia — ich dodawanie, odwoływanie i edytowanie — prowadź w zakładce <a href="index.php?course=<?= $cur_course ?>&tab=lekcje">Zajęcia</a>.</span>
+  </div>
 
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="szoPlanHarmTab" data-bs-toggle="tab" data-bs-target="#szoPaneHarm" type="button" role="tab" aria-controls="szoPaneHarm" aria-selected="true">
+        <i class="bi bi-calendar3-week me-1" aria-hidden="true"></i>Harmonogramy
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="szoPlanZajTab" data-bs-toggle="tab" data-bs-target="#szoPaneZaj" type="button" role="tab" aria-controls="szoPaneZaj" aria-selected="false">
+        <i class="bi bi-people me-1" aria-hidden="true"></i>Zajęcia
+        <?php if ($pl_courses_plan): ?>
+        <span class="badge text-bg-secondary ms-1" style="font-size:.65rem"><?= count($pl_courses_plan) ?> gr.</span>
+        <?php endif; ?>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+  <div class="tab-pane fade show active" id="szoPaneHarm" role="tabpanel" aria-labelledby="szoPlanHarmTab">
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-calendar3-week text-primary me-2" aria-hidden="true"></i>SZO Planner — Harmonogramy zajęć</h2>
     <div class="ms-auto d-flex gap-2 flex-wrap">
@@ -254,63 +278,6 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
     <?php endif; ?>
   </div>
 
-  <?php /* ── Sekcja: Planowanie grup ───────────────────────────────────── */ ?>
-  <div class="mb-3">
-    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-            type="button" data-bs-toggle="collapse" data-bs-target="#szoPlanSection" aria-expanded="false">
-      <i class="bi bi-table" aria-hidden="true"></i>
-      <span>Planowanie grup</span>
-      <i class="bi bi-chevron-down ms-1" style="font-size:.7rem" aria-hidden="true"></i>
-    </button>
-    <div class="collapse mt-2" id="szoPlanSection">
-      <div class="card card-body p-2" style="font-size:.82rem">
-        <?php if ($pl_courses_plan): ?>
-        <div class="table-responsive">
-          <table class="table table-sm szo-plan-tbl mb-0">
-            <thead>
-              <tr>
-                <th>Grupa</th>
-                <th>Prowadzący</th>
-                <th>Zajęcia (4 tyg.)</th>
-                <th>Wzorzec</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($pl_courses_plan as $cp): ?>
-              <?php $pat = pl_pattern($cp['dur_list']); ?>
-              <tr>
-                <td><?= h($cp['name']) ?></td>
-                <td class="text-body-secondary"><?= h($cp['instructor_name'] ?? '—') ?></td>
-                <td class="text-center">
-                  <?php if ($cp['sessions_4w'] > 0): ?>
-                  <span class="badge text-bg-secondary"><?= (int)$cp['sessions_4w'] ?> × (~<?= (int)ceil((int)$cp['sessions_4w'] / 4) ?>/tydz.)</span>
-                  <?php else: ?>
-                  <span class="text-body-secondary">brak</span>
-                  <?php endif; ?>
-                </td>
-                <td><span class="szo-pattern-badge"><?= h($pat) ?></span></td>
-                <td>
-                  <button class="btn btn-sm btn-outline-primary py-0 px-2 szo-copy-course-btn"
-                          data-course-id="<?= (int)$cp['id'] ?>"
-                          data-course-name="<?= h($cp['name']) ?>"
-                          data-bs-toggle="modal" data-bs-target="#szoPlannerNewScheduleModal"
-                          title="Utwórz harmonogram dla tej grupy">
-                    <i class="bi bi-copy me-1" aria-hidden="true"></i>Kopiuj do harmonogramu
-                  </button>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-        <?php else: ?>
-        <p class="text-body-secondary mb-0">Brak aktywnych kursów.</p>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
-
   <?php if ($pl_schedules): ?>
   <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
     <span class="text-body-secondary small fw-semibold">Harmonogram:</span>
@@ -373,6 +340,58 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
   </div>
 
   <?php endif; /* sel_schedule */ ?>
+  </div><!-- /tab-pane harmonogramy -->
+
+  <div class="tab-pane fade" id="szoPaneZaj" role="tabpanel" aria-labelledby="szoPlanZajTab">
+    <?php if ($pl_courses_plan): ?>
+    <div class="table-responsive">
+      <table class="table table-sm szo-plan-tbl">
+        <thead>
+          <tr>
+            <th>Grupa</th>
+            <th>Prowadzący</th>
+            <th>Zajęcia (4 tyg.)</th>
+            <th>Wzorzec</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($pl_courses_plan as $cp): ?>
+          <?php $pat = pl_pattern($cp['dur_list']); ?>
+          <tr>
+            <td><?= h($cp['name']) ?></td>
+            <td class="text-body-secondary"><?= h($cp['instructor_name'] ?? '—') ?></td>
+            <td class="text-center">
+              <?php if ($cp['sessions_4w'] > 0): ?>
+              <span class="badge text-bg-secondary"><?= (int)$cp['sessions_4w'] ?> × (~<?= (int)ceil((int)$cp['sessions_4w'] / 4) ?>/tydz.)</span>
+              <?php else: ?>
+              <span class="text-body-secondary">brak</span>
+              <?php endif; ?>
+            </td>
+            <td><span class="szo-pattern-badge"><?= h($pat) ?></span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary py-0 px-2 szo-copy-course-btn"
+                      data-course-id="<?= (int)$cp['id'] ?>"
+                      data-course-name="<?= h($cp['name']) ?>"
+                      data-bs-toggle="modal" data-bs-target="#szoPlannerNewScheduleModal"
+                      title="Utwórz harmonogram dla tej grupy">
+                <i class="bi bi-copy me-1" aria-hidden="true"></i>Utwórz harmonogram
+              </button>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <div class="text-body-secondary text-center py-4">
+      <i class="bi bi-people fs-2 d-block mb-2 opacity-40" aria-hidden="true"></i>
+      Brak aktywnych grup.
+    </div>
+    <?php endif; ?>
+  </div><!-- /tab-pane zajecia -->
+
+  </div><!-- /tab-content -->
 </div>
 
 <!-- ── MODAL: Nowy harmonogram ────────────────────── -->
