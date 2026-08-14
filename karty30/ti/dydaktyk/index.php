@@ -2240,37 +2240,71 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
   <!-- Zakładki kursu — widoczne tylko gdy aktywna zakładka należy do obszaru kursu -->
   <?php if ($tab_is_course): ?>
-  <ul class="nav nav-tabs mb-3" role="tablist">
-    <?php
-      $absent_count = ($cur_course && k30_ti_course_tracks_attendance($cur_course)) ? (int)(db_one(
-          "SELECT COUNT(*) AS n FROM k30_ti_attendance a
-           JOIN k30_ti_sessions s ON s.id=a.session_id
-           WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
-             AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
-      $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
-               'zadania'=>['Zadania','journal-check',count($homeworks)],
-               'materialy'=>['Materiały','collection-play',count($materials)],
-               'nieobecnosci'=>['Nieobecności','person-x',$absent_count],
-               'oceny'=>['Oceny','journal-bookmark',(int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0)],
-               'program'=>['Program zajęć','list-check',count(k30_ti_curriculum_list($cur_course))],
-               'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
-      if (dyd_is_staff()) {
-          $roz_debt_n = (int)(db_one(
-              "SELECT COUNT(DISTINCT e.client_id) AS n
-               FROM k30_ti_enrollments e
-               JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
-               WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
-          $tabs['rozliczenia'] = ['Rozliczenia','receipt', $roz_debt_n];
-      }
-      foreach ($tabs as $k=>$ti): ?>
-    <li class="nav-item" role="presentation">
-      <a class="nav-link <?= $tab===$k?'active':'' ?>" href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>">
-        <i class="bi bi-<?= $ti[1] ?> me-1" aria-hidden="true"></i><?= $ti[0] ?>
-        <span class="badge bg-secondary ms-1"><?= $ti[2] ?></span>
+  <?php
+    $absent_count = ($cur_course && k30_ti_course_tracks_attendance($cur_course)) ? (int)(db_one(
+        "SELECT COUNT(*) AS n FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+         WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
+           AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
+    $grades_count = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0);
+    $program_count = count(k30_ti_curriculum_list($cur_course));
+    $testy_count  = count(k30_ti_tests_list($cur_course));
+    // [label, icon, count, 'alert'|'warn'|'']
+    $tabs = [
+      'lekcje'      => ['Lekcje',       'calendar-week',     count($sessions),   ''],
+      'zadania'     => ['Zadania',       'journal-check',     count($homeworks),  ''],
+      'materialy'   => ['Materiały',     'collection-play',   count($materials),  ''],
+      'nieobecnosci'=> ['Nieobecności',  'person-x',          $absent_count,      $absent_count > 0 ? 'alert' : ''],
+      'oceny'       => ['Oceny',         'journal-bookmark',  $grades_count,      ''],
+      'program'     => ['Program',       'list-check',        $program_count,     ''],
+      'testy'       => ['Testy',         'card-checklist',    $testy_count,       ''],
+    ];
+    if (dyd_is_staff()) {
+      $roz_debt_n = (int)(db_one(
+          "SELECT COUNT(DISTINCT e.client_id) AS n
+           FROM k30_ti_enrollments e
+           JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+           WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
+      $tabs['rozliczenia'] = ['Rozliczenia', 'receipt', $roz_debt_n, $roz_debt_n > 0 ? 'alert' : ''];
+    }
+  ?>
+  <style>
+  .dyd-ctabs{overflow:hidden;border-bottom:2px solid var(--bs-border-color);margin-bottom:1rem}
+  .dyd-ctabs-track{display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-bottom:-2px}
+  .dyd-ctabs-track::-webkit-scrollbar{display:none}
+  .dyd-ct{display:flex;align-items:center;gap:.3rem;padding:.55rem .9rem;font-size:.82rem;font-weight:500;
+          color:var(--bs-secondary-color);text-decoration:none;border-bottom:2px solid transparent;
+          white-space:nowrap;transition:color .12s,border-color .12s;flex-shrink:0}
+  .dyd-ct:hover{color:var(--bs-body-color);background:rgba(0,0,0,.03)}
+  [data-bs-theme="dark"] .dyd-ct:hover{background:rgba(255,255,255,.05)}
+  .dyd-ct.active{color:var(--bs-primary);border-bottom-color:var(--bs-primary);font-weight:600}
+  .dyd-ct-ic{font-size:.9rem;opacity:.75}
+  .dyd-ct.active .dyd-ct-ic{opacity:1}
+  .dyd-ct-n{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
+            padding:0 4px;border-radius:9px;font-size:.65rem;font-weight:700;line-height:1;
+            background:var(--bs-secondary-bg);color:var(--bs-secondary-color)}
+  .dyd-ct-n.nz{background:var(--bs-primary-bg-subtle);color:var(--bs-primary)}
+  .dyd-ct.active .dyd-ct-n.nz{background:var(--bs-primary);color:#fff}
+  .dyd-ct-n.al{background:var(--bs-danger);color:#fff}
+  .dyd-ct-n.zr{opacity:.45}
+  </style>
+  <nav class="dyd-ctabs" aria-label="Zakładki kursu">
+    <div class="dyd-ctabs-track" role="tablist">
+      <?php foreach ($tabs as $k => [$label, $icon, $cnt, $variant]): ?>
+      <?php
+        $is_active = $tab === $k;
+        $badge_cls = $variant === 'alert' ? 'al' : ($cnt > 0 ? 'nz' : 'zr');
+      ?>
+      <a class="dyd-ct <?= $is_active ? 'active' : '' ?>"
+         href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>"
+         role="tab" aria-selected="<?= $is_active ? 'true' : 'false' ?>">
+        <i class="bi bi-<?= $icon ?> dyd-ct-ic" aria-hidden="true"></i>
+        <?= h($label) ?>
+        <span class="dyd-ct-n <?= $badge_cls ?>"><?= $cnt ?></span>
       </a>
-    </li>
-    <?php endforeach; ?>
-  </ul>
+      <?php endforeach; ?>
+    </div>
+  </nav>
   <?php endif; ?>
 
   <div class="dyd-tabpane">
