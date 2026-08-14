@@ -10,6 +10,7 @@ const STUDENT_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzy
 function student_start(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_name('k30_student');
+        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         session_start();
     }
 }

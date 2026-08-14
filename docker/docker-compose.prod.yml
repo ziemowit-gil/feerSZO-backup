@@ -132,6 +132,18 @@ services:
       - "traefik.http.routers.feer-ti-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.feer-ti-http.service=feer"
 
+      # ── kursant.feer.org.pl → panel kursanta TI ──────────────────────────
+      - "traefik.http.routers.feer-kursant.rule=Host(`kursant.feer.org.pl`)"
+      - "traefik.http.routers.feer-kursant.entrypoints=websecure"
+      - "traefik.http.routers.feer-kursant.tls=true"
+      - "traefik.http.routers.feer-kursant.tls.certresolver=le"
+      - "traefik.http.routers.feer-kursant.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-kursant.service=feer"
+      - "traefik.http.routers.feer-kursant-http.rule=Host(`kursant.feer.org.pl`)"
+      - "traefik.http.routers.feer-kursant-http.entrypoints=web"
+      - "traefik.http.routers.feer-kursant-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-kursant-http.service=feer"
+
       # ── zadania.feer.org.pl ───────────────────────────────────────────────
       - "traefik.http.routers.feer-zadania.rule=Host(`zadania.feer.org.pl`)"
       - "traefik.http.routers.feer-zadania.entrypoints=websecure"
