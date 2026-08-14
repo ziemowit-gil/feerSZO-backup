@@ -74,14 +74,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($rows as $i => $r): ?>
-        <tr>
-          <td>
-            <button class="btn btn-sm btn-link p-0 text-decoration-none fw-semibold" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#po-<?= $i ?>" aria-expanded="false">
-              <i class="bi bi-caret-right-fill small me-1"></i><?= h($r['name']) ?>
-            </button>
-          </td>
+        <?php foreach ($rows as $r): ?>
+        <tr class="table-group-divider">
+          <td class="fw-semibold"><?= h($r['name']) ?></td>
           <td class="text-end"><?= (int)$r['lessons'] ?></td>
           <td class="text-end"><?= $f($r['brutto_brutto']) ?></td>
           <td class="text-end text-body-secondary"><?= $f($r['zus_employer']) ?></td>
@@ -90,25 +85,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <td class="text-end"><?= $f($r['pit']) ?></td>
           <td class="text-end fw-semibold text-success"><?= $f($r['netto']) ?></td>
         </tr>
-        <tr class="collapse" id="po-<?= $i ?>">
-          <td colspan="8" class="bg-light">
-            <div class="small">
-              <div class="fw-semibold mb-1 text-body-secondary">Rozbicie na kursy:</div>
-              <table class="table table-sm mb-0">
-                <tbody>
-                  <?php foreach ($r['courses'] as $c): ?>
-                  <tr>
-                    <td><?= h($c['name']) ?></td>
-                    <td class="text-end" style="width:90px"><?= (int)$c['lessons'] ?> lekcji</td>
-                    <td class="text-end" style="width:130px">bb <?= $f($c['brutto_brutto']) ?> zł</td>
-                    <td class="text-end" style="width:140px">na rękę <strong><?= $f($c['netto']) ?> zł</strong></td>
-                  </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          </td>
+        <?php foreach ($r['courses'] as $c): ?>
+        <tr class="text-body-secondary" style="font-size:.85rem">
+          <td class="ps-4"><i class="bi bi-arrow-return-right me-1 opacity-50"></i><?= h($c['name']) ?></td>
+          <td class="text-end"><?= (int)$c['lessons'] ?></td>
+          <td class="text-end"><?= $f($c['brutto_brutto']) ?></td>
+          <td class="text-end"><?= $f($c['zus_employer']) ?></td>
+          <td class="text-end"><?= $f($c['brutto']) ?></td>
+          <td class="text-end"><?= $f($c['skladki']) ?></td>
+          <td class="text-end"><?= $f($c['pit']) ?></td>
+          <td class="text-end"><?= $f($c['netto']) ?></td>
         </tr>
+        <?php endforeach; ?>
         <?php endforeach; ?>
       </tbody>
       <tfoot class="table-light">
