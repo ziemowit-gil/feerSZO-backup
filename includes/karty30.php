@@ -2520,7 +2520,7 @@ function k30_ti_subject_types(bool $active_only = true): array {
 }
 
 function k30_ti_generate_group_code(): string {
-    return str_pad((string)random_int(0, 999), 3, '0', STR_PAD_LEFT) . '/' . date('y');
+    return str_pad((string)random_int(0, 999), 3, '0', STR_PAD_LEFT) . date('y');
 }
 
 // Zapisy

@@ -391,13 +391,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php if (!$edit_row): ?>
           <div class="input-group">
             <input type="text" class="form-control font-monospace" name="group_code" id="gc_input"
-                   placeholder="np. 742/<?= date('y') ?>" maxlength="6"
+                   placeholder="np. 742<?= date('y') ?>" maxlength="5"
                    aria-describedby="gc_help">
             <button type="button" class="btn btn-outline-secondary" onclick="tiGenCode()" title="Wygeneruj losowy kod">
               <i class="bi bi-arrow-clockwise"></i>
             </button>
           </div>
-          <div id="gc_help" class="form-text">3 cyfry + /<?= date('y') ?> — auto-generowany przy tworzeniu</div>
+          <div id="gc_help" class="form-text">3 cyfry + <?= date('y') ?> — auto-generowany przy tworzeniu</div>
           <?php else: ?>
           <input type="text" class="form-control font-monospace bg-light" value="<?= h($f['group_code']) ?>" readonly>
           <div class="form-text">Niezmienny po utworzeniu grupy</div>
@@ -417,7 +417,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </button>
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. INF.JanKowalski.742/<?= date('y') ?>">
+               placeholder="np. INF.JanKowalski.742<?= date('y') ?>">
         <div class="form-text">Format: <code>Skrót.ImięNazwisko.kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
       <?php else: ?>
@@ -713,7 +713,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 function tiGenCode() {
   var n   = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
   var yr  = '<?= date('y') ?>';
-  var val = n + '/' + yr;
+  var val = n + yr;
   var inp = document.getElementById('gc_input');
   if (inp) { inp.value = val; tiAutoName(); }
 }
