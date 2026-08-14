@@ -236,11 +236,12 @@ if (($cur_course === 0 || $_force_pick) && count($courses) > 1) {
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
-$dyd_user_row  = db_one("SELECT email, microsoft_id, phone_number, alt_email FROM users WHERE id=?", [$uid]);
-$dyd_email     = trim((string)($dyd_user_row['email'] ?? ''));
-$dyd_ms_id     = trim((string)($dyd_user_row['microsoft_id'] ?? ''));
-$dyd_phone     = trim((string)($dyd_user_row['phone_number'] ?? ''));
-$dyd_alt_email = trim((string)($dyd_user_row['alt_email'] ?? ''));
+$dyd_user_row     = db_one("SELECT email, microsoft_id, phone_number, alt_email, share_contact FROM users WHERE id=?", [$uid]);
+$dyd_email        = trim((string)($dyd_user_row['email'] ?? ''));
+$dyd_ms_id        = trim((string)($dyd_user_row['microsoft_id'] ?? ''));
+$dyd_phone        = trim((string)($dyd_user_row['phone_number'] ?? ''));
+$dyd_alt_email    = trim((string)($dyd_user_row['alt_email'] ?? ''));
+$dyd_share_contact = (int)($dyd_user_row['share_contact'] ?? 0);
 foreach ([
     ['zlecenie',    'data_zakonczenia'],
     ['wolontariat', 'data_zakonczenia'],
@@ -326,8 +327,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Podaj poprawny adres e-mail kontaktowy.');
             header('Location: index.php?tab=formalnosci'); exit;
         }
-        db()->prepare("UPDATE users SET phone_number=?, alt_email=? WHERE id=?")->execute([
-            $new_phone, $new_alt_email ?: null, $uid,
+        $new_share = isset($_POST['share_contact']) ? 1 : 0;
+        db()->prepare("UPDATE users SET phone_number=?, alt_email=?, share_contact=? WHERE id=?")->execute([
+            $new_phone, $new_alt_email ?: null, $new_share, $uid,
         ]);
         flash_set('success', 'Dane kontaktowe zostały zapisane.');
         header('Location: index.php?tab=formalnosci'); exit;

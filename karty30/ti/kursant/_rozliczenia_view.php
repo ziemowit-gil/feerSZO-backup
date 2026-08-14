@@ -8,10 +8,44 @@ $rv_billing = k30_ti_client_billing((int)$rv_client_id);
 $rv_months  = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
 $rv_st = ['draft'=>['Robocze','secondary'], 'issued'=>['Wystawione','primary'], 'paid'=>['Opłacone','success']];
+
 // Saldo z księgi wpłat (nadpłata/niedopłata)
 $rv_bal   = ti_client_balance((int)$rv_client_id);
 $rv_total = $rv_bal['charges'];
 $rv_paid  = $rv_bal['payments'];
+
+// Grupuj wiersze billing per miesiąc
+$_rv_grouped = [];
+foreach ($rv_billing as $b) {
+    $key = sprintf('%04d-%02d', (int)$b['year'], (int)$b['month']);
+    if (!isset($_rv_grouped[$key])) {
+        $_rv_grouped[$key] = ['year' => (int)$b['year'], 'month' => (int)$b['month'], 'rows' => []];
+    }
+    $_rv_grouped[$key]['rows'][] = $b;
+}
+
+// Przelicz agregaty per miesiąc
+foreach ($_rv_grouped as &$_mg) {
+    $sum_due = 0.0; $sum_h = 0.0;
+    $statuses = []; $due_date = null; $any_invoice = null;
+    foreach ($_mg['rows'] as $b) {
+        $sum_due += (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+        $sum_h   += (float)$b['hours_billed'];
+        $statuses[] = $b['status'];
+        if (!$due_date && !empty($b['due_date'])) $due_date = $b['due_date'];
+        if (!$any_invoice && !empty($b['invoice_path'])) $any_invoice = $b;
+    }
+    $all_paid  = !array_filter($statuses, fn($s) => $s !== 'paid');
+    $all_draft = !array_filter($statuses, fn($s) => $s !== 'draft');
+    $_mg['sum_due']    = round($sum_due, 2);
+    $_mg['sum_hours']  = $sum_h;
+    $_mg['agg_status'] = $all_paid ? 'paid' : ($all_draft ? 'draft' : 'issued');
+    $_mg['due_date']   = $due_date;
+    $_mg['any_invoice']= $any_invoice;
+    $_mg['multi']      = count($_mg['rows']) > 1
+                      || (count($_mg['rows']) === 1 && (int)($_mg['rows'][0]['course_id'] ?? 0) > 0);
+}
+unset($_mg);
 ?>
 <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
 
@@ -86,7 +120,7 @@ $rv_paid  = $rv_bal['payments'];
       <caption class="visually-hidden">Rozliczenia miesięczne</caption>
       <thead>
         <tr>
-          <th scope="col">Okres</th>
+          <th scope="col">Okres / Grupa</th>
           <th scope="col">Godziny</th>
           <th scope="col">Korekta</th>
           <th scope="col">Do zapłaty</th>
@@ -96,13 +130,72 @@ $rv_paid  = $rv_bal['payments'];
         </tr>
       </thead>
       <tbody>
-        <?php if (!$rv_billing): ?>
+        <?php if (!$_rv_grouped): ?>
         <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
         <?php endif; ?>
-        <?php foreach ($rv_billing as $b):
-          [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], 'secondary'];
+
+        <?php foreach ($_rv_grouped as $mg):
+          [$mlbl, $mcol] = $rv_st[$mg['agg_status']] ?? [$mg['agg_status'], 'secondary'];
+          $rv_overdue = $mg['agg_status'] !== 'paid' && !empty($mg['due_date']) && $mg['due_date'] < date('Y-m-d');
+        ?>
+
+        <?php if ($mg['multi']): /* ── Miesiąc z rozbiciem na kursy ── */ ?>
+
+        <?php /* Wiersz nagłówkowy miesiąca */ ?>
+        <tr class="table-light">
+          <td class="fw-semibold">
+            <?= h($rv_months[(int)$mg['month']] ?? $mg['month']) ?> <?= (int)$mg['year'] ?>
+          </td>
+          <td class="fw-semibold"><?= number_format($mg['sum_hours'], 2, ',', ' ') ?> h</td>
+          <td></td>
+          <td class="fw-bold"><?= number_format($mg['sum_due'], 2, ',', ' ') ?> zł</td>
+          <td>
+            <?php if (!empty($mg['due_date'])): ?>
+              <span class="<?= $rv_overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">
+                <?= date('d.m.Y', strtotime($mg['due_date'])) ?>
+              </span>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td><span class="badge text-bg-<?= $mcol ?>"><?= h($mlbl) ?></span></td>
+          <td></td>
+        </tr>
+
+        <?php /* Wiersze per kurs (rozbicie) */ ?>
+        <?php foreach ($mg['rows'] as $b):
           $adj = (float)($b['adjustment'] ?? 0);
           $tot = (float)$b['amount'] + $adj;
+          $cname = $b['course_name'] !== '' ? $b['course_name'] : 'Zajęcia';
+        ?>
+        <tr style="font-size:.86rem">
+          <td class="ps-3 text-body-secondary">
+            <i class="bi bi-arrow-return-right me-1" aria-hidden="true"></i><?= h($cname) ?>
+          </td>
+          <td class="text-body-secondary"><?= number_format((float)$b['hours_billed'], 2, ',', ' ') ?> h</td>
+          <td>
+            <?php if ($adj != 0): ?>
+              <span class="<?= $adj > 0 ? 'text-danger' : 'text-success' ?>"><?= ($adj>0?'+':'−').number_format(abs($adj),2,',',' ') ?> zł</span>
+              <?php if (!empty($b['adjustment_note'])): ?><div class="text-body-secondary" style="font-size:.72rem"><?= h($b['adjustment_note']) ?></div><?php endif; ?>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td class="text-body-secondary"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
+          <td></td>
+          <td></td>
+          <td>
+            <?php if (!empty($b['invoice_path'])): ?>
+            <a href="invoice_file.php?id=<?= (int)$b['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" target="_blank" rel="noopener" style="font-size:.78rem">
+              <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>FVAT
+            </a>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+
+        <?php else: /* ── Miesiąc bez rozbicia (jeden wpis, course_id=0) ── */
+          $b   = $mg['rows'][0];
+          $adj = (float)($b['adjustment'] ?? 0);
+          $tot = (float)$b['amount'] + $adj;
+          [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], 'secondary'];
+          $rv_overdue2 = $b['status'] !== 'paid' && !empty($b['due_date']) && $b['due_date'] < date('Y-m-d');
         ?>
         <tr>
           <td><?= h($rv_months[(int)$b['month']] ?? $b['month']) ?> <?= (int)$b['year'] ?></td>
@@ -115,9 +208,8 @@ $rv_paid  = $rv_bal['payments'];
           </td>
           <td class="fw-bold"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
           <td>
-            <?php if (!empty($b['due_date'])):
-              $rv_overdue = $b['status'] !== 'paid' && $b['due_date'] < date('Y-m-d'); ?>
-              <span class="<?= $rv_overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">
+            <?php if (!empty($b['due_date'])): ?>
+              <span class="<?= $rv_overdue2 ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">
                 <?= date('d.m.Y', strtotime($b['due_date'])) ?>
               </span>
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
@@ -131,6 +223,8 @@ $rv_paid  = $rv_bal['payments'];
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
         </tr>
+        <?php endif; /* multi / single */ ?>
+
         <?php endforeach; ?>
       </tbody>
     </table>

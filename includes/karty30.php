@@ -103,6 +103,11 @@ function karty30_migrate(): void {
         $pdo->exec("ALTER TABLE users ADD COLUMN k30_consultant INTEGER NOT NULL DEFAULT 0");
     } catch (\Throwable $e) {}
 
+    // Prowadzący: zgoda na pokazanie danych kontaktowych kursantom
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN share_contact INTEGER NOT NULL DEFAULT 0");
+    } catch (\Throwable $e) {}
+
     // Zasób zarezerwowany na termin (sala, stanowisko itp.)
     try {
         $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL");
@@ -2978,9 +2983,12 @@ function k30_ti_unenroll_requests_all(): array {
 /** Wystawione/robocze rozliczenia kursanta (do widoku kursanta i rodzica). */
 function k30_ti_client_billing(int $client_id): array {
     return db_all(
-        "SELECT * FROM k30_ti_billing
-         WHERE client_id=? AND status!='cancelled'
-         ORDER BY year DESC, month DESC", [$client_id]
+        "SELECT b.*, COALESCE(c.name,'') AS course_name
+         FROM k30_ti_billing b
+         LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
+         WHERE b.client_id=? AND b.status!='cancelled'
+         ORDER BY b.year DESC, b.month DESC, b.course_id ASC",
+        [$client_id]
     );
 }
 

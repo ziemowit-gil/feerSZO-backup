@@ -1518,6 +1518,25 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
+  <?php
+    // Dane kontaktowe prowadzących (tylko gdy share_contact=1)
+    $_instr_contacts = [];
+    if ($active_courses) {
+        $_ic_rows = db_all(
+            "SELECT c.id AS course_id, u.name AS instr_name,
+                    COALESCE(u.alt_email, u.email) AS contact_email, u.phone_number
+             FROM k30_ti_enrollments e
+             JOIN k30_ti_courses c ON c.id=e.course_id
+             JOIN users u ON u.id=c.instructor_id AND COALESCE(u.share_contact,0)=1
+             WHERE e.client_id=? AND e.status='active'",
+            [(int)$student['client_id']]
+        );
+        foreach ($_ic_rows as $_ic) {
+            $_instr_contacts[(int)$_ic['course_id']] = $_ic;
+        }
+    }
+  ?>
+
   <?php if ($active_courses): ?>
   <div class="card mb-4">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
@@ -1525,21 +1544,38 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <ul class="list-group list-group-flush" role="list">
       <?php foreach ($active_courses as $ec): ?>
-      <li class="list-group-item d-flex align-items-center gap-3 py-2">
-        <div class="flex-grow-1 min-width-0">
-          <span class="fw-semibold"><?= h($ec['course_name']) ?></span>
-          <?php if (!empty($ec['instructor_name'])): ?>
-          <span class="text-body-secondary small ms-2">· <?= h($ec['instructor_name']) ?></span>
+      <?php $_ic = $_instr_contacts[(int)$ec['course_id']] ?? null; ?>
+      <li class="list-group-item py-2">
+        <div class="d-flex align-items-center gap-3">
+          <div class="flex-grow-1 min-width-0">
+            <span class="fw-semibold"><?= h($ec['course_name']) ?></span>
+            <?php if (!empty($ec['instructor_name'])): ?>
+            <span class="text-body-secondary small ms-2">· <?= h($ec['instructor_name']) ?></span>
+            <?php endif; ?>
+          </div>
+          <button type="button" class="btn btn-outline-danger btn-sm flex-shrink-0"
+                  data-bs-toggle="modal" data-bs-target="#modalUnenroll"
+                  data-enroll-id="<?= (int)$ec['id'] ?>"
+                  data-course-name="<?= h($ec['course_name']) ?>"
+                  data-minor="<?= $is_minor ? '1' : '0' ?>"
+                  aria-label="Wypisz się z kursu <?= h($ec['course_name']) ?>">
+            <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Wypisz się
+          </button>
+        </div>
+        <?php if ($_ic): /* Kontakt do prowadzącego — tylko gdy share_contact=1 */ ?>
+        <div class="mt-1 small text-body-secondary d-flex flex-wrap gap-3">
+          <?php if (!empty($_ic['contact_email'])): ?>
+          <a href="mailto:<?= h($_ic['contact_email']) ?>" class="text-decoration-none">
+            <i class="bi bi-envelope me-1" aria-hidden="true"></i><?= h($_ic['contact_email']) ?>
+          </a>
+          <?php endif; ?>
+          <?php if (!empty($_ic['phone_number'])): ?>
+          <a href="tel:<?= h($_ic['phone_number']) ?>" class="text-decoration-none">
+            <i class="bi bi-telephone me-1" aria-hidden="true"></i><?= h($_ic['phone_number']) ?>
+          </a>
           <?php endif; ?>
         </div>
-        <button type="button" class="btn btn-outline-danger btn-sm flex-shrink-0"
-                data-bs-toggle="modal" data-bs-target="#modalUnenroll"
-                data-enroll-id="<?= (int)$ec['id'] ?>"
-                data-course-name="<?= h($ec['course_name']) ?>"
-                data-minor="<?= $is_minor ? '1' : '0' ?>"
-                aria-label="Wypisz się z kursu <?= h($ec['course_name']) ?>">
-          <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Wypisz się
-        </button>
+        <?php endif; ?>
       </li>
       <?php endforeach; ?>
     </ul>

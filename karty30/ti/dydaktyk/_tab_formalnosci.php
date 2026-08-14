@@ -35,6 +35,13 @@
                    value="<?= h($dyd_phone) ?>" placeholder="+48 000 000 000">
           </div>
         </div>
+        <div class="mb-3 form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="dyd_share_contact"
+                 name="share_contact" value="1" <?= !empty($dyd_share_contact) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="dyd_share_contact">
+            Udostępnij dane kontaktowe kursantom (telefon i e-mail kontaktowy)
+          </label>
+        </div>
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz dane kontaktowe
         </button>
