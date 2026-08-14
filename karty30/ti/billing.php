@@ -36,17 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $client_id = (int)($_POST['client_id'] ?? 0);
         $notes     = trim($_POST['notes'] ?? '');
         if ($client_id) {
-            $bid = k30_ti_issue_billing($client_id, $month, $year, $notes);
-            ti_billing_recompute($client_id); // auto-pobranie z ewentualnej nadpłaty
-            $n   = k30_ti_billing_notify($bid);
-            $extra = '';
-            if (!empty($n['ok'])) {
-                $parts = [];
-                if (!empty($n['sms']))   $parts[] = 'SMS';
-                if (!empty($n['email'])) $parts[] = 'e-mail';
-                $extra = $parts ? ' Wysłano: ' . implode(' i ', $parts) . '.' : ' (brak danych kontaktowych do powiadomienia).';
+            $bids  = k30_ti_issue_billing_split($client_id, $month, $year, $notes);
+            ti_billing_recompute($client_id);
+            $sms_c = 0; $eml_c = 0;
+            foreach ($bids as $bid) {
+                $n = k30_ti_billing_notify($bid);
+                if (!empty($n['sms']))   $sms_c++;
+                if (!empty($n['email'])) $eml_c++;
             }
-            flash_set('success', 'Rozliczenie wystawione.' . $extra);
+            $cnt   = count($bids);
+            $extra = ($sms_c || $eml_c)
+                ? ' Wysłano: ' . ($sms_c ? "SMS ({$sms_c})" : '') . ($sms_c && $eml_c ? ' i ' : '') . ($eml_c ? "e-mail ({$eml_c})" : '') . '.'
+                : ' (brak danych kontaktowych do powiadomień).';
+            flash_set('success', ($cnt > 1 ? "Wystawiono {$cnt} rozliczeń (osobno per kurs)." : 'Rozliczenie wystawione.') . $extra);
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -59,15 +61,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
              WHERE a.attended=1 AND strftime('%m',s.lesson_date)=? AND strftime('%Y',s.lesson_date)=?",
             [sprintf('%02d',$month), (string)$year]
         );
-        $sms = 0; $eml = 0;
+        $sms = 0; $eml = 0; $bill_cnt = 0;
         foreach ($clients_with_sessions as $c) {
-            $bid = k30_ti_issue_billing((int)$c['client_id'], $month, $year);
-            ti_billing_recompute((int)$c['client_id']); // auto-pobranie z nadpłaty
-            $n   = k30_ti_billing_notify($bid);
-            if (!empty($n['sms']))   $sms++;
-            if (!empty($n['email'])) $eml++;
+            $bids = k30_ti_issue_billing_split((int)$c['client_id'], $month, $year);
+            ti_billing_recompute((int)$c['client_id']);
+            $bill_cnt += count($bids);
+            foreach ($bids as $bid) {
+                $n = k30_ti_billing_notify($bid);
+                if (!empty($n['sms']))   $sms++;
+                if (!empty($n['email'])) $eml++;
+            }
         }
-        flash_set('success', 'Wystawiono ' . count($clients_with_sessions) . ' rozliczeń. Powiadomienia: SMS ' . $sms . ', e-mail ' . $eml . '.');
+        flash_set('success', "Wystawiono {$bill_cnt} rozliczeń (dla " . count($clients_with_sessions) . " kursantów). Powiadomienia: SMS {$sms}, e-mail {$eml}.");
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
@@ -300,11 +305,23 @@ $billed_ids = array_column($billings, 'client_id');
 $balances = [];
 foreach (array_unique($billed_ids) as $bcid) { $balances[(int)$bcid] = ti_client_balance((int)$bcid); }
 
-// Rozbicie kosztów per kurs dla wystawionych rozliczeń (godziny × stawka w danym miesiącu)
+// Rozbicie kosztów per kurs dla wystawionych rozliczeń łącznych (course_id=0).
+// Dla rozliczeń per kurs (course_id>0) wystarczy nazwa kursu z bazy.
 $billing_courses = [];
 foreach ($billings as $b) {
-    $calc = k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year']);
-    if (!empty($calc['courses'])) $billing_courses[(int)$b['id']] = $calc['courses'];
+    if ((int)$b['course_id'] === 0) {
+        $calc = k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year']);
+        if (!empty($calc['courses'])) $billing_courses[(int)$b['id']] = $calc['courses'];
+    }
+}
+
+// Mapa nazw kursów dla rozliczeń per-kurs
+$billing_course_names = [];
+foreach ($billings as $b) {
+    if ((int)$b['course_id'] > 0) {
+        $cn = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$b['course_id']]);
+        $billing_course_names[(int)$b['id']] = $cn['name'] ?? '?';
+    }
 }
 
 // Kursanci z niedopłatą (globalnie) — flaga dla panelu admina
@@ -451,7 +468,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <td>
             <div class="fw-semibold"><?= h($b['client_name']) ?></div>
-            <?php $bc = $billing_courses[(int)$b['id']] ?? []; ?>
+            <?php if ((int)$b['course_id'] > 0): ?>
+            <div class="mt-1">
+              <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.75rem">
+                <i class="bi bi-mortarboard me-1"></i><?= h($billing_course_names[(int)$b['id']] ?? '?') ?>
+              </span>
+            </div>
+            <?php else: $bc = $billing_courses[(int)$b['id']] ?? []; ?>
             <?php if (count($bc) > 1): ?>
             <div class="mt-1">
               <?php foreach ($bc as $bcc): if ($bcc['amount'] <= 0 && $bcc['hours_billed'] <= 0) continue; ?>
@@ -467,6 +490,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </div>
             <?php elseif (!empty($bc)): ?>
             <div class="text-muted" style="font-size:.78rem"><?= h($bc[0]['course_name'] ?? '') ?></div>
+            <?php endif; ?>
             <?php endif; ?>
             <?php $bpay = k30_ti_client_payment((int)$b['client_id']); ?>
             <?php if ($bpay['codes']): ?>

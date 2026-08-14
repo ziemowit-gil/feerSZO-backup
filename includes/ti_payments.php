@@ -101,7 +101,7 @@ function ti_billing_add_charge(int $clientId, float $amount, string $note, ?int 
     $year   = $year  ?? (int)date('Y');
     $amount = round($amount, 2);
 
-    $existing = db_one("SELECT id, adjustment, adjustment_note FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?", [$clientId, $month, $year]);
+    $existing = db_one("SELECT id, adjustment, adjustment_note FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=0", [$clientId, $month, $year]);
     if ($existing) {
         $id       = (int)$existing['id'];
         $newAdj   = round((float)$existing['adjustment'] + $amount, 2);

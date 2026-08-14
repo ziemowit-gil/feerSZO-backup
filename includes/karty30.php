@@ -1295,6 +1295,51 @@ HTML;
 
     // E-mail prowadzącego zapisany w chwili tworzenia spotkania Zoom kursu
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN zoom_host_email TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
+    // Rekonstrukcja k30_ti_billing — dodanie course_id i zmiana UNIQUE na (client_id,month,year,course_id).
+    // Istniejące wiersze dostają course_id=0 (rozliczenie łączne / sprzed rozdzielenia).
+    $has_cid = db_one("SELECT 1 FROM pragma_table_info('k30_ti_billing') WHERE name='course_id'");
+    if (!$has_cid) {
+        $pdo->exec("PRAGMA foreign_keys=OFF");
+        $pdo->exec("BEGIN");
+        $pdo->exec("CREATE TABLE k30_ti_billing_v2 (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+            month           INTEGER NOT NULL,
+            year            INTEGER NOT NULL,
+            course_id       INTEGER NOT NULL DEFAULT 0,
+            hours_billed    REAL    NOT NULL DEFAULT 0,
+            hourly_rate     REAL    NOT NULL DEFAULT 0,
+            amount          REAL    NOT NULL DEFAULT 0,
+            status          TEXT    NOT NULL DEFAULT 'draft',
+            notes           TEXT    NOT NULL DEFAULT '',
+            issued_at       DATETIME,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            adjustment      REAL    NOT NULL DEFAULT 0,
+            adjustment_note TEXT    NOT NULL DEFAULT '',
+            notified_at     DATETIME,
+            due_date        DATE,
+            payer_type      TEXT    NOT NULL DEFAULT '',
+            payer_name      TEXT    NOT NULL DEFAULT '',
+            invoice_path    TEXT    NOT NULL DEFAULT '',
+            invoice_name    TEXT    NOT NULL DEFAULT '',
+            invoice_at      DATETIME,
+            paid_amount     REAL    NOT NULL DEFAULT 0,
+            UNIQUE(client_id, month, year, course_id)
+        )");
+        $pdo->exec("INSERT INTO k30_ti_billing_v2
+            SELECT id, client_id, month, year, 0,
+                   hours_billed, COALESCE(hourly_rate,0), amount, status, notes, issued_at, created_at,
+                   COALESCE(adjustment,0), COALESCE(adjustment_note,''), notified_at, due_date,
+                   COALESCE(payer_type,''), COALESCE(payer_name,''),
+                   COALESCE(invoice_path,''), COALESCE(invoice_name,''), invoice_at,
+                   COALESCE(paid_amount,0)
+            FROM k30_ti_billing");
+        $pdo->exec("DROP TABLE k30_ti_billing");
+        $pdo->exec("ALTER TABLE k30_ti_billing_v2 RENAME TO k30_ti_billing");
+        $pdo->exec("COMMIT");
+        $pdo->exec("PRAGMA foreign_keys=ON");
+    }
 }
 
 // ── Impersonation helpers ─────────────────────────────────────────────────────
@@ -4418,7 +4463,7 @@ function k30_ti_cancel_session(int $session_id, string $reason, string $role, st
  * Oblicza miesięczne rozliczenie klienta w TI.
  * Zwraca godziny i kwotę na podstawie lekcji odbyłych w danym miesiącu.
  */
-function k30_ti_calculate_billing(int $client_id, int $month, int $year): array {
+function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $course_id_filter = 0): array {
     $from = sprintf('%04d-%02d-01', $year, $month);
     $to   = date('Y-m-t', strtotime($from));
 
@@ -4427,8 +4472,9 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
         "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount
          FROM k30_ti_enrollments e
          JOIN k30_ti_courses c ON c.id=e.course_id
-         WHERE e.client_id=? AND e.status='active'",
-        [$client_id]
+         WHERE e.client_id=? AND e.status='active'"
+        . ($course_id_filter > 0 ? ' AND e.course_id=?' : ''),
+        $course_id_filter > 0 ? [$client_id, $course_id_filter] : [$client_id]
     );
 
     $hours   = 0.0;
@@ -4497,14 +4543,14 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
     ];
 }
 
-/** Generuje / aktualizuje rozliczenie miesięczne klienta. */
-function k30_ti_issue_billing(int $client_id, int $month, int $year, string $notes = ''): int {
-    $calc = k30_ti_calculate_billing($client_id, $month, $year);
-    // Pobierz stawkę — używamy sredniej lub ze zróżnicowanych kursów (uproszczenie: sumujemy w calculate)
-    // Zwróć istniejące lub utwórz
-    $ex = db_one("SELECT id, due_date FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?",
-                 [$client_id, $month, $year]);
-    // Termin płatności = data wystawienia + efektywna liczba dni (kursant → kurs → 7)
+/**
+ * Generuje / aktualizuje rozliczenie miesięczne klienta.
+ * $course_id=0 → łączne (wszystkie kursy), >0 → tylko dany kurs.
+ */
+function k30_ti_issue_billing(int $client_id, int $month, int $year, string $notes = '', int $course_id = 0): int {
+    $calc = k30_ti_calculate_billing($client_id, $month, $year, $course_id);
+    $ex = db_one("SELECT id, due_date FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=?",
+                 [$client_id, $month, $year, $course_id]);
     $pay      = k30_ti_client_payment($client_id);
     $due_days = (int)($pay['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT) ?: K30_TI_PAY_DUE_DAYS_DEFAULT;
     $due_date = date('Y-m-d', strtotime("+{$due_days} days"));
@@ -4516,7 +4562,6 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
         'status'       => 'issued',
     ];
     if ($ex) {
-        // Zachowaj indywidualnie ustawiony termin; uzupełnij tylko gdy go brak.
         if (empty($ex['due_date'])) $data['due_date'] = $due_date;
         $set = []; $p = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
@@ -4525,10 +4570,37 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
         return (int)$ex['id'];
     }
     return db_insert('k30_ti_billing', array_merge($data, [
-        'client_id' => $client_id, 'month' => $month, 'year' => $year,
+        'client_id' => $client_id, 'month' => $month, 'year' => $year, 'course_id' => $course_id,
         'due_date'  => $due_date,
         'created_at'=> date('Y-m-d H:i:s'),
     ]));
+}
+
+/**
+ * Wystawia rozliczenia per kurs gdy kursant ma >1 aktywny kurs z lekcjami w danym miesiącu,
+ * w przeciwnym razie jedno łączne rozliczenie (course_id=0).
+ * Zwraca tablicę id wystawionych rozliczeń.
+ */
+function k30_ti_issue_billing_split(int $client_id, int $month, int $year, string $notes = ''): array {
+    $from = sprintf('%04d-%02d-01', $year, $month);
+    $to   = date('Y-m-t', strtotime($from));
+    $courses_with_sessions = db_all(
+        "SELECT DISTINCT s.course_id FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+              AND s.status IN ('held','individual_change','remote_material')
+              AND s.lesson_date BETWEEN ? AND ?
+         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
+         WHERE a.client_id=? AND (a.attended=1 OR COALESCE(a.no_show,0)=1)",
+        [$from, $to, $client_id]
+    );
+    if (count($courses_with_sessions) > 1) {
+        $bids = [];
+        foreach ($courses_with_sessions as $c) {
+            $bids[] = k30_ti_issue_billing($client_id, $month, $year, $notes, (int)$c['course_id']);
+        }
+        return $bids;
+    }
+    return [k30_ti_issue_billing($client_id, $month, $year, $notes, 0)];
 }
 
 /**
@@ -4538,7 +4610,10 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
  * Zwraca ['ok','sms'=>bool,'email'=>bool,'skipped'=>bool,'msg'].
  */
 function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
-    $b = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$billing_id]);
+    $b = db_one("SELECT b.*, c.name AS course_name
+                 FROM k30_ti_billing b
+                 LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
+                 WHERE b.id=?", [$billing_id]);
     if (!$b) return ['ok' => false, 'msg' => 'Brak rozliczenia.'];
     if (!$force && !empty($b['notified_at'])) return ['ok' => false, 'skipped' => true, 'msg' => 'Powiadomienie już wysłano.'];
 
@@ -4552,7 +4627,8 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
 
     $months = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
-    $period   = ($months[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'];
+    $period       = ($months[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'];
+    $course_label = !empty($b['course_name']) ? ' (' . $b['course_name'] . ')' : '';
     $amount   = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
     $amount_s = number_format($amount, 2, ',', ' ');
     $due_s    = !empty($b['due_date']) ? date('d.m.Y', strtotime($b['due_date'])) : '';
@@ -4568,7 +4644,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
         require_once __DIR__ . '/sms.php';
         if (function_exists('sms_is_enabled') && sms_is_enabled()) {
             // bez polskich znaków — bramki SMS
-            $msg = "{$org}: rozliczenie za {$period}: {$amount_s} zl."
+            $msg = "{$org}: rozliczenie za {$period}{$course_label}: {$amount_s} zl."
                  . ($due_s !== '' ? " Termin platnosci: {$due_s}." : '')
                  . ($pay['account'] !== '' ? " Wplata na: {$pay['account']}." : '')
                  . " Szczegoly w panelu kursanta.";
@@ -4582,7 +4658,9 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
     if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         require_once __DIR__ . '/mail_queue.php';
         if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
-        $detail_rows = "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
+        $detail_rows = (!empty($b['course_name'])
+            ? "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kurs:</td><td><strong>" . h($b['course_name']) . "</strong></td></tr>" : '')
+                     . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
                      . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
         if ($due_s !== '')          $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Termin płatności:</td><td><strong>" . h($due_s) . "</strong></td></tr>";
         if ($pay['account'] !== '') $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
@@ -4593,7 +4671,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
             'period'       => h($period),
             'details_html' => "<table style='border-collapse:collapse;width:100%'>{$detail_rows}</table>",
             'portal'       => h($portal),
-        ]) : ['subject' => "Rozliczenie za {$period} — {$org}", 'html' => "<table>{$detail_rows}</table>", 'enabled' => true];
+        ]) : ['subject' => "Rozliczenie za {$period}{$course_label} — {$org}", 'html' => "<table>{$detail_rows}</table>", 'enabled' => true];
         try {
             mail_queue_add($email, $toName, $r['subject'], $r['html'], '', 'ti_billing', $billing_id, '', false);
             $mail_sent = true;
