@@ -376,6 +376,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php foreach ($subject_types as $st): if (!$st['is_active'] && (int)($f['subject_type_id']??0) !== (int)$st['id']) continue; ?>
             <option value="<?= (int)$st['id'] ?>"
                     data-abbr="<?= h($st['abbreviation']) ?>"
+                    data-name="<?= h($st['name']) ?>"
                     <?= (int)($f['subject_type_id']??0)===(int)$st['id']?'selected':'' ?>>
               <?= h($st['abbreviation']) ?> — <?= h($st['name']) ?>
             </option>
@@ -416,8 +417,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </button>
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. ANG.Jan.K 742/<?= date('y') ?>">
-        <div class="form-text">Format: <code>SKRÓT.Imię.I Kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
+               placeholder="np. Informatyka (INF).JanKowalski.742/<?= date('y') ?>">
+        <div class="form-text">Format: <code>Przedmiot (Skrót).ImięNazwisko.kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
       <?php else: ?>
       <div class="mb-3">
@@ -725,23 +726,21 @@ function tiAutoName() {
   var out  = document.getElementById('name_input');
   if (!sel || !out) return;
 
-  var abbr = '';
   var opt  = sel.options[sel.selectedIndex];
-  if (opt && opt.dataset.abbr) abbr = opt.dataset.abbr;
+  var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
+  var subj = (opt && opt.dataset.name) ? opt.dataset.name : '';
   if (!abbr) return;
 
   var words = full ? full.value.trim().split(/\s+/).filter(Boolean) : [];
   var code  = gc ? gc.value.trim() : '';
 
-  // Format: SKRÓT.Imię.I Kod  →  ANG.Jan.K 742/26
-  var parts = [abbr];
-  if (words.length >= 2) {
-    parts.push(words[0]);                              // Imię
-    parts.push(words[words.length - 1].charAt(0).toUpperCase()); // I
-  } else if (words.length === 1) {
-    parts.push(words[0]);
-  }
-  out.value = parts.join('.') + (code ? ' ' + code : '');
+  // Format: Przedmiot (Skrót).ImięNazwisko.kod  →  Informatyka (INF).JanKowalski.742/26
+  var subjPart = subj ? subj + ' (' + abbr + ')' : abbr;
+  var namePart = words.join('');
+  var parts = [subjPart];
+  if (namePart) parts.push(namePart);
+  if (code)     parts.push(code);
+  out.value = parts.join('.');
 }
 
 // Nasłuchuj zmian

@@ -1243,6 +1243,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-globalbar .dyd-gb-link { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:6px; font-size:.88rem; font-weight:600; color:var(--bs-body-color); text-decoration:none; border:1.5px solid transparent; transition:background .12s,color .12s; min-height:40px; }
   .dyd-globalbar .dyd-gb-link:hover { background:var(--bs-tertiary-bg); border-color:var(--bs-border-color); }
   .dyd-globalbar .dyd-gb-link.active { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; font-weight:700; }
+  .dyd-globalbar .dyd-gb-dropdown { position:relative; }
+  .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { background:none; border-color:transparent; }
+  .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
 </style>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
@@ -1271,10 +1274,20 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <span class="badge bg-secondary" style="font-size:.65rem"><?= count($my_avail) ?></span>
     <?php endif; ?>
   </a>
-  <a class="dyd-gb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
-     <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
-    <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
-  </a>
+  <div class="dyd-gb-dropdown">
+    <button class="dyd-gb-link <?= in_array($tab,['cykliczne'],true)?'active':'' ?> dropdown-toggle"
+            data-bs-toggle="dropdown" aria-expanded="false" type="button">
+      <i class="bi bi-calendar3-week" aria-hidden="true"></i>Planowanie
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne">
+        <i class="bi bi-calendar-week me-2"></i>Plan cykliczny
+      </a></li>
+      <li><a class="dropdown-item" href="planner.php">
+        <i class="bi bi-layout-wtf me-2"></i>Planner
+      </a></li>
+    </ul>
+  </div>
   <a class="dyd-gb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
      <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości
@@ -1293,9 +1306,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
   </a>
-  <a class="dyd-gb-link" href="planner.php">
-    <i class="bi bi-calendar3-week" aria-hidden="true"></i>Planner
-  </a>
+
 </nav>
 
 <main id="main" class="container dyd-wrap py-4">
