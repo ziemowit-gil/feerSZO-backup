@@ -66,7 +66,7 @@ body.kp-login-split-page {
   flex: 0 0 62%;
   position: relative;
   overflow: hidden;
-  background: #07111e url('assets/login-bg.jpg') center / cover no-repeat;
+  background: #07111e url('assets/login-bg.webp') center / cover no-repeat;
 }
 .kp-split-left::after {
   content: '';
