@@ -118,8 +118,8 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia'], true)) $tab = 'pulpit';
-if ($tab === 'rozliczenia' && !dyd_is_staff()) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy'], true)) $tab = 'pulpit';
+if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
 $_force_pick = isset($_GET['pick']);  // ?pick=1 z przycisku "Zmień grupę"
@@ -1962,7 +1962,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <script type="module" src="https://unpkg.com/mdui@2/mdui.esm.js"></script>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
-<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true); ?>
+<?php
+$tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true);
+$tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy'], true);
+?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
   <a class="dyd-gb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
      <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
@@ -2035,14 +2038,19 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     }
   ?>
   <div class="dyd-gb-dropdown">
-    <button class="dyd-gb-link <?= $tab==='rozliczenia'?'active':'' ?> dropdown-toggle"
+    <button class="dyd-gb-link <?= $tab_is_kierownik?'active':'' ?> dropdown-toggle"
             data-bs-toggle="dropdown" aria-expanded="false" type="button">
       <i class="bi bi-shield-fill-check" aria-hidden="true"></i>Kierownik
       <?php if ($_kier_badge): ?><span class="badge bg-danger" style="font-size:.65rem"><?= (int)$_kier_badge ?></span><?php endif; ?>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
+      <li><h6 class="dropdown-header">Grupy i finanse</h6></li>
+      <li>
+        <a class="dropdown-item <?= $tab==='grupy'?'active':'' ?>" href="index.php?tab=grupy">
+          <i class="bi bi-grid me-2"></i>Przegląd grup
+        </a>
+      </li>
       <?php if ($cur_course): ?>
-      <li><h6 class="dropdown-header">Bieżąca grupa</h6></li>
       <li>
         <a class="dropdown-item <?= $tab==='rozliczenia'?'active':'' ?>"
            href="index.php?course=<?= $cur_course ?>&tab=rozliczenia">
@@ -2050,23 +2058,27 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php if ($_kier_badge): ?><span class="badge bg-danger ms-1"><?= (int)$_kier_badge ?></span><?php endif; ?>
         </a>
       </li>
-      <li><hr class="dropdown-divider"></li>
       <?php endif; ?>
-      <li><h6 class="dropdown-header">Finanse</h6></li>
-      <li><a class="dropdown-item" href="../billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia kursantów</a></li>
-      <li><a class="dropdown-item" href="../payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
-      <li><a class="dropdown-item" href="../self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
-      <li><a class="dropdown-item" href="../zetony.php"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO</a></li>
+      <li><a class="dropdown-item" href="../billing.php" target="_blank" rel="noopener"><i class="bi bi-receipt me-2"></i>Rozliczenia kursantów</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Raporty</h6></li>
-      <li><a class="dropdown-item" href="../raporty.php"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty i WUP</a></li>
-      <li><a class="dropdown-item" href="../ris.php"><i class="bi bi-card-list me-2"></i>Dane do RIS</a></li>
+      <li><h6 class="dropdown-header">Wypłaty</h6></li>
+      <li>
+        <a class="dropdown-item <?= $tab==='wypłaty'?'active':'' ?>" href="index.php?tab=wypłaty">
+          <i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących
+        </a>
+      </li>
+      <li>
+        <a class="dropdown-item <?= $tab==='praca_wlasna'?'active':'' ?>" href="index.php?tab=praca_wlasna">
+          <i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących
+        </a>
+      </li>
+      <li><a class="dropdown-item" href="../zetony.php" target="_blank" rel="noopener"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Komunikacja</h6></li>
-      <li><a class="dropdown-item" href="../komunikacja.php"><i class="bi bi-send me-2"></i>Wyślij e-mail / SMS</a></li>
-      <li><a class="dropdown-item" href="../notices.php"><i class="bi bi-megaphone me-2"></i>Komunikaty placówki</a></li>
+      <li><h6 class="dropdown-header">Raporty i inne</h6></li>
+      <li><a class="dropdown-item" href="../raporty.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty i WUP</a></li>
+      <li><a class="dropdown-item" href="../komunikacja.php" target="_blank" rel="noopener"><i class="bi bi-send me-2"></i>Wyślij e-mail / SMS</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item text-muted" href="../index.php"><i class="bi bi-grid me-2"></i>Pełny panel TI</a></li>
+      <li><a class="dropdown-item text-muted" href="../index.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-2"></i>Pełny panel TI</a></li>
     </ul>
   </div>
   <?php endif; ?>
@@ -2369,6 +2381,19 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php if ($tab === 'formalnosci'): ?>
   <?php include __DIR__ . '/_tab_formalnosci.php'; ?>
   <?php endif; /* formalnosci */ ?>
+
+  <?php /* ═══════════════════ KIEROWNIK ═══════════════════ */ ?>
+  <?php if ($tab === 'wypłaty' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_wypłaty.php'; ?>
+  <?php endif; ?>
+
+  <?php if ($tab === 'praca_wlasna' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_praca_wlasna.php'; ?>
+  <?php endif; ?>
+
+  <?php if ($tab === 'grupy' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_grupy.php'; ?>
+  <?php endif; ?>
 
   <?php if ($tab === 'dysk'): ?>
   <?php include __DIR__ . '/_tab_dysk.php'; ?>
