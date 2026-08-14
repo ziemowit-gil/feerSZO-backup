@@ -1301,49 +1301,57 @@ HTML;
     // E-mail prowadzącego zapisany w chwili tworzenia spotkania Zoom kursu
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN zoom_host_email TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
+    // Upewnij się że paid_amount istnieje zanim uruchomimy rekonstrukcję tabeli
+    try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
     // Rekonstrukcja k30_ti_billing — dodanie course_id i zmiana UNIQUE na (client_id,month,year,course_id).
     // Istniejące wiersze dostają course_id=0 (rozliczenie łączne / sprzed rozdzielenia).
     $has_cid = db_one("SELECT 1 FROM pragma_table_info('k30_ti_billing') WHERE name='course_id'");
     if (!$has_cid) {
-        $pdo->exec("PRAGMA foreign_keys=OFF");
-        $pdo->exec("BEGIN");
-        $pdo->exec("CREATE TABLE k30_ti_billing_v2 (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
-            month           INTEGER NOT NULL,
-            year            INTEGER NOT NULL,
-            course_id       INTEGER NOT NULL DEFAULT 0,
-            hours_billed    REAL    NOT NULL DEFAULT 0,
-            hourly_rate     REAL    NOT NULL DEFAULT 0,
-            amount          REAL    NOT NULL DEFAULT 0,
-            status          TEXT    NOT NULL DEFAULT 'draft',
-            notes           TEXT    NOT NULL DEFAULT '',
-            issued_at       DATETIME,
-            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-            adjustment      REAL    NOT NULL DEFAULT 0,
-            adjustment_note TEXT    NOT NULL DEFAULT '',
-            notified_at     DATETIME,
-            due_date        DATE,
-            payer_type      TEXT    NOT NULL DEFAULT '',
-            payer_name      TEXT    NOT NULL DEFAULT '',
-            invoice_path    TEXT    NOT NULL DEFAULT '',
-            invoice_name    TEXT    NOT NULL DEFAULT '',
-            invoice_at      DATETIME,
-            paid_amount     REAL    NOT NULL DEFAULT 0,
-            UNIQUE(client_id, month, year, course_id)
-        )");
-        $pdo->exec("INSERT INTO k30_ti_billing_v2
-            SELECT id, client_id, month, year, 0,
-                   hours_billed, COALESCE(hourly_rate,0), amount, status, notes, issued_at, created_at,
-                   COALESCE(adjustment,0), COALESCE(adjustment_note,''), notified_at, due_date,
-                   COALESCE(payer_type,''), COALESCE(payer_name,''),
-                   COALESCE(invoice_path,''), COALESCE(invoice_name,''), invoice_at,
-                   COALESCE(paid_amount,0)
-            FROM k30_ti_billing");
-        $pdo->exec("DROP TABLE k30_ti_billing");
-        $pdo->exec("ALTER TABLE k30_ti_billing_v2 RENAME TO k30_ti_billing");
-        $pdo->exec("COMMIT");
-        $pdo->exec("PRAGMA foreign_keys=ON");
+        try {
+            $pdo->exec("PRAGMA foreign_keys=OFF");
+            $pdo->exec("BEGIN");
+            $pdo->exec("CREATE TABLE k30_ti_billing_v2 (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+                month           INTEGER NOT NULL,
+                year            INTEGER NOT NULL,
+                course_id       INTEGER NOT NULL DEFAULT 0,
+                hours_billed    REAL    NOT NULL DEFAULT 0,
+                hourly_rate     REAL    NOT NULL DEFAULT 0,
+                amount          REAL    NOT NULL DEFAULT 0,
+                status          TEXT    NOT NULL DEFAULT 'draft',
+                notes           TEXT    NOT NULL DEFAULT '',
+                issued_at       DATETIME,
+                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                adjustment      REAL    NOT NULL DEFAULT 0,
+                adjustment_note TEXT    NOT NULL DEFAULT '',
+                notified_at     DATETIME,
+                due_date        DATE,
+                payer_type      TEXT    NOT NULL DEFAULT '',
+                payer_name      TEXT    NOT NULL DEFAULT '',
+                invoice_path    TEXT    NOT NULL DEFAULT '',
+                invoice_name    TEXT    NOT NULL DEFAULT '',
+                invoice_at      DATETIME,
+                paid_amount     REAL    NOT NULL DEFAULT 0,
+                UNIQUE(client_id, month, year, course_id)
+            )");
+            $pdo->exec("INSERT INTO k30_ti_billing_v2
+                SELECT id, client_id, month, year, 0,
+                       hours_billed, COALESCE(hourly_rate,0), amount, status, notes, issued_at, created_at,
+                       COALESCE(adjustment,0), COALESCE(adjustment_note,''), notified_at, due_date,
+                       COALESCE(payer_type,''), COALESCE(payer_name,''),
+                       COALESCE(invoice_path,''), COALESCE(invoice_name,''), invoice_at,
+                       COALESCE(paid_amount,0)
+                FROM k30_ti_billing");
+            $pdo->exec("DROP TABLE k30_ti_billing");
+            $pdo->exec("ALTER TABLE k30_ti_billing_v2 RENAME TO k30_ti_billing");
+            $pdo->exec("COMMIT");
+            $pdo->exec("PRAGMA foreign_keys=ON");
+        } catch (\Throwable $e) {
+            try { $pdo->exec("ROLLBACK"); } catch (\Throwable $r) {}
+            $pdo->exec("PRAGMA foreign_keys=ON");
+        }
     }
 
     // Jednorazowy reset: lekcje przyszłe błędnie oznaczone jako odbyte → zaplanowana
@@ -2982,14 +2990,23 @@ function k30_ti_unenroll_requests_all(): array {
 
 /** Wystawione/robocze rozliczenia kursanta (do widoku kursanta i rodzica). */
 function k30_ti_client_billing(int $client_id): array {
-    return db_all(
-        "SELECT b.*, COALESCE(c.name,'') AS course_name
-         FROM k30_ti_billing b
-         LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
-         WHERE b.client_id=? AND b.status!='cancelled'
-         ORDER BY b.year DESC, b.month DESC, b.course_id ASC",
-        [$client_id]
-    );
+    try {
+        return db_all(
+            "SELECT b.*, COALESCE(c.name,'') AS course_name
+             FROM k30_ti_billing b
+             LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
+             WHERE b.client_id=? AND b.status!='cancelled'
+             ORDER BY b.year DESC, b.month DESC, b.course_id ASC",
+            [$client_id]
+        );
+    } catch (\Throwable $e) {
+        return db_all(
+            "SELECT *, '' AS course_name FROM k30_ti_billing
+             WHERE client_id=? AND status!='cancelled'
+             ORDER BY year DESC, month DESC",
+            [$client_id]
+        );
+    }
 }
 
 /** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */

@@ -1522,18 +1522,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Dane kontaktowe prowadzących (tylko gdy share_contact=1)
     $_instr_contacts = [];
     if ($active_courses) {
-        $_ic_rows = db_all(
-            "SELECT c.id AS course_id, u.name AS instr_name,
-                    COALESCE(u.alt_email, u.email) AS contact_email, u.phone_number
-             FROM k30_ti_enrollments e
-             JOIN k30_ti_courses c ON c.id=e.course_id
-             JOIN users u ON u.id=c.instructor_id AND COALESCE(u.share_contact,0)=1
-             WHERE e.client_id=? AND e.status='active'",
-            [(int)$student['client_id']]
-        );
-        foreach ($_ic_rows as $_ic) {
-            $_instr_contacts[(int)$_ic['course_id']] = $_ic;
-        }
+        try {
+            $_ic_rows = db_all(
+                "SELECT c.id AS course_id, u.name AS instr_name,
+                        COALESCE(u.alt_email, u.email) AS contact_email, u.phone_number
+                 FROM k30_ti_enrollments e
+                 JOIN k30_ti_courses c ON c.id=e.course_id
+                 JOIN users u ON u.id=c.instructor_id AND COALESCE(u.share_contact,0)=1
+                 WHERE e.client_id=? AND e.status='active'",
+                [(int)$student['client_id']]
+            );
+            foreach ($_ic_rows as $_ic) {
+                $_instr_contacts[(int)$_ic['course_id']] = $_ic;
+            }
+        } catch (\Throwable $e) {}
     }
   ?>
 
