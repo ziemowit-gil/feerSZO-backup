@@ -66,6 +66,19 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <h4 class="fw-bold mb-3"><i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Raporty TI</h4>
 
+<div class="card border-0 shadow-sm mb-4 border-primary-subtle">
+  <div class="card-body d-flex align-items-center gap-3 py-3">
+    <i class="bi bi-table fs-2 text-primary" aria-hidden="true"></i>
+    <div class="flex-grow-1">
+      <div class="fw-semibold">Kreator Raportów</div>
+      <div class="text-body-secondary small">Zaległości · Nadpłaty · Frekwencja — tabele przestawne z eksportem CSV</div>
+    </div>
+    <a href="kreator_raportow.php" class="btn btn-primary btn-sm flex-shrink-0">
+      <i class="bi bi-arrow-right me-1"></i>Otwórz kreator
+    </a>
+  </div>
+</div>
+
 <div class="card border-0 shadow-sm mb-4" id="raporty-ti">
   <div class="card-header bg-white d-flex align-items-center">
     <i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
