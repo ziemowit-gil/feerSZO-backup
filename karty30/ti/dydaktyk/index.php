@@ -96,13 +96,27 @@ if (isset($_GET['dl'])) {
 
 // ── Bieżący kurs i zakładka ───────────────────────────────────────────────────
 $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
-$cur_course = (int)($_GET['course'] ?? 0);
+$_sess_key  = 'dyd_course_' . $uid;
+
+// Pobierz kurs: URL → sesja → pierwszy z listy
+if (isset($_GET['course'])) {
+    $cur_course = (int)$_GET['course'];
+    if (in_array($cur_course, $course_ids, true)) {
+        $_SESSION[$_sess_key] = $cur_course;  // zapamiętaj wybór
+    }
+} elseif (!empty($_SESSION[$_sess_key]) && in_array((int)$_SESSION[$_sess_key], $course_ids, true)) {
+    $cur_course = (int)$_SESSION[$_sess_key];
+} else {
+    $cur_course = 0;  // nie ustawiony — pokaż picker (jeśli >1 kurs) lub wybierz jedyny
+}
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
-$tab = $_GET['tab'] ?? 'lekcje';
+
+$tab = $_GET['tab'] ?? 'pulpit';
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'pulpit';
 
-// ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał jeszcze kursu ───────
-if (!isset($_GET['course']) && count($courses) > 1) {
+// ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
+$_force_pick = isset($_GET['pick']);  // ?pick=1 z przycisku "Zmień grupę"
+if (($cur_course === 0 || $_force_pick) && count($courses) > 1) {
     // Najbliższa zaplanowana lekcja per kurs
     $next_lessons = [];
     if ($course_ids) {
@@ -1611,7 +1625,7 @@ if (count($courses) > 1) {
     </li>
     <?php endforeach; ?>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="index.php"><i class="bi bi-grid me-2"></i>Wszystkie grupy</a></li>
+    <li><a class="dropdown-item" href="index.php?pick=1"><i class="bi bi-grid me-2"></i>Zmień grupę…</a></li>
   </ul>
 </div>
 <?php $_dyd_course_switcher = ob_get_clean();
