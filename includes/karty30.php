@@ -4446,7 +4446,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
             [(int)$e['course_id'], $from, $to, $client_id]
         );
         $ch = 0.0;
-        foreach ($rows as $r) $ch += (float)$r['duration_min'] / 60;
+        foreach ($rows as $r) $ch += (float)ceil((int)$r['duration_min'] / 60);
         // No-show: nalicz wg wybranego modelu (pełna lekcja lub 1h)
         $ns_rows = db_all(
             "SELECT s.duration_min, a.no_show_billing
@@ -4457,7 +4457,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
             [(int)$e['course_id'], $from, $to, $client_id]
         );
         foreach ($ns_rows as $nr) {
-            $ch += ($nr['no_show_billing'] === '1h') ? 1.0 : (float)$nr['duration_min'] / 60;
+            $ch += ($nr['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$nr['duration_min'] / 60);
         }
         $hours += $ch;
 
