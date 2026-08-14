@@ -392,6 +392,15 @@ function ann_mark_read(int $ann_id, int $user_id): void {
     } catch (\Throwable $e) {}
 }
 
+function ann_mark_all_read(int $user_id, string $role): void {
+    $list = ann_list_for_user($user_id, $role);
+    foreach ($list as $a) {
+        if (!(int)($a['is_read_by_me'] ?? 0)) {
+            ann_mark_read((int)$a['id'], $user_id);
+        }
+    }
+}
+
 /**
  * Publiczne ogłoszenia — widoczne bez logowania (na stronie logowania).
  * Tylko audience='public', aktywne i nie-wygasłe.

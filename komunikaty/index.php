@@ -19,6 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_ann'])) {
     exit;
 }
 
+// Oznacz wszystkie jako przeczytane
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['mark_all_ann'])) {
+    csrf_check();
+    ann_mark_all_read($_uid, $_role);
+    flash_set('success', 'Wszystkie ogłoszenia oznaczone jako przeczytane.');
+    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    exit;
+}
+
 // Usunięcie ogłoszenia (tylko admin) — miękkie, is_active=0
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_ann'])) {
     csrf_check();
@@ -67,9 +76,16 @@ pv_page_header('Komunikaty', [
 ?>
 
 <?php if ($ann_unread_count > 0): ?>
-<div class="pv-note">
-  <i class="bi bi-bell-fill"></i>
-  <div>Masz <strong><?= $ann_unread_count ?></strong> nieprzeczytane<?= $ann_unread_count === 1 ? '' : ($ann_unread_count < 5 ? ' ogłoszenia' : ' ogłoszeń') ?>.</div>
+<div class="pv-note d-flex align-items-center gap-3 flex-wrap">
+  <i class="bi bi-bell-fill flex-shrink-0"></i>
+  <div class="flex-grow-1">Masz <strong><?= $ann_unread_count ?></strong> nieprzeczytane<?= $ann_unread_count === 1 ? '' : ($ann_unread_count < 5 ? ' ogłoszenia' : ' ogłoszeń') ?>.</div>
+  <form method="post" class="flex-shrink-0">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="mark_all_ann" value="1">
+    <button type="submit" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem;padding:.2rem .7rem">
+      <i class="bi bi-check2-all me-1"></i>Oznacz wszystkie jako przeczytane
+    </button>
+  </form>
 </div>
 <?php endif; ?>
 

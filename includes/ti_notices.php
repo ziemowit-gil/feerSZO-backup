@@ -26,6 +26,12 @@ function ti_notices_migrate(): void {
             PRIMARY KEY (notice_id, student_id)
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_notice_active ON k30_ti_notices(is_active, created_at)");
+        db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_notice_instr_reads (
+            notice_id   INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            read_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (notice_id, user_id)
+        )");
     } catch (\Throwable $e) {}
 
     // Seed jednorazowy — komunikat o przejściu na Zoom od 1 września 2026
@@ -46,8 +52,18 @@ function ti_notices_migrate(): void {
     } catch (\Throwable $e) {}
 }
 
-function ti_notices_list_active_for_instructor(): array {
+function ti_notices_list_active_for_instructor(int $user_id = 0): array {
     try {
+        if ($user_id) {
+            return db_all(
+                "SELECT n.*,
+                        (SELECT 1 FROM k30_ti_notice_instr_reads r WHERE r.notice_id=n.id AND r.user_id=?) AS is_read
+                 FROM k30_ti_notices n
+                 WHERE n.is_active=1 AND (n.expires_at IS NULL OR n.expires_at >= date('now'))
+                 ORDER BY n.is_pinned DESC, n.created_at DESC",
+                [$user_id]
+            );
+        }
         return db_all(
             "SELECT * FROM k30_ti_notices
              WHERE is_active=1 AND (expires_at IS NULL OR expires_at >= date('now'))
@@ -55,6 +71,30 @@ function ti_notices_list_active_for_instructor(): array {
             []
         );
     } catch (\Throwable $e) { return []; }
+}
+
+function ti_notices_unread_count_instructor(int $user_id): int {
+    try {
+        return (int)(db_one(
+            "SELECT COUNT(*) c FROM k30_ti_notices n
+             WHERE n.is_active=1 AND (n.expires_at IS NULL OR n.expires_at >= date('now'))
+               AND NOT EXISTS (SELECT 1 FROM k30_ti_notice_instr_reads r WHERE r.notice_id=n.id AND r.user_id=?)",
+            [$user_id]
+        )['c'] ?? 0);
+    } catch (\Throwable $e) { return 0; }
+}
+
+function ti_notices_mark_read_instructor(int $notice_id, int $user_id): void {
+    try {
+        db()->prepare("INSERT OR IGNORE INTO k30_ti_notice_instr_reads (notice_id, user_id) VALUES (?,?)")->execute([$notice_id, $user_id]);
+    } catch (\Throwable $e) {}
+}
+
+function ti_notices_mark_all_read_instructor(int $user_id): void {
+    $list = ti_notices_list_active_for_instructor();
+    foreach ($list as $n) {
+        ti_notices_mark_read_instructor((int)$n['id'], $user_id);
+    }
 }
 
 function ti_notices_list_admin(): array {

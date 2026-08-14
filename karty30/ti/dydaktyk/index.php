@@ -70,7 +70,8 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
 $courses   = dyd_courses($uid);
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
-$dyd_notices = ti_notices_list_active_for_instructor(); // komunikaty placówki (read-only)
+$dyd_notices        = ti_notices_list_active_for_instructor($uid);
+$dyd_notices_unread = ti_notices_unread_count_instructor($uid);
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
 if (isset($_GET['dl'])) {
@@ -1069,6 +1070,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Wiadomość wysłana.');
         }
         header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
+    }
+    if ($op === 'mark_notice') {
+        $nid = (int)($_POST['notice_id'] ?? 0);
+        if ($nid) ti_notices_mark_read_instructor($nid, $uid);
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+    if ($op === 'mark_all_notices') {
+        ti_notices_mark_all_read_instructor($uid);
+        flash_set('success', 'Wszystkie komunikaty oznaczone jako przeczytane.');
+        header('Location: index.php?tab=komunikaty'); exit;
     }
 }
 

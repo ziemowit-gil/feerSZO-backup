@@ -149,6 +149,19 @@ $_is_done = static fn(string $s): bool =>
   </div>
 <?php endif; ?>
 
+<?php if ($dyd_notices_unread > 0): ?>
+  <div class="dyd-p-banner info" role="alert">
+    <i class="bi bi-megaphone-fill flex-shrink-0" aria-hidden="true"></i>
+    <div class="flex-grow-1">
+      <strong><?= $dyd_notices_unread === 1 ? '1 nieprzeczytany komunikat' : $dyd_notices_unread . ' nieprzeczytane komunikaty' ?></strong>
+      placówki czekają na przeczytanie.
+    </div>
+    <a href="index.php?tab=komunikaty" class="btn btn-sm btn-outline-primary flex-shrink-0">
+      <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Przejdź do komunikatów
+    </a>
+  </div>
+<?php endif; ?>
+
 <?php if (!empty($dyd_wizard_sessions)): ?>
   <div class="dyd-p-banner info" role="complementary" aria-label="Uzupełnij dzisiejsze zajęcia">
     <i class="bi bi-magic flex-shrink-0" style="font-size:1.25rem" aria-hidden="true"></i>
