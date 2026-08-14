@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 user_sync_push($insert_data);
                 flash_set('success', 'Użytkownik ' . $name . ' został dodany.'
                     . ($ms_id_link ? ' Konto Microsoft 365 zostało połączone.' : ''));
-                header('Location: users.php');
+                header('Location: ' . $SELF_URL);
                 exit;
             }
         }
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Rola użytkownika została zmieniona.');
             }
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('danger', 'Nie możesz dezaktywować własnego konta.');
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
     // Dostęp do Canva (poziom konta — także dla kont bez umowy) + aprowizacja SSO/JIT
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Włączono dostęp do Canva. Konto powstanie automatycznie przy pierwszym logowaniu SSO (aprowizacja JIT).');
             }
         }
-        header('Location: users.php' . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
+        header('Location: ' . $SELF_URL . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
         exit;
     }
 
@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             auth_start();
             $_SESSION['reset_pass_info'] = ['uid' => $uid, 'pass' => $new_pass];
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             authlog_write($uid, 'force_logout', $u_email['email'] ?? '', 'Zdalne wylogowanie przez administratora');
             flash_set('success', 'Wylogowano użytkownika ze wszystkich aktywnych sesji.');
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     : 'Zniesiono wymóg klucza WebAuthn — użytkownik może logować się zwykłą metodą (np. Microsoft 365).');
             }
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -294,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try { db()->prepare("DELETE FROM webauthn_credentials WHERE user_id=?")->execute([$uid]); } catch (\Throwable $e) {}
             log_user_action($uid, (int)current_user()['id'], '2fa_disabled_admin', 'Admin wyłączył 2FA użytkownika');
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             auth_start();
             $_SESSION['reset_pass_info'] = ['uid' => $uid, 'pass' => $use_pass];
         }
-        header('Location: users.php');
+        header('Location: ' . $SELF_URL);
         exit;
     }
 
@@ -329,20 +329,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$uid) {
             flash_set('danger', 'Brak ID użytkownika.');
-            header('Location: users.php'); exit;
+            header('Location: ' . $SELF_URL); exit;
         }
 
         // Sprawdź czy e-mail potwierdzający zgadza się z emailem usuwanego
         $target = db_one("SELECT email FROM users WHERE id = ?", [$uid]);
         if (!$target || strtolower($confirm_email) !== strtolower($target['email'])) {
             flash_set('danger', 'Potwierdzenie e-mail niezgodne — anulowano usunięcie.');
-            header('Location: users.php'); exit;
+            header('Location: ' . $SELF_URL); exit;
         }
 
         $check = user_delete_preflight($uid, (int)$me['id']);
         if (!$check['ok']) {
             flash_set('danger', $check['msg']);
-            header('Location: users.php'); exit;
+            header('Location: ' . $SELF_URL); exit;
         }
 
         $result = user_delete_execute($uid, (int)$me['id'], $reason);
@@ -351,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('danger', $result['msg']);
         }
-        header('Location: users.php'); exit;
+        header('Location: ' . $SELF_URL); exit;
     }
 }
 
