@@ -175,13 +175,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set('success','Lekcja sklonowana na '.date('d.m.Y', strtotime($new_date)).'.');
         header('Location: lesson.php?id='.$new_id); exit;
     }
+
+    // ── CoProwadzący ───────────────────────────────────────────────────────────
+    if ($op === 'coinstr_add') {
+        $uid = (int)($_POST['coinstr_user_id'] ?? 0);
+        if ($uid && $uid !== (int)$course['instructor_id']) {
+            k30_ti_coinstruct_add($id, $uid, (int)(current_user()['id'] ?? 0));
+            flash_set('success', 'CoProwadzący dodany.');
+        }
+        header('Location: course.php?id='.$id.'#coinstructors'); exit;
+    }
+    if ($op === 'coinstr_remove') {
+        $uid = (int)($_POST['coinstr_user_id'] ?? 0);
+        if ($uid) {
+            k30_ti_coinstruct_remove($id, $uid);
+            flash_set('success', 'CoProwadzący usunięty.');
+        }
+        header('Location: course.php?id='.$id.'#coinstructors'); exit;
+    }
 }
 
-$enrollments = k30_ti_enrollments($id);
-$active_ids  = array_column(array_filter($enrollments, fn($e)=>$e['status']==='active'), 'client_id');
-$sessions    = k30_ti_sessions($id, date('Y-m-01', strtotime('-30 days')));
-$all_clients = db_all("SELECT id, name FROM k30_clients ORDER BY name");
-$not_enrolled= array_filter($all_clients, fn($c)=>!in_array((int)$c['id'], array_column($enrollments,'client_id')));
+$enrollments   = k30_ti_enrollments($id);
+$active_ids    = array_column(array_filter($enrollments, fn($e)=>$e['status']==='active'), 'client_id');
+$sessions      = k30_ti_sessions($id, date('Y-m-01', strtotime('-30 days')));
+$all_clients   = db_all("SELECT id, name FROM k30_clients ORDER BY name");
+$not_enrolled  = array_filter($all_clients, fn($c)=>!in_array((int)$c['id'], array_column($enrollments,'client_id')));
+$coinstructors = k30_ti_course_coinstructors($id);
+$coinstr_ids   = array_column($coinstructors, 'user_id');
+$consultants   = k30_get_consultants();
+$coinstr_available = array_filter($consultants, fn($u)=>
+    (int)$u['id'] !== (int)$course['instructor_id'] && !in_array((int)$u['id'], $coinstr_ids));
 
 // Billing - ostatnie 3 miesiące
 $billing_months = [];
@@ -255,6 +278,63 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- ── CoProwadzący ──────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4" id="coinstructors">
+  <div class="card-header fw-semibold d-flex align-items-center py-2">
+    <i class="bi bi-people-fill me-2 text-secondary"></i>CoProwadzący
+    <span class="badge bg-secondary ms-2"><?= count($coinstructors) ?></span>
+    <span class="ms-2 text-muted fw-normal" style="font-size:.8rem">Dostęp do kursu w panelu dydaktyka — bez rozliczenia</span>
+  </div>
+  <div class="card-body py-2 px-3">
+    <?php if ($coinstructors): ?>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <?php foreach ($coinstructors as $ci): ?>
+      <div class="d-flex align-items-center gap-1 border rounded px-2 py-1" style="font-size:.85rem;background:#f8fafc">
+        <i class="bi bi-person-badge text-secondary me-1"></i>
+        <span><?= h($ci['user_name']) ?></span>
+        <span class="text-muted" style="font-size:.75rem"><?= h($ci['user_email']) ?></span>
+        <?php if ($can_write): ?>
+        <form method="post" class="d-inline ms-1">
+          <input type="hidden" name="_csrf"           value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op"             value="coinstr_remove">
+          <input type="hidden" name="coinstr_user_id" value="<?= (int)$ci['user_id'] ?>">
+          <button type="submit" class="btn btn-xs btn-sm btn-outline-danger border-0 p-0 px-1"
+                  title="Usuń coProwadzącego"
+                  onclick="return confirm('Usunąć <?= h(addslashes($ci['user_name'])) ?> z listy coProwadzących?')">
+            <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+          </button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+    <span class="text-muted" style="font-size:.85rem">Brak coProwadzących — kurs dostępny wyłącznie dla głównego prowadzącego.</span>
+    <?php endif; ?>
+
+    <?php if ($can_write && $coinstr_available): ?>
+    <form method="post" class="d-flex gap-2 align-items-end mt-2 flex-wrap">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"   value="coinstr_add">
+      <div>
+        <label class="form-label small fw-semibold mb-1">Dodaj coProwadzącego</label>
+        <select name="coinstr_user_id" class="form-select form-select-sm" required style="min-width:200px">
+          <option value="">— wybierz prowadzącego —</option>
+          <?php foreach ($coinstr_available as $u): ?>
+          <option value="<?= (int)$u['id'] ?>"><?= h($u['display_name']) ?> <span class="text-muted">(<?= h($u['email']) ?>)</span></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-person-plus me-1"></i>Dodaj
+      </button>
+    </form>
+    <?php elseif ($can_write && !$coinstr_available): ?>
+    <div class="text-muted mt-2" style="font-size:.8rem">Wszyscy prowadzący już są dodani jako coProwadzący.</div>
+    <?php endif; ?>
+  </div>
+</div>
 
 <div class="row g-4">
 

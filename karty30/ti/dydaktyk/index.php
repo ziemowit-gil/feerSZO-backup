@@ -1379,6 +1379,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             aria-haspopup="listbox" aria-expanded="false">
       <i class="bi bi-collection" style="color:#6d28d9" aria-hidden="true"></i>
       <span id="dyd-cp-label"><?= h($course['name'] ?? 'Wybierz grupę') ?></span>
+      <?php if (!empty($course['is_co_instructor'])): ?>
+      <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.62rem;border:1px solid #fde68a">co</span>
+      <?php endif; ?>
       <span class="badge rounded-pill" style="background:#f0fdf4;color:#16a34a;font-size:.65rem;border:1px solid #bbf7d0"><?= (int)($course['enrolled_count'] ?? 0) ?> os.</span>
       <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.5" aria-hidden="true"></i>
     </button>
@@ -1402,7 +1405,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <i class="bi bi-people-fill" aria-hidden="true"></i>
         </span>
         <span class="flex-grow-1 min-width-0">
-          <span class="d-block fw-semibold" style="font-size:.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px"><?= h($c['name']) ?></span>
+          <span class="d-block fw-semibold" style="font-size:.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"><?= h($c['name']) ?></span>
+          <?php if (!empty($c['is_co_instructor'])): ?>
+          <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.6rem;border:1px solid #fde68a;vertical-align:middle">coProwadzący</span>
+          <?php endif; ?>
           <?php if (!empty($c['location'])): ?>
           <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($c['location']) ?></span>
           <?php endif; ?>

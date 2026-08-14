@@ -617,6 +617,20 @@ function karty30_migrate(): void {
         owncloud_quota_mb   INTEGER NOT NULL DEFAULT 0
     )");
 
+    // CoProwadzący kursu — dodatkowe osoby z dostępem do kursu w panelu dydaktyka
+    // (bez odpowiedzialności rozliczeniowej — ta pozostaje przy instructor_id kursu).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_course_coinstructors (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id  INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id)          ON DELETE CASCADE,
+        role       TEXT    NOT NULL DEFAULT 'co_instructor',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(course_id, user_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_coinstr_course ON k30_ti_course_coinstructors(course_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_coinstr_user   ON k30_ti_course_coinstructors(user_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3843,25 +3857,66 @@ function k30_ti_instructor_account_for_user(int $user_id): ?array {
     return db_one("SELECT * FROM k30_ti_instructor_accounts WHERE user_id=?", [$user_id]) ?: null;
 }
 
-/** Kursy prowadzone przez danego użytkownika (dydaktyka). */
+/** Kursy prowadzone przez danego użytkownika (główny lub coProwadzący). */
 function k30_ti_instructor_courses(int $user_id, bool $active_only = false): array {
-    $w = "c.instructor_id=?" . ($active_only ? " AND c.status='active'" : "");
+    $ao = $active_only ? " AND c.status='active'" : '';
     return db_all(
         "SELECT c.*,
-                (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count
-         FROM k30_ti_courses c WHERE $w ORDER BY c.status='active' DESC, c.name", [$user_id]
+                (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count,
+                CASE WHEN c.instructor_id=? THEN 0 ELSE 1 END AS is_co_instructor
+         FROM k30_ti_courses c
+         WHERE (c.instructor_id=? OR EXISTS (
+             SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.course_id=c.id AND ci.user_id=?
+         ))$ao
+         ORDER BY c.status='active' DESC, c.name",
+        [$user_id, $user_id, $user_id]
     );
 }
-/** Czy dany kurs prowadzi ten dydaktyk. */
+/** Czy dany kurs prowadzi ten dydaktyk (główny lub coProwadzący). */
 function k30_ti_instructor_owns_course(int $user_id, int $course_id): bool {
-    return (bool) db_one("SELECT 1 FROM k30_ti_courses WHERE id=? AND instructor_id=?", [$course_id, $user_id]);
+    return (bool) db_one(
+        "SELECT 1 FROM k30_ti_courses WHERE id=? AND instructor_id=?
+         UNION
+         SELECT 1 FROM k30_ti_course_coinstructors WHERE course_id=? AND user_id=?",
+        [$course_id, $user_id, $course_id, $user_id]
+    );
 }
-/** Czy dana lekcja należy do kursu prowadzonego przez tego dydaktyka. */
+/** Czy dana lekcja należy do kursu prowadzonego przez tego dydaktyka (główny lub coProwadzący). */
 function k30_ti_instructor_owns_session(int $user_id, int $session_id): bool {
     return (bool) db_one(
-        "SELECT 1 FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
-         WHERE s.id=? AND c.instructor_id=?", [$session_id, $user_id]
+        "SELECT 1 FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.id=? AND (c.instructor_id=? OR EXISTS (
+             SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.course_id=c.id AND ci.user_id=?
+         ))",
+        [$session_id, $user_id, $user_id]
     );
+}
+
+/** Lista coProwadzących kursu (z danymi users). */
+function k30_ti_course_coinstructors(int $course_id): array {
+    return db_all(
+        "SELECT ci.*, u.name AS user_name, u.email AS user_email
+         FROM k30_ti_course_coinstructors ci
+         JOIN users u ON u.id=ci.user_id
+         WHERE ci.course_id=? ORDER BY u.name",
+        [$course_id]
+    );
+}
+
+/** Dodaj coProwadzącego do kursu. Idempotent (INSERT OR IGNORE). */
+function k30_ti_coinstruct_add(int $course_id, int $user_id, int $by): void {
+    db()->prepare(
+        "INSERT OR IGNORE INTO k30_ti_course_coinstructors(course_id, user_id, created_by, created_at)
+         VALUES(?,?,?,datetime('now'))"
+    )->execute([$course_id, $user_id, $by]);
+}
+
+/** Usuń coProwadzącego z kursu. */
+function k30_ti_coinstruct_remove(int $course_id, int $user_id): void {
+    db()->prepare(
+        "DELETE FROM k30_ti_course_coinstructors WHERE course_id=? AND user_id=?"
+    )->execute([$course_id, $user_id]);
 }
 
 /** Lista dydaktyków (użytkownicy będący prowadzącymi kursów) + status konta panelu. */
