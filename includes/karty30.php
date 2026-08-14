@@ -1279,6 +1279,22 @@ HTML;
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_certs_course  ON k30_ti_certs(course_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_certs_client  ON k30_ti_certs(client_id)");
+
+    // ── Audit log operacji Zoom (tworzenie/aktualizacja/usuwanie spotkań) ─────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_zoom_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id   INTEGER  REFERENCES k30_ti_courses(id) ON DELETE SET NULL,
+        action      TEXT     NOT NULL DEFAULT '',
+        meeting_id  TEXT     NOT NULL DEFAULT '',
+        detail      TEXT     NOT NULL DEFAULT '',
+        status      TEXT     NOT NULL DEFAULT 'ok',
+        created_by  INTEGER  REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_zoom_log_course ON k30_ti_zoom_log(course_id, created_at)");
+
+    // E-mail prowadzącego zapisany w chwili tworzenia spotkania Zoom kursu
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN zoom_host_email TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 }
 
 // ── Impersonation helpers ─────────────────────────────────────────────────────

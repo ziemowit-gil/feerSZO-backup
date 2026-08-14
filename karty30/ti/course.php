@@ -12,20 +12,27 @@ require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 k30_require_access();
 karty30_migrate();
 
-/** Synchronizuje alternative_hosts Zoom dla wszystkich spotkań kursu. Ciche błędy. */
-function _ti_zoom_sync_alt_hosts(int $course_id, array $course): void {
-    if (!zoom_enabled()) return;
-    $emails = k30_ti_course_zoom_alt_hosts($course_id);
+/**
+ * Synchronizuje alternative_hosts Zoom dla kursu i wszystkich zapisów.
+ * Zwraca listę ID spotkań, dla których Zoom zgłosił kod 3001 (usunięte po stronie Zoom).
+ */
+function _ti_zoom_sync_alt_hosts(int $course_id, array $course): array {
+    if (!zoom_enabled()) return [];
+    $emails  = k30_ti_course_zoom_alt_hosts($course_id);
+    $missing = [];
     try {
         $api = new ZoomAPI();
         if (!empty($course['zoom_meeting_id'])) {
-            $api->update_alternative_hosts((string)$course['zoom_meeting_id'], $emails);
+            $ok = $api->update_alternative_hosts((string)$course['zoom_meeting_id'], $emails);
+            if (!$ok) $missing[] = 'course';
         }
         $enr = db_all("SELECT zoom_meeting_id FROM k30_ti_enrollments WHERE course_id=? AND zoom_meeting_id!=''", [$course_id]);
         foreach ($enr as $e) {
-            $api->update_alternative_hosts((string)$e['zoom_meeting_id'], $emails);
+            $ok = $api->update_alternative_hosts((string)$e['zoom_meeting_id'], $emails);
+            if (!$ok) $missing[] = $e['zoom_meeting_id'];
         }
     } catch (\Throwable $e) {}
+    return $missing;
 }
 
 $id        = (int)($_GET['id'] ?? 0);
@@ -63,24 +70,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
     }
 
+    // ── Zoom: link na poziomie kursu (wspólny dla całej grupy) ─────────────────
+    if ($op === 'gen_course_zoom' || $op === 'clear_course_zoom') {
+        if (!zoom_enabled()) { flash_set('warning','Integracja Zoom nie jest skonfigurowana — przejdź do Ustawień TI.'); header('Location: course.php?id='.$id.'#zoom'); exit; }
+        $api    = new ZoomAPI();
+        $uid    = (int)(current_user()['id'] ?? 0);
+        if (!empty($course['zoom_meeting_id'])) {
+            $api->delete_meeting($course['zoom_meeting_id']);
+            $api->log('delete', $course['zoom_meeting_id'], 'ok', 'clear before regenerate', $id, $uid);
+        }
+        if ($op === 'clear_course_zoom') {
+            db()->prepare("UPDATE k30_ti_courses SET zoom_meeting_id='', default_meeting_url='', zoom_host_email='' WHERE id=?")->execute([$id]);
+            $api->log('delete', $course['zoom_meeting_id'] ?? '', 'ok', 'cleared by admin', $id, $uid);
+            flash_set('success','Link Zoom kursu usunięty.');
+        } else {
+            // Walidacja e-maila prowadzącego przed przypisaniem jako alt_host
+            $altEmails = k30_ti_course_zoom_alt_hosts($id);
+            $hostEmail = db_one(
+                "SELECT u.email FROM k30_ti_courses c JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [$id]
+            )['email'] ?? '';
+            if ($hostEmail !== '') {
+                try {
+                    $api->validate_user_email($hostEmail);
+                } catch (\RuntimeException $ex) {
+                    flash_set('warning', $ex->getMessage() . ' Link Zoom zostanie utworzony bez alternative_hosts.');
+                    $altEmails = '';
+                    $hostEmail = '';
+                }
+            }
+            try {
+                $m = $api->create_meeting($course['name'], 'Kurs TI — stały link grupy', $altEmails);
+                db()->prepare(
+                    "UPDATE k30_ti_courses SET zoom_meeting_id=?, default_meeting_url=?, zoom_host_email=? WHERE id=?"
+                )->execute([$m['meeting_id'], $m['join_url'], $hostEmail, $id]);
+                $api->log('create', $m['meeting_id'], 'ok', 'alt_hosts=' . $altEmails, $id, $uid);
+                flash_set('success', 'Stały link Zoom kursu wygenerowany.');
+            } catch (\RuntimeException $ex) {
+                $api->log('create', '', 'error', $ex->getMessage(), $id, $uid);
+                flash_set('danger', 'Błąd Zoom: ' . $ex->getMessage());
+            }
+        }
+        header('Location: course.php?id='.$id.'#zoom'); exit;
+    }
+
+    // ── Zoom: link per kursant (zajęcia indywidualne) ──────────────────────────
     if ($op === 'gen_student_zoom' || $op === 'clear_student_zoom') {
         $cid = (int)($_POST['client_id'] ?? 0);
         $en  = $cid ? db_one("SELECT * FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [$id,$cid]) : null;
         if (!$en) { flash_set('danger','Uczestnik nie znaleziony.'); header('Location: course.php?id='.$id.'#uczestnicy'); exit; }
         if (!zoom_enabled()) { flash_set('warning','Integracja Zoom nie jest skonfigurowana — przejdź do Ustawień TI.'); header('Location: course.php?id='.$id.'#uczestnicy'); exit; }
         $api = new ZoomAPI();
+        $uid = (int)(current_user()['id'] ?? 0);
         if (!empty($en['zoom_meeting_id'])) {
-            try { $api->delete_meeting($en['zoom_meeting_id']); } catch (\Throwable $e2) {}
+            $api->delete_meeting($en['zoom_meeting_id']);
         }
         if ($op === 'clear_student_zoom') {
             db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id='', zoom_meeting_url='' WHERE course_id=? AND client_id=?")->execute([$id,$cid]);
+            $api->log('delete', $en['zoom_meeting_id'] ?? '', 'ok', 'student clear client_id=' . $cid, $id, $uid);
             flash_set('success','Stały link Zoom uczestnika usunięty.');
         } else {
-            $cname = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid])['name'] ?? (string)$cid;
-            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI', k30_ti_course_zoom_alt_hosts($id));
-            db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id=?, zoom_meeting_url=? WHERE course_id=? AND client_id=?")
-                 ->execute([$m['meeting_id'], $m['join_url'], $id, $cid]);
-            flash_set('success','Stały link Zoom wygenerowany dla uczestnika '.$cname.'.');
+            $cname   = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid])['name'] ?? (string)$cid;
+            $altEmails = k30_ti_course_zoom_alt_hosts($id);
+            $hostEmail = db_one(
+                "SELECT u.email FROM k30_ti_courses c JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [$id]
+            )['email'] ?? '';
+            if ($hostEmail !== '') {
+                try { $api->validate_user_email($hostEmail); }
+                catch (\RuntimeException $ex) {
+                    flash_set('warning', $ex->getMessage() . ' Link bez alternative_hosts.');
+                    $altEmails = '';
+                }
+            }
+            try {
+                $m = $api->create_meeting($course['name'] . ' — ' . $cname, 'Zajęcia TI', $altEmails);
+                db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id=?, zoom_meeting_url=? WHERE course_id=? AND client_id=?")
+                     ->execute([$m['meeting_id'], $m['join_url'], $id, $cid]);
+                $api->log('create', $m['meeting_id'], 'ok', 'student client_id=' . $cid, $id, $uid);
+                flash_set('success', 'Stały link Zoom wygenerowany dla uczestnika ' . $cname . '.');
+            } catch (\RuntimeException $ex) {
+                $api->log('create', '', 'error', $ex->getMessage(), $id, $uid);
+                flash_set('danger', 'Błąd Zoom: ' . $ex->getMessage());
+            }
         }
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
     }
@@ -296,6 +366,49 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if (zoom_enabled()): ?>
+<!-- ── Zoom: stały link kursu ─────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-3" id="zoom">
+  <div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="fw-semibold text-nowrap"><i class="bi bi-camera-video-fill text-primary me-1"></i>Zoom — link kursu</span>
+    <?php if (!empty($course['default_meeting_url'])): ?>
+      <a href="<?= h($course['default_meeting_url']) ?>" target="_blank" rel="noopener"
+         class="text-break small font-monospace"><?= h($course['default_meeting_url']) ?></a>
+      <span class="text-muted" style="font-size:.72rem">ID: <?= h($course['zoom_meeting_id']) ?></span>
+      <?php if (!empty($course['zoom_host_email'])): ?>
+      <span class="badge bg-light text-secondary border" style="font-size:.7rem">
+        <i class="bi bi-person me-1"></i><?= h($course['zoom_host_email']) ?>
+      </span>
+      <?php endif; ?>
+    <?php else: ?>
+      <span class="text-muted small">Brak stałego linku — kursanci i prowadzący dołączają przez indywidualne linki lub wpisują URL ręcznie.</span>
+    <?php endif; ?>
+    <?php if ($can_write): ?>
+    <div class="ms-auto d-flex gap-2 flex-shrink-0">
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"   value="gen_course_zoom">
+        <button type="submit" class="btn btn-sm btn-outline-primary"
+                onclick="return confirm('<?= empty($course['default_meeting_url']) ? 'Wygenerować stały link Zoom dla kursu?' : 'Zregenerować stały link Zoom? Stary link przestanie działać — kursanci i prowadzący będą musieli użyć nowego.' ?>') ">
+          <i class="bi bi-arrow-repeat me-1"></i><?= empty($course['default_meeting_url']) ? 'Wygeneruj link Zoom' : 'Regeneruj link' ?>
+        </button>
+      </form>
+      <?php if (!empty($course['default_meeting_url'])): ?>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"   value="clear_course_zoom">
+        <button type="submit" class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Usunąć stały link Zoom kursu? Operacja jest nieodwracalna.')">
+          <i class="bi bi-trash me-1"></i>Usuń link
+        </button>
+      </form>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── CoProwadzący ──────────────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mb-4" id="coinstructors">

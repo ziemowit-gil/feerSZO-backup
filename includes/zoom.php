@@ -1,17 +1,22 @@
 <?php
 /**
- * includes/zoom.php — lekki klient Zoom REST (Server-to-Server OAuth).
+ * includes/zoom.php — klient Zoom REST (Server-to-Server OAuth).
  *
  * Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace
- * (scopes: meeting:read:admin / meeting:read, user:read).
- * Ustawienia w tabeli settings: zoom_enabled, zoom_account_id,
- * zoom_client_id, zoom_client_secret, zoom_user_id (domyślnie „me").
+ * (scopes: meeting:read:admin, meeting:write:admin, user:read:admin).
  *
- * Błędy nie są propagowane do widoku — metody „read" zwracają puste tablice,
- * test_connection() zwraca status do strony admina.
+ * Ustawienia w tabeli settings:
+ *   zoom_enabled, zoom_account_id, zoom_client_id, zoom_client_secret,
+ *   zoom_user_id (domyślnie edukacja@feer.org.pl),
+ *   zoom_webhook_secret (do weryfikacji HMAC na api/zoom_webhook.php).
+ *
+ * Token jest cache'owany między requestami w tabeli settings
+ * (klucze zoom_token_cache / zoom_token_expires). Przy wygaśnięciu
+ * (kod Zoom 124 lub HTTP 401) token jest automatycznie odświeżany
+ * i żądanie ponawiane raz.
  */
 
-require_once __DIR__ . '/functions.php'; // org_setting()
+require_once __DIR__ . '/functions.php'; // org_setting(), org_setting_set()
 
 function zoom_setting(string $key): string {
     return org_setting('zoom_' . $key);
@@ -20,8 +25,8 @@ function zoom_setting(string $key): string {
 /** Czy integracja Zoom jest włączona i skonfigurowana. */
 function zoom_enabled(): bool {
     return zoom_setting('enabled') === '1'
-        && zoom_setting('account_id') !== ''
-        && zoom_setting('client_id') !== ''
+        && zoom_setting('account_id')    !== ''
+        && zoom_setting('client_id')     !== ''
         && zoom_setting('client_secret') !== '';
 }
 
@@ -30,7 +35,7 @@ class ZoomAPI {
     private string $clientId;
     private string $clientSecret;
     private string $userId;
-    private string $token = '';
+    private string $token = '';   // in-memory cache dla bieżącego requestu
 
     public function __construct() {
         $this->accountId    = zoom_setting('account_id');
@@ -43,9 +48,29 @@ class ZoomAPI {
         return $this->accountId !== '' && $this->clientId !== '' && $this->clientSecret !== '';
     }
 
-    /** Pobiera token Server-to-Server OAuth (account_credentials, Basic auth). */
+    // ── Token ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Zwraca ważny access token (TTL ~1h).
+     * Sprawdza kolejno: in-memory → cache DB → nowy OAuth.
+     */
     private function token(): string {
         if ($this->token !== '') return $this->token;
+
+        // Cache w DB (omija static cache org_setting — może być nieaktualny)
+        $row     = db_one("SELECT value FROM settings WHERE key_='zoom_token_cache'");
+        $rowExp  = db_one("SELECT value FROM settings WHERE key_='zoom_token_expires'");
+        $cached  = $row['value']    ?? '';
+        $expires = (int)($rowExp['value'] ?? '0');
+        if ($cached !== '' && time() < $expires - 60) {
+            return $this->token = $cached;
+        }
+
+        return $this->token = $this->fetch_new_token();
+    }
+
+    /** Pobiera nowy token z Zoom OAuth i zapisuje w DB. */
+    private function fetch_new_token(): string {
         $url = 'https://zoom.us/oauth/token?' . http_build_query([
             'grant_type' => 'account_credentials',
             'account_id' => $this->accountId,
@@ -64,10 +89,32 @@ class ZoomAPI {
         if (empty($data['access_token'])) {
             throw new \RuntimeException('Zoom OAuth: ' . ($data['reason'] ?? $data['error'] ?? 'brak tokenu'));
         }
-        return $this->token = $data['access_token'];
+        $newExpires = time() + (int)($data['expires_in'] ?? 3600);
+        $this->cache_token_set($data['access_token'], $newExpires);
+        return $data['access_token'];
     }
 
-    private function get(string $path): array {
+    /** Zapisuje token do DB bezpośrednio (z pominięciem static cache org_setting). */
+    private function cache_token_set(string $token, int $expires): void {
+        foreach (['zoom_token_cache' => $token, 'zoom_token_expires' => (string)$expires] as $k => $v) {
+            $ex = db_one("SELECT 1 FROM settings WHERE key_=?", [$k]);
+            if ($ex) {
+                db()->prepare("UPDATE settings SET value=? WHERE key_=?")->execute([$v, $k]);
+            } else {
+                db()->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute([$k, $v]);
+            }
+        }
+    }
+
+    /** Czyści cache tokenu — wywołane po HTTP 401 / kodzie 124. */
+    private function token_invalidate(): void {
+        $this->token = '';
+        $this->cache_token_set('', '0');
+    }
+
+    // ── HTTP helpers ──────────────────────────────────────────────────────────
+
+    private function get(string $path, bool $retry = true): array {
         $ctx = stream_context_create(['http' => [
             'method'        => 'GET',
             'header'        => "Authorization: Bearer " . $this->token() . "\r\n",
@@ -77,15 +124,167 @@ class ZoomAPI {
         $resp = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
         if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
         $data = json_decode($resp, true) ?: [];
-        if (isset($data['code']) && (int)$data['code'] !== 0 && empty($data['meetings'])) {
-            // np. 124 invalid token, 1001 user nie istnieje
-            throw new \RuntimeException('Zoom API: ' . ($data['message'] ?? ('kod ' . $data['code'])));
+        $code = (int)($data['code'] ?? 0);
+
+        if ($code === 124 && $retry) {
+            $this->token_invalidate();
+            return $this->get($path, false);
+        }
+        if ($code !== 0 && empty($data['meetings']) && empty($data['email'])) {
+            throw new \RuntimeException('Zoom API: ' . ($data['message'] ?? ('kod ' . $code)));
         }
         return $data;
     }
 
+    private function post(string $path, array $body, bool $retry = true): array {
+        $json = json_encode($body);
+        $ctx  = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
+                             . "Content-Type: application/json\r\n",
+            'content'       => $json,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ]]);
+        $resp   = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
+        $data   = json_decode($resp, true) ?: [];
+        $status = 0;
+        if (!empty($http_response_header)) {
+            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
+            $status = (int)($sm[1] ?? 0);
+        }
+        if ($status === 401 && $retry) {
+            $this->token_invalidate();
+            return $this->post($path, $body, false);
+        }
+        if ($status >= 400) {
+            throw new \RuntimeException('Zoom API: ' . ($data['message'] ?? ('HTTP ' . $status)));
+        }
+        return $data;
+    }
+
+    private function request_patch(string $path, array $body, bool $retry = true): void {
+        $json = json_encode($body);
+        $ctx  = stream_context_create(['http' => [
+            'method'        => 'PATCH',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
+                             . "Content-Type: application/json\r\n",
+            'content'       => $json,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ]]);
+        $resp   = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
+        $data   = json_decode($resp, true) ?: [];
+        $status = 0;
+        if (!empty($http_response_header)) {
+            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
+            $status = (int)($sm[1] ?? 0);
+        }
+        if ($status === 401 && $retry) {
+            $this->token_invalidate();
+            $this->request_patch($path, $body, false);
+            return;
+        }
+        if ($status >= 400) {
+            $code = (int)($data['code'] ?? 0);
+            throw new \RuntimeException(
+                'Zoom API PATCH: ' . ($data['message'] ?? ('HTTP ' . $status))
+                . ($code ? " (kod $code)" : '')
+            );
+        }
+    }
+
+    private function request_delete(string $path): void {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'DELETE',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n",
+            'ignore_errors' => true,
+            'timeout'       => 10,
+        ]]);
+        @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+    }
+
+    // ── Publiczne metody API ──────────────────────────────────────────────────
+
     /**
-     * Nadchodzące spotkania użytkownika. Zwraca [{title,start,join_url}].
+     * Sprawdza czy e-mail istnieje jako aktywny użytkownik Zoom w tej organizacji.
+     * Rzuca RuntimeException z przyjaznym komunikatem gdy konto nie istnieje.
+     * Należy wywołać przed create_meeting() — w razie błędu utwórz bez alt_host.
+     */
+    public function validate_user_email(string $email): void {
+        try {
+            $this->get('/users/' . rawurlencode($email));
+        } catch (\RuntimeException $e) {
+            throw new \RuntimeException(
+                'Adres "' . $email . '" nie jest kontem Zoom w tej organizacji. '
+                . 'Prowadzacy musi sie zalogowac na zoom.us i aktywowac konto '
+                . 'w ramach licencji fundacji.'
+            );
+        }
+    }
+
+    /**
+     * Tworzy spotkanie cykliczne bez stałego terminu (typ 3).
+     * Generuje stały join_url — jeden link na cały kurs.
+     *
+     * @param string $alternative_hosts  E-maile prowadzących oddzielone przecinkiem.
+     * @return array{meeting_id: string, join_url: string}
+     */
+    public function create_meeting(string $topic, string $agenda = '', string $alternative_hosts = ''): array {
+        $settings = [
+            'host_video'        => true,
+            'participant_video' => true,
+            'join_before_host'  => true,
+            'mute_upon_entry'   => false,
+            'approval_type'     => 0,
+            'audio'             => 'both',
+            'auto_recording'    => 'none',
+        ];
+        if ($alternative_hosts !== '') {
+            $settings['alternative_hosts']              = $alternative_hosts;
+            $settings['alternative_host_update_polls'] = true;
+        }
+        $body = ['topic' => $topic, 'type' => 3, 'settings' => $settings];
+        if ($agenda !== '') $body['agenda'] = $agenda;
+
+        $data = $this->post('/users/' . rawurlencode($this->userId) . '/meetings', $body);
+        return [
+            'meeting_id' => (string)($data['id'] ?? ''),
+            'join_url'   => (string)($data['join_url'] ?? ''),
+        ];
+    }
+
+    /**
+     * Aktualizuje alternative_hosts istniejącego spotkania.
+     *
+     * @return bool  false gdy spotkanie nie istnieje (kod 3001 — należy regenerować link),
+     *               true przy powodzeniu.
+     */
+    public function update_alternative_hosts(string $meeting_id, string $emails): bool {
+        if ($meeting_id === '') return false;
+        try {
+            $this->request_patch('/meetings/' . rawurlencode($meeting_id), [
+                'settings' => ['alternative_hosts' => $emails],
+            ]);
+            return true;
+        } catch (\RuntimeException $e) {
+            // Kod 3001 = spotkanie usunięte po stronie Zoom — sygnał do regeneracji
+            return false;
+        }
+    }
+
+    /** Usuwa spotkanie Zoom. Brak spotkania traktuje jako OK (idempotentne). */
+    public function delete_meeting(string $meeting_id): void {
+        if ($meeting_id === '') return;
+        try {
+            $this->request_delete('/meetings/' . rawurlencode($meeting_id));
+        } catch (\Throwable $e) {}
+    }
+
+    /**
+     * Nadchodzące spotkania użytkownika hosta. Zwraca [{title,start,join_url}].
      * Błędy łapane → pusta lista (nie wywala panelu kursanta).
      */
     public function upcoming_meetings(): array {
@@ -106,122 +305,36 @@ class ZoomAPI {
         return $out;
     }
 
-    private function post(string $path, array $body): array {
-        $json = json_encode($body);
-        $ctx = stream_context_create(['http' => [
-            'method'        => 'POST',
-            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
-                             . "Content-Type: application/json\r\n",
-            'content'       => $json,
-            'ignore_errors' => true,
-            'timeout'       => 15,
-        ]]);
-        $resp = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
-        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
-        $data   = json_decode($resp, true) ?: [];
-        $status = 0;
-        if (!empty($http_response_header)) {
-            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
-            $status = (int)($sm[1] ?? 0);
-        }
-        if ($status >= 400) {
-            throw new \RuntimeException('Zoom API: ' . ($data['message'] ?? ('HTTP ' . $status)));
-        }
-        return $data;
-    }
-
-    private function request_delete(string $path): void {
-        $ctx = stream_context_create(['http' => [
-            'method'        => 'DELETE',
-            'header'        => "Authorization: Bearer " . $this->token() . "\r\n",
-            'ignore_errors' => true,
-            'timeout'       => 10,
-        ]]);
-        @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
-    }
-
-    private function request_patch(string $path, array $body): void {
-        $json = json_encode($body);
-        $ctx = stream_context_create(['http' => [
-            'method'        => 'PATCH',
-            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
-                             . "Content-Type: application/json\r\n",
-            'content'       => $json,
-            'ignore_errors' => true,
-            'timeout'       => 15,
-        ]]);
-        $resp = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
-        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
-        $status = 0;
-        if (!empty($http_response_header)) {
-            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
-            $status = (int)($sm[1] ?? 0);
-        }
-        if ($status >= 400) {
-            $data = json_decode($resp, true) ?: [];
-            throw new \RuntimeException('Zoom API PATCH: ' . ($data['message'] ?? ('HTTP ' . $status)));
-        }
-    }
-
-    /**
-     * Tworzy spotkanie cykliczne bez stałego terminu (typ 3).
-     * Generuje stały join_url — idealny jako link per kurs.
-     * $alternative_hosts: adresy e-mail alternatywnych prowadzących (przecinek).
-     * Zwraca ['meeting_id'=>string, 'join_url'=>string].
-     */
-    public function create_meeting(string $topic, string $agenda = '', string $alternative_hosts = ''): array {
-        $settings = [
-            'host_video'        => true,
-            'participant_video' => true,
-            'join_before_host'  => true,
-            'mute_upon_entry'   => false,
-            'approval_type'     => 0,
-            'audio'             => 'both',
-            'auto_recording'    => 'none',
-        ];
-        if ($alternative_hosts !== '') {
-            $settings['alternative_hosts']              = $alternative_hosts;
-            $settings['alternative_host_update_polls'] = true;
-        }
-        $body = ['topic' => $topic, 'type' => 3, 'settings' => $settings];
-        if ($agenda !== '') $body['agenda'] = $agenda;
-        $data = $this->post('/users/' . rawurlencode($this->userId) . '/meetings', $body);
-        return [
-            'meeting_id' => (string)($data['id'] ?? ''),
-            'join_url'   => (string)($data['join_url'] ?? ''),
-        ];
-    }
-
-    /**
-     * Aktualizuje alternative_hosts istniejącego spotkania Zoom.
-     * $emails: adresy e-mail oddzielone przecinkiem (lub pusty string = usuń wszystkich).
-     * Ciche błędy — np. gdy konto nie istnieje w dzierżawie Zoom.
-     */
-    public function update_alternative_hosts(string $meeting_id, string $emails): void {
-        if ($meeting_id === '') return;
-        try {
-            $this->request_patch('/meetings/' . rawurlencode($meeting_id), [
-                'settings' => ['alternative_hosts' => $emails],
-            ]);
-        } catch (\Throwable $e) {}
-    }
-
-    /** Usuwa spotkanie Zoom. Brak spotkania traktuje jako OK. */
-    public function delete_meeting(string $meeting_id): void {
-        if ($meeting_id === '') return;
-        try {
-            $this->request_delete('/meetings/' . rawurlencode($meeting_id));
-        } catch (\Throwable $e) {}
-    }
-
-    /** Test połączenia — zwraca ['ok'=>bool,'msg'=>string]. */
+    /** Test połączenia — zwraca ['ok'=>bool, 'msg'=>string]. */
     public function test_connection(): array {
         try {
-            $u = $this->get('/users/' . rawurlencode($this->userId));
-            $who = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: ($u['email'] ?? $this->userId);
+            $u   = $this->get('/users/' . rawurlencode($this->userId));
+            $who = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''))
+                ?: ($u['email'] ?? $this->userId);
             return ['ok' => true, 'msg' => 'Połączenie OK. Użytkownik: ' . $who];
         } catch (\Throwable $e) {
             return ['ok' => false, 'msg' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Zapisuje operację do k30_ti_zoom_log.
+     * Ciche błędy — tabela może nie istnieć przed pierwszym karty30_migrate().
+     */
+    public function log(
+        string $action,
+        string $meeting_id = '',
+        string $status     = 'ok',
+        string $detail     = '',
+        ?int   $course_id  = null,
+        ?int   $user_id    = null
+    ): void {
+        try {
+            db()->prepare(
+                "INSERT INTO k30_ti_zoom_log
+                    (course_id, action, meeting_id, detail, status, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            )->execute([$course_id, $action, $meeting_id, $detail, $status, $user_id]);
+        } catch (\Throwable $e) {}
     }
 }
