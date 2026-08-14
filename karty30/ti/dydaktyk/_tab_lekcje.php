@@ -1,4 +1,35 @@
 <?php /* ═══════════════════════ TAB: LEKCJE ═══════════════════════ */ ?>
+<?php
+// SMS plan tygodnia — podgląd
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+$_sms_enabled = function_exists('sms_is_enabled') && sms_is_enabled();
+$_sms_preview = '';
+$_sms_recip   = 0;
+if ($_sms_enabled && $cur_course) {
+    $mon = date('Y-m-d', strtotime('monday this week'));
+    $sun = date('Y-m-d', strtotime('sunday this week'));
+    $_week_s = db_all(
+        "SELECT s.lesson_date, s.time_from, s.time_to, c.name AS course_name
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.course_id=? AND s.lesson_date BETWEEN ? AND ?
+         ORDER BY s.lesson_date, s.time_from",
+        [$cur_course, $mon, $sun]
+    );
+    $_sms_preview = ti_build_week_sms($_week_s);
+    // Policz odbiorców
+    $_sms_rows = db_all(
+        "SELECT a.notify_sms_lessons, a.is_minor, a.parent_notify_lessons, a.guardian_phone
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1
+         WHERE e.course_id=? AND e.status='active'",
+        [$cur_course]
+    );
+    foreach ($_sms_rows as $_sr) {
+        if (!empty($_sr['notify_sms_lessons'])) $_sms_recip++;
+        if (!empty($_sr['is_minor']) && !empty($_sr['parent_notify_lessons']) && !empty($_sr['guardian_phone'])) $_sms_recip++;
+    }
+}
+?>
 <?php if ($pending_cancel_total > 0): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2" role="status">
   <i class="bi bi-hourglass-split flex-shrink-0" aria-hidden="true"></i>
@@ -54,17 +85,19 @@
           </a></li>
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="#" id="dyd-sms-week-trigger">
-            <i class="bi bi-chat-left-text me-2"></i>SMS z planem do grupy
-          </a></li>
+          <li>
+            <?php if ($_sms_enabled): ?>
+            <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydSmsPreviewModal">
+              <i class="bi bi-chat-left-text me-2"></i>SMS z planem do grupy
+            </a>
+            <?php else: ?>
+            <span class="dropdown-item text-body-secondary" title="SMS nieaktywny">
+              <i class="bi bi-chat-left-text me-2"></i>SMS z planem do grupy
+            </span>
+            <?php endif; ?>
+          </li>
         </ul>
       </div>
-      <form method="post" id="dyd-sms-week-form" class="d-none"
-            onsubmit="return confirm('Wysłać SMS z terminami lekcji w tym tygodniu do wszystkich kursantów grupy?')">
-        <input type="hidden" name="_token"    value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="_op"       value="sms_week_group">
-        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-      </form>
       <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
         <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
       </button>
@@ -827,3 +860,43 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </form></div>
 </div>
+
+<!-- ── Modal: podgląd SMS z planem tygodnia ─────────────────────────────────── -->
+<?php if ($_sms_enabled): ?>
+<div class="modal fade" id="dydSmsPreviewModal" tabindex="-1" aria-labelledby="dydSmsPreviewLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dydSmsPreviewLbl"><i class="bi bi-chat-left-text me-2 text-primary"></i>Podgląd SMS z planem tygodnia</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <?php if (!$_sms_preview): ?>
+        <div class="alert alert-info py-2 mb-0"><i class="bi bi-info-circle me-1"></i>Brak zaplanowanych lekcji w bieżącym tygodniu — SMS nie zostanie wysłany.</div>
+        <?php else: ?>
+        <p class="small text-body-secondary mb-2">Treść wiadomości SMS (<?= mb_strlen($_sms_preview) ?> znaków):</p>
+        <pre class="border rounded p-3 bg-body-tertiary" style="font-size:.85rem;white-space:pre-wrap;word-break:break-word"><?= h($_sms_preview) ?></pre>
+        <p class="small text-body-secondary mt-2 mb-0">
+          <i class="bi bi-people me-1"></i>Odbiorcy: <strong><?= $_sms_recip ?></strong>
+          <?= $_sms_recip === 1 ? 'osoba' : ($_sms_recip < 5 ? 'osoby' : 'osób') ?>
+          (kursanci + opiekunowie z włączonymi SMS o lekcjach).
+        </p>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <?php if ($_sms_preview && $_sms_recip > 0): ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_token"    value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"       value="sms_week_group">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i>Wyślij SMS (<?= $_sms_recip ?>)
+          </button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>

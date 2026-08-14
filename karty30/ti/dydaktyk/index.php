@@ -1720,12 +1720,17 @@ if (count($courses) > 1) {
 <?php $_dyd_course_switcher = ob_get_clean();
 }
 
+$_dyd_staff_badge = dyd_is_staff()
+    ? '<span class="badge ms-2 flex-shrink-0" style="background:#f59e0b;color:#1c1917;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz wszystkie grupy">'
+      . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Uprawnienia kierownika</span>'
+    : '';
+
 $KP_TOPBAR = [
     'brand'         => 'Panel dydaktyka',
     'icon'          => 'easel2',
     'user'          => $me['name'] ?? '',
     'logout'        => 'logout.php',
-    'notifications' => $_dyd_course_switcher,
+    'notifications' => $_dyd_course_switcher . $_dyd_staff_badge,
 ];
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
