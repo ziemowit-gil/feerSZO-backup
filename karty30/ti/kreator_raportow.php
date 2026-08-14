@@ -214,11 +214,29 @@ if ($report === 'frekwencja') {
 // ══════════════════════════════════════════════════════════════════════════════
 // EKSPORT CSV
 // ══════════════════════════════════════════════════════════════════════════════
-if ($export && in_array($report, ['zaleglosci','nadplaty'], true)) {
+if ($export && in_array($report, ['zaleglosci','nadplaty','frekwencja'], true)) {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $report . '_' . date('Ymd') . '.csv"');
     echo "\xEF\xBB\xBF"; // BOM UTF-8 dla Excel
     $out = fopen('php://output', 'w');
+
+    if ($report === 'frekwencja') {
+        fputcsv($out, ['Kursant','Kurs','Okres','Sesje odbyte','Godziny','Obecny (lekcje)','Nieobecny','No-show','Frekwencja (%)'], ';');
+        foreach ($freq_pivot as $row) {
+            foreach ($row['periods'] as $pk => $p) {
+                $total = $p['obecny'] + $p['nieobecny_n'] + $p['no_show'];
+                $pct   = $total > 0 ? round($p['obecny'] / $total * 100, 1) : '';
+                fputcsv($out, [
+                    $row['klient'], $row['kurs'], $pk,
+                    $p['sesje'], number_format($p['godziny'],2,',',''),
+                    $p['obecny'], $p['nieobecny_n'], $p['no_show'],
+                    $pct !== '' ? $pct . '%' : '—',
+                ], ';');
+            }
+        }
+        fclose($out);
+        exit;
+    }
 
     if ($report === 'zaleglosci') {
         fputcsv($out, ['Kursant','E-mail','Grupy','Należności (zł)','Zapłacono (zł)','Zaległość (zł)','Przeterminowane od'], ';');
@@ -350,7 +368,7 @@ $preset_labels = [
         <i class="bi bi-calendar-range me-1"></i>
         <?= h(date('d.m.Y', strtotime($date_from))) ?> – <?= h(date('d.m.Y', strtotime($date_to))) ?>
       </span>
-      <?php if (in_array($report, ['zaleglosci','nadplaty'], true)): ?>
+      <?php if (in_array($report, ['zaleglosci','nadplaty','frekwencja'], true)): ?>
       <a href="<?= h(_kr_csv_url()) ?>" class="btn btn-outline-success btn-sm ms-auto">
         <i class="bi bi-filetype-csv me-1"></i>Eksport CSV
       </a>
