@@ -981,6 +981,19 @@ if ($ti_vac): ?>
 </div>
 <?php endif; ?>
 
+<?php if ($notices_unread > 0): ?>
+<div class="alert alert-info d-flex align-items-center gap-3 shadow-sm mb-4" role="alert">
+  <i class="bi bi-megaphone-fill fs-2 flex-shrink-0 text-primary" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-width-0">
+    <div class="fw-bold"><?= $notices_unread === 1 ? '1 nieprzeczytany komunikat' : $notices_unread . ' nieprzeczytane komunikaty' ?> placówki</div>
+    <div class="small text-body-secondary">Sprawdź nowe ogłoszenia w zakładce Komunikaty.</div>
+  </div>
+  <a href="?tab=komunikaty" class="btn btn-primary btn-sm flex-shrink-0">
+    <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Przejdź
+  </a>
+</div>
+<?php endif; ?>
+
 <?php if ($active_lesson): ?>
 <!-- ── Aktywny link do zajęć — widoczny od razu po wejściu do panelu ─────────── -->
 <div class="alert alert-success d-flex align-items-center gap-3 shadow-sm mb-4" role="alert">
