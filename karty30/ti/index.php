@@ -417,8 +417,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </button>
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. Informatyka (INF).JanKowalski.742/<?= date('y') ?>">
-        <div class="form-text">Format: <code>Przedmiot (Skrót).ImięNazwisko.kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
+               placeholder="np. INF.JanKowalski.742/<?= date('y') ?>">
+        <div class="form-text">Format: <code>Skrót.ImięNazwisko.kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
       <?php else: ?>
       <div class="mb-3">
@@ -734,10 +734,9 @@ function tiAutoName() {
   var words = full ? full.value.trim().split(/\s+/).filter(Boolean) : [];
   var code  = gc ? gc.value.trim() : '';
 
-  // Format: Przedmiot (Skrót).ImięNazwisko.kod  →  Informatyka (INF).JanKowalski.742/26
-  var subjPart = subj ? subj + ' (' + abbr + ')' : abbr;
+  // Format: Skrót.ImięNazwisko.kod  →  INF.JanKowalski.742/26
   var namePart = words.join('');
-  var parts = [subjPart];
+  var parts = [abbr];
   if (namePart) parts.push(namePart);
   if (code)     parts.push(code);
   out.value = parts.join('.');
