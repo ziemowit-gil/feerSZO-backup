@@ -12,6 +12,22 @@ require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 k30_require_access();
 karty30_migrate();
 
+/** Synchronizuje alternative_hosts Zoom dla wszystkich spotkań kursu. Ciche błędy. */
+function _ti_zoom_sync_alt_hosts(int $course_id, array $course): void {
+    if (!zoom_enabled()) return;
+    $emails = k30_ti_course_coinstructor_emails($course_id);
+    try {
+        $api = new ZoomAPI();
+        if (!empty($course['zoom_meeting_id'])) {
+            $api->update_alternative_hosts((string)$course['zoom_meeting_id'], $emails);
+        }
+        $enr = db_all("SELECT zoom_meeting_id FROM k30_ti_enrollments WHERE course_id=? AND zoom_meeting_id!=''", [$course_id]);
+        foreach ($enr as $e) {
+            $api->update_alternative_hosts((string)$e['zoom_meeting_id'], $emails);
+        }
+    } catch (\Throwable $e) {}
+}
+
 $id        = (int)($_GET['id'] ?? 0);
 $course    = $id ? k30_ti_course_get($id) : null;
 if (!$course) { flash_set('danger','Kurs nie istnieje.'); header('Location: index.php'); exit; }
@@ -61,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('success','Stały link Zoom uczestnika usunięty.');
         } else {
             $cname = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid])['name'] ?? (string)$cid;
-            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI');
+            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI', k30_ti_course_coinstructor_emails($id));
             db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id=?, zoom_meeting_url=? WHERE course_id=? AND client_id=?")
                  ->execute([$m['meeting_id'], $m['join_url'], $id, $cid]);
             flash_set('success','Stały link Zoom wygenerowany dla uczestnika '.$cname.'.');
@@ -181,6 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $uid = (int)($_POST['coinstr_user_id'] ?? 0);
         if ($uid && $uid !== (int)$course['instructor_id']) {
             k30_ti_coinstruct_add($id, $uid, (int)(current_user()['id'] ?? 0));
+            _ti_zoom_sync_alt_hosts($id, $course);
             flash_set('success', 'CoProwadzący dodany.');
         }
         header('Location: course.php?id='.$id.'#coinstructors'); exit;
@@ -189,6 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $uid = (int)($_POST['coinstr_user_id'] ?? 0);
         if ($uid) {
             k30_ti_coinstruct_remove($id, $uid);
+            _ti_zoom_sync_alt_hosts($id, $course);
             flash_set('success', 'CoProwadzący usunięty.');
         }
         header('Location: course.php?id='.$id.'#coinstructors'); exit;

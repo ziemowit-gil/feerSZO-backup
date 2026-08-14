@@ -3919,6 +3919,16 @@ function k30_ti_coinstruct_remove(int $course_id, int $user_id): void {
     )->execute([$course_id, $user_id]);
 }
 
+/** Adresy e-mail coProwadzących kursu jako string rozdzielony przecinkiem (dla Zoom alternative_hosts). */
+function k30_ti_course_coinstructor_emails(int $course_id): string {
+    $rows = db_all(
+        "SELECT u.email FROM k30_ti_course_coinstructors ci
+         JOIN users u ON u.id=ci.user_id WHERE ci.course_id=? AND u.email != ''",
+        [$course_id]
+    );
+    return implode(',', array_column($rows, 'email'));
+}
+
 /** Lista dydaktyków (użytkownicy będący prowadzącymi kursów) + status konta panelu. */
 function k30_ti_instructor_list(): array {
     return db_all(

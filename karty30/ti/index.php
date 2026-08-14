@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'generate
         if (($course['zoom_meeting_id'] ?? '') !== '') {
             $api->delete_meeting((string)$course['zoom_meeting_id']);
         }
-        $m = $api->create_meeting((string)$course['name'], 'Zajęcia TI');
+        $m = $api->create_meeting((string)$course['name'], 'Zajęcia TI', k30_ti_course_coinstructor_emails($cid));
         db()->prepare("UPDATE k30_ti_courses SET default_meeting_url=?, zoom_meeting_id=? WHERE id=?")
              ->execute([$m['join_url'], $m['meeting_id'], $cid]);
         flash_set('success', 'Link Zoom wygenerowany i zapisany jako stały link grupy.');

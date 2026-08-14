@@ -140,31 +140,70 @@ class ZoomAPI {
         @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
     }
 
+    private function request_patch(string $path, array $body): void {
+        $json = json_encode($body);
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'PATCH',
+            'header'        => "Authorization: Bearer " . $this->token() . "\r\n"
+                             . "Content-Type: application/json\r\n",
+            'content'       => $json,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ]]);
+        $resp = @file_get_contents('https://api.zoom.us/v2' . $path, false, $ctx);
+        if ($resp === false) throw new \RuntimeException('Brak połączenia z Zoom API.');
+        $status = 0;
+        if (!empty($http_response_header)) {
+            preg_match('/HTTP\/\S+ (\d+)/', $http_response_header[0] ?? '', $sm);
+            $status = (int)($sm[1] ?? 0);
+        }
+        if ($status >= 400) {
+            $data = json_decode($resp, true) ?: [];
+            throw new \RuntimeException('Zoom API PATCH: ' . ($data['message'] ?? ('HTTP ' . $status)));
+        }
+    }
+
     /**
      * Tworzy spotkanie cykliczne bez stałego terminu (typ 3).
      * Generuje stały join_url — idealny jako link per kurs.
+     * $alternative_hosts: adresy e-mail alternatywnych prowadzących (przecinek).
      * Zwraca ['meeting_id'=>string, 'join_url'=>string].
      */
-    public function create_meeting(string $topic, string $agenda = ''): array {
-        $body = [
-            'topic'    => $topic,
-            'type'     => 3,
-            'settings' => [
-                'host_video'        => true,
-                'participant_video' => true,
-                'join_before_host'  => true,
-                'mute_upon_entry'   => false,
-                'approval_type'     => 0,
-                'audio'             => 'both',
-                'auto_recording'    => 'none',
-            ],
+    public function create_meeting(string $topic, string $agenda = '', string $alternative_hosts = ''): array {
+        $settings = [
+            'host_video'        => true,
+            'participant_video' => true,
+            'join_before_host'  => true,
+            'mute_upon_entry'   => false,
+            'approval_type'     => 0,
+            'audio'             => 'both',
+            'auto_recording'    => 'none',
         ];
+        if ($alternative_hosts !== '') {
+            $settings['alternative_hosts']              = $alternative_hosts;
+            $settings['alternative_host_update_polls'] = true;
+        }
+        $body = ['topic' => $topic, 'type' => 3, 'settings' => $settings];
         if ($agenda !== '') $body['agenda'] = $agenda;
         $data = $this->post('/users/' . rawurlencode($this->userId) . '/meetings', $body);
         return [
             'meeting_id' => (string)($data['id'] ?? ''),
             'join_url'   => (string)($data['join_url'] ?? ''),
         ];
+    }
+
+    /**
+     * Aktualizuje alternative_hosts istniejącego spotkania Zoom.
+     * $emails: adresy e-mail oddzielone przecinkiem (lub pusty string = usuń wszystkich).
+     * Ciche błędy — np. gdy konto nie istnieje w dzierżawie Zoom.
+     */
+    public function update_alternative_hosts(string $meeting_id, string $emails): void {
+        if ($meeting_id === '') return;
+        try {
+            $this->request_patch('/meetings/' . rawurlencode($meeting_id), [
+                'settings' => ['alternative_hosts' => $emails],
+            ]);
+        } catch (\Throwable $e) {}
     }
 
     /** Usuwa spotkanie Zoom. Brak spotkania traktuje jako OK. */
