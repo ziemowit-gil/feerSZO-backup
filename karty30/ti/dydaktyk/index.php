@@ -1097,6 +1097,9 @@ if ($course_ids) {
     )['n'] ?? 0);
 }
 
+// ── Kreator zajęć: dzisiejsze zaplanowane lekcje ─────────────────────────────
+$dyd_wizard_sessions = array_values(array_filter($dash_today, fn($s) => $s['status'] === 'planned'));
+
 // ── Dane dla zakładki Wiadomości ─────────────────────────────────────────────
 $dyd_msg_student_id = (int)($_GET['student'] ?? 0);
 // Wątki: tylko kursanci z kursów tego prowadzącego
@@ -2315,4 +2318,5 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   document.getElementById('dyd-sms-week-form')?.requestSubmit();
 });
 </script>
+<?php include __DIR__ . '/_wizard.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>

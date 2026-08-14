@@ -149,6 +149,21 @@ $_is_done = static fn(string $s): bool =>
   </div>
 <?php endif; ?>
 
+<?php if (!empty($dyd_wizard_sessions)): ?>
+  <div class="dyd-p-banner info" role="complementary" aria-label="Uzupełnij dzisiejsze zajęcia">
+    <i class="bi bi-magic flex-shrink-0" style="font-size:1.25rem" aria-hidden="true"></i>
+    <div class="flex-grow-1">
+      <strong>Masz dziś <?= count($dyd_wizard_sessions) === 1 ? 'zaplanowaną lekcję' : count($dyd_wizard_sessions) . ' zaplanowane lekcje' ?> do uzupełnienia</strong>
+      &mdash; uzupełnij obecność i temat w jednym kroku.
+    </div>
+    <button type="button" class="btn btn-primary btn-sm flex-shrink-0"
+            onclick="wizOpen(<?= count($dyd_wizard_sessions)===1 ? (int)$dyd_wizard_sessions[0]['id'] : 'null' ?>)"
+            aria-haspopup="dialog">
+      <i class="bi bi-magic me-1" aria-hidden="true"></i>Uruchom kreator
+    </button>
+  </div>
+<?php endif; ?>
+
 <?php /* ── Dzisiaj ── */ ?>
 <?php
 $_today_str = date('Y-m-d');
@@ -190,15 +205,14 @@ $_today_fmt = date('j') . '.' . date('m') . '.' . date('Y');
 
         /* Preloaduj listę kursantów lekcji dla przycisku Oznacz obecność */
         $_att_rows = db_all(
-            "SELECT a.client_id AS id, COALESCE(cl.name, sa.login) AS name,
+            "SELECT a.client_id AS id, COALESCE(cl.name, '') AS name,
                     COALESCE(a.attended,0) AS attended,
                     COALESCE(a.cancelled,0) AS cancelled,
                     COALESCE(a.cancel_pending,0) AS pending
              FROM k30_ti_attendance a
-             JOIN k30_ti_student_accounts sa ON sa.id=a.student_id
-             LEFT JOIN k30_clients cl ON cl.id=sa.client_id
+             LEFT JOIN k30_clients cl ON cl.id=a.client_id
              WHERE a.session_id=?
-             ORDER BY name",
+             ORDER BY cl.name",
             [(int)$_s['id']]
         );
         $_att_active = array_filter($_att_rows, fn($r) => !$r['cancelled'] && !$r['pending']);

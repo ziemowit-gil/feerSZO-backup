@@ -167,16 +167,15 @@ if (empty($dyd_wizard_sessions)) return;
   // Dane kursantów per sesja (z PHP)
   var SESSIONS = <?= json_encode(array_map(function($s) {
       $att = db_all(
-          "SELECT a.client_id AS id, COALESCE(cl.name, sa.login, '') AS name,
+          "SELECT a.client_id AS id, COALESCE(cl.name, '') AS name,
                   COALESCE(a.attended,0) AS attended,
                   COALESCE(a.cancelled,0) AS cancelled,
                   COALESCE(a.cancel_pending,0) AS pending,
                   COALESCE(a.no_show,0) AS no_show
            FROM k30_ti_attendance a
-           JOIN k30_ti_student_accounts sa ON sa.id=a.student_id
-           LEFT JOIN k30_clients cl ON cl.id=sa.client_id
+           LEFT JOIN k30_clients cl ON cl.id=a.client_id
            WHERE a.session_id=?
-           ORDER BY name",
+           ORDER BY cl.name",
           [(int)$s['id']]
       );
       return [
