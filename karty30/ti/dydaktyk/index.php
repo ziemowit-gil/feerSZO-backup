@@ -1047,6 +1047,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
+    if ($op === 'dyd_msg_admin_send') {
+        $subject = trim((string)($_POST['subject'] ?? ''));
+        $body    = trim((string)($_POST['body'] ?? ''));
+        if ($body !== '') {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_admin_msg_send($uid, $senderName, $subject, $body);
+            flash_set('success', 'Wiadomość do kierownictwa wysłana.');
+        }
+        header('Location: index.php?tab=wiadomosci&thread=admin'); exit;
+    }
 }
 
 // ── Dane do widoku ──────────────────────────────────────────────────────────
@@ -1151,6 +1161,12 @@ if ($dyd_msg_student) ti_msg_mark_read_for_staff((int)$dyd_msg_student['id']);
 $dyd_msg_thread      = $dyd_msg_student ? ti_msg_list_for_student((int)$dyd_msg_student['id']) : [];
 $dyd_msg_is_blocked  = $dyd_msg_student ? ti_msg_is_blocked((int)$dyd_msg_student['id']) : false;
 $dyd_msg_log         = $dyd_msg_student ? ti_account_log_list((int)$dyd_msg_student['id'], 50) : [];
+// Wątek kierownictwo
+$dyd_thread_is_admin = (($_GET['thread'] ?? '') === 'admin');
+$dyd_admin_thread    = ti_admin_msg_list_for_instructor($uid);
+$dyd_admin_unseen    = ti_admin_msg_unseen_for_instructor($uid);
+if ($dyd_thread_is_admin) ti_admin_msg_mark_instructor_seen($uid);
+$dyd_msg_unread_total += $dyd_admin_unseen;
 
 // Lekcje do wyszukiwarki „Powiązana lekcja" (etykiety unikalne — do mapowania w JS)
 $session_opts = []; $session_label_by_id = []; $_lbl_seen = [];

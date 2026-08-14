@@ -353,6 +353,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=wiadomosci'); exit;
     }
 
+    // Wiadomość do sekretariatu (tylko e-mail, bez przechowywania)
+    if ($op === 'msg_secretariat') {
+        $body = trim((string)($_POST['body'] ?? ''));
+        if ($body !== '') {
+            $fromName = trim((string)($account['client_name'] ?? $account['login'] ?? ''));
+            $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id']);
+            header('Location: index.php?tab=wiadomosci&sec=' . ($ok ? '1' : 'err')); exit;
+        }
+        header('Location: index.php?tab=wiadomosci'); exit;
+    }
+
     // Zapis dodatkowych numerów telefonu do powiadomień SMS — zmiana numeru zeruje jego
     // weryfikację (numer musi zostać potwierdzony ponownie, zanim zaczną na niego iść SMS-y).
     if ($op === 'notify_phones') {
@@ -3665,17 +3676,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php endif; ?>
 
+<?php if (($_GET['sec'] ?? '') === '1'): ?>
+<div class="alert alert-success alert-dismissible py-2 small mb-3" role="alert">
+  <i class="bi bi-check-circle me-1"></i>Wiadomość do sekretariatu wysłana.
+  <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+</div>
+<?php elseif (($_GET['sec'] ?? '') === 'err'): ?>
+<div class="alert alert-warning py-2 small mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle me-1"></i>Nie udało się wysłać wiadomości. Spróbuj ponownie lub skontaktuj się bezpośrednio.
+</div>
+<?php endif; ?>
+
 <?php if ($msg_blocked): ?>
 <div class="card border-warning">
   <div class="card-body text-center py-4 text-warning-emphasis">
     <i class="bi bi-slash-circle fs-3 d-block mb-2" aria-hidden="true"></i>
     <p class="mb-0 fw-semibold">Wysyłanie wiadomości zostało tymczasowo zablokowane przez prowadzącego.</p>
-    <p class="small text-body-secondary mt-1 mb-0">Skontaktuj się z prowadzącym bezpośrednio lub przez sekretariat.</p>
+    <p class="small text-body-secondary mt-1 mb-0">Skontaktuj się z prowadzącym bezpośrednio lub z Kierownikiem Instytucji (formularz poniżej).</p>
   </div>
 </div>
 <?php else: ?>
-<!-- Formularz nowej wiadomości -->
-<section aria-labelledby="replyHeading" class="card">
+<!-- Formularz nowej wiadomości do prowadzącego -->
+<section aria-labelledby="replyHeading" class="card mb-3">
   <div class="card-header">
     <h2 class="h6 fw-bold mb-0" id="replyHeading">
       <i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Napisz do Prowadzącego
@@ -3700,6 +3722,31 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </section>
 <?php endif; ?>
+
+<!-- Formularz wiadomości do Kierownika Instytucji -->
+<section aria-labelledby="secHeading" class="card">
+  <div class="card-header">
+    <h2 class="h6 fw-bold mb-0" id="secHeading">
+      <i class="bi bi-building me-2" aria-hidden="true"></i>Napisz do Kierownika Instytucji
+    </h2>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+      <input type="hidden" name="_op" value="msg_secretariat">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="secMsgBody">Treść <span class="text-danger" aria-hidden="true">*</span></label>
+        <textarea class="form-control" id="secMsgBody" name="body"
+                  rows="3" maxlength="4000" required
+                  placeholder="Napisz wiadomość do Kierownika Instytucji…"></textarea>
+        <div class="form-text">Wiadomość zostanie wysłana e-mailem — otrzymasz odpowiedź bezpośrednio na swój adres.</div>
+      </div>
+      <button type="submit" class="btn btn-outline-primary">
+        <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
+      </button>
+    </form>
+  </div>
+</section>
 
 <?php elseif ($tab === 'aktywnosc'):
   // Filtr zdarzeń widocznych dla kursanta (bez wewnętrznych akcji admina)

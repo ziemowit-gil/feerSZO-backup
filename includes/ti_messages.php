@@ -318,3 +318,147 @@ function ti_msg_notify_parent(int $studentId, string $subject, string $body): vo
              . '<p>Pozdrawiamy,<br>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
     try { mail_queue_add($gemail, (string)($acc['guardian_name'] ?: ''), "{$org}: {$subj}", $html); } catch (\Throwable $e) {}
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Wiadomości prowadzącego → kierownictwo (admini SZO)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ti_admin_msg_migrate(): void {
+    static $done = false; if ($done) return; $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_admin_msgs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL,
+            user_name       TEXT    NOT NULL DEFAULT '',
+            subject         TEXT    NOT NULL DEFAULT '',
+            body            TEXT    NOT NULL DEFAULT '',
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_read         INTEGER NOT NULL DEFAULT 0,
+            read_at         DATETIME,
+            reply_body      TEXT    NOT NULL DEFAULT '',
+            reply_by        TEXT    NOT NULL DEFAULT '',
+            replied_at      DATETIME,
+            instructor_seen INTEGER NOT NULL DEFAULT 0
+        )");
+    } catch (\Throwable $e) {}
+}
+
+function ti_admin_msg_send(int $userId, string $userName, string $subject, string $body): int {
+    ti_admin_msg_migrate();
+    $id = db_insert('k30_ti_admin_msgs', [
+        'user_id'   => $userId,
+        'user_name' => $userName,
+        'subject'   => $subject,
+        'body'      => $body,
+    ]);
+    _ti_admin_msg_notify_admins($userName, $subject ?: 'Nowa wiadomość od prowadzącego', $body);
+    return $id;
+}
+
+function ti_admin_msg_reply(int $msgId, string $replyBody, string $replyBy): void {
+    ti_admin_msg_migrate();
+    try {
+        db()->prepare("UPDATE k30_ti_admin_msgs SET reply_body=?, reply_by=?, replied_at=datetime('now'), instructor_seen=0 WHERE id=?")
+            ->execute([$replyBody, $replyBy, $msgId]);
+        $msg = db_one("SELECT * FROM k30_ti_admin_msgs WHERE id=?", [$msgId]);
+        if ($msg) _ti_admin_msg_notify_instructor($msg, $replyBody, $replyBy);
+    } catch (\Throwable $e) {}
+}
+
+function ti_admin_msg_mark_read(int $msgId): void {
+    ti_admin_msg_migrate();
+    try { db()->prepare("UPDATE k30_ti_admin_msgs SET is_read=1, read_at=datetime('now') WHERE id=? AND is_read=0")->execute([$msgId]); } catch (\Throwable $e) {}
+}
+
+function ti_admin_msg_mark_instructor_seen(int $userId): void {
+    ti_admin_msg_migrate();
+    try { db()->prepare("UPDATE k30_ti_admin_msgs SET instructor_seen=1 WHERE user_id=? AND instructor_seen=0")->execute([$userId]); } catch (\Throwable $e) {}
+}
+
+function ti_admin_msg_list_for_instructor(int $userId): array {
+    ti_admin_msg_migrate();
+    return db_all("SELECT * FROM k30_ti_admin_msgs WHERE user_id=? ORDER BY created_at ASC", [$userId]);
+}
+
+function ti_admin_msg_unseen_for_instructor(int $userId): int {
+    ti_admin_msg_migrate();
+    return (int)(db_one("SELECT COUNT(*) c FROM k30_ti_admin_msgs WHERE user_id=? AND replied_at IS NOT NULL AND instructor_seen=0", [$userId])['c'] ?? 0);
+}
+
+function ti_admin_msg_list_all(int $limit = 200): array {
+    ti_admin_msg_migrate();
+    return db_all("SELECT * FROM k30_ti_admin_msgs ORDER BY created_at DESC LIMIT ?", [$limit]);
+}
+
+function ti_admin_msg_unread_count(): int {
+    ti_admin_msg_migrate();
+    return (int)(db_one("SELECT COUNT(*) c FROM k30_ti_admin_msgs WHERE is_read=0")['c'] ?? 0);
+}
+
+function _ti_admin_msg_notify_admins(string $fromName, string $subject, string $body): void {
+    try {
+        $admins = db_all("SELECT name, email FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email!=''");
+        if (!$admins) return;
+        if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+        if (!function_exists('mail_queue_add')) return;
+        $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel TI';
+        $preview = mb_substr(trim(strip_tags($body)), 0, 300);
+        $url     = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/admin/ti_admin_msgs.php';
+        $html    = '<p>Nowa wiadomość od prowadzącego <strong>' . htmlspecialchars($fromName, ENT_QUOTES) . '</strong>:</p>'
+                 . '<blockquote style="border-left:3px solid #2563eb;padding-left:1em;color:#444">' . nl2br(htmlspecialchars($preview, ENT_QUOTES)) . '</blockquote>'
+                 . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Przejdź do wiadomości &rarr;</a></p>'
+                 . '<p>Pozdrawiamy,<br>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+        foreach ($admins as $a) {
+            $email = trim((string)($a['email'] ?? ''));
+            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+            try { mail_queue_add($email, (string)($a['name'] ?? ''), "{$org}: {$subject}", $html, '', 'ti_admin_msg'); } catch (\Throwable $e) {}
+        }
+    } catch (\Throwable $e) {}
+}
+
+function _ti_admin_msg_notify_instructor(array $msg, string $replyBody, string $replyBy): void {
+    try {
+        $user = db_one("SELECT email, name FROM users WHERE id=?", [(int)$msg['user_id']]);
+        if (!$user) return;
+        $email = trim((string)($user['email'] ?? ''));
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+        if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+        if (!function_exists('mail_queue_add')) return;
+        $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel TI';
+        $preview = mb_substr(trim(strip_tags($replyBody)), 0, 300);
+        $html    = '<p>Drogi/a ' . htmlspecialchars((string)($user['name'] ?? ''), ENT_QUOTES) . ',</p>'
+                 . '<p>Kierownictwo odpowiedziało na Twoją wiadomość:</p>'
+                 . '<blockquote style="border-left:3px solid #16a34a;padding-left:1em;color:#444">' . nl2br(htmlspecialchars($preview, ENT_QUOTES)) . '</blockquote>'
+                 . '<p>Odpowiedź: <strong>' . htmlspecialchars($replyBy, ENT_QUOTES) . '</strong></p>'
+                 . '<p>Pozdrawiamy,<br>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+        try { mail_queue_add($email, (string)($user['name'] ?? ''), "{$org}: odpowiedź na Twoją wiadomość", $html, '', 'ti_admin_msg'); } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Wiadomość kursanta → sekretariat (e-mail, bez przechowywania)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ti_secretariat_email(): string {
+    $e = org_setting('ti_secretariat_email');
+    if ($e && filter_var($e, FILTER_VALIDATE_EMAIL)) return $e;
+    if (function_exists('crm_inbox_mailbox')) return crm_inbox_mailbox();
+    return 'fundacja@feer.org.pl';
+}
+
+function ti_secretariat_send(string $fromName, string $body, int $studentId = 0): bool {
+    $to = ti_secretariat_email();
+    if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return false;
+    $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
+    $preview = mb_substr(trim(strip_tags($body)), 0, 1000);
+    $html    = '<p>Wiadomość od kursanta <strong>' . htmlspecialchars($fromName, ENT_QUOTES) . '</strong>'
+             . ($studentId ? ' (ID: ' . $studentId . ')' : '') . ':</p>'
+             . '<blockquote style="border-left:3px solid #2563eb;padding-left:1em;color:#444">' . nl2br(htmlspecialchars($preview, ENT_QUOTES)) . '</blockquote>'
+             . '<p>— ' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+    try {
+        mail_queue_add($to, 'Kierownik Instytucji', "{$org}: wiadomość od kursanta — {$fromName}", $html, '', 'ti_secretariat');
+        return true;
+    } catch (\Throwable $e) { return false; }
+}

@@ -11,12 +11,25 @@
       </button>
     </div>
     <div class="list-group list-group-flush border rounded" style="max-height:65vh;overflow-y:auto">
+      <!-- Specjalny wątek: Kierownictwo -->
+      <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&thread=admin"
+         class="list-group-item list-group-item-action py-2 px-3 <?= $dyd_thread_is_admin ? 'active' : '' ?>">
+        <div class="d-flex justify-content-between align-items-start">
+          <span class="fw-semibold small"><i class="bi bi-building me-1"></i>Kierownictwo</span>
+          <?php if ($dyd_admin_unseen > 0): ?>
+          <span class="badge bg-danger ms-1"><?= (int)$dyd_admin_unseen ?></span>
+          <?php endif; ?>
+        </div>
+        <div class="small <?= $dyd_thread_is_admin ? 'text-white-50' : 'text-muted' ?>" style="font-size:.75rem">
+          Administratorzy SZO
+        </div>
+      </a>
       <?php if (empty($dyd_msg_threads)): ?>
       <div class="list-group-item text-muted small py-3 text-center">
-        <i class="bi bi-envelope opacity-50 d-block mb-1" style="font-size:1.5rem"></i>Brak wiadomości
+        <i class="bi bi-envelope opacity-50 d-block mb-1" style="font-size:1.5rem"></i>Brak wiadomości od kursantów
       </div>
       <?php else: ?>
-      <?php foreach ($dyd_msg_threads as $th): $isActive = $dyd_msg_student_id === (int)$th['id']; ?>
+      <?php foreach ($dyd_msg_threads as $th): $isActive = !$dyd_thread_is_admin && $dyd_msg_student_id === (int)$th['id']; ?>
       <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&student=<?= (int)$th['id'] ?>"
          class="list-group-item list-group-item-action py-2 px-3 <?= $isActive ? 'active' : '' ?>">
         <div class="d-flex justify-content-between align-items-start">
@@ -36,7 +49,65 @@
 
   <!-- Aktywny wątek -->
   <div class="col-md-8">
-    <?php if ($dyd_msg_student): ?>
+    <?php if ($dyd_thread_is_admin): ?>
+    <!-- ── Wątek: Kierownictwo ─────────────────────────────────────────────── -->
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <span class="fw-semibold"><i class="bi bi-building text-primary me-1"></i>Kierownictwo</span>
+      <span class="text-muted small">Administratorzy SZO</span>
+    </div>
+    <?php if (empty($dyd_admin_thread)): ?>
+    <p class="text-muted small text-center mt-3">Brak wiadomości. Możesz napisać do kierownictwa poniżej.</p>
+    <?php else: ?>
+    <ol class="list-unstyled d-flex flex-column gap-2 mb-3" aria-label="Wiadomości do kierownictwa">
+      <?php foreach ($dyd_admin_thread as $am):
+        $amFromMe = true;
+        $amTs = $am['created_at'] ? date('d.m.Y H:i', strtotime($am['created_at'])) : '';
+        $amRepliedTs = $am['replied_at'] ? date('d.m.Y H:i', strtotime($am['replied_at'])) : '';
+      ?>
+      <li>
+        <article>
+          <header class="d-flex align-items-baseline gap-2 mb-1" style="font-size:.78rem">
+            <span class="fw-semibold"><?= h($am['user_name']) ?></span>
+            <span class="text-muted">prowadzący</span>
+            <time class="text-muted ms-auto" datetime="<?= h($am['created_at'] ?? '') ?>"><?= h($amTs) ?></time>
+          </header>
+          <div class="border rounded-2 p-2 border-primary border-opacity-25 bg-primary bg-opacity-10" style="font-size:.875rem;white-space:pre-wrap"><?= h($am['body']) ?></div>
+          <?php if ($am['subject']): ?>
+          <div class="text-muted" style="font-size:.75rem;margin-top:.25rem">Temat: <?= h($am['subject']) ?></div>
+          <?php endif; ?>
+          <?php if ($am['reply_body']): ?>
+          <div class="mt-2 border rounded-2 p-2 border-success border-opacity-25 bg-success bg-opacity-10" style="font-size:.875rem;white-space:pre-wrap">
+            <div class="d-flex align-items-baseline gap-2 mb-1" style="font-size:.78rem">
+              <span class="fw-semibold"><?= h($am['reply_by'] ?: 'Kierownictwo') ?></span>
+              <span class="text-muted">kierownictwo</span>
+              <time class="text-muted ms-auto"><?= h($amRepliedTs) ?></time>
+            </div>
+            <?= h($am['reply_body']) ?>
+          </div>
+          <?php endif; ?>
+        </article>
+      </li>
+      <?php endforeach; ?>
+    </ol>
+    <?php endif; ?>
+    <!-- Nowa wiadomość do kierownictwa -->
+    <form method="post" class="mt-2">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="dyd_msg_admin_send">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <div class="mb-2">
+        <input type="text" class="form-control form-control-sm" name="subject" placeholder="Temat (opcjonalny)">
+      </div>
+      <div class="d-flex gap-2">
+        <textarea class="form-control form-control-sm" name="body" rows="3"
+                  placeholder="Napisz do kierownictwa…" required style="resize:none"></textarea>
+        <button class="btn btn-primary btn-sm align-self-end" type="submit">
+          <i class="bi bi-send"></i><span class="visually-hidden">Wyślij</span>
+        </button>
+      </div>
+    </form>
+
+    <?php elseif ($dyd_msg_student): ?>
 
     <!-- Nagłówek: imię + akcje -->
     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -167,7 +238,7 @@
     <?php else: ?>
     <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height:200px">
       <i class="bi bi-envelope-open" style="font-size:2.5rem;opacity:.3"></i>
-      <p class="mt-2 small">Wybierz kursanta z listy lub napisz nową wiadomość.</p>
+      <p class="mt-2 small">Wybierz kursanta lub Kierownictwo z listy, albo napisz nową wiadomość.</p>
       <button type="button" class="btn btn-sm btn-outline-primary mt-1"
               data-bs-toggle="modal" data-bs-target="#dydMsgNew"
               <?= empty($dyd_msg_accounts) ? 'disabled' : '' ?>>
