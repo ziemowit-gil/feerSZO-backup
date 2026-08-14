@@ -255,10 +255,15 @@ foreach ([
         if ($dyd_email) { $conds[] = 'email=?'; $params[] = $dyd_email; }
         if ($dyd_ms_id) { $conds[] = 'm365_user_id=?'; $params[] = $dyd_ms_id; }
         if (!$conds) continue;
+        $extra_cols = $ctype === 'zlecenie'
+            ? ", COALESCE(w_ramach_is,0) AS w_ramach_is, is_nazwa, is_adres, is_numer_umowy,
+               numer_projektu, klauzula_rodo, is_uprawnienia_nr, is_dyplom_nr, is_dopuszczenie"
+            : "";
         $rows = db_all(
             "SELECT id, '{$ctype}' AS contract_type, numer_umowy, status, data_zawarcia,
                     {$end_col} AS data_zakonczenia, imie_nazwisko,
                     stanowisko, wynagrodzenie_brutto, miejsce_wolontariatu, przedmiot_porozumienia
+                    {$extra_cols}
              FROM {$table} WHERE (" . implode(' OR ', $conds) . ") ORDER BY data_zawarcia DESC",
             $params
         );

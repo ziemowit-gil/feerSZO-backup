@@ -60,13 +60,21 @@
     $st    = $dc['status'] ?? '';
     $stc   = $st_colors[$st] ?? 'secondary';
     $is_active = in_array($st, ['podpisana','w realizacji'], true);
+    $is_is = $dc['contract_type'] === 'zlecenie' && !empty($dc['w_ramach_is']);
   ?>
   <div class="card border-0 shadow-sm mb-3 <?= $is_active ? '' : 'opacity-75' ?>">
     <div class="card-body">
       <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
         <div>
           <div class="fw-bold fs-6"><?= h($dc['numer_umowy'] ?: '(brak numeru)') ?></div>
-          <div class="text-body-secondary small"><?= h($ct_labels[$dc['contract_type']] ?? $dc['contract_type']) ?></div>
+          <div class="text-body-secondary small">
+            <?= h($ct_labels[$dc['contract_type']] ?? $dc['contract_type']) ?>
+            <?php if ($is_is): ?>
+            <span class="badge bg-primary-subtle text-primary ms-1" style="font-size:.7rem">
+              <i class="bi bi-building-check me-1" aria-hidden="true"></i>IS
+            </span>
+            <?php endif; ?>
+          </div>
         </div>
         <span class="badge bg-<?= $stc ?> ms-auto align-self-start" style="font-size:.78rem"><?= h($st_labels[$st] ?? $st) ?></span>
       </div>
@@ -91,6 +99,44 @@
         <div class="col col-12"><dt class="text-body-secondary fw-normal small">Zakres działania</dt><dd class="mb-0" style="white-space:pre-wrap"><?= h(mb_substr($dc['przedmiot_porozumienia'], 0, 400)) ?></dd></div>
         <?php endif; ?>
       </dl>
+
+      <?php if ($is_is): ?>
+      <hr class="my-3">
+      <div class="small text-primary fw-semibold mb-2"><i class="bi bi-building-check me-1"></i>Instytucja Szkoleniowa</div>
+      <dl class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mb-0" style="font-size:.85rem">
+        <?php if (!empty($dc['is_nazwa'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Nazwa IS</dt><dd class="mb-0 fw-semibold"><?= h($dc['is_nazwa']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['is_numer_umowy'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Nr umowy z IS</dt><dd class="mb-0"><?= h($dc['is_numer_umowy']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['numer_projektu'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Nr projektu</dt><dd class="mb-0"><?= h($dc['numer_projektu']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['is_uprawnienia_nr'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Nr uprawnień</dt><dd class="mb-0"><?= h($dc['is_uprawnienia_nr']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['is_dyplom_nr'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Nr dyplomu</dt><dd class="mb-0"><?= h($dc['is_dyplom_nr']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['is_dopuszczenie'])): ?>
+        <div class="col"><dt class="text-body-secondary fw-normal small">Dopuszczenie</dt><dd class="mb-0"><?= h($dc['is_dopuszczenie']) ?></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($dc['is_adres'])): ?>
+        <div class="col col-sm-12"><dt class="text-body-secondary fw-normal small">Adres IS</dt><dd class="mb-0"><?= h($dc['is_adres']) ?></dd></div>
+        <?php endif; ?>
+        <div class="col col-sm-12 mt-1">
+          <?php
+            $rodo = !empty($dc['klauzula_rodo']);
+          ?>
+          <span class="d-inline-flex align-items-center gap-1 me-3 <?= $rodo ? 'text-success' : 'text-danger' ?>" style="font-size:.8rem">
+            <i class="bi bi-<?= $rodo ? 'check-circle-fill' : 'x-circle' ?>"></i>
+            Klauzula RODO
+          </span>
+        </div>
+      </dl>
+      <?php endif; ?>
+
     </div>
   </div>
   <?php endforeach; ?>

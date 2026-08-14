@@ -72,7 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'plik_potwierdzenia','plik_umowy','uwagi',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
-            'podpisujacy_fundacja','podpisujacy_stanowisko'];
+            'podpisujacy_fundacja','podpisujacy_stanowisko',
+            'w_ramach_is','is_nazwa','is_adres','is_numer_umowy','klauzula_rodo',
+            'is_uprawnienia_nr','is_dyplom_nr','is_dopuszczenie'];
         $save = array_intersect_key($data, array_flip($allowed));
         // Puste pola z kluczem obcym → NULL (pusty string łamie FOREIGN KEY).
         foreach (['person_id','org_unit_id','org_position_id'] as $fk) {
@@ -173,6 +175,63 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <input name="wynagrodzenie_brutto" type="number" step="0.01" class="form-control fw-semibold" value="<?= h($row['wynagrodzenie_brutto']) ?>"></div>
   <div class="col-md-6 mb-3"><label class="form-label">Numer projektu / źródło finansowania</label>
     <input name="numer_projektu" class="form-control" value="<?= h($row['numer_projektu']) ?>"></div>
+</div>
+</div>
+</div>
+
+<!-- INSTYTUCJA SZKOLENIOWA -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <i class="bi bi-building-check text-primary"></i>
+  <span>Instytucja Szkoleniowa</span>
+  <div class="ms-auto form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch" id="w_ramach_is_toggle"
+           name="w_ramach_is" value="1" <?= !empty($row['w_ramach_is']) ? 'checked' : '' ?>
+           data-bs-toggle="collapse" data-bs-target="#is-fields">
+    <label class="form-check-label fw-normal" for="w_ramach_is_toggle">w ramach IS</label>
+  </div>
+</div>
+<div class="collapse<?= !empty($row['w_ramach_is']) ? ' show' : '' ?>" id="is-fields">
+<div class="card-body">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label" for="is_nazwa">Nazwa Instytucji Szkoleniowej</label>
+      <input type="text" class="form-control" id="is_nazwa" name="is_nazwa"
+             value="<?= h($row['is_nazwa'] ?? '') ?>">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="is_numer_umowy">Nr umowy z IS</label>
+      <input type="text" class="form-control" id="is_numer_umowy" name="is_numer_umowy"
+             value="<?= h($row['is_numer_umowy'] ?? '') ?>">
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="is_adres">Adres Instytucji Szkoleniowej</label>
+      <textarea class="form-control" id="is_adres" name="is_adres" rows="2"><?= h($row['is_adres'] ?? '') ?></textarea>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="is_uprawnienia_nr">Nr uprawnień</label>
+      <input type="text" class="form-control" id="is_uprawnienia_nr" name="is_uprawnienia_nr"
+             value="<?= h($row['is_uprawnienia_nr'] ?? '') ?>"
+             placeholder="np. AWF/123/2022">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="is_dyplom_nr">Nr dyplomu</label>
+      <input type="text" class="form-control" id="is_dyplom_nr" name="is_dyplom_nr"
+             value="<?= h($row['is_dyplom_nr'] ?? '') ?>">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="is_dopuszczenie">Dopuszczenie / uwagi</label>
+      <input type="text" class="form-control" id="is_dopuszczenie" name="is_dopuszczenie"
+             value="<?= h($row['is_dopuszczenie'] ?? '') ?>">
+    </div>
+    <div class="col-12">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="klauzula_rodo" name="klauzula_rodo"
+               value="1" <?= !empty($row['klauzula_rodo']) ? 'checked' : '' ?>>
+        <label class="form-check-label" for="klauzula_rodo">Klauzula informacyjna RODO podpisana</label>
+      </div>
+    </div>
+  </div>
 </div>
 </div>
 </div>

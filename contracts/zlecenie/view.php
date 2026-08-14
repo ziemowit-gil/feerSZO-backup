@@ -31,7 +31,7 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 $PAGE_TITLE = 'Umowa zlecenie ' . $row['numer_umowy'];
-$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','obieg','m365','historia','docusign','autenti'])
+$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','obieg','m365','historia','docusign','autenti','formalnosci'])
     ? $_GET['tab'] : 'umowa';
 
 // ── Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) ────
@@ -220,6 +220,15 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <?php endif; ?>
     </button>
   </li>
+
+  <?php if (!empty($row['w_ramach_is'])): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='formalnosci') echo ' active'; ?>" id="tab-formalnosci-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-formalnosci" type="button" role="tab">
+      <i class="bi bi-building-check"></i> Formalności IS
+    </button>
+  </li>
+  <?php endif; ?>
 
   <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')): ?>
   <li class="nav-item" role="presentation">
@@ -1017,6 +1026,10 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')): ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/autenti_tab.php'; ?>
+<?php endif; ?>
+
+<?php if (!empty($row['w_ramach_is'])): ?>
+<?php include __DIR__ . '/_tab_formalnosci.php'; ?>
 <?php endif; ?>
 
 </div><!-- /tab-content -->

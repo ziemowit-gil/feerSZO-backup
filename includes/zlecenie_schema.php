@@ -91,6 +91,15 @@
         'org_unit_id'              => "INTEGER",
         'podpisujacy_fundacja'     => "VARCHAR(255)",
         'podpisujacy_stanowisko'   => "VARCHAR(255)",
+        // Instytucja Szkoleniowa
+        'w_ramach_is'              => "INTEGER",
+        'is_nazwa'                 => "VARCHAR(255)",
+        'is_adres'                 => "TEXT",
+        'is_numer_umowy'           => "VARCHAR(255)",
+        'klauzula_rodo'            => "INTEGER",
+        'is_uprawnienia_nr'        => "VARCHAR(255)",
+        'is_dyplom_nr'             => "VARCHAR(255)",
+        'is_dopuszczenie'          => "TEXT",
     ];
 
     foreach ($columns as $name => $def) {
