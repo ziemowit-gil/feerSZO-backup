@@ -1113,54 +1113,180 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
 
 // Sprawdzanie obecności na lekcji — lista zapisanych kursantów z polami wyboru.
 $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
-    $present = 0; foreach ($rows as $r) { if ((int)$r['attended'] === 1) $present++; } ?>
-  <form method="post">
+    $total   = count($rows);
+    $present = 0;
+    $active  = 0; // kursanci bez odwołania/no-show — mogą być zaznaczani
+    foreach ($rows as $r) {
+        if ((int)$r['attended'] === 1) $present++;
+        $canc = (int)($r['cancelled'] ?? 0) === 1;
+        $ns   = !$canc && (int)($r['no_show'] ?? 0) === 1;
+        if (!$canc && !$ns) $active++;
+    }
+    $time_str = '';
+    if (!empty($s['time_from'])) {
+        $time_str = substr((string)$s['time_from'], 0, 5);
+        if (!empty($s['time_to'])) $time_str .= '–' . substr((string)$s['time_to'], 0, 5);
+    }
+    $pct = $active > 0 ? round($present / $active * 100) : 0;
+    ?>
+<style>
+  .att-row{border-radius:.5rem;transition:background .12s;}
+  .att-row-present{background:rgba(22,163,74,.10)!important;}
+  .att-row-noshow{background:rgba(234,179,8,.08)!important;opacity:.85;}
+  .att-row-cancelled{background:rgba(100,116,139,.07)!important;opacity:.75;}
+  [data-bs-theme=dark] .att-row-present{background:rgba(22,163,74,.14)!important;}
+  [data-bs-theme=dark] .att-row-noshow{background:rgba(234,179,8,.10)!important;}
+  .att-cb{width:1.35rem;height:1.35rem;cursor:pointer;flex-shrink:0;}
+  .att-cb:checked{accent-color:#16a34a;}
+  .att-name{font-size:.95rem;line-height:1.2;}
+  .att-progress-bar{height:6px;border-radius:3px;background:rgba(100,116,139,.18);}
+  .att-progress-fill{height:6px;border-radius:3px;background:#16a34a;transition:width .2s;}
+  .att-hint{font-size:.78rem;color:var(--bs-secondary-color);}
+</style>
+  <form method="post" id="<?= $pfx ?>_form">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_attendance">
     <input type="hidden" name="_tab" value="lekcje">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
     <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-    <div class="modal-header">
-      <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-people me-2"></i>Obecność — <?= date('d.m.Y', strtotime($s['lesson_date'])) ?></h5>
+    <div class="modal-header pb-2">
+      <div class="flex-grow-1 me-3">
+        <h5 class="modal-title mb-0" id="<?= $pfx ?>_t">
+          <i class="bi bi-people-fill me-2 text-primary" aria-hidden="true"></i><?= date('j.m.Y', strtotime($s['lesson_date'])) ?>
+          <?php if ($time_str): ?><span class="text-body-secondary fw-normal ms-1 small"><?= h($time_str) ?></span><?php endif; ?>
+        </h5>
+        <?php if (!empty($s['topic'])): ?>
+        <div class="text-body-secondary small mt-1 text-truncate" style="max-width:340px" title="<?= h($s['topic']) ?>"><?= h($s['topic']) ?></div>
+        <?php endif; ?>
+      </div>
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
-    <div class="modal-body">
+
+    <div class="modal-body pt-3 pb-2">
+
       <?php if (!$rows): ?>
-      <p class="text-body-secondary mb-0">Brak zapisanych kursantów w tym kursie.</p>
-      <?php else: ?>
-      <div class="d-flex align-items-center mb-2">
-        <span class="text-body-secondary small">Zaznacz obecnych (<?= $present ?>/<?= count($rows) ?>).</span>
-        <button type="button" class="btn btn-link btn-sm ms-auto p-0 att-toggle-all" data-target="<?= $pfx ?>">Zaznacz / odznacz wszystkich</button>
+      <div class="text-center py-4 text-body-secondary">
+        <i class="bi bi-person-x fs-2 d-block mb-2"></i>
+        Brak zapisanych kursantów w tym kursie.
       </div>
-      <div class="list-group">
-        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; $pend = (int)($r['cancel_pending'] ?? 0) === 1; $ns = !$canc && !$pend && (int)($r['no_show'] ?? 0) === 1; ?>
-        <div class="list-group-item d-flex align-items-center gap-2 <?= ($canc||$ns)?'opacity-75':'' ?>">
-          <label class="d-flex align-items-center gap-2 flex-grow-1 mb-0">
-            <input class="form-check-input mt-0" type="checkbox" name="attended[]" value="<?= $cid ?>"
-                   <?= (int)$r['attended']===1?'checked':'' ?> <?= ($canc||$ns)?'disabled':'' ?>>
-            <span><?= h($r['client_name']) ?></span>
-          </label>
-          <?php if ($ns): ?>
-          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-dash-circle me-1"></i>nie pojawił się</span>
-          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
-          <?php elseif ($canc): ?>
-          <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-x-circle me-1"></i>odwołany</span>
-          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
+
+      <?php else: ?>
+
+      <!-- Pasek postępu -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small fw-semibold">
+            <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>
+            Obecni: <span id="<?= $pfx ?>_cnt"><?= $present ?></span> / <?= $active ?>
+            <?php if ($total > $active): ?><span class="text-body-secondary">(<?= $total - $active ?> bez frekwencji)</span><?php endif; ?>
+          </span>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-success btn-sm att-all-present py-0" data-pfx="<?= $pfx ?>"
+                    title="Zaznacz wszystkich kursantów jako obecnych">
+              <i class="bi bi-check-all me-1"></i>Wszyscy obecni
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm att-none py-0" data-pfx="<?= $pfx ?>"
+                    title="Odznacz wszystkich">
+              <i class="bi bi-square me-1"></i>Wyczyść
+            </button>
+          </div>
+        </div>
+        <div class="att-progress-bar">
+          <div class="att-progress-fill" id="<?= $pfx ?>_bar" style="width:<?= $pct ?>%"></div>
+        </div>
+      </div>
+
+      <!-- Instrukcja -->
+      <div class="d-flex align-items-center gap-2 mb-3 px-1">
+        <span class="att-hint"><i class="bi bi-info-circle me-1"></i>
+          <strong>Zaznaczenie = obecny</strong> — zaznacz wszystkich, którzy uczestniczyli w zajęciach. Niezaznaczeni zostaną odnotowani jako nieobecni.
+        </span>
+      </div>
+
+      <!-- Lista kursantów -->
+      <div class="d-flex flex-column gap-2" id="<?= $pfx ?>_list">
+        <?php foreach ($rows as $r):
+          $cid  = (int)$r['client_id'];
+          $canc = (int)($r['cancelled']     ?? 0) === 1;
+          $pend = (int)($r['cancel_pending'] ?? 0) === 1;
+          $ns   = !$canc && (int)($r['no_show'] ?? 0) === 1;
+          $att  = (int)$r['attended'] === 1;
+          $rowCls = $ns ? 'att-row-noshow' : ($canc ? 'att-row-cancelled' : ($att ? 'att-row-present' : ''));
+        ?>
+        <div class="att-row d-flex align-items-center gap-3 px-3 py-2 border rounded <?= $rowCls ?>" data-pfx="<?= $pfx ?>">
+          <?php if ($canc || $ns): ?>
+            <!-- odwołany / nie pojawił się — checkbox nieaktywny, tylko badge + cofnij -->
+            <span class="att-cb-placeholder" style="width:1.35rem;flex-shrink:0"></span>
+            <span class="att-name flex-grow-1 text-body-secondary"><?= h($r['client_name']) ?></span>
+            <?php if ($ns): ?>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+              <i class="bi bi-dash-circle me-1"></i>nie pojawił się
+            </span>
+            <?php else: ?>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+              <i class="bi bi-x-circle me-1"></i>odwołany
+            </span>
+            <?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
+                    title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)">
+              <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+
           <?php else: ?>
-          <?php if ($pend): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1"></i>czeka</span><?php endif; ?>
-          <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" title="Zaznacz jako obecny" onclick="dydMarkPresent(this)"><i class="bi bi-check-circle me-1"></i>Obecny</button>
-          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" title="Nie pojawił się na zajęciach" onclick="dydNoShow(<?= (int)$s['id'] ?>,<?= $cid ?>,<?= htmlspecialchars(json_encode($r['client_name']), ENT_QUOTES) ?>)"><i class="bi bi-dash-circle me-1"></i>Nie pojawił się</button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Odwołaj udział (nie liczone do ceny)" onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-x-circle me-1"></i>Odwołaj</button>
+            <!-- normalny kursant — checkbox + opcjonalne akcje -->
+            <input class="att-cb form-check-input" type="checkbox" name="attended[]" value="<?= $cid ?>"
+                   id="<?= $pfx ?>_cb<?= $cid ?>"
+                   <?= $att ? 'checked' : '' ?>
+                   data-pfx="<?= $pfx ?>"
+                   aria-label="<?= h($r['client_name']) ?> — obecny">
+            <label for="<?= $pfx ?>_cb<?= $cid ?>" class="att-name flex-grow-1 mb-0" style="cursor:pointer">
+              <?= h($r['client_name']) ?>
+              <?php if ($pend): ?>
+              <span class="badge text-bg-warning ms-1 small"><i class="bi bi-hourglass-split me-1"></i>prośba o odwołanie</span>
+              <?php endif; ?>
+            </label>
+            <!-- stan: "obecny" chip pokazuje się gdy zaznaczony -->
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle att-present-badge <?= $att ? '' : 'd-none' ?>">
+              <i class="bi bi-check2-circle me-1"></i>obecny
+            </span>
+            <!-- akcje dodatkowe -->
+            <div class="dropdown flex-shrink-0">
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 dropdown-toggle dropdown-toggle-split"
+                      data-bs-toggle="dropdown" aria-expanded="false" title="Dodatkowe opcje"
+                      style="--bs-btn-padding-x:.4rem">
+                <span class="visually-hidden">Więcej</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <button type="button" class="dropdown-item text-warning-emphasis"
+                          onclick="dydNoShow(<?= (int)$s['id'] ?>,<?= $cid ?>,<?= htmlspecialchars(json_encode($r['client_name']), ENT_QUOTES) ?>)">
+                    <i class="bi bi-dash-circle me-2"></i>Nie pojawił się (no-show)
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="dropdown-item text-danger"
+                          onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)">
+                    <i class="bi bi-x-circle me-2"></i>Odwołaj udział
+                  </button>
+                </li>
+              </ul>
+            </div>
           <?php endif; ?>
         </div>
         <?php endforeach; ?>
       </div>
-      <p class="text-body-secondary small mt-2 mb-0">Zapis oznaczy zaplanowaną lekcję jako odbytą. Osób z odwołanym udziałem nie liczy się do obecności.</p>
+
+      <p class="att-hint mt-3 mb-0">Zapisanie zmieni status lekcji na <em>odbyła się</em>. Kursanci z odwołanym udziałem nie są wliczani do frekwencji ani ceny.</p>
       <?php endif; ?>
     </div>
+
     <div class="modal-footer">
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-      <?php if ($rows): ?><button type="submit" class="btn btn-primary"><i class="bi bi-check2-square me-1"></i>Zapisz obecność</button><?php endif; ?>
+      <?php if ($rows): ?>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check2-square me-1"></i>Zapisz obecność
+      </button>
+      <?php endif; ?>
     </div>
   </form>
 <?php };
@@ -1341,6 +1467,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     background:rgba(255,255,255,.12); color:#fff; font-weight:700;
     border-bottom-color:#5bbcff;
   }
+  .dyd-globalbar button.dyd-gb-link { background:transparent; cursor:pointer; line-height:1; }
   .dyd-globalbar .dyd-gb-dropdown { position:relative; }
   .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { border-bottom-color:transparent; }
   .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
@@ -1853,14 +1980,67 @@ document.addEventListener('click', function(e){
   } else { try { document.execCommand('copy'); done(); } catch(_){} }
 });
 
-// „Zaznacz / odznacz wszystkich" w oknie sprawdzania obecności.
-document.addEventListener('click', function(e){
-  var b = e.target.closest('.att-toggle-all'); if (!b) return;
-  var modal = b.closest('.modal'); if (!modal) return;
-  var boxes = modal.querySelectorAll('input[name="attended[]"]:not(:disabled)');
-  var allChecked = Array.prototype.every.call(boxes, function(c){ return c.checked; });
-  Array.prototype.forEach.call(boxes, function(c){ c.checked = !allChecked; });
-});
+// ── Logika okna obecności ───────────────────────────────────────────────────
+(function(){
+  // Aktualizacja licznika i paska postępu + klasa wiersza
+  function attUpdate(pfx) {
+    var list = document.getElementById(pfx + '_list'); if (!list) return;
+    var boxes = list.querySelectorAll('input[name="attended[]"]');
+    var cnt = 0;
+    boxes.forEach(function(cb){
+      var row   = cb.closest('.att-row');
+      var badge = row ? row.querySelector('.att-present-badge') : null;
+      if (cb.checked) {
+        cnt++;
+        if (row)   { row.classList.add('att-row-present'); }
+        if (badge) { badge.classList.remove('d-none'); }
+      } else {
+        if (row)   { row.classList.remove('att-row-present'); }
+        if (badge) { badge.classList.add('d-none'); }
+      }
+    });
+    var cntEl = document.getElementById(pfx + '_cnt');
+    if (cntEl) cntEl.textContent = cnt;
+    var bar = document.getElementById(pfx + '_bar');
+    if (bar) {
+      var total = boxes.length;
+      bar.style.width = total > 0 ? Math.round(cnt / total * 100) + '%' : '0%';
+    }
+  }
+
+  // Zmiana checkboxa
+  document.addEventListener('change', function(e){
+    var cb = e.target; if (!cb.matches('input[name="attended[]"]')) return;
+    var pfx = cb.getAttribute('data-pfx'); if (!pfx) return;
+    attUpdate(pfx);
+  });
+
+  // „Wszyscy obecni"
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.att-all-present'); if (!b) return;
+    var pfx = b.getAttribute('data-pfx'); if (!pfx) return;
+    var list = document.getElementById(pfx + '_list'); if (!list) return;
+    list.querySelectorAll('input[name="attended[]"]:not(:disabled)').forEach(function(cb){ cb.checked = true; });
+    attUpdate(pfx);
+  });
+
+  // „Wyczyść"
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.att-none'); if (!b) return;
+    var pfx = b.getAttribute('data-pfx'); if (!pfx) return;
+    var list = document.getElementById(pfx + '_list'); if (!list) return;
+    list.querySelectorAll('input[name="attended[]"]:not(:disabled)').forEach(function(cb){ cb.checked = false; });
+    attUpdate(pfx);
+  });
+
+  // Inicjalizacja po otwarciu modalu (wyrównaj stan)
+  document.addEventListener('shown.bs.modal', function(e){
+    var form = e.target.querySelector('form[id]');
+    if (!form) return;
+    var pfx = form.id.replace('_form', '');
+    attUpdate(pfx);
+  });
+})();
 
 // Odwołanie / przywrócenie udziału kursanta (z modalu obecności) — przez ukryty formularz.
 function dydCancelAtt(sid, cid) {
@@ -1877,10 +2057,7 @@ function dydRestoreAtt(sid, cid) {
   document.getElementById('daa_cid').value = cid;
   document.getElementById('dydAttAction').submit();
 }
-function dydMarkPresent(btn) {
-  var cb = btn.closest('.list-group-item').querySelector('input[type=checkbox]');
-  if (cb && !cb.disabled) { cb.checked = true; }
-}
+
 function dydNoShow(sid, cid, name) {
   document.getElementById('dns_sid').value = sid;
   document.getElementById('dns_cid').value = cid;
