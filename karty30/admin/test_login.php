@@ -3,17 +3,20 @@
  * karty30/admin/test_login.php — Testowe logowanie jako prowadzący lub kursant.
  * Tylko dla adminów. Generuje jednorazowy token i przekierowuje do panelu.
  */
-require_once dirname(dirname(__DIR__)) . '/includes/common.php';
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
-require_once dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
+
+k30_require_access();
+karty30_migrate();
 
 if (!is_admin()) {
     http_response_code(403);
     include dirname(dirname(__DIR__)) . '/includes/403.php';
     exit;
 }
-
-karty30_migrate();
 
 // ── Akcja: generuj token i przekieruj ────────────────────────────────────────
 
@@ -55,6 +58,8 @@ $students = db_all("
 ");
 
 $PAGE_TITLE = 'Testowe logowanie — Dydaktyka 3';
+
+include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
 <div class="container-xxl py-4">

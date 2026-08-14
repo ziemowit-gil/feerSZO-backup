@@ -752,17 +752,20 @@ function tiAutoName() {
   var gc  = document.getElementById('gc_input');
   var sn  = document.getElementById('helper_surname');
   var out = document.getElementById('name_input');
-  if (!sel || !out) return;
+  if (!out) return;
 
-  var opt  = sel.options[sel.selectedIndex];
+  var opt  = sel ? sel.options[sel.selectedIndex] : null;
   var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
-  if (!abbr) return;
 
   var code   = gc ? gc.value.trim() : '';
   var suffix = sn ? sn.value.trim() : '';
-  // Format: Skrót.kod.Nazwisko (ind.) lub Skrót.kod.NazwaGrupy (group.)
-  var parts = [abbr];
-  if (code)   parts.push(code);
+
+  if (!abbr && !code) return; // nic do wygenerowania
+
+  // Format: [Skrót.]kod[.Nazwisko/NazwaGrupy]
+  var parts = [];
+  if (abbr) parts.push(abbr);
+  if (code) parts.push(code);
   if (suffix) parts.push(suffix);
   out.value = parts.join('.');
 }
