@@ -39,55 +39,142 @@ $office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
 $office_available = function_exists('ms_login_available') && ms_login_available();
 $dyd_pwd_open     = !$office_available || $ec > 0;
 
-$KP_TITLE      = 'Logowanie — Zajęcia TI';
-$KP_BODY_CLASS = 'd-flex align-items-center justify-content-center py-4 px-3';
+$KP_TITLE      = 'Logowanie — Panel Kursanta';
+$KP_BODY_CLASS = 'd-flex align-items-center justify-content-center py-4 px-3 kp-login-bg-page';
 include __DIR__ . '/kursant/_layout_head.php';
 ?>
+<style>
+/* ── Tło: zdjęcie + ciemna nakładka ─────────────────────────────────── */
+body.kp-login-bg-page {
+  background: #060c1a !important;
+  min-height: 100vh;
+  position: relative;
+}
+body.kp-login-bg-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('assets/login-bg.jpg') center / cover no-repeat;
+  filter: brightness(.55) saturate(1.3);
+  z-index: 0;
+  pointer-events: none;
+}
+/* ── Karta logowania — glassmorphism ─────────────────────────────────── */
+body.kp-login-bg-page .kp-auth-wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+}
+body.kp-login-bg-page .kp-auth-card {
+  background: rgba(8, 14, 28, .82) !important;
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,.13) !important;
+  border-radius: 1.5rem !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 .5px rgba(255,255,255,.06) !important;
+  overflow: hidden;
+  animation: kpAuthIn .45s cubic-bezier(.16,.84,.44,1) both;
+  color: #fff;
+}
+/* ── Logo ────────────────────────────────────────────────────────────── */
+body.kp-login-bg-page .kp-auth-logo {
+  width: 72px; height: 72px; border-radius: 1.2rem;
+  background: linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%);
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(37,99,235,.45);
+  animation: kpLogoFloat 5s ease-in-out infinite;
+}
+/* ── Zakładki ─────────────────────────────────────────────────────────── */
+body.kp-login-bg-page .nav-tabs {
+  border-bottom-color: rgba(255,255,255,.15);
+}
+body.kp-login-bg-page .nav-tabs .nav-link {
+  color: rgba(255,255,255,.55);
+  border-color: transparent;
+  transition: color .15s;
+}
+body.kp-login-bg-page .nav-tabs .nav-link:hover { color: #fff; }
+body.kp-login-bg-page .nav-tabs .nav-link.active {
+  background: transparent;
+  border-color: transparent transparent #2563eb;
+  color: #fff;
+  font-weight: 700;
+}
+/* ── Pola formularza ─────────────────────────────────────────────────── */
+body.kp-login-bg-page .form-control,
+body.kp-login-bg-page .input-group-text {
+  background: rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.15);
+  color: #fff;
+  border-radius: .65rem !important;
+}
+body.kp-login-bg-page .input-group > .form-control:not(:last-child) { border-radius: .65rem 0 0 .65rem !important; }
+body.kp-login-bg-page .input-group > .btn:last-child { border-radius: 0 .65rem .65rem 0 !important; }
+body.kp-login-bg-page .form-control::placeholder { color: rgba(255,255,255,.35); }
+body.kp-login-bg-page .form-control:focus {
+  background: rgba(255,255,255,.11);
+  border-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.3);
+}
+body.kp-login-bg-page .input-group:focus-within .input-group-text { border-color: #2563eb; color: #90b4ff; }
+body.kp-login-bg-page .btn-outline-secondary {
+  color: rgba(255,255,255,.65);
+  border-color: rgba(255,255,255,.2);
+}
+body.kp-login-bg-page .btn-outline-secondary:hover {
+  background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.35);
+}
+body.kp-login-bg-page label.form-label { color: #d1d5db; }
+body.kp-login-bg-page .form-text { color: rgba(255,255,255,.45); }
+body.kp-login-bg-page .text-body-secondary { color: rgba(255,255,255,.55) !important; }
+body.kp-login-bg-page small { color: rgba(255,255,255,.45) !important; }
+body.kp-login-bg-page hr { border-color: rgba(255,255,255,.15); }
+/* ── Alert błędu ─────────────────────────────────────────────────────── */
+body.kp-login-bg-page .alert-danger {
+  background: rgba(239,68,68,.2);
+  border-color: rgba(239,68,68,.35);
+  color: #fca5a5;
+}
+/* ── Przycisk Zaloguj ─────────────────────────────────────────────────── */
+body.kp-login-bg-page .btn-primary {
+  background: linear-gradient(135deg,#2563eb,#1d4ed8);
+  border: none;
+  box-shadow: 0 8px 22px rgba(37,99,235,.42);
+  transition: filter .15s, box-shadow .15s, transform .12s;
+}
+body.kp-login-bg-page .btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 12px 28px rgba(37,99,235,.55);
+  transform: translateY(-1px);
+}
+body.kp-login-bg-page .btn-primary:active { transform: translateY(0); }
+/* ── Stopka ──────────────────────────────────────────────────────────── */
+body.kp-login-bg-page .kp-auth-footer {
+  color: rgba(255,255,255,.4);
+  font-size: .75rem;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.kp-login-bg-page .kp-auth-card,
+  body.kp-login-bg-page .kp-auth-logo { animation: none; }
+  body.kp-login-bg-page .btn-primary { transition: none; }
+}
+</style>
+
 <main id="main" class="kp-auth-wrap">
   <div class="card kp-auth-card shadow-lg border-0">
-    <div class="row g-0">
+    <div class="card-body p-4 p-lg-5">
 
-      <!-- ── Panel marki: mockup terminala (ukryty na telefonie) ───────────── -->
-      <div class="col-md-5 kp-term-hero p-4 p-lg-5" aria-hidden="true">
-        <div>
-          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-            <i class="bi bi-pc-display fs-3" id="hero-icon"></i>
-          </span>
-          <h2 class="h4 fw-bold mb-1" id="hero-title">Panel kursanta</h2>
-          <p class="mb-0" style="color:rgba(255,255,255,.6)"><?= h($KP_ORG) ?></p>
-        </div>
-        <div class="kp-term-window mt-4">
-          <div class="kp-term-bar">
-            <span class="kp-term-dot kp-term-dot-r"></span>
-            <span class="kp-term-dot kp-term-dot-y"></span>
-            <span class="kp-term-dot kp-term-dot-g"></span>
-            <span class="kp-term-title" id="hero-bar">kursant@feer:~</span>
-          </div>
-          <div class="kp-term-body">
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span>whoami</div>
-            <div class="kp-term-line kp-term-dim" id="hero-whoami">kursant</div>
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span>ls</div>
-            <div class="kp-term-line kp-term-dim" id="hero-ls">lekcje  zadania  vlab  licencje</div>
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span><span class="kp-term-cursor"></span></div>
-          </div>
-        </div>
+      <!-- Logo + tytuł (single-column, centered) -->
+      <div class="text-center mb-4">
+        <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
+          <i class="bi bi-pc-display fs-3" id="hero-icon"></i>
+        </span>
+        <h1 class="h5 fw-bold mb-1 text-white" id="hero-title">Panel kursanta</h1>
+        <p class="mb-0" style="color:rgba(255,255,255,.55);font-size:.87rem"><?= h($KP_ORG) ?> · Zajęcia TI</p>
       </div>
-
-      <!-- ── Formularz ──────────────────────────────────────────────────────── -->
-      <div class="col-md-7">
-        <div class="card-body p-4 p-lg-5">
-
-          <!-- Nagłówek mobile -->
-          <div class="text-center mb-4 d-md-none">
-            <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-              <i class="bi bi-pc-display fs-3" id="hero-icon-sm"></i>
-            </span>
-            <h1 class="h4 fw-bold mb-1" id="hero-title-sm">Logowanie TI</h1>
-            <p class="text-body-secondary small mb-0"><?= h($KP_ORG) ?> · Zajęcia TI</p>
-          </div>
-          <div class="d-none d-md-block mb-3">
-            <h1 class="h4 fw-bold mb-1">Zaloguj się</h1>
-          </div>
 
           <!-- Błąd — role="alert" + aria-live powoduje ogłoszenie przez czytnik ekranu -->
           <?php if ($error): ?>
@@ -286,42 +373,33 @@ include __DIR__ . '/kursant/_layout_head.php';
 
           </div><!-- /.tab-content -->
 
-          <p class="text-body-secondary mt-4 mb-0 text-center" style="font-size:.78rem">
-            <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>
-            Moduł Zajęć TI jest częścią systemu <strong>System Zarządzania Organizacją</strong>.
-          </p>
+      <p class="kp-auth-footer mt-4 mb-0">
+        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>
+        Panel Kursanta — Zajęcia TI · <?= h($KP_ORG) ?>
+      </p>
 
-        </div><!-- /.card-body -->
-      </div><!-- /.col-md-7 -->
-
-    </div><!-- /.row -->
+    </div><!-- /.card-body -->
   </div><!-- /.kp-auth-card -->
 </main>
 
 <script>
-// ── Terminal hero: zmiana treści przy przełączeniu zakładki ───────────────────
+// ── Ikona + tytuł w logo przy zmianie zakładki ────────────────────────────────
 (function(){
   var CFG = {
-    kursant:  { icon:'bi-pc-display', title:'Panel kursanta',    bar:'kursant@feer:~',  whoami:'kursant',  ls:'lekcje  zadania  vlab  licencje' },
-    dydaktyk: { icon:'bi-easel2',     title:'Panel prowadzącego', bar:'dydaktyk@feer:~', whoami:'dydaktyk', ls:'lekcje  frekwencja  zadania-domowe' }
+    kursant:  { icon:'bi-pc-display', title:'Panel kursanta' },
+    dydaktyk: { icon:'bi-easel2',     title:'Panel prowadzącego' },
   };
   function applyHero(tab) {
     var c = CFG[tab] || CFG.kursant;
-    ['hero-icon','hero-icon-sm'].forEach(function(id){
-      var el = document.getElementById(id); if (el) el.className = 'bi ' + c.icon + ' fs-3';
-    });
-    ['hero-title','hero-title-sm'].forEach(function(id){
-      var el = document.getElementById(id); if (el) el.textContent = c.title;
-    });
-    ['hero-bar','hero-whoami','hero-ls'].forEach(function(id, i){
-      var el = document.getElementById(id); if (el) el.textContent = [c.bar, c.whoami, c.ls][i];
-    });
+    var ic = document.getElementById('hero-icon');
+    var tl = document.getElementById('hero-title');
+    if (ic) ic.className = 'bi ' + c.icon + ' fs-3';
+    if (tl) tl.textContent = c.title;
   }
   applyHero('<?= $tab ?>');
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(btn){
     btn.addEventListener('shown.bs.tab', function(){
-      var t = (btn.getAttribute('data-bs-target') || '').replace('#tab-','');
-      applyHero(t);
+      applyHero((btn.getAttribute('data-bs-target') || '').replace('#tab-',''));
     });
   });
 })();
