@@ -2816,11 +2816,11 @@ function k30_ti_client_billing(int $client_id): array {
 
 /** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */
 function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
-    // $extra: dodatkowa kolumna flagi frekwencji kursu. Wydzielona, bo przed
-    // migracją (brak kolumny track_attendance) zapytanie musi zadziałać bez niej.
-    $build = fn(string $extra) =>
+    // $extra: kolumna track_attendance; $enroll: kolumna zoom_meeting_url.
+    // Osobne fallbacki, bo obie mogą brakować przed migracją.
+    $build = fn(string $extra, string $enroll = 'e.zoom_meeting_url AS enrollment_meeting_url,') =>
         "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
-                e.zoom_meeting_url AS enrollment_meeting_url,
+                {$enroll}
                 {$extra}
                 a.attended, a.ind_notes,
                 a.cancelled AS att_cancelled, a.cancel_pending AS att_cancel_pending,
@@ -2842,7 +2842,12 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     try {
         return db_all($build("c.track_attendance AS course_track_attendance,"), $p);
     } catch (\Throwable $e) {
-        return db_all($build(""), $p); // przed migracją — bez kolumny (widoki użyją domyślnie „liczy frekwencję")
+        try {
+            return db_all($build(""), $p);
+        } catch (\Throwable $e2) {
+            // Kolumna zoom_meeting_url jeszcze nie istnieje — zwróć pusty literal
+            return db_all($build("", "'' AS enrollment_meeting_url,"), $p);
+        }
     }
 }
 
