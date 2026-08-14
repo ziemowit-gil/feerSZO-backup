@@ -56,7 +56,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'pulpit';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -875,6 +875,39 @@ $pending_cancel_total = $cur_course ? (int)(db_one(
 $TYPES = k30_ti_material_types();
 $STATUS = K30_TI_SESSION_STATUSES;
 
+// ── Dashboard (pulpit) ────────────────────────────────────────────────────────
+$dash_today          = [];
+$dash_upcoming       = [];
+$dash_pending_cancel = 0;
+if ($course_ids) {
+    $ph = implode(',', array_fill(0, count($course_ids), '?'));
+    $dash_today = db_all(
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
+                s.meeting_url, c.name AS course_name, c.id AS course_id, c.default_meeting_url,
+                (SELECT COUNT(*) FROM k30_ti_attendance a
+                 WHERE a.session_id=s.id AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0) AS enrolled
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.course_id IN ($ph) AND s.lesson_date = date('now','localtime')
+         ORDER BY s.time_from",
+        $course_ids
+    );
+    $dash_upcoming = db_all(
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
+                c.name AS course_name, c.id AS course_id
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.course_id IN ($ph) AND s.lesson_date > date('now','localtime')
+           AND s.lesson_date <= date('now','localtime','+7 days') AND s.status != 'cancelled'
+         ORDER BY s.lesson_date, s.time_from LIMIT 10",
+        $course_ids
+    );
+    $dash_pending_cancel = (int)(db_one(
+        "SELECT COUNT(*) n FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+         WHERE s.course_id IN ($ph) AND a.cancel_pending=1",
+        $course_ids
+    )['n'] ?? 0);
+}
+
 // ── Dane dla zakładki Wiadomości ─────────────────────────────────────────────
 $dyd_msg_student_id = (int)($_GET['student'] ?? 0);
 // Wątki: tylko kursanci z kursów tego prowadzącego
@@ -1247,10 +1280,17 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { background:none; border-color:transparent; }
   .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
 </style>
+<!-- MDUI 2 (MD3) — wymagany dla zakładki Pulpit -->
+<link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
+<script type="module" src="https://unpkg.com/mdui@2/mdui.esm.js"></script>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
 <?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy'], true); ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
+  <a class="dyd-gb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
+     <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
+    <i class="bi bi-house" aria-hidden="true"></i>Pulpit
+  </a>
   <a class="dyd-gb-link <?= $tab_is_course?'active':'' ?>"
      href="index.php?course=<?= $cur_course ?>&tab=lekcje"
      <?= $tab_is_course?'aria-current="page"':'' ?>>
@@ -1353,7 +1393,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </div>
   <?php endforeach; endif; ?>
 
-  <?php if (!$courses): ?>
+  <?php if ($tab === 'pulpit'): ?>
+  <?php include __DIR__ . '/_tab_pulpit.php'; ?>
+  <?php elseif (!$courses): ?>
     <div class="card border-0 shadow-sm"><div class="card-body p-4 text-center text-body-secondary">
       <i class="bi bi-inbox fs-1 d-block mb-2" aria-hidden="true"></i>
       Nie prowadzisz obecnie żadnego kursu. Skontaktuj się z administratorem, aby przypisać Cię jako prowadzącego.
