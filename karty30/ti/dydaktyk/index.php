@@ -68,6 +68,10 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
 }
 
 $courses   = dyd_courses($uid);
+// Dla admina/staff: zestaw ID kursów gdzie sam jest prowadzącym lub co-prowadzącym
+$my_course_ids_set = dyd_is_staff()
+    ? array_flip(array_column(k30_ti_instructor_courses($uid, false), 'id'))
+    : [];
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
 $dyd_notices        = ti_notices_list_active_for_instructor($uid);
@@ -1653,9 +1657,16 @@ if (count($courses) > 1) {
   </button>
   <ul class="dropdown-menu dropdown-menu-end" style="min-width:220px">
     <li><h6 class="dropdown-header"><i class="bi bi-arrow-left-right me-1"></i>Zmień grupę</h6></li>
-    <?php foreach ($courses as $_c):
-      $isActive = ((int)$_c['id'] === $cur_course);
-      $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
+    <?php
+    $has_mine   = !empty($my_course_ids_set);
+    $split_view = dyd_is_staff() && $has_mine;
+    if ($split_view): ?>
+    <li><h6 class="dropdown-header text-primary" style="font-size:.7rem">Twoje grupy</h6></li>
+    <?php
+      foreach ($courses as $_c):
+        if (!isset($my_course_ids_set[(int)$_c['id']])) continue;
+        $isActive = ((int)$_c['id'] === $cur_course);
+        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
     ?>
     <li>
       <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
@@ -1663,12 +1674,45 @@ if (count($courses) > 1) {
          <?= $isActive ? 'aria-current="true"' : '' ?>>
         <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
         <span class="text-truncate"><?= h($_c['name']) ?></span>
-        <?php if (!$isActive && !$inactive): ?>
-        <span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span>
-        <?php endif; ?>
+        <?php if (!$isActive && !$inactive): ?><span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span><?php endif; ?>
       </a>
     </li>
     <?php endforeach; ?>
+    <li><hr class="dropdown-divider my-1"></li>
+    <li><h6 class="dropdown-header text-body-secondary" style="font-size:.7rem">Grupy innych</h6></li>
+    <?php
+      foreach ($courses as $_c):
+        if (isset($my_course_ids_set[(int)$_c['id']])) continue;
+        $isActive = ((int)$_c['id'] === $cur_course);
+        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
+    ?>
+    <li>
+      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
+         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
+         <?= $isActive ? 'aria-current="true"' : '' ?>>
+        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
+        <span class="text-truncate"><?= h($_c['name']) ?></span>
+        <span class="ms-auto small text-body-secondary flex-shrink-0"><?= h($_c['instructor_name'] ?? '—') ?></span>
+      </a>
+    </li>
+    <?php endforeach; ?>
+    <?php else: ?>
+    <?php
+      foreach ($courses as $_c):
+        $isActive = ((int)$_c['id'] === $cur_course);
+        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
+    ?>
+    <li>
+      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
+         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
+         <?= $isActive ? 'aria-current="true"' : '' ?>>
+        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
+        <span class="text-truncate"><?= h($_c['name']) ?></span>
+        <?php if (!$isActive && !$inactive): ?><span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span><?php endif; ?>
+      </a>
+    </li>
+    <?php endforeach; ?>
+    <?php endif; ?>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="index.php?pick=1"><i class="bi bi-grid me-2"></i>Zmień grupę…</a></li>
   </ul>
@@ -2057,15 +2101,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                 background:#fff;border:1px solid #e2e8f0;border-radius:14px;
                 box-shadow:0 12px 40px rgba(2,6,23,.16);padding:.35rem;
                 min-width:280px;max-width:420px;width:max-content">
-      <?php foreach ($courses as $c): ?>
-      <?php $_active = (int)$c['id'] === $cur_course; ?>
+      <?php
+      $_cp_split = dyd_is_staff() && !empty($my_course_ids_set);
+      $cp_render_item = function($c, $tab, $cur_course, $my_course_ids_set, $is_other = false) { $_active = (int)$c['id'] === $cur_course; ?>
       <a href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>"
          role="option" aria-selected="<?= $_active ? 'true' : 'false' ?>"
          class="dyd-cp-item d-flex align-items-center gap-3 text-decoration-none rounded-3 px-3 py-2<?= $_active ? ' dyd-cp-active' : '' ?>">
         <span class="dyd-cp-ic d-flex align-items-center justify-content-center flex-shrink-0"
               style="width:36px;height:36px;border-radius:9px;
-                     background:<?= $_active ? '#ede9fe' : '#f8fafc' ?>;
-                     color:<?= $_active ? '#7c3aed' : '#64748b' ?>">
+                     background:<?= $_active ? '#ede9fe' : ($is_other ? '#f1f5f9' : '#f8fafc') ?>;
+                     color:<?= $_active ? '#7c3aed' : ($is_other ? '#64748b' : '#64748b') ?>">
           <i class="bi bi-people-fill" aria-hidden="true"></i>
         </span>
         <span class="flex-grow-1 min-width-0">
@@ -2073,7 +2118,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php if (!empty($c['is_co_instructor'])): ?>
           <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.6rem;border:1px solid #fde68a;vertical-align:middle">coProwadzący</span>
           <?php endif; ?>
-          <?php if (!empty($c['location'])): ?>
+          <?php if ($is_other && !empty($c['instructor_name'])): ?>
+          <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($c['instructor_name']) ?></span>
+          <?php elseif (!empty($c['location'])): ?>
           <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($c['location']) ?></span>
           <?php endif; ?>
         </span>
@@ -2084,7 +2131,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <i class="bi bi-check2 flex-shrink-0" style="color:#7c3aed;font-size:1rem" aria-hidden="true"></i>
         <?php endif; ?>
       </a>
-      <?php endforeach; ?>
+      <?php }; ?>
+      <?php if ($_cp_split): ?>
+      <div style="padding:.25rem .75rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9">Twoje grupy</div>
+      <?php foreach ($courses as $c): if (!isset($my_course_ids_set[(int)$c['id']])) continue; $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, false); endforeach; ?>
+      <div style="border-top:1px solid #e2e8f0;margin:.35rem 0"></div>
+      <div style="padding:.25rem .75rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Grupy innych</div>
+      <?php foreach ($courses as $c): if (isset($my_course_ids_set[(int)$c['id']])) continue; $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, true); endforeach; ?>
+      <?php else: ?>
+      <?php foreach ($courses as $c): $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, false); endforeach; ?>
+      <?php endif; ?>
     </div>
   </div>
   <script>

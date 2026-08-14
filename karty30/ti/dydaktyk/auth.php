@@ -46,6 +46,14 @@ function dyd_current(): ?array {
     $s = $_SESSION[DYD_SESSION_KEY] ?? null;
     if ($s) {
         if ((time() - ($s['ts'] ?? 0)) <= DYD_SESSION_TTL) {
+            // Stara sesja bez is_staff (przed dodaniem pola) — odśwież uprawnienia z DB
+            if (!array_key_exists('is_staff', $s)) {
+                $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$s['user_id'] ?? 0]);
+                $profile = $u ? dyd_profile_from_user($u) : null;
+                if ($profile) { dyd_login_user($profile); return $_SESSION[DYD_SESSION_KEY]; }
+                unset($_SESSION[DYD_SESSION_KEY]);
+                return null;
+            }
             $_SESSION[DYD_SESSION_KEY]['ts'] = time();
             return $_SESSION[DYD_SESSION_KEY];
         }
