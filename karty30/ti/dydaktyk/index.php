@@ -1789,56 +1789,46 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <?php endif; ?>
 
               <!-- Akcje -->
-              <div class="d-flex align-items-center gap-1 pt-1" style="border-top:1px solid var(--bs-border-color-translucent)">
-                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
+              <div class="d-flex align-items-center gap-2 pt-2 flex-wrap" style="border-top:1px solid var(--bs-border-color-translucent)">
+                <button type="button" class="btn btn-sm btn-primary"
+                        data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
                   <i class="bi bi-people me-1"></i>Obecność
                 </button>
-                <div class="dropdown ms-auto">
-                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-three-dots"></i>
+                <div class="ms-auto d-flex gap-1">
+                  <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                          data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"
+                          title="Edytuj lekcję">
+                    <i class="bi bi-pencil"></i>
                   </button>
-                  <ul class="dropdown-menu dropdown-menu-end">
-                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
-                      <i class="bi bi-pencil me-2"></i>Edytuj
-                    </a></li>
-                    <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
-                    <li><a class="dropdown-item" href="#"
-                           onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>); return false">
-                      <i class="bi bi-calendar2-range me-2"></i>Przenieś
-                    </a></li>
-                    <?php endif; ?>
-                    <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>">
-                      <i class="bi bi-list-check me-2"></i>Szczegóły
-                    </a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <?php if ($s['status'] === 'cancelled'): ?>
-                    <li>
-                      <form method="post" class="d-grid" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
-                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op" value="uncancel_session">
-                        <input type="hidden" name="_tab" value="lekcje">
-                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                        <button class="dropdown-item"><i class="bi bi-arrow-counterclockwise me-2"></i>Przywróć lekcję</button>
-                      </form>
-                    </li>
-                    <?php elseif (!$is_past): ?>
-                    <li><a class="dropdown-item text-danger" href="#"
-                           onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>); return false">
-                      <i class="bi bi-x-circle me-2"></i>Odwołaj lekcję
-                    </a></li>
-                    <?php endif; ?>
-                    <li>
-                      <form method="post" class="d-grid" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
-                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op" value="delete_lesson">
-                        <input type="hidden" name="_tab" value="lekcje">
-                        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                        <button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Usuń lekcję</button>
-                      </form>
-                    </li>
-                  </ul>
+                  <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
+                  <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                          title="Przenieś lekcję"
+                          onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>); return false">
+                    <i class="bi bi-calendar2-range"></i>
+                  </button>
+                  <?php endif; ?>
+                  <?php if ($s['status'] === 'cancelled'): ?>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję?')">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="uncancel_session">
+                    <input type="hidden" name="_tab" value="lekcje">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Przywróć lekcję">
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                  </form>
+                  <?php elseif (!$is_past): ?>
+                  <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
+                          title="Odwołaj lekcję"
+                          onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>); return false">
+                    <i class="bi bi-x-circle"></i>
+                  </button>
+                  <?php endif; ?>
+                  <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>"
+                     class="btn btn-sm btn-outline-secondary py-0 px-2" title="Szczegóły lekcji">
+                    <i class="bi bi-arrow-right-circle"></i>
+                  </a>
                 </div>
               </div>
 

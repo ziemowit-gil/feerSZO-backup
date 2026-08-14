@@ -408,24 +408,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php if (!$edit_row): ?>
       <div class="mb-3">
         <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
-        <div class="row g-2 mb-1">
-          <div class="col-5">
-            <input type="text" class="form-control form-control-sm" id="helper_first"
-                   placeholder="Imię kursanta" autocomplete="off">
-          </div>
-          <div class="col-5">
-            <input type="text" class="form-control form-control-sm" id="helper_last"
-                   placeholder="Nazwisko kursanta" autocomplete="off">
-          </div>
-          <div class="col-2 d-flex align-items-center">
-            <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="tiAutoName()" title="Wygeneruj nazwę">
-              <i class="bi bi-magic"></i>
-            </button>
-          </div>
+        <div class="input-group mb-1">
+          <input type="text" class="form-control" id="helper_fullname"
+                 placeholder="Imię i nazwisko kursanta (np. Jan Kowalski)" autocomplete="off">
+          <button type="button" class="btn btn-outline-primary" onclick="tiAutoName()" title="Wygeneruj nazwę grupy">
+            <i class="bi bi-magic me-1"></i>Generuj
+          </button>
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
                placeholder="np. ANG.Jan.K 742/<?= date('y') ?>">
-        <div class="form-text">Format: <code>SKRÓT.Imię.I Kod</code> — możesz edytować lub użyć generatora.</div>
+        <div class="form-text">Format: <code>SKRÓT.Imię.I Kod</code> — wpisz imię i nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
       <?php else: ?>
       <div class="mb-3">
@@ -727,40 +719,37 @@ function tiGenCode() {
 
 // ── Auto-generowanie nazwy grupy ─────────────────────────────────────────────
 function tiAutoName() {
-  var sel   = document.getElementById('st_select');
-  var gc    = document.getElementById('gc_input');
-  var fn    = document.getElementById('helper_first');
-  var ln    = document.getElementById('helper_last');
-  var name  = document.getElementById('name_input');
-  if (!sel || !name) return;
+  var sel  = document.getElementById('st_select');
+  var gc   = document.getElementById('gc_input');
+  var full = document.getElementById('helper_fullname');
+  var out  = document.getElementById('name_input');
+  if (!sel || !out) return;
 
-  var abbr  = '';
-  var opt   = sel.options[sel.selectedIndex];
+  var abbr = '';
+  var opt  = sel.options[sel.selectedIndex];
   if (opt && opt.dataset.abbr) abbr = opt.dataset.abbr;
+  if (!abbr) return;
 
-  var first = fn ? fn.value.trim() : '';
-  var last  = ln ? ln.value.trim() : '';
+  var words = full ? full.value.trim().split(/\s+/).filter(Boolean) : [];
   var code  = gc ? gc.value.trim() : '';
 
-  if (!abbr) { return; }
-
-  // ANG.Jan.K 742/26
+  // Format: SKRÓT.Imię.I Kod  →  ANG.Jan.K 742/26
   var parts = [abbr];
-  if (first) parts.push(first);
-  if (last)  parts.push(last.charAt(0).toUpperCase());
-  var result = parts.join('.') + (code ? ' ' + code : '');
-  name.value = result;
+  if (words.length >= 2) {
+    parts.push(words[0]);                              // Imię
+    parts.push(words[words.length - 1].charAt(0).toUpperCase()); // I
+  } else if (words.length === 1) {
+    parts.push(words[0]);
+  }
+  out.value = parts.join('.') + (code ? ' ' + code : '');
 }
 
-// Nasłuchuj zmian na selekcie rodzaju zajęć i polach pomocniczych
+// Nasłuchuj zmian
 (function(){
-  var sel = document.getElementById('st_select');
-  var fn  = document.getElementById('helper_first');
-  var ln  = document.getElementById('helper_last');
-  if (sel) sel.addEventListener('change', tiAutoName);
-  if (fn)  fn.addEventListener('input',   tiAutoName);
-  if (ln)  ln.addEventListener('input',   tiAutoName);
-  // Auto-generuj kod przy załadowaniu formularza nowego kursu
+  var sel  = document.getElementById('st_select');
+  var full = document.getElementById('helper_fullname');
+  if (sel)  sel.addEventListener('change', tiAutoName);
+  if (full) full.addEventListener('input',  tiAutoName);
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
 })();
