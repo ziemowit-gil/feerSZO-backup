@@ -49,9 +49,9 @@ const KDOK_ROLES = [
 
 // Typy umów, do których można podpiąć dokument typu "Rachunek do umowy" (zawsze w głównej bazie aplikacji)
 const KDOK_CONTRACT_TYPES = [
-    'zlecenie' => ['table' => 'umowy_zlecenie', 'label' => 'Umowa zlecenie', 'przedmiot' => 'przedmiot_zlecenia', 'url' => '/contracts/zlecenie/view.php?id='],
-    'dzielo'   => ['table' => 'umowy_dzielo',   'label' => 'Umowa o dzieło', 'przedmiot' => 'opis_dziela',        'url' => '/contracts/dzielo/view.php?id='],
-    'uslugi'   => ['table' => 'umowy_uslugi',   'label' => 'Umowa usługi',   'przedmiot' => 'przedmiot_uslugi',   'url' => '/contracts/uslugi/view.php?id='],
+    'zlecenie' => ['table' => 'umowy_zlecenie', 'name_col' => 'imie_nazwisko',    'label' => 'Umowa zlecenie', 'przedmiot' => 'przedmiot_zlecenia', 'url' => '/contracts/zlecenie/view.php?id='],
+    'dzielo'   => ['table' => 'umowy_dzielo',   'name_col' => 'imie_nazwisko',    'label' => 'Umowa o dzieło', 'przedmiot' => 'opis_dziela',        'url' => '/contracts/dzielo/view.php?id='],
+    'uslugi'   => ['table' => 'umowy_uslugi',   'name_col' => 'nazwa_wykonawcy',  'label' => 'Umowa usługi',   'przedmiot' => 'przedmiot_uslugi',   'url' => '/contracts/uslugi/view.php?id='],
 ];
 
 // ── Połączenie z bazą KDOK ────────────────────────────────────────────────────
@@ -1234,9 +1234,10 @@ function kdok_contract_search(string $q): array {
     $like = '%' . $q . '%';
     $results = [];
     foreach (KDOK_CONTRACT_TYPES as $type => $cfg) {
+        $nc = $cfg['name_col'];
         $rows = db_all(
-            "SELECT id, numer_umowy, imie_nazwisko FROM {$cfg['table']}
-             WHERE numer_umowy LIKE ? OR imie_nazwisko LIKE ?
+            "SELECT id, numer_umowy, {$nc} AS osoba FROM {$cfg['table']}
+             WHERE numer_umowy LIKE ? OR {$nc} LIKE ?
              ORDER BY id DESC LIMIT 15",
             [$like, $like]
         );
@@ -1244,7 +1245,7 @@ function kdok_contract_search(string $q): array {
             $results[] = [
                 'type'  => $type,
                 'id'    => (int)$r['id'],
-                'label' => $cfg['label'] . ' ' . $r['numer_umowy'] . ' — ' . $r['imie_nazwisko'],
+                'label' => $cfg['label'] . ' ' . $r['numer_umowy'] . ' — ' . $r['osoba'],
             ];
         }
     }
@@ -1265,10 +1266,11 @@ function kdok_documents_for_contract(string $contract_type, int $contract_id): a
 function kdok_contract_label(?string $type, ?int $id): ?array {
     if (!$type || !$id || !isset(KDOK_CONTRACT_TYPES[$type])) return null;
     $cfg = KDOK_CONTRACT_TYPES[$type];
-    $row = db_one("SELECT id, numer_umowy, imie_nazwisko FROM {$cfg['table']} WHERE id = ?", [$id]);
+    $nc  = $cfg['name_col'];
+    $row = db_one("SELECT id, numer_umowy, {$nc} AS osoba FROM {$cfg['table']} WHERE id = ?", [$id]);
     if (!$row) return null;
     return [
-        'label' => $cfg['label'] . ' ' . $row['numer_umowy'] . ' — ' . $row['imie_nazwisko'],
+        'label' => $cfg['label'] . ' ' . $row['numer_umowy'] . ' — ' . $row['osoba'],
         'url'   => APP_URL . $cfg['url'] . $row['id'],
     ];
 }
