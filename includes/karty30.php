@@ -2545,6 +2545,72 @@ function k30_ti_generate_group_code(): string {
     return str_pad((string)random_int(0, 999), 3, '0', STR_PAD_LEFT) . date('y');
 }
 
+/**
+ * Generuje certyfikat X.509 (PKCS#12) dla kursanta — bez EJBCA, przez OpenSSL.
+ * Próbuje podpisać przez CA aplikacji (certs/app.crt + app.key);
+ * jeśli brak — generuje self-signed.
+ *
+ * @return array ['p12_data'=>string, 'p12_pass'=>string, 'fingerprint'=>string,
+ *               'serial_hex'=>string, 'valid_from'=>string, 'valid_to'=>string,
+ *               'cert_pem'=>string, 'key_pem'=>string, 'ca'=>'app'|'self']
+ */
+function k30_ti_issue_cert(string $cn, string $org = 'TI', string $country = 'PL', int $days = 730): array {
+    if (!extension_loaded('openssl')) throw new \RuntimeException('Rozszerzenie openssl jest wymagane.');
+
+    $cn  = substr(preg_replace('/[^\p{L}0-9 \-]/u', '', $cn), 0, 64);
+    $org = substr(preg_replace('/[^\p{L}0-9 \-]/u', '', $org), 0, 64);
+
+    $pkey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA, 'encrypt_key' => false]);
+    if (!$pkey) throw new \RuntimeException('Generowanie klucza: ' . openssl_error_string());
+
+    $dn  = array_filter(['C' => $country, 'O' => $org, 'CN' => $cn]);
+    $csr = openssl_csr_new($dn, $pkey, ['digest_alg' => 'sha256']);
+    if (!$csr) throw new \RuntimeException('CSR: ' . openssl_error_string());
+
+    $serial = random_int(1, PHP_INT_MAX);
+
+    // Spróbuj podpisać przez CA aplikacji
+    require_once __DIR__ . '/app_cert.php';
+    $ca_paths  = app_cert_paths();
+    $ca_cert   = null; $ca_key = null; $ca_label = 'self';
+    if (is_file($ca_paths['crt']) && is_file($ca_paths['key'])) {
+        $ca_cert = openssl_x509_read(file_get_contents($ca_paths['crt']));
+        $ca_key  = openssl_pkey_get_private(file_get_contents($ca_paths['key']));
+        if ($ca_cert && $ca_key) $ca_label = 'app';
+    }
+
+    $cert = openssl_csr_sign($csr, $ca_cert ?: null, $ca_key ?: $pkey, $days, ['digest_alg' => 'sha256'], $serial);
+    if (!$cert) throw new \RuntimeException('Podpisywanie certyfikatu: ' . openssl_error_string());
+
+    $cert_pem = ''; $key_pem = '';
+    openssl_x509_export($cert, $cert_pem);
+    openssl_pkey_export($pkey, $key_pem);
+    if ($cert_pem === '') throw new \RuntimeException('Eksport PEM certyfikatu nie powiódł się.');
+
+    $parsed  = openssl_x509_parse($cert_pem);
+    $fp      = openssl_x509_fingerprint($cert, 'sha256');
+    $ser_hex = strtoupper($parsed['serialNumberHex'] ?? dechex($serial));
+
+    $p12_pass = bin2hex(random_bytes(8));
+    $p12_data = '';
+    $extra    = ($ca_label === 'app') ? ['extracerts' => [$ca_cert]] : [];
+    if (!openssl_pkcs12_export($cert, $p12_data, $pkey, $p12_pass, $extra)) {
+        throw new \RuntimeException('Eksport PKCS#12: ' . openssl_error_string());
+    }
+
+    return [
+        'p12_data'   => $p12_data,
+        'p12_pass'   => $p12_pass,
+        'fingerprint'=> $fp,
+        'serial_hex' => $ser_hex,
+        'valid_from' => date('Y-m-d H:i:s', (int)($parsed['validFrom_time_t'] ?? time())),
+        'valid_to'   => date('Y-m-d H:i:s', (int)($parsed['validTo_time_t'] ?? time() + $days * 86400)),
+        'cert_pem'   => $cert_pem,
+        'key_pem'    => $key_pem,
+        'ca'         => $ca_label,
+    ];
+}
+
 // Zapisy
 function k30_ti_enrollments(int $course_id): array {
     return db_all(

@@ -1,15 +1,15 @@
 <?php
 /**
  * karty30/ti/certificate_issue.php — Wystawianie/odwoływanie certyfikatów X.509
- * dla kursantów kursów TI (rodzaj zajęć z requires_certificate=1).
- * Dostęp: tylko administrator. Backend: EJBCA przez SOAP WS (includes/ejbca.php).
+ * dla kursantów (rodzaj zajęć z requires_certificate=1).
+ * Backend: PHP OpenSSL — podpisany przez app CA (certs/app.crt) lub self-signed.
+ * Dostęp: tylko administrator.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
-require_once dirname(dirname(__DIR__)) . '/includes/ejbca.php';
 
 k30_require_access();
 karty30_migrate();
@@ -27,33 +27,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Wystaw certyfikat
     if ($op === 'issue' && $course_id && $client_id) {
-        if (!ejbca_enabled()) {
-            flash_set('danger', 'EJBCA nie jest skonfigurowane lub wyłączone.');
-            header('Location: certificate_issue.php?course_id=' . $course_id); exit;
-        }
-
-        $existing = db_one("SELECT id FROM k30_ti_certs WHERE course_id=? AND client_id=? AND revoked_at IS NULL", [$course_id, $client_id]);
+        $existing = db_one(
+            "SELECT id FROM k30_ti_certs WHERE course_id=? AND client_id=? AND revoked_at IS NULL",
+            [$course_id, $client_id]
+        );
         if ($existing) {
             flash_set('warning', 'Kursant ma już aktywny certyfikat dla tego kursu.');
             header('Location: certificate_issue.php?course_id=' . $course_id); exit;
         }
 
-        $course = db_one("SELECT c.*, cl.name AS client_name, st.name AS subject_name FROM k30_ti_courses c JOIN k30_clients cl ON cl.id=? LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id WHERE c.id=?", [$client_id, $course_id]);
+        $course = db_one(
+            "SELECT c.*, st.name AS subject_name FROM k30_ti_courses c
+             LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id WHERE c.id=?",
+            [$course_id]
+        );
         $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$client_id]);
-        if (!$course || !$client) { flash_set('danger', 'Nie znaleziono kursu lub kursanta.'); header('Location: certificate_issue.php?course_id=' . $course_id); exit; }
-
-        $ejbca_username = 'ti-' . $course_id . '-' . $client_id . '-' . time();
-        $p12_password   = bin2hex(random_bytes(8));
-        $cn             = preg_replace('/[^a-zA-Z0-9 \-]/', '', $client['name'] ?? 'Kursant');
-        $org            = preg_replace('/[^a-zA-Z0-9 \-]/', '', $course['subject_name'] ?? $course['name'] ?? 'TI');
-
-        try {
-            $cert = ejbca_issue_login_cert($ejbca_username, $cn, $p12_password, $org);
-        } catch (\Throwable $e) {
-            flash_set('danger', 'Błąd EJBCA: ' . $e->getMessage());
+        if (!$course || !$client) {
+            flash_set('danger', 'Nie znaleziono kursu lub kursanta.');
             header('Location: certificate_issue.php?course_id=' . $course_id); exit;
         }
 
+        try {
+            $cert = k30_ti_issue_cert(
+                $client['name'] ?? 'Kursant',
+                $course['subject_name'] ?: $course['name'],
+                'PL',
+                730 // 2 lata
+            );
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Błąd generowania certyfikatu: ' . $e->getMessage());
+            header('Location: certificate_issue.php?course_id=' . $course_id); exit;
+        }
+
+        $ejbca_username = 'ti-' . $course_id . '-' . $client_id . '-' . time();
         db_insert('k30_ti_certs', [
             'course_id'      => $course_id,
             'client_id'      => $client_id,
@@ -64,31 +70,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'valid_to'       => $cert['valid_to'],
             'issued_by'      => current_user()['id'] ?? null,
             'issued_at'      => date('Y-m-d H:i:s'),
+            'notes'          => 'ca:' . $cert['ca'],
         ]);
 
-        // Pobierz PKCS#12 — przekaż do przeglądarki z hasłem w nagłówku
-        $safe_name = preg_replace('/[^a-z0-9_-]/i', '_', $cn);
+        $safe = preg_replace('/[^a-z0-9_-]/i', '_', $client['name'] ?? 'kursant');
         session_write_close();
         header('Content-Type: application/x-pkcs12');
-        header('Content-Disposition: attachment; filename="cert_ti_' . $safe_name . '.p12"');
-        header('X-Cert-Password: ' . $p12_password);
+        header('Content-Disposition: attachment; filename="cert_ti_' . $safe . '.p12"');
+        header('X-Cert-Password: ' . $cert['p12_pass']);
         echo $cert['p12_data'];
         exit;
     }
 
-    // Odwołaj certyfikat
+    // Odwołaj certyfikat (lokalnie — brak CRL bez EJBCA)
     if ($op === 'revoke') {
         $cert_id = (int)($_POST['cert_id'] ?? 0);
         $row = $cert_id ? db_one("SELECT * FROM k30_ti_certs WHERE id=?", [$cert_id]) : null;
         if ($row && !$row['revoked_at']) {
-            try {
-                ejbca_revoke_user($row['ejbca_username']);
-            } catch (\Throwable $e) {
-                flash_set('warning', 'Błąd odwołania w EJBCA: ' . $e->getMessage() . ' — oznaczono jako odwołany lokalnie.');
-            }
             db()->prepare("UPDATE k30_ti_certs SET revoked_at=datetime('now'), revoked_by=? WHERE id=?")
                ->execute([current_user()['id'] ?? null, $cert_id]);
-            flash_set('success', 'Certyfikat odwołany.');
+            flash_set('success', 'Certyfikat oznaczony jako odwołany.');
         }
         header('Location: certificate_issue.php?course_id=' . ($row['course_id'] ?? '')); exit;
     }
@@ -110,11 +111,10 @@ if ($course_id) {
     );
     if (!$course) { http_response_code(404); die('Kurs nie istnieje.'); }
 
-    // Kursanci aktywni w kursie
     $students = db_all(
         "SELECT e.client_id, cl.name AS client_name, cl.email,
-                cert.id AS cert_id, cert.fingerprint, cert.serial_hex, cert.valid_from, cert.valid_to,
-                cert.issued_at, cert.revoked_at,
+                cert.id AS cert_id, cert.fingerprint, cert.serial_hex,
+                cert.valid_from, cert.valid_to, cert.issued_at, cert.notes AS cert_notes,
                 u.name AS issued_by_name
          FROM k30_ti_enrollments e
          JOIN k30_clients cl ON cl.id=e.client_id
@@ -124,7 +124,6 @@ if ($course_id) {
          ORDER BY cl.name", [$course_id]
     );
 
-    // Historia odwołanych certów
     $revoked = db_all(
         "SELECT cert.*, cl.name AS client_name, u.name AS issued_by_name, rv.name AS revoked_by_name
          FROM k30_ti_certs cert
@@ -136,7 +135,6 @@ if ($course_id) {
     );
 }
 
-// Lista kursów z requires_certificate=1
 $cert_courses = db_all(
     "SELECT c.id, c.name, st.abbreviation AS subject_abbr, st.name AS subject_name,
             (SELECT COUNT(*) FROM k30_ti_certs cert WHERE cert.course_id=c.id AND cert.revoked_at IS NULL) AS active_certs
@@ -158,15 +156,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center gap-2 mb-4">
   <i class="bi bi-patch-check-fill fs-4 text-success"></i>
   <h4 class="mb-0 fw-bold">Certyfikaty X.509 — Zajęcia TI</h4>
-  <?php if (!ejbca_enabled()): ?>
-  <span class="badge bg-warning text-dark ms-2"><i class="bi bi-exclamation-triangle me-1"></i>EJBCA nieaktywne</span>
-  <?php endif; ?>
+  <span class="badge bg-info text-dark ms-2 small">OpenSSL · app CA lub self-signed</span>
 </div>
 
 <?= flash_html() ?>
 
 <?php if (!$course_id): ?>
-<!-- Lista kursów z certyfikatami -->
+
 <?php if (!$cert_courses): ?>
 <div class="alert alert-info">
   Brak kursów z włączoną flagą „Wymagany certyfikat". Ustaw ją w
@@ -179,8 +175,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Kurs</th>
-          <th>Rodzaj zajęć</th>
+          <th>Kurs</th><th>Rodzaj zajęć</th>
           <th class="text-center">Aktywne certy</th>
           <th class="text-end">Akcje</th>
         </tr>
@@ -211,7 +206,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <?php else: ?>
-<!-- Widok kursu -->
+
 <div class="mb-3">
   <a href="certificate_issue.php" class="btn btn-outline-secondary btn-sm">
     <i class="bi bi-arrow-left me-1"></i>Wszystkie kursy
@@ -221,7 +216,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </a>
 </div>
 
-<div class="card border-0 shadow-sm mb-2 p-3">
+<div class="card border-0 shadow-sm mb-3 p-3">
   <div class="fw-bold fs-5"><?= h($course['name']) ?></div>
   <div class="text-muted small">
     <?php if ($course['subject_name']): ?>
@@ -233,7 +228,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </div>
 
-<!-- Kursanci -->
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-people me-2"></i>Kursanci — certyfikaty</div>
   <?php if (!$students): ?>
@@ -243,15 +237,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <table class="table align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Kursant</th>
-          <th>Status certyfikatu</th>
-          <th>Ważny do</th>
-          <th>Wystawiony przez</th>
-          <th class="text-end">Akcje</th>
+          <th>Kursant</th><th>Status</th><th>Ważny do</th><th>Wystawiony przez</th><th class="text-end">Akcje</th>
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($students as $s): ?>
+        <?php foreach ($students as $s): $ca = str_contains($s['cert_notes'] ?? '', 'ca:app') ? 'app CA' : 'self-signed'; ?>
         <tr>
           <td>
             <div class="fw-semibold"><?= h($s['client_name']) ?></div>
@@ -260,14 +250,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <td>
             <?php if ($s['cert_id']): ?>
             <span class="badge bg-success"><i class="bi bi-patch-check me-1"></i>Aktywny</span>
-            <div class="text-muted font-monospace" style="font-size:.7rem"><?= h(substr($s['fingerprint'], 0, 20)) ?>…</div>
+            <div class="text-muted" style="font-size:.7rem"><?= $ca ?> · <?= h(substr($s['fingerprint'], 0, 16)) ?>…</div>
             <?php else: ?>
             <span class="badge bg-secondary">Brak</span>
             <?php endif; ?>
           </td>
-          <td class="text-muted small">
-            <?= $s['valid_to'] ? date('d.m.Y', strtotime($s['valid_to'])) : '—' ?>
-          </td>
+          <td class="text-muted small"><?= $s['valid_to'] ? date('d.m.Y', strtotime($s['valid_to'])) : '—' ?></td>
           <td class="text-muted small">
             <?= h($s['issued_by_name'] ?? '—') ?>
             <?php if ($s['issued_at']): ?>
@@ -276,26 +264,26 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </td>
           <td class="text-end">
             <?php if ($s['cert_id']): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Odwołać certyfikat kursanta <?= h(addslashes($s['client_name'])) ?>?')">
-              <input type="hidden" name="_csrf"    value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"      value="revoke">
-              <input type="hidden" name="cert_id"  value="<?= (int)$s['cert_id'] ?>">
+            <form method="post" class="d-inline"
+                  onsubmit="return confirm('Oznaczyć certyfikat <?= h(addslashes($s['client_name'])) ?> jako odwołany?\n(Odwołanie lokalne — brak CRL)')">
+              <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"     value="revoke">
+              <input type="hidden" name="cert_id" value="<?= (int)$s['cert_id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
                 <i class="bi bi-x-circle me-1"></i>Odwołaj
               </button>
             </form>
-            <?php elseif (ejbca_enabled()): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Wystawić certyfikat X.509 dla <?= h(addslashes($s['client_name'])) ?>?\nPlik .p12 zostanie pobrany — zachowaj hasło z nagłówka X-Cert-Password.')">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="issue">
-              <input type="hidden" name="course_id"  value="<?= $course_id ?>">
-              <input type="hidden" name="client_id"  value="<?= (int)$s['client_id'] ?>">
+            <?php else: ?>
+            <form method="post" class="d-inline"
+                  onsubmit="return confirm('Wygenerować certyfikat X.509 dla <?= h(addslashes($s['client_name'])) ?>?\nPlik .p12 zostanie pobrany — zapisz hasło z nagłówka X-Cert-Password.')">
+              <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"       value="issue">
+              <input type="hidden" name="course_id" value="<?= $course_id ?>">
+              <input type="hidden" name="client_id" value="<?= (int)$s['client_id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2">
                 <i class="bi bi-patch-check me-1"></i>Wystaw cert
               </button>
             </form>
-            <?php else: ?>
-            <span class="text-muted small">EJBCA off</span>
             <?php endif; ?>
           </td>
         </tr>
@@ -306,7 +294,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php endif; ?>
 </div>
 
-<!-- Historia odwołanych -->
 <?php if ($revoked): ?>
 <div class="card border-0 shadow-sm">
   <div class="card-header fw-semibold text-muted"><i class="bi bi-archive me-2"></i>Odwołane certyfikaty</div>
