@@ -118,8 +118,8 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy'], true)) $tab = 'pulpit';
-if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy'], true) && !dyd_is_staff()) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true)) $tab = 'pulpit';
+if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
 $_force_pick = isset($_GET['pick']);  // ?pick=1 z przycisku "Zmień grupę"
@@ -1964,7 +1964,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
 <?php
 $tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true);
-$tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy'], true);
+$tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy','billing','kursy'], true);
 ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
   <a class="dyd-gb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
@@ -2059,7 +2059,16 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
         </a>
       </li>
       <?php endif; ?>
-      <li><a class="dropdown-item" href="../billing.php" target="_blank" rel="noopener"><i class="bi bi-receipt me-2"></i>Rozliczenia kursantów</a></li>
+      <li>
+        <a class="dropdown-item <?= $tab==='billing'?'active':'' ?>" href="index.php?tab=billing">
+          <i class="bi bi-receipt me-2"></i>Rozliczenia kursantów
+        </a>
+      </li>
+      <li>
+        <a class="dropdown-item <?= $tab==='kursy'?'active':'' ?>" href="index.php?tab=kursy">
+          <i class="bi bi-mortarboard me-2"></i>Zarządzanie kursami
+        </a>
+      </li>
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header">Wypłaty</h6></li>
       <li>
@@ -2393,6 +2402,14 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
 
   <?php if ($tab === 'grupy' && dyd_is_staff()): ?>
   <?php include __DIR__ . '/_tab_grupy.php'; ?>
+  <?php endif; ?>
+
+  <?php if ($tab === 'billing' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_billing.php'; ?>
+  <?php endif; ?>
+
+  <?php if ($tab === 'kursy' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_kursy.php'; ?>
   <?php endif; ?>
 
   <?php if ($tab === 'dysk'): ?>
