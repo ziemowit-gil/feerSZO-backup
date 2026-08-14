@@ -2023,12 +2023,52 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
   </a>
-  <?php if (dyd_is_staff() && $cur_course): ?>
-  <a class="dyd-gb-link <?= $tab==='rozliczenia'?'active':'' ?>"
-     href="index.php?course=<?= $cur_course ?>&tab=rozliczenia"
-     <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
-    <i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia
-  </a>
+  <?php if (dyd_is_staff()): ?>
+  <?php
+    $_kier_badge = 0;
+    if ($cur_course) {
+        $_kier_badge = (int)(db_one(
+            "SELECT COUNT(DISTINCT e.client_id) AS n
+             FROM k30_ti_enrollments e
+             JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+             WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
+    }
+  ?>
+  <div class="dyd-gb-dropdown">
+    <button class="dyd-gb-link <?= $tab==='rozliczenia'?'active':'' ?> dropdown-toggle"
+            data-bs-toggle="dropdown" aria-expanded="false" type="button">
+      <i class="bi bi-shield-fill-check" aria-hidden="true"></i>Kierownik
+      <?php if ($_kier_badge): ?><span class="badge bg-danger" style="font-size:.65rem"><?= (int)$_kier_badge ?></span><?php endif; ?>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <?php if ($cur_course): ?>
+      <li><h6 class="dropdown-header">Bieżąca grupa</h6></li>
+      <li>
+        <a class="dropdown-item <?= $tab==='rozliczenia'?'active':'' ?>"
+           href="index.php?course=<?= $cur_course ?>&tab=rozliczenia">
+          <i class="bi bi-receipt me-2"></i>Rozliczenia grupy
+          <?php if ($_kier_badge): ?><span class="badge bg-danger ms-1"><?= (int)$_kier_badge ?></span><?php endif; ?>
+        </a>
+      </li>
+      <li><hr class="dropdown-divider"></li>
+      <?php endif; ?>
+      <li><h6 class="dropdown-header">Finanse</h6></li>
+      <li><a class="dropdown-item" href="../billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia kursantów</a></li>
+      <li><a class="dropdown-item" href="../payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
+      <li><a class="dropdown-item" href="../self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
+      <li><a class="dropdown-item" href="../zetony.php"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Raporty</h6></li>
+      <li><a class="dropdown-item" href="../raporty.php"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty i WUP</a></li>
+      <li><a class="dropdown-item" href="../ris.php"><i class="bi bi-card-list me-2"></i>Dane do RIS</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Komunikacja</h6></li>
+      <li><a class="dropdown-item" href="../komunikacja.php"><i class="bi bi-send me-2"></i>Wyślij e-mail / SMS</a></li>
+      <li><a class="dropdown-item" href="../notices.php"><i class="bi bi-megaphone me-2"></i>Komunikaty placówki</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item text-muted" href="../index.php"><i class="bi bi-grid me-2"></i>Pełny panel TI</a></li>
+    </ul>
+  </div>
   <?php endif; ?>
 
 </nav>
