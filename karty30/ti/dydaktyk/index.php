@@ -503,6 +503,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // ── Kreator: obecność + temat/notatki w jednym kroku ─────────────────────
+    if ($op === 'wizard_save') {
+        $sid   = (int)($_POST['session_id'] ?? 0);
+        $back  = 'index.php?course=' . $course_id . '&tab=pulpit';
+        if ($sid && dyd_owns_session($uid, $sid)) {
+            // Krok 1: obecność
+            $att = array_map('intval', (array)($_POST['attended'] ?? []));
+            k30_ti_save_attendance($sid, $att);
+            $any_absent = !empty(array_filter(
+                db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$sid]),
+                fn($r) => !$r['attended']
+            ));
+            $_s_course   = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$sid]);
+            $_cid        = (int)($_s_course['course_id'] ?? 0);
+            $_course_row = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$_cid]);
+            $_is_sub     = !empty($_course_row['is_subgroup']);
+            $_enrolled   = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid])['n'] ?? 0);
+            $new_st = ($_is_sub || $any_absent || $_enrolled <= 1) ? 'individual_change' : 'held';
+            db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$new_st, $sid]);
+            foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid]) as $er) {
+                try { k30_ti_check_low_attendance($_cid, (int)$er['client_id']); } catch (\Throwable $ex) {}
+            }
+            // Krok 2: temat i notatki (opcjonalne)
+            $topic = trim($_POST['topic'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
+            if ($topic !== '' || $notes !== '') {
+                db()->prepare("UPDATE k30_ti_sessions SET topic=?, notes=?, updated_at=datetime('now') WHERE id=?")
+                    ->execute([$topic, $notes, $sid]);
+            }
+            flash_set('success', 'Zajęcia uzupełnione — obecność i temat zapisane.');
+        }
+        header('Location: ' . $back); exit;
+    }
+
     if ($op === 'save_attendance') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if (dyd_owns_session($uid, $sid)) {

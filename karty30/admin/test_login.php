@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['type'], $_POST['targe
     $type      = $_POST['type'] === 'stu' ? 'stu' : 'dyd';
     $target_id = (int)$_POST['target_id'];
     if ($target_id > 0) {
-        $token = k30_imp_token_create($type, $target_id, uid());
+        $token = k30_imp_token_create($type, $target_id, (int)(current_user()['id'] ?? 0));
         $redirect = $type === 'stu'
             ? APP_URL . '/karty30/ti/kursant/imp.php?t=' . urlencode($token)
             : APP_URL . '/karty30/ti/dydaktyk/imp.php?t=' . urlencode($token);
