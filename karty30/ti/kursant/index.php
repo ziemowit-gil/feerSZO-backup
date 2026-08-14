@@ -2581,12 +2581,14 @@ document.addEventListener('DOMContentLoaded', function() {
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
   <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
 
-  <?php if (ti_moodle_enabled()): ?>
-  <div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert">
-    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-    <div><strong>Platforma Moodle zostanie wyłączona od 6.07.2026.</strong> Materiały i zadania znajdziesz odtąd tutaj, w Dydaktyce / eLearningu.</div>
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-3" role="note">
+    <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Platforma Moodle została wyłączona.</strong>
+      Materiały i zadania domowe prowadzący udostępnia teraz bezpośrednio tutaj, w tym panelu.
+      Od 1 września zajęcia odbywają się przez <strong>Zoom</strong>.
+    </div>
   </div>
-  <?php endif; ?>
 
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
@@ -2598,7 +2600,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endif; ?>
 
   <?php if (!$dyd_groups): ?>
-  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= $moodle_assignments ? 'Brak materiałów i zadań od prowadzącego — sprawdź zadania z Moodle poniżej.' : 'Brak materiałów i zadań.' ?></div>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak materiałów i zadań od prowadzącego.</div>
   <?php else: $now = date('Y-m-d H:i:s'); ?>
     <?php foreach ($dyd_groups as $grp): ?>
     <section class="mb-4">
@@ -2636,8 +2638,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php endforeach; ?>
   <?php endif; ?>
 
-  <!-- ── Zadania z Moodle (pobierane z serwera) ───────────────────────────── -->
-  <?php if ($moodle_assignments): $now_m = date('Y-m-d H:i:s'); ?>
+  <!-- Zadania z Moodle wyłączone — zastąpione przez Dydaktykę panelu -->
+  <?php if (false && $moodle_assignments): $now_m = date('Y-m-d H:i:s'); ?>
   <h2 class="h6 fw-bold d-flex align-items-center gap-2 mt-4 mb-1">
     <i class="bi bi-mortarboard text-primary" aria-hidden="true"></i>Zadania z Moodle
     <?php if (!empty($moodle_hw_pending)): ?><span class="badge text-bg-warning"><?= count($moodle_hw_pending) ?> do zrobienia</span><?php endif; ?>
@@ -4617,14 +4619,16 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php else: ?>
 
-  <?php if (ti_moodle_enabled()): ?>
-  <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
-    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-    <div><strong>Platforma Moodle zostanie wyłączona od 6.07.2026.</strong> Materiały i zadania znajdziesz odtąd w zakładce <a href="?tab=zadania">Dydaktyka / eLearning</a>.</div>
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
+    <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Platforma Moodle została wyłączona.</strong>
+      Od 1 września zajęcia odbywają się przez <strong>Zoom</strong>.
+      Materiały i zadania dostępne są w zakładce <a href="?tab=zadania" class="alert-link">Dydaktyka / eLearning</a>.
+    </div>
   </div>
-  <?php endif; ?>
 
-  <?php if ($moodle_courses_student): ?>
+  <?php if (false && $moodle_courses_student): ?>
   <section class="card mb-4" aria-labelledby="mdl-heading">
     <div class="card-body">
       <h2 id="mdl-heading" class="h6 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy Moodle</h2>
