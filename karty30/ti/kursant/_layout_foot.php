@@ -1,48 +1,6 @@
 <?php /** Wspólna stopka panelu kursanta/rodzica. */ ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Schematy kolorow — przyciski swatch w panelu dostepnosci + przycisk palety w navbarze.
-(function(){
-  var SCHEMES = ['classic','mint','violet','warm','slate','metro'];
-
-  function applyScheme(s){
-    if (!s || !SCHEMES.includes(s)) s = 'classic';
-    document.documentElement.setAttribute('data-kp-scheme', s);
-    try { localStorage.setItem('kp-scheme', s); } catch(e){}
-    // Zaktualizuj obramowanie aktywnego swatch
-    document.querySelectorAll('.kp-scheme-btn').forEach(function(b){
-      b.style.outline = b.dataset.scheme === s ? '3px solid #000' : 'none';
-      b.style.outlineOffset = '2px';
-      b.setAttribute('aria-pressed', b.dataset.scheme === s ? 'true' : 'false');
-    });
-  }
-
-  // Inicjalizacja
-  var saved = null; try { saved = localStorage.getItem('kp-scheme'); } catch(e){}
-  applyScheme(saved || 'classic');
-
-  // Klik swatch w panelu a11y
-  document.addEventListener('click', function(e){
-    var btn = e.target.closest('.kp-scheme-btn');
-    if (btn) applyScheme(btn.dataset.scheme);
-  });
-
-  // Klik przycisku palety w navbarze/fixed — otwiera panel a11y
-  document.addEventListener('click', function(e){
-    var btn = e.target.closest('#kp-bg-pick-btn');
-    if (!btn) return;
-    var panel = document.getElementById('kp-a11y-panel');
-    var toggle = document.getElementById('kp-a11y-toggle');
-    if (panel && panel.hidden) {
-      panel.hidden = false;
-      if (toggle) toggle.setAttribute('aria-expanded','true');
-      var first = panel.querySelector('.kp-scheme-btn');
-      if (first) first.focus();
-    }
-  });
-})();
-</script>
-<script>
 // Menu dostępności: kontrast, wielkość tekstu, schowaj/pokaż menu (zapamiętywane).
 (function(){
   var d = document.documentElement;

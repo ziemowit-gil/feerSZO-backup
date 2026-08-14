@@ -150,10 +150,11 @@ if (!isset($_GET['course']) && count($courses) > 1) {
 <div class="dyd-picker-wrap">
   <div style="text-align:center;margin-bottom:2rem;max-width:860px;width:100%">
     <div style="font-size:1.5rem;font-weight:700;margin-bottom:.3rem">
-      <i class="bi bi-easel2 me-2 text-primary" aria-hidden="true"></i>Wybierz grupę
+      <i class="bi bi-easel2 me-2 text-primary" aria-hidden="true"></i>Z którą grupą pracujesz dziś?
     </div>
     <div style="color:var(--bs-secondary-color);font-size:.95rem">
-      Witaj, <strong><?= h($me['name'] ?? '') ?></strong>. Kliknij grupę, z którą chcesz dziś pracować.
+      Witaj, <strong><?= h($me['name'] ?? '') ?></strong>. Masz przypisanych kilka grup — wybierz, którą chcesz otworzyć.
+      Grupę możesz też zmienić w każdej chwili z menu w prawym górnym rogu.
     </div>
   </div>
 
@@ -1539,11 +1540,52 @@ $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, 
 <?php };
 
 $KP_TITLE  = 'Panel dydaktyka';
+
+// Selektor grupy w navbarze (tylko gdy >1 kurs)
+$_dyd_course_switcher = '';
+if (count($courses) > 1) {
+    $cur_course_name = '';
+    foreach ($courses as $_c) { if ((int)$_c['id'] === $cur_course) { $cur_course_name = $_c['name']; break; } }
+    ob_start(); ?>
+<div class="dropdown">
+  <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1"
+          type="button" data-bs-toggle="dropdown" aria-expanded="false"
+          style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="Zmień grupę">
+    <i class="bi bi-people-fill flex-shrink-0" aria-hidden="true"></i>
+    <span class="text-truncate"><?= h($cur_course_name) ?></span>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end" style="min-width:220px">
+    <li><h6 class="dropdown-header"><i class="bi bi-arrow-left-right me-1"></i>Zmień grupę</h6></li>
+    <?php foreach ($courses as $_c):
+      $isActive = ((int)$_c['id'] === $cur_course);
+      $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
+    ?>
+    <li>
+      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
+         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
+         <?= $isActive ? 'aria-current="true"' : '' ?>>
+        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
+        <span class="text-truncate"><?= h($_c['name']) ?></span>
+        <?php if (!$isActive && !$inactive): ?>
+        <span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span>
+        <?php endif; ?>
+      </a>
+    </li>
+    <?php endforeach; ?>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="index.php"><i class="bi bi-grid me-2"></i>Wszystkie grupy</a></li>
+  </ul>
+</div>
+<?php $_dyd_course_switcher = ob_get_clean();
+}
+
 $KP_TOPBAR = [
-    'brand'  => 'Panel dydaktyka',
-    'icon'   => 'easel2',
-    'user'   => $me['name'] ?? '',
-    'logout' => 'logout.php',
+    'brand'         => 'Panel dydaktyka',
+    'icon'          => 'easel2',
+    'user'          => $me['name'] ?? '',
+    'logout'        => 'logout.php',
+    'notifications' => $_dyd_course_switcher,
 ];
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
