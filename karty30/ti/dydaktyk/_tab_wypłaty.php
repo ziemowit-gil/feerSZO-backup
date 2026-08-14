@@ -173,7 +173,7 @@ $wy_f = fn($x) => number_format((float)$x, 2, ',', ' ');
   <div class="dyd-wy-instr-head" onclick="wyToggle(<?= $idx ?>)" role="button"
        aria-expanded="false" aria-controls="wy-courses-<?= $idx ?>">
     <i class="bi bi-person-badge text-primary flex-shrink-0" aria-hidden="true"></i>
-    <span class="dyd-wy-instr-name"><?= h($r['name']) ?></span>
+    <span class="dyd-wy-instr-name"><?= h($r['name']) ?><?php if (!empty($r['is_student'])): ?> <span class="badge bg-info-subtle text-info-emphasis ms-1" style="font-size:.68rem" title="Brak ZUS/PIT — BB=netto">student</span><?php endif; ?></span>
     <span class="dyd-wy-instr-meta">
       <?= (int)$r['lessons'] ?> lekcji
       <?php if (count($r['courses']) > 1): ?>

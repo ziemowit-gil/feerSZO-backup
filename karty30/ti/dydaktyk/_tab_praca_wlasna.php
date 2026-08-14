@@ -20,6 +20,7 @@ if ($sw_instr_f) { $sw_where .= " AND c.instructor_id=?"; $sw_params[] = $sw_ins
 $sw_rows = db_all(
     "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic,
             c.id AS course_id, c.name AS course_name, c.lesson_payout_bb,
+            COALESCE(u.ti_is_student, 0) AS is_student,
             COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '—') AS instructor_name
      FROM k30_ti_sessions s
      JOIN k30_ti_courses c ON c.id=s.course_id
@@ -37,7 +38,7 @@ $sw_tot_count = 0; $sw_tot_min = 0; $sw_tot_net = 0.0;
 foreach ($sw_rows as $r) {
     $key = $r['instructor_name'];
     $net = ((float)$r['lesson_payout_bb'] > 0)
-        ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'])['netto'] : 0.0;
+        ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], (bool)$r['is_student'])['netto'] : 0.0;
     $r['_net'] = $net;
     $sw_groups[$key]['rows'][]  = $r;
     $sw_groups[$key]['count']   = ($sw_groups[$key]['count']  ?? 0) + 1;

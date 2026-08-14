@@ -76,7 +76,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <tbody>
         <?php foreach ($rows as $r): ?>
         <tr class="table-group-divider">
-          <td class="fw-semibold"><?= h($r['name']) ?></td>
+          <td class="fw-semibold"><?= h($r['name']) ?><?php if (!empty($r['is_student'])): ?> <span class="badge bg-info-subtle text-info-emphasis ms-1" style="font-size:.7rem" title="Brak ZUS/PIT — BB=netto">student</span><?php endif; ?></td>
           <td class="text-end"><?= (int)$r['lessons'] ?></td>
           <td class="text-end"><?= $f($r['brutto_brutto']) ?></td>
           <td class="text-end text-body-secondary"><?= $f($r['zus_employer']) ?></td>

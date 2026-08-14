@@ -37,10 +37,12 @@ $rows = db_all(
     array_merge($course_ids, [$month])
 );
 
+$_is_student = (bool)(db_one("SELECT ti_is_student FROM users WHERE id=?", [$uid])['ti_is_student'] ?? 0);
+
 // Grupowanie po kursie + sumy
 $groups = []; $tot_count = 0; $tot_min = 0; $tot_net = 0.0;
 foreach ($rows as $r) {
-    $net = ((float)$r['lesson_payout_bb'] > 0) ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'])['netto'] : 0.0;
+    $net = ((float)$r['lesson_payout_bb'] > 0) ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], $_is_student)['netto'] : 0.0;
     $r['_net'] = $net;
     $k = $r['course_name'];
     $groups[$k]['rows'][]  = $r;
