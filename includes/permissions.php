@@ -170,6 +170,15 @@ function _permissions_init(): void {
                     AND role_id IN (SELECT id FROM roles WHERE name IN ('editor','viewer'))");
     } catch (\Throwable $e) {}
 
+    // Idempotentnie dodaj rolę dydaktyk_sekretariat jeśli nie istnieje
+    if (!$pdo->query("SELECT COUNT(*) FROM roles WHERE name='dydaktyk_sekretariat'")->fetchColumn()) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, sort_order)
+                    VALUES ('dydaktyk_sekretariat','Dydaktyka: sekretariat','Sekretariat dydaktyki TI — odbiera wiadomości od kursantów',1,6)");
+        $sek_id = (int)$pdo->query("SELECT id FROM roles WHERE name='dydaktyk_sekretariat'")->fetchColumn();
+        $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
+            ->execute([$sek_id, 'karty30', 1, 0, 0]);
+    }
+
     // Idempotentnie dodaj rolę crm_user jeśli nie istnieje (dla istniejących baz)
     $crm_user_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='crm_user'")->fetchColumn();
     if (!$crm_user_exists) {

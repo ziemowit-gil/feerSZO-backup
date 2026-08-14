@@ -331,6 +331,10 @@ function ti_admin_users(): array {
     return db_all("SELECT id, name, email FROM users WHERE role='admin' AND is_active=1 ORDER BY name");
 }
 
+function ti_sekretariat_users(): array {
+    return db_all("SELECT id, name, email FROM users WHERE role='dydaktyk_sekretariat' AND is_active=1 ORDER BY name");
+}
+
 function ti_admin_msg_migrate(): void {
     static $done = false; if ($done) return; $done = true;
     try {

@@ -376,6 +376,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($adm && !empty($adm['email'])) {
                     $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id'], $adm['email'], $adm['name']);
                 }
+            } elseif (str_starts_with($toRaw, 'sek_')) {
+                $sekId = (int)substr($toRaw, 4);
+                $sek = $sekId ? db_one("SELECT name, email FROM users WHERE id=? AND role='dydaktyk_sekretariat' AND is_active=1", [$sekId]) : null;
+                if ($sek && !empty($sek['email'])) {
+                    $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id'], $sek['email'], $sek['name']);
+                }
             }
             header('Location: index.php?tab=wiadomosci&sec=' . ($ok ? '1' : 'err')); exit;
         }
@@ -3892,7 +3898,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </section>
 <?php endif; ?>
 
-<?php $_kis_admins = ti_admin_users(); ?>
+<?php $_kis_admins = ti_admin_users(); $_sek_users = ti_sekretariat_users(); ?>
 <!-- Formularz do kierownictwa -->
 <section aria-labelledby="secHeading" class="card">
   <div class="card-header">
@@ -3908,11 +3914,20 @@ document.addEventListener('DOMContentLoaded', function() {
         <label class="form-label fw-semibold" for="secMsgTo">Do <span class="text-danger" aria-hidden="true">*</span></label>
         <select class="form-select" id="secMsgTo" name="to_recip" required>
           <option value="KIS"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</option>
+          <?php if (!empty($_sek_users)): ?>
+          <optgroup label="Sekretariat dydaktyki">
+            <?php foreach ($_sek_users as $_su): ?>
+            <option value="sek_<?= (int)$_su['id'] ?>"><?= h($_su['name']) ?></option>
+            <?php endforeach; ?>
+          </optgroup>
+          <?php endif; ?>
           <?php if (!empty($_kis_admins)): ?>
-          <option value="all">Administratorzy (wszyscy)</option>
-          <?php foreach ($_kis_admins as $_ka): ?>
-          <option value="admin_<?= (int)$_ka['id'] ?>"><?= h($_ka['name']) ?></option>
-          <?php endforeach; ?>
+          <optgroup label="Administracja">
+            <option value="all">Wszyscy administratorzy</option>
+            <?php foreach ($_kis_admins as $_ka): ?>
+            <option value="admin_<?= (int)$_ka['id'] ?>"><?= h($_ka['name']) ?></option>
+            <?php endforeach; ?>
+          </optgroup>
           <?php endif; ?>
         </select>
       </div>
