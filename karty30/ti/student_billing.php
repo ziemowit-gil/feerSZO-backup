@@ -96,7 +96,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php if ($org_name): ?><div style="font-size:1.1rem;font-weight:700"><?= h($org_name) ?></div><?php endif; ?>
   <div style="font-size:.85rem;color:#555">Zestawienie płatności · <?= h($client['name']) ?> · Wydrukowano: <?= date('d.m.Y H:i') ?></div>
   <hr style="margin:.4rem 0 .8rem">
-</div><?php
+</div>
 
 <nav aria-label="breadcrumb" class="mb-3 no-print"><ol class="breadcrumb">
   <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
