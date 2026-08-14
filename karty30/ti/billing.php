@@ -467,10 +467,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         ?>
         <tr>
           <td>
-            <div class="fw-semibold">
-              <a href="student_billing.php?client_id=<?= (int)$b['client_id'] ?>" class="text-decoration-none link-body-emphasis"
-                 title="Zestawienie płatności kursanta"><?= h($b['client_name']) ?></a>
-            </div>
+            <div class="fw-semibold"><?= h($b['client_name']) ?></div>
             <?php if ((int)$b['course_id'] > 0): ?>
             <div class="mt-1">
               <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.75rem">
@@ -563,6 +560,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
+            <a href="student_billing.php?client_id=<?= (int)$b['client_id'] ?>"
+               class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"
+               title="Zestawienie płatności kursanta">
+              <i class="bi bi-person-lines-fill"></i>
+            </a>
             <?php if ($can_write): ?>
             <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
                     title="Edytuj rozliczenie (korekta, termin, płatnik, faktura)"
