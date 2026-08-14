@@ -50,10 +50,12 @@ function ti_remember_issue(string $realm, int $account_id, array $payload = []):
     $validator = bin2hex(random_bytes(32));
     $ttl       = TI_REMEMBER_TTL_DAYS * 86400;
     $expires   = date('Y-m-d H:i:s', time() + $ttl);
-    db()->prepare(
-        "INSERT INTO k30_ti_remember_tokens (realm, selector, validator_hash, account_id, payload, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?)"
-    )->execute([$realm, $selector, hash('sha256', $validator), $account_id, json_encode($payload), $expires]);
+    try {
+        db()->prepare(
+            "INSERT INTO k30_ti_remember_tokens (realm, selector, validator_hash, account_id, payload, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        )->execute([$realm, $selector, hash('sha256', $validator), $account_id, json_encode($payload), $expires]);
+    } catch (\Throwable $e) { return; } // cicha porażka — logowanie i tak się powiodło
 
     setcookie(_ti_remember_cookie_name($realm), $selector . '.' . $validator, [
         'expires'  => time() + $ttl,

@@ -59,8 +59,13 @@ function student_login_user(array $account, string $method = 'password', string 
     ti_remember_issue('student', (int)$account['id']);
 
     $ip = mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
-    db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now'), last_login_ip=? WHERE id=?")
-        ->execute([$ip, (int)$account['id']]);
+    try {
+        db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now'), last_login_ip=? WHERE id=?")
+            ->execute([$ip, (int)$account['id']]);
+    } catch (\Throwable $e) {
+        try { db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")->execute([(int)$account['id']]); }
+        catch (\Throwable $e2) {}
+    }
 
     if (!function_exists('ti_account_log')) @require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
     if (function_exists('ti_account_log')) {

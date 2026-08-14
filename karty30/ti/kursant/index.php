@@ -607,13 +607,20 @@ foreach ($courses as $c) {
         $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_curriculum WHERE course_id=?", [$cid])['n'] ?? 0);
     } catch (\Exception $e) { $tot = 0; }
     if ($tot === 0) {
-        // Fallback: liczba lekcji z k30_ti_lessons jako denominator
-        $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lessons WHERE course_id=?", [$cid])['n'] ?? 0);
+        // Fallback: liczba sesji z k30_ti_sessions jako denominator
+        try {
+            $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status NOT IN ('cancelled','removed')", [$cid])['n'] ?? 0);
+        } catch (\Throwable $e) { $tot = 0; }
     }
-    $don = (int)(db_one(
-        "SELECT COUNT(*) AS n FROM k30_ti_lessons WHERE course_id=? AND client_id=? AND status IN ('held','remote_material')",
-        [$cid, (int)$student['client_id']]
-    )['n'] ?? 0);
+    try {
+        $don = (int)(db_one(
+            "SELECT COUNT(*) AS n FROM k30_ti_sessions s
+             JOIN k30_ti_attendance a ON a.session_id=s.id
+             WHERE s.course_id=? AND a.client_id=? AND a.attended=1
+               AND s.status IN ('held','individual_change','remote_material')",
+            [$cid, (int)$student['client_id']]
+        )['n'] ?? 0);
+    } catch (\Throwable $e) { $don = 0; }
     $progress_total += $tot;
     $progress_done  += $don;
 }
@@ -1360,13 +1367,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <!-- ── Dashboard widżety ─────────────────────────────────────────────── -->
   <?php
-    $instructors_for_quick = db_all(
-        "SELECT DISTINCT u.id, u.name FROM users u
-         JOIN k30_ti_lessons l ON l.instructor_id = u.id
-         WHERE l.client_id=? AND l.lesson_date >= date('now','-30 days')
-         ORDER BY l.lesson_date DESC LIMIT 5",
-        [(int)$student['client_id']]
-    );
+    try {
+        $instructors_for_quick = db_all(
+            "SELECT DISTINCT u.id, u.name FROM users u
+             JOIN k30_ti_courses c ON c.instructor_id=u.id
+             JOIN k30_ti_sessions s ON s.course_id=c.id
+             JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=?
+             WHERE s.lesson_date >= date('now','-30 days')
+             ORDER BY s.lesson_date DESC LIMIT 5",
+            [(int)$student['client_id']]
+        );
+    } catch (\Throwable $e) { $instructors_for_quick = []; }
   ?>
   <div class="row g-3 mb-4">
     <!-- Następna lekcja -->
@@ -1788,11 +1799,16 @@ document.addEventListener('DOMContentLoaded', function() {
   if ($cal_month > 12) { $cal_month = 1;  $cal_year++; }
   $cal_first = mktime(0, 0, 0, $cal_month, 1, $cal_year);
   $cal_days  = (int)date('t', $cal_first);
-  $cal_lessons_raw = db_all(
-      "SELECT lesson_date, status FROM k30_ti_lessons
-       WHERE client_id=? AND lesson_date LIKE ?",
-      [(int)$student['client_id'], sprintf('%04d-%02d-%%', $cal_year, $cal_month)]
-  );
+  try {
+      $cal_lessons_raw = db_all(
+          "SELECT s.lesson_date, CASE WHEN a.attended=1 THEN s.status ELSE 'absent' END AS status
+           FROM k30_ti_sessions s
+           JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=?
+           LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+           WHERE s.lesson_date LIKE ?",
+          [(int)$student['client_id'], (int)$student['client_id'], sprintf('%04d-%02d-%%', $cal_year, $cal_month)]
+      );
+  } catch (\Throwable $e) { $cal_lessons_raw = []; }
   $cal_by_day = [];
   foreach ($cal_lessons_raw as $r) {
       $d = (int)substr($r['lesson_date'], 8, 2);
