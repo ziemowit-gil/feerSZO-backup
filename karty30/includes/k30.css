@@ -1,0 +1,284 @@
+/**
+ * k30.css — Wspólny arkusz stylów modułu Dydaktyka / Karty30.
+ * Wszystkie tokeny, overrides Bootstrap i komponenty layoutu w jednym miejscu.
+ * Import: <link href="<?= APP_URL ?>/karty30/includes/k30.css"> w header_k30.php.
+ */
+
+/* ── Tokeny marki ────────────────────────────────────────────────────────── */
+:root {
+  /* Kolory podstawowe */
+  --k30-accent:     #c2410c;
+  --k30-accent-dk:  #9a3412;
+  --k30-accent-dkr: #7c2d12;
+  --k30-top:        #0f172a;
+  --k30-top-border: rgba(255,255,255,.06);
+  --k30-top-btn:    rgba(255,255,255,.2);
+  --k30-top-btn-hv: rgba(255,255,255,.1);
+
+  /* Subnav */
+  --k30-sub-bg:        #fff;
+  --k30-sub-border:    #e2e8f0;
+  --k30-sub-link:      #475569;
+  --k30-sub-link-hv:   #0f172a;
+
+  /* Mega menu */
+  --k30-mega-item-hv:  #fff7ed;
+  --k30-mega-item-act: #fff3e8;
+  --k30-mega-header:   #94a3b8;
+
+  /* Dropdown normal */
+  --k30-dd-item-hv:    #f8fafc;
+
+  /* Focus (WCAG AA — żółty wysoki kontrast) */
+  --k30-focus: #facc15;
+
+  /* Bootstrap primary override */
+  --bs-primary:           #c2410c;
+  --bs-primary-rgb:       194,65,12;
+  --bs-link-color-rgb:    194,65,12;
+  --bs-link-hover-color-rgb: 154,52,18;
+}
+
+/* Dark-mode token overrides */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-bs-theme="light"]) {
+    --k30-sub-bg:      #1e293b;
+    --k30-sub-border:  #334155;
+    --k30-sub-link:    #94a3b8;
+    --k30-sub-link-hv: #e2e8f0;
+
+    --k30-mega-item-hv:  rgba(194,65,12,.15);
+    --k30-mega-item-act: rgba(194,65,12,.2);
+    --k30-mega-header:   #64748b;
+
+    --k30-dd-item-hv:    #1e293b;
+  }
+}
+:root[data-bs-theme="dark"] {
+  --k30-sub-bg:      #1e293b;
+  --k30-sub-border:  #334155;
+  --k30-sub-link:    #94a3b8;
+  --k30-sub-link-hv: #e2e8f0;
+
+  --k30-mega-item-hv:  rgba(194,65,12,.15);
+  --k30-mega-item-act: rgba(194,65,12,.2);
+  --k30-mega-header:   #64748b;
+
+  --k30-dd-item-hv:    #1e293b;
+}
+
+/* ── Bootstrap overrides ─────────────────────────────────────────────────── */
+.btn-primary {
+  --bs-btn-bg:               var(--k30-accent);
+  --bs-btn-border-color:     var(--k30-accent);
+  --bs-btn-hover-bg:         var(--k30-accent-dk);
+  --bs-btn-hover-border-color: var(--k30-accent-dk);
+  --bs-btn-active-bg:        var(--k30-accent-dkr);
+  --bs-btn-active-border-color: var(--k30-accent-dkr);
+  --bs-btn-disabled-bg:      var(--k30-accent);
+  --bs-btn-disabled-border-color: var(--k30-accent);
+}
+.btn-outline-primary {
+  --bs-btn-color:         var(--k30-accent);
+  --bs-btn-border-color:  var(--k30-accent);
+  --bs-btn-hover-bg:      var(--k30-accent);
+  --bs-btn-hover-border-color: var(--k30-accent);
+  --bs-btn-hover-color:   #fff;
+  --bs-btn-active-bg:     var(--k30-accent-dk);
+  --bs-btn-active-border-color: var(--k30-accent-dk);
+}
+.bg-primary   { background-color: var(--k30-accent) !important; }
+.text-primary { color: var(--k30-accent) !important; }
+.link-primary { color: var(--k30-accent) !important; }
+.border-primary { border-color: var(--k30-accent) !important; }
+
+/* ── Dostępność ──────────────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 3px solid var(--k30-focus) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+.skip-link {
+  position: absolute;
+  left: .75rem;
+  top: -200%;
+  z-index: 1090;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: .5rem; }
+.skip-link + .skip-link { left: 14rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ── Top bar (ciemny granat) ─────────────────────────────────────────────── */
+.k30-topbar {
+  background: var(--k30-top);
+  border-bottom: 1px solid var(--k30-top-border);
+}
+.k30-topbar .navbar-brand { letter-spacing: -.01em; }
+
+.k30-topbar .btn-outline-light {
+  border-color: var(--k30-top-btn);
+  color: rgba(255,255,255,.7);
+  font-size: .78rem;
+}
+.k30-topbar .btn-outline-light:hover,
+.k30-topbar .btn-outline-light:focus {
+  background: var(--k30-top-btn-hv);
+  color: #fff;
+  border-color: rgba(255,255,255,.35);
+}
+
+.k30-logo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--k30-accent);
+  border-radius: .375rem;
+  flex-shrink: 0;
+}
+
+/* ── Pasek nawigacji modułu ──────────────────────────────────────────────── */
+.k30-subnav {
+  background: var(--k30-sub-bg);
+  border-bottom: 1px solid var(--k30-sub-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.k30-subnav .nav-link {
+  position: relative;
+  font-size: .84rem;
+  padding: .65rem .75rem;
+  color: var(--k30-sub-link);
+  transition: color .12s;
+}
+.k30-subnav .nav-link:hover { color: var(--k30-sub-link-hv); }
+.k30-subnav .nav-link.active {
+  color: var(--k30-accent) !important;
+  font-weight: 700;
+}
+.k30-subnav .nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: .5rem; right: .5rem;
+  height: 2px;
+  background: var(--k30-accent);
+  border-radius: 2px 2px 0 0;
+}
+.k30-subnav .dropdown-item.active { font-weight: 700; }
+
+/* ── Mega menu ───────────────────────────────────────────────────────────── */
+.k30-mega {
+  min-width: min(580px, 92vw);
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  border: 0 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.07) !important;
+  margin-top: .4rem !important;
+  padding: .5rem !important;
+}
+.k30-mega .dropdown-header {
+  padding: .3rem .6rem .2rem;
+  font-size: .68rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--k30-mega-header);
+  font-weight: 700;
+}
+.k30-mega .dropdown-item {
+  padding: .38rem .65rem;
+  border-radius: 7px;
+  margin: 1px 2px;
+  font-size: .845rem;
+}
+.k30-mega .dropdown-item:hover,
+.k30-mega .dropdown-item:focus {
+  background: var(--k30-mega-item-hv);
+  color: var(--k30-accent);
+}
+.k30-mega .dropdown-item[aria-current="page"] {
+  background: var(--k30-mega-item-act);
+  color: var(--k30-accent);
+  font-weight: 600;
+}
+
+/* Zwykłe (wąskie) dropdown */
+.dropdown-menu:not(.k30-mega) {
+  border: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 24px rgba(0,0,0,.12) !important;
+  padding: .4rem !important;
+  margin-top: .4rem !important;
+}
+.dropdown-menu:not(.k30-mega) .dropdown-item {
+  border-radius: 7px;
+  font-size: .875rem;
+}
+.dropdown-menu:not(.k30-mega) .dropdown-item:hover {
+  background: var(--k30-dd-item-hv);
+}
+
+/* ── Layout — ograniczenie szerokości treści ─────────────────────────────── */
+.k30-main-content { max-width: 1320px; }
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .border-start-md { border-left: 1px solid var(--bs-border-color); }
+}
+
+@media (max-width: 991.98px) {
+  .k30-mega {
+    min-width: 0;
+    max-height: none;
+    border-radius: 0 !important;
+    margin-top: 0 !important;
+  }
+}
+
+/* ── Karty i sekcje treści ───────────────────────────────────────────────── */
+.k30-card {
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+  overflow: hidden;
+}
+.k30-card .card-header {
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: .85rem 1.1rem;
+}
+
+/* Licznik KPI (kafelki na dashboardzie) */
+.k30-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .9rem 1.1rem;
+  border-radius: 12px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+}
+.k30-kpi-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  color: var(--bs-emphasis-color);
+}
+.k30-kpi-label {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.k30-kpi-icon {
+  font-size: 1.35rem;
+  opacity: .55;
+  margin-bottom: .3rem;
+}

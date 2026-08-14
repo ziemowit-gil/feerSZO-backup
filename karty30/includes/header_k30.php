@@ -58,10 +58,12 @@ if ($_ku) {
     $_ku_initials = mb_substr($_ku_initials, 0, 2, 'UTF-8') ?: '?';
 }
 
-// Nawigacja — ścieżka aktywna
+// Nawigacja — ścieżka aktywna (prefix URL, nie substring)
 function _k30_active(string $path): bool {
     global $_uri;
-    return str_contains($_uri, $path);
+    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+    $full = rtrim($base, '/') . $path;
+    return str_starts_with($_uri, $full) || str_starts_with($_uri, $path);
 }
 ?><!DOCTYPE html>
 <html lang="pl" data-bs-theme="light">
@@ -69,142 +71,15 @@ function _k30_active(string $path): bool {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($_k30_title) ?> — Dydaktyka<?= $_org_name ? ' · ' . h($_org_name) : '' ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<style>
-:root {
-  --bs-primary:#c2410c;
-  --bs-primary-rgb:194,65,12;
-  --bs-link-color-rgb:194,65,12;
-  --bs-link-hover-color-rgb:154,52,18;
-  --k30-top:#0f172a;
-  --k30-accent:#c2410c;
-}
-.btn-primary {
-  --bs-btn-bg:#c2410c; --bs-btn-border-color:#c2410c;
-  --bs-btn-hover-bg:#9a3412; --bs-btn-hover-border-color:#9a3412;
-  --bs-btn-active-bg:#7c2d12; --bs-btn-active-border-color:#7c2d12;
-  --bs-btn-disabled-bg:#c2410c; --bs-btn-disabled-border-color:#c2410c;
-}
-.btn-outline-primary {
-  --bs-btn-color:#c2410c; --bs-btn-border-color:#c2410c;
-  --bs-btn-hover-bg:#c2410c; --bs-btn-hover-border-color:#c2410c;
-  --bs-btn-hover-color:#fff;
-  --bs-btn-active-bg:#9a3412; --bs-btn-active-border-color:#9a3412;
-}
-.bg-primary { background-color:#c2410c !important; }
-.text-primary { color:#c2410c !important; }
-.link-primary { color:#c2410c !important; }
-
-*:focus-visible {
-  outline:3px solid #facc15 !important;
-  outline-offset:2px !important;
-  box-shadow:none !important;
-}
-.skip-link {
-  position:absolute; left:.75rem; top:-200%; z-index:1090;
-  transition:top .15s ease;
-}
-.skip-link:focus { top:.5rem; }
-
-/* ── Top bar (ciemny granat) ────────────────────────────────── */
-.k30-topbar {
-  background: var(--k30-top);
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-.k30-topbar .navbar-brand { letter-spacing:-.01em; }
-.k30-topbar .btn-outline-light {
-  border-color:rgba(255,255,255,.2);
-  color:rgba(255,255,255,.7);
-  font-size:.78rem;
-}
-.k30-topbar .btn-outline-light:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.35); }
-
-/* ── Pasek nawigacji ────────────────────────────────────────── */
-.k30-subnav {
-  background:#fff;
-  border-bottom:1px solid #e2e8f0;
-  box-shadow:0 2px 8px rgba(0,0,0,.05);
-}
-.k30-subnav .nav-link {
-  position:relative;
-  font-size:.84rem;
-  padding:.65rem .75rem;
-  color:#475569;
-  transition:color .12s;
-}
-.k30-subnav .nav-link:hover { color:#0f172a; }
-.k30-subnav .nav-link.active {
-  color:var(--k30-accent) !important;
-  font-weight:700;
-}
-.k30-subnav .nav-link.active::after {
-  content:'';
-  position:absolute;
-  bottom:0; left:.5rem; right:.5rem;
-  height:2px;
-  background:var(--k30-accent);
-  border-radius:2px 2px 0 0;
-}
-.k30-subnav .dropdown-item.active { font-weight:700; }
-
-/* ── Mega menu ──────────────────────────────────────────────── */
-.k30-mega {
-  min-width:min(580px,92vw);
-  max-height:calc(100vh - 110px);
-  overflow-y:auto;
-  border:0 !important;
-  border-radius:14px !important;
-  box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.07) !important;
-  margin-top:.4rem !important;
-  padding:0.5rem !important;
-}
-.k30-mega .dropdown-header {
-  padding:.3rem .6rem .2rem;
-  font-size:.68rem;
-  letter-spacing:.06em;
-  text-transform:uppercase;
-  color:#94a3b8;
-  font-weight:700;
-}
-.k30-mega .dropdown-item {
-  padding:.38rem .65rem;
-  border-radius:7px;
-  margin:1px 2px;
-  font-size:.845rem;
-  color:#1e293b;
-}
-.k30-mega .dropdown-item:hover,
-.k30-mega .dropdown-item:focus { background:#fff7ed; color:var(--k30-accent); }
-.k30-mega .dropdown-item[aria-current="page"] { background:#fff3e8; color:var(--k30-accent); font-weight:600; }
-
-/* Zwykłe (wąskie) dropdown */
-.dropdown-menu:not(.k30-mega) {
-  border:0 !important;
-  border-radius:12px !important;
-  box-shadow:0 6px 24px rgba(0,0,0,.12) !important;
-  padding:.4rem !important;
-  margin-top:.4rem !important;
-}
-.dropdown-menu:not(.k30-mega) .dropdown-item {
-  border-radius:7px;
-  font-size:.875rem;
-}
-.dropdown-menu:not(.k30-mega) .dropdown-item:hover { background:#f8fafc; }
-
-@media (max-width:991.98px){
-  .k30-mega { min-width:0; max-height:none; border-radius:0!important; margin-top:0!important; }
-}
-@media (min-width:768px){ .border-start-md { border-left:1px solid var(--bs-border-color); } }
-@media (prefers-reduced-motion:reduce){ *,*::before,*::after { transition:none !important; animation:none !important; } }
-</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="<?= APP_URL ?>/karty30/includes/k30.css?v=<?= filemtime(__DIR__ . '/k30.css') ?>">
 </head>
 <body>
 
 <!-- ══ SKIP LINKI — pierwsze elementy focusowalne ═══════════════════════════ -->
 <a href="#k30-main" class="skip-link btn btn-primary btn-sm">Przejdź do treści głównej</a>
-<a href="#k30-nav"  class="skip-link btn btn-primary btn-sm" style="left:14rem">Przejdź do nawigacji</a>
+<a href="#k30-nav"  class="skip-link btn btn-primary btn-sm">Przejdź do nawigacji</a>
 
 <!-- ══ Live regiony — czytniki ekranu ogłaszają dynamiczne zmiany ═══════════ -->
 <div aria-live="polite"    aria-atomic="true" class="visually-hidden" id="k30-live"        role="status"></div>
@@ -216,7 +91,7 @@ function _k30_active(string $path): bool {
   <nav class="navbar navbar-dark py-1 k30-topbar" aria-label="Pasek górny">
     <div class="container-fluid">
       <a href="<?= APP_URL ?>/karty30/index.php" class="navbar-brand d-flex align-items-center gap-2 fw-bold" aria-label="Dydaktyka 3 — strona główna">
-        <span class="d-inline-flex align-items-center justify-content-center rounded-2" style="width:34px;height:34px;background:#c2410c;flex-shrink:0" aria-hidden="true">
+        <span class="k30-logo-icon rounded-2" aria-hidden="true">
           <i class="bi bi-card-checklist text-white" style="font-size:1.05rem"></i>
         </span>
         <span class="lh-1">
@@ -242,7 +117,7 @@ function _k30_active(string $path): bool {
           <button type="button" class="btn btn-sm btn-outline-light dropdown-toggle d-inline-flex align-items-center gap-2"
                   data-bs-toggle="dropdown" aria-expanded="false"
                   aria-label="Menu użytkownika: <?= h($_ku_name) ?>">
-            <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-white text-primary fw-bold"
+            <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-white text-primary fw-bold flex-shrink-0"
                   style="width:26px;height:26px;font-size:.72rem" aria-hidden="true"><?= h($_ku_initials) ?></span>
             <span class="d-none d-md-inline"><?= h(explode(' ', $_ku_name)[0]) ?></span>
           </button>
@@ -416,14 +291,8 @@ function _k30_active(string $path): bool {
 
 <?php $_brw = dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; if (is_file($_brw)) require_once $_brw; ?>
 
-<!-- Notka o zmianie nazwy modułu -->
-<div class="border-bottom mb-0 py-2 small d-flex align-items-center gap-2 px-3" style="background:#f0f9ff;color:#0c4a6e;font-size:.78rem" role="note">
-  <i class="bi bi-info-circle-fill flex-shrink-0" style="color:#0284c7" aria-hidden="true"></i>
-  <span>Moduł zmienił nazwę z „TyfloKonsultacje" na <strong>„Dydaktyka"</strong>. Dawne konsultacje znajdziesz w sekcji „Konsultacje i raporty".</span>
-</div>
-
 <!-- ══ GŁÓWNA TREŚĆ ════════════════════════════════════════════════════════ -->
-<main class="container-fluid py-4" id="k30-main" role="main" tabindex="-1" style="max-width:1320px">
+<main class="container-fluid py-4 k30-main-content" id="k30-main" role="main" tabindex="-1">
 
 <?php
 // Flash messages — ogłoszone przez aria-live

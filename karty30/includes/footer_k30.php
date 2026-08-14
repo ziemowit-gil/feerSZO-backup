@@ -1,7 +1,7 @@
 <?php
 /**
- * karty30/includes/footer_k30.php — Zamknięcie layoutu modułu Dydaktyka (czysty Bootstrap).
- * Zamyka: <main>, uruchamia dostępny skrypt pomocniczy (Bootstrap JS jest w nagłówku).
+ * karty30/includes/footer_k30.php — Zamknięcie layoutu modułu Dydaktyka.
+ * Zamyka: <main>, ładuje Bootstrap JS i uruchamia skrypty dostępności.
  */
 $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 ?>
@@ -9,7 +9,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 </main><!-- /k30-main -->
 
 <footer class="border-top bg-body mt-4" role="contentinfo">
-  <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center gap-2 py-3 small text-body-secondary" style="max-width:1320px">
+  <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center gap-2 py-3 small text-body-secondary k30-main-content">
     <span>
       <i class="bi bi-card-checklist me-1 text-primary" aria-hidden="true"></i>
       <strong>Dydaktyka</strong> — Dydaktyka 3<?php if ($_org_f): ?> · <?= h($_org_f) ?><?php endif; ?>
@@ -21,6 +21,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 /* ── Dostępność: globalne skrypty ───────────────────────────────── */
 (function() {
