@@ -430,6 +430,7 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses ADD COLUMN subject_type_id INTEGER REFERENCES k30_ti_subject_types(id) ON DELETE SET NULL",
         "ALTER TABLE k30_ti_courses ADD COLUMN group_code      TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses ADD COLUMN class_type      TEXT NOT NULL DEFAULT 'individual'",
+        "ALTER TABLE k30_ti_subject_types ADD COLUMN requires_certificate INTEGER NOT NULL DEFAULT 0",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1245,6 +1246,25 @@ HTML;
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NOT NULL
     )");
+
+    // Certyfikaty X.509 wystawiane kursantom przez EJBCA
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_certs (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id       INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        client_id       INTEGER NOT NULL REFERENCES k30_clients(id)    ON DELETE CASCADE,
+        ejbca_username  TEXT    NOT NULL UNIQUE,
+        fingerprint     TEXT    NOT NULL DEFAULT '',
+        serial_hex      TEXT    NOT NULL DEFAULT '',
+        valid_from      DATETIME,
+        valid_to        DATETIME,
+        issued_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        issued_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        revoked_at      DATETIME,
+        revoked_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        notes           TEXT    NOT NULL DEFAULT ''
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_certs_course  ON k30_ti_certs(course_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_certs_client  ON k30_ti_certs(client_id)");
 }
 
 // ── Impersonation helpers ─────────────────────────────────────────────────────
@@ -2507,7 +2527,8 @@ function k30_ti_courses(bool $active_only = true): array {
 function k30_ti_course_get(int $id): ?array {
     return db_one(
         "SELECT c.*, u.name AS instructor_name,
-                st.abbreviation AS subject_abbr, st.name AS subject_name
+                st.abbreviation AS subject_abbr, st.name AS subject_name,
+                st.requires_certificate
          FROM k30_ti_courses c
          LEFT JOIN users u ON u.id=c.instructor_id
          LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id

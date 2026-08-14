@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name  = trim($_POST['name'] ?? '');
         $order = (int)($_POST['sort_order'] ?? 0);
         $act   = isset($_POST['is_active']) ? 1 : 0;
+        $cert  = isset($_POST['requires_certificate']) ? 1 : 0;
         $id    = (int)($_POST['id'] ?? 0);
 
         if (!preg_match('/^[A-Z0-9\-]{1,10}$/', $abbr)) {
@@ -37,12 +38,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($id) {
-            db()->prepare("UPDATE k30_ti_subject_types SET abbreviation=?, name=?, is_active=?, sort_order=? WHERE id=?")
-                 ->execute([$abbr, $name, $act, $order, $id]);
+            db()->prepare("UPDATE k30_ti_subject_types SET abbreviation=?, name=?, is_active=?, sort_order=?, requires_certificate=? WHERE id=?")
+                 ->execute([$abbr, $name, $act, $order, $cert, $id]);
             flash_set('success', 'Rodzaj zajęć "' . $abbr . '" zaktualizowany.');
         } else {
-            db()->prepare("INSERT INTO k30_ti_subject_types (abbreviation, name, is_active, sort_order) VALUES (?,?,?,?)")
-                 ->execute([$abbr, $name, $act, $order]);
+            db()->prepare("INSERT INTO k30_ti_subject_types (abbreviation, name, is_active, sort_order, requires_certificate) VALUES (?,?,?,?,?)")
+                 ->execute([$abbr, $name, $act, $order, $cert]);
             flash_set('success', 'Dodano rodzaj zajęć "' . $abbr . '".');
         }
         header('Location: subject_types.php'); exit;
@@ -125,6 +126,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <label class="form-check-label" for="st_active">Aktywny</label>
           </div>
         </div>
+        <div class="col-auto d-flex align-items-end pb-1">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="requires_certificate" id="st_cert"
+                   <?= !empty($edit['requires_certificate']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="st_cert"><i class="bi bi-patch-check me-1 text-success"></i>Wymagany certyfikat</label>
+          </div>
+        </div>
       </div>
 
       <div class="d-flex gap-2">
@@ -144,6 +152,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <th scope="col" style="width:90px">Skrót</th>
           <th scope="col">Nazwa</th>
+          <th scope="col" class="text-center" style="width:100px">Certyfikat</th>
           <th scope="col" class="text-center" style="width:80px">Kolejność</th>
           <th scope="col" class="text-center" style="width:90px">Status</th>
           <th scope="col" class="text-end" style="width:130px">Akcje</th>
@@ -158,6 +167,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <span class="badge text-bg-primary font-monospace fs-6"><?= h($t['abbreviation']) ?></span>
           </td>
           <td class="fw-semibold"><?= h($t['name']) ?></td>
+          <td class="text-center">
+            <?php if (!empty($t['requires_certificate'])): ?>
+              <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
+                <i class="bi bi-patch-check me-1"></i>Tak
+              </span>
+            <?php else: ?>
+              <span class="text-muted small">—</span>
+            <?php endif; ?>
+          </td>
           <td class="text-center text-muted small"><?= (int)$t['sort_order'] ?></td>
           <td class="text-center">
             <?php if ($t['is_active']): ?>

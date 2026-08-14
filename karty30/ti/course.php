@@ -239,7 +239,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <span class="text-muted small ms-2"><i class="bi bi-calendar-event me-1"></i>Termin płatności: <?= (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT ?> dni<?php if (empty($course['pay_due_days'])): ?> <span class="opacity-75">(domyślnie)</span><?php endif; ?></span>
     </div>
   </div>
-  <div class="ms-auto d-flex gap-2">
+  <div class="ms-auto d-flex gap-2 flex-wrap">
+    <?php if (!empty($course['requires_certificate']) && is_admin()): ?>
+    <a href="certificate_issue.php?course_id=<?= $id ?>" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-patch-check me-1"></i>Certyfikaty X.509
+    </a>
+    <?php endif; ?>
     <a href="billing.php?course_id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-receipt me-1"></i>Rozliczenia miesięczne
     </a>

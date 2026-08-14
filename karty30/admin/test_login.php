@@ -44,7 +44,7 @@ $instructors = db_all("
 $students = db_all("
     SELECT sa.id, sa.login, sa.is_active, c.name AS client_name,
            (SELECT COUNT(*) FROM k30_ti_sessions s
-            INNER JOIN k30_ti_enrolments e ON e.course_id = s.course_id AND e.client_id = sa.client_id
+            INNER JOIN k30_ti_enrollments e ON e.course_id = s.course_id AND e.client_id = sa.client_id
             WHERE s.status IN ('planned','held') AND s.lesson_date >= date('now')
            ) AS upcoming
     FROM k30_ti_student_accounts sa
@@ -77,7 +77,7 @@ $PAGE_TITLE = 'Testowe logowanie — Dydaktyka 3';
   </div>
 
   <form method="post" id="impForm">
-    <input type="hidden" name="_token" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="type" id="imp_type" value="">
     <input type="hidden" name="target_id" id="imp_target" value="">
   </form>
