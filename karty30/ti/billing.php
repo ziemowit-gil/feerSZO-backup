@@ -467,7 +467,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         ?>
         <tr>
           <td>
-            <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+            <div class="fw-semibold">
+              <a href="student_billing.php?client_id=<?= (int)$b['client_id'] ?>" class="text-decoration-none link-body-emphasis"
+                 title="Zestawienie płatności kursanta"><?= h($b['client_name']) ?></a>
+            </div>
             <?php if ((int)$b['course_id'] > 0): ?>
             <div class="mt-1">
               <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.75rem">
