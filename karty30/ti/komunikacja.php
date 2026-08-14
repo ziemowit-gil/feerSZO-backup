@@ -208,6 +208,29 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <label class="form-check-label" for="ch_sms"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS<?= !$sms_on?' (wyłączony)':'' ?></label>
             </div>
           </fieldset>
+          <!-- ── Szablony wiadomości ─────────────────────────────────────────── -->
+          <div class="mb-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start d-flex align-items-center"
+                    data-bs-toggle="collapse" data-bs-target="#comm-templates" aria-expanded="false" aria-controls="comm-templates">
+              <i class="bi bi-journal-text me-2" aria-hidden="true"></i>Szablony wiadomości
+              <i class="bi bi-chevron-down ms-auto comm-tmpl-chevron"></i>
+            </button>
+            <div class="collapse" id="comm-templates">
+              <div class="card border-0 bg-body-secondary mt-1 p-3">
+                <p class="fw-semibold mb-2 small">Informacja o logowaniu do panelu TI</p>
+                <div class="mb-2">
+                  <label class="form-label small mb-1" for="tmpl-zoom-link">Link Zoom (awaryjny) — opcjonalny</label>
+                  <input type="text" class="form-control form-control-sm" id="tmpl-zoom-link"
+                         placeholder="https://us06web.zoom.us/j/...">
+                </div>
+                <button type="button" class="btn btn-sm btn-primary" id="tmpl-login-info-btn">
+                  <i class="bi bi-magic me-1" aria-hidden="true"></i>Wstaw do edytora
+                </button>
+                <div class="form-text mt-1">Uzupełnia temat i treść — edytuj przed wysyłką według potrzeb.</div>
+              </div>
+            </div>
+          </div>
+
           <div class="mb-2">
             <label class="form-label fw-semibold" for="subject">Temat <span class="text-muted small">(e-mail)</span></label>
             <input type="text" class="form-control" id="subject" name="subject" value="<?= h($subject) ?>" maxlength="200" placeholder="np. Zmiana terminu zajęć">
@@ -352,6 +375,57 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       document.getElementById('body_html').value = quill.root.innerHTML;
       document.getElementById('body').value = quill.getText().trim();
     });
+  }
+
+  // ── Szablon: informacja o logowaniu ──────────────────────────────────────
+  var tmplBtn = document.getElementById('tmpl-login-info-btn');
+  if (tmplBtn) {
+    tmplBtn.addEventListener('click', function(){
+      var zoom = (document.getElementById('tmpl-zoom-link').value || '').trim();
+      var zoomBlock = zoom
+        ? '<p>🔗 <a href="' + zoom + '">' + zoom + '</a></p>'
+        : '<p>🔗 <em>[Wklej tutaj link do spotkania Zoom]</em></p>';
+
+      document.getElementById('subject').value = 'Informacja o logowaniu do panelu TI';
+
+      quill.root.innerHTML = [
+        '<p>Dzień dobry,</p>',
+        '<p>Do zajęć logujemy się przez panel kursanta dostępny pod adresem',
+        ' <a href="https://ti.feer.org.pl">ti.feer.org.pl</a>.',
+        ' To podstawowy adres, z którego należy korzystać na co dzień.</p>',
+        '<p>Gdyby panel kursanta był chwilowo niedostępny, prosimy o skorzystanie',
+        ' z bezpośrednich adresów logowania:</p>',
+        '<p>👨‍🏫 Dla dydaktyka:<br>',
+        '<a href="https://szo.feer.org.pl/karty30/ti/login.php?tab=dydaktyk">',
+        'https://szo.feer.org.pl/karty30/ti/login.php?tab=dydaktyk</a></p>',
+        '<p>🎓 Dla kursanta:<br>',
+        '<a href="https://szo.feer.org.pl/karty30/ti/login.php?tab=kursant">',
+        'https://szo.feer.org.pl/karty30/ti/login.php?tab=kursant</a></p>',
+        '<p>W przypadku problemów technicznych uniemożliwiających logowanie,',
+        ' udostępniamy również awaryjny link do spotkania w aplikacji Zoom:</p>',
+        zoomBlock,
+        '<p>Prosimy o zachowanie powyższych odnośników na wypadek ewentualnych',
+        ' trudności technicznych.</p>',
+        '<p>Z poważaniem,<br>Zespół Fundacji FEER</p>'
+      ].join('');
+
+      // zwiń sekcję szablonów
+      var collapseEl = document.getElementById('comm-templates');
+      if (collapseEl && collapseEl.classList.contains('show')) {
+        bootstrap.Collapse.getOrCreateInstance(collapseEl).hide();
+      }
+    });
+
+    // chevron animacja
+    var tmplCollapse = document.getElementById('comm-templates');
+    if (tmplCollapse) {
+      tmplCollapse.addEventListener('show.bs.collapse', function(){
+        document.querySelector('.comm-tmpl-chevron').style.transform = 'rotate(180deg)';
+      });
+      tmplCollapse.addEventListener('hide.bs.collapse', function(){
+        document.querySelector('.comm-tmpl-chevron').style.transform = '';
+      });
+    }
   }
 })();
 </script>
