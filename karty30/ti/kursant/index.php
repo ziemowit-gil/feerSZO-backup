@@ -979,6 +979,50 @@ include __DIR__ . '/_layout_head.php';
 
 <main id="main" class="container-xl px-3 py-4">
 
+<!-- ── Pytanie o czytnik ekranu (jednorazowe, localStorage) ──────────── -->
+<div id="kpSrBanner" class="alert alert-primary alert-dismissible d-flex align-items-center gap-3 mb-3" role="dialog"
+     aria-labelledby="kpSrBannerTitle" aria-describedby="kpSrBannerDesc" style="display:none!important">
+  <i class="bi bi-universal-access-circle fs-4 flex-shrink-0" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <div class="fw-semibold mb-1" id="kpSrBannerTitle">Ułatwienia dostępu</div>
+    <div id="kpSrBannerDesc" class="small mb-2">Czy korzystasz z czytnika ekranu (np. NVDA, JAWS, VoiceOver)?</div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-primary btn-sm" id="kpSrYes">Tak, korzystam</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="kpSrNo">Nie</button>
+    </div>
+  </div>
+  <button type="button" class="btn-close" id="kpSrDismiss" aria-label="Zamknij"></button>
+</div>
+<script>
+(function(){
+  var KEY_SR  = 'kp_sr_mode';
+  var KEY_CAL = 'kp_cal_collapsed';
+  var banner  = document.getElementById('kpSrBanner');
+  if (!banner) return;
+  // Pokaż tylko raz (gdy brak odpowiedzi)
+  if (localStorage.getItem(KEY_SR) === null) {
+    banner.style.removeProperty('display');
+  }
+  function dismiss(sr){
+    localStorage.setItem(KEY_SR, sr ? '1' : '0');
+    if (sr) localStorage.setItem(KEY_CAL, '1'); // schowaj kalendarz dla SR
+    banner.remove();
+    // Aktualizuj stan kalendarza na żywo
+    if (sr) {
+      var body = document.getElementById('kpCalBody');
+      var icon = document.querySelector('#kpCalToggle .kp-cal-icon');
+      var btn  = document.getElementById('kpCalToggle');
+      if (body) body.style.display = 'none';
+      if (btn)  btn.setAttribute('aria-expanded','false');
+      if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
+    }
+  }
+  document.getElementById('kpSrYes').addEventListener('click',     function(){ dismiss(true);  });
+  document.getElementById('kpSrNo').addEventListener('click',      function(){ dismiss(false); });
+  document.getElementById('kpSrDismiss').addEventListener('click', function(){ dismiss(false); });
+})();
+</script>
+
 <?php // ── Baner wakacyjny — gdy trwa okres typu vacation ─────────────────────────
 $ti_vac = ti_current_vacation();
 if ($ti_vac): ?>
