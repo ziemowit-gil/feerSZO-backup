@@ -101,6 +101,117 @@ if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0
 $tab = $_GET['tab'] ?? 'lekcje';
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'pulpit';
 
+// ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał jeszcze kursu ───────
+if (!isset($_GET['course']) && count($courses) > 1) {
+    // Najbliższa zaplanowana lekcja per kurs
+    $next_lessons = [];
+    if ($course_ids) {
+        $ph = implode(',', array_fill(0, count($course_ids), '?'));
+        $nl = db_all(
+            "SELECT course_id, lesson_date, time_from, topic
+             FROM k30_ti_sessions
+             WHERE course_id IN ($ph) AND lesson_date >= date('now') AND status='planned'
+             GROUP BY course_id HAVING lesson_date=MIN(lesson_date)
+             ORDER BY lesson_date, time_from",
+            $course_ids
+        );
+        foreach ($nl as $r) $next_lessons[(int)$r['course_id']] = $r;
+    }
+    $KP_TITLE  = 'Wybierz grupę';
+    $KP_TOPBAR = ['brand'=>'Panel dydaktyka','icon'=>'easel2','user'=>$me['name']??'','logout'=>'logout.php'];
+    include dirname(__DIR__) . '/kursant/_layout_head.php';
+    ?>
+<style>
+  .dyd-picker-wrap{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1rem;}
+  .dyd-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1.1rem;width:100%;max-width:860px;}
+  .dyd-picker-card{display:flex;flex-direction:column;text-decoration:none;color:inherit;
+    border:1.5px solid var(--bs-border-color);border-radius:.75rem;padding:1.25rem 1.4rem;
+    background:var(--bs-body-bg);transition:border-color .15s,box-shadow .15s,transform .12s;}
+  .dyd-picker-card:hover,.dyd-picker-card:focus{
+    border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15);
+    transform:translateY(-2px);color:inherit;text-decoration:none;}
+  .dyd-picker-icon{font-size:1.75rem;width:2.75rem;height:2.75rem;border-radius:.6rem;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(37,99,235,.1);color:#2563eb;flex-shrink:0;margin-bottom:.9rem;}
+  [data-bs-theme=dark] .dyd-picker-icon{background:rgba(96,165,250,.12);color:#60a5fa;}
+  .dyd-picker-name{font-size:1.05rem;font-weight:700;line-height:1.3;margin-bottom:.25rem;}
+  .dyd-picker-sub{font-size:.82rem;color:var(--bs-secondary-color);}
+  .dyd-picker-meta{margin-top:.85rem;padding-top:.75rem;border-top:1px solid var(--bs-border-color);
+    display:flex;flex-wrap:wrap;gap:.35rem .9rem;}
+  .dyd-picker-badge{font-size:.78rem;display:inline-flex;align-items:center;gap:.3rem;
+    color:var(--bs-secondary-color);}
+  .dyd-picker-next{margin-top:.5rem;font-size:.8rem;
+    background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);
+    border-radius:.4rem;padding:.25rem .6rem;color:#15803d;display:inline-flex;align-items:center;gap:.35rem;}
+  [data-bs-theme=dark] .dyd-picker-next{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.25);color:#4ade80;}
+  .dyd-picker-inactive{opacity:.65;}
+  .dyd-picker-inactive .dyd-picker-icon{background:rgba(100,116,139,.1);color:var(--bs-secondary-color);}
+</style>
+<div class="dyd-picker-wrap">
+  <div style="text-align:center;margin-bottom:2rem;max-width:860px;width:100%">
+    <div style="font-size:1.5rem;font-weight:700;margin-bottom:.3rem">
+      <i class="bi bi-easel2 me-2 text-primary" aria-hidden="true"></i>Wybierz grupę
+    </div>
+    <div style="color:var(--bs-secondary-color);font-size:.95rem">
+      Witaj, <strong><?= h($me['name'] ?? '') ?></strong>. Kliknij grupę, z którą chcesz dziś pracować.
+    </div>
+  </div>
+
+  <div class="dyd-picker-grid" role="list">
+    <?php foreach ($courses as $c):
+      $cid      = (int)$c['id'];
+      $active   = ($c['status'] ?? '') !== 'cancelled' && !empty($c['is_active']);
+      $enrolled = (int)($c['enrolled_count'] ?? 0);
+      $nl       = $next_lessons[$cid] ?? null;
+      $subj     = $c['subject_name'] ?? ($c['subject_abbr'] ?? '');
+    ?>
+    <a class="dyd-picker-card <?= $active ? '' : 'dyd-picker-inactive' ?>"
+       href="index.php?course=<?= $cid ?>&tab=lekcje"
+       role="listitem"
+       aria-label="<?= h($c['name']) ?>, <?= $enrolled ?> kursantów<?= $nl ? ', najbliższa lekcja '.date('j.m.Y',strtotime($nl['lesson_date'])) : '' ?>">
+      <div class="dyd-picker-icon" aria-hidden="true">
+        <i class="bi bi-<?= $active ? 'pc-display-horizontal' : 'archive' ?>"></i>
+      </div>
+      <div class="dyd-picker-name"><?= h($c['name']) ?></div>
+      <?php if ($subj): ?>
+      <div class="dyd-picker-sub"><?= h($subj) ?></div>
+      <?php endif; ?>
+      <?php if (!$active): ?>
+      <div class="dyd-picker-sub mt-1"><i class="bi bi-archive me-1"></i>nieaktywna</div>
+      <?php endif; ?>
+      <div class="dyd-picker-meta">
+        <span class="dyd-picker-badge">
+          <i class="bi bi-people" aria-hidden="true"></i><?= $enrolled ?> <?= $enrolled === 1 ? 'kursant' : ($enrolled < 5 ? 'kursantów' : 'kursantów') ?>
+        </span>
+        <?php if (!empty($c['is_co_instructor'])): ?>
+        <span class="dyd-picker-badge">
+          <i class="bi bi-person-badge" aria-hidden="true"></i>współprowadzący
+        </span>
+        <?php endif; ?>
+      </div>
+      <?php if ($nl): ?>
+      <div class="dyd-picker-next">
+        <i class="bi bi-calendar-check" aria-hidden="true"></i>
+        <?= date('j.m.Y', strtotime($nl['lesson_date'])) ?>
+        <?php if ($nl['time_from']): ?><span style="opacity:.8"><?= h(substr($nl['time_from'],0,5)) ?></span><?php endif; ?>
+        <?php if ($nl['topic']): ?><span style="opacity:.7;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($nl['topic']) ?></span><?php endif; ?>
+      </div>
+      <?php endif; ?>
+    </a>
+    <?php endforeach; ?>
+  </div>
+
+  <?php if (!empty($me['is_staff'])): ?>
+  <div style="margin-top:1.5rem;font-size:.82rem;color:var(--bs-secondary-color)">
+    <i class="bi bi-info-circle me-1"></i>Widzisz wszystkie grupy jako pracownik D3.
+  </div>
+  <?php endif; ?>
+</div>
+    <?php
+    include dirname(__DIR__) . '/kursant/_layout_foot.php';
+    exit;
+}
+
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
 $dyd_user_row  = db_one("SELECT email, microsoft_id FROM users WHERE id=?", [$uid]);
