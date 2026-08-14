@@ -4431,9 +4431,10 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
         [$client_id]
     );
 
-    $hours  = 0.0;
-    $amount = 0.0;
-    $models = [];
+    $hours   = 0.0;
+    $amount  = 0.0;
+    $models  = [];
+    $courses = [];
     foreach ($enrs as $e) {
         // Godziny obecności w tym kursie w danym miesiącu
         $rows = db_all(
@@ -4465,13 +4466,24 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
             'billing_amount' => $e['course_billing_amount'],
         ]);
         $models[$eff['code']] = true;
+        $course_amount = 0.0;
         if ($eff['model'] === 1 || $eff['model'] === 3) {
             // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
-            $amount += $eff['amount'];
+            $course_amount = $eff['amount'];
         } else {
             // godzinowy
-            $amount += $ch * $eff['hourly_rate'];
+            $course_amount = $ch * $eff['hourly_rate'];
         }
+        $amount += $course_amount;
+
+        $course_name = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$e['course_id']])['name'] ?? '?';
+        $courses[] = [
+            'course_id'    => (int)$e['course_id'],
+            'course_name'  => $course_name,
+            'hours_billed' => round($ch, 4),
+            'amount'       => round($course_amount, 2),
+            'model'        => $eff['model'],
+        ];
     }
 
     return [
@@ -4481,6 +4493,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
         'hours_billed'=> round($hours, 4),
         'amount'      => round($amount, 2),
         'models'      => array_keys($models), // kody zastosowanych modeli (info)
+        'courses'     => $courses,            // rozbicie per kurs
     ];
 }
 

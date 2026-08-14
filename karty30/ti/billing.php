@@ -300,6 +300,13 @@ $billed_ids = array_column($billings, 'client_id');
 $balances = [];
 foreach (array_unique($billed_ids) as $bcid) { $balances[(int)$bcid] = ti_client_balance((int)$bcid); }
 
+// Rozbicie kosztów per kurs dla wystawionych rozliczeń (godziny × stawka w danym miesiącu)
+$billing_courses = [];
+foreach ($billings as $b) {
+    $calc = k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year']);
+    if (!empty($calc['courses'])) $billing_courses[(int)$b['id']] = $calc['courses'];
+}
+
 // Kursanci z niedopłatą (globalnie) — flaga dla panelu admina
 $debtors = ti_clients_with_debt();
 
@@ -444,6 +451,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <td>
             <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+            <?php $bc = $billing_courses[(int)$b['id']] ?? []; ?>
+            <?php if (count($bc) > 1): ?>
+            <div class="mt-1">
+              <?php foreach ($bc as $bcc): if ($bcc['amount'] <= 0 && $bcc['hours_billed'] <= 0) continue; ?>
+              <span class="badge bg-light text-secondary border me-1" style="font-size:.72rem;font-weight:500">
+                <?= h($bcc['course_name']) ?>:
+                <?php if ($bcc['model'] !== 2): ?>
+                  <?= number_format($bcc['amount'],2,',','') ?> zł
+                <?php else: ?>
+                  <?= number_format($bcc['hours_billed'],2,',','') ?> h · <?= number_format($bcc['amount'],2,',','') ?> zł
+                <?php endif; ?>
+              </span>
+              <?php endforeach; ?>
+            </div>
+            <?php elseif (!empty($bc)): ?>
+            <div class="text-muted" style="font-size:.78rem"><?= h($bc[0]['course_name'] ?? '') ?></div>
+            <?php endif; ?>
             <?php $bpay = k30_ti_client_payment((int)$b['client_id']); ?>
             <?php if ($bpay['codes']): ?>
             <div class="small">
@@ -807,7 +831,25 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <tbody>
         <?php foreach ($preview as $cid => $p): ?>
         <tr>
-          <td class="fw-semibold"><?= h($p['client_name']) ?></td>
+          <td>
+            <div class="fw-semibold"><?= h($p['client_name']) ?></div>
+            <?php if (!empty($p['courses']) && count($p['courses']) > 1): ?>
+            <div class="mt-1">
+              <?php foreach ($p['courses'] as $pc): if ($pc['amount'] <= 0 && $pc['hours_billed'] <= 0) continue; ?>
+              <span class="badge bg-light text-secondary border me-1" style="font-size:.72rem;font-weight:500">
+                <?= h($pc['course_name']) ?>:
+                <?php if ($pc['model'] !== 2): ?>
+                  <?= number_format($pc['amount'],2,',','') ?> zł
+                <?php else: ?>
+                  <?= number_format($pc['hours_billed'],2,',','') ?> h · <?= number_format($pc['amount'],2,',','') ?> zł
+                <?php endif; ?>
+              </span>
+              <?php endforeach; ?>
+            </div>
+            <?php elseif (!empty($p['courses'])): ?>
+            <div class="text-muted" style="font-size:.78rem"><?= h($p['courses'][0]['course_name'] ?? '') ?></div>
+            <?php endif; ?>
+          </td>
           <td><?= number_format($p['hours_billed'],2,',','') ?> h</td>
           <td class="fw-semibold"><?= number_format($p['amount'],2,',','') ?> zł</td>
           <td class="text-end">
