@@ -146,9 +146,18 @@ body{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#111;backgro
     <?php endif; ?>
   </table>
 
+  <?php
+    $siedziba = trim($org_adres . ($org_miasto ? ', ' . $org_miasto : ''));
+  ?>
   <div class="info-box">
-    <strong>Co dalej?</strong><br>
-    Proszę wydrukować ten dokument, podpisać go odręcznie i dostarczyć do<?php echo $org_name ? ' ' . h($org_name) : ' organizacji' ?> w formie papierowej lub zeskanowanej.
+    <strong>Co dalej? Prosimy wykonać poniższe kroki:</strong>
+    <ol style="margin:6pt 0 4pt 18pt;padding:0">
+      <li>Wydrukuj i podpisz odręcznie niniejszy dokument.</li>
+      <li>Prześlij <strong>skan podpisanego rachunku</strong> na adres e-mail:
+        <a href="mailto:fundacja@feer.org.pl" style="color:#1d4ed8">fundacja@feer.org.pl</a></li>
+      <li>Wyślij <strong>oryginał</strong> pocztą lub dostarcz osobiście na adres siedziby<?php
+          echo $siedziba ? ':<br><strong>' . h($siedziba) . '</strong>' : ($org_name ? ' ' . h($org_name) . '.' : '.'); ?></li>
+    </ol>
     <?php if (!empty($contract['rachunek_bankowy'])): ?>
     Wynagrodzenie zostanie przekazane na rachunek bankowy wskazany w umowie.
     <?php endif; ?>
