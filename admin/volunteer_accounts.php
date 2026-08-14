@@ -370,12 +370,81 @@ HTML;
         }
         header('Location: ' . APP_URL . '/admin/volunteer_accounts.php'); exit;
     }
+
+    // ── Dodaj konto Microsoft 365 ─────────────────────────────────────────────
+    if ($action === 'm365_add') {
+        $uid  = (int)($_POST['user_id'] ?? 0);
+        $mode = $_POST['m365_mode'] ?? '';
+        if ($uid && in_array($mode, ['auto', 'manual'], true)) {
+            $u = db_one(
+                "SELECT id, name, first_name, last_name, microsoft_id
+                 FROM users WHERE id=? AND is_standalone_volunteer=1 AND is_active=1",
+                [$uid]
+            );
+            if ($u && empty($u['microsoft_id'])) {
+                try {
+                    require_once dirname(__DIR__) . '/includes/m365.php';
+                    $graph = new M365Graph();
+                    if (!$graph->is_configured()) throw new \RuntimeException('M365 nie jest skonfigurowane.');
+                    $full_name = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: ($u['name'] ?? '');
+
+                    if ($mode === 'auto') {
+                        $m365_login_new = $graph->unique_login($full_name);
+                        $m365_pass_new  = M365Graph::generate_password();
+                        $m365user       = $graph->create_user($m365_login_new, $full_name, $m365_pass_new, true);
+                        $m365_azure_id  = $m365user['id'];
+                        $sku = m365_setting('m365_license_sku_id');
+                        if ($sku) {
+                            try { $graph->assign_license($m365_azure_id, $sku); } catch (\Throwable $eL) {
+                                flash_set('warning', 'Konto M365 OK, ale licencja: ' . $eL->getMessage());
+                            }
+                        }
+                        log_user_action($uid, (int)$me['id'], 'note', 'Dodano konto M365 (auto): ' . $m365_login_new);
+                        auth_start();
+                        $_SESSION['sva_m365_created'] = [
+                            'uid'   => $uid,
+                            'name'  => $full_name,
+                            'login' => $m365_login_new,
+                            'pass'  => $m365_pass_new,
+                        ];
+                    } else {
+                        $m365_login_new = strtolower(trim($_POST['m365_login_man'] ?? ''));
+                        $m365_azure_id  = trim($_POST['m365_uid_man'] ?? '');
+                        log_user_action($uid, (int)$me['id'], 'note', 'Podłączono konto M365: ' . $m365_login_new);
+                    }
+
+                    $upd = ['microsoft_id' => $m365_azure_id];
+                    if (!empty($m365_login_new)) $upd['m365_login'] = $m365_login_new;
+                    $sg_id   = trim($_POST['m365_sg_id']   ?? '');
+                    $sg_name = trim($_POST['m365_sg_name'] ?? '');
+                    if ($sg_id && $m365_azure_id) {
+                        $upd['m365_security_group_id']   = $sg_id;
+                        $upd['m365_security_group_name'] = $sg_name;
+                        try { $graph->add_to_group($m365_azure_id, $sg_id); } catch (\Throwable $e) {}
+                    }
+                    $sets = implode(', ', array_map(fn($k) => "{$k}=?", array_keys($upd)));
+                    db()->prepare("UPDATE users SET {$sets} WHERE id=?")
+                        ->execute(array_merge(array_values($upd), [$uid]));
+                    if (empty($_SESSION['sva_m365_created'])) {
+                        flash_set('success', 'Konto M365 zostało przypisane.');
+                    }
+                } catch (\Throwable $e) {
+                    flash_set('danger', 'Błąd M365: ' . $e->getMessage());
+                }
+            } elseif ($u) {
+                flash_set('warning', 'To konto ma już przypisane konto M365.');
+            }
+        }
+        header('Location: ' . APP_URL . '/admin/volunteer_accounts.php'); exit;
+    }
 }
 
 // ── Wyswietl info o resecie hasla (jednorazowe) ───────────────────────────────
 auth_start();
 $reset_info = $_SESSION['sva_reset'] ?? null;
 unset($_SESSION['sva_reset']);
+$m365_created_info = $_SESSION['sva_m365_created'] ?? null;
+unset($_SESSION['sva_m365_created']);
 
 // ── Lista kont bez umowy ──────────────────────────────────────────────────────
 $accounts = db_all(
@@ -437,6 +506,21 @@ include dirname(__DIR__) . '/includes/header.php';
     <strong>Nowe haslo dla <?= h($reset_info['name']) ?>:</strong>
     <code class="ms-2 fs-6"><?= h($reset_info['pass']) ?></code>
     <div class="small mt-1 text-muted">Przekaz haslo uzytkownikowi. Zostanie ono ukryte po odswiezeniu strony.</div>
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if ($m365_created_info): ?>
+<div class="alert alert-info alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+  <i class="bi bi-microsoft flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>Konto Microsoft 365 utworzone dla <?= h($m365_created_info['name']) ?>:</strong>
+    <table class="table table-sm table-borderless mb-1 mt-2" style="font-size:.87rem">
+      <tr><td class="text-muted ps-0" style="width:90px">Login (UPN)</td><td><code><?= h($m365_created_info['login']) ?></code></td></tr>
+      <tr><td class="text-muted ps-0">Hasło</td><td><code class="fs-6"><?= h($m365_created_info['pass']) ?></code></td></tr>
+    </table>
+    <div class="small text-muted">Przekaż dane użytkownikowi. Hasło nie pojawi się ponownie po odświeżeniu.</div>
   </div>
   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
@@ -550,6 +634,17 @@ include dirname(__DIR__) . '/includes/header.php';
           <td style="font-size:.8rem;color:#64748b"><?= date_pl($u['created_at'] ?? '') ?></td>
           <td>
             <div class="d-flex gap-1 justify-content-end flex-wrap">
+              <!-- Dodaj konto M365 (tylko gdy brak i M365 skonfigurowane) -->
+              <?php if ($active && empty($u['m365_login']) && function_exists('ms_login_available') && ms_login_available()): ?>
+              <button type="button" class="btn btn-sm btn-outline-info m365-add-btn"
+                      data-uid="<?= (int)$u['id'] ?>"
+                      data-name="<?= h($dn) ?>"
+                      data-bs-toggle="modal" data-bs-target="#m365AddModal"
+                      title="Dodaj konto Microsoft 365">
+                <i class="bi bi-microsoft"></i>
+                <span class="d-none d-md-inline ms-1" style="font-size:.78rem">Dodaj M365</span>
+              </button>
+              <?php endif; ?>
               <!-- Migruj na umowę -->
               <?php if ($active): ?>
               <form method="post" class="d-inline">
@@ -616,6 +711,81 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<!-- ══ Modal: dodaj konto M365 ════════════════════════════════════════════════ -->
+<div class="modal fade" id="m365AddModal" tabindex="-1" aria-labelledby="m365AddModalLabel" aria-modal="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="m365AddModalLabel">
+          <i class="bi bi-microsoft text-primary me-2"></i>Dodaj konto Microsoft 365
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="m365AddForm">
+        <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action"  value="m365_add">
+        <input type="hidden" name="user_id"  id="m365_modal_uid" value="">
+        <div class="modal-body">
+          <p class="text-muted mb-3" style="font-size:.88rem">
+            Tworzysz konto M365 dla: <strong id="m365_modal_name"></strong>
+          </p>
+
+          <!-- Tryb -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Sposób dodania konta M365</label>
+            <div class="d-flex flex-column gap-1">
+              <label class="d-flex align-items-center gap-2 p-2 border rounded m365-mode-row" style="cursor:pointer;font-size:.83rem">
+                <input type="radio" name="m365_mode" value="auto" class="form-check-input mt-0" checked
+                       onchange="toggleM365AddFields()">
+                <span><strong>Utwórz automatycznie</strong> — nowe konto w dzierżawie</span>
+              </label>
+              <label class="d-flex align-items-center gap-2 p-2 border rounded m365-mode-row" style="cursor:pointer;font-size:.83rem">
+                <input type="radio" name="m365_mode" value="manual" class="form-check-input mt-0"
+                       onchange="toggleM365AddFields()">
+                <span><strong>Podaj istniejące</strong> — UPN + Azure AD ID</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Ręczne pola (manual) -->
+          <div id="m365AddManualFields" style="display:none">
+            <div class="mb-2">
+              <label class="form-label small" for="m365_add_login">Login M365 (UPN)</label>
+              <input type="email" name="m365_login_man" id="m365_add_login" class="form-control form-control-sm"
+                     placeholder="imie.nazwisko@domena.pl">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="m365_add_uid">Azure AD User ID</label>
+              <input type="text" name="m365_uid_man" id="m365_add_uid" class="form-control form-control-sm font-monospace"
+                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            </div>
+          </div>
+
+          <!-- Security Group -->
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Security Group <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <div class="d-flex gap-1">
+              <select name="m365_sg_id" id="m365_add_sg" class="form-select form-select-sm" style="flex:1">
+                <option value="">— brak —</option>
+              </select>
+              <input type="hidden" name="m365_sg_name" id="m365_add_sg_name">
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadSgGroupsModal()"
+                      title="Załaduj grupy z M365"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div id="m365_add_sg_status" class="form-text"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-microsoft me-1"></i>Dodaj konto M365
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <!-- ══ Offcanvas: tworzenie konta ══════════════════════════════════════════════ -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="createPanel" style="width:min(420px,100vw)">
@@ -887,6 +1057,69 @@ function updateChPills() {
   }
 }
 document.addEventListener('DOMContentLoaded', updateChPills);
+
+// ── Modal: dodaj M365 ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.m365-add-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.getElementById('m365_modal_uid').value  = this.dataset.uid;
+      document.getElementById('m365_modal_name').textContent = this.dataset.name;
+    });
+  });
+  var m365Modal = document.getElementById('m365AddModal');
+  if (m365Modal) {
+    m365Modal.addEventListener('show.bs.modal', function() {
+      if (!_sgModalLoaded) loadSgGroupsModal();
+      toggleM365AddFields();
+    });
+    var sgSel  = document.getElementById('m365_add_sg');
+    var sgName = document.getElementById('m365_add_sg_name');
+    if (sgSel && sgName) {
+      sgSel.addEventListener('change', function() {
+        var opt = this.options[this.selectedIndex];
+        sgName.value = opt ? opt.textContent : '';
+      });
+    }
+  }
+});
+
+function toggleM365AddFields() {
+  var mode = '';
+  document.querySelectorAll('[name="m365_mode"]').forEach(function(r) {
+    if (r.checked) mode = r.value;
+    var row = r.closest('.m365-mode-row');
+    if (row) {
+      row.style.background    = r.checked ? '#eff6ff' : '';
+      row.style.borderColor   = r.checked ? '#2563eb' : '';
+      row.style.fontWeight    = r.checked ? '600'     : '';
+    }
+  });
+  var mf = document.getElementById('m365AddManualFields');
+  if (mf) mf.style.display = (mode === 'manual') ? '' : 'none';
+}
+
+var _sgModalLoaded = false;
+function loadSgGroupsModal() {
+  var sel    = document.getElementById('m365_add_sg');
+  var status = document.getElementById('m365_add_sg_status');
+  if (!sel) return;
+  if (status) status.textContent = 'Ładowanie grup…';
+  fetch('<?= APP_URL ?>/contracts/wolontariat/api_groups.php')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { if (status) status.textContent = 'Błąd: ' + data.error; return; }
+      sel.innerHTML = '<option value="">— brak —</option>';
+      (data || []).forEach(function(g) {
+        var opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.displayName;
+        sel.appendChild(opt);
+      });
+      _sgModalLoaded = true;
+      if (status) status.textContent = 'Załadowano ' + (data.length||0) + ' grup.';
+    })
+    .catch(function() { if (status) status.textContent = 'Błąd połączenia.'; });
+}
 </script>
 
 <?php

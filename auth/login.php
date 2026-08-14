@@ -485,7 +485,7 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
 
   <h1 class="login-heading">Zaloguj się</h1>
   <p class="login-sub">
-    <?php if ($ms_available): ?>Administracja: użyj Microsoft 365. Wolontariusze: e-mail i hasło.
+    <?php if ($ms_available): ?>Administracja: użyj Microsoft 365. Współpracownicy: e-mail i hasło.
     <?php else: ?>Wpisz adres e-mail i hasło.
     <?php endif; ?>
   </p>
@@ -544,13 +544,13 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
     </button>
   </form>
 
-  <!-- ── Nowy wolontariusz ───────────────────────────────── -->
+  <!-- ── Nowy współpracownik ──────────────────────────────── -->
   <a href="<?= APP_URL ?>/user/register.php" class="new-vol"
-     aria-label="Załóż konto wolontariusza — otwiera formularz rejestracji">
+     aria-label="Załóż konto współpracownika — otwiera formularz rejestracji">
     <i class="bi bi-person-plus-fill new-vol-icon" aria-hidden="true"></i>
     <span class="new-vol-body">
-      <span class="new-vol-title">Nowy wolontariusz?</span>
-      <span class="new-vol-sub">Masz umowę z FEER? Utwórz konto w 2 minuty.</span>
+      <span class="new-vol-title">Nowy współpracownik?</span>
+      <span class="new-vol-sub">Masz umowę lub porozumienie? Utwórz konto w 2 minuty.</span>
     </span>
     <i class="bi bi-chevron-right new-vol-arrow" aria-hidden="true"></i>
   </a>
