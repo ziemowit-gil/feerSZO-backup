@@ -156,3 +156,20 @@ function dyd_owns_session(int $uid, int $session_id): bool {
 function dyd_courses(int $uid): array {
     return dyd_is_staff() ? k30_ti_courses(false) : k30_ti_instructor_courses($uid, false);
 }
+
+/** Czy panel dydaktyka jest włączony (domyślnie tak). */
+function dyd_panel_is_enabled(): bool {
+    $v = org_setting('dyd_panel_enabled');
+    return $v === '' || $v === '1';
+}
+
+/** Komunikat wyświetlany gdy panel wyłączony. */
+function dyd_panel_message(): string {
+    $m = org_setting('dyd_panel_message');
+    return $m !== '' ? $m : 'Panel dydaktyka jest tymczasowo niedostępny. Zapraszamy ponownie wkrótce.';
+}
+
+/** Planowany czas wznowienia (ciąg z DB) lub ''. */
+function dyd_panel_resume(): string {
+    return org_setting('dyd_panel_resume');
+}

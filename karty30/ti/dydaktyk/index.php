@@ -23,6 +23,49 @@ ti_notices_migrate();
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
 
+// ── Bramka przerwy technicznej (tylko dla prowadzących, nie dla staff/admin) ──
+if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
+    $KP_TITLE  = 'Przerwa techniczna';
+    $KP_TOPBAR = ['brand'=>'Panel dydaktyka','icon'=>'easel2','user'=>$me['name']??'','logout'=>'logout.php'];
+    include dirname(__DIR__) . '/kursant/_layout_head.php';
+    $_dyd_msg    = dyd_panel_message();
+    $_dyd_resume = dyd_panel_resume();
+    ?>
+<style>
+  .dyd-maintenance-wrap{min-height:70vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;}
+  .dyd-maintenance-card{max-width:520px;width:100%;text-align:center;}
+  .dyd-maintenance-icon{font-size:4rem;line-height:1;margin-bottom:1rem;color:#f59e0b;}
+  .dyd-maintenance-title{font-size:1.5rem;font-weight:700;margin-bottom:.5rem;}
+  .dyd-maintenance-msg{color:var(--bs-secondary-color);font-size:1.05rem;margin-bottom:1.5rem;}
+  .dyd-maintenance-resume{display:inline-flex;align-items:center;gap:.5rem;font-size:.9rem;
+    background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);
+    color:#b45309;border-radius:.5rem;padding:.4rem .9rem;margin-bottom:1.5rem;}
+  [data-bs-theme=dark] .dyd-maintenance-resume{color:#fcd34d;background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);}
+</style>
+<div class="dyd-maintenance-wrap">
+  <div class="dyd-maintenance-card">
+    <div class="dyd-maintenance-icon" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
+    <div class="dyd-maintenance-title">Przerwa techniczna</div>
+    <p class="dyd-maintenance-msg"><?= h($_dyd_msg) ?></p>
+    <?php if ($_dyd_resume !== ''): ?>
+    <div class="d-flex justify-content-center mb-3">
+      <span class="dyd-maintenance-resume">
+        <i class="bi bi-clock me-1"></i>
+        Planowane wznowienie:
+        <strong><?= h(date('j.m.Y, G:i', strtotime($_dyd_resume))) ?></strong>
+      </span>
+    </div>
+    <?php endif ?>
+    <a href="logout.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-box-arrow-right me-1"></i>Wyloguj
+    </a>
+  </div>
+</div>
+    <?php
+    include dirname(__DIR__) . '/kursant/_layout_foot.php';
+    exit;
+}
+
 $courses   = dyd_courses($uid);
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
@@ -1272,13 +1315,49 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
   .dyd-course-pills .nav-link.active { background:#2563eb; border-color:#2563eb; }
   .badge-soft { background:rgba(37,99,235,.12); color:#93c5fd; border:1px solid rgba(37,99,235,.35); }
-  .dyd-globalbar { background:var(--bs-body-bg); border-bottom:2px solid var(--bs-border-color); padding:.3rem 1rem; display:flex; align-items:center; gap:.25rem; flex-wrap:wrap; }
-  .dyd-globalbar .dyd-gb-link { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:6px; font-size:.88rem; font-weight:600; color:var(--bs-body-color); text-decoration:none; border:1.5px solid transparent; transition:background .12s,color .12s; min-height:40px; }
-  .dyd-globalbar .dyd-gb-link:hover { background:var(--bs-tertiary-bg); border-color:var(--bs-border-color); }
-  .dyd-globalbar .dyd-gb-link.active { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; font-weight:700; }
+  /* ── Synergia-like top navbar override (tylko dydaktyk) ─── */
+  header .navbar { background:#1b2e45 !important; border-bottom:none !important; }
+  header .navbar .navbar-brand, header .navbar .navbar-brand i { color:#fff !important; }
+  header .navbar .btn-outline-secondary { color:rgba(255,255,255,.8) !important; border-color:rgba(255,255,255,.3) !important; }
+  header .navbar .btn-outline-secondary:hover { background:rgba(255,255,255,.1) !important; color:#fff !important; }
+  header .navbar .btn-outline-primary { border-color:rgba(255,255,255,.5) !important; color:#fff !important; }
+  header .navbar .text-body-secondary { color:rgba(255,255,255,.75) !important; }
+
+  /* ── Pasek modułowy (Synergia-like secondary nav) ─────── */
+  .dyd-globalbar {
+    background:#2c4a6e; border-bottom:none;
+    padding:.15rem 1rem; display:flex; align-items:center; gap:.05rem; flex-wrap:wrap;
+  }
+  .dyd-globalbar .dyd-gb-link {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.42rem .85rem; border-radius:0; font-size:.85rem; font-weight:600;
+    color:rgba(255,255,255,.82); text-decoration:none;
+    border:none; border-bottom:3px solid transparent;
+    transition:background .12s, color .12s, border-color .12s;
+    min-height:38px;
+  }
+  .dyd-globalbar .dyd-gb-link:hover { background:rgba(255,255,255,.1); color:#fff; }
+  .dyd-globalbar .dyd-gb-link.active {
+    background:rgba(255,255,255,.12); color:#fff; font-weight:700;
+    border-bottom-color:#5bbcff;
+  }
   .dyd-globalbar .dyd-gb-dropdown { position:relative; }
-  .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { background:none; border-color:transparent; }
+  .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { border-bottom-color:transparent; }
   .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
+  .dyd-globalbar .dropdown-menu { background:#1e3a5f; border:1px solid rgba(255,255,255,.15); }
+  .dyd-globalbar .dropdown-item { color:rgba(255,255,255,.85); }
+  .dyd-globalbar .dropdown-item:hover, .dyd-globalbar .dropdown-item:focus { background:rgba(255,255,255,.12); color:#fff; }
+  .dyd-globalbar .dropdown-item.active { background:rgba(91,188,255,.2); color:#fff; }
+
+  /* ── Pasek informacyjny prowadzącego (Synergia-like user banner) ── */
+  .dyd-info-bar {
+    background:#415a77; color:#fff;
+    padding:.35rem 1rem; font-size:.81rem;
+    display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .75rem;
+    border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  .dyd-info-bar .dyd-ib-sep { color:rgba(255,255,255,.3); }
+  .dyd-info-bar .dyd-ib-dim { color:rgba(255,255,255,.6); font-size:.76rem; }
 
   /* ── MD3 / Material Design 3 overrides ────────────────────────────────────── */
 
@@ -1502,14 +1581,28 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 </nav>
 
+<!-- ── Synergia-like info bar (prowadzący + kurs) ───────────── -->
+<div class="dyd-info-bar" aria-label="Informacje o prowadzącym i kursie">
+  <span><i class="bi bi-person-fill me-1" aria-hidden="true"></i><strong><?= h($me['name'] ?? '') ?></strong></span>
+  <?php if ($course && $tab_is_course): ?>
+  <span class="dyd-ib-sep">|</span>
+  <span><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($course['name']) ?></span>
+  <?php if (!empty($course['location'])): ?>
+  <span class="dyd-ib-dim"><i class="bi bi-geo-alt me-1"></i><?= h($course['location']) ?></span>
+  <?php endif; ?>
+  <span class="dyd-ib-dim">· <?= (int)($course['enrolled_count'] ?? 0) ?> kursantów</span>
+  <?php elseif (!$tab_is_course): ?>
+  <span class="dyd-ib-sep">|</span>
+  <span class="dyd-ib-dim"><?= $tab === 'pulpit' ? 'Pulpit' : ucfirst($tab) ?></span>
+  <?php endif; ?>
+  <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/index.php" class="ms-auto dyd-ib-dim text-decoration-none" style="font-size:.76rem">
+    <i class="bi bi-grid me-1" aria-hidden="true"></i>Pełny moduł TI
+  </a>
+</div>
+
 <main id="main" class="container dyd-wrap py-4">
 
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <h1 class="h4 fw-bold mb-0"><i class="bi bi-easel2 text-primary me-2" aria-hidden="true"></i>Panel dydaktyka</h1>
-    <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/index.php" class="btn btn-outline-secondary btn-sm ms-auto">
-      <i class="bi bi-grid me-1" aria-hidden="true"></i>Pełny moduł TI
-    </a>
-  </div>
+  <?php /* h1 przeniesiony do info-bar; widok zachowuje semantykę przez nagłówki sekcji w zakładkach */ ?>
 
   <?= flash_html() ?>
 
