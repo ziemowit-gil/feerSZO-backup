@@ -5,6 +5,43 @@
   $st_colors = ['podpisana'=>'success','w realizacji'=>'primary','projekt'=>'secondary','zakończona'=>'dark','rozwiązana'=>'warning','anulowana'=>'danger'];
 ?>
 <div class="mt-3">
+
+  <?php /* ── Dane kontaktowe prowadzącego ───────────────────────────────── */ ?>
+  <?= flash_get_html() ?>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent fw-semibold">
+      <i class="bi bi-person-lines-fill text-primary me-2" aria-hidden="true"></i>Dane kontaktowe do prowadzącego
+    </div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="dyd_update_contact">
+        <div class="mb-3">
+          <label class="form-label small text-body-secondary">Adres systemowy (login)</label>
+          <input type="text" class="form-control form-control-sm" value="<?= h($dyd_email) ?>" disabled>
+          <div class="form-text">Adres powiązany z Twoim kontem — nie można go zmienić tutaj.</div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label" for="dyd_contact_email">E-mail kontaktowy</label>
+            <input type="email" class="form-control form-control-sm" id="dyd_contact_email" name="alt_email"
+                   value="<?= h($dyd_alt_email ?: $dyd_email) ?>"
+                   placeholder="<?= h($dyd_email) ?>">
+            <div class="form-text">Widoczny dla kursantów i administracji.</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label" for="dyd_contact_phone">Telefon kontaktowy</label>
+            <input type="tel" class="form-control form-control-sm" id="dyd_contact_phone" name="phone_number"
+                   value="<?= h($dyd_phone) ?>" placeholder="+48 000 000 000">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz dane kontaktowe
+        </button>
+      </form>
+    </div>
+  </div>
+
   <h2 class="h5 fw-bold mb-3"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Twoje formalności</h2>
   <?php if (!$dyd_contracts): ?>
   <div class="card border-0 shadow-sm"><div class="card-body text-body-secondary py-4 text-center">
