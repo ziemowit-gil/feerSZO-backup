@@ -31,9 +31,14 @@ $roz_credit_count   = count(array_filter($roz_balances, fn($b) => $b['credit'] >
 <div class="px-3 py-3" style="max-width:860px">
   <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-receipt text-primary me-2" aria-hidden="true"></i>Rozliczenia grupy</h2>
-    <a href="../billing.php?course_id=<?= $cur_course ?>" class="btn btn-sm btn-outline-primary ms-auto" target="_blank" rel="noopener">
-      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Panel rozliczeń (admin)
-    </a>
+    <div class="ms-auto d-flex gap-2">
+      <a href="billing_pdf.php?course_id=<?= $cur_course ?>" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
+      </a>
+      <a href="../billing.php?course_id=<?= $cur_course ?>" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Panel rozliczeń (admin)
+      </a>
+    </div>
   </div>
 
   <?php if (!$roz_enrolled): ?>

@@ -236,9 +236,11 @@ if (($cur_course === 0 || $_force_pick) && count($courses) > 1) {
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
-$dyd_user_row  = db_one("SELECT email, microsoft_id FROM users WHERE id=?", [$uid]);
+$dyd_user_row  = db_one("SELECT email, microsoft_id, phone_number, alt_email FROM users WHERE id=?", [$uid]);
 $dyd_email     = trim((string)($dyd_user_row['email'] ?? ''));
 $dyd_ms_id     = trim((string)($dyd_user_row['microsoft_id'] ?? ''));
+$dyd_phone     = trim((string)($dyd_user_row['phone_number'] ?? ''));
+$dyd_alt_email = trim((string)($dyd_user_row['alt_email'] ?? ''));
 foreach ([
     ['zlecenie',    'data_zakonczenia'],
     ['wolontariat', 'data_zakonczenia'],
@@ -314,6 +316,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         k30_ti_instructor_cal_token_reset($uid);
         flash_set('success', 'Wygenerowano nowy adres kalendarza. Poprzedni link przestał działać.');
         header('Location: ' . dyd_back((int)($_POST['course_id'] ?? 0), 'lekcje')); exit;
+    }
+
+    // ── Dane kontaktowe prowadzącego ─────────────────────────────────────────────
+    if ($op === 'dyd_update_contact') {
+        $new_phone     = trim($_POST['phone_number'] ?? '');
+        $new_alt_email = trim($_POST['alt_email'] ?? '');
+        if ($new_alt_email !== '' && !filter_var($new_alt_email, FILTER_VALIDATE_EMAIL)) {
+            flash_set('danger', 'Podaj poprawny adres e-mail kontaktowy.');
+            header('Location: index.php?tab=formalnosci'); exit;
+        }
+        db()->prepare("UPDATE users SET phone_number=?, alt_email=? WHERE id=?")->execute([
+            $new_phone, $new_alt_email ?: null, $uid,
+        ]);
+        flash_set('success', 'Dane kontaktowe zostały zapisane.');
+        header('Location: index.php?tab=formalnosci'); exit;
     }
 
     // ── Samoobsługowe konto ownCloud prowadzącego (zakładka „dysk") ─────────────
@@ -1943,7 +1960,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <script type="module" src="https://unpkg.com/mdui@2/mdui.esm.js"></script>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
-<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy'], true); ?>
+<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true); ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
   <a class="dyd-gb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
      <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
@@ -2195,6 +2212,14 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                'oceny'=>['Oceny','journal-bookmark',(int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0)],
                'program'=>['Program zajęć','list-check',count(k30_ti_curriculum_list($cur_course))],
                'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
+      if (dyd_is_staff()) {
+          $roz_debt_n = (int)(db_one(
+              "SELECT COUNT(DISTINCT e.client_id) AS n
+               FROM k30_ti_enrollments e
+               JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+               WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
+          $tabs['rozliczenia'] = ['Rozliczenia','receipt', $roz_debt_n];
+      }
       foreach ($tabs as $k=>$ti): ?>
     <li class="nav-item" role="presentation">
       <a class="nav-link <?= $tab===$k?'active':'' ?>" href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>">
