@@ -408,9 +408,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php /* ── Nazwa grupy ── */ ?>
       <div class="mb-3">
         <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
+        <div class="input-group mb-1">
+          <input type="text" class="form-control" id="helper_surname"
+                 placeholder="Nazwisko kursanta" autocomplete="off">
+          <button type="button" class="btn btn-outline-primary" onclick="tiAutoName()" title="Wygeneruj nazwę grupy">
+            <i class="bi bi-magic me-1"></i>Generuj
+          </button>
+        </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. INF.742<?= date('y') ?>">
-        <div class="form-text">Format: <code>Skrót.kod</code> — generowany automatycznie po wybraniu rodzaju zajęć.</div>
+               placeholder="np. INF.742<?= date('y') ?>.Kowalski">
+        <div class="form-text">Format: <code>Skrót.kod.Nazwisko</code> — wpisz nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
 
       <div class="row g-3 mb-3">
@@ -707,6 +714,7 @@ function tiGenCode() {
 function tiAutoName() {
   var sel = document.getElementById('st_select');
   var gc  = document.getElementById('gc_input');
+  var sn  = document.getElementById('helper_surname');
   var out = document.getElementById('name_input');
   if (!sel || !out) return;
 
@@ -714,15 +722,21 @@ function tiAutoName() {
   var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
   if (!abbr) return;
 
-  var code = gc ? gc.value.trim() : '';
-  // Format: Skrót.kod  →  INF.74226
-  out.value = abbr + (code ? '.' + code : '');
+  var code    = gc ? gc.value.trim() : '';
+  var surname = sn ? sn.value.trim() : '';
+  // Format: Skrót.kod.Nazwisko  →  INF.74226.Kowalski
+  var parts = [abbr];
+  if (code)    parts.push(code);
+  if (surname) parts.push(surname);
+  out.value = parts.join('.');
 }
 
 // Nasłuchuj zmian
 (function(){
   var sel = document.getElementById('st_select');
+  var sn  = document.getElementById('helper_surname');
   if (sel) sel.addEventListener('change', tiAutoName);
+  if (sn)  sn.addEventListener('input', tiAutoName);
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
 })();
