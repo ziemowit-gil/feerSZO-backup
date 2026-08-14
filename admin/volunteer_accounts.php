@@ -473,6 +473,7 @@ try {
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
+<?php $m365_avail = function_exists('ms_login_available') && ms_login_available(); ?>
 <style>
 .sva-table td, .sva-table th { vertical-align: middle; font-size: .87rem; }
 .sva-badge-active   { background: #dcfce7; color: #166534; }
@@ -634,8 +635,8 @@ include dirname(__DIR__) . '/includes/header.php';
           <td style="font-size:.8rem;color:#64748b"><?= date_pl($u['created_at'] ?? '') ?></td>
           <td>
             <div class="d-flex gap-1 justify-content-end flex-wrap">
-              <!-- Dodaj konto M365 (tylko gdy brak i M365 skonfigurowane) -->
-              <?php if ($active && empty($u['m365_login']) && function_exists('ms_login_available') && ms_login_available()): ?>
+              <!-- Dodaj konto M365 (gdy brak konta) -->
+              <?php if ($active && empty($u['m365_login'])): ?>
               <button type="button" class="btn btn-sm btn-outline-info m365-add-btn"
                       data-uid="<?= (int)$u['id'] ?>"
                       data-name="<?= h($dn) ?>"
@@ -735,17 +736,25 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="mb-3">
             <label class="form-label fw-semibold small">Sposób dodania konta M365</label>
             <div class="d-flex flex-column gap-1">
+              <?php if ($m365_avail): ?>
               <label class="d-flex align-items-center gap-2 p-2 border rounded m365-mode-row" style="cursor:pointer;font-size:.83rem">
                 <input type="radio" name="m365_mode" value="auto" class="form-check-input mt-0" checked
                        onchange="toggleM365AddFields()">
                 <span><strong>Utwórz automatycznie</strong> — nowe konto w dzierżawie</span>
               </label>
+              <?php endif; ?>
               <label class="d-flex align-items-center gap-2 p-2 border rounded m365-mode-row" style="cursor:pointer;font-size:.83rem">
                 <input type="radio" name="m365_mode" value="manual" class="form-check-input mt-0"
+                       <?= !$m365_avail ? 'checked' : '' ?>
                        onchange="toggleM365AddFields()">
                 <span><strong>Podaj istniejące</strong> — UPN + Azure AD ID</span>
               </label>
             </div>
+            <?php if (!$m365_avail): ?>
+            <div class="form-text text-warning mt-1">
+              <i class="bi bi-exclamation-triangle me-1"></i>M365 nie jest skonfigurowane — dostępne tylko ręczne podpięcie.
+            </div>
+            <?php endif; ?>
           </div>
 
           <!-- Ręczne pola (manual) -->
