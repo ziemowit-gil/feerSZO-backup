@@ -1279,6 +1279,159 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-globalbar .dyd-gb-dropdown { position:relative; }
   .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { background:none; border-color:transparent; }
   .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
+
+  /* ── MD3 / Material Design 3 overrides ────────────────────────────────────── */
+
+  /* Cards */
+  .dyd-wrap .card {
+    border-radius: 12px !important;
+    border-color: var(--bs-border-color) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04) !important;
+  }
+  .dyd-wrap .card-header {
+    background: transparent !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: .7rem 1rem;
+  }
+
+  /* Nav tabs → MD3 indicator tabs */
+  .dyd-wrap .nav-tabs {
+    border-bottom: 1px solid var(--bs-border-color);
+    gap: 0;
+  }
+  .dyd-wrap .nav-tabs .nav-item { margin-bottom: 0; }
+  .dyd-wrap .nav-tabs .nav-link {
+    border: none !important;
+    border-bottom: 2.5px solid transparent !important;
+    border-radius: 0 !important;
+    padding: .55rem .9rem;
+    font-size: .82rem; font-weight: 600;
+    color: var(--bs-secondary-color);
+    background: none;
+    margin-bottom: -1px;
+    transition: color .12s, border-color .12s, background .1s;
+  }
+  .dyd-wrap .nav-tabs .nav-link:hover {
+    color: var(--bs-body-color);
+    border-bottom-color: var(--bs-border-color) !important;
+  }
+  .dyd-wrap .nav-tabs .nav-link.active {
+    color: #2563eb !important;
+    border-bottom-color: #2563eb !important;
+    background: none !important;
+  }
+  [data-bs-theme="dark"] .dyd-wrap .nav-tabs .nav-link.active { color: #93c5fd !important; border-bottom-color: #93c5fd !important; }
+
+  /* Nav pills → MD3 secondary tabs */
+  .dyd-wrap .nav-pills .nav-link {
+    border-radius: 9999px !important;
+    font-weight: 600; font-size: .82rem;
+    padding: .35rem .9rem;
+    color: var(--bs-secondary-color);
+    transition: background .1s, color .1s;
+  }
+  .dyd-wrap .nav-pills .nav-link.active {
+    background: rgba(37,99,235,.12) !important;
+    color: #2563eb !important;
+  }
+  [data-bs-theme="dark"] .dyd-wrap .nav-pills .nav-link.active { background: rgba(147,197,253,.12) !important; color: #93c5fd !important; }
+
+  /* Tables → MD3 data table */
+  .dyd-wrap .table { font-size: .875rem; }
+  .dyd-wrap .table thead th {
+    font-size: .69rem; text-transform: uppercase;
+    letter-spacing: .07em; font-weight: 700;
+    color: var(--bs-secondary-color);
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    padding: .5rem .75rem;
+  }
+  .dyd-wrap .table td {
+    padding: .6rem .75rem; vertical-align: middle;
+    border-bottom-color: var(--bs-border-color-translucent);
+  }
+  .dyd-wrap .table tbody tr:last-child td { border-bottom: none; }
+  .dyd-wrap .table-hover tbody tr:hover td { background: rgba(37,99,235,.04) !important; }
+
+  /* Buttons → MD3 shapes + states */
+  .dyd-wrap .btn                { border-radius: 20px !important; font-weight: 600; }
+  .dyd-wrap .btn-sm             { border-radius: 14px !important; }
+  .dyd-wrap .btn-lg             { border-radius: 24px !important; }
+  .dyd-wrap .btn-primary        { box-shadow: none !important; }
+  .dyd-wrap .btn-primary:hover  { box-shadow: 0 1px 3px rgba(37,99,235,.25), 0 2px 8px rgba(37,99,235,.15) !important; }
+  .dyd-wrap .btn-close          { border-radius: 50% !important; }
+
+  /* Badges → MD3 chips */
+  .dyd-wrap .badge          { border-radius: 6px !important; font-weight: 600; letter-spacing: .02em; }
+  .dyd-wrap .badge.rounded-pill { border-radius: 9999px !important; }
+
+  /* Alerts → MD3 banner */
+  .dyd-wrap .alert {
+    border-radius: 12px !important;
+    border-width: 1px;
+  }
+
+  /* Modals → MD3 dialogs */
+  .modal .modal-content {
+    border-radius: 28px !important;
+    border: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  }
+  .modal .modal-header {
+    border-bottom: none; border-radius: 28px 28px 0 0;
+    padding: 1.25rem 1.25rem .5rem;
+  }
+  .modal .modal-footer {
+    border-top: none; padding: .5rem 1.25rem 1.25rem;
+  }
+  .modal .modal-body { padding: .5rem 1.25rem; }
+  .modal .modal-title { font-size: 1.05rem; font-weight: 600; }
+
+  /* Form controls → MD3 outlined */
+  .dyd-wrap .form-control,
+  .dyd-wrap .form-select {
+    border-radius: 8px !important;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .dyd-wrap .form-control:focus,
+  .dyd-wrap .form-select:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.18) !important;
+  }
+  [data-bs-theme="dark"] .dyd-wrap .form-control:focus,
+  [data-bs-theme="dark"] .dyd-wrap .form-select:focus {
+    border-color: #93c5fd !important;
+    box-shadow: 0 0 0 3px rgba(147,197,253,.18) !important;
+  }
+
+  /* Dropdowns → MD3 */
+  .dyd-wrap .dropdown-menu {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    padding: .35rem;
+  }
+  .dyd-wrap .dropdown-item {
+    border-radius: 8px !important;
+    padding: .45rem .75rem;
+    font-size: .875rem;
+  }
+  .dyd-wrap .dropdown-item.active,
+  .dyd-wrap .dropdown-item:active { border-radius: 8px !important; }
+
+  /* List groups → MD3 */
+  .dyd-wrap .list-group-item { border-color: var(--bs-border-color-translucent); }
+  .dyd-wrap .list-group { border-radius: 12px !important; overflow: hidden; }
+
+  /* Pagination → MD3 */
+  .dyd-wrap .page-link { border-radius: 8px !important; }
+
+  /* Focus ring (WCAG 2.4.11) */
+  .dyd-wrap *:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+  }
+  [data-bs-theme="dark"] .dyd-wrap *:focus-visible { outline-color: #93c5fd !important; }
 </style>
 <!-- MDUI 2 (MD3) — wymagany dla zakładki Pulpit -->
 <link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
@@ -1600,19 +1753,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <?php endif; ?>
       </div>
       <?php
-        $_pm_bb = (float)($course['lesson_payout_bb'] ?? 0);
-        if ($_pm_bb > 0):
-          $_pm = k30_ti_payout_month_for_course($cur_course, date('Y-m'));
-          $_pmf = fn($x) => number_format((float)$x, 2, ',', ' ');
-      ?>
-      <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 py-2 mb-2">
-        <i class="bi bi-wallet2 text-primary"></i>
-        <span class="small">Wypłaty w tym miesiącu (<strong><?= h(date('m.Y')) ?></strong>, ten kurs):</span>
-        <span class="small text-body-secondary"><?= (int)$_pm['lessons'] ?> lekcji · brutto-brutto <?= $_pmf($_pm['brutto_brutto']) ?> zł · składki <?= $_pmf($_pm['skladki']) ?> zł · podatek <?= $_pmf($_pm['pit']) ?> zł</span>
-        <span class="ms-auto fw-semibold text-success">Na rękę: <?= $_pmf($_pm['netto']) ?> zł</span>
-      </div>
-      <?php endif; ?>
-      <?php
         $_today  = date('Y-m-d');
         $_days_pl = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
         $_mon_pl  = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
@@ -1711,9 +1851,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           $is_past = $s['lesson_date'] < $_today;
           $is_today= $s['lesson_date'] === $_today;
           $dow     = $_days_pl[(int)date('w', $sdate)];
-          $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
-          $_has_pay   = in_array($s['status'], ['held','individual_change','remote_material']) && $_payout_bb > 0;
-          if ($_has_pay) { $_pb = k30_ti_payout_breakdown($_payout_bb); $_pf = fn($x) => number_format((float)$x, 2, ',', ' '); }
           $pending = db_all("SELECT a.client_id, cl.name, a.cancel_reason FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id WHERE a.session_id=? AND a.cancel_pending=1 ORDER BY cl.name", [(int)$s['id']]);
           $resch   = k30_ti_reschedule_pending_for_session((int)$s['id']);
           $has_alert = $pending || $resch;
@@ -1774,15 +1911,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <div class="text-truncate mb-1" style="font-size:.9rem"><?= h($s['topic']) ?></div>
               <?php endif; ?>
 
-              <!-- Wypłata -->
-              <?php if ($_has_pay): ?>
-              <div class="mb-2">
-                <span class="badge rounded-pill" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:.75rem">
-                  <i class="bi bi-wallet2 me-1"></i><?= $_pf($_pb['netto']) ?> zł netto
-                  <span class="opacity-75 ms-1">(bb: <?= $_pf($_pb['brutto_brutto']) ?> zł)</span>
-                </span>
-              </div>
-              <?php endif; ?>
 
               <!-- Oczekujące prośby odwołania -->
               <?php if ($pending): ?>
@@ -3372,9 +3500,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php endif; ?>
           <?php if (!empty($dc['stanowisko'])): ?>
           <div class="col"><dt class="text-body-secondary fw-normal small">Stanowisko / rola</dt><dd class="mb-0"><?= h($dc['stanowisko']) ?></dd></div>
-          <?php endif; ?>
-          <?php if (!empty($dc['wynagrodzenie_brutto'])): ?>
-          <div class="col"><dt class="text-body-secondary fw-normal small">Wynagrodzenie brutto</dt><dd class="mb-0"><?= number_format((float)$dc['wynagrodzenie_brutto'], 2, ',', ' ') ?> zł</dd></div>
           <?php endif; ?>
           <?php if (!empty($dc['miejsce_wolontariatu'])): ?>
           <div class="col"><dt class="text-body-secondary fw-normal small">Miejsce</dt><dd class="mb-0"><?= h($dc['miejsce_wolontariatu']) ?></dd></div>
