@@ -15,7 +15,7 @@ karty30_migrate();
 /** Synchronizuje alternative_hosts Zoom dla wszystkich spotkań kursu. Ciche błędy. */
 function _ti_zoom_sync_alt_hosts(int $course_id, array $course): void {
     if (!zoom_enabled()) return;
-    $emails = k30_ti_course_coinstructor_emails($course_id);
+    $emails = k30_ti_course_zoom_alt_hosts($course_id);
     try {
         $api = new ZoomAPI();
         if (!empty($course['zoom_meeting_id'])) {
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('success','Stały link Zoom uczestnika usunięty.');
         } else {
             $cname = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid])['name'] ?? (string)$cid;
-            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI', k30_ti_course_coinstructor_emails($id));
+            $m     = $api->create_meeting($course['name'].' — '.$cname, 'Zajęcia TI', k30_ti_course_zoom_alt_hosts($id));
             db()->prepare("UPDATE k30_ti_enrollments SET zoom_meeting_id=?, zoom_meeting_url=? WHERE course_id=? AND client_id=?")
                  ->execute([$m['meeting_id'], $m['join_url'], $id, $cid]);
             flash_set('success','Stały link Zoom wygenerowany dla uczestnika '.$cname.'.');

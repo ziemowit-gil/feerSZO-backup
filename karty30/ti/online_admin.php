@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         m365_save_setting('zoom_enabled',    isset($_POST['zoom_enabled']) ? '1' : '0');
         m365_save_setting('zoom_account_id', trim($_POST['zoom_account_id'] ?? ''));
         m365_save_setting('zoom_client_id',  trim($_POST['zoom_client_id'] ?? ''));
-        m365_save_setting('zoom_user_id',    trim($_POST['zoom_user_id'] ?? ''));
+        m365_save_setting('zoom_user_id',    trim($_POST['zoom_user_id'] ?? '') ?: 'edukacja@feer.org.pl');
         if (($_POST['zoom_client_secret'] ?? '') !== '') {
             m365_save_setting('zoom_client_secret', $_POST['zoom_client_secret']);
         }

@@ -36,7 +36,7 @@ class ZoomAPI {
         $this->accountId    = zoom_setting('account_id');
         $this->clientId     = zoom_setting('client_id');
         $this->clientSecret = zoom_setting('client_secret');
-        $this->userId       = zoom_setting('user_id') ?: 'me';
+        $this->userId       = zoom_setting('user_id') ?: 'edukacja@feer.org.pl';
     }
 
     public function is_configured(): bool {

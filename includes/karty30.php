@@ -3929,6 +3929,23 @@ function k30_ti_course_coinstructor_emails(int $course_id): string {
     return implode(',', array_column($rows, 'email'));
 }
 
+/**
+ * Adresy e-mail do Zoom alternative_hosts: prowadzący kursu + coProwadzący.
+ * Pozwala każdemu z nich rozpocząć spotkanie stworzone na koncie hosta (edukacja@).
+ */
+function k30_ti_course_zoom_alt_hosts(int $course_id): string {
+    $rows = db_all(
+        "SELECT u.email FROM k30_ti_courses c
+         JOIN users u ON u.id=c.instructor_id
+         WHERE c.id=? AND u.email != ''
+         UNION
+         SELECT u.email FROM k30_ti_course_coinstructors ci
+         JOIN users u ON u.id=ci.user_id WHERE ci.course_id=? AND u.email != ''",
+        [$course_id, $course_id]
+    );
+    return implode(',', array_column($rows, 'email'));
+}
+
 /** Lista dydaktyków (użytkownicy będący prowadzącymi kursów) + status konta panelu. */
 function k30_ti_instructor_list(): array {
     return db_all(
