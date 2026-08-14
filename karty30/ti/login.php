@@ -176,7 +176,6 @@ body.kp-login-split-page {
         </span>
         <div>
           <div class="fw-bold" style="font-size:1.05rem" id="hero-title">Panel kursanta</div>
-          <div style="opacity:.6;font-size:.8rem">Zajęcia TI</div>
         </div>
       </div>
 
