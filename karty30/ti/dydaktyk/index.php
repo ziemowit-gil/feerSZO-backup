@@ -56,7 +56,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'planner', 'cykliczne'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -1292,8 +1292,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
   </a>
-  <a class="dyd-gb-link <?= $tab==='planner'?'active':'' ?>" href="index.php?tab=planner"
-     <?= $tab==='planner'?'aria-current="page"':'' ?>>
+  <a class="dyd-gb-link" href="planner.php">
     <i class="bi bi-calendar3-week" aria-hidden="true"></i>Planner
   </a>
 </nav>
@@ -3401,10 +3400,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endif; ?>
   </div>
   <?php endif; /* dysk */ ?>
-
-  <?php if ($tab === 'planner'): ?>
-  <?php include __DIR__ . '/_tab_planner.php'; ?>
-  <?php endif; /* planner */ ?>
 
   <?php if ($tab === 'cykliczne'): ?>
   <?php include __DIR__ . '/_tab_cykliczne.php'; ?>
