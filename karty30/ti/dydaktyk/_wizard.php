@@ -4,7 +4,8 @@
  * Wymaga: $dyd_wizard_sessions (array lekcji z dziś), $cur_course, $uid, dyd_token().
  * Dołączany z index.php tuż przed </body>.
  */
-if (empty($dyd_wizard_sessions)) return;
+// Wizard renderuje się zawsze — może być otwarty przez wizOpenExt() z przeszłych lekcji
+// nawet gdy dziś nie ma zaplanowanych zajęć.
 ?>
 <style>
   .wiz-step { display:none; }
@@ -84,7 +85,7 @@ if (empty($dyd_wizard_sessions)) return;
               Dalej <i class="bi bi-arrow-right ms-1"></i>
             </button>
           </div>
-          <?php else: $_ws0 = $dyd_wizard_sessions[0]; ?>
+          <?php elseif (count($dyd_wizard_sessions) === 1): $_ws0 = $dyd_wizard_sessions[0]; ?>
           <input type="hidden" id="wiz_sid_init" value="<?= (int)$_ws0['id'] ?>">
           <?php endif; ?>
 
