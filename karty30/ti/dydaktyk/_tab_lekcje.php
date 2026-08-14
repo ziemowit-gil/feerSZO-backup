@@ -76,6 +76,33 @@
     </div>
     <?php endif; ?>
   </div>
+
+  <!-- Legenda statusów lekcji -->
+  <?php $_sdesc = [
+    'planned'           => 'zaplanowana, jeszcze się nie odbyła',
+    'held'              => 'odbyła się z pełną grupą',
+    'individual_change' => 'odbyła się, ale ze zmienionym składem uczestników',
+    'remote_material'   => 'praca własna prowadzącego — bez listy obecności, liczona do rozliczenia',
+    'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
+  ]; ?>
+  <div class="px-3 pt-2 pb-1 border-bottom">
+    <details>
+      <summary class="d-inline-flex align-items-center gap-1 text-body-secondary small py-1" style="cursor:pointer;list-style:none">
+        <i class="bi bi-info-circle" aria-hidden="true"></i> Objaśnienia statusów
+      </summary>
+      <div class="d-flex flex-wrap gap-2 py-2">
+        <?php foreach ($STATUS as $_sk => $_sv): if ($_sk === 'draft') continue; ?>
+        <span class="d-inline-flex align-items-center gap-1 small"
+              title="<?= h($_sdesc[$_sk] ?? '') ?>"
+              data-bs-toggle="tooltip">
+          <span class="rounded-circle flex-shrink-0" style="width:9px;height:9px;background:<?= h($_sv['color']) ?>;display:inline-block"></span>
+          <strong style="color:<?= h($_sv['color']) ?>"><?= h($_sv['label']) ?></strong>
+        </span>
+        <?php endforeach; ?>
+      </div>
+    </details>
+  </div>
+
   <?php
     $_today  = date('Y-m-d');
     $_days_pl = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
@@ -304,7 +331,8 @@
               </button>
               <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
               <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
-                      title="Przenieś lekcję"
+                      title="Przenieś lekcję na inny termin"
+                      data-bs-toggle="tooltip" data-bs-placement="top"
                       onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>); return false">
                 <i class="bi bi-calendar2-range"></i>
               </button>
@@ -316,19 +344,24 @@
                 <input type="hidden" name="_tab" value="lekcje">
                 <input type="hidden" name="course_id" value="<?= $cur_course ?>">
                 <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Przywróć lekcję">
+                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2"
+                        title="Przywróć lekcję (zmień status z odwołana na zaplanowana)"
+                        data-bs-toggle="tooltip" data-bs-placement="top">
                   <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
               </form>
               <?php elseif (!$is_past): ?>
               <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
-                      title="Odwołaj lekcję"
+                      title="Odwołaj lekcję — lekcja nie zostanie policzona do rozliczenia"
+                      data-bs-toggle="tooltip" data-bs-placement="top"
                       onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>); return false">
                 <i class="bi bi-x-circle"></i>
               </button>
               <?php endif; ?>
               <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>"
-                 class="btn btn-sm btn-outline-secondary py-0 px-2" title="Szczegóły lekcji">
+                 class="btn btn-sm btn-outline-secondary py-0 px-2"
+                 title="Szczegóły lekcji — obecność, oceny, notatki"
+                 data-bs-toggle="tooltip" data-bs-placement="top">
                 <i class="bi bi-arrow-right-circle"></i>
               </a>
             </div>

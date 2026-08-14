@@ -2,48 +2,70 @@
 <div class="row g-3">
   <!-- Lista wątków -->
   <div class="col-md-4">
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <span class="fw-semibold small text-muted">Wątki</span>
-      <button type="button" class="btn btn-sm btn-primary"
-              data-bs-toggle="modal" data-bs-target="#dydMsgNew"
-              <?= empty($dyd_msg_accounts) ? 'disabled title="Brak kursantów w Twoich kursach"' : '' ?>>
-        <i class="bi bi-pencil-square me-1"></i>Nowa
-      </button>
-    </div>
-    <div class="list-group list-group-flush border rounded" style="max-height:65vh;overflow-y:auto">
-      <!-- Specjalny wątek: Kierownictwo -->
-      <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&thread=admin"
-         class="list-group-item list-group-item-action py-2 px-3 <?= $dyd_thread_is_admin ? 'active' : '' ?>">
-        <div class="d-flex justify-content-between align-items-start">
-          <span class="fw-semibold small"><i class="bi bi-building me-1"></i>Kierownictwo</span>
+    <div class="border rounded" style="max-height:65vh;overflow-y:auto">
+      <!-- Sekcja 1: Kierownik Instytucji -->
+      <div class="px-2 py-1 d-flex align-items-center gap-1 bg-body-tertiary border-bottom">
+        <button class="btn btn-link btn-sm p-0 text-body fw-semibold d-flex align-items-center gap-1 flex-grow-1"
+                style="font-size:.78rem;text-decoration:none"
+                data-bs-toggle="collapse" data-bs-target="#dydMsgSect1"
+                aria-expanded="<?= $dyd_thread_is_admin ? 'true' : 'false' ?>">
+          <i class="bi bi-chevron-down" style="font-size:.65rem;transition:transform .2s" aria-hidden="true"></i>
+          <i class="bi bi-building me-1" aria-hidden="true"></i>Kierownik instytucji
           <?php if ($dyd_admin_unseen > 0): ?>
-          <span class="badge bg-danger ms-1"><?= (int)$dyd_admin_unseen ?></span>
+          <span class="badge bg-danger ms-1" style="font-size:.65rem"><?= (int)$dyd_admin_unseen ?></span>
           <?php endif; ?>
-        </div>
-        <div class="small <?= $dyd_thread_is_admin ? 'text-white-50' : 'text-muted' ?>" style="font-size:.75rem">
-          Administratorzy SZO
-        </div>
-      </a>
-      <?php if (empty($dyd_msg_threads)): ?>
-      <div class="list-group-item text-muted small py-3 text-center">
-        <i class="bi bi-envelope opacity-50 d-block mb-1" style="font-size:1.5rem"></i>Brak wiadomości od kursantów
+        </button>
       </div>
-      <?php else: ?>
-      <?php foreach ($dyd_msg_threads as $th): $isActive = !$dyd_thread_is_admin && $dyd_msg_student_id === (int)$th['id']; ?>
-      <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&student=<?= (int)$th['id'] ?>"
-         class="list-group-item list-group-item-action py-2 px-3 <?= $isActive ? 'active' : '' ?>">
-        <div class="d-flex justify-content-between align-items-start">
-          <span class="fw-semibold small"><?= h($th['name']) ?></span>
-          <?php if ($th['unread'] > 0): ?>
-          <span class="badge bg-danger ms-1"><?= (int)$th['unread'] ?></span>
+      <div class="collapse <?= $dyd_thread_is_admin ? 'show' : '' ?>" id="dydMsgSect1">
+        <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&thread=admin"
+           class="list-group-item list-group-item-action py-2 px-3 border-0 <?= $dyd_thread_is_admin ? 'active' : '' ?>">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small fw-semibold">Kierownictwo SZO</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Sekcja 2: Kursanci -->
+      <?php $_kurs_unread = array_sum(array_column($dyd_msg_threads, 'unread')); ?>
+      <div class="px-2 py-1 d-flex align-items-center gap-1 bg-body-tertiary border-top border-bottom">
+        <button class="btn btn-link btn-sm p-0 text-body fw-semibold d-flex align-items-center gap-1 flex-grow-1"
+                style="font-size:.78rem;text-decoration:none"
+                data-bs-toggle="collapse" data-bs-target="#dydMsgSect2"
+                aria-expanded="<?= (!$dyd_thread_is_admin || !empty($dyd_msg_threads)) ? 'true' : 'false' ?>">
+          <i class="bi bi-chevron-down" style="font-size:.65rem;transition:transform .2s" aria-hidden="true"></i>
+          <i class="bi bi-people me-1" aria-hidden="true"></i>Kursanci
+          <?php if ($_kurs_unread > 0): ?>
+          <span class="badge bg-danger ms-1" style="font-size:.65rem"><?= (int)$_kurs_unread ?></span>
           <?php endif; ?>
+        </button>
+        <button type="button" class="btn btn-sm btn-primary py-0 px-2" style="font-size:.75rem"
+                data-bs-toggle="modal" data-bs-target="#dydMsgNew"
+                <?= empty($dyd_msg_accounts) ? 'disabled title="Brak kursantów w Twoich kursach"' : '' ?>>
+          <i class="bi bi-pencil-square"></i><span class="visually-hidden">Nowa wiadomość</span>
+        </button>
+      </div>
+      <div class="collapse <?= !$dyd_thread_is_admin ? 'show' : '' ?>" id="dydMsgSect2">
+        <?php if (empty($dyd_msg_threads)): ?>
+        <div class="text-muted small py-3 text-center px-2">
+          <i class="bi bi-envelope opacity-50 d-block mb-1" style="font-size:1.5rem"></i>Brak wiadomości od kursantów
         </div>
-        <div class="small <?= $isActive ? 'text-white-50' : 'text-muted' ?>" style="font-size:.75rem">
-          <?= h($th['login']) ?> · <?= $th['last_at'] ? date('d.m H:i', strtotime($th['last_at'])) : '' ?>
-        </div>
-      </a>
-      <?php endforeach; ?>
-      <?php endif; ?>
+        <?php else: ?>
+        <?php foreach ($dyd_msg_threads as $th): $isActive = !$dyd_thread_is_admin && $dyd_msg_student_id === (int)$th['id']; ?>
+        <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&student=<?= (int)$th['id'] ?>"
+           class="list-group-item list-group-item-action py-2 px-3 border-0 <?= $isActive ? 'active' : '' ?>">
+          <div class="d-flex justify-content-between align-items-start">
+            <span class="fw-semibold small"><?= h($th['name']) ?></span>
+            <?php if ($th['unread'] > 0): ?>
+            <span class="badge bg-danger ms-1"><?= (int)$th['unread'] ?></span>
+            <?php endif; ?>
+          </div>
+          <div class="small <?= $isActive ? 'text-white-50' : 'text-muted' ?>" style="font-size:.75rem">
+            <?= h($th['login']) ?> · <?= $th['last_at'] ? date('d.m H:i', strtotime($th['last_at'])) : '' ?>
+          </div>
+        </a>
+        <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 

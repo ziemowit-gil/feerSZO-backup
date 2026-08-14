@@ -61,6 +61,11 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     el.setAttribute('title', (el.getAttribute('title') || '') + ' (klawisz: ' + key + ')');
   });
 
+  // 6. Bootstrap tooltips
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+    new bootstrap.Tooltip(el);
+  });
+
 })();
 </script>
 </body>

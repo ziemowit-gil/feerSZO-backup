@@ -62,6 +62,7 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
   </div>
 </div>
     <?php
+    $KP_SKIP_TAB_MEMORY = true;
     include dirname(__DIR__) . '/kursant/_layout_foot.php';
     exit;
 }
@@ -522,6 +523,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid   = (int)($_POST['session_id'] ?? 0);
         $back  = 'index.php?course=' . $course_id . '&tab=pulpit';
         if ($sid && dyd_owns_session($uid, $sid)) {
+            $_sess_date = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_date'] ?? '');
+            if ($_sess_date > date('Y-m-d')) {
+                flash_set('danger', 'Nie można oznaczyć jako odbytej lekcji z przyszłości.');
+                header('Location: ' . $back); exit;
+            }
             // Krok 1: obecność
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
             k30_ti_save_attendance($sid, $att);
@@ -554,6 +560,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'save_attendance') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if (dyd_owns_session($uid, $sid)) {
+            $_sess_date2 = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_date'] ?? '');
+            if ($_sess_date2 > date('Y-m-d')) {
+                flash_set('danger', 'Nie można oznaczyć jako odbytej lekcji z przyszłości.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
             k30_ti_save_attendance($sid, $att);
             // Sprawdzenie obecności oznacza, że lekcja się odbyła (gdy była zaplanowana).

@@ -1340,6 +1340,13 @@ HTML;
         $pdo->exec("COMMIT");
         $pdo->exec("PRAGMA foreign_keys=ON");
     }
+
+    // Jednorazowy reset: lekcje przyszłe błędnie oznaczone jako odbyte → zaplanowana
+    try {
+        $pdo->exec("UPDATE k30_ti_sessions SET status='planned'
+                    WHERE status IN ('held','individual_change','remote_material')
+                    AND lesson_date > date('now','localtime')");
+    } catch (\Throwable $e) {}
 }
 
 // ── Impersonation helpers ─────────────────────────────────────────────────────

@@ -127,6 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         } else {
             $new_status = 'held';
         }
+        if ($session['lesson_date'] > date('Y-m-d') && in_array($new_status, ['held','individual_change'], true)) {
+            flash_set('danger', 'Nie można oznaczyć lekcji z przyszłości jako odbytej.');
+            header('Location: lesson.php?id=' . $session_id); exit;
+        }
         db()->prepare(
             "UPDATE k30_ti_sessions
              SET status=?, topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
@@ -153,6 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         }
         $st = array_key_exists($_POST['status'] ?? '', K30_TI_SESSION_STATUSES)
               ? $_POST['status'] : 'planned';
+        if ($session['lesson_date'] > date('Y-m-d') && in_array($st, ['held','individual_change','remote_material'], true)) {
+            flash_set('danger', 'Nie można oznaczyć lekcji z przyszłości jako odbytej.');
+            header('Location: lesson.php?id=' . $session_id); exit;
+        }
         if ($st === 'cancelled') {
             // Odwołanie całej lekcji — wymaga powodu
             $reason = trim($_POST['cancel_reason'] ?? '');
@@ -377,6 +385,33 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
 </div>
 
 <?= flash_html() ?>
+
+<!-- Legenda statusów -->
+<?php $_lesson_sdesc = [
+  'draft'             => 'wstępny szkic z SZOPlanner, niezatwierdzony',
+  'planned'           => 'zaplanowana, jeszcze się nie odbyła',
+  'held'              => 'odbyła się normalnie z całą grupą',
+  'individual_change' => 'odbyła się ze zmienionym składem uczestników',
+  'remote_material'   => 'praca własna prowadzącego — bez listy obecności, liczona do rozliczenia',
+  'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
+]; ?>
+<div class="mb-3">
+  <details>
+    <summary class="d-inline-flex align-items-center gap-1 text-body-secondary small" style="cursor:pointer;list-style:none">
+      <i class="bi bi-info-circle" aria-hidden="true"></i> Objaśnienia statusów
+    </summary>
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      <?php foreach (K30_TI_SESSION_STATUSES as $_sk => $_sv): ?>
+      <span class="d-inline-flex align-items-center gap-1 small"
+            title="<?= h($_lesson_sdesc[$_sk] ?? '') ?>"
+            data-bs-toggle="tooltip" data-bs-placement="top">
+        <span class="rounded-circle flex-shrink-0" style="width:9px;height:9px;background:<?= h($_sv['color']) ?>;display:inline-block"></span>
+        <strong style="color:<?= h($_sv['color']) ?>"><?= h($_sv['label']) ?></strong>
+      </span>
+      <?php endforeach; ?>
+    </div>
+  </details>
+</div>
 
 <?php
 $_no_students = empty($attendance) && $session['status'] === 'planned';
