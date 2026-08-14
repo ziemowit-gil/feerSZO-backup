@@ -302,6 +302,11 @@ function karty30_migrate(): void {
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+    // Migracja: kolumny harmonogramu kursu (mogą nie istnieć gdy tabela created po ich usunięciu z CREATE TABLE)
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN day_of_week  INTEGER"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN time_from    TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN time_to      TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN duration_min INTEGER NOT NULL DEFAULT 60"); } catch (\Throwable $e) {}
     // Migracja: miękkie usuwanie kursów TI (status 'active'|'cancelled')
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch (\Throwable $e) {}
     // Migracja: session_date → lesson_date (SQLite 3.25+)

@@ -594,7 +594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Kursy i lekcje kursanta
-$courses          = k30_ti_client_courses($student['client_id']);
+try { $courses = k30_ti_client_courses($student['client_id']); } catch (\Throwable $e) { $courses = []; }
 $active_courses   = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') === 'active'));
 $inactive_courses = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') !== 'active'));
 
@@ -627,21 +627,23 @@ foreach ($courses as $c) {
 $progress_pct = $progress_total > 0 ? round($progress_done / $progress_total * 100) : 0;
 
 // Następna zaplanowana lekcja (do widgetu na dashboardzie)
-$next_lesson = db_one(
-    "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
-     FROM k30_ti_sessions s
-     JOIN k30_ti_courses c ON c.id=s.course_id
-     JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
-     WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
-     ORDER BY s.lesson_date, s.time_from LIMIT 1",
-    [$student['client_id']]
-);
-$homeworks_student = k30_ti_homework_for_client($student['client_id']);
+try {
+    $next_lesson = db_one(
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
+         WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
+         ORDER BY s.lesson_date, s.time_from LIMIT 1",
+        [$student['client_id']]
+    );
+} catch (\Throwable $e) { $next_lesson = null; }
+try { $homeworks_student = k30_ti_homework_for_client($student['client_id']); } catch (\Throwable $e) { $homeworks_student = []; }
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
-$materials_student = k30_ti_materials_for_client($student['client_id']);
+try { $materials_student = k30_ti_materials_for_client($student['client_id']); } catch (\Throwable $e) { $materials_student = []; }
 // Oceny (e-dziennik) — pogrupowane wg kursu, ze średnią ważoną
 // Respektuj wyłączenie ocen: globalnie dla osoby oraz per kurs.
-$grades_student = k30_ti_client_grades($student['client_id']);
+try { $grades_student = k30_ti_client_grades($student['client_id']); } catch (\Throwable $e) { $grades_student = []; }
 if (!k30_ti_client_grades_enabled((int)$student['client_id'])) {
     $grades_student = [];
 } else {
@@ -668,26 +670,28 @@ uasort($dyd_groups, function($a, $b) {
     if ($b['session_id'] === 0) return -1;
     return strcmp((string)$b['date'], (string)$a['date']); // lekcje od najnowszej
 });
-$moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
+try { $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_courses_student = []; }
 
 // Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
 // listę czytamy z cache (tanio) na potrzeby licznika na innych zakładkach.
 if ($tab === 'zadania') {
     ti_moodle_sync_client_assignments($student['client_id']);
 }
-$moodle_assignments = ti_moodle_assignments_for_client($student['client_id']);
+try { $moodle_assignments = ti_moodle_assignments_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_assignments = []; }
 $moodle_hw_pending  = array_values(array_filter($moodle_assignments,
     fn($a) => ($a['sub_status'] ?? '') !== 'submitted' && empty($a['sub_graded'])));
 $hw_pending_total   = count($hw_pending) + count($moodle_hw_pending);
 
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 // Do diagnozy pustej listy lekcji: czy kursant ma aktywny zapis na jakikolwiek kurs?
-$active_enroll_count = (int)(db_one(
-    "SELECT COUNT(*) n FROM k30_ti_enrollments WHERE client_id=? AND status='active'",
-    [$student['client_id']]
-)['n'] ?? 0);
-$my_licenses = k30_ti_client_licenses($student['client_id']);
-$active_lesson = k30_ti_active_lesson_link($student['client_id']);
+try {
+    $active_enroll_count = (int)(db_one(
+        "SELECT COUNT(*) n FROM k30_ti_enrollments WHERE client_id=? AND status='active'",
+        [$student['client_id']]
+    )['n'] ?? 0);
+} catch (\Throwable $e) { $active_enroll_count = 0; }
+try { $my_licenses = k30_ti_client_licenses($student['client_id']); } catch (\Throwable $e) { $my_licenses = []; }
+try { $active_lesson = k30_ti_active_lesson_link($student['client_id']); } catch (\Throwable $e) { $active_lesson = null; }
 
 // Regulaminy TI — oczekujące akceptacje + historia
 $terms_pending  = ti_terms_pending((int)$student['client_id']);
