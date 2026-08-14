@@ -108,6 +108,11 @@ function karty30_migrate(): void {
         $pdo->exec("ALTER TABLE users ADD COLUMN share_contact INTEGER NOT NULL DEFAULT 0");
     } catch (\Throwable $e) {}
 
+    // Prowadzący-student: brak składek ZUS — BB = netto
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN ti_is_student INTEGER NOT NULL DEFAULT 0");
+    } catch (\Throwable $e) {}
+
     // Zasób zarezerwowany na termin (sala, stanowisko itp.)
     try {
         $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL");
@@ -2329,14 +2334,30 @@ function k30_ti_payout_rate(string $key): float {
  * społeczne i zdrowotna pracownika oraz zaliczka PIT (z uwzględnieniem KUP).
  * Zwraca komplet składowych (wszystkie kwoty zaokrąglone do groszy).
  */
-function k30_ti_payout_breakdown(float $bb): array {
+function k30_ti_payout_breakdown(float $bb, bool $is_student = false): array {
+    $bb = max(0.0, $bb);
+    $r  = fn($x) => round($x, 2);
+
+    // Prowadzący-student: brak ZUS/PIT, BB = netto
+    if ($is_student) {
+        return [
+            'brutto_brutto' => $r($bb),
+            'zus_employer'  => 0.0,
+            'brutto'        => $r($bb),
+            'zus_employee'  => 0.0,
+            'health'        => 0.0,
+            'skladki'       => 0.0,
+            'pit'           => 0.0,
+            'netto'         => $r($bb),
+        ];
+    }
+
     $emp_pct    = k30_ti_payout_rate('ti_payout_zus_employer_pct');
     $ee_pct     = k30_ti_payout_rate('ti_payout_zus_employee_pct');
     $health_pct = k30_ti_payout_rate('ti_payout_health_pct');
     $kup_pct    = k30_ti_payout_rate('ti_payout_kup_pct');
     $pit_pct    = k30_ti_payout_rate('ti_payout_pit_pct');
 
-    $bb = max(0.0, $bb);
     $brutto       = $emp_pct > 0 ? $bb / (1 + $emp_pct / 100) : $bb;
     $zus_employer = $bb - $brutto;
     $zus_employee = $brutto * $ee_pct / 100;
@@ -2348,7 +2369,6 @@ function k30_ti_payout_breakdown(float $bb): array {
     $skladki      = $zus_employee + $health;             // potrącone pracownikowi
     $netto        = max(0.0, $brutto - $zus_employee - $health - $pit);
 
-    $r = fn($x) => round($x, 2);
     return [
         'brutto_brutto' => $r($bb),
         'zus_employer'  => $r($zus_employer),
@@ -2385,6 +2405,7 @@ function _k30_ti_payout_accumulate(array &$acc, array $b): void {
 function k30_ti_payouts_by_instructor(string $ym): array {
     $rows = db_all(
         "SELECT c.instructor_id AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
+                COALESCE(u.ti_is_student, 0) AS is_student,
                 c.id AS course_id, c.name AS course_name, c.lesson_payout_bb AS bb
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
@@ -2400,10 +2421,11 @@ function k30_ti_payouts_by_instructor(string $ym): array {
         if (!isset($by[$iid])) {
             $by[$iid] = _k30_ti_payout_zero();
             $by[$iid]['instructor_id'] = $iid;
-            $by[$iid]['name']    = $r['iname'];
-            $by[$iid]['courses'] = [];
+            $by[$iid]['name']       = $r['iname'];
+            $by[$iid]['is_student'] = (bool)$r['is_student'];
+            $by[$iid]['courses']    = [];
         }
-        $b = k30_ti_payout_breakdown((float)$r['bb']);
+        $b = k30_ti_payout_breakdown((float)$r['bb'], (bool)$r['is_student']);
         _k30_ti_payout_accumulate($by[$iid], $b);
         $cid = (int)$r['course_id'];
         if (!isset($by[$iid]['courses'][$cid])) {
@@ -2417,7 +2439,13 @@ function k30_ti_payouts_by_instructor(string $ym): array {
 
 /** Miesięczna suma wypłat dla jednego kursu (status='held'). $ym = 'YYYY-MM'. */
 function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
-    $bb = (float)(db_one("SELECT lesson_payout_bb FROM k30_ti_courses WHERE id=?", [$course_id])['lesson_payout_bb'] ?? 0);
+    $course = db_one(
+        "SELECT c.lesson_payout_bb, COALESCE(u.ti_is_student, 0) AS is_student
+         FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
+         WHERE c.id=?",
+        [$course_id]
+    );
+    $bb = (float)($course['lesson_payout_bb'] ?? 0);
     $acc = _k30_ti_payout_zero();
     if ($bb <= 0) return $acc;
     $rows = db_all(
@@ -2426,7 +2454,7 @@ function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
         [$course_id, $ym]
     );
     $n = (int)($rows[0]['c'] ?? 0);
-    $b = k30_ti_payout_breakdown($bb);
+    $b = k30_ti_payout_breakdown($bb, (bool)($course['is_student'] ?? 0));
     for ($i = 0; $i < $n; $i++) _k30_ti_payout_accumulate($acc, $b);
     return $acc;
 }
