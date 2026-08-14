@@ -41,6 +41,11 @@
         // Dokładanie kolumn do istniejących tabel
         try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN powod TEXT"); } catch (\Throwable $e) {}
         try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN nie_wysylac INTEGER DEFAULT 0"); } catch (\Throwable $e) {}
+        // Powiadomienie zleceniobiorcy (token dostępu + metadane wysyłki)
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN notify_token TEXT"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN notified_at DATETIME"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN notified_to_email TEXT"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN notify_mail_queue_id INTEGER"); } catch (\Throwable $e) {}
     } catch (\Throwable $e) {
         error_log('[rozliczenia migrate] ' . $e->getMessage());
     }
@@ -140,6 +145,34 @@ function rozliczenie_mark_settled(int $rid, ?int $user_id): void {
 /** Trwałe usunięcie rozliczenia (tylko admin, po weryfikacji IKA — egzekwowane w api/ajax.php). */
 function delete_rozliczenie(int $rid): void {
     db()->prepare("DELETE FROM zlecenie_rozliczenia WHERE id=?")->execute([$rid]);
+}
+
+/** Generuje unikalny token dostępu dla zleceniobiorcy (jeśli brak) i zwraca go. */
+function rozliczenie_ensure_token(int $rid): string {
+    $row = db_one("SELECT notify_token FROM zlecenie_rozliczenia WHERE id=?", [$rid]);
+    if (!empty($row['notify_token'])) return $row['notify_token'];
+    $token = bin2hex(random_bytes(24));
+    db()->prepare("UPDATE zlecenie_rozliczenia SET notify_token=? WHERE id=?")->execute([$token, $rid]);
+    return $token;
+}
+
+/** Pobiera rozliczenie po tokenie dostępu (bez logowania — dla zleceniobiorcy). */
+function get_rozliczenie_by_token(string $token): ?array {
+    if ($token === '') return null;
+    return db_one(
+        "SELECT r.*, c.name AS created_by_name
+         FROM zlecenie_rozliczenia r
+         LEFT JOIN users c ON c.id = r.created_by
+         WHERE r.notify_token = ?",
+        [$token]
+    );
+}
+
+/** Zapisuje metadane wysłanego powiadomienia do zleceniobiorcy. */
+function rozliczenie_notify_mark(int $rid, string $email, ?int $mail_id): void {
+    db()->prepare(
+        "UPDATE zlecenie_rozliczenia SET notified_at=?, notified_to_email=?, notify_mail_queue_id=? WHERE id=?"
+    )->execute([date('Y-m-d H:i:s'), $email, $mail_id, $rid]);
 }
 
 /**

@@ -592,11 +592,11 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <div class="table-responsive">
   <table class="table table-sm table-hover mb-0 align-middle">
     <thead class="table-light">
-      <tr><th>#</th><th>Status</th><th>Okres</th><th>Data rachunku</th><th>Kwota</th><th>Utworzył</th><th></th></tr>
+      <tr><th>#</th><th>Status</th><th>Okres</th><th>Data rachunku</th><th>Kwota</th><th>Utworzył</th><th>Powiadomienie</th><th></th></tr>
     </thead>
     <tbody>
     <?php foreach ($rozliczenia as $rz): ?>
-    <tr>
+    <tr id="rozl-row-<?= (int)$rz['id'] ?>">
       <td class="text-muted">#<?= (int)$rz['id'] ?></td>
       <td><?= rozliczenie_status_badge($rz['status']) ?></td>
       <td><?= h($rz['okres']) ?: '—' ?></td>
@@ -606,13 +606,34 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         <?= h($rz['created_by_name'] ?? '—') ?><br>
         <span style="font-size:.8em"><?= date_pl($rz['created_at']) ?></span>
       </td>
+      <td class="small text-nowrap" id="rozl-notif-<?= (int)$rz['id'] ?>">
+        <?php if (!empty($rz['notified_at'])): ?>
+          <span class="text-success" title="Wysłano do: <?= h($rz['notified_to_email'] ?? '') ?> (<?= date_pl($rz['notified_at']) ?>)">
+            <i class="bi bi-person-check"></i>
+            <span class="d-none d-xl-inline"><?= date_pl($rz['notified_at']) ?></span>
+          </span>
+        <?php else: ?>
+          <span class="text-muted">—</span>
+        <?php endif; ?>
+      </td>
       <td class="text-end text-nowrap">
         <a href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>&rozliczenie_id=<?= (int)$rz['id'] ?>"
-           target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+           target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF dla księgowego"><i class="bi bi-file-earmark-pdf"></i></a>
         <?php if (can_edit() && $rz['status'] !== 'rozliczone' && $rz['status'] !== 'anulowane'): ?>
           <?php if ($_ksieg_addr && empty($rz['nie_wysylac'])): ?>
-          <button type="button" class="btn btn-sm btn-outline-primary" onclick="rozlSend(<?= (int)$rz['id'] ?>, this)" title="Wyślij do księgowego">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="rozlSend(<?= (int)$rz['id'] ?>, this)" title="Wyślij dane do księgowego">
             <i class="bi bi-envelope"></i>
+          </button>
+          <?php endif; ?>
+          <?php if (!empty($row['email'])): ?>
+          <button type="button" class="btn btn-sm btn-outline-info" onclick="rozlNotify(<?= (int)$rz['id'] ?>, this)"
+                  title="Wyślij rachunek do zleceniobiorcy (<?= h($row['email']) ?>)">
+            <i class="bi bi-person-lines-fill"></i>
+          </button>
+          <?php else: ?>
+          <button type="button" class="btn btn-sm btn-outline-info" disabled
+                  title="Brak adresu e-mail zleceniobiorcy — uzupełnij w zakładce Zleceniobiorca">
+            <i class="bi bi-person-lines-fill"></i>
           </button>
           <?php endif; ?>
           <button type="button" class="btn btn-sm btn-outline-success" onclick="rozlSettle(<?= (int)$rz['id'] ?>, this)" title="Oznacz jako rozliczone">
@@ -628,7 +649,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         <?php if (!empty($rz['nie_wysylac'])): ?>
         <span class="badge bg-light text-secondary border ms-1" title="Oznaczone: nie wysyłać do księgowego"><i class="bi bi-envelope-slash"></i> Bez wysyłki</span>
         <?php elseif ($rz['status'] === 'wyslane' && $rz['sent_to_email']): ?>
-        <i class="bi bi-envelope-check text-info ms-1" title="Wysłano: <?= h($rz['sent_to_email']) ?> (<?= date_pl($rz['sent_at']) ?>)"></i>
+        <i class="bi bi-envelope-check text-info ms-1" title="Wysłano do księgowego: <?= h($rz['sent_to_email']) ?> (<?= date_pl($rz['sent_at']) ?>)"></i>
         <?php endif; ?>
       </td>
     </tr>
@@ -1377,6 +1398,22 @@ window.CVTabsConfig = {
     btn.disabled = true;
     csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', { action: 'rozliczenie_settle', rozliczenie_id: rid })
       .then(function (res) { if (res.ok) { ajaxToast(res.msg || 'Oznaczono'); setTimeout(function () { location.reload(); }, 600); } else { btn.disabled = false; ajaxToast(res.msg || 'Błąd', 'error'); } })
+      .catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  };
+  window.rozlNotify = function (rid, btn) {
+    if (!confirm('Wyslać powiadomienie do zleceniobiorcy z linkiem do pobrania rachunku?')) return;
+    btn.disabled = true;
+    csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', { action: 'rozliczenie_notify', rozliczenie_id: rid })
+      .then(function (res) {
+        btn.disabled = false;
+        if (res.ok) {
+          ajaxToast(res.msg || 'Powiadomienie wysłane');
+          var cell = document.getElementById('rozl-notif-' + rid);
+          if (cell) cell.innerHTML = '<span class="text-success" title="Właśnie wysłano do: ' + (res.sent_to || '') + '"><i class="bi bi-person-check"></i></span>';
+        } else {
+          ajaxToast(res.msg || 'Błąd wysyłki', 'error');
+        }
+      })
       .catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
   };
 

@@ -260,6 +260,73 @@ switch ($action) {
         ajax_ok([], 'Oznaczono jako rozliczone');
     }
 
+    // ── rozliczenie_notify — wyślij e-mail do zleceniobiorcy z linkiem do rachunku ─
+    case 'rozliczenie_notify': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rozliczenie_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rozliczenia');
+
+        $rozl = get_rozliczenie($rid);
+        if (!$rozl) ajax_err('Nie znaleziono rozliczenia');
+        if (($rozl['status'] ?? '') === 'anulowane') ajax_err('Rozliczenie jest anulowane.');
+
+        $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [(int)$rozl['contract_id']]);
+        if (!$contract) ajax_err('Nie znaleziono umowy');
+
+        $email_zl = trim($contract['email'] ?? '');
+        if (!$email_zl || !filter_var($email_zl, FILTER_VALIDATE_EMAIL)) {
+            ajax_err('Zleceniobiorca nie ma adresu e-mail w umowie — uzupełnij go w zakładce Zleceniobiorca.');
+        }
+
+        // Generuj (lub pobierz istniejący) token dostępu
+        $token       = rozliczenie_ensure_token($rid);
+        $download_url = rtrim(APP_URL, '/') . '/contracts/zlecenie/rachunek_download.php?token=' . urlencode($token);
+
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        $org  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
+        $numer = $contract['numer_umowy'] ?? '';
+        $imie  = $contract['imie_nazwisko'] ?? '';
+        $okres = $rozl['okres'] ? ' za ' . $rozl['okres'] : '';
+
+        $subject = 'Rachunek do umowy zlecenie' . ($numer ? ' ' . $numer : '') . $okres . ' — ' . $org;
+
+        $body_text = "Dzień dobry" . ($imie ? ', ' . $imie : '') . ",\n\n"
+            . "przesyłamy informację, że rachunek do umowy zlecenie"
+            . ($numer ? " ({$numer})" : '') . "{$okres} jest gotowy do pobrania.\n\n"
+            . "Prosimy kliknąć poniższy link, aby pobrać i wydrukować rachunek:\n"
+            . $download_url . "\n\n"
+            . "Po wydrukowaniu należy podpisać rachunek i dostarczyć go do " . $org . ".\n\n"
+            . "Pozdrawiamy,\n" . $org;
+
+        $body_html = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#212529;line-height:1.6">'
+            . '<p>Dzień dobry' . ($imie ? ', ' . h($imie) : '') . ',</p>'
+            . '<p>przesyłamy informację, że rachunek do umowy zlecenie'
+            . ($numer ? ' (<strong>' . h($numer) . '</strong>)' : '') . h($okres) . ' jest gotowy do pobrania.</p>'
+            . '<p style="margin:20px 0"><a href="' . h($download_url) . '" '
+            . 'style="background:#2563eb;color:#fff;padding:10px 22px;border-radius:5px;text-decoration:none;font-weight:bold">'
+            . '&#128462; Pobierz rachunek</a></p>'
+            . '<p style="color:#555;font-size:13px">Link jest aktywny — możesz do niego wracać. '
+            . 'Po wydrukowaniu prosimy podpisać i dostarczyć rachunek do ' . h($org) . '.</p>'
+            . '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">'
+            . '<p style="color:#888;font-size:12px">' . h($org) . '</p>'
+            . '</div>';
+
+        try {
+            $mail_id = mail_queue_add($email_zl, $imie, $subject, $body_html, $body_text,
+                'zlecenie', (int)$rozl['contract_id'], '', true);
+        } catch (\Throwable $e) {
+            ajax_err('Błąd wysyłki: ' . $e->getMessage());
+        }
+
+        $uid = (int)current_user()['id'];
+        rozliczenie_notify_mark($rid, $email_zl, $mail_id);
+        log_contract_action('zlecenie', (int)$rozl['contract_id'], $uid, 'rozliczenie_notify',
+            'Powiadomienie do zleceniobiorcy #' . $rid . ' → ' . $email_zl);
+
+        ajax_ok(['sent_to' => $email_zl, 'download_url' => $download_url],
+            'Wysłano powiadomienie do: ' . $email_zl);
+    }
+
     // ── rozliczenie_delete — TRWAŁE usunięcie rozliczenia (admin + IKA + powód) ──
     case 'rozliczenie_delete': {
         if ((current_user()['role'] ?? '') !== 'admin') ajax_err('Tylko administrator może usuwać rozliczenia', 403);
