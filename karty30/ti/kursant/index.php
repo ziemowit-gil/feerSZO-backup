@@ -353,12 +353,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=wiadomosci'); exit;
     }
 
-    // Wiadomość do sekretariatu (tylko e-mail, bez przechowywania)
+    // Wiadomość do KIS / admina (tylko e-mail, bez przechowywania)
     if ($op === 'msg_secretariat') {
-        $body = trim((string)($_POST['body'] ?? ''));
+        $body     = trim((string)($_POST['body'] ?? ''));
+        $toRaw    = (string)($_POST['to_recip'] ?? 'KIS');
         if ($body !== '') {
             $fromName = trim((string)($account['client_name'] ?? $account['login'] ?? ''));
-            $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id']);
+            $ok = false;
+            if ($toRaw === 'KIS') {
+                $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id'], TI_KIS_EMAIL, TI_KIS_NAME);
+            } elseif ($toRaw === 'all') {
+                $admins = ti_admin_users();
+                $ok = false;
+                foreach ($admins as $_a) {
+                    if (!empty($_a['email']) && filter_var($_a['email'], FILTER_VALIDATE_EMAIL)) {
+                        $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id'], $_a['email'], $_a['name']) || $ok;
+                    }
+                }
+            } elseif (str_starts_with($toRaw, 'admin_')) {
+                $adminId = (int)substr($toRaw, 6);
+                $adm = $adminId ? db_one("SELECT name, email FROM users WHERE id=? AND role='admin' AND is_active=1", [$adminId]) : null;
+                if ($adm && !empty($adm['email'])) {
+                    $ok = ti_secretariat_send($fromName, mb_substr($body, 0, 4000), (int)$student['id'], $adm['email'], $adm['name']);
+                }
+            }
             header('Location: index.php?tab=wiadomosci&sec=' . ($ok ? '1' : 'err')); exit;
         }
         header('Location: index.php?tab=wiadomosci'); exit;
@@ -3723,11 +3741,12 @@ document.addEventListener('DOMContentLoaded', function() {
 </section>
 <?php endif; ?>
 
-<!-- Formularz wiadomości do Kierownika Instytucji -->
+<?php $_kis_admins = ti_admin_users(); ?>
+<!-- Formularz do kierownictwa -->
 <section aria-labelledby="secHeading" class="card">
   <div class="card-header">
     <h2 class="h6 fw-bold mb-0" id="secHeading">
-      <i class="bi bi-building me-2" aria-hidden="true"></i>Napisz do Kierownika Instytucji
+      <i class="bi bi-building me-2" aria-hidden="true"></i>Napisz do Kierownictwa
     </h2>
   </div>
   <div class="card-body">
@@ -3735,10 +3754,22 @@ document.addEventListener('DOMContentLoaded', function() {
       <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
       <input type="hidden" name="_op" value="msg_secretariat">
       <div class="mb-3">
+        <label class="form-label fw-semibold" for="secMsgTo">Do <span class="text-danger" aria-hidden="true">*</span></label>
+        <select class="form-select" id="secMsgTo" name="to_recip" required>
+          <option value="KIS"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</option>
+          <?php if (!empty($_kis_admins)): ?>
+          <option value="all">Administratorzy (wszyscy)</option>
+          <?php foreach ($_kis_admins as $_ka): ?>
+          <option value="admin_<?= (int)$_ka['id'] ?>"><?= h($_ka['name']) ?></option>
+          <?php endforeach; ?>
+          <?php endif; ?>
+        </select>
+      </div>
+      <div class="mb-3">
         <label class="form-label fw-semibold" for="secMsgBody">Treść <span class="text-danger" aria-hidden="true">*</span></label>
         <textarea class="form-control" id="secMsgBody" name="body"
                   rows="3" maxlength="4000" required
-                  placeholder="Napisz wiadomość do Kierownika Instytucji…"></textarea>
+                  placeholder="Napisz wiadomość…"></textarea>
         <div class="form-text">Wiadomość zostanie wysłana e-mailem — otrzymasz odpowiedź bezpośrednio na swój adres.</div>
       </div>
       <button type="submit" class="btn btn-outline-primary">

@@ -323,6 +323,14 @@ function ti_msg_notify_parent(int $studentId, string $subject, string $body): vo
 // Wiadomości prowadzącego → kierownictwo (admini SZO)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Kierownik Instytucji Szkoleniowej — hardkodowany
+define('TI_KIS_NAME',  'Ziemowit Gil');
+define('TI_KIS_EMAIL', 'ziemowit.gil@feer.org.pl');
+
+function ti_admin_users(): array {
+    return db_all("SELECT id, name, email FROM users WHERE role='admin' AND is_active=1 ORDER BY name");
+}
+
 function ti_admin_msg_migrate(): void {
     static $done = false; if ($done) return; $done = true;
     try {
@@ -330,6 +338,7 @@ function ti_admin_msg_migrate(): void {
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id         INTEGER NOT NULL,
             user_name       TEXT    NOT NULL DEFAULT '',
+            to_admin_id     INTEGER NOT NULL DEFAULT 0,
             subject         TEXT    NOT NULL DEFAULT '',
             body            TEXT    NOT NULL DEFAULT '',
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -340,18 +349,22 @@ function ti_admin_msg_migrate(): void {
             replied_at      DATETIME,
             instructor_seen INTEGER NOT NULL DEFAULT 0
         )");
+        // kolumna dodana po pierwszej migracji — ignoruj błąd jeśli już istnieje
+        try { db()->exec("ALTER TABLE k30_ti_admin_msgs ADD COLUMN to_admin_id INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     } catch (\Throwable $e) {}
 }
 
-function ti_admin_msg_send(int $userId, string $userName, string $subject, string $body): int {
+// to_admin_id = 0 → wszyscy admini; > 0 → konkretny admin (users.id)
+function ti_admin_msg_send(int $userId, string $userName, string $subject, string $body, int $toAdminId = 0): int {
     ti_admin_msg_migrate();
     $id = db_insert('k30_ti_admin_msgs', [
-        'user_id'   => $userId,
-        'user_name' => $userName,
-        'subject'   => $subject,
-        'body'      => $body,
+        'user_id'     => $userId,
+        'user_name'   => $userName,
+        'to_admin_id' => $toAdminId,
+        'subject'     => $subject,
+        'body'        => $body,
     ]);
-    _ti_admin_msg_notify_admins($userName, $subject ?: 'Nowa wiadomość od prowadzącego', $body);
+    _ti_admin_msg_notify_admins($userName, $subject ?: 'Nowa wiadomość od prowadzącego', $body, $toAdminId);
     return $id;
 }
 
@@ -370,17 +383,38 @@ function ti_admin_msg_mark_read(int $msgId): void {
     try { db()->prepare("UPDATE k30_ti_admin_msgs SET is_read=1, read_at=datetime('now') WHERE id=? AND is_read=0")->execute([$msgId]); } catch (\Throwable $e) {}
 }
 
-function ti_admin_msg_mark_instructor_seen(int $userId): void {
+// $toAdminId = -1 → zaznacz wszystkie wątki danego prowadzącego
+function ti_admin_msg_mark_instructor_seen(int $userId, int $toAdminId = -1): void {
     ti_admin_msg_migrate();
-    try { db()->prepare("UPDATE k30_ti_admin_msgs SET instructor_seen=1 WHERE user_id=? AND instructor_seen=0")->execute([$userId]); } catch (\Throwable $e) {}
+    try {
+        if ($toAdminId === -1) {
+            db()->prepare("UPDATE k30_ti_admin_msgs SET instructor_seen=1 WHERE user_id=? AND instructor_seen=0")->execute([$userId]);
+        } else {
+            db()->prepare("UPDATE k30_ti_admin_msgs SET instructor_seen=1 WHERE user_id=? AND to_admin_id=? AND instructor_seen=0")->execute([$userId, $toAdminId]);
+        }
+    } catch (\Throwable $e) {}
 }
 
-function ti_admin_msg_list_for_instructor(int $userId): array {
+// Zwraca jedną pozycję na wątek (to_admin_id) z datą ostatniej wiadomości i liczbą niewidocznych odpowiedzi
+function ti_admin_msg_thread_list(int $userId): array {
     ti_admin_msg_migrate();
-    return db_all("SELECT * FROM k30_ti_admin_msgs WHERE user_id=? ORDER BY created_at ASC", [$userId]);
+    return db_all(
+        "SELECT to_admin_id, MAX(created_at) AS last_at,
+                SUM(CASE WHEN replied_at IS NOT NULL AND instructor_seen=0 THEN 1 ELSE 0 END) AS unseen,
+                COUNT(*) AS msg_count
+         FROM k30_ti_admin_msgs WHERE user_id=?
+         GROUP BY to_admin_id ORDER BY last_at DESC",
+        [$userId]
+    );
 }
 
-function ti_admin_msg_unseen_for_instructor(int $userId): int {
+// Pełny wątek z konkretnym adminem (lub do wszystkich gdy to_admin_id=0)
+function ti_admin_msg_list_for_thread(int $userId, int $toAdminId): array {
+    ti_admin_msg_migrate();
+    return db_all("SELECT * FROM k30_ti_admin_msgs WHERE user_id=? AND to_admin_id=? ORDER BY created_at ASC", [$userId, $toAdminId]);
+}
+
+function ti_admin_msg_unseen_total(int $userId): int {
     ti_admin_msg_migrate();
     return (int)(db_one("SELECT COUNT(*) c FROM k30_ti_admin_msgs WHERE user_id=? AND replied_at IS NOT NULL AND instructor_seen=0", [$userId])['c'] ?? 0);
 }
@@ -395,9 +429,26 @@ function ti_admin_msg_unread_count(): int {
     return (int)(db_one("SELECT COUNT(*) c FROM k30_ti_admin_msgs WHERE is_read=0")['c'] ?? 0);
 }
 
-function _ti_admin_msg_notify_admins(string $fromName, string $subject, string $body): void {
+// Zwraca etykietę wątku dla danego to_admin_id
+function ti_admin_thread_label(int $toAdminId, array $adminUsers = []): string {
+    if ($toAdminId === -1) return TI_KIS_NAME . ' (Kierownik)';
+    if ($toAdminId === 0)  return 'Administratorzy (wszyscy)';
+    foreach ($adminUsers as $a) {
+        if ((int)$a['id'] === $toAdminId) return (string)$a['name'];
+    }
+    return 'Admin #' . $toAdminId;
+}
+
+// to_admin_id: -1 = KIS; 0 = wszyscy admini; > 0 = konkretny admin (users.id)
+function _ti_admin_msg_notify_admins(string $fromName, string $subject, string $body, int $toAdminId = 0): void {
     try {
-        $admins = db_all("SELECT name, email FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email!=''");
+        if ($toAdminId === -1) {
+            $admins = [['name' => TI_KIS_NAME, 'email' => TI_KIS_EMAIL]];
+        } elseif ($toAdminId > 0) {
+            $admins = db_all("SELECT name, email FROM users WHERE id=? AND is_active=1", [$toAdminId]);
+        } else {
+            $admins = db_all("SELECT name, email FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email!=''");
+        }
         if (!$admins) return;
         if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
         if (!function_exists('mail_queue_add')) return;
@@ -436,29 +487,21 @@ function _ti_admin_msg_notify_instructor(array $msg, string $replyBody, string $
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Wiadomość kursanta → sekretariat (e-mail, bez przechowywania)
+// Wiadomość kursanta/prowadzącego → sekretariat / KIS (e-mail, bez przechowywania)
 // ══════════════════════════════════════════════════════════════════════════════
 
-function ti_secretariat_email(): string {
-    $e = org_setting('ti_secretariat_email');
-    if ($e && filter_var($e, FILTER_VALIDATE_EMAIL)) return $e;
-    if (function_exists('crm_inbox_mailbox')) return crm_inbox_mailbox();
-    return 'fundacja@feer.org.pl';
-}
-
-function ti_secretariat_send(string $fromName, string $body, int $studentId = 0): bool {
-    $to = ti_secretariat_email();
-    if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+function ti_secretariat_send(string $fromName, string $body, int $studentId = 0, string $toEmail = TI_KIS_EMAIL, string $toName = TI_KIS_NAME): bool {
+    if (!$toEmail || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) return false;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return false;
     $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
     $preview = mb_substr(trim(strip_tags($body)), 0, 1000);
-    $html    = '<p>Wiadomość od kursanta <strong>' . htmlspecialchars($fromName, ENT_QUOTES) . '</strong>'
+    $html    = '<p>Wiadomość od <strong>' . htmlspecialchars($fromName, ENT_QUOTES) . '</strong>'
              . ($studentId ? ' (ID: ' . $studentId . ')' : '') . ':</p>'
              . '<blockquote style="border-left:3px solid #2563eb;padding-left:1em;color:#444">' . nl2br(htmlspecialchars($preview, ENT_QUOTES)) . '</blockquote>'
              . '<p>— ' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
     try {
-        mail_queue_add($to, 'Kierownik Instytucji', "{$org}: wiadomość od kursanta — {$fromName}", $html, '', 'ti_secretariat');
+        mail_queue_add($toEmail, $toName, "{$org}: wiadomość od kursanta — {$fromName}", $html, '', 'ti_secretariat');
         return true;
     } catch (\Throwable $e) { return false; }
 }
