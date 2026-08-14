@@ -435,7 +435,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
                placeholder="np. INF.742<?= date('y') ?>.Kowalski">
-        <div class="form-text">Format: <code>Skrót.kod.Nazwisko</code> — wpisz nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
+        <div class="form-text" id="name_hint">Format: <code>Skrót.kod.Nazwisko</code> — wpisz nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
       </div>
 
       <div class="row g-3 mb-3">
@@ -729,6 +729,24 @@ function tiGenCode() {
 }
 
 // ── Auto-generowanie nazwy grupy ─────────────────────────────────────────────
+function tiIsGroup() {
+  var r = document.querySelector('input[name="class_type"]:checked');
+  return r && r.value === 'group';
+}
+
+function tiUpdateHelperLabel() {
+  var sn   = document.getElementById('helper_surname');
+  var hint = document.getElementById('name_hint');
+  if (!sn) return;
+  if (tiIsGroup()) {
+    sn.placeholder = 'Nazwa grupy (np. Poniedziałek)';
+    if (hint) hint.innerHTML = 'Format: <code>Skrót.kod.NazwaGrupy</code> — wpisz nazwę grupy, kliknij Generuj lub edytuj ręcznie.';
+  } else {
+    sn.placeholder = 'Nazwisko kursanta';
+    if (hint) hint.innerHTML = 'Format: <code>Skrót.kod.Nazwisko</code> — wpisz nazwisko, kliknij Generuj lub edytuj ręcznie.';
+  }
+}
+
 function tiAutoName() {
   var sel = document.getElementById('st_select');
   var gc  = document.getElementById('gc_input');
@@ -740,12 +758,12 @@ function tiAutoName() {
   var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
   if (!abbr) return;
 
-  var code    = gc ? gc.value.trim() : '';
-  var surname = sn ? sn.value.trim() : '';
-  // Format: Skrót.kod.Nazwisko  →  INF.74226.Kowalski
+  var code   = gc ? gc.value.trim() : '';
+  var suffix = sn ? sn.value.trim() : '';
+  // Format: Skrót.kod.Nazwisko (ind.) lub Skrót.kod.NazwaGrupy (group.)
   var parts = [abbr];
-  if (code)    parts.push(code);
-  if (surname) parts.push(surname);
+  if (code)   parts.push(code);
+  if (suffix) parts.push(suffix);
   out.value = parts.join('.');
 }
 
@@ -757,6 +775,11 @@ function tiAutoName() {
   if (sn)  sn.addEventListener('input', tiAutoName);
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
+  // Przełącznik typu zajęć
+  document.querySelectorAll('input[name="class_type"]').forEach(function(r) {
+    r.addEventListener('change', function() { tiUpdateHelperLabel(); tiAutoName(); });
+  });
+  tiUpdateHelperLabel();
 })();
 
 // ── Model rozliczania ─────────────────────────────────────────────────────────
