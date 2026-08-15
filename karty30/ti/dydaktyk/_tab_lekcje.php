@@ -289,6 +289,16 @@ if ($_sms_enabled && $cur_course) {
           <?php if (!empty($s['topic'])): ?>
           <div class="text-truncate mb-1" style="font-size:.9rem"><?= h($s['topic']) ?></div>
           <?php endif; ?>
+          <?php if (!empty($s['has_homework']) || !empty($s['self_prep_remote'])): ?>
+          <div class="d-flex flex-wrap gap-1 mb-1">
+            <?php if (!empty($s['has_homework'])): ?>
+            <span class="badge text-bg-warning" style="font-size:.72rem"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadanie domowe</span>
+            <?php endif; ?>
+            <?php if (!empty($s['self_prep_remote'])): ?>
+            <span class="badge text-bg-info" style="font-size:.72rem"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Praca własna prowadzącego</span>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
 
           <?php if ($pending): ?>
           <div class="rounded border border-warning-subtle bg-warning-subtle px-3 py-2 mb-2 small">

@@ -375,6 +375,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tt    = trim($_POST['time_to'] ?? '');
         $topic = trim($_POST['topic'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
+        $hw    = !empty($_POST['has_homework']) ? 1 : 0;
+        $spr   = !empty($_POST['self_prep_remote']) ? 1 : 0;
         $dur   = 60;
         if ($tf && $tt) {
             $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
@@ -390,17 +392,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, status=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $st, $sid]);
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $sid]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             flash_set('success', 'Lekcja zaktualizowana.');
         } else {
             $sid = db_insert('k30_ti_sessions', [
-                'course_id'   => $course_id, 'lesson_date' => $date,
-                'time_from'   => $tf, 'time_to' => $tt, 'duration_min' => $dur,
-                'status'      => 'planned', 'topic' => $topic, 'notes' => $notes,
-                'created_by'  => $uid, 'created_at' => date('Y-m-d H:i:s'),
+                'course_id'       => $course_id, 'lesson_date' => $date,
+                'time_from'       => $tf, 'time_to' => $tt, 'duration_min' => $dur,
+                'status'          => 'planned', 'topic' => $topic, 'notes' => $notes,
+                'has_homework'    => $hw, 'self_prep_remote' => $spr,
+                'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             // Wstępna obecność dla aktywnych uczestników
@@ -1295,6 +1298,24 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
         <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
+      <div class="border rounded p-2 mb-2 bg-body-tertiary">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="<?= $pfx ?>_hw" name="has_homework" value="1"
+                 <?= !empty($r['has_homework']) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="<?= $pfx ?>_hw">
+            <i class="bi bi-pencil-square me-1 text-warning" aria-hidden="true"></i>Zadano zadanie domowe
+          </label>
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="<?= $pfx ?>_spr" name="self_prep_remote" value="1"
+                 <?= !empty($r['self_prep_remote']) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="<?= $pfx ?>_spr">
+            <i class="bi bi-laptop me-1 text-info" aria-hidden="true"></i>Praca własna prowadzącego — przygotowanie materiałów
+          </label>
+        </div>
       </div>
       <?php
         // Realizowane punkty planu nauczania — progressive disclosure (rozwijane),
