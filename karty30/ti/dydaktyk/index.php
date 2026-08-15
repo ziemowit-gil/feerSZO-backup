@@ -1848,42 +1848,65 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   header .navbar .btn-outline-primary { border-color:rgba(255,255,255,.5) !important; color:#fff !important; }
   header .navbar .text-body-secondary { color:rgba(255,255,255,.75) !important; }
 
-  /* ── Pasek modułowy (Synergia-like secondary nav) ─────── */
-  .dyd-globalbar {
-    background:#2c4a6e; border-bottom:none;
-    padding:.15rem 1rem; display:flex; align-items:center; gap:.05rem; flex-wrap:wrap;
+  /* ── Boczny panel nawigacyjny dydaktyka ──────────────────── */
+  .dyd-sidebar {
+    position:fixed; left:0; top:56px; bottom:0; width:220px;
+    background:#1b2e45; overflow-y:auto; overflow-x:hidden; z-index:100;
+    display:flex; flex-direction:column; padding:.5rem 0 1rem;
+    border-right:1px solid rgba(255,255,255,.08);
   }
-  .dyd-globalbar .dyd-gb-link {
-    display:inline-flex; align-items:center; gap:.4rem;
-    padding:.42rem .85rem; border-radius:0; font-size:.85rem; font-weight:600;
-    color:rgba(255,255,255,.82); text-decoration:none;
-    border:none; border-bottom:3px solid transparent;
+  .dyd-sb-link {
+    display:flex; align-items:center; gap:.55rem;
+    padding:.55rem 1rem; font-size:.85rem; font-weight:600;
+    color:rgba(255,255,255,.8); text-decoration:none;
+    border-left:3px solid transparent;
     transition:background .12s, color .12s, border-color .12s;
-    min-height:38px;
+    white-space:nowrap; overflow:hidden;
   }
-  .dyd-globalbar .dyd-gb-link:hover { background:rgba(255,255,255,.1); color:#fff; }
-  .dyd-globalbar .dyd-gb-link.active {
-    background:rgba(255,255,255,.12); color:#fff; font-weight:700;
-    border-bottom-color:#5bbcff;
+  .dyd-sb-link:hover { background:rgba(255,255,255,.1); color:#fff; border-left-color:rgba(255,255,255,.2); }
+  .dyd-sb-link.active { background:rgba(255,255,255,.12); color:#fff; font-weight:700; border-left-color:#5bbcff; }
+  .dyd-sb-link .dyd-sb-badge { margin-left:auto; flex-shrink:0; }
+  .dyd-sb-section {
+    padding:.6rem 1rem .2rem; font-size:.67rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.35);
   }
-  .dyd-globalbar button.dyd-gb-link { background:transparent; cursor:pointer; line-height:1; }
-  .dyd-globalbar .dyd-gb-dropdown { position:relative; }
-  .dyd-globalbar .dyd-gb-dropdown .dyd-gb-link { border-bottom-color:transparent; }
-  .dyd-globalbar .dyd-gb-dropdown .dropdown-toggle::after { margin-left:.25rem; }
-  .dyd-globalbar .dropdown-menu { background:#1e3a5f; border:1px solid rgba(255,255,255,.15); }
-  .dyd-globalbar .dropdown-item { color:rgba(255,255,255,.85); }
-  .dyd-globalbar .dropdown-item:hover, .dyd-globalbar .dropdown-item:focus { background:rgba(255,255,255,.12); color:#fff; }
-  .dyd-globalbar .dropdown-item.active { background:rgba(91,188,255,.2); color:#fff; }
+  .dyd-sb-sep { border-top:1px solid rgba(255,255,255,.1); margin:.35rem 0; }
 
-  /* ── Pasek informacyjny prowadzącego (Synergia-like user banner) ── */
+  /* Sidebar kurs — selektor u góry */
+  .dyd-sb-course {
+    padding:.65rem 1rem .5rem; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:.35rem;
+  }
+  .dyd-sb-course-name {
+    font-size:.82rem; font-weight:700; color:#fff;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;
+  }
+  .dyd-sb-course-sub { font-size:.72rem; color:rgba(255,255,255,.5); }
+
+  /* Sidebar dropdown (item-list w sidebarze) */
+  .dyd-sb-dropdown-items { padding-left:1.5rem; }
+  .dyd-sb-dropdown-items .dyd-sb-link { padding:.4rem 1rem .4rem .5rem; font-size:.82rem; font-weight:600; }
+
+  /* Mobilny toggle sidebar (offcanvas) */
+  @media (min-width:768px) {
+    .dyd-content { margin-left:220px; }
+    .dyd-sb-mobile-btn { display:none !important; }
+  }
+  @media (max-width:767px) {
+    .dyd-sidebar { transform:translateX(-220px); transition:transform .22s ease; box-shadow:none; }
+    .dyd-sidebar.dyd-sidebar-open { transform:translateX(0); box-shadow:4px 0 24px rgba(0,0,0,.35); }
+    .dyd-sb-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99; }
+    .dyd-sb-overlay.show { display:block; }
+  }
+
+  /* ── Pasek kontekstu kursu (mobile: z hamburgerem, desktop: uproszczony) ── */
   .dyd-info-bar {
-    background:#415a77; color:#fff;
-    padding:.35rem 1rem; font-size:.81rem;
+    background:#1b2e45; color:#fff;
+    padding:.3rem 1rem; font-size:.81rem;
     display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .75rem;
-    border-bottom:1px solid rgba(255,255,255,.1);
+    border-bottom:1px solid rgba(255,255,255,.08);
   }
   .dyd-info-bar .dyd-ib-sep { color:rgba(255,255,255,.3); }
-  .dyd-info-bar .dyd-ib-dim { color:rgba(255,255,255,.6); font-size:.76rem; }
+  .dyd-info-bar .dyd-ib-dim { color:rgba(255,255,255,.55); font-size:.76rem; }
 
   /* ── MD3 / Material Design 3 overrides ────────────────────────────────────── */
 
