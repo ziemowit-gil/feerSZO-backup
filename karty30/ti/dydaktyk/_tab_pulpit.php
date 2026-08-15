@@ -487,6 +487,171 @@ if ($course_ids) {
 </section>
 <?php endif; ?>
 
+<?php /* ── Wykresy miesięczne ── */ ?>
+<?php
+$_ch_mon_lbl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
+$_ch_rows = [];
+if (!empty($course_ids)) {
+    $_ch_ph = implode(',', array_fill(0, count($course_ids), '?'));
+    $_ch_rows = db_all(
+        "SELECT strftime('%Y-%m', s.lesson_date) AS ym,
+                SUM(CASE WHEN s.status='remote_material' THEN 1 ELSE 0 END) AS spr,
+                SUM(CASE WHEN s.status IN ('held','individual_change') THEN 1 ELSE 0 END) AS reg,
+                SUM(CASE WHEN s.status IN ('held','individual_change')
+                         AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=1 THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN s.status IN ('held','individual_change')
+                         AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=0 THEN 1 ELSE 0 END) AS absent
+         FROM k30_ti_sessions s
+         LEFT JOIN k30_ti_attendance a ON a.session_id=s.id
+         WHERE s.course_id IN ($_ch_ph)
+           AND s.status IN ('held','individual_change','remote_material')
+           AND s.lesson_date >= date('now','-6 months','localtime')
+         GROUP BY ym ORDER BY ym",
+        $course_ids
+    );
+}
+?>
+<?php if (count($_ch_rows) > 0):
+    $chn  = count($_ch_rows);
+    $chW  = 240; $chH = 130;
+    $chpL = 8; $chpR = 8; $chpT = 14; $chpB = 22;
+    $chaW = $chW - $chpL - $chpR;
+    $chaH = $chH - $chpT - $chpB;
+    $chBGap = max(2, ($chaW / $chn) * 0.14);
+    $chBW   = max(6, ($chaW - $chBGap * ($chn + 1)) / $chn);
+    $chMaxReg = max(1, max(array_map(fn($r) => (int)$r['reg'], $_ch_rows)));
+    $chMaxTot = max(1, max(array_map(fn($r) => (int)$r['reg'] + (int)$r['spr'], $_ch_rows)));
+?>
+<section class="dyd-p-sec" aria-label="Wykresy miesięczne">
+  <div class="dyd-p-sec-head">
+    <i class="bi bi-bar-chart text-primary" aria-hidden="true"></i>
+    <span>Trend miesięczny</span>
+    <span class="dyd-p-sec-meta">ostatnie 6 mies.</span>
+  </div>
+  <div class="row g-3">
+
+    <!-- Wykres 1: Praca własna vs. zajęcia -->
+    <div class="col-12 col-sm-6">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:12px">
+        <div class="card-body py-3 px-3">
+          <div class="fw-semibold small mb-2 d-flex align-items-center gap-3">
+            <span>Rodzaj lekcji</span>
+            <span class="d-inline-flex align-items-center gap-1" style="font-size:.7rem;font-weight:normal;opacity:.7">
+              <span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px"></span> zajęcia
+              <span style="display:inline-block;width:10px;height:10px;background:#14b8a6;border-radius:2px;margin-left:6px"></span> praca wł.
+            </span>
+          </div>
+          <svg viewBox="0 0 <?= $chW ?> <?= $chH ?>" aria-hidden="true"
+               class="w-100 d-block" style="max-height:130px">
+            <!-- baseline -->
+            <line x1="<?= $chpL ?>" y1="<?= $chpT + $chaH ?>" x2="<?= $chW - $chpR ?>" y2="<?= $chpT + $chaH ?>"
+                  stroke="currentColor" stroke-opacity=".2"/>
+            <?php $ci = 0; foreach ($_ch_rows as $cr): ?>
+            <?php
+                $spr = (int)$cr['spr']; $reg = (int)$cr['reg']; $tot = $spr + $reg;
+                $bx  = $chpL + $chBGap + $ci * ($chBW + $chBGap);
+                $lx  = $bx + $chBW / 2;
+                $yBase = $chpT + $chaH;
+                $regH  = $tot > 0 ? ($reg / $chMaxTot) * $chaH : 0;
+                $sprH  = $tot > 0 ? ($spr / $chMaxTot) * $chaH : 0;
+                $totH  = $regH + $sprH;
+                $ym_p  = explode('-', $cr['ym']);
+                $ml    = ($_ch_mon_lbl[(int)$ym_p[1]] ?? '') . '\'' . substr($ym_p[0], 2);
+            ?>
+            <?php if ($regH > 0): ?>
+            <rect x="<?= number_format($bx,1) ?>" y="<?= number_format($yBase - $regH,1) ?>"
+                  width="<?= number_format($chBW,1) ?>" height="<?= number_format($regH + .5,1) ?>"
+                  fill="#3b82f6" opacity=".85" rx="<?= $sprH > 0 ? '0' : '2' ?>"/>
+            <?php endif; ?>
+            <?php if ($sprH > 0): ?>
+            <rect x="<?= number_format($bx,1) ?>" y="<?= number_format($yBase - $totH,1) ?>"
+                  width="<?= number_format($chBW,1) ?>" height="<?= number_format($sprH,1) ?>"
+                  fill="#14b8a6" opacity=".85" rx="2"/>
+            <?php endif; ?>
+            <?php if ($tot > 0): ?>
+            <text x="<?= number_format($lx,1) ?>" y="<?= number_format($yBase - $totH - 3, 1) ?>"
+                  text-anchor="middle" font-size="8.5" font-weight="600"
+                  fill="currentColor" opacity=".65"><?= $tot ?></text>
+            <?php endif; ?>
+            <text x="<?= number_format($lx,1) ?>" y="<?= $chH - $chpB + 12 ?>"
+                  text-anchor="middle" font-size="8" fill="currentColor" opacity=".6"><?= h($ml) ?></text>
+            <?php $ci++; endforeach; ?>
+          </svg>
+          <table class="visually-hidden">
+            <caption>Rodzaj lekcji per miesiąc</caption>
+            <thead><tr><th>Miesiąc</th><th>Zajęcia</th><th>Praca wł.</th><th>Łącznie</th></tr></thead>
+            <tbody>
+              <?php foreach ($_ch_rows as $cr):
+                $ym_p2 = explode('-', $cr['ym']);
+                $ml2 = ($_ch_mon_lbl[(int)$ym_p2[1]] ?? '') . ' ' . $ym_p2[0]; ?>
+              <tr><th scope="row"><?= h($ml2) ?></th><td><?= (int)$cr['reg'] ?></td><td><?= (int)$cr['spr'] ?></td><td><?= (int)$cr['reg'] + (int)$cr['spr'] ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wykres 2: Frekwencja -->
+    <div class="col-12 col-sm-6">
+      <div class="card border-0 shadow-sm h-100" style="border-radius:12px">
+        <div class="card-body py-3 px-3">
+          <div class="fw-semibold small mb-2">Frekwencja kursantów</div>
+          <svg viewBox="0 0 <?= $chW ?> <?= $chH ?>" aria-hidden="true"
+               class="w-100 d-block" style="max-height:130px">
+            <?php foreach ([0, 50, 100] as $chg): ?>
+            <?php $chgY = $chpT + $chaH - ($chg * $chaH / 100); ?>
+            <line x1="<?= $chpL ?>" y1="<?= number_format($chgY,1) ?>" x2="<?= $chW - $chpR ?>" y2="<?= number_format($chgY,1) ?>"
+                  stroke="currentColor" stroke-opacity="<?= $chg === 50 ? '.1' : '.2' ?>" stroke-dasharray="<?= $chg === 50 ? '3,3' : '0' ?>"/>
+            <text x="<?= $chpL + 1 ?>" y="<?= number_format($chgY - 2, 1) ?>"
+                  font-size="7.5" fill="currentColor" opacity=".45"><?= $chg ?>%</text>
+            <?php endforeach; ?>
+            <?php $ci = 0; foreach ($_ch_rows as $cr): ?>
+            <?php
+                $tot_a = (int)$cr['present'] + (int)$cr['absent'];
+                $fpct  = $tot_a > 0 ? round((int)$cr['present'] / $tot_a * 100) : null;
+                $bx    = $chpL + $chBGap + $ci * ($chBW + $chBGap);
+                $lx    = $bx + $chBW / 2;
+                $yBase = $chpT + $chaH;
+                $bh    = ($fpct !== null && $tot_a > 0) ? max($fpct * $chaH / 100, $fpct > 0 ? 2 : 0) : 0;
+                $by    = $yBase - $bh;
+                $bc    = $fpct === null ? '#94a3b8' : ($fpct >= 80 ? '#22c55e' : ($fpct >= 60 ? '#f59e0b' : '#ef4444'));
+                $ym_p  = explode('-', $cr['ym']);
+                $ml    = ($_ch_mon_lbl[(int)$ym_p[1]] ?? '') . '\'' . substr($ym_p[0], 2);
+            ?>
+            <?php if ($bh > 0): ?>
+            <rect x="<?= number_format($bx,1) ?>" y="<?= number_format($by,1) ?>"
+                  width="<?= number_format($chBW,1) ?>" height="<?= number_format($bh,1) ?>"
+                  fill="<?= $bc ?>" opacity=".85" rx="2"/>
+            <?php endif; ?>
+            <text x="<?= number_format($lx,1) ?>" y="<?= number_format($by - 3, 1) ?>"
+                  text-anchor="middle" font-size="8.5" font-weight="600"
+                  fill="<?= $bc ?>"><?= $fpct !== null ? $fpct . '%' : '—' ?></text>
+            <text x="<?= number_format($lx,1) ?>" y="<?= $chH - $chpB + 12 ?>"
+                  text-anchor="middle" font-size="8" fill="currentColor" opacity=".6"><?= h($ml) ?></text>
+            <?php $ci++; endforeach; ?>
+          </svg>
+          <table class="visually-hidden">
+            <caption>Frekwencja kursantów per miesiąc</caption>
+            <thead><tr><th>Miesiąc</th><th>Obecnych</th><th>Nieobecnych</th><th>Frekwencja</th></tr></thead>
+            <tbody>
+              <?php foreach ($_ch_rows as $cr):
+                $tot_a2 = (int)$cr['present'] + (int)$cr['absent'];
+                $fpct2  = $tot_a2 > 0 ? round((int)$cr['present'] / $tot_a2 * 100) : null;
+                $ym_p2  = explode('-', $cr['ym']);
+                $ml2    = ($_ch_mon_lbl[(int)$ym_p2[1]] ?? '') . ' ' . $ym_p2[0]; ?>
+              <tr><th scope="row"><?= h($ml2) ?></th><td><?= (int)$cr['present'] ?></td><td><?= (int)$cr['absent'] ?></td><td><?= $fpct2 !== null ? $fpct2 . '%' : '—' ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+<?php endif; ?>
+
 <?php /* ── Ostatnie komunikaty ── */ ?>
 <?php $_notices_preview = array_slice($dyd_notices, 0, 3); ?>
 <?php if ($_notices_preview): ?>
