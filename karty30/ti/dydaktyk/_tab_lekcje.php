@@ -50,9 +50,6 @@ if ($_sms_enabled && $cur_course) {
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addSeries">
             <i class="bi bi-calendar-plus me-2"></i>Seria lekcji
           </a></li>
-          <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addRecurring">
-            <i class="bi bi-arrow-repeat me-2"></i>Zajęcia stałe (cykliczne)
-          </a></li>
           <?php if ($all_sessions): ?>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Raporty PDF</h6></li>

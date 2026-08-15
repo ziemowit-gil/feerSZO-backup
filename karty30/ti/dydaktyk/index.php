@@ -1394,6 +1394,14 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <?php endif; ?>
     </div>
     <div class="modal-footer">
+      <?php if (!$isEdit): ?>
+      <button type="button" class="btn btn-outline-secondary me-auto"
+              data-bs-dismiss="modal"
+              data-bs-toggle="modal" data-bs-target="#addRecurring"
+              title="Dodaj zajęcia stałe (cykliczne)">
+        <i class="bi bi-arrow-repeat me-1"></i>Cykliczne
+      </button>
+      <?php endif; ?>
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
       <button type="submit" class="btn btn-primary"><?= $isEdit?'Zapisz zmiany':'Dodaj lekcję' ?></button>
     </div>
