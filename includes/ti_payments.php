@@ -37,6 +37,24 @@ function ti_payments_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_pay_client ON k30_ti_payments(client_id)");
     // Należność: ile już pokryto (alokacja FIFO wpłat)
     try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Wnioski o przeniesienie płatności na następny miesiąc
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_payment_deferrals (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        billing_id   INTEGER NOT NULL REFERENCES k30_ti_billing(id) ON DELETE CASCADE,
+        client_id    INTEGER NOT NULL,
+        from_month   INTEGER NOT NULL,
+        from_year    INTEGER NOT NULL,
+        to_month     INTEGER NOT NULL,
+        to_year      INTEGER NOT NULL,
+        amount       REAL    NOT NULL DEFAULT 0,
+        reason       TEXT    NOT NULL DEFAULT '',
+        status       TEXT    NOT NULL DEFAULT 'pending',
+        requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        decided_at   DATETIME,
+        decide_note  TEXT    NOT NULL DEFAULT ''
+    )");
 }
 
 /** Suma wpłat klienta. */
@@ -218,6 +236,86 @@ function ti_payment_notify_overpay(int $client_id, float $payment_amount, float 
         if ($payment_id) db()->prepare("UPDATE k30_ti_payments SET overpay_notified=1 WHERE id=?")->execute([$payment_id]);
         return true;
     } catch (\Throwable $e) { return false; }
+}
+
+// ── Przeniesienie płatności na następny miesiąc ─────────────────────────────
+
+/** Tworzy wniosek o przeniesienie rozliczenia $billing_id na następny miesiąc. */
+function ti_deferral_request(int $billing_id, string $reason, int $requested_by): int {
+    ti_payments_migrate();
+    $b = db_one("SELECT id, client_id, month, year, amount, adjustment, status FROM k30_ti_billing WHERE id=?", [$billing_id]);
+    if (!$b || !in_array($b['status'], ['issued', 'draft'], true)) return 0;
+    // Czy już istnieje oczekujący wniosek dla tego rozliczenia?
+    $exists = db_one("SELECT id FROM k30_ti_payment_deferrals WHERE billing_id=? AND status='pending'", [$billing_id]);
+    if ($exists) return (int)$exists['id'];
+
+    $from_month = (int)$b['month'];
+    $from_year  = (int)$b['year'];
+    $to_month   = $from_month === 12 ? 1  : $from_month + 1;
+    $to_year    = $from_month === 12 ? $from_year + 1 : $from_year;
+    $amount     = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
+
+    return db_insert('k30_ti_payment_deferrals', [
+        'billing_id'   => $billing_id,
+        'client_id'    => (int)$b['client_id'],
+        'from_month'   => $from_month,
+        'from_year'    => $from_year,
+        'to_month'     => $to_month,
+        'to_year'      => $to_year,
+        'amount'       => $amount,
+        'reason'       => mb_substr(trim($reason), 0, 1000),
+        'status'       => 'pending',
+        'requested_by' => $requested_by,
+        'requested_at' => date('Y-m-d H:i:s'),
+    ]);
+}
+
+/** Zatwierdza wniosek — anuluje oryginalne rozliczenie i tworzy dopłatę w następnym miesiącu. */
+function ti_deferral_approve(int $deferral_id, int $decided_by, string $note = ''): bool {
+    ti_payments_migrate();
+    $d = db_one("SELECT * FROM k30_ti_payment_deferrals WHERE id=? AND status='pending'", [$deferral_id]);
+    if (!$d) return false;
+
+    $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                  7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+    $from_label = $months_pl[(int)$d['from_month']] . ' ' . $d['from_year'];
+
+    db()->prepare("UPDATE k30_ti_billing SET status='cancelled' WHERE id=?")->execute([(int)$d['billing_id']]);
+    ti_billing_add_charge(
+        (int)$d['client_id'],
+        (float)$d['amount'],
+        'Przeniesienie płatności za ' . $from_label,
+        (int)$d['to_month'],
+        (int)$d['to_year']
+    );
+    db()->prepare(
+        "UPDATE k30_ti_payment_deferrals SET status='approved', decided_by=?, decided_at=datetime('now'), decide_note=? WHERE id=?"
+    )->execute([$decided_by, mb_substr(trim($note), 0, 500), $deferral_id]);
+    return true;
+}
+
+/** Odrzuca wniosek. */
+function ti_deferral_reject(int $deferral_id, int $decided_by, string $note = ''): bool {
+    ti_payments_migrate();
+    $d = db_one("SELECT id FROM k30_ti_payment_deferrals WHERE id=? AND status='pending'", [$deferral_id]);
+    if (!$d) return false;
+    db()->prepare(
+        "UPDATE k30_ti_payment_deferrals SET status='rejected', decided_by=?, decided_at=datetime('now'), decide_note=? WHERE id=?"
+    )->execute([$decided_by, mb_substr(trim($note), 0, 500), $deferral_id]);
+    return true;
+}
+
+/** Lista oczekujących wniosków — dla panelu admina. */
+function ti_deferrals_pending(): array {
+    ti_payments_migrate();
+    return db_all(
+        "SELECT d.*, cl.name AS client_name, u.name AS requested_by_name
+         FROM k30_ti_payment_deferrals d
+         JOIN k30_clients cl ON cl.id=d.client_id
+         LEFT JOIN users u ON u.id=d.requested_by
+         WHERE d.status='pending'
+         ORDER BY d.requested_at"
+    );
 }
 
 /** Lista klientów z niedopłatą (saldo ujemne) — dla panelu admina. */

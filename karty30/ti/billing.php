@@ -268,6 +268,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set('success','Rozliczenie usunięte.');
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
+
+    // Wniosek o przeniesienie płatności na następny miesiąc
+    if ($op === 'request_deferral') {
+        $bid    = (int)($_POST['billing_id'] ?? 0);
+        $reason = trim($_POST['deferral_reason'] ?? '');
+        $confirm = !empty($_POST['deferral_confirm']);
+        if (!$bid || !$reason || !$confirm) {
+            flash_set('danger', 'Wypełnij powód i zaznacz potwierdzenie.');
+            header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+        }
+        $did = ti_deferral_request($bid, $reason, (int)($_SESSION['user_id'] ?? 0));
+        flash_set($did ? 'success' : 'danger', $did ? 'Wniosek o przeniesienie płatności złożony. Oczekuje na akceptację administratora.' : 'Nie można złożyć wniosku — rozliczenie ma nieprawidłowy status lub wniosek już istnieje.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Zatwierdzenie wniosku o przeniesienie (tylko admin)
+    if ($op === 'approve_deferral') {
+        if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
+        $did  = (int)($_POST['deferral_id'] ?? 0);
+        $note = trim($_POST['decide_note'] ?? '');
+        $ok   = $did && ti_deferral_approve($did, (int)($_SESSION['user_id'] ?? 0), $note);
+        flash_set($ok ? 'success' : 'danger', $ok ? 'Płatność przeniesiona na następny miesiąc.' : 'Błąd — wniosek nie istnieje lub jest już rozpatrzony.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Odrzucenie wniosku o przeniesienie (tylko admin)
+    if ($op === 'reject_deferral') {
+        if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
+        $did  = (int)($_POST['deferral_id'] ?? 0);
+        $note = trim($_POST['decide_note'] ?? '');
+        $ok   = $did && ti_deferral_reject($did, (int)($_SESSION['user_id'] ?? 0), $note);
+        flash_set($ok ? 'warning' : 'danger', $ok ? 'Wniosek odrzucony.' : 'Błąd — wniosek nie istnieje.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
 }
 
 // Pobierz rozliczenia za wybrany miesiąc
@@ -326,6 +360,9 @@ foreach ($billings as $b) {
 
 // Kursanci z niedopłatą (globalnie) — flaga dla panelu admina
 $debtors = ti_clients_with_debt();
+
+// Oczekujące wnioski o przeniesienie płatności
+$pending_deferrals = ti_deferrals_pending();
 
 // Mapa płatności Stripe dla wyświetlanych rozliczeń (source_type=k30_ti_billing)
 $stripe_pay = [];
@@ -441,6 +478,89 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </table>
   </div>
 </div>
+<?php endif; ?>
+
+<!-- Oczekujące wnioski o przeniesienie płatności -->
+<?php if ($pending_deferrals): ?>
+<div class="card border-0 shadow-sm mb-4 border-start border-warning border-4">
+  <div class="card-header fw-semibold d-flex align-items-center bg-warning-subtle text-warning-emphasis">
+    <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Wnioski o przeniesienie płatności
+    <span class="badge bg-warning text-dark ms-2"><?= count($pending_deferrals) ?></span>
+    <span class="ms-auto small fw-normal text-body-secondary">Wymagają akceptacji administratora</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
+      <caption class="visually-hidden">Oczekujące wnioski o przeniesienie płatności</caption>
+      <thead class="table-light">
+        <tr><th>Kursant</th><th>Kwota</th><th>Z okresu</th><th>Na okres</th><th>Powód</th><th>Złożono przez</th><th class="text-end">Akcja</th></tr>
+      </thead>
+      <tbody>
+        <?php
+          $months_pl_d = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                          7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+        ?>
+        <?php foreach ($pending_deferrals as $def): ?>
+        <tr>
+          <td class="fw-semibold"><?= h($def['client_name']) ?></td>
+          <td class="fw-bold"><?= number_format((float)$def['amount'],2,',','') ?> zł</td>
+          <td><?= $months_pl_d[(int)$def['from_month']] ?? '?' ?> <?= (int)$def['from_year'] ?></td>
+          <td><?= $months_pl_d[(int)$def['to_month']] ?? '?' ?> <?= (int)$def['to_year'] ?></td>
+          <td style="max-width:260px"><?= h($def['reason']) ?></td>
+          <td class="text-muted"><?= h($def['requested_by_name'] ?? '—') ?><br>
+            <span class="text-muted"><?= h(substr((string)$def['requested_at'],0,16)) ?></span>
+          </td>
+          <td class="text-end text-nowrap">
+            <?php if ($can_delete): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Zatwierdzić przeniesienie płatności <?= number_format((float)$def['amount'],2,',','') ?> zł na <?= $months_pl_d[(int)$def['to_month']] ?? '' ?> <?= (int)$def['to_year'] ?>?')">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="approve_deferral">
+              <input type="hidden" name="deferral_id" value="<?= (int)$def['id'] ?>">
+              <input type="hidden" name="month"       value="<?= $month ?>">
+              <input type="hidden" name="year"        value="<?= $year ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-success py-0 px-2">
+                <i class="bi bi-check-lg me-1"></i>Zatwierdź
+              </button>
+            </form>
+            <button type="button" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2"
+                    data-bs-toggle="modal" data-bs-target="#rejectDef<?= (int)$def['id'] ?>">
+              <i class="bi bi-x-lg me-1"></i>Odrzuć
+            </button>
+            <?php else: ?>
+            <span class="text-muted small">Tylko admin może zatwierdzić</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<!-- Modale odrzucenia wniosków -->
+<?php foreach ($pending_deferrals as $def): ?>
+<div class="modal fade" id="rejectDef<?= (int)$def['id'] ?>" tabindex="-1" aria-labelledby="rejectDef<?= (int)$def['id'] ?>_t" aria-hidden="true">
+  <div class="modal-dialog"><form method="post" class="modal-content">
+    <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op"         value="reject_deferral">
+    <input type="hidden" name="deferral_id" value="<?= (int)$def['id'] ?>">
+    <input type="hidden" name="month"       value="<?= $month ?>">
+    <input type="hidden" name="year"        value="<?= $year ?>">
+    <div class="modal-header">
+      <h5 class="modal-title" id="rejectDef<?= (int)$def['id'] ?>_t"><i class="bi bi-x-circle text-danger me-2"></i>Odrzuć wniosek — <?= h($def['client_name']) ?></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <p class="small text-body-secondary">Wniosek o przeniesienie <strong><?= number_format((float)$def['amount'],2,',','') ?> zł</strong> z <?= $months_pl_d[(int)$def['from_month']] ?? '' ?> <?= (int)$def['from_year'] ?> na <?= $months_pl_d[(int)$def['to_month']] ?? '' ?> <?= (int)$def['to_year'] ?>.</p>
+      <p class="small mb-2">Powód kursanta: <em><?= h($def['reason']) ?></em></p>
+      <label class="form-label fw-semibold" for="rdn<?= (int)$def['id'] ?>">Uwaga do odrzucenia <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+      <textarea class="form-control" id="rdn<?= (int)$def['id'] ?>" name="decide_note" rows="2" placeholder="np. Termin płatności nieprzekraczalny z powodu…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i>Odrzuć wniosek</button>
+    </div>
+  </form></div>
+</div>
+<?php endforeach; ?>
 <?php endif; ?>
 
 <!-- Wystawione rozliczenia -->
@@ -625,14 +745,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </form>
             <?php endif; ?>
             <?php if ($can_delete): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć rozliczenie dla „<?= h(addslashes($b['client_name'])) ?>”?')">
-              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"         value="delete">
-              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
-              <button type="submit" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń rozliczenie">
-                <i class="bi bi-trash"></i>
+            <form method=”post” class=”d-inline” onsubmit=”return confirm('Usunąć rozliczenie dla „<?= h(addslashes($b['client_name'])) ?>”?')”>
+              <input type=”hidden” name=”_csrf”       value=”<?= h(csrf_token()) ?>”>
+              <input type=”hidden” name=”_op”         value=”delete”>
+              <input type=”hidden” name=”billing_id”  value=”<?= (int)$b['id'] ?>”>
+              <button type=”submit” class=”btn btn-xs btn-sm btn-outline-danger py-0 px-2” title=”Usuń rozliczenie”>
+                <i class=”bi bi-trash”></i>
               </button>
             </form>
+            <?php endif; ?>
+            <?php if ($can_write && in_array($b['status'], ['issued','draft'], true)): ?>
+            <button type=”button” class=”btn btn-xs btn-sm btn-outline-warning py-0 px-2”
+                    title=”Złóż wniosek o przeniesienie płatności na następny miesiąc”
+                    data-bs-toggle=”modal” data-bs-target=”#deferBill<?= (int)$b['id'] ?>”>
+              <i class=”bi bi-calendar-arrow-right”></i>
+            </button>
             <?php endif; ?>
           </td>
         </tr>
@@ -844,6 +971,67 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 <?php endforeach; endif; ?>
 <?php endif; ?>
+
+<!-- Modale: wniosek o przeniesienie płatności -->
+<?php if ($can_write):
+  $months_pl_def = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                    7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+  foreach ($billings as $b):
+    if (!in_array($b['status'], ['issued','draft'], true)) continue;
+    $def_to_m = (int)$b['month'] === 12 ? 1 : (int)$b['month'] + 1;
+    $def_to_y = (int)$b['month'] === 12 ? (int)$b['year'] + 1 : (int)$b['year'];
+    $def_amount = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
+?>
+<div class="modal fade" id="deferBill<?= (int)$b['id'] ?>" tabindex="-1" aria-labelledby="deferBillLbl<?= (int)$b['id'] ?>" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"        value="request_deferral">
+      <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+      <input type="hidden" name="month"      value="<?= $month ?>">
+      <input type="hidden" name="year"       value="<?= $year ?>">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deferBillLbl<?= (int)$b['id'] ?>">
+          <i class="bi bi-calendar-arrow-right text-warning me-2"></i>Przeniesienie płatności — <?= h($b['client_name']) ?>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-body-secondary mb-3">
+          Kwota <strong><?= number_format($def_amount,2,',',' ') ?> zł</strong>
+          za <strong><?= ($months_pl_def[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'] ?></strong>
+          zostanie przeniesiona na <strong><?= ($months_pl_def[$def_to_m] ?? '?') . ' ' . $def_to_y ?></strong>
+          i pojawi się jako pozycja na saldzie kursanta z adnotacją okresu.
+        </p>
+        <div class="alert alert-warning py-2 small d-flex gap-2 align-items-start">
+          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+          <span>Wniosek wymaga akceptacji administratora. Do czasu zatwierdzenia oryginalne rozliczenie pozostaje aktywne.</span>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="defReason<?= (int)$b['id'] ?>">
+            Powód przeniesienia <span class="text-danger">*</span>
+          </label>
+          <textarea class="form-control" id="defReason<?= (int)$b['id'] ?>" name="deferral_reason"
+                    rows="3" required maxlength="1000"
+                    placeholder="np. trudna sytuacja finansowa, oczekiwanie na przelew zagranicę, uzgodnione z kursantem…"></textarea>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="defConfirm<?= (int)$b['id'] ?>" name="deferral_confirm" value="1" required>
+          <label class="form-check-label fw-semibold" for="defConfirm<?= (int)$b['id'] ?>">
+            Potwierdzam, że płatność powinna zostać przeniesiona na następny miesiąc
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-warning">
+          <i class="bi bi-calendar-arrow-right me-1"></i>Złóż wniosek o przeniesienie
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endforeach; endif; ?>
 
 <!-- Podgląd — klienci z lekcjami bez rozliczenia -->
 <?php if ($preview): ?>

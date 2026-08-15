@@ -295,7 +295,7 @@ if ($_sms_enabled && $cur_course) {
             <span class="badge text-bg-warning" style="font-size:.72rem"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadanie domowe</span>
             <?php endif; ?>
             <?php if (!empty($s['self_prep_remote'])): ?>
-            <span class="badge text-bg-info" style="font-size:.72rem"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Praca własna prowadzącego</span>
+            <span class="badge" style="background:#CCFBF1;color:#0694A2;border:1px solid #0694A244;font-size:.72rem"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Praca własna prowadzącego</span>
             <?php endif; ?>
           </div>
           <?php endif; ?>

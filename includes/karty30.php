@@ -2264,7 +2264,7 @@ const K30_TI_SESSION_STATUSES = [
     'planned'           => ['label'=>'Zaplanowana',                                   'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
     'held'              => ['label'=>'Odbyła się',                                    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
     'individual_change' => ['label'=>'Zajęcia indywidualne',                          'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],
-    'remote_material'   => ['label'=>'Praca własna prowadzącego (materiał zdalny)',   'color'=>'#0891B2', 'bg'=>'#ECFEFF'],
+    'remote_material'   => ['label'=>'Praca własna prowadzącego (materiał zdalny)',   'color'=>'#0694A2', 'bg'=>'#CCFBF1'],
     'cancelled'         => ['label'=>'Odwołana',                                      'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
