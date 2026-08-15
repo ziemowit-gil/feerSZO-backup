@@ -118,7 +118,7 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
@@ -2061,6 +2061,10 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
     <span class="badge bg-success" style="font-size:.65rem"><?= $active_cnt ?></span>
     <?php endif; ?>
   </a>
+  <a class="dyd-gb-link <?= $tab==='frekwencja_grup'?'active':'' ?>" href="index.php?tab=frekwencja_grup"
+     <?= $tab==='frekwencja_grup'?'aria-current="page"':'' ?>>
+    <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>Frekwencja grup
+  </a>
   <a class="dyd-gb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
      <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
     <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
@@ -2489,6 +2493,10 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
   <?php if ($tab === 'dysk'): ?>
   <?php include __DIR__ . '/_tab_dysk.php'; ?>
   <?php endif; /* dysk */ ?>
+
+  <?php if ($tab === 'frekwencja_grup'): ?>
+  <?php include __DIR__ . '/_tab_frekwencja_grup.php'; ?>
+  <?php endif; ?>
 
   <?php if ($tab === 'cykliczne'): ?>
   <?php include __DIR__ . '/_tab_cykliczne.php'; ?>
