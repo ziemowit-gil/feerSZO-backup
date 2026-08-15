@@ -359,6 +359,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
         // Link do lekcji online (per-lekcja) + stały link grupy (kurs)
         "ALTER TABLE k30_ti_sessions ADD COLUMN meeting_url         TEXT NOT NULL DEFAULT ''",
+        // Link do przygotowanego materiału zdalnego (status=remote_material)
+        "ALTER TABLE k30_ti_sessions ADD COLUMN material_url        TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses  ADD COLUMN default_meeting_url TEXT NOT NULL DEFAULT ''",
         // ID spotkania Zoom powiązanego z kursem (wygenerowanego przez API)
         "ALTER TABLE k30_ti_courses  ADD COLUMN zoom_meeting_id     TEXT NOT NULL DEFAULT ''",

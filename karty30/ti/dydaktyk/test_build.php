@@ -179,6 +179,13 @@ if ($course_id && !in_array($course_id, $my_cids, true)) {
 }
 
 $course = $course_id ? k30_ti_course_get($course_id) : null;
+// Fallback: jeśli k30_ti_course_get zawiodło (np. brak kolumny w starym schema),
+// użyj danych z już wczytanej listy kursów — zapobiega powrotowi do Widoku A
+if (!$course && $course_id) {
+    foreach ($my_courses as $_c) {
+        if ((int)$_c['id'] === $course_id) { $course = $_c; break; }
+    }
+}
 
 /* ── Dane dla listy testów kursu ─────────────────────────────────────── */
 $course_tests = $course_id ? k30_ti_tests_list($course_id) : [];
@@ -236,7 +243,11 @@ $_pts = fn($v) => rtrim(rtrim(number_format((float)$v,2,'.',''),'0'),'.');
 
 <!-- BREADCRUMB -->
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb small mb-0">
-  <li class="breadcrumb-item"><a href="index.php"><i class="bi bi-house me-1" aria-hidden="true"></i>Panel</a></li>
+  <li class="breadcrumb-item">
+    <a href="index.php<?= $course_id ? '?tab=testy&amp;course_id='.$course_id : '' ?>">
+      <i class="bi bi-house me-1" aria-hidden="true"></i>Panel
+    </a>
+  </li>
   <?php if ($course): ?>
   <li class="breadcrumb-item"><a href="test_build.php?course_id=<?= $course_id ?>">Testy — <?= h($course['name']) ?></a></li>
   <?php endif; ?>
@@ -285,6 +296,9 @@ if (!$test && !$course): ?>
 elseif (!$test): ?>
 
 <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+  <a href="index.php?tab=testy&amp;course_id=<?= $course_id ?>" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do panelu
+  </a>
   <div>
     <h4 class="fw-bold mb-0"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i><?= h($course['name']) ?></h4>
     <p class="text-body-secondary small mb-0">Testy i sprawdziany — zarządzaj pytaniami i widocznością</p>
@@ -489,8 +503,8 @@ else:
       <a href="test_build.php?course_id=<?= $course_id ?>&amp;test_id=<?= $test_id ?>&amp;edit_meta=1"
          class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia</a>
       <?php endif; ?>
-      <a href="test_build.php?course_id=<?= $course_id ?>"
-         class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Testy</a>
+      <a href="index.php?tab=testy&amp;course_id=<?= $course_id ?>"
+         class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do panelu</a>
     </div>
   </div>
 </div>

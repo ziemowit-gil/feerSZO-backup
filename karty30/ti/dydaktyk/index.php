@@ -389,12 +389,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
         if ($sid && dyd_owns_session($uid, $sid)) {
-            $st = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
+            $st      = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
+            $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $sid]);
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $sid]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             if ($st === 'remote_material') {
                 // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
@@ -1379,12 +1380,21 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <?php if ($isEdit): ?>
       <div class="mb-1">
         <label class="form-label" for="<?= $pfx ?>_status">Status</label>
-        <select class="form-select" id="<?= $pfx ?>_status" name="status">
+        <select class="form-select" id="<?= $pfx ?>_status" name="status"
+                onchange="document.getElementById('<?= $pfx ?>_maturl_wrap').style.display=(this.value==='remote_material')?'':'none'">
           <option value="planned" <?= ($r['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
           <option value="held" <?= ($r['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
           <option value="remote_material" <?= ($r['status']??'')==='remote_material'?'selected':'' ?>>Praca własna prowadzącego (materiał zdalny)</option>
         </select>
         <?php if (($r['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — zapis zmieni status.</div><?php endif; ?>
+      </div>
+      <div class="mb-1" id="<?= $pfx ?>_maturl_wrap" style="display:<?= ($r['status']??'')==='remote_material'?'':'none' ?>">
+        <label class="form-label" for="<?= $pfx ?>_maturl">
+          <i class="bi bi-link-45deg me-1 text-info" aria-hidden="true"></i>Link do materiału
+        </label>
+        <input type="url" class="form-control" id="<?= $pfx ?>_maturl" name="material_url"
+               value="<?= h($r['material_url'] ?? '') ?>" placeholder="https://…">
+        <div class="form-text">Link do dokumentu, pliku lub zasobu online — widoczny na liście lekcji.</div>
       </div>
       <?php else: ?>
       <div class="form-check form-switch mb-1">

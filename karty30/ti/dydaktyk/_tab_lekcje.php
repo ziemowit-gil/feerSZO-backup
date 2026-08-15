@@ -379,6 +379,12 @@ if ($_sms_enabled && $cur_course) {
               <i class="bi bi-people me-1"></i>Obecność
             </button>
             <?php endif; ?>
+            <?php $_mat_url = trim((string)($s['material_url'] ?? '')); ?>
+            <?php if ($s['status'] === 'remote_material' && $_mat_url): ?>
+            <a href="<?= h($_mat_url) ?>" class="btn btn-sm btn-outline-info" target="_blank" rel="noopener noreferrer">
+              <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Materiał
+            </a>
+            <?php endif; ?>
             <?php $_meet_url = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? ''))); ?>
             <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
             <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
