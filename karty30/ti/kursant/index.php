@@ -2766,8 +2766,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <?php if (!$dyd_groups): ?>
   <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak materiałów i zadań od prowadzącego.</div>
-  <?php else: $now = date('Y-m-d H:i:s'); ?>
-    <?php foreach ($dyd_groups as $grp): ?>
+  <?php else:
+    $now = date('Y-m-d H:i:s');
+    $_cutoff14 = date('Y-m-d', strtotime('-14 days'));
+    $_hidden_mat_cnt = 0;
+    foreach ($dyd_groups as $_grp) {
+        if (!empty($_grp['session_id']) && !empty($_grp['date']) && substr($_grp['date'],0,10) < $_cutoff14)
+            $_hidden_mat_cnt += count($_grp['materials']);
+    }
+  ?>
+    <?php foreach ($dyd_groups as $grp):
+      $_grp_old = !empty($grp['session_id']) && !empty($grp['date']) && substr($grp['date'],0,10) < $_cutoff14;
+      // Pomijaj grupy, które mają tylko stare materiały i brak zadań
+      if ($_grp_old && !$grp['homeworks'] && $grp['materials']) continue;
+    ?>
     <section class="mb-4">
       <h2 class="h6 fw-bold d-flex flex-wrap align-items-center gap-2 mb-2 pb-1 border-bottom">
         <?php if ($grp['session_id']): ?>
@@ -2780,7 +2792,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <?php endif; ?>
       </h2>
 
-      <?php if ($grp['materials']): ?>
+      <?php if ($grp['materials'] && !$_grp_old): ?>
       <details class="dyd-hw mb-3">
         <summary class="dyd-hw-summary text-body-secondary small fw-semibold mb-1 d-flex align-items-center gap-2">
           <i class="bi bi-collection-play" aria-hidden="true"></i><span>Materiały</span>
@@ -2801,6 +2813,12 @@ document.addEventListener('DOMContentLoaded', function() {
       <?php endif; ?>
     </section>
     <?php endforeach; ?>
+
+    <?php if ($_hidden_mat_cnt > 0): ?>
+    <p class="text-body-secondary small mt-2 mb-0">
+      <i class="bi bi-eye-slash me-1" aria-hidden="true"></i><?= $_hidden_mat_cnt === 1 ? '1 materiał' : $_hidden_mat_cnt . ' materiałów' ?> z lekcji sprzed ponad 14 dni jest ukrytych.
+    </p>
+    <?php endif; ?>
   <?php endif; ?>
 
   <!-- Zadania z Moodle wyłączone — zastąpione przez Dydaktykę panelu -->
