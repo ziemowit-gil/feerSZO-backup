@@ -2065,75 +2065,87 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
 <script type="module" src="https://unpkg.com/mdui@2/mdui.esm.js"></script>
 
-<!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
+<!-- ── Sidebar dydaktyka ── -->
 <?php
 $tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true);
 $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy','billing','kursy'], true);
 ?>
-<nav class="dyd-globalbar" aria-label="Menu dydaktyka">
-  <a class="dyd-gb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
+<div class="dyd-sb-overlay" id="dydSbOverlay"></div>
+<nav class="dyd-sidebar" id="dydSidebar" aria-label="Menu dydaktyka">
+
+  <a class="dyd-sb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
      <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
     <i class="bi bi-house" aria-hidden="true"></i>Pulpit
   </a>
-  <a class="dyd-gb-link <?= $tab_is_course?'active':'' ?>"
+
+  <div class="dyd-sb-sep"></div>
+  <div class="dyd-sb-section">Kurs</div>
+
+  <a class="dyd-sb-link <?= $tab_is_course?'active':'' ?>"
      href="index.php?course=<?= $cur_course ?>&tab=lekcje"
      <?= $tab_is_course?'aria-current="page"':'' ?>>
     <i class="bi bi-pc-display" aria-hidden="true"></i>Zajęcia
     <?php if ($courses): ?>
-    <span class="badge bg-secondary" style="font-size:.65rem"><?= count($courses) ?> gr.</span>
+    <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($courses) ?> gr.</span>
     <?php endif; ?>
   </a>
-  <a class="dyd-gb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
+  <a class="dyd-sb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
     <?php $active_cnt = count(array_filter($dyd_contracts, fn($c) => in_array($c['status'],['podpisana','w realizacji'],true))); ?>
     <?php if ($active_cnt): ?>
-    <span class="badge bg-success" style="font-size:.65rem"><?= $active_cnt ?></span>
+    <span class="badge bg-success ms-auto" style="font-size:.6rem"><?= $active_cnt ?></span>
     <?php endif; ?>
   </a>
-  <a class="dyd-gb-link <?= $tab==='frekwencja_grup'?'active':'' ?>" href="index.php?tab=frekwencja_grup"
+
+  <div class="dyd-sb-sep"></div>
+  <div class="dyd-sb-section">Planowanie</div>
+
+  <a class="dyd-sb-link <?= $tab==='frekwencja_grup'?'active':'' ?>" href="index.php?tab=frekwencja_grup"
      <?= $tab==='frekwencja_grup'?'aria-current="page"':'' ?>>
     <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>Frekwencja grup
   </a>
-  <a class="dyd-gb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
+  <a class="dyd-sb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
      <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
     <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
     <?php if (isset($my_avail) && count($my_avail) > 0): ?>
-    <span class="badge bg-secondary" style="font-size:.65rem"><?= count($my_avail) ?></span>
+    <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($my_avail) ?></span>
     <?php endif; ?>
   </a>
-  <div class="dyd-gb-dropdown">
-    <button class="dyd-gb-link <?= in_array($tab,['cykliczne'],true)?'active':'' ?> dropdown-toggle"
-            data-bs-toggle="dropdown" aria-expanded="false" type="button">
-      <i class="bi bi-calendar3-week" aria-hidden="true"></i>Planowanie
-    </button>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne">
-        <i class="bi bi-calendar-week me-2"></i>Plan cykliczny
-      </a></li>
-      <li><a class="dropdown-item" href="planner.php">
-        <i class="bi bi-layout-wtf me-2"></i>Planner
-      </a></li>
-    </ul>
-  </div>
-  <a class="dyd-gb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
+  <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
+     <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
+    <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
+  </a>
+  <a class="dyd-sb-link" href="planner.php">
+    <i class="bi bi-layout-wtf" aria-hidden="true"></i>Planner
+  </a>
+
+  <div class="dyd-sb-sep"></div>
+  <div class="dyd-sb-section">Komunikacja</div>
+
+  <a class="dyd-sb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
      <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości
     <?php if (!empty($dyd_msg_unread_total)): ?>
-    <span class="badge bg-danger" style="font-size:.65rem"><?= (int)$dyd_msg_unread_total ?></span>
+    <span class="badge bg-danger ms-auto" style="font-size:.6rem"><?= (int)$dyd_msg_unread_total ?></span>
     <?php endif; ?>
   </a>
-  <a class="dyd-gb-link <?= $tab==='komunikaty'?'active':'' ?>" href="index.php?tab=komunikaty"
+  <a class="dyd-sb-link <?= $tab==='komunikaty'?'active':'' ?>" href="index.php?tab=komunikaty"
      <?= $tab==='komunikaty'?'aria-current="page"':'' ?>>
     <i class="bi bi-megaphone" aria-hidden="true"></i>Komunikaty
-    <?php if (!empty($dyd_notices)): ?>
-    <span class="badge bg-warning text-dark" style="font-size:.65rem"><?= count($dyd_notices) ?></span>
+    <?php if (!empty($dyd_notices_unread) && $dyd_notices_unread > 0): ?>
+    <span class="badge bg-warning text-dark ms-auto" style="font-size:.6rem"><?= (int)$dyd_notices_unread ?></span>
     <?php endif; ?>
   </a>
-  <a class="dyd-gb-link <?= $tab==='dysk'?'active':'' ?>" href="index.php?tab=dysk"
+
+  <div class="dyd-sb-sep"></div>
+  <div class="dyd-sb-section">Zasoby</div>
+
+  <a class="dyd-sb-link <?= $tab==='dysk'?'active':'' ?>" href="index.php?tab=dysk"
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
   </a>
+
   <?php if (dyd_is_staff()): ?>
   <?php
     $_kier_badge = 0;
@@ -2145,65 +2157,59 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
              WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
     }
   ?>
-  <div class="dyd-gb-dropdown">
-    <button class="dyd-gb-link <?= $tab_is_kierownik?'active':'' ?> dropdown-toggle"
-            data-bs-toggle="dropdown" aria-expanded="false" type="button">
-      <i class="bi bi-shield-fill-check" aria-hidden="true"></i>Kierownik
-      <?php if ($_kier_badge): ?><span class="badge bg-danger" style="font-size:.65rem"><?= (int)$_kier_badge ?></span><?php endif; ?>
-    </button>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <li><h6 class="dropdown-header">Grupy i finanse</h6></li>
-      <li>
-        <a class="dropdown-item <?= $tab==='grupy'?'active':'' ?>" href="index.php?tab=grupy">
-          <i class="bi bi-grid me-2"></i>Przegląd grup
-        </a>
-      </li>
-      <?php if ($cur_course): ?>
-      <li>
-        <a class="dropdown-item <?= $tab==='rozliczenia'?'active':'' ?>"
-           href="index.php?course=<?= $cur_course ?>&tab=rozliczenia">
-          <i class="bi bi-receipt me-2"></i>Rozliczenia grupy
-          <?php if ($_kier_badge): ?><span class="badge bg-danger ms-1"><?= (int)$_kier_badge ?></span><?php endif; ?>
-        </a>
-      </li>
-      <?php endif; ?>
-      <li>
-        <a class="dropdown-item <?= $tab==='billing'?'active':'' ?>" href="index.php?tab=billing">
-          <i class="bi bi-receipt me-2"></i>Rozliczenia kursantów
-        </a>
-      </li>
-      <li>
-        <a class="dropdown-item <?= $tab==='kursy'?'active':'' ?>" href="index.php?tab=kursy">
-          <i class="bi bi-mortarboard me-2"></i>Zarządzanie kursami
-        </a>
-      </li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Wypłaty</h6></li>
-      <li>
-        <a class="dropdown-item <?= $tab==='wypłaty'?'active':'' ?>" href="index.php?tab=wypłaty">
-          <i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących
-        </a>
-      </li>
-      <li>
-        <a class="dropdown-item <?= $tab==='praca_wlasna'?'active':'' ?>" href="index.php?tab=praca_wlasna">
-          <i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących
-        </a>
-      </li>
-      <li><a class="dropdown-item" href="../zetony.php" target="_blank" rel="noopener"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Raporty i inne</h6></li>
-      <li><a class="dropdown-item" href="../raporty.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty i WUP</a></li>
-      <li><a class="dropdown-item" href="../komunikacja.php" target="_blank" rel="noopener"><i class="bi bi-send me-2"></i>Wyślij e-mail / SMS</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item text-muted" href="../index.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-2"></i>Pełny panel TI</a></li>
-    </ul>
-  </div>
+  <div class="dyd-sb-sep"></div>
+  <div class="dyd-sb-section">Kierownik</div>
+
+  <a class="dyd-sb-link <?= $tab==='grupy'?'active':'' ?>" href="index.php?tab=grupy"
+     <?= $tab==='grupy'?'aria-current="page"':'' ?>>
+    <i class="bi bi-grid" aria-hidden="true"></i>Przegląd grup
+  </a>
+  <?php if ($cur_course): ?>
+  <a class="dyd-sb-link <?= $tab==='rozliczenia'?'active':'' ?>"
+     href="index.php?course=<?= $cur_course ?>&tab=rozliczenia"
+     <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
+    <i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia grupy
+    <?php if ($_kier_badge): ?><span class="badge bg-danger ms-auto" style="font-size:.6rem"><?= (int)$_kier_badge ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <a class="dyd-sb-link <?= $tab==='billing'?'active':'' ?>" href="index.php?tab=billing"
+     <?= $tab==='billing'?'aria-current="page"':'' ?>>
+    <i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia kursantów
+  </a>
+  <a class="dyd-sb-link <?= $tab==='kursy'?'active':'' ?>" href="index.php?tab=kursy"
+     <?= $tab==='kursy'?'aria-current="page"':'' ?>>
+    <i class="bi bi-mortarboard" aria-hidden="true"></i>Zarządzanie kursami
+  </a>
+  <a class="dyd-sb-link <?= $tab==='wypłaty'?'active':'' ?>" href="index.php?tab=wypłaty"
+     <?= $tab==='wypłaty'?'aria-current="page"':'' ?>>
+    <i class="bi bi-wallet2" aria-hidden="true"></i>Wypłaty prowadzących
+  </a>
+  <a class="dyd-sb-link <?= $tab==='praca_wlasna'?'active':'' ?>" href="index.php?tab=praca_wlasna"
+     <?= $tab==='praca_wlasna'?'aria-current="page"':'' ?>>
+    <i class="bi bi-person-workspace" aria-hidden="true"></i>Praca własna
+  </a>
+  <a class="dyd-sb-link" href="../zetony.php" target="_blank" rel="noopener">
+    <i class="bi bi-coin text-warning" aria-hidden="true"></i>Żetony SZO
+  </a>
+  <a class="dyd-sb-link" href="../raporty.php" target="_blank" rel="noopener">
+    <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>Raporty i WUP
+  </a>
+  <a class="dyd-sb-link" href="../komunikacja.php" target="_blank" rel="noopener">
+    <i class="bi bi-send" aria-hidden="true"></i>Wyślij e-mail / SMS
+  </a>
+  <a class="dyd-sb-link" href="../index.php" target="_blank" rel="noopener" style="opacity:.6">
+    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Pełny panel TI
+  </a>
   <?php endif; ?>
 
 </nav>
 
 <!-- ── Synergia-like info bar (prowadzący + kurs) ───────────── -->
 <div class="dyd-info-bar" aria-label="Informacje o prowadzącym i kursie">
+  <button class="btn btn-link text-white dyd-sb-mobile-btn p-0 me-2 lh-1" id="dydSbToggle"
+          aria-label="Otwórz menu" aria-expanded="false" aria-controls="dydSidebar" type="button">
+    <i class="bi bi-list fs-5" aria-hidden="true"></i>
+  </button>
   <span><i class="bi bi-person-fill me-1" aria-hidden="true"></i><strong><?= h($me['name'] ?? '') ?></strong></span>
   <?php if ($course && $tab_is_course): ?>
   <span class="dyd-ib-sep">|</span>
@@ -2221,7 +2227,7 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
   </a>
 </div>
 
-<main id="main" class="container dyd-wrap py-4">
+<main id="main" class="container dyd-content dyd-wrap py-4">
 
   <?php /* h1 przeniesiony do info-bar; widok zachowuje semantykę przez nagłówki sekcji w zakładkach */ ?>
 
@@ -2624,6 +2630,31 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   e.preventDefault();
   document.getElementById('dyd-sms-week-form')?.requestSubmit();
 });
+</script>
+<script>
+(function() {
+  var sb  = document.getElementById('dydSidebar');
+  var ov  = document.getElementById('dydSbOverlay');
+  var btn = document.getElementById('dydSbToggle');
+  if (!sb || !ov || !btn) return;
+  function openSb() {
+    sb.classList.add('dyd-sidebar-open');
+    ov.classList.add('show');
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  function closeSb() {
+    sb.classList.remove('dyd-sidebar-open');
+    ov.classList.remove('show');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+  btn.addEventListener('click', function() {
+    sb.classList.contains('dyd-sidebar-open') ? closeSb() : openSb();
+  });
+  ov.addEventListener('click', closeSb);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && sb.classList.contains('dyd-sidebar-open')) closeSb();
+  });
+})();
 </script>
 <?php include __DIR__ . '/_wizard.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
