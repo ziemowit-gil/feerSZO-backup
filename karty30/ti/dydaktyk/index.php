@@ -1966,8 +1966,7 @@ $KP_TOPBAR = [
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <style>
-  .dyd-wrap { max-width:1100px; }
-  .dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
+.dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
   .dyd-course-pills .nav-link.active { background:#2563eb; border-color:#2563eb; }
   .badge-soft { background:rgba(37,99,235,.12); color:#93c5fd; border:1px solid rgba(37,99,235,.35); }
   /* ── Synergia-like top navbar override (tylko dydaktyk) ─── */
