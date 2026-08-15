@@ -99,16 +99,13 @@
 <!-- ── Pasek akcji ──────────────────────────────────────────── -->
 <div class="dyd30-bar">
   <?php if (!$grades_on): ?>
-  <div class="alert alert-warning py-1 px-3 mb-0 small d-flex align-items-center gap-2 flex-grow-1">
-    <i class="bi bi-exclamation-triangle-fill"></i>
-    <span>Oceny w tym kursie są <strong>wyłączone</strong>.</span>
-    <form method="post" class="ms-auto">
-      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-      <input type="hidden" name="_op" value="grade_toggle_course">
-      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-      <button class="btn btn-sm btn-warning py-0 px-2">Włącz oceny</button>
-    </form>
-  </div>
+  <span class="text-body-secondary small me-auto"><i class="bi bi-journal-x me-1" aria-hidden="true"></i>E-dziennik ocen</span>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="_op" value="grade_toggle_course">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-toggle-off text-secondary me-1" aria-hidden="true"></i>Oceny: wył.</button>
+  </form>
   <?php else: ?>
   <div class="d-flex align-items-center gap-1 me-auto">
     <i class="bi bi-journal-bookmark text-primary"></i>
@@ -128,6 +125,31 @@
   <?php endif; ?>
   <?php endif; ?>
 </div>
+
+<?php if (!$grades_on): ?>
+<!-- ── Pusty stan — oceny wyłączone ─────────────────────────── -->
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5 px-4"
+       style="min-height:320px">
+    <i class="bi bi-journal-x mb-4" aria-hidden="true"
+       style="font-size:4.5rem;color:var(--bs-warning-text-emphasis);opacity:.45"></i>
+    <h4 class="fw-bold mb-2">Oceny wyłączone</h4>
+    <p class="text-body-secondary mb-4" style="max-width:380px">
+      E-dziennik ocen nie jest aktywny dla tej grupy. Włącz go, aby zacząć
+      wystawiać i przeglądać oceny kursantów.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="grade_toggle_course">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <button class="btn btn-warning btn-lg px-4">
+        <i class="bi bi-toggle-off me-2" aria-hidden="true"></i>Włącz e-dziennik ocen
+      </button>
+    </form>
+  </div>
+</div>
+<?php return; ?>
+<?php endif; ?>
 
 <!-- ── Macierz ocen ─────────────────────────────────────────── -->
 <?php if (!$g_enrollees): ?>
