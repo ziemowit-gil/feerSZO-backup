@@ -1902,10 +1902,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   @media (min-width:768px) {
     .dyd-content { margin-left:220px; transition:margin-left .22s ease; }
     .dyd-sidebar { transition:width .22s ease; }
-    .dyd-sb-mobile-btn { display:none !important; }
     .dyd-sb-hidden .dyd-sidebar { width:0; overflow:hidden; border:none; padding:0; }
     .dyd-sb-hidden .dyd-content { margin-left:0; }
-    .dyd-sb-hidden .dyd-sb-mobile-btn { display:flex !important; }
   }
   @media (max-width:767px) {
     .dyd-sidebar { transform:translateX(-220px); transition:transform .22s ease; box-shadow:none; }
@@ -1914,15 +1912,20 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     .dyd-sb-overlay.show { display:block; }
   }
 
-  /* ── Pasek kontekstu kursu (mobile: z hamburgerem, desktop: uproszczony) ── */
-  .dyd-info-bar {
-    background:#1b2e45; color:#fff;
-    padding:.3rem 1rem; font-size:.81rem;
-    display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .75rem;
-    border-bottom:1px solid rgba(255,255,255,.08);
+  /* ── Pływający guzik otwierania sidebara ── */
+  #dydSbToggle {
+    position:fixed; top:64px; left:8px; z-index:101;
+    width:32px; height:32px; padding:0;
+    background:#1b2e45; border:1px solid rgba(255,255,255,.22); border-radius:6px;
+    color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:background .12s, opacity .12s; box-shadow:0 2px 8px rgba(0,0,0,.35);
+    line-height:1;
   }
-  .dyd-info-bar .dyd-ib-sep { color:rgba(255,255,255,.3); }
-  .dyd-info-bar .dyd-ib-dim { color:rgba(255,255,255,.55); font-size:.76rem; }
+  #dydSbToggle:hover { background:#243d5c; color:#fff; }
+  @media (min-width:768px) {
+    #dydSbToggle { display:none; }
+    .dyd-sb-hidden #dydSbToggle { display:flex; }
+  }
 
   /* ── MD3 / Material Design 3 overrides ────────────────────────────────────── */
 
@@ -2294,32 +2297,24 @@ if ($cur_course && dyd_is_staff()) {
   </a>
   <?php endif; ?>
 
+  <div class="mt-auto"></div>
+  <div class="dyd-sb-sep"></div>
+  <button type="button" onclick="window.dydStartTour && window.dydStartTour()"
+          class="dyd-sb-link w-100 text-start" style="background:none;border:none;opacity:.55;font-size:.78rem">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>Tour powitalny
+  </button>
+  <a class="dyd-sb-link" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/index.php" style="opacity:.55;font-size:.78rem">
+    <i class="bi bi-grid" aria-hidden="true"></i>Pełny moduł TI
+  </a>
+
 </nav>
 
-<!-- ── Synergia-like info bar (prowadzący + kurs) ───────────── -->
-<div class="dyd-info-bar" aria-label="Informacje o prowadzącym i kursie">
-  <button class="btn btn-link text-white dyd-sb-mobile-btn p-0 me-2 lh-1" id="dydSbToggle"
-          aria-label="Otwórz menu" aria-expanded="false" aria-controls="dydSidebar" type="button">
-    <i class="bi bi-list fs-5" aria-hidden="true"></i>
-  </button>
-  <span><i class="bi bi-person-fill me-1" aria-hidden="true"></i><strong><?= h($me['name'] ?? '') ?></strong></span>
-  <?php if ($course && $tab_is_course): ?>
-  <span class="dyd-ib-sep">|</span>
-  <span><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($course['name']) ?></span>
-  <?php if (!empty($course['location'])): ?>
-  <span class="dyd-ib-dim"><i class="bi bi-geo-alt me-1"></i><?= h($course['location']) ?></span>
-  <?php endif; ?>
-  <span class="dyd-ib-dim">· <?= (int)($course['enrolled_count'] ?? 0) ?> kursantów</span>
-  <?php elseif (!$tab_is_course): ?>
-  <span class="dyd-ib-sep">|</span>
-  <span class="dyd-ib-dim"><?= $tab === 'pulpit' ? 'Pulpit' : ucfirst($tab) ?></span>
-  <?php endif; ?>
-  <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/index.php" class="ms-auto dyd-ib-dim text-decoration-none" style="font-size:.76rem">
-    <i class="bi bi-grid me-1" aria-hidden="true"></i>Pełny moduł TI
-  </a>
-</div>
+<!-- Pływający guzik otwierania sidebara (mobile zawsze + desktop gdy zwinięty) -->
+<button id="dydSbToggle" aria-label="Otwórz menu" aria-expanded="false" aria-controls="dydSidebar" type="button">
+  <i class="bi bi-list fs-6" aria-hidden="true"></i>
+</button>
 
-<main id="main" class="container dyd-content dyd-wrap py-4">
+<main id="main" class="container-fluid dyd-content dyd-wrap py-4">
 
   <?php /* h1 przeniesiony do info-bar; widok zachowuje semantykę przez nagłówki sekcji w zakładkach */ ?>
 
@@ -2736,6 +2731,7 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   // Przywróć stan collapsed na desktopie
   if (isDesktop() && localStorage.getItem('dydSbCollapsed') === '1') {
     document.body.classList.add('dyd-sb-hidden');
+    btn.style.display = 'flex';
   }
 
   function openSb() {
@@ -2774,4 +2770,121 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
 })();
 </script>
 <?php include __DIR__ . '/_wizard.php'; ?>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@14/dist/css/shepherd.css">
+<script src="https://cdn.jsdelivr.net/npm/shepherd.js@14/dist/js/shepherd.min.js"></script>
+<style>
+.shepherd-element { font-size:.9rem; }
+.shepherd-text { font-size:.875rem; color:var(--bs-body-color); }
+.shepherd-header { background:#1b2e45 !important; }
+.shepherd-title { color:#fff !important; font-size:.95rem !important; font-weight:700 !important; }
+.shepherd-cancel-icon { color:rgba(255,255,255,.7) !important; }
+.shepherd-cancel-icon:hover { color:#fff !important; }
+.shepherd-button-primary { background:#2563eb !important; border:none !important; border-radius:6px !important; font-size:.82rem !important; }
+.shepherd-button-secondary { background:transparent !important; color:var(--bs-secondary-color) !important; border:1px solid var(--bs-border-color) !important; border-radius:6px !important; font-size:.82rem !important; }
+.shepherd-has-title .shepherd-content .shepherd-header { border-radius:.4rem .4rem 0 0; }
+.shepherd-element { border-radius:.5rem !important; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.25) !important; }
+</style>
+<script>
+(function() {
+  // Klucz localStorage zawiera id użytkownika, żeby tour reset przy nowym logowaniu
+  var TOUR_KEY = 'dydTourSeen_<?= (int)$uid ?>';
+  var autoStart = <?= json_encode($tab === 'pulpit') ?>;
+
+  function startTour() {
+    if (typeof Shepherd === 'undefined') return;
+    var tour = new Shepherd.Tour({
+      useModalOverlay: true,
+      defaultStepOptions: {
+        cancelIcon: { enabled: true },
+        scrollTo: { behavior: 'smooth', block: 'center' },
+        buttons: [
+          { text: 'Wstecz',  action: function() { tour.back();    }, secondary: true },
+          { text: 'Dalej →', action: function() { tour.next();    }, classes: 'shepherd-button-primary' },
+        ],
+        when: { show: function() { localStorage.setItem(TOUR_KEY, '1'); } }
+      }
+    });
+
+    tour.addStep({
+      id: 'sidebar',
+      title: '📋 Panel nawigacyjny',
+      text:  'Ten panel po lewej stronie to Twoje centrum dowodzenia. Znajdziesz tu wszystkie sekcje panelu dydaktyka.',
+      attachTo: { element: '#dydSidebar', on: 'right' },
+      buttons: [
+        { text: 'Pomiń tour', action: function() { tour.cancel(); }, secondary: true },
+        { text: 'Dalej →',    action: function() { tour.next();  }, classes: 'shepherd-button-primary' },
+      ]
+    });
+
+    tour.addStep({
+      id: 'pulpit',
+      title: '🏠 Pulpit',
+      text:  'Pulpit pokazuje dzisiejsze zajęcia i skróty do najważniejszych funkcji.',
+      attachTo: { element: '.dyd-sb-link[href*="tab=pulpit"]', on: 'right' }
+    });
+
+    tour.addStep({
+      id: 'kurs-section',
+      title: '📚 Kurs',
+      text:  'Sekcja <strong>Kurs</strong> zawiera wszystkie podzakładki wybranej grupy — lekcje, zadania, materiały, oceny i więcej. Liczby przy każdej zakładce pokazują ile wpisów jest w danej sekcji.',
+      attachTo: { element: '.dyd-sb-section', on: 'right' }
+    });
+
+    var ctab = document.querySelector('.dyd-sb-sub');
+    if (ctab) {
+      tour.addStep({
+        id: 'sub-tabs',
+        title: '🗂 Podzakładki grupy',
+        text:  'Każda podzakładka to osobny widok — kliknij <strong>Lekcje</strong> żeby zobaczyć kalendarz zajęć, <strong>Zadania</strong> żeby zarządzać pracami domowymi, itd.',
+        attachTo: { element: '.dyd-sb-sub', on: 'right' }
+      });
+    }
+
+    var picker = document.querySelector('.dyd-sb-section + div .dropdown button');
+    if (picker) {
+      tour.addStep({
+        id: 'course-picker',
+        title: '👥 Zmiana grupy',
+        text:  'Jeśli prowadzisz kilka grup, możesz tu przełączać się między nimi. Podzakładki odświeżają się automatycznie.',
+        attachTo: { element: picker, on: 'bottom' }
+      });
+    }
+
+    tour.addStep({
+      id: 'collapse',
+      title: '◀ Zwijanie panelu',
+      text:  'Klikając <strong>‹</strong> możesz zwinąć panel boczny i zyskać więcej miejsca na treść. Kliknij ikonę ☰ żeby go z powrotem otworzyć.',
+      attachTo: { element: '#dydSbCollapse', on: 'right' }
+    });
+
+    tour.addStep({
+      id: 'komunikacja',
+      title: '✉ Komunikacja',
+      text:  '<strong>Wiadomości</strong> — wymiana wiadomości z kursantami i kierownictwem.<br><strong>Komunikaty</strong> — ogłoszenia od placówki.',
+      attachTo: { element: '.dyd-sb-section:last-of-type', on: 'right' }
+    });
+
+    tour.addStep({
+      id: 'finish',
+      title: '✅ Gotowe!',
+      text:  'Znasz już podstawy panelu dydaktyka. Możesz wrócić do tego tour w dowolnym momencie klikając <i class="bi bi-info-circle"></i> w sidebarze.',
+      buttons: [
+        { text: 'Zakończ', action: function() { tour.complete(); }, classes: 'shepherd-button-primary' }
+      ]
+    });
+
+    tour.start();
+  }
+
+  // Auto-start: przy pierwszym logowaniu (brak klucza w localStorage)
+  if (!localStorage.getItem(TOUR_KEY) && autoStart) {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(startTour, 600);
+    });
+  }
+
+  // Guzik restartu toura
+  window.dydStartTour = startTour;
+})();
+</script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
