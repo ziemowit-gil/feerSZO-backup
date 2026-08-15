@@ -1293,7 +1293,7 @@ function kdok_is_complete(array $doc): bool {
 // ── Konwersja UTF-8 → ISO-8859-2 dla FPDF ────────────────────────────────────
 
 function _pdf(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 /**
@@ -1344,8 +1344,8 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetMargins(15, 15, 15);
 
     $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
 
     // ── Oryginalne strony PDF ─────────────────────────────────────────────────
     $orig_path = UPLOAD_DIR . ltrim($doc['file_path'] ?? '', '/');
@@ -1379,7 +1379,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $pdf->SetFillColor(...$ACCENT);
         $pdf->Rect(15, $y + 0.8, 2.2, 4, 'F');
         $pdf->SetTextColor(...$INK);
-        $pdf->SetFont('DejaVu', 'B', 8.5);
+        $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetXY(19, $y);
         $pdf->Cell($W - 4, 5.6, _pdf(mb_strtoupper($txt)), 0, 1, 'L');
         $pdf->SetDrawColor(...$LINE);
@@ -1401,7 +1401,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     } catch (\Throwable $e) { $barcodeTmp = null; }
 
     // ── Nagłówek — cienka linijka eyebrow + reguła akcentu ────────────────────
-    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetFont('Helvetica', '', 7);
     $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, 15);
     $pdf->Cell($W * 0.6, 4, _pdf(mb_strtoupper('System EOD Dokumentów Księgowych' . ($org ? ' · ' . $org : ''))), 0, 0, 'L');
@@ -1420,18 +1420,18 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
 
     $typLabel = KDOK_TYPES[$doc['type']]['label'] ?? $doc['type'];
     $pdf->SetXY(15, $topY);
-    $pdf->SetFont('DejaVu', 'B', 8);
+    $pdf->SetFont('Helvetica', 'B', 8);
     $pdf->SetTextColor(...$ACCENT);
     $pdf->Cell($leftW, 4.5, _pdf(mb_strtoupper($typLabel) . '   ·   NR OBIEGU: ' . $doc['number']), 0, 1, 'L');
     $pdf->SetTextColor(...$INK);
     $pdf->SetX(15);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->MultiCell($leftW, 6.5, _pdf($doc['title']), 0, 'L');
 
     if ($barcodeTmp) {
         $pdf->Image($barcodeTmp, $rightX + ($rightW - $barcodeW) / 2, $topY, $barcodeW, $barcodeH, 'PNG');
         @unlink($barcodeTmp);
-        $pdf->SetFont('DejaVu', '', 6.5);
+        $pdf->SetFont('Helvetica', '', 6.5);
         $pdf->SetTextColor(...$INK);
         $pdf->SetXY($rightX, $topY + $barcodeH + 0.5);
         $pdf->Cell($rightW, 3.5, _pdf($doc['number']), 0, 1, 'C');
@@ -1442,11 +1442,11 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $pdf->SetDrawColor(...$LINE);
         $pdf->SetFillColor(255, 255, 255);
         $pdf->Rect($rightX, $boxY, $rightW, 11, 'DF');
-        $pdf->SetFont('DejaVu', '', 6.5);
+        $pdf->SetFont('Helvetica', '', 6.5);
         $pdf->SetTextColor(120, 128, 132);
         $pdf->SetXY($rightX + 3, $boxY + 1.3);
         $pdf->Cell($rightW - 6, 3.5, _pdf('KWOTA DO WYPŁATY'), 0, 1, 'L');
-        $pdf->SetFont('DejaVu', 'B', 11);
+        $pdf->SetFont('Helvetica', 'B', 11);
         $pdf->SetTextColor(...$GOLD);
         $pdf->SetXY($rightX + 3, $boxY + 4.8);
         $pdf->Cell($rightW - 6, 5.5, _pdf($doc['kwota'] . ' PLN'), 0, 1, 'L');
@@ -1461,7 +1461,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     // i tekst wychodził poza narysowane tło.
     if ($doc['description']) {
         $descBodyW = $W - 8;
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $descLines = _pdf_count_lines($pdf, $doc['description'], $descBodyW);
         $descH     = max(14, $descLines * 5 + 8);
         $pdf->SetDrawColor(...$LINE);
@@ -1469,11 +1469,11 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $pdf->Rect(15, $y, $W, $descH, 'DF');
         $pdf->SetFillColor(...$ACCENT);
         $pdf->Rect(15, $y, 1.4, $descH, 'F'); // lewy pasek akcentu
-        $pdf->SetFont('DejaVu', 'B', 7);
+        $pdf->SetFont('Helvetica', 'B', 7);
         $pdf->SetTextColor(...$ACCENT);
         $pdf->SetXY(20, $y + 2);
         $pdf->Cell(0, 4, _pdf('OPIS MERYTORYCZNY'), 0, 1);
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $pdf->SetTextColor(...$INK);
         $pdf->SetXY(20, $y + 6);
         $pdf->MultiCell($descBodyW, 5, _pdf($doc['description']), 0, 'L');
@@ -1490,7 +1490,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     if ($extras) {
         $extraBodyW = $W - 6;
         $extraText  = implode('     ·     ', $extras);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
         $extraLines = _pdf_count_lines($pdf, $extraText, $extraBodyW);
         $extraH     = max(6, $extraLines * 4.2 + 2.4);
         $pdf->SetFillColor(...$TINT);
@@ -1511,7 +1511,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
 
     $cW = [75, 55, 32, 22, 83]; // etap | CN | data | decyzja | autoryzacja
     $pdf->SetDrawColor(...$LINE);
-    $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
+    $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('Helvetica', 'B', 7.5);
     $pdf->Cell($cW[0], 6, _pdf('Etap'),                  'B', 0, 'L', true);
     $pdf->Cell($cW[1], 6, _pdf('Imie i nazwisko (CN)'),  'B', 0, 'L', true);
     $pdf->Cell($cW[2], 6, _pdf('Data i godzina'),        'B', 0, 'C', true);
@@ -1519,7 +1519,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->Cell($cW[4], 6, _pdf('Autoryzacja X.509'),     'B', 1, 'C', true);
 
     $stepDot = ['ok' => [46, 125, 90], 'uwagi' => [163, 116, 41], 'odrzucono' => [178, 58, 58], '' => [170, 175, 178]];
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $rowAlt = false;
     foreach (['formal' => 'Sprawdzono formalnie i rachunkowo', 'meryt' => 'Sprawdzono merytorycznie', 'zatwierdza' => 'Zatwierdzono do wyplaty'] as $key => $label) {
         $step   = $doc['steps'][$key] ?? null;
@@ -1540,25 +1540,25 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $pdf->Cell($cW[0], 6.5, _pdf($label),  'B', 0, 'L', true);
         $pdf->Cell($cW[1], 6.5, _pdf($cn),     'B', 0, 'L', true);
         $pdf->Cell($cW[2], 6.5, _pdf($dt),     'B', 0, 'C', true);
-        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->SetTextColor(...$dot);
         $pdf->Cell($cW[3], 6.5, _pdf($dec), 'B', 0, 'C', true);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
         $pdf->SetTextColor(...$INK);
         $pdf->Cell($cW[4], 6.5, _pdf($fp ? 'X.509 + WebAuthn/IKAKS' : '—'), 'B', 1, 'C', true);
 
         if ($fp) {
-            $pdf->SetFont('DejaVu', '', 5.5); $pdf->SetTextColor(120, 128, 132); $pdf->SetX(15);
+            $pdf->SetFont('Helvetica', '', 5.5); $pdf->SetTextColor(120, 128, 132); $pdf->SetX(15);
             $pdf->SetFillColor(...$rf);
             $fc = str_replace(':', '', $fp);
             $pdf->MultiCell($W, 3.6, _pdf('SHA-256  ' . substr($fc, 0, 32) . "\n              " . substr($fc, 32)), 'B', 'L', true);
-            $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
+            $pdf->SetFont('Helvetica', '', 7.5); $pdf->SetTextColor(...$INK);
         }
         if ($step && $step['notes']) {
-            $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(...$GOLD); $pdf->SetX(15);
+            $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(...$GOLD); $pdf->SetX(15);
             $pdf->SetFillColor(...$rf);
             $pdf->MultiCell($W, 4, _pdf('Uwagi: ' . $step['notes']), 'B', 'L', true);
-            $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
+            $pdf->SetFont('Helvetica', '', 7.5); $pdf->SetTextColor(...$INK);
         }
         // Odstęp między etapami, żeby granica jednego etapu i początek kolejnego
         // były jednoznaczne nawet gdy oba mają to samo tło (rowAlt).
@@ -1577,12 +1577,12 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
 
     $hW = [34, 58, $W - 92];
     $drawHistoryHeader = function () use ($pdf, $hW, $TINT, $INK) {
-        $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
         $pdf->Cell($hW[1], 5.5, _pdf('Uzytkownik'),  'B', 0, 'C', true);
         $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
     };
     $drawHistoryHeader();
 
@@ -1619,14 +1619,14 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $sectionLabel('Klauzula zatwierdzenia elektronicznego');
     $pdf->SetDrawColor(...$LINE);
     $pdf->SetFillColor(250, 250, 249);
-    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetFont('Helvetica', '', 7);
     $pdf->SetTextColor(...$INK);
     $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie EOD Dokumentow Ksiegowych ' . $org
         . '. Elektroniczne zatwierdzenie jest rownowazne z podpisem wlasnorecznym (art. 7 ustawy o rachunkowosci,'
         . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz klucza sprzetowego WebAuthn'
         . ' (lub, w przypadku braku klucza, kodu IKAKS).';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
-    $pdf->SetFont('DejaVu', '', 6);
+    $pdf->SetFont('Helvetica', '', 6);
     $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, $pdf->GetY() + 1);
     $pdf->Cell($W, 4, _pdf('SHA-256: ' . ($doc['file_sha256'] ?: '—') . '   |   ' . $doc['number'] . '   |   ' . date('d.m.Y H:i:s')), 0, 1, 'C');
@@ -1652,8 +1652,8 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $pdf->SetMargins(15, 15, 15);
 
     $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
 
     $pdf->AddPage('L', 'A4');
     $W   = 267;
@@ -1671,7 +1671,7 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
         $pdf->SetFillColor(...$ACCENT);
         $pdf->Rect(15, $y + 0.8, 2.2, 4, 'F');
         $pdf->SetTextColor(...$INK);
-        $pdf->SetFont('DejaVu', 'B', 8.5);
+        $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetXY(19, $y);
         $pdf->Cell($W - 4, 5.6, _pdf(mb_strtoupper($txt)), 0, 1, 'L');
         $pdf->SetDrawColor(...$LINE);
@@ -1682,7 +1682,7 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     };
 
     // ── Nagłówek ─────────────────────────────────────────────────────────────
-    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetFont('Helvetica', '', 7);
     $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, 15);
     $pdf->Cell($W * 0.6, 4, _pdf(mb_strtoupper('System EOD Dokumentów Księgowych' . ($org ? ' · ' . $org : ''))), 0, 0, 'L');
@@ -1695,16 +1695,16 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
 
     // ── Tytuł protokołu ───────────────────────────────────────────────────────
     $pdf->SetXY(15, 23);
-    $pdf->SetFont('DejaVu', 'B', 8);
+    $pdf->SetFont('Helvetica', 'B', 8);
     $pdf->SetTextColor(...$ACCENT);
     $pdf->Cell($W, 4.5, _pdf('PROTOKÓŁ USUNIĘCIA DOKUMENTU KSIĘGOWEGO'), 0, 1, 'C');
-    $pdf->SetFont('DejaVu', 'B', 14);
+    $pdf->SetFont('Helvetica', 'B', 14);
     $pdf->SetTextColor(...$INK);
     $pdf->SetX(15);
     $pdf->Cell($W, 8, _pdf($doc['number']), 0, 1, 'C');
 
     $typLabel = KDOK_TYPES[$doc['type']]['label'] ?? $doc['type'];
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->SetX(15);
     $pdf->Cell($W, 5, _pdf($typLabel . '   ·   ' . $doc['title']), 0, 1, 'C');
@@ -1727,7 +1727,7 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
         ['SHA-256 oryginału', $doc['file_sha256'] ?: '(brak pliku)'],
     ];
 
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $colL = 60; $colR = $W - $colL;
     $alt = false;
     foreach ($rows as [$label, $val]) {
@@ -1738,9 +1738,9 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
         $rowH = max(5.5, $linesVal * 4 + 1.5);
         $yRow = $pdf->GetY();
         $pdf->Cell($colL, $rowH, _pdf($label . ':'), 'B', 0, 'L', true);
-        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->MultiCell($colR, 4, _pdf((string)$val), 'B', 'L', true);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
         if ($pdf->GetY() < $yRow + $rowH) $pdf->SetY($yRow + $rowH);
     }
 
@@ -1752,7 +1752,7 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $sectionLabel('Powód usunięcia');
 
     $reasonBodyW = $W - 8;
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $reasonLines = _pdf_count_lines($pdf, $reason, $reasonBodyW);
     $reasonH     = max(16, $reasonLines * 5 + 10);
     $pdf->SetDrawColor(...$ACCENT);
@@ -1762,11 +1762,11 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $pdf->SetFillColor(...$ACCENT);
     $pdf->Rect(15, $pdf->GetY(), 2.2, $reasonH, 'F');
     $pdf->SetLineWidth(0.2);
-    $pdf->SetFont('DejaVu', 'B', 7);
+    $pdf->SetFont('Helvetica', 'B', 7);
     $pdf->SetTextColor(...$ACCENT);
     $pdf->SetXY(20, $pdf->GetY() + 2);
     $pdf->Cell(0, 4, _pdf('POWÓD USUNIĘCIA'), 0, 1);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->SetTextColor(...$INK);
     $pdf->SetXY(20, $pdf->GetY() + 0.5);
     $pdf->MultiCell($reasonBodyW, 5, _pdf($reason), 0, 'L');
@@ -1779,15 +1779,15 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     // ── Autoryzacja usunięcia ────────────────────────────────────────────────
     $sectionLabel('Autoryzacja usunięcia');
 
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->SetXY(15, $pdf->GetY());
     $pdf->Cell($W * 0.35, 6.5, _pdf('Usunięto przez:'), 0, 0, 'L');
-    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->SetFont('Helvetica', 'B', 8.5);
     $pdf->Cell($W * 0.65, 6.5, _pdf($deleted_by_name), 0, 1, 'L');
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->SetX(15);
     $pdf->Cell($W * 0.35, 6.5, _pdf('Data i godzina usunięcia:'), 0, 0, 'L');
-    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->SetFont('Helvetica', 'B', 8.5);
     $pdf->Cell($W * 0.65, 6.5, _pdf(date('d.m.Y H:i:s')), 0, 1, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
@@ -1802,12 +1802,12 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $drawHistoryHeader = function () use ($pdf, $hW, $TINT, $INK) {
         $pdf->SetFillColor(...$TINT);
         $pdf->SetTextColor(...$INK);
-        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
         $pdf->Cell($hW[1], 5.5, _pdf('Użytkownik'),  'B', 0, 'C', true);
         $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
     };
     $drawHistoryHeader();
 
@@ -1829,7 +1829,7 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
         $pdf->MultiCell($hW[2], $lineH, _pdf($txt), 'B', 'L', true);
     }
     if (!$history) {
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
         $pdf->Cell($W, 5.5, _pdf('(brak wpisów w historii)'), 'B', 1, 'C');
     }
     $pdf->SetDrawColor(...$LINE);
@@ -1843,14 +1843,14 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $sectionLabel('Klauzula usunięcia');
     $pdf->SetDrawColor(...$LINE);
     $pdf->SetFillColor(...$TINT);
-    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetFont('Helvetica', '', 7);
     $pdf->SetTextColor(...$INK);
     $klauzula = 'Niniejszy protokol stanowi dowod trwalego usuniecia dokumentu nr ' . $doc['number']
         . ' z systemu EOD Dokumentow Ksiegowych ' . $org
         . '. Operacja zostala przeprowadzona przez uprawnionego administratora systemu'
         . ' z podaniem przyczyny usniecia. Protokol nalezy przechowywac zgodnie z zasadami archiwizacji dokumentow finansowych.';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
-    $pdf->SetFont('DejaVu', '', 6);
+    $pdf->SetFont('Helvetica', '', 6);
     $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, $pdf->GetY() + 1);
     $pdf->Cell($W, 4, _pdf('Dokument usunięty: ' . $doc['number'] . '   |   Przez: ' . $deleted_by_name . '   |   ' . date('d.m.Y H:i:s')), 0, 1, 'C');

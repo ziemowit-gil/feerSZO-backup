@@ -46,7 +46,7 @@ $FONT_DIR = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
 $ORG      = defined('ORG_NAME') ? ORG_NAME : '';
 
 function _lp(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 $DAYS_PL   = ['Nd','Pn','Wt','Sr','Czw','Pt','Sb'];
@@ -55,8 +55,8 @@ $MONTHS_PL = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','li
 $pdf = new FPDF('P', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(12, 12, 12);
-$pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FONT_DIR);
-$pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FONT_DIR);
+$pdf->
+$pdf->
 $pdf->AddPage();
 
 $PW = $pdf->GetPageWidth() - 24;
@@ -64,10 +64,10 @@ $PW = $pdf->GetPageWidth() - 24;
 // Nagłówek
 $pdf->SetFillColor(37, 99, 235);
 $pdf->SetTextColor(255, 255, 255);
-$pdf->SetFont('DejaVu', 'B', 13);
+$pdf->SetFont('Helvetica', 'B', 13);
 $pdf->Cell($PW, 10, _lp('Lista zajec — ' . $name), 0, 1, 'C', true);
 $pdf->SetTextColor(0, 0, 0);
-$pdf->SetFont('DejaVu', '', 8);
+$pdf->SetFont('Helvetica', '', 8);
 $scope = $show_all ? 'wszystkie lekcje' : 'ostatnie 30 dni + nadchodzace';
 $pdf->Cell($PW, 5, _lp(($ORG ? $ORG . '   |   ' : '') . 'Wydruk: ' . date('d.m.Y H:i') . '   |   Zakres: ' . $scope), 0, 1, 'C');
 $pdf->Ln(3);
@@ -78,14 +78,14 @@ $COL[3] = $PW - array_sum(array_slice($COL, 0, 3));
 $ROW_H = 6.5;
 
 $pdf->SetFillColor(220, 230, 245);
-$pdf->SetFont('DejaVu', 'B', 8);
+$pdf->SetFont('Helvetica', 'B', 8);
 $pdf->Cell($COL[0], $ROW_H, _lp('Data'),    1, 0, 'C', true);
 $pdf->Cell($COL[1], $ROW_H, _lp('Kurs'),    1, 0, 'C', true);
 $pdf->Cell($COL[2], $ROW_H, _lp('Godziny'), 1, 0, 'C', true);
 $pdf->Cell($COL[3], $ROW_H, _lp('Temat'),   1, 1, 'C', true);
 
 // Wiersze
-$pdf->SetFont('DejaVu', '', 7.5);
+$pdf->SetFont('Helvetica', '', 7.5);
 $pdf->SetDrawColor(200, 210, 225);
 $fill = false;
 $today = date('Y-m-d');
@@ -93,7 +93,7 @@ $today = date('Y-m-d');
 foreach ($lessons as $l) {
     if ($pdf->GetY() > $pdf->GetPageHeight() - 18) {
         $pdf->AddPage();
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
     }
 
     $ld   = (string)($l['lesson_date'] ?? '');
@@ -141,7 +141,7 @@ foreach ($lessons as $l) {
 
 // Podsumowanie
 $pdf->Ln(3);
-$pdf->SetFont('DejaVu', '', 7);
+$pdf->SetFont('Helvetica', '', 7);
 $pdf->SetTextColor(100, 100, 100);
 $total  = count($lessons);
 $att    = count(array_filter($lessons, fn($l) => (int)($l['attended'] ?? 0)));
@@ -150,7 +150,7 @@ $future = count(array_filter($lessons, fn($l) => ($l['lesson_date'] ?? '') >= $t
 $pdf->Cell($PW, 5, _lp("Razem: $total lekcji  |  Obecnosci: $att  |  Odwolane: $canc  |  Nadchodzace: $future"), 0, 1, 'C');
 
 // Legenda
-$pdf->SetFont('DejaVu', '', 6.5);
+$pdf->SetFont('Helvetica', '', 6.5);
 $pdf->Cell($PW, 4, _lp('Kolor wiersza: zielony = obecny, rozowy = nieobecny, szary = odwolana, biale = nadchodzace'), 0, 1, 'C');
 
 $fname = 'zajecia_' . preg_replace('/[^a-z0-9]/i', '_', $name) . '_' . date('Ymd') . '.pdf';

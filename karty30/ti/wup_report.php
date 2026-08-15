@@ -368,22 +368,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
 
     require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
     $FD = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
-    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
     try {
         $pdf = new FPDF('P', 'mm', 'A4');
         $pdf->SetAutoPageBreak(true, 18);
         $pdf->SetMargins(14, 14, 14);
-        $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-        $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+        $pdf->
+        $pdf->
         $pdf->AddPage();
         $W = $pdf->GetPageWidth() - 28;
 
         // Nagłówek — nadawca + miejscowość/data
-        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetFont('Helvetica', 'B', 9);
         $topY = $pdf->GetY();
         $pdf->MultiCell($W * 0.62, 4.5, $pl($org_name), 0, 'L');
-        $pdf->SetFont('DejaVu', '', 8);
+        $pdf->SetFont('Helvetica', '', 8);
         $addr = trim($org_adres . ($org_miejsc ? ($org_adres ? ', ' : '') . $org_miejsc : ''));
         if ($addr)       $pdf->MultiCell($W * 0.62, 4, $pl($addr), 0, 'L');
         $reg = trim(($org_nip ? 'NIP ' . $org_nip : '') . ($org_regon ? ($org_nip ? '   ·   ' : '') . 'REGON ' . $org_regon : ''));
@@ -394,19 +394,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         if ($geoLine) $pdf->MultiCell($W * 0.62, 4, $pl($geoLine), 0, 'L');
         $endLeftY = $pdf->GetY();
         $pdf->SetXY(14 + $W * 0.62, $topY);
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         $placeDate = ($org_miejsc ? $org_miejsc . ', ' : '') . 'dnia ' . date('d.m.Y') . ' r.';
         $pdf->MultiCell($W * 0.38, 4.5, $pl($placeDate), 0, 'R');
         $pdf->SetY(max($endLeftY, $topY) + 4);
 
         // Tytuł
-        $pdf->SetFont('DejaVu', 'B', 13);
+        $pdf->SetFont('Helvetica', 'B', 13);
         $pdf->MultiCell($W, 6.5, $pl('ZESTAWIENIE ZAJĘĆ / SPRAWOZDANIE'), 0, 'C');
-        $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(70, 70, 70);
+        $pdf->SetFont('Helvetica', '', 8.5); $pdf->SetTextColor(70, 70, 70);
         $pdf->MultiCell($W, 4.5, $pl('dla ' . ($wup_name !== '' ? $wup_name : 'Wojewódzkiego Urzędu Pracy')
             . ' — na podstawie ustawy z dnia 20 kwietnia 2004 r. o promocji zatrudnienia i instytucjach rynku pracy'), 0, 'C');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', 'B', 9.5);
+        $pdf->SetFont('Helvetica', 'B', 9.5);
         $pdf->MultiCell($W, 5.5, $pl('za okres: ' . $period_txt), 0, 'C');
         $pdf->Ln(3);
 
@@ -414,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $cLp = 8; $cLes = 16; $cPart = 22; $cHz = 24; $cHd = 24; $cMode = 20;
         $cGrp = $W - ($cLp + $cLes + $cPart + $cHz + $cHd + $cMode);
         $tableHead = function () use ($pdf, $pl, $cLp, $cGrp, $cLes, $cPart, $cHz, $cHd, $cMode) {
-            $pdf->SetFont('DejaVu', 'B', 7.3);
+            $pdf->SetFont('Helvetica', 'B', 7.3);
             $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(150, 165, 185);
             $pdf->Cell($cLp,   7, $pl('Lp.'),          1, 0, 'C', true);
             $pdf->Cell($cGrp,  7, $pl('Grupa (kurs)'), 1, 0, 'L', true);
@@ -425,18 +425,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
             $pdf->Cell($cHd,   7, $pl("Godz. dyd."),   1, 1, 'C', true);
         };
         $tableHead();
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         $lp = 0;
         if (!$byInstr) $pdf->Cell($W, 7, $pl('Brak zajęć odbytych w wybranym okresie.'), 1, 1, 'C');
         foreach ($byInstr as $ins) {
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 40) { $pdf->AddPage(); $tableHead(); $pdf->SetFont('DejaVu', '', 8.5); }
-            $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(236, 240, 246);
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 40) { $pdf->AddPage(); $tableHead(); $pdf->SetFont('Helvetica', '', 8.5); }
+            $pdf->SetFont('Helvetica', 'B', 9); $pdf->SetFillColor(236, 240, 246);
             $pdf->Cell($W, 6.5, $pl('Prowadzący: ' . $ins['name']
                 . '   (godz. zeg.: ' . $fmtH($ins['mins']) . ' · godz. dyd.: ' . $fmtHd($ins['mins']) . ')'), 1, 1, 'L', true);
-            $pdf->SetFont('DejaVu', '', 8.5);
+            $pdf->SetFont('Helvetica', '', 8.5);
             $fill = false;
             foreach ($ins['groups'] as $g) {
-                if ($pdf->GetY() > $pdf->GetPageHeight() - 24) { $pdf->AddPage(); $tableHead(); $pdf->SetFont('DejaVu', '', 8.5); }
+                if ($pdf->GetY() > $pdf->GetPageHeight() - 24) { $pdf->AddPage(); $tableHead(); $pdf->SetFont('Helvetica', '', 8.5); }
                 $lp++;
                 $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
                 $pdf->Cell($cLp,   6, (string)$lp, 1, 0, 'C', true);
@@ -448,16 +448,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
                 $pdf->Cell($cHd,   6, $fmtHd($g['mins']), 1, 1, 'R', true);
                 $fill = !$fill;
             }
-            $pdf->SetFont('DejaVu', 'B', 8); $pdf->SetFillColor(224, 232, 244);
+            $pdf->SetFont('Helvetica', 'B', 8); $pdf->SetFillColor(224, 232, 244);
             $pdf->Cell($cLp + $cGrp + $cMode, 6.5, $pl('Razem — ' . $ins['name'] . '   (osób: ' . count($ins['ids']) . ')'), 1, 0, 'L', true);
             $pdf->Cell($cLes,  6.5, (string)$ins['lessons'], 1, 0, 'C', true);
             $pdf->Cell($cPart, 6.5, (string)$ins['participants'], 1, 0, 'C', true);
             $pdf->Cell($cHz,   6.5, $fmtH($ins['mins']),  1, 0, 'R', true);
             $pdf->Cell($cHd,   6.5, $fmtHd($ins['mins']), 1, 1, 'R', true);
-            $pdf->SetFont('DejaVu', '', 8.5);
+            $pdf->SetFont('Helvetica', '', 8.5);
         }
         if ($byInstr) {
-            $pdf->SetFont('DejaVu', 'B', 8.5); $pdf->SetFillColor(210, 221, 236);
+            $pdf->SetFont('Helvetica', 'B', 8.5); $pdf->SetFillColor(210, 221, 236);
             $pdf->Cell($cLp + $cGrp + $cMode, 7, $pl('OGÓŁEM   (osób unikalnych: ' . count($all_ids) . ')'), 1, 0, 'L', true);
             $pdf->Cell($cLes,  7, (string)$grand['lessons'], 1, 0, 'C', true);
             $pdf->Cell($cPart, 7, (string)$grand['participants'], 1, 0, 'C', true);
@@ -470,9 +470,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $zj = (array)$fld('zero_just', []);
         if ($zeroInstr) {
             if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
-            $pdf->SetFont('DejaVu', 'B', 9.5);
+            $pdf->SetFont('Helvetica', 'B', 9.5);
             $pdf->MultiCell($W, 5.5, $pl('Prowadzący bez zajęć w okresie (0 godz.)'), 0, 'L');
-            $pdf->SetFont('DejaVu', '', 8.5);
+            $pdf->SetFont('Helvetica', '', 8.5);
             foreach ($zeroInstr as $iid => $nm) {
                 $u = trim((string)($zj[(string)$iid] ?? $zj[$iid] ?? ''));
                 $pdf->SetFillColor(245, 247, 250);
@@ -484,13 +484,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
 
         // Wskaźniki zbiorcze
         if ($pdf->GetY() > $pdf->GetPageHeight() - 80) $pdf->AddPage();
-        $pdf->SetFont('DejaVu', 'B', 10);
+        $pdf->SetFont('Helvetica', 'B', 10);
         $pdf->MultiCell($W, 6, $pl('Wskaźniki zbiorcze'), 0, 'L');
         $kv = function (string $k, string $v, bool $sub = false) use ($pdf, $pl, $W) {
-            $pdf->SetFont('DejaVu', $sub ? '' : 'B', 8.5);
+            $pdf->SetFont('Helvetica', $sub ? '' : 'B', 8.5);
             $pdf->SetFillColor($sub ? 247 : 236, $sub ? 249 : 240, $sub ? 253 : 246);
             $pdf->Cell($W * 0.70, 6, $pl(($sub ? '     ' : '') . $k), 1, 0, 'L', true);
-            $pdf->SetFont('DejaVu', 'B', 9);
+            $pdf->SetFont('Helvetica', 'B', 9);
             $pdf->Cell($W * 0.30, 6, $pl($v), 1, 1, 'R', true);
         };
         $kv('Liczba osób zatrudnionych do prowadzenia szkoleń', (string)$employed);
@@ -511,17 +511,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
             $_lt = date('d.m.Y', strtotime($lastPeriod['date_from'])) . ' – ' . date('d.m.Y', strtotime($lastPeriod['date_to']));
             $_ltype = function_exists('ti_period_type_label') ? ti_period_type_label($lastPeriod['type']) : $lastPeriod['type'];
 
-            $pdf->SetFont('DejaVu', 'B', 10);
+            $pdf->SetFont('Helvetica', 'B', 10);
             $pdf->MultiCell($W, 6, $pl('Ostatni okres dydaktyczny: ' . $lastPeriod['name']), 0, 'L');
-            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(90, 90, 90);
+            $pdf->SetFont('Helvetica', '', 8); $pdf->SetTextColor(90, 90, 90);
             $pdf->MultiCell($W, 4, $pl($_lt . '  (' . $_ltype . ')'), 0, 'L');
             $pdf->SetTextColor(0, 0, 0); $pdf->Ln(1);
 
             $kv2 = function (string $k, string $v, bool $sub = false) use ($pdf, $pl, $W) {
-                $pdf->SetFont('DejaVu', $sub ? '' : 'B', 8.5);
+                $pdf->SetFont('Helvetica', $sub ? '' : 'B', 8.5);
                 $pdf->SetFillColor($sub ? 247 : 220, $sub ? 249 : 234, $sub ? 253 : 220);
                 $pdf->Cell($W * 0.70, 6, $pl(($sub ? '     ' : '') . $k), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 9);
+                $pdf->SetFont('Helvetica', 'B', 9);
                 $pdf->Cell($W * 0.30, 6, $pl($v), 1, 1, 'R', true);
             };
             $kv2('Grupy (kursy)', (string)$_ls['grand']['groups']);
@@ -538,23 +538,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
             // Porównanie 1. ↔ ostatnia lekcja każdej grupy
             if ($_ls['first_cnt'] > 0) {
                 if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
-                $pdf->SetFont('DejaVu', 'B', 9.5);
+                $pdf->SetFont('Helvetica', 'B', 9.5);
                 $pdf->MultiCell($W, 5.5, $pl('Zmiana frekwencji: 1. lekcja → ostatnia lekcja każdej grupy'), 0, 'L');
-                $pdf->SetFont('DejaVu', '', 8.5);
+                $pdf->SetFont('Helvetica', '', 8.5);
                 $_diff    = $_ls['att_diff'];
                 $_sign    = $_diff >= 0 ? '+' : '';
                 $_cA = $W * 0.46; $_cN = $W * 0.18;
                 $pdf->SetFillColor(224, 240, 224);
                 $pdf->Cell($_cA, 6, $pl('1. lekcja każdej grupy'), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(224, 240, 224);
+                $pdf->SetFont('Helvetica', 'B', 9); $pdf->SetFillColor(224, 240, 224);
                 $pdf->Cell($_cN, 6, (string)$_ls['att_first'], 1, 0, 'R', true);
-                $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetFillColor(245, 247, 250);
+                $pdf->SetFont('Helvetica', '', 8.5); $pdf->SetFillColor(245, 247, 250);
                 $pdf->Cell($_cA - $_cN, 6, $pl('→  Ostatnia lekcja każdej grupy'), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(224, 240, 224);
+                $pdf->SetFont('Helvetica', 'B', 9); $pdf->SetFillColor(224, 240, 224);
                 $pdf->Cell($_cN, 6, (string)$_ls['att_last'], 1, 1, 'R', true);
-                $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetFillColor(245, 247, 250);
+                $pdf->SetFont('Helvetica', '', 8.5); $pdf->SetFillColor(245, 247, 250);
                 $pdf->Cell($W - $_cN, 6, $pl('Różnica (obecni na ostatniej − 1. lekcji)'), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 9);
+                $pdf->SetFont('Helvetica', 'B', 9);
                 $pdf->SetFillColor($_diff >= 0 ? 220 : 255, $_diff >= 0 ? 242 : 220, $_diff >= 0 ? 220 : 220);
                 $pdf->Cell($_cN, 6, $pl($_sign . $_diff), 1, 1, 'R', true);
             }
@@ -563,9 +563,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
 
         // Istotne zmiany w strukturze organizacji
         $struct = trim((string)$fld('structural_changes', ''));
-        $pdf->SetFont('DejaVu', 'B', 9.5);
+        $pdf->SetFont('Helvetica', 'B', 9.5);
         $pdf->MultiCell($W, 5.5, $pl('Istotne zmiany w strukturze organizacji'), 0, 'L');
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         $pdf->MultiCell($W, 4.6, $pl($struct !== '' ? $struct : 'Brak istotnych zmian w okresie sprawozdawczym.'), 1, 'L');
         $pdf->Ln(2);
 
@@ -573,9 +573,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $mf = (array)$fld('missing_flags', []);
         $mr = trim((string)$fld('missing_reason', ''));
         if ($mf || $mr !== '') {
-            $pdf->SetFont('DejaVu', 'B', 9.5);
+            $pdf->SetFont('Helvetica', 'B', 9.5);
             $pdf->MultiCell($W, 5.5, $pl('Uzasadnienie braku / niekompletności danych'), 0, 'L');
-            $pdf->SetFont('DejaVu', '', 8.5);
+            $pdf->SetFont('Helvetica', '', 8.5);
             $labels = array_map(fn($k) => $MISSING_CATS[$k] ?? $k, $mf);
             $pdf->MultiCell($W, 4.6, $pl('Dane niedostępne / niepełne: ' . ($labels ? implode(', ', $labels) : '—')), 1, 'L');
             $pdf->MultiCell($W, 4.6, $pl('Uzasadnienie: ' . ($mr !== '' ? $mr : '—')), 1, 'L');
@@ -589,7 +589,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $pdf->SetDrawColor(120, 120, 120);
         $pdf->Line($sigX, $ySig, $sigX + $sigW, $ySig);
         $pdf->SetXY($sigX, $ySig + 1);
-        $pdf->SetFont('DejaVu', '', 8);
+        $pdf->SetFont('Helvetica', '', 8);
         $mgrN = trim((string)$fld('manager_name', $mgr_name));
         $mgrT = trim((string)$fld('manager_title', $mgr_title)) ?: 'Kierownik';
         $pdf->Cell($sigW, 4, $pl($mgrN !== '' ? $mgrN : '(podpis i pieczęć kierownika)'), 0, 1, 'C');

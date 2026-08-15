@@ -162,8 +162,8 @@ function vlab_contract_pdf(array $contract): void {
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
     $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
 
     $W   = $pdf->GetPageWidth() - 40;
@@ -173,15 +173,15 @@ function vlab_contract_pdf(array $contract): void {
     $pdf->SetFillColor(15, 80, 150);
     $pdf->Rect(20, $pdf->GetY(), $W, 15, 'F');
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 15, _vc_txt('Umowa o dostęp do VLab'), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(4);
 
     // Numer + org
-    $pdf->SetFont('DejaVu', 'B', 11);
+    $pdf->SetFont('Helvetica', 'B', 11);
     $pdf->Cell($W, 7, _vc_txt($contract['numer_umowy']), 0, 1, 'C');
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell($W, 5, _vc_txt($org), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
@@ -205,9 +205,9 @@ function vlab_contract_pdf(array $contract): void {
     $y0 = $pdf->GetY() + 4;
     foreach ($rows as [$label, $val]) {
         $pdf->SetXY(24, $y0);
-        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetFont('Helvetica', 'B', 9);
         $pdf->Cell(46, $row_h, _vc_txt($label . ':'), 0, 0);
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $pdf->Cell($W - 50, $row_h, _vc_txt((string)$val), 0, 0);
         $y0 += $row_h;
     }
@@ -216,9 +216,9 @@ function vlab_contract_pdf(array $contract): void {
 
     // Treść warunków
     if (!empty($contract['warunki_html'])) {
-        $pdf->SetFont('DejaVu', 'B', 10);
+        $pdf->SetFont('Helvetica', 'B', 10);
         $pdf->Cell($W, 6, _vc_txt('Warunki dostępu:'), 0, 1);
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         $pdf->SetTextColor(40, 40, 40);
         foreach (explode("\n", _vc_html_to_plain($contract['warunki_html'])) as $line) {
             $line = trim($line);
@@ -231,7 +231,7 @@ function vlab_contract_pdf(array $contract): void {
 
     // Podpisy
     $pdf->Ln(10);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $half = ($W - 20) / 2;
     $y_sig = $pdf->GetY();
     $pdf->SetXY(20, $y_sig);
@@ -246,7 +246,7 @@ function vlab_contract_pdf(array $contract): void {
 
     // Stopka
     $pdf->Ln(8);
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 5, _vc_txt('Wygenerowano automatycznie · ' . $org . ' · ' . date('d.m.Y H:i')), 0, 1, 'C');
 
@@ -256,7 +256,7 @@ function vlab_contract_pdf(array $contract): void {
 }
 
 function _vc_txt(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 function _vc_html_to_plain(string $html): string {
     $html = preg_replace('#<br\s*/?>|</p>|</li>|</h[1-6]>|</div>#i', "\n", $html);

@@ -98,7 +98,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 $FONT_DIR = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
 
 function _mr(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 $MONTHS_PL_FULL = ['','Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
@@ -110,8 +110,8 @@ try {
 $pdf = new FPDF('L', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
-$pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FONT_DIR);
-$pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FONT_DIR);
+$pdf->
+$pdf->
 
 $month_label = $MONTHS_PL_FULL[$mo] . ' ' . $yr;
 
@@ -126,10 +126,10 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     // Nagłówek
     $pdf->SetFillColor(15, 80, 150);
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 12);
+    $pdf->SetFont('Helvetica', 'B', 12);
     $pdf->Cell($PW, 9, _mr('Raport frekwencji — ' . ($course['name'] ?? '')), 0, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0);
-    $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
     $pdf->Ln(3);
 
@@ -137,7 +137,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $total_s = count($c_sessions);
     $canc_s  = count(array_filter($c_sessions, fn($s) => ($s['status'] ?? '') === 'cancelled'));
     $held_s  = $total_s - $canc_s;
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell($PW, 5, _mr("Lekcje w miesiącu: $total_s   |   Odbyłe się: $held_s   |   Odwołane: $canc_s   |   Aktywnych kursantów: " . count($c_enrollees)), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
@@ -155,10 +155,10 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     // Nagłówek tabeli — daty
     $pdf->SetFillColor(220, 232, 248);
     $pdf->SetDrawColor(180, 195, 215);
-    $pdf->SetFont('DejaVu', 'B', 8);
+    $pdf->SetFont('Helvetica', 'B', 8);
     $pdf->Cell($name_w, $row_h * 2, _mr('Kursant'), 1, 0, 'L', true);
 
-    $pdf->SetFont('DejaVu', 'B', $hfont);
+    $pdf->SetFont('Helvetica', 'B', $hfont);
     foreach ($c_sessions as $s) {
         $dd   = date('d.m', strtotime($s['lesson_date']));
         $canc = ($s['status'] ?? '') === 'cancelled';
@@ -167,19 +167,19 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
         $pdf->MultiCell($sess_w, $row_h, _mr($dd), 1, 'C', true);
         $pdf->SetXY($x + $sess_w, $y);
     }
-    $pdf->SetFont('DejaVu', 'B', 7);
+    $pdf->SetFont('Helvetica', 'B', 7);
     $pdf->SetFillColor(220, 232, 248);
     $pdf->Cell($stat_w, $row_h * 2, _mr('Frekw.'), 1, 1, 'C', true);
 
     // Wiersze kursantów
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $fill = false;
     $course_total_att = 0;
     $course_countable = 0;
 
     foreach ($c_enrollees as $e) {
         $cid2 = (int)$e['client_id'];
-        if ($pdf->GetY() > $pdf->GetPageHeight() - 20) { $pdf->AddPage(); $pdf->SetFont('DejaVu', '', 7.5); }
+        if ($pdf->GetY() > $pdf->GetPageHeight() - 20) { $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 7.5); }
         $bg = $fill ? [248, 250, 254] : [255, 255, 255];
         $pdf->SetFillColor($bg[0], $bg[1], $bg[2]);
 
@@ -220,10 +220,10 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
         $pct = $countable > 0 ? round($present / $countable * 100) : 0;
         $pc  = $pct >= 80 ? [0, 120, 0] : ($pct >= 50 ? [180, 100, 0] : [170, 0, 0]);
         $pdf->SetTextColor($pc[0], $pc[1], $pc[2]);
-        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->Cell($stat_w, $row_h, $pct . '%', 1, 1, 'C', true);
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
 
         $course_total_att += $present;
         $course_countable += $countable;
@@ -233,7 +233,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     // Wiersz podsumowania kursu
     $pdf->Ln(2);
     $pdf->SetFillColor(220, 232, 248);
-    $pdf->SetFont('DejaVu', 'B', 7.5);
+    $pdf->SetFont('Helvetica', 'B', 7.5);
     $pdf->Cell($name_w, $row_h, _mr('Frekwencja w lekcji:'), 1, 0, 'L', true);
     foreach ($c_sessions as $s) {
         $sid   = (int)$s['id'];
@@ -258,7 +258,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
 
     // Legenda
     $pdf->Ln(3);
-    $pdf->SetFont('DejaVu', '', 6.5);
+    $pdf->SetFont('Helvetica', '', 6.5);
     $pdf->SetTextColor(100, 100, 100);
     $pdf->Cell($PW, 4, _mr('+  obecny     –  nieobecny     x  odwołany udział     —  lekcja odwołana     %  frekwencja (bez odwołanych)'), 0, 1, 'L');
 }

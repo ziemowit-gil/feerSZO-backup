@@ -56,7 +56,7 @@ foreach ($att_raw as $r) $att[(int)$r['session_id']][(int)$r['client_id']] = $r;
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 
 function _att_txt(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 // Generowanie PDF w try/catch — zamiast gołego 500 pokaż czytelny powód
@@ -66,8 +66,8 @@ try {
 $pdf = new FPDF('L', 'mm', 'A4'); // landscape — więcej kolumn
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
-$pdf->AddFont('DejaVu', '',  'dejavusans.json',  dirname(dirname(dirname(dirname(__DIR__)))) . '/includes/fpdf/font/');
-$pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', dirname(dirname(dirname(dirname(__DIR__)))) . '/includes/fpdf/font/');
+$pdf->
+$pdf->
 $pdf->AddPage();
 
 $PW = $pdf->GetPageWidth() - 20; // szerokość robocza
@@ -75,10 +75,10 @@ $PW = $pdf->GetPageWidth() - 20; // szerokość robocza
 // ── Nagłówek ─────────────────────────────────────────────────────────────────
 $pdf->SetFillColor(15, 80, 150);
 $pdf->SetTextColor(255, 255, 255);
-$pdf->SetFont('DejaVu', 'B', 12);
+$pdf->SetFont('Helvetica', 'B', 12);
 $pdf->Cell($PW, 10, _att_txt('Lista obecności — ' . ($course['name'] ?? '')), 0, 1, 'C', true);
 $pdf->SetTextColor(0, 0, 0);
-$pdf->SetFont('DejaVu', '', 8);
+$pdf->SetFont('Helvetica', '', 8);
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 $pdf->Cell($PW, 5, _att_txt(($org ? $org . '   |   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
 $pdf->Ln(3);
@@ -96,10 +96,10 @@ $hdr_font = $sess_w < 9 ? 6 : 7;
 $row_h = 6;
 $pdf->SetFillColor(230, 236, 245);
 $pdf->SetDrawColor(180, 190, 200);
-$pdf->SetFont('DejaVu', 'B', 8);
+$pdf->SetFont('Helvetica', 'B', 8);
 $pdf->Cell($name_w, $row_h * 2, _att_txt('Kursant'), 1, 0, 'L', true);
 
-$pdf->SetFont('DejaVu', 'B', $hdr_font);
+$pdf->SetFont('Helvetica', 'B', $hdr_font);
 foreach ($sessions as $s) {
     $dd = date('d.m', strtotime($s['lesson_date']));
     // Dwie linie: data górna, nr lekcji dolna
@@ -107,11 +107,11 @@ foreach ($sessions as $s) {
     $pdf->MultiCell($sess_w, $row_h, _att_txt($dd), 1, 'C', true);
     $pdf->SetXY($x + $sess_w, $y);
 }
-$pdf->SetFont('DejaVu', 'B', 7);
+$pdf->SetFont('Helvetica', 'B', 7);
 $pdf->Cell($stat_w, $row_h * 2, _att_txt('%'), 1, 1, 'C', true);
 
 // ── Wiersze kursantów ─────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', '', 7.5);
+$pdf->SetFont('Helvetica', '', 7.5);
 $fill = false;
 $total_sessions = count($sessions);
 
@@ -119,7 +119,7 @@ foreach ($enrollees as $e) {
     $cid = (int)$e['client_id'];
     if ($pdf->GetY() > $pdf->GetPageHeight() - 20) {
         $pdf->AddPage();
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
     }
     $bg = $fill ? [248,250,252] : [255,255,255];
     $pdf->SetFillColor($bg[0], $bg[1], $bg[2]);
@@ -158,17 +158,17 @@ foreach ($enrollees as $e) {
     $pct = $countable > 0 ? round($present / $countable * 100) : 0;
     $pct_color = $pct >= 80 ? [0,120,0] : ($pct >= 50 ? [180,100,0] : [180,0,0]);
     $pdf->SetTextColor($pct_color[0], $pct_color[1], $pct_color[2]);
-    $pdf->SetFont('DejaVu', 'B', 7.5);
+    $pdf->SetFont('Helvetica', 'B', 7.5);
     $pdf->Cell($stat_w, $row_h, $pct . '%', 1, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0);
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $fill = !$fill;
 }
 
 // ── Podsumowanie kolumn (frekwencja per lekcja) ───────────────────────────────
 $pdf->Ln(2);
 $pdf->SetFillColor(230, 236, 245);
-$pdf->SetFont('DejaVu', 'B', 7.5);
+$pdf->SetFont('Helvetica', 'B', 7.5);
 $pdf->Cell($name_w, $row_h, _att_txt('Frekwencja:'), 1, 0, 'L', true);
 foreach ($sessions as $s) {
     $sid = (int)$s['id'];
@@ -188,7 +188,7 @@ $pdf->Cell($stat_w, $row_h, '', 1, 1, 'C', true);
 
 // ── Legenda ───────────────────────────────────────────────────────────────────
 $pdf->Ln(3);
-$pdf->SetFont('DejaVu', '', 7);
+$pdf->SetFont('Helvetica', '', 7);
 $pdf->SetTextColor(80, 80, 80);
 $pdf->Cell($PW, 5, _att_txt('+  obecny     -  nieobecny     x  odwołany udział     %  odsetek lekcji z obecnością (bez odwołanych)'), 0, 1, 'L');
 if ($show_cancelled) {

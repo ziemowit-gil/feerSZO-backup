@@ -43,45 +43,45 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 $FD = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
-$pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
 try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;
 
     // Nagłówek
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Zestawienie rozliczeń — ' . $course['name']), 0, 1, 'L', true);
-    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
     $sub = ($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')
          . '   ·   Kursantów: ' . count($enrolled);
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(3);
 
     if (!$enrolled) {
-        $pdf->SetFont('DejaVu', '', 10);
+        $pdf->SetFont('Helvetica', '', 10);
         $pdf->Cell($W, 8, $pl('Brak kursantów w tej grupie.'), 0, 1);
     } else {
         // Nagłówek tabeli
         $wName = $W - 38 - 38 - 38;
         $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225);
-        $pdf->SetFont('DejaVu', 'B', 8.5);
+        $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->Cell($wName, 7, $pl('Kursant'),      1, 0, 'L', true);
         $pdf->Cell(38,     7, $pl('Należności'),   1, 0, 'C', true);
         $pdf->Cell(38,     7, $pl('Wpłaty'),       1, 0, 'C', true);
         $pdf->Cell(38,     7, $pl('Saldo'),        1, 1, 'C', true);
 
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         $fill = false;
         foreach ($enrolled as $en) {
             if ($pdf->GetY() > $pdf->GetPageHeight() - 20) {
-                $pdf->AddPage(); $pdf->SetFont('DejaVu', '', 8.5);
+                $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 8.5);
             }
             $b = $balances[(int)$en['id']];
             $pdf->SetFillColor($fill ? 245 : 255, $fill ? 248 : 255, $fill ? 255 : 255);
@@ -91,24 +91,24 @@ try {
             $pdf->Cell(38,     6, $pl(number_format($b['payments'], 2, ',', ' ') . ' zl'), 1, 0, 'R', true);
 
             if ($b['debt'] > 0.005) {
-                $pdf->SetTextColor(170, 0, 0); $pdf->SetFont('DejaVu', 'B', 8.5);
+                $pdf->SetTextColor(170, 0, 0); $pdf->SetFont('Helvetica', 'B', 8.5);
                 $saldo = $pl('-' . number_format($b['debt'],   2, ',', ' ') . ' zl');
             } elseif ($b['credit'] > 0.005) {
-                $pdf->SetTextColor(0, 130, 0); $pdf->SetFont('DejaVu', 'B', 8.5);
+                $pdf->SetTextColor(0, 130, 0); $pdf->SetFont('Helvetica', 'B', 8.5);
                 $saldo = $pl('+' . number_format($b['credit'], 2, ',', ' ') . ' zl');
             } else {
-                $pdf->SetTextColor(100, 100, 100); $pdf->SetFont('DejaVu', '', 8.5);
+                $pdf->SetTextColor(100, 100, 100); $pdf->SetFont('Helvetica', '', 8.5);
                 $saldo = '0,00 zl';
             }
             $pdf->Cell(38, 6, $saldo, 1, 1, 'R', true);
-            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8.5);
+            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
             $fill = !$fill;
         }
 
         // Wiersz sumaryczny
         $total_bal = round($total_payments - $total_charges, 2);
         $pdf->SetFillColor(224, 232, 244);
-        $pdf->SetFont('DejaVu', 'B', 8.5);
+        $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->Cell($wName, 7, $pl('Razem'),                                                         1, 0, 'L', true);
         $pdf->Cell(38,     7, $pl(number_format($total_charges,  2, ',', ' ') . ' zl'), 1, 0, 'R', true);
         $pdf->Cell(38,     7, $pl(number_format($total_payments, 2, ',', ' ') . ' zl'), 1, 0, 'R', true);
@@ -125,7 +125,7 @@ try {
         $pdf->SetTextColor(0, 0, 0);
 
         $pdf->Ln(3);
-        $pdf->SetFont('DejaVu', '', 7); $pdf->SetTextColor(110, 110, 110);
+        $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(110, 110, 110);
         $pdf->MultiCell($W, 4, $pl(
             'Saldo = wpłaty minus należności (wszystkie okresy). Wartość ujemna = niedopłata. '
           . 'Wartość dodatnia = nadpłata (zostanie zaliczona na kolejne zajęcia). '

@@ -62,37 +62,37 @@ $hh = fn($m) => number_format($m / 60, 2, ',', ' ');
 // ── PDF ───────────────────────────────────────────────────────────────────────
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 $FD = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
-$pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
 try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;
     $org = defined('ORG_NAME') ? ORG_NAME : '';
 
     $pdf->SetFillColor(8, 145, 178); $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Praca własna prowadzącego — ' . ucfirst($ym_label)), 0, 1, 'L', true);
-    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($W, 5, $pl(($who ? $who . '   ·   ' : '') . ($org ? $org . '   ·   ' : '')
         . 'Lekcji: ' . $tot_count . ' · ' . $hh($tot_min) . ' h · netto ' . $f($tot_net) . ' zł'
         . '   ·   ' . date('d.m.Y H:i')), 0, 1);
     $pdf->Ln(2);
 
     if (!$rows) {
-        $pdf->SetFont('DejaVu', '', 10);
+        $pdf->SetFont('Helvetica', '', 10);
         $pdf->Cell($W, 8, $pl('Brak lekcji „praca własna" w tym miesiącu.'), 0, 1);
     }
     foreach ($groups as $cname => $g) {
         if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
-        $pdf->SetFillColor(233, 245, 248); $pdf->SetFont('DejaVu', 'B', 10);
+        $pdf->SetFillColor(233, 245, 248); $pdf->SetFont('Helvetica', 'B', 10);
         $pdf->Cell($W, 7, $pl($cname . '   (' . (int)$g['count'] . ' lekcji · ' . $hh($g['min']) . ' h'
             . ($g['net'] > 0 ? ' · netto ' . $f($g['net']) . ' zł' : '') . ')'), 0, 1, 'L', true);
-        $pdf->SetFont('DejaVu', '', 8.5);
+        $pdf->SetFont('Helvetica', '', 8.5);
         foreach ($g['rows'] as $r) {
             $d = new DateTime($r['lesson_date']);
             $line = $d->format('d.m.Y') . '  ' . substr((string)$r['time_from'], 0, 5)

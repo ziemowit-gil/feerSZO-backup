@@ -80,21 +80,21 @@ if ($out === 'pdf') {
     $font_dir = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
 
     // Konwersja UTF-8 → ISO-8859-2 (wymagana przez font DejaVu enc:iso-8859-2)
-    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
 
     // Strona-notatka dla plików, których nie da się wyrenderować
     $notePage = function (array $z, string $msg) use ($pdf, $zal_src, $pl) {
         $pdf->AddPage('P', 'A4');
-        $pdf->SetFont('DejaVu', 'B', 12);
+        $pdf->SetFont('Helvetica', 'B', 12);
         $pdf->MultiCell(0, 7, $pl($z['original_name']), 0, 'L');
         $pdf->Ln(2);
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $pdf->SetTextColor(90, 90, 90);
         $pdf->Cell(0, 6, $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size'])), 0, 1);
         $pdf->Ln(2);
@@ -116,18 +116,18 @@ if ($out === 'pdf') {
         // ── Pasek: numer + data wszczęcia ────────────────────────────────────
         $bandH = 16;
         $fc($cNavy); $pdf->Rect(15, 15, $W, $bandH, 'F');
-        $pdf->SetFont('DejaVu', 'B', 14); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('Helvetica', 'B', 14); $pdf->SetTextColor(255, 255, 255);
         $pdf->SetXY(19, 19.5);
         $pdf->Cell($W * 0.6, 8, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 0, 'L');
         $dateStr = $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—';
-        $pdf->SetFont('DejaVu', '', 9); $pdf->SetTextColor(182, 198, 226);
+        $pdf->SetFont('Helvetica', '', 9); $pdf->SetTextColor(182, 198, 226);
         $pdf->Cell($W * 0.4 - 4, 8, $pl('Data wszczęcia: ' . $dateStr), 0, 1, 'R');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetY(15 + $bandH + 10);
 
         // ── Tytuł ─────────────────────────────────────────────────────────────
         $pdf->SetX(15);
-        $pdf->SetFont('DejaVu', 'B', 15); $tc($cInk);
+        $pdf->SetFont('Helvetica', 'B', 15); $tc($cInk);
         $pdf->MultiCell($W, 7.5, $pl($sprawa['title']), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(8);
@@ -146,26 +146,26 @@ if ($out === 'pdf') {
             try { $pdf->Image($qrFile, 195 - $qrSize, $blockY, $qrSize, $qrSize); } catch (\Throwable $e) {}
             @unlink($qrFile);
             $pdf->SetXY(195 - $qrSize, $blockY + $qrSize + 1.5);
-            $pdf->SetFont('DejaVu', '', 6.5); $tc($cMuted);
+            $pdf->SetFont('Helvetica', '', 6.5); $tc($cMuted);
             $pdf->Cell($qrSize, 3, $pl('Otwórz w EZD'), 0, 0, 'C');
             $pdf->SetTextColor(0, 0, 0);
             $pdf->SetY($blockY);
         }
 
         $listW = $qrFile ? $W - $qrSize - 8 : $W;
-        $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
+        $pdf->SetFont('Helvetica', 'B', 7.5); $tc($cMuted);
         $pdf->SetX(15); $pdf->Cell($listW, 5, $pl('DOKUMENTY (' . count($files) . ')'), 0, 1);
         $pdf->Ln(1);
         if ($files) {
             foreach ($files as $i => $z) {
                 $pdf->SetX(15);
-                $pdf->SetFont('DejaVu', '', 8.5); $tc($cInk);
+                $pdf->SetFont('Helvetica', '', 8.5); $tc($cInk);
                 $pdf->Cell(6, 5.5, $pl(($i + 1) . '.'), 0, 0);
                 $pdf->Cell($listW - 6, 5.5, $pl($z['original_name']), 0, 1);
                 $pdf->SetTextColor(0, 0, 0);
             }
         } else {
-            $pdf->SetFont('DejaVu', '', 9); $tc($cMuted);
+            $pdf->SetFont('Helvetica', '', 9); $tc($cMuted);
             $pdf->Cell($listW, 6, $pl('Brak dokumentów w koszulce.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
@@ -194,7 +194,7 @@ if ($out === 'pdf') {
             }
         } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
             $pdf->AddPage('P', 'A4');
-            $pdf->SetFont('DejaVu', '', 8);
+            $pdf->SetFont('Helvetica', '', 8);
             $pdf->SetTextColor(110, 110, 110);
             $pdf->Cell(0, 5, $pl($z['original_name'] . ' · ' . $zal_src($z)), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
@@ -257,7 +257,7 @@ if ($out === 'pdf') {
 
         // Nagłówek
         $_fc($_cNavy); $pdf->Rect(15, 15, $_W, 14, 'F');
-        $pdf->SetFont('DejaVu', 'B', 12); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('Helvetica', 'B', 12); $pdf->SetTextColor(255, 255, 255);
         $pdf->SetXY(19, 18.5);
         $pdf->Cell($_W - 8, 8, $pl('UWIERZYTELNIENIE WYDRUKU'), 0, 1, 'L');
         $pdf->SetTextColor(0, 0, 0);
@@ -265,7 +265,7 @@ if ($out === 'pdf') {
 
         // Klauzula
         $pdf->SetX(15);
-        $pdf->SetFont('DejaVu', '', 10.5); $_tc($_cInk);
+        $pdf->SetFont('Helvetica', '', 10.5); $_tc($_cInk);
         $pdf->MultiCell($_W, 6.5, $pl(
             'Niniejszy wydruk stanowi kopię dokumentu elektronicznego.' . "\n" .
             'Dokumentacja prowadzona jest w systemie EZD (Elektroniczne Zarządzanie Dokumentacją).'
@@ -277,9 +277,9 @@ if ($out === 'pdf') {
         if ($org_name) $_authMeta[] = ['Organizacja', $org_name];
         foreach ($_authMeta as [$_lbl, $_val]) {
             $pdf->SetX(15);
-            $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+            $pdf->SetFont('Helvetica', '', 8.5); $_tc($_cMuted);
             $pdf->Cell(55, 5.5, $pl($_lbl . ':'), 0, 0);
-            $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+            $pdf->SetFont('Helvetica', 'B', 8.5); $_tc($_cInk);
             $pdf->Cell($_W - 55, 5.5, $pl($_val), 0, 1);
         }
         $pdf->SetTextColor(0, 0, 0);
@@ -288,12 +288,12 @@ if ($out === 'pdf') {
         // Tabela: Data i godzina | Osoba drukująca | Cel wydruku
         $_dc($_cLine);
         $_c1 = 55; $_c2 = 65; $_c3 = $_W - $_c1 - $_c2;
-        $_fc([241, 245, 249]); $pdf->SetFont('DejaVu', '', 7.5); $_tc($_cMuted);
+        $_fc([241, 245, 249]); $pdf->SetFont('Helvetica', '', 7.5); $_tc($_cMuted);
         $pdf->SetX(15);
         $pdf->Cell($_c1, 6, $pl('DATA I GODZINA WYDRUKU'), 1, 0, 'C', true);
         $pdf->Cell($_c2, 6, $pl('OSOBA DRUKUJĄCA'), 1, 0, 'C', true);
         $pdf->Cell($_c3, 6, $pl('CEL WYDRUKU'), 1, 1, 'C', true);
-        $_fc([255, 255, 255]); $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+        $_fc([255, 255, 255]); $pdf->SetFont('Helvetica', 'B', 8.5); $_tc($_cInk);
         $pdf->SetX(15);
         $pdf->Cell($_c1, 9, $pl(date('d.m.Y H:i:s')), 1, 0, 'C', true);
         $pdf->Cell($_c2, 9, $pl($drukujacy ?: '—'), 1, 0, 'C', true);
@@ -305,27 +305,27 @@ if ($out === 'pdf') {
         if ($has_sig || $podpisujacy !== '' || $stanowisko !== '') {
             $_fc([240, 253, 244]); $_dc([187, 247, 208]);
             $pdf->SetX(15);
-            $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cGrn);
+            $pdf->SetFont('Helvetica', 'B', 8.5); $_tc($_cGrn);
             $_sigHdr = 'PODPIS ELEKTRONICZNY' . ($sig_type !== '' ? '  (' . $sig_type . ')' : '');
             $pdf->Cell($_W, 6.5, $pl($_sigHdr), 1, 1, 'L', true);
             $_fc([255, 255, 255]);
             if ($podpisujacy !== '') {
                 $pdf->SetX(15);
-                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->SetFont('Helvetica', '', 8.5); $_tc($_cMuted);
                 $pdf->Cell(55, 5.5, $pl('Kto podpisał:'), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+                $pdf->SetFont('Helvetica', 'B', 8.5); $_tc($_cInk);
                 $pdf->Cell($_W - 55, 5.5, $pl($podpisujacy), 1, 1, 'L', true);
             }
             if ($stanowisko !== '') {
                 $pdf->SetX(15);
-                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->SetFont('Helvetica', '', 8.5); $_tc($_cMuted);
                 $pdf->Cell(55, 5.5, $pl('Stanowisko:'), 1, 0, 'L', true);
-                $pdf->SetFont('DejaVu', 'B', 8.5); $_tc($_cInk);
+                $pdf->SetFont('Helvetica', 'B', 8.5); $_tc($_cInk);
                 $pdf->Cell($_W - 55, 5.5, $pl($stanowisko), 1, 1, 'L', true);
             }
             if ($podpisujacy === '' && $stanowisko === '') {
                 $pdf->SetX(15);
-                $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+                $pdf->SetFont('Helvetica', '', 8.5); $_tc($_cMuted);
                 $pdf->Cell($_W, 5.5, $pl('Dokument opatrzony podpisem elektronicznym.'), 1, 1, 'L', true);
             }
             $_dc($_cLine);
@@ -337,7 +337,7 @@ if ($out === 'pdf') {
         $_dc($_cLine); $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY()); $pdf->Ln(10);
         $_colW = ($_W - 10) / 2;
         $pdf->SetX(15);
-        $pdf->SetFont('DejaVu', '', 8.5); $_tc($_cMuted);
+        $pdf->SetFont('Helvetica', '', 8.5); $_tc($_cMuted);
         $pdf->Cell($_colW, 5, $pl('Miejscowość i data:'), 0, 0);
         $pdf->Cell($_colW, 5, $pl('Podpis osoby poświadczającej:'), 0, 1);
         $_authY = $pdf->GetY() + 14;
@@ -346,7 +346,7 @@ if ($out === 'pdf') {
         $pdf->Line(15 + $_colW + 5, $_authY, 195, $_authY);
         $pdf->SetY($_authY + 4);
         $pdf->SetX(15);
-        $pdf->SetFont('DejaVu', '', 7); $_tc($_cMuted);
+        $pdf->SetFont('Helvetica', '', 7); $_tc($_cMuted);
         $pdf->Cell($_colW - 5, 4, $pl('(miejscowość, data wydruku)'), 0, 0, 'C');
         $pdf->Cell(10, 4, '', 0, 0);
         $pdf->Cell($_colW - 5, 4, $pl('(własnoręczny podpis osoby poświadczającej)'), 0, 1, 'C');

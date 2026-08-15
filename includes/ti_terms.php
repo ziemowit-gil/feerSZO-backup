@@ -246,8 +246,8 @@ function ti_term_pdf(array $accept, array $client): void {
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
     $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
 
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 40;
@@ -257,15 +257,15 @@ function ti_term_pdf(array $accept, array $client): void {
     $pdf->SetFillColor(30, 64, 120);
     $pdf->Rect(20, $pdf->GetY(), $W, 14, 'F');
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 14, _ti_pdf_txt('Potwierdzenie akceptacji regulaminu'), 0, 1, 'C', false);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(4);
 
     // Blok danych
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $pdf->Cell($W, 6, _ti_pdf_txt($accept['title']), 0, 1);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell($W, 5, _ti_pdf_txt($org), 0, 1);
     $pdf->SetTextColor(0, 0, 0);
@@ -283,20 +283,20 @@ function ti_term_pdf(array $accept, array $client): void {
         ['Adres IP',   $accept['ip'] ?? ''],
         ['Wersja reg.', 'v' . ($accept['version'] ?? 1)],
     ];
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     foreach ($rows as [$label, $val]) {
         $pdf->SetXY(24, $pdf->GetY());
-        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetFont('Helvetica', 'B', 9);
         $pdf->Cell(38, 5.5, _ti_pdf_txt($label . ':'), 0, 0);
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $pdf->Cell($W - 42, 5.5, _ti_pdf_txt($val), 0, 1);
     }
     $pdf->Ln(6);
 
     // Treść regulaminu (HTML strip → akapity)
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $pdf->Cell($W, 6, _ti_pdf_txt('Treść regulaminu (zaakceptowana wersja):'), 0, 1);
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->SetTextColor(40, 40, 40);
 
     $plain = _ti_html_to_plain($accept['body_html']);
@@ -311,7 +311,7 @@ function ti_term_pdf(array $accept, array $client): void {
     $pdf->Ln(6);
 
     // Stopka
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 5, _ti_pdf_txt('Dokument wygenerowany automatycznie · ' . $org . ' · ' . date('d.m.Y H:i')), 0, 1, 'C');
 
@@ -337,8 +337,8 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
     $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
+    $pdf->
+    $pdf->
 
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 40;
@@ -348,15 +348,15 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
     $pdf->SetFillColor(180, 60, 30);
     $pdf->Rect(20, $pdf->GetY(), $W, 14, 'F');
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 14, _ti_pdf_txt('Oświadczenie administratora — regulamin'), 0, 1, 'C', false);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(4);
 
     // Blok danych
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $pdf->Cell($W, 6, _ti_pdf_txt($accept['title']), 0, 1);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell($W, 5, _ti_pdf_txt($org), 0, 1);
     $pdf->SetTextColor(0, 0, 0);
@@ -375,27 +375,27 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
         ['Data i czas',   date('d.m.Y H:i:s', strtotime($accept['accepted_at']))],
         ['Wersja reg.',   'v' . ($accept['version'] ?? 1)],
     ];
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     foreach ($rows as [$label, $val]) {
         $pdf->SetXY(24, $pdf->GetY());
-        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetFont('Helvetica', 'B', 9);
         $pdf->Cell(38, 5.5, _ti_pdf_txt($label . ':'), 0, 0);
-        $pdf->SetFont('DejaVu', '', 9);
+        $pdf->SetFont('Helvetica', '', 9);
         $pdf->Cell($W - 42, 5.5, _ti_pdf_txt($val), 0, 1);
     }
     $pdf->Ln(6);
 
     // Uzasadnienie / podstawa
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $pdf->Cell($W, 6, _ti_pdf_txt('Uzasadnienie / podstawa czynności:'), 0, 1);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell($W, 5, _ti_pdf_txt((string)($accept['admin_note'] ?: '—')), 0, 'L');
     $pdf->Ln(4);
 
     // Treść regulaminu (HTML strip → akapity)
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $pdf->Cell($W, 6, _ti_pdf_txt($is_skip ? 'Treść regulaminu (którego wymóg pominięto):' : 'Treść regulaminu (zaakceptowana wersja):'), 0, 1);
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->SetTextColor(40, 40, 40);
 
     $plain = _ti_html_to_plain($accept['body_html']);
@@ -410,7 +410,7 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
     $pdf->Ln(6);
 
     // Stopka
-    $pdf->SetFont('DejaVu', '', 7.5);
+    $pdf->SetFont('Helvetica', '', 7.5);
     $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 5, _ti_pdf_txt('Dokument wygenerowany automatycznie · ' . $org . ' · ' . date('d.m.Y H:i')), 0, 1, 'C');
 
@@ -462,7 +462,7 @@ function ti_term_signed_delete_file(string $stored): void {
 }
 
 function _ti_pdf_txt(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 function _ti_html_to_plain(string $html): string {

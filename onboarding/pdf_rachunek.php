@@ -35,7 +35,7 @@ if ($vol['typ'] !== 'zleceniobiorca') { http_response_code(400); exit('Dokument 
 
 // ── Helper: UTF-8 → ISO-8859-2 ───────────────────────────────────────────────
 function _rp(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 // ── Format rachunku: dodaj spacje co 4 cyfry ─────────────────────────────────
@@ -85,67 +85,67 @@ $pdf->AddPage();
 $W = 160; // szerokość tekstu (210 - 2*25)
 
 // ── Nagłówek: data i miejscowość (prawy górny róg) ───────────────────────────
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $pdf->SetXY(25, 20);
 $pdf->Cell($W, 5, '', 0, 1); // spacer
 $pdf->SetX(25);
 
 // Prawostronny blok: miasto, data
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $pdf->Cell($W, 5, _rp($miasto . ', ' . $data), 0, 1, 'R');
-$pdf->SetFont('DejaVu', '', 7.5);
+$pdf->SetFont('Helvetica', '', 7.5);
 $pdf->Cell($W, 4, _rp('(miejscowość, data)'), 0, 1, 'R');
 
 $pdf->Ln(2);
 
 // ── Imię i nazwisko (lewy górny blok) ────────────────────────────────────────
-$pdf->SetFont('DejaVu', 'B', 10);
+$pdf->SetFont('Helvetica', 'B', 10);
 $pdf->Cell($W * 0.55, 5, _rp($imie), 0, 1, 'L');
-$pdf->SetFont('DejaVu', '', 7.5);
+$pdf->SetFont('Helvetica', '', 7.5);
 $pdf->Cell($W * 0.55, 4, _rp('(imię i nazwisko)'), 0, 1, 'L');
 
 $pdf->Ln(8);
 
 // ── Tytuł dokumentu ──────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', 'B', 11);
+$pdf->SetFont('Helvetica', 'B', 11);
 $pdf->Cell($W, 6, _rp('Oświadczenie o numerze rachunku bankowego'), 0, 1, 'C');
 
 $pdf->Ln(4);
 
 // ── Wstęp ────────────────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $intro = 'Dane rachunku bankowego do wypłaty wynagrodzenia z tytułu zatrudnienia w ' . $org_name;
 $pdf->MultiCell($W, 5, _rp($intro), 0, 'J');
 
 $pdf->Ln(4);
 
 // ── Pole: Numer ───────────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', 'B', 10);
+$pdf->SetFont('Helvetica', 'B', 10);
 $pdf->Cell($W, 5, _rp('Numer:'), 0, 1, 'L');
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $pdf->Cell($W, 6, _rp($numer ?: ''), 0, 1, 'L');
 $pdf->SetDrawColor(0, 0, 0);
 $pdf->Line(25, $pdf->GetY(), 185, $pdf->GetY());
 $pdf->Ln(5);
 
 // ── Pole: Bank ────────────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', 'B', 10);
+$pdf->SetFont('Helvetica', 'B', 10);
 $pdf->Cell($W, 5, _rp('Bank prowadzący rachunek'), 0, 1, 'L');
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $pdf->Cell($W, 6, _rp($bank ?: ''), 0, 1, 'L');
 $pdf->Line(25, $pdf->GetY(), 185, $pdf->GetY());
 $pdf->Ln(5);
 
 // ── Pole: Posiadacz ───────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', 'B', 10);
+$pdf->SetFont('Helvetica', 'B', 10);
 $pdf->Cell($W, 5, _rp('Imię i nazwisko posiadacza rachunku'), 0, 1, 'L');
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $pdf->Cell($W, 6, _rp($posiadacz ?: ''), 0, 1, 'L');
 $pdf->Line(25, $pdf->GetY(), 185, $pdf->GetY());
 $pdf->Ln(7);
 
 // ── Treść oświadczenia ────────────────────────────────────────────────────────
-$pdf->SetFont('DejaVu', '', 10);
+$pdf->SetFont('Helvetica', '', 10);
 $p1 = 'W związku z planowanym zatrudnieniem na podstawie umowy cywilnoprawnej, realizowanej w ramach '
     . 'zadania finansowanego ze środków publicznych, oświadczam, że jestem właścicielem wskazanego '
     . 'do wypłaty wynagrodzenia rachunku bankowego.';
@@ -176,25 +176,25 @@ $pdf->Ln(10);
 // ── Podpis ────────────────────────────────────────────────────────────────────
 if ($with_sig && $signed_at) {
     // Podpis elektroniczny
-    $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetFont('Helvetica', '', 8);
     $sig_line = '*** Podpisano elektronicznie: ' . $imie . ' / ' . date('d.m.Y H:i', strtotime($signed_at)) . ' ***';
     $pdf->Cell($W, 5, _rp($sig_line), 0, 1, 'C');
     $pdf->SetDrawColor(100, 100, 100);
     $pdf->Line(110, $pdf->GetY(), 185, $pdf->GetY());
     $pdf->Ln(2);
-    $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($W, 4, _rp('Czytelny Podpis Zleceniobiorcy'), 0, 1, 'R');
 } else {
     // Pusta linia podpisu (do ręcznego podpisania)
     $pdf->SetX(25);
-    $pdf->SetFont('DejaVu', '', 10);
+    $pdf->SetFont('Helvetica', '', 10);
     $pdf->Cell($W * 0.45, 5, '', 0, 0); // lewy pusty blok
     // Prawa strona
     $sigX = 25 + $W * 0.45;
     $sigW = $W * 0.55;
     $pdf->Line($sigX, $pdf->GetY() + 5, $sigX + $sigW, $pdf->GetY() + 5);
     $pdf->Ln(8);
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     $pdf->Cell($W, 4, _rp('Czytelny Podpis Zleceniobiorcy'), 0, 1, 'R');
 }
 

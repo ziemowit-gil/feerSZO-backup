@@ -29,22 +29,22 @@ uasort($byInstr, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 // ── PDF ────────────────────────────────────────────────────────────────────────
 require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
 $FD  = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
-$pl  = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+$pl  = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;
 
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl($report_title), 0, 1, 'L', true);
-    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($W, 5, $pl(($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')), 0, 1);
     $pdf->Ln(2);
 
@@ -80,12 +80,12 @@ try {
 
         // Nagłówek prowadzącego
         $pdf->SetFillColor(233, 238, 245); $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', 'B', 11);
+        $pdf->SetFont('Helvetica', 'B', 11);
         $pdf->Cell($W, 7, $pl($ins['name']), 0, 1, 'L', true);
         $pdf->Ln(1);
 
         // Nagłówek tabeli
-        $pdf->SetFont('DejaVu', 'B', 8);
+        $pdf->SetFont('Helvetica', 'B', 8);
         $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225);
         $pdf->Cell($cW['name'], 6, $pl('Grupa / kurs'),      1, 0, 'L', true);
         $pdf->Cell($cW['u'],    6, $pl('Uczestnicy'),        1, 0, 'C', true);
@@ -93,23 +93,23 @@ try {
         $pdf->Cell($cW['c'],    6, $pl('Odwołane'),          1, 0, 'C', true);
         $pdf->Cell($cW['fr'],   6, $pl('Frekw. grupy'),      1, 1, 'C', true);
 
-        $pdf->SetFont('DejaVu', '', 8);
+        $pdf->SetFont('Helvetica', '', 8);
         $fill = false;
         foreach ($rows as $r) {
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 18) { $pdf->AddPage(); $pdf->SetFont('DejaVu', '', 8); }
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 18) { $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 8); }
             $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
             $nm = $r['name'] . ($r['track'] === 0 ? '  (bez listy obecności)' : '');
             $pdf->Cell($cW['name'], 6, $pl(mb_strimwidth($nm, 0, 58, '…')), 1, 0, 'L', true);
             $pdf->Cell($cW['u'],    6, (string)$r['part'], 1, 0, 'C', true);
             $pdf->Cell($cW['h'],    6, (string)$r['lh'],   1, 0, 'C', true);
             $pdf->Cell($cW['c'],    6, (string)$r['lc'],   1, 0, 'C', true);
-            $pdf->SetFont('DejaVu', 'B', 8);
+            $pdf->SetFont('Helvetica', 'B', 8);
             $pdf->Cell($cW['fr'],   6, $pctColor($r['pct']), 1, 1, 'C', true);
-            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
             $fill = !$fill;
         }
         // Razem prowadzący
-        $pdf->SetFont('DejaVu', 'B', 8); $pdf->SetFillColor(224, 232, 244);
+        $pdf->SetFont('Helvetica', 'B', 8); $pdf->SetFillColor(224, 232, 244);
         $pdf->Cell($cW['name'], 6, $pl('Razem'),   1, 0, 'L', true);
         $pdf->Cell($cW['u'],    6, (string)count($rows), 1, 0, 'C', true);
         $pdf->Cell($cW['h'],    6, (string)$tLh,   1, 0, 'C', true);
@@ -119,9 +119,9 @@ try {
         $pdf->Ln(4);
     }
 
-    if (!$shown) { $pdf->SetFont('DejaVu', '', 10); $pdf->Cell($W, 8, $pl('Brak aktywności prowadzących w tym okresie.'), 0, 1); }
+    if (!$shown) { $pdf->SetFont('Helvetica', '', 10); $pdf->Cell($W, 8, $pl('Brak aktywności prowadzących w tym okresie.'), 0, 1); }
 
-    $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(110, 110, 110);
+    $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności (statusy „odbyła się"/„zmiana '
         . 'indywidualna"). „Uczestnicy" = aktywni zapisani do grupy. Kursy bez listy obecności nie mają frekwencji.'), 0, 'L');

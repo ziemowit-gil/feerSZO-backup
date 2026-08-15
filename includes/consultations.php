@@ -378,7 +378,7 @@ function cc_filename_base(array $c): string {
 
 /** Konwersja UTF-8 → ISO-8859-2 dla tej wersji FPDF (font DejaVu). */
 function cc_pdf_iconv(string $s): string {
-    return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
 /** Tworzy i konfiguruje dokument FPDF z fontem DejaVu. */
@@ -388,8 +388,8 @@ function cc_pdf_new(): \setasign\Fpdi\Fpdi {
     $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
     $pdf->SetMargins(20, 18, 20);
     $fd = __DIR__ . '/fpdf/font/';
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $fd);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $fd);
+    $pdf->
+    $pdf->
     return $pdf;
 }
 
@@ -413,22 +413,22 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $W = 170; // 210 − 2·20
 
     // ── Nagłówek ──────────────────────────────────────────────────────────
-    $pdf->SetFont('DejaVu', 'B', 9);
+    $pdf->SetFont('Helvetica', 'B', 9);
     $pdf->Cell($W, 5, $rp($org), 0, 1, 'L');
     $pdf->SetDrawColor(26, 26, 26); $pdf->SetLineWidth(0.5);
     $y = $pdf->GetY() + 1; $pdf->Line(20, $y, 20 + $W, $y);
     $pdf->Ln(4);
 
-    $pdf->SetFont('DejaVu', 'B', 17);
+    $pdf->SetFont('Helvetica', 'B', 17);
     $pdf->Cell($W, 9, $rp('KARTA DORADZTWA'), 0, 1, 'L');
     $pdf->Ln(3);
 
     // ── Metryczka ─────────────────────────────────────────────────────────
     $rowFn = function (string $label, string $val) use ($pdf, $rp) {
-        $pdf->SetFont('DejaVu', 'B', 10); $pdf->SetFillColor(244, 246, 250);
+        $pdf->SetFont('Helvetica', 'B', 10); $pdf->SetFillColor(244, 246, 250);
         $pdf->SetDrawColor(215, 221, 229); $pdf->SetLineWidth(0.2);
         $pdf->Cell(50, 7, $rp($label), 1, 0, 'L', true);
-        $pdf->SetFont('DejaVu', '', 10);
+        $pdf->SetFont('Helvetica', '', 10);
         $pdf->Cell(120, 7, $rp($val), 1, 1, 'L');
     };
     $rowFn('Organizacja',       $c['org_name']);
@@ -440,11 +440,11 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     // ── Sekcje opisowe ──────────────────────────────────────────────────────
     $section = function (string $title, ?string $body) use ($pdf, $rp, $W) {
         $pdf->Ln(3);
-        $pdf->SetFont('DejaVu', 'B', 9.5); $pdf->SetTextColor(51, 51, 51);
+        $pdf->SetFont('Helvetica', 'B', 9.5); $pdf->SetTextColor(51, 51, 51);
         $pdf->Cell($W, 6, $rp(mb_strtoupper($title, 'UTF-8')), 'B', 1, 'L');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(1);
-        $pdf->SetFont('DejaVu', '', 10.5);
+        $pdf->SetFont('Helvetica', '', 10.5);
         $txt = trim((string)$body);
         $pdf->MultiCell($W, 5, $rp($txt !== '' ? $txt : '—'), 0, 'L');
     };
@@ -462,15 +462,15 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->SetDrawColor(120, 120, 120); $pdf->SetLineWidth(0.2);
     $pdf->Line($leftX, $lineY, $leftX + $colW, $lineY);
     $pdf->SetXY($leftX, $lineY + 1);
-    $pdf->SetFont('DejaVu', 'B', 9.5);
+    $pdf->SetFont('Helvetica', 'B', 9.5);
     $pdf->Cell($colW, 5, $rp(trim((string)$c['consultant']) !== '' ? $c['consultant'] : ' '), 0, 2, 'C');
-    $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+    $pdf->SetFont('Helvetica', '', 8); $pdf->SetTextColor(110, 110, 110);
     $pdf->Cell($colW, 4, $rp('Podpis konsultanta'), 0, 0, 'C');
     $pdf->SetTextColor(0, 0, 0);
 
     if ($is_remote) {
         $pdf->SetXY($rightX, $lineY - 6);
-        $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(80, 80, 80);
+        $pdf->SetFont('Helvetica', '', 8.5); $pdf->SetTextColor(80, 80, 80);
         $pdf->MultiCell($colW, 4,
             $rp('Konsultacja udzielona zdalnie (' . $form . ') — podpis '
               . 'beneficjenta organizacji nie jest wymagany.'), 1, 'C');
@@ -478,16 +478,16 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     } else {
         $pdf->Line($rightX, $lineY, $rightX + $colW, $lineY);
         $pdf->SetXY($rightX, $lineY + 1);
-        $pdf->SetFont('DejaVu', 'B', 9.5);
+        $pdf->SetFont('Helvetica', 'B', 9.5);
         $pdf->Cell($colW, 5, ' ', 0, 2, 'C');
-        $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+        $pdf->SetFont('Helvetica', '', 8); $pdf->SetTextColor(110, 110, 110);
         $pdf->Cell($colW, 4, $rp('Podpis przedstawiciela organizacji'), 0, 0, 'C');
         $pdf->SetTextColor(0, 0, 0);
     }
 
     // ── Dopisek o finansowaniu + logo Miasta Krakowa ─────────────────────────
     $pdf->SetY($pdf->GetY() + 14);
-    $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(60, 60, 60);
+    $pdf->SetFont('Helvetica', '', 8.5); $pdf->SetTextColor(60, 60, 60);
     $pdf->MultiCell($W, 4.5,
         $rp('Konsultacja udzielona w ramach projektu „Akademia Dostępności w NGO” '
           . 'finansowanego ze środków Miasta Krakowa.'), 0, 'C');
@@ -496,7 +496,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     // ── Stopka (bez wypychania na nową stronę) ────────────────────────────
     $pdf->SetAutoPageBreak(false);
     $pdf->SetY(-15);
-    $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(120, 120, 120);
+    $pdf->SetFont('Helvetica', '', 8); $pdf->SetTextColor(120, 120, 120);
     $pdf->Cell($W, 5, $rp($org), 0, 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 }
@@ -525,7 +525,7 @@ function cc_render_pdf_bulk(array $cards, string $dest = 'D', string $fname = 'k
     if (!$cards) { // pusty dokument zamiast błędu
         $pdf->SetAutoPageBreak(true, 16);
         $pdf->AddPage();
-        $pdf->SetFont('DejaVu', '', 11);
+        $pdf->SetFont('Helvetica', '', 11);
         $pdf->Cell(0, 10, cc_pdf_iconv('Brak kart konsultacyjnych w wybranym zakresie.'), 0, 1, 'L');
     }
     return (string)$pdf->Output($dest, $fname);

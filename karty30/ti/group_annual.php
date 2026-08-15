@@ -30,22 +30,22 @@ if ($course_id) $all_courses = array_values(array_filter($all_courses, fn($c) =>
 // ── PDF ────────────────────────────────────────────────────────────────────────
 require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
 $FD  = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
-$pl  = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+$pl  = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;
 
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Raport roczny — per grupa · ' . $year), 0, 1, 'L', true);
-    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($W, 5, $pl(($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . '   ·   Grup: ' . count($all_courses)), 0, 1);
     $pdf->Ln(2);
 
@@ -68,10 +68,10 @@ try {
         if ($pdf->GetY() > $pdf->GetPageHeight() - 45) $pdf->AddPage();
 
         $pdf->SetFillColor(233, 238, 245); $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', 'B', 11);
+        $pdf->SetFont('Helvetica', 'B', 11);
         $htxt = $co['name'] . ($co['instructor_name'] ? '   ·   ' . $co['instructor_name'] : '');
         $pdf->Cell($W, 7, $pl($htxt), 0, 1, 'L', true);
-        $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(80, 80, 80);
+        $pdf->SetFont('Helvetica', '', 7.5); $pdf->SetTextColor(80, 80, 80);
         $sum = 'Lekcje odbyte: ' . $ga['lessons_held'] . '   ·   odwołane: ' . $ga['lessons_cancelled']
              . '   ·   uczestników: ' . count($ga['participants'])
              . '   ·   frekwencja grupy: ' . ($ga['avg_pct'] === null ? '—' : $ga['avg_pct'] . '%')
@@ -79,7 +79,7 @@ try {
         $pdf->Cell($W, 5, $pl($sum), 0, 1);
         $pdf->SetTextColor(0, 0, 0); $pdf->Ln(1);
 
-        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225);
         $pdf->Cell($cW['name'], 6, $pl('Kursant'),   1, 0, 'L', true);
         $pdf->Cell($cW['les'],  6, $pl('Lekcje'),    1, 0, 'C', true);
@@ -90,10 +90,10 @@ try {
         $pdf->Cell($cW['wpl'],  6, $pl('Wpłaty'),    1, 0, 'R', true);
         $pdf->Cell($cW['sal'],  6, $pl('Saldo'),     1, 1, 'R', true);
 
-        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetFont('Helvetica', '', 7.5);
         $fill = false;
         foreach ($ga['participants'] as $p) {
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 18) { $pdf->AddPage(); $pdf->SetFont('DejaVu', '', 7.5); }
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 18) { $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 7.5); }
             $by  = ti_pr_billing_year((int)$p['client_id'], $year)['totals'];
             $bal = ti_client_balance((int)$p['client_id']);
             $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
@@ -102,17 +102,17 @@ try {
             $pdf->Cell($cW['les'],  6, (string)$p['held'],    1, 0, 'C', true);
             $pdf->Cell($cW['ob'],   6, (string)$p['present'], 1, 0, 'C', true);
             $pdf->Cell($cW['ni'],   6, (string)$p['absent'],  1, 0, 'C', true);
-            $pdf->SetFont('DejaVu', 'B', 7.5);
+            $pdf->SetFont('Helvetica', 'B', 7.5);
             $pdf->Cell($cW['fr'],   6, $pctColor($p['pct']), 1, 0, 'C', true);
-            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 7.5);
+            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->Cell($cW['nal'],  6, ti_pr_zl($by['charges']),  1, 0, 'R', true);
             $pdf->Cell($cW['wpl'],  6, ti_pr_zl($by['payments']), 1, 0, 'R', true);
             if ($bal['debt'] > 0.005)       { $pdf->SetTextColor(170, 0, 0);  $stxt = '-' . ti_pr_zl($bal['debt']); }
             elseif ($bal['credit'] > 0.005) { $pdf->SetTextColor(0, 120, 0);  $stxt = '+' . ti_pr_zl($bal['credit']); }
             else                            { $pdf->SetTextColor(80, 80, 80); $stxt = ti_pr_zl(0); }
-            $pdf->SetFont('DejaVu', 'B', 7.5);
+            $pdf->SetFont('Helvetica', 'B', 7.5);
             $pdf->Cell($cW['sal'],  6, $stxt, 1, 1, 'R', true);
-            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 7.5);
+            $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 7.5);
             $fill = !$fill;
         }
         if (!$ga['participants']) {
@@ -121,9 +121,9 @@ try {
         $pdf->Ln(4);
     }
 
-    if (!$shown) { $pdf->SetFont('DejaVu', '', 10); $pdf->Cell($W, 8, $pl('Brak aktywności grup w tym roku.'), 0, 1); }
+    if (!$shown) { $pdf->SetFont('Helvetica', '', 10); $pdf->Cell($W, 8, $pl('Brak aktywności grup w tym roku.'), 0, 1); }
 
-    $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(110, 110, 110);
+    $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności. '
         . 'Należności/Wpłaty dotyczą wybranego roku; Saldo (+ nadpłata / − niedopłata) jest bieżące '

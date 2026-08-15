@@ -47,28 +47,28 @@ $diffStr   = $diff === null ? '—' : (($diff > 0 ? '+' : ($diff < 0 ? '−' : '
 
 require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
 $FD = dirname(__DIR__) . '/includes/fpdf/font/';
-$pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
 try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 18);
     $pdf->SetMargins(18, 18, 18);
-    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
-    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+    $pdf->
+    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 36;
 
     // Nagłówek — organizacja + miejscowość/data
-    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->SetFont('Helvetica', 'B', 10);
     $topY = $pdf->GetY();
     $pdf->MultiCell($W * 0.62, 5, $pl($org_name), 0, 'L');
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     if ($org_adres)  $pdf->MultiCell($W * 0.62, 4, $pl($org_adres . ($org_miejsc ? ', ' . $org_miejsc : '')), 0, 'L');
     $reg = trim(($org_nip ? 'NIP ' . $org_nip : '') . ($org_regon ? '   REGON ' . $org_regon : '') . ($org_krs ? '   KRS ' . $org_krs : ''));
     if ($reg) $pdf->MultiCell($W * 0.62, 4, $pl($reg), 0, 'L');
     $endLeftY = $pdf->GetY();
     $pdf->SetXY(18 + $W * 0.62, $topY);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell($W * 0.38, 5, $pl(($org_miejsc ? $org_miejsc . ', ' : '') . 'dnia ' . $decDate . ' r.'), 0, 'R');
     $pdf->SetY(max($endLeftY, $topY) + 6);
 
@@ -78,9 +78,9 @@ try {
     $pdf->SetLineWidth(0.2); $pdf->Ln(8);
 
     // Tytuł
-    $pdf->SetFont('DejaVu', 'B', 15);
+    $pdf->SetFont('Helvetica', 'B', 15);
     $pdf->MultiCell($W, 8, $pl('OŚWIADCZENIE ZARZĄDU'), 0, 'C');
-    $pdf->SetFont('DejaVu', '', 9.5); $pdf->SetTextColor(70, 70, 70);
+    $pdf->SetFont('Helvetica', '', 9.5); $pdf->SetTextColor(70, 70, 70);
     $pdf->MultiCell($W, 5, $pl('w sprawie ewidencji wsparcia zewnętrznego'), 0, 'C');
     $pdf->SetTextColor(0, 0, 0);
     // Krótka linia dekoracyjna pod tytułem
@@ -90,12 +90,12 @@ try {
     $pdf->Ln(9);
 
     // Treść — Organizacja rozlicza, Zarząd podpisuje
-    $pdf->SetFont('DejaVu', '', 11);
+    $pdf->SetFont('Helvetica', '', 11);
     $pdf->MultiCell($W, 6, $pl($org_name . ' (dalej: Organizacja) rozlicza wsparcie zewnętrzne świadczone na jej rzecz przez podmiot:'), 0, 'J');
     $pdf->Ln(1);
-    $pdf->SetFont('DejaVu', 'B', 12);
+    $pdf->SetFont('Helvetica', 'B', 12);
     $pdf->MultiCell($W, 6, $pl($w['podmiot_nazwa'] ?: '—'), 0, 'L');
-    $pdf->SetFont('DejaVu', '', 11);
+    $pdf->SetFont('Helvetica', '', 11);
     $pdf->MultiCell($W, 6, $pl('Zarząd Organizacji, działając w jej imieniu, po rozpatrzeniu poniższej ewidencji za miesiąc ' . $mies . ', oświadcza, co następuje:'), 0, 'J');
     $pdf->Ln(3);
 
@@ -118,7 +118,7 @@ try {
     };
     $row = function (string $k, string $v) use ($pdf, $pl, $labelW, $valW, $lineH, $nbLines) {
         $kp = $pl($k); $vp = $pl($v);
-        $pdf->SetFont('DejaVu', '', 10);
+        $pdf->SetFont('Helvetica', '', 10);
         $n = max($nbLines($labelW, $kp), $nbLines($valW, $vp));
         $h = $n * $lineH;
         $x = $pdf->GetX(); $y = $pdf->GetY();
@@ -126,8 +126,8 @@ try {
         $pdf->SetDrawColor(150, 165, 185); $pdf->SetFillColor(240, 243, 247);
         $pdf->Rect($x, $y, $labelW, $h, 'DF');
         $pdf->Rect($x + $labelW, $y, $valW, $h, 'D');
-        $pdf->SetFont('DejaVu', '', 10);  $pdf->SetXY($x, $y);            $pdf->MultiCell($labelW, $lineH, $kp, 0, 'L');
-        $pdf->SetFont('DejaVu', 'B', 10); $pdf->SetXY($x + $labelW, $y);  $pdf->MultiCell($valW, $lineH, $vp, 0, 'L');
+        $pdf->SetFont('Helvetica', '', 10);  $pdf->SetXY($x, $y);            $pdf->MultiCell($labelW, $lineH, $kp, 0, 'L');
+        $pdf->SetFont('Helvetica', 'B', 10); $pdf->SetXY($x + $labelW, $y);  $pdf->MultiCell($valW, $lineH, $vp, 0, 'L');
         $pdf->SetXY($x, $y + $h);
     };
     $row('Podmiot udzielający wsparcia', $w['podmiot_nazwa'] ?: '—');
@@ -141,20 +141,20 @@ try {
     $pdf->Ln(5);
 
     // Rozstrzygnięcie
-    $pdf->SetFont('DejaVu', 'B', 12);
+    $pdf->SetFont('Helvetica', 'B', 12);
     if ($approved) {
         $pdf->SetTextColor(21, 128, 61);
         $pdf->MultiCell($W, 7, $pl('ZATWIERDZA powyższe wsparcie zewnętrzne'), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', '', 10.5);
+        $pdf->SetFont('Helvetica', '', 10.5);
         $pdf->MultiCell($W, 6, $pl('i uznaje wykazaną liczbę godzin za zrealizowaną oraz rozliczoną.'), 0, 'J');
     } else {
         $pdf->SetTextColor(185, 28, 28);
         $pdf->MultiCell($W, 7, $pl('ODRZUCA powyższe wsparcie zewnętrzne.'), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('DejaVu', 'B', 10.5);
+        $pdf->SetFont('Helvetica', 'B', 10.5);
         $pdf->MultiCell($W, 6, $pl('Powód odrzucenia:'), 0, 'L');
-        $pdf->SetFont('DejaVu', '', 10.5);
+        $pdf->SetFont('Helvetica', '', 10.5);
         $pdf->MultiCell($W, 6, $pl($w['powod_odrzucenia'] !== '' ? $w['powod_odrzucenia'] : '—'), 1, 'J');
     }
     $pdf->Ln(4);
@@ -162,10 +162,10 @@ try {
     // Adnotacja urzędowa (tryb złożenia)
     $pdf->Ln(6);
     if ($pdf->GetY() > $pdf->GetPageHeight() - 60) $pdf->AddPage();
-    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->SetFont('Helvetica', 'B', 8.5);
     $pdf->SetFillColor(238, 242, 247); $pdf->SetDrawColor(150, 165, 185);
     $pdf->Cell($W, 6, $pl('Tryb złożenia'), 1, 1, 'L', true);
-    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell($W, 5, $pl('Niniejsze oświadczenie należy zatwierdzić elektronicznie i przesłać za pośrednictwem '
         . 'systemu SOD Generator NGO do Wydziału Polityki Społecznej, Równości i Zdrowia '
         . 'Urzędu Miasta Krakowa.'), 1, 'J');
@@ -177,7 +177,7 @@ try {
     $pdf->SetDrawColor(120, 120, 120);
     $pdf->Line($sigX, $ySig, $sigX + $sigW, $ySig);
     $pdf->SetXY($sigX, $ySig + 1);
-    $pdf->SetFont('DejaVu', '', 8.5);
+    $pdf->SetFont('Helvetica', '', 8.5);
     if ($org_zarzad) { $pdf->MultiCell($sigW, 4, $pl($org_zarzad), 0, 'C'); $pdf->SetX($sigX); }
     $pdf->Cell($sigW, 4, $pl('Zarząd ' . $org_short), 0, 2, 'C');
     $pdf->SetX($sigX);
