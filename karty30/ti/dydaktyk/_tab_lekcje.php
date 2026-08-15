@@ -294,7 +294,7 @@ if ($_sms_enabled && $cur_course) {
 
             <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
             <span class="text-body-secondary" style="font-size:.78rem"
-                  title="<?= $s['status']==='remote_material' ? 'Praca własna — bez frekwencji' : 'Frekwencja wyłączona' ?>"
+                  title="<?= $s['status']==='remote_material' ? 'Praca własna — bez frekwencji · liczy się do wyrobionych godzin' : 'Frekwencja wyłączona' ?>"
                   data-bs-toggle="tooltip"><i class="bi bi-person-workspace"></i></span>
             <?php elseif ($att_total > 0): ?>
             <span class="d-flex align-items-center gap-1 text-body-secondary" style="font-size:.85rem">

@@ -178,7 +178,7 @@ $sw_export_qs   = http_build_query($sw_export_base);
     <div class="dyd-sw-nav-title">
       <i class="bi bi-person-workspace text-primary me-2" aria-hidden="true"></i><?= h(ucfirst($sw_label)) ?>
     </div>
-    <div class="dyd-sw-nav-sub">Praca własna · status „materiał zdalny" · nie liczy się do frekwencji</div>
+    <div class="dyd-sw-nav-sub">Praca własna · status „materiał zdalny" · nie liczy się do frekwencji · liczy się do wyrobionych godzin</div>
   </div>
   <div class="d-flex align-items-center gap-1 ms-auto">
     <a href="index.php?tab=praca_wlasna&m=<?= h($sw_prev) ?><?= $sw_instr_f ? '&instructor_id='.$sw_instr_f : '' ?>"
