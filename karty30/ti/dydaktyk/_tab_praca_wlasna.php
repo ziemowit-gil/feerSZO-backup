@@ -32,7 +32,39 @@ $sw_rows = db_all(
 
 $sw_instructors = k30_ti_instructors();
 
-// Grupowanie + sumy
+// Przygotowanie materiałów (self_prep_remote=1, dowolny status odbytej lekcji)
+$spr_where  = "s.self_prep_remote=1 AND s.status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', s.lesson_date)=?";
+$spr_params = [$sw_ym];
+if ($sw_instr_f) { $spr_where .= " AND c.instructor_id=?"; $spr_params[] = $sw_instr_f; }
+
+$spr_rows = db_all(
+    "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic,
+            c.id AS course_id, c.name AS course_name, c.lesson_payout_bb,
+            COALESCE(u.ti_is_student, 0) AS is_student,
+            COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '—') AS instructor_name
+     FROM k30_ti_sessions s
+     JOIN k30_ti_courses c ON c.id=s.course_id
+     LEFT JOIN users u ON u.id=c.instructor_id
+     WHERE $spr_where
+     ORDER BY instructor_name COLLATE NOCASE, s.lesson_date, s.time_from",
+    $spr_params
+);
+$spr_groups = [];
+$spr_tot_count = 0; $spr_tot_min = 0; $spr_tot_net = 0.0;
+foreach ($spr_rows as $r) {
+    $key = $r['instructor_name'];
+    // self_prep_remote → zawsze 100% bez ZUS/US
+    $net = ((float)$r['lesson_payout_bb'] > 0)
+        ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], true)['netto'] : 0.0;
+    $r['_net'] = $net;
+    $spr_groups[$key]['rows'][]  = $r;
+    $spr_groups[$key]['count']   = ($spr_groups[$key]['count'] ?? 0) + 1;
+    $spr_groups[$key]['min']     = ($spr_groups[$key]['min']   ?? 0) + (int)$r['duration_min'];
+    $spr_groups[$key]['net']     = ($spr_groups[$key]['net']   ?? 0.0) + $net;
+    $spr_tot_count++; $spr_tot_min += (int)$r['duration_min']; $spr_tot_net += $net;
+}
+
+// Grupowanie + sumy (materiał zdalny)
 $sw_groups = [];
 $sw_tot_count = 0; $sw_tot_min = 0; $sw_tot_net = 0.0;
 foreach ($sw_rows as $r) {
@@ -279,5 +311,52 @@ $sw_export_qs   = http_build_query($sw_export_base);
 </div>
 <?php endforeach; ?>
 <?php endif; ?>
+
+<!-- ── Sekcja: Przygotowanie materiałów (self_prep_remote) ──────────────── -->
+<div class="mt-4 pt-3 border-top">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-laptop text-info fs-5" aria-hidden="true"></i>
+    <h6 class="mb-0 fw-bold">Przygotowanie materiałów</h6>
+    <span class="badge text-bg-info ms-1" style="font-size:.7rem">100% bez ZUS/US</span>
+    <span class="text-body-secondary small ms-auto"><?= $spr_tot_count ?> lekcji · <?= $sw_hh($spr_tot_min) ?> h
+      <?php if ($spr_tot_net > 0): ?> · <strong class="text-success"><?= $sw_f($spr_tot_net) ?> zł netto</strong><?php endif; ?></span>
+  </div>
+
+  <?php if (!$spr_rows): ?>
+  <div class="text-body-secondary small py-2">
+    <i class="bi bi-laptop me-1"></i>Brak lekcji z flagą „przygotowanie materiałów" w <?= h($sw_label) ?>.
+  </div>
+  <?php else: ?>
+  <?php foreach ($spr_groups as $iname => $g): ?>
+  <div class="dyd-sw-card mb-2">
+    <div class="dyd-sw-card-head">
+      <i class="bi bi-person-badge text-info flex-shrink-0" aria-hidden="true"></i>
+      <span class="dyd-sw-card-name"><?= h($iname) ?></span>
+      <span class="dyd-sw-card-meta"><?= (int)$g['count'] ?> lekcji · <?= $sw_hh($g['min']) ?> h</span>
+      <?php if ($g['net'] > 0): ?>
+      <span class="dyd-sw-card-net"><?= $sw_f($g['net']) ?> zł</span>
+      <?php endif; ?>
+    </div>
+    <?php foreach ($g['rows'] as $r):
+      $d = new DateTime($r['lesson_date']); ?>
+    <div class="dyd-sw-lesson">
+      <span class="dyd-sw-date"><?= $d->format('d') ?> <?= $_sw_mon[(int)$d->format('n')] ?></span>
+      <span class="dyd-sw-time"><?= h(substr((string)$r['time_from'],0,5)) ?></span>
+      <span class="dyd-sw-dur"><?= (int)$r['duration_min'] ?> min</span>
+      <a class="dyd-sw-course text-decoration-none" href="../course.php?id=<?= (int)$r['course_id'] ?>">
+        <?= h($r['course_name']) ?>
+      </a>
+      <span class="dyd-sw-topic">
+        <?= $r['topic'] ? h($r['topic']) : '<span class="opacity-50">—</span>' ?>
+      </span>
+      <?php if ($r['_net'] > 0): ?>
+      <span class="dyd-sw-net"><?= $sw_f($r['_net']) ?> zł</span>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endforeach; ?>
+  <?php endif; ?>
+</div>
 
 </section>

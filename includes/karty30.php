@@ -2411,6 +2411,7 @@ function k30_ti_payouts_by_instructor(string $ym): array {
     $rows = db_all(
         "SELECT c.instructor_id AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
                 COALESCE(u.ti_is_student, 0) AS is_student,
+                COALESCE(s.self_prep_remote, 0) AS self_prep_remote,
                 c.id AS course_id, c.name AS course_name, c.lesson_payout_bb AS bb
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
@@ -2430,7 +2431,9 @@ function k30_ti_payouts_by_instructor(string $ym): array {
             $by[$iid]['is_student'] = (bool)$r['is_student'];
             $by[$iid]['courses']    = [];
         }
-        $b = k30_ti_payout_breakdown((float)$r['bb'], (bool)$r['is_student']);
+        // Praca własna prowadzącego (self_prep_remote) → 100% bez ZUS/US (jak student)
+        $eff_student = (bool)$r['is_student'] || (bool)$r['self_prep_remote'];
+        $b = k30_ti_payout_breakdown((float)$r['bb'], $eff_student);
         _k30_ti_payout_accumulate($by[$iid], $b);
         $cid = (int)$r['course_id'];
         if (!isset($by[$iid]['courses'][$cid])) {
@@ -2453,14 +2456,20 @@ function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
     $bb = (float)($course['lesson_payout_bb'] ?? 0);
     $acc = _k30_ti_payout_zero();
     if ($bb <= 0) return $acc;
-    $rows = db_all(
-        "SELECT COUNT(*) AS c FROM k30_ti_sessions
-         WHERE course_id=? AND status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', lesson_date)=?",
+    $is_student = (bool)($course['is_student'] ?? 0);
+    // Lekcje regularne i praca własna (self_prep_remote) rozliczane oddzielnie
+    $counts = db_all(
+        "SELECT COALESCE(self_prep_remote,0) AS spr, COUNT(*) AS n
+         FROM k30_ti_sessions
+         WHERE course_id=? AND status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', lesson_date)=?
+         GROUP BY spr",
         [$course_id, $ym]
     );
-    $n = (int)($rows[0]['c'] ?? 0);
-    $b = k30_ti_payout_breakdown($bb, (bool)($course['is_student'] ?? 0));
-    for ($i = 0; $i < $n; $i++) _k30_ti_payout_accumulate($acc, $b);
+    foreach ($counts as $row) {
+        $eff_student = $is_student || (bool)$row['spr'];
+        $b = k30_ti_payout_breakdown($bb, $eff_student);
+        for ($i = 0; $i < (int)$row['n']; $i++) _k30_ti_payout_accumulate($acc, $b);
+    }
     return $acc;
 }
 

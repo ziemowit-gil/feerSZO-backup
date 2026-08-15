@@ -416,7 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 catch (\Throwable $ex) {}
             }
             $msg = 'Lekcja dodana.';
-            if (isset($_POST['notify'])) {
+            if (isset($_POST['notify']) && !$spr) {
                 $cn = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
                 $when = $date . ($tf !== '' ? ' o ' . $tf : '');
                 $n = ti_lesson_sms_notify($course_id, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
