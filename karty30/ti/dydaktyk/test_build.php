@@ -237,7 +237,24 @@ $QT = K30_TI_QUESTION_TYPES;
      ════════════════════════════════════════════════════════════════════ -->
 
 <?php if (!$course): ?>
-<div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Wybierz kurs, aby zarządzać testami.</div>
+<div class="card border-0 shadow-sm" style="max-width:480px">
+  <div class="card-body">
+    <h5 class="card-title fw-semibold mb-3"><i class="bi bi-card-checklist me-2 text-primary" aria-hidden="true"></i>Wybierz kurs</h5>
+    <?php if (!$my_courses): ?>
+    <p class="text-muted small mb-0">Brak przypisanych kursów.</p>
+    <?php else: ?>
+    <div class="list-group list-group-flush">
+      <?php foreach ($my_courses as $_mc): ?>
+      <a href="test_build.php?course_id=<?= (int)$_mc['id'] ?>"
+         class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-mortarboard text-secondary" aria-hidden="true"></i>
+        <span class="fw-semibold"><?= h($_mc['name']) ?></span>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
 <?php else: ?>
 
 <div class="row g-4">
