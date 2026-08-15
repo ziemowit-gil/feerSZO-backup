@@ -2582,7 +2582,7 @@ document.addEventListener('input', function(e){
   var box = e.target.closest('[data-dyd-filterbox]'); if (!box) return;
   var list = document.getElementById(box.getAttribute('data-dyd-filterbox')); if (!list) return;
   var q = box.value.toLowerCase().trim();
-  var items = list.querySelectorAll('.list-group-item');
+  var items = list.querySelectorAll('[data-filter-item]');
   var shown = 0;
   items.forEach(function(item){
     if (!item.dataset.filterItem) return; // stały element (komunikat „brak")
