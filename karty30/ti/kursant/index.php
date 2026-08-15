@@ -1963,6 +1963,82 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
+  <?php
+  // ── Wykres frekwencji miesięcznej ────────────────────────────────────────
+  $_kp_mon_lbl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
+  $_kp_cdata = [];
+  foreach ($lessons as $_kl) {
+      if (!$fr_counts($_kl)) continue;
+      $_kym = substr((string)$_kl['lesson_date'], 0, 7);
+      if (!isset($_kp_cdata[$_kym])) $_kp_cdata[$_kym] = ['t' => 0, 'p' => 0];
+      $_kp_cdata[$_kym]['t']++;
+      if (!empty($_kl['attended'])) $_kp_cdata[$_kym]['p']++;
+  }
+  ksort($_kp_cdata);
+  if (count($_kp_cdata) > 6) $_kp_cdata = array_slice($_kp_cdata, -6, 6, true);
+  if ($_kp_cdata):
+      $_kn = count($_kp_cdata);
+      $kW = 300; $kH = 150;
+      $kpL = 30; $kpR = 6; $kpT = 14; $kpB = 26;
+      $kaW = $kW - $kpL - $kpR;
+      $kaH = $kH - $kpT - $kpB;
+      $kbW = ($kaW / $_kn) - 5;
+      $kGap = ($kaW - $kbW * $_kn) / ($_kn + 1);
+  ?>
+  <div class="card mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+      <i class="bi bi-bar-chart-line text-primary" aria-hidden="true"></i>
+      <span class="fw-semibold">Frekwencja miesięczna</span>
+    </div>
+    <div class="card-body py-3 px-3">
+      <svg viewBox="0 0 <?= $kW ?> <?= $kH ?>" aria-hidden="true"
+           class="w-100 d-block" style="max-height:150px">
+        <?php foreach ([0, 50, 100] as $_kg): ?>
+        <?php $_kgY = $kpT + $kaH - ($_kg * $kaH / 100); ?>
+        <line x1="<?= $kpL ?>" y1="<?= number_format($_kgY,1) ?>" x2="<?= $kW - $kpR ?>" y2="<?= number_format($_kgY,1) ?>"
+              stroke="currentColor" stroke-opacity="<?= $_kg === 50 ? '.1' : '.2' ?>" stroke-dasharray="<?= $_kg === 50 ? '3,3' : '0' ?>"/>
+        <text x="<?= $kpL - 3 ?>" y="<?= number_format($_kgY + 3.5, 1) ?>" text-anchor="end"
+              font-size="8.5" fill="currentColor" opacity=".55"><?= $_kg ?>%</text>
+        <?php endforeach; ?>
+        <?php $ki = 0; foreach ($_kp_cdata as $_kym => $_km): ?>
+        <?php
+            $_kpct = $_km['t'] > 0 ? round($_km['p'] / $_km['t'] * 100) : 0;
+            $_kbh  = max($_kpct * $kaH / 100, $_kpct > 0 ? 3 : 0);
+            $_kbx  = $kpL + $kGap + $ki * ($kbW + $kGap);
+            $_kby  = $kpT + $kaH - $_kbh;
+            $_kbc  = $_kpct >= 80 ? '#22c55e' : ($_kpct >= 60 ? '#f59e0b' : '#ef4444');
+            $_klx  = $_kbx + $kbW / 2;
+            $_kymp = explode('-', $_kym);
+            $_kml  = ($_kp_mon_lbl[(int)$_kymp[1]] ?? '') . ' \'' . substr($_kymp[0], 2);
+        ?>
+        <?php if ($_kbh > 0): ?>
+        <rect x="<?= number_format($_kbx,1) ?>" y="<?= number_format($_kby,1) ?>"
+              width="<?= number_format($kbW,1) ?>" height="<?= number_format($_kbh,1) ?>"
+              fill="<?= $_kbc ?>" rx="3" opacity=".85"/>
+        <?php endif; ?>
+        <text x="<?= number_format($_klx,1) ?>" y="<?= number_format($_kby - 3,1) ?>"
+              text-anchor="middle" font-size="9" font-weight="600"
+              fill="<?= $_kbc ?>"><?= $_kpct > 0 ? $_kpct . '%' : '' ?></text>
+        <text x="<?= number_format($_klx,1) ?>" y="<?= $kH - $kpB + 12 ?>"
+              text-anchor="middle" font-size="8.5" fill="currentColor" opacity=".65"><?= h($_kml) ?></text>
+        <?php $ki++; endforeach; ?>
+      </svg>
+      <table class="visually-hidden">
+        <caption>Frekwencja miesięczna — dane</caption>
+        <thead><tr><th scope="col">Miesiąc</th><th scope="col">Lekcji</th><th scope="col">Obecności</th><th scope="col">Frekwencja</th></tr></thead>
+        <tbody>
+          <?php foreach ($_kp_cdata as $_kym => $_km): ?>
+          <?php $_kpct2 = $_km['t'] > 0 ? round($_km['p'] / $_km['t'] * 100) : 0;
+                $_kymp2 = explode('-', $_kym);
+                $_kfull = ($_kp_mon_lbl[(int)$_kymp2[1]] ?? '') . ' ' . $_kymp2[0]; ?>
+          <tr><th scope="row"><?= h($_kfull) ?></th><td><?= (int)$_km['t'] ?></td><td><?= (int)$_km['p'] ?></td><td><?= $_kpct2 ?>%</td></tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- ── Mini-kalendarz lekcji ──────────────────────────────────────────── -->
   <div class="card mb-4" id="kpCalCard">
     <div class="card-header d-flex align-items-center gap-2 py-2">
