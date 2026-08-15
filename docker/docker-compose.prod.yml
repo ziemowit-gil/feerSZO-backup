@@ -73,7 +73,7 @@ services:
       - "traefik.http.routers.feer.entrypoints=websecure"
       - "traefik.http.routers.feer.tls=true"
       - "traefik.http.routers.feer.tls.certresolver=le"
-      - "traefik.http.routers.feer.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer.middlewares=sec-headers@docker,error-pages@docker"
       - "traefik.http.services.feer.loadbalancer.server.port=80"
       - "traefik.http.routers.feer-http.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.feer-http.entrypoints=web"
@@ -93,12 +93,17 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.referrerPolicy=same-origin"
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
+      # ── Middleware: przyjazna strona błędu 5xx (Bad Gateway itp.) ────────────
+      - "traefik.http.middlewares.error-pages.errors.status=500,502-504"
+      - "traefik.http.middlewares.error-pages.errors.service=error-pages@docker"
+      - "traefik.http.middlewares.error-pages.errors.query=/error.html"
+
       # ── crm.feer.org.pl ───────────────────────────────────────────────────
       - "traefik.http.routers.feer-crm.rule=Host(`crm.feer.org.pl`)"
       - "traefik.http.routers.feer-crm.entrypoints=websecure"
       - "traefik.http.routers.feer-crm.tls=true"
       - "traefik.http.routers.feer-crm.tls.certresolver=le"
-      - "traefik.http.routers.feer-crm.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-crm.middlewares=sec-headers@docker,error-pages@docker"
       - "traefik.http.routers.feer-crm.service=feer"
       - "traefik.http.routers.feer-crm-http.rule=Host(`crm.feer.org.pl`)"
       - "traefik.http.routers.feer-crm-http.entrypoints=web"
@@ -113,7 +118,7 @@ services:
       - "traefik.http.routers.feer-ezd.entrypoints=websecure"
       - "traefik.http.routers.feer-ezd.tls=true"
       - "traefik.http.routers.feer-ezd.tls.certresolver=le"
-      - "traefik.http.routers.feer-ezd.middlewares=sec-headers@docker,ezd-prefix@docker"
+      - "traefik.http.routers.feer-ezd.middlewares=sec-headers@docker,ezd-prefix@docker,error-pages@docker"
       - "traefik.http.routers.feer-ezd.service=feer"
       - "traefik.http.routers.feer-ezd-http.rule=Host(`ezd.feer.org.pl`)"
       - "traefik.http.routers.feer-ezd-http.entrypoints=web"
@@ -125,7 +130,7 @@ services:
       - "traefik.http.routers.feer-ti.entrypoints=websecure"
       - "traefik.http.routers.feer-ti.tls=true"
       - "traefik.http.routers.feer-ti.tls.certresolver=le"
-      - "traefik.http.routers.feer-ti.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-ti.middlewares=sec-headers@docker,error-pages@docker"
       - "traefik.http.routers.feer-ti.service=feer"
       - "traefik.http.routers.feer-ti-http.rule=Host(`ti.feer.org.pl`)"
       - "traefik.http.routers.feer-ti-http.entrypoints=web"
@@ -137,7 +142,7 @@ services:
       - "traefik.http.routers.feer-kursant.entrypoints=websecure"
       - "traefik.http.routers.feer-kursant.tls=true"
       - "traefik.http.routers.feer-kursant.tls.certresolver=le"
-      - "traefik.http.routers.feer-kursant.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-kursant.middlewares=sec-headers@docker,error-pages@docker"
       - "traefik.http.routers.feer-kursant.service=feer"
       - "traefik.http.routers.feer-kursant-http.rule=Host(`kursant.feer.org.pl`)"
       - "traefik.http.routers.feer-kursant-http.entrypoints=web"
@@ -149,7 +154,7 @@ services:
       - "traefik.http.routers.feer-zadania.entrypoints=websecure"
       - "traefik.http.routers.feer-zadania.tls=true"
       - "traefik.http.routers.feer-zadania.tls.certresolver=le"
-      - "traefik.http.routers.feer-zadania.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-zadania.middlewares=sec-headers@docker,error-pages@docker"
       - "traefik.http.routers.feer-zadania.service=feer"
       - "traefik.http.routers.feer-zadania-http.rule=Host(`zadania.feer.org.pl`)"
       - "traefik.http.routers.feer-zadania-http.entrypoints=web"
@@ -263,6 +268,12 @@ services:
       - "traefik.http.routers.planner-http.entrypoints=web"
       - "traefik.http.routers.planner-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.planner-http.service=planner"
+
+  # ── Strona błędu — rejestracja w Traefik ────────────────────────────────
+  error-pages:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.error-pages.loadbalancer.server.port=80"
 
 volumes:
   letsencrypt_data:

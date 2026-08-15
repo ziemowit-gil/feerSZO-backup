@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System niedostępny — feerSZO</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #0f1923;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    color: #fff;
+    margin-bottom: 2rem;
+    opacity: .55;
+  }
+  .logo span { color: #e05a20; }
+
+  .card {
+    background: #1a2a3a;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: .65rem;
+  }
+
+  .lead {
+    font-size: .95rem;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 1.75rem;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,.1);
+    margin: 1.5rem 0;
+  }
+
+  .section-title {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #64748b;
+    margin-bottom: .75rem;
+  }
+
+  .reason-box {
+    background: rgba(224,90,32,.1);
+    border: 1px solid rgba(224,90,32,.25);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+  .reason-box p {
+    font-size: .88rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+  .reason-box p + p { margin-top: .5rem; }
+  .reason-box strong { color: #f1f5f9; }
+
+  .refresh-bar {
+    background: rgba(255,255,255,.06);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: .85rem;
+    color: #94a3b8;
+  }
+  .refresh-bar #countdown {
+    font-weight: 700;
+    color: #5bbcff;
+  }
+  .progress-track {
+    height: 3px;
+    background: rgba(255,255,255,.1);
+    border-radius: 3px;
+    margin-top: .5rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #5bbcff;
+    border-radius: 3px;
+    width: 100%;
+    transition: width 1s linear;
+  }
+
+  .contact {
+    font-size: .85rem;
+    color: #64748b;
+  }
+  .contact a {
+    color: #5bbcff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .contact a:hover { text-decoration: underline; }
+
+  .btn-retry {
+    display: inline-block;
+    background: #e05a20;
+    color: #fff;
+    font-weight: 700;
+    font-size: .9rem;
+    padding: .6rem 1.5rem;
+    border-radius: 7px;
+    text-decoration: none;
+    margin-bottom: 1.5rem;
+    transition: background .15s;
+  }
+  .btn-retry:hover { background: #c94a15; }
+</style>
+</head>
+<body>
+<div class="logo">feer<span>SZO</span></div>
+
+<div class="card">
+  <span class="icon">⚠️</span>
+  <h1>System chwilowo niedostępny</h1>
+  <p class="lead">
+    Serwer nie odpowiada. Może trwać wdrożenie aktualizacji
+    lub wystąpił problem techniczny.
+  </p>
+
+  <div class="reason-box">
+    <p><strong>Jeśli trwa wdrożenie</strong> — system wróci za 1–2 minuty.
+       Odświeżenie strony powinno rozwiązać problem.</p>
+    <p><strong>Jeśli problem się powtarza</strong> — zgłoś to na adres
+       <a href="mailto:fundacja@feer.org.pl" style="color:#f97316;font-weight:600">fundacja@feer.org.pl</a>.</p>
+  </div>
+
+  <div class="refresh-bar">
+    Automatyczne odświeżenie za <span id="countdown">60</span> s
+    <div class="progress-track">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+  </div>
+
+  <a href="javascript:location.reload()" class="btn-retry">Spróbuj teraz</a>
+
+  <hr class="divider">
+
+  <div class="section-title">Pomoc techniczna</div>
+  <p class="contact">
+    <a href="mailto:fundacja@feer.org.pl">fundacja@feer.org.pl</a>
+  </p>
+</div>
+
+<script>
+(function () {
+  var TOTAL = 60;
+  var left = TOTAL;
+  var countdown = document.getElementById('countdown');
+  var progress = document.getElementById('progress');
+
+  var tick = setInterval(function () {
+    left--;
+    countdown.textContent = left;
+    progress.style.width = (left / TOTAL * 100) + '%';
+    if (left <= 0) {
+      clearInterval(tick);
+      location.reload();
+    }
+  }, 1000);
+})();
+</script>
+</body>
+</html>

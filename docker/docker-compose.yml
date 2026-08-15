@@ -51,6 +51,16 @@ services:
     networks:
       - feer
 
+  # ── Strona błędu — zawsze żywa, serwuje error.html przy 502/503 ─────────
+  error-pages:
+    image: nginx:alpine
+    container_name: feer-error-pages
+    restart: unless-stopped
+    volumes:
+      - ./error-pages:/usr/share/nginx/html:ro
+    networks:
+      - feer
+
   # ── SZO Planner — Angular SPA (nginx) ────────────────────────────────────
   szo-planner:
     build:
