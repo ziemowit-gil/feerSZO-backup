@@ -6,9 +6,34 @@
        JOIN k30_ti_enrollments e ON e.client_id=cl.id
        WHERE e.course_id=? AND e.status='active' ORDER BY cl.name",
       [$cur_course]);
+  $dyd_need_review = (int)db_one(
+      "SELECT COUNT(*) FROM k30_ti_test_attempts a
+       JOIN k30_ti_tests t ON t.id=a.test_id
+       WHERE t.course_id=? AND a.needs_review=1 AND a.status='submitted'",
+      [$cur_course]);
 ?>
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <h5 class="mb-0 fw-semibold"><i class="bi bi-card-checklist me-1" aria-hidden="true"></i>Testy</h5>
+  <a href="test_build.php?course_id=<?= $cur_course ?>" class="btn btn-sm btn-primary ms-auto">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz test
+  </a>
+</div>
+<?php if ($dyd_need_review > 0): ?>
+<div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
+  <i class="bi bi-clipboard-check fs-5 flex-shrink-0" aria-hidden="true"></i>
+  <span><?= $dyd_need_review ?> <?= $dyd_need_review === 1 ? 'podejście czeka' : 'podejść czeka' ?> na ocenę pytań otwartych —
+    <a href="test_build.php?course_id=<?= $cur_course ?>">przejdź do oceniania</a></span>
+</div>
+<?php endif; ?>
 <?php if (!$dyd_tests): ?>
-  <div class="alert alert-secondary"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak testów w tym kursie.</div>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5" style="min-height:220px">
+      <i class="bi bi-card-checklist mb-3" style="font-size:3rem;opacity:.3" aria-hidden="true"></i>
+      <h6 class="fw-semibold mb-1">Brak testów w tym kursie</h6>
+      <p class="text-body-secondary small mb-3">Możesz samodzielnie tworzyć testy dla swoich kursantów.</p>
+      <a href="test_build.php?course_id=<?= $cur_course ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz pierwszy test</a>
+    </div>
+  </div>
 <?php else: ?>
 
 <?php foreach ($dyd_tests as $dt):
@@ -30,6 +55,10 @@
     <span class="badge bg-secondary"><?= $n_q ?> pytań</span>
     <?php if ($dt_pass > 0): ?><span class="badge bg-light text-dark border">próg <?= $dt_pass ?>%</span><?php endif; ?>
     <?php if (empty($dt['is_active'])): ?><span class="badge bg-warning text-dark"><i class="bi bi-eye-slash me-1" aria-hidden="true"></i>ukryty</span><?php endif; ?>
+    <div class="ms-auto d-flex gap-1">
+      <a href="test_build.php?test_id=<?= $dt_id ?>" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edytuj pytania"><i class="bi bi-pencil-square" aria-hidden="true"></i></a>
+      <a href="test_build.php?course_id=<?= $cur_course ?>&amp;test_id=<?= $dt_id ?>&amp;edit_meta=1" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia testu"><i class="bi bi-gear" aria-hidden="true"></i></a>
+    </div>
   </div>
   <?php if (!$dyd_students): ?>
     <div class="card-body text-muted small">Brak aktywnych kursantów.</div>
