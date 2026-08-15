@@ -110,8 +110,6 @@ try {
 $pdf = new FPDF('L', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
-$pdf->
-$pdf->
 
 $month_label = $MONTHS_PL_FULL[$mo] . ' ' . $yr;
 
