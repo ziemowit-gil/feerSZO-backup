@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'generate
     header('Location: index.php?edit=' . $cid); exit;
 }
 
-// Flagi prowadzących (student = brak ZUS) — tylko administrator
+// Forma rozliczenia prowadzących (zlecenie/student/b2b) — tylko administrator
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_instructor_flags') {
     csrf_check();
     if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -67,13 +67,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_ins
          WHERE u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL)
             OR u.id IN (SELECT user_id FROM k30_ti_instructor_accounts)"
     );
-    $student_ids = array_map('intval', (array)($_POST['student_iids'] ?? []));
+    $valid_forms = ['zlecenie', 'student', 'b2b'];
     foreach ($all_instructors as $instr) {
-        $iid = (int)$instr['id'];
-        $val = in_array($iid, $student_ids, true) ? 1 : 0;
-        db()->prepare("UPDATE users SET ti_is_student=? WHERE id=?")->execute([$val, $iid]);
+        $iid  = (int)$instr['id'];
+        $form = $_POST['payout_form'][$iid] ?? 'zlecenie';
+        if (!in_array($form, $valid_forms, true)) $form = 'zlecenie';
+        $is_student = $form === 'student' ? 1 : 0;
+        db()->prepare("UPDATE users SET ti_payout_form=?, ti_is_student=? WHERE id=?")->execute([$form, $is_student, $iid]);
     }
-    flash_set('success', 'Flagi prowadzących zapisane.');
+    flash_set('success', 'Forma rozliczenia prowadzących zapisana.');
     header('Location: index.php'); exit;
 }
 
@@ -660,26 +662,30 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   $_ex = k30_ti_payout_breakdown(100.0);
   $_fmt = fn($x) => number_format((float)$x, 2, ',', ' ');
   $_all_instrs = db_all(
-      "SELECT u.id, u.name, COALESCE(u.ti_is_student,0) AS is_student FROM users u
+      "SELECT u.id, u.name,
+              COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form
+       FROM users u
        WHERE u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL)
           OR u.id IN (SELECT user_id FROM k30_ti_instructor_accounts)
        ORDER BY u.name COLLATE NOCASE"
   );
+  $_payout_form_labels = ['zlecenie' => 'Umowa zlecenie', 'student' => 'Student (bez ZUS/PIT)', 'b2b' => 'B2B / faktura (bez ZUS/US)'];
 ?>
 <div class="card border-0 shadow-sm mt-4">
   <div class="card-header bg-white d-flex align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#instrFlags" aria-expanded="false">
     <i class="bi bi-mortarboard me-2 text-primary"></i>
-    <span class="fw-semibold">Prowadzący — flagi rozliczeniowe</span>
-    <?php $student_cnt = count(array_filter($_all_instrs, fn($i) => $i['is_student']));
-          if ($student_cnt): ?>
-    <span class="badge bg-info-subtle text-info-emphasis ms-2"><?= $student_cnt ?> student<?= $student_cnt === 1 ? '' : 'ów' ?></span>
+    <span class="fw-semibold">Prowadzący — forma rozliczenia</span>
+    <?php $_exempt_cnt = count(array_filter($_all_instrs, fn($i) => in_array($i['payout_form'],['student','b2b'],true)));
+          if ($_exempt_cnt): ?>
+    <span class="badge bg-info-subtle text-info-emphasis ms-2"><?= $_exempt_cnt ?> bez ZUS/US</span>
     <?php endif; ?>
     <i class="bi bi-chevron-down ms-auto"></i>
   </div>
   <div class="collapse" id="instrFlags">
     <div class="card-body">
       <p class="text-body-secondary small mb-3">
-        Prowadzący oznaczony jako <strong>student</strong> nie ma naliczanych składek ZUS ani PIT — kwota brutto-brutto jest jednocześnie kwotą „na rękę".
+        Forma rozliczenia determinuje naliczanie składek ZUS i zaliczki PIT.<br>
+        <strong>Student</strong> i <strong>B2B/faktura</strong>: BB = netto, brak potrąceń po stronie FEER.
       </p>
       <?php if (!$_all_instrs): ?>
       <div class="alert alert-light border py-2 mb-0"><i class="bi bi-info-circle me-1"></i>Brak prowadzących.</div>
@@ -687,19 +693,19 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_op" value="save_instructor_flags">
-        <div class="d-flex flex-column gap-1 mb-3">
-          <?php foreach ($_all_instrs as $_instr): ?>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="student_iids[]"
-                   value="<?= (int)$_instr['id'] ?>"
-                   id="si_<?= (int)$_instr['id'] ?>"
-                   <?= $_instr['is_student'] ? 'checked' : '' ?>>
-            <label class="form-check-label" for="si_<?= (int)$_instr['id'] ?>">
-              <?= h($_instr['name']) ?>
-              <?php if ($_instr['is_student']): ?>
-              <span class="badge bg-info-subtle text-info-emphasis ms-1" style="font-size:.7rem">student</span>
-              <?php endif; ?>
-            </label>
+        <div class="d-flex flex-column gap-2 mb-3">
+          <?php foreach ($_all_instrs as $_instr):
+                $_pf = $_instr['payout_form'] ?? 'zlecenie'; ?>
+          <div class="d-flex align-items-center gap-3">
+            <span style="min-width:200px"><?= h($_instr['name']) ?></span>
+            <select name="payout_form[<?= (int)$_instr['id'] ?>]" class="form-select form-select-sm" style="max-width:260px">
+              <?php foreach ($_payout_form_labels as $_fv => $_fl): ?>
+              <option value="<?= h($_fv) ?>" <?= $_pf === $_fv ? 'selected' : '' ?>><?= h($_fl) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <?php if (in_array($_pf, ['student','b2b'], true)): ?>
+            <span class="badge bg-info-subtle text-info-emphasis" style="font-size:.7rem">100% netto</span>
+            <?php endif; ?>
           </div>
           <?php endforeach; ?>
         </div>

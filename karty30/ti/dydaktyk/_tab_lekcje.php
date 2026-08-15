@@ -362,10 +362,12 @@ if ($_sms_enabled && $cur_course) {
           <?php endif; ?>
 
           <div class="d-flex align-items-center gap-2 pt-2 flex-wrap" style="border-top:1px solid var(--bs-border-color-translucent)">
+            <?php if ($s['status'] !== 'remote_material'): ?>
             <button type="button" class="btn btn-sm btn-primary"
                     data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
               <i class="bi bi-people me-1"></i>Obecność
             </button>
+            <?php endif; ?>
             <?php $_meet_url = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? ''))); ?>
             <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
             <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">

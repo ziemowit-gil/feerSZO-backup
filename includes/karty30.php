@@ -113,6 +113,11 @@ function karty30_migrate(): void {
         $pdo->exec("ALTER TABLE users ADD COLUMN ti_is_student INTEGER NOT NULL DEFAULT 0");
     } catch (\Throwable $e) {}
 
+    // Forma rozliczenia prowadzącego: zlecenie / student / b2b
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN ti_payout_form TEXT NOT NULL DEFAULT 'zlecenie'");
+    } catch (\Throwable $e) {}
+
     // Zasób zarezerwowany na termin (sala, stanowisko itp.)
     try {
         $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL");
@@ -2410,7 +2415,7 @@ function _k30_ti_payout_accumulate(array &$acc, array $b): void {
 function k30_ti_payouts_by_instructor(string $ym): array {
     $rows = db_all(
         "SELECT c.instructor_id AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
-                COALESCE(u.ti_is_student, 0) AS is_student,
+                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
                 COALESCE(s.self_prep_remote, 0) AS self_prep_remote,
                 c.id AS course_id, c.name AS course_name, c.lesson_payout_bb AS bb
          FROM k30_ti_sessions s
@@ -2427,12 +2432,13 @@ function k30_ti_payouts_by_instructor(string $ym): array {
         if (!isset($by[$iid])) {
             $by[$iid] = _k30_ti_payout_zero();
             $by[$iid]['instructor_id'] = $iid;
-            $by[$iid]['name']       = $r['iname'];
-            $by[$iid]['is_student'] = (bool)$r['is_student'];
-            $by[$iid]['courses']    = [];
+            $by[$iid]['name']         = $r['iname'];
+            $by[$iid]['payout_form']  = $r['payout_form'];
+            $by[$iid]['courses']      = [];
         }
-        // Praca własna prowadzącego (self_prep_remote) → 100% bez ZUS/US (jak student)
-        $eff_student = (bool)$r['is_student'] || (bool)$r['self_prep_remote'];
+        // Forma B2B/student → 100% bez ZUS/US; self_prep_remote też jest bezskladkowe
+        $form_exempt = in_array($r['payout_form'], ['student','b2b'], true);
+        $eff_student = $form_exempt || (bool)$r['self_prep_remote'];
         $b = k30_ti_payout_breakdown((float)$r['bb'], $eff_student);
         _k30_ti_payout_accumulate($by[$iid], $b);
         $cid = (int)$r['course_id'];
@@ -2448,7 +2454,8 @@ function k30_ti_payouts_by_instructor(string $ym): array {
 /** Miesięczna suma wypłat dla jednego kursu (status='held'). $ym = 'YYYY-MM'. */
 function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
     $course = db_one(
-        "SELECT c.lesson_payout_bb, COALESCE(u.ti_is_student, 0) AS is_student
+        "SELECT c.lesson_payout_bb,
+                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form
          FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
          WHERE c.id=?",
         [$course_id]
@@ -2456,8 +2463,8 @@ function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
     $bb = (float)($course['lesson_payout_bb'] ?? 0);
     $acc = _k30_ti_payout_zero();
     if ($bb <= 0) return $acc;
-    $is_student = (bool)($course['is_student'] ?? 0);
-    // Lekcje regularne i praca własna (self_prep_remote) rozliczane oddzielnie
+    $form_exempt = in_array($course['payout_form'] ?? 'zlecenie', ['student','b2b'], true);
+    // Lekcje regularne i praca własna (self_prep_remote) rozliczane osobno
     $counts = db_all(
         "SELECT COALESCE(self_prep_remote,0) AS spr, COUNT(*) AS n
          FROM k30_ti_sessions
@@ -2466,7 +2473,7 @@ function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
         [$course_id, $ym]
     );
     foreach ($counts as $row) {
-        $eff_student = $is_student || (bool)$row['spr'];
+        $eff_student = $form_exempt || (bool)$row['spr'];
         $b = k30_ti_payout_breakdown($bb, $eff_student);
         for ($i = 0; $i < (int)$row['n']; $i++) _k30_ti_payout_accumulate($acc, $b);
     }

@@ -36,7 +36,7 @@ $rows = db_all(
     "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic,
             c.id AS course_id, c.name AS course_name, c.lesson_payout_bb,
             c.instructor_id,
-            COALESCE(u.ti_is_student, 0) AS is_student,
+            COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
             COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '—') AS instructor_name
      FROM k30_ti_sessions s
      JOIN k30_ti_courses c ON c.id=s.course_id
@@ -57,7 +57,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, ['Prowadzący','Data','Godzina','Czas (min)','Kurs','Temat','Wypłata netto (zł)'], ';');
     foreach ($rows as $r) {
-        $net = ((float)$r['lesson_payout_bb'] > 0) ? k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], (bool)$r['is_student'])['netto'] : 0;
+        $net = ((float)$r['lesson_payout_bb'] > 0) ? k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], in_array($r['payout_form'] ?? 'zlecenie', ['student','b2b'], true))['netto'] : 0;
         fputcsv($out, [
             $r['instructor_name'], $r['lesson_date'], substr((string)$r['time_from'],0,5),
             (int)$r['duration_min'], $r['course_name'], $r['topic'],
@@ -72,7 +72,7 @@ $groups = [];
 $tot_count = 0; $tot_min = 0; $tot_net = 0.0;
 foreach ($rows as $r) {
     $key = $r['instructor_name'];
-    $net = ((float)$r['lesson_payout_bb'] > 0) ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], (bool)$r['is_student'])['netto'] : 0.0;
+    $net = ((float)$r['lesson_payout_bb'] > 0) ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], in_array($r['payout_form'] ?? 'zlecenie', ['student','b2b'], true))['netto'] : 0.0;
     $r['_net'] = $net;
     $groups[$key]['rows'][] = $r;
     $groups[$key]['count'] = ($groups[$key]['count'] ?? 0) + 1;

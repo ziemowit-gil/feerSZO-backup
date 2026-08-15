@@ -37,7 +37,8 @@ $rows = db_all(
     array_merge($course_ids, [$month])
 );
 
-$_is_student = (bool)(db_one("SELECT ti_is_student FROM users WHERE id=?", [$uid])['ti_is_student'] ?? 0);
+$_pf = db_one("SELECT COALESCE(ti_payout_form, CASE WHEN COALESCE(ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS pf FROM users WHERE id=?", [$uid]);
+$_is_student = in_array($_pf['pf'] ?? 'zlecenie', ['student','b2b'], true);
 
 // Grupowanie po kursie + sumy
 $groups = []; $tot_count = 0; $tot_min = 0; $tot_net = 0.0;
