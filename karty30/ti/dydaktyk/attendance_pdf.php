@@ -66,8 +66,6 @@ try {
 $pdf = new FPDF('L', 'mm', 'A4'); // landscape — więcej kolumn
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
-$pdf->
-$pdf->
 $pdf->AddPage();
 
 $PW = $pdf->GetPageWidth() - 20; // szerokość robocza
