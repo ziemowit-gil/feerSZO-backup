@@ -40,7 +40,13 @@ if ($_sms_enabled && $cur_course) {
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
     <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
-    <div class="ms-auto d-flex gap-2">
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <div class="btn-group btn-group-sm" role="group" id="dydViewToggle" aria-label="Widok lekcji">
+        <button type="button" class="btn btn-outline-secondary" id="dydViewBtnList"
+                aria-pressed="true" title="Widok listy"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
+        <button type="button" class="btn btn-outline-secondary" id="dydViewBtnTable"
+                aria-pressed="false" title="Widok kompaktowy"><i class="bi bi-table" aria-hidden="true"></i></button>
+      </div>
       <div class="dropdown">
         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-three-dots me-1"></i>Więcej
@@ -449,7 +455,179 @@ if ($_sms_enabled && $cur_course) {
     <?php endforeach; ?>
     <?php endforeach; // grouped months ?>
   </div><!-- /dyd-list-lekcje -->
+
+  <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
+  <div id="dyd-table-lekcje" style="display:none">
+    <div class="dyd-filter-empty text-body-secondary py-3 px-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>
+    <?php if (!$sessions): ?>
+    <div class="text-body-secondary py-4 text-center">
+      <i class="bi bi-calendar-x fs-2 d-block mb-2 opacity-50" aria-hidden="true"></i>
+      Brak lekcji.
+    </div>
+    <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle mb-0" aria-label="Lista lekcji — widok tabelaryczny">
+        <thead class="table-light">
+          <tr>
+            <th scope="col" style="width:90px">Data</th>
+            <th scope="col" style="width:86px">Godz.</th>
+            <th scope="col" style="width:106px">Status</th>
+            <th scope="col">Temat</th>
+            <th scope="col" class="text-center" style="width:58px">Obecn.</th>
+            <th scope="col" class="text-end"    style="width:114px">Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($sessions as $s):
+          $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
+          $sdate   = strtotime($s['lesson_date']);
+          $is_past = $s['lesson_date'] < $_today;
+          $is_today= $s['lesson_date'] === $_today;
+          $dow     = $_days_pl[(int)date('w', $sdate)];
+          $att_total  = (int)$s['total_count'];
+          $att_present= (int)$s['attended_count'];
+          $_mat_url   = trim((string)($s['material_url'] ?? ''));
+          $_meet_url  = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? '')));
+        ?>
+        <tr data-filter-item="1"
+            style="border-left:3px solid <?= h($st['color']) ?>"
+            class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
+          <td style="font-size:.82rem;line-height:1.3">
+            <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
+            <span class="text-body-secondary d-block" style="font-size:.72rem"><?= $dow ?><?php if ($is_today): ?> <span class="badge px-1 py-0" style="font-size:.52rem;background:#2563eb;color:#fff">dziś</span><?php endif; ?></span>
+          </td>
+          <td style="font-size:.82rem;white-space:nowrap">
+            <?php if ($s['time_from']): ?>
+            <?= h(substr((string)$s['time_from'],0,5)) ?><?= $s['time_to'] ? '–'.h(substr((string)$s['time_to'],0,5)) : '' ?>
+            <?php else: ?><span class="text-body-tertiary">—</span><?php endif; ?>
+          </td>
+          <td>
+            <span class="badge" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
+          </td>
+          <td class="text-truncate" style="max-width:0;font-size:.83rem">
+            <?= !empty($s['topic']) ? h($s['topic']) : '<span class="text-body-tertiary">—</span>' ?>
+          </td>
+          <td class="text-center" style="font-size:.82rem">
+            <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
+            <span class="text-body-tertiary"><i class="bi bi-dash" aria-hidden="true"></i></span>
+            <?php elseif ($att_total > 0): ?>
+            <span class="<?= $att_present===$att_total&&$s['status']!=='planned'?'text-success fw-semibold':'text-body-secondary' ?>"><?= $att_present ?>/<?= $att_total ?></span>
+            <?php else: ?>
+            <span class="text-body-tertiary">—</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <div class="d-flex justify-content-end align-items-center gap-1">
+              <?php if ($s['status'] !== 'remote_material'): ?>
+              <button type="button" class="btn btn-sm btn-primary py-0 px-2"
+                      data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>" title="Obecność">
+                <i class="bi bi-people" aria-hidden="true"></i>
+              </button>
+              <?php endif; ?>
+              <?php if ($s['status'] === 'remote_material' && $_mat_url): ?>
+              <a href="<?= h($_mat_url) ?>" class="btn btn-sm btn-outline-info py-0 px-2"
+                 target="_blank" rel="noopener noreferrer" title="Materiał">
+                <i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i>
+              </a>
+              <?php endif; ?>
+              <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
+              <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary py-0 px-2"
+                 target="_blank" rel="noopener noreferrer" title="Dołącz">
+                <i class="bi bi-camera-video-fill" aria-hidden="true"></i>
+              </a>
+              <?php endif; ?>
+              <?php if (($is_past || $is_today) && $s['status'] === 'planned'): ?>
+              <button type="button" class="btn btn-sm btn-success py-0 px-2"
+                      onclick="wizOpenExt(<?= (int)$s['id'] ?>)" title="Uzupełnij">
+                <i class="bi bi-journal-text" aria-hidden="true"></i>
+              </button>
+              <?php endif; ?>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                        data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej akcji">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
+                    <i class="bi bi-pencil me-2"></i>Edytuj lekcję
+                  </a></li>
+                  <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>">
+                    <i class="bi bi-arrow-right-circle me-2"></i>Szczegóły lekcji
+                  </a></li>
+                  <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="#"
+                         onclick="dydOpenReschedule(<?= (int)$s['id'] ?>,<?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')),ENT_QUOTES) ?>,<?= htmlspecialchars(json_encode((string)$s['lesson_date']),ENT_QUOTES) ?>,<?= htmlspecialchars(json_encode((string)($s['time_from']??'')),ENT_QUOTES) ?>,<?= htmlspecialchars(json_encode((string)($s['time_to']??'')),ENT_QUOTES) ?>);return false">
+                    <i class="bi bi-calendar2-range me-2"></i>Zmień termin
+                  </a></li>
+                  <li><a class="dropdown-item text-danger" href="#"
+                         onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>,<?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')),ENT_QUOTES) ?>);return false">
+                    <i class="bi bi-x-circle me-2"></i>Odwołaj lekcję
+                  </a></li>
+                  <?php endif; ?>
+                  <?php if ($s['status'] === 'cancelled'): ?>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <form method="post" onsubmit="return confirm('Przywrócić lekcję?')">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="uncancel_session">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <button type="submit" class="dropdown-item text-warning">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Przywróć lekcję
+                      </button>
+                    </form>
+                  </li>
+                  <?php endif; ?>
+                </ul>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div><!-- /dyd-table-lekcje -->
 </div>
+
+<script>
+(function() {
+  var VIEW_KEY = 'dydLekcjeView_<?= (int)$uid ?>';
+  var listEl   = document.getElementById('dyd-list-lekcje');
+  var tableEl  = document.getElementById('dyd-table-lekcje');
+  var btnList  = document.getElementById('dydViewBtnList');
+  var btnTable = document.getElementById('dydViewBtnTable');
+
+  function setView(v) {
+    try { localStorage.setItem(VIEW_KEY, v); } catch(e) {}
+    var isTable = v === 'table';
+    if (listEl)  listEl.style.display  = isTable ? 'none' : '';
+    if (tableEl) tableEl.style.display = isTable ? ''     : 'none';
+    if (btnList) {
+      btnList.classList.toggle('active', !isTable);
+      btnList.setAttribute('aria-pressed', String(!isTable));
+    }
+    if (btnTable) {
+      btnTable.classList.toggle('active', isTable);
+      btnTable.setAttribute('aria-pressed', String(isTable));
+    }
+    // Przełącz cel filtra szukaj
+    var fb = document.querySelector('[data-dyd-filterbox]');
+    if (fb) fb.dataset.dydFilterbox = isTable ? 'dyd-table-lekcje' : 'dyd-list-lekcje';
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var pref;
+    try { pref = localStorage.getItem(VIEW_KEY); } catch(e) {}
+    setView(pref === 'table' ? 'table' : 'list');
+    if (btnList)  btnList.addEventListener('click',  function() { setView('list'); });
+    if (btnTable) btnTable.addEventListener('click', function() { setView('table'); });
+  });
+})();
+</script>
 
 <?php
 // Dane do kreatora (wizOpenExt) — zaplanowane lekcje z dziś lub przeszłości
