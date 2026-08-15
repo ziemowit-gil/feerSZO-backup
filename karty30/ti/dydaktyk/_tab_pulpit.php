@@ -105,6 +105,33 @@ $_is_done = static fn(string $s): bool =>
   .dyd-lt-topic { font-size: .77rem; color: var(--bs-secondary-color); margin-top: .1rem; }
   .dyd-lt-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
 
+  /* Attendance table */
+  .dyd-att-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .84rem; }
+  .dyd-att-table th {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--bs-secondary-color);
+    padding: .35rem .65rem; border-bottom: 2px solid var(--bs-border-color);
+    white-space: nowrap;
+  }
+  .dyd-att-table td { padding: .45rem .65rem; border-bottom: 1px solid var(--bs-border-color-translucent); vertical-align: middle; }
+  .dyd-att-table tr:last-child td { border-bottom: none; }
+  .dyd-att-table .pct-bar { display: inline-block; width: 48px; height: 5px; border-radius: 3px; background: rgba(100,116,139,.18); vertical-align: middle; margin-right: 4px; }
+  .dyd-att-table .pct-fill { display: block; height: 5px; border-radius: 3px; background: #16a34a; }
+  .dyd-att-table .pct-warn .pct-fill { background: #d97706; }
+  .dyd-att-table .pct-bad  .pct-fill { background: #dc2626; }
+
+  /* Notice cards */
+  .dyd-notice-item {
+    border-radius: 10px; border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg); padding: .7rem .9rem;
+    margin-bottom: .4rem; display: flex; gap: .65rem; align-items: flex-start;
+  }
+  .dyd-notice-item:last-child { margin-bottom: 0; }
+  .dyd-notice-item.unread { border-left: 3px solid #2563eb; }
+  .dyd-notice-item.pinned { border-left: 3px solid #d97706; }
+  .dyd-notice-title { font-weight: 600; font-size: .88rem; }
+  .dyd-notice-meta { font-size: .72rem; color: var(--bs-secondary-color); margin-top: .15rem; }
+
   /* Status chip */
   .dyd-chip {
     display: inline-flex; align-items: center; gap: .25rem;
@@ -382,6 +409,128 @@ $_today_fmt = date('j') . '.' . date('m') . '.' . date('Y');
   <i class="bi bi-calendar-check d-block mb-2 fs-3" aria-hidden="true"></i>
   Brak zaplanowanych lekcji w najbliższych 7 dniach.
 </div>
+<?php endif; ?>
+
+
+<?php /* ── Frekwencja — bieżący miesiąc ── */ ?>
+<?php
+$_att_ym = strftime('%Y-%m');
+$_att_rows = [];
+if ($course_ids) {
+    $_ph2 = implode(',', array_fill(0, count($course_ids), '?'));
+    $_att_rows = db_all(
+        "SELECT c.id AS course_id, c.name AS course_name,
+                COUNT(DISTINCT s.id) AS lessons,
+                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=1 THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=0 THEN 1 ELSE 0 END) AS absent
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN k30_ti_attendance a ON a.session_id=s.id
+         WHERE s.course_id IN ($_ph2)
+           AND s.status IN ('held','individual_change')
+           AND strftime('%Y-%m', s.lesson_date) = strftime('%Y-%m','now','localtime')
+         GROUP BY c.id
+         ORDER BY c.name COLLATE NOCASE",
+        $course_ids
+    );
+}
+?>
+<?php if ($_att_rows): ?>
+<section class="dyd-p-sec" aria-label="Frekwencja bieżącego miesiąca">
+  <div class="dyd-p-sec-head">
+    <i class="bi bi-bar-chart-line text-success" aria-hidden="true"></i>
+    <span>Frekwencja</span>
+    <span class="dyd-p-sec-meta">bieżący miesiąc</span>
+  </div>
+  <div class="card border-0 shadow-sm" style="border-radius:12px;overflow:hidden">
+    <table class="dyd-att-table" role="table" aria-label="Zestawienie frekwencji per kurs">
+      <thead>
+        <tr>
+          <th>Kurs</th>
+          <th class="text-end">Lekcji</th>
+          <th class="text-end">Obecni</th>
+          <th class="text-end">Nieobecni</th>
+          <th class="text-end">Frekwencja</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($_att_rows as $_ar):
+          $_total = (int)$_ar['present'] + (int)$_ar['absent'];
+          $_pct   = $_total > 0 ? round((int)$_ar['present'] / $_total * 100) : null;
+          $_pct_cls = $_pct === null ? '' : ($_pct >= 80 ? '' : ($_pct >= 60 ? 'pct-warn' : 'pct-bad'));
+        ?>
+        <tr>
+          <td>
+            <a href="index.php?course=<?= (int)$_ar['course_id'] ?>&tab=nieobecnosci"
+               class="text-decoration-none fw-semibold" style="font-size:.88rem">
+              <?= h($_ar['course_name']) ?>
+            </a>
+          </td>
+          <td class="text-end text-body-secondary"><?= (int)$_ar['lessons'] ?></td>
+          <td class="text-end text-success fw-semibold"><?= (int)$_ar['present'] ?></td>
+          <td class="text-end <?= (int)$_ar['absent'] > 0 ? 'text-danger' : 'text-body-secondary' ?>"><?= (int)$_ar['absent'] ?></td>
+          <td class="text-end">
+            <?php if ($_pct !== null): ?>
+            <span class="<?= $_pct_cls ?>" aria-label="<?= $_pct ?>%">
+              <span class="dyd-att-table pct-bar <?= $_pct_cls ?>"><span class="pct-fill" style="width:<?= $_pct ?>%"></span></span>
+              <?= $_pct ?>%
+            </span>
+            <?php else: ?>
+            <span class="text-body-secondary">—</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+<?php endif; ?>
+
+<?php /* ── Ostatnie komunikaty ── */ ?>
+<?php $_notices_preview = array_slice($dyd_notices, 0, 3); ?>
+<?php if ($_notices_preview): ?>
+<section class="dyd-p-sec" aria-label="Ostatnie komunikaty">
+  <div class="dyd-p-sec-head">
+    <i class="bi bi-megaphone text-warning" aria-hidden="true"></i>
+    <span>Komunikaty</span>
+    <span class="dyd-p-sec-meta">ostatnie 3</span>
+    <a href="index.php?tab=komunikaty" class="btn btn-link btn-sm text-decoration-none p-0 ms-auto" style="font-size:.75rem">
+      Wszystkie <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+    </a>
+  </div>
+  <div role="list" aria-label="Ostatnie komunikaty placówki">
+    <?php foreach ($_notices_preview as $_n):
+      $_unread = empty($_n['is_read']);
+      $_pinned = !empty($_n['is_pinned']);
+      $_cls    = $_pinned ? 'pinned' : ($_unread ? 'unread' : '');
+      $_date   = date('j.m.Y', strtotime((string)$_n['created_at']));
+    ?>
+    <div class="dyd-notice-item <?= $_cls ?>" role="listitem">
+      <div class="flex-shrink-0 mt-1">
+        <?php if ($_pinned): ?>
+        <i class="bi bi-pin-fill text-warning" aria-label="Przypięty" title="Przypięty" style="font-size:.9rem"></i>
+        <?php elseif ($_unread): ?>
+        <i class="bi bi-circle-fill text-primary" style="font-size:.5rem;margin-top:.2rem;display:block" aria-label="Nieprzeczytany"></i>
+        <?php else: ?>
+        <i class="bi bi-check2 text-success" style="font-size:.9rem" aria-label="Przeczytany"></i>
+        <?php endif; ?>
+      </div>
+      <div class="flex-grow-1 min-w-0">
+        <div class="dyd-notice-title text-truncate"><?= h($_n['title']) ?></div>
+        <div class="dyd-notice-meta">
+          <?= h($_date) ?><?= $_n['author_name'] ? ' · ' . h($_n['author_name']) : '' ?>
+          <?php if ($_unread): ?><span class="badge bg-primary ms-1" style="font-size:.62rem">nowe</span><?php endif; ?>
+        </div>
+      </div>
+      <a href="index.php?tab=komunikaty" class="btn btn-link btn-sm p-0 flex-shrink-0 text-body-secondary"
+         aria-label="Otwórz komunikat: <?= h($_n['title']) ?>">
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </a>
+    </div>
+    <?php endforeach; ?>
+  </div>
+</section>
 <?php endif; ?>
 
 </section><?php /* /dyd-pulpit-wrap */ ?>
