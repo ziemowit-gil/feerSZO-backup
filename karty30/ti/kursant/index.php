@@ -708,7 +708,7 @@ try {
          LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
          WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
            AND s.lesson_date=?
-           AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
+           AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','remote_material'))
            AND (a.cancelled IS NULL OR a.cancelled=0)
          ORDER BY s.time_from",
         [$student['client_id'], $student['client_id'], $today_str]
