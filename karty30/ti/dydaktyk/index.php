@@ -121,9 +121,8 @@ $tab = $_GET['tab'] ?? 'pulpit';
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
-// ── Picker grupy: gdy prowadzący ma >1 kurs i nie wybrał (brak URL + brak sesji) ─
-$_force_pick = isset($_GET['pick']);  // ?pick=1 z przycisku "Zmień grupę"
-if (($cur_course === 0 || $_force_pick) && count($courses) > 1) {
+// Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
+if (false && count($courses) > 1) {
     // Najbliższa zaplanowana lekcja per kurs
     $next_lessons = [];
     if ($course_ids) {
@@ -1817,8 +1816,6 @@ if (count($courses) > 1) {
     </li>
     <?php endforeach; ?>
     <?php endif; ?>
-    <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="index.php?pick=1"><i class="bi bi-grid me-2"></i>Zmień grupę…</a></li>
   </ul>
 </div>
 <?php $_dyd_course_switcher = ob_get_clean();
@@ -2248,95 +2245,6 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
       Nie prowadzisz obecnie żadnego kursu. Skontaktuj się z administratorem, aby przypisać Cię jako prowadzącego.
     </div></div>
   <?php else: ?>
-
-  <!-- Wybór kursu — popup picker -->
-  <?php if (count($courses) > 1 && $tab_is_course): ?>
-  <?php
-  $_cp_data = array_map(fn($c) => [
-      'id'       => (int)$c['id'],
-      'name'     => $c['name'],
-      'location' => $c['location'] ?? '',
-      'enrolled' => (int)($c['enrolled_count'] ?? 0),
-      'active'   => (int)$c['id'] === $cur_course,
-      'url'      => 'index.php?course=' . (int)$c['id'] . '&tab=' . urlencode($tab),
-  ], $courses);
-  ?>
-  <div class="mb-3" style="position:relative">
-    <button type="button" id="dyd-cp-trigger"
-            class="btn btn-sm d-inline-flex align-items-center gap-2"
-            style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.35rem .85rem;font-weight:600;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.07)"
-            aria-haspopup="listbox" aria-expanded="false">
-      <i class="bi bi-collection" style="color:#6d28d9" aria-hidden="true"></i>
-      <span id="dyd-cp-label"><?= h($course['name'] ?? 'Wybierz grupę') ?></span>
-      <?php if (!empty($course['is_co_instructor'])): ?>
-      <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.62rem;border:1px solid #fde68a">co</span>
-      <?php endif; ?>
-      <span class="badge rounded-pill" style="background:#f0fdf4;color:#16a34a;font-size:.65rem;border:1px solid #bbf7d0"><?= (int)($course['enrolled_count'] ?? 0) ?> os.</span>
-      <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.5" aria-hidden="true"></i>
-    </button>
-
-    <!-- Panel wyskakujący -->
-    <div id="dyd-cp-panel" hidden
-         role="listbox" aria-label="Wybierz grupę"
-         style="position:absolute;top:calc(100% + 6px);left:0;z-index:500;
-                background:#fff;border:1px solid #e2e8f0;border-radius:14px;
-                box-shadow:0 12px 40px rgba(2,6,23,.16);padding:.35rem;
-                min-width:280px;max-width:420px;width:max-content">
-      <?php
-      $_cp_split = dyd_is_staff() && !empty($my_course_ids_set);
-      $cp_render_item = function($c, $tab, $cur_course, $my_course_ids_set, $is_other = false) { $_active = (int)$c['id'] === $cur_course; ?>
-      <a href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>"
-         role="option" aria-selected="<?= $_active ? 'true' : 'false' ?>"
-         class="dyd-cp-item d-flex align-items-center gap-3 text-decoration-none rounded-3 px-3 py-2<?= $_active ? ' dyd-cp-active' : '' ?>">
-        <span class="dyd-cp-ic d-flex align-items-center justify-content-center flex-shrink-0"
-              style="width:36px;height:36px;border-radius:9px;
-                     background:<?= $_active ? '#ede9fe' : ($is_other ? '#f1f5f9' : '#f8fafc') ?>;
-                     color:<?= $_active ? '#7c3aed' : ($is_other ? '#64748b' : '#64748b') ?>">
-          <i class="bi bi-people-fill" aria-hidden="true"></i>
-        </span>
-        <span class="flex-grow-1 min-width-0">
-          <span class="d-block fw-semibold" style="font-size:.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"><?= h($c['name']) ?></span>
-          <?php if (!empty($c['is_co_instructor'])): ?>
-          <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.6rem;border:1px solid #fde68a;vertical-align:middle">coProwadzący</span>
-          <?php endif; ?>
-          <?php if ($is_other && !empty($c['instructor_name'])): ?>
-          <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($c['instructor_name']) ?></span>
-          <?php elseif (!empty($c['location'])): ?>
-          <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($c['location']) ?></span>
-          <?php endif; ?>
-        </span>
-        <span class="flex-shrink-0" style="font-size:.72rem;font-weight:600;color:<?= $_active ? '#7c3aed' : '#94a3b8' ?>">
-          <?= (int)($c['enrolled_count'] ?? 0) ?> os.
-        </span>
-        <?php if ($_active): ?>
-        <i class="bi bi-check2 flex-shrink-0" style="color:#7c3aed;font-size:1rem" aria-hidden="true"></i>
-        <?php endif; ?>
-      </a>
-      <?php }; ?>
-      <?php if ($_cp_split): ?>
-      <div style="padding:.25rem .75rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9">Twoje grupy</div>
-      <?php foreach ($courses as $c): if (!isset($my_course_ids_set[(int)$c['id']])) continue; $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, false); endforeach; ?>
-      <div style="border-top:1px solid #e2e8f0;margin:.35rem 0"></div>
-      <div style="padding:.25rem .75rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Grupy innych</div>
-      <?php foreach ($courses as $c): if (isset($my_course_ids_set[(int)$c['id']])) continue; $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, true); endforeach; ?>
-      <?php else: ?>
-      <?php foreach ($courses as $c): $cp_render_item($c, $tab, $cur_course, $my_course_ids_set, false); endforeach; ?>
-      <?php endif; ?>
-    </div>
-  </div>
-  <script>
-  (function(){
-    var btn   = document.getElementById('dyd-cp-trigger');
-    var panel = document.getElementById('dyd-cp-panel');
-    if (!btn || !panel) return;
-    function open()  { panel.hidden=false; btn.setAttribute('aria-expanded','true');  btn.querySelector('.bi-chevron-down').style.transform='rotate(180deg)'; }
-    function close() { panel.hidden=true;  btn.setAttribute('aria-expanded','false'); btn.querySelector('.bi-chevron-down').style.transform=''; }
-    btn.addEventListener('click', function(e){ e.stopPropagation(); panel.hidden ? open() : close(); });
-    document.addEventListener('click', function(e){ if (!btn.contains(e.target) && !panel.contains(e.target)) close(); });
-    document.addEventListener('keydown', function(e){ if (e.key==='Escape') close(); });
-  })();
-  </script>
-  <?php endif; ?>
 
   <?php if ($course): ?>
   <div class="card border-0 shadow-sm mb-3"><div class="card-body py-3 d-flex flex-wrap align-items-center gap-2">
