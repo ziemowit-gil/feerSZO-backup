@@ -287,12 +287,26 @@ if ($_sms_enabled && $cur_course) {
           <div class="text-truncate mb-1" style="font-size:.9rem"><?= h($s['topic']) ?></div>
           <?php endif; ?>
           <?php if (!empty($s['has_homework']) || !empty($s['self_prep_remote'])): ?>
-          <div class="d-flex flex-wrap gap-1 mb-1">
+          <div class="d-flex flex-wrap gap-2 mt-1 mb-1">
             <?php if (!empty($s['has_homework'])): ?>
-            <span class="badge text-bg-warning" style="font-size:.72rem"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadanie domowe</span>
+            <div class="d-flex align-items-center gap-2 rounded px-3 py-2"
+                 style="background:#FEF9C3;border:1px solid #FDE04788;color:#854D0E">
+              <i class="bi bi-pencil-fill flex-shrink-0" style="font-size:1.3rem" aria-hidden="true"></i>
+              <div class="lh-sm">
+                <div class="fw-semibold" style="font-size:.85rem">Zadano zadanie domowe</div>
+                <div style="font-size:.72rem;opacity:.75">przypisane do tej lekcji</div>
+              </div>
+            </div>
             <?php endif; ?>
             <?php if (!empty($s['self_prep_remote']) && $s['status'] !== 'remote_material'): ?>
-            <span class="badge" style="background:#CCFBF1;color:#0694A2;border:1px solid #0694A244;font-size:.72rem"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Praca własna prowadzącego</span>
+            <div class="d-flex align-items-center gap-2 rounded px-3 py-2"
+                 style="background:#CCFBF1;border:1px solid #5EEAD488;color:#0D6E6A">
+              <i class="bi bi-person-workspace flex-shrink-0" style="font-size:1.3rem" aria-hidden="true"></i>
+              <div class="lh-sm">
+                <div class="fw-semibold" style="font-size:.85rem">Praca własna prowadzącego</div>
+                <div style="font-size:.72rem;opacity:.75">przygotowanie materiałów</div>
+              </div>
+            </div>
             <?php endif; ?>
           </div>
           <?php endif; ?>
