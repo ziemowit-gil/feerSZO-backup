@@ -700,6 +700,20 @@ try {
 } catch (\Throwable $e) { $active_enroll_count = 0; }
 try { $my_licenses = k30_ti_client_licenses($student['client_id']); } catch (\Throwable $e) { $my_licenses = []; }
 try { $active_lesson = k30_ti_active_lesson_link($student['client_id']); } catch (\Throwable $e) { $active_lesson = null; }
+try {
+    $today_lessons = db_all(
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+         WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+           AND s.lesson_date=?
+           AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
+           AND (a.cancelled IS NULL OR a.cancelled=0)
+         ORDER BY s.time_from",
+        [$student['client_id'], $student['client_id'], $today_str]
+    );
+} catch (\Throwable $e) { $today_lessons = []; }
 
 // Regulaminy TI — oczekujące akceptacje + historia
 $terms_pending  = ti_terms_pending((int)$student['client_id']);
@@ -1054,6 +1068,43 @@ if ($ti_vac): ?>
   <a href="?tab=komunikaty" class="btn btn-primary btn-sm flex-shrink-0">
     <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Przejdź
   </a>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($today_lessons)): ?>
+<!-- ── Dzisiejsze zajęcia — baner całodniowy ─────────────────────────────────── -->
+<div class="card border-primary shadow-sm mb-4" role="region" aria-label="Zajęcia dzisiaj">
+  <div class="card-body d-flex align-items-start gap-3 py-3">
+    <i class="bi bi-calendar-check-fill fs-2 flex-shrink-0 text-primary mt-1" aria-hidden="true"></i>
+    <div class="flex-grow-1 min-width-0">
+      <div class="fw-bold fs-5 text-primary mb-2">Masz dziś zajęcia</div>
+      <?php foreach ($today_lessons as $_tl):
+        $_tl_meet = trim((string)($_tl['meeting_url'] ?? '')) !== '' ? $_tl['meeting_url'] : trim((string)($_tl['course_meeting_url'] ?? ''));
+        $_tl_mat  = trim((string)($_tl['material_url'] ?? ''));
+      ?>
+      <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+        <span class="fw-semibold"><?= h($_tl['course_name']) ?></span>
+        <?php if (!empty($_tl['time_from'])): ?>
+          <span class="text-body-secondary">
+            <i class="bi bi-clock me-1" aria-hidden="true"></i><?= h($_tl['time_from']) ?><?= !empty($_tl['time_to']) ? '–'.h($_tl['time_to']) : '' ?>
+          </span>
+        <?php endif; ?>
+        <?php if (!empty($_tl['topic'])): ?>
+          <span class="text-body-secondary">· <?= h($_tl['topic']) ?></span>
+        <?php endif; ?>
+        <?php if ($_tl_meet !== ''): ?>
+          <a href="<?= h($_tl_meet) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-success py-0 px-2">
+            <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz
+          </a>
+        <?php elseif ($_tl['status'] === 'remote_material' && $_tl_mat !== ''): ?>
+          <a href="<?= h($_tl_mat) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info py-0 px-2">
+            <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Materiał
+          </a>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
 </div>
 <?php endif; ?>
 
