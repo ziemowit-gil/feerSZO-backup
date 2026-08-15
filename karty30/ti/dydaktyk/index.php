@@ -1886,10 +1886,26 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-sb-dropdown-items { padding-left:1.5rem; }
   .dyd-sb-dropdown-items .dyd-sb-link { padding:.4rem 1rem .4rem .5rem; font-size:.82rem; font-weight:600; }
 
-  /* Mobilny toggle sidebar (offcanvas) */
+  /* Podzakładki kursu */
+  .dyd-sb-sub { padding:.38rem 1rem .38rem 1.75rem !important; font-size:.79rem !important; font-weight:500 !important; }
+  .dyd-sb-sub .bi { font-size:.78rem; }
+  /* Guzik zwijania sidebara */
+  .dyd-sb-collapse-btn {
+    display:flex; align-items:center; justify-content:center; align-self:flex-end;
+    width:20px; height:20px; margin:.35rem .45rem .15rem auto;
+    background:transparent; border:1px solid rgba(255,255,255,.2); border-radius:3px;
+    color:rgba(255,255,255,.45); cursor:pointer; flex-shrink:0;
+    transition:background .12s, color .12s;
+  }
+  .dyd-sb-collapse-btn:hover { background:rgba(255,255,255,.12); color:#fff; }
+  /* Mobilny / desktop toggle sidebar */
   @media (min-width:768px) {
-    .dyd-content { margin-left:220px; }
+    .dyd-content { margin-left:220px; transition:margin-left .22s ease; }
+    .dyd-sidebar { transition:width .22s ease; }
     .dyd-sb-mobile-btn { display:none !important; }
+    .dyd-sb-hidden .dyd-sidebar { width:0; overflow:hidden; border:none; padding:0; }
+    .dyd-sb-hidden .dyd-content { margin-left:0; }
+    .dyd-sb-hidden .dyd-sb-mobile-btn { display:flex !important; }
   }
   @media (max-width:767px) {
     .dyd-sidebar { transform:translateX(-220px); transition:transform .22s ease; box-shadow:none; }
@@ -2069,9 +2085,43 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <?php
 $tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true);
 $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy','billing','kursy'], true);
+
+// Liczniki podzakładek kursu
+$_sb_absent = $cur_course && k30_ti_course_tracks_attendance($cur_course) ? (int)(db_one(
+    "SELECT COUNT(*) AS n FROM k30_ti_attendance a
+     JOIN k30_ti_sessions s ON s.id=a.session_id
+     WHERE s.course_id=? AND s.status IN ('held','individual_change')
+       AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancelled,0)=0
+       AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
+$_sb_grades  = $cur_course ? (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0) : 0;
+$_sb_program = $cur_course ? count(k30_ti_curriculum_list($cur_course)) : 0;
+$_sb_testy   = $cur_course ? count(k30_ti_tests_list($cur_course)) : 0;
+$_sb_roz_debt = 0;
+if ($cur_course && dyd_is_staff()) {
+    $_sb_roz_debt = (int)(db_one(
+        "SELECT COUNT(DISTINCT e.client_id) AS n FROM k30_ti_enrollments e
+         JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+         WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
+}
+// [icon, label, count, badge-variant]
+$_sb_ctabs = $cur_course ? [
+    'lekcje'       => ['calendar-week',   'Lekcje',        count($sessions ?? []), ''],
+    'zadania'      => ['journal-check',   'Zadania',       count($homeworks ?? []),''],
+    'materialy'    => ['collection-play', 'Materiały',     count($materials ?? []),''],
+    'nieobecnosci' => ['person-x',        'Nieobecności',  $_sb_absent,   $_sb_absent  ? 'danger' : ''],
+    'oceny'        => ['journal-bookmark','Oceny',         $_sb_grades,   ''],
+    'program'      => ['list-check',      'Program',       $_sb_program,  ''],
+    'testy'        => ['card-checklist',  'Testy',         $_sb_testy,    ''],
+] : [];
+if ($cur_course && dyd_is_staff()) {
+    $_sb_ctabs['rozliczenia'] = ['receipt','Rozliczenia', $_sb_roz_debt, $_sb_roz_debt ? 'danger' : ''];
+}
 ?>
 <div class="dyd-sb-overlay" id="dydSbOverlay"></div>
 <nav class="dyd-sidebar" id="dydSidebar" aria-label="Menu dydaktyka">
+  <button class="dyd-sb-collapse-btn" id="dydSbCollapse" title="Zwiń panel" type="button" aria-label="Zwiń panel boczny">
+    <i class="bi bi-chevron-left" style="font-size:.7rem" aria-hidden="true"></i>
+  </button>
 
   <a class="dyd-sb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
      <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
@@ -2079,16 +2129,52 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
   </a>
 
   <div class="dyd-sb-sep"></div>
-  <div class="dyd-sb-section">Kurs</div>
 
-  <a class="dyd-sb-link <?= $tab_is_course?'active':'' ?>"
-     href="index.php?course=<?= $cur_course ?>&tab=lekcje"
-     <?= $tab_is_course?'aria-current="page"':'' ?>>
-    <i class="bi bi-pc-display" aria-hidden="true"></i>Zajęcia
-    <?php if ($courses): ?>
-    <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($courses) ?> gr.</span>
+  <?php if ($cur_course && $course): ?>
+  <?php /* Picker grupy w sidebarze */ ?>
+  <div class="dyd-sb-section" style="padding-bottom:.1rem">Kurs</div>
+  <?php if (count($courses) > 1): ?>
+  <div class="px-2 mb-1">
+    <div class="dropdown">
+      <button class="btn btn-sm w-100 text-start d-flex align-items-center gap-1 py-1 px-2"
+              style="background:rgba(255,255,255,.1);color:#fff;font-size:.78rem;border:1px solid rgba(255,255,255,.18);border-radius:5px;min-width:0"
+              type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-people-fill flex-shrink-0" style="font-size:.8rem" aria-hidden="true"></i>
+        <span class="text-truncate flex-grow-1"><?= h($course['name']) ?></span>
+        <i class="bi bi-chevron-expand flex-shrink-0" style="font-size:.72rem;opacity:.6" aria-hidden="true"></i>
+      </button>
+      <ul class="dropdown-menu" style="min-width:200px;max-height:60vh;overflow-y:auto">
+        <?php foreach ($courses as $_c):
+          $isActive = ((int)$_c['id'] === $cur_course);
+          $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
+        ?>
+        <li>
+          <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive?'active':'' ?> <?= $inactive?'text-body-secondary':'' ?>"
+             href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab_is_course ? $tab : 'lekcje') ?>">
+            <i class="bi bi-<?= $isActive?'check2':($inactive?'archive':'circle') ?> flex-shrink-0" aria-hidden="true"></i>
+            <span class="text-truncate"><?= h($_c['name']) ?></span>
+            <?php if (!$isActive): ?><span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count']??0) ?> os.</span><?php endif; ?>
+          </a>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  </div>
+  <?php else: ?>
+  <div class="px-3 mb-1" style="font-size:.74rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($course['name']) ?></div>
+  <?php endif; ?>
+
+  <?php foreach ($_sb_ctabs as $_ct_key => [$_ct_ico, $_ct_lbl, $_ct_n, $_ct_v]): ?>
+  <a class="dyd-sb-link dyd-sb-sub <?= $tab === $_ct_key ? 'active' : '' ?>"
+     href="index.php?course=<?= $cur_course ?>&tab=<?= $_ct_key ?>"
+     <?= $tab === $_ct_key ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-<?= $_ct_ico ?>" aria-hidden="true"></i><?= $_ct_lbl ?>
+    <?php if ($_ct_n > 0): ?>
+    <span class="badge bg-<?= $_ct_v ?: 'secondary' ?> ms-auto" style="font-size:.6rem"><?= (int)$_ct_n ?></span>
     <?php endif; ?>
   </a>
+  <?php endforeach; ?>
+
   <a class="dyd-sb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
@@ -2097,6 +2183,12 @@ $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','gru
     <span class="badge bg-success ms-auto" style="font-size:.6rem"><?= $active_cnt ?></span>
     <?php endif; ?>
   </a>
+  <?php else: ?>
+  <div class="dyd-sb-section">Kurs</div>
+  <a class="dyd-sb-link" href="index.php?tab=lekcje">
+    <i class="bi bi-pc-display" aria-hidden="true"></i>Zajęcia
+  </a>
+  <?php endif; ?>
 
   <div class="dyd-sb-sep"></div>
   <div class="dyd-sb-section">Planowanie</div>
@@ -2633,26 +2725,51 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
 </script>
 <script>
 (function() {
-  var sb  = document.getElementById('dydSidebar');
-  var ov  = document.getElementById('dydSbOverlay');
-  var btn = document.getElementById('dydSbToggle');
+  var sb     = document.getElementById('dydSidebar');
+  var ov     = document.getElementById('dydSbOverlay');
+  var btn    = document.getElementById('dydSbToggle');
+  var colBtn = document.getElementById('dydSbCollapse');
   if (!sb || !ov || !btn) return;
+
+  function isDesktop() { return window.innerWidth >= 768; }
+
+  // Przywróć stan collapsed na desktopie
+  if (isDesktop() && localStorage.getItem('dydSbCollapsed') === '1') {
+    document.body.classList.add('dyd-sb-hidden');
+  }
+
   function openSb() {
-    sb.classList.add('dyd-sidebar-open');
-    ov.classList.add('show');
+    if (isDesktop()) {
+      document.body.classList.remove('dyd-sb-hidden');
+      localStorage.removeItem('dydSbCollapsed');
+    } else {
+      sb.classList.add('dyd-sidebar-open');
+      ov.classList.add('show');
+    }
     btn.setAttribute('aria-expanded', 'true');
   }
   function closeSb() {
-    sb.classList.remove('dyd-sidebar-open');
-    ov.classList.remove('show');
+    if (isDesktop()) {
+      document.body.classList.add('dyd-sb-hidden');
+      localStorage.setItem('dydSbCollapsed', '1');
+    } else {
+      sb.classList.remove('dyd-sidebar-open');
+      ov.classList.remove('show');
+    }
     btn.setAttribute('aria-expanded', 'false');
   }
+
   btn.addEventListener('click', function() {
-    sb.classList.contains('dyd-sidebar-open') ? closeSb() : openSb();
+    var isOpen = isDesktop()
+      ? !document.body.classList.contains('dyd-sb-hidden')
+      : sb.classList.contains('dyd-sidebar-open');
+    isOpen ? closeSb() : openSb();
   });
+
+  if (colBtn) colBtn.addEventListener('click', closeSb);
   ov.addEventListener('click', closeSb);
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && sb.classList.contains('dyd-sidebar-open')) closeSb();
+    if (e.key === 'Escape' && !isDesktop() && sb.classList.contains('dyd-sidebar-open')) closeSb();
   });
 })();
 </script>
