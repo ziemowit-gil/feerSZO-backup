@@ -10,6 +10,8 @@
 #   config.local.php   — sekrety konfiguracyjne
 #   uploads/           — pliki użytkowników
 #   EJBCA DB           — mysqldump z kontenera Docker (opcjonalnie)
+#   Docker MySQL/MariaDB — mysqldump z dowolnych kontenerów (DOCKER_MYSQL)
+#   Docker named volumes — tar przez obraz alpine (DOCKER_VOLUMES)
 #   ścieżki dodatkowe  — patrz EXTRA_PATHS
 #
 # Wynik: feerszo_YYYYMMDD_HHMMSS.tar.gz  (opcjonalnie .gpg)
@@ -38,11 +40,30 @@ REMOTE_SSH=""            # np. backup@nas.example.com:/mnt/backups/feerszo
 REMOTE_S3=""             # np. s3://moj-bucket/feerszo
 KEEP_REMOTE=30           # ile paczek zachować na S3 (rsync zarządza sam)
 
-# EJBCA Docker (opcjonalnie)
-EJBCA_CONTAINER=""       # np. "ejbca"; puste = pomijaj
+# EJBCA Docker (opcjonalnie — jeśli nie używasz DOCKER_MYSQL poniżej)
+EJBCA_CONTAINER=""       # np. "feer-ejbca-db"; puste = pomijaj
 EJBCA_DB="ejbca"
 EJBCA_USER="root"
 EJBCA_PASS=""            # puste = bez hasła
+
+# Docker — MySQL/MariaDB: "container:db:user:password"  (hasło puste = bez -p)
+# Kontenery nieaktywne są automatycznie pomijane bez błędu.
+DOCKER_MYSQL=(
+  # "feer-ejbca-db:ejbca:root:"       # EJBCA MariaDB (alternatywa do EJBCA_CONTAINER)
+  # "feer-mysql:feerszo:root:"         # Główna MySQL
+)
+
+# Docker — named volumes do zarchiwizowania (tar przez obraz alpine)
+# Wolumin musi istnieć; kontener może być zatrzymany.
+DOCKER_VOLUMES=(
+  # "ejbca_data"        # EJBCA certyfikaty (/mnt/persistent)
+  # "ldap_data"         # OpenLDAP dane
+  # "ldap_config"       # OpenLDAP konfiguracja
+  # "owncloud_files"    # ownCloud pliki użytkowników
+  # "letsencrypt_data"  # Certyfikaty Let's Encrypt
+  # "rabbitmq_data"     # RabbitMQ kolejki
+  # "rc_db"             # Roundcube SQLite
+)
 
 # Szyfrowanie GPG (opcjonalnie)
 GPG_RECIPIENT=""         # np. backup@feer.org.pl; puste = bez szyfrowania
@@ -268,6 +289,87 @@ if [[ -n "$EJBCA_CONTAINER" ]]; then
       inc_err
     fi
   fi
+fi
+
+# ─── 8. Docker MySQL + named volumes ─────────────────────────────────────────
+_has_docker_work=false
+(( ${#DOCKER_MYSQL[@]} > 0 )) && _has_docker_work=true
+(( ${#DOCKER_VOLUMES[@]} > 0 )) && _has_docker_work=true
+
+if $_has_docker_work; then
+  log "8. Docker (MySQL/MariaDB + wolumeny)…"
+  mkdir -p "$STAGE/docker"
+
+  _docker_ok() {
+    command -v docker &>/dev/null || { warn "  Brak polecenia docker."; return 1; }
+    docker info &>/dev/null       || { warn "  Demon Docker nie odpowiada."; return 1; }
+    return 0
+  }
+
+  # ── 8a. MySQL/MariaDB dumps ────────────────────────────────────────────────
+  for _spec in "${DOCKER_MYSQL[@]}"; do
+    IFS=: read -r _cname _db _user _pass <<< "$_spec"
+    [[ -z "$_cname" || -z "$_db" ]] && continue
+
+    if $DRY; then
+      warn "  [dry] docker exec $_cname mysqldump $_db"
+      continue
+    fi
+
+    if ! _docker_ok; then inc_err; continue; fi
+
+    if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$_cname"; then
+      warn "  Kontener '$_cname' nie jest uruchomiony — pomijam."
+      continue
+    fi
+
+    _dump="$STAGE/docker/${_cname}__${_db}.sql.gz"
+    _pass_opt=""
+    [[ -n "$_pass" ]] && _pass_opt="-p${_pass}"
+
+    if docker exec "$_cname" \
+         mysqldump -u"${_user:-root}" ${_pass_opt} \
+         --single-transaction --routines --triggers "$_db" 2>/dev/null \
+         | gzip > "$_dump"; then
+      ok "  $_cname:$_db → $(human_sz "$(file_sz "$_dump")")"
+    else
+      warn "  mysqldump z $_cname:$_db nie powiódł się"
+      rm -f "$_dump"
+      inc_err
+    fi
+  done
+
+  # ── 8b. Named volumes (tar przez alpine) ──────────────────────────────────
+  for _vol in "${DOCKER_VOLUMES[@]}"; do
+    [[ -z "$_vol" ]] && continue
+
+    if $DRY; then
+      warn "  [dry] docker run alpine tar vol:$_vol → vol_${_vol}.tar.gz"
+      continue
+    fi
+
+    if ! _docker_ok; then inc_err; continue; fi
+
+    if ! docker volume inspect "$_vol" &>/dev/null 2>&1; then
+      warn "  Wolumin '$_vol' nie istnieje — pomijam."
+      inc_err; continue
+    fi
+
+    _vol_arc="$STAGE/docker/vol_${_vol}.tar.gz"
+
+    # alpine tar; :ro żeby nie przypadkowo zmodyfikować wolumenu
+    if docker run --rm \
+         -v "${_vol}:/vol:ro" \
+         alpine \
+         tar -czf - -C /vol . 2>/dev/null > "$_vol_arc" \
+       && [[ -s "$_vol_arc" ]]; then
+      ok "  vol:$_vol → $(human_sz "$(file_sz "$_vol_arc")")"
+    else
+      warn "  tar woluminu '$_vol' nie powiódł się lub wolumin jest pusty"
+      rm -f "$_vol_arc"
+      inc_err
+    fi
+  done
 fi
 
 # ─── Metadane archiwum ────────────────────────────────────────────────────────
