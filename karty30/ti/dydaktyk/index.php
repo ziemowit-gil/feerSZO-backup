@@ -396,6 +396,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  WHERE id=?"
             )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $sid]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
+            if ($st === 'remote_material') {
+                // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
+                db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
+            }
             flash_set('success', 'Lekcja zaktualizowana.');
         } else {
             $sid = db_insert('k30_ti_sessions', [
@@ -605,9 +609,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'save_attendance') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if (dyd_owns_session($uid, $sid)) {
-            $_sess_date2 = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_date'] ?? '');
+            $_sess_row2 = db_one("SELECT lesson_date, status FROM k30_ti_sessions WHERE id=?", [$sid]);
+            $_sess_date2 = (string)($_sess_row2['lesson_date'] ?? '');
             if ($_sess_date2 > date('Y-m-d')) {
                 flash_set('danger', 'Nie można oznaczyć jako odbytej lekcji z przyszłości.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            if (($_sess_row2['status'] ?? '') === 'remote_material') {
+                // Praca własna prowadzącego — wszyscy automatycznie obecni
+                db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
+                flash_set('info', 'Praca własna prowadzącego — wszyscy kursanci oznaczeni jako obecni.');
                 header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
             }
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
@@ -1442,7 +1453,16 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
 
     <div class="modal-body pt-3 pb-2">
 
-      <?php if (!$rows): ?>
+      <?php if (($s['status'] ?? '') === 'remote_material'): ?>
+      <div class="alert alert-info d-flex align-items-start gap-2 mb-0" role="alert">
+        <i class="bi bi-person-workspace fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div>
+          <strong>Praca własna prowadzącego</strong><br>
+          Wszyscy zapisani kursanci są automatycznie traktowani jako obecni — nie jest wymagane ręczne sprawdzanie listy.
+        </div>
+      </div>
+
+      <?php elseif (!$rows): ?>
       <div class="text-center py-4 text-body-secondary">
         <i class="bi bi-person-x fs-2 d-block mb-2"></i>
         Brak zapisanych kursantów w tym kursie.
@@ -1559,8 +1579,8 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
     </div>
 
     <div class="modal-footer">
-      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-      <?php if ($rows): ?>
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zamknij</button>
+      <?php if ($rows && ($s['status'] ?? '') !== 'remote_material'): ?>
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-check2-square me-1"></i>Zapisz obecność
       </button>
