@@ -366,6 +366,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dysk'); exit;
     }
 
+    // ── WIADOMOŚCI — nie wymagają konkretnego course_id ─────────────────────────
+    if ($op === 'dyd_msg_send') {
+        $acc_id  = (int)($_POST['account_id'] ?? 0);
+        $subject = trim($_POST['subject'] ?? '');
+        $body    = trim($_POST['body'] ?? '');
+        // Sprawdź, czy kursant jest zapisany do kursu prowadzącego
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if (!$myAccId || $body === '') {
+            flash_set('danger', $body === '' ? 'Treść wiadomości jest wymagana.' : 'Nie możesz pisać do tego kursanta.');
+            header('Location: index.php?tab=wiadomosci'); exit;
+        }
+        $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+        ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
+        flash_set('success', 'Wiadomość wysłana.');
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_reply') {
+        $acc_id = (int)($_POST['student_id'] ?? 0);
+        $body   = trim($_POST['body'] ?? '');
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if ($myAccId && $body !== '') {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_post_to_student($acc_id, '', $body, $uid, $senderName, true);
+            ti_account_log($acc_id, 'msg_sent_by_staff', mb_substr($body, 0, 100), $uid, $senderName);
+            flash_set('success', 'Odpowiedź wysłana.');
+        }
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_block' || $op === 'dyd_msg_unblock') {
+        $acc_id  = (int)($_POST['student_id'] ?? 0);
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if ($myAccId) {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_set_blocked($acc_id, $op === 'dyd_msg_block', $uid, $senderName);
+            flash_set('success', $op === 'dyd_msg_block' ? 'Wiadomości od kursanta zablokowane.' : 'Blokada zdjęta.');
+        }
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_archive') {
+        $msg_id = (int)($_POST['msg_id'] ?? 0);
+        $msgRow = $msg_id ? db_one(
+            "SELECT m.id, m.student_id FROM k30_ti_messages m
+             JOIN k30_ti_student_accounts a ON a.id=m.student_id
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE m.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$msg_id]) : null;
+        $acc_id = (int)($_POST['student_id'] ?? 0);
+        if ($msgRow) {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_archive((int)$msgRow['id'], $uid, $senderName);
+            flash_set('success', 'Wiadomość zarchiwizowana.');
+        }
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_admin_send') {
+        $subject     = trim((string)($_POST['subject'] ?? ''));
+        $body        = trim((string)($_POST['body'] ?? ''));
+        $toAdminRaw  = (string)($_POST['to_admin_id'] ?? '0');
+        $toAdminId   = ($toAdminRaw === '-1') ? -1 : (int)$toAdminRaw;
+        if ($body !== '') {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_admin_msg_send($uid, $senderName, $subject, $body, $toAdminId);
+            flash_set('success', 'Wiadomość wysłana.');
+        }
+        header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
+    }
+
     // Komunikaty placówki — nie wymagają course_id
     if ($op === 'mark_notice') {
         $nid = (int)($_POST['notice_id'] ?? 0);
@@ -1057,89 +1140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Materiał usunięty.');
         }
         header('Location: ' . dyd_back($course_id, 'materialy')); exit;
-    }
-
-    // ── WIADOMOŚCI ────────────────────────────────────────────────────────────
-    if ($op === 'dyd_msg_send') {
-        $acc_id  = (int)($_POST['account_id'] ?? 0);
-        $subject = trim($_POST['subject'] ?? '');
-        $body    = trim($_POST['body'] ?? '');
-        // Sprawdź, czy kursant jest zapisany do kursu prowadzącego
-        $myAccId = $acc_id ? db_one(
-            "SELECT a.id FROM k30_ti_student_accounts a
-             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
-             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
-             LIMIT 1", [$acc_id]) : null;
-        if (!$myAccId || $body === '') {
-            flash_set('danger', $body === '' ? 'Treść wiadomości jest wymagana.' : 'Nie możesz pisać do tego kursanta.');
-            header('Location: index.php?tab=wiadomosci'); exit;
-        }
-        $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-        ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
-        flash_set('success', 'Wiadomość wysłana.');
-        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
-    }
-
-    if ($op === 'dyd_msg_reply') {
-        $acc_id = (int)($_POST['student_id'] ?? 0);
-        $body   = trim($_POST['body'] ?? '');
-        $myAccId = $acc_id ? db_one(
-            "SELECT a.id FROM k30_ti_student_accounts a
-             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
-             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
-             LIMIT 1", [$acc_id]) : null;
-        if ($myAccId && $body !== '') {
-            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-            ti_msg_post_to_student($acc_id, '', $body, $uid, $senderName, true);
-            ti_account_log($acc_id, 'msg_sent_by_staff', mb_substr($body, 0, 100), $uid, $senderName);
-            flash_set('success', 'Odpowiedź wysłana.');
-        }
-        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
-    }
-
-    if ($op === 'dyd_msg_block' || $op === 'dyd_msg_unblock') {
-        $acc_id  = (int)($_POST['student_id'] ?? 0);
-        $myAccId = $acc_id ? db_one(
-            "SELECT a.id FROM k30_ti_student_accounts a
-             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
-             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
-             LIMIT 1", [$acc_id]) : null;
-        if ($myAccId) {
-            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-            ti_msg_set_blocked($acc_id, $op === 'dyd_msg_block', $uid, $senderName);
-            flash_set('success', $op === 'dyd_msg_block' ? 'Wiadomości od kursanta zablokowane.' : 'Blokada zdjęta.');
-        }
-        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
-    }
-
-    if ($op === 'dyd_msg_archive') {
-        $msg_id = (int)($_POST['msg_id'] ?? 0);
-        // Weryfikuj że wiadomość należy do kursanta z kursu tego prowadzącego
-        $msgRow = $msg_id ? db_one(
-            "SELECT m.id, m.student_id FROM k30_ti_messages m
-             JOIN k30_ti_student_accounts a ON a.id=m.student_id
-             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
-             WHERE m.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
-             LIMIT 1", [$msg_id]) : null;
-        $acc_id = (int)($_POST['student_id'] ?? 0);
-        if ($msgRow) {
-            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-            ti_msg_archive((int)$msgRow['id'], $uid, $senderName);
-            flash_set('success', 'Wiadomość zarchiwizowana.');
-        }
-        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
-    }
-    if ($op === 'dyd_msg_admin_send') {
-        $subject     = trim((string)($_POST['subject'] ?? ''));
-        $body        = trim((string)($_POST['body'] ?? ''));
-        $toAdminRaw  = (string)($_POST['to_admin_id'] ?? '0');
-        $toAdminId   = ($toAdminRaw === '-1') ? -1 : (int)$toAdminRaw;
-        if ($body !== '') {
-            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-            ti_admin_msg_send($uid, $senderName, $subject, $body, $toAdminId);
-            flash_set('success', 'Wiadomość wysłana.');
-        }
-        header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
     }
 
     // ── Komunikacja — e-mail / SMS ────────────────────────────────────────────
