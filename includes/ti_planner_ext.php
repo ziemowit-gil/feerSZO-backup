@@ -201,6 +201,41 @@ function ti_planner_ext_migrate(): void {
         UNIQUE(basket_id, session_id)
     )");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_token_pools (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT NOT NULL,
+        color         TEXT NOT NULL DEFAULT '#6366f1',
+        description   TEXT NOT NULL DEFAULT '',
+        period_key    TEXT NOT NULL DEFAULT '',
+        valid_from    DATE,
+        valid_to      DATE,
+        default_grant INTEGER NOT NULL DEFAULT 0,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT DEFAULT (datetime('now'))
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_token_pool_wallets (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        pool_id    INTEGER NOT NULL REFERENCES k30_pl_token_pools(id) ON DELETE CASCADE,
+        client_id  INTEGER NOT NULL,
+        granted    INTEGER NOT NULL DEFAULT 0,
+        spent      INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(pool_id, client_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pool_wallets ON k30_pl_token_pool_wallets(pool_id, client_id)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_token_pool_txns (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        wallet_id  INTEGER NOT NULL REFERENCES k30_pl_token_pool_wallets(id) ON DELETE CASCADE,
+        amount     INTEGER NOT NULL,
+        direction  TEXT NOT NULL,
+        reason     TEXT NOT NULL DEFAULT '',
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now'))
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pool_txns ON k30_pl_token_pool_txns(wallet_id, created_at)");
+
     // ── Bezpieczny ALTER TABLE na istniejących tabelach ───────────────
     $exist_courses  = array_column(db_all("PRAGMA table_info(k30_ti_courses)"), 'name');
     $exist_sessions = array_column(db_all("PRAGMA table_info(k30_ti_sessions)"), 'name');
@@ -789,6 +824,91 @@ function pl_price_for_session(int $session_id, ?int $mentor_id): int {
     }
 
     return 1; // domyślna cena
+}
+
+/* ── PULE ŻETONÓW (USOS-style kategorie) ────────────────────────────────── */
+
+function pl_pools_list(bool $only_active = false): array {
+    $where = $only_active ? "WHERE is_active=1" : "";
+    return db_all("SELECT p.*, (SELECT COUNT(*) FROM k30_pl_token_pool_wallets WHERE pool_id=p.id) AS n_wallets,
+        (SELECT COALESCE(SUM(granted),0) FROM k30_pl_token_pool_wallets WHERE pool_id=p.id) AS total_granted,
+        (SELECT COALESCE(SUM(spent),0)   FROM k30_pl_token_pool_wallets WHERE pool_id=p.id) AS total_spent
+        FROM k30_pl_token_pools p $where ORDER BY is_active DESC, valid_from DESC, id DESC", []);
+}
+
+function pl_pool_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_pl_token_pools WHERE id=?", [$id]) ?: null;
+}
+
+function pl_pool_save(array $d, ?int $id = null): int {
+    $fields = [
+        'name'          => trim($d['name'] ?? ''),
+        'color'         => $d['color'] ?? '#6366f1',
+        'description'   => trim($d['description'] ?? ''),
+        'period_key'    => trim($d['period_key'] ?? ''),
+        'valid_from'    => $d['valid_from'] ?? null,
+        'valid_to'      => $d['valid_to'] ?? null,
+        'default_grant' => max(0, (int)($d['default_grant'] ?? 0)),
+        'is_active'     => !empty($d['is_active']) ? 1 : 0,
+    ];
+    if ($id) {
+        $sets = implode(',', array_map(fn($k) => "$k=?", array_keys($fields)));
+        db_exec("UPDATE k30_pl_token_pools SET $sets WHERE id=?", [...array_values($fields), $id]);
+        return $id;
+    }
+    $cols = implode(',', array_keys($fields));
+    $phs  = implode(',', array_fill(0, count($fields), '?'));
+    db_exec("INSERT INTO k30_pl_token_pools ($cols) VALUES ($phs)", array_values($fields));
+    return (int)db()->lastInsertId();
+}
+
+function pl_pool_wallet_get_or_create(int $pool_id, int $client_id): array {
+    db_exec("INSERT OR IGNORE INTO k30_pl_token_pool_wallets (pool_id, client_id) VALUES (?,?)", [$pool_id, $client_id]);
+    return db_one("SELECT * FROM k30_pl_token_pool_wallets WHERE pool_id=? AND client_id=?", [$pool_id, $client_id]);
+}
+
+/**
+ * Przyznaj żetony z puli jednemu kursantowi.
+ */
+function pl_pool_grant(int $pool_id, int $client_id, int $amount, string $reason = '', ?int $by = null): void {
+    if ($amount <= 0) return;
+    $w = pl_pool_wallet_get_or_create($pool_id, $client_id);
+    db_exec("UPDATE k30_pl_token_pool_wallets SET granted=granted+?, updated_at=datetime('now') WHERE id=?",
+        [$amount, $w['id']]);
+    db_exec("INSERT INTO k30_pl_token_pool_txns (wallet_id,amount,direction,reason,created_by) VALUES (?,?,'credit',?,?)",
+        [$w['id'], $amount, $reason ?: 'przyznanie', $by]);
+}
+
+/**
+ * Masowe przyznanie żetonów z puli wszystkim wybranym kursantom.
+ * $client_ids — array of client IDs.
+ * Zwraca liczbę kursantów, którym dodano żetony.
+ */
+function pl_pool_grant_bulk(int $pool_id, array $client_ids, int $amount, string $reason = '', ?int $by = null): int {
+    if ($amount <= 0 || !$client_ids) return 0;
+    $n = 0;
+    foreach ($client_ids as $cid) {
+        pl_pool_grant($pool_id, (int)$cid, $amount, $reason, $by);
+        $n++;
+    }
+    return $n;
+}
+
+function pl_pool_wallets(int $pool_id): array {
+    return db_all(
+        "SELECT w.*, c.name AS client_name, c.email AS client_email,
+                (w.granted - w.spent) AS balance
+         FROM k30_pl_token_pool_wallets w
+         JOIN k30_clients c ON c.id=w.client_id
+         WHERE w.pool_id=?
+         ORDER BY c.name COLLATE NOCASE",
+        [$pool_id]
+    );
+}
+
+function pl_pool_txns(int $wallet_id, int $limit = 30): array {
+    return db_all("SELECT * FROM k30_pl_token_pool_txns WHERE wallet_id=? ORDER BY created_at DESC LIMIT ?",
+        [$wallet_id, $limit]);
 }
 
 /* ── KOSZYK ──────────────────────────────────────────────────────────────── */
