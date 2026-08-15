@@ -118,8 +118,8 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup'], true)) $tab = 'pulpit';
-if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy'], true) && !dyd_is_staff()) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup'], true)) $tab = 'pulpit';
+if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
 if (false && count($courses) > 1) {
@@ -280,6 +280,21 @@ function dyd_back(int $course, string $tab): string {
     return 'index.php?course=' . $course . '&tab=' . $tab;
 }
 $dt_in = fn($k) => ($v = trim($_POST[$k] ?? '')) !== '' ? str_replace('T', ' ', $v) . (strlen($v) === 16 ? ':00' : '') : null;
+
+// Komunikacja — e-mail / SMS (stan podglądu, ustawiany w bloku POST przy komm_preview)
+$komm_did_preview  = false;
+$komm_recipients   = [];
+$komm_filter_label = '';
+$komm_mode         = 'grupa';
+$komm_course_ids   = [];
+$komm_instr_id     = 0;
+$komm_date         = '';
+$komm_ch_email     = false;
+$komm_ch_sms       = false;
+$komm_ch_guard     = false;
+$komm_subject      = '';
+$komm_body         = '';
+$komm_body_html    = '';
 
 // ── Operacje zapisu ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -1125,6 +1140,121 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Wiadomość wysłana.');
         }
         header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
+    }
+
+    // ── Komunikacja — e-mail / SMS ────────────────────────────────────────────
+    if ($op === 'komm_preview' && dyd_is_staff()) {
+        $komm_mode       = in_array($_POST['mode'] ?? '', ['grupa','prowadzacy','dzien'], true) ? $_POST['mode'] : 'grupa';
+        $komm_course_ids = array_values(array_filter(array_map('intval', (array)($_POST['course_ids'] ?? []))));
+        $komm_instr_id   = (int)($_POST['instructor_id'] ?? 0);
+        $komm_date       = trim($_POST['date'] ?? '');
+        $komm_ch_email   = !empty($_POST['ch_email']);
+        $komm_ch_sms     = !empty($_POST['ch_sms']);
+        $komm_ch_guard   = !empty($_POST['ch_guardians']);
+        $komm_subject    = trim($_POST['subject'] ?? '');
+        $komm_body       = trim($_POST['body'] ?? '');
+        $komm_body_html  = trim($_POST['body_html'] ?? '');
+        $cids = k30_ti_comm_course_ids($komm_mode, [
+            'course_ids'=>$komm_course_ids, 'instructor_id'=>$komm_instr_id, 'date'=>$komm_date,
+        ]);
+        $komm_recipients = k30_ti_comm_recipients($cids);
+        if ($komm_ch_guard) {
+            $komm_recipients = array_merge($komm_recipients, k30_ti_comm_guardian_recipients($cids));
+            $seen = [];
+            $komm_recipients = array_values(array_filter($komm_recipients, function($r) use (&$seen) {
+                $key = trim(mb_strtolower((string)$r['email'])) ?: trim((string)$r['phone']);
+                if ($key === '' || isset($seen[$key])) return $key === '';
+                $seen[$key] = true;
+                return true;
+            }));
+        }
+        if ($komm_mode === 'grupa') {
+            $names = $cids ? array_column(db_all("SELECT name FROM k30_ti_courses WHERE id IN (".implode(',',array_fill(0,count($cids),'?')).")", $cids), 'name') : [];
+            $komm_filter_label = 'Grupy: ' . (implode(', ', $names) ?: '—');
+        } elseif ($komm_mode === 'prowadzacy') {
+            $in = $komm_instr_id ? db_one("SELECT name FROM users WHERE id=?", [$komm_instr_id]) : null;
+            $komm_filter_label = 'Prowadzący: ' . ($in['name'] ?? '—');
+        } else {
+            $komm_filter_label = 'Dzień: ' . ($komm_date ?: '—');
+        }
+        if ($komm_ch_guard) $komm_filter_label .= ' + rodzice/opiekunowie';
+        $komm_did_preview = true;
+        // Nie redirectuje — renderuje stronę z zakładką komunikacja
+    }
+
+    if ($op === 'komm_send' && dyd_is_staff()) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+        $k_mode       = in_array($_POST['mode'] ?? '', ['grupa','prowadzacy','dzien'], true) ? $_POST['mode'] : 'grupa';
+        $k_course_ids = array_values(array_filter(array_map('intval', (array)($_POST['course_ids'] ?? []))));
+        $k_instr_id   = (int)($_POST['instructor_id'] ?? 0);
+        $k_date       = trim($_POST['date'] ?? '');
+        $k_ch_email   = !empty($_POST['ch_email']);
+        $k_ch_sms     = !empty($_POST['ch_sms']);
+        $k_ch_guard   = !empty($_POST['ch_guardians']);
+        $k_subject    = trim($_POST['subject'] ?? '');
+        $k_body       = trim($_POST['body'] ?? '');
+        $k_body_html  = trim($_POST['body_html'] ?? '');
+        $k_sms_on     = function_exists('sms_is_enabled') ? sms_is_enabled() : false;
+        $errs = [];
+        if (!$k_ch_email && !$k_ch_sms) $errs[] = 'Wybierz kanał: e-mail i/lub SMS.';
+        if ($k_ch_sms && !$k_sms_on)    $errs[] = 'SMS jest wyłączony w ustawieniach systemu.';
+        if ($k_body === '')              $errs[] = 'Wpisz treść wiadomości.';
+        if ($k_ch_email && $k_subject === '') $errs[] = 'Podaj temat wiadomości e-mail.';
+        $cids = k30_ti_comm_course_ids($k_mode, [
+            'course_ids'=>$k_course_ids, 'instructor_id'=>$k_instr_id, 'date'=>$k_date,
+        ]);
+        $k_recipients = k30_ti_comm_recipients($cids);
+        if ($k_ch_guard) {
+            $k_recipients = array_merge($k_recipients, k30_ti_comm_guardian_recipients($cids));
+            $seen = [];
+            $k_recipients = array_values(array_filter($k_recipients, function($r) use (&$seen) {
+                $key = trim(mb_strtolower((string)$r['email'])) ?: trim((string)$r['phone']);
+                if ($key === '' || isset($seen[$key])) return $key === '';
+                $seen[$key] = true;
+                return true;
+            }));
+        }
+        if (!$k_recipients) $errs[] = 'Brak odbiorców dla wybranego filtra.';
+        if ($errs) {
+            foreach ($errs as $e) flash_set('danger', $e);
+            header('Location: index.php?tab=komunikacja'); exit;
+        }
+        $ok = 0; $fail = 0;
+        $email_inner = $k_body_html !== ''
+            ? $k_body_html
+            : '<div>' . nl2br(h($k_body)) . '</div>';
+        $html = '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">'
+              . $email_inner . '</div>';
+        foreach ($k_recipients as $r) {
+            if ($k_ch_email && trim((string)$r['email']) !== '') {
+                try { mail_queue_add(trim($r['email']), $r['name'] ?? '', $k_subject, $html, $k_body, 'ti_komunikacja', null, '', false); $ok++; }
+                catch (\Throwable $ex) { $fail++; }
+            }
+            if ($k_ch_sms && $k_sms_on && trim((string)$r['phone']) !== '') {
+                try { sms_send(trim($r['phone']), $k_body); $ok++; }
+                catch (\Throwable $ex) { $fail++; }
+            }
+        }
+        if ($k_mode === 'grupa') {
+            $names = $cids ? array_column(db_all("SELECT name FROM k30_ti_courses WHERE id IN (".implode(',',array_fill(0,count($cids),'?')).")", $cids), 'name') : [];
+            $k_filter_label = 'Grupy: ' . (implode(', ', $names) ?: '—');
+        } elseif ($k_mode === 'prowadzacy') {
+            $in2 = $k_instr_id ? db_one("SELECT name FROM users WHERE id=?", [$k_instr_id]) : null;
+            $k_filter_label = 'Prowadzący: ' . ($in2['name'] ?? '—');
+        } else {
+            $k_filter_label = 'Dzień: ' . ($k_date ?: '—');
+        }
+        if ($k_ch_guard) $k_filter_label .= ' + rodzice/opiekunowie';
+        $k_ch = trim(($k_ch_email ? 'email' : '') . ($k_ch_email && $k_ch_sms ? '+' : '') . ($k_ch_sms ? 'sms' : ''));
+        db_insert('k30_ti_comm_log', [
+            'channel'=>$k_ch, 'filter_type'=>$k_mode, 'filter_label'=>$k_filter_label,
+            'subject'=>$k_subject, 'body'=>$k_body, 'recipients'=>count($k_recipients),
+            'sent_ok'=>$ok, 'sent_fail'=>$fail, 'created_by'=>$uid,
+        ]);
+        flash_set($fail ? 'warning' : 'success',
+            'Wysłano: ' . $ok . ($fail ? (', błędów: ' . $fail) : '') . ' (odbiorców: ' . count($k_recipients) . ').');
+        header('Location: index.php?tab=komunikacja'); exit;
     }
 }
 
@@ -2289,8 +2419,9 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link" href="../raporty.php" target="_blank" rel="noopener">
     <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>Raporty i WUP
   </a>
-  <a class="dyd-sb-link" href="../komunikacja.php" target="_blank" rel="noopener">
-    <i class="bi bi-send" aria-hidden="true"></i>Wyślij e-mail / SMS
+  <a class="dyd-sb-link <?= $tab==='komunikacja'?'active':'' ?>" href="index.php?tab=komunikacja"
+     <?= $tab==='komunikacja'?'aria-current="page"':'' ?>>
+    <i class="bi bi-send" aria-hidden="true"></i>Komunikacja
   </a>
   <a class="dyd-sb-link" href="../index.php" target="_blank" rel="noopener" style="opacity:.6">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Pełny panel TI
@@ -2537,6 +2668,10 @@ if ($cur_course && dyd_is_staff()) {
   <?php endif; /* cykliczne */ ?>
 
   <?php endif; /* $courses */ ?>
+
+  <?php if ($tab === 'komunikacja' && dyd_is_staff()): ?>
+  <?php include __DIR__ . '/_tab_komunikacja.php'; ?>
+  <?php endif; /* komunikacja */ ?>
 
   <!-- Wspólna lista lekcji dla wyszukiwarek „Powiązana lekcja" -->
   <datalist id="dyd-session-list">
