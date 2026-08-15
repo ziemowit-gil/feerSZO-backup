@@ -14,9 +14,14 @@
 ?>
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h5 class="mb-0 fw-semibold"><i class="bi bi-card-checklist me-1" aria-hidden="true"></i>Testy</h5>
-  <a href="test_build.php?course_id=<?= $cur_course ?>" class="btn btn-sm btn-primary ms-auto">
+  <span class="btn btn-sm btn-primary ms-auto disabled" aria-disabled="true"
+        title="Kreator testów jest chwilowo niedostępny">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz test
-  </a>
+  </span>
+</div>
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-3 small" role="alert">
+  <i class="bi bi-tools fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <span><strong>Kreator testów chwilowo niedostępny.</strong> Trwają prace serwisowe — możliwość tworzenia i edytowania testów zostanie przywrócona wkrótce. Istniejące testy działają normalnie.</span>
 </div>
 <?php if ($dyd_need_review > 0): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
@@ -31,7 +36,7 @@
       <i class="bi bi-card-checklist mb-3" style="font-size:3rem;opacity:.3" aria-hidden="true"></i>
       <h6 class="fw-semibold mb-1">Brak testów w tym kursie</h6>
       <p class="text-body-secondary small mb-3">Możesz samodzielnie tworzyć testy dla swoich kursantów.</p>
-      <a href="test_build.php?course_id=<?= $cur_course ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz pierwszy test</a>
+      <span class="btn btn-primary btn-sm disabled" aria-disabled="true"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz pierwszy test</span>
     </div>
   </div>
 <?php else: ?>
