@@ -137,16 +137,19 @@ services:
       - "traefik.http.routers.feer-ti-http.middlewares=https-redirect@docker"
       - "traefik.http.routers.feer-ti-http.service=feer"
 
-      # ── kursant.feer.org.pl → panel kursanta TI ──────────────────────────
+      # ── kursant.feer.org.pl → ti.feer.org.pl (301) ──────────────────────
+      - "traefik.http.middlewares.kursant-redir.redirectregex.regex=^https?://kursant\\.feer\\.org\\.pl(.*)"
+      - "traefik.http.middlewares.kursant-redir.redirectregex.replacement=https://ti.feer.org.pl$${1}"
+      - "traefik.http.middlewares.kursant-redir.redirectregex.permanent=true"
       - "traefik.http.routers.feer-kursant.rule=Host(`kursant.feer.org.pl`)"
       - "traefik.http.routers.feer-kursant.entrypoints=websecure"
       - "traefik.http.routers.feer-kursant.tls=true"
       - "traefik.http.routers.feer-kursant.tls.certresolver=le"
-      - "traefik.http.routers.feer-kursant.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.feer-kursant.middlewares=kursant-redir@docker"
       - "traefik.http.routers.feer-kursant.service=feer"
       - "traefik.http.routers.feer-kursant-http.rule=Host(`kursant.feer.org.pl`)"
       - "traefik.http.routers.feer-kursant-http.entrypoints=web"
-      - "traefik.http.routers.feer-kursant-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-kursant-http.middlewares=kursant-redir@docker"
       - "traefik.http.routers.feer-kursant-http.service=feer"
 
       # ── zadania.feer.org.pl ───────────────────────────────────────────────
