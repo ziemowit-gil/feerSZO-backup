@@ -124,6 +124,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE k30_ti_tests SET is_active=?, updated_at=datetime('now') WHERE id=?")
              ->execute([empty($test['is_active']) ? 1 : 0, $tid]);
         flash_set('success', empty($test['is_active']) ? 'Test udostępniony kursantom.' : 'Test ukryty.');
+        // Jeśli przyszedł z listy kursów (View B) — wracamy tam
+        if (!empty($_POST['_return_course'])) {
+            header('Location: test_build.php?course_id='.(int)$test['course_id']); exit;
+        }
         header('Location: test_build.php?test_id='.$tid); exit;
     }
 
@@ -345,9 +349,10 @@ elseif (!$test): ?>
               <i class="bi bi-gear" aria-hidden="true"></i>
             </a>
             <form method="post" class="d-inline">
-              <input type="hidden" name="_token"   value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"      value="toggle_active">
-              <input type="hidden" name="test_id"  value="<?= (int)$ct['id'] ?>">
+              <input type="hidden" name="_token"         value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"            value="toggle_active">
+              <input type="hidden" name="test_id"        value="<?= (int)$ct['id'] ?>">
+              <input type="hidden" name="_return_course" value="1">
               <button class="btn btn-sm <?= $active ? 'btn-outline-warning' : 'btn-outline-success' ?>"
                       title="<?= $active ? 'Ukryj' : 'Udostępnij' ?>">
                 <i class="bi bi-<?= $active ? 'eye-slash' : 'eye' ?>" aria-hidden="true"></i>
@@ -448,7 +453,7 @@ else:
 ?>
 
 <!-- Toolbar testu -->
-<div class="card border-0 shadow-sm mb-4">
+<div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
     <div class="flex-grow-1 min-width-0">
       <span class="fw-bold"><?= h($test['title']) ?></span>
@@ -477,13 +482,86 @@ else:
           <button class="btn btn-sm btn-outline-success"><i class="bi bi-eye me-1" aria-hidden="true"></i>Udostępnij</button>
         </form>
       <?php endif; ?>
+      <?php if ($edit_meta): ?>
+      <a href="test_build.php?test_id=<?= $test_id ?>"
+         class="btn btn-sm btn-secondary"><i class="bi bi-x me-1" aria-hidden="true"></i>Zamknij ustawienia</a>
+      <?php else: ?>
       <a href="test_build.php?course_id=<?= $course_id ?>&amp;test_id=<?= $test_id ?>&amp;edit_meta=1"
          class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia</a>
+      <?php endif; ?>
       <a href="test_build.php?course_id=<?= $course_id ?>"
          class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Testy</a>
     </div>
   </div>
 </div>
+
+<?php if ($edit_meta): ?>
+<!-- Formularz ustawień testu (edit_meta=1) -->
+<div class="card border-0 shadow-sm border-top border-secondary mb-4">
+  <div class="card-header fw-semibold bg-body-secondary">
+    <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia testu
+  </div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="_token"    value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op"       value="save_test">
+      <input type="hidden" name="test_id"   value="<?= $test_id ?>">
+      <input type="hidden" name="course_id" value="<?= $course_id ?>">
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" for="ms-title">Tytuł <span class="text-danger" aria-hidden="true">*</span></label>
+          <input type="text" class="form-control" id="ms-title" name="title"
+                 value="<?= h($test['title']) ?>" required maxlength="255">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small" for="ms-desc">Instrukcja dla kursanta</label>
+          <textarea class="form-control form-control-sm" id="ms-desc" name="description"
+                    rows="1"><?= h($test['description'] ?? '') ?></textarea>
+        </div>
+        <div class="col-4 col-md-2">
+          <label class="form-label small fw-semibold" for="ms-time">Limit czasu <span class="text-muted fw-normal">(min)</span></label>
+          <input type="number" class="form-control form-control-sm" id="ms-time" name="time_limit_min"
+                 min="0" max="600" value="<?= (int)($test['time_limit_min'] ?? 0) ?: '' ?>" placeholder="0=brak">
+        </div>
+        <div class="col-4 col-md-2">
+          <label class="form-label small fw-semibold" for="ms-pass">Próg <span class="text-muted fw-normal">(%)</span></label>
+          <input type="number" class="form-control form-control-sm" id="ms-pass" name="pass_pct"
+                 min="0" max="100" value="<?= (int)($test['pass_pct'] ?? 0) ?: '' ?>" placeholder="0=brak">
+        </div>
+        <div class="col-4 col-md-2">
+          <label class="form-label small fw-semibold" for="ms-retake">Próg poprawki <span class="text-muted fw-normal">(%)</span></label>
+          <input type="number" class="form-control form-control-sm" id="ms-retake" name="retake_pass_pct"
+                 min="0" max="100" value="<?= (int)($test['retake_pass_pct'] ?? 0) ?: '' ?>" placeholder="0=j.w.">
+        </div>
+        <div class="col-md-6 d-flex flex-column gap-1 justify-content-end">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" name="shuffle" id="ms-shuffle" value="1"
+                   <?= !empty($test['shuffle']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="ms-shuffle">Losowa kolejność pytań</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" name="sync_grade" id="ms-sync" value="1"
+                   <?= !empty($test['sync_grade']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="ms-sync">Zapisuj wynik do e-dziennika</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="ms-active" value="1"
+                   <?= !empty($test['is_active']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="ms-active">Udostępnij kursantom</label>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz zmiany
+        </button>
+        <a href="test_build.php?test_id=<?= $test_id ?>" class="btn btn-outline-secondary">Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($to_review): ?>
 <!-- Alert: do oceny -->
