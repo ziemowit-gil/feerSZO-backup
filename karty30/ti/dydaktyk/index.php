@@ -1966,6 +1966,11 @@ $KP_TOPBAR = [
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <style>
+/* Responsywne wcięcia — treść max ~1100px, wycentrowana, bez białego pasa po prawej */
+.dyd-wrap {
+  padding-left:  max(1rem, calc((100% - 1100px) / 2));
+  padding-right: max(1rem, calc((100% - 1100px) / 2));
+}
 .dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
   .dyd-course-pills .nav-link.active { background:#2563eb; border-color:#2563eb; }
   .badge-soft { background:rgba(37,99,235,.12); color:#93c5fd; border:1px solid rgba(37,99,235,.35); }
