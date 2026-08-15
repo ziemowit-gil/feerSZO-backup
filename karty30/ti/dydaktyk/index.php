@@ -2430,6 +2430,10 @@ if ($cur_course && dyd_is_staff()) {
 
   <div class="mt-auto"></div>
   <div class="dyd-sb-sep"></div>
+  <button type="button" onclick="window.dydShowFlashPref && window.dydShowFlashPref()"
+          class="dyd-sb-link w-100 text-start" style="background:none;border:none;opacity:.55;font-size:.78rem">
+    <i class="bi bi-bell" aria-hidden="true"></i>Powiadomienia
+  </button>
   <button type="button" onclick="window.dydStartTour && window.dydStartTour()"
           class="dyd-sb-link w-100 text-start" style="background:none;border:none;opacity:.55;font-size:.78rem">
     <i class="bi bi-info-circle" aria-hidden="true"></i>Tour powitalny
@@ -2854,9 +2858,8 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
 </style>
 <script>
 (function() {
-  // Klucz localStorage zawiera id użytkownika, żeby tour reset przy nowym logowaniu
-  var TOUR_KEY = 'dydTourSeen_<?= (int)$uid ?>';
-  var autoStart = <?= json_encode($tab === 'pulpit') ?>;
+  // sessionStorage: reset automatycznie przy każdym nowym logowaniu (nowa sesja przeglądarki)
+  var SESSION_KEY = 'dydTourShown';
 
   function startTour() {
     if (typeof Shepherd === 'undefined') return;
@@ -2869,7 +2872,7 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
           { text: 'Wstecz',  action: function() { tour.back();    }, secondary: true },
           { text: 'Dalej →', action: function() { tour.next();    }, classes: 'shepherd-button-primary' },
         ],
-        when: { show: function() { localStorage.setItem(TOUR_KEY, '1'); } }
+        when: { show: function() { sessionStorage.setItem(SESSION_KEY, '1'); } }
       }
     });
 
@@ -2941,18 +2944,156 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
       ]
     });
 
+    tour.on('complete', function() {
+      if (typeof window._dydOnTourComplete === 'function') window._dydOnTourComplete();
+    });
     tour.start();
   }
 
-  // Auto-start: przy pierwszym logowaniu (brak klucza w localStorage)
-  if (!localStorage.getItem(TOUR_KEY) && autoStart) {
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(startTour, 600);
-    });
+  // Auto-start: przy pierwszej wizycie w tej sesji (logowaniu)
+  if (!sessionStorage.getItem(SESSION_KEY)) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    setTimeout(startTour, 800);
   }
 
   // Guzik restartu toura
   window.dydStartTour = startTour;
+})();
+</script>
+
+<!-- ─── Modal: wybór stylu powiadomień (jednorazowy) ──────────────────── -->
+<div class="modal fade" id="dydFlashPrefModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="dfpLbl" aria-modal="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="dfpLbl">
+          <i class="bi bi-bell text-primary me-2" aria-hidden="true"></i>Styl powiadomień
+        </h5>
+      </div>
+      <div class="modal-body py-3">
+        <p class="text-body-secondary small mb-3">Wybierz jak chcesz widzieć potwierdzenia operacji (np. „Lekcja dodana"):</p>
+        <div class="d-flex gap-3">
+          <button type="button" id="dydFlashOptTop"
+                  class="btn btn-outline-secondary flex-fill py-3 d-flex flex-column align-items-center gap-2">
+            <i class="bi bi-arrow-bar-up" style="font-size:1.9rem" aria-hidden="true"></i>
+            <span class="fw-semibold">Pasek u góry</span>
+            <span class="text-body-secondary text-center" style="font-size:.74rem">Wąskie powiadomienie,<br>znika automatycznie</span>
+          </button>
+          <button type="button" id="dydFlashOptModal"
+                  class="btn btn-outline-primary flex-fill py-3 d-flex flex-column align-items-center gap-2">
+            <i class="bi bi-window-fullscreen" style="font-size:1.9rem" aria-hidden="true"></i>
+            <span class="fw-semibold">Okno pośrodku</span>
+            <span class="text-body-secondary text-center" style="font-size:.74rem">Duże okno modalne,<br>trzeba zamknąć</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center">
+        <span class="text-body-secondary" style="font-size:.72rem">
+          <i class="bi bi-gear me-1" aria-hidden="true"></i>Zmień kiedy chcesz klikając <strong>Powiadomienia</strong> w sidebarze.
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: flash wyświetlany centralnie ───────────────────────────── -->
+<div class="modal fade" id="dydFlashCenter" tabindex="-1" aria-modal="true" aria-live="assertive">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
+    <div class="modal-content border-0" style="border-radius:1rem;overflow:hidden">
+      <div class="modal-body text-center py-4 px-4">
+        <div class="mb-3" id="dydFlashCenterIcon" style="font-size:2.8rem" aria-hidden="true"></div>
+        <div id="dydFlashCenterMsg" style="font-size:1.05rem;font-weight:500;line-height:1.5"></div>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button type="button" class="btn btn-primary px-5" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Floating tour button ──────────────────────────────────────────── -->
+<button type="button" id="dydHelpFab"
+        onclick="window.dydStartTour && window.dydStartTour()"
+        aria-label="Tour powitalny / pomoc"
+        title="Tour powitalny">
+  <i class="bi bi-question-lg" aria-hidden="true"></i>
+</button>
+<style>
+#dydHelpFab {
+  position:fixed; bottom:1.6rem; right:1.6rem; z-index:998;
+  width:44px; height:44px; border-radius:50%; border:none;
+  background:#2563eb; color:#fff;
+  box-shadow:0 3px 14px rgba(37,99,235,.45);
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.15rem; cursor:pointer;
+  transition:background .15s, transform .15s, box-shadow .15s;
+}
+#dydHelpFab:hover { background:#1d4ed8; transform:scale(1.1); box-shadow:0 4px 18px rgba(37,99,235,.55); }
+</style>
+
+<script>
+(function() {
+  var FLASH_KEY = 'dydFlashStyle_<?= (int)$uid ?>';
+
+  function applyFlashStyle() {
+    var style = localStorage.getItem(FLASH_KEY) || 'top';
+    if (style !== 'modal') return;
+    var wrap = document.getElementById('_flash_wrap');
+    if (!wrap) return;
+    var toast = wrap.querySelector('#_flash_toast');
+    if (!toast) return;
+    var iconEl  = toast.querySelector('i.bi');
+    var msgEl   = toast.querySelector('span');
+    var iconCls = iconEl ? iconEl.className : '';
+    var msgHtml = msgEl  ? msgEl.innerHTML  : '';
+    var accent = '#2563eb';
+    if (iconCls.includes('check-circle'))     accent = '#16a34a';
+    else if (iconCls.includes('x-circle'))   accent = '#dc2626';
+    else if (iconCls.includes('exclamation'))accent = '#d97706';
+    document.getElementById('dydFlashCenterIcon').innerHTML =
+      '<i class="' + iconCls + '" style="color:' + accent + '" aria-hidden="true"></i>';
+    document.getElementById('dydFlashCenterMsg').innerHTML = msgHtml;
+    wrap.remove();
+    new bootstrap.Modal(document.getElementById('dydFlashCenter')).show();
+  }
+
+  function showFlashPrefChooser() {
+    var el = document.getElementById('dydFlashPrefModal');
+    if (!el) return;
+    var modal = new bootstrap.Modal(el, {backdrop:'static', keyboard:false});
+    function choose(val) {
+      localStorage.setItem(FLASH_KEY, val);
+      modal.hide();
+      applyFlashStyle();
+    }
+    document.getElementById('dydFlashOptTop').onclick   = function() { choose('top'); };
+    document.getElementById('dydFlashOptModal').onclick = function() { choose('modal'); };
+    modal.show();
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var pref = localStorage.getItem(FLASH_KEY);
+    if (pref !== null) {
+      applyFlashStyle();
+    } else {
+      var TOUR_KEY = 'dydTourSeen_<?= (int)$uid ?>';
+      if (localStorage.getItem(TOUR_KEY)) {
+        setTimeout(showFlashPrefChooser, 500);
+      } else {
+        window._dydOnTourComplete = function() {
+          setTimeout(showFlashPrefChooser, 500);
+        };
+        // Fallback: jeśli tour nie zautostartował (np. brak CDN), pokaż po 10s
+        setTimeout(function() {
+          if (localStorage.getItem(FLASH_KEY) === null) showFlashPrefChooser();
+        }, 10000);
+      }
+    }
+  });
+
+  window.dydShowFlashPref = showFlashPrefChooser;
 })();
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
