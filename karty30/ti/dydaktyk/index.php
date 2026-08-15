@@ -3078,18 +3078,13 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
     if (pref !== null) {
       applyFlashStyle();
     } else {
-      var TOUR_KEY = 'dydTourSeen_<?= (int)$uid ?>';
-      if (localStorage.getItem(TOUR_KEY)) {
+      window._dydOnTourComplete = function() {
         setTimeout(showFlashPrefChooser, 500);
-      } else {
-        window._dydOnTourComplete = function() {
-          setTimeout(showFlashPrefChooser, 500);
-        };
-        // Fallback: jeśli tour nie zautostartował (np. brak CDN), pokaż po 10s
-        setTimeout(function() {
-          if (localStorage.getItem(FLASH_KEY) === null) showFlashPrefChooser();
-        }, 10000);
-      }
+      };
+      // Fallback: jeśli tour już był lub brak CDN, pokaż po 4s
+      setTimeout(function() {
+        if (localStorage.getItem(FLASH_KEY) === null) showFlashPrefChooser();
+      }, 4000);
     }
   });
 
