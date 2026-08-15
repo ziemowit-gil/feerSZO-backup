@@ -1240,12 +1240,30 @@ foreach ($all_sessions as $s) {
     $session_label_by_id[(int)$s['id']] = $lbl;
 }
 
-/** Wyszukiwarka lekcji (pole tekstowe + lista) zwracająca session_id w ukrytym polu. */
-$sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id) { ?>
-  <input type="text" class="form-control dyd-lesson-combo" id="<?= $pfx ?>_session_txt"
-         list="dyd-session-list" data-target="<?= $pfx ?>_session" autocomplete="off"
-         value="<?= h($session_label_by_id[$selId] ?? '') ?>"
-         placeholder="Wpisz datę lub temat i wybierz z listy…" aria-describedby="<?= $pfx ?>_session_help">
+// Dzisiejsza lekcja (pierwsza pasująca do dnia dzisiejszego)
+$_today = date('Y-m-d');
+$_today_sid = 0; $_today_slbl = '';
+foreach ($all_sessions as $_ts) {
+    if ($_ts['lesson_date'] === $_today) {
+        $_today_sid = (int)$_ts['id'];
+        $_today_slbl = $session_label_by_id[$_today_sid] ?? '';
+        break;
+    }
+}
+
+/** Wyszukiwarka lekcji (pole tekstowe + lista + przycisk "Dzisiejsza lekcja"). */
+$sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id, $_today_sid) { ?>
+  <div class="input-group">
+    <input type="text" class="form-control dyd-lesson-combo" id="<?= $pfx ?>_session_txt"
+           list="dyd-session-list" data-target="<?= $pfx ?>_session" autocomplete="off"
+           value="<?= h($session_label_by_id[$selId] ?? '') ?>"
+           placeholder="Wpisz datę lub temat i wybierz z listy…" aria-describedby="<?= $pfx ?>_session_help">
+    <button type="button" class="btn btn-outline-secondary" title="Wybierz dzisiejszą lekcję"
+            onclick="dydFillToday('<?= $pfx ?>')"
+            <?= $_today_sid ? '' : 'disabled' ?>>
+      <i class="bi bi-calendar-check"></i> Dzisiaj
+    </button>
+  </div>
   <input type="hidden" name="session_id" id="<?= $pfx ?>_session" value="<?= $selId ?: '' ?>">
   <div class="form-text" id="<?= $pfx ?>_session_help">Zacznij pisać, aby wyszukać lekcję. Puste pole = bez powiązania.</div>
 <?php };
@@ -2587,13 +2605,21 @@ function dydOpenExcuse(sid, cid, label) {
 }
 
 // Wyszukiwarka „Powiązana lekcja": tekst → ukryte session_id (mapa etykieta→id).
+window.DYD_TODAY_SESSION = <?= json_encode($_today_sid ? ['id' => $_today_sid, 'label' => $_today_slbl] : null) ?>;
+function dydFillToday(pfx) {
+  var s = window.DYD_TODAY_SESSION; if (!s) return;
+  var inp = document.getElementById(pfx + '_session_txt');
+  var hid = document.getElementById(pfx + '_session');
+  if (inp) inp.value = s.label;
+  if (hid) hid.value = s.id;
+}
 (function(){
   var map = {};
   document.querySelectorAll('#dyd-session-list option').forEach(function(o){ map[o.value] = o.getAttribute('data-id'); });
   document.addEventListener('input', function(e){
     var inp = e.target.closest('.dyd-lesson-combo'); if (!inp) return;
     var hid = document.getElementById(inp.getAttribute('data-target')); if (!hid) return;
-    hid.value = map[inp.value] || '';   // dopasowano z listy → id; w innym wypadku brak powiązania
+    hid.value = map[inp.value] || '';
   });
 })();
 
