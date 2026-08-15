@@ -43,11 +43,11 @@ $sprawy_events = db_all(
 
 // 2. Dekretacje z terminem w tym miesiącu dla tego użytkownika
 $dekr_events = db_all(
-    "SELECT d.id, d.deadline, d.opis, d.status, d.sprawa_id,
+    "SELECT d.id, d.deadline, d.tresc AS opis, d.status, d.sprawa_id,
             s.znak_sprawy, s.title AS sprawa_title
      FROM ezd_dekretacje d
      LEFT JOIN ezd_sprawy s ON s.id=d.sprawa_id
-     WHERE d.assigned_to = ? AND d.deadline >= ? AND d.deadline <= ?
+     WHERE d.wykonawca_id = ? AND d.deadline >= ? AND d.deadline <= ?
      ORDER BY d.deadline",
     [$user_id, $month_start, $month_end]
 );
