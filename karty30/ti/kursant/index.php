@@ -1078,10 +1078,7 @@ if ($ti_vac): ?>
     <i class="bi bi-calendar-check-fill fs-2 flex-shrink-0 text-primary mt-1" aria-hidden="true"></i>
     <div class="flex-grow-1 min-width-0">
       <div class="fw-bold fs-5 text-primary mb-2">Masz dziś zajęcia</div>
-      <?php foreach ($today_lessons as $_tl):
-        $_tl_meet = trim((string)($_tl['meeting_url'] ?? '')) !== '' ? $_tl['meeting_url'] : trim((string)($_tl['course_meeting_url'] ?? ''));
-        $_tl_mat  = trim((string)($_tl['material_url'] ?? ''));
-      ?>
+      <?php foreach ($today_lessons as $_tl): ?>
       <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
         <span class="fw-semibold"><?= h($_tl['course_name']) ?></span>
         <?php if (!empty($_tl['time_from'])): ?>
@@ -1091,15 +1088,6 @@ if ($ti_vac): ?>
         <?php endif; ?>
         <?php if (!empty($_tl['topic'])): ?>
           <span class="text-body-secondary">· <?= h($_tl['topic']) ?></span>
-        <?php endif; ?>
-        <?php if ($_tl_meet !== ''): ?>
-          <a href="<?= h($_tl_meet) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-success py-0 px-2">
-            <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz
-          </a>
-        <?php elseif ($_tl['status'] === 'remote_material' && $_tl_mat !== ''): ?>
-          <a href="<?= h($_tl_mat) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info py-0 px-2">
-            <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Materiał
-          </a>
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
