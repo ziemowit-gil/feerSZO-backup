@@ -13,12 +13,12 @@ require_once __DIR__ . '/auth.php';
 karty30_migrate();
 
 // Wylogowanie
-if (isset($_GET['logout'])) { authp_logout(); header('Location: parent.php?role=up'); exit; }
+if (isset($_GET['logout'])) { authp_logout(); header('Location: ../login.php?tab=up'); exit; }
 
 $me = authp_current();
 
-// Niezalogowany → przekieruj do wspólnego panelu logowania
-if (!$me) { header('Location: parent.php?role=up'); exit; }
+// Niezalogowany → centralny login
+if (!$me) { header('Location: ../login.php?tab=up'); exit; }
 
 // ── Panel (zalogowany) ─────────────────────────────────────────────────────────
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=? AND is_active=1", [(int)$me['student_id']]);

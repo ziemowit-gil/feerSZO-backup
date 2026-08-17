@@ -22,12 +22,14 @@ static $ERR = [
     3 => 'Konto jest nieaktywne. Skontaktuj się z prowadzącym.',
     4 => 'To konto nie ma uprawnień dydaktyka TI. Skontaktuj się z administratorem.',
     5 => 'Zbyt wiele nieudanych prób logowania. Odczekaj chwilę i spróbuj ponownie.',
+    6 => 'Nieprawidłowy login lub hasło konta opiekuna.',
+    7 => 'Nieprawidłowy login lub hasło osoby upoważnionej.',
 ];
 $ec    = (int)($_GET['e'] ?? 0);
 $error = $ERR[$ec] ?? null;
 
 // ── Aktywna zakładka ──────────────────────────────────────────────────────────
-$tab = ($_GET['tab'] ?? 'kursant') === 'dydaktyk' ? 'dydaktyk' : 'kursant';
+$tab = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up'], true) ? $_GET['tab'] : 'kursant';
 
 // ── Prefill pól po błędzie (z urlencode() w handlerach) ──────────────────────
 $prefill_login = h($_GET['l'] ?? '');
@@ -204,7 +206,7 @@ body.kp-login-split-page {
     </div>
     <?php endif; ?>
 
-    <!-- Zakładki Kursant / Prowadzący -->
+    <!-- Zakładki Kursant / Prowadzący / Rodzic / Upoważniony -->
     <ul class="nav nav-tabs" role="tablist" aria-label="Rodzaj użytkownika">
       <li class="nav-item" role="presentation">
         <button class="nav-link<?= $tab === 'kursant' ? ' active' : '' ?>"
@@ -224,6 +226,26 @@ body.kp-login-split-page {
                 aria-controls="tab-dydaktyk"
                 aria-selected="<?= $tab === 'dydaktyk' ? 'true' : 'false' ?>">
           <i class="bi bi-easel2 me-1" aria-hidden="true"></i>Prowadzący
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link<?= $tab === 'rodzic' ? ' active' : '' ?>"
+                id="tab-rodzic-btn"
+                data-bs-toggle="tab" data-bs-target="#tab-rodzic"
+                type="button" role="tab"
+                aria-controls="tab-rodzic"
+                aria-selected="<?= $tab === 'rodzic' ? 'true' : 'false' ?>">
+          <i class="bi bi-people me-1" aria-hidden="true"></i>Rodzic
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link<?= $tab === 'up' ? ' active' : '' ?>"
+                id="tab-up-btn"
+                data-bs-toggle="tab" data-bs-target="#tab-up"
+                type="button" role="tab"
+                aria-controls="tab-up"
+                aria-selected="<?= $tab === 'up' ? 'true' : 'false' ?>">
+          <i class="bi bi-person-check me-1" aria-hidden="true"></i>Upoważniony
         </button>
       </li>
     </ul>
@@ -282,18 +304,12 @@ body.kp-login-split-page {
           Nie masz konta? Skontaktuj się z prowadzącym.
         </p>
 
+        <?php if (k30_pfron_enabled()): ?>
         <hr class="my-3">
-
-        <div class="d-flex flex-column gap-2">
-          <a href="kursant/parent.php" class="btn btn-outline-secondary">
-            <i class="bi bi-people me-2" aria-hidden="true"></i>Rodzic / opiekun lub osoba upoważniona
-          </a>
-          <?php if (k30_pfron_enabled()): ?>
-          <a href="kursant/pfron.php" class="btn btn-outline-secondary">
-            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
-          </a>
-          <?php endif; ?>
-        </div>
+        <a href="kursant/pfron.php" class="btn btn-outline-secondary w-100">
+          <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
+        </a>
+        <?php endif; ?>
 
       </div><!-- /#tab-kursant -->
 
@@ -384,6 +400,111 @@ body.kp-login-split-page {
 
       </div><!-- /#tab-dydaktyk -->
 
+      <!-- ═══ ZAKŁADKA: RODZIC / OPIEKUN ══════════════════════════════════ -->
+      <div class="tab-pane fade<?= $tab === 'rodzic' ? ' show active' : '' ?>"
+           id="tab-rodzic" role="tabpanel" aria-labelledby="tab-rodzic-btn">
+
+        <form method="post" action="kursant/parent_login.php" autocomplete="on">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="par-login">Login rodzica/opiekuna</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
+              <input type="text"
+                     class="form-control form-control-lg<?= ($ec && $tab === 'rodzic') ? ' is-invalid' : '' ?>"
+                     id="par-login" name="login"
+                     value="<?= $prefill_login ?>"
+                     required
+                     <?= $tab === 'rodzic' ? 'autofocus' : '' ?>
+                     autocomplete="username"
+                     placeholder="np. j.kowalski-r"
+                     aria-invalid="<?= ($ec && $tab === 'rodzic') ? 'true' : 'false' ?>">
+            </div>
+            <div class="form-text">Login konta opiekuna nadany w placówce.</div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="par-password">Hasło</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
+              <input type="password"
+                     class="form-control form-control-lg"
+                     id="par-password" name="password"
+                     required
+                     autocomplete="current-password"
+                     placeholder="••••••••"
+                     aria-invalid="<?= ($ec && $tab === 'rodzic') ? 'true' : 'false' ?>">
+              <button class="btn btn-outline-secondary" type="button"
+                      data-kp-pw-toggle="par-password"
+                      aria-label="Pokaż lub ukryj hasło" aria-pressed="false">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg w-100">
+            <i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Zaloguj się
+          </button>
+        </form>
+
+        <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+          Nie masz hasła? Zaloguj się kodem SMS wysłanym na Twój numer telefonu.
+        </p>
+        <a href="kursant/parent.php" class="btn btn-outline-secondary w-100 mt-2">
+          <i class="bi bi-chat-dots me-2" aria-hidden="true"></i>Logowanie kodem SMS
+        </a>
+
+      </div><!-- /#tab-rodzic -->
+
+      <!-- ═══ ZAKŁADKA: OSOBA UPOWAŻNIONA ══════════════════════════════════ -->
+      <div class="tab-pane fade<?= $tab === 'up' ? ' show active' : '' ?>"
+           id="tab-up" role="tabpanel" aria-labelledby="tab-up-btn">
+
+        <form method="post" action="kursant/authp_login.php" autocomplete="on">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="up-login">Login osoby upoważnionej</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-person-check"></i></span>
+              <input type="text"
+                     class="form-control form-control-lg<?= ($ec && $tab === 'up') ? ' is-invalid' : '' ?>"
+                     id="up-login" name="login"
+                     value="<?= $prefill_login ?>"
+                     required
+                     <?= $tab === 'up' ? 'autofocus' : '' ?>
+                     autocomplete="username"
+                     placeholder="Login nadany przez kursanta"
+                     aria-invalid="<?= ($ec && $tab === 'up') ? 'true' : 'false' ?>">
+            </div>
+            <div class="form-text">Login i hasło nadane przez kursanta w zakładce „Upoważnieni".</div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="up-password">Hasło</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
+              <input type="password"
+                     class="form-control form-control-lg"
+                     id="up-password" name="password"
+                     required
+                     autocomplete="current-password"
+                     placeholder="••••••••"
+                     aria-invalid="<?= ($ec && $tab === 'up') ? 'true' : 'false' ?>">
+              <button class="btn btn-outline-secondary" type="button"
+                      data-kp-pw-toggle="up-password"
+                      aria-label="Pokaż lub ukryj hasło" aria-pressed="false">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg w-100">
+            <i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Zaloguj się
+          </button>
+        </form>
+
+        <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+          Dostęp do rozliczeń, frekwencji i harmonogramu kursanta, który Cię upoważnił.
+        </p>
+
+      </div><!-- /#tab-up -->
+
     </div><!-- /.tab-content -->
 
     <p class="kp-auth-footer">
@@ -398,8 +519,10 @@ body.kp-login-split-page {
 // ── Ikona + tytuł w logo przy zmianie zakładki ────────────────────────────────
 (function(){
   var CFG = {
-    kursant:  { icon:'bi-pc-display', title:'Panel kursanta' },
-    dydaktyk: { icon:'bi-easel2',     title:'Panel prowadzącego' },
+    kursant:  { icon:'bi-pc-display',   title:'Panel kursanta' },
+    dydaktyk: { icon:'bi-easel2',       title:'Panel prowadzącego' },
+    rodzic:   { icon:'bi-people-fill',  title:'Panel rodzica / opiekuna' },
+    up:       { icon:'bi-person-check', title:'Dostęp upoważnionego' },
   };
   function applyHero(tab) {
     var c = CFG[tab] || CFG.kursant;
