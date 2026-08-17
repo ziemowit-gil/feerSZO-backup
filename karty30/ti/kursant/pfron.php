@@ -84,6 +84,11 @@ include __DIR__ . '/_layout_head.php';
 
       <?php if ($err): ?><div class="alert alert-danger py-2" role="alert"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><?= h($err) ?></div><?php endif; ?>
       <?php if (pfron_is_locked()): ?><div class="alert alert-warning py-2 small">Zbyt wiele prób — odczekaj kilka minut.</div><?php endif; ?>
+      <?php $_pf_notice = trim((string)org_setting('pfron_notice')); if ($_pf_notice): ?>
+      <div class="alert alert-info py-2 small mb-3" role="note">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($_pf_notice)) ?>
+      </div>
+      <?php endif; ?>
 
       <form method="post">
         <input type="hidden" name="_token" value="<?= h($tok) ?>">
@@ -123,6 +128,12 @@ include __DIR__ . '/_layout_head.php';
       <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Wyloguj</button>
     </form>
   </div>
+
+  <?php $_pf_notice2 = trim((string)org_setting('pfron_notice')); if ($_pf_notice2): ?>
+  <div class="alert alert-info py-2 small mb-3" role="note">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($_pf_notice2)) ?>
+  </div>
+  <?php endif; ?>
 
   <?php foreach ($unlocked as $pf_cid):
     $pf_c = pfron_contract_get($pf_cid); if (!$pf_c) continue;

@@ -27,6 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: pricing.php'); exit;
     }
 
+    // Komunikat portalu PFRON
+    if ($op === 'save_pfron_notice') {
+        org_setting_set('pfron_notice', trim($_POST['pfron_notice'] ?? ''));
+        flash_set('success', 'Komunikat PFRON zaktualizowany.');
+        header('Location: pricing.php'); exit;
+    }
+
     // Globalny limit bezpłatnych godzin
     if ($op === 'save_limit') {
         $limit = max(0, (float)str_replace(',', '.', $_POST['free_hours_limit'] ?? '0'));
@@ -119,6 +126,28 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?= k30_pfron_enabled() ? '<span class="text-success">Włączona</span>' : '<span class="text-secondary">Wyłączona</span>' ?>
         </label>
       </div>
+    </form>
+  </div>
+</div>
+
+<!-- Komunikat portalu PFRON -->
+<div class="card border-0 shadow-sm mb-4" style="max-width:500px">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-chat-square-text text-primary"></i>Komunikat portalu PFRON
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Tekst widoczny beneficjentom na stronie logowania i po zalogowaniu.
+      Pozostaw puste, aby nie wyświetlać komunikatu.
+    </p>
+    <form method="post" action="pricing.php">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"   value="save_pfron_notice">
+      <div class="mb-3">
+        <textarea class="form-control" name="pfron_notice" rows="4"
+                  placeholder="np. Portal dostępny w godzinach 8:00–18:00."><?= h(org_setting('pfron_notice')) ?></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Zapisz komunikat</button>
     </form>
   </div>
 </div>
