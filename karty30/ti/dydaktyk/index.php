@@ -474,6 +474,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notes = trim($_POST['notes'] ?? '');
         $hw    = !empty($_POST['has_homework']) ? 1 : 0;
         $spr   = !empty($_POST['self_prep_remote']) ? 1 : 0;
+        $lm    = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
+        $meet_url = in_array($lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         $dur   = 60;
         if ($tf && $tt) {
             $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
@@ -490,9 +492,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $sid]);
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $sid]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             if ($st === 'remote_material') {
                 // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
@@ -505,6 +507,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'time_from'       => $tf, 'time_to' => $tt, 'duration_min' => $dur,
                 'status'          => 'planned', 'topic' => $topic, 'notes' => $notes,
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
+                'lesson_method'   => $lm, 'meeting_url' => $meet_url,
                 'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
@@ -1457,6 +1460,25 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
         <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
+      <?php $_lm_val = $r['lesson_method'] ?? ''; $_lm_zdalna = in_array($_lm_val, ['zdalna_zoom','zdalna_inne'], true); ?>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_method">Metoda lekcji</label>
+        <select class="form-select" id="<?= $pfx ?>_method" name="lesson_method"
+                onchange="(function(v){var w=document.getElementById('<?= $pfx ?>_meeturl_wrap');w.style.display=(v==='zdalna_zoom'||v==='zdalna_inne')?'':'none';})(this.value)">
+          <option value="" <?= $_lm_val===''?'selected':'' ?>>— nie wybrano —</option>
+          <option value="stacjonarna" <?= $_lm_val==='stacjonarna'?'selected':'' ?>>Stacjonarna</option>
+          <option value="zdalna_zoom" <?= $_lm_val==='zdalna_zoom'?'selected':'' ?>>Zdalna — Zoom</option>
+          <option value="zdalna_inne" <?= $_lm_val==='zdalna_inne'?'selected':'' ?>>Zdalna — Inne</option>
+        </select>
+      </div>
+      <div class="mb-2" id="<?= $pfx ?>_meeturl_wrap" style="display:<?= $_lm_zdalna?'':'none' ?>">
+        <label class="form-label" for="<?= $pfx ?>_meeturl">
+          <i class="bi bi-camera-video me-1 text-primary" aria-hidden="true"></i>Link do spotkania
+        </label>
+        <input type="url" class="form-control" id="<?= $pfx ?>_meeturl" name="meeting_url"
+               value="<?= h($r['meeting_url'] ?? '') ?>" placeholder="https://zoom.us/j/…">
+        <div class="form-text">Link widoczny kursantom — pojawi się przycisk „Dołącz" przed lekcją.</div>
       </div>
       <div class="border rounded p-2 mb-2 bg-body-tertiary">
         <div class="form-check form-switch mb-1">

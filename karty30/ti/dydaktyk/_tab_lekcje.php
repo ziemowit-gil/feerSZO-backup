@@ -288,6 +288,15 @@ if ($_sms_enabled && $cur_course) {
           <?php if (!empty($s['self_prep_remote']) && $s['status'] !== 'remote_material'): ?>
           <span title="Praca własna prowadzącego" data-bs-toggle="tooltip" style="color:#0D6E6A;font-size:.85rem"><i class="bi bi-person-workspace"></i></span>
           <?php endif; ?>
+          <?php
+            $_lm = (string)($s['lesson_method'] ?? '');
+            if ($_lm === 'stacjonarna'):
+          ?><span title="Stacjonarna" data-bs-toggle="tooltip" style="color:#065F46;font-size:.85rem"><i class="bi bi-geo-alt-fill"></i></span>
+          <?php elseif ($_lm === 'zdalna_zoom'): ?>
+          <span title="Zdalna — Zoom" data-bs-toggle="tooltip" style="color:#1D4ED8;font-size:.85rem"><i class="bi bi-camera-video-fill"></i></span>
+          <?php elseif ($_lm === 'zdalna_inne'): ?>
+          <span title="Zdalna — Inne" data-bs-toggle="tooltip" style="color:#6B21A8;font-size:.85rem"><i class="bi bi-display"></i></span>
+          <?php endif; ?>
 
           <!-- Prawa strona: frekwencja + alert + CTA + dropdown -->
           <div class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
@@ -503,6 +512,13 @@ if ($_sms_enabled && $cur_course) {
           </td>
           <td>
             <span class="badge" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
+            <?php $_lm2 = (string)($s['lesson_method'] ?? ''); if ($_lm2 === 'stacjonarna'): ?>
+            <i class="bi bi-geo-alt-fill ms-1" title="Stacjonarna" data-bs-toggle="tooltip" style="color:#065F46;font-size:.8rem"></i>
+            <?php elseif ($_lm2 === 'zdalna_zoom'): ?>
+            <i class="bi bi-camera-video-fill ms-1" title="Zdalna — Zoom" data-bs-toggle="tooltip" style="color:#1D4ED8;font-size:.8rem"></i>
+            <?php elseif ($_lm2 === 'zdalna_inne'): ?>
+            <i class="bi bi-display ms-1" title="Zdalna — Inne" data-bs-toggle="tooltip" style="color:#6B21A8;font-size:.8rem"></i>
+            <?php endif; ?>
           </td>
           <td class="text-truncate" style="max-width:0;font-size:.83rem">
             <?= !empty($s['topic']) ? h($s['topic']) : '<span class="text-body-tertiary">—</span>' ?>

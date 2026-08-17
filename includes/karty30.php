@@ -435,6 +435,8 @@ function karty30_migrate(): void {
         // Stały link Zoom per kursant (per zapis) — nadrzędny nad stałym linkiem kursu
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_id  TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_url TEXT NOT NULL DEFAULT ''",
+        // Metoda lekcji: stacjonarna | zdalna_zoom | zdalna_inne ('' = nie wybrano)
+        "ALTER TABLE k30_ti_sessions ADD COLUMN lesson_method TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
