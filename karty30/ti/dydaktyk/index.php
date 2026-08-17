@@ -576,6 +576,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $topic = trim($_POST['topic'] ?? '');
         $every = max(1, (int)($_POST['weeks'] ?? 1));
         $count = max(1, min(52, (int)($_POST['count'] ?? 1)));
+        $ser_lm       = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
+        $ser_meet_url = in_array($ser_lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) {
             flash_set('danger', 'Podaj poprawną datę startową serii.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
@@ -591,6 +593,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'lesson_method' => $ser_lm, 'meeting_url' => $ser_meet_url,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             foreach ($enrollees as $e) {

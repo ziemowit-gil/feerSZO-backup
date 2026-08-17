@@ -712,6 +712,23 @@ foreach ($_ext_for_wiz as $_we) {
           <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
           <input type="text" class="form-control" id="series_topic" name="topic" placeholder="np. Zajęcia cykliczne">
         </div>
+        <div class="mb-2">
+          <label class="form-label" for="series_method">Metoda lekcji</label>
+          <select class="form-select" id="series_method" name="lesson_method"
+                  onchange="(function(v){var w=document.getElementById('series_meeturl_wrap');w.style.display=(v==='zdalna_zoom'||v==='zdalna_inne')?'':'none';})(this.value)">
+            <option value="">— nie wybrano —</option>
+            <option value="stacjonarna">Stacjonarna</option>
+            <option value="zdalna_zoom">Zdalna — Zoom</option>
+            <option value="zdalna_inne">Zdalna — Inne</option>
+          </select>
+        </div>
+        <div class="mb-2" id="series_meeturl_wrap" style="display:none">
+          <label class="form-label" for="series_meeturl">
+            <i class="bi bi-camera-video me-1 text-primary" aria-hidden="true"></i>Link do spotkania
+          </label>
+          <input type="url" class="form-control" id="series_meeturl" name="meeting_url" placeholder="https://zoom.us/j/…">
+          <div class="form-text">Wspólny link dla wszystkich lekcji w serii — można zmienić per-lekcja po utworzeniu.</div>
+        </div>
         <div class="row g-2">
           <div class="col-6 mb-2">
             <label class="form-label" for="series_weeks">Co ile tygodni</label>
