@@ -3310,8 +3310,24 @@ function k30_ti_calendar_ics(int $client_id, string $cal_name = 'Lekcje TI'): st
         $summary = $course !== '' ? $course : 'Lekcja TI';
         if ($topic !== '') $summary .= ' — ' . $topic;
 
+        $lm = (string)($l['lesson_method'] ?? '');
+        $enroll_link = trim((string)($l['enrollment_meeting_url'] ?? ''));
+        $eff_link = $lm === 'stacjonarna' ? ''
+                  : (trim((string)($l['meeting_url'] ?? '')) !== '' ? trim((string)$l['meeting_url'])
+                  : ($enroll_link !== '' ? $enroll_link
+                  : trim((string)($l['course_meeting_url'] ?? ''))));
+
+        $lm_label = match($lm) {
+            'stacjonarna' => 'Stacjonarna',
+            'zdalna_zoom' => 'Zdalna — Zoom',
+            'zdalna_inne' => 'Zdalna — Inne',
+            default       => '',
+        };
+
         $descParts = [];
         if ($topic !== '')                 $descParts[] = 'Temat: ' . $topic;
+        if ($lm_label !== '')              $descParts[] = 'Metoda: ' . $lm_label;
+        if ($eff_link !== '')              $descParts[] = 'Link: ' . $eff_link;
         if (!empty($l['has_homework']))    $descParts[] = 'Zadanie domowe: tak';
         $desc = implode('\\n', array_map($esc, $descParts));
 
@@ -3324,6 +3340,11 @@ function k30_ti_calendar_ics(int $client_id, string $cal_name = 'Lekcje TI'): st
         $lines[] = $dtEnd;
         $lines[] = $fold('SUMMARY:' . $esc($summary));
         if ($desc !== '') $lines[] = $fold('DESCRIPTION:' . $desc);
+        if ($eff_link !== '') {
+            $lines[] = $fold('URL:' . $esc($eff_link));
+            $lines[] = $fold('LOCATION:' . $esc($eff_link));
+            $lines[] = $fold('X-GOOGLE-CONFERENCE:' . $esc($eff_link));
+        }
         $lines[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
         if ($cancelled) $lines[] = 'TRANSP:TRANSPARENT';
         $lines[] = 'END:VEVENT';
@@ -3364,7 +3385,8 @@ function k30_ti_instructor_calendar_ics(int $user_id, string $cal_name = 'Lekcje
     $lessons = db_all(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min,
                 s.topic, s.status, s.has_homework, s.self_prep_remote,
-                c.name AS course_name,
+                s.lesson_method, s.meeting_url,
+                c.name AS course_name, c.default_meeting_url AS course_meeting_url,
                 (SELECT group_concat(cl.name, ', ')
                    FROM k30_ti_attendance a
                    JOIN k30_clients cl ON cl.id=a.client_id
@@ -3441,9 +3463,23 @@ function k30_ti_instructor_calendar_ics(int $user_id, string $cal_name = 'Lekcje
         if (!empty($l['self_prep_remote'])) $lesson .= ' (praca własna)';
         $summary = $students !== '' ? ($lesson . ' — ' . $students) : $lesson;
 
+        $lm_d = (string)($l['lesson_method'] ?? '');
+        $eff_link_d = $lm_d === 'stacjonarna' ? ''
+                    : (trim((string)($l['meeting_url'] ?? '')) !== '' ? trim((string)$l['meeting_url'])
+                    : trim((string)($l['course_meeting_url'] ?? '')));
+
+        $lm_label_d = match($lm_d) {
+            'stacjonarna' => 'Stacjonarna',
+            'zdalna_zoom' => 'Zdalna — Zoom',
+            'zdalna_inne' => 'Zdalna — Inne',
+            default       => '',
+        };
+
         $descParts = [];
         if ($course !== '')              $descParts[] = 'Kurs: ' . $course;
         if ($students !== '')            $descParts[] = 'Kursant: ' . $students;
+        if ($lm_label_d !== '')          $descParts[] = 'Metoda: ' . $lm_label_d;
+        if ($eff_link_d !== '')          $descParts[] = 'Link: ' . $eff_link_d;
         if (!empty($l['has_homework']))  $descParts[] = 'Zadanie domowe: tak';
         $desc = implode('\\n', array_map($esc, $descParts));
 
@@ -3456,6 +3492,11 @@ function k30_ti_instructor_calendar_ics(int $user_id, string $cal_name = 'Lekcje
         $lines[] = $dtEnd;
         $lines[] = $fold('SUMMARY:' . $esc($summary));
         if ($desc !== '') $lines[] = $fold('DESCRIPTION:' . $desc);
+        if ($eff_link_d !== '') {
+            $lines[] = $fold('URL:' . $esc($eff_link_d));
+            $lines[] = $fold('LOCATION:' . $esc($eff_link_d));
+            $lines[] = $fold('X-GOOGLE-CONFERENCE:' . $esc($eff_link_d));
+        }
         $lines[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
         if ($cancelled) $lines[] = 'TRANSP:TRANSPARENT';
         $lines[] = 'END:VEVENT';
