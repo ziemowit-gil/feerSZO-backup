@@ -250,7 +250,7 @@ if ($_sms_enabled && $cur_course) {
     ?>
     <div class="dyd-lesson-row d-flex align-items-start <?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>"
          data-filter-item="1"
-         style="border-left:3px solid <?= h($st['color']) ?>;<?= $is_today ? 'background:rgba(37,99,235,.04)' : '' ?>;border-bottom:1px solid var(--bs-border-color)">
+         style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : ($is_today ? 'background:rgba(37,99,235,.04)' : '') ?>;border-bottom:1px solid var(--bs-border-color)">
 
       <!-- Kolumna daty -->
       <div class="d-flex flex-column align-items-center justify-content-start text-center flex-shrink-0 py-2 px-2"
@@ -499,7 +499,7 @@ if ($_sms_enabled && $cur_course) {
           $_meet_url  = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? '')));
         ?>
         <tr data-filter-item="1"
-            style="border-left:3px solid <?= h($st['color']) ?>"
+            style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
             <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
