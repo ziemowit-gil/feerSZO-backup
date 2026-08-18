@@ -50,9 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek','m365_konto'] as $f) {
+        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek'] as $f) {
             $row[$f] = isset($_POST[$f]) ? 1 : 0;
         }
+        $row['m365_konto'] = 0;
         $plik_umowy = handle_upload('plik_umowy', $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
         if ($plik_umowy) $row['plik_umowy'] = $plik_umowy;
@@ -144,7 +145,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('info', 'Zapisano roboczo — możesz wrócić i dokończyć umowę.');
             header('Location: ' . APP_URL . "/contracts/{$TYPE}/edit.php?id={$id}"); exit;
         }
-        flash_set('success', 'Umowa zlecenie została dodana.');
+
+        // M365 auto-create (jeśli zaznaczono checkbox przy zapisie)
+        $m365_ok  = null;  // null = nie żądano, true = sukces, string = błąd
+        $m365_login_created = '';
+        $m365_mail_sent     = false;
+        if (!empty($_POST['m365_create_now'])) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+                require_once dirname(dirname(__DIR__)) . '/includes/it_helpers.php';
+                $graph = new M365Graph();
+                if (!$graph->is_configured()) throw new \RuntimeException('Integracja M365 nie jest skonfigurowana.');
+                $pname  = $data['imie_nazwisko'] ?? '';
+                $pemail = $data['email'] ?? null;
+                $login  = $graph->unique_login($pname);
+                $pass   = M365Graph::generate_password();
+                $sku    = m365_setting('m365_license_sku_id');
+                if ($sku) {
+                    foreach ($graph->get_subscribed_skus() as $_s) {
+                        if ($_s['skuId'] === $sku) {
+                            $free = ($_s['prepaidUnits']['enabled'] ?? 0) - ($_s['consumedUnits'] ?? 0);
+                            if ($free <= 0) throw new \RuntimeException('Brak wolnych licencji M365 (' . ($_s['skuPartNumber'] ?? '') . ').');
+                            break;
+                        }
+                    }
+                }
+                $user    = $graph->create_user($login, $pname, $pass, true);
+                $user_id = $user['id'];
+                $lic_assigned = 0;
+                if ($sku) { $graph->assign_license($user_id, $sku); $lic_assigned = 1; }
+                $sent_m = false;
+                $sender = m365_setting('m365_sender_user_id');
+                if ($sender && $pemail) { $graph->send_welcome_email($sender, $pemail, $pname, $login, $pass); $sent_m = true; }
+                try {
+                    it_migrate();
+                    $_svc = db_one("SELECT id FROM it_services WHERE slug='m365'");
+                    if ($_svc) {
+                        it_log_password(['service_id'=>(int)$_svc['id'],'contract_type'=>$TYPE,'contract_id'=>$id,
+                            'login'=>$login,'plain'=>$pass,'sent_to_email'=>$sent_m?$pemail:null,
+                            'notes'=>'Wygenerowano automatycznie przy tworzeniu umowy','issued_by'=>current_user()['id']]);
+                    }
+                } catch (\Throwable $_e) {}
+                db_update($TABLE, ['m365_konto'=>1,'m365_login'=>$login,'m365_user_id'=>$user_id,
+                    'm365_konto_aktywne'=>1,'m365_data_utworzenia'=>date('Y-m-d H:i:s'),'m365_licencja_przypisana'=>$lic_assigned], $id);
+                $lnk = m365_auto_link_or_create_local($pemail ?? '', $pname, $user_id);
+                if ($lnk['msg']) log_contract_action($TYPE, $id, (int)current_user()['id'], 'note', $lnk['msg']);
+                auth_start();
+                $_SESSION['m365_new_pass']  = $pass;
+                $_SESSION['m365_new_login'] = $login;
+                $_SESSION['m365_sent']      = $sent_m;
+                $m365_ok = true;
+                $m365_login_created = $login;
+                $m365_mail_sent     = $sent_m;
+            } catch (\Throwable $_e) {
+                $m365_ok = $_e->getMessage();
+                error_log('[zlecenie/add m365] ' . $_e->getMessage());
+            }
+        }
+
+        if ($m365_ok === true) {
+            flash_set('success', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone.' . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
+        } elseif (is_string($m365_ok)) {
+            flash_set('success', 'Umowa zlecenie dodana. <span class="text-warning fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>Konto M365 nie zostało utworzone:</span> ' . h($m365_ok));
+        } else {
+            flash_set('success', 'Umowa zlecenie została dodana.');
+        }
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}"); exit;
     }
 }
@@ -650,19 +715,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     Microsoft 365
   </div>
   <div class="form-section-body">
+    <div class="alert alert-info py-2 mb-3" style="font-size:.84rem">
+      <i class="bi bi-info-circle me-1"></i>
+      Adres e-mail do logowania wpisz w kroku 1 w polu „E-mail do logowania w panelu".
+      Konto zostanie założone w Microsoft 365 — wymagana dostępna licencja i aktywna integracja M365.
+    </div>
     <div class="form-check form-switch mb-2">
-      <input class="form-check-input" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>
-      <label class="form-check-label" for="m365_konto">Konto M365 zostało utworzone</label>
+      <input class="form-check-input" type="checkbox" name="m365_create_now" id="m365_create_now" value="1">
+      <label class="form-check-label fw-semibold" for="m365_create_now">
+        <i class="bi bi-microsoft me-1 text-primary"></i>Utwórz konto M365 automatycznie przy zapisie
+      </label>
     </div>
-    <div id="m365_manual_fields" class="<?= !empty($row['m365_konto'])?'':'d-none' ?>">
-      <div class="row">
-        <div class="col-md-6 mb-2">
-          <label class="form-label small">User ID (Azure AD)</label>
-          <input name="m365_user_id" class="form-control form-control-sm font-monospace" value="<?= h($row['m365_user_id']??'') ?>">
-        </div>
-      </div>
-    </div>
-    <small class="text-muted">Konto można też <a href="#">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</small>
+    <div class="text-muted small">Konto można też utworzyć ręcznie po zapisaniu — w widoku szczegółów umowy.</div>
   </div>
 </div>
 
@@ -790,11 +854,6 @@ document.getElementById('forma_podpisania').addEventListener('change', function 
   var fp = this.value;
   document.getElementById('el_fields').classList.toggle('d-none',      fp !== 'elektroniczna');
   document.getElementById('epodpis_fields').classList.toggle('d-none', fp !== 'epodpis_kwalifikowany');
-});
-
-/* ── M365 ──────────────────────────────────────────────── */
-document.getElementById('m365_konto').addEventListener('change', function () {
-  document.getElementById('m365_manual_fields').classList.toggle('d-none', !this.checked);
 });
 
 /* ── CEIDG ─────────────────────────────────────────────── */
