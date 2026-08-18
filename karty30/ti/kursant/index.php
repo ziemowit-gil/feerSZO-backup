@@ -2209,9 +2209,10 @@ document.addEventListener('DOMContentLoaded', function() {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
             $enroll_link = trim((string)($l['enrollment_meeting_url'] ?? ''));
-            $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url']
+            $eff_link = ($l['lesson_method'] ?? '') === 'stacjonarna' ? ''
+                      : (trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url']
                       : ($enroll_link !== '' ? $enroll_link
-                      : (string)($l['course_meeting_url'] ?? ''));
+                      : (string)($l['course_meeting_url'] ?? '')));
           ?>
           <tr>
             <td class="text-nowrap">
