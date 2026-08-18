@@ -3685,6 +3685,44 @@ function k30_ti_homework_delete_file(string $stored): void {
     }
 }
 
+/**
+ * Importuje plik z zewnętrznego URL do magazynu TI.
+ * Zwraca ['name'=>..., 'stored'=>...] lub null przy błędzie.
+ */
+function k30_ti_import_from_url(string $url, string $filename = '', string $prefix = 'mat'): ?array {
+    if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) return null;
+    $scheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?: '');
+    if (!in_array($scheme, ['http', 'https'], true)) return null;
+
+    $ctx  = stream_context_create(['http' => [
+        'timeout'         => 30,
+        'follow_location' => 1,
+        'max_redirects'   => 3,
+        'ignore_errors'   => true,
+    ]]);
+    $data = @file_get_contents($url, false, $ctx);
+    if ($data === false || $data === '') return null;
+
+    if ($filename === '') {
+        $filename = basename(parse_url($url, PHP_URL_PATH) ?: 'plik');
+    }
+    $filename = basename($filename);
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if ($ext === '' || !in_array($ext, k30_ti_homework_allowed_ext(), true)) return null;
+
+    $stamp  = date('Ymd_His');
+    $suffix = bin2hex(random_bytes(4));
+    $stored = "{$prefix}_{$stamp}_{$suffix}.{$ext}";
+    $dir    = rtrim(UPLOAD_DIR, '/') . '/ti_homework/';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    if (file_put_contents($dir . $stored, $data) === false) return null;
+
+    if (function_exists('owncloud_enabled') && owncloud_enabled()) {
+        owncloud_put('ti_homework/' . $stored, $dir . $stored);
+    }
+    return ['name' => $filename, 'stored' => $stored];
+}
+
 /** Lista zadań (dla prowadzącego); $course_id=0 → wszystkie. Z licznikiem oddań. */
 function k30_ti_homework_list(int $course_id = 0): array {
     $where = $course_id ? "WHERE h.course_id=?" : "";

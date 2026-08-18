@@ -1095,8 +1095,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($title === '') { flash_set('danger', 'Podaj tytuł materiału.'); header('Location: ' . dyd_back($course_id, 'materialy')); exit; }
         if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $course_id])) $session_id = null;
 
-        try { $up = k30_ti_homework_upload('attach', 'mat'); }
-        catch (\Throwable $e) { flash_set('danger', $e->getMessage()); header('Location: ' . dyd_back($course_id, 'materialy')); exit; }
+        $cloud_stored = basename(trim($_POST['cloud_stored'] ?? ''));
+        $cloud_name   = trim($_POST['cloud_name'] ?? '');
+        $valid_cloud  = $cloud_stored !== '' && $cloud_name !== ''
+            && preg_match('/^mat_\d{8}_\d{6}_[0-9a-f]+\.[a-z0-9]+$/i', $cloud_stored);
+        if ($valid_cloud) {
+            $up = ['stored' => $cloud_stored, 'name' => $cloud_name];
+        } else {
+            try { $up = k30_ti_homework_upload('attach', 'mat'); }
+            catch (\Throwable $e) { flash_set('danger', $e->getMessage()); header('Location: ' . dyd_back($course_id, 'materialy')); exit; }
+        }
 
         if ($mid) {
             $m = k30_ti_material_get($mid);
@@ -1827,7 +1835,8 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionP
   </form>
 <?php };
 
-$matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, $sessionPicker) {
+$oc_pick_available = owncloud_admin_configured() && owncloud_instructor_account($uid) !== null;
+$matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, $sessionPicker, $oc_pick_available) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -1868,6 +1877,23 @@ $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, 
         <label class="form-label" for="<?= $pfx ?>_attach">Plik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>
         <input type="file" class="form-control" id="<?= $pfx ?>_attach" name="attach">
         <?php if (!empty($r['attach_name'])): ?><div class="form-text">Obecny: <?= h($r['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
+        <input type="hidden" name="cloud_stored" id="<?= h($pfx) ?>_cloud_stored" value="">
+        <input type="hidden" name="cloud_name"   id="<?= h($pfx) ?>_cloud_name" value="">
+        <div id="<?= h($pfx) ?>_cloud_sel" class="form-text" style="display:none">
+          <i class="bi bi-check-circle-fill text-success me-1"></i>
+          Wybrano z chmury: <span id="<?= h($pfx) ?>_cloud_sel_name" class="fw-semibold"></span>
+          <button type="button" class="btn btn-link btn-sm p-0 text-danger ms-2" onclick="cloudClearPick('<?= h($pfx) ?>')">Usuń</button>
+        </div>
+        <div class="d-flex gap-1 flex-wrap mt-1">
+          <?php if ($oc_pick_available): ?>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cloudOpenOC('<?= h($pfx) ?>')">
+            <i class="bi bi-hdd-network me-1"></i>ownCloud
+          </button>
+          <?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="cloudOpenURL('<?= h($pfx) ?>')">
+            <i class="bi bi-cloud-arrow-down me-1"></i>Pobierz z URL
+          </button>
+        </div>
       </div>
       <div class="row g-2">
         <div class="col-6 mb-2">
@@ -3118,6 +3144,214 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   });
 
   window.dydShowFlashPref = showFlashPrefChooser;
+})();
+</script>
+
+<!-- Modal: ownCloud file picker -->
+<div class="modal fade" id="cloudOCModal" tabindex="-1" aria-labelledby="cloudOCModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cloudOCModalLabel"><i class="bi bi-hdd-network me-2"></i>Wybierz plik z ownCloud</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body p-0">
+        <nav aria-label="Breadcrumb" class="px-3 pt-2 pb-1">
+          <ol class="breadcrumb mb-0 small" id="cloudOCBreadcrumb"></ol>
+        </nav>
+        <div id="cloudOCList" class="list-group list-group-flush" style="max-height:50vh;overflow-y:auto"></div>
+        <div id="cloudOCSpinner" class="text-center py-4" style="display:none">
+          <div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Ładowanie…</span></div>
+        </div>
+        <div id="cloudOCError" class="alert alert-danger m-3" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: URL import -->
+<div class="modal fade" id="cloudURLModal" tabindex="-1" aria-labelledby="cloudURLModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cloudURLModalLabel"><i class="bi bi-cloud-arrow-down me-2"></i>Pobierz plik z URL</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label" for="cloudURLInput">URL pliku <span class="text-danger">*</span></label>
+          <input type="url" class="form-control" id="cloudURLInput" placeholder="https://…" autocomplete="off">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="cloudURLFilename">Nazwa pliku <span class="text-body-secondary small">(opc.)</span></label>
+          <input type="text" class="form-control" id="cloudURLFilename" placeholder="np. dokument.pdf">
+          <div class="form-text">Zostaw puste — zostanie pobrana z URL.</div>
+        </div>
+        <div id="cloudURLError" class="alert alert-danger" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary" id="cloudURLConfirm">
+          <i class="bi bi-download me-1"></i>Pobierz i dołącz
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Cloud file picker (ownCloud + URL) ──────────────────────────────────────
+(function(){
+  var _target   = '';
+  var _csrfToken = <?= json_encode(dyd_token()) ?>;
+
+  function cloudPost(data, cb) {
+    data._token = _csrfToken;
+    var fd = new FormData();
+    Object.keys(data).forEach(function(k){ fd.append(k, data[k]); });
+    fetch('cloud_pick.php', {method:'POST', body:fd, credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(cb)
+      .catch(function(){ cb({ok:false, err:'Błąd połączenia.'}); });
+  }
+
+  window.cloudClearPick = function(pfx) {
+    document.getElementById(pfx+'_cloud_stored').value = '';
+    document.getElementById(pfx+'_cloud_name').value   = '';
+    document.getElementById(pfx+'_cloud_sel').style.display = 'none';
+    var fi = document.getElementById(pfx+'_attach');
+    if (fi) fi.disabled = false;
+  };
+
+  function cloudSetPick(pfx, stored, name) {
+    document.getElementById(pfx+'_cloud_stored').value = stored;
+    document.getElementById(pfx+'_cloud_name').value   = name;
+    document.getElementById(pfx+'_cloud_sel_name').textContent = name;
+    document.getElementById(pfx+'_cloud_sel').style.display = '';
+    var fi = document.getElementById(pfx+'_attach');
+    if (fi) fi.disabled = true;
+  }
+
+  // ── ownCloud browser ─────────────────────────────────────────────────────
+  var ocModal = null, ocPath = '/';
+
+  function ocSetState(state, msg) {
+    document.getElementById('cloudOCList').style.display    = state==='list'   ? '' : 'none';
+    document.getElementById('cloudOCSpinner').style.display = state==='spin'   ? '' : 'none';
+    var el = document.getElementById('cloudOCError');
+    el.style.display = state==='err' ? '' : 'none';
+    if (state==='err') el.textContent = msg||'Błąd.';
+  }
+
+  function ocBreadcrumb(path) {
+    var bc = document.getElementById('cloudOCBreadcrumb');
+    bc.innerHTML = '';
+    function addItem(label, clickPath, active) {
+      var li = document.createElement('li');
+      li.className = 'breadcrumb-item' + (active ? ' active' : '');
+      if (active) { li.textContent = label; }
+      else {
+        var a = document.createElement('a'); a.href='#'; a.textContent=label;
+        a.addEventListener('click', function(e){e.preventDefault(); ocLoad(clickPath);});
+        li.appendChild(a);
+      }
+      bc.appendChild(li);
+    }
+    var segs = (path||'/').split('/').filter(function(s){return s!=='';});
+    addItem('Moje pliki', '/', segs.length===0);
+    var built='';
+    segs.forEach(function(seg,i){
+      built+='/'+seg;
+      addItem(seg, built, i===segs.length-1);
+    });
+  }
+
+  function ocLoad(path) {
+    ocPath = path;
+    ocSetState('spin');
+    cloudPost({act:'oc_list',path:path}, function(res){
+      if (!res.ok) { ocSetState('err', res.err); return; }
+      ocBreadcrumb(res.path||'/');
+      var list = document.getElementById('cloudOCList');
+      list.innerHTML = '';
+      if (!res.items || res.items.length===0) {
+        list.innerHTML='<div class="list-group-item text-body-secondary small py-2 px-3">Folder jest pusty.</div>';
+        ocSetState('list'); return;
+      }
+      res.items.forEach(function(item){
+        var a = document.createElement('a');
+        a.className='list-group-item list-group-item-action d-flex align-items-center gap-2 py-2';
+        a.href='#';
+        var icon=document.createElement('i');
+        icon.className='bi bi-'+(item.is_dir?'folder-fill text-warning':'file-earmark text-secondary');
+        a.appendChild(icon);
+        var span=document.createElement('span'); span.className='flex-grow-1'; span.textContent=item.name;
+        a.appendChild(span);
+        if (!item.is_dir && item.size>0) {
+          var sz=document.createElement('small'); sz.className='text-body-secondary';
+          sz.textContent=Math.ceil(item.size/1024)+' KB'; a.appendChild(sz);
+        }
+        a.addEventListener('click', function(e){
+          e.preventDefault();
+          if (item.is_dir) { ocLoad(item.path); }
+          else { ocImport(item.path, item.name); }
+        });
+        list.appendChild(a);
+      });
+      ocSetState('list');
+    });
+  }
+
+  function ocImport(path, name) {
+    ocSetState('spin');
+    cloudPost({act:'oc_import',path:path}, function(res){
+      if (!res.ok) { ocSetState('err', res.err); return; }
+      ocModal.hide();
+      cloudSetPick(_target, res.stored, res.name||name);
+    });
+  }
+
+  window.cloudOpenOC = function(pfx) {
+    _target = pfx;
+    if (!ocModal) ocModal = new bootstrap.Modal(document.getElementById('cloudOCModal'));
+    ocLoad('/');
+    ocModal.show();
+  };
+
+  // ── URL importer ─────────────────────────────────────────────────────────
+  var urlModal = null, urlReady = false;
+
+  window.cloudOpenURL = function(pfx) {
+    _target = pfx;
+    if (!urlModal) urlModal = new bootstrap.Modal(document.getElementById('cloudURLModal'));
+    if (!urlReady) {
+      urlReady = true;
+      document.getElementById('cloudURLConfirm').addEventListener('click', function(){
+        var url  = document.getElementById('cloudURLInput').value.trim();
+        var name = document.getElementById('cloudURLFilename').value.trim();
+        var err  = document.getElementById('cloudURLError');
+        err.style.display='none';
+        if (!url) { err.textContent='Podaj URL pliku.'; err.style.display=''; return; }
+        var btn = document.getElementById('cloudURLConfirm');
+        btn.disabled=true;
+        btn.innerHTML='<span class="spinner-border spinner-border-sm me-1" role="status"></span>Pobieranie…';
+        cloudPost({act:'url_import',url:url,filename:name}, function(res){
+          btn.disabled=false;
+          btn.innerHTML='<i class="bi bi-download me-1"></i>Pobierz i dołącz';
+          if (!res.ok) { err.textContent=res.err||'Błąd.'; err.style.display=''; return; }
+          urlModal.hide();
+          cloudSetPick(_target, res.stored, res.name||(name||url.split('/').pop()));
+        });
+      });
+    }
+    document.getElementById('cloudURLInput').value='';
+    document.getElementById('cloudURLFilename').value='';
+    document.getElementById('cloudURLError').style.display='none';
+    urlModal.show();
+  };
 })();
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>

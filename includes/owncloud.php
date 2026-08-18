@@ -507,3 +507,101 @@ function owncloud_reset_instructor_password(int $user_id): array {
         'url'      => $admin_cfg['url'],
     ];
 }
+
+/**
+ * Lista plików/folderów w katalogu prowadzącego przez konto admina (WebDAV PROPFIND).
+ * Zwraca tablicę: [name, is_dir, size, mime, modified, path]
+ */
+function owncloud_admin_list_files(string $username, string $path = '/'): array {
+    if (!owncloud_admin_configured() || $username === '') return [];
+    $admin = owncloud_admin_config();
+    $segs  = array_values(array_filter(explode('/', trim($path, '/')), fn($s) => $s !== ''));
+    $enc   = implode('/', array_map('rawurlencode', $segs));
+    $dav   = rtrim($admin['url'], '/') . '/remote.php/dav/files/'
+           . rawurlencode($username) . '/' . ($enc !== '' ? $enc . '/' : '');
+    $body  = '<?xml version="1.0" encoding="UTF-8"?>'
+           . '<d:propfind xmlns:d="DAV:"><d:prop>'
+           . '<d:displayname/><d:getcontentlength/><d:getlastmodified/><d:resourcetype/><d:getcontenttype/>'
+           . '</d:prop></d:propfind>';
+    $cfg = ['url' => $admin['url'], 'username' => $admin['username'], 'password' => $admin['password']];
+    $r   = owncloud_request($cfg, 'PROPFIND', $dav, $body, ['Depth: 1', 'Content-Type: application/xml']);
+    if ($r['http'] !== 207) return [];
+    return _owncloud_parse_propfind($r['body'], $username, $path);
+}
+
+function _owncloud_parse_propfind(string $xml, string $username, string $parent_path = '/'): array {
+    if ($xml === '') return [];
+    $prev = libxml_use_internal_errors(true);
+    $doc  = simplexml_load_string($xml);
+    libxml_use_internal_errors($prev);
+    if (!$doc) return [];
+
+    $doc->registerXPathNamespace('d', 'DAV:');
+    $responses = $doc->xpath('//d:response') ?: [];
+    $base_pfx  = '/remote.php/dav/files/' . rawurlencode($username) . '/';
+    $par_segs  = array_values(array_filter(explode('/', trim($parent_path, '/')), fn($s) => $s !== ''));
+    $items = [];
+
+    foreach ($responses as $resp) {
+        $resp->registerXPathNamespace('d', 'DAV:');
+        $href_n = $resp->xpath('d:href');
+        if (!$href_n) continue;
+        $href = (string)$href_n[0];
+        $href_path = (strpos($href, 'http') === 0) ? (parse_url($href, PHP_URL_PATH) ?: '') : $href;
+        if (strpos($href_path, $base_pfx) !== 0) continue;
+        $rel  = rawurldecode(rtrim(substr($href_path, strlen($base_pfx)), '/'));
+        $segs = array_values(array_filter(explode('/', $rel), fn($s) => $s !== ''));
+        if (count($segs) !== count($par_segs) + 1) continue;
+
+        $prop = $resp->xpath('d:propstat/d:prop');
+        if (!$prop) continue;
+        $p = $prop[0];
+        $p->registerXPathNamespace('d', 'DAV:');
+        $is_dir   = !empty($p->xpath('d:resourcetype/d:collection'));
+        $size     = (int)(string)($p->xpath('d:getcontentlength')[0] ?? '0');
+        $mime     = (string)($p->xpath('d:getcontenttype')[0] ?? '');
+        $modified = (string)($p->xpath('d:getlastmodified')[0] ?? '');
+        $name     = basename($rel);
+        $path_out = '/' . $rel . ($is_dir ? '/' : '');
+        $items[]  = ['name'=>$name,'is_dir'=>$is_dir,'size'=>$size,'mime'=>$mime,'modified'=>$modified,'path'=>$path_out];
+    }
+
+    usort($items, fn($a, $b) => ($b['is_dir'] <=> $a['is_dir']) ?: strcmp($a['name'], $b['name']));
+    return $items;
+}
+
+/**
+ * Importuje plik z konta prowadzącego (przez admina WebDAV) do magazynu TI.
+ * Zwraca ['name'=>..., 'stored'=>...] lub null przy błędzie.
+ */
+function owncloud_admin_import_file(string $username, string $path, string $prefix = 'mat'): ?array {
+    if (!owncloud_admin_configured() || $username === '') return null;
+    $admin    = owncloud_admin_config();
+    $segs     = array_values(array_filter(explode('/', trim($path, '/')), fn($s) => $s !== ''));
+    $enc_path = implode('/', array_map('rawurlencode', $segs));
+    $dav_url  = rtrim($admin['url'], '/') . '/remote.php/dav/files/'
+              . rawurlencode($username) . '/' . $enc_path;
+    $cfg = ['url' => $admin['url'], 'username' => $admin['username'], 'password' => $admin['password']];
+    $r   = owncloud_request($cfg, 'GET', $dav_url, '');
+    if (!$r['ok'] || $r['body'] === '') return null;
+
+    $orig_name = basename($path);
+    $ext       = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+    $allowed   = function_exists('k30_ti_homework_allowed_ext') ? k30_ti_homework_allowed_ext()
+               : ['pdf','doc','docx','odt','rtf','txt','xls','xlsx','ods','csv','ppt','pptx','odp',
+                  'png','jpg','jpeg','gif','webp','bmp','svg','zip','7z','rar','gz',
+                  'py','java','c','cpp','cs','js','ts','html','css','sql','json','ipynb','md'];
+    if ($ext === '' || !in_array($ext, $allowed, true)) return null;
+
+    $stamp  = date('Ymd_His');
+    $suffix = bin2hex(random_bytes(4));
+    $stored = "{$prefix}_{$stamp}_{$suffix}.{$ext}";
+    $dir    = rtrim(UPLOAD_DIR, '/') . '/ti_homework/';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    if (file_put_contents($dir . $stored, $r['body']) === false) return null;
+
+    if (owncloud_enabled()) {
+        owncloud_put('ti_homework/' . $stored, $dir . $stored);
+    }
+    return ['name' => $orig_name, 'stored' => $stored];
+}
