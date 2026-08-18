@@ -2253,6 +2253,14 @@ document.addEventListener('DOMContentLoaded', function() {
               <?php else: ?>
               <span class="badge text-bg-secondary"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Lekcja z uczestnikiem</span>
               <?php endif; ?>
+              <?php $_sl = $l['lesson_method'] ?? '';
+                if ($_sl === 'stacjonarna'): ?>
+              <br><small class="text-success"><i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i>Stacjonarna</small>
+              <?php elseif ($_sl === 'zdalna_zoom'): ?>
+              <br><small class="text-primary"><i class="bi bi-camera-video me-1" aria-hidden="true"></i>Zdalna — Zoom</small>
+              <?php elseif ($_sl === 'zdalna_inne'): ?>
+              <br><small style="color:#6B21A8"><i class="bi bi-display me-1" aria-hidden="true"></i>Zdalna — Inne</small>
+              <?php endif; ?>
             </td>
             <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; $att_pending = (int)($l['att_cancel_pending'] ?? 0) === 1; ?>
             <td class="text-center">

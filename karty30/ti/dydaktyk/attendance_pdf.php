@@ -100,9 +100,15 @@ $pdf->Cell($name_w, $row_h * 2, _att_txt('Kursant'), 1, 0, 'L', true);
 $pdf->SetFont('Helvetica', 'B', $hdr_font);
 foreach ($sessions as $s) {
     $dd = date('d.m', strtotime($s['lesson_date']));
-    // Dwie linie: data górna, nr lekcji dolna
+    $lm_abbr = match($s['lesson_method'] ?? '') {
+        'stacjonarna' => 'S',
+        'zdalna_zoom' => 'ZZ',
+        'zdalna_inne' => 'ZI',
+        default => '',
+    };
+    $hdr_text = $lm_abbr !== '' ? $dd . "\n" . $lm_abbr : $dd;
     $x = $pdf->GetX(); $y = $pdf->GetY();
-    $pdf->MultiCell($sess_w, $row_h, _att_txt($dd), 1, 'C', true);
+    $pdf->MultiCell($sess_w, $row_h, _att_txt($hdr_text), 1, 'C', true);
     $pdf->SetXY($x + $sess_w, $y);
 }
 $pdf->SetFont('Helvetica', 'B', 7);
@@ -189,6 +195,7 @@ $pdf->Ln(3);
 $pdf->SetFont('Helvetica', '', 7);
 $pdf->SetTextColor(80, 80, 80);
 $pdf->Cell($PW, 5, _att_txt('+  obecny     -  nieobecny     x  odwołany udział     %  odsetek lekcji z obecnością (bez odwołanych)'), 0, 1, 'L');
+$pdf->Cell($PW, 4, _att_txt('Metoda lekcji w naglowku: S = stacjonarna     ZZ = zdalna Zoom     ZI = zdalna inne     (brak symbolu = nie wybrano)'), 0, 1, 'L');
 if ($show_cancelled) {
     $pdf->Cell($PW, 4, _att_txt('Widok: wszystkie lekcje (w tym odwołane).'), 0, 1, 'L');
 }
