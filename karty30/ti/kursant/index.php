@@ -635,7 +635,9 @@ $progress_pct = $progress_total > 0 ? round($progress_done / $progress_total * 1
 // Następna zaplanowana lekcja (do widgetu na dashboardzie)
 try {
     $next_lesson = db_one(
-        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name,
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, s.lesson_method, s.meeting_url,
+                c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                e.zoom_meeting_url AS enrollment_meeting_url,
                 u.name AS instructor_name
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
@@ -1779,26 +1781,52 @@ document.addEventListener('DOMContentLoaded', function() {
     $nl_when  = $nl_today ? 'Dziś' : ($nl_tom ? 'Jutro' : $nl_day . ', ' . $nl_date);
     $nl_time  = $next_lesson['time_from'] ? ' o ' . substr($next_lesson['time_from'], 0, 5) : '';
     if ($nl_today || $nl_tom) $nl_when .= $nl_time;
+    $nl_lm    = (string)($next_lesson['lesson_method'] ?? '');
+    $nl_enr   = trim((string)($next_lesson['enrollment_meeting_url'] ?? ''));
+    $nl_link  = $nl_lm === 'stacjonarna' ? ''
+              : (trim((string)($next_lesson['meeting_url'] ?? '')) !== '' ? trim((string)$next_lesson['meeting_url'])
+              : ($nl_enr !== '' ? $nl_enr
+              : trim((string)($next_lesson['course_meeting_url'] ?? ''))));
+    $nl_lm_icon = match($nl_lm) {
+        'stacjonarna' => '<i class="bi bi-geo-alt-fill me-1 text-success" aria-hidden="true"></i>Stacjonarna',
+        'zdalna_zoom' => '<i class="bi bi-camera-video me-1 text-primary" aria-hidden="true"></i>Zdalna — Zoom',
+        'zdalna_inne' => '<i class="bi bi-display me-1" style="color:#6B21A8" aria-hidden="true"></i>Zdalna — Inne',
+        default       => '',
+    };
   ?>
-  <a href="?tab=lekcje" class="card border-0 shadow-sm mb-4 text-decoration-none <?= $nl_today ? 'border-start border-4 border-warning' : '' ?>"
-     aria-label="Następna lekcja: <?= h($nl_when) ?>">
+  <div class="card border-0 shadow-sm mb-4 <?= $nl_today ? 'border-start border-4 border-warning' : '' ?>">
     <div class="card-body d-flex align-items-center gap-3 py-3">
-      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 <?= $nl_today ? 'text-bg-warning' : 'text-bg-primary' ?>"
-           style="width:48px;height:48px;font-size:1.4rem" aria-hidden="true">
+      <a href="?tab=lekcje" class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-decoration-none <?= $nl_today ? 'text-bg-warning' : 'text-bg-primary' ?>"
+         style="width:48px;height:48px;font-size:1.4rem" aria-hidden="true">
         <i class="bi bi-calendar-event"></i>
-      </div>
+      </a>
       <div class="flex-grow-1 min-width-0">
         <div class="small text-body-secondary mb-0">Następna lekcja</div>
-        <div class="fw-bold"><?= h($nl_when) ?><?= $nl_today || $nl_tom ? '' : ($nl_time ? h($nl_time) : '') ?>
+        <div class="fw-bold">
+          <a href="?tab=lekcje" class="text-decoration-none text-body"><?= h($nl_when) ?><?= $nl_today || $nl_tom ? '' : ($nl_time ? h($nl_time) : '') ?></a>
           <span class="text-body-secondary fw-normal ms-1 small"><?= h($next_lesson['course_name']) ?></span>
         </div>
         <?php if ($next_lesson['topic']): ?>
         <div class="small text-body-secondary text-truncate"><?= h($next_lesson['topic']) ?></div>
         <?php endif; ?>
+        <?php if ($nl_lm_icon !== ''): ?>
+        <div class="small mt-1"><?= $nl_lm_icon ?></div>
+        <?php endif; ?>
       </div>
-      <i class="bi bi-chevron-right text-body-secondary flex-shrink-0" aria-hidden="true"></i>
+      <?php if ($nl_link !== ''): ?>
+      <a href="<?= h($nl_link) ?>" target="_blank" rel="noopener"
+         class="btn btn-success btn-sm flex-shrink-0 d-flex align-items-center gap-1"
+         title="Dołącz do lekcji online">
+        <i class="bi bi-camera-video" aria-hidden="true"></i>
+        <span class="d-none d-sm-inline">Dołącz</span>
+      </a>
+      <?php else: ?>
+      <a href="?tab=lekcje" class="text-body-secondary flex-shrink-0" aria-hidden="true">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+      <?php endif; ?>
     </div>
-  </a>
+  </div>
   <?php endif; ?>
 
   <!-- Skróty -->
