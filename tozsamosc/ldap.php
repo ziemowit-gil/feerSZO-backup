@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ldap->connect();
                 $act  = $ldap->upsert_user($user_row);
                 $ldap->close();
-                flash_set('success', "Konto „{$user_row['name']}" — {$act} w LDAP.");
+                flash_set('success', 'Konto "' . $user_row['name'] . '" — ' . $act . ' w LDAP.');
                 if (function_exists('admin_audit')) {
                     admin_audit('ldap_push', 'ldap', "uid={$uid} ({$user_row['name']}): {$act}", $uid);
                 }
