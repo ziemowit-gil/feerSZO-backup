@@ -16,7 +16,30 @@ try {
     $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'");
     $_tasks_panel_enabled = ($_tm['value'] ?? '1') !== '0';
 } catch (\Throwable $e) {}
-if (!$_tasks_panel_enabled) return;
+// Komunikat o Trello — pokazuj zawsze (niezależnie od stanu modułu)
+?>
+<div class="d-flex align-items-start gap-3 p-3 rounded-3 mb-3"
+     style="background:#fef3c7;border-left:4px solid #f59e0b">
+  <i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0 mt-1"></i>
+  <div>
+    <strong class="d-block mb-1" style="color:#92400e;font-size:.9rem">Moduł Zadań tymczasowo niedostępny</strong>
+    <span style="color:#78350f;font-size:.83rem">
+      Tymczasowo wracamy do Trello — korzystaj z tablicy zespołu do czasu przywrócenia modułu.
+    </span>
+    <div class="mt-2">
+      <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u"
+         target="_blank" rel="noopener"
+         class="btn btn-sm btn-warning fw-semibold">
+        <i class="bi bi-trello me-1"></i>Otwórz tablicę Trello
+      </a>
+    </div>
+  </div>
+</div>
+<?php
+if (!$_tasks_panel_enabled) {
+    $GLOBALS['_pv_tasks_section_done'] = true;
+    return;
+}
 
 $GLOBALS['_pv_tasks_section_done'] = true;
 
