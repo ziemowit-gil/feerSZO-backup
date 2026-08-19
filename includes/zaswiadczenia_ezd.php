@@ -693,6 +693,45 @@ function ezd_zas_by_verify_code(string $code): ?array {
         '{{byl_jest}} wolontariuszem/wolontariuszką'
     );
 
+    // Adnotacja o wygaśnięciu porozumienia + natychmiastowe wydanie do ręcznego wydruku
+    (function () {
+        $row = db_one("SELECT id, szablon_pola, szablon_tresc FROM ezd_zas_typy WHERE kod='zaswiadczenie_wolontariat'");
+        if (!$row) return;
+        $pola  = json_decode($row['szablon_pola'] ?: '[]', true) ?: [];
+        $tresc = $row['szablon_tresc'] ?? '';
+        $changed = false;
+
+        if (!in_array('adnotacja', array_column($pola, 'name'))) {
+            $pola[] = [
+                'name'     => 'adnotacja',
+                'label'    => 'Adnotacja o wygaśnięciu porozumienia w dniu (pozostaw puste jeśli aktywne)',
+                'type'     => 'text',
+                'required' => false,
+            ];
+            $changed = true;
+        }
+
+        if (!str_contains($tresc, '{{adnotacja}}')) {
+            $tresc .= "\n\n"
+                . '<p style="font-size:10pt;font-style:italic;color:#333;'
+                . 'margin-top:14pt;border-left:2px solid #999;padding-left:8pt">{{adnotacja}}</p>';
+            $changed = true;
+        }
+
+        if ($changed) {
+            try {
+                db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=? WHERE kod='zaswiadczenie_wolontariat'")
+                    ->execute([json_encode($pola, JSON_UNESCAPED_UNICODE), $tresc]);
+            } catch (\Throwable $e) { error_log('[zas seed adnotacja] ' . $e->getMessage()); }
+        }
+
+        // Ręczny wydruk: wydaj natychmiast bez oczekiwania na akceptację
+        try {
+            db()->prepare("UPDATE ezd_zas_typy SET wymaga_akceptacji=0 WHERE kod='zaswiadczenie_wolontariat'")
+                ->execute([]);
+        } catch (\Throwable $e) {}
+    })();
+
     // 2. Zaświadczenie o zatrudnieniu
     $_ins(
         'zaswiadczenie_zatrudnienie',
