@@ -1319,7 +1319,7 @@ if ($course_ids) {
     );
     $dash_upcoming = db_all(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
-                c.name AS course_name, c.id AS course_id
+                s.meeting_url, s.lesson_method, c.name AS course_name, c.id AS course_id, c.default_meeting_url
          FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
          WHERE s.course_id IN ($ph) AND s.lesson_date > date('now','localtime')
            AND s.lesson_date <= date('now','localtime','+7 days') AND s.status != 'cancelled'

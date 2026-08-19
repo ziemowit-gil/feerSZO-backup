@@ -3512,10 +3512,11 @@ function k30_ti_sessions(int $course_id, string $from='', string $to=''): array 
     if ($from) { $where[] = 's.lesson_date>=?'; $params[] = $from; }
     if ($to)   { $where[] = 's.lesson_date<=?'; $params[] = $to; }
     return db_all(
-        "SELECT s.*,
+        "SELECT s.*, c.default_meeting_url,
                 (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,
                 (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count
          FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
          WHERE " . implode(' AND ', $where) . " ORDER BY s.lesson_date, s.time_from",
         $params
     );
