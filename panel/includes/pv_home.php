@@ -506,10 +506,12 @@ $_pv_rel_time = function (string $dt): string {
     <!-- ── B2: Kafelki statystyk ──────────────────────────────────────── -->
     <aside class="b-stats" aria-label="Twoje statystyki">
       <?php if ($_tasks_tab_on): ?>
-      <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-stat-tile<?= $_bento_tasks_pending > 0 ? ' pv-stat-tile--accent' : '' ?>" aria-label="Zadania: <?= $_bento_tasks_pending ?> aktywnych">
-        <i class="bi bi-kanban pv-stat-tile__ico" aria-hidden="true"></i>
-        <div class="pv-stat-tile__val"><?= $_bento_tasks_pending ?></div>
-        <div class="pv-stat-tile__lbl">Aktywnych zadań</div>
+      <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u"
+         target="_blank" rel="noopener"
+         class="pv-stat-tile" aria-label="Otwórz tablicę Trello — zadania tymczasowo tam">
+        <i class="bi bi-trello pv-stat-tile__ico" aria-hidden="true"></i>
+        <div class="pv-stat-tile__val" style="font-size:1rem;line-height:1.3;margin-top:.15rem">Trello</div>
+        <div class="pv-stat-tile__lbl">Zadania tymczasowo</div>
       </a>
       <?php else: ?>
       <div class="pv-stat-tile">
@@ -540,24 +542,21 @@ $_pv_rel_time = function (string $dt): string {
       <div class="b-tile__hd">
         <i class="bi bi-kanban-fill" aria-hidden="true"></i>
         <span id="bt-heading">Zadania</span>
-        <?php if ($_bento_tasks_pending): ?>
-        <span class="badge rounded-pill bg-danger ms-1" aria-label="<?= $_bento_tasks_pending ?> aktywnych zadań"><?= $_bento_tasks_pending > 99 ? '99+' : $_bento_tasks_pending ?></span>
-        <?php endif; ?>
-        <a href="<?= APP_URL ?>/tasks/dashboard.php" class="b-tile__more">Wszystkie <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
-      <div class="b-tile__bd">
-        <a href="<?= APP_URL ?>/tasks/dashboard.php" class="pv-tasks-teaser" aria-label="Przejdź do modułu Zadania<?= $_bento_tasks_pending ? ' — '.$_bento_tasks_pending.' aktywnych' : '' ?>">
-          <span class="pv-tasks-teaser__ic" aria-hidden="true"><i class="bi bi-kanban-fill"></i></span>
-          <span class="pv-tasks-teaser__body">
-            <?php if ($_bento_tasks_pending > 0): ?>
-            <span class="pv-tasks-teaser__label"><?= $_bento_tasks_pending ?> aktywn<?= $_bento_tasks_pending === 1 ? 'e zadanie' : ($_bento_tasks_pending < 5 ? 'e zadania' : 'ych zadań') ?></span>
-            <span class="pv-tasks-teaser__sub">Masz otwarte zadania czekające na Twoje działanie.</span>
-            <?php else: ?>
-            <span class="pv-tasks-teaser__label">Moduł zadań</span>
-            <span class="pv-tasks-teaser__sub">Brak przypisanych zadań. Przejdź, by sprawdzić nowe.</span>
-            <?php endif; ?>
-          </span>
-          <span class="pv-tasks-teaser__arrow" aria-hidden="true"><i class="bi bi-arrow-right-circle-fill"></i> Przejdź</span>
+      <div class="b-tile__bd d-flex flex-column justify-content-center gap-2" style="padding:1.25rem">
+        <div class="d-flex align-items-start gap-2">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" style="color:#f59e0b;font-size:1.1rem"></i>
+          <div>
+            <strong style="display:block;margin-bottom:.25rem;color:#92400e;font-size:.88rem">Moduł Zadań tymczasowo niedostępny</strong>
+            <span style="color:#78350f;font-size:.8rem;line-height:1.45">
+              Tymczasowo wracamy do Trello — korzystaj z tablicy zespołu do czasu przywrócenia modułu.
+            </span>
+          </div>
+        </div>
+        <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u"
+           target="_blank" rel="noopener"
+           class="btn btn-sm btn-warning fw-semibold mt-1" style="align-self:flex-start">
+          <i class="bi bi-trello me-1"></i>Otwórz tablicę Trello
         </a>
       </div>
       <?php else: ?>
