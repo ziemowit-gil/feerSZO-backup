@@ -113,6 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
     }
+    if ($act === 'odbiór_osobisty' && $issued && $can_mgr) {
+        $kto = trim($_POST['odbiór_kto'] ?? '');
+        $data = trim($_POST['odbiór_data'] ?? '') ?: date('Y-m-d');
+        db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=1,\"odbiór_data\"=?,\"odbiór_kto\"=?,\"odbiór_przez\"=?,updated_at=datetime('now') WHERE id=?")
+            ->execute([$data, $kto, $user_id, $id]);
+        flash_set('success', 'Odbiór osobisty zaznaczony.');
+    }
+    if ($act === 'cofnij_odbiór' && $can_mgr) {
+        db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=0,\"odbiór_data\"=NULL,\"odbiór_kto\"=NULL,\"odbiór_przez\"=NULL,updated_at=datetime('now') WHERE id=?")
+            ->execute([$id]);
+        flash_set('success', 'Odbiór cofnięty.');
+    }
     if ($act === 'edytuj_tresc' && $issued && $can_mgr) {
         $new_html = trim($_POST['tresc_html'] ?? '');
         if ($new_html !== '') {
@@ -216,68 +228,137 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php endif; ?>
         </div>
       </div>
-      <div class="card-body">
-        <dl class="row mb-0" style="font-size:.83rem">
-          <dt class="col-sm-3 text-muted fw-normal">Typ</dt>
-          <dd class="col-sm-9 fw-semibold"><?= h($zas['typ_nazwa']) ?></dd>
-          <?php if(!empty($zas['z_urzedu'])): ?>
-          <dt class="col-sm-3 text-muted fw-normal">Inicjatywa</dt>
-          <dd class="col-sm-9"><span class="badge bg-secondary bg-opacity-15 text-secondary border"><i class="bi bi-building me-1"></i>Z urzędu (inicjatywa organizacji)</span></dd>
+      <div class="card-body p-0">
+        <!-- Zakładki -->
+        <ul class="nav nav-tabs px-3 pt-2" style="font-size:.82rem">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#zt-info"><i class="bi bi-info-circle me-1"></i>Informacje</a></li>
+          <?php if($zas['dane']): ?>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#zt-dane"><i class="bi bi-list-ul me-1"></i>Dane wniosku</a></li>
           <?php endif; ?>
-          <dt class="col-sm-3 text-muted fw-normal">Wnioskodawca</dt>
-          <dd class="col-sm-9"><?= h($zas['wnioskodawca_name']) ?></dd>
-          <?php if($zas['wnioskodawca_email']): ?>
-          <dt class="col-sm-3 text-muted fw-normal">E-mail</dt>
-          <dd class="col-sm-9"><a href="mailto:<?= h($zas['wnioskodawca_email']) ?>"><?= h($zas['wnioskodawca_email']) ?></a></dd>
+          <?php if($issued): ?>
+          <li class="nav-item"><a class="nav-link <?= !empty($zas['odbiór_osobisty']) ? 'text-success' : '' ?>" data-bs-toggle="tab" href="#zt-odbior">
+            <i class="bi bi-person-check me-1"></i>Odbiór
+            <?= !empty($zas['odbiór_osobisty']) ? '<span class="badge bg-success ms-1" style="font-size:.6rem">✓</span>' : '' ?>
+          </a></li>
           <?php endif; ?>
-          <dt class="col-sm-3 text-muted fw-normal">Złożono</dt>
-          <dd class="col-sm-9"><?= date_pl(substr($zas['created_at'],0,10)) ?> <span class="text-muted">(<?= h($zas['created_by_name'] ?? '—') ?>)</span></dd>
-          <?php if($zas['zatwierdzone_at']): ?>
-          <dt class="col-sm-3 text-muted fw-normal"><?= $issued?'Wydano':'Weryfikacja' ?></dt>
-          <dd class="col-sm-9"><?= date_pl(substr($zas['zatwierdzone_at'],0,10)) ?> <span class="text-muted">(<?= h($zas['zatw_name'] ?? '—') ?>)</span></dd>
-          <?php endif; ?>
-          <?php if(!empty($zas['wazne_do'])): ?>
-          <?php $wdt=strtotime($zas['wazne_do']); $expired=$wdt&&$wdt<time(); ?>
-          <dt class="col-sm-3 text-muted fw-normal">Ważne do</dt>
-          <dd class="col-sm-9 <?= $expired?'text-danger fw-semibold':'' ?>">
-            <?= function_exists('date_pl') ? date_pl($zas['wazne_do']) : date('d.m.Y',$wdt) ?>
-            <?= $expired ? '<span class="badge bg-danger ms-1" style="font-size:.65rem">WYGASŁE</span>' : '' ?>
-          </dd>
-          <?php endif; ?>
-          <?php if($zas['odrzucone_powod']): ?>
-          <dt class="col-sm-3 text-muted fw-normal">Powód odrzucenia</dt>
-          <dd class="col-sm-9 text-danger"><?= h($zas['odrzucone_powod']) ?></dd>
-          <?php endif; ?>
-          <?php if(!empty($zas['verify_code']) && $issued): ?>
-          <dt class="col-sm-3 text-muted fw-normal">Kod QR</dt>
-          <dd class="col-sm-9">
-            <a href="<?= APP_URL ?>/ezd/zaswiadczenia/verify.php?code=<?= rawurlencode($zas['verify_code']) ?>" target="_blank" class="text-decoration-none">
-              <i class="bi bi-qr-code me-1"></i>Link weryfikacyjny
-            </a>
-          </dd>
-          <?php endif; ?>
-          <?php if($zas['znak_sprawy']): ?>
-          <dt class="col-sm-3 text-muted fw-normal">Koszulka EZD</dt>
-          <dd class="col-sm-9"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $zas['sprawa_id'] ?>" class="font-monospace"><?= h($zas['znak_sprawy']) ?></a></dd>
-          <?php endif; ?>
-          <?php if($zas['pismo_syg']): ?>
-          <dt class="col-sm-3 text-muted fw-normal">Pismo EZD</dt>
-          <dd class="col-sm-9 font-monospace"><?= h($zas['pismo_syg']) ?></dd>
-          <?php endif; ?>
-        </dl>
+        </ul>
+        <div class="tab-content px-3 py-3">
 
-        <?php if($zas['dane']): ?>
-        <hr class="my-3">
-        <div class="fw-semibold mb-2" style="font-size:.82rem">Dane wniosku</div>
-        <dl class="row mb-0" style="font-size:.82rem">
-          <?php foreach($zas['pola'] as $pole): $k=$pole['name']??''; ?>
-          <?php if(isset($zas['dane'][$k])): ?>
-          <dt class="col-sm-4 text-muted fw-normal"><?= h($pole['label']??$k) ?></dt>
-          <dd class="col-sm-8"><?= h($zas['dane'][$k]) ?></dd>
+          <!-- Informacje -->
+          <div class="tab-pane fade show active" id="zt-info">
+            <div class="row g-2" style="font-size:.83rem">
+              <?php
+              $info_rows = [
+                ['Typ',         h($zas['typ_nazwa']), 'bi-tag'],
+                ['Wnioskodawca',h($zas['wnioskodawca_name']), 'bi-person'],
+              ];
+              if($zas['wnioskodawca_email']) $info_rows[] = ['E-mail','<a href="mailto:'.h($zas['wnioskodawca_email']).'">'.h($zas['wnioskodawca_email']).'</a>','bi-envelope'];
+              $info_rows[] = ['Złożono', date_pl(substr($zas['created_at'],0,10)).' <span class="text-muted small">('.h($zas['created_by_name']??'—').')</span>','bi-calendar3'];
+              if($zas['zatwierdzone_at']) $info_rows[] = [$issued?'Wydano':'Weryfikacja', date_pl(substr($zas['zatwierdzone_at'],0,10)).' <span class="text-muted small">('.h($zas['zatw_name']??'—').')</span>','bi-calendar-check'];
+              if(!empty($zas['wazne_do'])):
+                $wdt=strtotime($zas['wazne_do']); $expired=$wdt&&$wdt<time();
+                $wazne_val = (function_exists('date_pl')?date_pl($zas['wazne_do']):date('d.m.Y',$wdt)) . ($expired?' <span class="badge bg-danger" style="font-size:.6rem">WYGASŁE</span>':'');
+                $info_rows[] = ['Ważne do', $wazne_val, 'bi-hourglass-split'];
+              endif;
+              if($zas['odrzucone_powod']) $info_rows[] = ['Odrzucono','<span class="text-danger">'.h($zas['odrzucone_powod']).'</span>','bi-x-circle'];
+              if(!empty($zas['z_urzedu'])) $info_rows[] = ['Inicjatywa','<span class="badge bg-secondary bg-opacity-15 text-secondary border">Z urzędu</span>','bi-building'];
+              if(!empty($zas['verify_code'])&&$issued) $info_rows[] = ['Weryfikacja','<a href="'.APP_URL.'/ezd/zaswiadczenia/verify.php?code='.rawurlencode($zas['verify_code']).'" target="_blank"><i class="bi bi-qr-code me-1"></i>Link QR</a>','bi-shield-check'];
+              if($zas['znak_sprawy']) $info_rows[] = ['Koszulka EZD','<a href="'.APP_URL.'/ezd/sprawy/view.php?id='.$zas['sprawa_id'].'" class="font-monospace">'.h($zas['znak_sprawy']).'</a>','bi-folder2-open'];
+              if($zas['pismo_syg']) $info_rows[] = ['Pismo EZD','<span class="font-monospace">'.h($zas['pismo_syg']).'</span>','bi-file-earmark-text'];
+              foreach($info_rows as [$lbl,$val,$ico]):
+              ?>
+              <div class="col-sm-6">
+                <div class="d-flex gap-2 align-items-start py-1 border-bottom border-light">
+                  <i class="bi <?= $ico ?> text-muted mt-1" style="font-size:.8rem;flex-shrink:0"></i>
+                  <div>
+                    <div class="text-muted" style="font-size:.72rem;line-height:1.2"><?= $lbl ?></div>
+                    <div><?= $val ?></div>
+                  </div>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+
+          <!-- Dane wniosku -->
+          <?php if($zas['dane']): ?>
+          <div class="tab-pane fade" id="zt-dane">
+            <?php
+            $skip_internal = ['student_forma','podjal','kierunek_fraza','uczelnia_celownik_fallback',
+                              'akapit_uczelni','akapit_korpus','akapit_zamkniecie','opinia_akapit'];
+            $pola_map = [];
+            foreach($zas['pola'] as $p) $pola_map[$p['name']??''] = $p;
+            ?>
+            <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+              <tbody>
+              <?php foreach($zas['pola'] as $pole):
+                $k = $pole['name'] ?? '';
+                if(in_array($k, $skip_internal)) continue;
+                if(!isset($zas['dane'][$k])) continue;
+                $v = $zas['dane'][$k];
+                $is_cb = ($pole['type'] ?? '') === 'checkbox';
+              ?>
+              <tr>
+                <td class="text-muted fw-normal" style="width:40%"><?= h($pole['label'] ?? $k) ?></td>
+                <td><?php if($is_cb): ?>
+                  <?= $v ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Tak</span>' : '<span class="text-muted"><i class="bi bi-circle me-1"></i>Nie</span>' ?>
+                <?php else: ?>
+                  <?= nl2br(h((string)$v)) ?>
+                <?php endif; ?></td>
+              </tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
           <?php endif; ?>
-          <?php endforeach; ?>
-        </dl>
-        <?php endif; ?>
+
+          <!-- Odbiór osobisty -->
+          <?php if($issued): ?>
+          <div class="tab-pane fade" id="zt-odbior">
+            <?php if(!empty($zas['odbiór_osobisty'])): ?>
+            <div class="alert alert-success d-flex gap-2 align-items-center mb-3" style="font-size:.85rem">
+              <i class="bi bi-person-check-fill fs-5"></i>
+              <div>
+                <strong>Odebrano osobiście</strong>
+                <?php if($zas['odbiór_data']): ?> dnia <strong><?= date_pl($zas['odbiór_data']) ?></strong><?php endif; ?>
+                <?php if($zas['odbiór_kto']): ?> — <strong><?= h($zas['odbiór_kto']) ?></strong><?php endif; ?>
+                <?php if($zas['odbiór_przez_name']): ?> <span class="text-muted">(zarejestrował: <?= h($zas['odbiór_przez_name']) ?>)</span><?php endif; ?>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pickup_receipt.php?id=<?= $id ?>" target="_blank"
+                 class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-check me-1"></i>PDF potwierdzenia</a>
+              <?php if($can_mgr): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć rejestrację odbioru?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="cofnij_odbiór">
+                <button class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1"></i>Cofnij</button>
+              </form>
+              <?php endif; ?>
+            </div>
+            <?php elseif($can_mgr): ?>
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="odbiór_osobisty">
+              <div class="mb-3">
+                <label class="form-label" style="font-size:.83rem">Osoba odbierająca</label>
+                <input type="text" name="odbiór_kto" class="form-control form-control-sm"
+                       value="<?= h($zas['wnioskodawca_name']) ?>" placeholder="Imię i nazwisko">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" style="font-size:.83rem">Data odbioru</label>
+                <input type="date" name="odbiór_data" class="form-control form-control-sm"
+                       value="<?= date('Y-m-d') ?>">
+              </div>
+              <button class="btn btn-success btn-sm"><i class="bi bi-person-check me-1"></i>Zarejestruj odbiór osobisty</button>
+            </form>
+            <?php else: ?>
+            <p class="text-muted" style="font-size:.83rem">Zaświadczenie nie zostało jeszcze odebrane osobiście.</p>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+
+        </div><!-- tab-content -->
       </div>
     </div>
 
