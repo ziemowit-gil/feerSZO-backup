@@ -162,9 +162,19 @@ $_pv_dark = (function (string $hex): string {
 /* Powiadomieniwy flash (Bootstrap alert w palecie tz) */
 .pv-alert{border-radius:12px;padding:.85rem 1.1rem;font-size:.9rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.6rem}
 .pv-alert i{flex-shrink:0;margin-top:.1rem}
-.pv-alert-ok{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
-.pv-alert-err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
-.pv-alert-warn{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.pv-alert-ok,.pv-alert-success{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.pv-alert-err,.pv-alert-danger{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.pv-alert-warn,.pv-alert-warning{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+
+/* Warianty kolorystyczne notek .tz-note--* */
+.tz-note--warning,.tz-note--warn{background:#fff7ed;border-color:#fed7aa}
+.tz-note--warning i,.tz-note--warn i{color:#c2410c}
+.tz-note--danger{background:#fef2f2;border-color:#fecaca}
+.tz-note--danger i{color:#b91c1c}
+.tz-note--success,.tz-note--ok{background:#ecfdf5;border-color:#a7f3d0}
+.tz-note--success i,.tz-note--ok i{color:#047857}
+.tz-note--info{background:#eff6ff;border-color:#bfdbfe}
+.tz-note--info i{color:#1d4ed8}
 
 /* Tabela w palecie tz */
 .pv-table{width:100%;border-collapse:collapse;font-size:.87rem}
