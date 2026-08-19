@@ -997,6 +997,11 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
         <button type="button" class="btn btn-sm btn-outline-secondary ezd-notatka-btn align-self-start">
           <i class="bi bi-sticky me-1" aria-hidden="true"></i>Notatka
         </button>
+        <!-- Generator pisma z szablonu -->
+        <a href="<?= APP_URL ?>/ezd/pisma/generator.php?sprawa_id=<?= $id ?>"
+           class="btn btn-sm btn-outline-primary align-self-start">
+          <i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Generuj DOCX
+        </a>
       </div>
       <!-- Notatka inline (ukryta) -->
       <form method="post" class="mt-2 d-none" id="notatkaInlineForm">

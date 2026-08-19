@@ -409,6 +409,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <i class="bi bi-award"></i>Zaświadczenia
           </a>
         </div>
+        <div class="col-6">
+          <a href="<?= APP_URL ?>/ezd/pisma/generator.php" class="ezdd-qa">
+            <i class="bi bi-file-earmark-word"></i>Nowy dokument
+          </a>
+        </div>
       </div>
     </div>
 

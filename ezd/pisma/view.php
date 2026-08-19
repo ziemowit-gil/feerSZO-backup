@@ -144,8 +144,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </div>
             <h5 class="fw-bold mb-0"><?= h($pismo['title']) ?></h5>
           </div>
-          <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
-          <div class="d-flex gap-2 flex-shrink-0">
+          <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+            <?php if($pismo['tresc'] || $pismo['title']): ?>
+            <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
+               class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
+              <i class="bi bi-file-earmark-word me-1"></i>DOCX
+            </a>
+            <?php endif; ?>
+            <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
             <?php if($signed_pdfs): ?>
             <button type="button" class="btn btn-outline-success btn-sm"
                     data-bs-toggle="modal" data-bs-target="#pismoEmailModal">
@@ -153,8 +159,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </button>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?><?= $from_sprawa ? '&from_sprawa='.$from_sprawa : '' ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+            <?php endif; ?>
           </div>
-          <?php endif; ?>
         </div>
       </div>
     </div>
