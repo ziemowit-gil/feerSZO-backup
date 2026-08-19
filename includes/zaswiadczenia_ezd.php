@@ -339,7 +339,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
                 $bc_label .= '<br><span style="font-size:6pt;color:#aaa">' . h($bc_znak) . '</span>';
             }
             // mPDF renderuje <barcode> w WriteHTML; w podglądzie przeglądarki tag jest ignorowany
-            $barcode_html = '<barcode code="' . htmlspecialchars($bc_code, ENT_QUOTES, 'UTF-8') . '" type="C128B" height="10" pr="0.6" />'
+            $barcode_html = '<barcode code="' . htmlspecialchars($bc_code, ENT_QUOTES, 'UTF-8') . '" type="C128B" height="7" pr="0.5" />'
                           . '<br><span style="font-size:7pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
         }
     }
@@ -877,8 +877,6 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['Zakres działań / zadania', '{{zakres}}'],
         ])
         . "\n\n"
-        . '<p>{{byl_aktywny}}</p>'
-        . "\n\n"
         . '{{akapit_uczelni}}'
         . "\n\n"
         . '{{akapit_zamkniecie}}',
@@ -943,32 +941,48 @@ function ezd_zas_by_verify_code(string $code): ?array {
             }
             $changed = true;
         }
-        // Usuń zdanie zamknięcia z szablonu (str_replace — bezpieczny dla UTF-8)
-        foreach ([
-            '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-            '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-        ] as $_rem) { $tresc = str_replace($_rem, '', $tresc); }
+        // Usuń niechciane fragmenty z szablonu
+        $tresc = str_replace('<p>{{byl_aktywny}}</p>', '', $tresc);
         $tresc = trim($tresc);
         // Wyczyść też już wydane zaświadczenia tego typu (tresc_html)
         try {
             $issued = db_all(
-                "SELECT w.id, w.tresc_html FROM ezd_zaswiadczenia_wlasne w
+                "SELECT w.id, w.tresc_html, w.dane FROM ezd_zaswiadczenia_wlasne w
                  JOIN ezd_zas_typy zt ON zt.id=w.typ_id
                  WHERE zt.kod='oswiadczenie_student_wspolpraca' AND w.tresc_html != ''"
             );
+            // Frazy do usunięcia z tresc_html (różne formy)
+            $_cleanup_phrases = [
+                '<p>Oświadczenie wydano na pro',  // partial match — strip whole <p>
+            ];
             foreach ($issued as $_w) {
                 $_ht = $_w['tresc_html'];
+                // Usuń akapit byl_aktywny — może mieć dowolną treść między <p>…</p>
+                // Rozpoznajemy po tym że poprzedza akapit_uczelni lub jest przed nim pusty wiersz
+                // Najpewniej: usuń <p>...</p> gdzie treść to tylko tekst (nie zaczyna się od '<')
+                // Bardziej niezawodnie: przerenderuj z aktualnego szablonu
+                $dane = json_decode($_w['dane'] ?? '{}', true) ?: [];
+                // Usuń zdanie zamknięcia — wszystkie warianty
                 foreach ([
                     '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
                     '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
                 ] as $_rem) { $_ht = str_replace($_rem, '', $_ht); }
-                if ($_ht !== $_w['tresc_html']) {
-                    db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=? WHERE id=?")->execute([trim($_ht), $_w['id']]);
+                // Usuń <p>{{byl_aktywny}}</p> jeśli nie był zamieniony
+                $_ht = str_replace('<p>{{byl_aktywny}}</p>', '', $_ht);
+                // Usuń wyrenderowaną wartość byl_aktywny z paragrafów
+                $byl_val = trim($dane['byl_aktywny'] ?? '');
+                if ($byl_val !== '') {
+                    $_ht = str_replace('<p>' . htmlspecialchars($byl_val, ENT_QUOTES, 'UTF-8') . '</p>', '', $_ht);
+                    $_ht = str_replace('<p>' . $byl_val . '</p>', '', $_ht);
+                }
+                $_ht = trim($_ht);
+                if ($_ht !== trim($_w['tresc_html'])) {
+                    db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=? WHERE id=?")->execute([$_ht, $_w['id']]);
                 }
             }
         } catch (\Throwable $e) { error_log('[zas seed osw-st tresc_html] ' . $e->getMessage()); }
         if ($changed) {
-            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=?,nr_format=?,nr_prefix=?,waznosc_dni=?,waznosc_adnotacja=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
+            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=?,nr_format=?,nr_prefix=?,waznosc_dni=?,waznosc_adnotacja=?,barcode_enabled=1 WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
                 json_encode($pola, JSON_UNESCAPED_UNICODE),
                 $tresc,
                 'Zaświadczenie dla studenta o współpracy',
@@ -978,7 +992,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
             catch (\Throwable $e) { error_log('[zas seed osw-st] ' . $e->getMessage()); }
         } else {
             // Zawsze wymuś flagi niezależnie od pól
-            try { db()->prepare("UPDATE ezd_zas_typy SET nr_format='date_id',nr_prefix='EZD-ZP',waznosc_dni=60,waznosc_adnotacja=1,nazwa='Zaświadczenie dla studenta o współpracy',szablon_tresc=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([$tresc]); }
+            try { db()->prepare("UPDATE ezd_zas_typy SET nr_format='date_id',nr_prefix='EZD-ZP',waznosc_dni=60,waznosc_adnotacja=1,barcode_enabled=1,nazwa='Zaświadczenie dla studenta o współpracy',szablon_tresc=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([$tresc]); }
             catch (\Throwable $e) {}
         }
     })();
