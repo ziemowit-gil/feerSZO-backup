@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
-# cloudflare-dns.sh — konfigurator DNS w Cloudflare dla subdomen przekierowań
+# cloudflare-dns.sh — konfigurator DNS w Cloudflare
 #
-# Tworzy / aktualizuje rekordy A (lub AAAA) dla aliasów ngosystem.pl, które
-# Traefik kieruje transparentnie do aplikacji (system działa na szo.feer.org.pl):
+# Tworzy / aktualizuje rekordy A (lub AAAA) dla wszystkich domen obsługiwanych
+# przez ten stack. Skrypt obsługuje wiele stref równocześnie (np. feer.org.pl
+# i ngosystem.pl) — strefa wykrywana automatycznie lub wymuszana przez --zone.
 #
-#     crm.ngosystem.pl       → app: /crm
-#     zadania.ngosystem.pl   → app: /tasks
-#     ti.ngosystem.pl        → app: /karty30/ti/kursant
+# Domeny feer.org.pl (SSL bezpośredni — użyj --dns-only dla tych hostów):
+#     szo.feer.org.pl        → główny panel
+#     crm.feer.org.pl        → CRM
+#     ezd.feer.org.pl        → EZD
+#     ti.feer.org.pl         → panel TI
+#     kursant.feer.org.pl    → alias → ti.feer.org.pl
+#     zadania.feer.org.pl    → moduł zadań
+#
+# Domeny ngosystem.pl (Cloudflare proxy OK; crm.ngosystem.pl — bez proxy):
+#     crm.ngosystem.pl       → redirect → crm.feer.org.pl
+#     ti.ngosystem.pl        → redirect → ti.feer.org.pl
+#     ezd.ngosystem.pl       → redirect → ezd.feer.org.pl
+#     zadania.ngosystem.pl   → redirect → zadania.feer.org.pl
+#     ngosystem.pl           → redirect → szo.feer.org.pl
+#     www.ngosystem.pl       → redirect → szo.feer.org.pl
+#     szo.ngosystem.pl       → redirect → szo.feer.org.pl
 #
 # Skrypt jest IDEMPOTENTNY: istniejące rekordy aktualizuje, brakujące tworzy.
 #
@@ -78,7 +92,7 @@ init_wizard() {
         askyn "Nadpisać?" "N" || { warn "Pozostawiam istniejący plik."; return; }
     fi
 
-    local tok ip zone hosts prox ttl ipdetect zone_line=""
+    local tok ip zone hosts prox ttl ipdetect
     tok=$(askp "Token API Cloudflare (Zone→DNS→Edit)")
     [[ -n "$tok" ]] || die "Token jest wymagany."
 
@@ -90,16 +104,14 @@ init_wizard() {
     hosts=$(ask "Hosty (oddzielone spacją)" "$DEFAULT_HOSTS")
     if askyn "Proxied — pomarańczowa chmurka?" "T"; then prox="true"; else prox="false"; fi
     ttl=$(ask "TTL w sekundach (1 = auto)" "1")
-    [[ -n "$zone" ]] && zone_line="CF_ZONE=${zone}"
-
     ( umask 077; cat > "$ENV_FILE" <<EOF
 # Cloudflare DNS — wygenerowano kreatorem $(date '+%Y-%m-%d %H:%M')
-CF_API_TOKEN=${tok}
-SERVER_IP=${ip}
-${zone_line}
-HOSTS=${hosts}
-PROXIED=${prox}
-TTL=${ttl}
+CF_API_TOKEN="${tok}"
+SERVER_IP="${ip}"
+${zone_line:+CF_ZONE="${zone}"}
+HOSTS="${hosts}"
+PROXIED="${prox}"
+TTL="${ttl}"
 EOF
     )
     chmod 600 "$ENV_FILE"
@@ -111,7 +123,10 @@ EOF
 }
 
 # ── Domyślne wartości ─────────────────────────────────────────────────────────
-DEFAULT_HOSTS="crm.ngosystem.pl zadania.ngosystem.pl ti.ngosystem.pl"
+# Domyślna lista — wszystkie domeny z docker-compose.prod.yml (obie strefy).
+# Uwaga: dla feer.org.pl Traefik pobiera certyfikaty Let's Encrypt bezpośrednio
+# (HTTP-01) — użyj --dns-only, jeśli chcesz wyłączyć proxy Cloudflare dla nich.
+DEFAULT_HOSTS="szo.feer.org.pl crm.feer.org.pl ezd.feer.org.pl ti.feer.org.pl kursant.feer.org.pl zadania.feer.org.pl crm.ngosystem.pl ti.ngosystem.pl ezd.ngosystem.pl zadania.ngosystem.pl ngosystem.pl www.ngosystem.pl szo.ngosystem.pl"
 PROXIED="${PROXIED:-true}"
 TTL="${TTL:-1}"
 DRY_RUN=0
