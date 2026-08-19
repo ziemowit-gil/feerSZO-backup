@@ -26,6 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     if (!$can_mgr) { http_response_code(403); exit; }
     $act = $_POST['_action'] ?? '';
+    $redirect_just_issued = false;
+
+    if (in_array($act, ['wydaj', 'wydaj_plik', 'wydaj_recznie'], true) && $zas['status'] === 'wydane') {
+        flash_set('error', 'Zaświadczenie nr ' . ($zas['nr_zaswiadczenia'] ?? '') . ' zostało już wydane — ponowne wydanie jest niemożliwe.');
+        header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
+    }
 
     if ($act === 'wydaj') {
         $sprawa_id_override = null;
@@ -43,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, $tresc_override, $include_qr);
         if ($res['ok']) {
             db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+            $redirect_just_issued = true;
         }
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane.' : $res['error']);
     }
@@ -67,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $res = ezd_zas_wydaj_plik($id, $user_id, $plik_path, $plik_mime, $sprawa_id_override);
                 if ($res['ok']) {
                     db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+                    $redirect_just_issued = true;
                 }
                 flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Zaświadczenie ' . h($res['nr']) . ' wydane (plik własny).' : $res['error']);
             } else {
@@ -106,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = ezd_zas_wydaj($id, $user_id, $sprawa_id_override, '', $include_qr, true);
         if ($res['ok']) {
             db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET z_urzedu=? WHERE id=?")->execute([$z_urzedu, $id]);
+            $redirect_just_issued = true;
         }
         flash_set($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Wydano ręcznie — numer: ' . h($res['nr']) : $res['error']);
     }
@@ -118,11 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = trim($_POST['odbiór_data'] ?? '') ?: date('Y-m-d');
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=1,\"odbiór_data\"=?,\"odbiór_kto\"=?,\"odbiór_przez\"=?,updated_at=datetime('now') WHERE id=?")
             ->execute([$data, $kto, $user_id, $id]);
+        ezd_zas_log($id, $user_id, 'odbiór_osobisty', 'Zarejestrowano odbiór osobisty przez: ' . $kto . ', data: ' . $data);
         flash_set('success', 'Odbiór osobisty zaznaczony.');
     }
     if ($act === 'cofnij_odbiór' && $can_mgr) {
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=0,\"odbiór_data\"=NULL,\"odbiór_kto\"=NULL,\"odbiór_przez\"=NULL,updated_at=datetime('now') WHERE id=?")
             ->execute([$id]);
+        ezd_zas_log($id, $user_id, 'cofnij_odbiór', 'Cofnięto rejestrację odbioru osobistego.');
         flash_set('success', 'Odbiór cofnięty.');
     }
     if ($act === 'edytuj_tresc' && $issued && $can_mgr) {
@@ -147,12 +158,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([$new_tresc, $id]);
         flash_set('success', 'Treść zaświadczenia została przerenderowana z aktualnego szablonu.');
     }
-    header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
+    $redir = APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id;
+    if ($redirect_just_issued) $redir .= '&just_issued=1';
+    header('Location:' . $redir); exit;
 }
 
-$st     = $zas['status'];
-$issued = $st === 'wydane';
-$open   = in_array($st, ['wniosek', 'weryfikacja'], true);
+$st           = $zas['status'];
+$issued       = $st === 'wydane';
+$open         = in_array($st, ['wniosek', 'weryfikacja'], true);
+$just_issued  = $issued && isset($_GET['just_issued']);
 
 // Otwarte koszulki do datalist (ograniczone do JRWA typu jeśli podane)
 $open_sprawy = [];
@@ -182,6 +196,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </ol></nav>
 
 <?= flash_html() ?>
+
+<?php if($just_issued): ?>
+<?php $pdf_url = APP_URL . '/ezd/zaswiadczenia/pdf.php?id=' . $id; ?>
+<div class="alert alert-success d-flex align-items-center gap-3 mb-3 shadow-sm" style="border-left:4px solid #16a34a">
+  <i class="bi bi-check-circle-fill fs-4 text-success flex-shrink-0"></i>
+  <div class="flex-grow-1">
+    <strong>Zaświadczenie <?= h($zas['nr_zaswiadczenia']) ?> zostało wydane</strong>
+    <div class="text-muted" style="font-size:.82rem">Wystawiono: <?= date_pl(date('Y-m-d')) ?> &nbsp;·&nbsp; Typ: <?= h($zas['typ_nazwa']) ?> &nbsp;·&nbsp; Wnioskodawca: <?= h($zas['wnioskodawca_name']) ?></div>
+  </div>
+  <div class="d-flex gap-2 flex-shrink-0">
+    <a href="<?= $pdf_url ?>" target="_blank" class="btn btn-success btn-sm">
+      <i class="bi bi-printer-fill me-1"></i>Drukuj / PDF
+    </a>
+    <button class="btn btn-outline-secondary btn-sm" onclick="this.closest('.alert').remove()">
+      <i class="bi bi-x"></i>
+    </button>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-4">
   <!-- Lewa: szczegóły -->
@@ -230,6 +263,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
       <div class="card-body p-0">
         <!-- Zakładki -->
+        <?php $zas_log = $can_mgr ? ezd_zas_get_log($id) : []; ?>
         <ul class="nav nav-tabs px-3 pt-2" style="font-size:.82rem">
           <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#zt-info"><i class="bi bi-info-circle me-1"></i>Informacje</a></li>
           <?php if($zas['dane']): ?>
@@ -239,6 +273,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <li class="nav-item"><a class="nav-link <?= !empty($zas['odbiór_osobisty']) ? 'text-success' : '' ?>" data-bs-toggle="tab" href="#zt-odbior">
             <i class="bi bi-person-check me-1"></i>Odbiór
             <?= !empty($zas['odbiór_osobisty']) ? '<span class="badge bg-success ms-1" style="font-size:.6rem">✓</span>' : '' ?>
+          </a></li>
+          <?php endif; ?>
+          <?php if($can_mgr && $zas_log): ?>
+          <li class="nav-item ms-auto"><a class="nav-link text-muted <?= $just_issued ? 'active' : '' ?>" data-bs-toggle="tab" href="#zt-historia">
+            <i class="bi bi-clock-history me-1"></i>Historia
+            <span class="badge bg-secondary bg-opacity-25 text-secondary ms-1" style="font-size:.6rem"><?= count($zas_log) ?></span>
           </a></li>
           <?php endif; ?>
         </ul>
@@ -355,6 +395,36 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php else: ?>
             <p class="text-muted" style="font-size:.83rem">Zaświadczenie nie zostało jeszcze odebrane osobiście.</p>
             <?php endif; ?>
+          </div>
+          <?php endif; ?>
+
+          <!-- Historia -->
+          <?php if($can_mgr && $zas_log): ?>
+          <?php $action_labels = [
+            'wydanie'        => ['label' => 'Wydano zaświadczenie',      'icon' => 'bi-award-fill',      'cls' => 'text-success'],
+            'wydanie_plik'   => ['label' => 'Wydano (plik własny)',       'icon' => 'bi-file-earmark-arrow-up', 'cls' => 'text-success'],
+            'odbiór_osobisty'=> ['label' => 'Odbiór osobisty',           'icon' => 'bi-person-check-fill','cls' => 'text-primary'],
+            'cofnij_odbiór'  => ['label' => 'Cofnięto odbiór',           'icon' => 'bi-person-x-fill',   'cls' => 'text-warning'],
+          ]; ?>
+          <div class="tab-pane fade <?= $just_issued ? 'show active' : '' ?>" id="zt-historia">
+            <ol class="timeline mb-0" style="list-style:none;padding:0;margin:0">
+            <?php foreach($zas_log as $entry):
+              $al = $action_labels[$entry['action']] ?? ['label' => h($entry['action']), 'icon' => 'bi-circle', 'cls' => 'text-muted'];
+            ?>
+            <li class="d-flex gap-2 pb-3" style="border-left:2px solid #e5e7eb;margin-left:.75rem;padding-left:1rem;position:relative">
+              <i class="bi <?= $al['icon'] ?> <?= $al['cls'] ?>" style="position:absolute;left:-.6rem;background:#fff;font-size:.85rem"></i>
+              <div style="font-size:.8rem;min-width:0">
+                <div class="fw-semibold"><?= $al['label'] ?></div>
+                <?php if($entry['details']): ?><div class="text-muted"><?= h($entry['details']) ?></div><?php endif; ?>
+                <div class="text-muted" style="font-size:.72rem">
+                  <?= h($entry['user_name'] ?? '—') ?>
+                  &nbsp;·&nbsp;
+                  <?= $entry['created_at'] ? date('d.m.Y H:i', strtotime($entry['created_at'])) : '—' ?>
+                </div>
+              </div>
+            </li>
+            <?php endforeach; ?>
+            </ol>
           </div>
           <?php endif; ?>
 

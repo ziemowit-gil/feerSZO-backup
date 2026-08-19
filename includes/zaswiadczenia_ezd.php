@@ -51,6 +51,16 @@
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN contract_id INTEGER"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_zas_contract ON ezd_zaswiadczenia_wlasne(contract_type,contract_id) WHERE contract_type IS NOT NULL"); } catch (\Throwable $e) {}
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zas_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        zas_id     INTEGER NOT NULL REFERENCES ezd_zaswiadczenia_wlasne(id) ON DELETE CASCADE,
+        user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action     TEXT    NOT NULL DEFAULT '',
+        details    TEXT    NOT NULL DEFAULT '',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_zas_log_zas ON ezd_zas_log(zas_id, created_at DESC)"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zaswiadczenia_wlasne (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
         typ_id               INTEGER NOT NULL REFERENCES ezd_zas_typy(id),
@@ -556,6 +566,7 @@ function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = nul
         ezd_zas_attach_pdf_to_sprawa($zas_id, $sprawa_id, $user_id);
     }
 
+    ezd_zas_log($zas_id, $user_id, 'wydanie', 'Zaświadczenie wydane; nr: ' . $nr . ($manual ? '; tryb: ręczny' : ''));
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
 
@@ -623,6 +634,7 @@ function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string
         }
     }
 
+    ezd_zas_log($zas_id, $user_id, 'wydanie_plik', 'Zaświadczenie wydane (plik własny); nr: ' . $nr);
     return ['ok' => true, 'nr' => $nr, 'pismo_id' => $pismo_id];
 }
 
@@ -638,6 +650,34 @@ function ezd_zas_odrzuc(int $zas_id, string $powod, int $user_id): void {
 /** Usuwa wniosek (tylko admin/manager). Nie usuwa powiązanego pisma EZD. */
 function ezd_zas_delete(int $zas_id): void {
     db()->prepare("DELETE FROM ezd_zaswiadczenia_wlasne WHERE id=?")->execute([$zas_id]);
+}
+
+/** Dodaje wpis do historii zaświadczenia. */
+function ezd_zas_log(int $zas_id, int $user_id, string $action, string $details = ''): void {
+    try {
+        db()->prepare(
+            "INSERT INTO ezd_zas_log (zas_id, user_id, action, details, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))"
+        )->execute([$zas_id, $user_id, $action, $details]);
+    } catch (\Throwable $e) {
+        error_log('[ezd_zas_log] ' . $e->getMessage());
+    }
+}
+
+/** Zwraca historię zaświadczenia (najnowsze pierwsze). */
+function ezd_zas_get_log(int $zas_id): array {
+    try {
+        return db_all(
+            "SELECT l.*, u.name AS user_name
+             FROM ezd_zas_log l
+             LEFT JOIN users u ON u.id = l.user_id
+             WHERE l.zas_id = ?
+             ORDER BY l.created_at DESC",
+            [$zas_id]
+        );
+    } catch (\Throwable $e) {
+        return [];
+    }
 }
 
 /** Zaświadczenia złożone przez danego użytkownika (dla panelu wolontariusza). */
