@@ -31,13 +31,21 @@ function auth_start(): void {
         // SameSite=Lax wymagane przy OAuth (cross-site top-level GET po redirect MS)
         $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
                  || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-        session_set_cookie_params([
+        // SESSION_COOKIE_DOMAIN = '.parent.domain' gdy host to subdomena modułu
+        // (np. .szo.feer.org.pl) — pozwala współdzielić sesję między subdomenami.
+        // Pusty string = domyślne zachowanie PHP (tylko bieżący host).
+        $cookieDomain = defined('SESSION_COOKIE_DOMAIN') ? SESSION_COOKIE_DOMAIN : '';
+        $cookieParams = [
             'lifetime' => 0,
             'path'     => '/',
             'httponly' => true,
             'samesite' => 'Lax',
             'secure'   => $is_https,
-        ]);
+        ];
+        if ($cookieDomain !== '') {
+            $cookieParams['domain'] = $cookieDomain;
+        }
+        session_set_cookie_params($cookieParams);
         session_start();
     }
 }
