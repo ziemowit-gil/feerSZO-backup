@@ -236,9 +236,12 @@ include dirname(__DIR__) . '/includes/header.php';
 .ezdd-leg-lbl{color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ── Quick action buttons ────────────────────────────────── */
-.ezdd-qa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;padding:.8rem .4rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#374151;font-size:.72rem;font-weight:600;text-align:center;transition:background .15s,border-color .15s}
-.ezdd-qa:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
-.ezdd-qa i{font-size:1.3rem;color:#2563eb}
+.ezdd-qa2{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.45rem;padding:.65rem .25rem;background:#fff;border:1px solid #e2e8f0;border-radius:11px;text-decoration:none;color:#374151;transition:border-color .15s,box-shadow .15s;cursor:pointer;width:100%}
+.ezdd-qa2:hover{border-color:#93c5fd;box-shadow:0 2px 8px rgba(37,99,235,.09);text-decoration:none}
+.ezdd-qa2-icon{width:46px;height:46px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.45rem;position:relative;flex-shrink:0}
+.ezdd-qa2-lbl{font-size:.64rem;font-weight:600;line-height:1.25;text-align:center;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ezdd-qa2:hover .ezdd-qa2-lbl{color:#1d4ed8}
+.ezdd-qa2-badge{position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border-radius:50%;min-width:17px;height:17px;font-size:.52rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;padding:0 2px}
 
 /* ── Calendar ────────────────────────────────────────────── */
 .ezdd-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
@@ -324,7 +327,7 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
       <div class="mt-2 pt-2" style="border-top:1px solid #f1f5f9">
-        <a href="<?= APP_URL ?>/ezd/dekretacja/index.php" class="text-decoration-none text-primary" style="font-size:.74rem;font-weight:600">
+        <a href="<?= APP_URL ?>/ezd/zadania/index.php" class="text-decoration-none text-primary" style="font-size:.74rem;font-weight:600">
           Pokaż wszystkie zadania →
         </a>
       </div>
@@ -383,38 +386,40 @@ include dirname(__DIR__) . '/includes/header.php';
     <!-- Szybkie akcje -->
     <div class="ezdd-card p-3 mb-3">
       <div class="ezdd-label">SZYBKIE AKCJE</div>
-      <div class="row g-2">
-        <div class="col-6">
-          <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="ezdd-qa">
-            <i class="bi bi-folder-plus"></i>Załóż koszulkę
-          </a>
+      <?php
+      $qa_rows = [
+        [
+          ['href' => APP_URL.'/ezd/sprawy/add.php',          'icon' => 'bi-folder-plus',      'ic' => '#2563eb', 'bg' => '#eff6ff', 'lbl' => 'Nowa koszulka'],
+          ['href' => APP_URL.'/ezd/pisma/add.php',           'icon' => 'bi-envelope-plus',    'ic' => '#0891b2', 'bg' => '#ecfeff', 'lbl' => 'Nowe pismo'],
+          ['href' => APP_URL.'/ezd/pisma/generator.php',     'icon' => 'bi-file-earmark-word','ic' => '#4f46e5', 'bg' => '#eef2ff', 'lbl' => 'Nowy dok.'],
+        ],
+        [
+          ['href' => APP_URL.'/ezd/rpw/index.php',           'icon' => 'bi-inbox-fill',       'ic' => '#b45309', 'bg' => '#fffbeb', 'lbl' => 'RPW', 'badge' => (int)$rpw_stats['koszulka']],
+          ['modal'=> '#ezdEDoreczeniaModal',                  'icon' => 'bi-envelope-paper',   'ic' => '#0369a1', 'bg' => '#f0f9ff', 'lbl' => 'eDoręczenia'],
+          ['href' => APP_URL.'/ezd/zaswiadczenia/index.php', 'icon' => 'bi-award',            'ic' => '#7c3aed', 'bg' => '#faf5ff', 'lbl' => 'Zaświadczenia'],
+        ],
+      ];
+      foreach ($qa_rows as $row): ?>
+      <div class="row g-2 mb-2">
+        <?php foreach ($row as $qi): ?>
+        <div class="col-4">
+          <?php if (!empty($qi['modal'])): ?>
+          <button type="button" class="ezdd-qa2" data-bs-toggle="modal" data-bs-target="<?= $qi['modal'] ?>">
+          <?php else: ?>
+          <a href="<?= $qi['href'] ?>" class="ezdd-qa2">
+          <?php endif; ?>
+            <span class="ezdd-qa2-icon" style="background:<?= $qi['bg'] ?>;color:<?= $qi['ic'] ?>">
+              <i class="bi <?= $qi['icon'] ?>"></i>
+              <?php if (!empty($qi['badge'])): ?>
+              <span class="ezdd-qa2-badge"><?= $qi['badge'] ?></span>
+              <?php endif; ?>
+            </span>
+            <span class="ezdd-qa2-lbl"><?= h($qi['lbl']) ?></span>
+          <?php echo !empty($qi['modal']) ? '</button>' : '</a>'; ?>
         </div>
-        <div class="col-6">
-          <a href="<?= APP_URL ?>/ezd/pisma/add.php" class="ezdd-qa">
-            <i class="bi bi-envelope-plus"></i>Nowe pismo
-          </a>
-        </div>
-        <div class="col-6">
-          <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="ezdd-qa">
-            <i class="bi bi-inbox-fill"></i>RPW <span class="badge bg-danger ms-1" style="font-size:.6rem"><?= (int)$rpw_stats['koszulka'] ?></span>
-          </a>
-        </div>
-        <div class="col-6">
-          <button type="button" class="ezdd-qa w-100" data-bs-toggle="modal" data-bs-target="#ezdEDoreczeniaModal">
-            <i class="bi bi-envelope-paper"></i>eDoręczenia
-          </button>
-        </div>
-        <div class="col-6">
-          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="ezdd-qa">
-            <i class="bi bi-award"></i>Zaświadczenia
-          </a>
-        </div>
-        <div class="col-6">
-          <a href="<?= APP_URL ?>/ezd/pisma/generator.php" class="ezdd-qa">
-            <i class="bi bi-file-earmark-word"></i>Nowy dokument
-          </a>
-        </div>
+        <?php endforeach; ?>
       </div>
+      <?php endforeach; ?>
     </div>
 
     <!-- Statystyki skrócone -->
