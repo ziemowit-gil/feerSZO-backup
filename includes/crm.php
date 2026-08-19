@@ -538,6 +538,7 @@ function crm_migrate(): void {
         finished_at  DATETIME
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_ms_group ON crm_mass_sends(group_id)");
+    try { $pdo->exec("ALTER TABLE crm_mass_sends ADD COLUMN failed_ids TEXT"); } catch (\Throwable $e) {}
 
     // Sprawy CRM
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_cases (

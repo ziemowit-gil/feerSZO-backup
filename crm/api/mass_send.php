@@ -151,11 +151,12 @@ if ($action === 'execute') {
     $from_email = $payload['from_email'] ?? '';
 
     $ok = $fail = 0;
+    $failed_cids = [];
     foreach ($ids as $cid) {
         $contact = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [(int)$cid]);
-        if (!$contact) { $fail++; continue; }
-        if ($channel === 'email' && !$contact['email']) { $fail++; continue; }
-        if ($channel === 'sms'   && !$contact['telefon']) { $fail++; continue; }
+        if (!$contact) { $fail++; $failed_cids[] = (int)$cid; continue; }
+        if ($channel === 'email' && !$contact['email']) { $fail++; $failed_cids[] = (int)$cid; continue; }
+        if ($channel === 'sms'   && !$contact['telefon']) { $fail++; $failed_cids[] = (int)$cid; continue; }
 
         $rendered_body    = CrmManager::renderTemplate($msg_body, $contact);
         $rendered_subject = CrmManager::renderTemplate($subject, $contact);
@@ -165,11 +166,12 @@ if ($action === 'execute') {
             $ok++;
         } catch (\Throwable $e) {
             $fail++;
+            $failed_cids[] = (int)$cid;
         }
     }
 
-    db()->prepare("UPDATE crm_mass_sends SET status='done',sent_ok=?,sent_fail=?,finished_at=? WHERE id=?")
-        ->execute([$ok, $fail, date('Y-m-d H:i:s'), $send_id]);
+    db()->prepare("UPDATE crm_mass_sends SET status='done',sent_ok=?,sent_fail=?,failed_ids=?,finished_at=? WHERE id=?")
+        ->execute([$ok, $fail, $failed_cids ? json_encode($failed_cids) : null, date('Y-m-d H:i:s'), $send_id]);
 
     // ── DW: wyślij podsumowanie do adresatów Do Wiadomości ────────────────────
     $dw_list   = array_filter($payload['dw'] ?? []);

@@ -56,6 +56,22 @@ $history = db_all(
      ORDER BY ms.created_at DESC LIMIT 20"
 );
 
+// Załaduj dane kontaktów dla nieotrzymanych (dla każdej wysyłki z błędami)
+$history_failures = [];
+foreach ($history as $hs) {
+    if ($hs['sent_fail'] > 0 && $hs['failed_ids']) {
+        $fids = json_decode($hs['failed_ids'], true) ?: [];
+        if ($fids) {
+            $placeholders = implode(',', array_fill(0, count($fids), '?'));
+            $contacts = db_all(
+                "SELECT id, imie_nazwisko, email, telefon FROM crm_contacts WHERE id IN ($placeholders)",
+                $fids
+            );
+            $history_failures[$hs['id']] = $contacts;
+        }
+    }
+}
+
 $templates = db_all("SELECT * FROM crm_templates WHERE is_active=1 ORDER BY channel, name");
 
 // Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
@@ -492,20 +508,54 @@ include __DIR__ . '/includes/header_crm.php';
 <?php if ($history): ?>
 <div class="ms-section">
     <div class="ms-section-title">Ostatnie wysyłki</div>
-    <?php foreach ($history as $hs): ?>
-    <div class="hist-row">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          <?= h($hs['group_name'] ?? 'Bez grupy') ?>
+    <?php foreach ($history as $hs):
+        $failures = $history_failures[$hs['id']] ?? [];
+        $has_fail = $hs['sent_fail'] > 0;
+    ?>
+    <div class="hist-row flex-column align-items-stretch" style="gap:.35rem">
+      <div class="d-flex align-items-center gap-2">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <?= h($hs['group_name'] ?? 'Bez grupy') ?>
+          </div>
+          <div class="text-muted" style="font-size:.72rem">
+            <?= strtoupper(h($hs['channel'])) ?> · <?= h($hs['subject'] ?? '(SMS)') ?> · <?= date('d.m H:i', strtotime($hs['created_at'])) ?>
+          </div>
         </div>
-        <div class="text-muted" style="font-size:.72rem">
-          <?= strtoupper(h($hs['channel'])) ?> · <?= h($hs['subject'] ?? '(SMS)') ?> · <?= date('d.m H:i', strtotime($hs['created_at'])) ?>
+        <div class="text-end flex-shrink-0" style="font-size:.75rem">
+          <div class="text-success fw-semibold"><?= (int)$hs['sent_ok'] ?> ✓</div>
+          <?php if ($has_fail): ?>
+          <button type="button"
+                  class="btn btn-link btn-sm text-danger p-0 fw-semibold"
+                  style="font-size:.75rem"
+                  onclick="this.closest('.hist-row').querySelector('.ms-fail-detail').classList.toggle('d-none')">
+            <?= (int)$hs['sent_fail'] ?> ✗ <i class="bi bi-chevron-down" style="font-size:.6rem"></i>
+          </button>
+          <?php endif; ?>
         </div>
       </div>
-      <div class="text-end flex-shrink-0" style="font-size:.75rem">
-        <div class="text-success fw-semibold"><?= (int)$hs['sent_ok'] ?> ✓</div>
-        <?php if ($hs['sent_fail']): ?><div class="text-danger"><?= (int)$hs['sent_fail'] ?> ✗</div><?php endif; ?>
+      <?php if ($has_fail && $failures): ?>
+      <div class="ms-fail-detail d-none mt-1 p-2 rounded" style="background:#fef2f2;border:1px solid #fecaca">
+        <div class="fw-semibold mb-1" style="font-size:.74rem;color:#991b1b">
+          <i class="bi bi-exclamation-circle-fill me-1"></i>Nie otrzymali mailingu:
+        </div>
+        <?php foreach ($failures as $fc): ?>
+        <div class="d-flex gap-2 align-items-center py-1 border-bottom border-danger border-opacity-25" style="font-size:.78rem">
+          <a href="<?= APP_URL ?>/crm/contact.php?id=<?= (int)$fc['id'] ?>" class="text-decoration-none fw-semibold text-dark">
+            <?= h($fc['imie_nazwisko']) ?>
+          </a>
+          <span class="text-muted"><?= h($fc['email'] ?: $fc['telefon'] ?: '—') ?></span>
+        </div>
+        <?php endforeach; ?>
+        <?php if ((int)$hs['sent_fail'] > count($failures)): ?>
+        <div class="text-muted mt-1" style="font-size:.72rem">… i <?= (int)$hs['sent_fail'] - count($failures) ?> więcej (bez zapisanego kontaktu)</div>
+        <?php endif; ?>
       </div>
+      <?php elseif ($has_fail): ?>
+      <div class="ms-fail-detail d-none mt-1 p-2 rounded text-muted" style="background:#fef2f2;font-size:.78rem">
+        Brak szczegółów — dane o błędach dostępne tylko dla nowszych wysyłek.
+      </div>
+      <?php endif; ?>
     </div>
     <?php endforeach; ?>
   </div>
