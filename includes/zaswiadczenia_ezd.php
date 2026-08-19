@@ -409,9 +409,9 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
             }
             try {
                 $gen  = new \Picqer\Barcode\BarcodeGeneratorPNG();
-                $png  = $gen->getBarcode($bc_code, $gen::TYPE_CODE_128, 1, 25);
+                $png  = $gen->getBarcode($bc_code, $gen::TYPE_CODE_128, 1, 16);
                 $b64  = base64_encode($png);
-                $barcode_html = '<img src="data:image/png;base64,' . $b64 . '" style="height:10mm;display:block;margin:14pt auto 0">'
+                $barcode_html = '<img src="data:image/png;base64,' . $b64 . '" style="height:6mm;display:block;margin:0 auto">'
                               . '<br><span style="font-size:6pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
             } catch (\Throwable $e) {
                 $barcode_html = '';
@@ -463,7 +463,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 </table>
 
 ' . ($barcode_html !== '' || $qr_html !== ''
-    ? '<div style="position:fixed;bottom:4mm;left:0;right:0;text-align:center">'
+    ? '<div style="text-align:center;margin-top:18pt">'
       . $barcode_html
       . ($qr_html !== '' ? '<div style="margin-top:6pt">' . $qr_html . '</div>' : '')
       . '</div>'
