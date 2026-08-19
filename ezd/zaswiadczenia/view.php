@@ -113,6 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
     }
+    if ($act === 'regeneruj_pdf' && $issued && empty($zas['plik_path'])) {
+        $dane = $zas['dane'] ?? [];
+        $new_tresc = ezd_zas_render(
+            $zas['szablon_tresc'],
+            $dane,
+            ['nr_zaswiadczenia' => $zas['nr_zaswiadczenia'] ?? '']
+        );
+        db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=?, updated_at=datetime('now') WHERE id=?")
+            ->execute([$new_tresc, $id]);
+        flash_set('success', 'Treść zaświadczenia została przerenderowana z aktualnego szablonu.');
+    }
     header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id); exit;
 }
 
@@ -163,6 +174,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php if($issued): ?>
           <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>" target="_blank"
              class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&duplikat=1" target="_blank"
+             class="btn btn-outline-secondary btn-sm" title="Drukuj duplikat z adnotacją daty wydruku"><i class="bi bi-files me-1"></i>Duplikat</a>
+          <?php if($can_mgr && empty($zas['plik_path'])): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Przerenderować treść z aktualnego szablonu? Nadpisze obecną treść zaświadczenia.')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="regeneruj_pdf">
+            <button class="btn btn-outline-warning btn-sm" title="Regeneruj PDF z aktualnego szablonu"><i class="bi bi-arrow-clockwise me-1"></i>Regeneruj</button>
+          </form>
+          <?php endif; ?>
           <?php if($can_mgr && empty($zas['verify_code']) && empty($zas['plik_path'])): ?>
           <form method="post" class="d-inline">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

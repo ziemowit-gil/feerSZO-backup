@@ -13,8 +13,9 @@ require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 ezd_require_access();
 
-$id  = (int)($_GET['id'] ?? 0);
-$zas = ezd_zas_get($id);
+$id       = (int)($_GET['id'] ?? 0);
+$duplikat = isset($_GET['duplikat']) && $_GET['duplikat'] === '1';
+$zas      = ezd_zas_get($id);
 
 if (!$zas) { http_response_code(404); exit('Nie znaleziono.'); }
 if ($zas['status'] !== 'wydane') { http_response_code(403); exit('Zaświadczenie nie zostało jeszcze wydane.'); }
@@ -86,9 +87,23 @@ try {
     );
 
     $html = ezd_zas_pdf_html($zas);
+
+    if ($duplikat) {
+        $dup_date = date('d.m.Y H:i');
+        $dup_banner = '<div style="text-align:center;border:1px solid #aaa;background:#fef9c3;'
+            . 'padding:5pt 10pt;margin-bottom:14pt;font-size:8.5pt;color:#555;letter-spacing:.03em">'
+            . '<strong style="color:#92400e;letter-spacing:.08em">DUPLIKAT</strong>'
+            . ' &nbsp;·&nbsp; wydrukowano dnia <strong>' . $dup_date . '</strong>'
+            . '</div>';
+        $html = str_replace('<body>', '<body>' . $dup_banner, $html);
+        $mpdf->SetWatermarkText('DUPLIKAT', 0.07);
+        $mpdf->showWatermarkText = true;
+        $mpdf->watermarkTextAlpha = 0.07;
+    }
+
     $mpdf->WriteHTML($html);
 
-    $filename = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $nr) . '.pdf';
+    $filename = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $nr) . ($duplikat ? '_DUPLIKAT' : '') . '.pdf';
     $mpdf->Output($filename, \Mpdf\Output\Destination::INLINE);
     exit;
 
