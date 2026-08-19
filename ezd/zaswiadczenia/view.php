@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
     }
-    if ($act === 'odbiór_osobisty' && $issued && $can_mgr) {
+    if ($act === 'odbiór_osobisty' && $zas['status'] === 'wydane' && $can_mgr) {
         $kto = trim($_POST['odbiór_kto'] ?? '');
         $data = trim($_POST['odbiór_data'] ?? '') ?: date('Y-m-d');
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=1,\"odbiór_data\"=?,\"odbiór_kto\"=?,\"odbiór_przez\"=?,updated_at=datetime('now') WHERE id=?")
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_zas_log($id, $user_id, 'cofnij_odbiór', 'Cofnięto rejestrację odbioru osobistego.');
         flash_set('success', 'Odbiór cofnięty.');
     }
-    if ($act === 'edytuj_tresc' && $issued && $can_mgr) {
+    if ($act === 'edytuj_tresc' && $zas['status'] === 'wydane' && $can_mgr) {
         $new_html = trim($_POST['tresc_html'] ?? '');
         if ($new_html !== '') {
             db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=?, updated_at=datetime('now') WHERE id=?")
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Treść zaświadczenia zapisana.');
         }
     }
-    if ($act === 'regeneruj_pdf' && $issued && empty($zas['plik_path'])) {
+    if ($act === 'regeneruj_pdf' && $zas['status'] === 'wydane' && empty($zas['plik_path'])) {
         $dane = $zas['dane'] ?? [];
         if (($zas['typ_kod'] ?? '') === 'oswiadczenie_student_wspolpraca') {
             $dane = ezd_zas_compute_derived_tokens_osw_st($dane);
