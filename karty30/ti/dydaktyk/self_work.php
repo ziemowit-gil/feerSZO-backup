@@ -68,8 +68,6 @@ try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
-    $pdf->
-    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;
     $org = defined('ORG_NAME') ? ORG_NAME : '';

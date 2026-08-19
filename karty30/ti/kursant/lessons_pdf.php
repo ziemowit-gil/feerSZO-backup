@@ -55,8 +55,6 @@ $MONTHS_PL = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','li
 $pdf = new FPDF('P', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(12, 12, 12);
-$pdf->
-$pdf->
 $pdf->AddPage();
 
 $PW = $pdf->GetPageWidth() - 24;

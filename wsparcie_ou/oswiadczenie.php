@@ -53,8 +53,6 @@ try {
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 18);
     $pdf->SetMargins(18, 18, 18);
-    $pdf->
-    $pdf->
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 36;
 

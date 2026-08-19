@@ -77,7 +77,6 @@ if ($out === 'pdf') {
     }
 
     $org_name = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
-    $font_dir = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
 
     // Konwersja UTF-8 → ISO-8859-2 (wymagana przez font DejaVu enc:iso-8859-2)
     $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
@@ -85,8 +84,6 @@ if ($out === 'pdf') {
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
-    $pdf->
-    $pdf->
 
     // Strona-notatka dla plików, których nie da się wyrenderować
     $notePage = function (array $z, string $msg) use ($pdf, $zal_src, $pl) {

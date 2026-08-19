@@ -161,9 +161,6 @@ function vlab_contract_pdf(array $contract): void {
     $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
     $pdf->AddPage();
 
     $W   = $pdf->GetPageWidth() - 40;

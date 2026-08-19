@@ -245,10 +245,6 @@ function ti_term_pdf(array $accept, array $client): void {
     $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
-
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 40;
     $org = defined('ORG_NAME') ? ORG_NAME : '';
@@ -336,10 +332,6 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
     $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
-
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 40;
     $org = defined('ORG_NAME') ? ORG_NAME : '';

@@ -1343,10 +1343,6 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
 
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
-
     // ── Oryginalne strony PDF ─────────────────────────────────────────────────
     $orig_path = UPLOAD_DIR . ltrim($doc['file_path'] ?? '', '/');
     if ($doc['file_path'] && is_file($orig_path)) {
@@ -1650,10 +1646,6 @@ function kdok_build_deletion_protocol_pdf(array $doc, array $history, string $re
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
-
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
 
     $pdf->AddPage('L', 'A4');
     $W   = 267;

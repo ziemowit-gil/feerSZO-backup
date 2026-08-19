@@ -374,8 +374,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $pdf = new FPDF('P', 'mm', 'A4');
         $pdf->SetAutoPageBreak(true, 18);
         $pdf->SetMargins(14, 14, 14);
-        $pdf->
-        $pdf->
         $pdf->AddPage();
         $W = $pdf->GetPageWidth() - 28;
 
