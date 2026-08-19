@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_ezd.php';
 
 require_login();
 if (!can_edit()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -74,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by'     => $user['id'],
             'created_at'     => date('Y-m-d H:i:s'),
         ], letter_meta_from_post()));
+
+        // Rejestruj pismo w EZD (best-effort, nie blokuje)
+        contract_ezd_register_letter($letter_id);
 
         $sent = false;
 

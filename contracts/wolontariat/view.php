@@ -518,6 +518,7 @@ $approval         = get_current_approval($TYPE, $id);
 $audit_log        = get_audit_log($TYPE, $id);
 $_letters         = get_contract_letters($TYPE, $id);
 require_once dirname(dirname(__DIR__)) . '/includes/zaswiadczenia_ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_ezd.php';
 $_ezd_certs       = ezd_zas_for_contract($TYPE, $id);
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 
@@ -2212,6 +2213,8 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <div class="text-muted small">Brak pism dla tej umowy.</div>
     <?php endif; ?>
   </div>
+
+  <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
   <!-- Zaświadczenia (EZD) -->
   <div class="cv-section">

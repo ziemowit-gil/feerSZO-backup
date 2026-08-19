@@ -453,6 +453,7 @@ $audit_log = get_audit_log($TYPE, $id);
 
 <?php
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_ezd.php';
 $_letters = get_contract_letters($TYPE, $id);
 ?>
 <div class="card shadow-sm mb-3 no-print">
@@ -500,6 +501,8 @@ $_letters = get_contract_letters($TYPE, $id);
 <div class="card-body text-muted small">Brak pism dla tej umowy.</div>
 <?php endif; ?>
 </div>
+
+<?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/_contract_certs_ezd.php'; ?>
 

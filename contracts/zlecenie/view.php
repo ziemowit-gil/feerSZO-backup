@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zaswiadczenia_ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
 require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
 require_once dirname(dirname(__DIR__)) . '/includes/autenti.php';
@@ -711,6 +712,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <div class="card-body text-muted small">Brak pism dla tej umowy.</div>
   <?php endif; ?>
   </div>
+
+  <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_certs_ezd.php'; ?>
 
