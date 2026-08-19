@@ -180,7 +180,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </form>
 
 <div class="text-body-secondary mb-3" style="font-size:.88rem">
-  <i class="bi bi-info-circle me-1"></i><?= h(ucfirst($ym_label)) ?> · lekcje „praca własna prowadzącego (materiał zdalny)". Ten status <strong>nie liczy się do frekwencji</strong>, ale jest lekcją odbytą do wypłaty.
+  <i class="bi bi-info-circle me-1"></i><?= h(ucfirst($ym_label)) ?> · lekcje „praca prowadzącego (materiał zdalny)". Ten status <strong>nie liczy się do frekwencji</strong>, ale jest lekcją odbytą do wypłaty.
   <?php if ($over_instructors): ?>
   <span class="text-warning-emphasis ms-1"><i class="bi bi-exclamation-triangle-fill me-1"></i><?= $over_instructors ?> prowadzących powyżej progu <?= $sw_limit ?> lekcji/mies.</span>
   <?php endif; ?>
@@ -203,7 +203,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?php if (!$rows): ?>
-<div class="alert alert-light border"><i class="bi bi-info-circle me-1"></i>Brak lekcji „praca własna prowadzącego" w tym miesiącu.</div>
+<div class="alert alert-light border"><i class="bi bi-info-circle me-1"></i>Brak lekcji „praca prowadzącego" w tym miesiącu.</div>
 <?php else: ?>
 <?php foreach ($groups as $iname => $g): ?>
 <div class="card border-0 shadow-sm mb-3">

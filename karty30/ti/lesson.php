@@ -343,7 +343,7 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
       <?php endif; ?>
       <?php if ($session['self_prep_remote'] ?? 0): ?>
       <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
-        <i class="bi bi-laptop me-1"></i>Praca własna — materiał zdalny
+        <i class="bi bi-laptop me-1"></i>Praca prowadzącego — materiał zdalny
       </span>
       <?php endif; ?>
     </div>
@@ -392,7 +392,7 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
   'planned'           => 'zaplanowana, jeszcze się nie odbyła',
   'held'              => 'odbyła się normalnie z całą grupą',
   'individual_change' => 'odbyła się ze zmienionym składem uczestników',
-  'remote_material'   => 'praca własna prowadzącego — bez listy obecności, liczona do rozliczenia',
+  'remote_material'   => 'praca prowadzącego — bez listy obecności, liczona do rozliczenia',
   'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
 ]; ?>
 <div class="mb-3">
@@ -481,7 +481,7 @@ if ($_no_students): ?>
   <div class="card-body">
     <div class="alert alert-info d-flex align-items-center gap-2 mb-0 py-2" style="font-size:.88rem">
       <i class="bi bi-person-workspace fs-5"></i>
-      <div><strong>Praca własna prowadzącego (materiał zdalny)</strong> — dla tej lekcji <strong>nie liczymy obecności ani nieobecności</strong>. Lista poniżej ma charakter wyłącznie informacyjny i nie wchodzi do frekwencji.</div>
+      <div><strong>Praca prowadzącego (materiał zdalny)</strong> — dla tej lekcji <strong>nie liczymy obecności ani nieobecności</strong>. Lista poniżej ma charakter wyłącznie informacyjny i nie wchodzi do frekwencji.</div>
     </div>
   </div>
   <?php endif; ?>
@@ -650,7 +650,7 @@ if ($_no_students): ?>
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="self_prep_remote" name="self_prep_remote" value="1"
                  <?= ($session['self_prep_remote'] ?? 0) ? 'checked' : '' ?> <?= !$can_write ? 'disabled' : '' ?>>
-          <label class="form-check-label fw-semibold" for="self_prep_remote"><i class="bi bi-laptop me-1 text-info"></i>Praca własna prowadzącego (materiał zdalny)</label>
+          <label class="form-check-label fw-semibold" for="self_prep_remote"><i class="bi bi-laptop me-1 text-info"></i>Praca prowadzącego (materiał zdalny)</label>
         </div>
       </div>
     </div>

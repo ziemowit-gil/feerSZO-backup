@@ -9,7 +9,7 @@ $_pulpit_status_label = static function (string $s): string {
     return match($s) {
         'held'              => 'Odbyta',
         'individual_change' => 'Odbyta (ind.)',
-        'remote_material'   => 'Praca własna',
+        'remote_material'   => 'Praca prowadzącego',
         'planned'           => 'Zaplanowana',
         'cancelled'         => 'Odwołana',
         default             => ucfirst($s),

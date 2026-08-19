@@ -2300,7 +2300,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <span class="badge text-bg-light text-secondary border" title="Kurs bez liczenia frekwencji">bez frekwencji</span>
               <?php elseif ($l['status'] !== 'held'):
                 $lbl = $l['status']==='planned' ? 'planowana'
-                     : ($l['status']==='remote_material' ? 'praca własna'
+                     : ($l['status']==='remote_material' ? 'praca prowadzącego'
                      : (K30_TI_SESSION_STATUSES[$l['status']]['label'] ?? $l['status']));
               ?>
               <span class="badge text-bg-secondary"><?= h($lbl) ?></span>

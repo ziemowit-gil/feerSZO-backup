@@ -193,7 +193,7 @@ try {
     $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja = obecności ÷ lekcje z listą obecności (statusy „odbyła się"/„zmiana indywidualna"; '
-        . '„praca własna prowadzącego" i odwołane lekcje nie wchodzą do mianownika). '
+        . '„praca prowadzącego" i odwołane lekcje nie wchodzą do mianownika). '
         . 'Należności/Zapłacone dotyczą rozliczeń wystawionych w danym miesiącu; Wpłaty — kwot zaksięgowanych wg daty wpłaty. '
         . 'Saldo konta jest bieżące (całościowe).'), 0, 'L');
 

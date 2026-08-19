@@ -118,7 +118,7 @@ if ($_sms_enabled && $cur_course) {
     'planned'           => 'zaplanowana, jeszcze się nie odbyła',
     'held'              => 'odbyła się z pełną grupą',
     'individual_change' => 'odbyła się, ale ze zmienionym składem uczestników',
-    'remote_material'   => 'praca własna prowadzącego — bez listy obecności, liczona do rozliczenia',
+    'remote_material'   => 'praca prowadzącego — bez listy obecności, liczona do rozliczenia',
     'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
   ]; ?>
   <div class="px-3 pt-2 pb-1 border-bottom">
@@ -286,7 +286,7 @@ if ($_sms_enabled && $cur_course) {
           <span title="Zadano zadanie domowe" data-bs-toggle="tooltip" style="color:#92400E;font-size:.85rem"><i class="bi bi-pencil-fill"></i></span>
           <?php endif; ?>
           <?php if (!empty($s['self_prep_remote']) && $s['status'] !== 'remote_material'): ?>
-          <span title="Praca własna prowadzącego" data-bs-toggle="tooltip" style="color:#0D6E6A;font-size:.85rem"><i class="bi bi-person-workspace"></i></span>
+          <span title="Praca prowadzącego" data-bs-toggle="tooltip" style="color:#0D6E6A;font-size:.85rem"><i class="bi bi-person-workspace"></i></span>
           <?php endif; ?>
           <?php
             $_lm = (string)($s['lesson_method'] ?? '');
@@ -303,7 +303,7 @@ if ($_sms_enabled && $cur_course) {
 
             <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
             <span class="text-body-secondary" style="font-size:.78rem"
-                  title="<?= $s['status']==='remote_material' ? 'Praca własna — bez frekwencji · liczy się do wyrobionych godzin' : 'Frekwencja wyłączona' ?>"
+                  title="<?= $s['status']==='remote_material' ? 'Praca prowadzącego — bez frekwencji · liczy się do wyrobionych godzin' : 'Frekwencja wyłączona' ?>"
                   data-bs-toggle="tooltip"><i class="bi bi-person-workspace"></i></span>
             <?php elseif ($att_total > 0): ?>
             <span class="d-flex align-items-center gap-1 text-body-secondary" style="font-size:.85rem">

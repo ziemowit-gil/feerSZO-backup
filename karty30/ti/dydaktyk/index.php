@@ -722,7 +722,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (($_sess_row2['status'] ?? '') === 'remote_material') {
                 // Praca własna prowadzącego — wszyscy automatycznie obecni
                 db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
-                flash_set('info', 'Praca własna prowadzącego — wszyscy kursanci oznaczeni jako obecni.');
+                flash_set('info', 'Praca prowadzącego — wszyscy kursanci oznaczeni jako obecni.');
                 header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
             }
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
@@ -1505,7 +1505,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
                  id="<?= $pfx ?>_spr" name="self_prep_remote" value="1"
                  <?= !empty($r['self_prep_remote']) ? 'checked' : '' ?>>
           <label class="form-check-label" for="<?= $pfx ?>_spr">
-            <i class="bi bi-laptop me-1 text-info" aria-hidden="true"></i>Praca własna prowadzącego — przygotowanie materiałów
+            <i class="bi bi-laptop me-1 text-info" aria-hidden="true"></i>Praca prowadzącego — przygotowanie materiałów
           </label>
         </div>
       </div>
@@ -1546,7 +1546,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
                 onchange="document.getElementById('<?= $pfx ?>_maturl_wrap').style.display=(this.value==='remote_material')?'':'none'">
           <option value="planned" <?= ($r['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
           <option value="held" <?= ($r['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
-          <option value="remote_material" <?= ($r['status']??'')==='remote_material'?'selected':'' ?>>Praca własna prowadzącego (materiał zdalny)</option>
+          <option value="remote_material" <?= ($r['status']??'')==='remote_material'?'selected':'' ?>>Praca prowadzącego (materiał zdalny)</option>
         </select>
         <?php if (($r['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — zapis zmieni status.</div><?php endif; ?>
       </div>
@@ -1637,7 +1637,7 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
       <div class="alert alert-info d-flex align-items-start gap-2 mb-0" role="alert">
         <i class="bi bi-person-workspace fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
         <div>
-          <strong>Praca własna prowadzącego</strong><br>
+          <strong>Praca prowadzącego</strong><br>
           Wszyscy zapisani kursanci są automatycznie traktowani jako obecni — nie jest wymagane ręczne sprawdzanie listy.
         </div>
       </div>

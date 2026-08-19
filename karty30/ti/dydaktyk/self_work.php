@@ -76,7 +76,7 @@ try {
 
     $pdf->SetFillColor(8, 145, 178); $pdf->SetTextColor(255, 255, 255);
     $pdf->SetFont('Helvetica', 'B', 13);
-    $pdf->Cell($W, 9, $pl('Praca własna prowadzącego — ' . ucfirst($ym_label)), 0, 1, 'L', true);
+    $pdf->Cell($W, 9, $pl('Praca prowadzącego — ' . ucfirst($ym_label)), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
     $pdf->Cell($W, 5, $pl(($who ? $who . '   ·   ' : '') . ($org ? $org . '   ·   ' : '')
         . 'Lekcji: ' . $tot_count . ' · ' . $hh($tot_min) . ' h · netto ' . $f($tot_net) . ' zł'
@@ -85,7 +85,7 @@ try {
 
     if (!$rows) {
         $pdf->SetFont('Helvetica', '', 10);
-        $pdf->Cell($W, 8, $pl('Brak lekcji „praca własna" w tym miesiącu.'), 0, 1);
+        $pdf->Cell($W, 8, $pl('Brak lekcji „praca prowadzącego" w tym miesiącu.'), 0, 1);
     }
     foreach ($groups as $cname => $g) {
         if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();

@@ -106,7 +106,7 @@ if (count($rv_cdata) > 6) $rv_cdata = array_slice($rv_cdata, -6, 6, true);
               // Statusy poza frekwencją (planowana, praca własna, odwołana) — bez obecności/nieobecności
               $lbl = K30_TI_SESSION_STATUSES[$l['status']]['label'] ?? $l['status'];
               if ($l['status'] === 'planned') $lbl = 'planowana';
-              elseif ($l['status'] === 'remote_material') $lbl = 'praca własna';
+              elseif ($l['status'] === 'remote_material') $lbl = 'praca prowadzącego';
             ?>
             <span class="badge text-bg-secondary"><?= h($lbl) ?></span>
             <?php elseif ($l['attended']): ?>

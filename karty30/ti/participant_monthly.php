@@ -167,7 +167,7 @@ try {
     $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja = obecności ÷ lekcje z listą obecności (statusy „odbyła się"/„zmiana indywidualna"; '
-        . '„praca własna prowadzącego" i odwołane lekcje nie wchodzą do mianownika). '
+        . '„praca prowadzącego" i odwołane lekcje nie wchodzą do mianownika). '
         . 'Saldo konta jest bieżące (całościowe), niezależne od wybranego miesiąca.'), 0, 'L');
 
     $__pdfData = $pdf->Output('S');

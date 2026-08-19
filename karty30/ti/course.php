@@ -700,7 +700,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td class="text-nowrap">
                 <?= date('d.m.Y',strtotime($s['lesson_date'])) ?>
                 <?php if ($is_remote_prep): ?>
-                <i class="bi bi-laptop text-info ms-1" title="Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie"></i>
+                <i class="bi bi-laptop text-info ms-1" title="Praca prowadzącego — przygotowanie materiału do wykonania zdalnie"></i>
                 <?php endif; ?>
               </td>
               <td class="text-muted small text-nowrap">
