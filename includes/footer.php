@@ -5,7 +5,7 @@
   </div><!-- /content -->
 
   <footer class="border-top py-2 px-4 text-muted small bg-white d-flex justify-content-between align-items-center">
-    <span>Platforma NGO</span>
+    <span>System Zarządzania Organizacją</span>
     <span class="d-flex align-items-center gap-3">
       <?php
         $_w5 = preg_split('/\s+/', trim(ORG_NAME));
