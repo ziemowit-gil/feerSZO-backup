@@ -1,0 +1,64 @@
+# ── EU DSS (Digital Signature Service) — walidacja podpisów eIDAS ─────────────
+#
+# Serwer DSS udostępnia REST API do walidacji podpisów elektronicznych
+# zgodnie z eIDAS: PAdES, XAdES, CAdES, ASiC.
+# Sprawdza łańcuch zaufania przez europejskie listy zaufanych dostawców (LOTL).
+#
+# DEV (obok głównego stacku):
+#   docker compose -f docker-compose.yml -f docker-compose.dss.yml up -d dss
+#   # REST API: http://localhost:8765/services/rest/validation/validateSignature
+#   # Panel:    http://localhost:8765/
+#
+# PROD (dss_url = http://dss:8080, wewnątrz sieci Docker "feer"):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.dss.yml --env-file .env.prod up -d dss
+#
+# Konfiguracja po uruchomieniu:
+#   Admin → Ustawienia EZD → EU DSS
+#   dss_url = http://localhost:8765  (dev)  lub  http://dss:8080  (prod/Docker)
+#
+# Uwaga: pobieranie JAR (ok. 200 MB) trwa kilka minut przy pierwszym buildzie.
+# Przy kolejnych używany jest cache Dockera.
+
+services:
+
+  dss:
+    build:
+      context: .
+      dockerfile: Dockerfile.dss
+      args:
+        DSS_VERSION: ${DSS_VERSION:-6.1}
+    image: feer-dss:${DSS_VERSION:-6.1}
+    container_name: feer-dss
+    restart: unless-stopped
+    networks:
+      - feer
+    ports:
+      - "127.0.0.1:8765:8080"
+    environment:
+      SERVER_PORT: "8080"
+      JAVA_OPTS: "-Xmx768m -Dfile.encoding=UTF-8"
+    volumes:
+      # Cache LOTL (lista zaufanych list europejskich) — przyspiesza restart
+      - dss_cache:/opt/dss/.dss
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-fsS"
+        - "http://localhost:8080/services/rest/server/v1"
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+    labels:
+      - "com.feer.service=dss"
+      - "com.feer.description=EU Digital Signature Service — eIDAS validation"
+
+volumes:
+  dss_cache:
+    name: feer-dss-cache
+
+networks:
+  feer:
+    external: true

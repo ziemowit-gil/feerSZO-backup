@@ -1,0 +1,39 @@
+# EU Digital Signature Service — serwer walidacji podpisów eIDAS
+# Źródło: https://github.com/esig/dss-demonstrations
+#
+# Budowanie:
+#   docker compose -f docker-compose.yml -f docker-compose.dss.yml build dss
+#
+# Domyślna wersja DSS: 6.1 — zmień ARG DSS_VERSION lub nadpisz w compose.
+# Plik JAR jest pobierany z GitHub Releases w czasie budowania obrazu.
+
+FROM eclipse-temurin:21-jre-jammy
+LABEL org.opencontainers.image.title="FEER SZO — EU DSS Server" \
+      org.opencontainers.image.description="EU Digital Signature Service (walidacja eIDAS/PAdES/XAdES/CAdES)"
+
+ARG DSS_VERSION=6.1
+ARG DSS_JAR_URL=https://github.com/esig/dss-demonstrations/releases/download/${DSS_VERSION}/dss-demo-webapp-${DSS_VERSION}.jar
+
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /opt/dss && \
+    curl -fsSL "${DSS_JAR_URL}" -o /opt/dss/dss.jar
+
+WORKDIR /opt/dss
+
+EXPOSE 8080
+
+ENV SERVER_PORT=8080
+ENV JAVA_OPTS="-Xmx768m -Dfile.encoding=UTF-8"
+ENV SPRING_PROFILES_ACTIVE=default
+
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
+    CMD curl -fsS "http://localhost:${SERVER_PORT}/services/rest/server/v1" > /dev/null 2>&1 || \
+        curl -fsS "http://localhost:${SERVER_PORT}/" > /dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["sh", "-c", \
+    "exec java ${JAVA_OPTS} \
+      -jar /opt/dss/dss.jar \
+      --server.port=${SERVER_PORT} \
+      --spring.profiles.active=${SPRING_PROFILES_ACTIVE}"]
