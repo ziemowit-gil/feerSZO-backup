@@ -17,7 +17,7 @@
             echo '<a href="' . APP_URL . '/admin/version.php" class="text-muted text-decoration-none" style="font-size:.72rem" title="commit: ' . htmlspecialchars($__fv['hash']) . ' · ' . htmlspecialchars($__fv['date']) . '">v' . htmlspecialchars($__fv['main']) . '</a>';
         } catch (\Throwable $e) {}
       ?>
-      <span>&copy; <?= date('Y') ?> Ziemowit Gil | dev@ziemowit.me</span>
+      <span>&copy; <?= date('Y') ?> FEER | Projekt i wykonanie: <a href="mailto:ziemowit.gil@feer.org.pl" class="text-muted text-decoration-none">Ziemowit Gil</a> i <a href="mailto:jarek@feer.org.pl" class="text-muted text-decoration-none">Jarek P</a></span>
     </span>
   </footer>
 
