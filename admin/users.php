@@ -795,7 +795,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body">
-    <form method="post" id="addUserForm">
+    <form method="post" id="addUserForm" action="<?= h($SELF_URL) ?>">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="add">
       <input type="hidden" name="microsoft_id" id="m365LinkId" value="">
@@ -868,6 +868,11 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
           <?php endforeach; ?>
         </select>
       </div>
+      <?php if ($errors && ($_POST['action'] ?? '') === 'add'): ?>
+      <div class="alert alert-danger py-2 mb-3">
+        <ul class="mb-0 ps-3"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
+      </div>
+      <?php endif; ?>
       <button type="submit" class="btn btn-primary w-100">
         <i class="bi bi-person-plus"></i> Dodaj użytkownika
       </button>
@@ -1074,6 +1079,16 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
         reset();
         // Nie czyść formularza — PHP zachowuje wartości po błędzie
     });
+
+    <?php if ($errors && ($_POST['action'] ?? '') === 'add'): ?>
+    // Błędy walidacji — otwórz offcanvas automatycznie
+    document.addEventListener('DOMContentLoaded', function() {
+        var panel = document.getElementById('addUserPanel');
+        if (panel && typeof bootstrap !== 'undefined') {
+            new bootstrap.Offcanvas(panel).show();
+        }
+    });
+    <?php endif; ?>
 })();
 
 // ── Auto-fill display name from first + last name ───────────────────────────
