@@ -467,8 +467,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false, array $copy_info = 
     : '') . '
 
 ' . ($qr_html !== '' || !empty($copy_info)
-    ? '<div style="position:fixed;top:18mm;right:20mm;text-align:center;font-size:7pt;color:#555;line-height:1.3">'
-      . (!empty($copy_info) ? '<div style="font-size:7pt;font-weight:bold;margin-bottom:2pt">Egzemplarz&nbsp;' . (int)$copy_info['egzemplarz'] . '&nbsp;z&nbsp;' . (int)$copy_info['z'] . '</div>' : '')
+    ? '<div style="position:fixed;top:18mm;left:20mm;text-align:center;font-size:7pt;color:#555;line-height:1.3">'
+      . (!empty($copy_info) ? '<div style="font-weight:bold;margin-bottom:2pt">Egzemplarz&nbsp;' . (int)$copy_info['egzemplarz'] . '&nbsp;z&nbsp;' . (int)$copy_info['z'] . '</div>' : '')
       . $qr_html . '</div>'
     : '') . '
 
