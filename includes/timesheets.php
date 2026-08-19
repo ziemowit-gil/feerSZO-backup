@@ -21,9 +21,13 @@ try {
     )");
 } catch (\Throwable $e) {}
 
+// Dodaj contract_type (wolontariat / zlecenie / inne) — idempotentnie
+try { db()->exec("ALTER TABLE timesheets ADD COLUMN contract_type TEXT NOT NULL DEFAULT 'wolontariat'"); } catch (\Throwable $e) {}
+// Zastąp stary indeks (bez contract_type) nowym — bezpieczne, jeśli stary istnieje i nowy już jest
+try { db()->exec("DROP INDEX IF EXISTS idx_timesheets_contract_month"); } catch (\Throwable $e) {}
 try {
     db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS
-        idx_timesheets_contract_month ON timesheets(contract_id, rok, miesiac)");
+        idx_timesheets_type_contract_month ON timesheets(contract_type, contract_id, rok, miesiac)");
 } catch (\Throwable $e) {}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -112,24 +116,24 @@ function ts_user_contracts(int $user_id): array {
 /**
  * Pobiera miesięczne podsumowanie godzin dla jednej umowy (dla widoku admina/szczegółów).
  */
-function ts_contract_summary(int $contract_id): array {
+function ts_contract_summary(int $contract_id, string $type = 'wolontariat'): array {
     return db_all(
-        "SELECT rok, miesiac, godziny, status, opis
+        "SELECT id, contract_type, rok, miesiac, godziny, status, opis, uwagi_admin
          FROM timesheets
-         WHERE contract_id=?
+         WHERE contract_type=? AND contract_id=?
          ORDER BY rok DESC, miesiac DESC",
-        [$contract_id]
+        [$type, $contract_id]
     );
 }
 
 /**
  * Suma zatwierdzonych godzin dla umowy.
  */
-function ts_total_approved(int $contract_id): float {
+function ts_total_approved(int $contract_id, string $type = 'wolontariat'): float {
     $r = db_one(
         "SELECT COALESCE(SUM(godziny),0) AS total FROM timesheets
-         WHERE contract_id=? AND status='zatwierdzone'",
-        [$contract_id]
+         WHERE contract_type=? AND contract_id=? AND status='zatwierdzone'",
+        [$type, $contract_id]
     );
     return (float)($r['total'] ?? 0);
 }
@@ -137,11 +141,11 @@ function ts_total_approved(int $contract_id): float {
 /**
  * Łączna suma godzin (wszystkie statusy) dla umowy.
  */
-function ts_total_all(int $contract_id): float {
+function ts_total_all(int $contract_id, string $type = 'wolontariat'): float {
     $r = db_one(
         "SELECT COALESCE(SUM(godziny),0) AS total FROM timesheets
-         WHERE contract_id=?",
-        [$contract_id]
+         WHERE contract_type=? AND contract_id=?",
+        [$type, $contract_id]
     );
     return (float)($r['total'] ?? 0);
 }
