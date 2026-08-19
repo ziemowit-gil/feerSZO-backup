@@ -387,9 +387,6 @@ function cc_pdf_new(): \setasign\Fpdi\Fpdi {
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
     $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
     $pdf->SetMargins(20, 18, 20);
-    $fd = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
     return $pdf;
 }
 

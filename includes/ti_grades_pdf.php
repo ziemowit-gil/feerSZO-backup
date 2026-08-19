@@ -17,9 +17,6 @@ function ti_pdf_new(string $orient = 'P'): \setasign\Fpdi\Fpdi {
     $pdf = new \setasign\Fpdi\Fpdi($orient, 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
-    $font_dir = __DIR__ . '/fpdf/font/';
-    $pdf->
-    $pdf->
     return $pdf;
 }
 

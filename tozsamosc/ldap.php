@@ -21,8 +21,14 @@ require_role('admin');
 
 // ── AJAX: test połączenia ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'test_conn') {
-    csrf_check();
+    // JSON zawsze — nawet gdy coś pójdzie nie tak przed bind
     header('Content-Type: application/json; charset=utf-8');
+    try {
+        csrf_check();
+    } catch (\Throwable $e) {
+        echo json_encode(['ok' => false, 'msg' => 'CSRF: ' . $e->getMessage()]);
+        exit;
+    }
 
     $host = trim($_POST['host'] ?? '');
     $port = (int)($_POST['port'] ?? 389);
@@ -30,29 +36,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'test
     $pw   = trim($_POST['bind_pw'] ?? '');
 
     if (!$host || !$dn || !$pw) {
-        echo json_encode(['ok' => false, 'msg' => 'Podaj Host, Bind DN i hasło.']);
+        echo json_encode(['ok' => false, 'msg' => 'Wypelnij Host, Bind DN i Haslo.']);
         exit;
     }
     if (!function_exists('ldap_connect')) {
-        echo json_encode(['ok' => false, 'msg' => 'Rozszerzenie PHP ldap nie jest zaladowane.']);
+        echo json_encode(['ok' => false, 'msg' => 'Rozszerzenie PHP ldap nie jest zaladowane (apt install php-ldap).']);
         exit;
     }
 
-    $conn = @ldap_connect(sprintf('ldap://%s:%d', $host, $port));
+    $uri  = sprintf('ldap://%s:%d', $host, $port);
+    $conn = @ldap_connect($uri);
     if (!$conn) {
-        echo json_encode(['ok' => false, 'msg' => "Nie mozna nawiazac polaczenia z ldap://{$host}:{$port}"]);
+        echo json_encode(['ok' => false, 'msg' => "Nie mozna zainicjalizowac polaczenia z: {$uri}"]);
         exit;
     }
     ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
     ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
     ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 4);
-    if (@ldap_bind($conn, $dn, $pw)) {
+
+    // Sprawdz czy w ogole jest cos pod adresem (anonymous bind jako ping)
+    $anon = @ldap_bind($conn);
+    if (!$anon) {
+        $net_err = ldap_error($conn);
         @ldap_unbind($conn);
-        echo json_encode(['ok' => true, 'msg' => "Polaczono i zbindowano jako: {$dn}"]);
+        echo json_encode(['ok' => false, 'msg' => "Serwer nieosiagalny ({$uri}): {$net_err}. Jesli PHP dziala w Dockerze, uzyj nazwy serwisu (np. 'ldap') zamiast '127.0.0.1'."]);
+        exit;
+    }
+    @ldap_unbind($conn);
+
+    // Bind z credentials
+    $conn2 = @ldap_connect($uri);
+    ldap_set_option($conn2, LDAP_OPT_PROTOCOL_VERSION, 3);
+    ldap_set_option($conn2, LDAP_OPT_REFERRALS, 0);
+    ldap_set_option($conn2, LDAP_OPT_NETWORK_TIMEOUT, 4);
+    if (@ldap_bind($conn2, $dn, $pw)) {
+        @ldap_unbind($conn2);
+        echo json_encode(['ok' => true, 'msg' => "OK — zbindowano jako {$dn} na {$uri}"]);
     } else {
-        $err = ldap_error($conn);
-        @ldap_unbind($conn);
-        echo json_encode(['ok' => false, 'msg' => "Bind nieudany: {$err}"]);
+        $err = ldap_error($conn2);
+        @ldap_unbind($conn2);
+        echo json_encode(['ok' => false, 'msg' => "Serwer osiagalny, ale bind nieudany [{$err}] — sprawdz Bind DN i haslo."]);
     }
     exit;
 }
@@ -395,7 +418,14 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
     <div class="row mb-3">
       <div>
         <label for="f-host">Host</label>
-        <input id="f-host" class="cfg-in" data-k="host" type="text" value="<?= h($cfg_host) ?>" placeholder="127.0.0.1">
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <input id="f-host" class="cfg-in" data-k="host" type="text" value="<?= h($cfg_host) ?>" placeholder="127.0.0.1" style="flex:1;min-width:0">
+          <button type="button" id="btn-host-ext" title="Zewnętrzny (poza Dockerem)" class="copy-btn" style="white-space:nowrap">127.0.0.1</button>
+          <button type="button" id="btn-host-docker" title="Nazwa serwisu Docker Compose" class="copy-btn" style="white-space:nowrap;background:var(--tz-50);border-color:var(--tz)">ldap</button>
+        </div>
+        <div class="mt-1" style="font-size:.73rem;color:var(--tz-muted)">
+          Jesli PHP dziala w Dockerze, uzyj <strong>ldap</strong> (nazwa serwisu), nie 127.0.0.1
+        </div>
       </div>
       <div>
         <label for="f-port">Port</label>
@@ -609,6 +639,23 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       });
     });
   });
+
+  // Przełącznik hosta: zewnętrzny / Docker
+  var extBtn    = document.getElementById('btn-host-ext');
+  var dockerBtn = document.getElementById('btn-host-docker');
+  var hostInput = document.getElementById('f-host');
+  if (extBtn) {
+    extBtn.addEventListener('click', function() {
+      hostInput.value = '127.0.0.1';
+      updateBlocks();
+    });
+  }
+  if (dockerBtn) {
+    dockerBtn.addEventListener('click', function() {
+      hostInput.value = 'ldap';
+      updateBlocks();
+    });
+  }
 
   // Test polaczenia
   document.getElementById('test-btn').addEventListener('click', function() {

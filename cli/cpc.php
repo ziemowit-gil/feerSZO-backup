@@ -118,7 +118,7 @@ if ($cmd === 'set') {
     $kod = $arg3 ?: gen_cpc();
 
     if (!preg_match('/^\d{6}$/', $kod)) {
-        err("Kod CPC musi składać się z dokładnie 6 cyfr. Podano: „{$kod}"");
+        err('Kod CPC musi składac sie z dokladnie 6 cyfr. Podano: "' . $kod . '"');
         exit(1);
     }
 
