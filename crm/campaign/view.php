@@ -28,6 +28,13 @@ $recipients = db_all(
      WHERE cr.campaign_id=? ORDER BY cr.id DESC LIMIT 200", [$id]
 );
 
+$failed = db_all(
+    "SELECT cr.*, ct.imie_nazwisko, ct.email FROM crm_campaign_recipients cr
+     JOIN crm_contacts ct ON ct.id=cr.contact_id
+     WHERE cr.campaign_id=? AND cr.status='failed'
+     ORDER BY ct.imie_nazwisko ASC", [$id]
+);
+
 $STATUS_LABELS = [
     'draft' => 'Szkic', 'scheduled' => 'Zaplanowana', 'sending' => 'Wysyłanie', 'sent' => 'Wysłana',
 ];
@@ -60,9 +67,10 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 $stats = [
     ['Odbiorcy', (int)$campaign['recipients_count'], 'bi-people-fill', '#0176D3'],
     ['Wysłane', (int)$campaign['sent_count'], 'bi-send-check-fill', '#16A34A'],
+    ['Nie dotarło', (int)$campaign['failed_count'], 'bi-exclamation-circle-fill', '#DC2626'],
     ['Otwarcia', (int)$campaign['opened_count'], 'bi-envelope-open-fill', '#D97706'],
     ['Kliknięcia', (int)$campaign['clicked_count'], 'bi-cursor-fill', '#7C3AED'],
-    ['Wypisania', (int)$campaign['unsubscribed_count'], 'bi-person-x-fill', '#DC2626'],
+    ['Wypisania', (int)$campaign['unsubscribed_count'], 'bi-person-x-fill', '#6B7280'],
 ];
 foreach ($stats as [$label, $val, $icon, $color]):
 ?>
@@ -96,5 +104,43 @@ foreach ($stats as [$label, $val, $icon, $color]):
 </tbody>
 </table>
 </div>
+
+<?php if ($failed): ?>
+<div class="mt-4">
+  <h6 class="fw-bold mb-2 d-flex align-items-center gap-2" style="color:#DC2626">
+    <i class="bi bi-exclamation-circle-fill"></i>
+    Nie otrzymali mailingu (<?= count($failed) ?>)
+  </h6>
+  <div class="alert alert-danger py-2 mb-2" style="font-size:.84rem">
+    Wysyłka do poniższych kontaktów zakończyła się błędem — mailing do nich <strong>nie dotarł</strong>.
+  </div>
+  <div class="table-responsive">
+  <table class="table align-middle table-sm table-hover">
+    <thead class="table-danger">
+      <tr>
+        <th>#</th>
+        <th>Imię i nazwisko</th>
+        <th>E-mail</th>
+        <th>Dodano do listy</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($failed as $i => $r): ?>
+    <tr>
+      <td class="text-muted"><?= $i + 1 ?></td>
+      <td>
+        <a href="<?= APP_URL ?>/crm/contact.php?id=<?= (int)$r['contact_id'] ?>" class="text-decoration-none">
+          <?= h($r['imie_nazwisko']) ?>
+        </a>
+      </td>
+      <td class="text-muted small"><?= h($r['email']) ?></td>
+      <td class="text-muted small"><?= $r['created_at'] ? date('d.m.Y H:i', strtotime($r['created_at'])) : '—' ?></td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>
