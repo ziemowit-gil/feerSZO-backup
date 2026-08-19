@@ -404,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $od  = trim($dane['okres_od']    ?? '');
             $do  = trim($dane['okres_do']    ?? '');
             $ucz = trim($dane['uczelnia_celownik'] ?: ($dane['uczelnia'] ?? ''));
-            $ap  = '<p>Niniejsze oświadczenie wydaje się na wniosek ' . h($vw) . ' w celu potwierdzenia';
+            $ap  = '<p>Niniejsze zaświadczenie wydaje się na wniosek ' . h($vw) . ' w celu potwierdzenia';
             if ($g !== '') $ap .= ' przepracowania łącznej liczby <strong>' . h($g) . ' godzin</strong>';
             if ($od !== '' || $do !== '') $ap .= ' w okresie od <strong>' . h($od) . '</strong> do <strong>' . h($do) . '</strong>&nbsp;r.';
             $ap .= '.';
@@ -413,6 +413,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dane['akapit_uczelni'] = $ap;
         } else {
             $dane['akapit_uczelni'] = '';
+        }
+        if (!empty($dane['dolacz_zamkniecie_zobowiazan'])) {
+            $dz  = trim($dane['data_zamkniecia']  ?? '');
+            $uwg = trim($dane['uwagi_zamkniecia'] ?? '');
+            $az  = '<p style="margin-top:10pt;padding:8pt 10pt;border:1px solid #888;border-radius:3pt;font-size:9pt">'
+                 . '<strong>Informacja o zamknięciu zobowiązań:</strong> '
+                 . 'Potwierdzamy, że wszelkie zobowiązania wynikające ze współpracy zostały prawidłowo rozliczone i zamknięte';
+            if ($dz !== '') $az .= ' w dniu <strong>' . h($dz) . '</strong>';
+            $az .= '.';
+            if ($uwg !== '') $az .= ' ' . h($uwg);
+            $az .= '</p>';
+            $dane['akapit_zamkniecie'] = $az;
+        } else {
+            $dane['akapit_zamkniecie'] = '';
         }
     }
 
@@ -686,7 +700,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 // Show/hide pól zależnych od checkboxów (np. akapit uczelni → pola godzin)
 (function () {
   const DEPS = {
-    'dolacz_akapit_uczelni': ['suma_godzin','okres_od','okres_do','uczelnia_celownik'],
+    'dolacz_akapit_uczelni':       ['suma_godzin','okres_od','okres_do','uczelnia_celownik'],
+    'dolacz_zamkniecie_zobowiazan':['data_zamkniecia','uwagi_zamkniecia'],
   };
   function applyDep(chk) {
     const deps = DEPS[chk.dataset.field] || [];

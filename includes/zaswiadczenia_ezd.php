@@ -844,10 +844,10 @@ function ezd_zas_by_verify_code(string $code): ?array {
     // 4a. Oświadczenie dla studenta o współpracy
     $_ins(
         'oswiadczenie_student_wspolpraca',
-        'Oświadczenie o współpracy (student)',
-        'Oświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
-        '<p style="margin-bottom:12pt">Niniejszym <strong>{{organizacja}}</strong> oświadcza, że <strong>{{imie_nazwisko}}</strong>,'
-        . ' {{student_forma}} <strong>{{uczelnia}}</strong>{{kierunek_fraza}}, {{podjal}} współpracę z naszą organizacją.</p>'
+        'Zaświadczenie dla studenta o współpracy',
+        'Zaświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
+        '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong>,'
+        . ' {{student_forma}} <strong>{{uczelnia}}</strong>{{kierunek_fraza}}, {{podjal}} współpracę z <strong>{{organizacja}}</strong>.</p>'
         . "\n\n"
         . $_tbl([
             ['Imię i nazwisko',          '{{imie_nazwisko}}'],
@@ -863,6 +863,8 @@ function ezd_zas_by_verify_code(string $code): ?array {
         . '<p>{{byl_aktywny}}</p>'
         . "\n\n"
         . '{{akapit_uczelni}}'
+        . "\n\n"
+        . '{{akapit_zamkniecie}}'
         . "\n\n"
         . '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
         [
@@ -883,6 +885,9 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'suma_godzin',      'label'=>'Łączna liczba godzin',                         'type'=>'text',     'required'=>false],
             ['name'=>'okres_od',         'label'=>'Okres zliczonych godzin: od (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
             ['name'=>'okres_do',         'label'=>'Okres zliczonych godzin: do (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
+            ['name'=>'dolacz_zamkniecie_zobowiazan', 'label'=>'Połącz z informacją o zamknięciu zobowiązań', 'type'=>'checkbox', 'required'=>false],
+            ['name'=>'data_zamkniecia',  'label'=>'Data zamknięcia zobowiązań (dd.mm.rrrr)',       'type'=>'text',     'required'=>false],
+            ['name'=>'uwagi_zamkniecia', 'label'=>'Uwagi do zamknięcia (opcjonalne)',              'type'=>'textarea', 'required'=>false],
         ],
         'OSW-ST'
     );
@@ -891,7 +896,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
     catch (\Throwable $e) {}
     // Idempotentna aktualizacja szablonu pól — dodaje nowe pola jeśli brakuje
     (function () {
-        $row = db_one("SELECT id, szablon_pola FROM ezd_zas_typy WHERE kod='oswiadczenie_student_wspolpraca'");
+        $row = db_one("SELECT id, szablon_pola, szablon_tresc FROM ezd_zas_typy WHERE kod='oswiadczenie_student_wspolpraca'");
         if (!$row) return;
         $pola  = json_decode($row['szablon_pola'] ?: '[]', true) ?: [];
         $names = array_column($pola, 'name');
@@ -902,13 +907,34 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'suma_godzin', 'label'=>'Łączna liczba godzin', 'type'=>'text', 'required'=>false],
             ['name'=>'okres_od',    'label'=>'Okres zliczonych godzin: od (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
             ['name'=>'okres_do',    'label'=>'Okres zliczonych godzin: do (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
+            ['name'=>'dolacz_zamkniecie_zobowiazan', 'label'=>'Połącz z informacją o zamknięciu zobowiązań', 'type'=>'checkbox', 'required'=>false],
+            ['name'=>'data_zamkniecia',  'label'=>'Data zamknięcia zobowiązań (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
+            ['name'=>'uwagi_zamkniecia', 'label'=>'Uwagi do zamknięcia (opcjonalne)', 'type'=>'textarea', 'required'=>false],
         ];
         $changed = false;
         foreach ($new_fields as $f) {
             if (!in_array($f['name'], $names)) { $pola[] = $f; $changed = true; }
         }
+        // Dodaj token {{akapit_zamkniecie}} do treści jeśli brakuje
+        $tresc = $row['szablon_tresc'] ?? '';
+        if (!str_contains($tresc, '{{akapit_zamkniecie}}')) {
+            $tresc = str_replace(
+                '<p style="font-size:9pt;color:#666">Oświadczenie wydano',
+                '{{akapit_zamkniecie}}' . "\n\n" . '<p style="font-size:9pt;color:#666">Oświadczenie wydano',
+                $tresc
+            );
+            if (!str_contains($tresc, '{{akapit_zamkniecie}}')) {
+                $tresc .= "\n\n{{akapit_zamkniecie}}";
+            }
+            $changed = true;
+        }
         if ($changed) {
-            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([json_encode($pola, JSON_UNESCAPED_UNICODE)]); }
+            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
+                json_encode($pola, JSON_UNESCAPED_UNICODE),
+                $tresc,
+                'Zaświadczenie dla studenta o współpracy',
+                'Zaświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
+            ]); }
             catch (\Throwable $e) { error_log('[zas seed osw-st] ' . $e->getMessage()); }
         }
     })();
