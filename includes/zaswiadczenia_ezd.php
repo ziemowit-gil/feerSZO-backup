@@ -394,13 +394,16 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
     // Kod kreskowy (Code 128) — opcjonalny per typ zaświadczenia
     $barcode_html = '';
     if (!$preview && !empty($zas['barcode_enabled'])) {
-        // Treść: numer zaświadczenia + znak sprawy (jeśli istnieje)
+        // Treść: numer zaświadczenia | KRS org | 8-znakowy hash (SHA256 seed)
         $bc_nr   = $zas['nr_zaswiadczenia'] ?? '';
         $bc_znak = $zas['znak_sprawy']      ?? '';
+        $bc_krs  = function_exists('org_setting') ? (org_setting('org_krs') ?: '') : '';
+        $bc_seed = substr(hash('sha256', $bc_nr . '|' . $bc_krs . '|' . ($zas['verify_code'] ?? '')), 0, 8);
+        $bc_raw  = $bc_nr . ($bc_krs !== '' ? ' ' . $bc_krs : '') . ' ' . $bc_seed;
         // Code 128 obsługuje /. i spacje; sanityzuj do bezpiecznego zakresu ASCII 32-126
-        $bc_code = preg_replace('/[^\x20-\x7e]/', '', $bc_nr ?: $bc_znak);
+        $bc_code = preg_replace('/[^\x20-\x7e]/', '', $bc_raw);
         if ($bc_code !== '') {
-            $bc_label = h($bc_code);
+            $bc_label = h($bc_nr);
             if ($bc_znak && $bc_nr && $bc_znak !== $bc_nr) {
                 $bc_label .= '<br><span style="font-size:6pt;color:#aaa">' . h($bc_znak) . '</span>';
             }
@@ -454,17 +457,17 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
   <tr>
-    <td style="border:0;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">
-      ' . ($barcode_html !== '' || $qr_html !== ''
-          ? '<div style="text-align:center">'
-            . $barcode_html
-            . ($qr_html !== '' ? '<div style="margin-top:8pt">' . $qr_html . '</div>' : '')
-            . '</div>'
-          : '') . '
-    </td>
+    <td style="width:48%;border:0"></td>
     <td style="width:52%;border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
   </tr>
 </table>
+
+' . ($barcode_html !== '' || $qr_html !== ''
+    ? '<div style="position:fixed;bottom:22mm;left:0;right:0;text-align:center">'
+      . $barcode_html
+      . ($qr_html !== '' ? '<div style="margin-top:6pt">' . $qr_html . '</div>' : '')
+      . '</div>'
+    : '') . '
 
 ' . (!$preview && empty($zas['plik_path']) && !empty($zas['wymaga_akceptacji']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
 
@@ -1042,15 +1045,19 @@ function ezd_zas_by_verify_code(string $code): ?array {
             }
             $changed = true;
         }
-        // Usuń niechciane fragmenty z szablonu
-        $tresc = str_replace('<p>{{byl_aktywny}}</p>', '', $tresc);
-        foreach ([
-            '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-            '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-        ] as $_r) {
-            $tresc_clean = str_replace($_r, '', $tresc);
-            if ($tresc_clean !== $tresc) { $tresc = $tresc_clean; $changed = true; }
+        // Dodaj token {{opinia_akapit}} jeśli brakuje
+        if (!str_contains($tresc, '{{opinia_akapit}}')) {
+            $tresc .= "\n\n{{opinia_akapit}}";
+            $changed = true;
         }
+        // Usuń niechciane fragmenty z szablonu (regex — odporna na whitespace/styl)
+        $tresc = str_replace('<p>{{byl_aktywny}}</p>', '', $tresc);
+        $tresc_clean = preg_replace(
+            '/<p[^>]*>Oświadczenie wydano na prośbę zainteresowanego\(ej\)[^<]*<\/p>/u',
+            '',
+            $tresc
+        );
+        if ($tresc_clean !== $tresc) { $tresc = $tresc_clean; $changed = true; }
         $tresc = trim($tresc);
         // Wyczyść też już wydane zaświadczenia tego typu (tresc_html)
         try {
@@ -1070,11 +1077,12 @@ function ezd_zas_by_verify_code(string $code): ?array {
                 // Najpewniej: usuń <p>...</p> gdzie treść to tylko tekst (nie zaczyna się od '<')
                 // Bardziej niezawodnie: przerenderuj z aktualnego szablonu
                 $dane = json_decode($_w['dane'] ?? '{}', true) ?: [];
-                // Usuń zdanie zamknięcia — wszystkie warianty
-                foreach ([
-                    '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-                    '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
-                ] as $_rem) { $_ht = str_replace($_rem, '', $_ht); }
+                // Usuń zdanie zamknięcia — regex odporny na whitespace/styl
+                $_ht = preg_replace(
+                    '/<p[^>]*>Oświadczenie wydano na prośbę zainteresowanego\(ej\)[^<]*<\/p>/u',
+                    '',
+                    $_ht
+                );
                 // Usuń <p>{{byl_aktywny}}</p> jeśli nie był zamieniony
                 $_ht = str_replace('<p>{{byl_aktywny}}</p>', '', $_ht);
                 // Usuń wyrenderowaną wartość byl_aktywny z paragrafów

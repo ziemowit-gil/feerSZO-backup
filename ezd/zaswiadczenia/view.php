@@ -113,6 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
     }
+    if ($act === 'edytuj_tresc' && $issued && $can_mgr && empty($zas['plik_path'])) {
+        $new_html = trim($_POST['tresc_html'] ?? '');
+        if ($new_html !== '') {
+            db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=?, updated_at=datetime('now') WHERE id=?")
+                ->execute([$new_html, $id]);
+            flash_set('success', 'Treść zaświadczenia zapisana.');
+        }
+    }
     if ($act === 'regeneruj_pdf' && $issued && empty($zas['plik_path'])) {
         $dane = $zas['dane'] ?? [];
         if (($zas['typ_kod'] ?? '') === 'oswiadczenie_student_wspolpraca') {
@@ -274,9 +282,28 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <!-- Treść wydanego zaświadczenia -->
     <?php if($issued && $zas['tresc_html']): ?>
     <div class="card shadow-sm mb-3">
-      <div class="card-header fw-semibold" style="font-size:.88rem"><i class="bi bi-file-text me-1 text-primary"></i>Treść zaświadczenia</div>
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center" style="font-size:.88rem">
+        <span><i class="bi bi-file-text me-1 text-primary"></i>Treść zaświadczenia</span>
+        <?php if($can_mgr && empty($zas['plik_path'])): ?>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-edit-tresc"
+                onclick="document.getElementById('tresc-view').classList.toggle('d-none');document.getElementById('tresc-edit').classList.toggle('d-none');this.textContent=this.textContent.trim()==='Edytuj'?'Anuluj':'Edytuj'">
+          Edytuj
+        </button>
+        <?php endif; ?>
+      </div>
       <div class="card-body">
-        <div class="zas-tresc"><?= $zas['tresc_html'] ?></div>
+        <div id="tresc-view" class="zas-tresc"><?= $zas['tresc_html'] ?></div>
+        <?php if($can_mgr && empty($zas['plik_path'])): ?>
+        <div id="tresc-edit" class="d-none">
+          <form method="post">
+            <input type="hidden" name="_action" value="edytuj_tresc">
+            <textarea id="tinymce-tresc" name="tresc_html" style="width:100%;min-height:320px"><?= h($zas['tresc_html']) ?></textarea>
+            <div class="mt-2 text-end">
+              <button type="submit" class="btn btn-sm btn-primary">Zapisz treść</button>
+            </div>
+          </form>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
@@ -491,20 +518,23 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php if($can_mgr && $open && $zas['szablon_tresc']): ?>
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-tinymce.init({
-  selector: '#tresc-override-editor',
-  license_key: 'gpl',
-  menubar: false,
-  branding: false,
-  promotion: false,
-  toolbar: false,
-  statusbar: false,
+const _tinyCommon = {
+  license_key: 'gpl', menubar: false, branding: false, promotion: false,
   entity_encoding: 'raw',
-  height: 220,
   content_style: 'body { font-family: system-ui, sans-serif; font-size: 13px; line-height: 1.55; padding: 4px 8px; }',
+};
+tinymce.init({..._tinyCommon, selector: '#tresc-override-editor', toolbar: false, statusbar: false, height: 220});
+tinymce.init({..._tinyCommon, selector: '#tinymce-tresc',
+  toolbar: 'bold italic underline | bullist numlist | removeformat',
+  statusbar: false, height: 340,
 });
 document.getElementById('form-wydaj-szablon').addEventListener('submit', function() {
   if (typeof tinymce !== 'undefined') tinymce.triggerSave();
+});
+document.querySelectorAll('#tresc-edit form').forEach(function(f) {
+  f.addEventListener('submit', function() {
+    if (typeof tinymce !== 'undefined') tinymce.triggerSave();
+  });
 });
 </script>
 <?php endif; ?>
