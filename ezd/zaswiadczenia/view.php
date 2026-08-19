@@ -115,6 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($act === 'regeneruj_pdf' && $issued && empty($zas['plik_path'])) {
         $dane = $zas['dane'] ?? [];
+        if (($zas['typ_kod'] ?? '') === 'oswiadczenie_student_wspolpraca') {
+            $dane = ezd_zas_compute_derived_tokens_osw_st($dane);
+        }
         $new_tresc = ezd_zas_render(
             $zas['szablon_tresc'],
             $dane,

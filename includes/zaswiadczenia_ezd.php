@@ -128,7 +128,7 @@ function ezd_zas_all(array $f = []): array {
 
 function ezd_zas_get(int $id): ?array {
     $r = db_one(
-        "SELECT w.*, zt.nazwa AS typ_nazwa, zt.szablon_tresc, zt.szablon_pola,
+        "SELECT w.*, zt.nazwa AS typ_nazwa, zt.kod AS typ_kod, zt.szablon_tresc, zt.szablon_pola,
                 zt.wymaga_akceptacji, zt.jrwa_id, zt.nr_prefix,
                 COALESCE(zt.naglowek_html,'') AS naglowek_html,
                 COALESCE(zt.podpisujacy,'') AS podpisujacy,
@@ -216,6 +216,72 @@ function ezd_zas_render(string $szablon, array $dane, array $extra = []): string
         // Wartości HTML (zaczynają się od '<') wstrzykujemy bez escapowania
         return ($v !== '' && $v[0] === '<') ? $v : htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
     }, $szablon);
+}
+
+/**
+ * Oblicza tokeny pochodne dla OSW-ST (Zaświadczenie dla studenta).
+ * Wywołaj przed ezd_zas_render() i przed ezd_zas_create().
+ */
+function ezd_zas_compute_derived_tokens_osw_st(array $dane): array {
+    $zen = ($dane['plec'] ?? '') === 'kobieta';
+    $dane['student_forma']  = $zen ? 'studentka' : 'student';
+    $dane['podjal']         = $zen ? 'podjęła'   : 'podjął';
+    $kierunek = trim($dane['kierunek'] ?? '');
+    $dane['kierunek_fraza'] = $kierunek !== '' ? ', kierunek ' . $kierunek : '';
+    if (empty($dane['uczelnia_celownik'])) {
+        $dane['uczelnia_celownik'] = $dane['uczelnia'] ?? '';
+    }
+    $vw = $zen ? 'Wolontariuszki' : 'Wolontariusza';
+
+    // Akapit uczelni / rekrutacja
+    if (!empty($dane['dolacz_akapit_uczelni'])) {
+        $g   = trim($dane['suma_godzin'] ?? '');
+        $od  = trim($dane['okres_od']    ?? '');
+        $do  = trim($dane['okres_do']    ?? '');
+        $ucz = trim($dane['uczelnia_celownik'] ?: ($dane['uczelnia'] ?? '')) ?: 'Uczelni';
+        $ap  = '<p>Niniejsze zaświadczenie wydaje się na wniosek ' . h($vw) . ' w celu potwierdzenia';
+        if ($g !== '') $ap .= ' przepracowania łącznej liczby <strong>' . h($g) . ' godzin</strong>';
+        if ($od !== '' || $do !== '') {
+            $ap .= ' w okresie od <strong>' . h($od) . '</strong> do <strong>' . h($do) . '</strong>&nbsp;r';
+        }
+        $ap .= '. Zwracamy się z prośbą do <strong>' . h($ucz) . '</strong> o uwzględnienie powyższego zaangażowania społecznego i przyznanie należnych punktów w procesie rekrutacji.</p>';
+        $dane['akapit_uczelni'] = $ap;
+    } else {
+        $dane['akapit_uczelni'] = '';
+    }
+
+    // Korpus Solidarności
+    if (!empty($dane['dolacz_korpus'])) {
+        $dane['akapit_korpus'] = '<p style="margin-top:10pt;font-size:9.5pt">'
+            . 'Godziny wolontariatu zostały potwierdzone i są zarejestrowane w systemie '
+            . '<strong>Korpusu Solidarności</strong> (www.korpussolidarnosci.gov.pl/pl).</p>';
+    } else {
+        $dane['akapit_korpus'] = '';
+    }
+
+    // Zamknięcie zobowiązań
+    if (!empty($dane['dolacz_zamkniecie_zobowiazan'])) {
+        $dz  = trim($dane['data_zamkniecia']  ?? '');
+        $uwg = trim($dane['uwagi_zamkniecia'] ?? '');
+        $az  = '<p style="margin-top:10pt;padding:8pt 10pt;border:1px solid #888;border-radius:3pt;font-size:9pt">'
+             . '<strong>Informacja o zamknięciu zobowiązań:</strong> '
+             . 'Potwierdzamy, że wszelkie zobowiązania wynikające ze współpracy zostały prawidłowo rozliczone i zamknięte';
+        if ($dz !== '') $az .= ' w dniu <strong>' . h($dz) . '</strong>';
+        $az .= '.';
+        if ($uwg !== '') $az .= ' ' . h($uwg);
+        $az .= '</p>';
+        $dane['akapit_zamkniecie'] = $az;
+    } else {
+        $dane['akapit_zamkniecie'] = '';
+    }
+
+    // Opinia
+    $opinia = trim($dane['opinia'] ?? '');
+    $dane['opinia_akapit'] = $opinia !== ''
+        ? '<p style="margin-top:10pt;font-size:9.5pt"><strong>Opinia:</strong> ' . nl2br(h($opinia)) . '</p>'
+        : '';
+
+    return $dane;
 }
 
 /**
@@ -342,7 +408,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
                 $gen  = new \Picqer\Barcode\BarcodeGeneratorPNG();
                 $png  = $gen->getBarcode($bc_code, $gen::TYPE_CODE_128, 1, 25);
                 $b64  = base64_encode($png);
-                $barcode_html = '<img src="data:image/png;base64,' . $b64 . '" style="height:10mm;display:block;margin:0 auto">'
+                $barcode_html = '<img src="data:image/png;base64,' . $b64 . '" style="height:10mm;display:block;margin:14pt auto 0">'
                               . '<br><span style="font-size:6pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
             } catch (\Throwable $e) {
                 $barcode_html = '';
@@ -885,6 +951,8 @@ function ezd_zas_by_verify_code(string $code): ?array {
         . "\n\n"
         . '{{akapit_uczelni}}'
         . "\n\n"
+        . '{{akapit_korpus}}'
+        . "\n\n"
         . '{{akapit_zamkniecie}}'
         . "\n\n"
         . '{{opinia_akapit}}',
@@ -906,6 +974,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'suma_godzin',      'label'=>'Łączna liczba godzin',                         'type'=>'text',     'required'=>false],
             ['name'=>'okres_od',         'label'=>'Okres zliczonych godzin: od (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
             ['name'=>'okres_do',         'label'=>'Okres zliczonych godzin: do (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
+            ['name'=>'dolacz_korpus',     'label'=>'Potwierdzone w Korpusie Solidarności',          'type'=>'checkbox', 'required'=>false],
             ['name'=>'dolacz_zamkniecie_zobowiazan', 'label'=>'Połącz z informacją o zamknięciu zobowiązań', 'type'=>'checkbox', 'required'=>false],
             ['name'=>'data_zamkniecia',  'label'=>'Data zamknięcia zobowiązań (dd.mm.rrrr)',       'type'=>'text',     'required'=>false],
             ['name'=>'uwagi_zamkniecia', 'label'=>'Uwagi do zamknięcia (opcjonalne)',              'type'=>'textarea', 'required'=>false],
@@ -951,8 +1020,37 @@ function ezd_zas_by_verify_code(string $code): ?array {
             }
             $changed = true;
         }
+        // Dodaj token {{akapit_korpus}} jeśli brakuje
+        if (!str_contains($tresc, '{{akapit_korpus}}')) {
+            $tresc = str_replace('{{akapit_uczelni}}', '{{akapit_uczelni}}' . "\n\n" . '{{akapit_korpus}}', $tresc);
+            if (!str_contains($tresc, '{{akapit_korpus}}')) {
+                $tresc = str_replace('{{akapit_zamkniecie}}', '{{akapit_korpus}}' . "\n\n" . '{{akapit_zamkniecie}}', $tresc);
+            }
+            $changed = true;
+        }
+        // Dodaj pole dolacz_korpus jeśli brakuje
+        $has_korpus = false;
+        foreach ($pola as $_f) { if ($_f['name'] === 'dolacz_korpus') { $has_korpus = true; break; } }
+        if (!$has_korpus) {
+            $zamk_idx = null;
+            foreach ($pola as $_i => $_f) { if ($_f['name'] === 'dolacz_zamkniecie_zobowiazan') { $zamk_idx = $_i; break; } }
+            $new_f = ['name'=>'dolacz_korpus', 'label'=>'Potwierdzone w Korpusie Solidarności', 'type'=>'checkbox', 'required'=>false];
+            if ($zamk_idx !== null) {
+                array_splice($pola, $zamk_idx, 0, [$new_f]);
+            } else {
+                $pola[] = $new_f;
+            }
+            $changed = true;
+        }
         // Usuń niechciane fragmenty z szablonu
         $tresc = str_replace('<p>{{byl_aktywny}}</p>', '', $tresc);
+        foreach ([
+            '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+            '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+        ] as $_r) {
+            $tresc_clean = str_replace($_r, '', $tresc);
+            if ($tresc_clean !== $tresc) { $tresc = $tresc_clean; $changed = true; }
+        }
         $tresc = trim($tresc);
         // Wyczyść też już wydane zaświadczenia tego typu (tresc_html)
         try {

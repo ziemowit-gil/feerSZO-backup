@@ -393,49 +393,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Post-processing specyficzny dla typów z tokenami pochodnymi
     if (($typ['kod'] ?? '') === 'oswiadczenie_student_wspolpraca') {
-        $zen = ($dane['plec'] ?? '') === 'kobieta';
-        $dane['student_forma'] = $zen ? 'studentka'        : 'student';
-        $dane['podjal']        = $zen ? 'podjęła'          : 'podjął';
-        $kierunek = trim($dane['kierunek'] ?? '');
-        $dane['kierunek_fraza'] = $kierunek !== '' ? ', kierunek ' . $kierunek : '';
-        if (empty($dane['uczelnia_celownik'])) {
-            $dane['uczelnia_celownik'] = $dane['uczelnia'] ?? '';
-        }
-        $vw = $zen ? 'Wolontariuszki' : 'Wolontariusza';
-        if (!empty($dane['dolacz_akapit_uczelni'])) {
-            $g   = trim($dane['suma_godzin'] ?? '');
-            $od  = trim($dane['okres_od']    ?? '');
-            $do  = trim($dane['okres_do']    ?? '');
-            $ucz = trim($dane['uczelnia_celownik'] ?: ($dane['uczelnia'] ?? ''));
-            $ap  = '<p>Niniejsze zaświadczenie wydaje się na wniosek ' . h($vw) . ' w celu potwierdzenia';
-            if ($g !== '') $ap .= ' przepracowania łącznej liczby <strong>' . h($g) . ' godzin</strong>';
-            if ($od !== '' || $do !== '') $ap .= ' w okresie od <strong>' . h($od) . '</strong> do <strong>' . h($do) . '</strong>&nbsp;r';
-            $ap .= '.';
-            if ($ucz !== '') $ap .= ' Zwracamy się z prośbą do <strong>' . h($ucz) . '</strong> o uwzględnienie powyższego zaangażowania społecznego i przyznanie należnych punktów w procesie rekrutacji.';
-            $ap .= '</p>';
-            $dane['akapit_uczelni'] = $ap;
-        } else {
-            $dane['akapit_uczelni'] = '';
-        }
-        $opinia = trim($dane['opinia'] ?? '');
-        $dane['opinia_akapit'] = $opinia !== ''
-            ? '<p style="margin-top:10pt;font-size:9.5pt"><strong>Opinia:</strong> ' . nl2br(h($opinia)) . '</p>'
-            : '';
-
-        if (!empty($dane['dolacz_zamkniecie_zobowiazan'])) {
-            $dz  = trim($dane['data_zamkniecia']  ?? '');
-            $uwg = trim($dane['uwagi_zamkniecia'] ?? '');
-            $az  = '<p style="margin-top:10pt;padding:8pt 10pt;border:1px solid #888;border-radius:3pt;font-size:9pt">'
-                 . '<strong>Informacja o zamknięciu zobowiązań:</strong> '
-                 . 'Potwierdzamy, że wszelkie zobowiązania wynikające ze współpracy zostały prawidłowo rozliczone i zamknięte';
-            if ($dz !== '') $az .= ' w dniu <strong>' . h($dz) . '</strong>';
-            $az .= '.';
-            if ($uwg !== '') $az .= ' ' . h($uwg);
-            $az .= '</p>';
-            $dane['akapit_zamkniecie'] = $az;
-        } else {
-            $dane['akapit_zamkniecie'] = '';
-        }
+        $dane = ezd_zas_compute_derived_tokens_osw_st($dane);
     }
 
     $_post_ctype = trim($_POST['_contract_type'] ?? '');
@@ -448,7 +406,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Jeśli nie wymaga akceptacji → od razu wydaj
     if (!$typ['wymaga_akceptacji']) {
-        $res = ezd_zas_wydaj($id, $user_id);
+        $include_qr = ($typ['kod'] ?? '') === 'oswiadczenie_student_wspolpraca';
+        $res = ezd_zas_wydaj($id, $user_id, null, '', $include_qr);
         if ($res['ok']) {
             flash_set('success', 'Zaświadczenie ' . h($res['nr']) . ' wydane natychmiast (bez weryfikacji).');
         }
