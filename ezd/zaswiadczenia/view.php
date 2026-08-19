@@ -183,11 +183,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?= ezd_zas_status_badge($st) ?>
         <div class="ms-auto d-flex gap-2">
           <?php if($issued): ?>
-          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>" target="_blank"
-             class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-          <button type="button" class="btn btn-outline-primary btn-sm" title="Drukuj wiele egzemplarzy z numerowaniem"
-                  onclick="(function(){var n=parseInt(prompt('Ile egzemplarzy wydrukować?','1'));if(!n||n<1)return;for(var i=1;i<=n;i++)window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&egzemplarz='+i+'&z='+n,'_blank')})()">
-            <i class="bi bi-journals me-1"></i>Egzemplarze
+          <button type="button" class="btn btn-outline-primary btn-sm"
+                  onclick="(function(){var n=parseInt(prompt('Liczba egzemplarzy:','1'));if(!n||n<1)return;if(n===1){window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>','_blank');}else{for(var i=1;i<=n;i++)window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&egzemplarz='+i+'&z='+n,'_blank');}})()">
+            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
           </button>
           <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&duplikat=1" target="_blank"
              class="btn btn-outline-secondary btn-sm" title="Drukuj duplikat z adnotacją daty wydruku"><i class="bi bi-files me-1"></i>Duplikat</a>
