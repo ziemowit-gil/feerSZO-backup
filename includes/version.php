@@ -10,15 +10,18 @@ function app_version(): array {
 
     $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
 
-    // Główna wersja aplikacji — APP_VERSION z config.php
-    // (fallback do min_version.txt, jeśli stała niezdefiniowana)
-    if (defined('APP_VERSION')) {
+    // Główne źródło prawdy: ostatni git tag pasujący do v* (np. v12.1b → 12.1b).
+    // Fallback: APP_VERSION z config.php / min_version.txt.
+    $git_tag = trim(@shell_exec("cd " . escapeshellarg($base) . " && git describe --tags --match 'v*' --abbrev=0 2>/dev/null") ?: '');
+    if ($git_tag !== '') {
+        $main_ver = ltrim($git_tag, 'v');
+    } elseif (defined('APP_VERSION')) {
         $main_ver = APP_VERSION;
     } else {
         $ver_file = $base . '/min_version.txt';
         $main_ver = file_exists($ver_file) ? trim(file_get_contents($ver_file)) : '';
     }
-    $main_ver = preg_replace('/[^0-9.a-zA-Z]/', '', $main_ver); // cyfry, kropki, sufiks literowy (np. 1.12e)
+    $main_ver = preg_replace('/[^0-9.a-zA-Z]/', '', $main_ver);
 
     // Hash commitu
     $hash      = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse --short HEAD 2>/dev/null") ?: '');

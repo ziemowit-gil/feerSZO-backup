@@ -39,41 +39,38 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
   <h4 class="mb-0"><i class="bi bi-git me-2 text-primary"></i>Wersja aplikacji</h4>
-  <span class="ms-auto text-muted small font-monospace" title="Każdy bump automatycznie tworzy tag git — plik wersji i tag wydania zawsze idą w parze">
+  <span class="ms-auto text-muted small font-monospace" title="Bump = git tag vX.Y[z] — wersja pochodzi z repozytorium">
     <i class="bi bi-terminal me-1"></i>php cli/bump_version.php minor
   </span>
 </div>
 
-<!-- Hero: dwie wersje obok siebie -->
+<!-- Hero: wersja z git taga -->
 <div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <div class="row g-4 align-items-center">
-      <div class="col-md-5 text-center border-end-md">
-        <div class="small text-muted text-uppercase" style="letter-spacing:.05em">Wersja robocza</div>
-        <div class="fw-bold text-primary" style="font-size:2.4rem;line-height:1.1">v<?= h($ver['main']) ?></div>
-        <div class="small text-muted">min_version.txt — ustawiana ręcznie</div>
-        <div class="small font-monospace text-secondary mt-1" title="Wersja tego commita: litera rośnie automatycznie od ostatniego bumpa, znacznik czasu to data commitu">
-          <i class="bi bi-hash me-1"></i><?= h($build['full']) ?>
-        </div>
-      </div>
-      <div class="col-md-2 text-center text-muted d-none d-md-block">
-        <i class="bi bi-arrow-left-right fs-3"></i>
-      </div>
-      <div class="col-md-5 text-center">
-        <div class="small text-muted text-uppercase" style="letter-spacing:.05em">Wydanie (git tag)</div>
-        <?php if ($tag['name']): ?>
-        <div class="fw-bold <?= $tag['synced'] ? 'text-success' : 'text-warning-emphasis' ?>" style="font-size:2.4rem;line-height:1.1"><?= h($tag['name']) ?></div>
-        <?php if ($tag['synced']): ?>
-        <div class="small text-success"><i class="bi bi-check-circle me-1"></i>zgodny z bieżącym commitem</div>
-        <?php else: ?>
-        <div class="small text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i><?= (int)$tag['commits_since'] ?> commit(ów) po tagu</div>
-        <?php endif; ?>
-        <?php else: ?>
-        <div class="fw-bold text-muted" style="font-size:2.4rem;line-height:1.1">—</div>
-        <div class="small text-muted">żaden bump jeszcze nie otagował repo</div>
-        <?php endif; ?>
-      </div>
+  <div class="card-body text-center py-4">
+    <div class="small text-muted text-uppercase mb-1" style="letter-spacing:.05em">
+      <i class="bi bi-tag me-1"></i>Wersja (git tag)
     </div>
+    <?php if ($tag['name']): ?>
+    <div class="fw-bold <?= $tag['synced'] ? 'text-primary' : 'text-warning-emphasis' ?>" style="font-size:3rem;line-height:1.1">
+      <?= h($tag['name']) ?>
+    </div>
+    <?php if ($tag['synced']): ?>
+    <div class="small text-success mt-1"><i class="bi bi-check-circle me-1"></i>tag wskazuje bieżący commit</div>
+    <?php else: ?>
+    <div class="small text-warning-emphasis mt-1">
+      <i class="bi bi-exclamation-triangle me-1"></i><?= (int)$tag['commits_since'] ?> commit(ów) po tagu
+      <span class="text-muted ms-2">(uruchom bump, żeby otagować nową wersję)</span>
+    </div>
+    <?php endif; ?>
+    <div class="small font-monospace text-secondary mt-2" title="Build: litera auto od ostatniego taga, znacznik = data commitu">
+      <i class="bi bi-hash me-1"></i><?= h($build['full']) ?>
+    </div>
+    <?php else: ?>
+    <div class="fw-bold text-muted" style="font-size:3rem;line-height:1.1">v<?= h($ver['main']) ?></div>
+    <div class="small text-warning-emphasis mt-1">
+      <i class="bi bi-exclamation-triangle me-1"></i>brak tagu git — uruchom <code>php cli/bump_version.php minor</code>
+    </div>
+    <?php endif; ?>
   </div>
   <div class="card-footer bg-light py-2 d-flex gap-4 flex-wrap small text-muted">
     <span title="Aktualny commit HEAD"><i class="bi bi-code-square me-1"></i>commit <code><?= h($ver['hash']) ?></code></span>
@@ -84,8 +81,6 @@ include dirname(__DIR__) . '/includes/header.php';
     <span><i class="bi bi-diagram-2 me-1"></i>gałąź <code><?= h($ver['branch']) ?></code></span>
   </div>
 </div>
-
-<style>.border-end-md{border-inline-end:0}@media(min-width:768px){.border-end-md{border-inline-end:1px solid var(--bs-border-color)}}</style>
 
 <!-- Historia zmian -->
 <div class="card shadow-sm">
