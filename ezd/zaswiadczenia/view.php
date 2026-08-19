@@ -129,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([$data, $kto, $user_id, $id]);
         ezd_zas_log($id, $user_id, 'odbiór_osobisty', 'Zarejestrowano odbiór osobisty przez: ' . $kto . ', data: ' . $data);
         flash_set('success', 'Odbiór osobisty zaznaczony.');
+        header('Location:' . APP_URL . '/ezd/zaswiadczenia/view.php?id=' . $id . '&just_odbior=1'); exit;
     }
     if ($act === 'cofnij_odbiór' && $can_mgr) {
         db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET \"odbiór_osobisty\"=0,\"odbiór_data\"=NULL,\"odbiór_kto\"=NULL,\"odbiór_przez\"=NULL,updated_at=datetime('now') WHERE id=?")
@@ -167,6 +168,7 @@ $st           = $zas['status'];
 $issued       = $st === 'wydane';
 $open         = in_array($st, ['wniosek', 'weryfikacja'], true);
 $just_issued  = $issued && isset($_GET['just_issued']);
+$just_odbior  = $issued && isset($_GET['just_odbior']);
 
 // Otwarte koszulki do datalist (ograniczone do JRWA typu jeśli podane)
 $open_sprawy = [];
@@ -196,6 +198,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </ol></nav>
 
 <?= flash_html() ?>
+
+<?php if($just_odbior): ?>
+<?php $receipt_url = APP_URL . '/ezd/zaswiadczenia/pickup_receipt.php?id=' . $id; ?>
+<div class="alert alert-primary d-flex align-items-center gap-3 mb-3 shadow-sm" style="border-left:4px solid #2563eb">
+  <i class="bi bi-person-check-fill fs-4 text-primary flex-shrink-0"></i>
+  <div class="flex-grow-1">
+    <strong>Odbiór osobisty zarejestrowany</strong>
+    <div class="text-muted" style="font-size:.82rem">Odebrała: <?= h($zas['odbiór_kto'] ?? '') ?> &nbsp;·&nbsp; Data: <?= h($zas['odbiór_data'] ?? '') ?></div>
+  </div>
+  <div class="d-flex gap-2 flex-shrink-0">
+    <a href="<?= $receipt_url ?>" target="_blank" class="btn btn-primary btn-sm">
+      <i class="bi bi-printer-fill me-1"></i>Drukuj potwierdzenie
+    </a>
+    <button class="btn btn-outline-secondary btn-sm" onclick="this.closest('.alert').remove()">
+      <i class="bi bi-x"></i>
+    </button>
+  </div>
+</div>
+<script>window.open('<?= $receipt_url ?>', '_blank');</script>
+<?php endif; ?>
 
 <?php if($just_issued): ?>
 <?php $pdf_url = APP_URL . '/ezd/zaswiadczenia/pdf.php?id=' . $id; ?>
@@ -265,12 +287,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <!-- Zakładki -->
         <?php $zas_log = $can_mgr ? ezd_zas_get_log($id) : []; ?>
         <ul class="nav nav-tabs px-3 pt-2" style="font-size:.82rem">
-          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#zt-info"><i class="bi bi-info-circle me-1"></i>Informacje</a></li>
+          <li class="nav-item"><a class="nav-link <?= (!$just_issued && !$just_odbior) ? 'active' : '' ?>" data-bs-toggle="tab" href="#zt-info"><i class="bi bi-info-circle me-1"></i>Informacje</a></li>
           <?php if($zas['dane']): ?>
           <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#zt-dane"><i class="bi bi-list-ul me-1"></i>Dane wniosku</a></li>
           <?php endif; ?>
           <?php if($issued): ?>
-          <li class="nav-item"><a class="nav-link <?= !empty($zas['odbiór_osobisty']) ? 'text-success' : '' ?>" data-bs-toggle="tab" href="#zt-odbior">
+          <li class="nav-item"><a class="nav-link <?= !empty($zas['odbiór_osobisty']) ? 'text-success' : '' ?> <?= $just_odbior ? 'active' : '' ?>" data-bs-toggle="tab" href="#zt-odbior">
             <i class="bi bi-person-check me-1"></i>Odbiór
             <?= !empty($zas['odbiór_osobisty']) ? '<span class="badge bg-success ms-1" style="font-size:.6rem">✓</span>' : '' ?>
           </a></li>
@@ -285,7 +307,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="tab-content px-3 py-3">
 
           <!-- Informacje -->
-          <div class="tab-pane fade show active" id="zt-info">
+          <div class="tab-pane fade <?= (!$just_issued && !$just_odbior) ? 'show active' : '' ?>" id="zt-info">
             <div class="row g-2" style="font-size:.83rem">
               <?php
               $info_rows = [
@@ -354,7 +376,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
           <!-- Odbiór osobisty -->
           <?php if($issued): ?>
-          <div class="tab-pane fade" id="zt-odbior">
+          <div class="tab-pane fade <?= $just_odbior ? 'show active' : '' ?>" id="zt-odbior">
             <?php if(!empty($zas['odbiór_osobisty'])): ?>
             <div class="alert alert-success d-flex gap-2 align-items-center mb-3" style="font-size:.85rem">
               <i class="bi bi-person-check-fill fs-5"></i>
