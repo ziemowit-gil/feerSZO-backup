@@ -162,6 +162,7 @@ $groups = [
             ['icon'=>'bi-grid-3x3-gap-fill',    'label'=>'Widoczność modułów per rola','url'=>'/admin/module_perms.php'],
             ['icon'=>'bi-calendar-event-fill',  'label'=>'Ustawienia wydarzeń',     'url'=>'/admin/events_settings.php'],
             ['icon'=>'bi-building-gear',        'label'=>'Wirtualne biurko',           'url'=>'/admin/ezd_settings.php'],
+            ['icon'=>'bi-shield-check',         'label'=>'EU DSS (walidacja eIDAS)', 'url'=>'/admin/dss_settings.php'],
             ['icon'=>'bi-diagram-2',            'label'=>'Procesy EZD (workflow)',   'url'=>'/admin/ezd_workflows.php'],
             ['icon'=>'bi-diagram-3',            'label'=>'Workflow akceptacji',      'url'=>'/admin/approval_workflows.php'],
             ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php'],

@@ -235,6 +235,32 @@ include dirname(__DIR__) . '/includes/header.php';
       });
       </script>
 
+      <!-- EU DSS -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold d-flex align-items-center gap-2">
+          <i class="bi bi-shield-check text-primary"></i>Walidacja podpisów EU DSS (eIDAS)
+          <?php if (org_setting('dss_enabled') === '1'): ?>
+          <span class="badge bg-success ms-auto" style="font-weight:500">Włączone</span>
+          <?php else: ?>
+          <span class="badge bg-secondary ms-auto" style="font-weight:500">Wyłączone</span>
+          <?php endif; ?>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-3" style="font-size:.83rem">
+            EU DSS sprawdza podpisy PAdES, XAdES, CAdES i ASiC przez europejskie listy zaufanych dostawców (LOTL).
+            Wymaga własnego serwera DSS (Docker — <code>docker-compose.dss.yml</code>).
+          </p>
+          <?php if (org_setting('dss_url')): ?>
+          <div class="mb-2" style="font-size:.83rem">
+            URL: <code><?= h(org_setting('dss_url')) ?></code>
+          </div>
+          <?php endif; ?>
+          <a href="<?= APP_URL ?>/admin/dss_settings.php" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-gear me-1"></i>Konfiguruj EU DSS
+          </a>
+        </div>
+      </div>
+
       <!-- Logo EZD -->
       <div class="card shadow-sm mb-4">
         <div class="card-header fw-semibold"><i class="bi bi-image me-2 text-primary"></i>Logo dla dokumentów EZD</div>
