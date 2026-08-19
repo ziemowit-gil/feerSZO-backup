@@ -13,7 +13,8 @@ $user    = current_user();
 $user_id = (int)$user['id'];
 
 // ── POST: zakończ / odrzuć dekretację ────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf_token($_POST['_csrf'] ?? '')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
     $action  = $_POST['_action'] ?? '';
     $dekr_id = (int)($_POST['dekr_id'] ?? 0);
 
