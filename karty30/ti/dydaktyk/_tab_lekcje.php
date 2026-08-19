@@ -333,9 +333,9 @@ if ($_sms_enabled && $cur_course) {
             </a>
             <?php endif; ?>
 
-            <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
-            <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
-              <i class="bi bi-camera-video-fill me-1"></i>Dołącz
+            <?php if ($_meet_url && $s['status'] !== 'cancelled'): ?>
+            <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener noreferrer">
+              <i class="bi bi-camera-video-fill me-1"></i>Link
             </a>
             <?php endif; ?>
 
@@ -546,9 +546,9 @@ if ($_sms_enabled && $cur_course) {
                 <i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i>
               </a>
               <?php endif; ?>
-              <?php if (!$is_past && $s['status'] === 'planned' && $_meet_url): ?>
-              <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-primary py-0 px-2"
-                 target="_blank" rel="noopener noreferrer" title="Dołącz">
+              <?php if ($_meet_url && $s['status'] !== 'cancelled'): ?>
+              <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-outline-primary py-0 px-2"
+                 target="_blank" rel="noopener noreferrer" title="Link do spotkania">
                 <i class="bi bi-camera-video-fill" aria-hidden="true"></i>
               </a>
               <?php endif; ?>
