@@ -9,6 +9,164 @@ require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 ezd_require_access();
 
+// ── AJAX: wyszukiwanie umów i import danych do formularza zaświadczenia ────────
+if (isset($_GET['_ajax'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $_sfmt    = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
+    $_bezterm = fn(array $c) => !empty($c['bezterminowa']) || !empty($c['czas_nieokreslony']);
+    $_byl_jest = fn(string $st) =>
+        in_array($st, ['podpisana','w realizacji','obowiązująca','aktywna','w trakcie'], true)
+            ? 'jest' : 'był/była';
+    $_tlab = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowy zlecenie',
+              'praca'=>'Umowy o pracę','dzielo'=>'Umowy o dzieło',
+              'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
+    $_st_umowy = fn(string $st) => [
+        'podpisana'=>'aktywna','w realizacji'=>'aktywna','obowiązująca'=>'aktywna',
+        'aktywna'=>'aktywna','w trakcie'=>'aktywna','zawieszona'=>'zawieszona',
+        'zakończona'=>'zakończona','rozwiązana'=>'rozwiązana',
+    ][$st] ?? '';
+
+    if (($_GET['_ajax'] ?? '') === 'search_contracts') {
+        $ctype = preg_replace('/[^a-z]/', '', strtolower($_GET['type'] ?? ''));
+        $q     = trim($_GET['q'] ?? '');
+        if (!$ctype || strlen($q) < 2 || !array_key_exists($ctype, CONTRACT_TYPES)) {
+            echo json_encode(['results' => []]); exit;
+        }
+        $like  = '%' . $q . '%';
+        $tbl   = table_for_type($ctype);
+        // Kolumna z nazwą różni się per typ
+        $name_expr = match ($ctype) {
+            'uslugi'      => "COALESCE(imie_nazwisko, nazwa_wykonawcy, '')",
+            'inne',
+            'powierzenie' => "COALESCE(imie_nazwisko, strona_umowy, '')",
+            default       => "COALESCE(imie_nazwisko, '')",
+        };
+        try {
+            $rows = db_all(
+                "SELECT id, {$name_expr} AS display_name, COALESCE(numer_umowy,'') AS numer_umowy, status
+                 FROM {$tbl}
+                 WHERE ({$name_expr} LIKE ? OR numer_umowy LIKE ?)
+                 ORDER BY id DESC LIMIT 20",
+                [$like, $like]
+            );
+            echo json_encode(['results' => $rows]);
+        } catch (\Throwable $e) {
+            echo json_encode(['results' => [], 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if (($_GET['_ajax'] ?? '') === 'import') {
+        $ctype = preg_replace('/[^a-z]/', '', strtolower($_GET['contract_type'] ?? ''));
+        $pid   = (int)($_GET['contract_id'] ?? 0);
+        if (!$ctype || !$pid || !array_key_exists($ctype, CONTRACT_TYPES)) {
+            echo json_encode(['ok' => false, 'error' => 'Nieprawidłowe parametry.']); exit;
+        }
+        $vals = [];
+        try {
+            if ($ctype === 'wolontariat') {
+                $_c = db_one(
+                    "SELECT w.imie_nazwisko, w.numer_umowy, w.data_zawarcia,
+                            w.data_rozpoczecia, w.data_zakonczenia,
+                            COALESCE(w.bezterminowa,0) AS bezterminowa,
+                            w.status, COALESCE(w.email,'') AS email,
+                            COALESCE(w.miejsce_wolontariatu,'') AS miejsce,
+                            COALESCE(w.wolontariat_typ,'') AS wolontariat_typ,
+                            COALESCE(w.przedmiot_porozumienia,'') AS przedmiot_porozumienia,
+                            COALESCE(p.name,'') AS stanowisko_name
+                     FROM umowy_wolontariat w
+                     LEFT JOIN org_positions p ON p.id=w.org_position_id
+                     WHERE w.id=?", [$pid]
+                );
+                if ($_c) $vals = [
+                    '_email'        => $_c['email'],
+                    '_name'         => $_c['imie_nazwisko'],
+                    'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
+                    'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                    'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                    'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                    'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                    'data_do'       => $_bezterm($_c) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                    'zakres_dzialan'=> $_c['przedmiot_porozumienia'] ?: ($_c['wolontariat_typ'] ?? ''),
+                    'typ_umowy'     => 'Porozumienie wolontariackie',
+                    'stanowisko'    => $_c['stanowisko_name'] ?: '',
+                    'miejsce'       => $_c['miejsce'] ?? '',
+                    'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
+                ];
+            } elseif ($ctype === 'praca') {
+                $_c = db_one(
+                    "SELECT imie_nazwisko, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
+                            COALESCE(czas_nieokreslony,0) AS czas_nieokreslony, status,
+                            COALESCE(stanowisko,'') AS stanowisko, COALESCE(email,'') AS email
+                     FROM umowy_praca WHERE id=?", [$pid]
+                );
+                if ($_c) $vals = [
+                    '_email'        => $_c['email'],
+                    '_name'         => $_c['imie_nazwisko'],
+                    'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
+                    'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                    'typ_umowy'     => 'Umowy o pracę',
+                    'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                    'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                    'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                    'data_do'       => !empty($_c['czas_nieokreslony']) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                    'stanowisko'    => $_c['stanowisko'] ?? '',
+                    'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
+                ];
+            } else {
+                $_tables = ['zlecenie'=>'umowy_zlecenie','uslugi'=>'umowy_uslugi',
+                            'dzielo'=>'umowy_dzielo','inne'=>'umowy_inne','powierzenie'=>'umowy_inne'];
+                $_ptable = $_tables[$ctype] ?? null;
+                if ($_ptable) {
+                    $_nc = match ($ctype) {
+                        'uslugi'      => "COALESCE(imie_nazwisko, nazwa_wykonawcy, '') AS imie_nazwisko",
+                        'inne',
+                        'powierzenie' => "COALESCE(imie_nazwisko, strona_umowy, '') AS imie_nazwisko",
+                        default       => "COALESCE(imie_nazwisko, '') AS imie_nazwisko",
+                    };
+                    $_pc = match ($ctype) {
+                        'zlecenie' => 'przedmiot_zlecenia',
+                        'uslugi'   => 'przedmiot_uslugi',
+                        'dzielo'   => 'opis_dziela',
+                        default    => 'przedmiot_umowy',
+                    };
+                    $_btc = in_array($ctype, ['inne','powierzenie'])
+                        ? 'COALESCE(czas_nieokreslony,0) AS bezterminowa'
+                        : 'COALESCE(bezterminowa,0) AS bezterminowa';
+                    $_c = db_one(
+                        "SELECT {$_nc}, numer_umowy, data_zawarcia, data_rozpoczecia, data_zakonczenia,
+                                {$_btc}, status, COALESCE(email,'') AS email,
+                                COALESCE({$_pc},'') AS przedmiot
+                         FROM {$_ptable} WHERE id=?", [$pid]
+                    );
+                    if ($_c) $vals = [
+                        '_email'        => $_c['email'],
+                        '_name'         => $_c['imie_nazwisko'],
+                        'byl_jest'      => $_byl_jest($_c['status'] ?? ''),
+                        'imie_nazwisko' => $_c['imie_nazwisko'] ?? '',
+                        'typ_umowy'     => $_tlab[$ctype] ?? 'Innej umowy',
+                        'numer_umowy'   => $_c['numer_umowy'] ?? '',
+                        'data_zawarcia' => $_sfmt($_c['data_zawarcia']),
+                        'data_od'       => $_sfmt($_c['data_rozpoczecia']),
+                        'data_do'       => !empty($_c['bezterminowa']) ? 'bezterminowo' : $_sfmt($_c['data_zakonczenia']),
+                        'przedmiot'     => $_c['przedmiot'] ?? '',
+                        'status_umowy'  => $_st_umowy($_c['status'] ?? ''),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]); exit;
+        }
+        echo json_encode(['ok' => true, 'vals' => $vals, 'contract_type' => $ctype, 'contract_id' => $pid]);
+        exit;
+    }
+
+    echo json_encode(['error' => 'unknown']);
+    exit;
+}
+// ── /AJAX ─────────────────────────────────────────────────────────────────────
+
 $user_id = (int)current_user()['id'];
 $user    = current_user();
 
@@ -233,6 +391,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location:' . APP_URL . '/ezd/zaswiadczenia/new.php?typ_id=' . $typ_id); exit;
     }
 
+    // Post-processing specyficzny dla typów z tokenami pochodnymi
+    if (($typ['kod'] ?? '') === 'oswiadczenie_student_wspolpraca') {
+        $zen = ($dane['plec'] ?? '') === 'kobieta';
+        $dane['student_forma'] = $zen ? 'studentka'        : 'student';
+        $dane['podjal']        = $zen ? 'podjęła'          : 'podjął';
+        $kierunek = trim($dane['kierunek'] ?? '');
+        $dane['kierunek_fraza'] = $kierunek !== '' ? ', kierunek ' . $kierunek : '';
+        $vw = $zen ? 'Wolontariuszki' : 'Wolontariusza';
+        if (!empty($dane['dolacz_akapit_uczelni'])) {
+            $g   = trim($dane['suma_godzin'] ?? '');
+            $od  = trim($dane['okres_od']    ?? '');
+            $do  = trim($dane['okres_do']    ?? '');
+            $ucz = trim($dane['uczelnia_celownik'] ?: ($dane['uczelnia'] ?? ''));
+            $ap  = '<p>Niniejsze oświadczenie wydaje się na wniosek ' . h($vw) . ' w celu potwierdzenia';
+            if ($g !== '') $ap .= ' przepracowania łącznej liczby <strong>' . h($g) . ' godzin</strong>';
+            if ($od !== '' || $do !== '') $ap .= ' w okresie od <strong>' . h($od) . '</strong> do <strong>' . h($do) . '</strong>&nbsp;r.';
+            $ap .= '.';
+            if ($ucz !== '') $ap .= ' Zwracamy się z prośbą do <strong>' . h($ucz) . '</strong> o uwzględnienie powyższego zaangażowania społecznego i przyznanie należnych punktów w procesie rekrutacji.';
+            $ap .= '</p>';
+            $dane['akapit_uczelni'] = $ap;
+        } else {
+            $dane['akapit_uczelni'] = '';
+        }
+    }
+
     $_post_ctype = trim($_POST['_contract_type'] ?? '');
     $_post_cid   = (int)($_POST['_contract_id'] ?? 0);
     $id       = ezd_zas_create($typ_id, $name, $email, $dane, $user_id, $_post_ctype, $_post_cid);
@@ -308,6 +491,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <input type="hidden" name="_contract_type" value="<?= h($_prefill_ctype) ?>">
       <input type="hidden" name="_contract_id"   value="<?= $_prefill_cid ?>">
       <?php endif; ?>
+
+      <!-- Panel importu danych z umowy -->
+      <div class="mb-3">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-import-toggle">
+          <i class="bi bi-cloud-download me-1"></i>Importuj dane z umowy
+        </button>
+        <div id="zas-import-panel" class="card border-secondary mt-2" style="display:none">
+          <div class="card-body p-2">
+            <div class="row g-2 mb-2">
+              <div class="col-auto">
+                <select id="zas-import-type" class="form-select form-select-sm">
+                  <?php foreach (CONTRACT_TYPES as $_k => $_lbl): ?>
+                  <option value="<?= $_k ?>" <?= ($_prefill_ctype === $_k ? 'selected' : '') ?>><?= h($_lbl) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col">
+                <input type="text" id="zas-import-q" class="form-control form-control-sm"
+                       placeholder="Nazwisko lub numer umowy…">
+              </div>
+              <div class="col-auto">
+                <button type="button" id="zas-import-search" class="btn btn-sm btn-outline-primary">Szukaj</button>
+              </div>
+            </div>
+            <div id="zas-import-results" style="max-height:180px;overflow-y:auto"></div>
+          </div>
+        </div>
+        <?php if ($_prefill_ctype && $_prefill_cid): ?>
+        <div class="badge bg-secondary mt-1" style="font-size:.7rem">
+          <i class="bi bi-link-45deg me-1"></i>Dane zaimportowane z: <?= h(CONTRACT_TYPES[$_prefill_ctype] ?? $_prefill_ctype) ?> #<?= $_prefill_cid ?>
+        </div>
+        <?php endif; ?>
+      </div>
+
       <div class="card shadow-sm">
         <div class="card-header">
           <div class="fw-semibold" style="font-size:.88rem"><i class="bi bi-award me-1 text-primary"></i><?= h($typ['nazwa']) ?></div>
@@ -342,11 +559,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?php if(!empty($pole['required'])): ?><span class="text-danger">*</span><?php endif; ?>
             </label>
             <?php
-              $fn   = 'pole_' . ($pole['name'] ?? '');
-              $type = $pole['type'] ?? 'text';
-              $req  = !empty($pole['required']) ? 'required' : '';
-              $pval = $prefill_vals[$pole['name'] ?? ''] ?? '';
-              if ($type === 'textarea'): ?>
+              $fn    = 'pole_' . ($pole['name'] ?? '');
+              $pname = $pole['name'] ?? '';
+              $type  = $pole['type'] ?? 'text';
+              $req   = !empty($pole['required']) ? 'required' : '';
+              $pval  = $prefill_vals[$pname] ?? '';
+              if ($type === 'checkbox'): ?>
+            <div class="form-check mt-1">
+              <input class="form-check-input zas-chk-field" type="checkbox"
+                     name="<?= h($fn) ?>" id="<?= h($fn) ?>" value="1"
+                     data-field="<?= h($pname) ?>"
+                     <?= $pval ? 'checked' : '' ?>>
+              <label class="form-check-label" for="<?= h($fn) ?>" style="font-size:.82rem">
+                <?= h($pole['label'] ?? $pname) ?>
+              </label>
+            </div>
+            <?php elseif ($type === 'textarea'): ?>
             <textarea name="<?= h($fn) ?>" class="form-control form-control-sm" rows="3" <?= $req ?>><?= h($pval) ?></textarea>
             <?php elseif ($type === 'select'): ?>
             <select name="<?= h($fn) ?>" class="form-select form-select-sm" <?= $req ?>>
@@ -383,5 +611,95 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <?php endif; ?>
 </div>
 <?php endif; ?>
+
+<script>
+(function () {
+  const btn    = document.getElementById('btn-import-toggle');
+  const panel  = document.getElementById('zas-import-panel');
+  const selTyp = document.getElementById('zas-import-type');
+  const inpQ   = document.getElementById('zas-import-q');
+  const btnSrc = document.getElementById('zas-import-search');
+  const resCtn = document.getElementById('zas-import-results');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'none' ? '' : 'none';
+  });
+
+  async function doSearch() {
+    const type = selTyp.value;
+    const q    = inpQ.value.trim();
+    if (q.length < 2) { resCtn.innerHTML = '<small class="text-muted p-1 d-block">Wpisz min. 2 znaki.</small>'; return; }
+    resCtn.innerHTML = '<small class="text-muted p-1 d-block">Szukam…</small>';
+    try {
+      const r = await fetch(`?_ajax=search_contracts&type=${encodeURIComponent(type)}&q=${encodeURIComponent(q)}`);
+      const d = await r.json();
+      if (!d.results || !d.results.length) { resCtn.innerHTML = '<small class="text-muted p-1 d-block">Brak wyników.</small>'; return; }
+      resCtn.innerHTML = '<ul class="list-group list-group-flush" style="font-size:.8rem">'
+        + d.results.map(row =>
+          `<li class="list-group-item list-group-item-action py-1 px-2 zas-import-row"
+              style="cursor:pointer" data-ctype="${type}" data-cid="${row.id}">
+            <strong>${row.display_name}</strong>
+            ${row.numer_umowy ? `<span class="text-muted ms-1">${row.numer_umowy}</span>` : ''}
+            ${row.status ? `<span class="badge bg-secondary ms-1 float-end">${row.status}</span>` : ''}
+          </li>`
+        ).join('') + '</ul>';
+      resCtn.querySelectorAll('.zas-import-row').forEach(li => {
+        li.addEventListener('click', () => doImport(li.dataset.ctype, li.dataset.cid));
+      });
+    } catch { resCtn.innerHTML = '<small class="text-danger p-1 d-block">Błąd pobierania.</small>'; }
+  }
+
+  async function doImport(ctype, cid) {
+    resCtn.innerHTML = '<small class="text-muted p-1 d-block">Importuję dane…</small>';
+    try {
+      const r = await fetch(`?_ajax=import&contract_type=${encodeURIComponent(ctype)}&contract_id=${encodeURIComponent(cid)}`);
+      const d = await r.json();
+      if (!d.ok) { resCtn.innerHTML = `<small class="text-danger p-1 d-block">${d.error ?? 'Błąd importu.'}</small>`; return; }
+      const vals = d.vals || {};
+      const setField = (name, val) => {
+        const el = document.querySelector(`[name="${name}"]`);
+        if (!el || val === undefined || val === null) return;
+        if (el.tagName === 'SELECT') {
+          for (const opt of el.options) { if (opt.value === val || opt.text === val) { el.value = opt.value; break; } }
+        } else if (el.type === 'checkbox') { el.checked = !!val;
+        } else { el.value = val; }
+      };
+      setField('wnioskodawca_name',  vals._name  ?? '');
+      setField('wnioskodawca_email', vals._email ?? '');
+      setField('_contract_type', ctype);
+      setField('_contract_id',   cid);
+      for (const [k, v] of Object.entries(vals)) {
+        if (!k.startsWith('_')) setField('pole_' + k, v);
+      }
+      panel.style.display = 'none';
+      resCtn.innerHTML = '';
+      btn.innerHTML = `<i class="bi bi-check-circle me-1 text-success"></i>Zaimportowano z umowy #${cid}`;
+      btn.disabled = true;
+    } catch { resCtn.innerHTML = '<small class="text-danger p-1 d-block">Błąd importu.</small>'; }
+  }
+
+  btnSrc.addEventListener('click', doSearch);
+  inpQ.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+})();
+
+// Show/hide pól zależnych od checkboxów (np. akapit uczelni → pola godzin)
+(function () {
+  const DEPS = {
+    'dolacz_akapit_uczelni': ['suma_godzin','okres_od','okres_do','uczelnia_celownik'],
+  };
+  function applyDep(chk) {
+    const deps = DEPS[chk.dataset.field] || [];
+    deps.forEach(name => {
+      const wrap = document.querySelector(`[name="pole_${name}"]`)?.closest('.mb-3');
+      if (wrap) wrap.style.display = chk.checked ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.zas-chk-field').forEach(chk => {
+    applyDep(chk);
+    chk.addEventListener('change', () => applyDep(chk));
+  });
+})();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

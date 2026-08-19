@@ -383,7 +383,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
   </tr>
 </table>
 
-' . (!$preview && empty($zas['plik_path']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
+' . (!$preview && empty($zas['plik_path']) && !empty($zas['wymaga_akceptacji']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
 
 </body>
 </html>';
@@ -840,6 +840,78 @@ function ezd_zas_by_verify_code(string $code): ?array {
         try { db()->prepare("UPDATE ezd_zas_typy SET podpisujacy=? WHERE kod=? AND COALESCE(podpisujacy,'') NOT LIKE '%{{wystawca}}%'")->execute(["{{wystawca}}\nPrezes", $_k]); }
         catch (\Throwable $e) {}
     }
+
+    // 4a. Oświadczenie dla studenta o współpracy
+    $_ins(
+        'oswiadczenie_student_wspolpraca',
+        'Oświadczenie o współpracy (student)',
+        'Oświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
+        '<p style="margin-bottom:12pt">Niniejszym <strong>{{organizacja}}</strong> oświadcza, że <strong>{{imie_nazwisko}}</strong>,'
+        . ' {{student_forma}} <strong>{{uczelnia}}</strong>{{kierunek_fraza}}, {{podjal}} współpracę z naszą organizacją.</p>'
+        . "\n\n"
+        . $_tbl([
+            ['Imię i nazwisko',          '{{imie_nazwisko}}'],
+            ['Uczelnia',                 '{{uczelnia}}'],
+            ['Kierunek / wydział',       '{{kierunek}}'],
+            ['Rok studiów',              '{{rok_studiow}}'],
+            ['Forma współpracy',         '{{forma_wspolpracy}}'],
+            ['Współpraca od',            '{{data_od}}'],
+            ['Współpraca do',            '{{data_do}}'],
+            ['Zakres działań / zadania', '{{zakres}}'],
+        ])
+        . "\n\n"
+        . '<p>{{byl_aktywny}}</p>'
+        . "\n\n"
+        . '{{akapit_uczelni}}'
+        . "\n\n"
+        . '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+        [
+            ['name'=>'plec',             'label'=>'Płeć', 'type'=>'select', 'required'=>true,
+             'options'=>['mężczyzna','kobieta']],
+            ['name'=>'imie_nazwisko',    'label'=>'Imię i nazwisko',                               'type'=>'text',     'required'=>true],
+            ['name'=>'uczelnia',         'label'=>'Uczelnia (mianownik, np. Uniwersytet Gdański)', 'type'=>'text',     'required'=>true],
+            ['name'=>'uczelnia_celownik','label'=>'Uczelnia – forma zależna (np. Uniwersytetu Gdańskiego, pozostaw puste = jak wyżej)', 'type'=>'text', 'required'=>false],
+            ['name'=>'kierunek',         'label'=>'Kierunek / wydział (opcjonalne)',               'type'=>'text',     'required'=>false],
+            ['name'=>'rok_studiow',      'label'=>'Rok studiów (opcjonalne)',                      'type'=>'text',     'required'=>false],
+            ['name'=>'forma_wspolpracy', 'label'=>'Forma współpracy', 'type'=>'select',            'required'=>true,
+             'options'=>['wolontariat','porozumienie o współpracy','umowa zlecenie','umowa o pracę','praktyka/staż','inne']],
+            ['name'=>'data_od',          'label'=>'Współpraca od (dd.mm.rrrr)',                    'type'=>'text',     'required'=>true],
+            ['name'=>'data_do',          'label'=>'Współpraca do (lub „nadal")',                   'type'=>'text',     'required'=>false],
+            ['name'=>'zakres',           'label'=>'Zakres działań / zadania',                      'type'=>'textarea', 'required'=>false],
+            ['name'=>'byl_aktywny',      'label'=>'Status (np. „Współpraca trwa nadal." / „Współpraca zakończona.")', 'type'=>'text', 'required'=>false],
+            ['name'=>'dolacz_akapit_uczelni', 'label'=>'Dołącz akapit uczelni dla celów rekrutacji (tzw. punkty)', 'type'=>'checkbox', 'required'=>false],
+            ['name'=>'suma_godzin',      'label'=>'Łączna liczba godzin',                         'type'=>'text',     'required'=>false],
+            ['name'=>'okres_od',         'label'=>'Okres zliczonych godzin: od (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
+            ['name'=>'okres_do',         'label'=>'Okres zliczonych godzin: do (dd.mm.rrrr)',      'type'=>'text',     'required'=>false],
+        ],
+        'OSW-ST'
+    );
+    // Natychmiastowe wydanie (ręczny wydruk) — brak eIDAS automatycznie (wymaga_akceptacji=0)
+    try { db()->prepare("UPDATE ezd_zas_typy SET wymaga_akceptacji=0 WHERE kod='oswiadczenie_student_wspolpraca'")->execute([]); }
+    catch (\Throwable $e) {}
+    // Idempotentna aktualizacja szablonu pól — dodaje nowe pola jeśli brakuje
+    (function () {
+        $row = db_one("SELECT id, szablon_pola FROM ezd_zas_typy WHERE kod='oswiadczenie_student_wspolpraca'");
+        if (!$row) return;
+        $pola  = json_decode($row['szablon_pola'] ?: '[]', true) ?: [];
+        $names = array_column($pola, 'name');
+        $new_fields = [
+            ['name'=>'plec', 'label'=>'Płeć', 'type'=>'select', 'required'=>true, 'options'=>['mężczyzna','kobieta']],
+            ['name'=>'uczelnia_celownik', 'label'=>'Uczelnia – forma zależna (np. Uniwersytetu Gdańskiego)', 'type'=>'text', 'required'=>false],
+            ['name'=>'dolacz_akapit_uczelni', 'label'=>'Dołącz akapit uczelni dla celów rekrutacji (tzw. punkty)', 'type'=>'checkbox', 'required'=>false],
+            ['name'=>'suma_godzin', 'label'=>'Łączna liczba godzin', 'type'=>'text', 'required'=>false],
+            ['name'=>'okres_od',    'label'=>'Okres zliczonych godzin: od (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
+            ['name'=>'okres_do',    'label'=>'Okres zliczonych godzin: do (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
+        ];
+        $changed = false;
+        foreach ($new_fields as $f) {
+            if (!in_array($f['name'], $names)) { $pola[] = $f; $changed = true; }
+        }
+        if ($changed) {
+            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([json_encode($pola, JSON_UNESCAPED_UNICODE)]); }
+            catch (\Throwable $e) { error_log('[zas seed osw-st] ' . $e->getMessage()); }
+        }
+    })();
 
     // 4. Ogólne zaświadczenie o posiadanej umowie (tabela danych)
     $_ins(
