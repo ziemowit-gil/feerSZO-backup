@@ -419,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $opinia = trim($dane['opinia'] ?? '');
         $dane['opinia_akapit'] = $opinia !== ''
-            ? '<p style="margin-top:10pt;padding:8pt 10pt;border-left:3px solid #2563eb;font-size:9.5pt"><strong>Opinia:</strong> ' . nl2br(h($opinia)) . '</p>'
+            ? '<p style="margin-top:10pt;font-size:9.5pt"><strong>Opinia:</strong> ' . nl2br(h($opinia)) . '</p>'
             : '';
 
         if (!empty($dane['dolacz_zamkniecie_zobowiazan'])) {

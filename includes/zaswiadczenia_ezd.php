@@ -338,9 +338,15 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
             if ($bc_znak && $bc_nr && $bc_znak !== $bc_nr) {
                 $bc_label .= '<br><span style="font-size:6pt;color:#aaa">' . h($bc_znak) . '</span>';
             }
-            // mPDF renderuje <barcode> w WriteHTML; w podglądzie przeglądarki tag jest ignorowany
-            $barcode_html = '<barcode code="' . htmlspecialchars($bc_code, ENT_QUOTES, 'UTF-8') . '" type="C128B" height="7" pr="0.5" />'
-                          . '<br><span style="font-size:7pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
+            try {
+                $gen  = new \Picqer\Barcode\BarcodeGeneratorPNG();
+                $png  = $gen->getBarcode($bc_code, $gen::TYPE_CODE_128, 1, 25);
+                $b64  = base64_encode($png);
+                $barcode_html = '<img src="data:image/png;base64,' . $b64 . '" style="height:10mm;display:block;margin:0 auto">'
+                              . '<br><span style="font-size:6pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
+            } catch (\Throwable $e) {
+                $barcode_html = '';
+            }
         }
     }
 
