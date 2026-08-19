@@ -13,9 +13,11 @@ require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 ezd_require_access();
 
-$id       = (int)($_GET['id'] ?? 0);
-$duplikat = isset($_GET['duplikat']) && $_GET['duplikat'] === '1';
-$zas      = ezd_zas_get($id);
+$id         = (int)($_GET['id'] ?? 0);
+$duplikat   = isset($_GET['duplikat']) && $_GET['duplikat'] === '1';
+$egzemplarz = max(1, (int)($_GET['egzemplarz'] ?? 0));
+$z_egz      = max(1, (int)($_GET['z'] ?? 0));
+$zas        = ezd_zas_get($id);
 
 if (!$zas) { http_response_code(404); exit('Nie znaleziono.'); }
 if ($zas['status'] !== 'wydane') { http_response_code(403); exit('Zaświadczenie nie zostało jeszcze wydane.'); }
@@ -86,7 +88,7 @@ try {
             : (defined('ORG_NAME') ? ORG_NAME : '')
     );
 
-    $html = ezd_zas_pdf_html($zas);
+    $html = ezd_zas_pdf_html($zas, false, $egzemplarz > 0 && $z_egz > 0 ? ['egzemplarz' => $egzemplarz, 'z' => $z_egz] : []);
 
     if ($duplikat) {
         $dup_date = date('d.m.Y H:i');

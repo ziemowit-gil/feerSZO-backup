@@ -288,7 +288,7 @@ function ezd_zas_compute_derived_tokens_osw_st(array $dane): array {
  * Generuje HTML dokumentu zaświadczenia do wydruku/PDF.
  * @param bool $preview Tryb podglądu — numer zastąpiony placeholderem, watermark PROJEKT
  */
-function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
+function ezd_zas_pdf_html(array $zas, bool $preview = false, array $copy_info = []): string {
     $org  = function_exists('org_setting') ? (org_setting('org_name') ?: '') : (defined('ORG_NAME') ? ORG_NAME : '');
     $_lf  = function_exists('org_setting')
         ? (org_setting('ezd_logo') ?: org_setting('org_logo') ?: '')
@@ -466,8 +466,9 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
     ? '<div style="text-align:right;margin-top:18pt">' . $barcode_html . '</div>'
     : '') . '
 
-' . ($qr_html !== ''
-    ? '<div style="position:fixed;top:18mm;right:20mm;text-align:center">'
+' . ($qr_html !== '' || !empty($copy_info)
+    ? '<div style="position:fixed;top:18mm;right:20mm;text-align:center;font-size:7pt;color:#555;line-height:1.3">'
+      . (!empty($copy_info) ? '<div style="font-size:7pt;font-weight:bold;margin-bottom:2pt">Egzemplarz&nbsp;' . (int)$copy_info['egzemplarz'] . '&nbsp;z&nbsp;' . (int)$copy_info['z'] . '</div>' : '')
       . $qr_html . '</div>'
     : '') . '
 
