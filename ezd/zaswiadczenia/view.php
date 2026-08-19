@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = ezd_zas_assign_qr($id);
         flash_set($code ? 'success' : 'error', $code ? 'Kod QR przypisany. Pobierz PDF, aby zobaczyć kod.' : 'Nie można przypisać kodu QR (zaświadczenie niespełnia warunków).');
     }
-    if ($act === 'edytuj_tresc' && $issued && $can_mgr && empty($zas['plik_path'])) {
+    if ($act === 'edytuj_tresc' && $issued && $can_mgr) {
         $new_html = trim($_POST['tresc_html'] ?? '');
         if ($new_html !== '') {
             db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=?, updated_at=datetime('now') WHERE id=?")
@@ -284,7 +284,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="card shadow-sm mb-3">
       <div class="card-header fw-semibold d-flex justify-content-between align-items-center" style="font-size:.88rem">
         <span><i class="bi bi-file-text me-1 text-primary"></i>Treść zaświadczenia</span>
-        <?php if($can_mgr && empty($zas['plik_path'])): ?>
+        <?php if($can_mgr): ?>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-edit-tresc"
                 onclick="document.getElementById('tresc-view').classList.toggle('d-none');document.getElementById('tresc-edit').classList.toggle('d-none');this.textContent=this.textContent.trim()==='Edytuj'?'Anuluj':'Edytuj'">
           Edytuj
@@ -293,7 +293,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
       <div class="card-body">
         <div id="tresc-view" class="zas-tresc"><?= $zas['tresc_html'] ?></div>
-        <?php if($can_mgr && empty($zas['plik_path'])): ?>
+        <?php if($can_mgr): ?>
         <div id="tresc-edit" class="d-none">
           <form method="post">
             <input type="hidden" name="_action" value="edytuj_tresc">
