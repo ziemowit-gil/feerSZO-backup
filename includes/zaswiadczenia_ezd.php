@@ -943,8 +943,30 @@ function ezd_zas_by_verify_code(string $code): ?array {
             }
             $changed = true;
         }
-        // Usuń zamknięcie "Oświadczenie wydano..." z treści jeśli istnieje
-        $tresc = preg_replace('/<p[^>]*>\s*O[śs]wiadczenie wydano na pro[śs]b[ęe][^<]*<\/p>\s*/i', '', $tresc);
+        // Usuń zdanie zamknięcia z szablonu (str_replace — bezpieczny dla UTF-8)
+        foreach ([
+            '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+            '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+        ] as $_rem) { $tresc = str_replace($_rem, '', $tresc); }
+        $tresc = trim($tresc);
+        // Wyczyść też już wydane zaświadczenia tego typu (tresc_html)
+        try {
+            $issued = db_all(
+                "SELECT w.id, w.tresc_html FROM ezd_zaswiadczenia_wlasne w
+                 JOIN ezd_zas_typy zt ON zt.id=w.typ_id
+                 WHERE zt.kod='oswiadczenie_student_wspolpraca' AND w.tresc_html != ''"
+            );
+            foreach ($issued as $_w) {
+                $_ht = $_w['tresc_html'];
+                foreach ([
+                    '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+                    '<p>Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+                ] as $_rem) { $_ht = str_replace($_rem, '', $_ht); }
+                if ($_ht !== $_w['tresc_html']) {
+                    db()->prepare("UPDATE ezd_zaswiadczenia_wlasne SET tresc_html=? WHERE id=?")->execute([trim($_ht), $_w['id']]);
+                }
+            }
+        } catch (\Throwable $e) { error_log('[zas seed osw-st tresc_html] ' . $e->getMessage()); }
         if ($changed) {
             try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=?,nr_format=?,nr_prefix=?,waznosc_dni=?,waznosc_adnotacja=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
                 json_encode($pola, JSON_UNESCAPED_UNICODE),
