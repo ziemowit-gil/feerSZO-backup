@@ -190,13 +190,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $unit_id_d    = (int)($_POST['unit_id'] ?? 0) ?: null;
             $wykonawca_id = (int)($_POST['wykonawca_id'] ?? 0);
+            $rola_target  = trim($_POST['rola_target'] ?? '');
 
-            // Jeśli dekretacja na jednostkę i brak wykonawcy — ustaw głowę jednostki
-            if ($unit_id_d && !$wykonawca_id && module_enabled('org_enabled')) {
-                $head = org_unit_head($unit_id_d);
-                if ($head) $wykonawca_id = (int)$head['user_id'];
+            if ($rola_target === '') {
+                // Dekretacja do osoby
+                if ($unit_id_d && !$wykonawca_id && module_enabled('org_enabled')) {
+                    $head = org_unit_head($unit_id_d);
+                    if ($head) $wykonawca_id = (int)$head['user_id'];
+                }
+                if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz koszulkę.');
             }
-            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz koszulkę.');
 
             $dekr_id = ezd_dekretacja_create([
                 'sprawa_id'    => $id,
@@ -204,6 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'umowa_id'     => null,
                 'wykonawca_id' => $wykonawca_id,
                 'unit_id'      => $unit_id_d,
+                'rola_target'  => $rola_target,
                 'dyspozycja'   => $_POST['dyspozycja'] ?? 'do_zalat',
                 'tresc'        => trim($_POST['tresc'] ?? ''),
                 'deadline'     => $_POST['deadline'] ?: null,
@@ -226,8 +230,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'dekr_done') {
-        ezd_dekretacja_complete((int)($_POST['dekr_id'] ?? 0), $user_id);
+        $did = (int)($_POST['dekr_id'] ?? 0);
+        ezd_dekretacja_mark_read($did, $user_id);
+        ezd_dekretacja_complete($did, $user_id);
         flash_set('success', 'Zadanie oznaczone jako wykonane.');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
+    }
+    if ($action === 'dekr_claim') {
+        $did = (int)($_POST['dekr_id'] ?? 0);
+        if (ezd_dekretacja_claim($did, $user_id)) {
+            flash_set('success', 'Przejąłeś(-aś) dekretację.');
+        } else {
+            flash_set('error', 'Nie można przejąć — rola niezgodna, już przejęta lub zamknięta.');
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
+    }
+    if ($action === 'dekr_read') {
+        ezd_dekretacja_mark_read((int)($_POST['dekr_id'] ?? 0), $user_id);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
     }
 
@@ -939,23 +958,58 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
       <div class="flex-grow-1">
         <div class="d-flex align-items-center gap-1 flex-wrap">
           <span class="badge bg-<?= $d['status']==='oczekuje'?'warning text-dark':'success' ?>" style="font-size:.62rem"><?= h(EZD_DYSPOZYCJE[$d['dyspozycja']] ?? $d['dyspozycja']) ?></span>
-          <span class="fw-semibold"><?= h($d['wykonawca_name']??'—') ?></span>
-          <?php if($d['status']==='oczekuje'): ?><span class="badge bg-secondary bg-opacity-15 text-secondary" style="font-size:.58rem">Niepodjęte</span><?php endif; ?>
+          <?php if(!empty($d['rola_target'])): ?>
+            <?php if($d['claimed_by']): ?>
+              <span class="fw-semibold"><?= h($d['claimed_by_name']??'—') ?></span>
+              <span class="badge bg-info text-dark" style="font-size:.58rem" title="Rola: <?= h($d['rola_target']) ?>"><i class="bi bi-people-fill me-1"></i><?= h($d['rola_target']) ?></span>
+            <?php else: ?>
+              <span class="fw-semibold text-muted fst-italic">Oczekuje na odbiór</span>
+              <span class="badge bg-secondary" style="font-size:.58rem"><i class="bi bi-people me-1"></i><?= h($d['rola_target']) ?></span>
+            <?php endif; ?>
+          <?php else: ?>
+            <span class="fw-semibold"><?= h($d['wykonawca_name']??'—') ?></span>
+          <?php endif; ?>
+          <?php if($d['status']==='oczekuje' && empty($d['read_at'])): ?><span class="badge bg-danger" style="font-size:.58rem" title="Nieodczytane"><i class="bi bi-eye-slash"></i></span><?php endif; ?>
+          <?php if($d['status']==='oczekuje' && !empty($d['escalated_at'])): ?><span class="badge bg-warning text-dark" style="font-size:.58rem" title="Eskalacja wysłana"><i class="bi bi-exclamation-triangle"></i></span><?php endif; ?>
+          <?php if($d['status']==='oczekuje' && empty($d['rola_target'])): ?><span class="badge bg-secondary bg-opacity-15 text-secondary" style="font-size:.58rem">Niepodjęte</span><?php endif; ?>
         </div>
         <?php if($d['tresc']): ?><div class="text-muted" style="font-size:.72rem"><?= h(mb_substr($d['tresc'],0,80)) ?></div><?php endif; ?>
         <div style="font-size:.7rem;color:#94a3b8">
           od: <?= h($d['zlecajacy_name']??'—') ?>
           <?php if($d['deadline']): ?> · <span class="<?= $d['deadline']<date('Y-m-d')&&$d['status']==='oczekuje'?'text-danger fw-bold':'' ?>"><?= date_pl($d['deadline']) ?></span><?php endif; ?>
           · <?= date('d.m.Y H:i', strtotime($d['created_at'])) ?>
+          <?php if($d['read_at']): ?> · <span title="Odczytano <?= date('d.m.Y H:i', strtotime($d['read_at'])) ?>"><i class="bi bi-eye text-success"></i></span><?php endif; ?>
         </div>
       </div>
-      <?php if($d['status']==='oczekuje' && $can_act): ?>
-      <form method="post" class="d-inline flex-shrink-0">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="dekr_done">
-        <input type="hidden" name="dekr_id" value="<?= $d['id'] ?>">
-        <button class="btn btn-sm btn-outline-success" title="Wykonane"><i class="bi bi-check-lg"></i></button>
-      </form>
+      <?php if($d['status']==='oczekuje'): ?>
+      <div class="d-flex gap-1 flex-shrink-0">
+        <?php if(!empty($d['rola_target']) && !$d['claimed_by']): ?>
+        <?php $u_role = current_user()['role'] ?? ''; if($u_role === $d['rola_target'] || is_admin()): ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="dekr_claim">
+          <input type="hidden" name="dekr_id" value="<?= $d['id'] ?>">
+          <button class="btn btn-sm btn-primary" title="Przejmij dekretację"><i class="bi bi-hand-index me-1"></i>Przejmij</button>
+        </form>
+        <?php endif; ?>
+        <?php endif; ?>
+        <?php if($can_act && (empty($d['rola_target']) || $d['claimed_by'] == $user_id || is_admin())): ?>
+        <?php if(empty($d['read_at']) && ((int)$d['wykonawca_id'] === $user_id || (int)($d['claimed_by']??0) === $user_id)): ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="dekr_read">
+          <input type="hidden" name="dekr_id" value="<?= $d['id'] ?>">
+          <button class="btn btn-sm btn-outline-secondary" title="Potwierdź odczytanie"><i class="bi bi-eye"></i></button>
+        </form>
+        <?php endif; ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="dekr_done">
+          <input type="hidden" name="dekr_id" value="<?= $d['id'] ?>">
+          <button class="btn btn-sm btn-outline-success" title="Oznacz jako wykonane"><i class="bi bi-check-lg"></i></button>
+        </form>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
@@ -1631,21 +1685,46 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <?php if ($org_units_list): ?>
-          <div class="mb-3">
-            <label class="form-label fw-semibold" for="dekr-unit">Jednostka organizacyjna</label>
-            <select name="unit_id" class="form-select" id="dekr-unit" onchange="dekrUnitChange(this)">
-              <option value="">— lub wybierz jednostkę —</option>
-              <?php foreach($org_units_list as $ou): ?><option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?> (<?= h($ou['code']) ?>)</option><?php endforeach; ?>
-            </select>
+          <?php
+          $avail_roles = db_all("SELECT name, display_name FROM roles WHERE name NOT IN ('admin','viewer','crm_user') ORDER BY display_name");
+          ?>
+          <!-- Tryb: do osoby / do roli -->
+          <div class="btn-group w-100 mb-3" role="group">
+            <input type="radio" class="btn-check" name="_dekr_mode" id="dekr-mode-osoba" value="osoba" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="dekr-mode-osoba"><i class="bi bi-person me-1"></i>Do osoby</label>
+            <input type="radio" class="btn-check" name="_dekr_mode" id="dekr-mode-rola" value="rola">
+            <label class="btn btn-outline-secondary btn-sm" for="dekr-mode-rola"><i class="bi bi-people me-1"></i>Do roli</label>
           </div>
-          <?php endif; ?>
-          <div class="mb-3">
-            <label class="form-label fw-semibold" for="dekr-user">Wykonawca <span class="text-danger">*</span></label>
-            <select name="wykonawca_id" class="form-select" id="dekr-user">
-              <option value="">— wybierz osobę —</option>
-              <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
-            </select>
+          <div id="dekr-osoby-fields">
+            <?php if ($org_units_list): ?>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="dekr-unit">Jednostka organizacyjna</label>
+              <select name="unit_id" class="form-select" id="dekr-unit" onchange="dekrUnitChange(this)">
+                <option value="">— lub wybierz jednostkę —</option>
+                <?php foreach($org_units_list as $ou): ?><option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?> (<?= h($ou['code']) ?>)</option><?php endforeach; ?>
+              </select>
+            </div>
+            <?php endif; ?>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="dekr-user">Wykonawca <span class="text-danger">*</span></label>
+              <select name="wykonawca_id" class="form-select" id="dekr-user">
+                <option value="">— wybierz osobę —</option>
+                <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div id="dekr-rola-fields" style="display:none">
+            <input type="hidden" name="rola_target" id="dekr-rola-input" value="">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Rola docelowa</label>
+              <select class="form-select" id="dekr-rola-select" onchange="document.getElementById('dekr-rola-input').value=this.value">
+                <option value="">— wybierz rolę —</option>
+                <?php foreach($avail_roles as $r): ?>
+                <option value="<?= h($r['name']) ?>"><?= h($r['display_name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <div class="form-text text-muted">Pierwsza osoba z tej roli, która otworzy sprawę, automatycznie przejmie dekretację.</div>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold" for="dekr-dysp">Dyspozycja</label>
@@ -1675,6 +1754,19 @@ function dekrUnitChange(sel) {
     var uid = sel.value, userSel = document.getElementById('dekr-user');
     if (uid && dekrHeads[uid]) userSel.value = dekrHeads[uid];
 }
+// Przełącznik trybu dekretacji
+document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
+    r.addEventListener('change', function() {
+        var isRola = this.value === 'rola';
+        document.getElementById('dekr-osoby-fields').style.display = isRola ? 'none' : '';
+        document.getElementById('dekr-rola-fields').style.display  = isRola ? ''     : 'none';
+        if (isRola) {
+            document.getElementById('dekr-rola-input').value = document.getElementById('dekr-rola-select').value;
+        } else {
+            document.getElementById('dekr-rola-input').value = '';
+        }
+    });
+});
 </script>
 <?php endif; ?>
 <?php endif; ?>

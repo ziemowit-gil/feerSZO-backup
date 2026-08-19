@@ -393,9 +393,25 @@ function ezd_is_manager(?int $user_id = null): bool {
         "ALTER TABLE ezd_sprawy     ADD COLUMN hidden_by         INTEGER REFERENCES users(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_sprawy     ADD COLUMN close_reason      TEXT",
         "ALTER TABLE ezd_sprawy     ADD COLUMN closed_by         INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_dekretacje ADD COLUMN read_at           DATETIME",
+        "ALTER TABLE ezd_dekretacje ADD COLUMN escalated_at      DATETIME",
+        "ALTER TABLE ezd_dekretacje ADD COLUMN rola_target       TEXT",
+        "ALTER TABLE ezd_dekretacje ADD COLUMN claimed_by        INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_dekretacje ADD COLUMN claimed_at        DATETIME",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
+
+    // Wersje pisma — historia zmian treści i tytułu (idempotent)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_pisma_wersje (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        pismo_id   INTEGER NOT NULL REFERENCES ezd_pisma(id) ON DELETE CASCADE,
+        tresc      TEXT NOT NULL DEFAULT '',
+        title      TEXT NOT NULL DEFAULT '',
+        user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_pisma_wersje ON ezd_pisma_wersje(pismo_id, created_at DESC)"); } catch (\Throwable $e) {}
 
     // Indeksy wydajnościowe
     foreach ([
@@ -1773,6 +1789,14 @@ function ezd_pismo_update(int $id, array $d, int $user_id): void {
     $p = ezd_pismo_get($id);
     if (!$p) return;
     _ezd_check_sprawa_open(['status' => $p['sprawa_status']]);
+    // Save current version before overwriting
+    $_cur = db_one("SELECT tresc, title FROM ezd_pisma WHERE id=?", [$id]);
+    if ($_cur) {
+        try {
+            db()->prepare("INSERT INTO ezd_pisma_wersje (pismo_id, tresc, title, user_id) VALUES (?,?,?,?)")
+                ->execute([$id, $_cur['tresc'], $_cur['title'], $user_id]);
+        } catch (\Throwable $e) {}
+    }
     $medium = array_key_exists($d['rodzaj_medium'] ?? '', EZD_MEDIA) ? $d['rodzaj_medium'] : $p['rodzaj_medium'];
     db()->prepare(
         "UPDATE ezd_pisma SET kierunek=:k,title=:t,tresc=:tr,nadawca=:n,odbiorca=:o,
@@ -2930,37 +2954,73 @@ function ezd_register_volunteer_letter(array $d, int $user_id): ?int {
 
 function ezd_dekretacje_by_sprawa(int $sprawa_id): array {
     return db_all(
-        "SELECT d.*, z.name AS zlecajacy_name, w.name AS wykonawca_name
+        "SELECT d.*, z.name AS zlecajacy_name, w.name AS wykonawca_name,
+                c.name AS claimed_by_name
          FROM ezd_dekretacje d
          LEFT JOIN users z ON z.id=d.zlecajacy_id
          LEFT JOIN users w ON w.id=d.wykonawca_id
+         LEFT JOIN users c ON c.id=d.claimed_by
          WHERE d.sprawa_id=?
          ORDER BY d.created_at DESC", [$sprawa_id]
     );
 }
 
+function ezd_dekretacja_mark_read(int $id, int $user_id): void {
+    db()->prepare(
+        "UPDATE ezd_dekretacje SET read_at=datetime('now') WHERE id=? AND (wykonawca_id=? OR claimed_by=?) AND read_at IS NULL"
+    )->execute([$id, $user_id, $user_id]);
+}
+
+function ezd_dekretacja_claim(int $id, int $user_id): bool {
+    $d = db_one("SELECT id, rola_target, claimed_by, status FROM ezd_dekretacje WHERE id=?", [$id]);
+    if (!$d || !$d['rola_target'] || $d['claimed_by'] || $d['status'] === 'zakonczone') return false;
+    $u = db_one("SELECT role FROM users WHERE id=?", [$user_id]);
+    if (!$u || $u['role'] !== $d['rola_target']) return false;
+    db()->prepare(
+        "UPDATE ezd_dekretacje SET claimed_by=?, claimed_at=datetime('now'), read_at=datetime('now') WHERE id=? AND claimed_by IS NULL"
+    )->execute([$user_id, $id]);
+    return (bool)db()->lastInsertId() || true;
+}
+
+function ezd_my_role_dekretacje(int $user_id): array {
+    $u = db_one("SELECT role FROM users WHERE id=?", [$user_id]);
+    if (!$u || !$u['role']) return [];
+    return db_all(
+        "SELECT d.*, z.name AS zlecajacy_name, s.znak_sprawy
+         FROM ezd_dekretacje d
+         LEFT JOIN users z ON z.id=d.zlecajacy_id
+         LEFT JOIN ezd_sprawy s ON s.id=d.sprawa_id
+         WHERE d.rola_target=? AND d.claimed_by IS NULL AND d.status='oczekuje'
+         ORDER BY d.created_at ASC",
+        [$u['role']]
+    );
+}
+
 function ezd_dekretacja_create(array $d, int $user_id): int {
-    // unit_id może nie istnieć w starych bazach (dodane przez org.php migration), próbuj z fallback
+    $rola = trim($d['rola_target'] ?? '');
+    // Gdy do roli: wykonawca_id = zlecajacy (placeholder — real assignment via claim)
+    $wykonawca = $rola !== '' ? $user_id : (int)$d['wykonawca_id'];
     try {
         db()->prepare(
-            "INSERT INTO ezd_dekretacje (sprawa_id,pismo_id,umowa_id,zlecajacy_id,wykonawca_id,unit_id,dyspozycja,tresc,deadline)
-             VALUES (:sid,:pid,:uid2,:zl,:wyk,:unit,:dys,:tr,:dl)"
+            "INSERT INTO ezd_dekretacje (sprawa_id,pismo_id,umowa_id,zlecajacy_id,wykonawca_id,unit_id,dyspozycja,tresc,deadline,rola_target)
+             VALUES (:sid,:pid,:uid2,:zl,:wyk,:unit,:dys,:tr,:dl,:rola)"
         )->execute([
             ':sid'  => $d['sprawa_id'] ?: null,   ':pid'  => $d['pismo_id'] ?: null,
             ':uid2' => $d['umowa_id']  ?: null,   ':zl'   => $user_id,
-            ':wyk'  => (int)$d['wykonawca_id'],   ':unit' => $d['unit_id'] ?: null,
+            ':wyk'  => $wykonawca,                ':unit' => $d['unit_id'] ?: null,
             ':dys'  => $d['dyspozycja'] ?? 'do_zalat',
             ':tr'   => $d['tresc']     ?? '',      ':dl'   => $d['deadline'] ?: null,
+            ':rola' => $rola ?: null,
         ]);
     } catch (\Throwable $e) {
-        // Fallback bez unit_id (kolumna jeszcze nie istnieje)
+        // Fallback bez unit_id / rola_target (stara baza)
         db()->prepare(
             "INSERT INTO ezd_dekretacje (sprawa_id,pismo_id,umowa_id,zlecajacy_id,wykonawca_id,dyspozycja,tresc,deadline)
              VALUES (:sid,:pid,:uid2,:zl,:wyk,:dys,:tr,:dl)"
         )->execute([
             ':sid'  => $d['sprawa_id'] ?: null,   ':pid'  => $d['pismo_id'] ?: null,
             ':uid2' => $d['umowa_id']  ?: null,   ':zl'   => $user_id,
-            ':wyk'  => (int)$d['wykonawca_id'],   ':dys'  => $d['dyspozycja'] ?? 'do_zalat',
+            ':wyk'  => $wykonawca,                ':dys'  => $d['dyspozycja'] ?? 'do_zalat',
             ':tr'   => $d['tresc']     ?? '',      ':dl'   => $d['deadline'] ?: null,
         ]);
     }
