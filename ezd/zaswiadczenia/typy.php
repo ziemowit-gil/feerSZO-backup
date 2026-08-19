@@ -35,12 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $naglowek    = trim($_POST['naglowek_html'] ?? '');
             $podpisujacy = trim($_POST['podpisujacy'] ?? '');
             $waznosc_dni = max(0, (int)($_POST['waznosc_dni'] ?? 0));
-            $qr_enabled  = isset($_POST['qr_enabled']) ? 1 : 0;
+            $qr_enabled      = isset($_POST['qr_enabled'])      ? 1 : 0;
+            $barcode_enabled = isset($_POST['barcode_enabled']) ? 1 : 0;
             if ($eid) {
                 db()->prepare(
                     "UPDATE ezd_zas_typy SET kod=?,nazwa=?,opis=?,szablon_tresc=?,szablon_pola=?,
                      wymaga_akceptacji=?,jrwa_id=?,is_active=?,nr_prefix=?,naglowek_html=?,podpisujacy=?,
-                     waznosc_dni=?,qr_enabled=? WHERE id=?"
+                     waznosc_dni=?,qr_enabled=?,barcode_enabled=? WHERE id=?"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -53,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $podpisujacy,
                     $waznosc_dni,
                     $qr_enabled,
+                    $barcode_enabled,
                     $eid,
                 ]);
                 flash_set('success', 'Typ zaktualizowany.');
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare(
                     "INSERT INTO ezd_zas_typy (kod,nazwa,opis,szablon_tresc,szablon_pola,
                      wymaga_akceptacji,jrwa_id,is_active,nr_prefix,naglowek_html,podpisujacy,
-                     waznosc_dni,qr_enabled,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                     waznosc_dni,qr_enabled,barcode_enabled,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 )->execute([
                     $kod, $nazwa, trim($_POST['opis'] ?? ''),
                     $_POST['szablon_tresc'] ?? '',
@@ -73,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $podpisujacy,
                     $waznosc_dni,
                     $qr_enabled,
+                    $barcode_enabled,
                     $user_id,
                 ]);
                 flash_set('success', 'Typ zaświadczenia dodany.');
@@ -258,6 +261,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                   <input class="form-check-input" type="checkbox" name="qr_enabled" value="1" id="chk-qr"
                          <?= ($edit['qr_enabled']??0)?'checked':'' ?>>
                   <label class="form-check-label" for="chk-qr" style="font-size:.82rem">Włącz QR (domyślnie zaznaczony przy wydaniu)</label>
+                </div>
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" name="barcode_enabled" value="1" id="chk-bc"
+                         <?= ($edit['barcode_enabled']??0)?'checked':'' ?>>
+                  <label class="form-check-label" for="chk-bc" style="font-size:.82rem">Drukuj kod kreskowy (Code 128) z numerem zaświadczenia</label>
                 </div>
               </div>
             </div>

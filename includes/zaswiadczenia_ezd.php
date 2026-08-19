@@ -29,7 +29,8 @@
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN naglowek_html TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN podpisujacy TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN waznosc_dni INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN qr_enabled INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN qr_enabled      INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN barcode_enabled INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Plik własny (wydany z uploadu, nie z szablonu)
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_path TEXT"); } catch (\Throwable $e) {}
@@ -90,7 +91,8 @@ function ezd_zas_typ_get(int $id): ?array {
                 COALESCE(zt.naglowek_html,'') AS naglowek_html,
                 COALESCE(zt.podpisujacy,'') AS podpisujacy,
                 COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
-                COALESCE(zt.qr_enabled,0) AS qr_enabled
+                COALESCE(zt.qr_enabled,0) AS qr_enabled,
+                COALESCE(zt.barcode_enabled,0) AS barcode_enabled
          FROM ezd_zas_typy zt
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id WHERE zt.id=?",
         [$id]
@@ -128,6 +130,7 @@ function ezd_zas_get(int $id): ?array {
                 COALESCE(zt.podpisujacy,'') AS podpisujacy,
                 COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
                 COALESCE(zt.qr_enabled,0) AS qr_enabled,
+                COALESCE(zt.barcode_enabled,0) AS barcode_enabled,
                 j.symbol AS jrwa_symbol,
                 u.name AS created_by_name, z.name AS zatw_name,
                 sp.znak_sprawy, p.sygnatura AS pismo_syg
@@ -311,6 +314,25 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
         } catch (\Throwable $e) {}
     }
 
+    // Kod kreskowy (Code 128) — opcjonalny per typ zaświadczenia
+    $barcode_html = '';
+    if (!$preview && !empty($zas['barcode_enabled'])) {
+        // Treść: numer zaświadczenia + znak sprawy (jeśli istnieje)
+        $bc_nr   = $zas['nr_zaswiadczenia'] ?? '';
+        $bc_znak = $zas['znak_sprawy']      ?? '';
+        // Code 128 obsługuje /. i spacje; sanityzuj do bezpiecznego zakresu ASCII 32-126
+        $bc_code = preg_replace('/[^\x20-\x7e]/', '', $bc_nr ?: $bc_znak);
+        if ($bc_code !== '') {
+            $bc_label = h($bc_code);
+            if ($bc_znak && $bc_nr && $bc_znak !== $bc_nr) {
+                $bc_label .= '<br><span style="font-size:6pt;color:#aaa">' . h($bc_znak) . '</span>';
+            }
+            // mPDF renderuje <barcode> w WriteHTML; w podglądzie przeglądarki tag jest ignorowany
+            $barcode_html = '<barcode code="' . htmlspecialchars($bc_code, ENT_QUOTES, 'UTF-8') . '" type="C128B" height="10" pr="0.6" />'
+                          . '<br><span style="font-size:7pt;font-family:monospace;color:#555">' . $bc_label . '</span>';
+        }
+    }
+
     $watermark = $preview
         ? '<p style="text-align:center;color:#ccc;font-size:28pt;font-weight:bold;margin:4pt 0 10pt;letter-spacing:8pt">PROJEKT</p>'
         : '';
@@ -349,7 +371,14 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
   <tr>
-    <td style="border:0;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">' . $qr_html . '</td>
+    <td style="border:0;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">
+      ' . ($qr_html !== '' || $barcode_html !== ''
+          ? '<table style="border-collapse:collapse"><tr>'
+            . ($qr_html     !== '' ? '<td style="border:0;vertical-align:bottom;padding-right:10pt;text-align:center">' . $qr_html     . '</td>' : '')
+            . ($barcode_html !== '' ? '<td style="border:0;vertical-align:bottom;text-align:center">'                    . $barcode_html . '</td>' : '')
+            . '</tr></table>'
+          : '') . '
+    </td>
     <td style="width:52%;border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
   </tr>
 </table>
