@@ -462,11 +462,13 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
   </tr>
 </table>
 
-' . ($barcode_html !== '' || $qr_html !== ''
-    ? '<div style="text-align:right;margin-top:18pt">'
-      . $barcode_html
-      . ($qr_html !== '' ? '<div style="margin-top:6pt">' . $qr_html . '</div>' : '')
-      . '</div>'
+' . ($barcode_html !== ''
+    ? '<div style="text-align:right;margin-top:18pt">' . $barcode_html . '</div>'
+    : '') . '
+
+' . ($qr_html !== ''
+    ? '<div style="position:fixed;top:18mm;right:20mm;text-align:center">'
+      . $qr_html . '</div>'
     : '') . '
 
 ' . (!$preview && empty($zas['plik_path']) && !empty($zas['wymaga_akceptacji']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
