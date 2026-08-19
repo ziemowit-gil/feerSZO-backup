@@ -742,10 +742,9 @@ body {
      style="background:#fef3c7;border-left:4px solid #f59e0b!important;border-left-style:solid!important">
   <i class="bi bi-exclamation-triangle-fill text-warning fs-4 flex-shrink-0 mt-1"></i>
   <div>
-    <strong class="d-block mb-1" style="color:#92400e">Moduł Zadań jest tymczasowo wyłączony</strong>
+    <strong class="d-block mb-1" style="color:#92400e">Moduł Zadań jest tymczasowo niedostępny</strong>
     <span style="color:#78350f;font-size:.92rem">
-      W tym czasie prosimy korzystać z naszej tablicy Trello jako zamiennika.
-      Moduł zostanie przywrócony po wprowadzeniu aktualizacji.
+      Tymczasowo wracamy do Trello — prosimy korzystać z tablicy zespołu do czasu wprowadzenia aktualizacji.
     </span>
     <div class="mt-2">
       <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u"
@@ -756,6 +755,10 @@ body {
     </div>
   </div>
 </div>
+<?php
+require_once __DIR__ . '/footer_tasks.php';
+exit;
+?>
 
 <?php
 $_fm = flash_get();
