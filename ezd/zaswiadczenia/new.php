@@ -398,6 +398,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dane['podjal']        = $zen ? 'podjęła'          : 'podjął';
         $kierunek = trim($dane['kierunek'] ?? '');
         $dane['kierunek_fraza'] = $kierunek !== '' ? ', kierunek ' . $kierunek : '';
+        if (empty($dane['uczelnia_celownik'])) {
+            $dane['uczelnia_celownik'] = $dane['uczelnia'] ?? '';
+        }
         $vw = $zen ? 'Wolontariuszki' : 'Wolontariusza';
         if (!empty($dane['dolacz_akapit_uczelni'])) {
             $g   = trim($dane['suma_godzin'] ?? '');

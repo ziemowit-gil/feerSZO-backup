@@ -31,6 +31,8 @@
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN waznosc_dni INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN qr_enabled      INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN barcode_enabled INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN nr_format TEXT NOT NULL DEFAULT 'sequential'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_zas_typy ADD COLUMN waznosc_adnotacja INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Plik własny (wydany z uploadu, nie z szablonu)
     try { $pdo->exec("ALTER TABLE ezd_zaswiadczenia_wlasne ADD COLUMN plik_path TEXT"); } catch (\Throwable $e) {}
@@ -92,7 +94,9 @@ function ezd_zas_typ_get(int $id): ?array {
                 COALESCE(zt.podpisujacy,'') AS podpisujacy,
                 COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
                 COALESCE(zt.qr_enabled,0) AS qr_enabled,
-                COALESCE(zt.barcode_enabled,0) AS barcode_enabled
+                COALESCE(zt.barcode_enabled,0) AS barcode_enabled,
+                COALESCE(zt.nr_format,'sequential') AS nr_format,
+                COALESCE(zt.waznosc_adnotacja,0) AS waznosc_adnotacja
          FROM ezd_zas_typy zt
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id WHERE zt.id=?",
         [$id]
@@ -131,6 +135,8 @@ function ezd_zas_get(int $id): ?array {
                 COALESCE(zt.waznosc_dni,0) AS waznosc_dni,
                 COALESCE(zt.qr_enabled,0) AS qr_enabled,
                 COALESCE(zt.barcode_enabled,0) AS barcode_enabled,
+                COALESCE(zt.nr_format,'sequential') AS nr_format,
+                COALESCE(zt.waznosc_adnotacja,0) AS waznosc_adnotacja,
                 j.symbol AS jrwa_symbol,
                 u.name AS created_by_name, z.name AS zatw_name,
                 sp.znak_sprawy, p.sygnatura AS pismo_syg
@@ -205,7 +211,10 @@ function ezd_zas_render(string $szablon, array $dane, array $extra = []): string
     $vars['data_wydania_dl'] = function_exists('date_pl') ? date_pl(date('Y-m-d')) : date('d.m.Y');
     $vars['organizacja']     = defined('ORG_NAME') ? ORG_NAME : '';
     return preg_replace_callback('/\{\{(\w+)\}\}/', function ($m) use ($vars) {
-        return isset($vars[$m[1]]) ? htmlspecialchars((string)$vars[$m[1]], ENT_QUOTES, 'UTF-8') : '';
+        if (!isset($vars[$m[1]])) return '';
+        $v = (string)$vars[$m[1]];
+        // Wartości HTML (zaczynają się od '<') wstrzykujemy bez escapowania
+        return ($v !== '' && $v[0] === '<') ? $v : htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
     }, $szablon);
 }
 
@@ -293,6 +302,8 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
         $wazne_do_before_sig = '<p style="margin-top:16pt;' . ($expired ? 'color:#c00;' : '') . '">'
             . ($expired ? '⚠ ' : '') . 'Zaświadczenie ważne do: <strong>' . $wdt_fmt . '</strong>'
             . ($expired ? ' — <em>WYGASŁE</em>' : '') . '</p>';
+    } elseif (!empty($zas['waznosc_adnotacja'])) {
+        $wazne_do_before_sig = '<p style="margin-top:16pt">Zaświadczenie <strong>bezterminowe</strong>.</p>';
     }
 
     // Miejscowość + data wydania (format urzędowy)
@@ -398,7 +409,13 @@ function ezd_zas_wydaj(int $zas_id, int $user_id, ?int $sprawa_id_override = nul
     if (!$zas) return ['ok' => false, 'error' => 'Wniosek nie istnieje.'];
     if ($zas['status'] === 'wydane') return ['ok' => false, 'error' => 'Już wydane.'];
 
-    $nr = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
+    $nr_format = $zas['nr_format'] ?? 'sequential';
+    if ($nr_format === 'date_id') {
+        $prefix = trim($zas['nr_prefix'] ?? 'EZD-ZP') ?: 'EZD-ZP';
+        $nr = $prefix . '/' . date('dmY') . '/' . $zas_id;
+    } else {
+        $nr = ezd_zas_next_nr((int)$zas['typ_id'], (int)date('Y'));
+    }
     if ($manual) {
         $tresc = '';  // wydanie ręczne — treść pusta, numer nadany
     } elseif ($tresc_override !== '') {
@@ -847,7 +864,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
         'Zaświadczenie dla studenta o współpracy',
         'Zaświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
         '<p style="margin-bottom:12pt">Niniejszym zaświadcza się, że <strong>{{imie_nazwisko}}</strong>,'
-        . ' {{student_forma}} <strong>{{uczelnia}}</strong>{{kierunek_fraza}}, {{podjal}} współpracę z <strong>{{organizacja}}</strong>.</p>'
+        . ' {{student_forma}} <strong>{{uczelnia_celownik}}</strong>{{kierunek_fraza}}, {{podjal}} współpracę z <strong>{{organizacja}}</strong>.</p>'
         . "\n\n"
         . $_tbl([
             ['Imię i nazwisko',          '{{imie_nazwisko}}'],
@@ -864,9 +881,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
         . "\n\n"
         . '{{akapit_uczelni}}'
         . "\n\n"
-        . '{{akapit_zamkniecie}}'
-        . "\n\n"
-        . '<p style="font-size:9pt;color:#666">Oświadczenie wydano na prośbę zainteresowanego(ej) i może być wykorzystane wyłącznie w celach wskazanych przez wnioskodawcę.</p>',
+        . '{{akapit_zamkniecie}}',
         [
             ['name'=>'plec',             'label'=>'Płeć', 'type'=>'select', 'required'=>true,
              'options'=>['mężczyzna','kobieta']],
@@ -928,14 +943,21 @@ function ezd_zas_by_verify_code(string $code): ?array {
             }
             $changed = true;
         }
+        // Usuń zamknięcie "Oświadczenie wydano..." z treści jeśli istnieje
+        $tresc = preg_replace('/<p[^>]*>\s*O[śs]wiadczenie wydano na pro[śs]b[ęe][^<]*<\/p>\s*/i', '', $tresc);
         if ($changed) {
-            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
+            try { db()->prepare("UPDATE ezd_zas_typy SET szablon_pola=?,szablon_tresc=?,nazwa=?,opis=?,nr_format=?,nr_prefix=?,waznosc_dni=?,waznosc_adnotacja=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([
                 json_encode($pola, JSON_UNESCAPED_UNICODE),
                 $tresc,
                 'Zaświadczenie dla studenta o współpracy',
                 'Zaświadczenie wystawiane na potrzeby uczelni potwierdzające aktywną lub zakończoną współpracę studenta z organizacją.',
+                'date_id', 'EZD-ZP', 60, 1,
             ]); }
             catch (\Throwable $e) { error_log('[zas seed osw-st] ' . $e->getMessage()); }
+        } else {
+            // Zawsze wymuś flagi niezależnie od pól
+            try { db()->prepare("UPDATE ezd_zas_typy SET nr_format='date_id',nr_prefix='EZD-ZP',waznosc_dni=60,waznosc_adnotacja=1,nazwa='Zaświadczenie dla studenta o współpracy',szablon_tresc=? WHERE kod='oswiadczenie_student_wspolpraca'")->execute([$tresc]); }
+            catch (\Throwable $e) {}
         }
     })();
 
