@@ -455,11 +455,11 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 <table style="width:100%;border-collapse:collapse;margin-top:50pt">
   <tr>
     <td style="border:0;vertical-align:bottom;padding-bottom:4pt;font-size:8pt;color:#aaa">
-      ' . ($qr_html !== '' || $barcode_html !== ''
-          ? '<table style="border-collapse:collapse"><tr>'
-            . ($qr_html     !== '' ? '<td style="border:0;vertical-align:bottom;padding-right:10pt;text-align:center">' . $qr_html     . '</td>' : '')
-            . ($barcode_html !== '' ? '<td style="border:0;vertical-align:bottom;text-align:center">'                    . $barcode_html . '</td>' : '')
-            . '</tr></table>'
+      ' . ($barcode_html !== '' || $qr_html !== ''
+          ? '<div style="text-align:center">'
+            . $barcode_html
+            . ($qr_html !== '' ? '<div style="margin-top:8pt">' . $qr_html . '</div>' : '')
+            . '</div>'
           : '') . '
     </td>
     <td style="width:52%;border:0;border-top:1px solid #444;text-align:center;padding-top:5pt;font-size:9.5pt;line-height:1.4">' . $sig_inner . '</td>
