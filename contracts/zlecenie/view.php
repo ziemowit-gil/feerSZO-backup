@@ -1089,7 +1089,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header" style="background:#6366f1;color:#fff">
-        <h5 class="modal-title" id="rozliczenieModalLabel"><i class="bi bi-receipt-cutoff me-2"></i>Zlecenie wystawienia rachunku</h5>
+        <h5 class="modal-title" id="rozliczenieModalLabel"><i class="bi bi-receipt-cutoff me-2"></i>Zlecenie wystawienia rachunku <span id="rozlPeriodNum" class="badge bg-white text-primary ms-1 small d-none"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
@@ -1132,6 +1132,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         <button type="button" class="btn btn-primary" id="rozlSaveBtn" onclick="rozlSave(this)">
           <i class="bi bi-save me-1"></i>Zapisz rozliczenie
         </button>
+        <button type="button" class="btn btn-outline-primary d-none" id="rozlNextBtn" onclick="rozlNextPeriod()">
+          <i class="bi bi-plus-lg me-1"></i>Kolejny okres
+        </button>
         <button type="button" class="btn btn-outline-secondary" onclick="rozlCopy()">
           <i class="bi bi-clipboard me-1"></i>Kopiuj e-mail
         </button>
@@ -1158,10 +1161,11 @@ window.ROZL_DEFAULTS = {
   okres:         <?= json_encode($row['okres_rachunku'] ?? '') ?>
 };
 window.ROZL_CTX = {
-  id:        <?= (int)$id ?>,
-  type:      'zlecenie',
-  ksiegEmail: <?= json_encode((bool)org_setting('ksiegowy_email')) ?>,
-  appUrl:    <?= json_encode(rtrim(APP_URL, '/')) ?>
+  id:            <?= (int)$id ?>,
+  type:          'zlecenie',
+  ksiegEmail:    <?= json_encode((bool)org_setting('ksiegowy_email')) ?>,
+  appUrl:        <?= json_encode(rtrim(APP_URL, '/')) ?>,
+  existingCount: <?= count($rozliczenia) ?>
 };
 </script>
 <?php endif; ?>
@@ -1313,15 +1317,38 @@ window.CVTabsConfig = {
   // Wywoływane przez hook nagłówka po zmianie statusu na „do rozliczenia”, lub ręcznie przyciskiem (res=null)
   window.cvhOpenRozliczenie = function (res) {
     var d = (res && res.prefill) ? res.prefill : window.ROZL_DEFAULTS;
+    var isManual = !res;
+    var hasExisting = window.ROZL_CTX.existingCount > 0;
     document.getElementById('rozlId').value = '';
     _rozlAdres = d.adres || '';
     setVal('rozlName',         d.imie_nazwisko || '');
     setVal('rozlDataUmowy',    d.data_umowy || '');
-    setVal('rozlDataRachunku', d.data_rachunku || '');
-    setVal('rozlOkres',        d.okres || '');
     setVal('rozlGodziny',      d.liczba_godzin || '');
     setVal('rozlKwota',        d.kwota_brutto || '');
     setVal('rozlPowod',        '');
+    // Przy kolejnym rachunku (ręczny klik, już są rozliczenia) — wyczyść okres/datę,
+    // żeby użytkownik świadomie wybrał nowy okres zamiast przypadkowo duplikować.
+    if (isManual && hasExisting) {
+      setVal('rozlDataRachunku', '');
+      setVal('rozlOkres',        '');
+    } else {
+      setVal('rozlDataRachunku', d.data_rachunku || '');
+      setVal('rozlOkres',        d.okres || '');
+    }
+    // Licznik rachunków w tytule
+    var numBadge = document.getElementById('rozlPeriodNum');
+    if (hasExisting) {
+      numBadge.textContent = '#' + (window.ROZL_CTX.existingCount + 1);
+      numBadge.classList.remove('d-none');
+    } else {
+      numBadge.classList.add('d-none');
+    }
+    // Reset przycisków
+    var saveBtn = document.getElementById('rozlSaveBtn');
+    saveBtn.innerHTML = '<i class=”bi bi-save me-1”></i>Zapisz rozliczenie';
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.disabled = false;
+    document.getElementById('rozlNextBtn').classList.add('d-none');
     var nw = document.getElementById('rozlNieWysylac'); if (nw) nw.checked = false;
     var info = document.getElementById('rozlInfo'); if (info) { info.textContent = ''; info.className = 'small mt-1'; }
     document.getElementById('rozlSendBtn').classList.add('disabled');
@@ -1360,7 +1387,6 @@ window.CVTabsConfig = {
       powod:         val('rozlPowod'),
       nie_wysylac:   (document.getElementById('rozlNieWysylac') || {}).checked ? 1 : 0
     }).then(function (res) {
-      btn.disabled = false;
       if (res.ok) {
         _dirty = true;
         document.getElementById('rozlId').value = res.rozliczenie_id;
@@ -1369,11 +1395,40 @@ window.CVTabsConfig = {
         pdf.setAttribute('href', window.ROZL_CTX.appUrl + '/contracts/zlecenie/ksiegowy_print.php?id=' + window.ROZL_CTX.id + '&rozliczenie_id=' + res.rozliczenie_id);
         pdf.classList.remove('disabled');
         rozlToggleSend();
+        // Oznacz przycisk jako zapisany i pokaż „Kolejny okres"
+        btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Zapisano';
+        btn.className = 'btn btn-success';
+        btn.disabled = true;
+        window.ROZL_CTX.existingCount++;
+        var numBadge = document.getElementById('rozlPeriodNum');
+        numBadge.textContent = '#' + window.ROZL_CTX.existingCount;
+        numBadge.classList.remove('d-none');
+        document.getElementById('rozlNextBtn').classList.remove('d-none');
         var info = document.getElementById('rozlInfo'); info.className = 'small mt-1 text-success';
         info.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Rozliczenie zapisane (#' + res.rozliczenie_id + ')';
         ajaxToast('Rozliczenie zapisane');
-      } else { ajaxToast(res.msg || 'Błąd zapisu', 'error'); }
+      } else { btn.disabled = false; ajaxToast(res.msg || 'Błąd zapisu', 'error'); }
     }).catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  };
+
+  window.rozlNextPeriod = function () {
+    document.getElementById('rozlId').value = '';
+    setVal('rozlDataRachunku', '');
+    setVal('rozlOkres',        '');
+    setVal('rozlPowod',        '');
+    var info = document.getElementById('rozlInfo'); if (info) { info.textContent = ''; info.className = 'small mt-1'; }
+    var saveBtn = document.getElementById('rozlSaveBtn');
+    saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>Zapisz rozliczenie';
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.disabled = false;
+    document.getElementById('rozlNextBtn').classList.add('d-none');
+    document.getElementById('rozlSendBtn').classList.add('disabled');
+    var pdf = document.getElementById('rozlPdfBtn'); pdf.classList.add('disabled'); pdf.setAttribute('href', '#');
+    var numBadge = document.getElementById('rozlPeriodNum');
+    numBadge.textContent = '#' + (window.ROZL_CTX.existingCount + 1);
+    numBadge.classList.remove('d-none');
+    rozlBuildPreview();
+    document.getElementById('rozlOkres').focus();
   };
 
   window.rozlSendFromModal = function (btn) {
