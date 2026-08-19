@@ -1,39 +1,37 @@
 # EU Digital Signature Service — serwer walidacji podpisów eIDAS
-# Źródło: https://github.com/esig/dss-demonstrations
+# Źródło bibliotek: https://github.com/esig/dss-demonstrations
 #
-# Budowanie:
+# Obraz NIE pobiera JAR-a w czasie budowania — robi to entrypoint przy
+# pierwszym starcie, przez co `docker compose build` zawsze działa.
+# JAR jest cache'owany w wolumenie dss_cache między restartami.
+#
+# Budowanie (szybkie — tylko JRE + curl):
 #   docker compose -f docker-compose.yml -f docker-compose.dss.yml build dss
 #
-# Domyślna wersja DSS: 6.1 — zmień ARG DSS_VERSION lub nadpisz w compose.
-# Plik JAR jest pobierany z GitHub Releases w czasie budowania obrazu.
+# Uruchomienie (pobieranie JAR ~120-200 MB przy pierwszym starcie):
+#   docker compose -f docker-compose.yml -f docker-compose.dss.yml up -d dss
 
 FROM eclipse-temurin:21-jre-jammy
 LABEL org.opencontainers.image.title="FEER SZO — EU DSS Server" \
-      org.opencontainers.image.description="EU Digital Signature Service (walidacja eIDAS/PAdES/XAdES/CAdES)"
-
-ARG DSS_VERSION=6.1
-ARG DSS_JAR_URL=https://github.com/esig/dss-demonstrations/releases/download/${DSS_VERSION}/dss-demo-webapp-${DSS_VERSION}.jar
+      org.opencontainers.image.description="EU Digital Signature Service (walidacja eIDAS PAdES/XAdES/CAdES)"
 
 RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends curl ca-certificates && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /opt/dss && \
-    curl -fsSL "${DSS_JAR_URL}" -o /opt/dss/dss.jar
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/dss
+COPY dss-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
+VOLUME ["/opt/dss"]
 EXPOSE 8080
 
+ENV DSS_VERSION=6.4
 ENV SERVER_PORT=8080
 ENV JAVA_OPTS="-Xmx768m -Dfile.encoding=UTF-8"
-ENV SPRING_PROFILES_ACTIVE=default
 
-HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=5 \
     CMD curl -fsS "http://localhost:${SERVER_PORT}/services/rest/server/v1" > /dev/null 2>&1 || \
         curl -fsS "http://localhost:${SERVER_PORT}/" > /dev/null 2>&1 || exit 1
 
-ENTRYPOINT ["sh", "-c", \
-    "exec java ${JAVA_OPTS} \
-      -jar /opt/dss/dss.jar \
-      --server.port=${SERVER_PORT} \
-      --spring.profiles.active=${SPRING_PROFILES_ACTIVE}"]
+ENTRYPOINT ["/entrypoint.sh"]

@@ -39,8 +39,8 @@ services:
       SERVER_PORT: "8080"
       JAVA_OPTS: "-Xmx768m -Dfile.encoding=UTF-8"
     volumes:
-      # Cache LOTL (lista zaufanych list europejskich) — przyspiesza restart
-      - dss_cache:/opt/dss/.dss
+      # Wolumin zawiera pobrany JAR DSS + cache LOTL — zachowany między restartami
+      - dss_cache:/opt/dss
     healthcheck:
       test:
         - "CMD"
