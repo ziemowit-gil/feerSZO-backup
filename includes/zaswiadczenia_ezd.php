@@ -879,7 +879,9 @@ function ezd_zas_by_verify_code(string $code): ?array {
         . "\n\n"
         . '{{akapit_uczelni}}'
         . "\n\n"
-        . '{{akapit_zamkniecie}}',
+        . '{{akapit_zamkniecie}}'
+        . "\n\n"
+        . '{{opinia_akapit}}',
         [
             ['name'=>'plec',             'label'=>'Płeć', 'type'=>'select', 'required'=>true,
              'options'=>['mężczyzna','kobieta']],
@@ -901,6 +903,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'dolacz_zamkniecie_zobowiazan', 'label'=>'Połącz z informacją o zamknięciu zobowiązań', 'type'=>'checkbox', 'required'=>false],
             ['name'=>'data_zamkniecia',  'label'=>'Data zamknięcia zobowiązań (dd.mm.rrrr)',       'type'=>'text',     'required'=>false],
             ['name'=>'uwagi_zamkniecia', 'label'=>'Uwagi do zamknięcia (opcjonalne)',              'type'=>'textarea', 'required'=>false],
+            ['name'=>'opinia',           'label'=>'Opinia (opcjonalna)',                           'type'=>'textarea', 'required'=>false],
         ],
         'OSW-ST'
     );
@@ -923,6 +926,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
             ['name'=>'dolacz_zamkniecie_zobowiazan', 'label'=>'Połącz z informacją o zamknięciu zobowiązań', 'type'=>'checkbox', 'required'=>false],
             ['name'=>'data_zamkniecia',  'label'=>'Data zamknięcia zobowiązań (dd.mm.rrrr)', 'type'=>'text', 'required'=>false],
             ['name'=>'uwagi_zamkniecia', 'label'=>'Uwagi do zamknięcia (opcjonalne)', 'type'=>'textarea', 'required'=>false],
+            ['name'=>'opinia',           'label'=>'Opinia (opcjonalna)', 'type'=>'textarea', 'required'=>false],
         ];
         $changed = false;
         foreach ($new_fields as $f) {
