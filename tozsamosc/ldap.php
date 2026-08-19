@@ -3,9 +3,9 @@
  * tozsamosc/ldap.php — Zarządzanie katalogiem LDAP.
  *
  * Zakładki:
- *   sync    — Synchronizacja (eksport SZO→LDAP, historia)
- *   katalog — Przeglądarka katalogu (live odczyt z OpenLDAP)
- *   config  — Parametry serwera + gotowe bloki config dla innych usług
+ *   sync        — Synchronizacja (eksport SZO→LDAP)
+ *   katalog     — Przeglądarka katalogu (live odczyt, read-only)
+ *   konfigurator — Graficzny autokonfigurator (live bloki + test połączenia)
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -19,230 +19,195 @@ if (is_file(dirname(__DIR__) . '/includes/admin_audit.php')) {
 auth_start();
 require_role('admin');
 
-$PAGE_TITLE = 'Zarządzanie LDAP';
-$TZ_ACTIVE  = 'administracja';
-$SELF       = APP_URL . '/tozsamosc/ldap.php';
+// ── AJAX: test połączenia ─────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'test_conn') {
+    csrf_check();
+    header('Content-Type: application/json; charset=utf-8');
 
-$_tab = in_array($_GET['tab'] ?? '', ['sync', 'katalog', 'config']) ? ($_GET['tab'] ?? 'sync') : 'sync';
+    $host = trim($_POST['host'] ?? '');
+    $port = (int)($_POST['port'] ?? 389);
+    $dn   = trim($_POST['bind_dn'] ?? '');
+    $pw   = trim($_POST['bind_pw'] ?? '');
 
-// ── Helpery ───────────────────────────────────────────────────────────────────
-
-/** Połącz i zbinduj — null gdy LDAP niekonfigurowny lub błąd. */
-function _ldap_open(): ?\LdapDirectory
-{
-    $ldap = new LdapDirectory();
-    if (!$ldap->is_configured()) return null;
-    try { $ldap->connect(); return $ldap; } catch (\Throwable $e) { return null; }
-}
-
-/** Odczytaj wszystkie wpisy z OU użytkowników; zwraca tablicę asoc lub [] przy błędzie. */
-function _ldap_list_users(): array
-{
-    $ldap = new LdapDirectory();
-    if (!$ldap->is_configured()) return [];
-    try {
-        $ldap->connect();
-    } catch (\Throwable $e) {
-        return [];
+    if (!$host || !$dn || !$pw) {
+        echo json_encode(['ok' => false, 'msg' => 'Podaj Host, Bind DN i hasło.']);
+        exit;
+    }
+    if (!function_exists('ldap_connect')) {
+        echo json_encode(['ok' => false, 'msg' => 'Rozszerzenie PHP ldap nie jest zaladowane.']);
+        exit;
     }
 
-    $ou = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
-    if ($ou === '') { $ldap->close(); return []; }
-
-    // Budujemy połączenie przez refleksję (conn jest private).
-    // Obejście: duplikujemy minimalny bind lokalnie.
-    $host = defined('LDAP_HOST') ? LDAP_HOST : '';
-    $port = defined('LDAP_PORT') ? (int)LDAP_PORT : 389;
-    $dn   = defined('LDAP_BIND_DN') ? LDAP_BIND_DN : '';
-    $pw   = defined('LDAP_BIND_PW') ? LDAP_BIND_PW : '';
-
     $conn = @ldap_connect(sprintf('ldap://%s:%d', $host, $port));
-    if (!$conn) { $ldap->close(); return []; }
-    ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
-    ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
-    ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 5);
-    if (!@ldap_bind($conn, $dn, $pw)) { @ldap_unbind($conn); $ldap->close(); return []; }
-
-    $res = @ldap_search($conn, $ou, '(objectClass=inetOrgPerson)',
-        ['uid', 'cn', 'mail', 'telephoneNumber', 'title', 'ou', 'displayName', 'givenName', 'sn', 'employeeNumber']);
-    $entries = [];
-    if ($res && ldap_count_entries($conn, $res) > 0) {
-        $all = ldap_get_entries($conn, $res);
-        for ($i = 0; $i < ($all['count'] ?? 0); $i++) {
-            $e = $all[$i];
-            $entries[] = [
-                'dn'          => $e['dn'] ?? '',
-                'uid'         => $e['uid'][0] ?? '',
-                'cn'          => $e['cn'][0] ?? ($e['displayname'][0] ?? ''),
-                'mail'        => $e['mail'][0] ?? '',
-                'phone'       => $e['telephonenumber'][0] ?? '',
-                'title'       => $e['title'][0] ?? '',
-                'ou'          => $e['ou'][0] ?? '',
-            ];
-        }
-        usort($entries, fn($a, $b) => strcmp($a['cn'], $b['cn']));
+    if (!$conn) {
+        echo json_encode(['ok' => false, 'msg' => "Nie mozna nawiazac polaczenia z ldap://{$host}:{$port}"]);
+        exit;
     }
-
-    @ldap_unbind($conn);
-    $ldap->close();
-    return $entries;
-}
-
-/** Usuń wpis po DN; zwraca true/false. */
-function _ldap_delete_dn(string $dn): bool
-{
-    $host = defined('LDAP_HOST') ? LDAP_HOST : '';
-    $port = defined('LDAP_PORT') ? (int)LDAP_PORT : 389;
-    $bdn  = defined('LDAP_BIND_DN') ? LDAP_BIND_DN : '';
-    $bpw  = defined('LDAP_BIND_PW') ? LDAP_BIND_PW : '';
-    $conn = @ldap_connect(sprintf('ldap://%s:%d', $host, $port));
-    if (!$conn) return false;
     ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
     ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
-    if (!@ldap_bind($conn, $bdn, $bpw)) { @ldap_unbind($conn); return false; }
-    $ok = @ldap_delete($conn, $dn);
-    @ldap_unbind($conn);
-    return (bool) $ok;
+    ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 4);
+    if (@ldap_bind($conn, $dn, $pw)) {
+        @ldap_unbind($conn);
+        echo json_encode(['ok' => true, 'msg' => "Polaczono i zbindowano jako: {$dn}"]);
+    } else {
+        $err = ldap_error($conn);
+        @ldap_unbind($conn);
+        echo json_encode(['ok' => false, 'msg' => "Bind nieudany: {$err}"]);
+    }
+    exit;
 }
 
-// ── Obsługa POST ───────────────────────────────────────────────────────────────
-
+// ── Obsługa POST (sync) ───────────────────────────────────────────────────────
+$PAGE_TITLE     = 'Zarządzanie LDAP';
+$TZ_ACTIVE      = 'administracja';
+$SELF           = APP_URL . '/tozsamosc/ldap.php';
+$_tab           = in_array($_GET['tab'] ?? '', ['sync', 'katalog', 'konfigurator'])
+                    ? ($_GET['tab'] ?? 'sync') : 'sync';
 $action_results = [];
 $action_ran     = false;
-$action_error   = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'sync') {
     csrf_check();
-    $action = $_POST['_action'] ?? '';
+    $_tab       = 'sync';
+    $action_ran = true;
+    $created = $updated = $failed = 0;
 
-    // ── Pełna synchronizacja ─────────────────────────────────────────────────
-    if ($action === 'sync') {
-        $_tab        = 'sync';
-        $action_ran  = true;
-        $created = $updated = $failed = 0;
-
-        try {
-            $ldap = new LdapDirectory();
-            if (!$ldap->is_configured()) {
-                throw new RuntimeException('LDAP nie jest skonfigurowany (uzupełnij LDAP_* w config.local.php).');
-            }
-            $ldap->connect();
-
-            foreach (ldap_collect_users() as $user) {
-                try {
-                    $act = $ldap->upsert_user($user);
-                    $act === 'created' ? $created++ : $updated++;
-                    $action_results[] = ['ok' => true,  'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $act === 'created' ? 'Nowy wpis' : 'Zaktualizowano'];
-                } catch (\Throwable $e) {
-                    $failed++;
-                    error_log('[LDAP sync] uid=' . ($user['id'] ?? '?') . ': ' . $e->getMessage());
-                    $action_results[] = ['ok' => false, 'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $e->getMessage()];
-                }
-            }
-
-            $ldap->close();
-            ldap_save_setting('ldap_last_sync', date('Y-m-d H:i:s'));
-            if (function_exists('admin_audit')) {
-                admin_audit('ldap_sync', 'ldap', "Utwórzono: {$created}, zaktualizowano: {$updated}, błędy: {$failed}.", 0);
-            }
-            flash_set($failed > 0 ? 'warning' : 'success', "Synchronizacja zakończona — nowe: {$created}, zaktualizowane: {$updated}, błędy: {$failed}.");
-        } catch (\Throwable $e) {
-            flash_set('danger', 'Synchronizacja przerwana: ' . $e->getMessage());
-            $action_error = $e->getMessage();
+    try {
+        $ldap = new LdapDirectory();
+        if (!$ldap->is_configured()) {
+            throw new RuntimeException('LDAP nie jest skonfigurowany (uzupelnij LDAP_* w config.local.php).');
         }
-    }
+        $ldap->connect();
 
-    // ── Usuń wpis z LDAP ──────────────────────────────────────────────────────
-    if ($action === 'delete_dn') {
-        $_tab = 'katalog';
-        $target_dn = trim($_POST['dn'] ?? '');
-        if ($target_dn === '') {
-            flash_set('warning', 'Brak DN do usunięcia.');
-        } else {
-            $ok = _ldap_delete_dn($target_dn);
-            if ($ok) {
-                if (function_exists('admin_audit')) {
-                    admin_audit('ldap_delete', 'ldap', 'Usunięto DN: ' . $target_dn, 0);
-                }
-                flash_set('success', 'Wpis usunięty z katalogu LDAP.');
-            } else {
-                flash_set('danger', 'Nie udało się usunąć wpisu (sprawdź uprawnienia bind DN lub poprawność DN).');
-            }
-        }
-        header("Location: {$SELF}?tab=katalog");
-        exit;
-    }
-
-    // ── Wypchnij pojedynczego użytkownika ────────────────────────────────────
-    if ($action === 'push_user') {
-        $_tab      = 'katalog';
-        $uid       = (int) ($_POST['user_id'] ?? 0);
-        $user_row  = $uid > 0 ? ldap_user_row($uid) : null;
-        if (!$user_row) {
-            flash_set('warning', 'Nie znaleziono użytkownika.');
-        } else {
+        foreach (ldap_collect_users() as $user) {
             try {
-                $ldap = new LdapDirectory();
-                $ldap->connect();
-                $act  = $ldap->upsert_user($user_row);
-                $ldap->close();
-                flash_set('success', 'Konto "' . $user_row['name'] . '" — ' . $act . ' w LDAP.');
-                if (function_exists('admin_audit')) {
-                    admin_audit('ldap_push', 'ldap', "uid={$uid} ({$user_row['name']}): {$act}", $uid);
-                }
+                $act = $ldap->upsert_user($user);
+                $act === 'created' ? $created++ : $updated++;
+                $action_results[] = ['ok' => true,  'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $act === 'created' ? 'Nowy wpis' : 'Zaktualizowano'];
             } catch (\Throwable $e) {
-                flash_set('danger', 'Błąd: ' . $e->getMessage());
+                $failed++;
+                error_log('[LDAP sync] uid=' . ($user['id'] ?? '?') . ': ' . $e->getMessage());
+                $action_results[] = ['ok' => false, 'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $e->getMessage()];
             }
         }
-        header("Location: {$SELF}?tab=katalog");
-        exit;
+
+        $ldap->close();
+        ldap_save_setting('ldap_last_sync', date('Y-m-d H:i:s'));
+        if (function_exists('admin_audit')) {
+            admin_audit('ldap_sync', 'ldap', "Utw: {$created}, upd: {$updated}, err: {$failed}.", 0);
+        }
+        flash_set($failed > 0 ? 'warning' : 'success', "Synchronizacja zakonczona - nowe: {$created}, zaktualizowane: {$updated}, bledy: {$failed}.");
+    } catch (\Throwable $e) {
+        flash_set('danger', 'Synchronizacja przerwana: ' . $e->getMessage());
     }
 }
 
 // ── Dane ──────────────────────────────────────────────────────────────────────
-
 $ldap_configured = (new LdapDirectory())->is_configured();
 $last_sync       = ldap_setting('ldap_last_sync');
-$szo_users_total = (int) (db_one('SELECT COUNT(*) AS n FROM users WHERE is_active=1')['n'] ?? 0);
+$szo_users_total = (int)(db_one('SELECT COUNT(*) AS n FROM users WHERE is_active=1')['n'] ?? 0);
 
-// Parametry do wyświetlenia
-$cfg = [
-    'Host'         => (defined('LDAP_HOST') ? LDAP_HOST : '') . ':' . (defined('LDAP_PORT') ? LDAP_PORT : 389),
-    'Base DN'      => defined('LDAP_BASE_DN')  ? LDAP_BASE_DN  : '—',
-    'Users OU'     => defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '—',
-    'Bind DN'      => defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '—',
-    'STARTTLS'     => (defined('LDAP_USE_TLS') && LDAP_USE_TLS) ? 'tak' : 'nie',
-    'phpLDAPadmin' => 'http://127.0.0.1:8389/',
-];
-
-// Test połączenia (lekki)
 $conn_ok  = false;
 $conn_err = '';
 if ($ldap_configured) {
     try {
-        $ldap_tmp = new LdapDirectory();
-        $ldap_tmp->connect();
-        $ldap_tmp->close();
-        $conn_ok = true;
-    } catch (\Throwable $e) {
-        $conn_err = $e->getMessage();
+        $t = new LdapDirectory(); $t->connect(); $t->close(); $conn_ok = true;
+    } catch (\Throwable $e) { $conn_err = $e->getMessage(); }
+}
+
+// Wartości do autokonfiguratora (po stronie PHP — wypełnienie formularza)
+$cfg_host     = defined('LDAP_HOST')     ? LDAP_HOST     : '';
+$cfg_port     = defined('LDAP_PORT')     ? (int)LDAP_PORT : 389;
+$cfg_base_dn  = defined('LDAP_BASE_DN')  ? LDAP_BASE_DN  : '';
+$cfg_users_ou = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
+$cfg_bind_dn  = defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '';
+$cfg_use_tls  = defined('LDAP_USE_TLS')  && LDAP_USE_TLS;
+
+// Odczyt katalogu (tylko na zakładce katalog)
+$ldap_entries = [];
+$ldap_err_msg = '';
+if ($_tab === 'katalog' && $ldap_configured) {
+    $host2 = defined('LDAP_HOST')     ? LDAP_HOST     : '';
+    $port2 = defined('LDAP_PORT')     ? (int)LDAP_PORT : 389;
+    $dn2   = defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '';
+    $pw2   = defined('LDAP_BIND_PW')  ? LDAP_BIND_PW  : '';
+    $ou2   = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
+
+    $c2 = @ldap_connect(sprintf('ldap://%s:%d', $host2, $port2));
+    if ($c2) {
+        ldap_set_option($c2, LDAP_OPT_PROTOCOL_VERSION, 3);
+        ldap_set_option($c2, LDAP_OPT_REFERRALS, 0);
+        ldap_set_option($c2, LDAP_OPT_NETWORK_TIMEOUT, 5);
+        if (@ldap_bind($c2, $dn2, $pw2)) {
+            $res2 = @ldap_search($c2, $ou2, '(objectClass=inetOrgPerson)',
+                ['uid','cn','mail','telephoneNumber','title','ou','displayName']);
+            if ($res2) {
+                $all2 = ldap_get_entries($c2, $res2);
+                for ($i = 0; $i < ($all2['count'] ?? 0); $i++) {
+                    $e2 = $all2[$i];
+                    $ldap_entries[] = [
+                        'uid'   => $e2['uid'][0] ?? '',
+                        'cn'    => $e2['cn'][0] ?? ($e2['displayname'][0] ?? ''),
+                        'mail'  => $e2['mail'][0] ?? '',
+                        'phone' => $e2['telephonenumber'][0] ?? '',
+                        'title' => $e2['title'][0] ?? '',
+                        'ou'    => $e2['ou'][0] ?? '',
+                    ];
+                }
+                usort($ldap_entries, fn($a, $b) => strcmp($a['cn'], $b['cn']));
+            }
+        } else {
+            $ldap_err_msg = 'Bind nieudany: ' . ldap_error($c2);
+        }
+        @ldap_unbind($c2);
+    } else {
+        $ldap_err_msg = 'Nie mozna nawiazac polaczenia LDAP.';
     }
 }
 
 include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
+<style>
+/* Autokonfigurator */
+.cfg-form label{font-size:.8rem;font-weight:600;color:var(--tz-muted);margin-bottom:.2rem;display:block;text-transform:uppercase;letter-spacing:.04em}
+.cfg-form input,.cfg-form select{font-size:.85rem;border-radius:7px;border:1.5px solid var(--tz-line);padding:.45rem .75rem;width:100%;background:#fff;color:#111827;transition:border-color .13s,box-shadow .13s;font-family:ui-monospace,SFMono-Regular,monospace}
+.cfg-form input:focus,.cfg-form select:focus{border-color:var(--tz);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
+.cfg-form .row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:580px){.cfg-form .row{grid-template-columns:1fr}}
+.cfg-form .row3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:700px){.cfg-form .row3{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.cfg-form .row3{grid-template-columns:1fr}}
+.cfg-test-bar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.1rem;border-top:1px solid var(--tz-line);background:#f9fafb}
+.cfg-test-bar button{background:var(--tz);color:#fff;border:none;border-radius:7px;padding:.42rem 1rem;font-size:.84rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem}
+.cfg-test-bar button:disabled{opacity:.55;cursor:default}
+.cfg-test-result{font-size:.83rem;padding:.3rem .65rem;border-radius:6px;font-weight:500}
+.cfg-test-result.ok{background:#ecfdf5;color:#047857}
+.cfg-test-result.err{background:#fef2f2;color:#b91c1c}
+.cfg-block{background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:.75rem}
+.cfg-block__hd{display:flex;align-items:center;justify-content:space-between;padding:.5rem .85rem;background:#fff;border-bottom:1px solid #e5e7eb;font-size:.8rem;font-weight:600;gap:.5rem}
+.cfg-block__hd i{color:var(--tz)}
+.cfg-block pre{margin:0;padding:.75rem 1rem;font-size:.77rem;line-height:1.55;overflow-x:auto;color:#1e293b;background:transparent}
+.cfg-block .dl-row{display:grid;grid-template-columns:160px 1fr;gap:.2rem .6rem;font-size:.82rem;padding:.6rem 1rem}
+.cfg-block .dl-row dt{color:var(--tz-muted);font-weight:500}
+.cfg-block .dl-row dd{font-family:ui-monospace,monospace;margin:0;word-break:break-all}
+.copy-btn{background:none;border:1px solid #d1d5db;border-radius:5px;padding:.15rem .55rem;font-size:.72rem;cursor:pointer;color:#6b7280;flex-shrink:0}
+.copy-btn:hover{background:#f3f4f6;color:#111}
+</style>
 
 <div class="tz-h">
   <h1><i class="bi bi-diagram-3" aria-hidden="true"></i> Katalog LDAP</h1>
-  <p>Synchronizacja i zarządzanie katalogiem OpenLDAP — jednokierunkowy eksport kont SZO.</p>
+  <p>Synchronizacja i przeglądanie katalogu OpenLDAP. Konfiguracja blokow dla innych uslug.</p>
 </div>
 
-<!-- Subnav -->
 <nav class="tz-subnav" aria-label="Sekcje LDAP">
   <div class="seg" role="tablist">
-    <?php foreach (['sync' => ['bi-arrow-repeat','Synchronizacja'], 'katalog' => ['bi-people','Katalog'], 'config' => ['bi-gear','Konfiguracja']] as $k => [$ico, $lbl]): ?>
+    <?php foreach ([
+        'sync'         => ['bi-arrow-repeat', 'Synchronizacja'],
+        'katalog'      => ['bi-people',        'Katalog'],
+        'konfigurator' => ['bi-sliders',       'Konfigurator'],
+    ] as $k => [$ico, $lbl]): ?>
     <a href="?tab=<?= $k ?>" role="tab" aria-selected="<?= $_tab === $k ? 'true' : 'false' ?>"
-       class="<?= $_tab === $k ? 'on' : '' ?>" id="tz-tab-<?= $k ?>">
+       class="<?= $_tab === $k ? 'on' : '' ?>">
       <i class="bi <?= $ico ?>" aria-hidden="true"></i> <?= $lbl ?>
     </a>
     <?php endforeach; ?>
@@ -251,15 +216,17 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 
 <?php flash_show(); ?>
 
-<?php if (!$ldap_configured): ?>
-<div class="tz-card" style="border-color:#fde68a;background:#fffbeb">
+<?php if (!$ldap_configured && $_tab !== 'konfigurator'): ?>
+<div class="tz-card mb-3" style="border-color:#fde68a;background:#fffbeb">
   <div class="tz-card__bd">
     <div class="d-flex align-items-start gap-2">
-      <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-1" aria-hidden="true"></i>
+      <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-1"></i>
       <div>
         <strong>LDAP nie jest skonfigurowany</strong><br>
-        <span class="small text-muted">Uzupełnij stałe <code>LDAP_HOST</code>, <code>LDAP_BIND_DN</code>, <code>LDAP_BIND_PW</code>, <code>LDAP_BASE_DN</code>, <code>LDAP_USERS_OU</code>
-        w pliku <code>config.local.php</code>, a następnie sprawdź zakładkę <strong>Konfiguracja</strong>.</span>
+        <span class="small text-muted">
+          Uzupelnij parametry w <a href="?tab=konfigurator" class="text-primary">Konfiguratorze</a>,
+          a nastepnie przepisz wygenerowany blok do <code>config.local.php</code>.
+        </span>
       </div>
     </div>
   </div>
@@ -267,72 +234,49 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <?php endif; ?>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     ZAKŁADKA: SYNCHRONIZACJA
+     SYNCHRONIZACJA
      ═══════════════════════════════════════════════════════════════════════════ -->
 <?php if ($_tab === 'sync'): ?>
 
-<!-- Status -->
 <div class="tz-card mb-3">
   <div class="tz-card__hd"><i class="bi bi-activity"></i> Status</div>
   <div class="tz-dl">
     <div>
-      <dt>Połączenie</dt>
-      <dd>
-        <?php if (!$ldap_configured): ?>
-          <span class="tz-badge tz-badge--off"><i class="bi bi-dash-circle"></i> Niekonfigurowany</span>
-        <?php elseif ($conn_ok): ?>
-          <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill"></i> OK</span>
-        <?php else: ?>
-          <span class="tz-badge tz-badge--warn"><i class="bi bi-x-circle-fill"></i> Błąd</span>
-        <?php endif; ?>
-      </dd>
+      <dt>Polaczenie</dt>
+      <dd><?php if (!$ldap_configured): ?>
+        <span class="tz-badge tz-badge--off"><i class="bi bi-dash-circle"></i> Niekonfigurowany</span>
+      <?php elseif ($conn_ok): ?>
+        <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill"></i> OK</span>
+      <?php else: ?>
+        <span class="tz-badge tz-badge--warn"><i class="bi bi-x-circle-fill"></i> Blad</span>
+      <?php endif; ?></dd>
     </div>
-    <div>
-      <dt>Serwer</dt>
-      <dd class="font-monospace small"><?= h($cfg['Host']) ?></dd>
-    </div>
-    <div>
-      <dt>Ostatnia synchronizacja</dt>
-      <dd><?= $last_sync ? h($last_sync) : '<span class="text-muted">brak</span>' ?></dd>
-    </div>
-    <div>
-      <dt>Aktywnych kont SZO</dt>
-      <dd><?= $szo_users_total ?></dd>
-    </div>
-    <div>
-      <dt>Kierunek</dt>
-      <dd>SZO → LDAP <span class="text-muted small">(hasła nie są eksportowane)</span></dd>
-    </div>
+    <div><dt>Serwer</dt><dd class="font-monospace small"><?= h($cfg_host ?: '—') ?>:<?= $cfg_port ?></dd></div>
+    <div><dt>Ostatnia synchronizacja</dt><dd><?= $last_sync ? h($last_sync) : '<span class="text-muted">brak</span>' ?></dd></div>
+    <div><dt>Aktywnych kont SZO</dt><dd><?= $szo_users_total ?></dd></div>
+    <div><dt>Kierunek</dt><dd>SZO &rarr; LDAP <span class="text-muted small">(hasla nie sa eksportowane)</span></dd></div>
     <?php if (!$conn_ok && $conn_err): ?>
-    <div style="grid-column:1/-1">
-      <dt>Błąd połączenia</dt>
-      <dd class="text-danger small font-monospace"><?= h($conn_err) ?></dd>
-    </div>
+    <div style="grid-column:1/-1"><dt>Blad polaczenia</dt><dd class="text-danger small font-monospace"><?= h($conn_err) ?></dd></div>
     <?php endif; ?>
   </div>
-  <div class="tz-note">
-    <i class="bi bi-info-circle"></i>
-    Synchronizacja jest addytywna — nie usuwa istniejących wpisów z katalogu.
-    Aby wyeksportować konto indywidualnie, użyj zakładki <strong>Katalog</strong>.
-  </div>
+  <div class="tz-note"><i class="bi bi-info-circle"></i> Synchronizacja jest addytywna — nie usuwa istniejacych wpisow z katalogu.</div>
 </div>
 
-<!-- Przycisk sync -->
 <div class="tz-card mb-3">
   <div class="tz-card__hd"><i class="bi bi-arrow-repeat"></i> Synchronizuj teraz</div>
   <div class="tz-card__bd">
     <?php if (!$ldap_configured): ?>
-      <p class="text-muted small mb-0">Najpierw skonfiguruj połączenie LDAP.</p>
+      <p class="text-muted small mb-0">Najpierw skonfiguruj polaczenie LDAP w zakładce <a href="?tab=konfigurator">Konfigurator</a>.</p>
     <?php else: ?>
     <p class="small text-muted mb-3">
-      Eksportuje wszystkie aktywne konta (<code>users.is_active=1</code>) do katalogu LDAP.
-      Istniejące wpisy są aktualizowane; nowe tworzone.
+      Eksportuje wszystkie aktywne konta (<code>is_active=1</code>) do katalogu LDAP.
+      Istniejace wpisy sa aktualizowane; nowe tworzone.
     </p>
-    <form method="post" id="sync-form">
+    <form method="post">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sync">
-      <button type="submit" class="tz-btn" id="sync-btn"
-              onclick="this.textContent='Synchronizuję…';this.disabled=true;this.form.submit()">
+      <button type="submit" class="tz-btn"
+              onclick="this.innerHTML='<i class=\'bi bi-hourglass-split\'></i> Synchronizuje&hellip;';this.disabled=true;this.form.submit()">
         <i class="bi bi-arrow-repeat"></i> Synchronizuj wszystkie konta
       </button>
     </form>
@@ -340,35 +284,30 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   </div>
 </div>
 
-<!-- Wyniki ostatniej operacji (po POST) -->
 <?php if ($action_ran && $action_results): ?>
 <div class="tz-card">
   <div class="tz-card__hd">
-    <i class="bi bi-list-check"></i>
-    Wyniki
+    <i class="bi bi-list-check"></i> Wyniki
     <span class="ms-auto small fw-normal text-muted">
       <?= count(array_filter($action_results, fn($r) => $r['ok'])) ?> OK,
-      <?= count(array_filter($action_results, fn($r) => !$r['ok'])) ?> błędów
+      <?= count(array_filter($action_results, fn($r) => !$r['ok'])) ?> bledow
     </span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0" style="font-size:.84rem">
       <thead class="table-light">
-        <tr><th class="ps-3">Użytkownik</th><th>Działanie</th><th>Status</th></tr>
+        <tr><th class="ps-3">Uzytkownik</th><th>Dzialanie</th><th>Status</th></tr>
       </thead>
       <tbody>
       <?php foreach ($action_results as $r): ?>
       <tr>
-        <td class="ps-3">
-          <span class="fw-semibold"><?= h($r['name']) ?></span>
-          <span class="d-block text-muted small"><?= h($r['login']) ?></span>
-        </td>
+        <td class="ps-3"><span class="fw-semibold"><?= h($r['name']) ?></span><span class="d-block text-muted small"><?= h($r['login']) ?></span></td>
         <td class="text-muted small"><?= $r['ok'] ? h($r['msg']) : '' ?></td>
         <td>
           <?php if ($r['ok']): ?>
             <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill"></i> OK</span>
           <?php else: ?>
-            <span class="tz-badge tz-badge--warn"><i class="bi bi-x-circle-fill"></i> Błąd</span>
+            <span class="tz-badge tz-badge--warn"><i class="bi bi-x-circle-fill"></i> Blad</span>
             <div class="small text-danger font-monospace" style="font-size:.75rem"><?= h($r['msg']) ?></div>
           <?php endif; ?>
         </td>
@@ -381,46 +320,44 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <?php endif; ?>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     ZAKŁADKA: KATALOG
+     KATALOG — read-only
      ═══════════════════════════════════════════════════════════════════════════ -->
 <?php elseif ($_tab === 'katalog'): ?>
 
-<?php
-$ldap_entries  = $ldap_configured ? _ldap_list_users() : [];
-$szo_users_all = db_all('SELECT id, name, email, is_active FROM users ORDER BY name');
-// Indeks email→uid dla porównania co jest / czego nie ma w LDAP
-$in_ldap = array_flip(array_column($ldap_entries, 'uid'));
-?>
-
-<!-- Konta w katalogu -->
-<div class="tz-card mb-3">
+<div class="tz-card">
   <div class="tz-card__hd">
     <i class="bi bi-people"></i>
     Konta w katalogu LDAP
-    <span class="ms-2 tz-badge tz-badge--<?= count($ldap_entries) > 0 ? 'ok' : 'off' ?>">
-      <?= count($ldap_entries) ?>
-    </span>
-    <span class="ms-auto small fw-normal text-muted">
-      <?= defined('LDAP_USERS_OU') ? h(LDAP_USERS_OU) : '—' ?>
-    </span>
+    <?php if ($ldap_entries): ?>
+    <span class="ms-2 tz-badge tz-badge--ok"><?= count($ldap_entries) ?></span>
+    <?php endif; ?>
+    <span class="ms-auto small fw-normal text-muted font-monospace"><?= h($cfg_users_ou ?: '—') ?></span>
   </div>
 
   <?php if (!$ldap_configured): ?>
-  <div class="tz-card__bd text-muted small">LDAP niekonfigurowany.</div>
+  <div class="tz-card__bd text-muted small">LDAP niekonfigurowany. Uzupelnij parametry w <a href="?tab=konfigurator">Konfiguratorze</a>.</div>
+  <?php elseif ($ldap_err_msg): ?>
+  <div class="tz-card__bd">
+    <div class="d-flex align-items-start gap-2">
+      <i class="bi bi-x-octagon-fill text-danger mt-1"></i>
+      <span class="small text-danger font-monospace"><?= h($ldap_err_msg) ?></span>
+    </div>
+  </div>
   <?php elseif (!$ldap_entries): ?>
   <div class="tz-card__bd text-muted small">
-    Katalog jest pusty lub nie udało się odczytać. Upewnij się, że LDAP jest dostępny i że konta zostały zsynchronizowane.
+    Katalog jest pusty lub nie udalo sie odczytac. Upewnij sie, ze LDAP jest dostepny
+    i ze konta zostaly zsynchronizowane (<a href="?tab=sync">Synchronizacja</a>).
   </div>
   <?php else: ?>
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0" style="font-size:.84rem">
       <thead class="table-light">
         <tr>
-          <th class="ps-3">Imię i nazwisko</th>
-          <th>uid</th>
-          <th>E-mail</th>
+          <th class="ps-3" style="width:28%">Imie i nazwisko</th>
+          <th style="width:8%">uid</th>
+          <th style="width:26%">E-mail</th>
           <th>Jednostka / stanowisko</th>
-          <th></th>
+          <th style="width:10%">Telefon</th>
         </tr>
       </thead>
       <tbody>
@@ -430,248 +367,294 @@ $in_ldap = array_flip(array_column($ldap_entries, 'uid'));
         <td class="font-monospace small text-muted"><?= h($e['uid']) ?></td>
         <td class="small"><?= h($e['mail']) ?></td>
         <td class="small text-muted">
-          <?php if ($e['title'] || $e['ou']): ?>
-            <?= h($e['title']) ?><?= ($e['title'] && $e['ou']) ? ' · ' : '' ?><?= h($e['ou']) ?>
-          <?php else: ?>—<?php endif; ?>
+          <?php echo $e['title'] || $e['ou']
+              ? h($e['title']) . ($e['title'] && $e['ou'] ? ' &middot; ' : '') . h($e['ou'])
+              : '&mdash;'; ?>
         </td>
-        <td class="text-end pe-3">
-          <form method="post" class="d-inline"
-                onsubmit="return confirm('Usunąć wpis <?= h(addslashes($e['cn'])) ?> z katalogu LDAP? Nie usuwa konta w SZO.')">
-            <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action"  value="delete_dn">
-            <input type="hidden" name="dn"       value="<?= h($e['dn']) ?>">
-            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Usuń wpis z LDAP">
-              <i class="bi bi-trash3"></i>
-            </button>
-          </form>
-        </td>
-      </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <?php endif; ?>
-</div>
-
-<!-- Konta SZO poza katalogiem -->
-<?php
-$not_in_ldap = array_filter($szo_users_all, fn($u) => !isset($in_ldap[(string)$u['id']]) && $u['is_active']);
-?>
-<?php if ($not_in_ldap): ?>
-<div class="tz-card">
-  <div class="tz-card__hd">
-    <i class="bi bi-person-dash text-warning"></i>
-    Aktywne konta SZO bez wpisu w LDAP
-    <span class="ms-2 tz-badge tz-badge--warn"><?= count($not_in_ldap) ?></span>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle mb-0" style="font-size:.84rem">
-      <thead class="table-light">
-        <tr><th class="ps-3">Użytkownik</th><th>E-mail</th><th></th></tr>
-      </thead>
-      <tbody>
-      <?php foreach ($not_in_ldap as $u): ?>
-      <tr>
-        <td class="ps-3 fw-semibold"><?= h($u['name']) ?></td>
-        <td class="small text-muted"><?= h($u['email']) ?></td>
-        <td class="text-end pe-3">
-          <?php if ($ldap_configured): ?>
-          <form method="post" class="d-inline">
-            <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action"  value="push_user">
-            <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn btn-outline-primary btn-sm py-0 px-2" title="Wypchnij do LDAP">
-              <i class="bi bi-cloud-upload"></i>
-            </button>
-          </form>
-          <?php else: ?>—<?php endif; ?>
-        </td>
+        <td class="small text-muted"><?= $e['phone'] ? h($e['phone']) : '&mdash;' ?></td>
       </tr>
       <?php endforeach; ?>
       </tbody>
     </table>
   </div>
   <div class="tz-note">
-    <i class="bi bi-arrow-repeat"></i>
-    Użyj <a href="?tab=sync" class="text-primary">Synchronizuj teraz</a> aby wyeksportować wszystkie naraz.
+    <i class="bi bi-info-circle"></i>
+    Widok tylko do odczytu. Aby dodac konta uzyj <a href="?tab=sync" class="text-primary">Synchronizacji</a>.
   </div>
+  <?php endif; ?>
 </div>
-<?php endif; ?>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     ZAKŁADKA: KONFIGURACJA
+     KONFIGURATOR — formularz + live bloki
      ═══════════════════════════════════════════════════════════════════════════ -->
-<?php elseif ($_tab === 'config'): ?>
+<?php elseif ($_tab === 'konfigurator'): ?>
 
-<?php
-$host     = defined('LDAP_HOST')     ? LDAP_HOST     : '';
-$port     = defined('LDAP_PORT')     ? (int)LDAP_PORT : 389;
-$base_dn  = defined('LDAP_BASE_DN')  ? LDAP_BASE_DN  : '';
-$users_ou = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
-$bind_dn  = defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '';
-$bind_pw  = defined('LDAP_BIND_PW')  ? LDAP_BIND_PW  : '';
-$use_tls  = defined('LDAP_USE_TLS')  && LDAP_USE_TLS;
-$pw_mask  = $bind_pw ? str_repeat('●', min(12, strlen($bind_pw))) : '—';
-$docker   = 'ldap';
-?>
-
-<!-- Parametry serwera -->
 <div class="tz-card mb-3">
-  <div class="tz-card__hd"><i class="bi bi-hdd-network"></i> Parametry serwera</div>
-  <div class="tz-dl">
-    <div><dt>Host (zewnętrzny)</dt><dd class="font-monospace"><?= h($host ?: '—') ?>:<?= $port ?></dd></div>
-    <div><dt>Host (Docker internal)</dt><dd class="font-monospace"><?= h($docker) ?>:389</dd></div>
-    <div><dt>Base DN</dt><dd class="font-monospace small"><?= h($base_dn ?: '—') ?></dd></div>
-    <div><dt>Users OU</dt><dd class="font-monospace small"><?= h($users_ou ?: '—') ?></dd></div>
-    <div><dt>Bind DN</dt><dd class="font-monospace small"><?= h($bind_dn ?: '—') ?></dd></div>
-    <div><dt>Bind hasło</dt><dd class="font-monospace small"><?= h($pw_mask) ?></dd></div>
-    <div><dt>STARTTLS</dt><dd><?= $use_tls ? '<span class="tz-badge tz-badge--ok">tak</span>' : '<span class="tz-badge tz-badge--off">nie</span>' ?></dd></div>
-    <div><dt>phpLDAPadmin</dt><dd><a href="http://127.0.0.1:8389/" target="_blank" rel="noopener" class="small">http://127.0.0.1:8389/</a></dd></div>
-    <div>
-      <dt>Status połączenia</dt>
-      <dd>
-        <?php if ($conn_ok): ?>
-          <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill"></i> OK</span>
-        <?php elseif (!$ldap_configured): ?>
-          <span class="tz-badge tz-badge--off">Niekonfigurowany</span>
-        <?php else: ?>
-          <span class="tz-badge tz-badge--warn"><i class="bi bi-x-circle-fill"></i> Błąd połączenia</span>
-          <div class="small text-danger mt-1"><?= h($conn_err) ?></div>
-        <?php endif; ?>
-      </dd>
-    </div>
-  </div>
-</div>
-
-<?php
-// Bloki konfiguracyjne — generujemy tylko gdy LDAP skonfigurowany
-$blocks = [];
-
-if ($ldap_configured) {
-    $blocks['SZO — config.local.php'] = [
-        'icon' => 'bi-code-slash',
-        'code' => "define('LDAP_ENABLED',  true);\n"
-                . "define('LDAP_HOST',     '127.0.0.1'); // Docker: '{$docker}'\n"
-                . "define('LDAP_PORT',     {$port});\n"
-                . "define('LDAP_BIND_DN',  '{$bind_dn}');\n"
-                . "define('LDAP_BIND_PW',  'hasło'); // LDAP_ADMIN_PASSWORD z docker/.env\n"
-                . "define('LDAP_BASE_DN',  '{$base_dn}');\n"
-                . "define('LDAP_USERS_OU', '{$users_ou}');",
-    ];
-
-    $blocks['Gitea — Admin → Authentication → LDAP (Bind DN)'] = [
-        'icon' => 'bi-git',
-        'rows' => [
-            'Host'              => $host,
-            'Port'              => (string)$port,
-            'Bind DN'           => $bind_dn,
-            'Bind Password'     => '(z LDAP_ADMIN_PASSWORD)',
-            'User Search Base'  => $users_ou,
-            'User Filter'       => '(&(objectClass=inetOrgPerson)(uid=%s))',
-            'Username Attr'     => 'uid',
-            'Firstname Attr'    => 'givenName',
-            'Surname Attr'      => 'sn',
-            'Email Attr'        => 'mail',
-        ],
-    ];
-
-    $blocks['Nextcloud — Settings → LDAP/AD Integration'] = [
-        'icon' => 'bi-cloud',
-        'rows' => [
-            'Server'            => "ldap://{$host}:{$port}",
-            'Port'              => (string)$port,
-            'User DN'           => $bind_dn,
-            'Base DN'           => $base_dn,
-            'Users filter'      => '(|(objectclass=inetOrgPerson))',
-            'Login attribute'   => 'uid',
-            'Email attribute'   => 'mail',
-            'Display name'      => 'cn',
-        ],
-    ];
-
-    $blocks['Generic .env / docker-compose'] = [
-        'icon' => 'bi-file-earmark-code',
-        'code' => "LDAP_URL=ldap://{$docker}:389\n"
-                . "LDAP_BASE_DN={$base_dn}\n"
-                . "LDAP_BIND_DN={$bind_dn}\n"
-                . "LDAP_BIND_PASSWORD=(hasło)\n"
-                . "LDAP_USERS_BASE={$users_ou}\n"
-                . "LDAP_USER_FILTER=(objectClass=inetOrgPerson)\n"
-                . "LDAP_USER_LOGIN_ATTR=uid\n"
-                . "LDAP_USER_EMAIL_ATTR=mail\n"
-                . "LDAP_USER_DISPLAY_ATTR=cn",
-    ];
-
-    $blocks['nginx — ngx_http_auth_ldap_module'] = [
-        'icon' => 'bi-server',
-        'code' => "ldap_server feer_ldap {\n"
-                . "    url ldap://{$host}:{$port}/{$users_ou}?uid?sub?(objectClass=inetOrgPerson);\n"
-                . "    binddn \"{$bind_dn}\";\n"
-                . "    binddn_passwd \"(hasło)\";\n"
-                . "    group_attribute uniqueMember;\n"
-                . "    group_attribute_is_dn on;\n"
-                . "    require valid_user;\n"
-                . "}",
-    ];
-}
-?>
-
-<?php if ($blocks): ?>
-<?php foreach ($blocks as $title => $block): ?>
-<div class="tz-card mb-3">
-  <div class="tz-card__hd"><i class="bi <?= $block['icon'] ?>"></i> <?= h($title) ?></div>
-  <div class="tz-card__bd" style="padding:.75rem 1rem">
-    <?php if (isset($block['code'])): ?>
-    <div class="position-relative">
-      <pre class="mb-0 p-3 rounded" style="background:#f8f9fa;font-size:.78rem;overflow-x:auto;border:1px solid #e5e7eb"><?= h($block['code']) ?></pre>
-      <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:.5rem;right:.5rem;font-size:.72rem"
-              onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent).then(()=>{this.textContent='✔';setTimeout(()=>this.textContent='Kopiuj',1200)})">Kopiuj</button>
-    </div>
-    <?php else: ?>
-    <dl class="mb-0" style="display:grid;grid-template-columns:200px 1fr;gap:.3rem .75rem;font-size:.84rem">
-      <?php foreach ($block['rows'] as $k => $v): ?>
-      <dt class="text-muted fw-normal"><?= h($k) ?></dt>
-      <dd class="font-monospace mb-0"><?= h($v) ?></dd>
-      <?php endforeach; ?>
-    </dl>
-    <?php endif; ?>
-  </div>
-</div>
-<?php endforeach; ?>
-
-<!-- Komendy diagnostyczne -->
-<div class="tz-card mb-3">
-  <div class="tz-card__hd"><i class="bi bi-terminal"></i> Komendy diagnostyczne</div>
-  <div class="tz-card__bd" style="padding:.75rem 1rem">
-    <p class="small text-muted mb-2">Uruchom z hosta lub z kontenera PHP:</p>
-    <?php
-    $cmds = [
-        'Test bind (z hosta)'          => "ldapwhoami -x -H ldap://{$host}:{$port} -D \"{$bind_dn}\" -W",
-        'Lista kont (z hosta)'         => "ldapsearch -x -H ldap://{$host}:{$port} -D \"{$bind_dn}\" -W \\\n  -b \"{$users_ou}\" \"(objectClass=inetOrgPerson)\" uid cn mail",
-        'Test bind (Docker, php ctn)'  => "docker exec feer-php ldapwhoami -x -H ldap://ldap:389 -D \"{$bind_dn}\" -W",
-        'Lista kont (Docker, php ctn)' => "docker exec feer-php ldapsearch -x -H ldap://ldap:389 -D \"{$bind_dn}\" -W \\\n  -b \"{$users_ou}\" uid cn",
-        'Pełny raport CLI'             => 'php cli/ldap_info.php',
-    ];
-    foreach ($cmds as $lbl => $cmd): ?>
-    <div class="mb-2">
-      <div class="small text-muted mb-1"><?= h($lbl) ?></div>
-      <div class="position-relative">
-        <pre class="mb-0 p-2 rounded" style="background:#1e293b;color:#e2e8f0;font-size:.77rem;overflow-x:auto"><?= h($cmd) ?></pre>
-        <button class="btn btn-sm position-absolute" style="top:.3rem;right:.3rem;font-size:.68rem;background:rgba(255,255,255,.1);color:#e2e8f0;border:none"
-                onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent.trim()).then(()=>{this.textContent='✔';setTimeout(()=>this.textContent='Kopiuj',1200)})">Kopiuj</button>
+  <div class="tz-card__hd"><i class="bi bi-sliders"></i> Parametry serwera LDAP</div>
+  <div class="tz-card__bd cfg-form">
+    <div class="row mb-3">
+      <div>
+        <label for="f-host">Host</label>
+        <input id="f-host" class="cfg-in" data-k="host" type="text" value="<?= h($cfg_host) ?>" placeholder="127.0.0.1">
+      </div>
+      <div>
+        <label for="f-port">Port</label>
+        <input id="f-port" class="cfg-in" data-k="port" type="number" value="<?= $cfg_port ?>" placeholder="389">
       </div>
     </div>
-    <?php endforeach; ?>
+    <div class="row mb-3">
+      <div>
+        <label for="f-base-dn">Base DN</label>
+        <input id="f-base-dn" class="cfg-in" data-k="base_dn" type="text" value="<?= h($cfg_base_dn) ?>" placeholder="dc=feer,dc=org,dc=pl">
+      </div>
+      <div>
+        <label for="f-users-ou">Users OU</label>
+        <input id="f-users-ou" class="cfg-in" data-k="users_ou" type="text" value="<?= h($cfg_users_ou) ?>" placeholder="ou=users,dc=feer,dc=org,dc=pl">
+      </div>
+    </div>
+    <div class="row mb-2">
+      <div>
+        <label for="f-bind-dn">Bind DN</label>
+        <input id="f-bind-dn" class="cfg-in" data-k="bind_dn" type="text" value="<?= h($cfg_bind_dn) ?>" placeholder="cn=admin,dc=feer,dc=org,dc=pl">
+      </div>
+      <div>
+        <label for="f-bind-pw">Haslo (do testu polaczenia)</label>
+        <input id="f-bind-pw" class="cfg-in" data-k="bind_pw" type="password" value="" placeholder="<?= $ldap_configured ? '(zapisane w config.local.php)' : '' ?>">
+      </div>
+    </div>
+  </div>
+  <div class="cfg-test-bar">
+    <button type="button" id="test-btn">
+      <i class="bi bi-plug"></i> Testuj polaczenie
+    </button>
+    <span id="test-result"></span>
+    <span class="ms-auto text-muted small">
+      <i class="bi bi-info-circle"></i>
+      Haslo potrzebne tylko do testu — nie jest zapisywane
+    </span>
   </div>
 </div>
 
-<?php else: ?>
-<div class="tz-card">
-  <div class="tz-card__bd text-muted small">
-    Bloki konfiguracyjne są dostępne po skonfigurowaniu połączenia LDAP (stałe <code>LDAP_*</code> w <code>config.local.php</code>).
+<!-- Bloki konfiguracyjne -->
+<div id="cfg-blocks">
+
+  <!-- SZO config.local.php -->
+  <div class="cfg-block mb-3">
+    <div class="cfg-block__hd">
+      <span><i class="bi bi-code-slash"></i> SZO &mdash; config.local.php</span>
+      <button class="copy-btn" data-target="blk-szo">Kopiuj</button>
+    </div>
+    <pre id="blk-szo"></pre>
   </div>
-</div>
-<?php endif; ?>
+
+  <!-- Gitea -->
+  <div class="cfg-block mb-3">
+    <div class="cfg-block__hd">
+      <span><i class="bi bi-git"></i> Gitea &mdash; Admin &rarr; Authentication &rarr; LDAP (Bind DN)</span>
+      <button class="copy-btn" data-target="blk-gitea-pre">Kopiuj</button>
+    </div>
+    <div class="dl-row" id="blk-gitea"></div>
+  </div>
+
+  <!-- Nextcloud -->
+  <div class="cfg-block mb-3">
+    <div class="cfg-block__hd">
+      <span><i class="bi bi-cloud"></i> Nextcloud &mdash; Settings &rarr; LDAP/AD Integration</span>
+      <button class="copy-btn" data-target="blk-nc-pre">Kopiuj</button>
+    </div>
+    <div class="dl-row" id="blk-nc"></div>
+  </div>
+
+  <!-- .env -->
+  <div class="cfg-block mb-3">
+    <div class="cfg-block__hd">
+      <span><i class="bi bi-file-earmark-code"></i> Generic .env / docker-compose</span>
+      <button class="copy-btn" data-target="blk-env">Kopiuj</button>
+    </div>
+    <pre id="blk-env"></pre>
+  </div>
+
+  <!-- nginx -->
+  <div class="cfg-block mb-3">
+    <div class="cfg-block__hd">
+      <span><i class="bi bi-server"></i> nginx &mdash; ngx_http_auth_ldap_module</span>
+      <button class="copy-btn" data-target="blk-nginx">Kopiuj</button>
+    </div>
+    <pre id="blk-nginx"></pre>
+  </div>
+
+</div><!-- /#cfg-blocks -->
+
+<script>
+(function() {
+  var CSRF = <?= json_encode(csrf_token()) ?>;
+  var SELF = <?= json_encode($SELF) ?>;
+
+  function v(k) {
+    var el = document.querySelector('.cfg-in[data-k="' + k + '"]');
+    return el ? el.value.trim() : '';
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function dl(pairs) {
+    return '<dl class="dl-row">' + pairs.map(function(p) {
+      return '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>';
+    }).join('') + '</dl>';
+  }
+
+  // Ukryte pola do kopii tekstu z dl-row
+  var hiddenPre = {};
+
+  function updateBlocks() {
+    var host    = v('host')     || '127.0.0.1';
+    var port    = v('port')     || '389';
+    var baseDn  = v('base_dn') || 'dc=example,dc=org';
+    var usersOu = v('users_ou')|| 'ou=users,' + baseDn;
+    var bindDn  = v('bind_dn') || 'cn=admin,' + baseDn;
+    var docker  = 'ldap';
+
+    // SZO
+    var szoTxt =
+      "define('LDAP_ENABLED',  true);\n" +
+      "define('LDAP_HOST',     '127.0.0.1');  // Docker internal: '" + docker + "'\n" +
+      "define('LDAP_PORT',     " + port + ");\n" +
+      "define('LDAP_BIND_DN',  '" + bindDn + "');\n" +
+      "define('LDAP_BIND_PW',  '...');  // LDAP_ADMIN_PASSWORD z docker/.env\n" +
+      "define('LDAP_BASE_DN',  '" + baseDn + "');\n" +
+      "define('LDAP_USERS_OU', '" + usersOu + "');";
+    document.getElementById('blk-szo').textContent = szoTxt;
+
+    // Gitea
+    var giteaPairs = [
+      ['Authentication Type', 'LDAP (Bind DN)'],
+      ['Host',                host],
+      ['Port',                port],
+      ['Bind DN',             bindDn],
+      ['Bind Password',       '(LDAP_ADMIN_PASSWORD)'],
+      ['User Search Base',    usersOu],
+      ['User Filter',         '(&(objectClass=inetOrgPerson)(uid=%s))'],
+      ['Username Attr',       'uid'],
+      ['Firstname Attr',      'givenName'],
+      ['Surname Attr',        'sn'],
+      ['Email Attr',          'mail'],
+    ];
+    document.getElementById('blk-gitea').innerHTML = dl(giteaPairs);
+    hiddenPre['blk-gitea-pre'] = giteaPairs.map(function(p){ return p[0]+': '+p[1]; }).join('\n');
+
+    // Nextcloud
+    var ncPairs = [
+      ['Server',          'ldap://' + host + ':' + port],
+      ['Port',            port],
+      ['User DN',         bindDn],
+      ['Password',        '(LDAP_ADMIN_PASSWORD)'],
+      ['Base DN',         baseDn],
+      ['Users filter',    '(|(objectclass=inetOrgPerson))'],
+      ['Login attribute', 'uid'],
+      ['Email attribute', 'mail'],
+      ['Display name',    'cn'],
+    ];
+    document.getElementById('blk-nc').innerHTML = dl(ncPairs);
+    hiddenPre['blk-nc-pre'] = ncPairs.map(function(p){ return p[0]+': '+p[1]; }).join('\n');
+
+    // .env
+    var envTxt =
+      'LDAP_URL=ldap://' + docker + ':389\n' +
+      'LDAP_BASE_DN=' + baseDn + '\n' +
+      'LDAP_BIND_DN=' + bindDn + '\n' +
+      'LDAP_BIND_PASSWORD=(LDAP_ADMIN_PASSWORD)\n' +
+      'LDAP_USERS_BASE=' + usersOu + '\n' +
+      'LDAP_USER_FILTER=(objectClass=inetOrgPerson)\n' +
+      'LDAP_USER_LOGIN_ATTR=uid\n' +
+      'LDAP_USER_EMAIL_ATTR=mail\n' +
+      'LDAP_USER_DISPLAY_ATTR=cn';
+    document.getElementById('blk-env').textContent = envTxt;
+
+    // nginx
+    var nginxTxt =
+      'ldap_server feer_ldap {\n' +
+      '    url ldap://' + host + ':' + port + '/' + usersOu + '?uid?sub?(objectClass=inetOrgPerson);\n' +
+      '    binddn "' + bindDn + '";\n' +
+      '    binddn_passwd "(LDAP_ADMIN_PASSWORD)";\n' +
+      '    group_attribute uniqueMember;\n' +
+      '    group_attribute_is_dn on;\n' +
+      '    require valid_user;\n' +
+      '}';
+    document.getElementById('blk-nginx').textContent = nginxTxt;
+  }
+
+  // Podpinamy live update
+  document.querySelectorAll('.cfg-in').forEach(function(el) {
+    el.addEventListener('input', updateBlocks);
+  });
+  updateBlocks();
+
+  // Przyciski Kopiuj
+  document.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = btn.dataset.target;
+      var txt;
+      if (hiddenPre[target] !== undefined) {
+        txt = hiddenPre[target];
+      } else {
+        var el = document.getElementById(target);
+        txt = el ? el.textContent : '';
+      }
+      navigator.clipboard.writeText(txt).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = 'Skopiowano';
+        setTimeout(function(){ btn.textContent = orig; }, 1400);
+      });
+    });
+  });
+
+  // Test polaczenia
+  document.getElementById('test-btn').addEventListener('click', function() {
+    var btn    = this;
+    var result = document.getElementById('test-result');
+    var host2  = v('host');
+    var port2  = v('port') || '389';
+    var dn     = v('bind_dn');
+    var pw     = v('bind_pw');
+
+    if (!pw) {
+      result.className = 'cfg-test-result err';
+      result.textContent = 'Wpisz haslo w polu "Haslo (do testu polaczenia)".';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Lacze&hellip;';
+    result.className = '';
+    result.textContent = '';
+
+    var fd = new FormData();
+    fd.append('_csrf',    CSRF);
+    fd.append('_action',  'test_conn');
+    fd.append('host',     host2);
+    fd.append('port',     port2);
+    fd.append('bind_dn',  dn);
+    fd.append('bind_pw',  pw);
+
+    fetch(SELF, { method: 'POST', body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        result.className = 'cfg-test-result ' + (data.ok ? 'ok' : 'err');
+        result.textContent = (data.ok ? '✔ ' : '✖ ') + data.msg;
+      })
+      .catch(function() {
+        result.className = 'cfg-test-result err';
+        result.textContent = 'Blad zadania HTTP.';
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plug"></i> Testuj polaczenie';
+      });
+  });
+})();
+</script>
 
 <?php endif; // tab ?>
 
