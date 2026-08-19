@@ -144,7 +144,7 @@ function ezd_zas_get(int $id): ?array {
                 j.symbol AS jrwa_symbol,
                 u.name AS created_by_name, z.name AS zatw_name,
                 sp.znak_sprawy, p.sygnatura AS pismo_syg,
-                ob.name AS odbiór_przez_name
+                ob.name AS odbior_przez_name
          FROM ezd_zaswiadczenia_wlasne w
          JOIN ezd_zas_typy zt ON zt.id=w.typ_id
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id
@@ -152,7 +152,7 @@ function ezd_zas_get(int $id): ?array {
          LEFT JOIN users z ON z.id=w.zatwierdzone_przez
          LEFT JOIN ezd_sprawy sp ON sp.id=w.sprawa_id
          LEFT JOIN ezd_pisma p ON p.id=w.pismo_id
-         LEFT JOIN users ob ON ob.id=w."odbiór_przez"
+         LEFT JOIN users ob ON ob.id=w.`odbiór_przez`
          WHERE w.id=?",
         [$id]
     );

@@ -71,7 +71,7 @@ try {
     $typ  = $zas['typ_nazwa'] ?? '—';
     $kto  = $zas['odbiór_kto'] ?? '—';
     $data = $zas['odbiór_data'] ? (function_exists('date_pl') ? date_pl($zas['odbiór_data']) : date('d.m.Y', strtotime($zas['odbiór_data']))) : date('d.m.Y');
-    $przez = $zas['odbiór_przez_name'] ?? '';
+    $przez = $zas['odbior_przez_name'] ?? '';
     $printed = date('d.m.Y H:i');
 
     $mpdf->SetTitle('Potwierdzenie odbioru ' . $nr);

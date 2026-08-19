@@ -322,7 +322,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <strong>Odebrano osobiście</strong>
                 <?php if($zas['odbiór_data']): ?> dnia <strong><?= date_pl($zas['odbiór_data']) ?></strong><?php endif; ?>
                 <?php if($zas['odbiór_kto']): ?> — <strong><?= h($zas['odbiór_kto']) ?></strong><?php endif; ?>
-                <?php if($zas['odbiór_przez_name']): ?> <span class="text-muted">(zarejestrował: <?= h($zas['odbiór_przez_name']) ?>)</span><?php endif; ?>
+                <?php if($zas['odbior_przez_name']): ?> <span class="text-muted">(zarejestrował: <?= h($zas['odbior_przez_name']) ?>)</span><?php endif; ?>
               </div>
             </div>
             <div class="d-flex gap-2">
