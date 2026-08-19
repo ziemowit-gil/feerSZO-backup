@@ -145,6 +145,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <h5 class="fw-bold mb-0"><?= h($pismo['title']) ?></h5>
           </div>
           <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+            <a href="<?= APP_URL ?>/ezd/pisma/wersje.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-clock-history me-1"></i>Historia
+            </a>
             <?php if($pismo['tresc'] || $pismo['title']): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
                class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">

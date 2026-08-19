@@ -57,16 +57,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <h4 class="mb-0 fw-bold"><i class="bi bi-tags text-primary me-2"></i>Wykaz akt (JRWA)</h4>
     <div class="text-muted" style="font-size:.8rem;margin-top:.15rem">Jednolity Rzeczowy Wykaz Akt — klasyfikacja i kwalifikacja archiwalna</div>
   </div>
-  <?php if (is_admin()): ?>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 align-items-center">
+    <a href="<?= APP_URL ?>/ezd/jrwa/raport.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-bar-chart me-1"></i>Raport
+    </a>
+    <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/ezd/jrwa/ai_reklasyfikuj.php" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-robot me-1"></i>AI Reklasyfikacja
     </a>
     <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#jrwa-form">
       <i class="bi bi-plus-lg me-1"></i><?= $edit ? 'Edytuj hasło' : 'Dodaj hasło' ?>
     </button>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
 </div>
 
 <?= flash_html() ?>
