@@ -463,7 +463,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false): string {
 </table>
 
 ' . ($barcode_html !== '' || $qr_html !== ''
-    ? '<div style="position:fixed;bottom:22mm;left:0;right:0;text-align:center">'
+    ? '<div style="position:fixed;bottom:4mm;left:0;right:0;text-align:center">'
       . $barcode_html
       . ($qr_html !== '' ? '<div style="margin-top:6pt">' . $qr_html . '</div>' : '')
       . '</div>'
