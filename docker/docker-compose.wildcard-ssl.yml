@@ -1,0 +1,111 @@
+# ── Wildcard SSL przez Cloudflare DNS-01 ─────────────────────────────────────
+#
+# Override do docker-compose.prod.yml — zamienia HTTP-01 challenge na DNS-01
+# i wydaje JEDEN certyfikat wildcard zamiast osobnego cert. na subdomenę.
+#
+# Dlaczego: Let's Encrypt ma limit 50 certyfikatów / tydzień na domenę
+# rejestrowaną. Przy ~25 subdomenach modułów HTTP-01 zużywa 25 certów przy
+# każdym pełnym odtworzeniu acme.json. DNS-01 wildcard = 1 cert na domenę.
+#
+# Wymagania:
+#   - CF_DNS_API_TOKEN w .env.prod (Cloudflare, uprawnienie Zone → DNS → Edit
+#     dla stref feer.org.pl i ngosystem.pl)
+#   - DNS nie musi wskazywać na serwer w momencie wydania cert. (DNS-01 nie
+#     wymaga dostępności portu 80 — działa też za proxy Cloudflare)
+#
+# Użycie:
+#   bash scripts/setup-subdomains.sh --wildcard
+# lub ręcznie:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.szo-subdomains.yml -f docker-compose.wildcard-ssl.yml \
+#     --env-file .env.prod up -d
+#
+# UWAGA: resolver 'le' zostaje bez zmian (HTTP-01) dla routerów zdefiniowanych
+# w docker-compose.prod.yml. Nowy resolver 'cf' obsługuje wildcardy.
+
+services:
+
+  traefik:
+    environment:
+      CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN}"
+    command:
+      # ── Docker provider ────────────────────────────────────────────────────
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=docker_feer"
+      # ── Entrypoints ────────────────────────────────────────────────────────
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.ejbca-admin.address=:8443"
+      # ── Resolver 'le' — HTTP-01 (zachowany dla routerów z prod.yml) ────────
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      # ── Resolver 'cf' — DNS-01 przez Cloudflare (wildcardy) ────────────────
+      - "--certificatesresolvers.cf.acme.dnschallenge=true"
+      - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cf.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+      # Propagacja DNS — Cloudflare zwykle < 30 s, dajemy zapas.
+      - "--certificatesresolvers.cf.acme.dnschallenge.delaybeforecheck=30"
+      - "--certificatesresolvers.cf.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme-cf.json"
+      # ── Logi ───────────────────────────────────────────────────────────────
+      - "--log.level=WARN"
+      - "--accesslog=false"
+
+  app:
+    labels:
+      # ── Wildcard *.szo.feer.org.pl — jeden cert dla wszystkich modułów ─────
+      # Router szo-wildcard jest deklarowany na routerze o najwyższym
+      # priorytecie SAN-ów; Traefik zapisuje cert do acme-cf.json i podaje go
+      # wszystkim routerom dopasowującym *.szo.feer.org.pl.
+      - "traefik.http.routers.szo-wildcard.rule=HostRegexp(`^[a-z0-9-]+\\.szo\\.feer\\.org\\.pl$`)"
+      - "traefik.http.routers.szo-wildcard.entrypoints=websecure"
+      - "traefik.http.routers.szo-wildcard.tls=true"
+      - "traefik.http.routers.szo-wildcard.tls.certresolver=cf"
+      - "traefik.http.routers.szo-wildcard.tls.domains[0].main=szo.feer.org.pl"
+      - "traefik.http.routers.szo-wildcard.tls.domains[0].sans=*.szo.feer.org.pl"
+      - "traefik.http.routers.szo-wildcard.priority=1"
+      - "traefik.http.routers.szo-wildcard.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-wildcard.service=feer"
+
+      - "traefik.http.routers.szo-wildcard-http.rule=HostRegexp(`^[a-z0-9-]+\\.szo\\.feer\\.org\\.pl$`)"
+      - "traefik.http.routers.szo-wildcard-http.entrypoints=web"
+      - "traefik.http.routers.szo-wildcard-http.priority=1"
+      - "traefik.http.routers.szo-wildcard-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-wildcard-http.service=feer"
+
+      # ── Wildcard *.ngosystem.pl — cert dla przekierowań 301 ────────────────
+      # Bez tego przekierowanie [sub].ngosystem.pl → [sub].szo.feer.org.pl
+      # kończy się błędem certyfikatu (default cert Traefika).
+      - "traefik.http.routers.ngo-wildcard-https.tls.certresolver=cf"
+      - "traefik.http.routers.ngo-wildcard-https.tls.domains[0].main=ngosystem.pl"
+      - "traefik.http.routers.ngo-wildcard-https.tls.domains[0].sans=*.ngosystem.pl"
+
+      # Wszystkie routery szo-* z docker-compose.szo-subdomains.yml używają
+      # resolvera 'le' (HTTP-01). Przestawiamy je na 'cf', by korzystały
+      # z wildcardu i nie wyczerpywały limitu Let's Encrypt.
+      - "traefik.http.routers.szo-crm.tls.certresolver=cf"
+      - "traefik.http.routers.szo-ezd.tls.certresolver=cf"
+      - "traefik.http.routers.szo-zadania.tls.certresolver=cf"
+      - "traefik.http.routers.szo-ti.tls.certresolver=cf"
+      - "traefik.http.routers.szo-panel.tls.certresolver=cf"
+      - "traefik.http.routers.szo-helpdesk.tls.certresolver=cf"
+      - "traefik.http.routers.szo-obiegi.tls.certresolver=cf"
+      - "traefik.http.routers.szo-vpn.tls.certresolver=cf"
+      - "traefik.http.routers.szo-workspaces.tls.certresolver=cf"
+      - "traefik.http.routers.szo-poczta.tls.certresolver=cf"
+      - "traefik.http.routers.szo-timesheets.tls.certresolver=cf"
+      - "traefik.http.routers.szo-granty.tls.certresolver=cf"
+      - "traefik.http.routers.szo-wsparcie.tls.certresolver=cf"
+      - "traefik.http.routers.szo-wydarzenia.tls.certresolver=cf"
+      - "traefik.http.routers.szo-raporty.tls.certresolver=cf"
+      - "traefik.http.routers.szo-uchwaly.tls.certresolver=cf"
+      - "traefik.http.routers.szo-korespondencja.tls.certresolver=cf"
+      - "traefik.http.routers.szo-procedury.tls.certresolver=cf"
+      - "traefik.http.routers.szo-komunikaty.tls.certresolver=cf"
+      - "traefik.http.routers.szo-admin.tls.certresolver=cf"
+      - "traefik.http.routers.szo-karty30.tls.certresolver=cf"
+      - "traefik.http.routers.szo-tozsamosc.tls.certresolver=cf"
+      - "traefik.http.routers.szo-strukturaorg.tls.certresolver=cf"

@@ -1,0 +1,335 @@
+# ── Subdomeny modułów *.szo.feer.org.pl ─────────────────────────────────────
+#
+# Override do docker-compose.prod.yml — dodaje routery Traefik dla wszystkich
+# modułów systemu dostępnych przez subdomenę szo.feer.org.pl.
+#
+# Użycie:
+#   docker compose \
+#     -f docker-compose.yml \
+#     -f docker-compose.prod.yml \
+#     -f docker-compose.szo-subdomains.yml \
+#     --env-file .env.prod \
+#     up -d
+#
+# Wymagania:
+#   - Wildcard DNS: *.szo.feer.org.pl → IP serwera (szara chmurka Cloudflare)
+#   - Porty 80/443 dostępne bezpośrednio (HTTP-01 challenge)
+#   - certresolver 'le' skonfigurowany w docker-compose.prod.yml
+#
+# Każdy moduł: routing przez .htaccess (no addprefix middleware).
+# SSL: Let's Encrypt HTTP-01 per subdomena.
+#
+# ngosystem.pl: zaktualizowany catch-all który zachowuje nazwę subdomeny
+#   → panel.ngosystem.pl przekierowuje do panel.szo.feer.org.pl
+
+services:
+  app:
+    labels:
+
+      # ════════════════════════════════════════════════════════════════════════
+      #  *.szo.feer.org.pl — subdomeny modułów z SSL Let's Encrypt
+      # ════════════════════════════════════════════════════════════════════════
+
+      # ── crm.szo.feer.org.pl (alias do crm.feer.org.pl) ─────────────────────
+      - "traefik.http.routers.szo-crm.rule=Host(`crm.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-crm.entrypoints=websecure"
+      - "traefik.http.routers.szo-crm.tls=true"
+      - "traefik.http.routers.szo-crm.tls.certresolver=le"
+      - "traefik.http.routers.szo-crm.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-crm.service=feer"
+      - "traefik.http.routers.szo-crm-http.rule=Host(`crm.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-crm-http.entrypoints=web"
+      - "traefik.http.routers.szo-crm-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-crm-http.service=feer"
+
+      # ── ezd.szo.feer.org.pl (alias do ezd.feer.org.pl) ──────────────────────
+      - "traefik.http.routers.szo-ezd.rule=Host(`ezd.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-ezd.entrypoints=websecure"
+      - "traefik.http.routers.szo-ezd.tls=true"
+      - "traefik.http.routers.szo-ezd.tls.certresolver=le"
+      - "traefik.http.routers.szo-ezd.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-ezd.service=feer"
+      - "traefik.http.routers.szo-ezd-http.rule=Host(`ezd.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-ezd-http.entrypoints=web"
+      - "traefik.http.routers.szo-ezd-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-ezd-http.service=feer"
+
+      # ── zadania.szo.feer.org.pl (alias do zadania.feer.org.pl) ──────────────
+      - "traefik.http.routers.szo-zadania.rule=Host(`zadania.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-zadania.entrypoints=websecure"
+      - "traefik.http.routers.szo-zadania.tls=true"
+      - "traefik.http.routers.szo-zadania.tls.certresolver=le"
+      - "traefik.http.routers.szo-zadania.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-zadania.service=feer"
+      - "traefik.http.routers.szo-zadania-http.rule=Host(`zadania.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-zadania-http.entrypoints=web"
+      - "traefik.http.routers.szo-zadania-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-zadania-http.service=feer"
+
+      # ── ti.szo.feer.org.pl (alias do ti.feer.org.pl) ────────────────────────
+      - "traefik.http.routers.szo-ti.rule=Host(`ti.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-ti.entrypoints=websecure"
+      - "traefik.http.routers.szo-ti.tls=true"
+      - "traefik.http.routers.szo-ti.tls.certresolver=le"
+      - "traefik.http.routers.szo-ti.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-ti.service=feer"
+      - "traefik.http.routers.szo-ti-http.rule=Host(`ti.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-ti-http.entrypoints=web"
+      - "traefik.http.routers.szo-ti-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-ti-http.service=feer"
+
+      # ── panel.szo.feer.org.pl ────────────────────────────────────────────────
+      - "traefik.http.routers.szo-panel.rule=Host(`panel.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-panel.entrypoints=websecure"
+      - "traefik.http.routers.szo-panel.tls=true"
+      - "traefik.http.routers.szo-panel.tls.certresolver=le"
+      - "traefik.http.routers.szo-panel.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-panel.service=feer"
+      - "traefik.http.routers.szo-panel-http.rule=Host(`panel.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-panel-http.entrypoints=web"
+      - "traefik.http.routers.szo-panel-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-panel-http.service=feer"
+
+      # ── helpdesk.szo.feer.org.pl ─────────────────────────────────────────────
+      - "traefik.http.routers.szo-helpdesk.rule=Host(`helpdesk.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-helpdesk.entrypoints=websecure"
+      - "traefik.http.routers.szo-helpdesk.tls=true"
+      - "traefik.http.routers.szo-helpdesk.tls.certresolver=le"
+      - "traefik.http.routers.szo-helpdesk.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-helpdesk.service=feer"
+      - "traefik.http.routers.szo-helpdesk-http.rule=Host(`helpdesk.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-helpdesk-http.entrypoints=web"
+      - "traefik.http.routers.szo-helpdesk-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-helpdesk-http.service=feer"
+
+      # ── obiegi.szo.feer.org.pl ───────────────────────────────────────────────
+      - "traefik.http.routers.szo-obiegi.rule=Host(`obiegi.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-obiegi.entrypoints=websecure"
+      - "traefik.http.routers.szo-obiegi.tls=true"
+      - "traefik.http.routers.szo-obiegi.tls.certresolver=le"
+      - "traefik.http.routers.szo-obiegi.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-obiegi.service=feer"
+      - "traefik.http.routers.szo-obiegi-http.rule=Host(`obiegi.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-obiegi-http.entrypoints=web"
+      - "traefik.http.routers.szo-obiegi-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-obiegi-http.service=feer"
+
+      # ── vpn.szo.feer.org.pl ──────────────────────────────────────────────────
+      - "traefik.http.routers.szo-vpn.rule=Host(`vpn.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-vpn.entrypoints=websecure"
+      - "traefik.http.routers.szo-vpn.tls=true"
+      - "traefik.http.routers.szo-vpn.tls.certresolver=le"
+      - "traefik.http.routers.szo-vpn.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-vpn.service=feer"
+      - "traefik.http.routers.szo-vpn-http.rule=Host(`vpn.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-vpn-http.entrypoints=web"
+      - "traefik.http.routers.szo-vpn-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-vpn-http.service=feer"
+
+      # ── workspaces.szo.feer.org.pl ───────────────────────────────────────────
+      - "traefik.http.routers.szo-workspaces.rule=Host(`workspaces.szo.feer.org.pl`) || Host(`ws.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-workspaces.entrypoints=websecure"
+      - "traefik.http.routers.szo-workspaces.tls=true"
+      - "traefik.http.routers.szo-workspaces.tls.certresolver=le"
+      - "traefik.http.routers.szo-workspaces.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-workspaces.service=feer"
+      - "traefik.http.routers.szo-workspaces-http.rule=Host(`workspaces.szo.feer.org.pl`) || Host(`ws.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-workspaces-http.entrypoints=web"
+      - "traefik.http.routers.szo-workspaces-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-workspaces-http.service=feer"
+
+      # ── poczta.szo.feer.org.pl ───────────────────────────────────────────────
+      - "traefik.http.routers.szo-poczta.rule=Host(`poczta.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-poczta.entrypoints=websecure"
+      - "traefik.http.routers.szo-poczta.tls=true"
+      - "traefik.http.routers.szo-poczta.tls.certresolver=le"
+      - "traefik.http.routers.szo-poczta.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-poczta.service=feer"
+      - "traefik.http.routers.szo-poczta-http.rule=Host(`poczta.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-poczta-http.entrypoints=web"
+      - "traefik.http.routers.szo-poczta-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-poczta-http.service=feer"
+
+      # ── timesheets.szo.feer.org.pl / czas.szo.feer.org.pl ───────────────────
+      - "traefik.http.routers.szo-timesheets.rule=Host(`timesheets.szo.feer.org.pl`) || Host(`czas.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-timesheets.entrypoints=websecure"
+      - "traefik.http.routers.szo-timesheets.tls=true"
+      - "traefik.http.routers.szo-timesheets.tls.certresolver=le"
+      - "traefik.http.routers.szo-timesheets.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-timesheets.service=feer"
+      - "traefik.http.routers.szo-timesheets-http.rule=Host(`timesheets.szo.feer.org.pl`) || Host(`czas.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-timesheets-http.entrypoints=web"
+      - "traefik.http.routers.szo-timesheets-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-timesheets-http.service=feer"
+
+      # ── granty.szo.feer.org.pl ───────────────────────────────────────────────
+      - "traefik.http.routers.szo-granty.rule=Host(`granty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-granty.entrypoints=websecure"
+      - "traefik.http.routers.szo-granty.tls=true"
+      - "traefik.http.routers.szo-granty.tls.certresolver=le"
+      - "traefik.http.routers.szo-granty.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-granty.service=feer"
+      - "traefik.http.routers.szo-granty-http.rule=Host(`granty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-granty-http.entrypoints=web"
+      - "traefik.http.routers.szo-granty-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-granty-http.service=feer"
+
+      # ── wsparcie.szo.feer.org.pl ─────────────────────────────────────────────
+      - "traefik.http.routers.szo-wsparcie.rule=Host(`wsparcie.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-wsparcie.entrypoints=websecure"
+      - "traefik.http.routers.szo-wsparcie.tls=true"
+      - "traefik.http.routers.szo-wsparcie.tls.certresolver=le"
+      - "traefik.http.routers.szo-wsparcie.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-wsparcie.service=feer"
+      - "traefik.http.routers.szo-wsparcie-http.rule=Host(`wsparcie.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-wsparcie-http.entrypoints=web"
+      - "traefik.http.routers.szo-wsparcie-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-wsparcie-http.service=feer"
+
+      # ── wydarzenia.szo.feer.org.pl ───────────────────────────────────────────
+      - "traefik.http.routers.szo-wydarzenia.rule=Host(`wydarzenia.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-wydarzenia.entrypoints=websecure"
+      - "traefik.http.routers.szo-wydarzenia.tls=true"
+      - "traefik.http.routers.szo-wydarzenia.tls.certresolver=le"
+      - "traefik.http.routers.szo-wydarzenia.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-wydarzenia.service=feer"
+      - "traefik.http.routers.szo-wydarzenia-http.rule=Host(`wydarzenia.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-wydarzenia-http.entrypoints=web"
+      - "traefik.http.routers.szo-wydarzenia-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-wydarzenia-http.service=feer"
+
+      # ── raporty.szo.feer.org.pl ──────────────────────────────────────────────
+      - "traefik.http.routers.szo-raporty.rule=Host(`raporty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-raporty.entrypoints=websecure"
+      - "traefik.http.routers.szo-raporty.tls=true"
+      - "traefik.http.routers.szo-raporty.tls.certresolver=le"
+      - "traefik.http.routers.szo-raporty.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-raporty.service=feer"
+      - "traefik.http.routers.szo-raporty-http.rule=Host(`raporty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-raporty-http.entrypoints=web"
+      - "traefik.http.routers.szo-raporty-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-raporty-http.service=feer"
+
+      # ── uchwaly.szo.feer.org.pl ──────────────────────────────────────────────
+      - "traefik.http.routers.szo-uchwaly.rule=Host(`uchwaly.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-uchwaly.entrypoints=websecure"
+      - "traefik.http.routers.szo-uchwaly.tls=true"
+      - "traefik.http.routers.szo-uchwaly.tls.certresolver=le"
+      - "traefik.http.routers.szo-uchwaly.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-uchwaly.service=feer"
+      - "traefik.http.routers.szo-uchwaly-http.rule=Host(`uchwaly.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-uchwaly-http.entrypoints=web"
+      - "traefik.http.routers.szo-uchwaly-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-uchwaly-http.service=feer"
+
+      # ── korespondencja.szo.feer.org.pl ──────────────────────────────────────
+      - "traefik.http.routers.szo-korespondencja.rule=Host(`korespondencja.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-korespondencja.entrypoints=websecure"
+      - "traefik.http.routers.szo-korespondencja.tls=true"
+      - "traefik.http.routers.szo-korespondencja.tls.certresolver=le"
+      - "traefik.http.routers.szo-korespondencja.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-korespondencja.service=feer"
+      - "traefik.http.routers.szo-korespondencja-http.rule=Host(`korespondencja.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-korespondencja-http.entrypoints=web"
+      - "traefik.http.routers.szo-korespondencja-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-korespondencja-http.service=feer"
+
+      # ── procedury.szo.feer.org.pl ────────────────────────────────────────────
+      - "traefik.http.routers.szo-procedury.rule=Host(`procedury.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-procedury.entrypoints=websecure"
+      - "traefik.http.routers.szo-procedury.tls=true"
+      - "traefik.http.routers.szo-procedury.tls.certresolver=le"
+      - "traefik.http.routers.szo-procedury.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-procedury.service=feer"
+      - "traefik.http.routers.szo-procedury-http.rule=Host(`procedury.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-procedury-http.entrypoints=web"
+      - "traefik.http.routers.szo-procedury-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-procedury-http.service=feer"
+
+      # ── komunikaty.szo.feer.org.pl ───────────────────────────────────────────
+      - "traefik.http.routers.szo-komunikaty.rule=Host(`komunikaty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-komunikaty.entrypoints=websecure"
+      - "traefik.http.routers.szo-komunikaty.tls=true"
+      - "traefik.http.routers.szo-komunikaty.tls.certresolver=le"
+      - "traefik.http.routers.szo-komunikaty.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-komunikaty.service=feer"
+      - "traefik.http.routers.szo-komunikaty-http.rule=Host(`komunikaty.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-komunikaty-http.entrypoints=web"
+      - "traefik.http.routers.szo-komunikaty-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-komunikaty-http.service=feer"
+
+      # ── admin.szo.feer.org.pl ────────────────────────────────────────────────
+      - "traefik.http.routers.szo-admin.rule=Host(`admin.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-admin.entrypoints=websecure"
+      - "traefik.http.routers.szo-admin.tls=true"
+      - "traefik.http.routers.szo-admin.tls.certresolver=le"
+      - "traefik.http.routers.szo-admin.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-admin.service=feer"
+      - "traefik.http.routers.szo-admin-http.rule=Host(`admin.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-admin-http.entrypoints=web"
+      - "traefik.http.routers.szo-admin-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-admin-http.service=feer"
+
+      # ── karty30.szo.feer.org.pl ──────────────────────────────────────────────
+      - "traefik.http.routers.szo-karty30.rule=Host(`karty30.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-karty30.entrypoints=websecure"
+      - "traefik.http.routers.szo-karty30.tls=true"
+      - "traefik.http.routers.szo-karty30.tls.certresolver=le"
+      - "traefik.http.routers.szo-karty30.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-karty30.service=feer"
+      - "traefik.http.routers.szo-karty30-http.rule=Host(`karty30.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-karty30-http.entrypoints=web"
+      - "traefik.http.routers.szo-karty30-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-karty30-http.service=feer"
+
+      # ── tozsamosc.szo.feer.org.pl ────────────────────────────────────────────
+      - "traefik.http.routers.szo-tozsamosc.rule=Host(`tozsamosc.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-tozsamosc.entrypoints=websecure"
+      - "traefik.http.routers.szo-tozsamosc.tls=true"
+      - "traefik.http.routers.szo-tozsamosc.tls.certresolver=le"
+      - "traefik.http.routers.szo-tozsamosc.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-tozsamosc.service=feer"
+      - "traefik.http.routers.szo-tozsamosc-http.rule=Host(`tozsamosc.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-tozsamosc-http.entrypoints=web"
+      - "traefik.http.routers.szo-tozsamosc-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-tozsamosc-http.service=feer"
+
+      # ── strukturaorg.szo.feer.org.pl ─────────────────────────────────────────
+      - "traefik.http.routers.szo-strukturaorg.rule=Host(`strukturaorg.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-strukturaorg.entrypoints=websecure"
+      - "traefik.http.routers.szo-strukturaorg.tls=true"
+      - "traefik.http.routers.szo-strukturaorg.tls.certresolver=le"
+      - "traefik.http.routers.szo-strukturaorg.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.szo-strukturaorg.service=feer"
+      - "traefik.http.routers.szo-strukturaorg-http.rule=Host(`strukturaorg.szo.feer.org.pl`)"
+      - "traefik.http.routers.szo-strukturaorg-http.entrypoints=web"
+      - "traefik.http.routers.szo-strukturaorg-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.szo-strukturaorg-http.service=feer"
+
+      # ════════════════════════════════════════════════════════════════════════
+      #  *.ngosystem.pl → *.szo.feer.org.pl — przekierowania 301
+      #
+      #  Zaktualizowany catch-all (nadpisuje regułę z docker-compose.prod.yml):
+      #  zachowuje nazwę subdomeny zamiast kierować wszystko na szo.feer.org.pl.
+      #  crm/ti/ezd/zadania.ngosystem.pl — własne reguły w prod.yml nadal działają.
+      # ════════════════════════════════════════════════════════════════════════
+
+      # ── Catch-all HTTPS: [sub].ngosystem.pl → [sub].szo.feer.org.pl ─────────
+      # Nadpisuje ngo-wildcard-redir z docker-compose.prod.yml.
+      # Priorytet 1 — wyższy niż domyślny (niższy niż reguły Host()).
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.regex=^https?://([a-z0-9-]+)\\.ngosystem\\.pl(.*)"
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.replacement=https://$${1}.szo.feer.org.pl$${2}"
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-wildcard-https.rule=HostRegexp(`^[a-z0-9-]+\\.ngosystem\\.pl$`)"
+      - "traefik.http.routers.ngo-wildcard-https.entrypoints=websecure"
+      - "traefik.http.routers.ngo-wildcard-https.tls=true"
+      - "traefik.http.routers.ngo-wildcard-https.priority=1"
+      - "traefik.http.routers.ngo-wildcard-https.service=feer"
+      - "traefik.http.routers.ngo-wildcard-https.middlewares=ngo-wildcard-redir@docker"
+
+      # ── Catch-all HTTP: [sub].ngosystem.pl → [sub].szo.feer.org.pl ──────────
+      - "traefik.http.routers.ngo-wildcard-http.rule=HostRegexp(`^[a-z0-9-]+\\.ngosystem\\.pl$`)"
+      - "traefik.http.routers.ngo-wildcard-http.entrypoints=web"
+      - "traefik.http.routers.ngo-wildcard-http.priority=1"
+      - "traefik.http.routers.ngo-wildcard-http.service=feer"
+      - "traefik.http.routers.ngo-wildcard-http.middlewares=ngo-wildcard-redir@docker"
