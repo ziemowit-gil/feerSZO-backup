@@ -13,7 +13,7 @@
 #
 # Użycie:
 #   bash apply-prod.sh                 # przeładuj stack (SQLite)
-#   bash apply-prod.sh --pull          # git pull --ff-only, potem przeładuj
+#   bash apply-prod.sh --pull          # git pull --ff-only + restart app (OPcache)
 #   bash apply-prod.sh --prune         # przeładuj + usuń osierocone kontenery
 #   bash apply-prod.sh --mysql         # wariant z MySQL
 #   bash apply-prod.sh --ng            # dołącz serwis Angular (ng-ui, szo.feer.org.pl/newUI/)
@@ -80,7 +80,7 @@ echo -e "${BOLD}━━ apply-prod ━━━━━━━━━━━━━━━�
 info "Tryb DB:      $([[ $USE_MYSQL -eq 1 ]] && echo MySQL || echo SQLite)"
 info "Angular UI:   $([[ $USE_NG -eq 1 ]] && echo 'tak (ng-ui → szo/newUI/)' || echo nie)"
 info "Kursant UI:   $([[ $USE_KURSANT -eq 1 ]] && echo 'tak (kursant-ui → ti/newUI/)' || echo nie)"
-info "git pull:     $([[ $DO_PULL -eq 1 ]] && echo 'tak (--ff-only)' || echo 'nie (bieżące drzewo)')"
+info "git pull:     $([[ $DO_PULL -eq 1 ]] && echo 'tak (--ff-only + restart app → OPcache)' || echo 'nie (bieżące drzewo)')"
 info "Rebuild:      $([[ $DO_BUILD -eq 1 ]] && echo tak || echo 'nie (tylko recreate)')"
 info "Remove-orphans: $([[ $DO_PRUNE -eq 1 ]] && echo tak || echo nie)"
 info "Polecenie:    ${COMPOSE} ${UP_ARGS}"
@@ -113,6 +113,14 @@ ok "Konfiguracja poprawna."
 info "Przeładowanie stacku…"
 $COMPOSE $UP_ARGS
 ok "Zastosowano."
+
+# Po git pull OPcache (validate_timestamps=0) nie widzi nowych plików —
+# wymuszamy restart kontenera app żeby wyczyścić cache bytecode.
+if [[ $DO_PULL -eq 1 ]]; then
+    info "Restart kontenera app (czyszczenie OPcache po git pull)…"
+    $COMPOSE restart app
+    ok "OPcache wyczyszczony."
+fi
 
 # ── 4. Status ───────────────────────────────────────────────────────────────
 echo ""
