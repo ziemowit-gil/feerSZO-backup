@@ -422,7 +422,7 @@ function auth_generate_setup_token(int $user_id): string {
 function login_user(array $user): void {
     auth_start();
     session_regenerate_id(true);
-    $_SESSION['user'] = [
+    $userData = [
         'id'           => $user['id'],
         'name'         => $user['name'],
         'email'        => $user['email'],
@@ -430,6 +430,7 @@ function login_user(array $user): void {
         'microsoft_id' => $user['microsoft_id'] ?? '',
         'portal_scope' => $user['portal_scope'] ?? null,
     ];
+    $_SESSION['user'] = $userData;
     // Inicjuj poziom zaufania sesji (1 = hasło)
     if (function_exists('tz_init_on_login')) {
         tz_init_on_login();
@@ -445,6 +446,28 @@ function login_user(array $user): void {
         $token = session_create_token((int)$user['id']);
         $_SESSION['_session_token'] = $token;
     } catch (\Throwable $e) {}
+
+    // Wymuś jawny zapis sesji PRZED redirectem — przy busy_timeout=0 lub
+    // błędzie IO sesja może nie zostać zapisana przez shutdown handler,
+    // co powoduje "odświeżenie" strony logowania bez komunikatu błędu.
+    $saved_sid = session_id();
+    session_write_close();
+    if ($saved_sid !== '') {
+        session_id($saved_sid);
+        session_start();
+    }
+    if (!isset($_SESSION['user'])) {
+        // Zapis do DbSessionHandler nie powiódł się — awaryjny fallback do plików.
+        error_log('[login_user] session write failed (user=' . ($user['email'] ?? '?') . ') — switching to file sessions');
+        ini_set('session.save_handler', 'files');
+        ini_set('session.save_path', sys_get_temp_dir());
+        session_regenerate_id(true);
+        $_SESSION['user']               = $userData;
+        $_SESSION['tz_auth_level']      = $_SESSION['tz_auth_level']      ?? 1;
+        $_SESSION['tz_auth_granted_at'] = $_SESSION['tz_auth_granted_at'] ?? time();
+        $_SESSION['tz_ua_hash']         = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
+        if (isset($token)) $_SESSION['_session_token'] = $token;
+    }
 }
 
 function logout_user(): void {

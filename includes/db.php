@@ -5,7 +5,10 @@ function db(): PDO {
 
     if (DB_TYPE === 'sqlite') {
         $pdo = new PDO('sqlite:' . DB_PATH);
-        $pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+        // busy_timeout: czekaj do 10s gdy DB zablokowana przez inny worker (WAL).
+        // Bez tego session_write_close() rzuca SQLITE_BUSY → sesja nie zapisana →
+        // użytkownik wraca na stronę logowania bez komunikatu błędu.
+        $pdo->exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000; PRAGMA foreign_keys=ON;');
     } else {
         $dsn = 'mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4';
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
