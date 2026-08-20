@@ -447,27 +447,12 @@ function login_user(array $user): void {
         $_SESSION['_session_token'] = $token;
     } catch (\Throwable $e) {}
 
-    // Wymuś jawny zapis sesji PRZED redirectem — przy busy_timeout=0 lub
-    // błędzie IO sesja może nie zostać zapisana przez shutdown handler,
-    // co powoduje "odświeżenie" strony logowania bez komunikatu błędu.
-    $saved_sid = session_id();
+    // Wymuś jawny zapis sesji PRZED redirectem.
+    // DbSessionHandler::write() jest chroniony busy_timeout=10000 (db.php) —
+    // czeka do 10s na WAL lock zamiast natychmiast rzucać SQLITE_BUSY.
+    // session_write_close() bez ponownego session_start() — nie ruszamy
+    // cookie-state po regeneracji, żeby przeglądarka dostała tylko jeden Set-Cookie.
     session_write_close();
-    if ($saved_sid !== '') {
-        session_id($saved_sid);
-        session_start();
-    }
-    if (!isset($_SESSION['user'])) {
-        // Zapis do DbSessionHandler nie powiódł się — awaryjny fallback do plików.
-        error_log('[login_user] session write failed (user=' . ($user['email'] ?? '?') . ') — switching to file sessions');
-        ini_set('session.save_handler', 'files');
-        ini_set('session.save_path', sys_get_temp_dir());
-        session_regenerate_id(true);
-        $_SESSION['user']               = $userData;
-        $_SESSION['tz_auth_level']      = $_SESSION['tz_auth_level']      ?? 1;
-        $_SESSION['tz_auth_granted_at'] = $_SESSION['tz_auth_granted_at'] ?? time();
-        $_SESSION['tz_ua_hash']         = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
-        if (isset($token)) $_SESSION['_session_token'] = $token;
-    }
 }
 
 function logout_user(): void {
