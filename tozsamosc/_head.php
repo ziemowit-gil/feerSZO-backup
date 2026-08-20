@@ -93,6 +93,17 @@ $TZ_ACTIVE = $TZ_ACTIVE ?? '';
     .tz-tile:hover,.tz-tile:focus-visible{border-color:var(--tz);box-shadow:0 0 0 3px rgba(37,99,235,.12);color:inherit;outline:none}
     .tz-tile__ico{width:38px;height:38px;border-radius:9px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:.6rem}
     .tz .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(37,99,235,.15)}
+    /* ── Kafel "bonto" (launcher zewnętrznych narzędzi) ── */
+    .tz-app-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.85rem;margin:.5rem 0}
+    .tz-app{position:relative;border-radius:16px;overflow:hidden;text-decoration:none;color:#fff;display:flex;flex-direction:column;min-height:148px;padding:1rem 1.1rem .9rem;transition:transform .14s,box-shadow .14s}
+    .tz-app::after{content:'';position:absolute;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.08);right:-35px;bottom:-55px;pointer-events:none}
+    .tz-app:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(2,6,23,.18);color:#fff}
+    .tz-app-ic{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
+    .tz-app-title{font-size:.98rem;font-weight:800;line-height:1.2;margin-top:.6rem;position:relative;z-index:1}
+    .tz-app-desc{font-size:.73rem;color:rgba(255,255,255,.8);margin-top:.2rem;flex:1;line-height:1.35;position:relative;z-index:1}
+    .tz-app-foot{display:flex;align-items:center;gap:.4rem;margin-top:.7rem;position:relative;z-index:1}
+    .tz-app-cta{font-size:.72rem;font-weight:700;color:rgba(255,255,255,.9);display:flex;align-items:center;gap:.25rem;text-decoration:none}
+    .tz-app-cta:hover{color:#fff;text-decoration:underline}
   </style>
 </head>
 <body>

@@ -665,6 +665,35 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       </div>
       <button type="button" class="tz-btn--ghost tz-btn btn-sm" disabled aria-disabled="true" style="opacity:.6;cursor:not-allowed">Wkrótce</button>
     </div>
+    <!-- Narzędzia zewnętrzne -->
+    <?php
+    $trello_ws_url = org_setting('trello_workspace_url') ?: 'https://trello.com';
+    ?>
+    <div class="border-top pt-3 mt-2">
+      <div class="text-muted fw-semibold mb-2 text-uppercase" style="letter-spacing:.07em;font-size:.67rem">
+        <i class="bi bi-grid me-1" aria-hidden="true"></i>Narzędzia zewnętrzne
+      </div>
+      <div class="tz-app-grid">
+        <a href="<?= h($trello_ws_url) ?>" target="_blank" rel="noopener noreferrer"
+           class="tz-app" style="background:linear-gradient(135deg,#026AA7,#0052CC)"
+           aria-label="Otwórz Trello">
+          <span class="tz-app-ic"><i class="bi bi-kanban" aria-hidden="true"></i></span>
+          <div class="tz-app-title">Trello</div>
+          <div class="tz-app-desc">Tablice Kanban — zarządzanie zadaniami i projektami zespołu</div>
+          <div class="tz-app-foot">
+            <?php if (can_write('admin')): ?>
+            <a href="<?= APP_URL ?>/admin/trello_import.php" class="tz-app-cta me-auto"
+               onclick="event.stopPropagation()" rel="noopener" title="Import zadań z Trello do SZO">
+              <i class="bi bi-download" aria-hidden="true"></i> Importuj
+            </a>
+            <?php endif; ?>
+            <span class="tz-app-cta ms-auto">
+              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Otwórz
+            </span>
+          </div>
+        </a>
+      </div>
+    </div>
   </div>
 </section>
 

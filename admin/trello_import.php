@@ -263,8 +263,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_credentials'])) 
     $_SESSION['trello_api_token'] = trim($_POST['api_token'] ?? '');
     header('Location: trello_import.php'); exit;
 }
-$saved_key   = $_SESSION['trello_api_key']   ?? '';
-$saved_token = $_SESSION['trello_api_token'] ?? '';
+// ── Zapisz URL workspace Trello (kafel w Tożsamości) ─────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_workspace_url'])) {
+    csrf_check();
+    $wu = trim($_POST['trello_workspace_url'] ?? '');
+    if ($wu && !filter_var($wu, FILTER_VALIDATE_URL)) {
+        flash_set('error', 'Nieprawidłowy URL workspace Trello.');
+    } else {
+        org_setting_set('trello_workspace_url', $wu);
+        flash_set('success', 'URL workspace Trello zapisany.');
+    }
+    header('Location: trello_import.php'); exit;
+}
+$saved_key         = $_SESSION['trello_api_key']   ?? '';
+$saved_token       = $_SESSION['trello_api_token'] ?? '';
+$trello_ws_setting = org_setting('trello_workspace_url');
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -701,5 +714,30 @@ function goStep(n) {
   }
 }
 </script>
+
+<?php
+/* ── Ustawienia Trello (kafel w module Tożsamości) ── */
+?>
+<div class="card mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-gear me-1"></i>Ustawienia Trello — kafel w module Tożsamości</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">Podaj URL przestrzeni roboczej (workspace) Trello, do której mają być prowadzeni użytkownicy przez kafel w module Tożsamości.</p>
+    <?= flash_display() ?>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="save_workspace_url" value="1">
+      <div class="col-md-9">
+        <label for="trello_ws_url" class="form-label small fw-semibold mb-1">URL workspace Trello</label>
+        <input type="url" id="trello_ws_url" name="trello_workspace_url" class="form-control form-control-sm"
+               value="<?= h($trello_ws_setting) ?>" placeholder="https://trello.com/w/twoj-workspace">
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="bi bi-save me-1"></i>Zapisz URL
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
