@@ -502,16 +502,32 @@ woła <code>ezd_log()</code>. Poniżej wybór najważniejszych funkcji publiczny
 <p><code>includes/ezd_kopia.php</code> — jeden silnik dla <b>każdego</b> dokumentu EZD. Wydruk składa się
 z odwzorowania treści (znak wodny na każdej stronie) i końcowej strony poświadczenia
 <i>„Potwierdzam zgodność kopii z dokumentem elektronicznym"</i> z metryką: identyfikator dokumentu,
-nazwa, tytuł, skrót SHA-256, wersja, data dokumentu, znak koszulki, akceptacja, data i autor wydruku.</p>
+nazwa, tytuł, skrót SHA-256, wersja, data dokumentu, znak koszulki, akceptacja i data wydruku.
+Znak wodny obejmuje tylko strony treści — strona poświadczenia jest go pozbawiona (jak w EZD RP).</p>
+<div class="note"><b>Dwa tryby autoryzacji kopii.</b> Wybór należy do osoby drukującej, dlatego
+<code>ezd_kopia_btn()</code> zawsze pokazuje oba przyciski.
+<ul>
+<li><b>Autoryzacja elektroniczna</b> (domyślna) — klauzulę zgodności autoryzuje system: metryka
+kończy się wierszem <code>Autor wydruku</code> z imieniem, stanowiskiem i kodem jednostki osoby
+drukującej (<code>org_user_units()</code>).</li>
+<li><b>Bez autoryzacji — do podpisu odręcznego</b> (<code>reczny=1</code>) — system <b>nie</b>
+poświadcza zgodności. Wiersz <code>Autor wydruku</code> znika, a pod metryką pojawia się miejsce na
+<i>miejscowość i datę</i>, <i>imię, nazwisko i stanowisko</i> oraz <i>podpis</i>. Strona poświadczenia
+jest jawnie oznaczona nagłówkiem <b>KOPIA NIEUWIERZYTELNIONA</b> i klauzulą, że bez podpisu
+odręcznego wydruk nie stanowi poświadczonej kopii — niepodpisany egzemplarz nie może uchodzić
+za uwierzytelniony. Nazwa pliku i tytuł PDF-a też rozróżniają tryb, a wpis w <code>ezd_log</code>
+zapisuje, który tryb wybrano.</li>
+</ul></div>
 <div class="tablewrap"><table class="fn">
 <tr><th>Sygnatura</th><th>Opis</th></tr>
 <tr><td><code>ezd_kopia_resolve(string $type, int $id): ?array</code></td><td>Metryka + źródło treści dla typu <code>pismo</code> / <code>dokument</code> / <code>umowa</code> / <code>zalacznik</code> / <code>zaswiadczenie</code>. <code>null</code>, gdy typ nieznany lub dokumentu nie ma.</td></tr>
 <tr><td><code>ezd_kopia_access(array $meta, int $uid): ?string</code></td><td>Uprawnienie: dostęp do koszulki dokumentu (<code>ezd_sprawa_access</code>); zaświadczenia bez koszulki — kancelaria/edytor albo autor wniosku.</td></tr>
-<tr><td><code>ezd_kopia_stream(array $meta, int $uid, array $opts=[]): void</code></td><td>Buduje PDF (mPDF) i streamuje inline. <code>$opts</code>: <code>watermark</code>, <code>download</code>.</td></tr>
+<tr><td><code>ezd_kopia_stream(array $meta, int $uid, array $opts=[]): void</code></td><td>Buduje PDF (mPDF) i streamuje inline. <code>$opts</code>: <code>watermark</code>, <code>download</code>, <code>manual</code> (kopia bez autoryzacji, do podpisu odręcznego).</td></tr>
 <tr><td><code>ezd_kopia_ident(string $type, int $id): string</code></td><td>Stały 32-znakowy identyfikator dokumentu — <code>md5(typ|id|sól instancji)</code>; sól w <code>settings.ezd_kopia_salt</code>.</td></tr>
 <tr><td><code>ezd_kopia_watermark(): string</code></td><td>Tekst znaku wodnego z <code>settings.ezd_kopia_watermark</code> (domyślnie „KOPIA ELEKTRONICZNA").</td></tr>
-<tr><td><code>ezd_kopia_cert_html(array $meta, int $uid): string</code></td><td>HTML strony poświadczenia (układ tabeli jak w EZD RP).</td></tr>
-<tr><td><code>ezd_kopia_btn(string $type, int $id, string $name='', string $style='icon', string $cls=''): string</code></td><td>Przycisk „Wydruk kopii" dla list i widoków; otwiera PDF w modalu <code>.ezd-pdf-btn</code>.</td></tr>
+<tr><td><code>ezd_kopia_cert_html(array $meta, int $uid, bool $manual=false): string</code></td><td>HTML strony poświadczenia (układ tabeli jak w EZD RP). <code>$manual</code> = bez autoryzacji elektronicznej, z blokiem podpisu odręcznego.</td></tr>
+<tr><td><code>ezd_kopia_btn(string $type, int $id, string $name='', string $style='icon', string $cls=''): string</code></td><td>Grupa dwóch przycisków „Wydruk kopii" (autoryzacja elektroniczna + do podpisu odręcznego); otwierają PDF w modalu <code>.ezd-pdf-btn</code>.</td></tr>
+<tr><td><code>ezd_kopia_btn_one(…, bool $manual=false): string</code></td><td>Pojedynczy przycisk w wybranym trybie — gdy w danym miejscu ma być tylko jeden.</td></tr>
 </table></div>
 <div class="note"><b>Odwzorowanie treści per źródło.</b> PDF → strony importowane przez FPDI
 (przy błędzie parsera: normalizacja <code>qpdf --decrypt --stream-data=uncompress</code> i druga próba);
@@ -554,7 +570,7 @@ Pełną, interaktywną specyfikację otworzysz w <a href="./index.php">Swagger U
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/office_online.php</code></td><td>Redirect do edytora Office Online (przez SharePoint/Graph)</td></tr>
 <tr><td><span class="m post">POST</span></td><td><code>/ezd/office_online_pull.php</code></td><td>Pull treści po edycji — <span class="pill acc">JSON (AJAX)</span></td></tr>
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/validate_signature.php</code></td><td>Walidacja podpisu elektronicznego — <span class="pill acc">JSON</span></td></tr>
-<tr><td><span class="m get">GET</span></td><td><code>/ezd/kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego → PDF. <code>type</code> = pismo | dokument | umowa | zalacznik | zaswiadczenie, <code>id</code>, opcjonalnie <code>wm=0</code> (bez znaku wodnego), <code>dl=1</code> (pobranie)</td></tr>
+<tr><td><span class="m get">GET</span></td><td><code>/ezd/kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego → PDF. <code>type</code> = pismo | dokument | umowa | zalacznik | zaswiadczenie, <code>id</code>, opcjonalnie <code>reczny=1</code> (kopia bez autoryzacji, do podpisu odręcznego), <code>wm=0</code> (bez znaku wodnego), <code>dl=1</code> (pobranie)</td></tr>
 </table></div>
 
 <div class="note"><b>Endpointy nie-HTML.</b> Dwa realne endpointy JSON:

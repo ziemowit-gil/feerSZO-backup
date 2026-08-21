@@ -426,8 +426,18 @@ function _ezd_kopia_content_html(string $sygnatura, string $title, array $rows, 
         . '</div>';
 }
 
-/** Strona poświadczenia zgodności kopii — układ jak w EZD RP. */
-function ezd_kopia_cert_html(array $meta, int $user_id): string {
+/**
+ * Strona poświadczenia zgodności kopii — układ jak w EZD RP.
+ *
+ * Dwa tryby autoryzacji:
+ *  - elektroniczny (domyślny): klauzulę zgodności autoryzuje system, podając
+ *    w metryce autora wydruku;
+ *  - odręczny ($manual = true): system NIE autoryzuje kopii — zamiast wiersza
+ *    „Autor wydruku" wstawia miejsce na miejscowość, datę, dane i podpis osoby
+ *    potwierdzającej zgodność. Do czasu podpisania taki wydruk jest jawnie
+ *    oznaczony jako kopia nieuwierzytelniona.
+ */
+function ezd_kopia_cert_html(array $meta, int $user_id, bool $manual = false): string {
     $a = $meta['akceptacja'] ?? null;
 
     $row = function (string $label, string $value, bool $mono = false) {
@@ -435,8 +445,13 @@ function ezd_kopia_cert_html(array $meta, int $user_id): string {
              . '<td class="val' . ($mono ? ' mono' : '') . '">' . h($value) . '</td></tr>';
     };
 
-    $html = '<div class="cert">'
-        . '<div class="cert-h">Potwierdzam zgodność kopii z dokumentem elektronicznym:</div>'
+    $html = '<div class="cert">';
+
+    if ($manual) {
+        $html .= '<div class="cert-nieuw">KOPIA NIEUWIERZYTELNIONA — do potwierdzenia podpisem odręcznym</div>';
+    }
+
+    $html .= '<div class="cert-h">Potwierdzam zgodność kopii z dokumentem elektronicznym:</div>'
         . '<table class="cert-t">'
         . $row('Identyfikator dokumentu', $meta['identyfikator'], true)
         . $row('Nazwa dokumentu',  (string)$meta['nazwa'])
@@ -467,11 +482,39 @@ function ezd_kopia_cert_html(array $meta, int $user_id): string {
     }
 
     $html .= '<tr><td class="lbl"></td><td class="val sys">' . h(_ezd_kopia_system_label()) . '</td></tr>'
-        . $row('Data wydruku',  date('Y-m-d'))
-        . $row('Autor wydruku', ezd_kopia_autor($user_id))
-        . '</table></div>';
+        . $row('Data wydruku', date('Y-m-d'));
 
-    return $html;
+    // Autoryzacja: elektroniczna (system podaje autora) albo odręczna (miejsce na podpis)
+    if (!$manual) {
+        $html .= $row('Autor wydruku', ezd_kopia_autor($user_id));
+    }
+
+    $html .= '</table>';
+
+    if ($manual) $html .= _ezd_kopia_sig_block();
+
+    return $html . '</div>';
+}
+
+/** Blok podpisu odręcznego pod metryką — miejscowość i data, dane osoby, podpis. */
+function _ezd_kopia_sig_block(): string {
+    return '<table class="sig-t">'
+        . '<tr>'
+        . '<td class="sig-line">&nbsp;</td><td class="sig-gap"></td><td class="sig-line">&nbsp;</td>'
+        . '</tr><tr>'
+        . '<td class="sig-cap">miejscowość i data</td><td class="sig-gap"></td>'
+        . '<td class="sig-cap">imię, nazwisko i stanowisko osoby<br>potwierdzającej zgodność kopii</td>'
+        . '</tr><tr>'
+        . '<td class="sig-spacer" colspan="3">&nbsp;</td>'
+        . '</tr><tr>'
+        . '<td class="sig-gap"></td><td class="sig-gap"></td><td class="sig-line">&nbsp;</td>'
+        . '</tr><tr>'
+        . '<td class="sig-gap"></td><td class="sig-gap"></td>'
+        . '<td class="sig-cap">podpis</td>'
+        . '</tr></table>'
+        . '<div class="cert-uwaga">Kopia nieuwierzytelniona. Bez podpisu odręcznego osoby '
+        . 'potwierdzającej zgodność niniejszy wydruk nie stanowi poświadczonej kopii dokumentu '
+        . 'elektronicznego — jest wyłącznie jego odwzorowaniem.</div>';
 }
 
 function _ezd_kopia_system_label(): string {
@@ -503,6 +546,18 @@ body { font-family: dejavusans, sans-serif; font-size: 10.5pt; color: #000; }
 .cert-sub  { width: 100%; border-collapse: collapse; }
 .cert-sub td { border: 0.5pt solid #808080; padding: 4pt 6pt; }
 .cert-sub .lbl2 { width: 42%; background: #f2f2f2; text-align: right; }
+
+.cert-nieuw { border: 0.8pt solid #333; background: #f2f2f2; padding: 5pt 8pt; margin-bottom: 10pt;
+              text-align: center; font-weight: bold; font-size: 9pt; letter-spacing: 0.05em; }
+.cert-uwaga { margin-top: 10pt; font-size: 8pt; font-style: italic; color: #333; text-align: justify; }
+.sig-t             { width: 100%; border-collapse: collapse; margin-top: 22pt; font-size: 8.5pt; }
+.sig-t td          { border: 0; padding: 0; vertical-align: bottom; }
+/* Selektory kwalifikowane klasą td — inaczej „.sig-t td{border:0}" wygrywa specyficznością
+   i zjada dolną krawędź, czyli całą linię do podpisu. */
+.sig-t td.sig-line { width: 40%; border-bottom: 0.6pt dotted #000; padding-top: 26pt; }
+.sig-t td.sig-gap  { width: 20%; }
+.sig-t td.sig-cap  { text-align: center; color: #333; font-size: 7.5pt; padding-top: 2pt; vertical-align: top; }
+.sig-t td.sig-spacer { padding-top: 22pt; }
 CSS;
 }
 
@@ -530,7 +585,9 @@ function ezd_kopia_watermark(): string {
 
 /**
  * Buduje i streamuje PDF kopii do przeglądarki (inline).
- * @param array $opts ['watermark'=>bool, 'download'=>bool]
+ * @param array $opts ['watermark'=>bool, 'download'=>bool, 'manual'=>bool]
+ *                    manual = kopia bez autoryzacji elektronicznej, z miejscem
+ *                    na podpis odręczny (patrz ezd_kopia_cert_html()).
  * @throws \Throwable
  */
 function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
@@ -549,7 +606,9 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
         'default_font'  => 'dejavusans',
         'tempDir'       => $tmp,
     ]);
-    $mpdf->SetTitle('Kopia dokumentu elektronicznego — ' . $meta['nazwa']);
+    $manual = (bool)($opts['manual'] ?? false);
+    $mpdf->SetTitle('Kopia dokumentu elektronicznego'
+        . ($manual ? ' (do podpisu odręcznego)' : '') . ' — ' . $meta['nazwa']);
     $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
     $mpdf->SetCreator('EZD ' . (defined('APP_VERSION') ? APP_VERSION : ''));
 
@@ -616,9 +675,10 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
         'mgl' => 20, 'mgr' => 20, 'mgt' => 18, 'mgb' => 18, 'mgh' => 0, 'mgf' => 0,
     ]);
     $mpdf->showWatermarkText = false;
-    $mpdf->WriteHTML(ezd_kopia_cert_html($meta, $user_id));
+    $mpdf->WriteHTML(ezd_kopia_cert_html($meta, $user_id, (bool)($opts['manual'] ?? false)));
 
-    $fname = 'kopia_' . preg_replace('/[^a-zA-Z0-9\-_]+/', '_', (string)$meta['nazwa']) . '.pdf';
+    $fname = 'kopia' . ($manual ? '_do_podpisu' : '') . '_'
+        . preg_replace('/[^a-zA-Z0-9\-_]+/', '_', (string)$meta['nazwa']) . '.pdf';
     try {
         $mpdf->Output($fname, ($opts['download'] ?? false)
             ? \Mpdf\Output\Destination::DOWNLOAD
@@ -775,17 +835,49 @@ function _ezd_kopia_page_note(\Mpdf\Mpdf $mpdf, array $meta, string $note): void
 /* ── UI ──────────────────────────────────────────────────────────────────── */
 
 /**
- * Przycisk „Wydruk kopii" — jedno źródło wyglądu dla wszystkich list i widoków.
- * Otwiera PDF we współdzielonym modalu podglądu (includes/ezd_pdf_modal.php).
- * @param string $style 'icon' (kompaktowy) | 'label' (z podpisem)
+ * Przyciski „Wydruk kopii" — jedno źródło wyglądu dla wszystkich list i widoków.
+ * Zawsze udostępnia OBA tryby autoryzacji (grupa dwóch przycisków), bo wybór
+ * należy do osoby drukującej:
+ *   1. kopia autoryzowana elektronicznie (metryka z autorem wydruku),
+ *   2. kopia bez autoryzacji — z miejscem na podpis odręczny (`reczny=1`).
+ * Oba otwierają PDF we współdzielonym modalu podglądu (includes/ezd_pdf_modal.php).
+ *
+ * @param string $style 'icon' (kompaktowy, do wierszy list) | 'label' (z podpisem)
  */
 function ezd_kopia_btn(string $type, int $id, string $name = '', string $style = 'icon', string $extra_cls = ''): string {
-    $url = APP_URL . '/ezd/kopia.php?type=' . urlencode($type) . '&id=' . (int)$id;
-    $cls = trim('btn btn-outline-dark ezd-pdf-btn ' . $extra_cls);
-    $lbl = $style === 'label' ? '<i class="bi bi-printer me-1"></i>Wydruk kopii' : '<i class="bi bi-printer"></i>';
+    return '<span class="btn-group" role="group" aria-label="Wydruk kopii dokumentu elektronicznego">'
+        . ezd_kopia_btn_one($type, $id, $name, $style, $extra_cls, false)
+        . ezd_kopia_btn_one($type, $id, $name, $style, $extra_cls, true)
+        . '</span>';
+}
+
+/**
+ * Pojedynczy przycisk wydruku kopii w wybranym trybie autoryzacji.
+ * @param bool $manual true = kopia bez autoryzacji, do podpisu odręcznego
+ */
+function ezd_kopia_btn_one(string $type, int $id, string $name = '', string $style = 'icon', string $extra_cls = '', bool $manual = false): string {
+    $url = APP_URL . '/ezd/kopia.php?type=' . urlencode($type) . '&id=' . (int)$id
+         . ($manual ? '&reczny=1' : '');
+    $cls = trim('btn ' . ($manual ? 'btn-outline-secondary' : 'btn-outline-dark') . ' ezd-pdf-btn ' . $extra_cls);
+
+    $tytul = $manual
+        ? 'Wydruk kopii BEZ autoryzacji elektronicznej — z miejscem na podpis odręczny'
+        : 'Wydruk kopii dokumentu elektronicznego (autoryzacja elektroniczna, z poświadczeniem zgodności)';
+
+    if ($style === 'label') {
+        $lbl = $manual
+            ? '<i class="bi bi-pen me-1"></i>Kopia do podpisu'
+            : '<i class="bi bi-printer me-1"></i>Wydruk kopii';
+    } else {
+        $lbl = $manual ? '<i class="bi bi-pen"></i>' : '<i class="bi bi-printer"></i>';
+    }
+
+    $mname = ($manual ? 'Kopia do podpisu — ' : 'Kopia — ')
+           . ($name !== '' ? $name : (EZD_KOPIA_TYPES[$type] ?? $type));
+
     return '<a href="' . h($url) . '" class="' . h($cls) . '"'
-         . ' title="Wydruk kopii dokumentu elektronicznego (z poświadczeniem zgodności)"'
+         . ' title="' . h($tytul) . '"'
          . ' data-url="' . h($url) . '"'
-         . ' data-name="Kopia — ' . h($name !== '' ? $name : (EZD_KOPIA_TYPES[$type] ?? $type)) . '">'
+         . ' data-name="' . h($mname) . '">'
          . $lbl . '</a>';
 }

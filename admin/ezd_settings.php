@@ -171,10 +171,17 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="card-header fw-semibold"><i class="bi bi-printer me-2 text-primary"></i>Wydruk kopii dokumentu elektronicznego</div>
         <div class="card-body">
           <p class="text-muted mb-3" style="font-size:.86rem">
-            Każdy dokument EZD (pismo, dokument wewnętrzny, umowa, plik w repozytorium koszulki) można
-            wydrukować jako <strong>kopię dokumentu elektronicznego</strong>: treść ze znakiem wodnym na każdej
+            Każdy dokument EZD (pismo, dokument wewnętrzny, umowa, plik w repozytorium koszulki,
+            wydane zaświadczenie) można wydrukować jako <strong>kopię dokumentu elektronicznego</strong>: treść ze znakiem wodnym na każdej
             stronie plus końcowa strona poświadczenia <em>„Potwierdzam zgodność kopii z dokumentem
-            elektronicznym"</em> z metryką (identyfikator, skrót SHA-256, wersja, akceptacja, data i autor wydruku).
+            elektronicznym"</em> z metryką (identyfikator, skrót SHA-256, wersja, akceptacja, data wydruku).
+          </p>
+          <p class="text-muted mb-3" style="font-size:.86rem">
+            Przy każdym dokumencie dostępne są <strong>dwa tryby</strong>: kopia
+            <strong>autoryzowana elektronicznie</strong> (metryka podaje autora wydruku) oraz kopia
+            <strong>bez autoryzacji — do podpisu odręcznego</strong>, gdzie zamiast autora wydruku
+            jest miejsce na miejscowość, datę, dane i podpis osoby potwierdzającej zgodność.
+            Ta druga jest oznaczona nagłówkiem „KOPIA NIEUWIERZYTELNIONA" do czasu podpisania.
           </p>
           <div class="row g-3">
             <div class="col-sm-6" style="max-width:340px">
