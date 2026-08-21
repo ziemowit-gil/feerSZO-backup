@@ -392,53 +392,104 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <i class="bi bi-exclamation-triangle me-1"></i>Brak PDF w załącznikach — wymagany do wysyłki.
           </div>
           <?php else: ?>
-          <form method="post" action="<?= APP_URL ?>/ezd/pisma/postivo_action.php" class="mb-0">
+          <form method="post" action="<?= APP_URL ?>/ezd/pisma/postivo_action.php" class="mb-0" id="postivo-send-form">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="pismo_id" value="<?= $id ?>">
             <input type="hidden" name="postivo_action" value="send">
+            <div class="mb-2 position-relative">
+              <label class="form-label mb-1" style="font-size:.75rem;font-weight:600">Szukaj kontaktu CRM</label>
+              <input type="text" id="postivo-crm-q" class="form-control form-control-sm"
+                     placeholder="Wpisz imię, nazwisko lub firmę…" autocomplete="off">
+              <ul id="postivo-crm-list" class="list-group shadow-sm position-absolute w-100"
+                  style="z-index:9999;display:none;max-height:160px;overflow-y:auto;font-size:.78rem;top:100%"></ul>
+            </div>
             <div class="mb-2">
               <label class="form-label mb-1" style="font-size:.75rem;font-weight:600">Odbiorca</label>
-              <input type="text" name="recipient_name" class="form-control form-control-sm"
+              <input type="text" name="recipient_name" id="postivo-name" class="form-control form-control-sm"
                      value="<?= h($pismo['odbiorca']) ?>" placeholder="Imię Nazwisko / Firma" required>
             </div>
             <div class="row g-1 mb-1">
               <div class="col-8">
-                <input type="text" name="address_line1" class="form-control form-control-sm" placeholder="Ulica" required>
+                <input type="text" name="address_line1" id="postivo-street" class="form-control form-control-sm" placeholder="Ulica" required>
               </div>
               <div class="col-2">
-                <input type="text" name="home_number" class="form-control form-control-sm" placeholder="Nr d.">
+                <input type="text" name="home_number" id="postivo-house" class="form-control form-control-sm" placeholder="Nr d.">
               </div>
               <div class="col-2">
-                <input type="text" name="flat_number" class="form-control form-control-sm" placeholder="m.">
+                <input type="text" name="flat_number" id="postivo-flat" class="form-control form-control-sm" placeholder="m.">
               </div>
             </div>
             <div class="row g-1 mb-2">
               <div class="col-4">
-                <input type="text" name="postcode" class="form-control form-control-sm" placeholder="00-000"
+                <input type="text" name="postcode" id="postivo-postal" class="form-control form-control-sm" placeholder="00-000"
                        pattern="\d{2}-\d{3}" required>
               </div>
               <div class="col-8">
-                <input type="text" name="city" class="form-control form-control-sm" placeholder="Miasto" required>
+                <input type="text" name="city" id="postivo-city" class="form-control form-control-sm" placeholder="Miasto" required>
               </div>
             </div>
             <div class="mb-1">
               <label class="form-label mb-1" style="font-size:.75rem;font-weight:600"
                      title="Pojawi się na stronie tytułowej listu">Co to jest ten dokument?</label>
               <input type="text" name="doc_title" class="form-control form-control-sm"
-                     value="<?= h($pismo['title'] ?? $pismo['tytul'] ?? '') ?>"
+                     value="<?= h($pismo['title'] ?? '') ?>"
                      placeholder="np. Zaświadczenie o wolontariacie" required>
             </div>
             <div class="mb-2">
               <label class="form-label mb-1" style="font-size:.75rem;font-weight:600"
                      title="Pojawi się na stronie tytułowej jako wyjaśnienie dla odbiorcy">Dlaczego odbiorca otrzymuje list?</label>
               <input type="text" name="doc_reason" class="form-control form-control-sm"
-                     placeholder="np. W związku z zakończeniem okresu wolontariatu..." required>
+                     placeholder="np. W związku z zakończeniem okresu wolontariatu…" required>
             </div>
             <button type="submit" class="btn btn-primary btn-sm w-100"
                     onclick="return confirm('Wysłać list przez Postivo.pl?')">
               <i class="bi bi-send me-1"></i>Wyślij listem
             </button>
           </form>
+          <script>
+          (function(){
+            const q      = document.getElementById('postivo-crm-q');
+            const list   = document.getElementById('postivo-crm-list');
+            const f      = { name:   document.getElementById('postivo-name'),
+                             street: document.getElementById('postivo-street'),
+                             house:  document.getElementById('postivo-house'),
+                             flat:   document.getElementById('postivo-flat'),
+                             postal: document.getElementById('postivo-postal'),
+                             city:   document.getElementById('postivo-city') };
+            let timer;
+            q.addEventListener('input', () => {
+              clearTimeout(timer);
+              if (q.value.length < 2) { list.style.display='none'; return; }
+              timer = setTimeout(() => {
+                fetch('<?= APP_URL ?>/ezd/pisma/postivo_crm_search.php?q=' + encodeURIComponent(q.value))
+                  .then(r => r.json()).then(rows => {
+                    list.innerHTML = '';
+                    if (!rows.length) { list.style.display='none'; return; }
+                    rows.forEach(r => {
+                      const li = document.createElement('li');
+                      li.className = 'list-group-item list-group-item-action py-1 px-2';
+                      li.style.cursor = 'pointer';
+                      li.textContent = r.label;
+                      li.addEventListener('mousedown', e => {
+                        e.preventDefault();
+                        f.name.value   = r.name;
+                        f.street.value = r.street;
+                        f.house.value  = r.house;
+                        f.flat.value   = r.flat;
+                        f.postal.value = r.postal;
+                        f.city.value   = r.city;
+                        q.value = r.label;
+                        list.style.display = 'none';
+                      });
+                      list.appendChild(li);
+                    });
+                    list.style.display = 'block';
+                  }).catch(() => { list.style.display='none'; });
+              }, 280);
+            });
+            q.addEventListener('blur', () => setTimeout(() => list.style.display='none', 150));
+          })();
+          </script>
           <?php endif; ?>
         <?php else: ?>
         <div class="text-muted" style="font-size:.78rem">Pismo nie zostało nadane przez Postivo.pl.</div>
