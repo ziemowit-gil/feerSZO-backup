@@ -142,6 +142,10 @@ try {
 // Przydatne linki
 $przydatne_linki = json_decode(org_setting('ezd_przydatne_linki') ?: '[]', true) ?: [];
 
+// Książka nadawcza (RPW-W)
+$rpwy_stats = ['do_nadania'=>0,'oczek_zpo'=>0,'zwroty'=>0,'dzis'=>0,'rok'=>0,'koszt_rok'=>0.0];
+try { if (function_exists('ezd_rpwy_stats')) $rpwy_stats = ezd_rpwy_stats(); } catch(\Throwable $e) {}
+
 // eDoręczenia
 $ede_ade   = org_setting('ezd_ede_ade')   ?: 'AE:PL-70366-85524-UJBAB-23';
 $ede_email = org_setting('ezd_ede_email') ?: 'fundacja@feer.org.pl';
@@ -395,8 +399,13 @@ include dirname(__DIR__) . '/includes/header.php';
         ],
         [
           ['href' => APP_URL.'/ezd/rpw/index.php',           'icon' => 'bi-inbox-fill',       'ic' => '#b45309', 'bg' => '#fffbeb', 'lbl' => 'RPW', 'badge' => (int)$rpw_stats['koszulka']],
+          ['href' => APP_URL.'/ezd/rpwy/index.php',          'icon' => 'bi-send',             'ic' => '#1d4ed8', 'bg' => '#eff6ff', 'lbl' => 'Książka nadawcza', 'badge' => (int)$rpwy_stats['do_nadania']],
           ['modal'=> '#ezdEDoreczeniaModal',                  'icon' => 'bi-envelope-paper',   'ic' => '#0369a1', 'bg' => '#f0f9ff', 'lbl' => 'eDoręczenia'],
+        ],
+        [
           ['href' => APP_URL.'/ezd/zaswiadczenia/index.php', 'icon' => 'bi-award',            'ic' => '#7c3aed', 'bg' => '#faf5ff', 'lbl' => 'Zaświadczenia'],
+          ['href' => APP_URL.'/ezd/terminarz.php',           'icon' => 'bi-calendar-check',   'ic' => '#0f766e', 'bg' => '#f0fdfa', 'lbl' => 'Terminarz'],
+          ['href' => APP_URL.'/ezd/szukaj.php',              'icon' => 'bi-search',           'ic' => '#475569', 'bg' => '#f8fafc', 'lbl' => 'Szukaj'],
         ],
       ];
       foreach ($qa_rows as $row): ?>
@@ -429,6 +438,8 @@ include dirname(__DIR__) . '/includes/header.php';
         ['v'=>$stats['pisma_month'],  'l'=>'Pisma/mies.', 'i'=>'bi-envelope-arrow-down', 'c'=>'info'],
         ['v'=>$arch_stats['spisy']??0,'l'=>'Spisy zd.',   'i'=>'bi-box-seam',            'c'=>'secondary'],
         ['v'=>$rpw_stats['rpw_dzis'],'l'=>'RPW dziś',    'i'=>'bi-inbox',               'c'=>'warning'],
+        ['v'=>$rpwy_stats['do_nadania'],'l'=>'Do nadania','i'=>'bi-send',              'c'=>'primary'],
+        ['v'=>$rpwy_stats['oczek_zpo'], 'l'=>'Czeka na ZPO','i'=>'bi-hourglass-split', 'c'=>'info'],
       ]; ?>
       <?php foreach($stat_items as $it): ?>
       <div class="col-6">

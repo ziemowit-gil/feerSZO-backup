@@ -1782,6 +1782,14 @@ function ezd_pismo_create(array $d, int $user_id): int {
         }
     }
 
+    // Auto-wpis do książki nadawczej (RPW-W) — wyłączalny ustawieniem ezd_rpwy_auto=0
+    if (($d['kierunek'] ?? '') === 'wychodzace' && org_setting('ezd_rpwy_auto') !== '0') {
+        try {
+            require_once __DIR__ . '/ezd_rpwy.php';
+            ezd_rpwy_from_pismo($id, [], $user_id);
+        } catch (\Throwable $e) { /* rejestr nie może blokować rejestracji pisma */ }
+    }
+
     return $id;
 }
 
@@ -4074,3 +4082,6 @@ require_once __DIR__ . '/ezd_archiwum.php';
 
 // ── Szablony pism / korespondencja seryjna ────────────────────────────────────
 require_once __DIR__ . '/ezd_szablony.php';
+
+// ── Książka nadawcza (rejestr przesyłek wychodzących) ─────────────────────────
+require_once __DIR__ . '/ezd_rpwy.php';

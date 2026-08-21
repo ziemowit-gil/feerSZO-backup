@@ -3,11 +3,15 @@
 $_ezd_sp = parse_url($_uri ?? ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? '';
 
 // Pobierz odznaki (ostrożnie — te pliki mogą nie być jeszcze załadowane)
-$_esb_rpw = $_esb_dekr = 0;
+$_esb_rpw = $_esb_rpwy = $_esb_dekr = 0;
 try {
     if (function_exists('ezd_rpw_stats')) {
         $__rs       = ezd_rpw_stats();
         $_esb_rpw   = (int)($__rs['koszulka'] ?? 0);
+    }
+    if (function_exists('ezd_rpwy_stats')) {
+        $__ws       = ezd_rpwy_stats();
+        $_esb_rpwy  = (int)($__ws['do_nadania'] ?? 0);
     }
     if (function_exists('db_one') && function_exists('current_user') && ($__cu = current_user())) {
         $_esb_dekr  = (int)(db_one(
@@ -68,6 +72,14 @@ function _esb_exact(string $path): string {
       <i class="bi bi-mailbox2" aria-hidden="true"></i><span>Dziennik podawczy</span>
       <?php if ($_esb_rpw): ?>
       <span class="ezd-sb-badge"><?= $_esb_rpw ?></span>
+      <?php endif; ?>
+    </a>
+
+    <a href="<?= APP_URL ?>/ezd/rpwy/index.php"
+       class="ezd-sb-link<?= _esb_a('/ezd/rpwy/') ?>">
+      <i class="bi bi-send" aria-hidden="true"></i><span>Książka nadawcza</span>
+      <?php if ($_esb_rpwy): ?>
+      <span class="ezd-sb-badge"><?= $_esb_rpwy ?></span>
       <?php endif; ?>
     </a>
 

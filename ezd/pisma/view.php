@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
@@ -148,6 +149,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/pisma/wersje.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm">
               <i class="bi bi-clock-history me-1"></i>Historia
             </a>
+            <?= ezd_kopia_btn('pismo', $id, $pismo['sygnatura'], 'label', 'btn-sm') ?>
             <?php if($pismo['tresc'] || $pismo['title']): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
                class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
@@ -206,6 +208,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php elseif (!empty($z['sp_web_url'])): ?>
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
+          <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm flex-shrink-0') ?>
           <?php if($can_act && $pismo['sprawa_status']!=='closed' && $zext === 'pdf'): ?>
           <button type="button" class="btn btn-sm ezd-rsign-btn flex-shrink-0"
                   title="Podpisz rSign (kwalifikowany PAdES)"
@@ -269,6 +272,43 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </dl>
       </div>
     </div>
+
+    <!-- Książka nadawcza (tylko pisma wychodzące) -->
+    <?php if ($pismo['kierunek'] === 'wychodzace'):
+      $rpwy = ezd_rpwy_for_pismo($id);
+      $rpwy_sp = $rpwy ? (EZD_RPWY_SPOSOBY[$rpwy['sposob']] ?? ['label'=>$rpwy['sposob'],'icon'=>'bi-envelope']) : null; ?>
+    <div class="card shadow-sm mb-3 <?= $rpwy ? 'border-primary' : '' ?>">
+      <div class="card-header fw-semibold" style="font-size:.82rem">
+        <i class="bi bi-send me-1 text-<?= $rpwy ? 'primary' : 'secondary' ?>"></i>Książka nadawcza
+        <?php if ($rpwy): ?>
+        <span class="badge bg-primary ms-1" style="font-size:.6rem"><?= h(ezd_rpwy_label($rpwy)) ?></span>
+        <?php endif; ?>
+      </div>
+      <div class="card-body" style="font-size:.82rem">
+        <?php if ($rpwy): ?>
+        <div class="mb-2">
+          <?= ezd_rpwy_status_badge($rpwy['status']) ?>
+          <span class="text-muted ms-1"><i class="bi <?= $rpwy_sp['icon'] ?> me-1"></i><?= h($rpwy_sp['label']) ?></span>
+        </div>
+        <div class="text-muted mb-1" style="font-size:.78rem">
+          Nadano: <?= date_pl($rpwy['data_wysylki']) ?>
+          <?php if($rpwy['nr_nadania']): ?><br>Nr nadania: <span class="font-monospace"><?= h($rpwy['nr_nadania']) ?></span><?php endif; ?>
+          <?php if($rpwy['data_doreczenia']): ?><br><i class="bi bi-check2-circle text-success me-1"></i>Doręczono: <?= date_pl($rpwy['data_doreczenia']) ?><?php endif; ?>
+        </div>
+        <a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$rpwy['id'] ?>" class="btn btn-outline-primary btn-sm w-100 mt-1">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz wpis
+        </a>
+        <?php else: ?>
+        <div class="text-muted" style="font-size:.78rem">Pismo nie ma wpisu w książce nadawczej.</div>
+        <?php if(can_edit()): ?>
+        <a href="<?= APP_URL ?>/ezd/rpwy/add.php?pismo_id=<?= $id ?>" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+          <i class="bi bi-plus me-1"></i>Zarejestruj wysyłkę
+        </a>
+        <?php endif; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Powiązana korespondencja -->
     <?php if ($corr_enabled): ?>

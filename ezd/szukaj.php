@@ -23,7 +23,7 @@ $scopes  = $_GET['scope'] ?? [];
 if (!is_array($scopes)) $scopes = [];
 
 // Wszystkie dostępne typy wyników
-$ALL_SCOPES = ['teczki', 'sprawy', 'pisma', 'dokumenty', 'umowy', 'rpw', 'zalaczniki', 'zaswiadczenia'];
+$ALL_SCOPES = ['teczki', 'sprawy', 'pisma', 'dokumenty', 'umowy', 'rpw', 'rpwy', 'zalaczniki', 'zaswiadczenia'];
 $active_scopes = $scopes ? array_intersect($scopes, $ALL_SCOPES) : $ALL_SCOPES;
 
 $PAGE_TITLE = 'Szukaj w EZD' . ($q !== '' ? ' — ' . $q : '');
@@ -36,7 +36,7 @@ function ezd_hl(string $text, string $q): string {
     return preg_replace($pat, '<mark class="px-0 py-0" style="background:#fef08a">$0</mark>', $esc);
 }
 
-$teczki = $sprawy = $pisma = $dokumenty = $umowy = $rpw = $zalaczniki = $zaswiadczenia = [];
+$teczki = $sprawy = $pisma = $dokumenty = $umowy = $rpw = $rpwy = $zalaczniki = $zaswiadczenia = [];
 
 if (mb_strlen($q) >= 2) {
 
@@ -44,6 +44,7 @@ if (mb_strlen($q) >= 2) {
     $rok_cond_s  = $rok ? "AND strftime('%Y',s.created_at)='$rok'" : '';
     $rok_cond_p  = $rok ? "AND strftime('%Y',p.created_at)='$rok'" : '';
     $rok_cond_r  = $rok ? "AND r.rok=$rok"             : '';
+    $rok_cond_w  = $rok ? "AND w.rok=$rok"             : '';
 
     // Dostęp do koszulki per-wiersz (cache)
     $access_cache = [];
@@ -131,6 +132,19 @@ if (mb_strlen($q) >= 2) {
         );
     }
 
+    if (in_array('rpwy', $active_scopes, true)) {
+        $rpwy = db_all(
+            "SELECT w.id, w.rpwy_nr, w.rok, w.data_wysylki, w.sposob, w.odbiorca, w.adres,
+                    w.nr_nadania, w.status, w.sprawa_id, p.sygnatura AS pismo_sygnatura, s.znak_sprawy
+             FROM ezd_rpwy w
+             LEFT JOIN ezd_pisma  p ON p.id=w.pismo_id
+             LEFT JOIN ezd_sprawy s ON s.id=w.sprawa_id
+             WHERE (w.odbiorca LIKE ? OR w.adres LIKE ? OR w.nr_nadania LIKE ? OR w.ade LIKE ?) $rok_cond_w
+             ORDER BY w.data_wysylki DESC LIMIT 60",
+            [$like, $like, $like, $like]
+        );
+    }
+
     if (in_array('zalaczniki', $active_scopes, true)) {
         $zalaczniki = $rows_ok(db_all(
             "SELECT z.id, z.sprawa_id, z.pismo_id, z.original_name, z.file_size, z.uploaded_at,
@@ -163,6 +177,7 @@ $counts = [
     'dokumenty'     => count($dokumenty),
     'umowy'         => count($umowy),
     'rpw'           => count($rpw),
+    'rpwy'          => count($rpwy),
     'zalaczniki'    => count($zalaczniki),
     'zaswiadczenia' => count($zaswiadczenia),
 ];
@@ -222,6 +237,7 @@ include dirname(__DIR__) . '/includes/header.php';
           'dokumenty'     => ['Dokumenty wewn.',       'bi-file-earmark-text'],
           'umowy'         => ['Umowy',                 'bi-file-text'],
           'rpw'           => ['RPW',                   'bi-inbox-fill'],
+          'rpwy'          => ['Książka nadawcza',      'bi-send'],
           'zalaczniki'    => ['Załączniki',             'bi-paperclip'],
           'zaswiadczenia' => ['Zaświadczenia',          'bi-award'],
         ];
@@ -384,6 +400,28 @@ include dirname(__DIR__) . '/includes/header.php';
     <?php if($r['znak_obcy']): ?><span class="srch-meta"><?= ezd_hl($r['znak_obcy'], $q) ?></span><?php endif; ?>
     <span class="srch-meta"><?= h(date_pl($r['data_wplywu'])) ?></span>
     <?php if($r['znak_sprawy']): ?><span class="font-monospace srch-meta"><?= h($r['znak_sprawy']) ?></span><?php endif; ?>
+    <i class="bi bi-chevron-right text-muted" style="font-size:.72rem"></i>
+  </a>
+  <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($rpwy): ?>
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-2 d-flex align-items-center gap-2" style="font-size:.84rem">
+    <i class="bi bi-send text-primary"></i><span class="fw-semibold">Książka nadawcza — przesyłki wychodzące</span>
+    <span class="badge bg-primary ms-1" style="font-size:.66rem"><?= count($rpwy) ?></span>
+  </div>
+  <div>
+  <?php foreach ($rpwy as $r): $sp = EZD_RPWY_SPOSOBY[$r['sposob']] ?? ['label'=>$r['sposob']]; ?>
+  <a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$r['id'] ?>" class="srch-row">
+    <span class="srch-sign">RPW-W/<?= $r['rok'] ?>/<?= str_pad($r['rpwy_nr'],4,'0',STR_PAD_LEFT) ?></span>
+    <span class="flex-grow-1 fw-semibold text-truncate"><?= ezd_hl($r['odbiorca'] ?: '—', $q) ?></span>
+    <span class="srch-meta"><?= h($sp['label']) ?></span>
+    <?php if($r['nr_nadania']): ?><span class="font-monospace srch-meta"><?= ezd_hl($r['nr_nadania'], $q) ?></span><?php endif; ?>
+    <span class="srch-meta"><?= h(date_pl($r['data_wysylki'])) ?></span>
+    <?php if($r['pismo_sygnatura']): ?><span class="font-monospace srch-meta"><?= h($r['pismo_sygnatura']) ?></span><?php endif; ?>
     <i class="bi bi-chevron-right text-muted" style="font-size:.72rem"></i>
   </a>
   <?php endforeach; ?>

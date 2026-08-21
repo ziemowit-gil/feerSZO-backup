@@ -22,6 +22,7 @@ $settings_keys = [
     'ezd_kdok_jrwa',
     'corr_ezd_auto',
     'corr_ezd_jrwa',
+    'ezd_rpwy_auto',
     'ezd_rsign_port',
     'ezd_rsign_api_base',
     'ezd_rsign_data_field',
@@ -62,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
         'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
         'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
+        'ezd_rpwy_auto'         => isset($_POST['ezd_rpwy_auto']) ? '1' : '0',
         'ezd_rsign_port'        => max(1, min(65535, (int)($_POST['ezd_rsign_port'] ?? 7778))) ?: '7778',
         'ezd_rsign_api_base'    => trim($_POST['ezd_rsign_api_base'] ?? '') ?: '/api/sign',
         'ezd_rsign_data_field'  => preg_replace('/[^a-zA-Z0-9_]/', '', trim($_POST['ezd_rsign_data_field'] ?? '')) ?: 'signedData',
@@ -83,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cfg = [];
 foreach ($settings_keys as $k) $cfg[$k] = org_setting($k);
 if ($cfg['ezd_reminders_enabled'] === '') $cfg['ezd_reminders_enabled'] = '1';
+if ($cfg['ezd_rpwy_auto'] === '')         $cfg['ezd_rpwy_auto'] = '1';
 
 // Przegląd modułu
 $stat = ezd_stats();
@@ -129,6 +132,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <input class="form-check-input" type="checkbox" role="switch" id="corr_ezd_auto" name="corr_ezd_auto" <?= $cfg['corr_ezd_auto'] !== '0' ? 'checked' : '' ?>>
             <label class="form-check-label fw-semibold" for="corr_ezd_auto">Automatyczna rejestracja korespondencji w EZD Wirtualne biurko</label>
             <div class="form-text">Każda nowa korespondencja przychodząca/wychodząca trafia automatycznie do sprawy ciągłej „Korespondencja przychodząca/wychodząca {rok}" jako pismo (z przeniesieniem załącznika). Po wyłączeniu pozostaje ręczne „Zarejestruj w EZD".</div>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="ezd_rpwy_auto" name="ezd_rpwy_auto" <?= $cfg['ezd_rpwy_auto'] !== '0' ? 'checked' : '' ?>>
+            <label class="form-check-label fw-semibold" for="ezd_rpwy_auto">Automatyczny wpis pism wychodzących do książki nadawczej</label>
+            <div class="form-text">Każde nowe pismo wychodzące dostaje kolejny numer RPW-W w <a href="<?= APP_URL ?>/ezd/rpwy/index.php">książce nadawczej</a> ze stanem „Przygotowana" (albo „Nadana", jeśli pismo ma już datę wysyłki). Po wyłączeniu wpis dodaje się ręcznie z karty pisma.</div>
           </div>
           <div class="row g-3">
             <div class="col-sm-4" style="max-width:200px">
