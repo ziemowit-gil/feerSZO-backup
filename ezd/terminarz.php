@@ -1,6 +1,7 @@
 <?php
 /**
- * Terminarz EZD — widok miesięczny terminów koszulek i dekretacji.
+ * Terminarz EZD — widok miesięczny terminów koszulek, dekretacji
+ * i terminów liczonych od doręczenia przesyłek wychodzących (RPW-W).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -52,6 +53,24 @@ $dekr_events = db_all(
     [$user_id, $month_start, $month_end]
 );
 
+// 3. Terminy liczone od doręczenia przesyłek wychodzących (RPW-W)
+$rpwy_events = db_all(
+    "SELECT w.id, w.rpwy_nr, w.rok, w.odbiorca, w.termin_dni, w.data_doreczenia, w.doreczenie_typ,
+            w.sprawa_id, date(w.data_doreczenia, '+' || w.termin_dni || ' days') AS deadline,
+            p.sygnatura AS pismo_sygnatura, p.title AS pismo_title, s.znak_sprawy
+     FROM ezd_rpwy w
+     LEFT JOIN ezd_pisma  p ON p.id = w.pismo_id
+     LEFT JOIN ezd_sprawy s ON s.id = w.sprawa_id
+     WHERE w.termin_dni > 0 AND w.data_doreczenia IS NOT NULL AND w.status <> 'anulowana'
+       AND date(w.data_doreczenia, '+' || w.termin_dni || ' days') BETWEEN ? AND ?
+       AND (w.created_by = ? OR p.owner_id = ? OR s.owner_id = ?
+            OR EXISTS(SELECT 1 FROM role_permissions rp
+                      JOIN users_roles ur ON ur.role_id=rp.role_id AND ur.user_id=?
+                      WHERE rp.module='ezd' AND rp.can_read=1))
+     ORDER BY deadline",
+    [$month_start, $month_end, $user_id, $user_id, $user_id, $user_id]
+);
+
 // Indeksuj po dniu
 $events_by_day = [];
 foreach ($sprawy_events as $s) {
@@ -61,6 +80,10 @@ foreach ($sprawy_events as $s) {
 foreach ($dekr_events as $d) {
     $day = substr($d['deadline'], 0, 10);
     $events_by_day[$day][] = ['type' => 'dekretacja', 'data' => $d];
+}
+foreach ($rpwy_events as $w) {
+    $day = substr($w['deadline'], 0, 10);
+    $events_by_day[$day][] = ['type' => 'rpwy', 'data' => $w];
 }
 ksort($events_by_day);
 
@@ -79,6 +102,8 @@ include dirname(__DIR__) . '/includes/header.php';
 .cal-event.sprawa.overdue { background:#fee2e2; color:#b91c1c; }
 .cal-event.dekr { background:#d1fae5; color:#065f46; }
 .cal-event.dekr.overdue { background:#fef3c7; color:#92400e; }
+.cal-event.rpwy { background:#e0e7ff; color:#3730a3; }
+.cal-event.rpwy.overdue { background:#fee2e2; color:#b91c1c; }
 .cal-dow { text-align:center; font-size:.73rem; font-weight:700; color:#64748b; padding:6px 0; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
 @media (max-width:600px) { .cal-cell { min-height:60px; } .cal-event { display:none; } .cal-cell .cal-dot { display:inline-block!important; } }
 .cal-dot { display:none; width:6px;height:6px;border-radius:50%;background:#f59e0b;margin:1px; }
@@ -145,6 +170,12 @@ include dirname(__DIR__) . '/includes/header.php';
               $ti = h(mb_substr($ev['data']['title'] ?? '', 0, 22));
               echo '<a href="' . APP_URL . '/ezd/sprawy/view.php?id=' . $ev['data']['id'] . '" class="cal-event sprawa' . $overdue . '" title="' . $zn . ': ' . h($ev['data']['title'] ?? '') . '">'
                  . '<i class="bi bi-folder2 me-1"></i>' . $zn . ' ' . $ti . '</a>';
+          } elseif ($ev['type'] === 'rpwy') {
+              $w  = $ev['data'];
+              $lb = 'RPW-W ' . $w['rpwy_nr'] . '/' . $w['rok'];
+              $ti = h(mb_substr($w['pismo_sygnatura'] ?: $w['odbiorca'], 0, 20));
+              echo '<a href="' . APP_URL . '/ezd/rpwy/view.php?id=' . $w['id'] . '" class="cal-event rpwy' . $overdue . '" title="' . h($lb) . ': termin ' . (int)$w['termin_dni'] . ' dni od doręczenia (' . h(date_pl($w['data_doreczenia'])) . ')">'
+                 . '<i class="bi bi-send me-1"></i>' . $ti . '</a>';
           } else {
               $ti = h(mb_substr($ev['data']['opis'] ?? $ev['data']['sprawa_title'] ?? '', 0, 22));
               echo '<a href="' . APP_URL . '/ezd/sprawy/view.php?id=' . $ev['data']['sprawa_id'] . '" class="cal-event dekr' . $overdue . '" title="Zadanie: ' . h($ev['data']['opis'] ?? '') . '">'
@@ -196,6 +227,22 @@ include dirname(__DIR__) . '/includes/header.php';
           <span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> — <?= h($s['title'] ?? '') ?>
         </a>
         <div class="text-muted" style="font-size:.72rem">Referent: <?= h($s['owner_name'] ?? '—') ?> · Status: <?= h($s['status'] ?? '') ?></div>
+      </div>
+    </li>
+    <?php elseif($ev['type']==='rpwy'): $w=$ev['data']; ?>
+    <li class="list-group-item d-flex align-items-start gap-2 py-2">
+      <span class="badge bg-indigo flex-shrink-0 mt-1" style="font-size:.65rem;background:#e0e7ff;color:#3730a3">WYSYŁKA</span>
+      <div class="flex-grow-1" style="font-size:.83rem">
+        <a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$w['id'] ?>" class="fw-semibold text-decoration-none">
+          <span class="font-monospace">RPW-W <?= (int)$w['rpwy_nr'] ?>/<?= (int)$w['rok'] ?></span>
+          — <?= h($w['pismo_title'] ?: $w['odbiorca']) ?>
+        </a>
+        <div class="text-muted" style="font-size:.72rem">
+          Termin <?= (int)$w['termin_dni'] ?> dni od
+          <?= ($w['doreczenie_typ'] ?? '') === 'fikcja' ? 'doręczenia w trybie fikcji' : 'doręczenia' ?>
+          (<?= h(date_pl($w['data_doreczenia'])) ?>)
+          <?php if($w['znak_sprawy']): ?> · koszulka <span class="font-monospace"><?= h($w['znak_sprawy']) ?></span><?php endif; ?>
+        </div>
       </div>
     </li>
     <?php else: $dk=$ev['data']; ?>

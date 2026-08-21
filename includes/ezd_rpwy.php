@@ -71,12 +71,21 @@ const EZD_RPWY_STATUSY = [
         updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Kolumny dokładane do istniejącej tabeli (idempotentnie)
+    foreach ([
+        "ALTER TABLE ezd_rpwy ADD COLUMN awizo_date     DATE",
+        "ALTER TABLE ezd_rpwy ADD COLUMN doreczenie_typ TEXT NOT NULL DEFAULT 'faktyczne'",
+    ] as $alter) {
+        try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
+    }
+
     foreach ([
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_rok    ON ezd_rpwy(rok, rpwy_nr)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_status ON ezd_rpwy(status)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_pismo  ON ezd_rpwy(pismo_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_sprawa ON ezd_rpwy(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_data   ON ezd_rpwy(data_wysylki)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_rpwy_dor    ON ezd_rpwy(data_doreczenia)",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
@@ -104,16 +113,143 @@ function ezd_rpwy_wymaga_zpo(string $sposob): bool {
     return (bool)(EZD_RPWY_SPOSOBY[$sposob]['zpo'] ?? false);
 }
 
+/** Sposoby wysyłki przewidujące potwierdzenie odbioru. */
+function ezd_rpwy_sposoby_zpo(): array {
+    return array_keys(array_filter(EZD_RPWY_SPOSOBY, fn($s) => !empty($s['zpo'])));
+}
+
+/** Te same sposoby jako fragment listy SQL — klucze pochodzą z kodu, nie z wejścia. */
+function _ezd_rpwy_zpo_sql(): string {
+    return "'" . implode("','", ezd_rpwy_sposoby_zpo()) . "'";
+}
+
+/** Warunek SQL: termin od doręczenia już minął. */
+function _ezd_rpwy_po_terminie_sql(string $a = 'w'): string {
+    return "$a.termin_dni > 0 AND $a.data_doreczenia IS NOT NULL AND $a.status <> 'anulowana'
+            AND date($a.data_doreczenia, '+' || $a.termin_dni || ' days') < date('now')";
+}
+
+/** Warunek SQL: nadana za potwierdzeniem odbioru, bez potwierdzenia po $dni dniach. */
+function _ezd_rpwy_brak_zpo_sql(int $dni = 21, string $a = 'w'): string {
+    $lista = _ezd_rpwy_zpo_sql();
+    $dni   = max(1, $dni);
+    return "$a.status='nadana' AND $a.data_doreczenia IS NULL
+            AND $a.sposob IN ($lista) AND $a.data_wysylki <= date('now','-$dni days')";
+}
+
+/** Liczba dni na odbiór przesyłki po awizowaniu — po nich następuje fikcja doręczenia. */
+const EZD_RPWY_AWIZO_DNI = 14;
+
 /**
  * Termin liczony od daty doręczenia (dzień doręczenia się nie liczy).
- * @return array{do:string,dni_do_konca:int,po_terminie:bool}|null
+ * Doręczenie może być faktyczne albo przyjęte w trybie fikcji doręczenia.
+ * @return array{do:string,dni_do_konca:int,po_terminie:bool,fikcja:bool}|null
  */
 function ezd_rpwy_termin(array $r): ?array {
     $dni = (int)($r['termin_dni'] ?? 0);
     if ($dni <= 0 || empty($r['data_doreczenia'])) return null;
     $do   = date('Y-m-d', strtotime($r['data_doreczenia'] . ' +' . $dni . ' days'));
     $diff = (int)floor((strtotime($do) - strtotime(date('Y-m-d'))) / 86400);
-    return ['do' => $do, 'dni_do_konca' => $diff, 'po_terminie' => $diff < 0];
+    return [
+        'do'           => $do,
+        'dni_do_konca' => $diff,
+        'po_terminie'  => $diff < 0,
+        'fikcja'       => ($r['doreczenie_typ'] ?? 'faktyczne') === 'fikcja',
+    ];
+}
+
+/** Data, z którą przesyłka uznaje się za doręczoną po bezskutecznym awizowaniu. */
+function ezd_rpwy_fikcja_data(string $awizo_date): string {
+    return date('Y-m-d', strtotime($awizo_date . ' +' . EZD_RPWY_AWIZO_DNI . ' days'));
+}
+
+/**
+ * Przyjmuje doręczenie w trybie fikcji: przesyłka nieodebrana w terminie
+ * uznaje się za doręczoną z upływem okresu na odbiór, licząc od awizowania.
+ * Zwrot pozostaje udokumentowany w powodzie zwrotu.
+ */
+function ezd_rpwy_set_fikcja(int $id, string $awizo_date, int $user_id): void {
+    $r = ezd_rpwy_get($id);
+    if (!$r) throw new \RuntimeException('Wpis nie istnieje.');
+    if (!$awizo_date || !strtotime($awizo_date)) throw new \RuntimeException('Podaj datę awizowania przesyłki.');
+    if ($awizo_date > date('Y-m-d')) throw new \RuntimeException('Data awizowania nie może być z przyszłości.');
+
+    $dor = ezd_rpwy_fikcja_data($awizo_date);
+    db()->prepare(
+        "UPDATE ezd_rpwy SET awizo_date=:aw, data_doreczenia=:dd, doreczenie_typ='fikcja',
+         status='doreczona', updated_at=datetime('now') WHERE id=:id"
+    )->execute([':aw' => $awizo_date, ':dd' => $dor, ':id' => $id]);
+
+    ezd_log(null, $r['sprawa_id'] ?: null, $r['pismo_id'] ?: null, null, $user_id, 'rpwy_fikcja',
+        ezd_rpwy_label($r) . ': fikcja doręczenia — awizowano ' . date_pl($awizo_date)
+        . ', doręczenie przyjęte na ' . date_pl($dor));
+}
+
+/**
+ * Przenosi termin liczony od doręczenia na termin załatwienia koszulki,
+ * o ile koszulka nie ma wcześniejszego terminu. Dzięki temu przypomnienia
+ * o sprawach obejmują też terminy wynikające z doręczenia.
+ * @return string|null ustawiona data albo null, gdy nic nie zmieniono
+ */
+function ezd_rpwy_apply_termin_do_sprawy(int $id, int $user_id): ?string {
+    $r = ezd_rpwy_get($id);
+    if (!$r || !$r['sprawa_id']) return null;
+    $t = ezd_rpwy_termin($r);
+    if (!$t) return null;
+    $s = ezd_sprawa_get((int)$r['sprawa_id']);
+    if (!$s || !empty($s['ciagla'])) return null;
+    if (!empty($s['deadline']) && $s['deadline'] <= $t['do']) return null;
+
+    db()->prepare("UPDATE ezd_sprawy SET deadline=?, updated_at=datetime('now') WHERE id=?")
+        ->execute([$t['do'], (int)$r['sprawa_id']]);
+    ezd_log(null, (int)$r['sprawa_id'], $r['pismo_id'] ?: null, null, $user_id, 'rpwy_termin_sprawa',
+        'Termin koszulki ustawiony na ' . date_pl($t['do']) . ' — ' . (int)$r['termin_dni']
+        . ' dni od doręczenia ' . ezd_rpwy_label($r));
+    return $t['do'];
+}
+
+// ── Terminy i nadzór nad potwierdzeniami (dla crona) ──────────────────────────
+
+/**
+ * Przesyłki z terminem liczonym od doręczenia, których termin wypada
+ * najpóźniej podanego dnia — do przypomnień.
+ */
+function ezd_rpwy_terminy_do(string $granica): array {
+    $rows = db_all(
+        "SELECT w.*, p.sygnatura AS pismo_sygnatura, p.title AS pismo_title, p.owner_id AS pismo_owner_id,
+                s.znak_sprawy, s.title AS sprawa_title, s.owner_id AS sprawa_owner_id, s.status AS sprawa_status
+         FROM ezd_rpwy w
+         LEFT JOIN ezd_pisma  p ON p.id = w.pismo_id
+         LEFT JOIN ezd_sprawy s ON s.id = w.sprawa_id
+         WHERE w.termin_dni > 0 AND w.data_doreczenia IS NOT NULL AND w.status <> 'anulowana'
+         ORDER BY w.data_doreczenia ASC"
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $t = ezd_rpwy_termin($r);
+        if (!$t || $t['do'] > $granica) continue;
+        if (($r['sprawa_status'] ?? '') === 'closed') continue;
+        $r['termin_do']    = $t['do'];
+        $r['po_terminie']  = $t['po_terminie'];
+        $out[] = $r;
+    }
+    return $out;
+}
+
+/**
+ * Przesyłki nadane sposobem przewidującym potwierdzenie odbioru, dla których
+ * po $dni dniach nadal nie ma potwierdzenia — brakujące ZPO wymaga reklamacji.
+ */
+function ezd_rpwy_bez_zpo(int $dni = 21): array {
+    if (!ezd_rpwy_sposoby_zpo()) return [];
+    return db_all(
+        "SELECT w.*, p.sygnatura AS pismo_sygnatura, s.znak_sprawy
+         FROM ezd_rpwy w
+         LEFT JOIN ezd_pisma  p ON p.id = w.pismo_id
+         LEFT JOIN ezd_sprawy s ON s.id = w.sprawa_id
+         WHERE " . _ezd_rpwy_brak_zpo_sql($dni) . "
+         ORDER BY w.data_wysylki ASC"
+    );
 }
 
 // ── Odczyt ────────────────────────────────────────────────────────────────────
@@ -142,6 +278,8 @@ function ezd_rpwy_all(array $f = []): array {
     if (($f['rok'] ?? '') !== '')  { $where[] = "w.rok=?";           $params[] = (int)$f['rok']; }
     if (!empty($f['status']))      { $where[] = "w.status=?";        $params[] = $f['status']; }
     if (!empty($f['sposob']))      { $where[] = "w.sposob=?";        $params[] = $f['sposob']; }
+    if (($f['flag'] ?? '') === 'po_terminie') $where[] = '(' . _ezd_rpwy_po_terminie_sql() . ')';
+    if (($f['flag'] ?? '') === 'brak_zpo')    $where[] = '(' . _ezd_rpwy_brak_zpo_sql() . ')';
     if (!empty($f['od']))          { $where[] = "w.data_wysylki>=?"; $params[] = $f['od']; }
     if (!empty($f['do']))          { $where[] = "w.data_wysylki<=?"; $params[] = $f['do']; }
     if (!empty($f['q'])) {
@@ -178,10 +316,13 @@ function ezd_rpwy_stats(): array {
     $rok = (int)date('Y');
     return [
         'do_nadania'  => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy WHERE status='przygotowana'")['c'] ?? 0),
-        'oczek_zpo'   => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy WHERE status='nadana' AND data_doreczenia IS NULL")['c'] ?? 0),
+        'oczek_zpo'   => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy w
+             WHERE w.status='nadana' AND w.data_doreczenia IS NULL AND w.sposob IN (" . _ezd_rpwy_zpo_sql() . ")")['c'] ?? 0),
         'zwroty'      => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy WHERE status='zwrocona'")['c'] ?? 0),
         'dzis'        => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy WHERE data_wysylki=date('now') AND status<>'anulowana'")['c'] ?? 0),
         'rok'         => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy WHERE rok=? AND status<>'anulowana'", [$rok])['c'] ?? 0),
+        'po_terminie' => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy w WHERE " . _ezd_rpwy_po_terminie_sql())['c'] ?? 0),
+        'brak_zpo'    => (int)(db_one("SELECT COUNT(*) c FROM ezd_rpwy w WHERE " . _ezd_rpwy_brak_zpo_sql())['c'] ?? 0),
         'koszt_rok'   => (float)(db_one("SELECT COALESCE(SUM(koszt),0) s FROM ezd_rpwy WHERE rok=? AND status<>'anulowana'", [$rok])['s'] ?? 0),
     ];
 }
@@ -283,7 +424,8 @@ function ezd_rpwy_set_status(int $id, string $status, array $d, int $user_id): v
 
     if ($status === 'nadana') {
         $set[] = "data_wysylki=:dw";
-        $params[':dw'] = ($d['data_wysylki'] ?? '') ?: date('Y-m-d');
+        // Brak daty w żądaniu nie może cofać ani nadpisywać już zarejestrowanej daty nadania
+        $params[':dw'] = ($d['data_wysylki'] ?? '') ?: ($r['data_wysylki'] ?: date('Y-m-d'));
         if (($d['nr_nadania'] ?? '') !== '') {
             $set[] = "nr_nadania=:nn";
             $params[':nn'] = trim((string)$d['nr_nadania']);
@@ -295,6 +437,7 @@ function ezd_rpwy_set_status(int $id, string $status, array $d, int $user_id): v
         $opis = 'nadano ' . date_pl($params[':dw']) . (($d['nr_nadania'] ?? '') !== '' ? ', nr ' . $d['nr_nadania'] : '');
     } elseif ($status === 'doreczona') {
         $set[] = "data_doreczenia=:dd";
+        $set[] = "doreczenie_typ='faktyczne'";
         $params[':dd'] = ($d['data_doreczenia'] ?? '') ?: date('Y-m-d');
         $opis = 'doręczono ' . date_pl($params[':dd']);
     } elseif ($status === 'zwrocona') {

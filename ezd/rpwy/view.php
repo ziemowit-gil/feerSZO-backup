@@ -35,6 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($err) flash_set('error', 'Doręczenie zapisano, ale dowodu nie przyjęto: ' . $err);
             }
             flash_set('success', 'Zapisano potwierdzenie doręczenia.');
+        } elseif ($act === 'fikcja') {
+            ezd_rpwy_set_fikcja($id, $_POST['awizo_date'] ?? '', $uid);
+            flash_set('success', 'Przyjęto doręczenie w trybie fikcji doręczenia.');
+        } elseif ($act === 'termin_sprawa') {
+            $set = ezd_rpwy_apply_termin_do_sprawy($id, $uid);
+            flash_set($set ? 'success' : 'info', $set
+                ? 'Termin koszulki ustawiono na ' . date_pl($set) . '.'
+                : 'Nie zmieniono terminu koszulki — brak koszulki, brak terminu albo koszulka ma już wcześniejszy termin.');
         } elseif ($act === 'zwrot') {
             ezd_rpwy_set_status($id, 'zwrocona', ['zwrot_powod' => $_POST['zwrot_powod'] ?? ''], $uid);
             flash_set('success', 'Zapisano zwrot przesyłki.');
@@ -90,7 +98,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php if ($trm): ?>
 <div class="alert <?= $trm['po_terminie'] ? 'alert-danger' : 'alert-info' ?> py-2" style="font-size:.84rem">
   <i class="bi bi-clock-history me-1"></i>
-  Termin <?= (int)$r['termin_dni'] ?> dni od doręczenia upływa <strong><?= date_pl($trm['do']) ?></strong>
+  Termin <?= (int)$r['termin_dni'] ?> dni od <?= $trm['fikcja'] ? 'doręczenia przyjętego w trybie fikcji' : 'doręczenia' ?> upływa <strong><?= date_pl($trm['do']) ?></strong>
   — <?= $trm['po_terminie'] ? 'termin minął ' . abs($trm['dni_do_konca']) . ' dni temu' : 'pozostało ' . $trm['dni_do_konca'] . ' dni' ?>.
 </div>
 <?php endif; ?>
@@ -126,8 +134,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="card shadow-sm">
       <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-patch-check me-1 text-success"></i>Potwierdzenie odbioru</div>
       <div class="card-body">
-        <?php if($r['data_doreczenia']): ?>
-        <div class="mb-2" style="font-size:.86rem"><i class="bi bi-check2-circle text-success me-1"></i>Doręczono <strong><?= date_pl($r['data_doreczenia']) ?></strong></div>
+        <?php if($r['data_doreczenia']): $fik = ($r['doreczenie_typ'] ?? '') === 'fikcja'; ?>
+        <div class="mb-2" style="font-size:.86rem">
+          <i class="bi <?= $fik ? 'bi-exclamation-circle text-warning' : 'bi-check2-circle text-success' ?> me-1"></i>
+          <?= $fik ? 'Uznano za doręczone' : 'Doręczono' ?> <strong><?= date_pl($r['data_doreczenia']) ?></strong>
+        </div>
+        <?php if($fik): ?>
+        <div class="alert alert-warning py-2 mb-2" style="font-size:.78rem">
+          <strong>Fikcja doręczenia.</strong> Przesyłki nie odebrano w terminie
+          <?= EZD_RPWY_AWIZO_DNI ?> dni od awizowania<?= $r['awizo_date'] ? ' (' . date_pl($r['awizo_date']) . ')' : '' ?>,
+          więc doręczenie przyjęto na dzień upływu tego okresu.
+        </div>
+        <?php endif; ?>
         <?php elseif(!empty($sp['zpo'])): ?>
         <div class="text-muted mb-2" style="font-size:.82rem"><i class="bi bi-hourglass-split me-1"></i>Oczekuje na potwierdzenie odbioru.</div>
         <?php else: ?>
@@ -237,6 +255,35 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <button class="btn btn-outline-danger btn-sm w-100">Zapisz zwrot</button>
           </form>
         </div>
+        <?php endif; ?>
+
+        <?php if(!$r['data_doreczenia'] && !empty($sp['zpo']) && in_array($r['status'], ['nadana','zwrocona'], true)): ?>
+        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="collapse" data-bs-target="#act-fikcja">
+          <i class="bi bi-exclamation-circle me-1"></i>Fikcja doręczenia
+        </button>
+        <div class="collapse" id="act-fikcja">
+          <form method="post" class="border rounded-3 p-2">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="fikcja">
+            <label class="form-label mb-1" style="font-size:.74rem" for="f-awizo">Data awizowania</label>
+            <input type="date" name="awizo_date" id="f-awizo" class="form-control form-control-sm mb-1" max="<?= date('Y-m-d') ?>" required>
+            <div class="text-muted mb-2" style="font-size:.72rem">
+              Doręczenie zostanie przyjęte na dzień upływu <?= EZD_RPWY_AWIZO_DNI ?> dni od awizowania.
+            </div>
+            <button class="btn btn-outline-warning btn-sm w-100">Przyjmij doręczenie</button>
+          </form>
+        </div>
+
+        <?php endif; ?>
+
+        <?php if($trm && $r['sprawa_id']): ?>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="termin_sprawa">
+          <button class="btn btn-outline-primary btn-sm w-100">
+            <i class="bi bi-calendar-check me-1"></i>Ustaw termin koszulki na <?= date_pl($trm['do']) ?>
+          </button>
+        </form>
         <?php endif; ?>
 
         <form method="post" onsubmit="return confirm('Oznaczyć wpis jako anulowany? Numer pozostanie w rejestrze.')">

@@ -16,6 +16,7 @@ $f = [
     'rok'    => $_GET['rok']    ?? (string)date('Y'),
     'status' => $_GET['status'] ?? '',
     'sposob' => $_GET['sposob'] ?? '',
+    'flag'   => in_array($_GET['flag'] ?? '', ['po_terminie','brak_zpo'], true) ? $_GET['flag'] : '',
     'q'      => trim($_GET['q'] ?? ''),
 ];
 $rows  = ezd_rpwy_all($f);
@@ -73,6 +74,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <?php endforeach; ?>
 </div>
 
+<?php if ($stats['po_terminie'] || $stats['brak_zpo']): ?>
+<div class="alert alert-warning py-2 mb-3 d-flex flex-wrap align-items-center gap-3" style="font-size:.84rem">
+  <span><i class="bi bi-exclamation-triangle me-1"></i>Wymaga uwagi:</span>
+  <?php if ($stats['po_terminie']): ?>
+  <a href="?flag=po_terminie" class="text-decoration-none fw-semibold">
+    <?= (int)$stats['po_terminie'] ?> × termin od doręczenia minął
+  </a>
+  <?php endif; ?>
+  <?php if ($stats['brak_zpo']): ?>
+  <a href="?flag=brak_zpo" class="text-decoration-none fw-semibold">
+    <?= (int)$stats['brak_zpo'] ?> × brak potwierdzenia odbioru po 21 dniach
+  </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <?php if ($stats['koszt_rok'] > 0): ?>
 <div class="text-muted mb-3" style="font-size:.78rem">
   <i class="bi bi-cash-coin me-1"></i>Koszty wysyłki w <?= date('Y') ?> r.:
@@ -108,6 +125,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php foreach(EZD_RPWY_SPOSOBY as $sv=>$si): ?>
         <option value="<?= $sv ?>" <?= $f['sposob']===$sv?'selected':'' ?>><?= h($si['label']) ?></option>
         <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label mb-1" style="font-size:.72rem" for="flt-flag">Wymaga uwagi</label>
+      <select name="flag" id="flt-flag" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">— wszystkie —</option>
+        <option value="po_terminie" <?= $f['flag']==='po_terminie'?'selected':'' ?>>Termin od doręczenia minął</option>
+        <option value="brak_zpo"    <?= $f['flag']==='brak_zpo'?'selected':'' ?>>Brak potwierdzenia odbioru</option>
       </select>
     </div>
     <div class="col-6 col-md-4">
@@ -157,8 +182,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </td>
           <td class="font-monospace" style="font-size:.74rem"><?= h($r['nr_nadania'] ?: '—') ?></td>
           <td><?= ezd_rpwy_status_badge($r['status']) ?>
-            <?php if($r['data_doreczenia']): ?>
-            <div class="text-muted" style="font-size:.68rem"><i class="bi bi-check2-circle me-1"></i><?= date_pl($r['data_doreczenia']) ?></div>
+            <?php if($r['data_doreczenia']): $fik = ($r['doreczenie_typ'] ?? '') === 'fikcja'; ?>
+            <div class="text-muted" style="font-size:.68rem" title="<?= $fik ? 'Doręczenie w trybie fikcji doręczenia' : 'Doręczenie potwierdzone' ?>">
+              <i class="bi <?= $fik ? 'bi-exclamation-circle text-warning' : 'bi-check2-circle' ?> me-1"></i><?= date_pl($r['data_doreczenia']) ?><?= $fik ? ' (fikcja)' : '' ?>
+            </div>
             <?php endif; ?>
             <?php if($trm): ?>
             <div class="<?= $trm['po_terminie'] ? 'text-danger fw-semibold' : 'text-muted' ?>" style="font-size:.68rem">

@@ -6,7 +6,11 @@
  *
  * Wysyła e-mail (przez kolejkę M365/Graph) gdy:
  *  – dekretacja oczekująca ma termin jutro / dziś / jest przeterminowana → do wykonawcy,
- *  – otwarta sprawa ma termin jutro / dziś / jest przeterminowana       → do właściciela.
+ *  – otwarta sprawa ma termin jutro / dziś / jest przeterminowana       → do właściciela,
+ *  – termin liczony od doręczenia przesyłki wychodzącej (RPW-W) wypada
+ *    jutro / dziś / minął                                              → do referenta,
+ *  – przesyłka nadana za potwierdzeniem odbioru nie ma potwierdzenia
+ *    po 21 dniach (brakujące ZPO → reklamacja)                         → do rejestrującego.
  *
  * Każdy kamień milowy (due_1day / due_today / overdue) wysyłany jest tylko raz
  * (dedup w tabeli ezd_reminder_log).
@@ -123,6 +127,63 @@ foreach ($spr as $s) {
         }
     } catch (\Throwable $e) {
         echo "  ✗ sprawa #{$s['id']}: " . $e->getMessage() . "\n"; $errs++;
+    }
+}
+
+// ── Terminy liczone od doręczenia przesyłek wychodzących (RPW-W) ──────────────
+foreach (ezd_rpwy_terminy_do($tomorrow) as $w) {
+    $scan++;
+    $k = ezd_deadline_kind($w['termin_do'], $today, $tomorrow);
+    if (!$k) continue;
+    [$kind, $prefix] = $k;
+    if (ezd_reminder_sent('rpwy_termin', (int)$w['id'], $kind)) continue;
+
+    $adresat = (int)($w['pismo_owner_id'] ?: $w['sprawa_owner_id'] ?: $w['created_by']);
+    if (!$adresat) continue;
+
+    $tryb  = ($w['doreczenie_typ'] ?? '') === 'fikcja' ? ' (doręczenie w trybie fikcji)' : '';
+    $czego = $w['pismo_sygnatura'] ? 'pisma ' . $w['pismo_sygnatura'] : ezd_rpwy_label($w);
+
+    $subject = "[EZD] $prefix — $czego (termin od doręczenia)";
+    $body    = "$prefix wynikający z doręczenia $czego. Przesyłka " . ezd_rpwy_label($w)
+             . ' do „' . mb_substr($w['odbiorca'], 0, 60) . '" została doręczona '
+             . date_pl($w['data_doreczenia']) . $tryb . '; termin ' . (int)$w['termin_dni']
+             . ' dni upływa ' . date_pl($w['termin_do']) . '.';
+    $url     = APP_URL . '/ezd/rpwy/view.php?id=' . (int)$w['id'];
+    try {
+        if (ezd_send_reminder($adresat, $subject, $body, $url, 'ezd_reminder', (int)$w['id'])) {
+            ezd_reminder_mark('rpwy_termin', (int)$w['id'], $kind);
+            echo "  ✓ RPW-W #{$w['id']} [$kind] → user #$adresat (" . ezd_rpwy_label($w) . ")\n";
+            $sent++;
+        }
+    } catch (\Throwable $e) {
+        echo "  ✗ RPW-W #{$w['id']}: " . $e->getMessage() . "\n"; $errs++;
+    }
+}
+
+// ── Brakujące potwierdzenia odbioru (nadane, bez ZPO po 21 dniach) ────────────
+foreach (ezd_rpwy_bez_zpo(21) as $w) {
+    $scan++;
+    if (ezd_reminder_sent('rpwy_zpo', (int)$w['id'], 'missing_zpo')) continue;
+    $adresat = (int)$w['created_by'];
+    if (!$adresat) continue;
+
+    $dni     = (int)floor((strtotime($today) - strtotime($w['data_wysylki'])) / 86400);
+    $sposob  = EZD_RPWY_SPOSOBY[$w['sposob']]['label'] ?? $w['sposob'];
+    $subject = '[EZD] Brak potwierdzenia odbioru — ' . ezd_rpwy_label($w);
+    $body    = 'Przesyłka ' . ezd_rpwy_label($w) . ' (' . $sposob . ') do „'
+             . mb_substr($w['odbiorca'], 0, 60) . '" została nadana ' . date_pl($w['data_wysylki'])
+             . " ($dni dni temu), a w rejestrze nadal nie ma potwierdzenia odbioru."
+             . ' Sprawdź status przesyłki — jeśli nie została podjęta, przyjmij doręczenie w trybie fikcji doręczenia.';
+    $url     = APP_URL . '/ezd/rpwy/view.php?id=' . (int)$w['id'];
+    try {
+        if (ezd_send_reminder($adresat, $subject, $body, $url, 'ezd_reminder', (int)$w['id'])) {
+            ezd_reminder_mark('rpwy_zpo', (int)$w['id'], 'missing_zpo');
+            echo "  ✓ brak ZPO #{$w['id']} → user #$adresat (" . ezd_rpwy_label($w) . ")\n";
+            $sent++;
+        }
+    } catch (\Throwable $e) {
+        echo "  ✗ brak ZPO #{$w['id']}: " . $e->getMessage() . "\n"; $errs++;
     }
 }
 
