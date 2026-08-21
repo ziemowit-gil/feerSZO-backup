@@ -28,6 +28,48 @@ const EZD_KOPIA_TYPES = [
 /** Domyślny tekst znaku wodnego na kopii (nadpisywalny w Ustawieniach EZD). */
 const EZD_KOPIA_WATERMARK_DEFAULT = 'KOPIA ELEKTRONICZNA';
 
+/**
+ * Tryby wydruku — różnią się tym, ile system dokłada do odwzorowania treści:
+ *   el     — pełna kopia: znak wodny + strona poświadczenia autoryzowana przez system,
+ *   reczny — jak wyżej, ale bez autoryzacji: miejsce na podpis odręczny,
+ *   czysty — samo odwzorowanie treści: bez znaku wodnego, poświadczenia i nagłówków.
+ */
+const EZD_KOPIA_TRYBY = [
+    'el' => [
+        'label' => 'Kopia z poświadczeniem',
+        'opis'  => 'Autoryzacja elektroniczna — metryka z autorem wydruku',
+        'icon'  => 'bi-patch-check',
+    ],
+    'reczny' => [
+        'label' => 'Kopia do podpisu odręcznego',
+        'opis'  => 'Bez autoryzacji — miejsce na miejscowość, datę i podpis',
+        'icon'  => 'bi-pen',
+    ],
+    'czysty' => [
+        'label' => 'Czysty wydruk',
+        'opis'  => 'Sama treść — bez znaku wodnego, poświadczenia i nagłówków',
+        'icon'  => 'bi-file-earmark',
+    ],
+];
+
+/**
+ * Wybrany tryb wydruku jest niemożliwy dla tego dokumentu (np. czysty wydruk pliku,
+ * którego treści nie da się odwzorować). To decyzja użytkownika, nie awaria — osobny
+ * typ wyjątku, żeby kontroler nie musiał zgadywać po treści komunikatu.
+ */
+class EzdKopiaTrybException extends \RuntimeException {}
+
+/** Normalizuje nazwę trybu do klucza z EZD_KOPIA_TRYBY (domyślnie 'el'). */
+function ezd_kopia_tryb(string $tryb): string {
+    return array_key_exists($tryb, EZD_KOPIA_TRYBY) ? $tryb : 'el';
+}
+
+/** Adres wydruku kopii w danym trybie. */
+function ezd_kopia_url(string $type, int $id, string $tryb = 'el'): string {
+    return APP_URL . '/ezd/kopia.php?type=' . urlencode($type) . '&id=' . $id
+         . '&tryb=' . ezd_kopia_tryb($tryb);
+}
+
 /** Rozszerzenia, których treść potrafimy odwzorować bezpośrednio w wydruku. */
 const EZD_KOPIA_IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
@@ -136,7 +178,11 @@ function _ezd_kopia_pismo(int $id): ?array {
         'wersja'     => $wer . '.0',
         'data'       => substr((string)($p['data_pisma'] ?: $p['data_wplywu'] ?: $p['created_at']), 0, 10),
         'akceptacja' => _ezd_kopia_akceptacja_rekord('pismo', $id, $p, ['odpowiedziano' => 'Załatwione', 'archiwum' => 'Zarchiwizowane']),
-        'source'     => ['kind' => 'html', 'html' => _ezd_kopia_content_html($p['sygnatura'], $p['title'], $rows, (string)$p['tresc'])],
+        'source'     => [
+            'kind'       => 'html',
+            'html'       => _ezd_kopia_content_html($p['sygnatura'], $p['title'], $rows, (string)$p['tresc']),
+            'html_clean' => _ezd_kopia_content_html($p['sygnatura'], $p['title'], $rows, (string)$p['tresc'], true),
+        ],
     ];
 }
 
@@ -159,7 +205,11 @@ function _ezd_kopia_dokument(int $id): ?array {
         'wersja'     => '1.0',
         'data'       => substr((string)$d['created_at'], 0, 10),
         'akceptacja' => _ezd_kopia_akceptacja_rekord('dokument', $id, $d, ['zatwierdzony' => 'Zatwierdzony']),
-        'source'     => ['kind' => 'html', 'html' => _ezd_kopia_content_html($d['sygnatura'], $d['title'], $rows, (string)$d['tresc'])],
+        'source'     => [
+            'kind'       => 'html',
+            'html'       => _ezd_kopia_content_html($d['sygnatura'], $d['title'], $rows, (string)$d['tresc']),
+            'html_clean' => _ezd_kopia_content_html($d['sygnatura'], $d['title'], $rows, (string)$d['tresc'], true),
+        ],
     ];
 }
 
@@ -403,19 +453,40 @@ function ezd_kopia_autor(int $user_id): string {
     return $out;
 }
 
-/** Treść dokumentu tekstowego (pismo/dokument) jako HTML dla mPDF. */
-function _ezd_kopia_content_html(string $sygnatura, string $title, array $rows, string $tresc): string {
-    $org = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
-
-    $meta = '';
-    foreach ($rows as $k => $v) {
-        if (trim((string)$v) === '') continue;
-        $meta .= '<tr><td class="k">' . h($k) . '</td><td class="v">' . h((string)$v) . '</td></tr>';
-    }
-
+/**
+ * Treść dokumentu tekstowego (pismo/dokument) jako HTML dla mPDF.
+ * @param bool $clean tryb „czysty" — zostaje sam tytuł i treść dokumentu;
+ *                    nazwa organizacji, sygnatura i tabela metadanych to dopiski
+ *                    wydruku kopii, więc w tym trybie ich nie ma.
+ */
+function _ezd_kopia_content_html(string $sygnatura, string $title, array $rows, string $tresc, bool $clean = false): string {
     $body = trim($tresc) !== ''
         ? '<div class="tresc">' . nl2br(h($tresc)) . '</div>'
-        : '<div class="brak">Dokument nie zawiera treści tekstowej.</div>';
+        : ($clean ? '' : '<div class="brak">Dokument nie zawiera treści tekstowej.</div>');
+
+    $meta = '';
+    if (!$clean) {
+        foreach ($rows as $k => $v) {
+            if (trim((string)$v) === '') continue;
+            $meta .= '<tr><td class="k">' . h($k) . '</td><td class="v">' . h((string)$v) . '</td></tr>';
+        }
+    }
+
+    if ($clean) {
+        // Tabela parametrów bywa jedyną treścią dokumentu (umowa) — wtedy zostaje.
+        $only_rows = trim($tresc) === '' && $rows;
+        if ($only_rows) {
+            foreach ($rows as $k => $v) {
+                if (trim((string)$v) === '') continue;
+                $meta .= '<tr><td class="k">' . h($k) . '</td><td class="v">' . h((string)$v) . '</td></tr>';
+            }
+        }
+        return '<div class="doc"><h1>' . h($title) . '</h1>'
+            . ($meta !== '' ? '<table class="metatab">' . $meta . '</table>' : '')
+            . $body . '</div>';
+    }
+
+    $org = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
     return '<div class="doc">'
         . ($org !== '' ? '<div class="org">' . h($org) . '</div>' : '')
@@ -585,9 +656,12 @@ function ezd_kopia_watermark(): string {
 
 /**
  * Buduje i streamuje PDF kopii do przeglądarki (inline).
- * @param array $opts ['watermark'=>bool, 'download'=>bool, 'manual'=>bool]
- *                    manual = kopia bez autoryzacji elektronicznej, z miejscem
- *                    na podpis odręczny (patrz ezd_kopia_cert_html()).
+ * @param array $opts ['tryb'=>'el'|'reczny'|'czysty', 'watermark'=>bool, 'download'=>bool]
+ *                    tryb 'reczny' = kopia bez autoryzacji elektronicznej, z miejscem
+ *                    na podpis odręczny (patrz ezd_kopia_cert_html());
+ *                    tryb 'czysty' = samo odwzorowanie treści, bez znaku wodnego,
+ *                    strony poświadczenia i nagłówków wydruku.
+ * @throws EzdKopiaTrybException gdy tryb 'czysty', a treści nie da się odwzorować
  * @throws \Throwable
  */
 function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
@@ -606,13 +680,20 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
         'default_font'  => 'dejavusans',
         'tempDir'       => $tmp,
     ]);
-    $manual = (bool)($opts['manual'] ?? false);
-    $mpdf->SetTitle('Kopia dokumentu elektronicznego'
-        . ($manual ? ' (do podpisu odręcznego)' : '') . ' — ' . $meta['nazwa']);
+    // Tryb: 'el' (autoryzacja elektroniczna) | 'reczny' (do podpisu) | 'czysty' (bez dopisków).
+    // Wsteczna zgodność: opts['manual'] === true to dawne oznaczenie trybu 'reczny'.
+    $tryb   = ezd_kopia_tryb((string)($opts['tryb'] ?? (($opts['manual'] ?? false) ? 'reczny' : 'el')));
+    $manual = $tryb === 'reczny';
+    $clean  = $tryb === 'czysty';
+
+    $mpdf->SetTitle($clean
+        ? (string)$meta['nazwa']
+        : 'Kopia dokumentu elektronicznego' . ($manual ? ' (do podpisu odręcznego)' : '') . ' — ' . $meta['nazwa']);
     $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
     $mpdf->SetCreator('EZD ' . (defined('APP_VERSION') ? APP_VERSION : ''));
 
-    if (($opts['watermark'] ?? true)) {
+    // W trybie czystym nie ma znaku wodnego — to też dopisek wydruku kopii.
+    if (!$clean && ($opts['watermark'] ?? true)) {
         $mpdf->watermark_font    = 'dejavusans';
         $mpdf->watermarkTextAlpha = 0.10;
         $mpdf->SetWatermarkText(ezd_kopia_watermark(), 0.10);
@@ -622,13 +703,18 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
 
     $src = $meta['source'] ?? ['kind' => 'none', 'note' => ''];
 
+    // $has = czy powstała choć jedna strona odwzorowania treści. W trybie czystym
+    // wydruk bez treści nie ma sensu (nie ma go czym zastąpić — strona informacyjna
+    // byłaby właśnie dopiskiem), dlatego kończymy wyjątkiem, a nie pustym PDF-em.
+    $has = false;
+
     switch ($src['kind']) {
         case 'pdf':
-            _ezd_kopia_append_pdf($mpdf, (string)$src['path'], $meta);
+            $has = _ezd_kopia_append_pdf($mpdf, (string)$src['path'], $meta, $clean);
             break;
 
         case 'image':
-            _ezd_kopia_append_image($mpdf, (string)$src['path'], $meta);
+            $has = _ezd_kopia_append_image($mpdf, (string)$src['path'], $meta, $clean);
             break;
 
         case 'meta':
@@ -637,13 +723,16 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
                 (string)($meta['sygnatura'] ?? ''),
                 (string)$meta['tytul'],
                 (array)($meta['meta_rows'] ?? []),
-                ''
+                '',
+                $clean
             ));
+            $has = true;
             break;
 
         case 'html':
             $mpdf->AddPage();
-            $mpdf->WriteHTML((string)$src['html']);
+            $mpdf->WriteHTML((string)($clean ? ($src['html_clean'] ?? $src['html']) : $src['html']));
+            $has = true;
             break;
 
         case 'zas_html':
@@ -653,32 +742,45 @@ function ezd_kopia_stream(array $meta, int $user_id, array $opts = []): void {
             $tmp_zas = _ezd_kopia_render_zas_pdf((array)$src['zas']);
             if ($tmp_zas !== null) {
                 _ezd_kopia_tmp_files($tmp_zas);
-                _ezd_kopia_append_pdf($mpdf, $tmp_zas, $meta);
-            } else {
+                $has = _ezd_kopia_append_pdf($mpdf, $tmp_zas, $meta, $clean);
+            } elseif (!$clean) {
                 _ezd_kopia_page_note($mpdf, $meta, 'Nie udało się wygenerować wydruku zaświadczenia z szablonu.');
             }
             break;
 
         default:
-            _ezd_kopia_page_note($mpdf, $meta,
-                ((string)($src['note'] ?? 'Treści dokumentu nie można odwzorować.'))
-                . ' Poświadczenie na następnej stronie dotyczy metryki dokumentu w systemie EZD.');
+            if (!$clean) {
+                _ezd_kopia_page_note($mpdf, $meta,
+                    ((string)($src['note'] ?? 'Treści dokumentu nie można odwzorować.'))
+                    . ' Poświadczenie na następnej stronie dotyczy metryki dokumentu w systemie EZD.');
+            }
+    }
+
+    if ($clean && !$has) {
+        foreach (_ezd_kopia_tmp_files() as $f) @unlink($f);
+        throw new EzdKopiaTrybException(
+            'Czysty wydruk nie jest dostępny dla tego dokumentu — jego treści nie da się '
+            . 'odwzorować bez dopisków. Użyj wydruku kopii z poświadczeniem albo kopii '
+            . 'do podpisu odręcznego: tam metryka dokumentu zastępuje brakującą treść.'
+        );
     }
 
     // Strona poświadczenia — zawsze A4 pionowo, niezależnie od formatu treści.
     // Znak wodny obejmuje tylko odwzorowanie treści (jak w EZD RP): AddPage domykając
     // poprzednią stronę rysuje jej stopkę ze znakiem wodnym, więc wyłączenie flagi
     // dopiero teraz zdejmuje znak wodny wyłącznie ze strony poświadczenia.
-    $mpdf->AddPageByArray([
-        'orientation' => 'P',
-        'newformat'   => 'A4',
-        'mgl' => 20, 'mgr' => 20, 'mgt' => 18, 'mgb' => 18, 'mgh' => 0, 'mgf' => 0,
-    ]);
-    $mpdf->showWatermarkText = false;
-    $mpdf->WriteHTML(ezd_kopia_cert_html($meta, $user_id, (bool)($opts['manual'] ?? false)));
+    if (!$clean) {
+        $mpdf->AddPageByArray([
+            'orientation' => 'P',
+            'newformat'   => 'A4',
+            'mgl' => 20, 'mgr' => 20, 'mgt' => 18, 'mgb' => 18, 'mgh' => 0, 'mgf' => 0,
+        ]);
+        $mpdf->showWatermarkText = false;
+        $mpdf->WriteHTML(ezd_kopia_cert_html($meta, $user_id, $manual));
+    }
 
-    $fname = 'kopia' . ($manual ? '_do_podpisu' : '') . '_'
-        . preg_replace('/[^a-zA-Z0-9\-_]+/', '_', (string)$meta['nazwa']) . '.pdf';
+    $prefix = $clean ? 'wydruk_' : ('kopia' . ($manual ? '_do_podpisu' : '') . '_');
+    $fname  = $prefix . preg_replace('/[^a-zA-Z0-9\-_]+/', '_', (string)$meta['nazwa']) . '.pdf';
     try {
         $mpdf->Output($fname, ($opts['download'] ?? false)
             ? \Mpdf\Output\Destination::DOWNLOAD
@@ -723,9 +825,21 @@ function _ezd_kopia_render_zas_pdf(array $zas): ?string {
  * Dokłada skan/zdjęcie jako pełnowymiarową stronę. Obraz wpisywany jest w obszar
  * A4 (z zachowaniem proporcji), a strona przyjmuje orientację obrazu — jak przy
  * odwzorowaniu papierowego dokumentu wciągniętego do EZD.
+ * @param bool $clean tryb czysty — bez nagłówka z nazwą pliku nad obrazem
+ * @return bool czy powstała strona z treścią
  */
-function _ezd_kopia_append_image(\Mpdf\Mpdf $mpdf, string $path, array $meta): void {
-    $dim = @getimagesize($path);
+function _ezd_kopia_append_image(\Mpdf\Mpdf $mpdf, string $path, array $meta, bool $clean = false): bool {
+    // Konwencja projektu dla mPDF: obrazy osadzane jako data: URI (bez sięgania do FS)
+    $mime = @mime_content_type($path) ?: 'application/octet-stream';
+    $data = @file_get_contents($path);
+    if ($data === false) {
+        if (!$clean) {
+            _ezd_kopia_page_note($mpdf, $meta, 'Nie udało się odczytać pliku obrazu z repozytorium.');
+        }
+        return false;
+    }
+
+    $dim  = @getimagesize($path);
     $land = $dim && (int)$dim[0] > (int)$dim[1];
 
     $mpdf->AddPageByArray([
@@ -734,19 +848,12 @@ function _ezd_kopia_append_image(\Mpdf\Mpdf $mpdf, string $path, array $meta): v
         'mgl' => 12, 'mgr' => 12, 'mgt' => 12, 'mgb' => 12, 'mgh' => 0, 'mgf' => 0,
     ]);
 
-    // Konwencja projektu dla mPDF: obrazy osadzane jako data: URI (bez sięgania do FS)
-    $mime = @mime_content_type($path) ?: 'application/octet-stream';
-    $data = @file_get_contents($path);
-    if ($data === false) {
-        $mpdf->WriteHTML('<div class="nofile">Nie udało się odczytać pliku obrazu z repozytorium.</div>');
-        return;
-    }
-
     $mpdf->WriteHTML(
-        '<div class="doc"><div class="syg">' . h((string)$meta['nazwa']) . '</div></div>'
+        ($clean ? '' : '<div class="doc"><div class="syg">' . h((string)$meta['nazwa']) . '</div></div>')
         . '<div style="text-align:center"><img src="data:' . $mime . ';base64,' . base64_encode($data) . '"'
         . ' style="max-width:' . ($land ? '265' : '180') . 'mm"></div>'
     );
+    return true;
 }
 
 /**
@@ -760,8 +867,11 @@ function _ezd_kopia_append_image(\Mpdf\Mpdf $mpdf, string $path, array $meta): v
  *
  * Otwarcie pliku (setSourceFile) jest oddzielone od dokładania stron, żeby
  * ponowna próba nigdy nie zdublowała stron już dołożonych.
+ *
+ * @param bool $clean tryb czysty — bez stron informacyjnych o nieudanym odwzorowaniu
+ * @return bool czy powstała choć jedna strona treści
  */
-function _ezd_kopia_append_pdf(\Mpdf\Mpdf $mpdf, string $path, array $meta): void {
+function _ezd_kopia_append_pdf(\Mpdf\Mpdf $mpdf, string $path, array $meta, bool $clean = false): bool {
     $norm = _ezd_kopia_qpdf_normalize($path);
     $cnt  = 0;
 
@@ -773,14 +883,17 @@ function _ezd_kopia_append_pdf(\Mpdf\Mpdf $mpdf, string $path, array $meta): voi
 
     if ($cnt < 1) {
         if ($norm !== null) @unlink($norm);   // nic nie zaimportowano — można kasować od razu
-        _ezd_kopia_page_note($mpdf, $meta,
-            'Nie udało się odwzorować treści pliku PDF w wydruku kopii — plik używa kompresji '
-            . 'nieobsługiwanej przez wbudowany parser (potrzebny jest qpdf na serwerze) albo jest '
-            . 'zaszyfrowany bądź uszkodzony. Poświadczenie na następnej stronie dotyczy metryki '
-            . 'dokumentu w systemie EZD; skrót SHA-256 wyliczono z oryginalnego pliku.');
-        return;
+        if (!$clean) {
+            _ezd_kopia_page_note($mpdf, $meta,
+                'Nie udało się odwzorować treści pliku PDF w wydruku kopii — plik używa kompresji '
+                . 'nieobsługiwanej przez wbudowany parser (potrzebny jest qpdf na serwerze) albo jest '
+                . 'zaszyfrowany bądź uszkodzony. Poświadczenie na następnej stronie dotyczy metryki '
+                . 'dokumentu w systemie EZD; skrót SHA-256 wyliczono z oryginalnego pliku.');
+        }
+        return false;
     }
 
+    $ok = 0;
     for ($i = 1; $i <= $cnt; $i++) {
         try {
             $tpl  = $mpdf->importPage($i);
@@ -793,15 +906,19 @@ function _ezd_kopia_append_pdf(\Mpdf\Mpdf $mpdf, string $path, array $meta): voi
                 'mgl' => 0, 'mgr' => 0, 'mgt' => 0, 'mgb' => 0, 'mgh' => 0, 'mgf' => 0,
             ]);
             $mpdf->useTemplate($tpl);
+            $ok++;
         } catch (\Throwable $e) {
             error_log('[ezd_kopia] strona ' . $i . ': ' . $e->getMessage());
-            _ezd_kopia_page_note($mpdf, $meta,
-                'Strony ' . $i . ' z ' . $cnt . ' nie udało się odwzorować w wydruku kopii.');
+            if (!$clean) {
+                _ezd_kopia_page_note($mpdf, $meta,
+                    'Strony ' . $i . ' z ' . $cnt . ' nie udało się odwzorować w wydruku kopii.');
+            }
         }
     }
 
     // Plik znormalizowany zostaje na dysku do końca Output() — patrz _ezd_kopia_tmp_files().
     if ($norm !== null) _ezd_kopia_tmp_files($norm);
+    return $ok > 0;
 }
 
 /** Normalizuje PDF przez qpdf (odszyfrowanie + rozpakowanie strumieni). */
@@ -835,49 +952,64 @@ function _ezd_kopia_page_note(\Mpdf\Mpdf $mpdf, array $meta, string $note): void
 /* ── UI ──────────────────────────────────────────────────────────────────── */
 
 /**
+ * Pozycje menu „Wydruk kopii" — trzy tryby, gotowe do wstawienia w dowolne menu
+ * (Alpine w koszulce, lista przycisków gdzie indziej). Zwraca tablicę:
+ *   ['url','label','opis','icon','tryb','name'].
+ */
+function ezd_kopia_menu_items(string $type, int $id, string $name = ''): array {
+    $out = [];
+    foreach (EZD_KOPIA_TRYBY as $tryb => $t) {
+        $out[] = [
+            'tryb'  => $tryb,
+            'url'   => ezd_kopia_url($type, $id, $tryb),
+            'label' => $t['label'],
+            'opis'  => $t['opis'],
+            'icon'  => $t['icon'],
+            'name'  => $t['label'] . ' — ' . ($name !== '' ? $name : (EZD_KOPIA_TYPES[$type] ?? $type)),
+        ];
+    }
+    return $out;
+}
+
+/**
  * Przyciski „Wydruk kopii" — jedno źródło wyglądu dla wszystkich list i widoków.
- * Zawsze udostępnia OBA tryby autoryzacji (grupa dwóch przycisków), bo wybór
- * należy do osoby drukującej:
- *   1. kopia autoryzowana elektronicznie (metryka z autorem wydruku),
- *   2. kopia bez autoryzacji — z miejscem na podpis odręczny (`reczny=1`).
- * Oba otwierają PDF we współdzielonym modalu podglądu (includes/ezd_pdf_modal.php).
+ * Udostępnia WSZYSTKIE trzy tryby, bo wybór należy do osoby drukującej:
+ *   1. kopia z poświadczeniem (autoryzacja elektroniczna),
+ *   2. kopia bez autoryzacji — z miejscem na podpis odręczny,
+ *   3. czysty wydruk — sama treść, bez znaku wodnego, poświadczenia i nagłówków.
+ * Każdy otwiera PDF we współdzielonym modalu podglądu (includes/ezd_pdf_modal.php).
  *
  * @param string $style 'icon' (kompaktowy, do wierszy list) | 'label' (z podpisem)
  */
 function ezd_kopia_btn(string $type, int $id, string $name = '', string $style = 'icon', string $extra_cls = ''): string {
-    return '<span class="btn-group" role="group" aria-label="Wydruk kopii dokumentu elektronicznego">'
-        . ezd_kopia_btn_one($type, $id, $name, $style, $extra_cls, false)
-        . ezd_kopia_btn_one($type, $id, $name, $style, $extra_cls, true)
-        . '</span>';
+    $html = '<span class="btn-group" role="group" aria-label="Wydruk kopii dokumentu elektronicznego">';
+    foreach (ezd_kopia_menu_items($type, $id, $name) as $it) {
+        $html .= ezd_kopia_btn_one($type, $id, $name, $style, $extra_cls, $it['tryb']);
+    }
+    return $html . '</span>';
 }
 
 /**
- * Pojedynczy przycisk wydruku kopii w wybranym trybie autoryzacji.
- * @param bool $manual true = kopia bez autoryzacji, do podpisu odręcznego
+ * Pojedynczy przycisk wydruku kopii w wybranym trybie.
+ * @param string|bool $tryb klucz z EZD_KOPIA_TRYBY; true = 'reczny' (wsteczna zgodność)
  */
-function ezd_kopia_btn_one(string $type, int $id, string $name = '', string $style = 'icon', string $extra_cls = '', bool $manual = false): string {
-    $url = APP_URL . '/ezd/kopia.php?type=' . urlencode($type) . '&id=' . (int)$id
-         . ($manual ? '&reczny=1' : '');
-    $cls = trim('btn ' . ($manual ? 'btn-outline-secondary' : 'btn-outline-dark') . ' ezd-pdf-btn ' . $extra_cls);
+function ezd_kopia_btn_one(string $type, int $id, string $name = '', string $style = 'icon', string $extra_cls = '', $tryb = 'el'): string {
+    if (is_bool($tryb)) $tryb = $tryb ? 'reczny' : 'el';
+    $tryb = ezd_kopia_tryb((string)$tryb);
+    $t    = EZD_KOPIA_TRYBY[$tryb];
 
-    $tytul = $manual
-        ? 'Wydruk kopii BEZ autoryzacji elektronicznej — z miejscem na podpis odręczny'
-        : 'Wydruk kopii dokumentu elektronicznego (autoryzacja elektroniczna, z poświadczeniem zgodności)';
+    $variant = ['el' => 'btn-outline-dark', 'reczny' => 'btn-outline-secondary', 'czysty' => 'btn-outline-secondary'][$tryb];
+    $cls = trim('btn ' . $variant . ' ezd-pdf-btn ' . $extra_cls);
+    $url = ezd_kopia_url($type, $id, $tryb);
 
-    if ($style === 'label') {
-        $lbl = $manual
-            ? '<i class="bi bi-pen me-1"></i>Kopia do podpisu'
-            : '<i class="bi bi-printer me-1"></i>Wydruk kopii';
-    } else {
-        $lbl = $manual ? '<i class="bi bi-pen"></i>' : '<i class="bi bi-printer"></i>';
-    }
-
-    $mname = ($manual ? 'Kopia do podpisu — ' : 'Kopia — ')
-           . ($name !== '' ? $name : (EZD_KOPIA_TYPES[$type] ?? $type));
+    $short = ['el' => 'Wydruk kopii', 'reczny' => 'Kopia do podpisu', 'czysty' => 'Czysty wydruk'][$tryb];
+    $lbl = $style === 'label'
+        ? '<i class="bi ' . $t['icon'] . ' me-1"></i>' . h($short)
+        : '<i class="bi ' . $t['icon'] . '"></i>';
 
     return '<a href="' . h($url) . '" class="' . h($cls) . '"'
-         . ' title="' . h($tytul) . '"'
+         . ' title="' . h($t['label'] . ' — ' . $t['opis']) . '"'
          . ' data-url="' . h($url) . '"'
-         . ' data-name="' . h($mname) . '">'
+         . ' data-name="' . h($t['label'] . ' — ' . ($name !== '' ? $name : (EZD_KOPIA_TYPES[$type] ?? $type))) . '">'
          . $lbl . '</a>';
 }

@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
 require_once dirname(dirname(__DIR__)) . '/includes/postivo.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
@@ -150,7 +151,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/pisma/wersje.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm">
               <i class="bi bi-clock-history me-1"></i>Historia
             </a>
-            <?= ezd_kopia_btn('pismo', $id, $pismo['sygnatura'], 'label', 'btn-sm') ?>
+            <?php ezd_kopia_menu_btn('pismo', $id, $pismo['sygnatura']); ?>
             <?php if($pismo['tresc'] || $pismo['title']): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
                class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
@@ -194,39 +195,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" target="_blank" class="text-decoration-none fw-semibold text-truncate d-block" style="font-size:.82rem"><?= h($z['original_name']) ?></a>
             <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · v<?= $z['wersja'] ?> · <?= h($z['uploader']??'—') ?> · <?= date('d.m.Y H:i',strtotime($z['uploaded_at'])) ?></div>
           </div>
-          <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
-          <button type="button" class="btn btn-sm btn-outline-primary ezd-email-btn flex-shrink-0"
-                  data-id="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"
-                  title="Podgląd wiadomości e-mail"><i class="bi bi-envelope-open"></i></button>
-          <?php endif; ?>
-          <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
-          <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
-          <?php if (!empty($z['sp_web_url'])): ?>
-          <button type="button" class="btn btn-sm btn-outline-success ezd-oop-btn" title="Zapisz zmiany z Office Online"
-                  data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
-                  data-zal="<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-cloud-arrow-down"></i></button>
-          <?php endif; ?>
-          <?php elseif (!empty($z['sp_web_url'])): ?>
-          <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
-          <?php endif; ?>
-          <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm flex-shrink-0') ?>
-          <?php if($can_act && $pismo['sprawa_status']!=='closed' && $zext === 'pdf'): ?>
-          <button type="button" class="btn btn-sm ezd-rsign-btn flex-shrink-0"
-                  title="Podpisz rSign (kwalifikowany PAdES)"
-                  style="background:#6d28d9;border-color:#6d28d9;color:#fff"
-                  data-zal-id="<?= (int)$z['id'] ?>"
-                  data-zal-name="<?= h($z['original_name']) ?>">
-            <i class="bi bi-pen-fill me-1"></i>rSign
-          </button>
-          <?php endif; ?>
-          <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
-          <form method="post" onsubmit="return confirm('Usunąć plik?')">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="del_file">
-            <input type="hidden" name="zid" value="<?= $z['id'] ?>">
-            <button class="btn btn-sm btn-outline-danger" title="Usuń"><i class="bi bi-trash"></i></button>
-          </form>
-          <?php endif; ?>
+          <?php
+            $_sigp = ['signed' => false];
+            if (in_array($zext, EZD_SIG_EXTS, true)) {
+                $_sigp = ezd_signature_info(UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/' . $z['filename'], $z['original_name']);
+            }
+            ezd_zal_menu($z, [
+              'can_act'   => $can_act && $pismo['sprawa_status'] !== 'closed',
+              'sprawa_id' => $sprawa_id,
+              'sig'       => $_sigp,
+              'del_field' => 'zid',
+              'allow'     => ['rsign','email_preview','obiegi'],
+            ]);
+          ?>
         </div>
         <?php endforeach; ?>
       </div>

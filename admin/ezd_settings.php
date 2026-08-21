@@ -176,20 +176,27 @@ include dirname(__DIR__) . '/includes/header.php';
             stronie plus końcowa strona poświadczenia <em>„Potwierdzam zgodność kopii z dokumentem
             elektronicznym"</em> z metryką (identyfikator, skrót SHA-256, wersja, akceptacja, data wydruku).
           </p>
-          <p class="text-muted mb-3" style="font-size:.86rem">
-            Przy każdym dokumencie dostępne są <strong>dwa tryby</strong>: kopia
-            <strong>autoryzowana elektronicznie</strong> (metryka podaje autora wydruku) oraz kopia
-            <strong>bez autoryzacji — do podpisu odręcznego</strong>, gdzie zamiast autora wydruku
-            jest miejsce na miejscowość, datę, dane i podpis osoby potwierdzającej zgodność.
-            Ta druga jest oznaczona nagłówkiem „KOPIA NIEUWIERZYTELNIONA" do czasu podpisania.
+          <p class="text-muted mb-2" style="font-size:.86rem">
+            Przy każdym dokumencie dostępne są <strong>trzy tryby</strong> wydruku:
           </p>
+          <ul class="text-muted mb-3" style="font-size:.86rem">
+            <li><strong>Kopia z poświadczeniem</strong> — autoryzacja elektroniczna: metryka kończy się
+                wierszem „Autor wydruku" z danymi osoby drukującej.</li>
+            <li><strong>Kopia do podpisu odręcznego</strong> — bez autoryzacji: zamiast autora wydruku
+                jest miejsce na miejscowość, datę, dane i podpis osoby potwierdzającej zgodność.
+                Do czasu podpisania wydruk jest oznaczony nagłówkiem „KOPIA NIEUWIERZYTELNIONA".</li>
+            <li><strong>Czysty wydruk</strong> — samo odwzorowanie treści: bez znaku wodnego, bez strony
+                poświadczenia i bez nagłówków. Niedostępny dla plików, których treści nie da się
+                odwzorować (np. DOCX bez konwersji na PDF).</li>
+          </ul>
           <div class="row g-3">
             <div class="col-sm-6" style="max-width:340px">
               <label class="form-label fw-semibold mb-1" for="ezd_kopia_watermark">Tekst znaku wodnego</label>
               <input type="text" class="form-control form-control-sm" id="ezd_kopia_watermark" name="ezd_kopia_watermark"
                      maxlength="60" value="<?= h($cfg['ezd_kopia_watermark'] ?: EZD_KOPIA_WATERMARK_DEFAULT) ?>"
                      placeholder="<?= h(EZD_KOPIA_WATERMARK_DEFAULT) ?>">
-              <div class="form-text">Ukośny napis na każdej stronie kopii. Puste pole = „<?= h(EZD_KOPIA_WATERMARK_DEFAULT) ?>".</div>
+              <div class="form-text">Ukośny napis na stronach treści (nie na stronie poświadczenia).
+                Puste pole = „<?= h(EZD_KOPIA_WATERMARK_DEFAULT) ?>". Czysty wydruk nie ma znaku wodnego.</div>
             </div>
           </div>
         </div>

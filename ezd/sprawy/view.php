@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 if (module_enabled('org_enabled')) {
     require_once dirname(dirname(__DIR__)) . '/includes/org.php';
@@ -685,92 +686,14 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
             <div class="text-muted" style="font-size:.68rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?></div>
           </div>
           <div class="text-nowrap text-muted" style="font-size:.72rem"><?= date('d.m.Y', strtotime($z['uploaded_at'])) ?></div>
-          <div class="d-flex gap-1 flex-shrink-0">
-            <?php if(!empty($sig['signed'])): ?>
-            <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-sig-btn"
-              title="Weryfikuj podpis elektroniczny"
-              data-zal="<?= (int)$z['id'] ?>" data-file="<?= h($z['original_name']) ?>"
-              data-type="<?= h((string)$sig['type']) ?>" data-signer="<?= h((string)($sig['signer'] ?? '')) ?>"
-              data-date="<?= h((string)($sig['signed_at'] ?? '')) ?>" data-reason="<?= h((string)($sig['reason'] ?? '')) ?>"
-              data-location="<?= h((string)($sig['location'] ?? '')) ?>" data-note="<?= h((string)($sig['note'] ?? '')) ?>">
-              <i class="bi bi-patch-check"></i>
-            </button>
-            <?php if($can_act && $zext === 'pdf'): ?>
-            <button type="button" class="btn btn-xs btn-outline-info btn-sm"
-                    title="Utwórz pismo z tego pliku"
-                    data-bs-toggle="modal" data-bs-target="#pismoFromZalModal"
-                    data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>">
-              <i class="bi bi-envelope-plus"></i>
-            </button>
-            <?php endif; ?>
-            <?php endif; ?>
-            <?php if($can_act && $grupy): ?>
-            <button type="button" class="btn btn-xs btn-outline-secondary btn-sm ezd-move-grupa-btn"
-                    title="Przenieś do grupy"
-                    data-bs-toggle="modal" data-bs-target="#zalMoveGroupModal"
-                    data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>" data-grupa="<?= (int)($z['grupa_id'] ?? 0) ?>">
-              <i class="bi bi-folder-symlink"></i>
-            </button>
-            <?php endif; ?>
-            <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
-            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Office Online"><i class="bi bi-microsoft"></i></a>
-            <?php if (!empty($z['sp_web_url'])): $_s = in_array($zext, ['xls','xlsx'], true) ? 'ms-excel' : 'ms-word'; ?>
-            <a href="<?= h($_s) ?>:ofe|u|<?= rawurlencode($z['sp_web_url']) ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w aplikacji desktop (Word/Excel)"><i class="bi bi-window-desktop"></i></a>
-            <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-oop-btn" title="Pobierz zmiany z Office Online"
-                    data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
-                    data-zal="<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-cloud-arrow-down"></i></button>
-            <?php endif; ?>
-            <?php elseif (!empty($z['sp_web_url'])): ?>
-            <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary btn-sm" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
-            <?php endif; ?>
-            <?php if ($zext === 'pdf'): ?>
-            <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm ezd-pdf-btn"
-               title="Podgląd PDF"
-               data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-eye"></i></a>
-            <?php if($can_act): ?>
-            <button type="button" class="btn btn-xs btn-sm ezd-rsign-btn flex-shrink-0"
-                    title="Podpisz rSign (kwalifikowany PAdES)"
-                    style="background:#6d28d9;border-color:#6d28d9;color:#fff"
-                    data-zal-id="<?= (int)$z['id'] ?>"
-                    data-zal-name="<?= h($z['original_name']) ?>">
-              <i class="bi bi-pen-fill me-1"></i>rSign
-            </button>
-            <?php endif; ?>
-            <?php endif; ?>
-            <?php if (in_array($zext, ['eml', 'msg'], true)): ?>
-            <button type="button" class="btn btn-xs btn-outline-primary btn-sm ezd-email-btn"
-                    title="Podgląd wiadomości e-mail"
-                    data-id="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-envelope-open"></i></button>
-            <?php endif; ?>
-            <?php if ($can_act && in_array($zext, EZD_PDF_CONVERTIBLE_EXT, true)): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Przekonwertować na PDF?')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="convert_pdf">
-              <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
-              <button class="btn btn-xs btn-outline-danger btn-sm" title="Konwertuj na PDF"><i class="bi bi-filetype-pdf"></i></button>
-            </form>
-            <?php endif; ?>
-            <?php if(module_enabled('obiegi_enabled')): ?>
-            <a href="<?= APP_URL ?>/obiegi/new.php?ezd_sprawa_id=<?= $id ?>&ezd_zalacznik_id=<?= $z['id'] ?>"
-               class="btn btn-xs btn-outline-primary btn-sm" title="Uruchom obieg dokumentu"><i class="bi bi-diagram-2"></i></a>
-            <?php endif; ?>
-            <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-xs btn-sm') ?>
-            <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm" title="Pobierz plik"><i class="bi bi-download"></i></a>
-            <?php if($can_act): ?>
-            <button type="button" class="btn btn-xs btn-outline-warning btn-sm ezd-sign-req-btn"
-                    title="Przekaż do podpisu"
-                    data-zal-id="<?= (int)$z['id'] ?>"
-                    data-zal-name="<?= h($z['original_name']) ?>">
-              <i class="bi bi-pen"></i>
-            </button>
-            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="del_file">
-              <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
-              <button class="btn btn-xs btn-outline-danger btn-sm" title="Usuń plik"><i class="bi bi-trash3"></i></button>
-            </form>
-            <?php endif; ?>
-          </div>
+          <?php ezd_zal_menu($z, [
+            'can_act'   => $can_act,
+            'sprawa_id' => (int)$z['sprawa_id'],
+            'sig'       => $sig,
+            'del_field' => 'zal_id',
+            'grupy'     => (bool)$grupy,
+            'allow'     => ['convert_pdf','move_grupa','pismo_from_zal','sign_req','rsign','email_preview','obiegi'],
+          ]); ?>
         </div>
         <?php
     };

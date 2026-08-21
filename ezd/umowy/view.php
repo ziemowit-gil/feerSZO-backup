@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id    = (int)($_GET['id'] ?? 0);
@@ -75,7 +76,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php if($umowa['strona']): ?><div class="text-muted mt-1" style="font-size:.82rem"><i class="bi bi-building me-1"></i><?= h($umowa['strona']) ?></div><?php endif; ?>
           </div>
           <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
-            <?= ezd_kopia_btn('umowa', $id, $umowa['sygnatura'], 'label', 'btn-sm') ?>
+            <?php ezd_kopia_menu_btn('umowa', $id, $umowa['sygnatura']); ?>
             <?php if(can_edit() && $is_active): ?>
             <a href="<?= APP_URL ?>/ezd/umowy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
             <?php endif; ?>
@@ -151,33 +152,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </a>
             <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · v<?= $z['wersja'] ?> · <?= h($z['uploader']??'—') ?> · <?= date('d.m.Y H:i',strtotime($z['uploaded_at'])) ?></div>
           </div>
-          <?php if(!empty($sig['signed'])): ?>
-          <button type="button" class="btn btn-sm btn-outline-success ezd-sig-btn" title="Dane podpisu elektronicznego"
-            data-zal="<?= (int)$z['id'] ?>"
-            data-file="<?= h($z['original_name']) ?>" data-type="<?= h((string)$sig['type']) ?>"
-            data-signer="<?= h((string)($sig['signer'] ?? '')) ?>" data-date="<?= h((string)($sig['signed_at'] ?? '')) ?>"
-            data-reason="<?= h((string)($sig['reason'] ?? '')) ?>" data-location="<?= h((string)($sig['location'] ?? '')) ?>"
-            data-note="<?= h((string)($sig['note'] ?? '')) ?>"><i class="bi bi-patch-check"></i></button>
-          <?php endif; ?>
-          <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
-          <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
-          <?php if (!empty($z['sp_web_url'])): ?>
-          <button type="button" class="btn btn-sm btn-outline-success ezd-oop-btn" title="Zapisz zmiany z Office Online"
-                  data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
-                  data-zal="<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-cloud-arrow-down"></i></button>
-          <?php endif; ?>
-          <?php elseif (!empty($z['sp_web_url'])): ?>
-          <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
-          <?php endif; ?>
-          <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm flex-shrink-0') ?>
-          <?php if(can_edit() && $is_active): ?>
-          <form method="post" onsubmit="return confirm('Usunąć plik?')">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="del_file">
-            <input type="hidden" name="zid" value="<?= $z['id'] ?>">
-            <button class="btn btn-sm btn-outline-danger" title="Usuń"><i class="bi bi-trash"></i></button>
-          </form>
-          <?php endif; ?>
+          <?php ezd_zal_menu($z, [
+            'can_act'   => can_edit() && $is_active,
+            'sprawa_id' => (int)$z['sprawa_id'],
+            'sig'       => $sig,
+            'del_field' => 'zid',
+            'allow'     => ['obiegi'],
+          ]); ?>
         </div>
         <?php endforeach; ?>
       </div>

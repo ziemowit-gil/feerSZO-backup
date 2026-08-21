@@ -208,6 +208,7 @@ h2:hover .anchor,h3:hover .anchor{opacity:1}
   <a class="nav sub" href="#fn-rpw">RPW, dekretacja</a>
   <a class="nav sub" href="#fn-pliki">Pliki, Office, spinacz</a>
   <a class="nav sub" href="#fn-kopia">Kopia dokumentu el.</a>
+  <a class="nav sub" href="#fn-zalmenu">Menu akcji pliku</a>
 
   <div class="navtitle">Interfejs HTTP</div>
   <a class="nav" href="#endpointy">Endpointy (przegląd)</a>
@@ -517,7 +518,15 @@ jest jawnie oznaczona nagłówkiem <b>KOPIA NIEUWIERZYTELNIONA</b> i klauzulą, 
 odręcznego wydruk nie stanowi poświadczonej kopii — niepodpisany egzemplarz nie może uchodzić
 za uwierzytelniony. Nazwa pliku i tytuł PDF-a też rozróżniają tryb, a wpis w <code>ezd_log</code>
 zapisuje, który tryb wybrano.</li>
-</ul></div>
+<li><b>Czysty wydruk</b> (<code>tryb=czysty</code>) — samo odwzorowanie treści. Bez znaku wodnego,
+bez strony poświadczenia i bez nagłówków, które dokłada wydruk kopii (nazwa organizacji, sygnatura,
+tabela metadanych, podpis nazwy pliku nad skanem). PDF i skan wychodzą dokładnie takie, jakie są
+w repozytorium; pismo i dokument dostają tylko tytuł i treść. Gdy treści nie da się odwzorować
+(DOCX, XLSX, brak pliku), tryb kończy się wyjątkiem <code>EzdKopiaTrybException</code> → HTTP 422
+z podpowiedzią, żeby użyć jednego z trybów z poświadczeniem — strona informacyjna byłaby przecież
+właśnie dopiskiem, którego ten tryb ma nie mieć.</li>
+</ul>
+Nazwa parametru to <code>tryb</code>; starsze linki <code>reczny=1</code> nadal działają.</div>
 <div class="tablewrap"><table class="fn">
 <tr><th>Sygnatura</th><th>Opis</th></tr>
 <tr><td><code>ezd_kopia_resolve(string $type, int $id): ?array</code></td><td>Metryka + źródło treści dla typu <code>pismo</code> / <code>dokument</code> / <code>umowa</code> / <code>zalacznik</code> / <code>zaswiadczenie</code>. <code>null</code>, gdy typ nieznany lub dokumentu nie ma.</td></tr>
@@ -526,8 +535,11 @@ zapisuje, który tryb wybrano.</li>
 <tr><td><code>ezd_kopia_ident(string $type, int $id): string</code></td><td>Stały 32-znakowy identyfikator dokumentu — <code>md5(typ|id|sól instancji)</code>; sól w <code>settings.ezd_kopia_salt</code>.</td></tr>
 <tr><td><code>ezd_kopia_watermark(): string</code></td><td>Tekst znaku wodnego z <code>settings.ezd_kopia_watermark</code> (domyślnie „KOPIA ELEKTRONICZNA").</td></tr>
 <tr><td><code>ezd_kopia_cert_html(array $meta, int $uid, bool $manual=false): string</code></td><td>HTML strony poświadczenia (układ tabeli jak w EZD RP). <code>$manual</code> = bez autoryzacji elektronicznej, z blokiem podpisu odręcznego.</td></tr>
-<tr><td><code>ezd_kopia_btn(string $type, int $id, string $name='', string $style='icon', string $cls=''): string</code></td><td>Grupa dwóch przycisków „Wydruk kopii" (autoryzacja elektroniczna + do podpisu odręcznego); otwierają PDF w modalu <code>.ezd-pdf-btn</code>.</td></tr>
-<tr><td><code>ezd_kopia_btn_one(…, bool $manual=false): string</code></td><td>Pojedynczy przycisk w wybranym trybie — gdy w danym miejscu ma być tylko jeden.</td></tr>
+<tr><td><code>ezd_kopia_tryb(string $tryb): string</code></td><td>Normalizuje nazwę trybu do klucza <code>EZD_KOPIA_TRYBY</code> (domyślnie <code>el</code>).</td></tr>
+<tr><td><code>ezd_kopia_url(string $type, int $id, string $tryb='el'): string</code></td><td>Adres wydruku w danym trybie.</td></tr>
+<tr><td><code>ezd_kopia_menu_items(string $type, int $id, string $name=''): array</code></td><td>Trzy pozycje menu (url, label, opis, icon) — źródło prawdy dla każdego UI wyboru trybu.</td></tr>
+<tr><td><code>ezd_kopia_btn(…): string</code></td><td>Grupa trzech przycisków (wszystkie tryby); w gęstych wierszach lepiej użyć menu Alpine.</td></tr>
+<tr><td><code>ezd_kopia_btn_one(…, $tryb='el'): string</code></td><td>Pojedynczy przycisk w wybranym trybie (używany w kompaktowym panelu pisma).</td></tr>
 </table></div>
 <div class="note"><b>Odwzorowanie treści per źródło.</b> PDF → strony importowane przez FPDI
 (przy błędzie parsera: normalizacja <code>qpdf --decrypt --stream-data=uncompress</code> i druga próba);
@@ -542,6 +554,36 @@ podpis w samym pliku (<code>ezd_signature_info</code>), następnie zamknięty ob
 (<code>ezd_sign_requests</code>). Pismo/umowa: zrealizowana dekretacja <code>do_akcept</code>, następnie
 status rekordu. Dokument: status <code>zatwierdzony</code>. Zaświadczenie: <code>zatwierdzone_przez</code> +
 <code>zatwierdzone_at</code>. Brak przesłanek → wiersz „Dokument nie został zaakceptowany w systemie".</div>
+<h3 id="fn-zalmenu">Menu akcji pliku (Alpine)</h3>
+<p><code>includes/ezd_zal_menu.php</code> — jedno miejsce, z którego bierze się pasek akcji pliku we
+wszystkich widokach EZD (koszulka, pismo, dokument wewnętrzny, umowa). Wcześniej wiersz pliku
+w koszulce miał do 13 ikon bez podpisów w jednym rzędzie; teraz widoczne są 2 akcje podstawowe
+(podgląd właściwy dla typu pliku + pobranie), a reszta jest w jednym menu pogrupowanym na
+<i>Podgląd i edycja</i>, <i>Wydruk kopii</i>, <i>Podpis</i>, <i>Organizacja</i> i strefę usuwania —
+każda pozycja z nazwą i jednozdaniowym opisem skutku.</p>
+<div class="tablewrap"><table class="fn">
+<tr><th>Sygnatura</th><th>Opis</th></tr>
+<tr><td><code>ezd_zal_menu(array $z, array $opt): void</code></td><td>Pasek akcji pliku. <code>$opt</code>: <code>can_act</code>, <code>sprawa_id</code>, <code>sig</code> (wynik <code>ezd_signature_info</code>), <code>grupy</code>, <code>del_field</code> (<code>zal_id</code> w koszulce, <code>zid</code> w pozostałych widokach) oraz <code>allow</code> — lista akcji warunkowych dostępnych na tej stronie.</td></tr>
+<tr><td><code>ezd_kopia_menu_btn(string $type, int $id, string $name='', string $cls='btn-sm'): void</code></td><td>Kompaktowe menu „Wydruk kopii" (3 tryby) do paska akcji dokumentu.</td></tr>
+<tr><td><code>_ezd_zal_menu_assets(): void</code></td><td>Leniwa emisja stylu i komponentu Alpine — raz na żądanie, przy pierwszym menu.</td></tr>
+</table></div>
+<div class="note"><b>Dlaczego Alpine, a nie dropdown Bootstrapa.</b> Alpine 3 dociągany jest z CDN
+(tak samo jak Bootstrap) tylko na stronach, które faktycznie renderują menu. Menu pozycjonujemy
+<code>position:fixed</code> po współrzędnych z <code>getBoundingClientRect()</code>, więc nie przycinają
+go kontenery z <code>overflow</code> — zakładki koszulki, karty, przewijane listy. To ten sam problem,
+który w listach umów trzeba było łatać popperem <code>strategy:'fixed'</code>. Dodatkowo nie dotykamy
+klasy <code>.dropdown-menu</code>, więc nie da się wpaść w pułapkę, w której własny <code>display</code>
+nadpisuje stan <code>.show</code>.
+<br><b>Uwaga przy AJAX-ie:</b> Alpine nie inicjalizuje sam poddrzewa wstawionego po starcie, więc
+fragmenty ładowane XHR-em (<code>pisma/ajax_panel.php</code>) używają zwykłych przycisków
+(<code>ezd_kopia_btn_one</code>), a nie tego menu. Jeśli menu ma się kiedyś pojawić w takim fragmencie,
+trzeba po wstawieniu wywołać <code>Alpine.initTree(el)</code>.</div>
+<div class="note"><b>Zależności per strona.</b> Pozycje warunkowe są opt-in przez <code>allow</code>,
+bo wymagają obsługi POST i modali, których nie ma na każdej stronie:
+<code>convert_pdf</code>, <code>move_grupa</code>, <code>pismo_from_zal</code> i <code>sign_req</code>
+istnieją tylko w widoku koszulki; <code>rsign</code> wymaga <code>includes/ezd_rsign.php</code>;
+<code>email_preview</code> wymaga <code>includes/ezd_email_modal.php</code>.
+Modale podpisu i podglądu PDF oraz „Zapisz zmiany z Office Online" są globalne (<code>includes/footer.php</code>).</div>
 </section>
 
 <!-- ============================================ ENDPOINTY =========== -->
@@ -570,7 +612,7 @@ Pełną, interaktywną specyfikację otworzysz w <a href="./index.php">Swagger U
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/office_online.php</code></td><td>Redirect do edytora Office Online (przez SharePoint/Graph)</td></tr>
 <tr><td><span class="m post">POST</span></td><td><code>/ezd/office_online_pull.php</code></td><td>Pull treści po edycji — <span class="pill acc">JSON (AJAX)</span></td></tr>
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/validate_signature.php</code></td><td>Walidacja podpisu elektronicznego — <span class="pill acc">JSON</span></td></tr>
-<tr><td><span class="m get">GET</span></td><td><code>/ezd/kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego → PDF. <code>type</code> = pismo | dokument | umowa | zalacznik | zaswiadczenie, <code>id</code>, opcjonalnie <code>reczny=1</code> (kopia bez autoryzacji, do podpisu odręcznego), <code>wm=0</code> (bez znaku wodnego), <code>dl=1</code> (pobranie)</td></tr>
+<tr><td><span class="m get">GET</span></td><td><code>/ezd/kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego → PDF. <code>type</code> = pismo | dokument | umowa | zalacznik | zaswiadczenie, <code>id</code>, <code>tryb</code> = el | reczny | czysty, opcjonalnie <code>wm=0</code> (bez znaku wodnego), <code>dl=1</code> (pobranie). Zwraca 422, gdy wybrany tryb jest niemożliwy dla tego dokumentu</td></tr>
 </table></div>
 
 <div class="note"><b>Endpointy nie-HTML.</b> Dwa realne endpointy JSON:
@@ -761,6 +803,7 @@ elementy postępowania w widoku sprawy (metrykę oraz obieg/workflow BPM). Ustaw
 <tr><td><code>includes/ezd_archiwum.php</code></td><td>Archiwum zakładowe — spisy, retencja, brakowanie</td></tr>
 <tr><td><code>includes/ezd_szablony.php</code></td><td>Szablony pism + silnik tokenów <code>{{…}}</code></td></tr>
 <tr><td><code>includes/ezd_kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego — metryka, znak wodny, strona poświadczenia zgodności (dla każdego typu dokumentu)</td></tr>
+<tr><td><code>includes/ezd_zal_menu.php</code></td><td>Menu akcji pliku i menu wyboru trybu wydruku (Alpine, <code>position:fixed</code>) — współdzielone przez koszulkę, pisma, dokumenty i umowy</td></tr>
 <tr><td><code>includes/ezd_ai.php</code></td><td>Asystent AI — kwalifikacja JRWA (Claude, structured outputs)</td></tr>
 <tr><td><code>includes/ezd_*_modal.php</code></td><td>Współdzielone modale UI: podgląd PDF, podpis, pull z Office Online</td></tr>
 <tr><td><code>includes/sigcheck.php</code></td><td>Walidacja podpisu elektronicznego (openssl)</td></tr>
