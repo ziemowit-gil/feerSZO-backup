@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zaswiadczenia_ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 ezd_require_access();
@@ -256,6 +257,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </button>
           <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&duplikat=1" target="_blank"
              class="btn btn-outline-secondary btn-sm" title="Drukuj duplikat z adnotacją daty wydruku"><i class="bi bi-files me-1"></i>Duplikat</a>
+          <?= ezd_kopia_btn('zaswiadczenie', $id, (string)($zas['nr_zaswiadczenia'] ?? ''), 'label', 'btn-sm') ?>
           <?php if($can_mgr && empty($zas['plik_path'])): ?>
           <form method="post" class="d-inline" onsubmit="return confirm('Przerenderować treść z aktualnego szablonu? Nadpisze obecną treść zaświadczenia.')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

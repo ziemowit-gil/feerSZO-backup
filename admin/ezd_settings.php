@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
+require_once dirname(__DIR__) . '/includes/ezd_kopia.php';
 
 require_role('admin');
 
@@ -20,6 +21,7 @@ $settings_keys = [
     'ezd_peln_jrwa',
     'ezd_cert_jrwa',
     'ezd_kdok_jrwa',
+    'ezd_kopia_watermark',
     'corr_ezd_auto',
     'corr_ezd_jrwa',
     'ezd_rpwy_auto',
@@ -61,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
         'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
         'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
+        'ezd_kopia_watermark'   => mb_substr(trim($_POST['ezd_kopia_watermark'] ?? ''), 0, 60) ?: EZD_KOPIA_WATERMARK_DEFAULT,
         'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
         'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
         'ezd_rpwy_auto'         => isset($_POST['ezd_rpwy_auto']) ? '1' : '0',
@@ -158,6 +161,28 @@ include dirname(__DIR__) . '/includes/header.php';
               <label class="form-label fw-semibold mb-1" for="ezd_kdok_jrwa">Symbol JRWA dok. księgowych</label>
               <input type="text" class="form-control form-control-sm font-monospace" id="ezd_kdok_jrwa" name="ezd_kdok_jrwa" value="<?= h($cfg['ezd_kdok_jrwa'] ?: 'KSG') ?>" placeholder="KSG">
               <div class="form-text">JRWA „Dokumenty księgowe - obieg od zapłaty". Dokumenty zatwierdzone do wypłaty w <a href="<?= APP_URL ?>/ksiegowosc/index.php">EOD Dok. Księgowych</a> trafiają tu automatycznie.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wydruk kopii dokumentu elektronicznego -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold"><i class="bi bi-printer me-2 text-primary"></i>Wydruk kopii dokumentu elektronicznego</div>
+        <div class="card-body">
+          <p class="text-muted mb-3" style="font-size:.86rem">
+            Każdy dokument EZD (pismo, dokument wewnętrzny, umowa, plik w repozytorium koszulki) można
+            wydrukować jako <strong>kopię dokumentu elektronicznego</strong>: treść ze znakiem wodnym na każdej
+            stronie plus końcowa strona poświadczenia <em>„Potwierdzam zgodność kopii z dokumentem
+            elektronicznym"</em> z metryką (identyfikator, skrót SHA-256, wersja, akceptacja, data i autor wydruku).
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-6" style="max-width:340px">
+              <label class="form-label fw-semibold mb-1" for="ezd_kopia_watermark">Tekst znaku wodnego</label>
+              <input type="text" class="form-control form-control-sm" id="ezd_kopia_watermark" name="ezd_kopia_watermark"
+                     maxlength="60" value="<?= h($cfg['ezd_kopia_watermark'] ?: EZD_KOPIA_WATERMARK_DEFAULT) ?>"
+                     placeholder="<?= h(EZD_KOPIA_WATERMARK_DEFAULT) ?>">
+              <div class="form-text">Ukośny napis na każdej stronie kopii. Puste pole = „<?= h(EZD_KOPIA_WATERMARK_DEFAULT) ?>".</div>
             </div>
           </div>
         </div>

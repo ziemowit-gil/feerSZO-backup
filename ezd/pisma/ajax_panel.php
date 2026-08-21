@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_login(); require_module_enabled('ezd_enabled', ''); ezd_require_access();
 
 header('Content-Type: text/html; charset=utf-8');
@@ -89,6 +90,7 @@ $statuses = ['nowe' => 'Nowe', 'w_toku' => 'W toku', 'odpowiedziano' => 'Odpowie
     <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener"
        class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0" title="Word Online"><i class="bi bi-microsoft"></i></a>
     <?php endif; ?>
+    <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm py-0 px-1 flex-shrink-0') ?>
     <?php if ($can_act): ?>
     <button type="button" class="btn btn-sm btn-outline-info py-0 px-1 flex-shrink-0 ezd-panel-from-zal"
             data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>"
@@ -135,6 +137,7 @@ $statuses = ['nowe' => 'Nowe', 'w_toku' => 'W toku', 'odpowiedziano' => 'Odpowie
   <a href="<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $id ?>&from_sprawa=<?= $sprawa_id ?>" class="btn btn-sm btn-outline-primary">
     <i class="bi bi-box-arrow-up-right me-1"></i>Pełny widok
   </a>
+  <?= ezd_kopia_btn('pismo', $id, $pismo['sygnatura'], 'label', 'btn-sm') ?>
   <?php if ($can_act): ?>
   <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?>&from_sprawa=<?= $sprawa_id ?>" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-pencil me-1"></i>Edytuj

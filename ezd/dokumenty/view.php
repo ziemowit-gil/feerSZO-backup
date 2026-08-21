@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id  = (int)($_GET['id'] ?? 0);
@@ -72,9 +73,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
           <h5 class="fw-bold mb-0"><?= h($doc['title']) ?></h5>
         </div>
-        <?php if($can_act): ?>
-        <a href="<?= APP_URL ?>/ezd/dokumenty/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-        <?php endif; ?>
+        <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+          <?= ezd_kopia_btn('dokument', $id, $doc['sygnatura'], 'label', 'btn-sm') ?>
+          <?php if($can_act): ?>
+          <a href="<?= APP_URL ?>/ezd/dokumenty/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+          <?php endif; ?>
+        </div>
       </div>
     </div></div>
 
@@ -106,6 +110,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php elseif (!empty($z['sp_web_url'])): ?>
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
+          <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm flex-shrink-0') ?>
           <?php if($can_act && strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)) === 'pdf'): ?>
           <button type="button" class="btn btn-sm ezd-rsign-btn flex-shrink-0"
                   title="Podpisz rSign (kwalifikowany PAdES)"

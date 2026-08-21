@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 if (module_enabled('org_enabled')) {
     require_once dirname(dirname(__DIR__)) . '/includes/org.php';
@@ -753,6 +754,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
             <a href="<?= APP_URL ?>/obiegi/new.php?ezd_sprawa_id=<?= $id ?>&ezd_zalacznik_id=<?= $z['id'] ?>"
                class="btn btn-xs btn-outline-primary btn-sm" title="Uruchom obieg dokumentu"><i class="bi bi-diagram-2"></i></a>
             <?php endif; ?>
+            <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-xs btn-sm') ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm" title="Pobierz plik"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
             <button type="button" class="btn btn-xs btn-outline-warning btn-sm ezd-sign-req-btn"

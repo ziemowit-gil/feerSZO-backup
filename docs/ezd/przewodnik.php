@@ -207,6 +207,7 @@ h2:hover .anchor,h3:hover .anchor{opacity:1}
   <a class="nav sub" href="#fn-pisma">Pisma, umowy, dokumenty</a>
   <a class="nav sub" href="#fn-rpw">RPW, dekretacja</a>
   <a class="nav sub" href="#fn-pliki">Pliki, Office, spinacz</a>
+  <a class="nav sub" href="#fn-kopia">Kopia dokumentu el.</a>
 
   <div class="navtitle">Interfejs HTTP</div>
   <a class="nav" href="#endpointy">Endpointy (przegląd)</a>
@@ -496,6 +497,35 @@ woła <code>ezd_log()</code>. Poniżej wybór najważniejszych funkcji publiczny
 <tr><td><code>ezd_spinacz_merge(int $sprawa_id, int $uid, string $files_field, …): array</code></td><td>„Spinacz": łączy 2+ plików (Office konwertowane na PDF) w jeden PDF; operacja atomowa z cleanupem plików tymczasowych.</td></tr>
 <tr><td><code>ezd_merge_pdf_files(array $paths, string $out): void</code></td><td>Scala PDF-y — preferuje <code>qpdf</code> (każda wersja PDF), fallback FPDI (≤1.4).</td></tr>
 </table></div>
+
+<h3 id="fn-kopia">Wydruk kopii dokumentu elektronicznego</h3>
+<p><code>includes/ezd_kopia.php</code> — jeden silnik dla <b>każdego</b> dokumentu EZD. Wydruk składa się
+z odwzorowania treści (znak wodny na każdej stronie) i końcowej strony poświadczenia
+<i>„Potwierdzam zgodność kopii z dokumentem elektronicznym"</i> z metryką: identyfikator dokumentu,
+nazwa, tytuł, skrót SHA-256, wersja, data dokumentu, znak koszulki, akceptacja, data i autor wydruku.</p>
+<div class="tablewrap"><table class="fn">
+<tr><th>Sygnatura</th><th>Opis</th></tr>
+<tr><td><code>ezd_kopia_resolve(string $type, int $id): ?array</code></td><td>Metryka + źródło treści dla typu <code>pismo</code> / <code>dokument</code> / <code>umowa</code> / <code>zalacznik</code> / <code>zaswiadczenie</code>. <code>null</code>, gdy typ nieznany lub dokumentu nie ma.</td></tr>
+<tr><td><code>ezd_kopia_access(array $meta, int $uid): ?string</code></td><td>Uprawnienie: dostęp do koszulki dokumentu (<code>ezd_sprawa_access</code>); zaświadczenia bez koszulki — kancelaria/edytor albo autor wniosku.</td></tr>
+<tr><td><code>ezd_kopia_stream(array $meta, int $uid, array $opts=[]): void</code></td><td>Buduje PDF (mPDF) i streamuje inline. <code>$opts</code>: <code>watermark</code>, <code>download</code>.</td></tr>
+<tr><td><code>ezd_kopia_ident(string $type, int $id): string</code></td><td>Stały 32-znakowy identyfikator dokumentu — <code>md5(typ|id|sól instancji)</code>; sól w <code>settings.ezd_kopia_salt</code>.</td></tr>
+<tr><td><code>ezd_kopia_watermark(): string</code></td><td>Tekst znaku wodnego z <code>settings.ezd_kopia_watermark</code> (domyślnie „KOPIA ELEKTRONICZNA").</td></tr>
+<tr><td><code>ezd_kopia_cert_html(array $meta, int $uid): string</code></td><td>HTML strony poświadczenia (układ tabeli jak w EZD RP).</td></tr>
+<tr><td><code>ezd_kopia_btn(string $type, int $id, string $name='', string $style='icon', string $cls=''): string</code></td><td>Przycisk „Wydruk kopii" dla list i widoków; otwiera PDF w modalu <code>.ezd-pdf-btn</code>.</td></tr>
+</table></div>
+<div class="note"><b>Odwzorowanie treści per źródło.</b> PDF → strony importowane przez FPDI
+(przy błędzie parsera: normalizacja <code>qpdf --decrypt --stream-data=uncompress</code> i druga próba);
+obraz → osadzony jako <code>data:</code> URI na stronie A4 w orientacji obrazu; pismo/dokument → treść
+z metadanymi jako HTML; umowa → tabela parametrów; zaświadczenie → wgrany plik albo wydruk
+z szablonu renderowany osobnym przebiegiem mPDF. Formatów nieodwzorowywalnych (DOCX, XLSX, ZIP…)
+wydruk nie udaje: wstawia stronę informacyjną, a poświadczenie i tak podaje skrót SHA-256
+oryginalnego pliku. <b>Skrót</b> dla plików liczony jest z bajtów pliku, dla rekordów bazy — z
+kanonicznej serializacji pól merytorycznych (kolejność pól jest częścią definicji skrótu).</div>
+<div class="note"><b>Akceptacja</b> nie jest osobną encją — jest wyprowadzana. Plik: kwalifikowany
+podpis w samym pliku (<code>ezd_signature_info</code>), następnie zamknięty obieg podpisu
+(<code>ezd_sign_requests</code>). Pismo/umowa: zrealizowana dekretacja <code>do_akcept</code>, następnie
+status rekordu. Dokument: status <code>zatwierdzony</code>. Zaświadczenie: <code>zatwierdzone_przez</code> +
+<code>zatwierdzone_at</code>. Brak przesłanek → wiersz „Dokument nie został zaakceptowany w systemie".</div>
 </section>
 
 <!-- ============================================ ENDPOINTY =========== -->
@@ -524,12 +554,14 @@ Pełną, interaktywną specyfikację otworzysz w <a href="./index.php">Swagger U
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/office_online.php</code></td><td>Redirect do edytora Office Online (przez SharePoint/Graph)</td></tr>
 <tr><td><span class="m post">POST</span></td><td><code>/ezd/office_online_pull.php</code></td><td>Pull treści po edycji — <span class="pill acc">JSON (AJAX)</span></td></tr>
 <tr><td><span class="m get">GET</span></td><td><code>/ezd/validate_signature.php</code></td><td>Walidacja podpisu elektronicznego — <span class="pill acc">JSON</span></td></tr>
+<tr><td><span class="m get">GET</span></td><td><code>/ezd/kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego → PDF. <code>type</code> = pismo | dokument | umowa | zalacznik | zaswiadczenie, <code>id</code>, opcjonalnie <code>wm=0</code> (bez znaku wodnego), <code>dl=1</code> (pobranie)</td></tr>
 </table></div>
 
 <div class="note"><b>Endpointy nie-HTML.</b> Dwa realne endpointy JSON:
 <code>validate_signature.php</code> (zawsze JSON) i <code>office_online_pull.php</code> (JSON tylko w trybie
 <code>_ajax=1</code>). Strumienie binarne: <code>serve.php</code>, <code>rpw/scan.php</code>. CSV:
-<code>sprawy/index.php?export=csv</code>. Wydruk PDF: <code>sprawy/print.php?out=pdf</code>.</div>
+<code>sprawy/index.php?export=csv</code>. Wydruk PDF: <code>sprawy/print.php?out=pdf</code>,
+<code>zaswiadczenia/pdf.php</code>, <code>kopia.php</code> (kopia dokumentu elektronicznego).</div>
 </section>
 
 <!-- ============================================ OPENAPI ============= -->
@@ -712,6 +744,7 @@ elementy postępowania w widoku sprawy (metrykę oraz obieg/workflow BPM). Ustaw
 <tr><td><code>includes/ezd.php</code></td><td>Rdzeń: auto-migracja schematu (21 tabel), ~150 funkcji, stałe/słowniki, seed JRWA</td></tr>
 <tr><td><code>includes/ezd_archiwum.php</code></td><td>Archiwum zakładowe — spisy, retencja, brakowanie</td></tr>
 <tr><td><code>includes/ezd_szablony.php</code></td><td>Szablony pism + silnik tokenów <code>{{…}}</code></td></tr>
+<tr><td><code>includes/ezd_kopia.php</code></td><td>Wydruk kopii dokumentu elektronicznego — metryka, znak wodny, strona poświadczenia zgodności (dla każdego typu dokumentu)</td></tr>
 <tr><td><code>includes/ezd_ai.php</code></td><td>Asystent AI — kwalifikacja JRWA (Claude, structured outputs)</td></tr>
 <tr><td><code>includes/ezd_*_modal.php</code></td><td>Współdzielone modale UI: podgląd PDF, podpis, pull z Office Online</td></tr>
 <tr><td><code>includes/sigcheck.php</code></td><td>Walidacja podpisu elektronicznego (openssl)</td></tr>

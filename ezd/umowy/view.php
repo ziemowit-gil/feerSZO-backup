@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id    = (int)($_GET['id'] ?? 0);
@@ -73,9 +74,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <h5 class="fw-bold mb-0"><?= h($umowa['title']) ?></h5>
             <?php if($umowa['strona']): ?><div class="text-muted mt-1" style="font-size:.82rem"><i class="bi bi-building me-1"></i><?= h($umowa['strona']) ?></div><?php endif; ?>
           </div>
-          <?php if(can_edit() && $is_active): ?>
-          <a href="<?= APP_URL ?>/ezd/umowy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-          <?php endif; ?>
+          <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
+            <?= ezd_kopia_btn('umowa', $id, $umowa['sygnatura'], 'label', 'btn-sm') ?>
+            <?php if(can_edit() && $is_active): ?>
+            <a href="<?= APP_URL ?>/ezd/umowy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+            <?php endif; ?>
+          </div>
         </div>
       </div>
     </div>
@@ -165,6 +169,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php elseif (!empty($z['sp_web_url'])): ?>
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
+          <?= ezd_kopia_btn('zalacznik', (int)$z['id'], $z['original_name'], 'icon', 'btn-sm flex-shrink-0') ?>
           <?php if(can_edit() && $is_active): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
