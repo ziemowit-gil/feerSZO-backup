@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/postivo.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
@@ -305,6 +306,142 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <i class="bi bi-plus me-1"></i>Zarejestruj wysyłkę
         </a>
         <?php endif; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Postivo.pl — wysyłka fizyczna (tylko wychodzące + Postivo włączone) -->
+    <?php if ($pismo['kierunek'] === 'wychodzace' && postivo_setting('postivo_enabled') === '1' && (new PostivoClient())->is_configured()):
+      $p_job_id = $pismo['postivo_job_id'] ?? '';
+      $p_status = $pismo['postivo_status'] ?? '';
+      $p_sent   = $pismo['postivo_sent_at'] ?? '';
+      $p_sent_label = match($p_status) {
+          'draft'      => ['Przygotowywane', 'secondary'],
+          'processing' => ['W realizacji',   'info'],
+          'sent'       => ['Wysłane',        'primary'],
+          'delivered'  => ['Doręczone',      'success'],
+          'failed'     => ['Błąd',           'danger'],
+          'cancelled'  => ['Anulowane',      'secondary'],
+          default      => [$p_status ?: '—', 'secondary'],
+      };
+      // PDF w załącznikach (do wysyłki)
+      $pdf_zal_exists = (bool)db_one(
+          "SELECT 1 FROM ezd_zalaczniki WHERE pismo_id=? AND mime_type='application/pdf'",
+          [$id]
+      );
+    ?>
+    <div class="card shadow-sm mb-3 <?= $p_job_id ? 'border-primary' : '' ?>">
+      <div class="card-header fw-semibold" style="font-size:.82rem">
+        <i class="bi bi-mailbox me-1 text-<?= $p_job_id ? 'primary' : 'secondary' ?>"></i>Postivo.pl
+        <?php if ($p_job_id): ?>
+        <span class="badge bg-<?= $p_sent_label[1] ?> ms-1" style="font-size:.6rem"><?= h($p_sent_label[0]) ?></span>
+        <?php endif; ?>
+      </div>
+      <div class="card-body" style="font-size:.82rem">
+        <?php if ($p_job_id): ?>
+          <div class="mb-1 text-muted" style="font-size:.75rem">
+            ID zlecenia: <span class="font-monospace"><?= h($p_job_id) ?></span>
+          </div>
+          <?php if ($pismo['postivo_adres'] || $pismo['postivo_miasto']): ?>
+          <div class="text-muted mb-2" style="font-size:.75rem">
+            <?= h($pismo['postivo_adres'] ?? '') ?><?= ($pismo['postivo_adres'] && $pismo['postivo_miasto']) ? ', ' : '' ?><?= h(($pismo['postivo_kod_pocztowy'] ?? '') . ' ' . ($pismo['postivo_miasto'] ?? '')) ?>
+          </div>
+          <?php endif; ?>
+          <?php if ($p_sent): ?>
+          <div class="text-muted mb-2" style="font-size:.75rem">
+            Nadano: <?= date('d.m.Y H:i', strtotime($p_sent)) ?>
+          </div>
+          <?php endif; ?>
+          <div class="d-flex gap-2 flex-wrap">
+            <?php if ($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
+            <form method="post" action="<?= APP_URL ?>/ezd/pisma/postivo_action.php" class="m-0">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="pismo_id" value="<?= $id ?>">
+              <input type="hidden" name="postivo_action" value="refresh_status">
+              <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i>Odśwież
+              </button>
+            </form>
+            <?php if (in_array($p_status, ['draft', 'processing', 'unknown'], true)): ?>
+            <form method="post" action="<?= APP_URL ?>/ezd/pisma/postivo_action.php" class="m-0"
+                  onsubmit="return confirm('Anulować zlecenie Postivo.pl?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="pismo_id" value="<?= $id ?>">
+              <input type="hidden" name="postivo_action" value="cancel">
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-x-lg me-1"></i>Anuluj
+              </button>
+            </form>
+            <?php endif; ?>
+            <?php endif; ?>
+            <?php if (in_array($p_status, ['delivered', 'sent'], true)): ?>
+            <a href="<?= APP_URL ?>/ezd/pisma/postivo_doc.php?id=<?= $id ?>&type=epo_pdf"
+               class="btn btn-outline-success btn-sm" title="Pobierz Elektroniczne Potwierdzenie Odbioru (zwrotka)">
+              <i class="bi bi-file-earmark-check me-1"></i>EPO (zwrotka)
+            </a>
+            <a href="<?= APP_URL ?>/ezd/pisma/postivo_doc.php?id=<?= $id ?>&type=dispatch_cert"
+               class="btn btn-outline-secondary btn-sm" title="Certyfikat nadania">
+              <i class="bi bi-file-earmark-text me-1"></i>Cert. nadania
+            </a>
+            <?php endif; ?>
+          </div>
+        <?php elseif ($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
+          <?php if (!$pdf_zal_exists): ?>
+          <div class="alert alert-warning py-1 px-2 mb-2" style="font-size:.75rem">
+            <i class="bi bi-exclamation-triangle me-1"></i>Brak PDF w załącznikach — wymagany do wysyłki.
+          </div>
+          <?php else: ?>
+          <form method="post" action="<?= APP_URL ?>/ezd/pisma/postivo_action.php" class="mb-0">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="pismo_id" value="<?= $id ?>">
+            <input type="hidden" name="postivo_action" value="send">
+            <div class="mb-2">
+              <label class="form-label mb-1" style="font-size:.75rem;font-weight:600">Odbiorca</label>
+              <input type="text" name="recipient_name" class="form-control form-control-sm"
+                     value="<?= h($pismo['odbiorca']) ?>" placeholder="Imię Nazwisko / Firma" required>
+            </div>
+            <div class="row g-1 mb-1">
+              <div class="col-8">
+                <input type="text" name="address_line1" class="form-control form-control-sm" placeholder="Ulica" required>
+              </div>
+              <div class="col-2">
+                <input type="text" name="home_number" class="form-control form-control-sm" placeholder="Nr d.">
+              </div>
+              <div class="col-2">
+                <input type="text" name="flat_number" class="form-control form-control-sm" placeholder="m.">
+              </div>
+            </div>
+            <div class="row g-1 mb-2">
+              <div class="col-4">
+                <input type="text" name="postcode" class="form-control form-control-sm" placeholder="00-000"
+                       pattern="\d{2}-\d{3}" required>
+              </div>
+              <div class="col-8">
+                <input type="text" name="city" class="form-control form-control-sm" placeholder="Miasto" required>
+              </div>
+            </div>
+            <div class="mb-1">
+              <label class="form-label mb-1" style="font-size:.75rem;font-weight:600"
+                     title="Pojawi się na stronie tytułowej listu">Co to jest ten dokument?</label>
+              <input type="text" name="doc_title" class="form-control form-control-sm"
+                     value="<?= h($pismo['title'] ?? $pismo['tytul'] ?? '') ?>"
+                     placeholder="np. Zaświadczenie o wolontariacie" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label mb-1" style="font-size:.75rem;font-weight:600"
+                     title="Pojawi się na stronie tytułowej jako wyjaśnienie dla odbiorcy">Dlaczego odbiorca otrzymuje list?</label>
+              <input type="text" name="doc_reason" class="form-control form-control-sm"
+                     placeholder="np. W związku z zakończeniem okresu wolontariatu..." required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm w-100"
+                    onclick="return confirm('Wysłać list przez Postivo.pl?')">
+              <i class="bi bi-send me-1"></i>Wyślij listem
+            </button>
+          </form>
+          <?php endif; ?>
+        <?php else: ?>
+        <div class="text-muted" style="font-size:.78rem">Pismo nie zostało nadane przez Postivo.pl.</div>
         <?php endif; ?>
       </div>
     </div>

@@ -1,0 +1,13 @@
+# MetadataResponse
+
+Metadata response.
+
+
+## Fields
+
+| Field                                                                                           | Type                                                                                            | Required                                                                                        | Description                                                                                     |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `carriers`                                                                                      | array<[Components\MetadataResponseCarrier](../../Models/Components/MetadataResponseCarrier.md)> | :heavy_minus_sign:                                                                              | List of carriers and their available services.                                                  |
+| `papers`                                                                                        | array<[Components\Paper](../../Models/Components/Paper.md)>                                     | :heavy_minus_sign:                                                                              | Available paper types.                                                                          |
+| `envelopeTemplates`                                                                             | array<[Components\EnvelopeTemplate](../../Models/Components/EnvelopeTemplate.md)>               | :heavy_minus_sign:                                                                              | Envelope template groups, each containing related templates.                                    |
+| `statusCodes`                                                                                   | array<[Components\StatusCode](../../Models/Components/StatusCode.md)>                           | :heavy_minus_sign:                                                                              | Available status codes.                                                                         |

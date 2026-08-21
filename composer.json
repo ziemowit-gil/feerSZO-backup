@@ -13,6 +13,7 @@
         "php-http/curl-client": "^2.4",
         "phpoffice/phpword": "^1.4",
         "picqer/php-barcode-generator": "^2.4",
+        "postivo/postivo-client": "^0.1.0",
         "smsapi/php-client": "^4.0",
         "symfony/http-client": "^8.1"
     },

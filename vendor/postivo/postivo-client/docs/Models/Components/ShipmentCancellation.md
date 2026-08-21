@@ -1,0 +1,12 @@
+# ShipmentCancellation
+
+Result of cancelling a single shipment
+
+
+## Fields
+
+| Field                                                                                | Type                                                                                 | Required                                                                             | Description                                                                          | Example                                                                              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `id`                                                                                 | *?string*                                                                            | :heavy_minus_sign:                                                                   | Shipment ID.                                                                         | A0043456                                                                             |
+| `status`                                                                             | *?int*                                                                               | :heavy_minus_sign:                                                                   | Cancellation status code (`204` if cancelled successfully; otherwise an error code). | 400                                                                                  |
+| `error`                                                                              | [?Components\ErrorResponse](../../Models/Components/ErrorResponse.md)                | :heavy_minus_sign:                                                                   | Problem Details object (RFC 9457) describing the error.                              |                                                                                      |

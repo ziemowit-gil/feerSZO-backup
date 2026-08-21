@@ -398,6 +398,13 @@ function ezd_is_manager(?int $user_id = null): bool {
         "ALTER TABLE ezd_dekretacje ADD COLUMN rola_target       TEXT",
         "ALTER TABLE ezd_dekretacje ADD COLUMN claimed_by        INTEGER REFERENCES users(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_dekretacje ADD COLUMN claimed_at        DATETIME",
+        // Postivo.pl — wysyłka fizyczna pism EZD
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_job_id       TEXT",
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_status       TEXT",
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_sent_at      DATETIME",
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_adres        TEXT",
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_kod_pocztowy TEXT",
+        "ALTER TABLE ezd_pisma ADD COLUMN postivo_miasto       TEXT",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
