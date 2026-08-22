@@ -27,6 +27,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $action = $_POST['_action'] ?? '';
 
+    if ($action === 'issue_local') {
+        // Wybór wystawiającego: tylko pobranie PDF albo pobranie razem z wysyłką
+        // do nabywcy. Wystawienie samo w sobie jest identyczne — różni je to,
+        // co dzieje się z gotowym dokumentem.
+        $mode = ($_POST['mode'] ?? 'download') === 'send' ? 'send' : 'download';
+
+        $r = invoice_issue_local($id);
+        if (!$r['ok']) {
+            flash_set('error', 'Nie udało się wystawić: ' . $r['error']);
+            header('Location: ' . $SELF); exit;
+        }
+
+        // PDF zapisujemy od razu — ten sam plik idzie do pobrania i w załączniku.
+        $stored = invoice_pdf_store($id);
+        $msg    = 'Faktura wystawiona — numer ' . $r['number'] . '.';
+
+        if ($mode === 'send') {
+            $snd = invoice_send_to_buyer($id);
+            $msg .= $snd['ok']
+                ? ' Wysłano na ' . $snd['to'] . '.'
+                : ' UWAGA: nie wysłano — ' . $snd['error'];
+            flash_set($snd['ok'] ? 'success' : 'warning', $msg);
+        } else {
+            flash_set('success', $msg);
+        }
+
+        // Prowadzimy prosto do PDF-a — po wystawieniu operator chce mieć dokument.
+        if ($stored) { header('Location: ' . APP_URL . '/crm/invoices/pdf.php?id=' . $id); exit; }
+        header('Location: ' . $SELF); exit;
+    }
+
+    if ($action === 'send_buyer') {
+        $snd = invoice_send_to_buyer($id);
+        flash_set($snd['ok'] ? 'success' : 'error',
+            $snd['ok'] ? 'Faktura wysłana na ' . $snd['to'] . '.' : ('Nie wysłano: ' . $snd['error']));
+        header('Location: ' . $SELF); exit;
+    }
     if ($action === 'push') {
         $r = invoice_push($id);
         flash_set($r['ok'] ? 'success' : 'error',
@@ -215,10 +252,43 @@ include dirname(__DIR__) . '/includes/header_crm.php';
                href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>&gen=1">
               <i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF (szablon SZO)
             </a>
+            <?php $ksef_skip = invoice_ksef_skip_reason($inv); ?>
+            <?php if ($ksef_skip !== ''): ?>
+            <div class="alert alert-light border py-2 px-2 mb-1" style="font-size:.76rem" role="note">
+              <i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= h($ksef_skip) ?>
+              Wystawiasz ją w SZO i przekazujesz nabywcy bezpośrednio.
+            </div>
+            <?php endif; ?>
+
+            <!-- Wystawienie własne: numer nadaje SZO, dokument z naszego szablonu.
+                 Kompletna ścieżka także wtedy, gdy żaden system zewnętrzny nie jest
+                 podłączony — dlatego stoi jako pierwsze i nie jest nigdy wyłączone.
+                 Dwa warianty różni tylko to, co dzieje się z gotowym PDF-em. -->
+            <form method="post" onsubmit="return confirm('Wystawić fakturę i nadać jej numer w SZO? Po wystawieniu dokumentu nie da się już edytować.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="issue_local">
+              <input type="hidden" name="mode" value="download">
+              <button class="btn btn-sm btn-crm-primary w-100" type="submit">
+                <i class="bi bi-file-earmark-check me-1"></i>Wystaw i pobierz PDF
+              </button>
+            </form>
+            <?php
+              $buyer_mail_ok = trim((string)$inv['buyer_email']) !== ''
+                            && filter_var($inv['buyer_email'], FILTER_VALIDATE_EMAIL);
+            ?>
+            <form method="post" onsubmit="return confirm('Wystawić fakturę i wysłać ją nabywcy na <?= h((string)$inv['buyer_email']) ?>?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="issue_local">
+              <input type="hidden" name="mode" value="send">
+              <button class="btn btn-sm btn-crm-outline w-100" type="submit" <?= $buyer_mail_ok ? '' : 'disabled' ?>
+                      title="<?= $buyer_mail_ok ? 'Wystaw, pobierz i wyślij nabywcy' : 'Uzupełnij e-mail nabywcy, aby wysłać' ?>">
+                <i class="bi bi-envelope-check me-1"></i>Wystaw, pobierz i wyślij
+              </button>
+            </form>
             <form method="post" onsubmit="return confirm('Wystawić fakturę w Fakturowni? Po wystawieniu dokumentu nie da się już edytować w SZO.')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="push">
-              <button class="btn btn-sm btn-crm-primary w-100" type="submit" <?= invoices_api_ready() ? '' : 'disabled' ?>>
+              <button class="btn btn-sm btn-crm-outline w-100" type="submit" <?= invoices_api_ready() ? '' : 'disabled' ?>>
                 <i class="bi bi-send-check me-1"></i>Wystaw w Fakturowni
               </button>
             </form>
@@ -241,6 +311,15 @@ include dirname(__DIR__) . '/includes/header_crm.php';
             <a class="btn btn-sm btn-crm-outline" href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>">
               <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
             </a>
+            <?php endif; ?>
+            <?php if (trim((string)$inv['buyer_email']) !== ''): ?>
+            <form method="post" onsubmit="return confirm('Wysłać fakturę na <?= h((string)$inv['buyer_email']) ?>?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="send_buyer">
+              <button class="btn btn-sm btn-crm-outline w-100" type="submit">
+                <i class="bi bi-envelope-check me-1"></i>Wyślij nabywcy
+              </button>
+            </form>
             <?php endif; ?>
             <form method="post">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

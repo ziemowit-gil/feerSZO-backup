@@ -380,6 +380,180 @@ function invoice_ti_number_preview(array $inv): string
     return $p ? invoice_ti_number($p['month'], $p['year'], $p['course_id']) : '';
 }
 
+/**
+ * Kolejny numer własnej serii `FV/nr/mm/rok` — dla faktur wystawianych w SZO
+ * (bez Fakturowni i bez KSeF). Numeracja narasta w obrębie miesiąca.
+ *
+ * Faktury z TI mają własną serię TI/… (invoice_ti_number) — tu obsługujemy
+ * pozostałe źródła: oferty CRM i faktury ręczne.
+ */
+function invoice_own_number(int $month, int $year): string
+{
+    invoices_migrate();
+    $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
+    $sfx  = '/' . $mm . '/' . $year;
+    $next = 1;
+
+    foreach (db_all(
+        "SELECT number FROM invoices WHERE number LIKE ? AND deleted_at IS NULL",
+        ['FV/%' . $sfx]
+    ) as $r) {
+        if (preg_match('#^FV/(\d+)/#', (string)$r['number'], $m)) {
+            $next = max($next, (int)$m[1] + 1);
+        }
+    }
+    return 'FV/' . $next . $sfx;
+}
+
+/**
+ * Czy fakturę należy wystawić w KSeF.
+ *
+ * KSeF obejmuje obrót między podatnikami (B2B). Faktura dla osoby fizycznej
+ * nieprowadzącej działalności — czyli bez NIP-u — jest poza tym obowiązkiem
+ * i wystawiamy ją lokalnie, z numerem nadanym przez SZO.
+ *
+ * Rozstrzyga obecność poprawnego NIP-u nabywcy: nie mamy innego pewnego sygnału,
+ * a brak NIP-u przy sprzedaży konsumenckiej jest regułą, nie wyjątkiem.
+ * Dla faktur z rozliczeń TI to przypadek domyślny — nabywcą jest zwykle kursant
+ * albo jego opiekun.
+ */
+function invoice_ksef_applicable(array $inv): bool
+{
+    $nip = preg_replace('/\D+/', '', (string)($inv['buyer_tax_no'] ?? '')) ?? '';
+    return strlen($nip) === 10;
+}
+
+/** Powód, dla którego faktura nie idzie do KSeF — do pokazania operatorowi. */
+function invoice_ksef_skip_reason(array $inv): string
+{
+    return invoice_ksef_applicable($inv)
+        ? ''
+        : 'Nabywca bez NIP — sprzedaż na rzecz osoby fizycznej jest poza KSeF.';
+}
+
+/**
+ * Wystawia fakturę WŁASNĄ — numer nadaje SZO, dokument powstaje z szablonu
+ * (includes/invoice_pdf.php). Bez Fakturowni i bez KSeF.
+ *
+ * Po co: dopóki żaden system zewnętrzny nie jest podłączony (albo gdy organizacja
+ * korzysta ze zwolnienia i nie musi wysyłać faktur do KSeF), to jest kompletna
+ * ścieżka od źródła do gotowego dokumentu. Numer jest nadawany raz i dokument
+ * przestaje być edytowalny — dalej zachowuje się jak każda wystawiona faktura.
+ *
+ * @return array{ok:bool,error?:string,number?:string}
+ */
+function invoice_issue_local(int $id): array
+{
+    $inv = invoice_get($id);
+    if (!$inv)                          return ['ok' => false, 'error' => 'Nie znaleziono faktury.'];
+    if (!empty($inv['number']))         return ['ok' => false, 'error' => 'Ta faktura ma już nadany numer.'];
+    if (!empty($inv['fakturownia_id'])) return ['ok' => false, 'error' => 'Faktura jest wystawiona w Fakturowni.'];
+    if (!$inv['items'])                 return ['ok' => false, 'error' => 'Faktura bez pozycji — dodaj co najmniej jedną.'];
+    if (trim((string)$inv['buyer_name']) === '') return ['ok' => false, 'error' => 'Brak nazwy nabywcy.'];
+
+    // Seria zależy od źródła: TI ma własne oznaczenie z grupą, reszta serię FV.
+    if ($inv['source'] === 'ti_billing' && ($p = invoice_ti_period($inv))) {
+        $number = invoice_ti_number($p['month'], $p['year'], $p['course_id']);
+    } else {
+        $d = $inv['issue_date'] ? strtotime((string)$inv['issue_date']) : time();
+        $number = invoice_own_number((int)date('n', $d), (int)date('Y', $d));
+    }
+
+    $now = date('Y-m-d H:i:s');
+    db()->prepare(
+        "UPDATE invoices SET number=?, status='wystawiona', issued_at=?, last_error=NULL, updated_at=? WHERE id=?"
+    )->execute([$number, $now, $now, $id]);
+
+    return ['ok' => true, 'number' => $number];
+}
+
+/**
+ * Zapisuje PDF faktury (z szablonu SZO) w katalogu faktur i zwraca nazwę pliku.
+ * Używane przy wystawieniu własnym — dokument musi istnieć na dysku, żeby dało
+ * się go załączyć do maila i pobrać później bez ponownego renderowania.
+ */
+function invoice_pdf_store(int $id): ?string
+{
+    $inv = invoice_get($id);
+    if (!$inv) return null;
+
+    require_once __DIR__ . '/invoice_pdf.php';
+    try {
+        $pdf = invoice_pdf_render($inv);
+    } catch (\Throwable $e) {
+        return null;
+    }
+
+    $name = 'FV_' . $id . '_' . preg_replace('/[^A-Za-z0-9]+/', '-', (string)$inv['number']) . '.pdf';
+    $path = invoices_pdf_dir() . '/' . $name;
+    if (@file_put_contents($path, $pdf) === false) return null;
+
+    db()->prepare("UPDATE invoices SET pdf_path=?, updated_at=? WHERE id=?")
+        ->execute([$name, date('Y-m-d H:i:s'), $id]);
+    return $name;
+}
+
+/**
+ * Wysyła fakturę PDF do nabywcy.
+ *
+ * Załącznik bierzemy z zapisanej kopii — nie renderujemy drugi raz, żeby nabywca
+ * dostał dokładnie ten dokument, który operator zobaczył przy wystawieniu.
+ *
+ * @return array{ok:bool,error?:string,to?:string}
+ */
+function invoice_send_to_buyer(int $id): array
+{
+    $inv = invoice_get($id);
+    if (!$inv) return ['ok' => false, 'error' => 'Nie znaleziono faktury.'];
+
+    $to = trim((string)$inv['buyer_email']);
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return ['ok' => false, 'error' => 'Nabywca nie ma poprawnego adresu e-mail — uzupełnij go na fakturze.'];
+    }
+    if (empty($inv['number'])) {
+        return ['ok' => false, 'error' => 'Faktura nie została wystawiona — nie ma czego wysyłać.'];
+    }
+
+    $file = (string)($inv['pdf_path'] ?? '');
+    if ($file === '' || !is_file(invoices_pdf_dir() . '/' . basename($file))) {
+        $file = (string)invoice_pdf_store($id);
+        if ($file === '') return ['ok' => false, 'error' => 'Nie udało się przygotować PDF do wysyłki.'];
+    }
+    $path = invoices_pdf_dir() . '/' . basename($file);
+
+    require_once __DIR__ . '/mail_queue.php';
+    $org   = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+    $kwota = number_format((float)$inv['total_gross'], 2, ',', ' ') . ' ' . $inv['currency'];
+    $term  = $inv['payment_to'] ? date('d.m.Y', strtotime((string)$inv['payment_to'])) : '—';
+
+    $html = '<p>Dzień dobry,</p>'
+          . '<p>w załączeniu przesyłamy fakturę <strong>' . h((string)$inv['number']) . '</strong>'
+          . ' na kwotę <strong>' . h($kwota) . '</strong>, z terminem płatności ' . h($term) . '.</p>'
+          . '<p>W tytule przelewu prosimy podać numer faktury.</p>'
+          . ($org !== '' ? '<p>Z poważaniem,<br>' . h($org) . '</p>' : '');
+
+    try {
+        mail_queue_add(
+            $to,
+            (string)$inv['buyer_name'],
+            'Faktura ' . $inv['number'] . ($org !== '' ? ' — ' . $org : ''),
+            $html,
+            '',
+            'invoice',
+            $id,
+            '',
+            true,   // natychmiast — operator czeka na potwierdzenie wysyłki
+            [['path' => $path, 'name' => 'Faktura_' . preg_replace('/[^A-Za-z0-9\-_]+/', '-', (string)$inv['number']) . '.pdf',
+              'mime' => 'application/pdf', 'size' => (int)@filesize($path)]]
+        );
+        mail_queue_process(1);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Błąd wysyłki: ' . $e->getMessage()];
+    }
+
+    return ['ok' => true, 'to' => $to];
+}
+
 // ── Fakturownia: wystawianie i synchronizacja ────────────────────────────────
 
 /**
