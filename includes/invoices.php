@@ -324,10 +324,11 @@ function invoice_delete(int $id): ?string
 /**
  * Kolejny numer w serii TI: `TI/nr/mm/rok/grupa`.
  *
- * Numeracja narasta w obrębie miesiąca (jedna ciągła seria na miesiąc, niezależnie
- * od grupy); numer grupy jest tylko oznaczeniem na końcu. Rozliczenie bez przypisania
- * do grupy (model niekombinowany, course_id = 0) kończy się na roku — zamiast
- * dopisywać mylące „/0".
+ * Każda grupa ma WŁASNĄ sekwencję w obrębie miesiąca: dwie grupy rozliczane za ten
+ * sam miesiąc dostają TI/1/08/2026/3 i TI/1/08/2026/5. Numery pozostają unikalne,
+ * bo różni je segment grupy. Rozliczenie bez przypisania do grupy (model
+ * niekombinowany, course_id = 0) ma osobną sekwencję i kończy się na roku —
+ * zamiast dopisywać mylące „/0".
  *
  * Numer nadajemy przy WYSTAWIENIU, nie przy tworzeniu szkicu — inaczej usunięty
  * szkic zostawiałby lukę w numeracji. Dla szkicu liczymy numer poglądowo
@@ -337,21 +338,22 @@ function invoice_ti_number(int $month, int $year, int $course_id = 0): string
 {
     invoices_migrate();
     $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
-    $sfx  = '/' . $mm . '/' . $year;
+    $sfx  = '/' . $mm . '/' . $year . ($course_id > 0 ? '/' . $course_id : '');
     $next = 1;
 
+    // Wzorzec BEZ „%" na końcu — koniec numeru jest dopasowany dokładnie, więc
+    // sekwencja grupy 3 nie widzi numerów grupy 5 ani numerów bez grupy.
     // Bierzemy tylko numery faktycznie nadane (wystawione), żeby seria była ciągła.
-    // Wzorzec z „%" na końcu — numer może mieć jeszcze segment grupy po roku.
     foreach (db_all(
         "SELECT number FROM invoices
           WHERE source='ti_billing' AND number LIKE ? AND deleted_at IS NULL",
-        ['TI/%' . $sfx . '%']
+        ['TI/%' . $sfx]
     ) as $r) {
         if (preg_match('#^TI/(\d+)/#', (string)$r['number'], $m)) {
             $next = max($next, (int)$m[1] + 1);
         }
     }
-    return 'TI/' . $next . $sfx . ($course_id > 0 ? '/' . $course_id : '');
+    return 'TI/' . $next . $sfx;
 }
 
 /** Okres i grupa rozliczenia TI, z którego powstała faktura. */
