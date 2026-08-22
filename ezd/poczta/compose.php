@@ -29,13 +29,24 @@ ezd_require_access();
 
 $user     = current_user();
 $user_id  = (int)($user['id'] ?? 0);
-$is_json  = (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest')
-            || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json');
+// UWAGA — dwie RÓŻNE rzeczy, wcześniej mylone w jednej zmiennej:
+//  • $is_json      — czy ODPOWIEDŹ ma być JSON-em (formularz wysyła się XHR-em),
+//  • $is_json_body — czy CIAŁO żądania to JSON.
+// Kompozytor wysyła FormData (multipart/form-data — inaczej nie przeszłyby
+// załączniki), ale z nagłówkiem X-Requested-With. Stary warunek uznawał to za
+// JSON i czytał php://input, który przy multipart jest PUSTY (PHP zdążyło już
+// rozłożyć ciało na $_POST/$_FILES). Efekt: $data = [], brak _csrf i każda
+// wysyłka kończyła się „Błąd CSRF." — a załączniki i tak by nie doszły.
+$is_json      = (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest')
+                || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json');
+$is_json_body = stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') !== false;
 
 // ── POST: wysyłka ─────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($is_json) {
         header('Content-Type: application/json; charset=utf-8');
+    }
+    if ($is_json_body) {
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
     } else {
         $data = $_POST;
