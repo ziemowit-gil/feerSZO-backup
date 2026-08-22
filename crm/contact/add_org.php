@@ -34,6 +34,30 @@ $errors   = [];
 
 // Typ kontaktu: domyślnie 'organizacja', ale można wymusić 'kontrahent' lub 'partner'
 $org_like_types = array_keys(array_filter(CRM_CONTACT_TYPES, fn($t) => $t['org_like']));
+
+/**
+ * Kolejne osoby kontaktowe z formularza (poza osobą główną).
+ * Puste wiersze pomijamy — użytkownik mógł dodać wiersz i go nie wypełnić.
+ *
+ * @return list<array{imie_nazwisko:string,stanowisko:string,email:string,telefon:string}>
+ */
+function _org_extra_persons(): array
+{
+    $out = [];
+    foreach ((array)($_POST['extra_persons'] ?? []) as $p) {
+        if (!is_array($p)) continue;
+        $name = trim((string)($p['imie_nazwisko'] ?? ''));
+        if ($name === '') continue;
+        $out[] = [
+            'imie_nazwisko' => $name,
+            'stanowisko'    => trim((string)($p['stanowisko'] ?? '')),
+            'email'         => trim((string)($p['email']      ?? '')),
+            'telefon'       => trim((string)($p['telefon']    ?? '')),
+        ];
+    }
+    return $out;
+}
+
 $_init_type = $_GET['type'] ?? 'organizacja';
 $contact_type = in_array($_init_type, $org_like_types, true) ? $_init_type : 'organizacja';
 $ct_meta = CRM_CONTACT_TYPES[$contact_type];
@@ -79,10 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
 
     $contact_type = in_array(trim($_POST['contact_type'] ?? ''), $org_like_types, true)
         ? trim($_POST['contact_type']) : 'organizacja';
+    // Status ustalamy przed $data — decyduje też o dopuszczalności usług na rzecz
+    // organizacji, a liczy się wartość zwalidowana, nie surowa z formularza.
+    $status = array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect';
     $data = [
         'type'             => $contact_type,
         'imie_nazwisko'    => $nazwa,                                            // "imię_nazwisko" przechowuje nazwę firmy
-        'status'           => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
+        'status'           => $status,
         'email'            => trim($_POST['email']             ?? '') ?: null,
         'telefon'          => trim($_POST['telefon']           ?? '') ?: null,
         'addr_street'      => trim($_POST['addr_street']         ?? ''),
@@ -104,7 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
         'wojewodztwo'      => trim($_POST['wojewodztwo']       ?? '') ?: null,
         'powiat'           => trim($_POST['powiat']            ?? '') ?: null,
         'gmina'            => trim($_POST['gmina']             ?? '') ?: null,
-        'swiadczy_uslugi'  => !empty($_POST['swiadczy_uslugi']) ? 1 : 0,
+        // Flagę „świadczy usługi" dopuszczamy tylko przy statusie partnera; przy innym
+        // statusie pole w formularzu jest ukryte, więc zignorowanie go jest poprawne.
+        'swiadczy_uslugi'  => (!empty($_POST['swiadczy_uslugi']) && crm_services_allowed($status)) ? 1 : 0,
     ];
 
     // Walidacja
@@ -139,6 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
                     'is_primary'    => true,
                 ], $user_id);
             }
+            foreach (_org_extra_persons() as $_ep) {
+                CrmManager::addContactPerson($edit_id, $_ep, $user_id);
+            }
             flash_set('success', 'Dane firmy zaktualizowane.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $edit_id);
         } else {
@@ -154,8 +186,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
                     'is_primary'    => true,
                 ], $user_id);
             }
-            foreach (array_map('intval', (array)($_POST['uslugi'] ?? [])) as $stid) {
-                CrmManager::addContactService($new_id, $stid, null, $user_id);
+            // Kolejne osoby kontaktowe — dowolna liczba, wszystkie jako niegłówne.
+            foreach (_org_extra_persons() as $_ep) {
+                CrmManager::addContactPerson($new_id, $_ep, $user_id);
+            }
+            // Usługi na rzecz organizacji tylko dla statusu „Partner" — model i tak
+            // je odrzuci, ale nie ma po co go o to prosić.
+            if (crm_services_allowed($status)) {
+                foreach (array_map('intval', (array)($_POST['uslugi'] ?? [])) as $stid) {
+                    CrmManager::addContactService($new_id, $stid, null, $user_id);
+                }
             }
             flash_set('success', 'Kontakt firmy / organizacji dodany.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $new_id);
@@ -443,13 +483,12 @@ include __DIR__ . '/../includes/header_crm.php';
         Osoba kontaktowa<?= $is_edit ? ' (główna)' : '' ?>
       </div>
       <p class="field-hint mb-3" style="margin-top:-.4rem">
+        Podmiot może mieć <strong>wiele osób kontaktowych</strong>. Pole poniżej to osoba
+        <strong>główna</strong>; kolejne dodasz przyciskiem na dole tej sekcji — od razu, bez zapisywania.
         <?php if ($is_edit): ?>
-        To dane osoby <strong>głównej</strong>. Pozostałe osoby kontaktowe tego podmiotu
-        dodajesz i edytujesz na <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$edit_id ?>">karcie kontaktu</a>,
+        Osoby już zapisane edytujesz i porządkujesz na
+        <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$edit_id ?>">karcie kontaktu</a>,
         w panelu „Osoby kontaktowe”.
-        <?php else: ?>
-        Podmiot może mieć wiele osób kontaktowych — tutaj wpisz pierwszą (główną),
-        kolejne dodasz na karcie kontaktu po zapisaniu.
         <?php endif; ?>
       </p>
       <div class="row g-3">
@@ -495,17 +534,72 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
         <?php endif; ?>
       </div>
+
+      <!-- Kolejne osoby kontaktowe — podmiot może mieć ich dowolnie wiele.
+           Wiersz pierwszy (powyżej) to osoba główna; te dopisują się jako następne. -->
+      <div id="extraPersons" class="mt-3"></div>
+
+      <template id="extraPersonTpl">
+        <div class="border rounded p-2 mb-2 position-relative" data-extra-person>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="form-label mb-0" style="font-size:.85rem;font-weight:600">
+              Osoba kontaktowa <span data-person-no></span>
+            </span>
+            <button type="button" class="btn btn-sm btn-link text-danger p-0" data-remove-person>
+              <i class="bi bi-x-lg" aria-hidden="true"></i> Usuń
+            </button>
+          </div>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label">Imię i nazwisko</label>
+              <input type="text" name="extra_persons[__I__][imie_nazwisko]" class="form-control" placeholder="np. Jan Kowalski" autocomplete="off">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Stanowisko / Rola</label>
+              <input type="text" name="extra_persons[__I__][stanowisko]" class="form-control"
+                     list="stanowisko_org_suggestions" placeholder="np. Główny księgowy" autocomplete="off">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">E-mail</label>
+              <input type="email" name="extra_persons[__I__][email]" class="form-control" placeholder="np. j.kowalski@example.com" autocomplete="off">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Telefon</label>
+              <input type="text" name="extra_persons[__I__][telefon]" class="form-control" placeholder="np. 600 100 201" autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <button type="button" class="btn btn-sm btn-crm-outline" id="addPersonBtn">
+        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dodaj kolejną osobę kontaktową
+      </button>
     </div>
   </div>
 
-  <!-- 4b. Usługi na rzecz organizacji -->
-  <?php $_svc_types = crm_service_types(true); $_org_short = org_setting('org_short_name') ?: 'FEER'; ?>
-  <div class="card border-0 shadow-sm mb-3">
+  <!-- 4b. Usługi na rzecz organizacji — tylko przy statusie „Partner" -->
+  <?php
+    $_svc_types  = crm_service_types(true);
+    $_org_short  = org_setting('org_short_name') ?: 'FEER';
+    // Widoczność zależy od statusu wybranego w prawej kolumnie tego samego
+    // formularza, więc poza renderem serwerowym przełącza ją też JS (na końcu pliku).
+    $_svc_status = $row['status'] ?? 'prospect';
+    $_svc_open   = crm_services_allowed($_svc_status);
+  ?>
+  <div class="card border-0 shadow-sm mb-3" id="svc_card" data-svc-status="<?= h(CRM_SERVICES_STATUS) ?>">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-tools" style="color:#0F766E" aria-hidden="true"></i>
         Usługi na rzecz <?= h($_org_short) ?>
       </div>
+
+      <p class="field-hint" id="svc_locked" <?= $_svc_open ? 'hidden' : '' ?> style="margin-top:-.4rem">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+        Dostępne tylko dla kontaktów o statusie <strong><?= h(crm_services_status_label()) ?></strong>.
+        Zmień status w kolumnie obok, aby wskazać świadczone usługi.
+      </p>
+
+      <div id="svc_fields" <?= $_svc_open ? '' : 'hidden' ?>>
       <div class="form-check mb-2">
         <input type="checkbox" name="swiadczy_uslugi" id="swiadczy_uslugi" value="1" class="form-check-input"
                <?= !empty($row['swiadczy_uslugi']) ? 'checked' : '' ?>>
@@ -535,6 +629,7 @@ include __DIR__ . '/../includes/header_crm.php';
         <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$edit_id ?>">karcie kontaktu</a>,
         w panelu „Usługi na rzecz <?= h($_org_short) ?>”.</p>
       <?php endif; ?>
+      </div><!-- /#svc_fields -->
     </div>
   </div>
 
@@ -796,8 +891,72 @@ document.querySelectorAll('[name="status"]').forEach(function(r) {
     this.closest('label').style.background  = 'var(--crm-primary-bg)';
     this.closest('label').style.borderColor = 'var(--crm-primary)';
     this.closest('label').style.fontWeight  = '600';
+    syncServicesSection();
   });
 });
+
+// Sekcja „Usługi na rzecz FEER" istnieje tylko dla statusu partnera. Status wybiera
+// się w tym samym formularzu, więc pola pokazujemy/ukrywamy od razu po zmianie.
+// Serwer i tak waliduje status przy zapisie — to jest wyłącznie warstwa UI.
+function syncServicesSection() {
+  var card = document.getElementById('svc_card');
+  if (!card) return;
+  var need    = card.dataset.svcStatus;
+  var checked = document.querySelector('[name="status"]:checked');
+  var open    = !!checked && checked.value === need;
+
+  var fields = document.getElementById('svc_fields');
+  var locked = document.getElementById('svc_locked');
+  if (fields) fields.hidden = !open;
+  if (locked) locked.hidden = open;
+
+  // Ukryte pola nie mogą wysyłać wartości — inaczej zaznaczone rodzaje usług
+  // pojechałyby na serwer razem ze statusem, który ich nie dopuszcza.
+  if (!open && fields) {
+    fields.querySelectorAll('input[type="checkbox"]').forEach(function(c) { c.checked = false; });
+  }
+}
+syncServicesSection();
+
+// ── Kolejne osoby kontaktowe ────────────────────────────────────────────────
+// Podmiot może mieć wiele osób kontaktowych. Wiersz główny jest w formularzu na
+// stałe, kolejne klonujemy z <template>; __I__ w nazwach pól zastępujemy indeksem,
+// bo `extra_persons[][pole]` w PHP rozbiłoby jedną osobę na kilka elementów.
+(function () {
+    var box = document.getElementById('extraPersons');
+    var tpl = document.getElementById('extraPersonTpl');
+    var btn = document.getElementById('addPersonBtn');
+    if (!box || !tpl || !btn) return;
+
+    var next = 0;   // rośnie zawsze — indeksy nie muszą być ciągłe, serwer je przenumeruje
+
+    function renumberLabels() {
+        box.querySelectorAll('[data-person-no]').forEach(function (el, i) {
+            el.textContent = '#' + (i + 2);   // #1 to osoba główna w wierszu powyżej
+        });
+    }
+
+    btn.addEventListener('click', function () {
+        var frag = tpl.content.cloneNode(true);
+        frag.querySelectorAll('[name]').forEach(function (inp) {
+            inp.name = inp.name.replace('__I__', String(next));
+        });
+        var row = frag.querySelector('[data-extra-person]');
+        box.appendChild(frag);
+        next++;
+        renumberLabels();
+        var first = row.querySelector('input');
+        if (first) first.focus();
+    });
+
+    box.addEventListener('click', function (ev) {
+        var rm = ev.target.closest('[data-remove-person]');
+        if (!rm) return;
+        rm.closest('[data-extra-person]').remove();
+        renumberLabels();
+        btn.focus();
+    });
+})();
 
 // Inicjuj podgląd przy załadowaniu (tryb edycji)
 (function() {

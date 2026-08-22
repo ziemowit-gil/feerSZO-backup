@@ -29,6 +29,19 @@ const CRM_RELATION_TYPES = [
     'współpracuje' => 'Współpracuje',
 ];
 
+/**
+ * Status, przy którym podmiot może świadczyć usługi na rzecz organizacji.
+ *
+ * REGUŁA: kategoria „świadczy usługi na rzecz FEER" i przypisane rodzaje usług
+ * są dostępne WYŁĄCZNIE dla kontaktów o statusie „partner" — decyduje status
+ * (cykl życia relacji), NIE typ kontaktu. W CRM „partner" występuje w obu
+ * słownikach; tu chodzi o crm_contacts.status.
+ *
+ * Dane raz wpisane nie są kasowane przy zmianie statusu — kontakt, który przestał
+ * być partnerem, pokazuje swoje usługi tylko do odczytu (patrz _cv_services_html()).
+ */
+const CRM_SERVICES_STATUS = 'partner';
+
 /** Wbudowane domyślne statusy — używane jako seed i fallback. */
 const CRM_DEFAULT_STATUSES = [
     'prospect'   => ['label' => 'Prospect',   'color' => '#0176D3', 'sort_order' => 1],
@@ -228,6 +241,30 @@ function crm_service_type_usage(int $type_id): int {
     } catch (\Throwable $e) {
         return 0;
     }
+}
+
+/**
+ * Czy kontakt może mieć usługi na rzecz organizacji (status = partner).
+ *
+ * @param array|string|null $contact Rekord kontaktu albo sam status.
+ */
+function crm_services_allowed(array|string|null $contact): bool
+{
+    $status = is_array($contact) ? (string)($contact['status'] ?? '') : (string)$contact;
+    return $status === CRM_SERVICES_STATUS;
+}
+
+/** Czy kontakt ma już jakiekolwiek dane o usługach (flaga albo przypisane rodzaje). */
+function crm_services_has_data(array $contact): bool
+{
+    return !empty($contact['swiadczy_uslugi']) || !empty($contact['services']);
+}
+
+/** Etykieta statusu wymaganego dla usług — do komunikatów w interfejsie. */
+function crm_services_status_label(): string
+{
+    $st = crm_statuses();
+    return (string)($st[CRM_SERVICES_STATUS]['label'] ?? 'Partner');
 }
 
 // Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
@@ -1375,6 +1412,12 @@ class CrmManager
             'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
+        // Reguła „usługi tylko dla partnera" obowiązuje też tu — createContact()
+        // przyjmuje swiadczy_uslugi wprost, więc bez tego import i REST API
+        // mogłyby oznaczyć podmiot o dowolnym statusie.
+        if (!empty($data['swiadczy_uslugi']) && !crm_services_allowed($data['status'] ?? '')) {
+            $data['swiadczy_uslugi'] = 0;
+        }
         $data = crm_strip_null_notnull($data, 'crm_contacts');
         $id = db_insert('crm_contacts', $data);
         require_once __DIR__ . '/crm_automation.php';
@@ -1412,6 +1455,12 @@ class CrmManager
             'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
+        // Jak w createContact(). Aktualizacja nie musi zawierać statusu —
+        // wtedy rozstrzyga status już zapisany w bazie.
+        if (!empty($data['swiadczy_uslugi'])) {
+            $st = $data['status'] ?? (crm_one("SELECT status FROM crm_contacts WHERE id=?", [$id])['status'] ?? '');
+            if (!crm_services_allowed((string)$st)) $data['swiadczy_uslugi'] = 0;
+        }
         $data = crm_strip_null_notnull($data, 'crm_contacts');
         db_update('crm_contacts', $data, $id);
     }
@@ -1564,6 +1613,10 @@ class CrmManager
                                              ?string $uwagi = null, ?int $user_id = null): void
     {
         if ($service_type_id <= 0) return;
+        // Reguła „usługi tylko dla partnera" — pilnowana także tutaj, nie tylko
+        // w formularzach, żeby żadna ścieżka zapisu (import, API, akcja z karty)
+        // nie dopisała usług podmiotowi o innym statusie.
+        if (!crm_services_allowed(crm_one("SELECT status FROM crm_contacts WHERE id=?", [$contact_id]))) return;
         try {
             crm_db()->prepare(
                 "INSERT OR IGNORE INTO crm_contact_services
@@ -1585,6 +1638,9 @@ class CrmManager
     /** Włącza/wyłącza kategorię. Wyłączenie NIE kasuje historii przypisanych usług. */
     public static function setProvidesServices(int $contact_id, bool $on): void
     {
+        // Włączyć kategorię można tylko partnerowi; wyłączyć — zawsze, żeby dało
+        // się posprzątać po kontakcie, który partnerem być przestał.
+        if ($on && !crm_services_allowed(crm_one("SELECT status FROM crm_contacts WHERE id=?", [$contact_id]))) return;
         try {
             crm_db()->prepare("UPDATE crm_contacts SET swiadczy_uslugi=?, updated_at=? WHERE id=?")
                 ->execute([$on ? 1 : 0, date('Y-m-d H:i:s'), $contact_id]);

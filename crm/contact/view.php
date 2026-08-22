@@ -329,22 +329,52 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
     <?php return ob_get_clean();
 }
 
-/** Kategoria „świadczy usługi na rzecz FEER" + rodzaje usług z otwartego katalogu. */
+/**
+ * Kategoria „świadczy usługi na rzecz FEER" + rodzaje usług z otwartego katalogu.
+ *
+ * Dopisywanie usług jest dostępne tylko dla kontaktów o statusie „Partner"
+ * (crm_services_allowed()). Kontakt, który partnerem być przestał, nie traci
+ * danych — widzi je w trybie tylko do odczytu i może je posprzątać.
+ */
 function _cv_services_html(array $contact, int $id, bool $can_w, bool $can_d): string {
     $services = $contact['services'] ?? [];
     $on       = !empty($contact['swiadczy_uslugi']);
     $used_ids = array_map('intval', array_column($services, 'service_type_id'));
     $catalog  = array_filter(crm_service_types(true), fn($t) => !in_array((int)$t['id'], $used_ids, true));
+
+    $allowed   = crm_services_allowed($contact);
+    $can_add   = $can_w && $allowed;      // dopisywanie / włączanie kategorii
+    $statuses  = crm_statuses();
+    $cur_label = (string)($statuses[$contact['status'] ?? '']['label'] ?? ($contact['status'] ?? '—'));
     ob_start(); ?>
     <div id="crm-section-services" aria-live="polite">
-      <?php if ($can_w): ?>
+      <?php if (!$allowed): ?>
+      <div class="alert alert-warning py-2 px-2 mb-2" style="font-size:.8rem" role="note">
+        <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>
+        Usługi na rzecz <?= h(org_setting('org_short_name') ?: 'FEER') ?> są dostępne tylko przy statusie
+        <strong><?= h(crm_services_status_label()) ?></strong>. Ten kontakt ma status
+        <strong><?= h($cur_label) ?></strong><?= $services || $on ? ', więc poniższe dane są tylko do odczytu' : '' ?>.
+        <?php if ($can_w): ?>
+        <a href="<?= APP_URL ?>/crm/contact/<?= !empty(CRM_CONTACT_TYPES[$contact['type']]['org_like']) ? 'add_org' : 'add_person' ?>.php?id=<?= $id ?>">Zmień status</a>,
+        aby móc je edytować<?= $services ? ', albo usuń wpisy poniżej' : '' ?>.
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
+      <?php if ($can_add || ($can_w && $on)): ?>
       <form method="post" class="mb-2" data-ajax-section="services">
         <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="toggle_services">
         <input type="hidden" name="on"      value="<?= $on ? 0 : 1 ?>">
-        <button type="submit" class="btn btn-sm w-100 <?= $on ? 'btn-success' : 'btn-crm-outline' ?>">
-          <i class="bi <?= $on ? 'bi-check-circle-fill' : 'bi-circle' ?> me-1" aria-hidden="true"></i>
-          <?= $on ? 'Świadczy usługi na rzecz FEER' : 'Oznacz: świadczy usługi na rzecz FEER' ?>
+        <?php
+          // Bez statusu partnera zostaje tylko wyłączenie kategorii — etykieta
+          // musi to mówić wprost, bo przycisk „Świadczy…" sugerowałby edycję.
+          if (!$allowed) { $btn_cls = 'btn-outline-secondary'; $btn_ico = 'bi-slash-circle'; $btn_txt = 'Wyłącz kategorię usług'; }
+          elseif ($on)   { $btn_cls = 'btn-success';           $btn_ico = 'bi-check-circle-fill'; $btn_txt = 'Świadczy usługi na rzecz FEER'; }
+          else           { $btn_cls = 'btn-crm-outline';       $btn_ico = 'bi-circle'; $btn_txt = 'Oznacz: świadczy usługi na rzecz FEER'; }
+        ?>
+        <button type="submit" class="btn btn-sm w-100 <?= $btn_cls ?>">
+          <i class="bi <?= $btn_ico ?> me-1" aria-hidden="true"></i><?= h($btn_txt) ?>
         </button>
       </form>
       <?php elseif ($on): ?>
@@ -384,7 +414,7 @@ function _cv_services_html(array $contact, int $id, bool $can_w, bool $can_d): s
       <p class="cv-meta mb-2">Nie wskazano rodzajów usług.</p>
       <?php endif; ?>
 
-      <?php if ($can_w): ?>
+      <?php if ($can_add): ?>
       <form method="post" class="border-top pt-2" data-ajax-section="services">
         <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="add_service">
@@ -750,10 +780,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         $affected_section = 'persons';
     }
     if ($action === 'toggle_services') {
+        // setProvidesServices() sam odrzuca włączenie dla nie-partnera;
+        // wyłączenie przechodzi zawsze (porządki po zmianie statusu).
         CrmManager::setProvidesServices($id, !empty($_POST['on']));
+        if (!empty($_POST['on']) && !crm_services_allowed($contact)) {
+            flash_set('error', 'Usługi na rzecz organizacji można oznaczyć tylko przy statusie „'
+                             . crm_services_status_label() . '".');
+        }
         $affected_section = 'services';
     }
-    if ($action === 'add_service') {
+    if ($action === 'add_service' && !crm_services_allowed($contact)) {
+        // Sprawdzamy PRZED find_or_create — inaczej próba dopisania usługi
+        // nie-partnerowi zaśmiecałaby katalog nowym rodzajem bez efektu.
+        flash_set('error', 'Usługi na rzecz organizacji można przypisać tylko przy statusie „'
+                         . crm_services_status_label() . '".');
+        $affected_section = 'services';
+    }
+    elseif ($action === 'add_service') {
         // Katalog otwarty: wpisany ręcznie rodzaj ma pierwszeństwo przed wyborem z listy.
         $new  = trim($_POST['service_new'] ?? '');
         $stid = $new !== ''
@@ -1169,7 +1212,8 @@ $case_status_cfg = [
     </div></div>
     <?php endif; ?>
 
-    <!-- Usługi na rzecz FEER -->
+    <!-- Usługi na rzecz FEER (tylko status „Partner"; nie-partner z danymi widzi je do odczytu) -->
+    <?php if (crm_services_allowed($contact) || crm_services_has_data($contact)): ?>
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-tools cv-shead__icon" aria-hidden="true"></i>
@@ -1180,6 +1224,7 @@ $case_status_cfg = [
       </div>
       <?= _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
     </div></div>
+    <?php endif; ?>
 
     <!-- Powiązane konta -->
     <div class="cv-panel"><div class="cv-panel__body">
