@@ -306,6 +306,8 @@ function _menu_editor(): array {
         $ludzie[] = _mi('CRM','/crm/dashboard.php','bi-diagram-2',['match'=>'/crm/','kw'=>'crm kontakt klient']);
         $ludzie[] = _mi('Szybkie dzwonienie','/mobilna/','bi-telephone-outbound',['match'=>'/mobilna/','kw'=>'dzwon telefon mobilna dialer numer']);
     }
+    if (module_enabled('invoices_enabled') && can_read('crm'))
+        $ludzie[] = _mi('Faktury','/crm/invoices/index.php','bi-receipt',['match'=>'/crm/invoices/','kw'=>'faktura faktury vat fakturownia ksef rachunek']);
     $ludzie[] = _mi('Katalog osób','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty']);
     if (module_enabled('org_enabled'))
         $ludzie[] = _mi('Struktura org.','/org/index.php','bi-diagram-3',['match'=>'/org/','kw'=>'struktura organizacja schemat']);

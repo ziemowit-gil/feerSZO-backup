@@ -551,6 +551,12 @@ window.openCommModal = function(contactId, channel) {
       </ul>
     </div>
 
+    <?php if (module_enabled('invoices_enabled')): ?>
+    <a href="<?= APP_URL ?>/crm/invoices/index.php" class="crm-navlink<?= _crm_nav_active('/crm/invoices') ?>"<?= _crm_nav_active('/crm/invoices') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-receipt"></i><span>Faktury</span>
+    </a>
+    <?php endif; ?>
+
     <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
     </a>

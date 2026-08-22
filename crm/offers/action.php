@@ -35,6 +35,28 @@ $back = 'view.php?id=' . $id;
 
 switch ($a) {
 
+// ── Wystawienie faktury z oferty ────────────────────────────────────────────
+// Tworzy wyłącznie SZKIC — wystawienie w Fakturowni jest osobną, świadomą
+// decyzją na karcie faktury. Powtórne wywołanie prowadzi do istniejącego
+// dokumentu (indeks UNIQUE na parze źródło+id), nie tworzy duplikatu.
+case 'invoice':
+    if (!module_enabled('invoices_enabled')) {
+        flash_set('warning', 'Moduł Faktury jest wyłączony.');
+        break;
+    }
+    require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
+    $res = invoice_from_offer($id, $uid);
+    if (empty($res['ok'])) {
+        flash_set('danger', 'Nie udało się przygotować faktury: ' . (string)$res['error']);
+        break;
+    }
+    flash_set(!empty($res['existing']) ? 'info' : 'success',
+        !empty($res['existing'])
+            ? 'Ta oferta ma już fakturę — otwieram istniejący dokument.'
+            : 'Szkic faktury przygotowany z oferty. Sprawdź dane nabywcy i pozycje, potem wystaw dokument.');
+    header('Location: ' . APP_URL . '/crm/invoices/view.php?id=' . (int)$res['id']);
+    exit;
+
 // ── Wysyłka oferty do klienta ───────────────────────────────────────────────
 case 'send':
     if (!in_array($offer['status'], ['szkic', 'wyslana', 'do_zatwierdzenia'], true)) {

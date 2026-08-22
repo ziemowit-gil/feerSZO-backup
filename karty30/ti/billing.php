@@ -17,6 +17,13 @@ stripe_migrate();
 payu_migrate();
 ti_payments_migrate();
 
+// Moduł Faktury jest opcjonalny — wczytujemy go tylko gdy włączony, ale PRZED
+// renderem, bo wiersze rozliczeń używają INVOICE_STATUSES i invoices_migrate().
+if (module_enabled('invoices_enabled')) {
+    require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
+    invoices_migrate();
+}
+
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = can_write('karty30') || is_admin();
 $can_delete = is_admin(); // usuwanie rozliczeń — tylko administrator (globalnie)
@@ -231,6 +238,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             db()->prepare("UPDATE k30_ti_billing SET payer_type=?, payer_name=? WHERE id=?")
                ->execute([$type, $name, $bid]);
             flash_set('success', 'Płatnik zapisany.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Faktura wystawiana w SZO (moduł Faktury → Fakturownia/KSeF). Tworzy wyłącznie
+    // SZKIC — wystawienie dokumentu jest osobną decyzją na jego karcie.
+    // OSOBNE od upload_invoice poniżej, które rejestruje skan faktury z zewnątrz.
+    if ($op === 'make_invoice') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if (!module_enabled('invoices_enabled')) {
+            flash_set('warning', 'Moduł Faktury jest wyłączony.');
+        } else {
+            $res = invoice_from_ti_billing($bid, (int)(current_user()['id'] ?? 0));
+            if (empty($res['ok'])) {
+                flash_set('danger', 'Nie udało się przygotować faktury: ' . (string)$res['error']);
+            } else {
+                header('Location: ' . APP_URL . '/crm/invoices/view.php?id=' . (int)$res['id']);
+                exit;
+            }
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -696,6 +722,33 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">Faktura<?= !empty($b['invoice_no']) ? ' '.h($b['invoice_no']) : '' ?><?= !empty($b['invoice_at']) ? ' ('.h(substr($b['invoice_at'],0,10)).')' : '' ?></a>
               <?php if (($b['invoice_kind'] ?? '') === 'oneoff'): ?>
               <span class="badge bg-warning text-dark" style="font-size:.66rem" title="Faktura jednorazowa">jednorazowa</span>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
+            <?php if (module_enabled('invoices_enabled')): ?>
+            <?php
+              // Czy z tego rozliczenia już powstała faktura w module Faktury.
+              $_fv = null;
+              try {
+                  $_fv = db_one("SELECT id, number, status FROM invoices
+                                  WHERE source='ti_billing' AND source_id=? AND deleted_at IS NULL", [(int)$b['id']]);
+              } catch (\Throwable $e) { /* moduł jeszcze nie migrowany */ }
+            ?>
+            <div style="font-size:.72rem" class="mt-1">
+              <?php if ($_fv): ?>
+                <i class="bi bi-receipt text-success me-1"></i>
+                <a href="<?= APP_URL ?>/crm/invoices/view.php?id=<?= (int)$_fv['id'] ?>">
+                  <?= h($_fv['number'] ?: 'szkic faktury') ?></a>
+                <span class="text-muted">(<?= h(INVOICE_STATUSES[$_fv['status']]['label'] ?? $_fv['status']) ?>)</span>
+              <?php elseif ((float)$b['amount'] > 0): ?>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="op" value="make_invoice">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">
+                    <i class="bi bi-receipt me-1"></i>Wystaw fakturę
+                  </button>
+                </form>
               <?php endif; ?>
             </div>
             <?php endif; ?>

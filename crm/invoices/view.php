@@ -1,0 +1,275 @@
+<?php
+/**
+ * crm/invoices/view.php — karta faktury: pozycje, powiązania i akcje.
+ *
+ * Wystawienie jest nieodwracalne — od tego momentu dokument jest w SZO tylko
+ * do odczytu, a jego stan pochodzi z Fakturowni („Odśwież status").
+ */
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
+
+require_login();
+require_module_enabled('invoices_enabled', 'Moduł Faktury');
+invoices_migrate();
+
+$id  = (int)($_GET['id'] ?? 0);
+$inv = invoice_get($id);
+if (!$inv) { flash_set('error', 'Nie znaleziono faktury.'); header('Location: index.php'); exit; }
+
+$can_write = is_admin() || can_write('crm');
+$SELF      = APP_URL . '/crm/invoices/view.php?id=' . $id;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
+    csrf_check();
+    $action = $_POST['_action'] ?? '';
+
+    if ($action === 'push') {
+        $r = invoice_push($id);
+        flash_set($r['ok'] ? 'success' : 'error',
+            $r['ok'] ? 'Faktura wystawiona w Fakturowni.' : ('Nie udało się wystawić: ' . $r['error']));
+        header('Location: ' . $SELF); exit;
+    }
+    if ($action === 'sync') {
+        $r = invoice_sync($id);
+        flash_set($r['ok'] ? 'success' : 'error',
+            $r['ok'] ? 'Status odświeżony: ' . (INVOICE_STATUSES[$r['status']]['label'] ?? $r['status']) . '.'
+                     : ('Nie udało się odświeżyć: ' . $r['error']));
+        header('Location: ' . $SELF); exit;
+    }
+    if ($action === 'pdf_refresh') {
+        $ok = invoice_pdf_fetch($id) !== null;
+        flash_set($ok ? 'success' : 'error', $ok ? 'PDF pobrany z Fakturowni.' : 'Nie udało się pobrać PDF.');
+        header('Location: ' . $SELF); exit;
+    }
+    if ($action === 'delete') {
+        $err = invoice_delete($id);
+        if ($err) { flash_set('error', $err); header('Location: ' . $SELF); exit; }
+        flash_set('success', 'Szkic faktury usunięty.');
+        header('Location: ' . APP_URL . '/crm/invoices/index.php'); exit;
+    }
+}
+
+$PAGE_TITLE = 'Faktura ' . ($inv['number'] ?: '#' . $id);
+$st         = INVOICE_STATUSES[$inv['status']] ?? ['label' => $inv['status'], 'color' => '#6B7280'];
+$is_draft   = $inv['status'] === 'szkic' || $inv['status'] === 'blad';
+
+// Odnośnik do źródła — żeby z faktury dało się wrócić do oferty / rozliczenia.
+$src_link = null;
+if ($inv['source'] === 'offer' && $inv['source_id']) {
+    $src_link = [APP_URL . '/crm/offers/view.php?id=' . (int)$inv['source_id'], 'Oferta CRM'];
+} elseif ($inv['source'] === 'ti_billing' && $inv['source_id']) {
+    $src_link = [APP_URL . '/karty30/ti/billing.php', 'Rozliczenia TI'];
+}
+
+include dirname(__DIR__) . '/includes/header_crm.php';
+?>
+<div class="container-fluid px-0" style="max-width:1000px">
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <a href="<?= APP_URL ?>/crm/invoices/index.php" class="btn btn-sm btn-crm-ghost">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h1 class="h5 mb-0 me-auto">
+      <?= h($inv['number'] ?: 'Szkic faktury #' . $id) ?>
+      <span class="badge ms-1" style="background:<?= h($st['color']) ?>"><?= h($st['label']) ?></span>
+    </h1>
+    <span class="badge bg-light text-dark border"><?= h(INVOICE_SOURCES[$inv['source']] ?? $inv['source']) ?></span>
+  </div>
+
+  <?php if (!empty($inv['last_error'])): ?>
+  <div class="alert alert-danger py-2" role="alert">
+    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+    <strong>Ostatni błąd:</strong> <?= h($inv['last_error']) ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($is_draft && !invoices_api_ready()): ?>
+  <div class="alert alert-warning py-2" role="note">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    Integracja z Fakturownią nie jest skonfigurowana — szkic można edytować, ale nie wystawić.
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/admin/invoices_settings.php">Skonfiguruj</a>.
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <div class="row g-3">
+    <!-- Nabywca + daty -->
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header fw-semibold py-2">Nabywca</div>
+        <div class="card-body py-2">
+          <div class="fw-semibold"><?= h($inv['buyer_name'] ?: '—') ?></div>
+          <?php if ($inv['buyer_tax_no']): ?><div class="small text-muted">NIP <?= h($inv['buyer_tax_no']) ?></div><?php endif; ?>
+          <?php if ($inv['buyer_street'] || $inv['buyer_city']): ?>
+          <div class="small"><?= h(trim($inv['buyer_street'] . ', ' . trim($inv['buyer_post_code'] . ' ' . $inv['buyer_city']), ' ,')) ?></div>
+          <?php endif; ?>
+          <?php if ($inv['buyer_email']): ?>
+          <div class="small"><a href="mailto:<?= h($inv['buyer_email']) ?>"><?= h($inv['buyer_email']) ?></a></div>
+          <?php endif; ?>
+          <?php if (!empty($inv['contact_id'])): ?>
+          <a class="btn btn-sm btn-crm-ghost mt-2" href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$inv['contact_id'] ?>">
+            <i class="bi bi-person-lines-fill me-1"></i>Kartoteka kontaktu
+          </a>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Pozycje -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header fw-semibold py-2">Pozycje</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <caption class="visually-hidden">Pozycje faktury</caption>
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Nazwa</th>
+                <th scope="col" class="text-end">Ilość</th>
+                <th scope="col" class="text-end">Cena netto</th>
+                <th scope="col" class="text-end">VAT</th>
+                <th scope="col" class="text-end">Brutto</th>
+              </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($inv['items'] as $it): ?>
+              <tr>
+                <td><?= h($it['name']) ?></td>
+                <td class="text-end text-nowrap">
+                  <?= h(rtrim(rtrim(number_format((float)$it['qty'], 3, ',', ' '), '0'), ',')) ?> <?= h($it['unit']) ?>
+                </td>
+                <td class="text-end text-nowrap"><?= number_format((float)$it['unit_net'], 2, ',', ' ') ?></td>
+                <td class="text-end text-nowrap"><?= h($it['vat_rate']) ?><?= is_numeric($it['vat_rate']) ? '%' : '' ?></td>
+                <td class="text-end text-nowrap"><?= number_format((float)$it['line_gross'], 2, ',', ' ') ?></td>
+              </tr>
+            <?php endforeach; ?>
+            <?php if (!$inv['items']): ?>
+              <tr><td colspan="5" class="text-muted text-center py-3">Brak pozycji.</td></tr>
+            <?php endif; ?>
+            </tbody>
+            <tfoot class="table-light">
+              <tr>
+                <th colspan="4" class="text-end">Razem netto</th>
+                <td class="text-end"><?= number_format((float)$inv['total_net'], 2, ',', ' ') ?></td>
+              </tr>
+              <tr>
+                <th colspan="4" class="text-end">VAT</th>
+                <td class="text-end"><?= number_format((float)$inv['total_vat'], 2, ',', ' ') ?></td>
+              </tr>
+              <tr>
+                <th colspan="4" class="text-end">Do zapłaty</th>
+                <td class="text-end fw-bold">
+                  <?= number_format((float)$inv['total_gross'], 2, ',', ' ') ?> <?= h($inv['currency']) ?>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metryka + akcje -->
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header fw-semibold py-2">Dokument</div>
+        <div class="card-body py-2">
+          <dl class="row mb-0 small">
+            <dt class="col-6">Data wystawienia</dt>
+            <dd class="col-6 text-end"><?= h($inv['issue_date'] ? date('d.m.Y', strtotime($inv['issue_date'])) : '—') ?></dd>
+            <dt class="col-6">Data sprzedaży</dt>
+            <dd class="col-6 text-end"><?= h($inv['sell_date'] ? date('d.m.Y', strtotime($inv['sell_date'])) : '—') ?></dd>
+            <dt class="col-6">Termin płatności</dt>
+            <dd class="col-6 text-end"><?= h($inv['payment_to'] ? date('d.m.Y', strtotime($inv['payment_to'])) : '—') ?></dd>
+            <?php if (!empty($inv['paid_at'])): ?>
+            <dt class="col-6">Zapłacona</dt>
+            <dd class="col-6 text-end"><?= h(date('d.m.Y', strtotime($inv['paid_at']))) ?></dd>
+            <?php endif; ?>
+            <?php if ($src_link): ?>
+            <dt class="col-6">Źródło</dt>
+            <dd class="col-6 text-end"><a href="<?= h($src_link[0]) ?>"><?= h($src_link[1]) ?></a></dd>
+            <?php endif; ?>
+            <?php if (!empty($inv['last_sync_at'])): ?>
+            <dt class="col-6">Ostatnia synchronizacja</dt>
+            <dd class="col-6 text-end"><?= h(date('d.m.Y H:i', strtotime($inv['last_sync_at']))) ?></dd>
+            <?php endif; ?>
+          </dl>
+          <?php if (!empty($inv['notes'])): ?>
+          <hr class="my-2">
+          <div class="small text-muted" style="white-space:pre-line"><?= h($inv['notes']) ?></div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <?php if ($can_write): ?>
+      <div class="card border-0 shadow-sm">
+        <div class="card-header fw-semibold py-2">Akcje</div>
+        <div class="card-body py-2 d-grid gap-2">
+          <?php if ($is_draft): ?>
+            <a class="btn btn-sm btn-crm-outline" href="<?= APP_URL ?>/crm/invoices/form.php?id=<?= $id ?>">
+              <i class="bi bi-pencil me-1"></i>Edytuj szkic
+            </a>
+            <a class="btn btn-sm btn-crm-ghost" target="_blank" rel="noopener"
+               href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>&gen=1">
+              <i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF (szablon SZO)
+            </a>
+            <form method="post" onsubmit="return confirm('Wystawić fakturę w Fakturowni? Po wystawieniu dokumentu nie da się już edytować w SZO.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="push">
+              <button class="btn btn-sm btn-crm-primary w-100" type="submit" <?= invoices_api_ready() ? '' : 'disabled' ?>>
+                <i class="bi bi-send-check me-1"></i>Wystaw w Fakturowni
+              </button>
+            </form>
+            <form method="post" onsubmit="return confirm('Usunąć szkic faktury?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="delete">
+              <button class="btn btn-sm btn-outline-danger w-100" type="submit">
+                <i class="bi bi-trash me-1"></i>Usuń szkic
+              </button>
+            </form>
+          <?php else: ?>
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="sync">
+              <button class="btn btn-sm btn-crm-outline w-100" type="submit">
+                <i class="bi bi-arrow-repeat me-1"></i>Odśwież status z Fakturowni
+              </button>
+            </form>
+            <?php if (!empty($inv['pdf_path'])): ?>
+            <a class="btn btn-sm btn-crm-outline" href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>">
+              <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
+            </a>
+            <?php endif; ?>
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="pdf_refresh">
+              <button class="btn btn-sm btn-crm-ghost w-100" type="submit">
+                <i class="bi bi-cloud-arrow-down me-1"></i><?= empty($inv['pdf_path']) ? 'Pobierz PDF z Fakturowni' : 'Pobierz PDF ponownie' ?>
+              </button>
+            </form>
+            <?php if (!empty($inv['fakturownia_url'])): ?>
+            <a class="btn btn-sm btn-crm-ghost" target="_blank" rel="noopener" href="<?= h($inv['fakturownia_url']) ?>">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz w Fakturowni
+            </a>
+            <?php endif; ?>
+            <a class="btn btn-sm btn-crm-ghost" target="_blank" rel="noopener"
+               href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>&gen=1">
+              <i class="bi bi-printer me-1"></i>Wydruk z szablonu SZO
+            </a>
+            <a class="btn btn-sm btn-crm-ghost" target="_blank" rel="noopener"
+               href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>&gen=1&duplikat=1">
+              <i class="bi bi-files me-1"></i>Duplikat</a>
+            <p class="text-muted small mb-0 mt-1">
+              Korektę i anulowanie wykonuje się w Fakturowni — SZO odczyta zmianę po odświeżeniu statusu.
+            </p>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+</div>
+<?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>

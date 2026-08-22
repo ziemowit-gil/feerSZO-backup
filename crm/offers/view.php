@@ -114,6 +114,15 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <i class="bi bi-three-dots-vertical"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.85rem">
+        <?php if (module_enabled('invoices_enabled')): ?>
+        <li><form method="post" action="action.php" class="d-inline w-100">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="a" value="invoice">
+          <input type="hidden" name="id" value="<?= $id ?>">
+          <button type="submit" class="dropdown-item"><i class="bi bi-receipt me-2"></i>Wystaw fakturę</button>
+        </form></li>
+        <li><hr class="dropdown-divider"></li>
+        <?php endif; ?>
         <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#revisionModal">
           <i class="bi bi-files me-2"></i>Nowa wersja oferty</button></li>
         <li><form method="post" action="action.php" class="d-inline w-100">
