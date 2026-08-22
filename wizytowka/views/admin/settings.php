@@ -154,9 +154,10 @@ $colors = [
     <div x-show="tab==='wyglad'" class="space-y-6">
       <section class="<?= ui('card') ?> space-y-5">
         <h2 class="<?= ui('section_h') ?>">Układ strony głównej</h2>
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3 sm:grid-cols-3">
           <?php foreach ([
               'stack' => ['Jedna kolumna', 'Wyśrodkowana wizytówka: nagłówek, przyciski-pigułki, sekcje z liniami.'],
+              'split' => ['Wizytówka z boku', 'Dane kontaktowe przyklejone w lewej kolumnie, treść w dwóch kolumnach obok.'],
               'bento' => ['Siatka Bento',  'Kafelki w siatce 4 kolumn, rozmiary 1×1 … 2×2, efekt szkła.'],
           ] as $k => [$l, $d]): ?>
             <label class="cursor-pointer">

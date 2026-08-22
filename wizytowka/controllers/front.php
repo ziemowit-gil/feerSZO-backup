@@ -17,7 +17,9 @@ function render(string $view, array $data = []): void
 function front_home(): void
 {
     $tiles  = tiles_active();
-    $layout = setting('site_layout', 'stack') === 'bento' ? 'bento' : 'stack';
+    $layout = in_array(setting('site_layout', 'stack'), ['bento', 'split'], true)
+        ? setting('site_layout')
+        : 'stack';
 
     render('home', [
         'tiles'       => $tiles,

@@ -51,6 +51,7 @@ button { font: inherit; color: inherit; }
 .site { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
 .site__inner { width: 100%; max-width: 59rem; padding: 4.5rem 1.5rem 2rem; }
 .site__inner > * + * { margin-top: 1.125rem; }
+.stream > * + * { margin-top: 1.125rem; }
 
 .site-footer { width: 100%; max-width: 59rem; padding: 3rem 1.5rem 3.5rem; text-align: center; font-size: .8em; opacity: .8; }
 .site-footer__meta { opacity: .7; }
@@ -105,7 +106,7 @@ button { font: inherit; color: inherit; }
 /* ── Sekcje, linie, nagłówki ────────────────────────────────────────── */
 .section-heading { font-size: 2.25em; margin-top: 2.75rem !important; }
 .section-heading strong::after {
-    content: ''; display: block; width: 2.5rem; height: 4px; margin-top: .6rem;
+    content: ''; display: block; width: 2.5rem; height: 4px; margin: .6rem 0 0;
     border-radius: 2px; background: var(--accent);
 }
 .section-heading__sub { display: block; font-size: .35em; opacity: .8; }
@@ -300,6 +301,69 @@ button { font: inherit; color: inherit; }
 .layout-bento .tile--image { padding: 0; }
 .layout-bento .tile--image img { height: 100%; width: 100%; object-fit: cover; border-radius: 1.5rem; }
 
+
+/* =====================================================================
+   Układ SPLIT — przyklejona wizytówka w lewej kolumnie, treść obok.
+   Dobry dla portfolio: dane kontaktowe zawsze widoczne przy przewijaniu.
+   ===================================================================== */
+.layout-split .site__inner {
+    display: grid;
+    grid-template-columns: 19rem minmax(0, 1fr);
+    gap: 3.5rem;
+    align-items: start;
+    max-width: 74rem;
+    padding: 4rem 2.5rem 2rem;
+}
+.layout-split .site__inner > * + * { margin-top: 0; }   /* odstępy robi gap */
+
+.layout-split .hero {
+    position: sticky; top: 3rem;
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: .875rem; padding-bottom: 0;
+}
+.layout-split .hero__text { display: flex; flex-direction: column; gap: .875rem; }
+.layout-split .hero__text > * + * { margin-top: 0; }
+.layout-split .hero__avatar { order: -1; max-width: 8.5rem; justify-self: start; }
+.layout-split .hero__name { font-size: 1.85em; }
+.layout-split .hero__tagline { font-size: 1em; }
+.layout-split .hero__headline { font-size: .9em; }
+.layout-split .hero__bio { font-size: .85em; }
+.layout-split .icons { gap: .75rem; }
+.layout-split .icons a { width: 2.1em; height: 2.1em; font-size: .95em; }
+.layout-split .hero__contact { flex-direction: column; align-items: flex-start; gap: .5rem; font-size: .8em; }
+.layout-split .hero__contact .btn { margin-top: .25rem; }
+
+/* Treść: dwie kolumny kart, duże kafelki na całą szerokość */
+.layout-split .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.layout-split .tile--wide,
+.layout-split .tile--lg,
+.layout-split .tile--full { grid-column: span 2; }
+.layout-split .tile--text, .layout-split .tile--gallery, .layout-split .tile--embed {
+    display: flex; flex-direction: column; align-items: flex-start; gap: .35rem;
+}
+.layout-split .tile--text .tile__icon, .layout-split .tile--gallery .tile__icon,
+.layout-split .tile--embed .tile__icon { float: none; margin: 0 0 .25rem; }
+.layout-split .tile--text .tile__body { margin-top: .25rem; }
+.layout-split .tile__more { margin-top: auto; }
+.layout-split .section-heading { font-size: 1.75em; margin-top: 1.25rem !important; }
+.layout-split .rule { height: 3px; margin: 1.5rem 0; }
+.layout-split .thumbs__btn img { height: 6.5rem; }
+.layout-split .site-footer { max-width: 72rem; text-align: left; padding-left: 22.5rem; }
+
+@media (max-width: 60rem) {
+    /* Poniżej tabletu wracamy do jednej kolumny — bez przyklejania */
+    .layout-split .site__inner { grid-template-columns: 1fr; gap: 2rem; padding-top: 2.5rem; }
+    .layout-split .hero { position: static; align-items: center; text-align: center; }
+    .layout-split .hero__text { align-items: center; }
+    .layout-split .hero__contact { align-items: center; }
+    .layout-split .icons { justify-content: center; }
+    .layout-split .tiles { grid-template-columns: 1fr; }
+    .layout-split .section-heading { text-align: center; }
+    .layout-split .section-heading strong::after { margin-inline: auto; }
+    .layout-split .tile--wide, .layout-split .tile--lg, .layout-split .tile--full { grid-column: span 1; }
+    .layout-split .site-footer { padding-left: 1.5rem; text-align: center; }
+}
+
 /* =====================================================================
    RWD
    ===================================================================== */
@@ -314,6 +378,7 @@ button { font: inherit; color: inherit; }
     .icons, .hero__contact { justify-content: center; }
     .hero__contact { gap: .5rem .875rem; }
     .section-heading { font-size: 1.9em; text-align: center; }
+    .section-heading strong::after { margin-inline: auto; }
     .rule { margin: 1.75rem 0; }
     .tiles--stack .tile--action { border-radius: 1.5rem; }
     .thumbs__btn img { height: 5.5rem; }

@@ -1,7 +1,8 @@
 # Wizytówka — cyfrowa wizytówka i portfolio (Native PHP 8 + SQLite)
 
-Samodzielna aplikacja: **jedna kolumna w stylu wizytówki** (jak carrd.co) **albo siatka Bento**
-(jak bento.me) — przełączane jednym kliknięciem w panelu. Bez kompilacji, bez Composera:
+Samodzielna aplikacja z **trzema układami strony głównej** — jedna kolumna w stylu wizytówki
+(jak carrd.co), przyklejona wizytówka z boku (portfolio) albo siatka Bento (jak bento.me) —
+przełączane jednym kliknięciem w panelu. Bez kompilacji, bez Composera:
 wrzucasz katalog na hosting PHP, wchodzisz na adres — instalator zrobi resztę.
 
 * Backend: **PHP 8.1+**, PDO **SQLite** (plik `database.sqlite`, tworzony automatycznie)
@@ -107,7 +108,7 @@ Bez `mod_rewrite` działa też forma `?r=/p/slug`.
 * **Galerie** — wiele galerii, **multi-upload**, opisy alt i podpisy, kolejność, okładka, układ
   (proporcje naturalne / kwadraty), SEO. Front: responsywna siatka + lightbox (klawiatura ←/→/Esc, swipe).
 * **Ustawienia** — profil (avatar, bio, nazwisko pogrubione, wyróżnienie), kontakt + vCard,
-  wygląd (układ, 8 kolorów, font z Google Fonts, animowane tło, 3 gotowe presety), SEO/OG, stopka, analityka.
+  wygląd (3 układy, 8 kolorów, font z Google Fonts, animowane tło, 4 gotowe presety), SEO/OG, stopka, analityka.
 * **Konto** — zmiana e-maila i hasła (wymaga podania aktualnego hasła).
 
 ## 5. Bezpieczeństwo
@@ -141,6 +142,7 @@ jako `config.local.php` i odkomentuj `define('DB_FILE', …)`.
 | Preset | Układ | Charakter |
 |---|---|---|
 | **Coral** | jedna kolumna | jasny (`#F5F5F5`), akcent koralowy `#FF724F`, tekst `#D67F69`, białe pigułki, grube linie sekcji |
+| **Studio** | wizytówka z boku | jasny (`#FAF9F7`), akcent amber `#B45309`; dane kontaktowe przyklejone w lewej kolumnie, treść w dwóch kolumnach |
 | **Bento** | siatka 4 kolumn | ciemny (`#09090B`), akcent indygo, szkło (blur), kafelki 1×1…2×2 |
 | **Mono** | jedna kolumna | biały, minimalny, grafitowy akcent |
 

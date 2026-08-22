@@ -4,7 +4,8 @@
  * Zmienne z kontrolera: $content_view, $page_title, $page_desc, $canonical,
  * $page_keys, $noindex, $layout.
  */
-$layoutMode = $layout ?? (setting('site_layout', 'stack') === 'bento' ? 'bento' : 'stack');
+$layoutMode = $layout ?? (in_array(setting('site_layout', 'stack'), ['bento', 'split'], true)
+    ? setting('site_layout') : 'stack');
 $title      = trim((string)($page_title ?? '')) !== '' ? (string)$page_title : setting('site_name', 'Wizytówka');
 $fullTitle  = $title === setting('site_name') ? $title : $title . ' — ' . setting('site_name', 'Wizytówka');
 $desc       = trim((string)($page_desc ?? setting('meta_description')));

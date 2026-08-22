@@ -28,6 +28,9 @@ foreach ($rest as $t) {
 }
 if ($buffer) $sections[] = ['grid', $buffer];
 
+?>
+<div class="stream">
+<?php
 foreach ($sections as [$kind, $payload]):
     if ($kind === 'break'):
         $t = $payload;
@@ -38,6 +41,8 @@ foreach ($sections as [$kind, $payload]):
       </div>
     <?php endif;
 endforeach; ?>
+</div>
+<?php ?>
 
 <?php if (!$rest && is_logged_in()): ?>
   <p class="empty-hint">
