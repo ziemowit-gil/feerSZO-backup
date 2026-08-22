@@ -601,7 +601,7 @@ function invoice_pdf_ti_settlement(int $client_id): string
  *
  * @return string HTML albo '' gdy nie ma lekcji.
  */
-function invoice_pdf_ti_lessons(int $client_id, int $month, int $year): string
+function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $course_id = 0): string
 {
     if ($client_id <= 0 || $month < 1 || $month > 12) return '';
 
@@ -616,7 +616,9 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year): string
     $to   = date('Y-m-t', strtotime($from));
 
     try {
-        $calc = k30_ti_calculate_billing($client_id, $month, $year);
+        // Filtr grupy MUSI trafić do kalkulatora: w modelu kombinowanym rozliczenie
+        // dotyczy jednej grupy, a bez filtra wykaz pokazałby lekcje ze wszystkich.
+        $calc = k30_ti_calculate_billing($client_id, $month, $year, $course_id);
     } catch (\Throwable $e) {
         return '';
     }
@@ -630,6 +632,10 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year): string
         $rates[(int)$e['course_id']] = (float)$e['hourly_rate'];
     }
 
+    $params = [$client_id, $from, $to];
+    $course_sql = '';
+    if ($course_id > 0) { $course_sql = ' AND s.course_id = ?'; $params[] = $course_id; }
+
     $lessons = db_all(
         "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status,
                 s.course_id, co.name AS course_name,
@@ -641,8 +647,9 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year): string
             AND s.status IN ('held','individual_change','remote_material')
             AND s.lesson_date BETWEEN ? AND ?
             AND ((a.attended = 1 AND COALESCE(a.cancelled,0) = 0) OR COALESCE(a.no_show,0) = 1)
+            {$course_sql}
        ORDER BY s.lesson_date, s.time_from",
-        [$client_id, $from, $to]
+        $params
     );
     if (!$lessons) return '';
 
@@ -759,11 +766,17 @@ function invoice_pdf_render(array $inv, array $opts = []): string
     // Faktura z rozliczenia TI dostaje załącznik z rozliczeniem środków —
     // faktura pokazuje jeden okres, załącznik cały stan konta kursanta.
     if (($inv['source'] ?? '') === 'ti_billing' && !empty($inv['source_id']) && empty($opts['no_settlement'])) {
-        $b = db_one("SELECT client_id, month, year FROM k30_ti_billing WHERE id=?", [(int)$inv['source_id']]);
+        $b = db_one(
+            "SELECT client_id, month, year, COALESCE(course_id,0) AS course_id
+               FROM k30_ti_billing WHERE id=?",
+            [(int)$inv['source_id']]
+        );
         if ($b) {
             $html .= '<pagebreak />'
                    . '<div class="hdr-title" style="font-size:12pt">Załącznik do faktury</div>'
-                   . invoice_pdf_ti_lessons((int)$b['client_id'], (int)$b['month'], (int)$b['year'])
+                   // Wykaz lekcji zawężony do grupy z rozliczenia; rozliczenie środków
+                   // celowo obejmuje CAŁE konto kursanta — nadpłata bywa wspólna.
+                   . invoice_pdf_ti_lessons((int)$b['client_id'], (int)$b['month'], (int)$b['year'], (int)$b['course_id'])
                    . invoice_pdf_ti_settlement((int)$b['client_id']);
         }
     }

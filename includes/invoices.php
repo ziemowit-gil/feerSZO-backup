@@ -649,7 +649,8 @@ function invoice_from_ti_billing(int $billing_id, int $uid): array
     if ($existing) return ['ok' => true, 'id' => (int)$existing['id'], 'existing' => true];
 
     $b = db_one(
-        "SELECT b.*, c.name AS client_name, c.email AS client_email, c.address AS client_address
+        "SELECT b.*, COALESCE(b.course_id,0) AS course_id,
+                c.name AS client_name, c.email AS client_email, c.address AS client_address
            FROM k30_ti_billing b
            JOIN k30_clients   c ON c.id = b.client_id
           WHERE b.id = ?",
@@ -664,17 +665,24 @@ function invoice_from_ti_billing(int $billing_id, int $uid): array
     $okres  = str_pad((string)(int)$b['month'], 2, '0', STR_PAD_LEFT) . '/' . (int)$b['year'];
     $hours  = (float)$b['hours_billed'];
 
-    // Grupa (kurs) na pozycji faktury — rozliczenie TI jest per kursant i miesiąc,
-    // ale na dokumencie musi być widać, za jakie zajęcia. Kursant może być
-    // zapisany do kilku grup; wtedy wymieniamy wszystkie.
-    $groups = array_column(db_all(
-        "SELECT DISTINCT co.name
-           FROM k30_ti_enrollments e
-           JOIN k30_ti_courses    co ON co.id = e.course_id
-          WHERE e.client_id = ?
-       ORDER BY co.name",
-        [(int)$b['client_id']]
-    ), 'name');
+    // Grupa (kurs) na pozycji faktury. W modelu kombinowanym rozliczenie dotyczy
+    // JEDNEJ grupy (k30_ti_billing.course_id) — wtedy tylko ją nazywamy. Dopiero
+    // rozliczenie łączne (course_id = 0) wymienia wszystkie grupy kursanta.
+    $course_id = (int)$b['course_id'];
+    if ($course_id > 0) {
+        $groups = array_column(db_all(
+            "SELECT name FROM k30_ti_courses WHERE id = ?", [$course_id]
+        ), 'name');
+    } else {
+        $groups = array_column(db_all(
+            "SELECT DISTINCT co.name
+               FROM k30_ti_enrollments e
+               JOIN k30_ti_courses    co ON co.id = e.course_id
+              WHERE e.client_id = ?
+           ORDER BY co.name",
+            [(int)$b['client_id']]
+        ), 'name');
+    }
     $group_txt = $groups ? implode(', ', $groups) : '';
 
     // Kwota rozliczenia TI jest kwotą do zapłaty (brutto dla nabywcy). Przy stawce
