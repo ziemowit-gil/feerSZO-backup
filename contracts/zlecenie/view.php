@@ -2142,7 +2142,7 @@ window.CVTabsConfig = {
     }
     // Reset przycisków
     var saveBtn = document.getElementById('rozlSaveBtn');
-    saveBtn.innerHTML = '<i class=”bi bi-save me-1”></i>Zapisz rozliczenie';
+    saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>Zapisz rozliczenie';
     saveBtn.className = 'btn btn-primary';
     saveBtn.disabled = false;
     document.getElementById('rozlNextBtn').classList.add('d-none');
