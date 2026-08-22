@@ -24,6 +24,13 @@
   flex: 0 0 218px; max-width: 218px;
   flex-direction: column; gap: .12rem;
   position: sticky; top: 1rem; border: none;
+  /* Nieprzezroczysta karta — pod spodem jest geometryczne tło aplikacji
+     (includes/app_bg.php), które prześwitywało pod tekstem. */
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: .4rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .cv-side-tabs .nav-link {
   border: none !important; border-radius: 9px !important;
@@ -43,6 +50,7 @@
 /* Zawartość zakładek */
 .cv-side-tabs-content {
   flex: 1 1 auto; min-width: 0;
+  background: #fff;                     /* treść zawsze na białym, nie na wzorze tła */
   border: 1px solid #E2E8F0 !important;
   border-radius: 12px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
