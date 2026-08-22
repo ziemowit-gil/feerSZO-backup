@@ -84,7 +84,7 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
   /* Tokeny layoutu (navbar / sidebar / body) */
-  --pvl-body:#F9FAFB;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
+  --pvl-body:#F0F2F5;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
   --pvl-txt:#374151;--pvl-sub:#9CA3AF;
   --pvl-btn:#fff;--pvl-btn-b:#E5E7EB;--pvl-btn-t:#374151;
   --pvl-div:#F3F4F6;--pvl-brand:#111827;
@@ -113,22 +113,15 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-skip:focus{top:0}
 *:focus-visible{outline:3px solid #FBBF24 !important;outline-offset:3px !important;border-radius:3px}
 
-/* Górny pasek (navbar) — układ jak w module „Tożsamość" (tozsamosc/_head.php):
-   biały, płaski (bez cienia), zawartość w kolumnie 960 px, akcje jako
-   dyskretne linki tekstowe, mała awatarka. */
-.pv-navbar{background:var(--pvl-nav);border-bottom:1px solid var(--pvl-nav-b);position:sticky;top:0;z-index:1040}
-.pv-bar-inner{max-width:960px;margin:0 auto;padding:.55rem 1rem;display:flex;align-items:center;gap:.75rem}
-.pv-menu-btn{border:none;background:none;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--pvl-sub);cursor:pointer;flex-shrink:0;transition:background .12s,color .12s}
-.pv-menu-btn:hover{background:var(--pvl-div);color:var(--pvl-txt)}
-.pv-brand{display:flex;align-items:center;gap:.55rem;text-decoration:none;color:var(--pvl-brand);font-weight:700;font-size:.95rem;min-width:0;line-height:1.05}
+/* Górny pasek (navbar) */
+.pv-navbar{background:var(--pvl-nav);border-bottom:1px solid var(--pvl-nav-b);box-shadow:0 1px 3px rgba(0,0,0,.04);position:sticky;top:0;z-index:1040}
+.pv-menu-btn{border:1px solid var(--pvl-btn-b);background:var(--pvl-btn);border-radius:9px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--pvl-btn-t);cursor:pointer;flex-shrink:0;transition:border-color .12s,color .12s}
+.pv-menu-btn:hover{border-color:var(--vol-color);color:var(--vol-color)}
+.pv-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--pvl-brand);font-weight:800;font-size:.98rem;min-width:0}
 .pv-brand:hover{color:var(--pvl-brand)}
-.pv-brand-icon{width:32px;height:32px;background:var(--vol-color);color:var(--vol-on);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.pv-brand-sub{font-size:.65rem;color:var(--pvl-sub);opacity:1;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-/* Dyskretny link akcji w pasku (odpowiednik .tzbar .lnk) */
-.pv-lnk{color:var(--pvl-sub);text-decoration:none;font-size:.83rem;padding:.35rem .6rem;border-radius:6px;display:inline-flex;align-items:center;gap:.35rem;background:none;border:none;cursor:pointer;position:relative;white-space:nowrap}
-.pv-lnk:hover,.pv-lnk:focus-visible{background:var(--pvl-div);color:var(--pvl-txt)}
-.pv-lnk .pv-lnk-badge{background:var(--vol-color);color:var(--vol-on);font-size:.62rem;font-weight:700;line-height:1;padding:.15rem .35rem;border-radius:999px}
-.pv-avatar{width:30px;height:30px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;cursor:pointer;border:none;line-height:1;flex-shrink:0}
+.pv-brand-icon{width:34px;height:34px;background:var(--vol-color);color:var(--vol-on);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.pv-brand-sub{font-size:.66rem;opacity:.6;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.pv-avatar{width:36px;height:36px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;cursor:pointer;border:none;line-height:1}
 
 /* Menu sekcji w offcanvas */
 .pv-offcanvas{max-width:285px}
@@ -145,72 +138,117 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-nav-divider{height:1px;background:var(--pvl-div);margin:.4rem .75rem}
 .pv-sidebar-bottom{margin-top:auto;border-top:1px solid var(--pvl-div);padding:.5rem}
 
-/* Treść — kolumna 960 px wyśrodkowana (jak .tz-wrap w Tożsamości) */
-#pv-main{flex:1 0 auto;width:100%;max-width:960px;margin:0 auto;padding:1.5rem 1rem 3rem}
-.pv-footer{border-top:1px solid var(--pvl-nav-b);font-size:.75rem;color:var(--pvl-sub);background:var(--pvl-nav)}
-.pv-footer-inner{max-width:960px;margin:0 auto;padding:.6rem 1rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
+/* Treść — wyśrodkowany kontener */
+#pv-main{flex:1 0 auto;width:100%}
+.pv-footer{border-top:1px solid var(--pvl-nav-b);padding:.6rem 1.5rem;font-size:.75rem;color:var(--pvl-sub);background:var(--pvl-nav);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
 
 /* Live region */
 .pv-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-@media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} .pv-bar-inner{gap:.4rem} }
-
-/* ── Układ jak w panelu dydaktyka: stały panel boczny 220 px od breakpointu lg ──
-   Poniżej lg menu pozostaje wysuwane (Bootstrap offcanvas-lg). Tryb wysokiego
-   kontrastu (data-theme="hc") zachowuje własną kolorystykę — bez granatu.      */
-@media(min-width:992px){
-  .pv-menu-btn{display:none}
-  .pv-bar-inner{max-width:none}
-  .pv-offcanvas{
-    position:fixed;top:49px;left:0;bottom:0;width:220px;
-    overflow-y:auto;overflow-x:hidden;z-index:1035;
-    border-right:1px solid var(--pvl-nav-b);
-  }
-  .pv-offcanvas .offcanvas-header{display:none}
-  .pv-offcanvas .offcanvas-body{padding:.35rem 0}
-  #pv-main{
-    max-width:none;margin-left:220px;
-    padding-left:max(1rem,calc((100% - 1100px)/2));
-    padding-right:max(1rem,calc((100% - 1100px)/2));
-  }
-  .pv-footer-inner{max-width:none;margin-left:220px}
-
-  /* Granatowa kolorystyka paska i panelu bocznego (poza trybem hc) */
-  :root:not([data-theme="hc"]) .pv-navbar{background:#1b2e45;border-bottom-color:rgba(255,255,255,.08)}
-  :root:not([data-theme="hc"]) .pv-brand,
-  :root:not([data-theme="hc"]) .pv-brand:hover{color:#fff}
-  :root:not([data-theme="hc"]) .pv-brand-sub{color:rgba(255,255,255,.6)}
-  :root:not([data-theme="hc"]) .pv-lnk{color:rgba(255,255,255,.78)}
-  :root:not([data-theme="hc"]) .pv-lnk:hover,
-  :root:not([data-theme="hc"]) .pv-lnk:focus-visible{background:rgba(255,255,255,.12);color:#fff}
-  :root:not([data-theme="hc"]) .pv-offcanvas{background:#1b2e45;border-right-color:rgba(255,255,255,.08)}
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link{
-    color:rgba(255,255,255,.8);margin:0;border-radius:0;padding:.5rem 1rem;font-weight:600;
-  }
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link i{color:rgba(255,255,255,.6)}
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link:hover{
-    background:rgba(255,255,255,.1);color:#fff;border-left-color:rgba(255,255,255,.2);
-  }
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link:hover i{color:#fff}
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link.pv-active{
-    background:rgba(255,255,255,.12);color:#fff;font-weight:700;border-left-color:var(--vol-color,#5bbcff);
-  }
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link.pv-active i{color:#fff}
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-label{color:rgba(255,255,255,.35)}
-  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-divider{background:rgba(255,255,255,.1)}
-  :root:not([data-theme="hc"]) .pv-sidebar-bottom{border-top-color:rgba(255,255,255,.1)}
-}
+@media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} }
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Wysoki kontrast — layout */
 [data-theme="hc"] .pv-navbar{border-bottom-width:2px;box-shadow:none}
-[data-theme="hc"] .pv-menu-btn,[data-theme="hc"] .pv-lnk{color:#000}
+[data-theme="hc"] .pv-menu-btn{border-width:2px}
 [data-theme="hc"] .pv-nav-link:hover,[data-theme="hc"] .pv-nav-link.pv-active{background:#000;color:#fff;border-left-color:#000}
 [data-theme="hc"] .pv-nav-link:hover i,[data-theme="hc"] .pv-nav-link.pv-active i{color:#fff}
 [data-theme="hc"] .pv-nav-divider{height:2px}
 [data-theme="hc"] .pv-footer{border-top-width:2px}
 [data-theme="hc"] .dropdown-menu{border:2px solid #000}
 [data-theme="hc"] .dropdown-item:hover,[data-theme="hc"] .dropdown-item:focus{background:#000;color:#fff}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Warstwa wizualna modułu Tożsamość (tozsamosc/_head.php) — panel ma wyglądać
+ * tak samo: spokojny biały pasek, kolumna 960 px, karty 12 px z cienką ramką,
+ * przyciski 8 px/600, pigułkowe znaczniki. Kolor akcentu pozostaje kolorem
+ * wybranym przez wolontariusza (--vol-color), struktura jest z Tożsamości.
+ * Tryb wysokiego kontrastu (data-theme="hc") zachowuje własne reguły.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+:root { --tz-line:#e5e7eb; --tz-muted:#6b7280; --tz-radius:12px; }
+:root:not([data-theme="hc"]) { --pvl-nav-b:var(--tz-line); }
+
+/* Pasek górny 1:1 jak .tzbar w Tożsamości: płaski, bez cienia, kolumna 960 px,
+   stonowane linki tekstowe zamiast wypełnionych przycisków. */
+:root:not([data-theme="hc"]) .pv-navbar { box-shadow:none; border-bottom:1px solid var(--tz-line); }
+.pv-bar-inner { max-width:960px; margin:0 auto; padding:.55rem 1rem; display:flex; align-items:center; gap:.75rem; }
+.pv-bar-inner .pv-brand { font-weight:700; font-size:.95rem; line-height:1.05; }
+.pv-bar-inner .pv-brand-icon { width:32px; height:32px; border-radius:8px; font-size:.95rem; }
+.pv-bar-inner .pv-brand-sub { font-size:.65rem; color:var(--pvl-sub); opacity:1; }
+.pv-bar-inner .pv-avatar { width:30px; height:30px; font-size:.72rem; }
+.pv-bar-inner .pv-menu-btn { width:32px; height:32px; border:none; background:none; border-radius:6px;
+  font-size:1.2rem; color:var(--pvl-sub); }
+.pv-bar-inner .pv-menu-btn:hover { background:var(--pvl-div); color:var(--pvl-txt); }
+.pv-bar-inner > nav { margin-left:auto; display:flex; align-items:center; gap:.15rem; }
+.pv-lnk { color:var(--pvl-sub); text-decoration:none; font-size:.83rem; padding:.35rem .6rem; border-radius:6px;
+  display:inline-flex; align-items:center; gap:.35rem; background:none; border:none; cursor:pointer; white-space:nowrap; }
+.pv-lnk:hover, .pv-lnk:focus-visible { background:var(--pvl-div); color:var(--pvl-txt); }
+.pv-lnk-badge { background:var(--vol-color); color:var(--vol-on); font-size:.62rem; font-weight:700; line-height:1;
+  padding:.15rem .35rem; border-radius:999px; }
+[data-theme="hc"] .pv-lnk { color:#000; border:1px solid #000; }
+[data-theme="hc"] .pv-lnk:hover { background:#000; color:#fff; }
+:root:not([data-theme="hc"]) { --pvl-sub:var(--tz-muted); }
+
+/* Nagłówek strony — .tz-h */
+#pv-main > h1:first-child, #pv-main .pv-page-title, #pv-main .tz-h h1 {
+  font-size:1.35rem; font-weight:700; letter-spacing:-.01em; margin:0 0 .1rem; color:var(--pvl-brand);
+}
+#pv-main .tz-h { margin-bottom:1rem }
+#pv-main .tz-h p { color:var(--pvl-sub); margin:.1rem 0 0; font-size:.85rem }
+
+/* Karty Bootstrap w wyglądzie .tz-card */
+:root:not([data-theme="hc"]) #pv-main .card {
+  background:var(--pvl-nav); border:1px solid var(--tz-line); border-radius:var(--tz-radius);
+  box-shadow:none; overflow:hidden;
+}
+:root:not([data-theme="hc"]) #pv-main .card-header {
+  background:var(--pvl-nav); border-bottom:1px solid var(--tz-line);
+  padding:.85rem 1.1rem; font-weight:600; font-size:.92rem; color:var(--pvl-brand);
+}
+:root:not([data-theme="hc"]) #pv-main .card-header i { color:var(--vol-color) }
+#pv-main .card-body { padding:1.1rem }
+:root:not([data-theme="hc"]) #pv-main .card-footer {
+  background:#f9fafb; border-top:1px solid var(--tz-line); font-size:.78rem; color:var(--pvl-sub);
+}
+
+/* Przyciski, pola i znaczniki — kształty z Tożsamości */
+#pv-main .btn, .pv-offcanvas .btn { border-radius:8px; font-weight:600; font-size:.87rem }
+#pv-main .btn-lg { border-radius:10px; font-size:.95rem }
+#pv-main .btn-sm { border-radius:7px; font-size:.78rem }
+#pv-main .badge { border-radius:999px; font-weight:600 }
+:root:not([data-theme="hc"]) #pv-main .form-control,
+:root:not([data-theme="hc"]) #pv-main .form-select { border-radius:8px; border-color:var(--tz-line) }
+:root:not([data-theme="hc"]) #pv-main .list-group-item { border-color:var(--tz-line) }
+:root:not([data-theme="hc"]) #pv-main .table > :not(caption) > * > * { border-color:var(--tz-line) }
+
+/* Komponenty Tożsamości dostępne wprost w treści panelu (tz-*) */
+#pv-main .tz-card { background:var(--pvl-nav); border:1px solid var(--tz-line); border-radius:var(--tz-radius); overflow:hidden; margin-bottom:1rem }
+#pv-main .tz-card__hd { padding:.85rem 1.1rem; border-bottom:1px solid var(--tz-line); display:flex; align-items:center; gap:.6rem; font-weight:600; font-size:.92rem }
+#pv-main .tz-card__hd i { color:var(--vol-color) }
+#pv-main .tz-card__bd { padding:1.1rem }
+#pv-main .tz-btn { background:var(--vol-color); color:var(--vol-on); border:none; border-radius:8px; padding:.55rem 1.2rem;
+  font-weight:600; font-size:.87rem; display:inline-flex; align-items:center; gap:.4rem; text-decoration:none }
+#pv-main .tz-btn:hover { filter:brightness(.92); color:var(--vol-on) }
+#pv-main .tz-btn--ghost { background:var(--pvl-nav); color:var(--pvl-txt); border:1.5px solid var(--tz-line) }
+#pv-main .tz-btn--ghost:hover { background:#f9fafb; color:var(--pvl-brand) }
+#pv-main .tz-badge { font-size:.7rem; font-weight:600; padding:.2rem .55rem; border-radius:999px; display:inline-flex; align-items:center; gap:.3rem }
+#pv-main .tz-badge--ok { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0 }
+#pv-main .tz-badge--warn { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa }
+#pv-main .tz-badge--off { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb }
+#pv-main .tz-dl { display:grid; grid-template-columns:1fr }
+@media(min-width:576px){ #pv-main .tz-dl { grid-template-columns:repeat(2,1fr) } }
+@media(min-width:992px){ #pv-main .tz-dl { grid-template-columns:repeat(3,1fr) } }
+#pv-main .tz-dl > div { padding:.75rem 1.1rem; border-top:1px solid var(--tz-line) }
+#pv-main .tz-dl dt { font-size:.68rem; color:var(--pvl-sub); margin:0; text-transform:uppercase; letter-spacing:.04em; font-weight:600 }
+#pv-main .tz-dl dd { font-weight:600; margin:.15rem 0 0; font-size:.9rem; word-break:break-word; color:var(--pvl-brand) }
+#pv-main .tz-tiles { display:grid; gap:.85rem; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); margin:.2rem 0 .65rem }
+#pv-main .tz-tile { display:block; text-align:left; background:var(--pvl-nav); border:1.5px solid var(--tz-line); border-radius:10px;
+  padding:1rem; text-decoration:none; color:inherit; transition:border-color .13s, box-shadow .13s }
+#pv-main .tz-tile:hover, #pv-main .tz-tile:focus-visible { border-color:var(--vol-color); box-shadow:0 0 0 3px var(--vol-bg); outline:none }
+#pv-main .tz-tile__ico { width:38px; height:38px; border-radius:9px; background:var(--vol-color); color:var(--vol-on);
+  display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-bottom:.6rem }
+#pv-main .tz-note { background:#f9fafb; border-top:1px solid var(--tz-line); padding:.55rem 1rem; font-size:.78rem;
+  color:var(--pvl-sub); display:flex; gap:.4rem; align-items:flex-start }
 </style>
 <?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
 <?php require_once __DIR__ . '/pv_styles.php'; ?>
@@ -252,8 +290,7 @@ try {
         <?php if ($_pv_org): ?><span class="pv-brand-sub" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></span><?php endif; ?>
       </span>
     </a>
-    <span class="ms-auto"></span>
-    <nav class="d-flex align-items-center gap-1" aria-label="Akcje użytkownika">
+    <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
       <a href="<?= APP_URL ?>/komunikaty/index.php" class="pv-lnk"
          title="Komunikaty organizacji"
          aria-label="Komunikaty<?= $_pv_unread ? " — {$_pv_unread} nieprzeczytanych" : '' ?>">
@@ -268,7 +305,7 @@ try {
               data-bs-toggle="modal" data-bs-target="#bugReportModal"
               title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd">
         <i class="bi bi-bug-fill" aria-hidden="true"></i>
-        <span class="d-none d-lg-inline">Zgłoś błąd</span>
+        <span class="d-none d-sm-inline">Zgłoś błąd</span>
       </button>
       <?php endif; ?>
       <?php if ($_pu): ?>
@@ -294,7 +331,7 @@ try {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
 <!-- Menu sekcji (offcanvas) -->
-<div class="offcanvas offcanvas-lg offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
+<div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
   <div class="offcanvas-header">
     <span class="offcanvas-title fw-bold d-flex align-items-center gap-2">
       <i class="bi bi-person-circle" aria-hidden="true"></i>Panel wolontariusza
@@ -512,7 +549,7 @@ try {
   </nav>
 </div><!-- /offcanvas -->
 
-<main id="pv-main" role="main" tabindex="-1">
+<main class="container py-4" id="pv-main" role="main" tabindex="-1">
 
 <?php if (!empty($_SESSION['_admin_original'])): ?>
 <?php $_imp_name = $_SESSION['user']['name'] ?? 'użytkownik'; ?>
