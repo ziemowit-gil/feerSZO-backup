@@ -1,0 +1,9 @@
+# TooManyRequestsResponseException
+
+
+## Fields
+
+| Field                                                                                                        | Type                                                                                                         | Required                                                                                                     | Description                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `status`                                                                                                     | [Components\TooManyRequestsResponseStatus](../../Models/Components/TooManyRequestsResponseStatus.md)         | :heavy_check_mark:                                                                                           | Informacje o błędzie związanym z przekroczeniem limitu żądań.                                                |
+| `rawResponse`                                                                                                | [\Psr\Http\Message\ResponseInterface](https://www.php-fig.org/psr/psr-7/#33-psrhttpmessageresponseinterface) | :heavy_minus_sign:                                                                                           | Raw HTTP response; suitable for custom response parsing                                                      |

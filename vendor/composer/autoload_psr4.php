@@ -39,6 +39,7 @@ return array(
     'Mpdf\\' => array($vendorDir . '/mpdf/mpdf/src'),
     'Metadata\\' => array($vendorDir . '/jms/metadata/src'),
     'JsonPath\\' => array($vendorDir . '/galbar/jsonpath/src/Galbar/JsonPath'),
+    'Intermedia\\Ksef\\Apiv2\\' => array($vendorDir . '/intermedia/ksef-api-v2/src'),
     'Http\\Promise\\' => array($vendorDir . '/php-http/promise/src'),
     'Http\\Message\\' => array($vendorDir . '/php-http/message/src'),
     'Http\\Discovery\\' => array($vendorDir . '/php-http/discovery/src'),

@@ -1,0 +1,11 @@
+# EntityAuthorizationGrantSubjectEntityDetails
+
+Dane podmiotu uprawnionego.
+
+
+## Fields
+
+| Field                                                                                                                            | Type                                                                                                                             | Required                                                                                                                         | Description                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `subjectDetailsType`                                                                                                             | [Components\EntitySubjectByIdentifierDetailsType](../../Models/Components/EntitySubjectByIdentifierDetailsType.md)               | :heavy_check_mark:                                                                                                               | Typ danych podmiotu uprawnionego.<br/>\| Wartość \| Opis \|<br/>\| --- \| --- \|<br/>\| EntityByIdentifier \| Podmiot identyfikowany numerem NIP. \|<br/> |
+| `fullName`                                                                                                                       | *string*                                                                                                                         | :heavy_check_mark:                                                                                                               | Pełna nazwa podmiotu.                                                                                                            |
