@@ -78,6 +78,28 @@ $my_sprawy_cnt = (int)(db_one(
 )['c'] ?? 0);
 $my_pisma_cnt = (int)(db_one("SELECT COUNT(*) c FROM ezd_pisma WHERE owner_id=?", [$user_id])['c'] ?? 0);
 
+// ── Poczta EZD na pulpicie ───────────────────────────────────────────────────
+// Ten sam serwis co Inbox Ogólny (ezd/poczta/index.php), żeby pulpit nie liczył
+// wiadomości po swojemu i nie rozjechał się z modułem poczty.
+$ezd_mail        = [];
+$ezd_mail_unread = 0;
+$ezd_mail_on     = module_enabled('poczta_enabled');
+if ($ezd_mail_on) {
+    try {
+        require_once dirname(__DIR__) . '/includes/ezd_mail.php';
+        $_svc = new EzdMailService();
+        // Najpierw nieprzeczytane — na pulpicie liczy się to, co czeka na reakcję.
+        $ezd_mail = $_svc->getInbox(['status' => 'unread', 'per_page' => 10])['rows'] ?? [];
+        $ezd_mail_unread = count($ezd_mail);
+        if (!$ezd_mail) {
+            $ezd_mail = $_svc->getInbox(['status' => 'active', 'per_page' => 10])['rows'] ?? [];
+        }
+    } catch (\Throwable $e) {
+        // Brak konfiguracji skrzynek nie może wywalić pulpitu.
+        $ezd_mail = []; $ezd_mail_unread = 0;
+    }
+}
+
 // Ostatnia aktywność
 $activity = db_all(
     "SELECT l.*, u.name AS user_name, s.znak_sprawy
@@ -574,6 +596,16 @@ include dirname(__DIR__) . '/includes/header.php';
             <?php endif; ?>
           </a>
         </li>
+        <?php if ($ezd_mail_on): ?>
+        <li class="nav-item">
+          <a class="nav-link py-1" data-bs-toggle="tab" href="#tab-poczta">
+            <i class="bi bi-envelope-fill me-1 text-warning"></i>Poczta
+            <?php if ($ezd_mail_unread): ?>
+            <span class="badge bg-warning text-dark rounded-pill ms-1"><?= (int)$ezd_mail_unread ?></span>
+            <?php endif; ?>
+          </a>
+        </li>
+        <?php endif; ?>
       </ul>
       <div class="tab-content p-0">
         <div class="tab-pane fade show active" id="tab-moje-sprawy">
@@ -657,6 +689,60 @@ include dirname(__DIR__) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/pisma/add.php" class="text-primary text-decoration-none fw-semibold">Zarejestruj pismo →</a>
           </div>
         </div>
+
+        <?php if ($ezd_mail_on): ?>
+        <!-- Poczta EZD — nieprzeczytane z Inboxu Ogólnego, a gdy pusto, ostatnie wiadomości -->
+        <div class="tab-pane fade" id="tab-poczta">
+          <?php if ($ezd_mail): foreach ($ezd_mail as $mm):
+            $unread   = empty($mm['is_read']);
+            $has_case = !empty($mm['ezd_sprawa_id']);
+            $from     = trim((string)($mm['from_name'] ?? '')) ?: (string)($mm['from_email'] ?? '');
+            $link     = APP_URL . '/ezd/poczta/thread.php?comm_id=' . (int)$mm['id'];
+          ?>
+          <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom ezdd-row-link"
+               style="font-size:.8rem;cursor:pointer" onclick="location='<?= h($link) ?>'">
+            <i class="bi <?= $unread ? 'bi-envelope-fill text-warning' : 'bi-envelope-open text-muted' ?> flex-shrink-0" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <div class="<?= $unread ? 'fw-bold' : 'fw-semibold' ?> text-truncate">
+                <?= h($mm['subject'] ?: '(bez tematu)') ?>
+              </div>
+              <div class="text-muted text-truncate" style="font-size:.68rem">
+                <?= h($from) ?>
+                <?php if (!empty($mm['mailbox_name'])): ?>
+                · <span class="font-monospace"><?= h($mm['mailbox_name']) ?></span>
+                <?php endif; ?>
+              </div>
+            </div>
+            <?php if ($has_case): ?>
+            <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$mm['ezd_sprawa_id'] ?>"
+               class="badge bg-primary bg-opacity-10 text-primary border border-primary text-decoration-none flex-shrink-0"
+               style="font-size:.58rem" onclick="event.stopPropagation()"
+               title="<?= h($mm['sprawa_title'] ?? '') ?>">
+              <i class="bi bi-folder2-open me-1"></i><?= h($mm['znak_sprawy'] ?: 'koszulka') ?>
+            </a>
+            <?php else: ?>
+            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning flex-shrink-0" style="font-size:.58rem"
+                  title="Wiadomość nie jest przypisana do żadnej koszulki">bez koszulki</span>
+            <?php endif; ?>
+            <?php if (!empty($mm['has_download'])): ?>
+            <i class="bi bi-paperclip text-muted flex-shrink-0" title="Załącznik" aria-hidden="true"></i>
+            <?php endif; ?>
+            <div class="text-muted flex-shrink-0" style="font-size:.68rem">
+              <?= h(!empty($mm['sent_at']) ? date('d.m', strtotime((string)$mm['sent_at'])) : '—') ?>
+            </div>
+          </div>
+          <?php endforeach; else: ?>
+          <div class="text-muted text-center py-4" style="font-size:.8rem">
+            <i class="bi bi-envelope-check text-warning" style="font-size:1.8rem;display:block;margin-bottom:.4rem;opacity:.4"></i>
+            Skrzynka pusta — brak wiadomości w Inboxie Ogólnym
+          </div>
+          <?php endif; ?>
+          <div class="px-3 py-2 d-flex gap-3" style="font-size:.75rem">
+            <a href="<?= APP_URL ?>/ezd/poczta/index.php" class="text-primary text-decoration-none fw-semibold">Poczta EZD →</a>
+            <a href="<?= APP_URL ?>/ezd/poczta/compose.php" class="text-muted text-decoration-none">Napisz wiadomość</a>
+          </div>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
 
