@@ -584,12 +584,76 @@ class EzdMailService
      */
     public static function fetchSignatures(?int $user_id = null): array
     {
-        $user_id = $user_id ?? (int)(current_user()['id'] ?? 0);
-        $user_row = db_one("SELECT crm_email_signature FROM users WHERE id=?", [$user_id]);
-        return [
-            'user'   => trim($user_row['crm_email_signature'] ?? ''),
-            'org'    => trim(org_setting('crm_email_footer')),
-        ];
+        $user_id  = $user_id ?? (int)(current_user()['id'] ?? 0);
+        $user_row = db_one(
+            "SELECT name, first_name, last_name, email, crm_job_title, crm_display_phone,
+                    phone_number, crm_email_signature
+               FROM users WHERE id=?",
+            [$user_id]
+        ) ?? [];
+
+        $user = trim((string)($user_row['crm_email_signature'] ?? ''));
+        $org  = trim(org_setting('crm_email_footer'));
+
+        // Gdy podpis/stopka nie są skonfigurowane, składamy je z danych, które
+        // system i tak ma — inaczej „Wstaw mój podpis" / „Stopka org." nie robią
+        // nic i wiadomość wychodzi bez identyfikacji nadawcy. Podpis z CRM
+        // (users.crm_email_signature, Ustawienia konta) ma pierwszeństwo.
+        if ($user === '') $user = self::defaultUserSignature($user_row);
+        if ($org === '')  $org  = self::defaultOrgFooter();
+
+        return ['user' => $user, 'org' => $org];
+    }
+
+    /**
+     * Zapasowy podpis nadawcy z danych konta (imię i nazwisko, stanowisko CRM,
+     * e-mail, telefon). Tylko dopuszczone tagi — treść przechodzi przez
+     * strip_tags() w kompozytorze (ezd/poczta/compose.php).
+     */
+    public static function defaultUserSignature(array $u): string
+    {
+        $name = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: trim((string)($u['name'] ?? ''));
+        if ($name === '') return '';
+
+        $phone = trim((string)($u['crm_display_phone'] ?? '')) ?: trim((string)($u['phone_number'] ?? ''));
+        $lines = ['<strong>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>'];
+
+        if (!empty($u['crm_job_title'])) $lines[] = htmlspecialchars((string)$u['crm_job_title'], ENT_QUOTES, 'UTF-8');
+        if ($org_name = trim(org_setting('org_name'))) $lines[] = htmlspecialchars($org_name, ENT_QUOTES, 'UTF-8');
+        if (!empty($u['email'])) {
+            $mail = htmlspecialchars((string)$u['email'], ENT_QUOTES, 'UTF-8');
+            $lines[] = '<a href="mailto:' . $mail . '">' . $mail . '</a>';
+        }
+        if ($phone !== '') $lines[] = 'tel. ' . htmlspecialchars($phone, ENT_QUOTES, 'UTF-8');
+
+        return '<div style="font-size:13px;line-height:1.55;color:#1f2937">'
+             . implode('<br>', $lines) . '</div>';
+    }
+
+    /**
+     * Zapasowa stopka organizacji z danych rejestrowych (Admin → Organizacja):
+     * nazwa, adres, NIP/KRS/REGON. Używana, gdy nie ustawiono crm_email_footer.
+     */
+    public static function defaultOrgFooter(): string
+    {
+        $name = trim(org_setting('org_name'));
+        if ($name === '') return '';
+
+        $addr = trim(org_setting('org_adres'));
+        $city = trim(org_setting('org_miejscowosc'));
+        $reg  = [];
+        foreach (['NIP' => 'org_nip', 'KRS' => 'org_krs', 'REGON' => 'org_regon'] as $label => $key) {
+            if ($v = trim(org_setting($key))) $reg[] = $label . ': ' . htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        }
+
+        $lines = ['<strong>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>'];
+        if ($addr !== '' || $city !== '') {
+            $lines[] = htmlspecialchars(trim($addr . ($addr && $city ? ', ' : '') . $city), ENT_QUOTES, 'UTF-8');
+        }
+        if ($reg) $lines[] = implode(' &middot; ', $reg);
+
+        return '<div style="font-size:11px;line-height:1.5;color:#6b7280">'
+             . implode('<br>', $lines) . '</div>';
     }
 
     /**

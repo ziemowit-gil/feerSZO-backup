@@ -178,6 +178,19 @@ if (!$user_accounts) {
 // Stopki
 $sigs = EzdMailService::fetchSignatures($user_id);
 
+// Wstępna treść: pusty akapit na wiadomość + formuła + MÓJ podpis (z CRM:
+// Ustawienia konta → podpis; gdy pusty, składany z danych konta) + dane
+// organizacji (crm_email_footer, a gdy pusty — nazwa, adres, NIP/KRS/REGON).
+// Wcześniej trzeba było pamiętać o dwóch przyciskach „Mój podpis"/„Stopka org."
+// i wiadomości wychodziły bez identyfikacji nadawcy.
+$_sig_hr = '<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">';
+$body_prefill = '<p><br></p>';
+if ($sigs['user'] !== '' || $sigs['org'] !== '') {
+    $body_prefill .= '<p>Z poważaniem,</p>';
+    if ($sigs['user'] !== '') $body_prefill .= $sigs['user'];
+    if ($sigs['org']  !== '') $body_prefill .= $_sig_hr . $sigs['org'];
+}
+
 // Zmienne do TinyMCE
 $vars_list = [
     '{{sprawa.znak}}'              => 'Znak sprawy',
@@ -331,7 +344,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" id="btnInsertUserSig" title="Wstaw mój podpis">
               <i class="bi bi-person-badge me-1"></i>Mój podpis
             </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnInsertOrgSig" title="Wstaw stopkę organizacji">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnInsertOrgSig" title="Wstaw stopkę organizacji (jest już w treści — użyj, jeśli ją usunąłeś)">
               <i class="bi bi-building me-1"></i>Stopka org.
             </button>
           </div>
@@ -348,7 +361,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="mb-3">
           <label class="visually-hidden" for="bodyEditor">Treść wiadomości</label>
           <textarea id="bodyEditor" name="body_html" class="form-control" rows="14"
-                    style="font-size:.9rem;line-height:1.6"></textarea>
+                    style="font-size:.9rem;line-height:1.6"><?= h($body_prefill) ?></textarea>
           <div id="bodyEditorFallback" class="form-text text-warning" hidden>
             <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
             Edytor formatowania się nie wczytał (brak dostępu do CDN?) — piszesz zwykłym
