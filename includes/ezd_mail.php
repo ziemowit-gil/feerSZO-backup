@@ -147,6 +147,44 @@ class EzdMailService
     }
 
     /**
+     * Zakłada nową koszulkę (sprawę) EZD z wiadomości e-mail i dowiązuje do niej pismo.
+     * Wspólna ścieżka dla Poczty EZD i Skrzynki CRM — numeracja i znak sprawy powstają
+     * w jednym miejscu, żeby oba widoki nie rozjechały się w formacie znaku.
+     *
+     * @return array{sprawa_id:int, pismo_id:?int, znak:string, url:string}
+     */
+    public function createSprawaFromComm(int $comm_id, int $teczka_id, string $title = ''): array
+    {
+        $comm = db_one("SELECT * FROM crm_communications WHERE id=?", [$comm_id]);
+        if (!$comm) throw new \RuntimeException('Wiadomość nie istnieje.');
+        $teczka = db_one("SELECT id, symbol FROM ezd_teczki WHERE id=?", [$teczka_id]);
+        if (!$teczka) throw new \RuntimeException('Wybrany segregator nie istnieje.');
+
+        $user_id = (int)(current_user()['id'] ?? 0);
+        $numer   = (int)(db_one(
+            "SELECT COALESCE(MAX(numer),0)+1 AS n FROM ezd_sprawy WHERE teczka_id=?", [$teczka_id]
+        )['n'] ?? 1);
+        $znak = $teczka['symbol'] . '/' . date('Y') . '/' . str_pad((string)$numer, 4, '0', STR_PAD_LEFT);
+
+        $title = trim($title) !== '' ? $title : (string)($comm['subject'] ?? 'Nowa sprawa z e-mail');
+
+        $this->pdo->prepare(
+            "INSERT INTO ezd_sprawy (teczka_id, znak_sprawy, numer, title, owner_id, created_by)
+             VALUES (?,?,?,?,?,?)"
+        )->execute([$teczka_id, $znak, $numer, mb_substr($title, 0, 200), $user_id, $user_id]);
+        $sprawa_id = (int)$this->pdo->lastInsertId();
+
+        $pismo_id = $this->linkCommToSprawa($comm_id, $sprawa_id);
+
+        return [
+            'sprawa_id' => $sprawa_id,
+            'pismo_id'  => $pismo_id,
+            'znak'      => $znak,
+            'url'       => APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id,
+        ];
+    }
+
+    /**
      * Tworzy rekord ezd_pisma na podstawie crm_communications.
      * Używane zarówno przy ingestion (kierunek=przychodzace) jak
      * i po potwierdzeniu odebranego pisma (kierunek=wychodzace).

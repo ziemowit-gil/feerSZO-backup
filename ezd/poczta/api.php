@@ -161,27 +161,9 @@ switch ($action) {
         $teczka_id = (int)($data['teczka_id'] ?? 0);
         if (!$teczka_id) { echo json_encode(['ok'=>false,'error'=>'Wybierz teczkę.']); break; }
         try {
-            $user_id = (int)(current_user()['id'] ?? 0);
-            $numer   = (int)(db_one("SELECT COALESCE(MAX(numer),0)+1 AS n FROM ezd_sprawy WHERE teczka_id=?", [$teczka_id])['n'] ?? 1);
-            $teczka  = db_one("SELECT symbol FROM ezd_teczki WHERE id=?", [$teczka_id]);
-            $znak    = $teczka['symbol'] . '/' . date('Y') . '/' . str_pad($numer, 4, '0', STR_PAD_LEFT);
-
-            db()->prepare(
-                "INSERT INTO ezd_sprawy (teczka_id, znak_sprawy, numer, title, owner_id, created_by)
-                 VALUES (?,?,?,?,?,?)"
-            )->execute([$teczka_id, $znak, $numer,
-                        mb_substr($comm['subject'] ?? 'Nowa sprawa z e-mail', 0, 200),
-                        $user_id, $user_id]);
-            $new_sprawa_id = (int)db()->lastInsertId();
-
-            $pismo_id = $svc->linkCommToSprawa($comm_id, $new_sprawa_id);
-            echo json_encode([
-                'ok'        => true,
-                'sprawa_id' => $new_sprawa_id,
-                'pismo_id'  => $pismo_id,
-                'znak'      => $znak,
-                'url'       => APP_URL . '/ezd/sprawy/view.php?id=' . $new_sprawa_id,
-            ]);
+            // Wspólna ścieżka z Skrzynką CRM — patrz EzdMailService::createSprawaFromComm()
+            $r = $svc->createSprawaFromComm($comm_id, $teczka_id);
+            echo json_encode(['ok' => true] + $r);
         } catch (\Throwable $e) {
             echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
         }

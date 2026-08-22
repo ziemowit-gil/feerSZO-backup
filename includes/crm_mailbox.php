@@ -216,34 +216,187 @@ function crm_mailbox_assign(int $id, ?int $user_id): void {
  * Zakłada sprawę CRM na podstawie wiadomości i przypisuje ją do bieżącego użytkownika.
  * Wiadomość idzie do „załatwionych" — dalsza praca toczy się na sprawie.
  */
-function crm_mailbox_create_case(int $id): array {
+function crm_mailbox_create_case(int $id, array $opts = []): array {
     $m = crm_mailbox_message($id);
     if (!$m) return ['ok' => false, 'error' => 'Wiadomość nie istnieje.'];
     if (empty($m['contact_id'])) return ['ok' => false, 'error' => 'Wiadomość nie ma powiązanego kontaktu.'];
 
-    $uid  = (int)(current_user()['id'] ?? 0);
-    $body = trim((string)($m['body'] ?? ''));
+    $uid   = (int)(current_user()['id'] ?? 0);
+    $body  = trim((string)($m['body'] ?? ''));
+    $prio  = in_array($opts['priority'] ?? '', ['low', 'medium', 'high'], true) ? $opts['priority'] : 'medium';
+    $title = trim((string)($opts['title'] ?? '')) ?: (trim((string)($m['subject'] ?? '')) ?: 'Wiadomość e-mail');
     $case_id = db_insert('crm_cases', [
         'contact_id'  => (int)$m['contact_id'],
-        'title'       => mb_substr(trim((string)($m['subject'] ?? '')) ?: 'Wiadomość e-mail', 0, 200),
+        'title'       => mb_substr($title, 0, 200),
         'description' => "Z wiadomości od " . (string)($m['from_email'] ?: $m['contact_email']) . ' ('
                        . date('d.m.Y H:i', strtotime((string)$m['sent_at'])) . "):\n\n"
                        . mb_substr($body, 0, 4000),
         'status'      => 'open',
-        'priority'    => 'medium',
+        'priority'    => $prio,
         'created_by'  => $uid ?: null,
         'created_at'  => date('Y-m-d H:i:s'),
         'updated_at'  => date('Y-m-d H:i:s'),
     ]);
-    crm_mailbox_assign($id, $uid);
+    crm_mailbox_assign($id, (int)($opts['assign_to'] ?? 0) ?: $uid);
     crm_mailbox_mark_read($id, true);
-    crm_mailbox_set_status($id, 'archived');
+    // Wiadomość zostaje w skrzynce tylko, gdy operator wyraźnie tego chce
+    if (empty($opts['keep_open'])) crm_mailbox_set_status($id, 'archived');
     try {
         require_once __DIR__ . '/crm_automation.php';
         crm_automation_fire('case_created', (int)$m['contact_id'], ['case_id' => $case_id]);
     } catch (\Throwable $e) {}
 
     return ['ok' => true, 'case_id' => $case_id, 'url' => APP_URL . '/crm/cases/view.php?id=' . $case_id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRZEKAZANIE WIADOMOŚCI DALEJ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Czy da się przekazać wiadomość do EZD (moduł włączony, uprawnienia, tabele). */
+function crm_mailbox_ezd_available(): bool {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    $ok = false;
+    try {
+        if (!function_exists('module_enabled') || !module_enabled('ezd_enabled')) return $ok;
+        if (!is_admin() && !can_write('ezd')) return $ok;
+        db_one("SELECT COUNT(*) AS n FROM ezd_sprawy");
+        db_one("SELECT COUNT(*) AS n FROM ezd_teczki");
+        require_once __DIR__ . '/ezd_mail.php';
+        $ok = class_exists('EzdMailService');
+    } catch (\Throwable $e) {
+        $ok = false;
+    }
+    return $ok;
+}
+
+/** Segregatory (teczki) EZD do wyboru przy zakładaniu koszulki z wiadomości. */
+function crm_mailbox_ezd_teczki(int $limit = 200): array {
+    if (!crm_mailbox_ezd_available()) return [];
+    try {
+        return db_all("SELECT id, symbol, title FROM ezd_teczki ORDER BY symbol LIMIT $limit");
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Otwarte koszulki EZD — do dopięcia wiadomości do istniejącej sprawy. */
+function crm_mailbox_ezd_sprawy(string $q = '', int $limit = 30): array {
+    if (!crm_mailbox_ezd_available()) return [];
+    try {
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            return db_all(
+                "SELECT id, znak_sprawy, title FROM ezd_sprawy
+                 WHERE status <> 'closed' AND (znak_sprawy LIKE ? OR title LIKE ?)
+                 ORDER BY updated_at DESC LIMIT $limit", [$like, $like]
+            );
+        }
+        return db_all(
+            "SELECT id, znak_sprawy, title FROM ezd_sprawy
+             WHERE status <> 'closed' ORDER BY updated_at DESC LIMIT $limit"
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
+/**
+ * Przekazuje wiadomość do EZD: dopina do wskazanej koszulki albo zakłada nową
+ * w wybranym segregatorze. Rejestr pism i numeracja po stronie EzdMailService,
+ * żeby Skrzynka CRM i Poczta EZD nie rozjechały się w formacie znaku sprawy.
+ *
+ * @return array{ok:bool, error:string, url:string, znak:string}
+ */
+function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_id = null): array {
+    $out = ['ok' => false, 'error' => '', 'url' => '', 'znak' => ''];
+    if (!crm_mailbox_ezd_available()) {
+        $out['error'] = 'Moduł EZD jest wyłączony albo nie masz w nim uprawnień do zapisu.';
+        return $out;
+    }
+    require_once __DIR__ . '/ezd_mail.php';
+    $svc = new EzdMailService();
+
+    try {
+        if ($sprawa_id) {
+            $svc->linkCommToSprawa($comm_id, $sprawa_id);
+            $sp = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$sprawa_id]);
+            $out = [
+                'ok' => true, 'error' => '',
+                'znak' => (string)($sp['znak_sprawy'] ?? ''),
+                'url'  => APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id,
+            ];
+        } elseif ($teczka_id) {
+            $r = $svc->createSprawaFromComm($comm_id, $teczka_id);
+            $out = ['ok' => true, 'error' => '', 'znak' => $r['znak'], 'url' => $r['url']];
+        } else {
+            $out['error'] = 'Wskaż koszulkę EZD albo segregator dla nowej koszulki.';
+            return $out;
+        }
+    } catch (\Throwable $e) {
+        $out['error'] = $e->getMessage();
+        return $out;
+    }
+
+    // Wiadomość obsłużona — znika ze skrzynki, ale zostaje w historii kontaktu
+    crm_mailbox_mark_read($comm_id, true);
+    crm_mailbox_set_status($comm_id, 'archived');
+    return $out;
+}
+
+/**
+ * Przekazuje wiadomość e-mailem dalej (do osoby albo na inną skrzynkę),
+ * z cytatem oryginału i notatką od przekazującego. Zapisuje wpis wychodzący
+ * w historii komunikacji kontaktu, żeby było widać, komu przekazano sprawę.
+ */
+function crm_mailbox_forward(int $comm_id, string $to, string $note = ''): array {
+    $out = ['ok' => false, 'error' => ''];
+    $to  = trim($to);
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { $out['error'] = 'Podaj poprawny adres e-mail.'; return $out; }
+
+    $m = crm_mailbox_message($comm_id);
+    if (!$m) { $out['error'] = 'Wiadomość nie istnieje.'; return $out; }
+
+    $orig = (string)($m['body_html'] ?? '');
+    if ($orig === '') $orig = nl2br(h((string)($m['body'] ?? '')));
+
+    $head = '<p><strong>Wiadomość przekazana z systemu SZO</strong></p>';
+    if ($note !== '') $head .= '<p>' . nl2br(h($note)) . '</p>';
+    $head .= '<hr><p style="font-size:13px;color:#6B7280">'
+           . 'Od: ' . h((string)($m['from_name'] ?: '')) . ' &lt;' . h((string)($m['from_email'] ?: '')) . '&gt;<br>'
+           . 'Data: ' . h(date('d.m.Y H:i', strtotime((string)$m['sent_at']))) . '<br>'
+           . 'Temat: ' . h((string)($m['subject'] ?: '(bez tematu)')) . '</p>';
+
+    $subject = 'FW: ' . ((string)($m['subject'] ?: '(bez tematu)'));
+
+    try {
+        require_once __DIR__ . '/mail_queue.php';
+        mail_queue_add($to, '', $subject, _feer_email_tpl($head . $orig, 'Przekazana wiadomość'),
+            '', 'crm_inbox_forward', $comm_id, '', false);
+    } catch (\Throwable $e) {
+        $out['error'] = 'Nie udało się dodać wiadomości do kolejki: ' . $e->getMessage();
+        return $out;
+    }
+
+    try {
+        db_insert('crm_communications', [
+            'contact_id'    => (int)$m['contact_id'],
+            'channel'       => 'email',
+            'direction'     => 'out',
+            'template_name' => 'przekazanie',
+            'subject'       => $subject . ' → ' . $to,
+            'body'          => ($note !== '' ? $note . "\n\n" : '') . 'Przekazano wiadomość z ' . $to . '.',
+            'status'        => 'w kolejce',
+            'sent_by'       => (int)(current_user()['id'] ?? 0) ?: null,
+            'sent_at'       => date('Y-m-d H:i:s'),
+            'inbox_status'  => 'archived',
+            'is_read'       => 1,
+            'thread_key'    => $m['thread_key'] ?: null,
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[crm_mailbox_forward] log: ' . $e->getMessage());
+    }
+
+    crm_mailbox_mark_read($comm_id, true);
+    $out['ok'] = true;
+    return $out;
 }
 
 /** Ręczne skanowanie skrzynki („Sprawdź teraz") — jedna skrzynka albo wszystkie włączone. */
