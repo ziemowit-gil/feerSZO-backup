@@ -84,7 +84,7 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
   /* Tokeny layoutu (navbar / sidebar / body) */
-  --pvl-body:#F0F2F5;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
+  --pvl-body:#E8EBF0;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
   --pvl-txt:#374151;--pvl-sub:#9CA3AF;
   --pvl-btn:#fff;--pvl-btn-b:#E5E7EB;--pvl-btn-t:#374151;
   --pvl-div:#F3F4F6;--pvl-brand:#111827;
@@ -259,6 +259,8 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 </style>
 <?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
 <?php require_once __DIR__ . '/pv_styles.php'; ?>
+<?php /* Tło aplikacji — geometria jak na ekranie logowania (kolor kanwy z motywu panelu) */ ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/app_bg.php'; app_bg_css('var(--pvl-body)'); ?>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= APP_URL ?>/sw.js')

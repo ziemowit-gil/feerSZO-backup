@@ -405,6 +405,7 @@ body { background: #f8fafc; }
 .oc-sub { padding: 0 0 2px 0; }
 .oc-sub .oc-link { padding-left: 2.3rem; }
 </style>
+<?php require_once __DIR__ . '/app_bg.php'; app_bg_css(); ?>
 </head>
 <body>
 <?= function_exists('ctx_banner_html') ? ctx_banner_html() : '' ?>
