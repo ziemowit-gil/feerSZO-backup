@@ -1,5 +1,16 @@
 <?php
-require_once dirname(__DIR__) . '/includes/header.php';
+/**
+ * komunikaty/announcement.php — Pojedyncze ogłoszenie (widok pełny).
+ *
+ * Kolejność ma znaczenie: cała logika i przekierowania PRZED dołączeniem
+ * powłoki (_shell.php zaczyna wypisywać HTML — wcześniej strona ładowała
+ * header.php w pierwszej linii, więc każdy header('Location: …') leciał już
+ * po wysłanych nagłówkach).
+ */
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
 require_login();
 notif_migrate();
@@ -8,10 +19,11 @@ $_cu   = current_user();
 $_uid  = (int)$_cu['id'];
 $_role = $_cu['role'] ?? 'viewer';
 
+$_back = APP_URL . '/komunikaty/index.php';
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) {
     flash_set('danger', 'Nieprawidłowe ogłoszenie.');
-    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    header('Location: ' . $_back);
     exit;
 }
 
@@ -23,82 +35,95 @@ try {
 
 if (!$ann) {
     flash_set('danger', 'Ogłoszenie nie zostało znalezione.');
-    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    header('Location: ' . $_back);
     exit;
 }
 
-// Sprawdź dostęp
 if (!_ann_user_can_see($ann['audience'] ?? 'all', $_uid, $_role)) {
     flash_set('danger', 'Brak dostępu do tego ogłoszenia.');
-    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    header('Location: ' . $_back);
     exit;
 }
 
-// Sprawdź wygaśnięcie
 if (!empty($ann['expires_at']) && $ann['expires_at'] < date('Y-m-d')) {
     flash_set('warning', 'To ogłoszenie wygasło.');
-    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    header('Location: ' . $_back);
     exit;
 }
 
-// Auto-oznacz jako przeczytane
+// Otwarcie = przeczytanie
 ann_mark_read($id, $_uid);
 
-$PAGE_TITLE = h($ann['title']);
+$PAGE_TITLE = $ann['title'];
+$_kat = $ann['kategoria'] ?? 'ogolne';
+$_kc  = ann_kategoria_color($_kat);
+$_pin = (int)($ann['is_pinned'] ?? 0);
+
+require_once __DIR__ . '/_shell.php';
+
+$_actions = is_admin()
+    ? '<a href="' . APP_URL . '/komunikaty/manage.php" class="tz-btn tz-btn--ghost">'
+      . '<i class="bi bi-sliders" aria-hidden="true"></i>Zarządzaj</a>'
+    : '';
+
+pv_page_header('Ogłoszenie', [
+    'icon'    => 'bi-megaphone',
+    'sub'     => ann_kategoria_label($_kat),
+    'back'    => ['url' => $_back, 'label' => 'Komunikaty'],
+    'actions' => $_actions,
+]);
 ?>
 
-<div class="d-flex align-items-center gap-2 mb-3">
-  <a href="<?= APP_URL ?>/komunikaty/index.php" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left"></i>
-  </a>
-  <h5 class="mb-0 fw-semibold"><i class="bi bi-megaphone me-2 text-warning"></i>Ogłoszenie</h5>
-</div>
+<div class="pv-wrap">
 
-<div class="row justify-content-center">
-  <div class="col-lg-9">
-    <div class="card border-0 shadow-sm rounded-3"
-         style="<?= (int)($ann['is_pinned'] ?? 0) ? 'background:#FFFBEB;border-left:3px solid #F59E0B!important' : '' ?>">
-      <div class="card-body p-4">
-
-        <div class="d-flex align-items-start flex-wrap gap-2 mb-3">
-          <?php if ((int)($ann['is_pinned'] ?? 0)): ?>
-          <span class="badge" style="background:#F59E0B;font-size:.7rem"><i class="bi bi-pin-angle-fill me-1"></i>Przypięte</span>
-          <?php endif; ?>
-          <span class="badge bg-light text-secondary border" style="font-size:.7rem">
-            <?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
-          </span>
-          <?php $_kc = ann_kategoria_color($ann['kategoria'] ?? 'ogolne'); ?>
-          <span class="badge" style="font-size:.7rem;background:<?= $_kc ?>1A;color:<?= $_kc ?>;border:1px solid <?= $_kc ?>55">
-            <?= h(ann_kategoria_label($ann['kategoria'] ?? 'ogolne')) ?>
-          </span>
-          <?php if (!empty($ann['expires_at'])): ?>
-          <span class="badge bg-light text-secondary border" style="font-size:.7rem">
-            <i class="bi bi-calendar-x me-1"></i>Wygasa: <?= h($ann['expires_at']) ?>
-          </span>
-          <?php endif; ?>
-        </div>
-
-        <h4 class="fw-bold mb-1"><?= h($ann['title']) ?></h4>
-
-        <div class="text-muted mb-4" style="font-size:.82rem">
-          <i class="bi bi-person me-1"></i><?= h($ann['author_name'] ?? '') ?>
-          <span class="mx-2">·</span>
-          <i class="bi bi-calendar3 me-1"></i><?= h(substr($ann['created_at'] ?? '', 0, 16)) ?>
-        </div>
-
-        <div class="ann-body" style="white-space:pre-wrap;line-height:1.7;font-size:.93rem;word-break:break-word">
-          <?= h($ann['body']) ?>
-        </div>
-
-        <div class="mt-4 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <a href="<?= APP_URL ?>/komunikaty/index.php" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Powrót do listy
-          </a>
-          <small class="text-success"><i class="bi bi-check2-all me-1"></i>Oznaczono jako przeczytane</small>
-        </div>
+  <article class="tz-card kom-ann" style="--kom-accent:<?= $_pin ? '#F59E0B' : h($_kc) ?>">
+    <div class="tz-card__bd">
+      <div class="kom-ann__meta mb-2">
+        <?php if ($_pin): ?>
+        <span class="tz-badge tz-badge--warning"><i class="bi bi-pin-angle-fill" aria-hidden="true"></i>Przypięte</span>
+        <?php endif; ?>
+        <span class="tz-badge" style="background:<?= h($_kc) ?>1A;color:<?= h($_kc) ?>;border-color:<?= h($_kc) ?>55">
+          <?= h(ann_kategoria_label($_kat)) ?>
+        </span>
+        <span class="tz-badge tz-badge--ok"><i class="bi bi-check2-all" aria-hidden="true"></i>Przeczytane</span>
       </div>
+
+      <h2 class="kom-ann__ttl" style="font-size:1.2rem"><?= h($ann['title']) ?></h2>
+
+      <div class="kom-body"><?= h($ann['body']) ?></div>
     </div>
-  </div>
+
+    <dl class="tz-dl">
+      <div>
+        <dt>Autor</dt>
+        <dd><?= h($ann['author_name'] ?: '—') ?></dd>
+      </div>
+      <div>
+        <dt>Opublikowano</dt>
+        <dd><?= h(substr($ann['created_at'] ?? '', 0, 16) ?: '—') ?></dd>
+      </div>
+      <div>
+        <dt>Odbiorcy</dt>
+        <dd><?= h(ann_audience_label($ann['audience'] ?? 'all')) ?></dd>
+      </div>
+      <?php if (!empty($ann['expires_at'])): ?>
+      <div>
+        <dt>Wygasa</dt>
+        <dd><?= h(date('d.m.Y', strtotime($ann['expires_at']))) ?></dd>
+      </div>
+      <?php endif; ?>
+    </dl>
+
+    <div class="tz-card__ft kom-ann__ft">
+      <a href="<?= h($_back) ?>" class="tz-btn tz-btn--ghost kom-btn-sm">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>Powrót do listy
+      </a>
+      <?php if (is_admin()): ?>
+      <span class="kom-ann__author"><i class="bi bi-hash" aria-hidden="true"></i>ID <?= (int)$ann['id'] ?></span>
+      <?php endif; ?>
+    </div>
+  </article>
+
 </div>
 
-<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php require __DIR__ . '/_foot.php'; ?>
