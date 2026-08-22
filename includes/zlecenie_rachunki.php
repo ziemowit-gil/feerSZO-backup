@@ -60,6 +60,17 @@ require_once __DIR__ . '/db.php';
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_zrach_contract ON zlecenie_rachunki(contract_type, contract_id)");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_zrach_token ON zlecenie_rachunki(notify_token)");
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_rachunek_komentarze (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            rachunek_id INTEGER NOT NULL,
+            author_type TEXT NOT NULL DEFAULT 'user',
+            author_id   INTEGER,
+            author_name TEXT,
+            tresc       TEXT NOT NULL,
+            ip          TEXT,
+            created_at  DATETIME
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_zrach_kom ON zlecenie_rachunek_komentarze(rachunek_id)");
         // Dokładanie kolumn do istniejących tabel (idempotentnie, jak w rozliczenia.php)
         foreach ([
             'rozliczenie_id'       => 'INTEGER',
@@ -224,6 +235,7 @@ function delete_rachunek(int $rid): void {
             if ($abs && is_file($abs)) @unlink($abs);
         }
     }
+    try { db()->prepare("DELETE FROM zlecenie_rachunek_komentarze WHERE rachunek_id=?")->execute([$rid]); } catch (\Throwable $e) {}
     db()->prepare("DELETE FROM zlecenie_rachunki WHERE id=?")->execute([$rid]);
 }
 
@@ -646,6 +658,102 @@ function rachunek_notify_signed(int $rid): array {
         } catch (\Throwable $e) {}
     }
     return $done;
+}
+
+// ── Komentarze do rachunku ─────────────────────────────────────────────────────
+
+/** Komentarze rachunku, od najstarszego. */
+function rachunek_comments(int $rid): array {
+    try {
+        return db_all(
+            "SELECT * FROM zlecenie_rachunek_komentarze WHERE rachunek_id=? ORDER BY id ASC",
+            [$rid]
+        );
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/** Liczba komentarzy per rachunek: [rachunek_id => liczba]. */
+function rachunek_comments_counts(array $rachunek_ids): array {
+    $ids = array_values(array_unique(array_map('intval', $rachunek_ids)));
+    if (!$ids) return [];
+    try {
+        $ph   = implode(',', array_fill(0, count($ids), '?'));
+        $rows = db_all(
+            "SELECT rachunek_id, COUNT(*) AS c FROM zlecenie_rachunek_komentarze
+             WHERE rachunek_id IN ({$ph}) GROUP BY rachunek_id",
+            $ids
+        );
+        $out = [];
+        foreach ($rows as $r) $out[(int)$r['rachunek_id']] = (int)$r['c'];
+        return $out;
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Dodaje komentarz. $author_type: 'user' (pracownik) albo 'zleceniobiorca'
+ * (osoba z umowy, piszące przez link z tokenem — bez konta w systemie).
+ */
+function rachunek_comment_add(int $rid, string $tresc, string $author_type,
+                              ?int $author_id, string $author_name, string $ip = ''): ?int {
+    $tresc = trim($tresc);
+    if ($tresc === '') return null;
+    return db_insert('zlecenie_rachunek_komentarze', [
+        'rachunek_id' => $rid,
+        'author_type' => in_array($author_type, ['user', 'zleceniobiorca'], true) ? $author_type : 'user',
+        'author_id'   => $author_id ?: null,
+        'author_name' => mb_substr($author_name, 0, 160) ?: 'Nieznany',
+        'tresc'       => mb_substr($tresc, 0, 4000),
+        'ip'          => mb_substr($ip, 0, 45),
+        'created_at'  => date('Y-m-d H:i:s'),
+    ]);
+}
+
+/** Usuwa komentarz (tylko admin — egzekwowane po stronie widoku). */
+function rachunek_comment_delete(int $comment_id): void {
+    try {
+        db()->prepare("DELETE FROM zlecenie_rachunek_komentarze WHERE id=?")->execute([$comment_id]);
+    } catch (\Throwable $e) {}
+}
+
+// ── Baner „wyślij rachunek” ────────────────────────────────────────────────────
+
+/** Statusy umowy, przy których oczekujemy rachunku za bieżący miesiąc. */
+const ZLEC_RACHUNEK_ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'do rozliczenia', 'obowiązująca'];
+
+/** Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie bieżący). */
+function rachunek_exists_for_month(int $contract_id, ?string $ym = null, string $type = 'zlecenie'): bool {
+    $ym = $ym ?: date('Y-m');
+    foreach (get_rachunki($type, $contract_id) as $r) {
+        $d = $r['data_wystawienia'] ?: ($r['created_at'] ?? '');
+        if ($d !== '' && substr((string)$d, 0, 7) === $ym) return true;
+    }
+    return false;
+}
+
+/**
+ * Czy dla tej umowy pokazać baner „Wyślij rachunek”: umowa aktywna, jeszcze
+ * nie zakończona w poprzednim miesiącu i bez rachunku za bieżący miesiąc.
+ */
+function rachunek_banner_needed(array $contract, string $type = 'zlecenie'): bool {
+    if (!in_array((string)($contract['status'] ?? ''), ZLEC_RACHUNEK_ACTIVE_STATUSES, true)) return false;
+    $koniec = (string)($contract['data_zakonczenia'] ?? '');
+    if ($koniec !== '' && $koniec < date('Y-m-01')) return false;   // umowa skończyła się przed tym miesiącem
+    $start = (string)($contract['data_rozpoczecia'] ?? '');
+    if ($start !== '' && $start > date('Y-m-t')) return false;      // jeszcze się nie zaczęła
+    return !rachunek_exists_for_month((int)($contract['id'] ?? 0), null, $type);
+}
+
+/** Nazwa bieżącego miesiąca po polsku, np. „sierpień 2026”. */
+function rachunek_month_label(?string $ym = null): string {
+    $months = ['styczeń','luty','marzec','kwiecień','maj','czerwiec',
+               'lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+    $ym = $ym ?: date('Y-m');
+    [$y, $m] = array_map('intval', explode('-', $ym) + [1 => 1]);
+    return ($months[$m - 1] ?? $ym) . ' ' . $y;
 }
 
 // ── Przekazanie do EOD Dokumentów Księgowych (KDOK) ────────────────────────────

@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/includes/termination.php';
 require_once dirname(__DIR__) . '/includes/letters.php';
 require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/applications.php';
+require_once dirname(__DIR__) . '/includes/zlecenie_rachunki.php';
 
 require_login();
 _applications_init();
@@ -291,6 +292,19 @@ $_zwroty_pending = 0;
 
 $msg_unread  = $_active_contract ? msg_unread_thread('contract', (int)$_active_contract['id'], 'user') : 0;
 
+// ── Rachunki do umów zlecenie: rachunek czekający na podpis / brak za ten miesiąc
+$_rach_pending = [];   // rachunki udostępnione, jeszcze niepodpisane
+$_rach_todo    = [];   // aktywne umowy bez rachunku za bieżący miesiąc
+foreach ($contracts as $_c) {
+    if (($_c['contract_type'] ?? '') !== 'zlecenie') continue;
+    foreach (get_rachunki('zlecenie', (int)$_c['id']) as $_r) {
+        if (!rachunek_is_signed($_r) && !empty($_r['notify_token'])) {
+            $_rach_pending[] = ['rach' => $_r, 'umowa' => $_c];
+        }
+    }
+    if (rachunek_banner_needed($_c)) $_rach_todo[] = $_c;
+}
+
 $my_apps     = db_all(
     "SELECT a.*, t.label AS type_label, t.icon AS type_icon
      FROM user_applications a LEFT JOIN application_types t ON t.id = a.type_id
@@ -336,6 +350,57 @@ if ($_is_volunteer_only) {
 ?>
 
 <?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php'; ?>
+
+<?php if ($_rach_pending): ?>
+<?php $_rp = $_rach_pending[0]; ?>
+<!-- ══ BANER — rachunek czeka na podpis ═════════════════════════════════════ -->
+<div class="alert d-flex flex-wrap align-items-center gap-3 mb-3"
+     style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-left:5px solid #2563eb">
+  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
+       style="width:52px;height:52px;border-radius:14px;background:#2563eb;color:#fff;font-size:1.6rem">
+    <i class="bi bi-receipt"></i>
+  </div>
+  <div class="flex-grow-1" style="min-width:230px">
+    <div class="fw-bold" style="font-size:1.15rem">Masz rachunek do podpisania</div>
+    <div class="small text-secondary">
+      Umowa <?= h($_rp['umowa']['numer_umowy'] ?? '') ?><?= !empty($_rp['rach']['okres']) ? ' · ' . h($_rp['rach']['okres']) : '' ?>.
+      Pobierz dokument, podpisz i odeślij — skan w ciągu <?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni,
+      oryginał w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni.
+      <?php if (count($_rach_pending) > 1): ?>
+      <strong>Rachunków oczekujących: <?= count($_rach_pending) ?>.</strong>
+      <?php endif; ?>
+    </div>
+  </div>
+  <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?token=<?= urlencode($_rp['rach']['notify_token']) ?>"
+     class="btn btn-primary btn-lg flex-shrink-0">
+    <i class="bi bi-download me-1"></i>Otwórz rachunek
+  </a>
+</div>
+<?php elseif ($_rach_todo): ?>
+<!-- ══ BANER — brak rachunku za bieżący miesiąc ═════════════════════════════ -->
+<div class="alert d-flex flex-wrap align-items-center gap-3 mb-3"
+     style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fcd34d;border-left:5px solid #f59e0b">
+  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
+       style="width:52px;height:52px;border-radius:14px;background:#f59e0b;color:#fff;font-size:1.6rem">
+    <i class="bi bi-receipt-cutoff"></i>
+  </div>
+  <div class="flex-grow-1" style="min-width:230px">
+    <div class="fw-bold" style="font-size:1.15rem">Wyślij rachunek za <?= h(rachunek_month_label()) ?></div>
+    <div class="small text-secondary">
+      Do Twojej aktywnej umowy zlecenie
+      <?= count($_rach_todo) === 1 ? h($_rach_todo[0]['numer_umowy'] ?? '') : '(' . count($_rach_todo) . ' umowy)' ?>
+      nie ma jeszcze rachunku za ten miesiąc. Podpisany rachunek prześlij na
+      <strong><?= h(rachunek_skan_email()) ?></strong>, a oryginał dostarcz w ciągu
+      <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni<?= rachunek_org_address() ? ' na adres: ' . h(rachunek_org_address()) : '' ?>.
+    </div>
+  </div>
+  <a href="mailto:<?= h(rachunek_skan_email()) ?>?subject=<?= rawurlencode('Rachunek — ' . ($_rach_todo[0]['numer_umowy'] ?? '') . ' — ' . rachunek_month_label()) ?>"
+     class="btn btn-warning btn-lg flex-shrink-0 text-dark fw-semibold">
+    <i class="bi bi-envelope me-1"></i>Wyślij rachunek
+  </a>
+</div>
+<?php endif; ?>
+
 
 <?php if ($_is_volunteer_only): ?>
 <?php include __DIR__ . '/includes/pv_home.php'; /* nowy widok: styl Tozsamosc, 2 zakladki */ ?>

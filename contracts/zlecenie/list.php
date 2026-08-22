@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
+require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_rachunki.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -27,6 +28,7 @@ $f = [
     'wyna_od' => $_GET['wyna_od']      ?? '',
     'wyna_do' => $_GET['wyna_do']      ?? '',
     'zus'     => !empty($_GET['zus'])  ? '1' : '',
+    'bez_rach'=> !empty($_GET['bez_rach']) ? '1' : '',
     'sort'    => $_GET['sort']         ?? '',
     'dir'     => ($_GET['dir'] ?? '') === 'asc' ? 'asc' : 'desc',
 ];
@@ -107,19 +109,47 @@ if ($f['data_do']) { $where .= " AND data_zawarcia <= ?";    $params[] = $f['dat
 if ($f['wyna_od'] !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) >= ?"; $params[] = (float)$f['wyna_od']; }
 if ($f['wyna_do'] !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) <= ?"; $params[] = (float)$f['wyna_do']; }
 if ($f['zus'])     { $where .= " AND zus_skladki = 1"; }
+if ($f['bez_rach']) {
+    // Aktywne umowy bez rachunku za bieżący miesiąc — źródło banera „Wyślij rachunek”.
+    $_ph_act = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+    $where  .= " AND status IN ({$_ph_act})"
+             . " AND (data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)"
+             . " AND id NOT IN (SELECT contract_id FROM zlecenie_rachunki"
+             . "                WHERE contract_type = 'zlecenie'"
+             . "                  AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)";
+    $params  = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-01'), date('Y-m')]);
+}
 $where .= ' AND ' . contract_access_where($TYPE);
 
 $adv_count = (int)!!$f['opiekun'] + (int)!!$f['projekt'] + (int)!!$f['forma'] + (int)!!$f['typ_st']
            + (int)!!$f['data_od'] + (int)!!$f['data_do']
-           + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus'];
+           + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus']
+           + (int)!!$f['bez_rach'];
 $adv_open  = $adv_count > 0 || !empty($_GET['adv']);
 
 $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
+
+// ── Ile aktywnych umów nie ma jeszcze rachunku za bieżący miesiąc (baner) ─────
+$_rach_missing = 0;
+try {
+    $_pha = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+    $_rach_missing = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM {$TABLE}
+         WHERE status IN ({$_pha})
+           AND (data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)
+           AND id NOT IN (SELECT contract_id FROM zlecenie_rachunki
+                          WHERE contract_type = 'zlecenie'
+                            AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)
+           AND " . contract_access_where($TYPE),
+        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-01'), date('Y-m')])
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
 
 $qs_base = array_filter([
     'q'=>$f['q'], 'status'=>$f['status'], 'opiekun'=>$f['opiekun'], 'projekt'=>$f['projekt'],
     'forma'=>$f['forma'], 'typ_st'=>$f['typ_st'], 'data_od'=>$f['data_od'], 'data_do'=>$f['data_do'],
     'wyna_od'=>$f['wyna_od'], 'wyna_do'=>$f['wyna_do'], 'zus'=>$f['zus'] ?: null,
+    'bez_rach'=>$f['bez_rach'] ?: null,
     'sort'=>$sort_col !== 'created_at' ? $sort_col : null,
     'dir' =>$sort_dir !== 'DESC' ? 'asc' : null,
 ], fn($v) => $v !== '' && $v !== null);
@@ -145,13 +175,15 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
         'q'=>$f['q'], 'status'=>$f['status'], 'opiekun'=>$f['opiekun'], 'projekt'=>$f['projekt'],
         'forma'=>$f['forma'], 'typ_st'=>$f['typ_st'], 'data_od'=>$f['data_od'], 'data_do'=>$f['data_do'],
         'wyna_od'=>$f['wyna_od'], 'wyna_do'=>$f['wyna_do'], 'zus'=>$f['zus'] ?: null,
+    'bez_rach'=>$f['bez_rach'] ?: null,
         'sort'=>$sort_col !== 'created_at' ? $sort_col : null, 'dir'=>$sort_dir !== 'DESC' ? 'asc' : null,
     ], fn($v) => $v !== '' && $v !== null);
     $chip = fn($drop) => $base . '?' . http_build_query(array_diff_key($qs, array_flip(array_merge((array)$drop, ['page']))));
 
     $adv_count = (int)!!$f['opiekun'] + (int)!!$f['projekt'] + (int)!!$f['forma'] + (int)!!$f['typ_st']
                + (int)!!$f['data_od'] + (int)!!$f['data_do']
-               + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus'];
+               + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus']
+           + (int)!!$f['bez_rach'];
     $filtering = $f['q'] !== '' || $f['status'] !== '' || $adv_count > 0;
 
     ob_start();
@@ -163,6 +195,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
       <?php if ($f['typ_st']): ?><a href="<?= h($chip('typ_st')) ?>" class="active-chip">Stawka: <?= h($typy_st[$f['typ_st']] ?? $f['typ_st']) ?> <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['forma']): ?><a href="<?= h($chip('forma')) ?>" class="active-chip">Forma: <?= h($formy[$f['forma']] ?? $f['forma']) ?> <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['zus']): ?><a href="<?= h($chip('zus')) ?>" class="active-chip"><i class="bi bi-shield-check"></i> ZUS <span class="chip-x">×</span></a><?php endif; ?>
+      <?php if ($f['bez_rach']): ?><a href="<?= h($chip('bez_rach')) ?>" class="active-chip"><i class="bi bi-receipt"></i> Bez rachunku w tym miesiącu <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['data_od'] || $f['data_do']): ?><a href="<?= h($chip(['data_od','data_do'])) ?>" class="active-chip">Zawarcie: <?= h($f['data_od'] ?: '…') ?> – <?= h($f['data_do'] ?: '…') ?> <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['wyna_od'] !== '' || $f['wyna_do'] !== ''): ?><a href="<?= h($chip(['wyna_od','wyna_do'])) ?>" class="active-chip">Brutto: <?= $f['wyna_od'] !== '' ? number_format((float)$f['wyna_od'],0,',',' ') : '0' ?> – <?= $f['wyna_do'] !== '' ? number_format((float)$f['wyna_do'],0,',',' ') : '∞' ?> PLN <span class="chip-x">×</span></a><?php endif; ?>
     </div>
@@ -292,6 +325,28 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   </a>
   <?php endif; ?>
 </div>
+
+<?php if ($_rach_missing && !$f['bez_rach']): ?>
+<!-- ══ BANER — umowy bez rachunku za bieżący miesiąc ══════════════════════════ -->
+<div class="alert d-flex flex-wrap align-items-center gap-3 mb-3"
+     style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-left:5px solid #2563eb">
+  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
+       style="width:46px;height:46px;border-radius:12px;background:#2563eb;color:#fff;font-size:1.4rem">
+    <i class="bi bi-receipt"></i>
+  </div>
+  <div class="flex-grow-1" style="min-width:220px">
+    <div class="fw-bold" style="font-size:1.05rem">
+      Wyślij rachunek — <?= $_rach_missing ?> <?= $_rach_missing === 1 ? 'aktywna umowa czeka' : 'aktywnych umów czeka' ?>
+    </div>
+    <div class="small text-secondary">
+      Za <?= h(rachunek_month_label()) ?> nie ma jeszcze rachunku w rejestrze.
+    </div>
+  </div>
+  <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?bez_rach=1" class="btn btn-primary flex-shrink-0">
+    <i class="bi bi-funnel me-1"></i>Pokaż te umowy
+  </a>
+</div>
+<?php endif; ?>
 
 <!-- ══ STATYSTYKI ═══════════════════════════════════════════════════════════ -->
 <div class="row g-3 mb-3">

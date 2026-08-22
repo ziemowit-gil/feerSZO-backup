@@ -77,6 +77,21 @@ if (!empty($_GET['plik'])) {
     _rach_stream($rach);
 }
 
+// ── Komentarz zleceniobiorcy do rachunku ──────────────────────────────────────
+$comment_err = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_comment'])) {
+    $txt = trim($_POST['rach_comment'] ?? '');
+    if ($txt === '') {
+        $comment_err = 'Komentarz nie może być pusty.';
+    } else {
+        rachunek_comment_add((int)$rach['id'], $txt, 'zleceniobiorca', null,
+            (string)($contract['imie_nazwisko'] ?? 'Zleceniobiorca'), $_SERVER['REMOTE_ADDR'] ?? '');
+        header('Location: ' . APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token='
+             . urlencode($token) . '&kom=1#komentarze');
+        exit;
+    }
+}
+
 // ── Wgranie skanu PODPISANEGO rachunku przez zleceniobiorcę (opcja 1) ─────────
 $upload_ok  = !empty($_GET['ok']);
 $upload_err = '';
@@ -160,6 +175,11 @@ table.data tr+tr th,table.data tr+tr td{border-top:1px solid #f1f5f9}
 .opt-h{font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .opt-h .num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
             border-radius:50%;background:#2563eb;color:#fff;font-size:13px;flex:0 0 24px}
+.coms{margin-top:28px;padding-top:20px;border-top:1px solid #e2e8f0}
+.coms-h{font-size:15px;margin-bottom:12px}
+.com{background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:14px}
+.com-meta{color:#64748b;font-size:12.5px;margin-bottom:4px}
+.com-meta .tag{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px}
 .foot{color:#94a3b8;font-size:12px;text-align:center;padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0}
 a{color:#1d4ed8}
 </style>
@@ -298,6 +318,49 @@ a{color:#1d4ed8}
       <p style="color:#64748b;font-size:13px;margin-top:14px">
         W razie pytań lub problemów technicznych pozostajemy do dyspozycji<?= $org_mail ? ' — <a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>' : '' ?>.
       </p>
+
+      <div class="coms" id="komentarze">
+        <div class="coms-h"><strong>Komentarze</strong>
+          <span style="color:#94a3b8;font-weight:400">— pytania i uwagi do tego rachunku</span>
+        </div>
+        <?php $coms = rachunek_comments((int)$rach['id']); ?>
+        <?php if (!empty($_GET['kom'])): ?>
+        <div class="ok" style="margin:0 0 12px">&#10003; Komentarz został dodany.</div>
+        <?php endif; ?>
+        <?php if ($comment_err): ?>
+        <div class="warn" style="margin:0 0 12px"><?= h($comment_err) ?></div>
+        <?php endif; ?>
+        <?php if ($coms): ?>
+        <?php foreach ($coms as $c): ?>
+        <div class="com">
+          <div class="com-meta">
+            <strong><?= h($c['author_name'] ?: 'Nieznany') ?></strong>
+            <?php if ($c['author_type'] !== 'zleceniobiorca'): ?>
+            <span class="tag"><?= h($org_name) ?></span>
+            <?php endif; ?>
+            · <?= h($c['created_at']) ?>
+          </div>
+          <div style="white-space:pre-wrap"><?= h($c['tresc']) ?></div>
+        </div>
+        <?php endforeach; ?>
+        <?php else: ?>
+        <p style="color:#94a3b8;font-size:14px;margin-bottom:12px">Nie ma jeszcze komentarzy.</p>
+        <?php endif; ?>
+
+        <form method="post" action="<?= h($self_url) ?>#komentarze">
+          <input type="hidden" name="_rach_comment" value="1">
+          <label for="rachKomentarz" style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">
+            Twój komentarz
+          </label>
+          <textarea id="rachKomentarz" name="rach_comment" rows="3" required
+                    placeholder="np. proszę o korektę okresu rozliczeniowego"
+                    style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;
+                           font-family:inherit;resize:vertical"></textarea>
+          <button type="submit" class="btn" style="margin-top:10px;padding:10px 22px;font-size:14px">
+            Dodaj komentarz
+          </button>
+        </form>
+      </div>
     </div>
     <div class="foot">
       <?= h($org_name) ?><?= $org_krs ? ' · KRS ' . h($org_krs) : '' ?><?= $org_nip ? ' · NIP ' . h($org_nip) : '' ?>

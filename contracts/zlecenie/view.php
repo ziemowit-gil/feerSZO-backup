@@ -171,6 +171,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit()) {
     }
 }
 
+// ── Rachunki — komentarz (każdy z dostępem do umowy może dodać) ───────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_comment'])) {
+    csrf_check();
+    $_crid = (int)($_POST['rach_id'] ?? 0);
+    $_ctxt = trim($_POST['rach_comment'] ?? '');
+    $_crow = $_crid ? get_rachunek($_crid) : null;
+    if ($_crow && (int)$_crow['contract_id'] === $id && $_ctxt !== '') {
+        $_cu = current_user();
+        rachunek_comment_add($_crid, $_ctxt, 'user', (int)$_cu['id'], (string)($_cu['name'] ?? ''),
+            $_SERVER['REMOTE_ADDR'] ?? '');
+        flash_set('success', 'Komentarz dodany.');
+    } elseif ($_ctxt === '') {
+        flash_set('error', 'Komentarz nie może być pusty.');
+    }
+    header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_comment_del']) && is_admin()) {
+    csrf_check();
+    rachunek_comment_delete((int)($_POST['comment_id'] ?? 0));
+    flash_set('success', 'Komentarz usunięty.');
+    header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+}
+
 // ── Rachunki — dodanie rachunku do rejestru (+ powiadomienia) ─────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_edit()) {
     csrf_check();
@@ -226,6 +250,7 @@ $_ezd_certs       = ezd_zas_for_contract($TYPE, $id);
 $rozliczenia      = get_rozliczenia($TYPE, $id);
 $_rozl_open       = count(array_filter($rozliczenia, fn($r) => in_array($r['status'], ['oczekuje','wyslane'], true)));
 $rachunki         = get_rachunki($TYPE, $id);
+$_rach_com_count  = rachunek_comments_counts(array_column($rachunki, 'id'));
 $_rach_open       = get_rachunki_open_count($TYPE, $id);
 try { $kdok_docs = kdok_documents_for_contract($TYPE, $id); } catch (\Throwable $e) { $kdok_docs = []; }
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
@@ -317,6 +342,37 @@ $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
+
+<?php if (rachunek_banner_needed($row)): ?>
+<!-- ═══ BANER — brak rachunku za bieżący miesiąc ═══ -->
+<div class="alert d-flex flex-wrap align-items-center gap-3 no-print mb-3"
+     style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-left:5px solid #2563eb">
+  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
+       style="width:46px;height:46px;border-radius:12px;background:#2563eb;color:#fff;font-size:1.4rem">
+    <i class="bi bi-receipt"></i>
+  </div>
+  <div class="flex-grow-1" style="min-width:220px">
+    <div class="fw-bold" style="font-size:1.05rem">Wyślij rachunek za <?= h(rachunek_month_label()) ?></div>
+    <div class="small text-secondary">
+      Umowa jest aktywna, a w rejestrze nie ma jeszcze rachunku za ten miesiąc.
+      <?php if (trim((string)($row['email'] ?? ''))): ?>
+      Po dodaniu dokumentu zleceniobiorca dostanie e-mail z linkiem do pobrania i podpisania.
+      <?php else: ?>
+      <span class="text-danger">Uwaga: zleceniobiorca nie ma adresu e-mail w umowie — powiadomienie nie zostanie wysłane.</span>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php if (can_edit()): ?>
+  <button type="button" class="btn btn-primary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#rachAddModal">
+    <i class="bi bi-plus-lg me-1"></i>Wyślij rachunek
+  </button>
+  <?php else: ?>
+  <a href="?id=<?= $id ?>&tab=rachunki" class="btn btn-outline-primary flex-shrink-0">
+    <i class="bi bi-receipt me-1"></i>Rachunki
+  </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="cv-tabs-layout">
 <ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="zlecenieTabs" role="tablist">
@@ -1060,10 +1116,73 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
                 title="Przekaż do EOD Dokumentów Księgowych"><i class="bi bi-box-arrow-in-right"></i></button>
         <?php endif; ?>
         <?php endif; ?>
+        <?php $_cc = (int)($_rach_com_count[$_rid] ?? 0); ?>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                data-bs-target="#rach-com-<?= $_rid ?>" aria-expanded="false"
+                title="Komentarze do rachunku">
+          <i class="bi bi-chat-left-text"></i><?= $_cc ? ' ' . $_cc : '' ?>
+        </button>
         <?php if ((current_user()['role'] ?? '') === 'admin'): ?>
         <button type="button" class="btn btn-sm btn-outline-danger ms-1" onclick="rachDelete(<?= $_rid ?>)"
                 title="Usuń rachunek (wymaga kodu IKA i powodu)"><i class="bi bi-trash"></i></button>
         <?php endif; ?>
+      </td>
+    </tr>
+    <tr class="rach-com-row">
+      <td colspan="11" class="p-0 border-0">
+        <div class="collapse" id="rach-com-<?= $_rid ?>">
+          <div class="p-3" style="background:#f8fafc;border-top:1px solid #e2e8f0">
+            <div class="fw-semibold small mb-2">
+              <i class="bi bi-chat-left-text"></i> Komentarze do rachunku #<?= $_rid ?>
+            </div>
+            <?php $_coms = rachunek_comments($_rid); ?>
+            <?php if ($_coms): ?>
+            <div class="mb-3">
+              <?php foreach ($_coms as $_c): ?>
+              <div class="d-flex gap-2 mb-2">
+                <div class="flex-shrink-0" style="width:26px;height:26px;border-radius:50%;
+                     background:<?= $_c['author_type'] === 'zleceniobiorca' ? '#0d9488' : '#6366f1' ?>;
+                     color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem">
+                  <i class="bi <?= $_c['author_type'] === 'zleceniobiorca' ? 'bi-person' : 'bi-person-badge' ?>"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="small">
+                    <strong><?= h($_c['author_name'] ?: 'Nieznany') ?></strong>
+                    <?php if ($_c['author_type'] === 'zleceniobiorca'): ?>
+                    <span class="badge bg-teal text-white" style="background:#0d9488!important;font-size:.65rem">zleceniobiorca</span>
+                    <?php endif; ?>
+                    <span class="text-muted" style="font-size:.8em"><?= h($_c['created_at']) ?></span>
+                    <?php if (is_admin()): ?>
+                    <form method="post" class="d-inline" onsubmit="return confirm('Usunąć komentarz?')">
+                      <?= csrf_field() ?>
+                      <input type="hidden" name="_rach_comment_del" value="1">
+                      <input type="hidden" name="comment_id" value="<?= (int)$_c['id'] ?>">
+                      <button type="submit" class="btn btn-link btn-sm p-0 text-danger align-baseline"
+                              style="font-size:.75rem" title="Usuń komentarz"><i class="bi bi-x-lg"></i></button>
+                    </form>
+                    <?php endif; ?>
+                  </div>
+                  <div style="white-space:pre-wrap"><?= h($_c['tresc']) ?></div>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <p class="text-muted small">Brak komentarzy.</p>
+            <?php endif; ?>
+            <form method="post" class="d-flex gap-2 align-items-start">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_rach_comment" value="1">
+              <input type="hidden" name="rach_id" value="<?= $_rid ?>">
+              <label class="visually-hidden" for="rach-com-input-<?= $_rid ?>">Treść komentarza</label>
+              <textarea id="rach-com-input-<?= $_rid ?>" name="rach_comment" class="form-control form-control-sm"
+                        rows="2" placeholder="Napisz komentarz…" required></textarea>
+              <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                <i class="bi bi-send"></i> Dodaj
+              </button>
+            </form>
+          </div>
+        </div>
       </td>
     </tr>
     <?php endforeach; ?>
