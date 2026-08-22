@@ -196,7 +196,11 @@ include __DIR__ . '/includes/header_crm.php';
   border-top:1px solid #F1F2F4; border-bottom:1px solid #F1F2F4 }
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
+.ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
 .ib-drawer { border-top:1px solid #F1F2F4 }
+/* Szuflada, do której przeskoczono — krótkie podświetlenie, żeby było widać,
+   co się otworzyło poniżej. */
+.ib-drawer.ib-flash > summary { background:#FFFBEB }
 .ib-drawer > summary { padding:.6rem 1.15rem; cursor:pointer; font-size:.85rem; font-weight:600; color:#374151;
   display:flex; align-items:center; gap:.45rem; list-style:none }
 .ib-drawer > summary::-webkit-details-marker { display:none }
@@ -484,6 +488,25 @@ include __DIR__ . '/includes/header_crm.php';
           <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako nieprzeczytane"><i class="bi bi-envelope"></i></button></form>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="spam">
           <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako spam"><i class="bi bi-slash-circle"></i></button></form>
+        <?php if ($can_write): ?>
+        <!-- Skróty do trzech głównych akcji. Formularze zostają niżej, bo wymagają
+             pól, ale przy długiej wiadomości były poza ekranem — a to one są
+             powodem, dla którego ktoś tu wchodzi. Klik rozwija i przewija do
+             właściwej szuflady. -->
+        <span class="ib-sep" aria-hidden="true"></span>
+        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwSprawa"
+                title="Załóż sprawę CRM z tej wiadomości" aria-label="Załóż sprawę CRM">
+          <i class="bi bi-briefcase-fill" style="color:#1D4ED8" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwEzd"
+                title="Przekaż do EZD" aria-label="Przekaż do EZD">
+          <i class="bi bi-folder-symlink-fill" style="color:#0F766E" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwFwd"
+                title="Przekaż e-mailem" aria-label="Przekaż e-mailem">
+          <i class="bi bi-forward-fill" style="color:#B45309" aria-hidden="true"></i>
+        </button>
+        <?php endif; ?>
         <form method="post" class="ms-auto"><?= $hidden ?><input type="hidden" name="_op" value="assign">
           <select name="user_id" class="form-select form-select-sm" style="max-width:200px"
                   aria-label="Przypisz osobę" onchange="this.form.submit()">
@@ -531,7 +554,7 @@ include __DIR__ . '/includes/header_crm.php';
 
       <?php if ($can_write): ?>
       <!-- ── Sprawa CRM ─────────────────────────────────────────────────── -->
-      <details class="ib-drawer">
+      <details class="ib-drawer" id="dwSprawa">
         <summary><i class="bi bi-briefcase-fill" style="color:#1D4ED8"></i> Załóż sprawę CRM</summary>
         <div class="ib-dbody">
           <form method="post" class="row g-2 align-items-end"><?= $hidden ?>
@@ -572,7 +595,7 @@ include __DIR__ . '/includes/header_crm.php';
       </details>
 
       <!-- ── Przekazanie do EZD ────────────────────────────────────────── -->
-      <details class="ib-drawer">
+      <details class="ib-drawer" id="dwEzd">
         <summary><i class="bi bi-folder-symlink-fill" style="color:#0F766E"></i> Przekaż do EZD</summary>
         <div class="ib-dbody">
           <?php if (!$ezd_on): ?>
@@ -625,7 +648,7 @@ include __DIR__ . '/includes/header_crm.php';
       </details>
 
       <!-- ── Przekazanie e-mailem ──────────────────────────────────────── -->
-      <details class="ib-drawer">
+      <details class="ib-drawer" id="dwFwd">
         <summary><i class="bi bi-forward-fill" style="color:#B45309"></i> Przekaż e-mailem</summary>
         <div class="ib-dbody">
           <form method="post" class="row g-2 align-items-end"><?= $hidden ?>
@@ -694,5 +717,22 @@ include __DIR__ . '/includes/header_crm.php';
   <?php endif; ?>
   </div>
 </div>
+
+<script>
+// Skróty z paska: rozwijają odpowiednią szufladę i przewijają do niej, zamiast
+// zmuszać do szukania na dole długiej wiadomości.
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('.ib-jump');
+  if (!b) return;
+  var d = document.getElementById(b.dataset.target);
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  d.classList.add('ib-flash');
+  setTimeout(function () { d.classList.remove('ib-flash'); }, 1200);
+  var f = d.querySelector('input:not([type=hidden]), select, textarea');
+  if (f) setTimeout(function () { f.focus({ preventScroll: true }); }, 350);
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
