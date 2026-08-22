@@ -15,9 +15,11 @@ crm_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);
 $case = db_one(
-    "SELECT c.*, ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.id AS ct_id
+    "SELECT c.*, ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.id AS ct_id,
+            u.name AS owner_name
      FROM crm_cases c
      LEFT JOIN crm_contacts ct ON ct.id=c.contact_id
+     LEFT JOIN users        u  ON u.id  = c.created_by
      WHERE c.id=?", [$id]
 );
 if (!$case) { http_response_code(404); die('Nie znaleziono sprawy.'); }
@@ -45,6 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $action = $_POST['_action'] ?? '';
     $uid = (int)(current_user()['id'] ?? 0);
+
+    // „Zostaw otwartą" — świadome odłożenie decyzji. Zapisujemy znacznik, żeby
+    // baner nie wracał przy każdym wejściu; wróci po kolejnym okresie bez ruchu.
+    if ($action === 'stale_ack') {
+        db()->prepare("UPDATE crm_cases SET stale_ack_at=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $id]);
+        flash_set('success', 'Sprawa zostaje otwarta — przypomnimy za '
+            . CRM_CASE_STALE_DAYS . ' dni bez aktywności.');
+        header('Location: view.php?id=' . $id); exit;
+    }
 
     // Szybkie zamknięcie sprawy — jedno kliknięcie zamiast wybierania statusu
     // z listy. Opcjonalna notatka domykająca ląduje w notatkach sprawy, żeby
@@ -420,6 +432,41 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <li class="breadcrumb-item active"><?= h($case['title']) ?></li>
   </ol>
 </nav>
+
+<?php $_stale = crm_case_stale_days($case); ?>
+<?php if ($_stale && $can_write): ?>
+<!-- Sprawa leży bez ruchu — propozycja zamknięcia z decyzją na miejscu.
+     Nie zamykamy automatycznie: to sprawa merytoryczna, a nie porządkowa. -->
+<div class="cv-panel mb-3" style="overflow:hidden">
+  <div style="height:4px;background:#D97706" aria-hidden="true"></div>
+  <div class="d-flex flex-wrap align-items-center gap-3" style="padding:.9rem 1.4rem">
+    <i class="bi bi-clock-history" style="font-size:1.4rem;color:#D97706" aria-hidden="true"></i>
+    <div style="flex:1;min-width:14rem">
+      <div style="font-weight:700;font-size:.95rem">
+        Bez aktywności od <?= (int)$_stale ?> dni — zamknąć sprawę?
+      </div>
+      <div class="cv-meta">
+        Ostatni ruch: <?= h(date('d.m.Y', strtotime((string)($case['updated_at'] ?: $case['created_at'])))) ?>.
+        Prowadzi: <?= h($case['owner_name'] ?? '—') ?>.
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-sm btn-success"
+              data-bs-toggle="collapse" data-bs-target="#collapseQuickClose"
+              aria-expanded="false" aria-controls="collapseQuickClose">
+        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zamknij
+      </button>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="stale_ack">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">
+          Zostaw otwartą
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- Nagłówek sprawy -->
 <div class="cv-panel mb-3" id="case-header" style="overflow:hidden">

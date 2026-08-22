@@ -442,6 +442,74 @@ function crm_contact_contracts(array $contact): array
     return $out;
 }
 
+/** Po ilu dniach bez ruchu sprawa jest proponowana do zamknięcia. */
+const CRM_CASE_STALE_DAYS = 30;
+
+/**
+ * Czy sprawa nadaje się do zamknięcia — leży bez ruchu dłużej niż próg.
+ *
+ * Liczymy od OSTATNIEJ AKTYWNOŚCI (updated_at, a gdy puste — created_at), nie od
+ * daty utworzenia: sprawa prowadzona od pół roku, ale ruszana wczoraj, nie jest
+ * zapomniana. Odkładanie decyzji (stale_ack_at) też liczy się jako ruch, żeby
+ * baner nie wracał od razu po świadomym „zostaw otwartą".
+ *
+ * @return int Liczba dni bez ruchu; 0 gdy sprawa nie kwalifikuje się.
+ */
+function crm_case_stale_days(array $case): int
+{
+    if (in_array((string)($case['status'] ?? ''), ['closed', 'cancelled'], true)) return 0;
+
+    $marks = array_filter([
+        $case['stale_ack_at'] ?? null,
+        $case['updated_at']   ?? null,
+        $case['created_at']   ?? null,
+    ]);
+    if (!$marks) return 0;
+
+    $last = max(array_map(static fn($d) => strtotime((string)$d) ?: 0, $marks));
+    if ($last <= 0) return 0;
+
+    $days = (int)floor((time() - $last) / 86400);
+    return $days >= CRM_CASE_STALE_DAYS ? $days : 0;
+}
+
+/**
+ * Sprawy proponowane do zamknięcia.
+ *
+ * @param int $owner_id Tylko sprawy tej osoby (0 = wszystkie, dla przeglądu).
+ * @return list<array> Wiersze crm_cases z kontaktem i liczbą dni bez ruchu.
+ */
+function crm_cases_stale(int $owner_id = 0, int $limit = 100): array
+{
+    $params = [];
+    $where  = ["c.status NOT IN ('closed','cancelled')"];
+
+    // Próg liczymy w SQL na tym samym polu co crm_case_stale_days(), żeby lista
+    // i baner nie pokazywały różnych spraw.
+    $where[] = "COALESCE(c.stale_ack_at, c.updated_at, c.created_at) < datetime('now', '-" . CRM_CASE_STALE_DAYS . " days')";
+
+    if ($owner_id > 0) { $where[] = 'c.created_by = ?'; $params[] = $owner_id; }
+    $params[] = $limit;
+
+    try {
+        $rows = db_all(
+            "SELECT c.*, ct.imie_nazwisko AS contact_name, u.name AS owner_name
+               FROM crm_cases c
+               LEFT JOIN crm_contacts ct ON ct.id = c.contact_id
+               LEFT JOIN users       u  ON u.id  = c.created_by
+              WHERE " . implode(' AND ', $where) . "
+           ORDER BY COALESCE(c.stale_ack_at, c.updated_at, c.created_at) ASC
+              LIMIT ?",
+            $params
+        );
+    } catch (\Throwable $e) {
+        return [];   // kolumna stale_ack_at dochodzi migracją
+    }
+
+    foreach ($rows as &$r) $r['stale_days'] = crm_case_stale_days($r);
+    return $rows;
+}
+
 // Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
 function crm_one(string $sql, array $p = []): ?array {
     $st = crm_db()->prepare($sql); $st->execute($p);
@@ -867,6 +935,9 @@ function crm_migrate(): void {
         closed_at   DATETIME
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cases_contact ON crm_cases(contact_id)");
+    // Odłożenie decyzji o zamknięciu — „zostaw otwartą" na kolejny okres.
+    // Bez tego baner wracałby przy każdym wejściu w sprawę.
+    try { $pdo->exec("ALTER TABLE crm_cases ADD COLUMN stale_ack_at DATETIME"); } catch (\Throwable $e) {}
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cases_status  ON crm_cases(status)");
 
     // Notatki do spraw

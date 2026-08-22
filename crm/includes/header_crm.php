@@ -567,9 +567,33 @@ window.openCommModal = function(contactId, channel) {
     </div>
     <?php endif; ?>
 
-    <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
-    </a>
+    <?php
+      // Licznik spraw zalegających — pokazujemy tylko własne, żeby nie straszyć
+      // liczbą z całej organizacji. Cicho, gdy kolumna jeszcze nie migrowana.
+      $_stale_n = 0;
+      try {
+          $_stale_n = (int)(db_one(
+              "SELECT COUNT(*) AS c FROM crm_cases
+                WHERE status NOT IN ('closed','cancelled') AND created_by = ?
+                  AND COALESCE(stale_ack_at, updated_at, created_at) < datetime('now','-30 days')",
+              [(int)($_cu['id'] ?? 0)]
+          )['c'] ?? 0);
+      } catch (\Throwable $e) {}
+    ?>
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= _crm_nav_active('/crm/cases') ?>">
+        <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
+        <?php if ($_stale_n): ?><span class="crm-nav-badge" title="Sprawy bez ruchu ponad 30 dni"><?= $_stale_n ?></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/index.php"><i class="bi bi-briefcase-fill me-2"></i>Rejestr spraw</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/stale.php">
+          <i class="bi bi-clock-history me-2"></i>Do zamknięcia
+          <?php if ($_stale_n): ?><span class="badge bg-warning text-dark ms-1"><?= $_stale_n ?></span><?php endif; ?>
+        </a></li>
+      </ul>
+    </div>
 
   </div>
 
