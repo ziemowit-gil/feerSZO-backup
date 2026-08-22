@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -224,6 +225,184 @@ function _cv_relations_html(array $contact, int $id, bool $can_w, bool $can_d, a
         </select>
         <button class="btn btn-sm btn-crm-outline w-100" type="submit">
           <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Dodaj relację
+        </button>
+      </form>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
+/** Osoby kontaktowe podmiotu — dowolna liczba osób do jednej firmy/organizacji. */
+function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): string {
+    $persons = $contact['persons'] ?? [];
+    ob_start(); ?>
+    <div id="crm-section-persons" aria-live="polite">
+      <?php if ($persons): ?>
+      <ul class="list-unstyled mb-2">
+        <?php foreach ($persons as $p): ?>
+        <li class="crm-relation-item align-items-start">
+          <div class="crm-avatar sm" aria-hidden="true" style="background:var(--crm-primary)">
+            <?= h(CrmManager::makeInitials($p['imie_nazwisko'])) ?>
+          </div>
+          <div class="flex-grow-1 overflow-hidden">
+            <div style="font-size:.83rem;font-weight:600">
+              <?= h($p['imie_nazwisko']) ?>
+              <?php if (!empty($p['is_primary'])): ?>
+              <span class="cv-chip" title="Osoba główna — jej nazwisko trafia na listy i do eksportu">główna</span>
+              <?php endif; ?>
+            </div>
+            <?php if (!empty($p['stanowisko'])): ?>
+            <div class="crm-name-sub"><?= h($p['stanowisko']) ?></div>
+            <?php endif; ?>
+            <?php if (!empty($p['email'])): ?>
+            <div style="font-size:.78rem"><a href="mailto:<?= h($p['email']) ?>"><?= h($p['email']) ?></a></div>
+            <?php endif; ?>
+            <?php if (!empty($p['telefon'])): ?>
+            <div style="font-size:.78rem"><a href="tel:<?= h($p['telefon']) ?>"><?= h($p['telefon']) ?></a></div>
+            <?php endif; ?>
+            <?php if (!empty($p['notatka'])): ?>
+            <div class="cv-meta" style="white-space:pre-line"><?= h($p['notatka']) ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="d-flex flex-column gap-1 align-items-end">
+            <?php if ($can_w && empty($p['is_primary'])): ?>
+            <form method="post" class="d-inline" data-ajax-section="persons">
+              <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action"   value="set_primary_person">
+              <input type="hidden" name="person_id" value="<?= (int)$p['id'] ?>">
+              <button type="submit" class="border-0 p-0 bg-transparent cv-muted" style="font-size:.85rem;cursor:pointer"
+                      aria-label="Ustaw <?= h($p['imie_nazwisko']) ?> jako osobę główną" title="Ustaw jako główną">
+                <i class="bi bi-star" aria-hidden="true"></i>
+              </button>
+            </form>
+            <?php endif; ?>
+            <?php if ($can_d): ?>
+            <form method="post" class="d-inline" data-ajax-section="persons">
+              <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action"   value="delete_person">
+              <input type="hidden" name="person_id" value="<?= (int)$p['id'] ?>">
+              <button type="submit" class="border-0 p-0 bg-transparent text-danger" style="font-size:.85rem;cursor:pointer"
+                      aria-label="Usuń osobę kontaktową <?= h($p['imie_nazwisko']) ?>" title="Usuń">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+            </form>
+            <?php endif; ?>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="cv-meta mb-2">Brak osób kontaktowych.</p>
+      <?php endif; ?>
+
+      <?php if ($can_w): ?>
+      <details class="mt-1"<?= $persons ? '' : ' open' ?>>
+        <summary style="cursor:pointer;font-size:.8rem;color:var(--crm-primary)">
+          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dodaj osobę kontaktową
+        </summary>
+        <form method="post" class="mt-2 border-top pt-2" data-ajax-section="persons">
+          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="add_person">
+          <label class="visually-hidden" for="cv_p_name_<?= $id ?>">Imię i nazwisko</label>
+          <input type="text" name="person_name" id="cv_p_name_<?= $id ?>" required maxlength="160"
+                 class="form-control form-control-sm mb-2" placeholder="Imię i nazwisko *">
+          <label class="visually-hidden" for="cv_p_role_<?= $id ?>">Stanowisko / rola</label>
+          <input type="text" name="person_role" id="cv_p_role_<?= $id ?>" maxlength="120"
+                 class="form-control form-control-sm mb-2" placeholder="Stanowisko / rola">
+          <label class="visually-hidden" for="cv_p_mail_<?= $id ?>">E-mail</label>
+          <input type="email" name="person_email" id="cv_p_mail_<?= $id ?>" maxlength="190"
+                 class="form-control form-control-sm mb-2" placeholder="E-mail">
+          <label class="visually-hidden" for="cv_p_tel_<?= $id ?>">Telefon</label>
+          <input type="text" name="person_phone" id="cv_p_tel_<?= $id ?>" maxlength="40"
+                 class="form-control form-control-sm mb-2" placeholder="Telefon">
+          <label class="visually-hidden" for="cv_p_note_<?= $id ?>">Notatka</label>
+          <textarea name="person_note" id="cv_p_note_<?= $id ?>" rows="2"
+                    class="form-control form-control-sm mb-2" placeholder="Notatka (opcjonalnie)"></textarea>
+          <button class="btn btn-sm btn-crm-outline w-100" type="submit">
+            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj osobę
+          </button>
+        </form>
+      </details>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
+/** Kategoria „świadczy usługi na rzecz FEER" + rodzaje usług z otwartego katalogu. */
+function _cv_services_html(array $contact, int $id, bool $can_w, bool $can_d): string {
+    $services = $contact['services'] ?? [];
+    $on       = !empty($contact['swiadczy_uslugi']);
+    $used_ids = array_map('intval', array_column($services, 'service_type_id'));
+    $catalog  = array_filter(crm_service_types(true), fn($t) => !in_array((int)$t['id'], $used_ids, true));
+    ob_start(); ?>
+    <div id="crm-section-services" aria-live="polite">
+      <?php if ($can_w): ?>
+      <form method="post" class="mb-2" data-ajax-section="services">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="toggle_services">
+        <input type="hidden" name="on"      value="<?= $on ? 0 : 1 ?>">
+        <button type="submit" class="btn btn-sm w-100 <?= $on ? 'btn-success' : 'btn-crm-outline' ?>">
+          <i class="bi <?= $on ? 'bi-check-circle-fill' : 'bi-circle' ?> me-1" aria-hidden="true"></i>
+          <?= $on ? 'Świadczy usługi na rzecz FEER' : 'Oznacz: świadczy usługi na rzecz FEER' ?>
+        </button>
+      </form>
+      <?php elseif ($on): ?>
+      <p class="mb-2"><span class="cv-chip"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Świadczy usługi na rzecz FEER</span></p>
+      <?php endif; ?>
+
+      <?php if ($services): ?>
+      <ul class="list-unstyled mb-2">
+        <?php foreach ($services as $sv): ?>
+        <li class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid var(--crm-border)">
+          <i class="bi bi-tools cv-shead__icon mt-1" aria-hidden="true"></i>
+          <div class="flex-grow-1 overflow-hidden">
+            <div style="font-size:.83rem;font-weight:600"><?= h($sv['nazwa']) ?>
+              <?php if (empty($sv['type_active'])): ?>
+              <span class="cv-meta">(pozycja wycofana z katalogu)</span>
+              <?php endif; ?>
+            </div>
+            <?php if (!empty($sv['uwagi'])): ?>
+            <div class="cv-meta" style="white-space:pre-line"><?= h($sv['uwagi']) ?></div>
+            <?php endif; ?>
+          </div>
+          <?php if ($can_d): ?>
+          <form method="post" class="d-inline" data-ajax-section="services">
+            <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action"  value="remove_service">
+            <input type="hidden" name="link_id"  value="<?= (int)$sv['id'] ?>">
+            <button type="submit" class="border-0 p-0 bg-transparent text-danger" style="font-size:.85rem;cursor:pointer"
+                    aria-label="Usuń rodzaj usługi <?= h($sv['nazwa']) ?>" title="Usuń">
+              <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+          </form>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="cv-meta mb-2">Nie wskazano rodzajów usług.</p>
+      <?php endif; ?>
+
+      <?php if ($can_w): ?>
+      <form method="post" class="border-top pt-2" data-ajax-section="services">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="add_service">
+        <label class="visually-hidden" for="cv_sv_type_<?= $id ?>">Rodzaj usługi z katalogu</label>
+        <select name="service_type_id" id="cv_sv_type_<?= $id ?>" class="form-select form-select-sm mb-2">
+          <option value="">— wybierz rodzaj usługi —</option>
+          <?php foreach ($catalog as $t): ?>
+          <option value="<?= (int)$t['id'] ?>"><?= h($t['nazwa']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <label class="visually-hidden" for="cv_sv_new_<?= $id ?>">Nowy rodzaj usługi</label>
+        <input type="text" name="service_new" id="cv_sv_new_<?= $id ?>" maxlength="120"
+               class="form-control form-control-sm mb-1" placeholder="…lub wpisz nowy rodzaj">
+        <div class="cv-meta mb-2">Katalog jest otwarty — wpisany rodzaj zostanie do niego dopisany.</div>
+        <label class="visually-hidden" for="cv_sv_note_<?= $id ?>">Uwagi do usługi</label>
+        <input type="text" name="service_note" id="cv_sv_note_<?= $id ?>" maxlength="255"
+               class="form-control form-control-sm mb-2" placeholder="Uwagi (opcjonalnie)">
+        <button class="btn btn-sm btn-crm-outline w-100" type="submit">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj rodzaj usługi
         </button>
       </form>
       <?php endif; ?>
@@ -547,6 +726,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         CrmManager::removeRelation((int)($_POST['relation_id'] ?? 0));
         $affected_section = 'relations';
     }
+    if ($action === 'add_person') {
+        CrmManager::addContactPerson($id, [
+            'imie_nazwisko' => $_POST['person_name']  ?? '',
+            'stanowisko'    => $_POST['person_role']  ?? '',
+            'email'         => $_POST['person_email'] ?? '',
+            'telefon'       => $_POST['person_phone'] ?? '',
+            'notatka'       => $_POST['person_note']  ?? '',
+        ], $user_id);
+        $affected_section = 'persons';
+    }
+    if ($action === 'delete_person' && $crm_can_delete) {
+        $pid = (int)($_POST['person_id'] ?? 0);
+        $p   = $pid ? CrmManager::getContactPerson($pid) : null;
+        if ($p && (int)$p['contact_id'] === $id) CrmManager::deleteContactPerson($pid);
+        $affected_section = 'persons';
+    }
+    if ($action === 'set_primary_person') {
+        $pid = (int)($_POST['person_id'] ?? 0);
+        $p   = $pid ? CrmManager::getContactPerson($pid) : null;
+        if ($p && (int)$p['contact_id'] === $id) CrmManager::setPrimaryContactPerson($id, $pid);
+        $affected_section = 'persons';
+    }
+    if ($action === 'toggle_services') {
+        CrmManager::setProvidesServices($id, !empty($_POST['on']));
+        $affected_section = 'services';
+    }
+    if ($action === 'add_service') {
+        // Katalog otwarty: wpisany ręcznie rodzaj ma pierwszeństwo przed wyborem z listy.
+        $new  = trim($_POST['service_new'] ?? '');
+        $stid = $new !== ''
+            ? crm_service_type_find_or_create($new, $user_id)
+            : (int)($_POST['service_type_id'] ?? 0);
+        if ($stid > 0) CrmManager::addContactService($id, $stid, $_POST['service_note'] ?? null, $user_id);
+        $affected_section = 'services';
+    }
+    if ($action === 'remove_service' && $crm_can_delete) {
+        CrmManager::removeContactService((int)($_POST['link_id'] ?? 0));
+        $affected_section = 'services';
+    }
     if ($action === 'add_to_group') {
         $gid = (int)($_POST['group_id'] ?? 0);
         if ($gid) CrmManager::addToGroup($gid, $id);
@@ -612,6 +830,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             'tags'         => _cv_tags_html($contact, $id, $crm_can_write, $crm_can_delete),
             'relations'    => _cv_relations_html($contact, $id, $crm_can_write, $crm_can_delete, $all_contacts),
             'groups'       => _cv_groups_html($contact, $id, $crm_can_write),
+            'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
+            'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
             'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
             'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
             default        => '',
@@ -648,6 +868,8 @@ if (isset($_GET['_section'])) {
         'tags'         => _cv_tags_html($contact, $id, $crm_can_write, $crm_can_delete),
         'relations'    => _cv_relations_html($contact, $id, $crm_can_write, $crm_can_delete, $all_contacts),
         'groups'       => _cv_groups_html($contact, $id, $crm_can_write),
+        'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
+        'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
         'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
         'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
         'comms'        => _cv_communications_html($contact, $id),
@@ -698,6 +920,12 @@ $contact_cases = db_all(
     "SELECT * FROM crm_cases WHERE contact_id=? ORDER BY updated_at DESC LIMIT 10",
     [(int)$id]
 );
+
+// ── Oferty kontaktu (moduł działalności odpłatnej) ───────────────────────────
+crm_offers_migrate();
+$contact_offers  = crm_offer_history((int)$id, 25);
+$offers_summary  = crm_offer_contact_summary((int)$id);
+$offers_can_write = crm_offer_can_write();
 
 // Roundcube URL (ustawiane w CRM → Ustawienia)
 $roundcube_url = crm_setting('roundcube_url');
@@ -920,6 +1148,30 @@ $case_status_cfg = [
     </div></div>
     <?php endif; ?>
 
+    <!-- Osoby kontaktowe (tylko podmioty: organizacja / kontrahent / partner) -->
+    <?php if (!empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Osoby kontaktowe</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['persons'] ?? []) ?></span></div>
+      </div>
+      <?= _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    </div></div>
+    <?php endif; ?>
+
+    <!-- Usługi na rzecz FEER -->
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-tools cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Usługi na rzecz <?= h(org_setting('org_short_name') ?: 'FEER') ?></h2>
+        <?php if (!empty($contact['services'])): ?>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['services']) ?></span></div>
+        <?php endif; ?>
+      </div>
+      <?= _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    </div></div>
+
     <!-- Powiązane konta -->
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
@@ -1018,6 +1270,14 @@ $case_status_cfg = [
         </button>
       </li>
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-offers-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-offers" type="button" role="tab"
+                aria-controls="cv-tab-offers" aria-selected="false">
+          <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>Oferty
+          <span class="cv-count"><?= count($contact_offers) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="cv-tab-engage-btn" data-bs-toggle="tab"
                 data-bs-target="#cv-tab-engage" type="button" role="tab"
                 aria-controls="cv-tab-engage" aria-selected="false">
@@ -1113,6 +1373,74 @@ $case_status_cfg = [
             Brak spraw
             <?php if ($crm_can_write): ?>
             <div class="mt-1"><a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>">Utwórz pierwszą →</a></div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Oferty (działalność odpłatna) -->
+      <div class="tab-pane fade" id="cv-tab-offers" role="tabpanel"
+           aria-labelledby="cv-tab-offers-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-file-earmark-ruled cv-shead__icon" style="color:#0176D3" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Oferty</h2>
+            <div class="cv-shead__aside">
+              <span class="cv-count"><?= count($contact_offers) ?></span>
+              <?php if ($offers_can_write): ?>
+              <a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>"
+                 class="btn btn-crm-outline btn-sm py-0 px-2">
+                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa oferta
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="row g-2 text-center mb-3">
+            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['cnt'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">ofert łącznie</div></div>
+            <div class="col-3"><div class="fw-bold text-success" style="font-size:1.05rem"><?= (int)$offers_summary['won'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">wygrane</div></div>
+            <div class="col-3"><div class="fw-bold text-danger" style="font-size:1.05rem"><?= (int)$offers_summary['lost'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">odrzucone</div></div>
+            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['open'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">w toku</div></div>
+          </div>
+          <?php if ((float)$offers_summary['won_value'] > 0): ?>
+          <div class="mb-2" style="font-size:.85rem">
+            Wartość wygranych ofert: <strong><?= h(crm_offer_money((float)$offers_summary['won_value'])) ?></strong>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($contact_offers): ?>
+          <div class="d-flex flex-column">
+            <?php foreach ($contact_offers as $co):
+              $co_needs = crm_offer_requires_confirmation($co);
+              $co_conf  = (int)($co['confirmation_id'] ?? 0); ?>
+            <a href="<?= APP_URL ?>/crm/offers/view.php?id=<?= (int)$co['id'] ?>"
+               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
+               style="color:#181818;font-size:.86rem">
+              <span style="font-family:monospace;font-size:.74rem;color:#1D4ED8;white-space:nowrap"><?= h($co['offer_number']) ?></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"><?= h($co['title']) ?></span>
+              <?php if ($co_needs && !$co_conf): ?>
+              <span title="Brak potwierdzenia klienta (osoba fizyczna)" style="color:#B45309">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+              </span>
+              <?php endif; ?>
+              <span style="white-space:nowrap;font-weight:600"><?= h(crm_offer_money((float)$co['total_gross'], (string)$co['currency'])) ?></span>
+              <?= crm_offer_status_pill((string)$co['status'], true) ?>
+            </a>
+            <?php endforeach; ?>
+          </div>
+          <a href="<?= APP_URL ?>/crm/offers/index.php?contact_id=<?= (int)$id ?>"
+             class="btn btn-crm-outline btn-sm w-100 mt-3">Rejestr ofert tego klienta</a>
+          <?php else: ?>
+          <div class="cv-empty">
+            <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>
+            Brak ofert
+            <?php if ($offers_can_write): ?>
+            <div class="mt-1"><a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>">Przygotuj pierwszą →</a></div>
             <?php endif; ?>
           </div>
           <?php endif; ?>

@@ -48,6 +48,7 @@ $filters = [
     'stale_days'   => (int)($_GET['stale_days']  ?? 0) ?: '',
     'has_email'    => !empty($_GET['has_email'])  ? '1' : '',
     'has_phone'    => !empty($_GET['has_phone'])  ? '1' : '',
+    'uslugi'       => trim($_GET['uslugi']       ?? ''),
 ];
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 25;
@@ -627,7 +628,7 @@ include __DIR__ . '/includes/header_crm.php';
 
   <?php
   // Czy aktywny jest którykolwiek z filtrów zaawansowanych?
-  $adv_keys   = ['q_all','source','branza','powiat','gmina','created_from','created_to','last_from','last_to','stale_days','has_email','has_phone'];
+  $adv_keys   = ['q_all','source','branza','powiat','gmina','created_from','created_to','last_from','last_to','stale_days','has_email','has_phone','uslugi'];
   $adv_active = (bool)array_filter(array_intersect_key($filters, array_flip($adv_keys)));
   ?>
   <button type="button" class="btn btn-crm-outline btn-sm" id="crm-adv-toggle"
@@ -665,6 +666,20 @@ include __DIR__ . '/includes/header_crm.php';
         <span>Branża</span>
         <input type="text" name="branza" value="<?= h($filters['branza']) ?>"
                class="form-control form-control-sm" autocomplete="off">
+      </label>
+
+      <?php $_svc_filter_types = crm_service_types(false); ?>
+      <label class="crm-adv-field">
+        <span>Usługi na rzecz <?= h(org_setting('org_short_name') ?: 'FEER') ?></span>
+        <select name="uslugi" class="form-select form-select-sm">
+          <option value="">— dowolne —</option>
+          <option value="any"<?= $filters['uslugi'] === 'any' ? ' selected' : '' ?>>Świadczy usługi (dowolny rodzaj)</option>
+          <?php foreach ($_svc_filter_types as $t): ?>
+          <option value="<?= (int)$t['id'] ?>"<?= (string)$filters['uslugi'] === (string)$t['id'] ? ' selected' : '' ?>>
+            <?= h($t['nazwa']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
       </label>
 
       <?php if ($crm_sources): ?>

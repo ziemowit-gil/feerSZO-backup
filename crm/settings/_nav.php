@@ -84,6 +84,19 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   <a href="<?= APP_URL ?>/crm/settings/statuses.php" class="csn-link<?= $_sn_a('settings/statuses') ?>">
     <i class="bi bi-bookmark-fill"></i> Statusy
   </a>
+  <a href="<?= APP_URL ?>/crm/settings/services.php" class="csn-link<?= $_sn_a('settings/services') ?>">
+    <i class="bi bi-tools"></i> Rodzaje usług
+  </a>
+
+  <div class="csn-sep"></div>
+  <div class="csn-title">Oferty</div>
+
+  <a href="<?= APP_URL ?>/crm/settings/offers.php" class="csn-link<?= $_sn_a('settings/offers') ?>">
+    <i class="bi bi-file-earmark-ruled-fill"></i> Reguły ofert
+  </a>
+  <a href="<?= APP_URL ?>/crm/offers/catalog.php" class="csn-link<?= $_sn_a('offers/catalog') ?>">
+    <i class="bi bi-list-columns"></i> Katalog usług
+  </a>
 
   <div class="csn-sep"></div>
   <div class="csn-title">Automatyzacje</div>

@@ -181,6 +181,55 @@ function crm_db_status(): array {
     }
 }
 
+// ── Katalog rodzajów usług (otwarty) ─────────────────────────────────────────
+
+/** Pozycje katalogu rodzajów usług. */
+function crm_service_types(bool $only_active = true): array {
+    try {
+        return crm_all(
+            "SELECT * FROM crm_service_types" . ($only_active ? " WHERE is_active=1" : "")
+            . " ORDER BY sort_order, nazwa"
+        );
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Zwraca id rodzaju usługi o podanej nazwie, tworząc go, gdy jeszcze nie istnieje.
+ * Dzięki temu katalog jest otwarty — nową pozycję można dopisać wprost z karty
+ * kontaktu, bez wchodzenia w ustawienia. Dopasowanie bez rozróżniania wielkości liter.
+ */
+function crm_service_type_find_or_create(string $nazwa, ?int $user_id = null): int {
+    $nazwa = trim($nazwa);
+    if ($nazwa === '') return 0;
+    try {
+        $row = crm_one("SELECT id FROM crm_service_types WHERE LOWER(nazwa)=LOWER(?)", [$nazwa]);
+        if ($row) return (int)$row['id'];
+        $max = crm_one("SELECT MAX(sort_order) AS m FROM crm_service_types");
+        return crm_insert('crm_service_types', [
+            'nazwa'      => mb_substr($nazwa, 0, 120),
+            'is_active'  => 1,
+            'sort_order' => (int)($max['m'] ?? 0) + 1,
+            'created_by' => $user_id,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+/** Ilu kontaktów dotyczy dany rodzaj usługi — do ustawień katalogu. */
+function crm_service_type_usage(int $type_id): int {
+    try {
+        return (int)(crm_one(
+            "SELECT COUNT(*) AS c FROM crm_contact_services WHERE service_type_id=?", [$type_id]
+        )['c'] ?? 0);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
 // Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
 function crm_one(string $sql, array $p = []): ?array {
     $st = crm_db()->prepare($sql); $st->execute($p);
@@ -291,6 +340,8 @@ function crm_migrate(): void {
         // Wypisanie z wysyłek mailowych (kampanie + automatyzacje) — globalne, nie per-kampania
         "ALTER TABLE crm_contacts ADD COLUMN email_opt_out    INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE crm_contacts ADD COLUMN email_opt_out_at DATETIME",
+        // Kategoria „świadczy usługi na rzecz FEER" — rodzaje usług w crm_contact_services
+        "ALTER TABLE crm_contacts ADD COLUMN swiadczy_uslugi INTEGER NOT NULL DEFAULT 0",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
@@ -314,6 +365,51 @@ function crm_migrate(): void {
         created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+
+    // Osoby kontaktowe podmiotu — wiele osób do jednej firmy/organizacji.
+    // Zastępuje pojedyncze pole crm_contacts.osoba_kontaktowa, które jest teraz
+    // utrzymywane jako zdenormalizowana nazwa osoby głównej (dla list, eksportu i API).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_persons (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id    INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+        imie_nazwisko TEXT    NOT NULL,
+        stanowisko    TEXT,
+        email         TEXT,
+        telefon       TEXT,
+        notatka       TEXT,
+        is_primary    INTEGER NOT NULL DEFAULT 0,
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        linked_contact_id INTEGER REFERENCES crm_contacts(id) ON DELETE SET NULL,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cperson_contact ON crm_contact_persons(contact_id)");
+
+    // Otwarty katalog rodzajów usług świadczonych na rzecz organizacji.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_service_types (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        nazwa      TEXT    NOT NULL UNIQUE,
+        opis       TEXT,
+        is_active  INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Przypisanie rodzajów usług do kontaktu (kategoria „świadczy usługi na rzecz FEER").
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_services (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id      INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+        service_type_id INTEGER NOT NULL REFERENCES crm_service_types(id) ON DELETE CASCADE,
+        uwagi           TEXT,
+        od_kiedy        DATE,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(contact_id, service_type_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cservices_contact ON crm_contact_services(contact_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cservices_type    ON crm_contact_services(service_type_id)");
 
     // Relacje (wiele-do-wielu; kierunek: a → b; symetria wg potrzeby)
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_relations (
@@ -762,6 +858,49 @@ function crm_migrate(): void {
         $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_contract ON crm_cases(contract_type, contract_id) WHERE contract_type IS NOT NULL AND contract_id IS NOT NULL");
     } catch (\Throwable $e) {}
 
+    // Katalog rodzajów usług — seed startowy tylko przy pustej tabeli.
+    // Katalog jest otwarty: pozycje można dowolnie dodawać, zmieniać i usuwać
+    // w Ustawieniach CRM → Rodzaje usług, a także dopisywać wprost z karty kontaktu.
+    try {
+        $has_types = (int)($pdo->query("SELECT COUNT(*) AS c FROM crm_service_types")->fetch()['c'] ?? 0);
+        if ($has_types === 0) {
+            $ins = $pdo->prepare("INSERT OR IGNORE INTO crm_service_types (nazwa, sort_order) VALUES (?,?)");
+            foreach ([
+                'Usługi księgowe', 'Obsługa prawna', 'Usługi IT', 'Szkolenia i warsztaty',
+                'Tłumaczenia', 'Transport', 'Catering', 'Usługi remontowo-budowlane',
+                'Marketing i promocja', 'Fotografia / wideo', 'Wsparcie psychologiczne',
+                'Najem / udostępnianie lokalu',
+            ] as $i => $nazwa) {
+                $ins->execute([$nazwa, $i]);
+            }
+        }
+    } catch (\Throwable $e) {}
+
+    // Jednorazowe przeniesienie starego pola osoba_kontaktowa do crm_contact_persons.
+    // Kolumna zostaje jako zdenormalizowana nazwa osoby głównej (list, eksport, API),
+    // ale edycja odbywa się już wyłącznie przez tabelę osób kontaktowych.
+    try {
+        $migrated = db_one("SELECT value FROM settings WHERE key_='crm_contact_persons_migrated'");
+        if (!$migrated) {
+            $rows = $pdo->query(
+                "SELECT id, osoba_kontaktowa FROM crm_contacts
+                 WHERE osoba_kontaktowa IS NOT NULL AND TRIM(osoba_kontaktowa) != ''"
+            )->fetchAll();
+            $ins = $pdo->prepare(
+                "INSERT INTO crm_contact_persons (contact_id, imie_nazwisko, is_primary, sort_order, created_at)
+                 VALUES (?,?,1,0,?)"
+            );
+            $chk = $pdo->prepare("SELECT COUNT(*) AS c FROM crm_contact_persons WHERE contact_id=?");
+            foreach ($rows as $r) {
+                $chk->execute([(int)$r['id']]);
+                if ((int)($chk->fetch()['c'] ?? 0) > 0) continue;
+                $ins->execute([(int)$r['id'], trim($r['osoba_kontaktowa']), date('Y-m-d H:i:s')]);
+            }
+            $pdo->prepare("INSERT INTO settings (key_, value) VALUES ('crm_contact_persons_migrated', ?)")
+                ->execute([date('Y-m-d H:i:s')]);
+        }
+    } catch (\Throwable $e) {}
+
     // Schemat pism (dane rejestrowe + Postivo) — jedno źródło prawdy.
     // Wcześniej lista kolumn pisma była tu duplikowana i rozjeżdżała się z kodem.
     require_once __DIR__ . '/letters_schema.php';
@@ -1090,6 +1229,17 @@ class CrmManager
             $where[]  = "c.type = ?";
             $params[] = $filters['type'];
         }
+        // Kategoria „świadczy usługi na rzecz FEER" — sama flaga lub konkretny rodzaj usługi
+        if (!empty($filters['uslugi'])) {
+            if ($filters['uslugi'] === 'any') {
+                $where[] = "(c.swiadczy_uslugi = 1
+                             OR EXISTS (SELECT 1 FROM crm_contact_services cs WHERE cs.contact_id=c.id))";
+            } else {
+                $where[]  = "EXISTS (SELECT 1 FROM crm_contact_services cs
+                                     WHERE cs.contact_id=c.id AND cs.service_type_id=?)";
+                $params[] = (int)$filters['uslugi'];
+            }
+        }
         if (!empty($filters['tag'])) {
             $where[]  = "EXISTS (SELECT 1 FROM crm_tags t WHERE t.contact_id=c.id AND t.tag=?)";
             $params[] = $filters['tag'];
@@ -1159,6 +1309,8 @@ class CrmManager
         );
         $contact['relations']      = self::getRelations($id);
         $contact['groups']         = self::getContactGroups($id);
+        $contact['persons']        = self::getContactPersons($id);
+        $contact['services']       = self::getContactServices($id);
 
         return $contact;
     }
@@ -1186,6 +1338,8 @@ class CrmManager
             'wojewodztwo','powiat','gmina','teryt_kod',
             // strukturalny adres
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
+            // kategoria „świadczy usługi na rzecz FEER"
+            'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         $id = db_insert('crm_contacts', $data);
@@ -1212,6 +1366,8 @@ class CrmManager
             'wojewodztwo','powiat','gmina','teryt_kod',
             // strukturalny adres
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
+            // kategoria „świadczy usługi na rzecz FEER"
+            'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         db_update('crm_contacts', $data, $id);
@@ -1222,6 +1378,174 @@ class CrmManager
     {
         db()->prepare("UPDATE crm_contacts SET crm_active=0, updated_at=? WHERE id=?")
             ->execute([date('Y-m-d H:i:s'), $id]);
+    }
+
+    // ── Osoby kontaktowe podmiotu ─────────────────────────────────────────────
+    // Jedna firma/organizacja może mieć wiele osób kontaktowych. Pierwsza (lub
+    // oznaczona jako główna) jest kopiowana do crm_contacts.osoba_kontaktowa,
+    // dzięki czemu listy, eksport, import i REST API działają bez zmian.
+
+    public static function getContactPersons(int $contact_id): array
+    {
+        try {
+            return crm_all(
+                "SELECT p.*, c.imie_nazwisko AS linked_name, c.avatar_initials AS linked_initials
+                 FROM crm_contact_persons p
+                 LEFT JOIN crm_contacts c ON c.id = p.linked_contact_id
+                 WHERE p.contact_id = ?
+                 ORDER BY p.is_primary DESC, p.sort_order, p.id",
+                [$contact_id]
+            );
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    public static function getContactPerson(int $person_id): ?array
+    {
+        try {
+            return crm_one("SELECT * FROM crm_contact_persons WHERE id=?", [$person_id]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Dodaje osobę kontaktową. Pierwsza dodana zostaje automatycznie główną. */
+    public static function addContactPerson(int $contact_id, array $data, ?int $user_id = null): int
+    {
+        $name = trim((string)($data['imie_nazwisko'] ?? ''));
+        if ($name === '') return 0;
+
+        $existing = self::getContactPersons($contact_id);
+        $primary  = !empty($data['is_primary']) || !$existing;
+        $now      = date('Y-m-d H:i:s');
+
+        $pid = crm_insert('crm_contact_persons', [
+            'contact_id'    => $contact_id,
+            'imie_nazwisko' => $name,
+            'stanowisko'    => trim((string)($data['stanowisko'] ?? '')) ?: null,
+            'email'         => trim((string)($data['email']      ?? '')) ?: null,
+            'telefon'       => trim((string)($data['telefon']    ?? '')) ?: null,
+            'notatka'       => trim((string)($data['notatka']    ?? '')) ?: null,
+            'is_primary'    => $primary ? 1 : 0,
+            'sort_order'    => count($existing),
+            'linked_contact_id' => !empty($data['linked_contact_id']) ? (int)$data['linked_contact_id'] : null,
+            'created_by'    => $user_id,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+        if ($primary) self::setPrimaryContactPerson($contact_id, $pid);
+        else          self::syncPrimaryPersonName($contact_id);
+        return $pid;
+    }
+
+    public static function updateContactPerson(int $person_id, array $data): void
+    {
+        $person = self::getContactPerson($person_id);
+        if (!$person) return;
+        $fields = [];
+        foreach (['imie_nazwisko', 'stanowisko', 'email', 'telefon', 'notatka'] as $f) {
+            if (!array_key_exists($f, $data)) continue;
+            $v = trim((string)$data[$f]);
+            $fields[$f] = ($f === 'imie_nazwisko') ? $v : ($v ?: null);
+        }
+        if (isset($fields['imie_nazwisko']) && $fields['imie_nazwisko'] === '') unset($fields['imie_nazwisko']);
+        if (!$fields) return;
+        $fields['updated_at'] = date('Y-m-d H:i:s');
+        crm_update('crm_contact_persons', $fields, $person_id);
+        self::syncPrimaryPersonName((int)$person['contact_id']);
+    }
+
+    public static function deleteContactPerson(int $person_id): void
+    {
+        $person = self::getContactPerson($person_id);
+        if (!$person) return;
+        $contact_id = (int)$person['contact_id'];
+        crm_db()->prepare("DELETE FROM crm_contact_persons WHERE id=?")->execute([$person_id]);
+
+        // Gdy usunięto osobę główną — awansuj następną z listy.
+        if (!empty($person['is_primary'])) {
+            $next = self::getContactPersons($contact_id);
+            if ($next) { self::setPrimaryContactPerson($contact_id, (int)$next[0]['id']); return; }
+        }
+        self::syncPrimaryPersonName($contact_id);
+    }
+
+    /** Ustawia jedną osobę jako główną (pozostałe tracą flagę). */
+    public static function setPrimaryContactPerson(int $contact_id, int $person_id): void
+    {
+        try {
+            crm_db()->prepare("UPDATE crm_contact_persons SET is_primary=0 WHERE contact_id=?")
+                ->execute([$contact_id]);
+            crm_db()->prepare("UPDATE crm_contact_persons SET is_primary=1 WHERE id=? AND contact_id=?")
+                ->execute([$person_id, $contact_id]);
+        } catch (\Throwable $e) {}
+        self::syncPrimaryPersonName($contact_id);
+    }
+
+    /** Przepisuje nazwę osoby głównej do crm_contacts.osoba_kontaktowa. */
+    public static function syncPrimaryPersonName(int $contact_id): void
+    {
+        $persons = self::getContactPersons($contact_id);
+        $name    = $persons ? (string)$persons[0]['imie_nazwisko'] : null;
+        try {
+            crm_db()->prepare("UPDATE crm_contacts SET osoba_kontaktowa=?, updated_at=? WHERE id=?")
+                ->execute([$name, date('Y-m-d H:i:s'), $contact_id]);
+        } catch (\Throwable $e) {}
+    }
+
+    // ── Kategoria „świadczy usługi na rzecz FEER" ──────────────────────────────
+
+    public static function getContactServices(int $contact_id): array
+    {
+        try {
+            return crm_all(
+                "SELECT cs.*, st.nazwa, st.is_active AS type_active
+                 FROM crm_contact_services cs
+                 JOIN crm_service_types st ON st.id = cs.service_type_id
+                 WHERE cs.contact_id = ?
+                 ORDER BY st.sort_order, st.nazwa",
+                [$contact_id]
+            );
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Dopina rodzaj usługi do kontaktu i włącza kategorię.
+     * Kategoria bez wskazanego rodzaju też jest dopuszczalna — flagę ustawia
+     * setProvidesServices(), tu tylko pilnujemy spójności w drugą stronę.
+     */
+    public static function addContactService(int $contact_id, int $service_type_id,
+                                             ?string $uwagi = null, ?int $user_id = null): void
+    {
+        if ($service_type_id <= 0) return;
+        try {
+            crm_db()->prepare(
+                "INSERT OR IGNORE INTO crm_contact_services
+                    (contact_id, service_type_id, uwagi, created_by, created_at)
+                 VALUES (?,?,?,?,?)"
+            )->execute([$contact_id, $service_type_id, ($uwagi !== null && trim($uwagi) !== '') ? trim($uwagi) : null,
+                        $user_id, date('Y-m-d H:i:s')]);
+        } catch (\Throwable $e) { return; }
+        self::setProvidesServices($contact_id, true);
+    }
+
+    public static function removeContactService(int $link_id): void
+    {
+        try {
+            crm_db()->prepare("DELETE FROM crm_contact_services WHERE id=?")->execute([$link_id]);
+        } catch (\Throwable $e) {}
+    }
+
+    /** Włącza/wyłącza kategorię. Wyłączenie NIE kasuje historii przypisanych usług. */
+    public static function setProvidesServices(int $contact_id, bool $on): void
+    {
+        try {
+            crm_db()->prepare("UPDATE crm_contacts SET swiadczy_uslugi=?, updated_at=? WHERE id=?")
+                ->execute([$on ? 1 : 0, date('Y-m-d H:i:s'), $contact_id]);
+        } catch (\Throwable $e) {}
     }
 
     // ── Tagi ──────────────────────────────────────────────────────────────────

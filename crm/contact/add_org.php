@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
         'wojewodztwo'      => trim($_POST['wojewodztwo']       ?? '') ?: null,
         'powiat'           => trim($_POST['powiat']            ?? '') ?: null,
         'gmina'            => trim($_POST['gmina']             ?? '') ?: null,
+        'swiadczy_uslugi'  => !empty($_POST['swiadczy_uslugi']) ? 1 : 0,
     ];
 
     // Walidacja
@@ -123,11 +124,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
         $user_id = (int)(current_user()['id'] ?? 0);
         if ($is_edit) {
             CrmManager::updateContact($edit_id, $data);
+            // Pole „osoba kontaktowa" na formularzu edytuje osobę główną w rejestrze osób.
+            $_name = trim($_POST['osoba_kontaktowa'] ?? '');
+            $_pers = CrmManager::getContactPersons($edit_id);
+            if ($_name !== '' && $_pers) {
+                CrmManager::updateContactPerson((int)$_pers[0]['id'], [
+                    'imie_nazwisko' => $_name,
+                    'stanowisko'    => $_POST['stanowisko'] ?? '',
+                ]);
+            } elseif ($_name !== '') {
+                CrmManager::addContactPerson($edit_id, [
+                    'imie_nazwisko' => $_name,
+                    'stanowisko'    => $_POST['stanowisko'] ?? '',
+                    'is_primary'    => true,
+                ], $user_id);
+            }
             flash_set('success', 'Dane firmy zaktualizowane.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $edit_id);
         } else {
             $data['created_by'] = $user_id;
             $new_id = CrmManager::createContact($data);
+            // Pierwsza osoba kontaktowa trafia do rejestru osób (kolejne dodaje się z karty kontaktu).
+            if (trim($_POST['osoba_kontaktowa'] ?? '') !== '') {
+                CrmManager::addContactPerson($new_id, [
+                    'imie_nazwisko' => $_POST['osoba_kontaktowa'] ?? '',
+                    'stanowisko'    => $_POST['stanowisko']       ?? '',
+                    'email'         => $_POST['osoba_email']      ?? '',
+                    'telefon'       => $_POST['osoba_telefon']    ?? '',
+                    'is_primary'    => true,
+                ], $user_id);
+            }
+            foreach (array_map('intval', (array)($_POST['uslugi'] ?? [])) as $stid) {
+                CrmManager::addContactService($new_id, $stid, null, $user_id);
+            }
             flash_set('success', 'Kontakt firmy / organizacji dodany.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $new_id);
         }
@@ -411,8 +440,18 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-person-badge" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
-        Osoba kontaktowa
+        Osoba kontaktowa<?= $is_edit ? ' (główna)' : '' ?>
       </div>
+      <p class="field-hint mb-3" style="margin-top:-.4rem">
+        <?php if ($is_edit): ?>
+        To dane osoby <strong>głównej</strong>. Pozostałe osoby kontaktowe tego podmiotu
+        dodajesz i edytujesz na <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$edit_id ?>">karcie kontaktu</a>,
+        w panelu „Osoby kontaktowe”.
+        <?php else: ?>
+        Podmiot może mieć wiele osób kontaktowych — tutaj wpisz pierwszą (główną),
+        kolejne dodasz na karcie kontaktu po zapisaniu.
+        <?php endif; ?>
+      </p>
       <div class="row g-3">
         <div class="col-sm-6">
           <label class="form-label" for="osoba_kontaktowa">Imię i nazwisko</label>
@@ -441,7 +480,61 @@ include __DIR__ . '/../includes/header_crm.php';
             <option value="Asystent zarządu">
           </datalist>
         </div>
+        <?php if (!$is_edit): ?>
+        <div class="col-sm-6">
+          <label class="form-label" for="osoba_email">E-mail osoby kontaktowej</label>
+          <input type="email" name="osoba_email" id="osoba_email" class="form-control"
+                 value="<?= h($_POST['osoba_email'] ?? '') ?>" placeholder="np. a.nowak@example.com"
+                 autocomplete="email">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="osoba_telefon">Telefon osoby kontaktowej</label>
+          <input type="text" name="osoba_telefon" id="osoba_telefon" class="form-control"
+                 value="<?= h($_POST['osoba_telefon'] ?? '') ?>" placeholder="np. 600 100 200"
+                 autocomplete="tel">
+        </div>
+        <?php endif; ?>
       </div>
+    </div>
+  </div>
+
+  <!-- 4b. Usługi na rzecz organizacji -->
+  <?php $_svc_types = crm_service_types(true); $_org_short = org_setting('org_short_name') ?: 'FEER'; ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="sec-label">
+        <i class="bi bi-tools" style="color:#0F766E" aria-hidden="true"></i>
+        Usługi na rzecz <?= h($_org_short) ?>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" name="swiadczy_uslugi" id="swiadczy_uslugi" value="1" class="form-check-input"
+               <?= !empty($row['swiadczy_uslugi']) ? 'checked' : '' ?>>
+        <label class="form-check-label" for="swiadczy_uslugi">
+          <strong>Świadczy usługi na rzecz <?= h($_org_short) ?></strong>
+        </label>
+      </div>
+      <?php if (!$is_edit && $_svc_types): ?>
+      <fieldset>
+        <legend class="form-label mb-1" style="font-size:inherit">Rodzaje usług</legend>
+        <div class="row g-1">
+          <?php foreach ($_svc_types as $t): ?>
+          <div class="col-sm-6 col-lg-4">
+            <div class="form-check">
+              <input type="checkbox" name="uslugi[]" value="<?= (int)$t['id'] ?>"
+                     id="svc_<?= (int)$t['id'] ?>" class="form-check-input">
+              <label class="form-check-label small" for="svc_<?= (int)$t['id'] ?>"><?= h($t['nazwa']) ?></label>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </fieldset>
+      <p class="field-hint">Katalog jest otwarty — brakujący rodzaj dopiszesz na karcie kontaktu
+        albo w <a href="<?= APP_URL ?>/crm/settings/services.php">Ustawieniach CRM → Rodzaje usług</a>.</p>
+      <?php else: ?>
+      <p class="field-hint mb-0">Rodzaje usług przypisujesz na
+        <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$edit_id ?>">karcie kontaktu</a>,
+        w panelu „Usługi na rzecz <?= h($_org_short) ?>”.</p>
+      <?php endif; ?>
     </div>
   </div>
 
