@@ -53,10 +53,10 @@ function rz_month_bar(string $self, int $year, int $month, string $label, string
     $pv = rz_shift($year, $month, -1);
     $nx = rz_shift($year, $month, +1);
     return '<div class="rz-month">'
-         . '<a class="tz-btn tz-btn--ghost tz-btn--sm" href="' . h($self) . '?m=' . h($pv) . $q . '" aria-label="Poprzedni miesiąc"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>'
+         . '<a class="btn btn-sm btn-outline-secondary" href="' . h($self) . '?m=' . h($pv) . $q . '" aria-label="Poprzedni miesiąc"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>'
          . '<span class="lbl">' . h($label) . '</span>'
-         . '<a class="tz-btn tz-btn--ghost tz-btn--sm" href="' . h($self) . '?m=' . h($nx) . $q . '" aria-label="Następny miesiąc"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>'
-         . '<a class="tz-btn tz-btn--ghost tz-btn--sm" href="' . h($self) . '?m=' . h(date('Y-m')) . $q . '">Bieżący miesiąc</a>'
+         . '<a class="btn btn-sm btn-outline-secondary" href="' . h($self) . '?m=' . h($nx) . $q . '" aria-label="Następny miesiąc"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>'
+         . '<a class="btn btn-sm btn-outline-secondary" href="' . h($self) . '?m=' . h(date('Y-m')) . $q . '">Bieżący miesiąc</a>'
          . '</div>';
 }
 

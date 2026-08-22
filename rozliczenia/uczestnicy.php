@@ -32,17 +32,17 @@ $PAGE_TITLE = 'Uczestnicy';
 $RZ_ACTIVE  = 'uczestnicy';
 include __DIR__ . '/_head.php';
 ?>
-<div class="tz-h">
-  <h1>Uczestnicy</h1>
-  <p>Salda liczone bieżąco ze wszystkich grup uczestnika.</p>
+<div class="mb-3">
+  <h1 class="h4 fw-bold mb-1">Uczestnicy</h1>
+  <p class="text-body-secondary small mb-0">Salda liczone bieżąco ze wszystkich grup uczestnika.</p>
 </div>
 
 <?= rz_month_bar('uczestnicy.php', $rz_year, $rz_month, $rz_month_label, ($q !== '' ? 'q=' . rawurlencode($q) : '') . ($only ? ($q !== '' ? '&amp;' : '') . 'only=' . $only : '')) ?>
 <?= flash_html() ?>
 
-<div class="tz-card">
-  <div class="tz-card__hd"><i class="bi bi-search" aria-hidden="true"></i>Szukaj i filtruj</div>
-  <div class="tz-card__bd">
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2"><i class="bi bi-search" aria-hidden="true"></i>Szukaj i filtruj</div>
+  <div class="card-body">
     <form method="get" class="row g-2 align-items-end">
       <input type="hidden" name="m" value="<?= h($rz_ym) ?>">
       <div class="col-sm-6">
@@ -57,27 +57,27 @@ include __DIR__ . '/_head.php';
           <option value="credit" <?= $only === 'credit' ? 'selected' : '' ?>>tylko z nadpłatą</option>
         </select>
       </div>
-      <div class="col-sm-2"><button class="tz-btn w-100"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button></div>
+      <div class="col-sm-2"><button class="btn btn-primary w-100"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button></div>
     </form>
   </div>
 </div>
 
-<div class="tz-card">
-  <div class="tz-card__hd"><i class="bi bi-people" aria-hidden="true"></i>Lista
-    <span class="sp"></span><span class="tz-badge tz-badge--off"><?= count($list) ?></span></div>
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2"><i class="bi bi-people" aria-hidden="true"></i>Lista
+    <span class="sp"></span><span class="badge bg-light text-secondary border"><?= count($list) ?></span></div>
   <?php if (!$list): ?>
   <div class="rz-empty">Brak uczestników spełniających kryteria.</div>
   <?php else: ?>
   <div class="table-responsive">
-    <table class="rz-tbl">
+    <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Uczestnicy i ich salda rozliczeń</caption>
       <thead><tr>
         <th scope="col">Uczestnik</th>
-        <th scope="col" class="num">Grupy</th>
-        <th scope="col" class="num">Należności</th>
-        <th scope="col" class="num">Pokryte</th>
-        <th scope="col" class="num">Saldo</th>
-        <th scope="col" class="num">Akcje</th>
+        <th scope="col" class="rz-num">Grupy</th>
+        <th scope="col" class="rz-num">Należności</th>
+        <th scope="col" class="rz-num">Pokryte</th>
+        <th scope="col" class="rz-num">Saldo</th>
+        <th scope="col" class="rz-num">Akcje</th>
       </tr></thead>
       <tbody>
         <?php foreach ($list as $p): ?>
@@ -85,23 +85,23 @@ include __DIR__ . '/_head.php';
           <th scope="row" style="font-weight:600">
             <a href="uczestnik.php?client_id=<?= (int)$p['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($p['name']) ?></a>
           </th>
-          <td class="num"><?= (int)$p['groups'] ?></td>
-          <td class="num"><?= h(rz_zl($p['charges'])) ?></td>
-          <td class="num"><?= h(rz_zl($p['paid'])) ?></td>
-          <td class="num"><?= rz_saldo((float)$p['credit'], (float)$p['debt']) ?></td>
-          <td class="num">
+          <td class="rz-num"><?= (int)$p['groups'] ?></td>
+          <td class="rz-num"><?= h(rz_zl($p['charges'])) ?></td>
+          <td class="rz-num"><?= h(rz_zl($p['paid'])) ?></td>
+          <td class="rz-num"><?= rz_saldo((float)$p['credit'], (float)$p['debt']) ?></td>
+          <td class="rz-num">
             <?php if ($rz_can_write): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"   value="issue">
               <input type="hidden" name="notify" value="1">
               <input type="hidden" name="client_id" value="<?= (int)$p['client_id'] ?>">
-              <button class="tz-btn tz-btn--ghost tz-btn--sm" title="Wystaw rozliczenia za <?= h($rz_month_label) ?> i wyślij mail">
+              <button class="btn btn-sm btn-outline-secondary" title="Wystaw rozliczenia za <?= h($rz_month_label) ?> i wyślij mail">
                 <i class="bi bi-receipt" aria-hidden="true"></i>Wystaw + mail
               </button>
             </form>
             <?php endif; ?>
-            <a class="tz-btn tz-btn--ghost tz-btn--sm" target="_blank" rel="noopener"
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                href="<?= APP_URL ?>/karty30/ti/hours_pdf.php?client_id=<?= (int)$p['client_id'] ?>&amp;month=<?= $rz_month ?>&amp;year=<?= $rz_year ?>">
               <i class="bi bi-clock-history" aria-hidden="true"></i>Rozpiska
             </a>

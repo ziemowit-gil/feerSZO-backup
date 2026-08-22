@@ -25,9 +25,9 @@ $PAGE_TITLE = 'Faktury';
 $RZ_ACTIVE  = 'faktury';
 include __DIR__ . '/_head.php';
 ?>
-<div class="tz-h">
-  <h1>Faktury</h1>
-  <p>Wystawiamy je w systemie <strong><?= h(k30_ti_invoice_system()) ?></strong> — tutaj rejestrujemy numer i obowiązkowy skan PDF.</p>
+<div class="mb-3">
+  <h1 class="h4 fw-bold mb-1">Faktury</h1>
+  <p class="text-body-secondary small mb-0">Wystawiamy je w systemie <strong><?= h(k30_ti_invoice_system()) ?></strong> — tutaj rejestrujemy numer i obowiązkowy skan PDF.</p>
 </div>
 
 <?= rz_month_bar('faktury.php', $rz_year, $rz_month, $rz_month_label, $only_missing ? 'brak=1' : '') ?>
@@ -39,18 +39,18 @@ include __DIR__ . '/_head.php';
     <small><a href="faktury.php?m=<?= h($rz_ym) ?><?= $only_missing ? '' : '&amp;brak=1' ?>"><?= $only_missing ? 'pokaż wszystkie' : 'pokaż tylko braki' ?></a></small></div>
 </dl>
 
-<div class="tz-card">
-  <div class="tz-card__hd"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Rejestr</div>
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Rejestr</div>
   <?php if (!$rows): ?>
   <div class="rz-empty"><?= $only_missing ? 'Wszystkie rozliczenia mają wgrany skan faktury.' : 'Brak rozliczeń w tym miesiącu.' ?></div>
   <?php else: ?>
   <div class="table-responsive">
-    <table class="rz-tbl">
+    <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Faktury przypisane do rozliczeń</caption>
       <thead><tr>
         <th scope="col">Uczestnik</th><th scope="col">Grupa</th>
-        <th scope="col" class="num">Kwota</th><th scope="col">Numer faktury</th>
-        <th scope="col">Rodzaj</th><th scope="col">Skan</th><th scope="col" class="num">Akcje</th>
+        <th scope="col" class="rz-num">Kwota</th><th scope="col">Numer faktury</th>
+        <th scope="col">Rodzaj</th><th scope="col">Skan</th><th scope="col" class="rz-num">Akcje</th>
       </tr></thead>
       <tbody>
         <?php foreach ($rows as $b): $tot = (float)$b['amount'] + (float)($b['adjustment'] ?? 0); ?>
@@ -59,25 +59,25 @@ include __DIR__ . '/_head.php';
             <a href="uczestnik.php?client_id=<?= (int)$b['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($b['client_name']) ?></a>
           </th>
           <td><?= $b['course_name'] ? h($b['course_name']) : '<span class="rz-zero">łączne</span>' ?></td>
-          <td class="num"><?= h(rz_zl($tot)) ?></td>
+          <td class="rz-num"><?= h(rz_zl($tot)) ?></td>
           <td><?= !empty($b['invoice_no']) ? h($b['invoice_no']) : '<span class="rz-zero">—</span>' ?>
             <?php if (!empty($b['invoice_issued_on'])): ?>
             <div class="rz-zero" style="font-size:.75rem"><?= h(date('d.m.Y', strtotime((string)$b['invoice_issued_on']))) ?></div>
             <?php endif; ?>
           </td>
           <td><?= ($b['invoice_kind'] ?? '') === 'oneoff'
-                 ? '<span class="tz-badge tz-badge--warn">jednorazowa</span>'
-                 : '<span class="tz-badge tz-badge--off">cykliczna</span>' ?></td>
+                 ? '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">jednorazowa</span>'
+                 : '<span class="badge bg-light text-secondary border">cykliczna</span>' ?></td>
           <td>
             <?php if (!empty($b['invoice_path'])): ?>
             <a href="<?= APP_URL ?>/karty30/ti/billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">
               <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> <?= h($b['invoice_name'] ?: 'faktura.pdf') ?></a>
             <?php else: ?>
-            <span class="tz-badge tz-badge--bad"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>brak</span>
+            <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>brak</span>
             <?php endif; ?>
           </td>
-          <td class="num">
-            <a class="tz-btn tz-btn--ghost tz-btn--sm" href="uczestnik.php?client_id=<?= (int)$b['client_id'] ?>&amp;m=<?= h($rz_ym) ?>#fv<?= (int)$b['id'] ?>">
+          <td class="rz-num">
+            <a class="btn btn-sm btn-outline-secondary" href="uczestnik.php?client_id=<?= (int)$b['client_id'] ?>&amp;m=<?= h($rz_ym) ?>#fv<?= (int)$b['id'] ?>">
               <i class="bi bi-upload" aria-hidden="true"></i>Skan / numer
             </a>
             <?php if ($rz_can_write): ?>
@@ -85,7 +85,7 @@ include __DIR__ . '/_head.php';
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"   value="mail">
               <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <button class="tz-btn tz-btn--ghost tz-btn--sm" title="Wyślij mail z rozliczeniem"><i class="bi bi-envelope" aria-hidden="true"></i>Mail</button>
+              <button class="btn btn-sm btn-outline-secondary" title="Wyślij mail z rozliczeniem"><i class="bi bi-envelope" aria-hidden="true"></i>Mail</button>
             </form>
             <?php endif; ?>
           </td>
@@ -94,7 +94,7 @@ include __DIR__ . '/_head.php';
       </tbody>
     </table>
   </div>
-  <div class="tz-card__ft">Bez wgranego skanu nie da się zapisać danych faktury — to celowa blokada.</div>
+  <div class="card-footer small text-body-secondary">Bez wgranego skanu nie da się zapisać danych faktury — to celowa blokada.</div>
   <?php endif; ?>
 </div>
 <?php include __DIR__ . '/_foot.php'; ?>

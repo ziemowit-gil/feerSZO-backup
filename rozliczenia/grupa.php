@@ -29,9 +29,9 @@ $PAGE_TITLE = $course['name'];
 $RZ_ACTIVE  = 'grupy';
 include __DIR__ . '/_head.php';
 ?>
-<div class="tz-h">
-  <h1><?= h($course['name']) ?></h1>
-  <p>
+<div class="mb-3">
+  <h1 class="h4 fw-bold mb-1"><?= h($course['name']) ?></h1>
+  <p class="text-body-secondary small mb-0">
     <?php if (!empty($course['group_code'])): ?>Kod grupy: <strong><?= h($course['group_code']) ?></strong> · <?php endif; ?>
     Model rozliczania: <strong><?= h($model) ?></strong>
     <?php if (!empty($course['instructor_name'])): ?> · Prowadzący: <strong><?= h($course['instructor_name']) ?></strong><?php endif; ?>
@@ -52,15 +52,15 @@ include __DIR__ . '/_head.php';
     <small>zaliczane na kolejne zajęcia w tej grupie</small></div>
 </dl>
 
-<div class="tz-card">
-  <div class="tz-card__hd">
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-people" aria-hidden="true"></i>Uczestnicy
     <span class="sp"></span>
-    <a class="tz-btn tz-btn--ghost tz-btn--sm" target="_blank" rel="noopener"
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
        href="<?= APP_URL ?>/karty30/ti/billing_fv_summary.php?course_id=<?= $course_id ?>&amp;month=<?= $rz_month ?>&amp;year=<?= $rz_year ?>">
       <i class="bi bi-printer" aria-hidden="true"></i>Pozycje do FVAT
     </a>
-    <a class="tz-btn tz-btn--ghost tz-btn--sm" target="_blank" rel="noopener"
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
        href="<?= APP_URL ?>/karty30/ti/group_monthly.php?course_id=<?= $course_id ?>&amp;m=<?= h($rz_ym) ?>">
       <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>Raport grupy
     </a>
@@ -69,15 +69,15 @@ include __DIR__ . '/_head.php';
   <div class="rz-empty">Brak uczestników i rozliczeń w tej grupie.</div>
   <?php else: ?>
   <div class="table-responsive">
-    <table class="rz-tbl">
+    <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Uczestnicy grupy i ich rozliczenia</caption>
       <thead><tr>
         <th scope="col">Uczestnik</th>
-        <th scope="col" class="num">Należności <?= h(mb_strtolower(RZ_MONTHS_PL[$rz_month] ?? '')) ?></th>
-        <th scope="col" class="num">Pokryte (bieżąco)</th>
-        <th scope="col" class="num">Saldo w grupie</th>
+        <th scope="col" class="rz-num">Należności <?= h(mb_strtolower(RZ_MONTHS_PL[$rz_month] ?? '')) ?></th>
+        <th scope="col" class="rz-num">Pokryte (bieżąco)</th>
+        <th scope="col" class="rz-num">Saldo w grupie</th>
         <th scope="col">Faktura</th>
-        <th scope="col" class="num">Akcje</th>
+        <th scope="col" class="rz-num">Akcje</th>
       </tr></thead>
       <tbody>
         <?php foreach ($sum['participants'] as $p):
@@ -86,29 +86,29 @@ include __DIR__ . '/_head.php';
           <th scope="row" style="font-weight:600">
             <a href="uczestnik.php?client_id=<?= (int)$p['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($p['client_name']) ?></a>
           </th>
-          <td class="num"><?= $p['m_charges'] > 0.005 ? h(rz_zl($p['m_charges'])) : '<span class="rz-zero">—</span>' ?></td>
-          <td class="num"><?= h(rz_zl($p['paid'])) ?></td>
-          <td class="num"><?= rz_saldo((float)$p['credit'], (float)$p['debt']) ?></td>
+          <td class="rz-num"><?= $p['m_charges'] > 0.005 ? h(rz_zl($p['m_charges'])) : '<span class="rz-zero">—</span>' ?></td>
+          <td class="rz-num"><?= h(rz_zl($p['paid'])) ?></td>
+          <td class="rz-num"><?= rz_saldo((float)$p['credit'], (float)$p['debt']) ?></td>
           <td>
             <?php if ($b && !empty($b['invoice_path'])): ?>
               <a href="<?= APP_URL ?>/karty30/ti/billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">
                 <?= h($b['invoice_no'] ?: 'skan') ?></a>
               <?php if (($b['invoice_kind'] ?? '') === 'oneoff'): ?>
-              <span class="tz-badge tz-badge--warn">jednorazowa</span>
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">jednorazowa</span>
               <?php endif; ?>
             <?php elseif ($b): ?>
-              <span class="tz-badge tz-badge--warn"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>brak skanu</span>
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>brak skanu</span>
             <?php else: ?>
               <span class="rz-zero">—</span>
             <?php endif; ?>
           </td>
-          <td class="num">
+          <td class="rz-num">
             <?php if ($rz_can_write): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"   value="issue">
               <input type="hidden" name="client_id" value="<?= (int)$p['client_id'] ?>">
-              <button class="tz-btn tz-btn--ghost tz-btn--sm" title="Wystaw rozliczenia za ten miesiąc">
+              <button class="btn btn-sm btn-outline-secondary" title="Wystaw rozliczenia za ten miesiąc">
                 <i class="bi bi-receipt" aria-hidden="true"></i>Wystaw
               </button>
             </form>
@@ -117,13 +117,13 @@ include __DIR__ . '/_head.php';
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"   value="mail">
               <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <button class="tz-btn tz-btn--ghost tz-btn--sm" title="Wyślij mail z rozliczeniem">
+              <button class="btn btn-sm btn-outline-secondary" title="Wyślij mail z rozliczeniem">
                 <i class="bi bi-envelope" aria-hidden="true"></i>Mail
               </button>
             </form>
             <?php endif; ?>
             <?php endif; ?>
-            <a class="tz-btn tz-btn--ghost tz-btn--sm" target="_blank" rel="noopener"
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                href="<?= APP_URL ?>/karty30/ti/hours_pdf.php?client_id=<?= (int)$p['client_id'] ?>&amp;month=<?= $rz_month ?>&amp;year=<?= $rz_year ?>&amp;course_id=<?= $course_id ?>"
                title="Rozpiska godzin dla beneficjenta">
               <i class="bi bi-clock-history" aria-hidden="true"></i>Rozpiska
@@ -138,9 +138,9 @@ include __DIR__ . '/_head.php';
 </div>
 
 <?php if ($rz_can_write && $sum['participants']): ?>
-<div class="tz-card">
-  <div class="tz-card__hd"><i class="bi bi-cash-stack" aria-hidden="true"></i>Zaksięguj wpłatę na tę grupę</div>
-  <div class="tz-card__bd">
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2"><i class="bi bi-cash-stack" aria-hidden="true"></i>Zaksięguj wpłatę na tę grupę</div>
+  <div class="card-body">
     <form method="post" class="row g-2 align-items-end">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_op"   value="payment">
@@ -168,14 +168,14 @@ include __DIR__ . '/_head.php';
         </select>
       </div>
       <div class="col-sm-2">
-        <button class="tz-btn w-100"><i class="bi bi-plus-lg" aria-hidden="true"></i>Zapisz wpłatę</button>
+        <button class="btn btn-primary w-100"><i class="bi bi-plus-lg" aria-hidden="true"></i>Zapisz wpłatę</button>
       </div>
       <div class="col-12">
         <input type="text" name="note" class="form-control form-control-sm" placeholder="Notatka (opcjonalnie), np. tytuł przelewu">
       </div>
     </form>
   </div>
-  <div class="tz-card__ft">
+  <div class="card-footer small text-body-secondary">
     Wpłata zaksięgowana na grupę pokrywa wyłącznie należności tej grupy; nadwyżka zostaje jako nadpłata tej grupy.
     Wpłatę ogólną (FIFO po wszystkich grupach) zapiszesz na karcie uczestnika.
   </div>

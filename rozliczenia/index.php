@@ -12,9 +12,9 @@ $PAGE_TITLE = 'Pulpit rozliczeń';
 $RZ_ACTIVE  = 'pulpit';
 include __DIR__ . '/_head.php';
 ?>
-<div class="tz-h">
-  <h1>Pulpit rozliczeń</h1>
-  <p>Model kombinowany — każda grupa (przedmiot) ma osobne rozliczenie, własny model naliczania i własne saldo.</p>
+<div class="mb-3">
+  <h1 class="h4 fw-bold mb-1">Pulpit rozliczeń</h1>
+  <p class="text-body-secondary small mb-0">Model kombinowany — każda grupa (przedmiot) ma osobne rozliczenie, własny model naliczania i własne saldo.</p>
 </div>
 
 <?= rz_month_bar('index.php', $rz_year, $rz_month, $rz_month_label) ?>
@@ -42,7 +42,7 @@ include __DIR__ . '/_head.php';
   </div>
 </dl>
 
-<div class="rz-note">
+<div class="alert alert-primary d-flex gap-2 align-items-start py-2 px-3 small" role="note">
   <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
   <div>
     Salda (nadpłaty/niedopłaty) są <strong>bieżące</strong> i liczone per grupa: wpłata zaksięgowana na grupę
@@ -51,23 +51,23 @@ include __DIR__ . '/_head.php';
   </div>
 </div>
 
-<div class="tz-card">
-  <div class="tz-card__hd">
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-collection" aria-hidden="true"></i>Grupy w tym miesiącu
     <span class="sp"></span>
-    <a class="tz-btn tz-btn--ghost tz-btn--sm" href="grupy.php?m=<?= h($rz_ym) ?>">Wszystkie grupy</a>
+    <a class="btn btn-sm btn-outline-secondary" href="grupy.php?m=<?= h($rz_ym) ?>">Wszystkie grupy</a>
   </div>
   <?php if ($ov['groups']): ?>
   <div class="table-responsive">
-    <table class="rz-tbl">
+    <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Rozliczenia grup w wybranym miesiącu</caption>
       <thead>
         <tr>
           <th scope="col">Grupa / przedmiot</th>
-          <th scope="col" class="num">Uczestnicy</th>
-          <th scope="col" class="num">Należności</th>
-          <th scope="col" class="num">Pokryte</th>
-          <th scope="col" class="num">Saldo grupy</th>
+          <th scope="col" class="rz-num">Uczestnicy</th>
+          <th scope="col" class="rz-num">Należności</th>
+          <th scope="col" class="rz-num">Pokryte</th>
+          <th scope="col" class="rz-num">Saldo grupy</th>
           <th scope="col">Faktury</th>
         </tr>
       </thead>
@@ -78,23 +78,23 @@ include __DIR__ . '/_head.php';
             <?php if ($g['course_id'] > 0): ?>
             <a href="grupa.php?id=<?= (int)$g['course_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($g['course_name']) ?></a>
             <?php if ($g['group_code'] !== ''): ?>
-            <div><span class="tz-badge tz-badge--off"><?= h($g['group_code']) ?></span></div>
+            <div><span class="badge bg-light text-secondary border"><?= h($g['group_code']) ?></span></div>
             <?php endif; ?>
             <?php else: ?>
             <span class="rz-zero"><?= h($g['course_name']) ?></span>
             <?php endif; ?>
           </th>
-          <td class="num"><?= (int)$g['participants'] ?></td>
-          <td class="num"><?= h(rz_zl($g['charges'])) ?></td>
-          <td class="num"><?= h(rz_zl($g['paid'])) ?></td>
-          <td class="num"><?= rz_saldo((float)$g['credit'], (float)$g['debt']) ?></td>
+          <td class="rz-num"><?= (int)$g['participants'] ?></td>
+          <td class="rz-num"><?= h(rz_zl($g['charges'])) ?></td>
+          <td class="rz-num"><?= h(rz_zl($g['paid'])) ?></td>
+          <td class="rz-num"><?= rz_saldo((float)$g['credit'], (float)$g['debt']) ?></td>
           <td>
             <?php if ($g['no_invoice'] > 0): ?>
-            <span class="tz-badge tz-badge--warn" title="Rozliczenia bez wgranego skanu faktury">
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Rozliczenia bez wgranego skanu faktury">
               <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>brak skanu: <?= (int)$g['no_invoice'] ?>
             </span>
             <?php else: ?>
-            <span class="tz-badge tz-badge--ok"><i class="bi bi-check2" aria-hidden="true"></i>komplet</span>
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-check2" aria-hidden="true"></i>komplet</span>
             <?php endif; ?>
           </td>
         </tr>
@@ -102,31 +102,33 @@ include __DIR__ . '/_head.php';
       </tbody>
     </table>
   </div>
-  <div class="tz-card__ft">
+  <div class="card-footer small text-body-secondary">
     „Pokryte" to wpłaty zaliczone na należności tej grupy (również z wpłat ogólnych). Saldo grupy jest bieżące — obejmuje wszystkie okresy.
   </div>
   <?php else: ?>
   <div class="rz-empty">Brak wystawionych rozliczeń w tym miesiącu.
-    <div class="mt-2"><a class="tz-btn tz-btn--sm" href="grupy.php?m=<?= h($rz_ym) ?>">Przejdź do grup i wystaw rozliczenia</a></div>
+    <div class="mt-2"><a class="btn btn-sm btn-primary" href="grupy.php?m=<?= h($rz_ym) ?>">Przejdź do grup i wystaw rozliczenia</a></div>
   </div>
   <?php endif; ?>
 </div>
 
-<div class="tz-card">
-  <div class="tz-card__hd">
+<div class="card mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>Uczestnicy z niedopłatą
     <span class="sp"></span>
-    <span class="tz-badge tz-badge--<?= count($ov['debtors']) ? 'bad' : 'ok' ?>"><?= count($ov['debtors']) ?></span>
+    <span class="badge <?= count($ov['debtors'])
+          ? 'bg-danger-subtle text-danger-emphasis border border-danger-subtle'
+          : 'bg-success-subtle text-success-emphasis border border-success-subtle' ?>"><?= count($ov['debtors']) ?></span>
   </div>
   <?php if ($ov['debtors']): ?>
   <div class="table-responsive">
-    <table class="rz-tbl">
+    <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Uczestnicy z zaległościami</caption>
       <thead><tr>
         <th scope="col">Uczestnik</th>
-        <th scope="col" class="num">Niedopłata</th>
-        <th scope="col" class="num">Nadpłata</th>
-        <th scope="col" class="num">Akcje</th>
+        <th scope="col" class="rz-num">Niedopłata</th>
+        <th scope="col" class="rz-num">Nadpłata</th>
+        <th scope="col" class="rz-num">Akcje</th>
       </tr></thead>
       <tbody>
         <?php foreach (array_slice($ov['debtors'], 0, 25, true) as $dbt): ?>
@@ -135,9 +137,9 @@ include __DIR__ . '/_head.php';
             <a href="uczestnik.php?client_id=<?= (int)$dbt['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($dbt['client_name']) ?></a>
           </th>
           <td class="num rz-neg"><?= h(rz_zl($dbt['debt'])) ?></td>
-          <td class="num"><?= $dbt['credit'] > 0.005 ? '<span class="rz-pos">' . h(rz_zl($dbt['credit'])) . '</span>' : '<span class="rz-zero">—</span>' ?></td>
-          <td class="num">
-            <a class="tz-btn tz-btn--ghost tz-btn--sm" target="_blank" rel="noopener"
+          <td class="rz-num"><?= $dbt['credit'] > 0.005 ? '<span class="rz-pos">' . h(rz_zl($dbt['credit'])) . '</span>' : '<span class="rz-zero">—</span>' ?></td>
+          <td class="rz-num">
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                href="<?= APP_URL ?>/karty30/ti/hours_pdf.php?client_id=<?= (int)$dbt['client_id'] ?>&amp;month=<?= $rz_month ?>&amp;year=<?= $rz_year ?>">
               <i class="bi bi-clock-history" aria-hidden="true"></i>Rozpiska
             </a>
@@ -148,7 +150,7 @@ include __DIR__ . '/_head.php';
     </table>
   </div>
   <?php if (count($ov['debtors']) > 25): ?>
-  <div class="tz-card__ft">Pokazano 25 z <?= count($ov['debtors']) ?> — pełna lista w zakładce <a href="uczestnicy.php?m=<?= h($rz_ym) ?>">Uczestnicy</a>.</div>
+  <div class="card-footer small text-body-secondary">Pokazano 25 z <?= count($ov['debtors']) ?> — pełna lista w zakładce <a href="uczestnicy.php?m=<?= h($rz_ym) ?>">Uczestnicy</a>.</div>
   <?php endif; ?>
   <?php else: ?>
   <div class="rz-empty">Brak zaległości — wszystkie należności uczestników rozliczonych w tym miesiącu są pokryte.</div>
