@@ -443,7 +443,7 @@ function crm_contact_contracts(array $contact): array
 }
 
 /** Po ilu dniach bez ruchu sprawa jest proponowana do zamknięcia. */
-const CRM_CASE_STALE_DAYS = 30;
+const CRM_CASE_STALE_DAYS = 60;
 
 /**
  * Czy sprawa nadaje się do zamknięcia — leży bez ruchu dłużej niż próg.

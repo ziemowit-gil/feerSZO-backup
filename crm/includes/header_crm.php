@@ -572,11 +572,14 @@ window.openCommModal = function(contactId, channel) {
       // liczbą z całej organizacji. Cicho, gdy kolumna jeszcze nie migrowana.
       $_stale_n = 0;
       try {
+          // Próg z jednego miejsca (CRM_CASE_STALE_DAYS) — wpisany na sztywno
+          // rozjechałby licznik z listą i banerem po każdej zmianie progu.
           $_stale_n = (int)(db_one(
               "SELECT COUNT(*) AS c FROM crm_cases
                 WHERE status NOT IN ('closed','cancelled') AND created_by = ?
-                  AND COALESCE(stale_ack_at, updated_at, created_at) < datetime('now','-30 days')",
-              [(int)($_cu['id'] ?? 0)]
+                  AND COALESCE(stale_ack_at, updated_at, created_at)
+                      < datetime('now', '-' || ? || ' days')",
+              [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
           )['c'] ?? 0);
       } catch (\Throwable $e) {}
     ?>
