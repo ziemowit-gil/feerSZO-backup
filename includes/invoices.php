@@ -78,10 +78,6 @@ function invoices_migrate(): void
         updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
         deleted_at      DATETIME
     )");
-    // Faktura testowa: numer z przedrostkiem TEST, nie idzie do żadnego systemu
-    // zewnętrznego i nie zakłada koszulki w SZO. Osobna kolumna, nie sam prefiks
-    // numeru — po numerze nie da się filtrować pewnie, a decyzje zależą od tej flagi.
-    try { $pdo->exec("ALTER TABLE invoices ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // KSeF: numer nadany przez system, numery referencyjne sesji i wysyłki oraz UPO.
     foreach ([
@@ -93,12 +89,22 @@ function invoices_migrate(): void
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
 
+    // Faktura testowa: numer z przedrostkiem TEST, nie idzie do żadnego systemu
+    // zewnętrznego i nie zakłada koszulki w SZO. Osobna kolumna, nie sam prefiks
+    // numeru — po numerze nie da się filtrować pewnie, a decyzje zależą od tej
+    // flagi. Musi istnieć PRZED indeksem idx_inv_source_test, który jej używa.
+    try { $pdo->exec("ALTER TABLE invoices ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_status  ON invoices(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_contact ON invoices(contact_id)");
-    // Jedna faktura na źródło — druga próba wystawienia z tej samej oferty
-    // czy rozliczenia ma trafić na istniejący dokument, nie stworzyć duplikatu.
-    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_inv_source
-                ON invoices(source, source_id) WHERE source_id IS NOT NULL AND deleted_at IS NULL");
+    // Jedna faktura na źródło — druga próba wystawienia z tej samej oferty czy
+    // rozliczenia ma trafić na istniejący dokument, nie stworzyć duplikatu.
+    // is_test jest częścią klucza: faktura demo NIE MOŻE zajmować miejsca
+    // prawdziwej, więc z jednego źródła mogą istnieć równolegle dwie — jedna
+    // produkcyjna i jedna testowa.
+    try { $pdo->exec("DROP INDEX IF EXISTS idx_inv_source"); } catch (\Throwable $e) {}
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_inv_source_test
+                ON invoices(source, source_id, is_test) WHERE source_id IS NOT NULL AND deleted_at IS NULL");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS invoice_items (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -589,6 +595,46 @@ function invoice_send_to_buyer(int $id): array
     return ['ok' => true, 'to' => $to];
 }
 
+/**
+ * Wystawia fakturę DEMO ze źródła jednym krokiem: szkic → numer TEST/… → PDF.
+ *
+ * Dla administratora, do sprawdzenia jak wygląda gotowy dokument na prawdziwych
+ * danych, bez ryzyka. Demo nie zużywa numeru produkcyjnego, nie idzie do
+ * Fakturowni ani KSeF i nie jest wysyłane nabywcy (patrz invoice_is_test).
+ * Ma własną „przegrodę" w indeksie źródła, więc nie blokuje faktury prawdziwej.
+ *
+ * @param string $source 'offer' albo 'ti_billing'
+ * @return array{ok:bool,error?:string,id?:int,number?:string,pdf?:string}
+ */
+function invoice_demo_issue(string $source, int $source_id, int $uid): array
+{
+    $r = match ($source) {
+        'offer'      => invoice_from_offer($source_id, $uid, true),
+        'ti_billing' => invoice_from_ti_billing($source_id, $uid, true),
+        default      => ['ok' => false, 'error' => 'Nieznane źródło faktury demo.'],
+    };
+    if (empty($r['ok'])) return $r;
+
+    $id  = (int)$r['id'];
+    $inv = invoice_get($id);
+
+    // Istniejące demo mogło już zostać wystawione — wtedy tylko je pokazujemy.
+    if ($inv && empty($inv['number'])) {
+        $iss = invoice_issue_local($id);
+        if (empty($iss['ok'])) return ['ok' => false, 'error' => (string)$iss['error']];
+    }
+
+    $pdf = invoice_pdf_store($id);
+    $inv = invoice_get($id);
+
+    return [
+        'ok'     => true,
+        'id'     => $id,
+        'number' => (string)($inv['number'] ?? ''),
+        'pdf'    => (string)($pdf ?? ''),
+    ];
+}
+
 // ── Fakturownia: wystawianie i synchronizacja ────────────────────────────────
 
 /**
@@ -780,13 +826,14 @@ function invoice_buyer_from_contact(array $c): array
  *
  * @return array{ok:bool,id?:int,error?:string}
  */
-function invoice_from_offer(int $offer_id, int $uid): array
+function invoice_from_offer(int $offer_id, int $uid, bool $demo = false): array
 {
     invoices_migrate();
 
+    // Faktura demo żyje obok produkcyjnej — szukamy tylko w swojej „przegrodzie".
     $existing = db_one(
-        "SELECT id FROM invoices WHERE source='offer' AND source_id=? AND deleted_at IS NULL",
-        [$offer_id]
+        "SELECT id FROM invoices WHERE source='offer' AND source_id=? AND is_test=? AND deleted_at IS NULL",
+        [$offer_id, $demo ? 1 : 0]
     );
     if ($existing) return ['ok' => true, 'id' => (int)$existing['id'], 'existing' => true];
 
@@ -833,6 +880,7 @@ function invoice_from_offer(int $offer_id, int $uid): array
     $data = invoice_buyer_from_contact($contact) + [
         'source'     => 'offer',
         'source_id'  => $offer_id,
+        'is_test'    => $demo ? 1 : 0,
         'currency'   => (string)$offer['currency'],
         'payment_to' => date('Y-m-d', strtotime('+' . max(0, (int)$offer['payment_terms_days']) . ' days')),
         'notes'      => 'Oferta ' . $offer['offer_number'] . ' — ' . $offer['title'],
@@ -850,13 +898,13 @@ function invoice_from_offer(int $offer_id, int $uid): array
  *
  * @return array{ok:bool,id?:int,error?:string}
  */
-function invoice_from_ti_billing(int $billing_id, int $uid): array
+function invoice_from_ti_billing(int $billing_id, int $uid, bool $demo = false): array
 {
     invoices_migrate();
 
     $existing = db_one(
-        "SELECT id FROM invoices WHERE source='ti_billing' AND source_id=? AND deleted_at IS NULL",
-        [$billing_id]
+        "SELECT id FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=? AND deleted_at IS NULL",
+        [$billing_id, $demo ? 1 : 0]
     );
     if ($existing) return ['ok' => true, 'id' => (int)$existing['id'], 'existing' => true];
 
@@ -929,6 +977,7 @@ function invoice_from_ti_billing(int $billing_id, int $uid): array
     $data += [
         'source'     => 'ti_billing',
         'source_id'  => $billing_id,
+        'is_test'    => $demo ? 1 : 0,
         'payment_to' => (string)($b['due_date'] ?? '') ?: date('Y-m-d', strtotime('+' . $cfg['days'] . ' days')),
         'notes'      => 'Rozliczenie TI ' . $okres . ' — ' . $b['client_name']
                         . ($group_txt !== '' ? ' (' . $group_txt . ')' : ''),

@@ -57,6 +57,27 @@ case 'invoice':
     header('Location: ' . APP_URL . '/crm/invoices/view.php?id=' . (int)$res['id']);
     exit;
 
+// ── FVAT demo z oferty (tylko administrator) ────────────────────────────────
+// Jeden krok: szkic → numer TEST/… → PDF. Nie zużywa numeru produkcyjnego,
+// nie idzie do Fakturowni ani KSeF i nie blokuje faktury prawdziwej.
+case 'invoice_demo':
+    if (!is_admin()) {
+        flash_set('danger', 'Faktura demo jest dostępna tylko dla administratora.');
+        break;
+    }
+    if (!module_enabled('invoices_enabled')) {
+        flash_set('warning', 'Moduł Faktury jest wyłączony.');
+        break;
+    }
+    require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
+    $res = invoice_demo_issue('offer', $id, $uid);
+    if (empty($res['ok'])) {
+        flash_set('danger', 'Nie udało się wygenerować faktury demo: ' . (string)$res['error']);
+        break;
+    }
+    header('Location: ' . APP_URL . '/crm/invoices/pdf.php?id=' . (int)$res['id']);
+    exit;
+
 // ── Wysyłka oferty do klienta ───────────────────────────────────────────────
 case 'send':
     if (!in_array($offer['status'], ['szkic', 'wyslana', 'do_zatwierdzenia'], true)) {

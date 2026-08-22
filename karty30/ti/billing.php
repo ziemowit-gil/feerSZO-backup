@@ -245,6 +245,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     // Faktura wystawiana w SZO (moduł Faktury → Fakturownia/KSeF). Tworzy wyłącznie
     // SZKIC — wystawienie dokumentu jest osobną decyzją na jego karcie.
     // OSOBNE od upload_invoice poniżej, które rejestruje skan faktury z zewnątrz.
+    // FVAT demo dla uczestnika — tylko administrator. Jeden krok: szkic → numer
+    // TEST/… → PDF. Nie zużywa numeru produkcyjnego i nie blokuje prawdziwej faktury.
+    if ($op === 'demo_invoice') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if (!is_admin()) {
+            flash_set('danger', 'Faktura demo jest dostępna tylko dla administratora.');
+        } elseif (!module_enabled('invoices_enabled')) {
+            flash_set('warning', 'Moduł Faktury jest wyłączony.');
+        } else {
+            $res = invoice_demo_issue('ti_billing', $bid, (int)(current_user()['id'] ?? 0));
+            if (empty($res['ok'])) {
+                flash_set('danger', 'Nie udało się wygenerować faktury demo: ' . (string)$res['error']);
+            } else {
+                header('Location: ' . APP_URL . '/crm/invoices/pdf.php?id=' . (int)$res['id']);
+                exit;
+            }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     if ($op === 'make_invoice') {
         $bid = (int)($_POST['billing_id'] ?? 0);
         if (!module_enabled('invoices_enabled')) {
@@ -747,6 +767,28 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">
                     <i class="bi bi-receipt me-1"></i>Wystaw fakturę
+                  </button>
+                </form>
+              <?php endif; ?>
+              <?php
+                // Demo dla tego uczestnika — obok, niezależnie od faktury prawdziwej.
+                $_fvd = null;
+                if (is_admin() && (float)$b['amount'] > 0) {
+                    try {
+                        $_fvd = db_one("SELECT id, number FROM invoices
+                                         WHERE source='ti_billing' AND source_id=? AND is_test=1 AND deleted_at IS NULL",
+                                       [(int)$b['id']]);
+                    } catch (\Throwable $e) {}
+                }
+              ?>
+              <?php if (is_admin() && (float)$b['amount'] > 0): ?>
+                <form method="post" class="d-inline ms-2">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="op" value="demo_invoice">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem"
+                          title="Wygeneruj FVAT demo dla tego uczestnika (numer TEST/…, nie idzie do KSeF ani do nabywcy)">
+                    <i class="bi bi-file-earmark-pdf me-1"></i><?= $_fvd ? 'Demo: ' . h((string)$_fvd['number']) : 'FVAT demo' ?>
                   </button>
                 </form>
               <?php endif; ?>
