@@ -283,8 +283,11 @@ $_login_welcome_is_custom = ($_login_welcome !== '');
 
 // Dydaktyk loguje się we własnym panelu
 $_url_dyd = APP_URL . '/karty30/ti/dydaktyk/login.php';
+
+// Nazwa systemu na ekranie powitania (spójna z nagłówkiem SZO)
+$_sys_name = 'Systemie Zarządzania Organizacją';
 ?><!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" data-fs="m">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -292,311 +295,326 @@ $_url_dyd = APP_URL . '/karty30/ti/dydaktyk/login.php';
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
+<script>
+/* Ustawienia dostępności przed pierwszym malowaniem — bez mignięcia */
+(function(){try{
+  var fs=localStorage.getItem('szoFs'); if(fs==='L'||fs==='XL') document.documentElement.dataset.fs=fs;
+  if(localStorage.getItem('szoHc')==='1') document.documentElement.dataset.theme='hc';
+}catch(e){}})();
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#0f172a}
-
-.skip-link{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1.25rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
-.skip-link:focus{top:0;outline:3px solid #FBBF24;outline-offset:2px}
-*:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
-*:focus:not(:focus-visible){outline:none}
-
-/* ── Układ ─── */
-.login-layout{min-height:100vh;display:flex;flex-direction:column;background:#fff}
-@media(min-width:960px){.login-layout{flex-direction:row}}
-
-/* ── Aside (lewy panel brandowy) ─── */
-.login-aside{
-  position:relative;overflow:hidden;padding:2rem 1.75rem;
-  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));
-  color:#fff;display:flex;flex-direction:column;justify-content:space-between;gap:2rem;
+:root{
+  --ks:var(--c,#DC2626);
+  --ks-dark:var(--c-dark,#B91C1C);
+  --ks-on:var(--c-text,#fff);
+  --ks-ink:#1f2937;
+  --ks-line:#d1d5db;
+  --ks-muted:#6b7280;
+  --ks-card:#fff;
+  --ks-radius:18px;
 }
-@media(min-width:960px){.login-aside{width:44%;padding:3.5rem}}
-.aside-decor{position:absolute;inset:0;opacity:.18;pointer-events:none}
-.aside-decor .blob{position:absolute;border-radius:50%;filter:blur(70px)}
-.aside-decor .blob-1{top:-6rem;left:-6rem;width:22rem;height:22rem;background:rgba(255,255,255,.22)}
-.aside-decor .blob-2{bottom:-7rem;right:-4rem;width:20rem;height:20rem;background:rgba(255,255,255,.12)}
-.aside-decor .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.32) 1px,transparent 0);background-size:26px 26px}
-.aside-brand{position:relative;display:inline-flex;align-items:center;gap:.7rem;text-decoration:none;color:#fff;align-self:flex-start}
-.aside-brand-icon{width:3rem;height:3rem;border-radius:.75rem;background:rgba(255,255,255,.92);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.5rem}
-.aside-brand img{width:3rem;height:3rem;border-radius:.75rem;object-fit:contain;background:#fff;padding:.25rem}
-.aside-brand-name{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
-.aside-hero{position:relative}
-.aside-hero h1{font-size:2rem;font-weight:800;line-height:1.2;margin:0;letter-spacing:-.02em}
-.aside-hero p{margin:.8rem 0 0;color:rgba(255,255,255,.8);font-size:.95rem;line-height:1.6;max-width:24rem}
-.aside-foot{position:relative;font-size:.78rem;color:rgba(255,255,255,.6)}
-@media(max-width:959px){.aside-hero,.aside-foot{display:none}.login-aside{padding:1.25rem 1.5rem}}
+html{font-size:16px}
+html[data-fs="L"]{font-size:18px}
+html[data-fs="XL"]{font-size:20px}
+html,body{margin:0;padding:0;min-height:100%}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ks-ink);background:var(--ks)}
+*:focus-visible{outline:3px solid #FBBF24!important;outline-offset:2px!important}
+*:focus:not(:focus-visible){outline:none}
+.skip-link{position:absolute;top:-100%;left:1rem;z-index:9999;background:#fff;color:var(--ks);padding:.5rem 1.25rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
+.skip-link:focus{top:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-/* ── Panel formularza ─── */
-.login-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1.25rem}
-.login-wrap{width:100%;max-width:420px}
-.login-card{animation:lIn .35s cubic-bezier(.16,.84,.44,1) both}
-@keyframes lIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* ── Pasek dostępności ─────────────────────────────────────────────────── */
+.ks-a11y{background:var(--ks-dark);color:#fff;font-size:.8rem}
+.ks-a11y .in{max-width:1200px;margin:0 auto;padding:.35rem 1rem;display:flex;align-items:center;justify-content:flex-end;gap:1.25rem;flex-wrap:wrap}
+.ks-a11y .grp{display:flex;align-items:center;gap:.4rem}
+.ks-a11y .lbl{opacity:.9}
+.ks-a11y button{background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:4px;
+  min-width:30px;min-height:26px;padding:0 .4rem;font-family:inherit;font-weight:700;cursor:pointer;line-height:1}
+.ks-a11y button:hover{background:rgba(255,255,255,.18)}
+.ks-a11y button[aria-pressed="true"]{background:#fff;color:var(--ks-dark);border-color:#fff}
+.ks-a11y .fs-m{font-size:.72rem}.ks-a11y .fs-l{font-size:.82rem}.ks-a11y .fs-xl{font-size:.92rem}
 
-.login-heading{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;margin:0 0 .3rem}
-.login-sub{font-size:.88rem;color:#64748b;margin:0 0 1.5rem;line-height:1.5}
+/* ── Tło z geometrią ───────────────────────────────────────────────────── */
+.ks-hero{position:relative;min-height:calc(100vh - 34px);padding:2.25rem 1rem 3rem;overflow:hidden}
+.ks-hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='%23000' fill-opacity='.055'%3E%3Crect x='24' y='40' width='120' height='120' rx='8'/%3E%3Ccircle cx='330' cy='96' r='58'/%3E%3Crect x='210' y='250' width='150' height='150' rx='8'/%3E%3Cpath d='M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z'/%3E%3Cpath d='M300 0l60 60-24 24-60-60z'/%3E%3C/g%3E%3C/svg%3E"),
+    repeating-linear-gradient(135deg,rgba(0,0,0,.045) 0 3px,transparent 3px 26px);
+  background-size:420px 420px,auto}
+.ks-shell{position:relative;max-width:700px;margin:0 auto}
 
-/* ── Alerty ─── */
-.l-alert{display:flex;gap:.55rem;align-items:flex-start;padding:.7rem .9rem;border-radius:10px;font-size:.87rem;margin-bottom:1.1rem;line-height:1.45}
+/* ── Marka ─────────────────────────────────────────────────────────────── */
+.ks-brand{display:flex;flex-direction:column;align-items:center;gap:.55rem;text-decoration:none;color:#fff;margin-bottom:2.25rem}
+.ks-brand img{max-height:74px;max-width:260px;object-fit:contain}
+.ks-brand .mark{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:1.7rem}
+.ks-brand .nm{font-size:1.2rem;font-weight:800;letter-spacing:-.01em;text-align:center;line-height:1.25}
+
+/* ── Zakładki nad kartą ────────────────────────────────────────────────── */
+.ks-toprow{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.ks-back{display:inline-flex;align-items:center;gap:.4rem;color:#fff;text-decoration:none;font-size:.88rem;padding:.4rem .2rem .7rem}
+.ks-back:hover{color:#fff;text-decoration:underline}
+.ks-tabs{display:flex;gap:.2rem;margin-left:auto}
+.ks-tab{padding:.55rem 1.15rem;border-radius:10px 10px 0 0;text-decoration:none;font-size:.92rem;font-weight:600;color:#fff}
+.ks-tab:hover{background:rgba(255,255,255,.16);color:#fff}
+.ks-tab[aria-current="page"]{background:var(--ks-card);color:var(--ks)}
+
+/* ── Karta ─────────────────────────────────────────────────────────────── */
+.ks-card{background:var(--ks-card);border-radius:var(--ks-radius);padding:2.75rem 1.5rem 2.5rem;
+  box-shadow:0 18px 44px rgba(0,0,0,.16)}
+@media(min-width:576px){.ks-card{padding:3rem 3.5rem 2.75rem}}
+.ks-h1{font-size:1.75rem;font-weight:800;letter-spacing:-.02em;text-align:center;margin:0 0 .5rem;line-height:1.25}
+.ks-lead{text-align:center;color:var(--ks-muted);font-size:.9rem;line-height:1.55;margin:0 0 2rem}
+.ks-inner{max-width:420px;margin:0 auto}
+
+/* ── Formularz ─────────────────────────────────────────────────────────── */
+.ks-field{margin-bottom:1.35rem}
+.ks-field label{display:block;font-size:.92rem;color:var(--ks-ink);margin-bottom:.4rem}
+.form-control{width:100%;padding:.7rem .9rem;border:1px solid var(--ks-line);border-radius:6px;font-size:1rem;
+  font-family:inherit;color:var(--ks-ink);background:#fff;min-height:46px}
+.form-control:focus{border-color:var(--ks);box-shadow:0 0 0 3px var(--c-ring,rgba(220,38,38,.18));outline:none}
+.form-control[aria-invalid=true]{border-color:#dc2626}
+.pass-wrap{position:relative}
+.pass-wrap .form-control{padding-right:2.9rem}
+.pass-toggle{position:absolute;right:.55rem;top:50%;transform:translateY(-50%);background:none;border:none;
+  color:var(--ks-ink);cursor:pointer;padding:.3rem;border-radius:4px;line-height:1}
+.ks-forgot{display:inline-block;margin-top:.75rem;font-size:.9rem;color:var(--ks);text-decoration:underline}
+.ks-forgot:hover{color:var(--ks-dark)}
+.ks-btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:48px;
+  padding:.75rem 1.25rem;border-radius:6px;font-size:1rem;font-weight:600;font-family:inherit;
+  cursor:pointer;text-decoration:none;border:1px solid transparent;transition:background .13s,border-color .13s}
+.ks-btn--primary{background:var(--ks);color:var(--ks-on);border-color:var(--ks)}
+.ks-btn--primary:hover{background:var(--ks-dark);border-color:var(--ks-dark);color:var(--ks-on)}
+.ks-btn--ghost{background:#fff;color:var(--ks-ink);border-color:var(--ks-line)}
+.ks-btn--ghost:hover{border-color:var(--ks);color:var(--ks-ink);background:#fff}
+.ks-btn + .ks-btn{margin-top:.75rem}
+.ks-sep{border:0;border-top:1px solid #e5e7eb;margin:2rem 0 1.5rem}
+.ks-sub{text-align:center;font-size:.95rem;font-weight:600;margin:0 0 1rem}
+.ks-hint{font-size:.8rem;color:var(--ks-muted);text-align:center;margin:.5rem 0 0;line-height:1.5}
+.ks-or{display:flex;align-items:center;gap:.75rem;color:var(--ks-muted);font-size:.82rem;margin:1.5rem 0}
+.ks-or::before,.ks-or::after{content:'';flex:1;height:1px;background:#e5e7eb}
+.ks-optsub{display:block;font-size:.78rem;color:var(--ks-muted);font-weight:400;margin-top:.1rem}
+
+/* ── Alerty ────────────────────────────────────────────────────────────── */
+.l-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.8rem 1rem;border-radius:8px;font-size:.9rem;
+  margin-bottom:1.25rem;line-height:1.5}
 .l-alert-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
 .l-alert-success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
 .l-alert-info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
 
-/* ── MS365 ─── */
-.btn-ms365{display:flex;align-items:center;justify-content:center;gap:.7rem;width:100%;padding:.85rem 1.25rem;background:#fff;color:#1e293b;border:2px solid #d1d5db;border-radius:10px;font-size:.97rem;font-weight:700;text-decoration:none;transition:border-color .13s,box-shadow .13s;cursor:pointer;min-height:50px}
-.btn-ms365:hover{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);color:#1e293b}
+/* ── Stopka ────────────────────────────────────────────────────────────── */
+.ks-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.3rem .9rem;margin:1.5rem 0 .5rem}
+.ks-links a{font-size:.85rem;color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;opacity:.92}
+.ks-links a:hover{color:#fff;text-decoration:underline;opacity:1}
+.ks-links .dot{color:rgba(255,255,255,.5);font-size:.7rem}
+.ks-copy{text-align:center;color:rgba(255,255,255,.75);font-size:.78rem}
 
-/* ── Separator ─── */
-.or-div{display:flex;align-items:center;gap:.7rem;color:#94a3b8;font-size:.8rem;margin:1.2rem 0}
-.or-div::before,.or-div::after{content:'';flex:1;height:1px;background:#e2e8f0}
-
-/* ── Formularz ─── */
-.form-label{display:block;font-size:.84rem;font-weight:600;color:#374151;margin-bottom:.3rem}
-.form-control{width:100%;padding:.65rem .85rem;border:2px solid #e2e8f0;border-radius:10px;font-size:.97rem;font-family:inherit;color:#0f172a;background:#fff;transition:border-color .13s,box-shadow .13s}
-.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.1);outline:none}
-.form-control[aria-invalid=true]{border-color:#ef4444}
-.form-hint{font-size:.76rem;color:#94a3b8;margin:.3rem 0 0;line-height:1.4}
-.pass-wrap{position:relative}
-.pass-wrap .form-control{padding-right:2.8rem}
-.pass-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:.25rem;line-height:1;border-radius:4px}
-.pass-toggle:hover{color:#475569}
-.fmb{margin-bottom:1rem}
-.fmb-last{margin-bottom:1.25rem}
-.pass-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem}
-.forgot-link{font-size:.8rem;color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
-.forgot-link:hover{color:var(--c,#2563eb)}
-
-.btn-login{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.85rem 1.25rem;background:var(--c,#2563eb);color:var(--c-text,#fff);border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:filter .13s,box-shadow .13s,transform .1s;min-height:50px}
-.btn-login:hover{filter:brightness(1.06);box-shadow:0 8px 22px rgba(37,99,235,.32);transform:translateY(-1px);color:var(--c-text,#fff)}
-.btn-login:active{transform:translateY(0)}
-
-/* ── Więcej opcji ─── */
-.more-opts{margin-top:1.2rem;border-top:1px solid #f1f5f9;padding-top:.9rem}
-.more-opts-label{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:.55rem;display:block}
-.more-opts-list{display:flex;flex-direction:column;gap:.4rem}
-.more-opt-btn{display:flex;align-items:center;gap:.65rem;width:100%;padding:.55rem .7rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;transition:border-color .12s}
-.more-opt-btn:hover{border-color:var(--c,#2563eb);background:#eff6ff}
-.more-opt-icon{width:30px;height:30px;border-radius:7px;background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem}
-.more-opt-label{font-size:.84rem;font-weight:600;color:#0f172a}
-.more-opt-sub{font-size:.73rem;color:#64748b;display:block;margin-top:.05rem}
-
-/* ── Nowy wolontariusz CTA ─── */
-.new-vol{display:flex;align-items:center;gap:.75rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.85rem 1rem;margin-top:1.2rem;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
-.new-vol:hover{border-color:#4ade80;background:#dcfce7;color:inherit}
-.new-vol-icon{font-size:1.3rem;color:#16a34a;flex-shrink:0}
-.new-vol-body{flex:1;min-width:0}
-.new-vol-title{font-size:.9rem;font-weight:700;color:#15803d;display:block}
-.new-vol-sub{font-size:.78rem;color:#4b5563;display:block;margin-top:.1rem}
-.new-vol-arrow{color:#16a34a;font-size:.9rem;flex-shrink:0}
-
-/* ── Stopka linków ─── */
-.login-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35rem .7rem;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #f1f5f9}
-.login-links a{font-size:.78rem;color:#94a3b8;text-decoration:none;display:inline-flex;align-items:center;gap:.2rem}
-.login-links a:hover{color:var(--c,#2563eb)}
-.login-links .dot{color:#e2e8f0;font-size:.65rem}
-
-/* ── Modal ─── */
-.lm-content{border:none;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.18)}
-.lm-hd{padding:.9rem 1.25rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}
+/* ── Modale ────────────────────────────────────────────────────────────── */
+.lm-content{border:none;border-radius:14px;overflow:hidden}
+.lm-hd{padding:.9rem 1.25rem;background:#f8fafc;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between}
 .lm-title{font-size:1.02rem;font-weight:700;margin:0;display:flex;align-items:center;gap:.45rem}
 .lm-body{padding:1.25rem 1.5rem 1.5rem}
 .sms-otp{font-size:1.8rem;letter-spacing:.45rem;text-align:center;font-family:monospace;font-weight:700}
 
+/* ── Wysoki kontrast ───────────────────────────────────────────────────── */
+html[data-theme="hc"]{--ks:#000;--ks-dark:#000;--ks-on:#fff;--ks-ink:#000;--ks-line:#000;--ks-muted:#000}
+html[data-theme="hc"] body{background:#000}
+html[data-theme="hc"] .ks-hero::before{display:none}
+html[data-theme="hc"] .ks-card{box-shadow:none;border:3px solid #000}
+html[data-theme="hc"] .form-control{border-width:2px}
+html[data-theme="hc"] .ks-btn{border-width:2px}
+html[data-theme="hc"] .ks-btn--ghost{background:#fff;color:#000;border-color:#000}
+html[data-theme="hc"] .ks-btn--ghost:hover{background:#000;color:#fff}
+html[data-theme="hc"] .l-alert{background:#fff;border:2px solid #000;color:#000}
+html[data-theme="hc"] .ks-a11y{border-bottom:2px solid #fff}
+html[data-theme="hc"] .ks-tab[aria-current="page"]{background:#fff;color:#000}
+
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
-@media(prefers-contrast:high){.form-control,.btn-login,.btn-ms365{border-width:3px}.btn-login{background:#000!important;border-color:#000!important}}
-@media(max-width:520px){.login-panel{padding:1.75rem .9rem;align-items:flex-start}}
+@media(max-width:575.98px){.ks-h1{font-size:1.45rem}.ks-hero{padding-top:1.5rem}}
 </style>
 </head>
 <body>
 
 <a href="#login-main" class="skip-link">Przejdź do formularza logowania</a>
-<div role="status"  aria-live="polite"    aria-atomic="true" id="login-live"  style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
-<div role="alert"   aria-live="assertive" aria-atomic="true" id="login-alert" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
+<div role="alert"  aria-live="assertive" aria-atomic="true" id="login-alert" class="sr"></div>
 
-<div class="login-layout">
-
-<!-- ══ Aside ═══════════════════════════════════════════════════════════════ -->
-<aside class="login-aside">
-  <div class="aside-decor" aria-hidden="true">
-    <span class="blob blob-1"></span>
-    <span class="blob blob-2"></span>
-    <span class="dots"></span>
-  </div>
-  <a href="<?= APP_URL ?>" class="aside-brand">
-    <?php if ($_b['logo_url']): ?>
-      <img src="<?= h($_b['logo_url']) ?>" alt="">
-    <?php else: ?>
-      <span class="aside-brand-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
-    <?php endif; ?>
-    <span class="aside-brand-name"><?= h($org_name) ?></span>
-  </a>
-  <div class="aside-hero">
-    <h1><?= $_login_tagline ? h($_login_tagline) : 'Jeden login,<br>wszystkie systemy.' ?></h1>
-    <p>Zaloguj się, aby przejść do panelu organizacji.</p>
-  </div>
-  <div class="aside-foot">&copy; <?= date('Y') ?> <?= h($org_name) ?></div>
-</aside>
-
-<!-- ══ Formularz ════════════════════════════════════════════════════════════ -->
-<div class="login-panel">
-<div class="login-wrap">
-<main class="login-card" id="login-main" tabindex="-1">
-
-  <?php // Admin announcement
-  $_ln_show = null;
-  foreach ($_login_notices as $_ln_item) {
-      if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
-  }
-  if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
-  if ($_ln_show): ?>
-  <div class="l-alert l-alert-info" role="region" aria-label="Komunikat" style="margin-bottom:1.1rem">
-    <i class="bi bi-megaphone-fill flex-shrink-0" aria-hidden="true"></i>
-    <div>
-      <strong><?= h($_ln_show['title']) ?></strong>
-      <?php if ($_ln_show['body']): ?><br><span style="font-size:.83rem"><?= nl2br(h($_ln_show['body'])) ?></span><?php endif; ?>
+<!-- ══ Pasek dostępności ════════════════════════════════════════════════ -->
+<div class="ks-a11y">
+  <div class="in">
+    <div class="grp" role="group" aria-label="Rozmiar tekstu">
+      <span class="lbl">Rozmiar tekstu:</span>
+      <button type="button" class="fs-m"  data-fs="m"  aria-pressed="true">m</button>
+      <button type="button" class="fs-l"  data-fs="L"  aria-pressed="false">L</button>
+      <button type="button" class="fs-xl" data-fs="XL" aria-pressed="false">XL</button>
     </div>
-  </div>
-  <?php endif; ?>
-
-  <?php if (isset($_GET['ended'])): ?>
-  <div class="l-alert l-alert-success" role="status">
-    <i class="bi bi-box-arrow-right flex-shrink-0" aria-hidden="true"></i>
-    <span>Sesja zakończona — zaloguj się ponownie.</span>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?>
-  <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
-    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
-    <span id="login-error-text"><?= h($error) ?></span>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($emergency): ?>
-  <div class="l-alert" style="background:#7c2d12;color:#fff;border-color:#92400e" role="note">
-    <i class="bi bi-shield-lock-fill flex-shrink-0" aria-hidden="true"></i>
-    <span>Logowanie awaryjne — użyj <strong>adresu e-mail</strong> i <strong>hasła awaryjnego</strong>.</span>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($_login_welcome_is_custom): ?>
-  <p style="font-size:.85rem;color:#64748b;line-height:1.6;margin:0 0 1.2rem;text-align:center"><?= nl2br(h($_login_welcome)) ?></p>
-  <?php endif; ?>
-
-  <h1 class="login-heading">Zaloguj się</h1>
-  <p class="login-sub">
-    <?php if ($ms_available): ?>Administracja: użyj Microsoft 365. Współpracownicy: e-mail i hasło.
-    <?php else: ?>Wpisz adres e-mail i hasło.
-    <?php endif; ?>
-  </p>
-
-  <?php if ($ms_available): ?>
-  <!-- ── MS365 ───────────────────────────────────────────── -->
-  <a href="<?= h(ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php')) ?>"
-     class="btn-ms365"
-     aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
-      <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
-      <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
-    </svg>
-    Zaloguj przez Microsoft 365
-  </a>
-  <p style="font-size:.76rem;color:#94a3b8;text-align:center;margin:.5rem 0 0">
-    Konto służbowe <strong>@feer.org.pl</strong> — SSO, bez wpisywania hasła
-  </p>
-  <div class="or-div"><span>lub e-mailem i hasłem</span></div>
-  <?php endif; ?>
-
-  <!-- ── Email + hasło ───────────────────────────────────── -->
-  <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
-    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-    <input type="hidden" name="_method" value="local">
-
-    <div class="fmb">
-      <label class="form-label" for="f-email">Adres e-mail</label>
-      <input type="email" name="email" id="f-email" class="form-control"
-             placeholder="nazwa@domena.pl"
-             autocomplete="email" inputmode="email" required
-             <?= (!$ms_available) ? 'autofocus' : '' ?>
-             <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
-    </div>
-
-    <div class="fmb-last">
-      <div class="pass-row">
-        <label class="form-label" for="f-pass" style="margin:0">Hasło</label>
-        <a href="<?= APP_URL ?>/auth/forgot.php" class="forgot-link" tabindex="0">
-          <i class="bi bi-question-circle" aria-hidden="true"></i> Zapomniałem hasła
-        </a>
-      </div>
-      <div class="pass-wrap">
-        <input type="password" name="password" id="f-pass" class="form-control"
-               autocomplete="current-password" required
-               <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
-        <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
-                onclick="togglePass('f-pass', this)">
-          <i class="bi bi-eye" aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-
-    <button type="submit" class="btn-login">
-      Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
-    </button>
-  </form>
-
-  <!-- ── Nowy współpracownik ──────────────────────────────── -->
-  <a href="<?= APP_URL ?>/user/register.php" class="new-vol"
-     aria-label="Załóż konto współpracownika — otwiera formularz rejestracji">
-    <i class="bi bi-person-plus-fill new-vol-icon" aria-hidden="true"></i>
-    <span class="new-vol-body">
-      <span class="new-vol-title">Nowy współpracownik?</span>
-      <span class="new-vol-sub">Masz umowę lub porozumienie? Utwórz konto w 2 minuty.</span>
-    </span>
-    <i class="bi bi-chevron-right new-vol-arrow" aria-hidden="true"></i>
-  </a>
-
-  <!-- ── Więcej opcji ─────────────────────────────────────── -->
-  <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>
-  <div class="more-opts">
-    <span class="more-opts-label">Inne metody logowania</span>
-    <div class="more-opts-list" role="list">
-      <?php if ($code_available): ?>
-      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-code" role="listitem">
-        <span class="more-opt-icon"><i class="bi bi-key-fill" aria-hidden="true"></i></span>
-        <span><span class="more-opt-label">Kod jednorazowy</span><span class="more-opt-sub">Pierwsze logowanie lub dostęp od administratora</span></span>
+    <div class="grp">
+      <span class="lbl" id="hc-lbl">Wysoki kontrast:</span>
+      <button type="button" id="hc-btn" aria-pressed="false" aria-labelledby="hc-lbl hc-btn" aria-label="Wysoki kontrast — włącz">
+        <i class="bi bi-circle-half" aria-hidden="true"></i>
       </button>
-      <?php endif; ?>
-      <?php if ($sms_available): ?>
-      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms" role="listitem">
-        <span class="more-opt-icon"><i class="bi bi-phone-fill" aria-hidden="true"></i></span>
-        <span><span class="more-opt-label">Kod SMS</span><span class="more-opt-sub">Logowanie przez numer telefonu</span></span>
-      </button>
-      <?php endif; ?>
-      <?php if ($x509_available): ?>
-      <button class="more-opt-btn" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509" role="listitem">
-        <span class="more-opt-icon"><i class="bi bi-patch-check-fill" aria-hidden="true"></i></span>
-        <span><span class="more-opt-label">Certyfikat X.509</span><span class="more-opt-sub">Plik .p12 — dla adminów systemu</span></span>
-      </button>
-      <?php endif; ?>
     </div>
   </div>
-  <?php endif; ?>
-
-  <!-- ── Linki nawigacyjne ─────────────────────────────────── -->
-  <div class="login-links">
-    <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-key" aria-hidden="true"></i> Odzyskaj dostęp</a>
-    <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= h($_url_dyd) ?>"><i class="bi bi-easel2" aria-hidden="true"></i> Panel dydaktyka</a>
-    <?php if ($sel_url): ?>
-    <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień org' : 'Wybierz org' ?></a>
-    <?php endif; ?>
-    <span class="dot" aria-hidden="true">·</span>
-    <a href="<?= APP_URL ?>/auth/report_login_issue.php"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Pomoc</a>
-  </div>
-
-</main>
 </div>
+
+<div class="ks-hero">
+<div class="ks-shell">
+
+  <!-- ══ Marka ═════════════════════════════════════════════════════════ -->
+  <a href="<?= APP_URL ?>" class="ks-brand">
+    <?php if ($_b['logo_url']): ?>
+      <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>">
+    <?php else: ?>
+      <span class="mark" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
+      <span class="nm"><?= h($org_name) ?></span>
+    <?php endif; ?>
+  </a>
+
+  <!-- ══ Powrót + zakładki ═════════════════════════════════════════════ -->
+  <div class="ks-toprow">
+    <a href="<?= APP_URL ?>" class="ks-back"><i class="bi bi-chevron-left" aria-hidden="true"></i>Strona publiczna</a>
+    <nav class="ks-tabs" aria-label="Logowanie lub rejestracja">
+      <a class="ks-tab" href="<?= APP_URL ?>/auth/login.php" aria-current="page">Zaloguj</a>
+      <a class="ks-tab" href="<?= APP_URL ?>/user/register.php">Rejestracja</a>
+    </nav>
+  </div>
+
+  <!-- ══ Karta ═════════════════════════════════════════════════════════ -->
+  <main class="ks-card" id="login-main" tabindex="-1">
+  <div class="ks-inner">
+
+    <?php
+    $_ln_show = null;
+    foreach ($_login_notices as $_ln_item) {
+        if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
+    }
+    if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
+    if ($_ln_show): ?>
+    <div class="l-alert l-alert-info" role="region" aria-label="Komunikat">
+      <i class="bi bi-megaphone-fill flex-shrink-0" aria-hidden="true"></i>
+      <div>
+        <strong><?= h($_ln_show['title']) ?></strong>
+        <?php if ($_ln_show['body']): ?><br><span style="font-size:.85rem"><?= nl2br(h($_ln_show['body'])) ?></span><?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET['ended'])): ?>
+    <div class="l-alert l-alert-success" role="status">
+      <i class="bi bi-box-arrow-right flex-shrink-0" aria-hidden="true"></i>
+      <span>Sesja zakończona — zaloguj się ponownie.</span>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?>
+    <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+      <span id="login-error-text"><?= h($error) ?></span>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($emergency): ?>
+    <div class="l-alert" style="background:#7c2d12;color:#fff;border:1px solid #92400e" role="note">
+      <i class="bi bi-shield-lock-fill flex-shrink-0" aria-hidden="true"></i>
+      <span>Logowanie awaryjne — użyj <strong>adresu e-mail</strong> i <strong>hasła awaryjnego</strong>.</span>
+    </div>
+    <?php endif; ?>
+
+    <h1 class="ks-h1"><?= $_login_tagline ? h($_login_tagline) : 'Witaj w ' . h($_sys_name) ?></h1>
+    <p class="ks-lead">
+      <?php if ($_login_welcome_is_custom): ?><?= nl2br(h($_login_welcome)) ?>
+      <?php elseif ($ms_available): ?>Konto służbowe — zaloguj się przez Microsoft 365. Współpracownicy — e-mailem i hasłem.
+      <?php else: ?>Zaloguj się adresem e-mail i hasłem.
+      <?php endif; ?>
+    </p>
+
+    <?php if ($ms_available): ?>
+    <a href="<?= h(ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php')) ?>" class="ks-btn ks-btn--ghost"
+       aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
+        <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
+        <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+      </svg>
+      Zaloguj przez Microsoft 365
+    </a>
+    <p class="ks-hint">Konto <strong>@feer.org.pl</strong> — SSO, bez wpisywania hasła</p>
+    <div class="ks-or"><span>lub e-mailem i hasłem</span></div>
+    <?php endif; ?>
+
+    <!-- ══ E-mail + hasło ═══════════════════════════════════════════════ -->
+    <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_method" value="local">
+
+      <div class="ks-field">
+        <label for="f-email">Adres e-mail</label>
+        <input type="email" name="email" id="f-email" class="form-control"
+               autocomplete="email" inputmode="email" required
+               <?= (!$ms_available) ? 'autofocus' : '' ?>
+               <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
+      </div>
+
+      <div class="ks-field">
+        <label for="f-pass">Hasło</label>
+        <div class="pass-wrap">
+          <input type="password" name="password" id="f-pass" class="form-control"
+                 autocomplete="current-password" required
+                 <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
+          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
+                  onclick="togglePass('f-pass', this)">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+          </button>
+        </div>
+        <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-forgot">Nie pamiętasz hasła?</a>
+      </div>
+
+      <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
+    </form>
+
+    <hr class="ks-sep">
+
+    <p class="ks-sub">Jeszcze nie masz konta?</p>
+    <a href="<?= APP_URL ?>/user/register.php" class="ks-btn ks-btn--ghost">Zarejestruj się</a>
+    <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-btn ks-btn--ghost">Odzyskaj dostęp do konta</a>
+
+    <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>
+    <hr class="ks-sep">
+    <p class="ks-sub">Inne metody logowania</p>
+    <?php if ($code_available): ?>
+    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-code">
+      <span><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Kod jednorazowy
+        <span class="ks-optsub">Pierwsze logowanie lub dostęp od administratora</span></span>
+    </button>
+    <?php endif; ?>
+    <?php if ($sms_available): ?>
+    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms">
+      <span><i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Kod SMS
+        <span class="ks-optsub">Logowanie przez numer telefonu</span></span>
+    </button>
+    <?php endif; ?>
+    <?php if ($x509_available): ?>
+    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509">
+      <span><i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Certyfikat X.509
+        <span class="ks-optsub">Plik .p12 — dla administratorów systemu</span></span>
+    </button>
+    <?php endif; ?>
+    <?php endif; ?>
+
+  </div>
+  </main>
+
+  <!-- ══ Linki ═════════════════════════════════════════════════════════ -->
+  <div class="ks-links">
+    <a href="<?= h($_url_dyd) ?>"><i class="bi bi-easel2" aria-hidden="true"></i>Panel dydaktyka</a>
+    <span class="dot" aria-hidden="true">•</span>
+    <?php if ($sel_url): ?>
+    <a href="<?= h($sel_url) ?>"><i class="bi bi-buildings" aria-hidden="true"></i><?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?></a>
+    <span class="dot" aria-hidden="true">•</span>
+    <?php endif; ?>
+    <a href="<?= APP_URL ?>/auth/report_login_issue.php"><i class="bi bi-life-preserver" aria-hidden="true"></i>Problem z logowaniem</a>
+  </div>
+  <div class="ks-copy">&copy; <?= date('Y') ?> <?= h($org_name) ?></div>
+
 </div>
 </div>
 
@@ -617,17 +635,17 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
-        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Kod jednorazowy wysłany przez administratora lub wygenerowany na Twoją prośbę.</p>
+        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Kod jednorazowy wysłany przez administratora lub wygenerowany na Twoją prośbę.</p>
         <form method="post" novalidate autocomplete="off" aria-labelledby="mcode-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="code">
-          <div class="fmb-last">
-            <label class="form-label" for="f-code">Kod dostępu</label>
+          <div class="ks-field">
+            <label for="f-code">Kod dostępu</label>
             <input type="text" name="login_code" id="f-code" class="form-control"
                    autocomplete="off" spellcheck="false" required aria-required="true"
                    placeholder="XXXX-XXXX-XXXX">
           </div>
-          <button type="submit" class="btn-login">
+          <button type="submit" class="ks-btn ks-btn--primary">
             <i class="bi bi-key-fill" aria-hidden="true"></i> Zaloguj kodem
           </button>
         </form>
@@ -659,14 +677,14 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
         </div>
         <?php endif; ?>
         <?php if ($sms_step === 1): ?>
-        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Wpisz numer telefonu powiązany z Twoim kontem.</p>
+        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Wpisz numer telefonu powiązany z Twoim kontem.</p>
         <form method="post" novalidate autocomplete="off" aria-labelledby="msms-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="sms_send">
-          <div class="fmb-last">
-            <label class="form-label" for="f-sms-phone">Numer telefonu</label>
+          <div class="ks-field">
+            <label for="f-sms-phone">Numer telefonu</label>
             <div style="display:flex;gap:0">
-              <span style="display:inline-flex;align-items:center;padding:.65rem .8rem;background:#f8fafc;border:2px solid #94a3b8;border-right:none;border-radius:10px 0 0 10px;font-weight:700;color:#374151;font-size:.97rem" aria-hidden="true">+48</span>
+              <span style="display:inline-flex;align-items:center;padding:.65rem .8rem;background:#f8fafc;border:1px solid var(--ks-line);border-right:none;border-radius:10px 0 0 10px;font-weight:700;color:#374151;font-size:.97rem" aria-hidden="true">+48</span>
               <input type="tel" name="sms_phone" id="f-sms-phone" class="form-control"
                      style="border-radius:0 10px 10px 0" placeholder="123 456 789"
                      value="<?= h($sms_phone) ?>" inputmode="numeric" pattern="[0-9 ]{9,11}"
@@ -674,7 +692,7 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
                      aria-label="Numer telefonu bez prefiksu +48">
             </div>
           </div>
-          <button type="submit" class="btn-login">
+          <button type="submit" class="ks-btn ks-btn--primary">
             <i class="bi bi-send" aria-hidden="true"></i> Wyślij kod SMS
           </button>
         </form>
@@ -686,17 +704,17 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
           <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
           <input type="hidden" name="_method"   value="sms_verify">
           <input type="hidden" name="sms_phone" value="<?= h($sms_phone) ?>">
-          <div class="fmb-last">
-            <label class="form-label" for="f-sms-code">6-cyfrowy kod SMS</label>
+          <div class="ks-field">
+            <label for="f-sms-code">6-cyfrowy kod SMS</label>
             <input type="text" name="sms_code" id="f-sms-code" class="form-control sms-otp"
                    inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                    placeholder="000000" autocomplete="one-time-code" required aria-required="true">
           </div>
-          <button type="submit" class="btn-login" style="margin-bottom:.65rem">
+          <button type="submit" class="ks-btn ks-btn--primary" style="margin-bottom:.65rem">
             Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </button>
           <button type="button"
-                  style="background:none;border:none;color:#64748b;font-size:.83rem;cursor:pointer;padding:.4rem;width:100%;text-align:center;border-radius:6px"
+                  style="background:none;border:none;color:var(--ks-muted);font-size:.83rem;cursor:pointer;padding:.4rem;width:100%;text-align:center;border-radius:6px"
                   onclick="document.querySelector('[name=_method]').value='sms_send';this.closest('form').submit()">
             <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Zmień numer
           </button>
@@ -723,17 +741,17 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
-        <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem">Plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
+        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
         <form method="post" enctype="multipart/form-data" novalidate aria-labelledby="mx509-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="x509">
-          <div class="fmb">
-            <label class="form-label" for="f-p12">Plik certyfikatu (.p12 lub .pfx)</label>
+          <div class="ks-field">
+            <label for="f-p12">Plik certyfikatu (.p12 lub .pfx)</label>
             <input type="file" name="p12_file" id="f-p12" class="form-control"
                    accept=".p12,.pfx" required aria-required="true">
           </div>
-          <div class="fmb-last">
-            <label class="form-label" for="f-cert-pass">Hasło certyfikatu</label>
+          <div class="ks-field">
+            <label for="f-cert-pass">Hasło certyfikatu</label>
             <div class="pass-wrap">
               <input type="password" name="cert_password" id="f-cert-pass" class="form-control"
                      autocomplete="current-password" required aria-required="true">
@@ -743,7 +761,7 @@ html,body{height:100%;margin:0;padding:0;font-family:system-ui,-apple-system,'Se
               </button>
             </div>
           </div>
-          <button type="submit" class="btn-login">
+          <button type="submit" class="ks-btn ks-btn--primary">
             <i class="bi bi-patch-check-fill" aria-hidden="true"></i> Zaloguj certyfikatem
           </button>
         </form>
@@ -764,6 +782,31 @@ function togglePass(id, btn){
   btn.querySelector('i').className=h?'bi bi-eye':'bi bi-eye-slash';
 }
 window.togglePass=togglePass;
+
+/* ── Pasek dostępności: rozmiar tekstu + wysoki kontrast ── */
+var root=document.documentElement;
+function setFs(v){
+  root.dataset.fs=v;
+  try{localStorage.setItem('szoFs',v);}catch(e){}
+  document.querySelectorAll('[data-fs]').forEach(function(b){
+    if(b.tagName==='BUTTON') b.setAttribute('aria-pressed', b.dataset.fs===v?'true':'false');
+  });
+}
+document.querySelectorAll('.ks-a11y button[data-fs]').forEach(function(b){
+  b.addEventListener('click',function(){setFs(b.dataset.fs);});
+});
+setFs(root.dataset.fs||'m');
+
+var hcBtn=document.getElementById('hc-btn');
+function setHc(on){
+  if(on) root.dataset.theme='hc'; else root.removeAttribute('data-theme');
+  hcBtn.setAttribute('aria-pressed',on?'true':'false');
+  hcBtn.setAttribute('aria-label',on?'Wysoki kontrast — wyłącz':'Wysoki kontrast — włącz');
+  try{localStorage.setItem('szoHc',on?'1':'0');}catch(e){}
+}
+hcBtn.addEventListener('click',function(){setHc(root.dataset.theme!=='hc');});
+setHc(root.dataset.theme==='hc');
+
 
 var errText=document.getElementById('login-error-text');
 var liveErr=document.getElementById('login-alert');
