@@ -212,16 +212,32 @@ include __DIR__ . '/includes/header_crm.php';
 /* Licznik jako osobna plakietka — inaczej „Nowe 23" czyta się jak jedno wyrażenie. */
 .ib-cnt { display:inline-block; min-width:1.5rem; padding:0 .35rem; border-radius:2rem;
   font-size:.72rem; font-weight:700; line-height:1.4; text-align:center }
+
+/* ── Nagłówek strony (lokalny, jednowierszowy) ──────────────────────────── */
+.ib-header { display:flex; align-items:center; justify-content:space-between;
+  gap:1rem; flex-wrap:wrap; margin-bottom:.9rem }
+.ib-header-title { display:flex; align-items:center; gap:.5rem;
+  font-size:1.22rem; font-weight:700; color:#111827; line-height:1.2 }
+.ib-header-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; flex-shrink:0 }
+.ib-help { color:#9CA3AF; font-size:.9rem; cursor:help; display:inline-flex }
+.ib-help:hover, .ib-help:focus-visible { color:var(--crm-primary) }
 </style>
 
-<div class="crm-page-header">
-  <div>
-    <div class="crm-page-title"><i class="bi bi-inbox-fill" style="color:#0176D3"></i> Skrzynka CRM</div>
-    <div class="crm-page-subtitle">
-      Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, przekaż do EZD albo dalej e-mailem
-    </div>
+<?php /* Nagłówek LOKALNY, jednowierszowy — .crm-page-header jest komponentem
+         współdzielonym przez 16 stron CRM i układa tytuł nad podtytułem, co na tym
+         ekranie kosztowało cały wiersz przed listą. Opis modułu nie znika: siedzi
+         w podpowiedzi przy tytule, bo przydaje się raz, a zabierał miejsce zawsze. */ ?>
+<div class="ib-header">
+  <div class="ib-header-title">
+    <i class="bi bi-inbox-fill" style="color:#0176D3" aria-hidden="true"></i>
+    <span>Skrzynka CRM</span>
+    <span class="ib-help" tabindex="0" role="note"
+          aria-label="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, przekaż do EZD albo dalej e-mailem"
+          title="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, przekaż do EZD albo dalej e-mailem">
+      <i class="bi bi-question-circle" aria-hidden="true"></i>
+    </span>
   </div>
-  <div class="crm-page-actions">
+  <div class="ib-header-actions">
     <?php if (is_admin()): ?>
     <form method="post" class="d-flex gap-1">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
