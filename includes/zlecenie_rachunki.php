@@ -38,6 +38,11 @@ require_once __DIR__ . '/db.php';
             plik_nazwa       TEXT,
             plik_size        INTEGER,
             plik_sha256      TEXT,
+            plik_podpisany       TEXT,
+            plik_podpisany_nazwa TEXT,
+            plik_podpisany_size  INTEGER,
+            signed_at        DATETIME,
+            signed_ip        TEXT,
             kdok_doc_id      INTEGER,
             kdok_number      TEXT,
             notify_token     TEXT,
@@ -66,6 +71,11 @@ require_once __DIR__ . '/db.php';
             'accepted_by'          => 'INTEGER',
             'accepted_at'          => 'DATETIME',
             'paid_at'              => 'DATETIME',
+            'plik_podpisany'       => 'TEXT',
+            'plik_podpisany_nazwa' => 'TEXT',
+            'plik_podpisany_size'  => 'INTEGER',
+            'signed_at'            => 'DATETIME',
+            'signed_ip'            => 'TEXT',
         ] as $col => $def) {
             try { db()->exec("ALTER TABLE zlecenie_rachunki ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
         }
@@ -78,13 +88,18 @@ const ZLEC_RACHUNEK_STATUSES = [
     'nowy'          => ['label' => 'Nowy',                      'class' => 'secondary'],
     'przekazany'    => ['label' => 'Przekazany zleceniobiorcy', 'class' => 'info'],
     'pobrany'       => ['label' => 'Pobrany',                   'class' => 'primary'],
+    'podpisany'     => ['label' => 'Podpisany — wgrany',        'class' => 'dark'],
     'zaakceptowany' => ['label' => 'Zaakceptowany',             'class' => 'success'],
     'zaplacony'     => ['label' => 'Zapłacony',                 'class' => 'success'],
     'odrzucony'     => ['label' => 'Odrzucony',                 'class' => 'danger'],
 ];
 
 /** Statusy, które są jeszcze „w toku” — do licznika na zakładce. */
-const ZLEC_RACHUNEK_OPEN_STATUSES = ['nowy', 'przekazany', 'pobrany'];
+const ZLEC_RACHUNEK_OPEN_STATUSES = ['nowy', 'przekazany', 'pobrany', 'podpisany'];
+
+/** Terminy dostarczenia podpisanego rachunku (dni od udostępnienia). */
+const ZLEC_RACHUNEK_SKAN_DAYS     = 2;  // skan podpisanego rachunku e-mailem
+const ZLEC_RACHUNEK_ORYGINAL_DAYS = 7;  // oryginał pocztą / osobiście
 
 function rachunek_status_badge(string $status): string {
     $s = ZLEC_RACHUNEK_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
@@ -203,9 +218,11 @@ function rachunek_set_status(int $rid, string $status, ?int $user_id): void {
 /** Trwałe usunięcie rachunku razem z plikiem (tylko admin — egzekwowane w api/ajax.php). */
 function delete_rachunek(int $rid): void {
     $r = get_rachunek($rid);
-    if ($r && !empty($r['plik'])) {
-        $abs = rachunek_file_abs($r['plik']);
-        if ($abs && is_file($abs)) @unlink($abs);
+    foreach (['plik', 'plik_podpisany'] as $col) {
+        if ($r && !empty($r[$col])) {
+            $abs = rachunek_file_abs($r[$col]);
+            if ($abs && is_file($abs)) @unlink($abs);
+        }
     }
     db()->prepare("DELETE FROM zlecenie_rachunki WHERE id=?")->execute([$rid]);
 }
@@ -227,9 +244,9 @@ const ZLEC_RACHUNEK_MIMES = [
 
 /**
  * Przyjmuje wpis z $_FILES i zapisuje plik w uploads/zlecenie_rachunki/.
- * Zwraca ['plik','plik_nazwa','plik_size','plik_sha256'] albo rzuca RuntimeException.
+ * Zwraca ['rel','name','size','sha256'] albo rzuca RuntimeException.
  */
-function rachunek_store_file(array $f): array {
+function _rachunek_store_upload(array $f): array {
     if (($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         throw new RuntimeException('Błąd wysyłania pliku (kod: ' . ($f['error'] ?? '?') . ').');
     }
@@ -257,10 +274,31 @@ function rachunek_store_file(array $f): array {
         throw new RuntimeException('Nie można zapisać pliku na serwerze.');
     }
     return [
-        'plik'        => ZLEC_RACHUNEK_UPLOAD_SUBDIR . $name,
-        'plik_nazwa'  => mb_substr(basename($f['name']), 0, 200),
-        'plik_size'   => (int)$f['size'],
-        'plik_sha256' => hash_file('sha256', $dir . $name) ?: null,
+        'rel'    => ZLEC_RACHUNEK_UPLOAD_SUBDIR . $name,
+        'name'   => mb_substr(basename($f['name']), 0, 200),
+        'size'   => (int)$f['size'],
+        'sha256' => hash_file('sha256', $dir . $name) ?: null,
+    ];
+}
+
+/** Plik rachunku wgrywany przez pracownika — klucze kolumn tabeli. */
+function rachunek_store_file(array $f): array {
+    $u = _rachunek_store_upload($f);
+    return [
+        'plik'        => $u['rel'],
+        'plik_nazwa'  => $u['name'],
+        'plik_size'   => $u['size'],
+        'plik_sha256' => $u['sha256'],
+    ];
+}
+
+/** Skan podpisanego rachunku wgrywany przez zleceniobiorcę — klucze kolumn tabeli. */
+function rachunek_store_signed_file(array $f): array {
+    $u = _rachunek_store_upload($f);
+    return [
+        'plik_podpisany'       => $u['rel'],
+        'plik_podpisany_nazwa' => $u['name'],
+        'plik_podpisany_size'  => $u['size'],
     ];
 }
 
@@ -363,13 +401,24 @@ function rachunek_notify_contractor(int $rid, ?int $actor_id = null): array {
     $numer = (string)($contract['numer_umowy'] ?? '');
     $url   = rachunek_public_url($rid);
 
+    // Terminy liczone od chwili udostępnienia rachunku (czyli od tej wysyłki).
+    $dl    = rachunek_deadlines(['notified_at' => date('Y-m-d H:i:s'), 'created_at' => $rach['created_at'] ?? null]);
+    $skan  = rachunek_skan_email();
+    $adres = rachunek_org_address();
+
     $vars = [
-        'org'          => htmlspecialchars($org, ENT_QUOTES, 'UTF-8'),
-        'name'         => htmlspecialchars($imie, ENT_QUOTES, 'UTF-8'),
-        'numer'        => htmlspecialchars($numer, ENT_QUOTES, 'UTF-8'),
-        'okres'        => htmlspecialchars((string)($rach['okres'] ?? ''), ENT_QUOTES, 'UTF-8'),
+        'org'            => htmlspecialchars($org, ENT_QUOTES, 'UTF-8'),
+        'name'           => htmlspecialchars($imie, ENT_QUOTES, 'UTF-8'),
+        'numer'          => htmlspecialchars($numer, ENT_QUOTES, 'UTF-8'),
+        'okres'          => htmlspecialchars((string)($rach['okres'] ?? ''), ENT_QUOTES, 'UTF-8'),
         'numer_rachunku' => htmlspecialchars((string)($rach['numer'] ?? ''), ENT_QUOTES, 'UTF-8'),
-        'url'          => htmlspecialchars($url, ENT_QUOTES, 'UTF-8'),
+        'url'            => htmlspecialchars($url, ENT_QUOTES, 'UTF-8'),
+        'skan_email'     => htmlspecialchars($skan, ENT_QUOTES, 'UTF-8'),
+        'skan_days'      => (string)ZLEC_RACHUNEK_SKAN_DAYS,
+        'oryginal_days'  => (string)ZLEC_RACHUNEK_ORYGINAL_DAYS,
+        'skan_deadline'     => $dl['skan']     ? ' (do ' . date_pl($dl['skan']) . ')'     : '',
+        'oryginal_deadline' => $dl['oryginal'] ? ' (do ' . date_pl($dl['oryginal']) . ')' : '',
+        'adres'          => $adres ? ' na adres: ' . htmlspecialchars($adres, ENT_QUOTES, 'UTF-8') : '',
     ];
 
     $tpl = email_tpl_render('zlecenie_rachunek_new', $vars);
@@ -378,11 +427,19 @@ function rachunek_notify_contractor(int $rid, ?int $actor_id = null): array {
     }
     $subject   = $tpl['subject'] ?: ('Nowy rachunek w systemie – ' . $org);
     $body_html = $tpl['html'];
+    $txt_skan = $dl['skan']     ? ' (do ' . date_pl($dl['skan']) . ')'     : '';
+    $txt_oryg = $dl['oryginal'] ? ' (do ' . date_pl($dl['oryginal']) . ')' : '';
     $body_text = "Dzień dobry,\n\n"
         . "Informujemy, że w systemie został wygenerowany nowy rachunek"
         . ($numer ? " do umowy {$numer}" : '') . ".\n\n"
         . "Możesz przejść do niego bezpośrednio pod poniższym adresem:\n{$url}\n\n"
-        . "Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.\n\n"
+        . "Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.\n"
+        . "Rachunek należy wydrukować, podpisać odręcznie i dostarczyć jednym z dwóch sposobów:\n\n"
+        . "Opcja 1 (szybciej): wgraj skan podpisanego rachunku pod powyższym linkiem, a oryginał dostarcz\n"
+        . "  w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg}.\n"
+        . "Opcja 2: w ciągu " . ZLEC_RACHUNEK_SKAN_DAYS . " dni{$txt_skan} prześlij skan podpisanego rachunku\n"
+        . "  na adres {$skan}, a następnie w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg} dostarcz oryginał"
+        . ($adres ? " na adres: {$adres}" : '') . ".\n\n"
         . "W razie pytań lub problemów technicznych pozostajemy do dyspozycji.\n\n"
         . "Z poważaniem,\n{$org}";
 
@@ -454,6 +511,138 @@ function rachunek_notify_internal(int $rid, ?int $actor_id = null): array {
             mail_queue_add($u['email'], $u['name'] ?? '', $title . ' — ' . $org, $html, '',
                 'zlecenie', (int)$rach['contract_id'], '', true);
             $done[] = $u['email'];
+        } catch (\Throwable $e) {}
+    }
+    return $done;
+}
+
+// ── Podpisany rachunek: terminy i odbiór ───────────────────────────────────────
+
+/** Adres, na który zleceniobiorca ma wysłać skan podpisanego rachunku. */
+function rachunek_skan_email(): string {
+    $v = trim((string)org_setting('rachunek_skan_email'));
+    if ($v !== '') return $v;
+    $v = trim((string)org_setting('org_email'));
+    if ($v !== '') return $v;
+    return defined('ORG_EMAIL') ? ORG_EMAIL : 'fundacja@feer.org.pl';
+}
+
+/** Adres siedziby organizacji — dla dostarczenia oryginału. */
+function rachunek_org_address(): string {
+    $adres  = trim((string)org_setting('org_adres'));
+    $miasto = trim((string)org_setting('org_miejscowosc'));
+    return trim($adres . ($miasto ? ', ' . $miasto : ''), ', ');
+}
+
+/**
+ * Terminy dostarczenia podpisanego rachunku, liczone od udostępnienia go
+ * zleceniobiorcy (data powiadomienia, a gdy go nie było — data dodania).
+ *
+ * @return array{start:?string, skan:?string, oryginal:?string, skan_left:?int, oryginal_left:?int}
+ */
+function rachunek_deadlines(array $rach): array {
+    $start = $rach['notified_at'] ?: ($rach['created_at'] ?? null);
+    if (!$start) {
+        return ['start' => null, 'skan' => null, 'oryginal' => null, 'skan_left' => null, 'oryginal_left' => null];
+    }
+    $t0 = strtotime($start);
+    if ($t0 === false) {
+        return ['start' => null, 'skan' => null, 'oryginal' => null, 'skan_left' => null, 'oryginal_left' => null];
+    }
+    $skan = strtotime('+' . ZLEC_RACHUNEK_SKAN_DAYS . ' days', $t0);
+    $oryg = strtotime('+' . ZLEC_RACHUNEK_ORYGINAL_DAYS . ' days', $t0);
+    $today = strtotime(date('Y-m-d'));
+    return [
+        'start'         => date('Y-m-d', $t0),
+        'skan'          => date('Y-m-d', $skan),
+        'oryginal'      => date('Y-m-d', $oryg),
+        'skan_left'     => (int)floor((strtotime(date('Y-m-d', $skan)) - $today) / 86400),
+        'oryginal_left' => (int)floor((strtotime(date('Y-m-d', $oryg)) - $today) / 86400),
+    ];
+}
+
+/** Czy skan podpisanego rachunku już wpłynął (którąkolwiek drogą). */
+function rachunek_is_signed(array $rach): bool {
+    return !empty($rach['signed_at']) || !empty($rach['plik_podpisany'])
+        || in_array($rach['status'] ?? '', ['podpisany', 'zaakceptowany', 'zaplacony'], true);
+}
+
+/**
+ * Zapisuje podpisany rachunek wgrany przez zleceniobiorcę i przestawia status.
+ * Poprzedni plik podpisany (jeśli był) jest usuwany — liczy się ostatnia wersja.
+ */
+function rachunek_mark_signed(int $rid, array $file_cols, string $ip = ''): void {
+    $prev = get_rachunek($rid);
+    if ($prev && !empty($prev['plik_podpisany']) && ($prev['plik_podpisany'] !== ($file_cols['plik_podpisany'] ?? null))) {
+        $abs = rachunek_file_abs($prev['plik_podpisany']);
+        if ($abs && is_file($abs)) @unlink($abs);
+    }
+    update_rachunek($rid, $file_cols + [
+        'signed_at' => date('Y-m-d H:i:s'),
+        'signed_ip' => mb_substr($ip, 0, 45),
+        'status'    => 'podpisany',
+    ]);
+}
+
+/**
+ * Informuje opiekuna umowy, jej autora i księgowego, że wpłynął podpisany rachunek.
+ *
+ * @return string[] Adresy, na które poszło powiadomienie.
+ */
+function rachunek_notify_signed(int $rid): array {
+    $rach = get_rachunek($rid);
+    if (!$rach) return [];
+    $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [(int)$rach['contract_id']]);
+    if (!$contract) return [];
+
+    require_once __DIR__ . '/supervisors.php';
+    require_once __DIR__ . '/notifications.php';
+    require_once __DIR__ . '/mail_queue.php';
+
+    $numer = (string)($contract['numer_umowy'] ?? '');
+    $osoba = (string)($contract['imie_nazwisko'] ?? '');
+    $url   = rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$rach['contract_id'] . '&tab=rachunki';
+    $org   = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
+    $title = 'Podpisany rachunek wpłynął — umowa ' . ($numer ?: '#' . (int)$rach['contract_id']);
+    $body  = trim($osoba . (!empty($rach['numer']) ? ' · rachunek ' . $rach['numer'] : ''));
+
+    $html = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#212529;line-height:1.6">'
+          . '<p>Dzień dobry,</p>'
+          . '<p>' . ($osoba ? '<strong>' . h($osoba) . '</strong>' : 'Zleceniobiorca')
+          . ' wgrał(a) podpisany rachunek' . (!empty($rach['numer']) ? ' nr <strong>' . h($rach['numer']) . '</strong>' : '')
+          . ($numer ? ' do umowy <strong>' . h($numer) . '</strong>' : '') . '.</p>'
+          . '<p style="margin:20px 0"><a href="' . h($url) . '" '
+          . 'style="background:#16a34a;color:#fff;padding:10px 22px;border-radius:5px;text-decoration:none;font-weight:bold">'
+          . 'Otwórz rejestr rachunków</a></p>'
+          . '<p style="color:#555;font-size:13px">Przypominamy, że oryginał rachunku zleceniobiorca dostarcza '
+          . 'w terminie ' . ZLEC_RACHUNEK_ORYGINAL_DAYS . ' dni od udostępnienia dokumentu.</p>'
+          . '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">'
+          . '<p style="color:#888;font-size:12px">' . h($org) . '</p></div>';
+
+    $targets = [];
+    $sup = supervisor_get('zlecenie', (int)$rach['contract_id']);
+    if ($sup && !empty($sup['user_id'])) $targets[(int)$sup['user_id']] = true;
+    if (!empty($contract['created_by']))  $targets[(int)$contract['created_by']] = true;
+
+    $done = [];
+    foreach (array_keys($targets) as $uid) {
+        try { notif_create($uid, 'contract', $title, $body, $url); } catch (\Throwable $e) {}
+        $u = db_one("SELECT name, email FROM users WHERE id=? AND is_active=1", [$uid]);
+        if (!$u || empty($u['email']) || !filter_var($u['email'], FILTER_VALIDATE_EMAIL)) continue;
+        try {
+            mail_queue_add($u['email'], $u['name'] ?? '', $title . ' — ' . $org, $html, '',
+                'zlecenie', (int)$rach['contract_id'], '', true);
+            $done[] = $u['email'];
+        } catch (\Throwable $e) {}
+    }
+
+    // Kopia na adres, na który i tak trafiają skany rachunków
+    $skan = rachunek_skan_email();
+    if ($skan && filter_var($skan, FILTER_VALIDATE_EMAIL) && !in_array($skan, $done, true)) {
+        try {
+            mail_queue_add($skan, '', $title . ' — ' . $org, $html, '',
+                'zlecenie', (int)$rach['contract_id'], '', true);
+            $done[] = $skan;
         } catch (\Throwable $e) {}
     }
     return $done;

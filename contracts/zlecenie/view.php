@@ -924,6 +924,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     <p class="text-muted small mb-2">
       Rejestr rachunków wgranych do systemu przez księgowego lub opiekuna umowy. Po dodaniu rachunku
       zleceniobiorca dostaje e-mail z linkiem do pobrania dokumentu, a system odnotowuje, kiedy plik został pobrany.
+      Podpisany rachunek zleceniobiorca <strong>wgrywa przez ten sam link</strong> albo wysyła skanem
+      na <?= h(rachunek_skan_email()) ?> w ciągu <?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni — oryginał dostarcza
+      w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni.
     </p>
     <?php if (!$_rach_email): ?>
     <div class="alert alert-warning small py-2">
@@ -939,7 +942,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     <thead class="table-light">
       <tr>
         <th>#</th><th>Status</th><th>Rachunek</th><th>Data</th><th>Kwota</th>
-        <th>Plik</th><th>Zleceniobiorca</th><th>EOD</th><th>Dodał</th><th></th>
+        <th>Plik</th><th>Zleceniobiorca</th><th>Podpisany</th><th>EOD</th><th>Dodał</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -981,6 +984,36 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         </span>
         <?php else: ?>
         <span class="text-muted" style="font-size:.85em">niepobrany</span>
+        <?php endif; ?>
+      </td>
+      <td class="small text-nowrap">
+        <?php $_dl = rachunek_deadlines($rr); ?>
+        <?php if (!empty($rr['plik_podpisany'])): ?>
+        <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&podpisany=1&inline=1"
+           target="_blank" class="text-success" title="<?= h($rr['plik_podpisany_nazwa'] ?? '') ?>">
+          <i class="bi bi-file-earmark-check"></i> <?= date_pl($rr['signed_at']) ?>
+        </a>
+        <?php elseif (rachunek_is_signed($rr)): ?>
+        <span class="text-success"><i class="bi bi-check2"></i> przyjęty</span>
+        <?php else: ?>
+        <span class="text-muted">czeka</span>
+        <?php endif; ?>
+        <?php if (!rachunek_is_signed($rr) && $_dl['skan']): ?>
+        <br>
+        <?php if ($_dl['oryginal_left'] !== null && $_dl['oryginal_left'] < 0): ?>
+        <span class="badge bg-danger" title="Minął termin dostarczenia oryginału (<?= date_pl($_dl['oryginal']) ?>)">
+          po terminie
+        </span>
+        <?php elseif ($_dl['skan_left'] !== null && $_dl['skan_left'] < 0): ?>
+        <span class="badge bg-warning text-dark" title="Termin skanu minął <?= date_pl($_dl['skan']) ?>; oryginał do <?= date_pl($_dl['oryginal']) ?>">
+          skan po terminie
+        </span>
+        <?php else: ?>
+        <span class="text-muted" style="font-size:.8em"
+              title="Skan do <?= date_pl($_dl['skan']) ?>, oryginał do <?= date_pl($_dl['oryginal']) ?>">
+          skan do <?= date_pl($_dl['skan']) ?>
+        </span>
+        <?php endif; ?>
         <?php endif; ?>
       </td>
       <td class="small text-nowrap">

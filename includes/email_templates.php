@@ -517,7 +517,19 @@ HTML;
 <p style="margin:0 0 16px;font-size:.85em;color:#6c757d;word-break:break-all">{{url}}</p>
 <p style="margin:0 0 16px">
   Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.
+  Rachunek należy wydrukować, podpisać odręcznie i dostarczyć jednym z dwóch sposobów:
 </p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-left:3px solid #2563eb;border-radius:4px;margin:0 0 16px">
+  <tr><td style="padding:14px 18px;font-size:14px;color:#334155">
+    <strong>Opcja 1 — szybciej:</strong> wgraj skan podpisanego rachunku bezpośrednio pod
+    <a href="{{url}}" style="color:#1d4ed8">powyższym linkiem</a>, a oryginał dostarcz w ciągu
+    {{oryginal_days}} dni{{oryginal_deadline}}.
+    <br><br>
+    <strong>Opcja 2:</strong> w ciągu {{skan_days}} dni{{skan_deadline}} prześlij skan podpisanego
+    rachunku na adres <a href="mailto:{{skan_email}}" style="color:#1d4ed8">{{skan_email}}</a>,
+    a następnie w ciągu {{oryginal_days}} dni{{oryginal_deadline}} dostarcz oryginał{{adres}}.
+  </td></tr>
+</table>
 <p style="margin:0 0 16px">W razie pytań lub problemów technicznych pozostajemy do dyspozycji.</p>
 <p style="margin:0">Z poważaniem,<br><strong>{{org}}</strong></p>
 HTML;
@@ -599,6 +611,12 @@ HTML;
                 'numer_rachunku' => ['label' => 'Numer rachunku',      'sample' => '1/2026'],
                 'okres'          => ['label' => 'Okres rachunku',      'sample' => 'czerwiec 2026'],
                 'url'            => ['label' => 'Link do rachunku',    'sample' => $base . '/contracts/zlecenie/rachunek_pobierz.php?token=abc123'],
+                'skan_email'     => ['label' => 'Adres na skan rachunku', 'sample' => 'fundacja@feer.org.pl'],
+                'skan_days'      => ['label' => 'Termin na skan (dni)',   'sample' => '2'],
+                'skan_deadline'  => ['label' => 'Data graniczna skanu (fragment „ (do …)” lub pusty)', 'sample' => ' (do 24.08.2026)'],
+                'oryginal_days'  => ['label' => 'Termin na oryginał (dni)', 'sample' => '7'],
+                'oryginal_deadline' => ['label' => 'Data graniczna oryginału (fragment „ (do …)” lub pusty)', 'sample' => ' (do 29.08.2026)'],
+                'adres'          => ['label' => 'Adres siedziby (fragment „ na adres: …” lub pusty)', 'sample' => ' na adres: ul. Przykładowa 1, Warszawa'],
             ],
         ],
 

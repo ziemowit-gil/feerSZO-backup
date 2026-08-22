@@ -3,10 +3,12 @@
  * contracts/zlecenie/rachunek_pobierz.php
  * Udostępnianie rachunku z rejestru „Rachunki” umowy zlecenie.
  *
- * Dwa tryby:
- *   ?token=XXX          — publiczna strona dla zleceniobiorcy (bez logowania);
- *   ?token=XXX&plik=1   — pobranie pliku (odnotowywane: data + licznik + status „pobrany”);
- *   ?id=N               — pobranie pliku przez zalogowanego pracownika (bez zmiany statusu).
+ * Tryby:
+ *   ?token=XXX            — publiczna strona dla zleceniobiorcy (bez logowania);
+ *   ?token=XXX&plik=1     — pobranie pliku (odnotowywane: data + licznik + status „pobrany”);
+ *   POST ?token=XXX       — wgranie skanu PODPISANEGO rachunku przez zleceniobiorcę;
+ *   ?id=N                 — pobranie pliku przez zalogowanego pracownika (bez zmiany statusu);
+ *   ?id=N&podpisany=1     — pobranie skanu podpisanego rachunku przez pracownika.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -14,9 +16,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_rachunki.php';
 
-/** Wysyła plik rachunku do przeglądarki i kończy skrypt. */
-function _rach_stream(array $rach, bool $inline = false): void {
-    $abs = rachunek_file_abs($rach['plik'] ?? null);
+/** Wysyła plik rachunku (oryginalny lub podpisany) do przeglądarki i kończy skrypt. */
+function _rach_stream(array $rach, bool $inline = false, string $col = 'plik'): void {
+    $abs = rachunek_file_abs($rach[$col] ?? null);
     if (!$abs) { http_response_code(404); die('Plik rachunku nie jest dostępny.'); }
 
     $ext  = strtolower(pathinfo($abs, PATHINFO_EXTENSION));
@@ -29,7 +31,8 @@ function _rach_stream(array $rach, bool $inline = false): void {
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ][$ext] ?? 'application/octet-stream';
 
-    $name = $rach['plik_nazwa'] ?: ('rachunek_' . (int)$rach['id'] . '.' . $ext);
+    $name_col = $col === 'plik_podpisany' ? 'plik_podpisany_nazwa' : 'plik_nazwa';
+    $name = $rach[$name_col] ?: ('rachunek_' . (int)$rach['id'] . '.' . $ext);
     $disp = ($inline && in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true)) ? 'inline' : 'attachment';
 
     while (ob_get_level()) ob_end_clean();
@@ -54,7 +57,8 @@ if (isset($_GET['id'])) {
     if (!$contract || !viewer_owns_contract('zlecenie', $contract)) {
         http_response_code(403); die('Brak dostępu do tego rachunku.');
     }
-    _rach_stream($rach, !empty($_GET['inline']));
+    _rach_stream($rach, !empty($_GET['inline']),
+        !empty($_GET['podpisany']) ? 'plik_podpisany' : 'plik');
 }
 
 // ── Tryb publiczny: dostęp po tokenie ─────────────────────────────────────────
@@ -71,6 +75,30 @@ if (!empty($_GET['plik'])) {
     if (empty($rach['plik'])) { http_response_code(404); die('Do tego rachunku nie dołączono pliku.'); }
     rachunek_mark_downloaded((int)$rach['id']);
     _rach_stream($rach);
+}
+
+// ── Wgranie skanu PODPISANEGO rachunku przez zleceniobiorcę (opcja 1) ─────────
+$upload_ok  = !empty($_GET['ok']);
+$upload_err = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_signed'])) {
+    try {
+        if (($_FILES['rach_podpisany']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            throw new RuntimeException('Nie wybrano pliku.');
+        }
+        $cols = rachunek_store_signed_file($_FILES['rach_podpisany']);
+        rachunek_mark_signed((int)$rach['id'], $cols, $_SERVER['REMOTE_ADDR'] ?? '');
+        rachunek_notify_signed((int)$rach['id']);
+        try {
+            require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+            log_contract_action('zlecenie', (int)$rach['contract_id'], 0, 'rachunek_signed',
+                'Zleceniobiorca wgrał podpisany rachunek #' . (int)$rach['id'] . ' (' . $cols['plik_podpisany_nazwa'] . ')');
+        } catch (\Throwable $e) {}
+        header('Location: ' . APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token=' . urlencode($token) . '&ok=1');
+        exit;
+    } catch (\Throwable $e) {
+        $upload_err = $e->getMessage();
+    }
+    $rach = get_rachunek((int)$rach['id']) ?: $rach;
 }
 
 // ── Dane organizacji ──────────────────────────────────────────────────────────
@@ -91,6 +119,11 @@ $siedziba   = trim($org_adres . ($org_miasto ? ', ' . $org_miasto : ''));
 
 $has_file   = !empty($rach['plik']) && rachunek_file_abs($rach['plik']);
 $file_url   = APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token=' . urlencode($token) . '&plik=1';
+
+$skan_mail  = rachunek_skan_email();
+$dl         = rachunek_deadlines($rach);
+$is_signed  = rachunek_is_signed($rach);
+$self_url   = APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token=' . urlencode($token);
 ?><!doctype html>
 <html lang="pl">
 <head>
@@ -122,6 +155,11 @@ table.data tr+tr th,table.data tr+tr td{border-top:1px solid #f1f5f9}
 .steps ol{margin:8px 0 0 18px}
 .steps li{margin-bottom:5px}
 .warn{background:#fff7ed;border-left:3px solid #f59e0b;border-radius:4px;padding:12px 16px;font-size:14px}
+.ok{background:#f0fdf4;border-left:3px solid #16a34a;border-radius:4px;padding:12px 16px;font-size:14px;margin-top:20px}
+.opt{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;margin-top:14px;background:#fff}
+.opt-h{font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.opt-h .num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+            border-radius:50%;background:#2563eb;color:#fff;font-size:13px;flex:0 0 24px}
 .foot{color:#94a3b8;font-size:12px;text-align:center;padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0}
 a{color:#1d4ed8}
 </style>
@@ -183,18 +221,82 @@ a{color:#1d4ed8}
       </div>
       <?php endif; ?>
 
+      <?php if ($upload_ok): ?>
+      <div class="ok">
+        <strong>&#10003; Dziękujemy — podpisany rachunek został przyjęty.</strong>
+        <div style="margin-top:6px">
+          Osoby prowadzące umowę zostały o tym powiadomione. Pamiętaj o dostarczeniu
+          <strong>oryginału</strong> rachunku<?= $dl['oryginal'] ? ' do <strong>' . date_pl($dl['oryginal']) . '</strong>' : '' ?><?php
+            ?><?= $siedziba ? ' na adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.
+        </div>
+      </div>
+      <?php elseif ($upload_err): ?>
+      <div class="warn" style="margin-top:20px">
+        <strong>Nie udało się wgrać pliku:</strong> <?= h($upload_err) ?>
+      </div>
+      <?php endif; ?>
+
       <div class="steps">
-        <strong>Dalsze kroki:</strong>
-        <ol>
-          <li>Pobierz i wydrukuj dokument.</li>
-          <li>Podpisz go odręcznie.</li>
-          <li>Prześlij skan podpisanego rachunku<?= $org_mail ? ' na adres <a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>' : '' ?>
-              <?= $siedziba ? ' oraz dostarcz oryginał na adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.</li>
+        <strong>Co dalej? Rachunek trzeba wydrukować, podpisać odręcznie i dostarczyć.</strong>
+        <p style="margin:8px 0 0;font-size:13.5px;color:#475569">
+          Wybierz jeden z dwóch sposobów — <strong>opcja 1</strong> jest szybsza i nie wymaga wysyłki skanu e-mailem.
+        </p>
+      </div>
+
+      <div class="opt">
+        <div class="opt-h"><span class="num">1</span> Wgraj podpisany rachunek tutaj</div>
+        <p style="font-size:14px;color:#475569;margin-bottom:12px">
+          Podpisz wydrukowany rachunek, zeskanuj go lub zrób wyraźne zdjęcie i wgraj plik poniżej —
+          trafi bezpośrednio do systemu.
+          <?php if ($dl['oryginal']): ?>
+          Oryginał dostarczasz następnie w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni,
+          czyli do <strong><?= date_pl($dl['oryginal']) ?></strong>.
+          <?php endif; ?>
+        </p>
+
+        <?php if ($is_signed && !empty($rach['signed_at'])): ?>
+        <div class="ok" style="margin:0">
+          Podpisany rachunek już do nas dotarł (<?= date_pl($rach['signed_at']) ?>).
+          Możesz wgrać poprawioną wersję, jeśli poprzednia była nieczytelna.
+        </div>
+        <?php endif; ?>
+
+        <form method="post" enctype="multipart/form-data" action="<?= h($self_url) ?>" style="margin-top:12px">
+          <input type="hidden" name="_rach_signed" value="1">
+          <label for="rachPodpisany" style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">
+            Skan lub zdjęcie podpisanego rachunku
+          </label>
+          <input id="rachPodpisany" type="file" name="rach_podpisany" required
+                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                 style="display:block;width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:#fff">
+          <div style="color:#94a3b8;font-size:12px;margin:6px 0 12px">PDF, JPG, PNG, DOC lub DOCX — do 30 MB.</div>
+          <button type="submit" class="btn">&#8593; Wyślij podpisany rachunek</button>
+        </form>
+      </div>
+
+      <div class="opt">
+        <div class="opt-h"><span class="num">2</span> Wyślij skan e-mailem, a potem oryginał pocztą</div>
+        <ol style="margin:10px 0 0 18px;font-size:14px;color:#334155">
+          <li style="margin-bottom:6px">
+            W ciągu <strong><?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni</strong><?= $dl['skan'] ? ' (do <strong>' . date_pl($dl['skan']) . '</strong>)' : '' ?>
+            prześlij <strong>skan podpisanego rachunku</strong> na adres
+            <a href="mailto:<?= h($skan_mail) ?>"><?= h($skan_mail) ?></a>.
+          </li>
+          <li>
+            W ciągu <strong><?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni</strong><?= $dl['oryginal'] ? ' (do <strong>' . date_pl($dl['oryginal']) . '</strong>)' : '' ?>
+            dostarcz <strong>oryginał</strong> — pocztą lub osobiście<?= $siedziba ? ' na adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.
+          </li>
         </ol>
       </div>
 
-      <p style="color:#64748b;font-size:13px;margin-top:20px">
-        W razie pytań lub problemów technicznych pozostajemy do dyspozycji.
+      <?php if (!empty($contract['rachunek_bankowy'])): ?>
+      <p style="color:#64748b;font-size:13px;margin-top:18px">
+        Wynagrodzenie zostanie przekazane na rachunek bankowy wskazany w umowie.
+      </p>
+      <?php endif; ?>
+
+      <p style="color:#64748b;font-size:13px;margin-top:14px">
+        W razie pytań lub problemów technicznych pozostajemy do dyspozycji<?= $org_mail ? ' — <a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>' : '' ?>.
       </p>
     </div>
     <div class="foot">
