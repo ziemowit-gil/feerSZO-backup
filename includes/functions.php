@@ -776,14 +776,39 @@ HTML;
  * @param int    $ttl        Czas ważności weryfikacji w sekundach (domyślnie 1800 = 30 min)
  */
 function ika_require(string $return_url = '', int $ttl = 1800): void {
-    if (!function_exists('current_user')) return;
+    if (ika_ok($return_url, $ttl)) return;
+
+    // Ustal URL powrotu (bieżący URL jeśli nie podano)
+    if ($return_url === '') {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $return_url = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '/');
+    }
+
+    header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($return_url));
+    exit;
+}
+
+/**
+ * Czy bieżąca sesja spełnia wymóg weryfikacji IKA — bez przekierowania.
+ *
+ * Zwraca true także wtedy, gdy IKA w ogóle nie dotyczy użytkownika (rola/kontekst).
+ * Wygasły lub unieważniony token jest po drodze usuwany z sesji.
+ *
+ * Używaj tam, gdzie redirect jest nie na miejscu (endpointy JSON, warunkowe UI);
+ * strony HTML powinny wołać ika_require().
+ *
+ * @param string $context_url URL kontekstu (decyduje o nadpisaniu „CRM"); domyślnie bieżący
+ * @param int    $ttl         Czas ważności weryfikacji w sekundach (domyślnie 1800 = 30 min)
+ */
+function ika_ok(string $context_url = '', int $ttl = 1800): bool {
+    if (!function_exists('current_user')) return true;
     $user = current_user();
-    if (!$user) return;
+    if (!$user) return true;
     $role = $user['role'] ?? '';
 
     // Jeśli sesja uwierzytelniona kluczem WebAuthn (FIDO2) — admin/editor są zwolnieni z IKA
     if (!empty($_SESSION['_webauthn_auth']) && in_array($role, ['admin', 'editor'], true)) {
-        return;
+        return true;
     }
 
     // Weryfikacja IKA wymagana dla:
@@ -802,19 +827,19 @@ function ika_require(string $return_url = '', int $ttl = 1800): void {
     }
 
     // Nadpisanie per-user dla kontekstu CRM (crm_ika_required: NULL=domyślnie, 0=zwolniony, 1=wymuś)
-    $uri_check = $return_url ?: ($_SERVER['REQUEST_URI'] ?? '');
+    $uri_check = $context_url ?: ($_SERVER['REQUEST_URI'] ?? '');
     $in_crm = str_contains($uri_check, '/crm/') || str_contains($uri_check, '/crm?');
     if ($in_crm) {
         try {
             $ov = db_one("SELECT crm_ika_required FROM users WHERE id=?", [(int)$user['id']]);
             $flag = isset($ov['crm_ika_required']) && $ov['crm_ika_required'] !== null
                 ? (int)$ov['crm_ika_required'] : null;
-            if ($flag === 0) return;         // admin zwolnił z IKA w CRM
+            if ($flag === 0) return true;          // admin zwolnił z IKA w CRM
             if ($flag === 1) $requires_ika = true; // admin wymusił IKA w CRM
         } catch (\Throwable $e) {}
     }
 
-    if (!$requires_ika) return;
+    if (!$requires_ika) return true;
 
     // Sprawdź token IKA w sesji
     if (!isset($_SESSION)) session_start();
@@ -828,26 +853,19 @@ function ika_require(string $return_url = '', int $ttl = 1800): void {
             if ($revoked_at && strtotime($revoked_at) > $ts) {
                 // Admin unieważnił sesję po jej utworzeniu — wymuś ponowną weryfikację
                 unset($_SESSION['_ika_ts']);
-                // przepuść poniżej do redirect
+                // przepuść niżej do return false
             } else {
-                return; // sesja ważna i nie unieważniona
+                return true; // sesja ważna i nie unieważniona
             }
         } catch (\Throwable $e) {
-            return; // kolumna jeszcze nie istnieje lub brak DB — przepuszczamy
+            return true; // kolumna jeszcze nie istnieje lub brak DB — przepuszczamy
         }
     }
 
     // Usuń wygasły/unieważniony token
     unset($_SESSION['_ika_ts']);
 
-    // Ustal URL powrotu (bieżący URL jeśli nie podano)
-    if ($return_url === '') {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $return_url = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '/');
-    }
-
-    header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($return_url));
-    exit;
+    return false;
 }
 
 /**

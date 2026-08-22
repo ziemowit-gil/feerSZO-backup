@@ -284,6 +284,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Blokada szybkiego logowania PIN-em do mobilnego dialera (per konto).
+    elseif ($action === 'toggle_mobile_pin') {
+        require_once dirname(__DIR__) . '/includes/mobile_auth.php';
+        mobile_pin_schema_heal();
+        $uid = intval($_POST['user_id'] ?? 0);
+        if ($uid) {
+            $u = db_one("SELECT mobile_pin_blocked, mobile_pin, email FROM users WHERE id=?", [$uid]);
+            if ($u) {
+                $new = empty($u['mobile_pin_blocked']) ? 1 : 0;
+                db()->prepare("UPDATE users SET mobile_pin_blocked=? WHERE id=?")->execute([$new, $uid]);
+                log_user_action($uid, (int)current_user()['id'], 'mobile_pin_block_toggle',
+                    $new ? 'Zablokowano logowanie PIN-em do dialera' : 'Odblokowano logowanie PIN-em do dialera');
+                flash_set('success', $new
+                    ? 'Logowanie PIN-em do dialera zostało zablokowane dla tego konta.'
+                    : 'Logowanie PIN-em do dialera jest znów dostępne dla tego konta.');
+            }
+        }
+        header('Location: ' . $SELF_URL);
+        exit;
+    }
+
     // DISABLE 2FA
     elseif ($action === 'disable_2fa') {
         $uid = intval($_POST['user_id'] ?? 0);
@@ -383,6 +404,10 @@ if ($filter_active !== '') {
 }
 
 $where_sql = $where_parts ? 'WHERE ' . implode(' AND ', $where_parts) : '';
+// Kolumny PIN-u do dialera dokładane leniwie — lista czyta je przez SELECT *.
+require_once dirname(__DIR__) . '/includes/mobile_auth.php';
+mobile_pin_schema_heal();
+
 $users = db_all("SELECT * FROM users $where_sql ORDER BY created_at DESC", $where_params);
 $me    = current_user();
 
@@ -735,6 +760,30 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                         title="<?= h($wa_title) ?>">
                   <i class="bi bi-shield-lock<?= $wa_req ? '-fill' : '' ?>"></i>
                   <?php if ($wa_req && !$wa_has_key): ?><span class="badge rounded-pill bg-warning text-dark position-absolute top-0 start-100 translate-middle" style="font-size:.55rem" title="Brak zarejestrowanego klucza">!</span><?php endif; ?>
+                </button>
+              </form>
+              <?php endif; ?>
+              <?php
+                // Szybkie logowanie PIN-em do mobilnego dialera — widoczne tylko gdy
+                // mechanizm jest włączony globalnie (Moduły → mobile_pin_enabled).
+                if (module_enabled('mobile_pin_enabled')):
+                  $mp_blocked = !empty($u['mobile_pin_blocked']);
+                  $mp_has_pin = trim((string)($u['mobile_pin'] ?? '')) !== '';
+                  $mp_title = $mp_blocked
+                      ? 'Logowanie PIN-em do dialera ZABLOKOWANE — kliknij, aby odblokować'
+                      : ($mp_has_pin
+                          ? 'PIN do dialera ustawiony przez użytkownika — kliknij, aby zablokować tę ścieżkę'
+                          : 'Logowanie PIN-em dostępne, użytkownik nie ustawił jeszcze PIN-u — kliknij, aby zablokować');
+              ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('<?= $mp_blocked ? 'Odblokować' : 'Zablokować' ?> logowanie PIN-em do mobilnego dialera dla <?= h(addslashes($u['name'])) ?>?')">
+                <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+                <input type="hidden" name="action"  value="toggle_mobile_pin">
+                <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+                <button type="submit" class="btn btn-sm <?= $mp_blocked ? 'text-white' : ($mp_has_pin ? 'btn-outline-success' : 'btn-outline-secondary') ?>"
+                        style="<?= $mp_blocked ? 'background:#be123c;border-color:#be123c' : '' ?>"
+                        title="<?= h($mp_title) ?>">
+                  <i class="bi bi-telephone<?= $mp_blocked ? '-x-fill' : ($mp_has_pin ? '-outbound-fill' : '-outbound') ?>"></i>
                 </button>
               </form>
               <?php endif; ?>

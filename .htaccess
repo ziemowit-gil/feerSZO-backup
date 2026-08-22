@@ -3,6 +3,15 @@ DirectoryIndex index.php
 
 RewriteEngine On
 
+# ── Krótki adres mobilnego dialera: /mobilna → moduł crm/mobile ─────────────
+# Alias działa na każdym hoście (szo.feer.org.pl/mobilna, crm.feer.org.pl/mobilna)
+# i musi być PRZED regułami subdomen, żeby ich catch-all go nie przechwycił.
+# Przepisanie jest wewnętrzne — adres w przeglądarce zostaje krótki, dzięki czemu
+# service worker rejestruje się w scope /mobilna/ (patrz crm_mobile_base()).
+RewriteRule ^mobilna$          /mobilna/ [R=301,L]
+RewriteRule ^mobilna/$         /crm/mobile/index.php [L]
+RewriteRule ^mobilna/(.+)$     /crm/mobile/$1 [L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:

@@ -53,6 +53,8 @@ try { db()->exec("ALTER TABLE users ADD COLUMN phone_verified_at DATETIME DEFAUL
 try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE users ADD COLUMN tozsamosc_seen_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE users ADD COLUMN ldap_created_at DATETIME DEFAULT NULL"); } catch (\Throwable $e) {}
+require_once dirname(__DIR__) . '/includes/mobile_auth.php';
+mobile_pin_schema_heal();
 
 // ── Pełny rekord + identyfikatory ───────────────────────────────────────────
 $db_user = db_one("SELECT * FROM users WHERE id=?", [$user['id']]);
@@ -284,6 +286,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['sec_phone_pending']);
         authlog_write($uid, 'phone_removed', $user['email'] ?? '', 'Usunięto numer telefonu konta');
         flash_set('success', 'Numer telefonu został usunięty.');
+        header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
+    }
+    elseif ($action === 'mobile_pin_save') {
+        if (!mobile_pin_allowed($db_user)) {
+            $errors[] = 'Logowanie PIN-em jest niedostępne dla tego konta.';
+        } else {
+            $new_pin = preg_replace('/\D/', '', $_POST['mobile_pin'] ?? '');
+            $cnf_pin = preg_replace('/\D/', '', $_POST['mobile_pin_confirm'] ?? '');
+            if ($new_pin !== $cnf_pin) {
+                $errors[] = 'Podane PIN-y nie są identyczne.';
+            } elseif ($err = mobile_pin_set($uid, $new_pin)) {
+                $errors[] = $err;
+            } else {
+                flash_set('success', 'PIN do szybkiego dzwonienia został zapisany.');
+                header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
+            }
+        }
+    }
+    elseif ($action === 'mobile_pin_remove') {
+        mobile_pin_clear($uid);
+        flash_set('success', 'PIN do szybkiego dzwonienia został usunięty.');
         header('Location: ' . $SELF . '#bezpieczenstwo'); exit;
     }
     elseif ($action === 'pwd_change') {
@@ -873,6 +896,86 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       </a>
     </div>
     <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tz-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i> Zarządzaj metodami weryfikacji</a>
+
+    <hr class="my-4">
+
+    <!-- ── Szybkie dzwonienie: UID + PIN ── -->
+    <?php
+      $pin_is_set  = mobile_pin_is_set($db_user);
+      $pin_allowed = mobile_pin_allowed($db_user);
+      $pin_lock    = mobile_pin_lock_left($db_user);
+      $pin_app_url = APP_URL . '/mobilna/';
+    ?>
+    <h3 class="h6 fw-bold mb-2"><i class="bi bi-telephone-outbound me-1" style="color:#2E844A" aria-hidden="true"></i>Szybkie dzwonienie (mobile) <span class="lbl-en d-inline">Quick dial sign-in</span></h3>
+    <p class="text-muted small mb-2">
+      Aplikacja mobilna <strong>Dzwoń</strong> pozwala wyszukać kontakt CRM i zadzwonić jednym dotknięciem.
+      Wchodzisz do niej numerem konta i PIN-em — a potem, jak wszędzie w CRM, kodem IKA.
+      Ta sesja otwiera <strong>wyłącznie</strong> dialer; do reszty systemu nadal logujesz się normalnie.
+    </p>
+
+    <dl class="row mb-3 small">
+      <dt class="col-sm-4">Adres aplikacji <span class="lbl-en">App address</span></dt>
+      <dd class="col-sm-8"><a href="<?= h($pin_app_url) ?>"><?= h(preg_replace('#^https?://#', '', $pin_app_url)) ?></a>
+          <span class="text-muted">— dodaj do ekranu głównego telefonu</span></dd>
+
+      <dt class="col-sm-4">Numer konta (UID) <span class="lbl-en">Account number</span></dt>
+      <dd class="col-sm-8"><code class="fs-6"><?= (int)$uid ?></code></dd>
+
+      <dt class="col-sm-4">PIN <span class="lbl-en">Quick dial PIN</span></dt>
+      <dd class="col-sm-8">
+        <?php if (!$pin_allowed): ?>
+          <span class="tz-badge">Wyłączone przez administratora</span>
+        <?php elseif ($pin_is_set): ?>
+          <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill"></i> Ustawiony</span>
+          <?php if (!empty($db_user['mobile_pin_set_at'])): ?>
+            <span class="text-muted">od <?= h(date('d.m.Y', strtotime((string)$db_user['mobile_pin_set_at']))) ?></span>
+          <?php endif; ?>
+          <?php if ($pin_lock): ?>
+            <span class="tz-badge" style="background:#fef3c7;color:#92400e">Zablokowany na <?= (int)$pin_lock ?> min po błędnych próbach</span>
+          <?php endif; ?>
+        <?php else: ?>
+          <span class="tz-badge">Nieustawiony</span>
+        <?php endif; ?>
+      </dd>
+    </dl>
+
+    <?php if ($pin_allowed): ?>
+    <form method="post" class="mb-2">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="mobile_pin_save">
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-4">
+          <label class="form-label small fw-semibold" for="mpin"><?= $pin_is_set ? 'Nowy PIN' : 'PIN' ?> (<?= MOBILE_PIN_LENGTH ?> cyfry)</label>
+          <input type="password" id="mpin" name="mobile_pin" class="form-control" required
+                 inputmode="numeric" autocomplete="new-password" pattern="[0-9]*"
+                 minlength="<?= MOBILE_PIN_LENGTH ?>" maxlength="<?= MOBILE_PIN_LENGTH ?>"
+                 aria-describedby="mpin_help">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small fw-semibold" for="mpin2">Powtórz PIN</label>
+          <input type="password" id="mpin2" name="mobile_pin_confirm" class="form-control" required
+                 inputmode="numeric" autocomplete="new-password" pattern="[0-9]*"
+                 minlength="<?= MOBILE_PIN_LENGTH ?>" maxlength="<?= MOBILE_PIN_LENGTH ?>">
+        </div>
+        <div class="col-sm-4 d-flex gap-2">
+          <button type="submit" class="tz-btn"><i class="bi bi-key" aria-hidden="true"></i> <?= $pin_is_set ? 'Zmień PIN' : 'Ustaw PIN' ?></button>
+        </div>
+      </div>
+      <div id="mpin_help" class="form-text">
+        Bez powtórzonej cyfry i bez ciągu kolejnych cyfr. Po <?= MOBILE_PIN_MAX_FAILS ?> błędnych próbach
+        logowanie PIN-em blokuje się na <?= MOBILE_PIN_LOCK_MIN ?> min — zwykłe logowanie działa dalej.
+        PIN-u nie zobaczy nikt, także administrator; jeśli go zapomnisz, ustaw nowy tutaj.
+      </div>
+    </form>
+
+    <?php if ($pin_is_set): ?>
+    <form method="post" onsubmit="return confirm('Usunąć PIN? Szybkie logowanie do dialera przestanie działać.')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="mobile_pin_remove">
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash" aria-hidden="true"></i> Usuń PIN</button>
+    </form>
+    <?php endif; ?>
+    <?php endif; ?>
   </div>
 </section>
 

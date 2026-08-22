@@ -302,8 +302,10 @@ function _menu_editor(): array {
 
     // ══ LUDZIE ═════════════════════════════════════════════════════════════════
     $ludzie = [ _mi('Osoby','/persons/index.php','bi-people',['match'=>'/persons/','kw'=>'osoby rejestr']) ];
-    if (module_enabled('crm_enabled') && can_read('crm'))
+    if (module_enabled('crm_enabled') && can_read('crm')) {
         $ludzie[] = _mi('CRM','/crm/dashboard.php','bi-diagram-2',['match'=>'/crm/','kw'=>'crm kontakt klient']);
+        $ludzie[] = _mi('Szybkie dzwonienie','/mobilna/','bi-telephone-outbound',['match'=>'/mobilna/','kw'=>'dzwon telefon mobilna dialer numer']);
+    }
     $ludzie[] = _mi('Katalog osób','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty']);
     if (module_enabled('org_enabled'))
         $ludzie[] = _mi('Struktura org.','/org/index.php','bi-diagram-3',['match'=>'/org/','kw'=>'struktura organizacja schemat']);
@@ -311,7 +313,7 @@ function _menu_editor(): array {
         $ludzie[] = _mi('Byłe osoby','/byli/index.php','bi-person-dash',['match'=>'/byli/','kw'=>'byli archiwum']);
     $nodes[] = [
         'id'=>'ludzie','label'=>'Ludzie','icon'=>'bi-people',
-        'active'=>_menu_hit('/persons/')||_menu_hit('/crm/')||_menu_hit('/directory/')||_menu_hit('/org/')||_menu_hit('/byli/'),
+        'active'=>_menu_hit('/persons/')||_menu_hit('/crm/')||_menu_hit('/mobilna/')||_menu_hit('/directory/')||_menu_hit('/org/')||_menu_hit('/byli/'),
         'groups'=>[['label'=>null,'items'=>$ludzie]],
     ];
 

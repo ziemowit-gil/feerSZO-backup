@@ -51,6 +51,13 @@ function current_user(): ?array {
     auth_start();
     $u = $_SESSION['user'] ?? null;
     if (!$u) return null;
+
+    // Sesja z logowania PIN-em (mobilny dialer) istnieje TYLKO w obrębie dialera.
+    // Egzekwujemy to już tutaj, a nie dopiero w require_login(): wiele endpointów
+    // sprawdza tożsamość samym current_user(), więc pilnowanie zakresu wyżej
+    // zostawiałoby je otwarte. Poza zakresem sesja jest po prostu niewidoczna.
+    if (!empty($_SESSION['_mobile_scope']) && !mobile_scope_current_ok()) return null;
+
     // Nakładka kontekstu: admin „wcielony" w użytkownika / podgląd roli, albo
     // opiekun wchodzący na konto swojego dziecka. Prawdziwy użytkownik zawsze
     // pozostaje w $_SESSION['user']; uprawnienia egzekwuje ctx_overlay()
@@ -60,6 +67,19 @@ function current_user(): ?array {
         if ($ov) return $ov;
     }
     return $u;
+}
+
+/**
+ * Czy bieżące żądanie mieści się w zakresie dozwolonym dla sesji mobilnego dialera.
+ * Ścieżka w obrębie żądania się nie zmienia, więc liczymy ją raz.
+ */
+function mobile_scope_current_ok(): bool {
+    static $ok = null;
+    if ($ok === null) {
+        require_once __DIR__ . '/mobile_auth.php';
+        $ok = mobile_scope_allows(mobile_request_path());
+    }
+    return $ok;
 }
 
 function is_crm_only(): bool {
@@ -424,7 +444,13 @@ function auth_generate_setup_token(int $user_id): string {
     return $token;
 }
 
-function login_user(array $user): void {
+/**
+ * @param bool $mobile_scope true = sesja ograniczona do mobilnego dialera
+ *                           (logowanie UID + PIN, patrz includes/mobile_auth.php).
+ *                           Domyślnie false — każde normalne logowanie daje pełny
+ *                           zakres i jawnie zdejmuje ewentualne ograniczenie.
+ */
+function login_user(array $user, bool $mobile_scope = false): void {
     auth_start();
     session_regenerate_id(true);
     $userData = [
@@ -436,6 +462,7 @@ function login_user(array $user): void {
         'portal_scope' => $user['portal_scope'] ?? null,
     ];
     $_SESSION['user'] = $userData;
+    if ($mobile_scope) { $_SESSION['_mobile_scope'] = 1; } else { unset($_SESSION['_mobile_scope']); }
     // Inicjuj poziom zaufania sesji (1 = hasło)
     if (function_exists('tz_init_on_login')) {
         tz_init_on_login();
