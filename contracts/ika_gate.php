@@ -195,7 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$has_code) { $error = 'Nie masz przypisanego kodu IKA.'; goto render; }
         if ($is_blocked) { $error = 'Kod IKA zablokowany do ' . date('H:i', strtotime($u_fresh['cpc_blocked_until'])) . '.'; goto render; }
 
-        $code   = preg_replace('/\D/', '', $_POST['ika_code'] ?? '');
+        // Kod składamy z ukrytego pola (wypełnia je JS), a gdy jest puste — wprost
+        // z sześciu pól cyfr. Bez tego awaria skryptu = „nieprawidłowy kod" przy
+        // każdej próbie, mimo poprawnie wpisanych cyfr.
+        $code = preg_replace('/\D/', '', $_POST['ika_code'] ?? '');
+        if ($code === '') {
+            $code = preg_replace('/\D/', '', implode('', array_map('strval', (array)($_POST['ika_d'] ?? []))));
+        }
         $result = cpc_verify($user_id, $code);
 
         if ($result['blocked']) {
@@ -267,6 +273,9 @@ HTML;
     // ── 3. Weryfikacja email OTP ────────────────────────────────────────────
     if ($mode === 'verify_email_otp') {
         $otp_input = preg_replace('/\D/', '', $_POST['email_otp'] ?? '');
+        if ($otp_input === '') {
+            $otp_input = preg_replace('/\D/', '', implode('', array_map('strval', (array)($_POST['email_d'] ?? []))));
+        }
 
         if (empty($u_fresh['ika_email_otp']) || empty($u_fresh['ika_email_otp_expires'])) {
             $error = 'Brak aktywnego kodu e-mail. Wygeneruj nowy.'; $page_mode = 'email_verify'; goto render;
@@ -343,7 +352,10 @@ HTML;
 }
 
 // ── GET: przejście do trybu PESEL ─────────────────────────────────────────────
-if ($_GET['mode'] ?? '' === 'pesel') {
+// UWAGA na nawiasy: `$_GET['x'] ?? '' === 'y'` parsuje się jako
+// `$_GET['x'] ?? ('' === 'y')`, czyli warunek jest prawdziwy dla KAŻDEGO
+// niepustego mode. Zawsze `($_GET['x'] ?? '') === 'y'`.
+if (($_GET['mode'] ?? '') === 'pesel') {
     $pesel = _ika_find_pesel($user_id);
     if ($pesel && strlen($pesel) === 11) {
         $positions = [];
@@ -363,8 +375,8 @@ if ($_GET['mode'] ?? '' === 'pesel') {
     }
 }
 
-if ($_GET['mode'] ?? '' === 'email_verify') $page_mode = 'email_verify';
-if ($_GET['mode'] ?? '' === 'setup')        $page_mode = 'setup';
+if (($_GET['mode'] ?? '') === 'email_verify') $page_mode = 'email_verify';
+if (($_GET['mode'] ?? '') === 'setup')        $page_mode = 'setup';
 
 // Auto-switch: brak kodu + aktywny token konfiguracyjny → setup
 if ($page_mode === 'ika' && !$has_code && $has_setup_token) $page_mode = 'setup';
@@ -675,6 +687,9 @@ $head_title = match(true) {
         <p>Nie masz przypisanego kodu IKA.</p>
         <?php if ($has_setup_token): ?>
         <p>Masz <strong>AdminCode</strong> — możesz ustawić kody samodzielnie.</p>
+        <?php elseif ($user_email): ?>
+        <p>Możesz wejść jednorazowym kodem wysłanym na <strong><?= h($user_email) ?></strong>
+           albo poprosić administratora o nadanie kodu IKA.</p>
         <?php else: ?>
         <p>Poproś administratora o nadanie kodu lub <strong>AdminCode</strong>.</p>
         <?php endif; ?>
@@ -686,6 +701,19 @@ $head_title = match(true) {
         <strong>Mam AdminCode</strong> — ustaw kody samodzielnie
         <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.8rem"></i>
       </a>
+      <?php endif; ?>
+      <?php if (!$has_setup_token && $user_email): ?>
+      <!-- Konto bez kodu IKA nie może być ślepym zaułkiem — dajemy drogę przez e-mail. -->
+      <form method="post" class="mt-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_mode" value="request_email_otp">
+        <input type="hidden" name="to"    value="<?= h($return_to) ?>">
+        <button type="submit" class="recovery-btn w-100" style="border:0;cursor:pointer">
+          <i class="bi bi-envelope-check" style="color:#1d4ed8"></i>
+          <strong>Wyślij kod na e-mail</strong> — wejdź bez kodu IKA
+          <i class="bi bi-arrow-right ms-auto" style="color:#1d4ed8;font-size:.8rem"></i>
+        </button>
+      </form>
       <?php endif; ?>
 
       <?php else: ?>
@@ -699,7 +727,7 @@ $head_title = match(true) {
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="password" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
                  maxlength="1" inputmode="numeric" pattern="\d"
-                 id="d<?= $i ?>" data-idx="<?= $i ?>"
+                 id="d<?= $i ?>" name="ika_d[]" data-idx="<?= $i ?>"
                  autocomplete="off" data-1p-ignore data-lpignore="true"
                  aria-label="Cyfra <?= $i ?> kodu IKA">
           <?php endfor; ?>
@@ -710,7 +738,8 @@ $head_title = match(true) {
             <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
           </button>
         </div>
-        <button type="submit" class="tz-btn tz-btn--wide" id="btnVerify" disabled>
+        <!-- Bez „disabled" w HTML: gdy skrypt padnie, formularz nadal da się wysłać. -->
+        <button type="submit" class="tz-btn tz-btn--wide" id="btnVerify">
           <span class="spin-icon" id="ikaSpinner"></span>
           <i class="bi bi-shield-check" aria-hidden="true"></i>
           Zweryfikuj i wejdź
@@ -796,7 +825,7 @@ $head_title = match(true) {
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="password" class="digit-box<?= $error && $active_method === 'email' ? ' is-error' : '' ?>"
                  maxlength="1" inputmode="numeric" pattern="\d"
-                 id="ed<?= $i ?>" data-idx="<?= $i ?>" autocomplete="off"
+                 id="ed<?= $i ?>" name="email_d[]" data-idx="<?= $i ?>" autocomplete="off"
                  data-1p-ignore data-lpignore="true" aria-label="Cyfra <?= $i ?> kodu z e-maila">
           <?php endfor; ?>
           <input type="hidden" name="email_otp" id="emailOtpHidden">
@@ -806,7 +835,7 @@ $head_title = match(true) {
             <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
           </button>
         </div>
-        <button type="submit" class="tz-btn tz-btn--email tz-btn--wide" id="btnEmailOtp" disabled>
+        <button type="submit" class="tz-btn tz-btn--email tz-btn--wide" id="btnEmailOtp">
           <span class="spin-icon" id="spinEmailOtp"></span>
           <i class="bi bi-envelope-check" aria-hidden="true"></i>
           Zweryfikuj kod e-mail
@@ -937,6 +966,9 @@ function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {
     btn.disabled = v.length < inputs.length;
     inputs.forEach(function(i){ i.classList.toggle('filled', i.value !== ''); });
   }
+  // Blokadę przycisku zakłada dopiero skrypt — w HTML przycisk jest aktywny,
+  // żeby awaria JS nie odcinała jedynej drogi wysłania kodu.
+  sync();
 
   inputs.forEach(function(inp, idx) {
     inp.addEventListener('input', function() {
@@ -961,6 +993,7 @@ function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {
 
   var form = btn.closest('form');
   if (form) form.addEventListener('submit', function() {
+    if (hidden) hidden.value = collect();   // ostatnia synchronizacja tuż przed wysyłką
     if (spinner) spinner.style.display = 'inline-block';
     btn.disabled = true;
   });
