@@ -95,6 +95,14 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ol>
 </nav>
 
+<?php if (!crm_offers_available()): ?>
+<div class="alert alert-danger" role="alert">
+  <div class="fw-bold"><i class="bi bi-database-exclamation me-1"></i>Schemat modułu Oferty nie jest gotowy</div>
+  <div style="font-size:.85rem">Nie udało się utworzyć / zaktualizować tabel modułu. Szczegóły:
+    <code><?= h(crm_offers_last_error() ?: 'brak szczegółów — sprawdź log PHP') ?></code></div>
+</div>
+<?php endif; ?>
+
 <div class="crm-page-header">
   <div>
     <div class="crm-page-title"><i class="bi bi-list-columns" style="color:#0176D3"></i> Katalog usług odpłatnych</div>

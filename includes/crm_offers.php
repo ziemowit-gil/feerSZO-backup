@@ -166,11 +166,36 @@ function crm_offer_confirm_person_required(): bool {
 // MIGRACJA
 // ─────────────────────────────────────────────────────────────────────────────
 
-function crm_offers_migrate(): void {
-    static $done = false;
-    if ($done) return;
-    $done = true;
+function crm_offers_migrate(): bool {
+    static $done = null;
+    if ($done !== null) return $done;
+    $done = false;
+    try {
+        $done = _crm_offers_migrate_run();
+    } catch (\Throwable $e) {
+        // Kartoteka kontaktu i dashboard tylko „przy okazji" pokazują oferty —
+        // problem ze schematem modułu nie może wywalić tych stron (500).
+        // Strony samego modułu pokazują komunikat z crm_offers_last_error().
+        crm_offers_last_error($e->getMessage());
+        error_log('[crm_offers_migrate] ' . $e->getMessage());
+        $done = false;
+    }
+    return $done;
+}
 
+/** Czy schemat modułu ofert jest dostępny (migracja przeszła). */
+function crm_offers_available(): bool {
+    return crm_offers_migrate();
+}
+
+/** Ostatni błąd migracji modułu — do pokazania na stronach modułu. */
+function crm_offers_last_error(?string $set = null): string {
+    static $err = '';
+    if ($set !== null) $err = $set;
+    return $err;
+}
+
+function _crm_offers_migrate_run(): bool {
     crm_migrate();
     $pdo = crm_db();
 
@@ -367,6 +392,7 @@ function crm_offers_migrate(): void {
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
+    return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -641,14 +667,28 @@ function crm_offer_objective_label(?int $id): string {
 /** Historia ofert kontrahenta — do kartoteki w CRM. */
 function crm_offer_history(int $contact_id, int $limit = 50): array {
     $limit = max(1, min(500, $limit));
-    return crm_all(
-        "SELECT * FROM crm_offers WHERE contact_id=? AND deleted_at IS NULL
-         ORDER BY created_at DESC LIMIT $limit", [$contact_id]
-    );
+    try {
+        return crm_all(
+            "SELECT * FROM crm_offers WHERE contact_id=? AND deleted_at IS NULL
+             ORDER BY created_at DESC LIMIT $limit", [$contact_id]
+        );
+    } catch (\Throwable $e) {
+        error_log('[crm_offer_history] ' . $e->getMessage());
+        return [];
+    }
 }
 
 /** Agregaty ofert kontrahenta (kartoteka). */
 function crm_offer_contact_summary(int $contact_id): array {
+    try {
+        return _crm_offer_contact_summary($contact_id);
+    } catch (\Throwable $e) {
+        error_log('[crm_offer_contact_summary] ' . $e->getMessage());
+        return ['cnt' => 0, 'won' => 0, 'lost' => 0, 'open' => 0, 'won_value' => 0.0];
+    }
+}
+
+function _crm_offer_contact_summary(int $contact_id): array {
     $r = crm_one(
         "SELECT COUNT(*) AS cnt,
                 SUM(CASE WHEN status='zaakceptowana' OR status='zrealizowana' THEN 1 ELSE 0 END) AS won,
@@ -669,7 +709,12 @@ function crm_offer_contact_summary(int $contact_id): array {
 /** Statystyki modułu (kafelki na liście i dashboardzie). */
 function crm_offer_stats(): array {
     $out = ['total' => 0, 'by_status' => [], 'pipeline' => 0.0, 'won_value' => 0.0, 'win_rate' => 0.0];
-    $rows = crm_all("SELECT status, COUNT(*) AS n, SUM(total_gross) AS v FROM crm_offers WHERE deleted_at IS NULL GROUP BY status");
+    try {
+        $rows = crm_all("SELECT status, COUNT(*) AS n, SUM(total_gross) AS v FROM crm_offers WHERE deleted_at IS NULL GROUP BY status");
+    } catch (\Throwable $e) {
+        error_log('[crm_offer_stats] ' . $e->getMessage());
+        return $out;
+    }
     $decided = $won = 0;
     foreach ($rows as $r) {
         $out['by_status'][$r['status']] = ['n' => (int)$r['n'], 'v' => (float)$r['v']];
