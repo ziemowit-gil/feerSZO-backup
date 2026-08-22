@@ -5,6 +5,22 @@
  */
 declare(strict_types=1);
 
+// Wbudowany serwer PHP (php -S) wykonuje ten router także dla plików statycznych.
+// „return false” oddaje żądanie serwerowi, który zwraca plik z dysku.
+// Na Apache/Nginx robi to .htaccess / try_files, więc ten blok tam nie działa.
+if (PHP_SAPI === 'cli-server') {
+    $reqPath = rawurldecode((string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH));
+
+    // Katalogi z kodem nie są zasobami publicznymi (na produkcji blokuje je .htaccess)
+    if (preg_match('~^/(includes|controllers|views)/~', $reqPath)) {
+        http_response_code(404);
+        exit;
+    }
+    if (is_file(__DIR__ . $reqPath)) {
+        return false;
+    }
+}
+
 require __DIR__ . '/includes/bootstrap.php';
 
 // ── Ustal ścieżkę żądania (bez katalogu bazowego i query string) ───────

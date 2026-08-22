@@ -56,7 +56,7 @@ case 'embed': ?>
 // ── Galeria: pasek miniatur + link do pełnej galerii ──────────────────
 case 'gallery':
     $gid    = (int)($t['gallery_id'] ?? 0);
-    $thumbs = $gid ? gallery_images($gid, $mode === 'bento' ? 4 : 8) : [];
+    $thumbs = $gid ? gallery_images($gid, $mode === 'bento' ? 3 : 8) : [];
     $lbData = array_map(fn($i) => [
         'src'     => upload_url('gallery/' . $i['filename']),
         'alt'     => (string)$i['alt'],
