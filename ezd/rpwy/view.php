@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $err = ezd_rpwy_epo_upload($id, 'epo', $uid);
             flash_set($err ? 'error' : 'success', $err ?: 'Dodano dowód doręczenia.');
         } elseif ($act === 'delete') {
-            if (!can_delete()) throw new \RuntimeException('Brak uprawnień do usuwania.');
+            if (!can_delete('ezd')) throw new \RuntimeException('Brak uprawnień do usuwania.');
             ezd_rpwy_delete($id, $uid);
             flash_set('success', 'Wpis usunięty.');
             header('Location:'.APP_URL.'/ezd/rpwy/index.php'); exit;
@@ -292,7 +292,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <button class="btn btn-outline-secondary btn-sm w-100"><i class="bi bi-x-circle me-1"></i>Anuluj wpis</button>
         </form>
 
-        <?php if(can_delete() && $r['status'] === 'przygotowana'): ?>
+        <?php if(can_delete('ezd') && $r['status'] === 'przygotowana'): ?>
         <form method="post" onsubmit="return confirm('Usunąć wpis bezpowrotnie?')">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="delete">
