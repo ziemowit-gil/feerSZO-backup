@@ -84,7 +84,7 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
   /* Tokeny layoutu (navbar / sidebar / body) */
-  --pvl-body:#E8EBF0;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
+  --pvl-body:#FFFFFF;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
   --pvl-txt:#374151;--pvl-sub:#9CA3AF;
   --pvl-btn:#fff;--pvl-btn-b:#E5E7EB;--pvl-btn-t:#374151;
   --pvl-div:#F3F4F6;--pvl-brand:#111827;

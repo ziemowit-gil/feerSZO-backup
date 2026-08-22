@@ -47,6 +47,20 @@ if ($_cu) {
 try {
     $_crm_total = (int)(db_one("SELECT COUNT(*) AS c FROM crm_contacts WHERE crm_active=1")['c'] ?? 0);
 } catch (\Throwable $e) { $_crm_total = 0; }
+
+// Liczniki modułu Oferty (badge w pasku) — cicho, gdy modułu jeszcze nie migrowano
+$_crm_offers_pending = 0;
+$_crm_offers_noconf  = 0;
+try {
+    $_crm_offers_pending = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_offers WHERE deleted_at IS NULL AND status IN ('szkic','do_zatwierdzenia','wyslana')"
+    )['c'] ?? 0);
+    $_crm_offers_noconf = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_offers
+         WHERE deleted_at IS NULL AND requires_confirmation=1 AND confirmation_id IS NULL
+           AND status IN ('wyslana','zaakceptowana')"
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -70,7 +84,8 @@ try {
 html, body { height: 100%; margin: 0; }
 
 body {
-  background: #F0F2F5;
+  /* Białe tło modułu — karty wyróżniają się obramowaniem, nie kontrastem tła. */
+  background: #FFFFFF;
   font-family: system-ui, -apple-system, sans-serif;
   display: flex;
   flex-direction: column;
@@ -163,6 +178,10 @@ body {
 .crm-topbar-sys-link:hover,
 .crm-topbar-sys-link.active { color: var(--crm-primary); border-color: var(--crm-primary); background: var(--crm-primary-bg); }
 .crm-topbar-sys-link i { font-size: .9rem; }
+/* Wyloguj — zawsze widoczne, także na telefonie (patrz RESPONSIVE niżej) */
+.crm-topbar-logout { color: #B42318; border-color: #FECDCA; }
+.crm-topbar-logout:hover,
+.crm-topbar-logout:focus-visible { color: #fff; background: #B42318; border-color: #B42318; }
 
 /* ══ TOP NAVBAR (poziome menu — pod topbarem) ════════════════════════ */
 .crm-navbar {
@@ -247,6 +266,7 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
   .crm-topbar-brand { border-right: none; }
   .crm-topbar-username { display: none; }
   .crm-topbar-sys-link { display: none; }
+  .crm-topbar-sys-link.crm-topbar-logout { display: inline-flex; }  /* wylogowanie zostaje pod ręką */
   #mod-sw { display: none; }
   .crm-content { padding: 1rem .75rem; }
   /* Na telefonie skróć przyciski akcji do samych ikon */
@@ -431,6 +451,10 @@ window.openCommModal = function(contactId, channel) {
       </ul>
     </div>
     <span class="crm-topbar-username d-none d-md-inline"><?= h(explode(' ', $_cu_name)[0]) ?></span>
+    <a href="<?= APP_URL ?>/auth/logout.php" class="crm-topbar-sys-link crm-topbar-logout"
+       title="Wyloguj się z systemu">
+      <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span class="d-none d-lg-inline">Wyloguj</span>
+    </a>
     <?php endif; ?>
   </div>
 
@@ -489,6 +513,27 @@ window.openCommModal = function(contactId, channel) {
     <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= str_contains($_uri,'/crm/calendar.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/calendar.php') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
     </a>
+
+    <!-- Kategoria: Oferty (działalność odpłatna) -->
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= (str_contains($_uri,'/crm/offers') ? ' active' : '') ?>">
+        <i class="bi bi-file-earmark-ruled-fill"></i><span>Oferty</span>
+        <?php if (!empty($_crm_offers_pending)): ?><span class="crm-nav-badge"><?= (int)$_crm_offers_pending ?></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/index.php"><i class="bi bi-file-earmark-ruled-fill me-2"></i>Rejestr ofert</a></li>
+        <?php if ($_crm_can_write): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa oferta</a></li>
+        <?php endif; ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/catalog.php"><i class="bi bi-list-columns me-2"></i>Katalog usług odpłatnych</a></li>
+        <?php if (!empty($_crm_offers_noconf)): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-warning-emphasis" href="<?= APP_URL ?>/crm/offers/index.php?noconf=1">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Bez potwierdzenia (<?= (int)$_crm_offers_noconf ?>)</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
 
     <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>

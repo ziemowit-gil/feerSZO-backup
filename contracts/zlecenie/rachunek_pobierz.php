@@ -147,10 +147,11 @@ $self_url   = APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token=' . urle
 <title>Rachunek<?= $numer ? ' · ' . h($numer) : '' ?> — <?= h($org_name) ?></title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;
      color:#1e293b;font-size:15px;line-height:1.65;padding:28px 16px}
 .wrap{max-width:640px;margin:0 auto}
-.card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;
+      box-shadow:0 1px 3px rgba(15,23,42,.08)}
 .head{background:#1e293b;color:#e2e8f0;padding:16px 28px;display:flex;justify-content:space-between;
       align-items:center;gap:16px;flex-wrap:wrap}
 .head .org{font-size:13px;font-weight:600;letter-spacing:.03em}
