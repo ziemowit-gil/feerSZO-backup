@@ -46,6 +46,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     $action = $_POST['_action'] ?? '';
     $uid = (int)(current_user()['id'] ?? 0);
 
+    // Szybkie zamknięcie sprawy — jedno kliknięcie zamiast wybierania statusu
+    // z listy. Opcjonalna notatka domykająca ląduje w notatkach sprawy, żeby
+    // z akt było widać PO CO sprawę zamknięto, nie tylko że jest zamknięta.
+    if ($action === 'quick_close') {
+        if ($case['status'] === 'closed') {
+            flash_set('info', 'Sprawa jest już zamknięta.');
+        } else {
+            $now  = date('Y-m-d H:i:s');
+            $from = $case['status'];
+            db()->prepare("UPDATE crm_cases SET status='closed', updated_at=?, closed_at=? WHERE id=?")
+                ->execute([$now, $now, $id]);
+
+            $note = trim((string)($_POST['close_note'] ?? ''));
+            if ($note !== '') {
+                try {
+                    db_insert('crm_case_notes', [
+                        'case_id'    => $id,
+                        'body'       => 'Zamknięcie sprawy: ' . $note,
+                        'created_by' => (int)(current_user()['id'] ?? 0) ?: null,
+                        'created_at' => $now,
+                    ]);
+                } catch (\Throwable $e) { /* notatka nie może zablokować zamknięcia */ }
+            }
+
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
+                crm_automation_fire('case_status_changed', (int)$case['contact_id'], [
+                    'case_id' => $id, 'from_status' => $from, 'to_status' => 'closed',
+                ]);
+            } catch (\Throwable $e) {}
+
+            flash_set('success', 'Sprawa zamknięta.');
+        }
+        header('Location: view.php?id=' . $id); exit;
+    }
+
     // Zmiana statusu
     if ($action === 'set_status') {
         $ns = $_POST['status'] ?? '';
@@ -455,9 +491,42 @@ include dirname(__DIR__) . '/includes/header_crm.php';
                 aria-expanded="false" aria-controls="collapseEditMeta" style="font-size:.82rem">
           <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj
         </button>
+        <?php if ($case['status'] !== 'closed'): ?>
+        <button type="button" class="btn btn-sm btn-success"
+                data-bs-toggle="collapse" data-bs-target="#collapseQuickClose"
+                aria-expanded="false" aria-controls="collapseQuickClose" style="font-size:.82rem">
+          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zamknij sprawę
+        </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
     </div>
+
+    <!-- Szybkie zamknięcie (collapse) -->
+    <?php if ($can_write && $case['status'] !== 'closed'): ?>
+    <div class="collapse" id="collapseQuickClose">
+      <form method="post" style="margin-top:.8rem;padding:.8rem .9rem;background:#EFF7ED;border-radius:8px;border-left:3px solid #2E844A">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="quick_close">
+        <label for="closeNote" style="font-size:.82rem;font-weight:600;display:block;margin-bottom:.3rem">
+          Zamknięcie sprawy — notatka domykająca (opcjonalnie)
+        </label>
+        <textarea name="close_note" id="closeNote" rows="2" maxlength="1000"
+                  class="form-control form-control-sm mb-2" style="font-size:.86rem"
+                  placeholder="Np. sprawa rozpatrzona pozytywnie, umowa podpisana…"></textarea>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <button type="submit" class="btn btn-sm btn-success" style="font-size:.82rem">
+            <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zamknij sprawę
+          </button>
+          <button type="button" class="btn btn-sm btn-link text-muted" style="font-size:.82rem"
+                  data-bs-toggle="collapse" data-bs-target="#collapseQuickClose">Anuluj</button>
+          <span class="text-muted" style="font-size:.78rem">
+            Status zmieni się na „Zamknięta", data zamknięcia zapisze się automatycznie.
+          </span>
+        </div>
+      </form>
+    </div>
+    <?php endif; ?>
 
     <!-- Opis -->
     <?php if ($case['description']): ?>
