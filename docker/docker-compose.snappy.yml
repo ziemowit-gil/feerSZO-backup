@@ -1,0 +1,50 @@
+# ── SnappyMail ("sm") addon — trzeci klient poczty do wyboru ──────────────────
+#
+# DEV:
+#   docker compose -f docker-compose.yml -f docker-compose.snappy.yml up -d
+#
+# PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.snappy.yml --env-file .env.prod up -d sm
+#
+# Po uruchomieniu: konfiguracja OAuth2 i domeny w panelu admina SnappyMaila,
+# potem adres wpisujesz w Admin → Poczta → Webmail → SnappyMail (dopiero wtedy
+# klient pojawia się na poczta.feer.org.pl i w panelu wolontariusza).
+# Instrukcja krok po kroku: ./snappymail/README.md
+#
+# DLACZEGO OSOBNY KONTENER, A NIE PLUGIN DO ROUNDCUBE: to alternatywny klient,
+# nie dodatek — użytkownik wybiera jeden z kilku (includes/webmail_clients.php).
+# Kontener jest bezstanowy poza katalogiem /var/lib/snappymail (konfiguracja,
+# konta, wtyczki) — stąd nazwany wolumin sm_data.
+
+services:
+
+  sm:
+    image: djmaze/snappymail:latest   # przypiąć konkretny tag przed produkcją
+    container_name: feer-sm
+    restart: unless-stopped
+    environment:
+      # Hasło admina SnappyMaila ustawiasz przy pierwszym wejściu na /?admin
+      # (login domyślny: admin). SECURE_ADMIN_PANEL=1 wyłącza panel admina po
+      # konfiguracji — zob. README, punkt „zamknij panel admina".
+      SECURE_ADMIN_PANEL: ${SM_SECURE_ADMIN:-0}
+      UPLOAD_MAX_SIZE:    ${SM_UPLOAD_MAX:-25M}
+    volumes:
+      - sm_data:/var/lib/snappymail
+    labels:
+      # Bez efektu w dev (Traefik nie działa) — aktywne z docker-compose.prod.yml.
+      - "traefik.enable=true"
+      - "traefik.http.routers.sm.rule=Host(`${SM_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.sm.entrypoints=websecure"
+      - "traefik.http.routers.sm.tls=true"
+      - "traefik.http.routers.sm.tls.certresolver=le"
+      - "traefik.http.routers.sm.middlewares=sec-headers@docker"
+      - "traefik.http.services.sm.loadbalancer.server.port=8888"
+      - "traefik.http.routers.sm-http.rule=Host(`${SM_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.sm-http.entrypoints=web"
+      - "traefik.http.routers.sm-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
+volumes:
+  sm_data:

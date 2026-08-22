@@ -1,0 +1,63 @@
+# ── SquirrelMail ("sqm") addon — awaryjny, archaiczny klient poczty ───────────
+#
+# ⚠ PRZECZYTAJ ZANIM URUCHOMISZ: SquirrelMail 1.4.x (ostatnie wydanie 2011) NIE
+# zaloguje się do skrzynek Microsoft 365 — zna wyłącznie logowanie hasłem do
+# IMAP/SMTP, a Microsoft wyłączył je w Exchange Online na stałe. Ten kontener ma
+# sens tylko dla skrzynek na INNYM serwerze IMAP. Pełne uzasadnienie i sposób
+# bezpiecznego wystawienia: ./squirrelmail/README.md
+#
+# DEV:
+#   docker compose -f docker-compose.yml -f docker-compose.sqm.yml up -d --build sqm
+#
+# PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.sqm.yml --env-file .env.prod up -d --build sqm
+#
+# Obraz budowany lokalnie (nie ma utrzymywanego obrazu publicznego) —
+# ./squirrelmail/Dockerfile, świadomie na PHP 7.4 (na 8.x ten kod nie działa).
+#
+# DOSTĘP: domyślnie ograniczony do sieci prywatnych (middleware sqm-allow).
+# Wystawienie 14-letniego kodu PHP na otwarty internet byłoby proszeniem się
+# o kłopoty — jeśli musi być dostępny z zewnątrz, wpisz konkretne adresy IP
+# w SQM_ALLOW_IPS, nie 0.0.0.0/0.
+
+services:
+
+  sqm:
+    build:
+      context: ./squirrelmail
+    image: feer-squirrelmail:1.4.22
+    container_name: feer-sqm
+    restart: unless-stopped
+    environment:
+      SQM_ORG_NAME:    ${SQM_ORG_NAME:-Poczta FEER}
+      SQM_DOMAIN_MAIL: ${SQM_DOMAIN_MAIL:-feer.org.pl}
+      # Serwer IMAP/SMTP — NIE outlook.office365.com (patrz nagłówek pliku).
+      SQM_IMAP_HOST:   ${SQM_IMAP_HOST:-}
+      SQM_IMAP_PORT:   ${SQM_IMAP_PORT:-993}
+      SQM_IMAP_TLS:    ${SQM_IMAP_TLS:-1}
+      SQM_SMTP_HOST:   ${SQM_SMTP_HOST:-}
+      SQM_SMTP_PORT:   ${SQM_SMTP_PORT:-587}
+      SQM_SMTP_TLS:    ${SQM_SMTP_TLS:-2}
+      SQM_BACK_URL:    ${SQM_BACK_URL:-https://poczta.feer.org.pl}
+    volumes:
+      # Preferencje, książka adresowa i załączniki użytkowników — poza webrootem.
+      - sqm_data:/var/local/squirrelmail
+    labels:
+      # Bez efektu w dev (Traefik nie działa) — aktywne z docker-compose.prod.yml.
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.sqm-allow.ipallowlist.sourcerange=${SQM_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}"
+      - "traefik.http.routers.sqm.rule=Host(`${SQM_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.sqm.entrypoints=websecure"
+      - "traefik.http.routers.sqm.tls=true"
+      - "traefik.http.routers.sqm.tls.certresolver=le"
+      - "traefik.http.routers.sqm.middlewares=sqm-allow@docker,sec-headers@docker"
+      - "traefik.http.services.sqm.loadbalancer.server.port=80"
+      - "traefik.http.routers.sqm-http.rule=Host(`${SQM_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.sqm-http.entrypoints=web"
+      - "traefik.http.routers.sqm-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
+volumes:
+  sqm_data:

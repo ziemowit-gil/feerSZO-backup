@@ -135,13 +135,14 @@ if (module_enabled('org_documents_enabled')) $_pv_daily[] = ['href'=>APP_URL.'/p
 if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')) $_pv_daily[] = ['href'=>APP_URL.'/panel/whatsapp_group.php','icon'=>'bi-whatsapp','label'=>'Grupa WhatsApp','sub'=>'dołącz do grupy'];
 if (module_enabled('ezd_enabled') && can_read('ezd')) $_pv_daily[] = ['href'=>APP_URL.'/ezd/index.php','icon'=>'bi-folder2-open','label'=>'Wirtualne biurko','sub'=>'sprawy i pisma'];
 
-/* ── Poczta: dwa klienty do wyboru (od 1 IX 2026) ─────────────────────────
-   Adresy z ustawień organizacji (Admin → Poczta → Webmail), z wartościami
-   zapasowymi. Strona rozjazdu z porównaniem: webmail/index.php pod
-   poczta.feer.org.pl oraz aliasem szo.feer.org.pl/poczta (.htaccess). */
+/* ── Poczta: klienty do wyboru (komunikat: od 1 IX 2026) ──────────────────
+   Lista i opisy z katalogu includes/webmail_clients.php — TEGO SAMEGO, z którego
+   korzysta publiczna strona rozjazdu (webmail/index.php pod poczta.feer.org.pl
+   i aliasem szo.feer.org.pl/poczta) oraz moduł Poczta. Klient bez ustawionego
+   adresu (Admin → Poczta → Webmail) po prostu się tu nie pojawia. */
+require_once $ROOT . '/includes/webmail_clients.php';
+$_mail_clients = webmail_clients();
 $_mail_chooser = rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
-$_mail_owa     = rtrim(org_setting('poczta_owa_url') ?: 'https://outlook.office.com/mail/', '/') . '/';
-$_mail_rc      = rtrim(org_setting('poczta_webmail_url') ?: 'https://rc.feer.org.pl', '/');
 
 /* ── Aktywność: ostatnie wnioski ─────────────────────────────────────────── */
 $_pv_apps = $my_apps ? array_map(fn($a) => [
@@ -808,18 +809,18 @@ $_pv_rel_time = function (string $dt): string {
             <strong>Od 1 września 2026</strong> sam wybierasz, w czym czytasz służbową pocztę —
             <strong>korzystać możesz już teraz</strong>, bez zgłaszania czegokolwiek.
             To ta sama skrzynka i te same wiadomości; różni się tylko widok i to, co program
-            dodatkowo potrafi. Wybór jest odwracalny — możesz używać obu równolegle.
+            dodatkowo potrafi. Wybór jest odwracalny — możesz używać kilku klientów równolegle.
           </div>
 
           <div class="pv-mail-pick">
-            <a class="pv-mail-btn" href="<?= h($_mail_owa) ?>" target="_blank" rel="noopener noreferrer">
-              <span style="font-weight:700;color:inherit"><i class="bi bi-microsoft" aria-hidden="true"></i>Outlook w przeglądarce</span>
-              <span>pełny M365: kalendarz, Teams, skrzynki wspólne</span>
+            <?php foreach ($_mail_clients as $_mc): ?>
+            <a class="pv-mail-btn" href="<?= h($_mc['url']) ?>" target="_blank" rel="noopener noreferrer">
+              <span style="font-weight:700;color:inherit"><i class="bi <?= h($_mc['icon']) ?>" aria-hidden="true"></i><?= h($_mc['label']) ?><?php
+                if ($_mc['badge'] === 'zalecany'): ?> <span class="tz-badge tz-badge--ok"><?= 'zalecany' ?></span><?php
+                elseif ($_mc['badge'] === 'awaryjny'): ?> <span class="tz-badge tz-badge--wait">awaryjny</span><?php endif; ?></span>
+              <span><?= h($_mc['tagline']) ?></span>
             </a>
-            <a class="pv-mail-btn" href="<?= h($_mail_rc) ?>" target="_blank" rel="noopener noreferrer">
-              <span style="font-weight:700;color:inherit"><i class="bi bi-envelope-open" aria-hidden="true"></i>Roundcube</span>
-              <span>lekki i szybki, sama poczta</span>
-            </a>
+            <?php endforeach; ?>
           </div>
 
           <details class="pv-mail-diff">
@@ -830,12 +831,12 @@ $_pv_rel_time = function (string $dt): string {
                   <strong>skrzynki współdzielone</strong> (np. fundacja@feer.org.pl) i dostęp w zastępstwie,
                   <strong>reguły i autoodpowiedź</strong>, aplikacja na telefon z powiadomieniami,
                   wyszukiwanie w całej skrzynce.</dd>
-              <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Roundcube — gdy chcesz lekko i szybko</dt>
+              <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Roundcube / SnappyMail — gdy chcesz lekko i szybko</dt>
               <dd>Tylko poczta: <strong>bez kalendarza, Teams i skrzynek współdzielonych</strong>.
-                  W zamian otwiera się na <strong>słabym łączu i starszym sprzęcie</strong>, logujesz się
-                  jednym przyciskiem „Microsoft 365" (bez osobnego hasła), dołączasz pliki
-                  z <strong>OneDrive i ownCloud</strong>, a kontakty z Outlooka kopiują się
-                  do adresownika przy logowaniu.</dd>
+                  W zamian otwierają się na <strong>słabym łączu i starszym sprzęcie</strong>, logujesz się
+                  jednym przyciskiem „Microsoft 365" (bez osobnego hasła). Roundcube dokłada
+                  załączniki z <strong>OneDrive i ownCloud</strong> oraz kontakty kopiowane z Outlooka;
+                  SnappyMail ma najlżejszy interfejs i da się go „zainstalować" na telefonie.</dd>
               <dt><i class="bi bi-info-circle" aria-hidden="true"></i> Co jest wspólne</dt>
               <dd>Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości. Reguły, podpis
                   i autoodpowiedź ustawione w Outlooku działają na serwerze, więc obowiązują też
@@ -843,7 +844,7 @@ $_pv_rel_time = function (string $dt): string {
             </dl>
           </details>
 
-          <div class="tz-svc__foot"><a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Porównanie i wybór: <?= h(preg_replace('~^https?://~', '', $_mail_chooser)) ?></a></div>
+          <div class="tz-svc__foot"><a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Pełne zestawienie i wybór: <?= h(preg_replace('~^https?://~', '', $_mail_chooser)) ?></a></div>
         </div>
       </div>
 

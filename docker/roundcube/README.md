@@ -6,6 +6,11 @@
 ## 1. Co to jest
 
 Webmail dla userów w ramach modułu „Poczta" (`poczta/` w głównej aplikacji).
+**Jeden z kilku klientów do wyboru** — użytkownik wybiera na stronie
+`poczta.feer.org.pl` (= `szo.feer.org.pl/poczta`, plik `webmail/index.php`).
+Katalog klientów i ich cech: `includes/webmail_clients.php`; rodzeństwo:
+`../snappymail/README.md`, `../squirrelmail/README.md`. Roundcube pojawia się
+użytkownikom tylko wtedy, gdy jego adres jest wpisany w Admin → Poczta → Webmail.
 Osobny kontener Docker (`rc`), niezależny od głównej apki — nie dzieli z nią
 bazy danych. Skrzynki to Microsoft 365 (IMAP `outlook.office365.com`, SMTP
 `smtp.office365.com`).

@@ -75,11 +75,13 @@ RewriteCond %{REQUEST_URI} !^/crm/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /crm/$1 [L]
 
-# ── Subdomena poczta. → strona wyboru klienta poczty ────────────────────────
-# Host poczta.feer.org.pl WEWNĘTRZNIE serwuje webmail/ (publiczny rozjazd do
-# Outlooka albo Roundcube — bez logowania, patrz webmail/index.php). Pomijamy
-# sam katalog (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
-RewriteCond %{HTTP_HOST} ^poczta\. [NC]
+# ── Subdomeny poczta. i webmail. → strona wyboru klienta poczty ─────────────
+# Oba hosty (poczta.feer.org.pl, webmail.feer.org.pl) WEWNĘTRZNIE serwują
+# webmail/ — publiczny rozjazd do Outlooka / Roundcube / SnappyMaila, bez
+# logowania (patrz webmail/index.php). Dwie nazwy, bo jednym ludzie mówią
+# „poczta", a drugim „webmail" — i żadna nie jest oczywista dla wszystkich.
+# Pomijamy sam katalog (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
+RewriteCond %{HTTP_HOST} ^(poczta|webmail)\. [NC]
 RewriteCond %{REQUEST_URI} !^/webmail/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /webmail/$1 [L]
