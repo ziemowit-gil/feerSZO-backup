@@ -114,6 +114,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <?= h($inv['number'] ?: 'Szkic faktury #' . $id) ?>
       <span class="badge ms-1" style="background:<?= h($st['color']) ?>"><?= h($st['label']) ?></span>
     </h1>
+    <?php if (invoice_is_test($inv)): ?>
+    <span class="badge bg-danger" title="Faktura testowa — nie idzie do żadnego systemu zewnętrznego">TEST</span>
+    <?php endif; ?>
     <span class="badge bg-light text-dark border"><?= h(INVOICE_SOURCES[$inv['source']] ?? $inv['source']) ?></span>
   </div>
 

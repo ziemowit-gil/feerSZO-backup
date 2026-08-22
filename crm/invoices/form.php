@@ -78,6 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'sell_date'       => trim($_POST['sell_date']  ?? ''),
         'payment_to'      => trim($_POST['payment_to'] ?? ''),
         'notes'           => trim($_POST['notes'] ?? ''),
+        // Fakturę testową może oznaczyć tylko administrator — to obejście
+        // wszystkich ścieżek wysyłki, nie zwykłe pole formularza.
+        'is_test'         => (is_admin() && !empty($_POST['is_test'])) ? 1 : 0,
     ];
     $items = form_items();
 
@@ -115,12 +118,13 @@ $v = array_merge(
         'sell_date'       => date('Y-m-d'),
         'payment_to'      => date('Y-m-d', strtotime('+' . $cfg['days'] . ' days')),
         'notes'           => '',
+        'is_test'         => 0,
     ],
     $prefill,
     $inv ?: [],
     array_intersect_key($_POST, array_flip([
         'kind','contact_id','buyer_name','buyer_tax_no','buyer_street','buyer_post_code',
-        'buyer_city','buyer_email','currency','issue_date','sell_date','payment_to','notes',
+        'buyer_city','buyer_email','currency','issue_date','sell_date','payment_to','notes','is_test',
     ]))
 );
 
@@ -225,6 +229,21 @@ include dirname(__DIR__) . '/includes/header_crm.php';
             <label class="form-label small fw-semibold" for="notes">Uwagi (widoczne w SZO)</label>
             <input type="text" class="form-control" id="notes" name="notes" value="<?= h($v['notes']) ?>">
           </div>
+          <?php if (is_admin()): ?>
+          <div class="col-12">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="is_test" name="is_test" value="1"
+                     <?= !empty($v['is_test']) ? 'checked' : '' ?> aria-describedby="isTestHelp">
+              <label class="form-check-label fw-semibold" for="is_test">Faktura testowa</label>
+            </div>
+            <div id="isTestHelp" class="form-text">
+              Numer dostanie przedrostek <code>TEST/</code> i osobną sekwencję, więc nie zużyje numeru
+              produkcyjnego. Taka faktura <strong>nie jest wystawiana w Fakturowni ani KSeF</strong>,
+              <strong>nie jest wysyłana do nabywcy</strong> i nie zakłada koszulki w SZO.
+              Pole widoczne tylko dla administratora.
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>

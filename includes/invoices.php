@@ -78,6 +78,11 @@ function invoices_migrate(): void
         updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
         deleted_at      DATETIME
     )");
+    // Faktura testowa: numer z przedrostkiem TEST, nie idzie do żadnego systemu
+    // zewnętrznego i nie zakłada koszulki w SZO. Osobna kolumna, nie sam prefiks
+    // numeru — po numerze nie da się filtrować pewnie, a decyzje zależą od tej flagi.
+    try { $pdo->exec("ALTER TABLE invoices ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_status  ON invoices(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_contact ON invoices(contact_id)");
     // Jedna faktura na źródło — druga próba wystawienia z tej samej oferty
@@ -276,6 +281,7 @@ function invoice_create(array $d, array $items, int $uid): int
         'payment_to'      => trim((string)($d['payment_to'] ?? ''))
                              ?: date('Y-m-d', strtotime($issue . ' +' . $cfg['days'] . ' days')),
         'notes'           => trim((string)($d['notes'] ?? '')) ?: null,
+        'is_test'         => !empty($d['is_test']) ? 1 : 0,
         'created_by'      => $uid,
         'created_at'      => $now,
         'updated_at'      => $now,
@@ -300,6 +306,7 @@ function invoice_update(int $id, array $d, ?array $items, int $uid): ?string
         if (array_key_exists($f, $d)) $fields[$f] = trim((string)$d[$f]);
     }
     if (array_key_exists('contact_id', $d)) $fields['contact_id'] = ((int)$d['contact_id']) ?: null;
+    if (array_key_exists('is_test', $d))    $fields['is_test']    = !empty($d['is_test']) ? 1 : 0;
     $fields['updated_at'] = date('Y-m-d H:i:s');
 
     db_update('invoices', $fields, $id);
@@ -334,11 +341,12 @@ function invoice_delete(int $id): ?string
  * szkic zostawiałby lukę w numeracji. Dla szkicu liczymy numer poglądowo
  * (invoice_ti_number_preview) i nie zapisujemy go.
  */
-function invoice_ti_number(int $month, int $year, int $course_id = 0): string
+function invoice_ti_number(int $month, int $year, int $course_id = 0, bool $test = false): string
 {
     invoices_migrate();
     $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
     $sfx  = '/' . $mm . '/' . $year . ($course_id > 0 ? '/' . $course_id : '');
+    $pre  = $test ? INVOICE_TEST_PREFIX : '';
     $next = 1;
 
     // Wzorzec BEZ „%" na końcu — koniec numeru jest dopasowany dokładnie, więc
@@ -347,13 +355,13 @@ function invoice_ti_number(int $month, int $year, int $course_id = 0): string
     foreach (db_all(
         "SELECT number FROM invoices
           WHERE source='ti_billing' AND number LIKE ? AND deleted_at IS NULL",
-        ['TI/%' . $sfx]
+        [$pre . 'TI/%' . $sfx]
     ) as $r) {
-        if (preg_match('#^TI/(\d+)/#', (string)$r['number'], $m)) {
+        if (preg_match('#TI/(\d+)/#', (string)$r['number'], $m)) {
             $next = max($next, (int)$m[1] + 1);
         }
     }
-    return 'TI/' . $next . $sfx;
+    return $pre . 'TI/' . $next . $sfx;
 }
 
 /** Okres i grupa rozliczenia TI, z którego powstała faktura. */
@@ -387,7 +395,7 @@ function invoice_ti_number_preview(array $inv): string
  * Faktury z TI mają własną serię TI/… (invoice_ti_number) — tu obsługujemy
  * pozostałe źródła: oferty CRM i faktury ręczne.
  */
-function invoice_own_number(int $month, int $year): string
+function invoice_own_number(int $month, int $year, bool $test = false): string
 {
     invoices_migrate();
     $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
@@ -396,13 +404,23 @@ function invoice_own_number(int $month, int $year): string
 
     foreach (db_all(
         "SELECT number FROM invoices WHERE number LIKE ? AND deleted_at IS NULL",
-        ['FV/%' . $sfx]
+        [($test ? INVOICE_TEST_PREFIX : '') . 'FV/%' . $sfx]
     ) as $r) {
-        if (preg_match('#^FV/(\d+)/#', (string)$r['number'], $m)) {
+        if (preg_match('#FV/(\d+)/#', (string)$r['number'], $m)) {
             $next = max($next, (int)$m[1] + 1);
         }
     }
-    return 'FV/' . $next . $sfx;
+    // Testowe mają własną sekwencję — nie zużywają numerów produkcyjnych.
+    return ($test ? INVOICE_TEST_PREFIX : '') . 'FV/' . $next . $sfx;
+}
+
+/** Przedrostek numeru faktury testowej. */
+const INVOICE_TEST_PREFIX = 'TEST/';
+
+/** Czy faktura jest testowa (nie trafia do systemów zewnętrznych ani do akt). */
+function invoice_is_test(array $inv): bool
+{
+    return !empty($inv['is_test']);
 }
 
 /**
@@ -419,6 +437,7 @@ function invoice_own_number(int $month, int $year): string
  */
 function invoice_ksef_applicable(array $inv): bool
 {
+    if (invoice_is_test($inv)) return false;   // dokument testowy nigdy nie wychodzi
     $nip = preg_replace('/\D+/', '', (string)($inv['buyer_tax_no'] ?? '')) ?? '';
     return strlen($nip) === 10;
 }
@@ -426,6 +445,7 @@ function invoice_ksef_applicable(array $inv): bool
 /** Powód, dla którego faktura nie idzie do KSeF — do pokazania operatorowi. */
 function invoice_ksef_skip_reason(array $inv): string
 {
+    if (invoice_is_test($inv)) return 'Faktura testowa — nie jest wysyłana do KSeF ani do systemu księgowego.';
     return invoice_ksef_applicable($inv)
         ? ''
         : 'Nabywca bez NIP — sprzedaż na rzecz osoby fizycznej jest poza KSeF.';
@@ -452,11 +472,12 @@ function invoice_issue_local(int $id): array
     if (trim((string)$inv['buyer_name']) === '') return ['ok' => false, 'error' => 'Brak nazwy nabywcy.'];
 
     // Seria zależy od źródła: TI ma własne oznaczenie z grupą, reszta serię FV.
+    $test = invoice_is_test($inv);
     if ($inv['source'] === 'ti_billing' && ($p = invoice_ti_period($inv))) {
-        $number = invoice_ti_number($p['month'], $p['year'], $p['course_id']);
+        $number = invoice_ti_number($p['month'], $p['year'], $p['course_id'], $test);
     } else {
         $d = $inv['issue_date'] ? strtotime((string)$inv['issue_date']) : time();
-        $number = invoice_own_number((int)date('n', $d), (int)date('Y', $d));
+        $number = invoice_own_number((int)date('n', $d), (int)date('Y', $d), $test);
     }
 
     $now = date('Y-m-d H:i:s');
@@ -505,6 +526,10 @@ function invoice_send_to_buyer(int $id): array
 {
     $inv = invoice_get($id);
     if (!$inv) return ['ok' => false, 'error' => 'Nie znaleziono faktury.'];
+
+    if (invoice_is_test($inv)) {
+        return ['ok' => false, 'error' => 'Faktura testowa nie jest wysyłana do nabywcy.'];
+    }
 
     $to = trim((string)$inv['buyer_email']);
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
@@ -573,6 +598,9 @@ function invoice_push(int $id): array
     }
     if (!$inv['items']) return ['ok' => false, 'error' => 'Faktura bez pozycji — dodaj co najmniej jedną.'];
     if (trim((string)$inv['buyer_name']) === '') return ['ok' => false, 'error' => 'Brak nazwy nabywcy.'];
+    if (invoice_is_test($inv)) {
+        return ['ok' => false, 'error' => 'Faktura testowa — nie wystawiamy jej w systemie zewnętrznym. Użyj wystawienia w SZO.'];
+    }
 
     $cfg = invoices_config();
     if ($cfg['account'] === '' || $cfg['token'] === '') {

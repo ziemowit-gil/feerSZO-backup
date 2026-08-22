@@ -157,6 +157,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <a href="<?= APP_URL ?>/crm/invoices/view.php?id=<?= (int)$r['id'] ?>" class="fw-semibold text-decoration-none">
                 <?= h($r['number'] ?: '(szkic #' . (int)$r['id'] . ')') ?>
               </a>
+              <?php if (!empty($r['is_test'])): ?>
+              <span class="badge bg-danger ms-1" style="font-size:.6rem" title="Faktura testowa">TEST</span>
+              <?php endif; ?>
             </td>
             <td>
               <?= h($r['buyer_name']) ?>
