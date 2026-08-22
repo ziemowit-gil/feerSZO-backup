@@ -169,6 +169,11 @@ $AGENTS = [
         'interval' => 60,           // co minutę — konsumuje kolejkę RabbitMQ „poczta_skanowanie"
         'schedule' => [6, 23],
     ],
+    'crm_office_push' => [
+        'file'     => __DIR__ . '/crm_office_push.php',
+        'interval' => 1800,         // co 30 min — dosyła kontakty do książki adresowej Outlooka
+        'schedule' => [6, 22],
+    ],
     'crm_offers' => [
         'file'     => __DIR__ . '/crm_offers_agent.php',
         'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń

@@ -261,3 +261,62 @@ Zmiany w istniejących plikach: `crm/includes/header_crm.php` (menu + liczniki),
 `crm/contact/view.php` (zakładka „Oferty”), `crm/dashboard.php` (KPI + szybka akcja),
 `contracts/uslugi/add.php` (prefill z oferty + dowiązanie umowy),
 `cron/dispatcher.php` (agent `crm_offers`).
+
+
+---
+
+# Integracja CRM ↔ Microsoft 365 (Outlook)
+
+Dwie strony tej samej integracji. Konfiguracja wychodzącej: *Ustawienia CRM → Microsoft 365*
+(`crm/settings/office.php`), przychodzącej: *Administracja → Synchronizacja Outlook*.
+
+## Co było wcześniej (przychodzące)
+
+| Mechanizm | Plik | Działanie |
+|---|---|---|
+| `OutlookSync::sync_contacts()` | `includes/outlook_sync.php` | kontakty Outlooka → `crm_contacts` (delta, powiązanie przez `outlook_id`) |
+| `OutlookSync::sync_calendar()` | — | zdarzenia kalendarza → `crm_events` |
+| `OutlookSync::sync_messages()` | — | `inbox` + `sentitems` (delta) → `crm_communications`, dopasowanie po adresie, dedup po `outlook_message_id` |
+| `crm_inbox_watch_run()` | `includes/crm_inbox.php` | skrzynka współdzielona → nowe kontakty + log korespondencji |
+
+## Co doszło (wychodzące + punktowe)
+
+`includes/crm_office.php`:
+
+* `crm_office_push_contact($id)` — kontakt CRM → **książka adresowa Outlooka**
+  (Graph `POST/PATCH /users/{mailbox}/contacts`). Powiązanie trzymane w tym samym
+  `crm_contacts.outlook_id`, którego używa synchronizacja przychodząca, więc kontakt
+  nie dubluje się w żadną stronę. Gdy wpis usunięto w Outlooku (HTTP 404) — tworzony jest nowy.
+* `crm_office_contact_payload()` — mapowanie: nazwa, imię/nazwisko lub `companyName`,
+  e-mail, telefon (komórkowy dla osób, służbowy dla podmiotów), stanowisko, adres
+  strukturalny, NIP/KRS i notatka z linkiem do kartoteki; kategorie `CRM` + typ kontaktu.
+* `crm_office_pull_contact_mail($id)` — **korespondencja jednego kontaktu na żądanie**:
+  Graph `$search=participants:<e-mail>` po skrzynce, filtr dni po stronie PHP, zapis do
+  `crm_communications` z dedupem po `outlook_message_id`.
+* `crm_office_push_pending($limit)` — dosyłanie zaległych (brak wpisu lub `office_pushed_at < updated_at`).
+* `crm_office_permissions()` — sprawdza, czy aplikacja ma `Contacts.ReadWrite` i `Mail.Read`.
+
+Nowe kolumny: `crm_contacts.office_pushed_at`, `office_push_error`, `office_mail_pulled_at`
+(migracja `crm_office_migrate()`, idempotentna).
+
+Nowe metody Graph w `includes/m365.php`: `create_outlook_contact()`, `update_outlook_contact()`,
+`get_outlook_contact()`, `delete_outlook_contact()`, `get_contact_folders()`,
+`search_messages_participant()` oraz prywatne `http_delete()`.
+
+## Punkty wejścia
+
+| Miejsce | Co robi |
+|---|---|
+| Kartoteka kontaktu → panel „Microsoft 365" | „Dodaj / zaktualizuj w książce adresowej", „Pobierz maile z Outlooka" (AJAX, `crm/api/office.php`), status powiązania i data ostatniego zapisu |
+| `crm/settings/office.php` | włączenie zapisu, skrzynka, folder kontaktów, auto-zapis nowych kontaktów, zakres dni i limit maili, masowy zapis zaległych, lista błędów, kontrola uprawnień |
+| `CrmManager::createContact()` | auto-zapis nowego kontaktu, gdy `crm_office_auto_push` = 1 (błąd Graph nie przerywa dodawania) |
+| `cron/crm_office_push.php` | co 30 min dosyła zaległe kontakty (agent `crm_office_push` w dyspozytorze) |
+
+## Uprawnienia w Entra ID
+
+* `Contacts.ReadWrite` (Application) — zapis kontaktów. **Jest nadane.**
+* `Mail.Read` (Application) — pobieranie korespondencji. **Brakuje** w rejestracji
+  „[PREPROD] Panel" (są tylko `Mail.Send` i `Contacts.Read/ReadWrite`), dlatego pobieranie
+  maili zwraca HTTP 403 — dotyczy też `sync_messages()` i śledzenia skrzynki.
+  Dodać w App registrations → API permissions → Microsoft Graph → Application permissions
+  i zatwierdzić zgodą administratora.

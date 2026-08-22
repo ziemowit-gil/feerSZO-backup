@@ -1379,6 +1379,14 @@ class CrmManager
         $id = db_insert('crm_contacts', $data);
         require_once __DIR__ . '/crm_automation.php';
         crm_automation_fire('contact_created', $id);
+        // Książka adresowa Outlooka — tylko gdy administrator włączył automatyczny zapis.
+        // Błąd Graph nie może przerwać dodawania kontaktu, dlatego łapiemy wszystko.
+        try {
+            require_once __DIR__ . '/crm_office.php';
+            if (crm_office_auto_push()) crm_office_push_contact($id);
+        } catch (\Throwable $e) {
+            error_log('[crm_office_auto_push] ' . $e->getMessage());
+        }
         return $id;
     }
 

@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_office.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -921,6 +922,14 @@ $contact_cases = db_all(
     [(int)$id]
 );
 
+// ── Integracja Microsoft 365 (książka adresowa + korespondencja) ─────────────
+crm_office_migrate();
+$office_st  = crm_office_status();
+$office_row = crm_one(
+    "SELECT outlook_id, office_pushed_at, office_push_error, office_mail_pulled_at
+     FROM crm_contacts WHERE id=?", [(int)$id]
+) ?: [];
+
 // ── Oferty kontaktu (moduł działalności odpłatnej) ───────────────────────────
 crm_offers_migrate();
 $contact_offers  = crm_offer_history((int)$id, 25);
@@ -1238,6 +1247,102 @@ $case_status_cfg = [
       </form>
       <p class="cv-meta mt-2 mb-0">Soft-delete — dane nie zostaną trwale skasowane.</p>
     </div></div>
+    <?php endif; ?>
+
+    <!-- ── Microsoft 365 ─────────────────────────────────────────────────── -->
+    <?php if ($crm_can_write && $office_st['graph_configured']): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-microsoft cv-shead__icon" style="color:#0176D3" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Microsoft 365</h2>
+      </div>
+
+      <dl class="mb-2" style="font-size:.8rem">
+        <div class="d-flex justify-content-between py-1">
+          <dt class="text-muted fw-normal">Książka adresowa</dt>
+          <dd class="mb-0 fw-semibold">
+            <?php if (!empty($office_row['outlook_id'])): ?>
+              <span class="text-success"><i class="bi bi-check-circle-fill"></i> powiązany</span>
+            <?php else: ?>
+              <span class="text-muted">brak wpisu</span>
+            <?php endif; ?>
+          </dd>
+        </div>
+        <?php if (!empty($office_row['office_pushed_at'])): ?>
+        <div class="d-flex justify-content-between py-1">
+          <dt class="text-muted fw-normal">Ostatni zapis</dt>
+          <dd class="mb-0"><?= h(date('d.m.Y H:i', strtotime((string)$office_row['office_pushed_at']))) ?></dd>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($office_row['office_mail_pulled_at'])): ?>
+        <div class="d-flex justify-content-between py-1">
+          <dt class="text-muted fw-normal">Maile pobrane</dt>
+          <dd class="mb-0"><?= h(date('d.m.Y H:i', strtotime((string)$office_row['office_mail_pulled_at']))) ?></dd>
+        </div>
+        <?php endif; ?>
+      </dl>
+
+      <?php if (!empty($office_row['office_push_error'])): ?>
+      <div class="alert alert-danger py-1 px-2 mb-2" style="font-size:.75rem">
+        <?= h($office_row['office_push_error']) ?>
+      </div>
+      <?php endif; ?>
+
+      <div class="d-grid gap-2">
+        <button type="button" class="btn btn-crm-outline btn-sm" id="mo-push"
+          <?= $office_st['push_enabled'] ? '' : 'disabled title="Włącz zapis w Ustawieniach CRM → Microsoft 365"' ?>>
+          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>
+          <?= !empty($office_row['outlook_id']) ? 'Zaktualizuj w książce adresowej' : 'Dodaj do książki adresowej' ?>
+        </button>
+        <button type="button" class="btn btn-crm-outline btn-sm" id="mo-mail"
+          <?= empty($contact['email']) ? 'disabled title="Kontakt nie ma adresu e-mail"' : '' ?>>
+          <i class="bi bi-envelope-arrow-down me-1" aria-hidden="true"></i>
+          Pobierz maile z Outlooka
+        </button>
+      </div>
+      <div class="cv-meta mt-2" id="mo-status" aria-live="polite">
+        Korespondencja z ostatnich <?= (int)$office_st['mail_days'] ?> dni ze skrzynki
+        <?= h($office_st['mailbox'] ?: '—') ?>.
+      </div>
+    </div></div>
+    <script>
+    (function () {
+      var st = document.getElementById('mo-status');
+      function call(action, btn, done) {
+        var label = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pracuję…';
+        fetch('<?= APP_URL ?>/crm/api/office.php', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '<?= csrf_token() ?>'},
+          body: JSON.stringify({action: action, contact_id: <?= (int)$id ?>, _csrf: '<?= csrf_token() ?>'})
+        }).then(function (r) { return r.json().then(function (j) { return {status: r.status, json: j}; }); })
+          .then(function (res) {
+            btn.innerHTML = label;
+            btn.disabled = false;
+            if (res.json && res.json.ok) {
+              st.innerHTML = '<span class="text-success">' + (res.json.data.message || 'Gotowe.') + '</span>';
+              if (done) done(res.json.data);
+            } else {
+              st.innerHTML = '<span class="text-danger">' + ((res.json && res.json.error) || 'Błąd operacji.') + '</span>';
+            }
+          })
+          .catch(function () {
+            btn.innerHTML = label; btn.disabled = false;
+            st.innerHTML = '<span class="text-danger">Brak połączenia z serwerem.</span>';
+          });
+      }
+      var p = document.getElementById('mo-push');
+      if (p) p.addEventListener('click', function () { call('push_contact', p); });
+      var m = document.getElementById('mo-mail');
+      if (m) m.addEventListener('click', function () {
+        call('pull_mail', m, function (d) {
+          // Nowe wiadomości trafiły do historii komunikacji — odśwież widok
+          if (d && d.logged > 0) setTimeout(function () { location.reload(); }, 900);
+        });
+      });
+    })();
+    </script>
     <?php endif; ?>
 
   </div><!-- /aside -->

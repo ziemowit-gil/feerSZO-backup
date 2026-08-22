@@ -517,6 +517,16 @@ class M365Graph {
     }
 
     /** Zapamiętuje status HTTP ostatniej odpowiedzi (do wykrycia 429/401/403 przez wołających). */
+    private function http_delete(string $url): void {
+        $ctx = stream_context_create(['http' => [
+            'method' => 'DELETE',
+            'header' => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents($url, false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+    }
+
     private function capture_status(array $headers): void {
         $this->last_status = 0;
         foreach ($headers as $h) {
@@ -936,6 +946,80 @@ class M365Graph {
             'contacts'   => $all_contacts,
             'delta_link' => $final_delta,
         ];
+    }
+
+    /**
+     * Tworzy kontakt w książce adresowej Outlooka (folder domyślny lub wskazany).
+     * Wymaga: Contacts.ReadWrite (Application).
+     *
+     * @param string $user_id   Azure AD User ID lub UPN właściciela książki
+     * @param array  $contact   Ładunek zgodny z zasobem Graph `contact`
+     * @param string $folder_id Opcjonalny folder kontaktów
+     * @return array Utworzony kontakt (z 'id') albo tablica z 'error'
+     */
+    public function create_outlook_contact(string $user_id, array $contact, string $folder_id = ''): array
+    {
+        $url = $folder_id !== ''
+            ? "https://graph.microsoft.com/v1.0/users/{$user_id}/contactFolders/{$folder_id}/contacts"
+            : "https://graph.microsoft.com/v1.0/users/{$user_id}/contacts";
+        return $this->http_post($url, $contact);
+    }
+
+    /** Aktualizuje kontakt w książce adresowej Outlooka. Wymaga: Contacts.ReadWrite. */
+    public function update_outlook_contact(string $user_id, string $contact_id, array $contact): void
+    {
+        $this->http_patch(
+            "https://graph.microsoft.com/v1.0/users/{$user_id}/contacts/" . rawurlencode($contact_id),
+            $contact
+        );
+    }
+
+    /** Pobiera jeden kontakt z książki adresowej (do weryfikacji, czy jeszcze istnieje). */
+    public function get_outlook_contact(string $user_id, string $contact_id): array
+    {
+        return $this->http_get(
+            "https://graph.microsoft.com/v1.0/users/{$user_id}/contacts/" . rawurlencode($contact_id)
+        );
+    }
+
+    /** Usuwa kontakt z książki adresowej Outlooka. Wymaga: Contacts.ReadWrite. */
+    public function delete_outlook_contact(string $user_id, string $contact_id): void
+    {
+        $this->http_delete(
+            "https://graph.microsoft.com/v1.0/users/{$user_id}/contacts/" . rawurlencode($contact_id)
+        );
+    }
+
+    /** Lista folderów kontaktów skrzynki (do wyboru, gdzie zapisywać kontakty CRM). */
+    public function get_contact_folders(string $user_id): array
+    {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}/contactFolders?\$top=50");
+        return $r['value'] ?? [];
+    }
+
+    /**
+     * Szuka w skrzynce korespondencji z danym adresem (w obie strony).
+     * Graph nie pozwala filtrować po odbiorcach, więc używamy `$search`
+     * z operatorem `participants:` — obejmuje From, To, Cc i Bcc.
+     * `$search` wyklucza `$filter`/`$orderby`, więc zakres dat odcinamy po stronie PHP.
+     * Wymaga: Mail.Read (Application).
+     *
+     * @return array lista zasobów `message`
+     */
+    public function search_messages_participant(string $mailbox, string $email, int $top = 50): array
+    {
+        $email = trim($email);
+        if ($email === '') return [];
+        $select = implode(',', [
+            'id','subject','bodyPreview','from','toRecipients','ccRecipients',
+            'receivedDateTime','sentDateTime','conversationId','webLink','hasAttachments',
+        ]);
+        $top = max(1, min(200, $top));
+        $url = "https://graph.microsoft.com/v1.0/users/" . rawurlencode($mailbox) . "/messages"
+             . "?\$search=" . rawurlencode('"participants:' . $email . '"')
+             . "&\$select={$select}&\$top={$top}";
+        $r = $this->http_get($url);
+        return $r['value'] ?? [];
     }
 
     /**

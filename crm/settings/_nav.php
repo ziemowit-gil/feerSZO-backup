@@ -128,6 +128,9 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   <a href="<?= APP_URL ?>/crm/settings/inbox.php" class="csn-link<?= $_sn_a('settings/inbox') ?>">
     <i class="bi bi-inbox"></i> Śledzenie skrzynki
   </a>
+  <a href="<?= APP_URL ?>/crm/settings/office.php" class="csn-link<?= $_sn_a('settings/office') ?>">
+    <i class="bi bi-microsoft"></i> Microsoft 365
+  </a>
   <a href="<?= APP_URL ?>/admin/teryt_import.php" class="csn-link">
     <i class="bi bi-geo-alt"></i> Import TERYT
   </a>
