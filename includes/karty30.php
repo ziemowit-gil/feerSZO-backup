@@ -4909,11 +4909,12 @@ function k30_ti_billing_fv_positions(array $b): array {
 
 /**
  * Powiadomienie o wystawieniu rozliczenia — SMS (kwota za okres) + e-mail.
+ * $channels: 'all' (domyślnie) | 'mail' (tylko e-mail) | 'sms' (tylko SMS).
  * Adresat: dla małoletnich opiekun (telefon/e-mail), inaczej kursant (k30_clients).
  * Domyślnie wysyła tylko raz (gdy notified_at puste); $force=true wymusza ponowną wysyłkę.
  * Zwraca ['ok','sms'=>bool,'email'=>bool,'skipped'=>bool,'msg'].
  */
-function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
+function k30_ti_billing_notify(int $billing_id, bool $force = false, string $channels = 'all'): array {
     $b = db_one("SELECT b.*, c.name AS course_name, c.group_code AS course_group_code
                  FROM k30_ti_billing b
                  LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
@@ -4944,7 +4945,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
     $sms_sent = false; $mail_sent = false;
 
     // ── SMS ──
-    if ($phone !== '') {
+    if ($phone !== '' && in_array($channels, ['all', 'sms'], true)) {
         require_once __DIR__ . '/sms.php';
         if (function_exists('sms_is_enabled') && sms_is_enabled()) {
             // bez polskich znaków — bramki SMS
@@ -4959,7 +4960,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
     }
 
     // ── E-mail: zestawienie należności (faktura wystawiana osobno w systemie fakturującym) ──
-    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) && in_array($channels, ['all', 'mail'], true)) {
         require_once __DIR__ . '/mail_queue.php';
         if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
 

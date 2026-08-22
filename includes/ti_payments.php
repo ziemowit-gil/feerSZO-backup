@@ -279,6 +279,91 @@ function ti_group_month_billing(int $client_id, int $course_id, int $year, int $
 }
 
 /**
+ * Przegląd rozliczeń za miesiąc — dane pod pulpit modułu Rozliczenia.
+ * Łączy sumy miesiąca (z rozliczeń) z BIEŻĄCYMI saldami grup (z alokacji wpłat).
+ *
+ * @return array{
+ *   kpi:array{charges:float,paid:float,debt:float,credit:float,clients:int,billings:int},
+ *   groups:array<int,array>,
+ *   debtors:array<int,array>
+ * }
+ */
+function ti_month_overview(int $year, int $month): array {
+    ti_payments_migrate();
+
+    // Sumy miesiąca per grupa
+    $sums = db_all(
+        "SELECT COALESCE(b.course_id,0) AS course_id,
+                COUNT(DISTINCT b.client_id)                    AS participants,
+                COUNT(*)                                       AS billings,
+                COALESCE(SUM(b.amount + COALESCE(b.adjustment,0)),0) AS charges,
+                COALESCE(SUM(COALESCE(b.paid_amount,0)),0)     AS paid,
+                SUM(CASE WHEN COALESCE(b.invoice_path,'')='' THEN 1 ELSE 0 END) AS no_invoice
+         FROM k30_ti_billing b
+         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid')
+         GROUP BY COALESCE(b.course_id,0)",
+        [$year, $month]
+    );
+
+    $groups = [];
+    $kpi = ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'credit'=>0.0,'clients'=>0,'billings'=>0];
+    foreach ($sums as $r) {
+        $cid  = (int)$r['course_id'];
+        $name = 'Rozliczenia łączne / opłaty poza zajęciami';
+        $code = '';
+        if ($cid > 0) {
+            $c = db_one("SELECT name, COALESCE(group_code,'') AS group_code FROM k30_ti_courses WHERE id=?", [$cid]);
+            $name = (string)($c['name'] ?? ('Grupa #' . $cid));
+            $code = (string)($c['group_code'] ?? '');
+        }
+        $groups[$cid] = [
+            'course_id'    => $cid,
+            'course_name'  => $name,
+            'group_code'   => $code,
+            'participants' => (int)$r['participants'],
+            'billings'     => (int)$r['billings'],
+            'no_invoice'   => (int)$r['no_invoice'],
+            'charges'      => round((float)$r['charges'], 2),
+            'paid'         => round((float)$r['paid'], 2),
+            'debt'         => 0.0,   // bieżące saldo grupy — z alokacji poniżej
+            'credit'       => 0.0,
+        ];
+        $kpi['charges']  = round($kpi['charges'] + (float)$r['charges'], 2);
+        $kpi['paid']     = round($kpi['paid'] + (float)$r['paid'], 2);
+        $kpi['billings'] += (int)$r['billings'];
+    }
+
+    // Bieżące salda — alokacja per kursant rozliczany w tym miesiącu
+    $clients = db_all(
+        "SELECT DISTINCT b.client_id, cl.name
+         FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
+         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid') ORDER BY cl.name",
+        [$year, $month]
+    );
+    $kpi['clients'] = count($clients);
+    $debtors = [];
+    foreach ($clients as $c) {
+        $cid_client = (int)$c['client_id'];
+        $a = ti_client_allocation($cid_client);
+        $kpi['debt']   = round($kpi['debt'] + $a['debt'], 2);
+        $kpi['credit'] = round($kpi['credit'] + $a['credit'], 2);
+        foreach ($a['groups'] as $gc => $g) {
+            if (!isset($groups[$gc])) continue;   // grupa spoza tego miesiąca
+            $groups[$gc]['debt']   = round($groups[$gc]['debt'] + $g['debt'], 2);
+            $groups[$gc]['credit'] = round($groups[$gc]['credit'] + $g['credit'], 2);
+        }
+        if ($a['debt'] > 0.005) {
+            $debtors[$cid_client] = ['client_id'=>$cid_client, 'client_name'=>(string)$c['name'],
+                                     'debt'=>$a['debt'], 'credit'=>$a['credit']];
+        }
+    }
+    uasort($debtors, fn($x, $y) => $y['debt'] <=> $x['debt']);
+    uasort($groups,  fn($x, $y) => strcmp((string)$x['course_name'], (string)$y['course_name']));
+
+    return ['kpi' => $kpi, 'groups' => $groups, 'debtors' => $debtors];
+}
+
+/**
  * Rozliczenia jednej grupy w całym roku dla jednego kursanta.
  * @return array{charges:float,paid:float,payments:float}
  */

@@ -553,6 +553,7 @@ if ($_user) {
     // Dydaktyka
     if (can_read('karty30')) {
         $__add('Dydaktyka 3',  APP_URL.'/karty30/index.php',              'bi-card-checklist',    '#6d28d9','#f5f3ff', $_on_k30,     'Dydaktyka');
+        $__add('Rozliczenia',  APP_URL.'/rozliczenia/index.php',          'bi-cash-coin',         '#0f766e','#f0fdfa', str_contains($_uri,'/rozliczenia/'), 'Dydaktyka');
     } else {
         $_dyd_show = false;
         if ($_u = current_user()) { try { $_dyd_show = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$_u['id']])['k30_consultant']); } catch (\Throwable $e) {} }

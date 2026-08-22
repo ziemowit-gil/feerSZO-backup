@@ -438,8 +438,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <h4 class="mb-0 fw-bold"><i class="bi bi-receipt text-primary me-2"></i>
     Rozliczenia TI<?= $course ? ' — '.h($course['name']) : '' ?>
   </h4>
+  <a class="btn btn-sm btn-outline-primary ms-auto" href="<?= APP_URL ?>/rozliczenia/index.php?m=<?= sprintf('%04d-%02d', $year, $month) ?>"
+     title="Nowy moduł Rozliczenia — pulpit, grupy, uczestnicy, faktury">
+    <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Moduł Rozliczenia
+  </a>
   <?php if ($course_id): ?>
-  <a class="btn btn-sm btn-outline-secondary ms-auto" target="_blank" rel="noopener"
+  <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
      href="billing_fv_summary.php?course_id=<?= $course_id ?>&amp;month=<?= $month ?>&amp;year=<?= $year ?>"
      title="Pozycje do faktury dla całej grupy — do przepisania do systemu fakturowego">
     <i class="bi bi-printer me-1" aria-hidden="true"></i>Podsumowanie do FVAT — grupa
