@@ -1325,7 +1325,7 @@ function crm_offer_brand(): array {
     // (--crm-primary z assets/css/crm-module.css). Świadomie NIE bierzemy
     // volunteer_color — to kolor panelu wolontariusza, nie identyfikacja fundacji.
     $primary = crm_offer_setting('crm_offer_brand_color', '');
-    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary)) $primary = '#2E844A';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary)) $primary = '#0176D3';
     $dark    = function_exists('color_darken') ? color_darken($primary, 35) : $primary;
     $logo    = org_setting('org_logo');
     $file    = $logo ? dirname(__DIR__) . '/assets/logo/' . $logo : '';
@@ -1467,27 +1467,32 @@ function crm_offer_document_html(array $full, array $opt = []): string {
         $cls = 'of-variant' . ($is_sel ? ' of-variant--sel' : '') . ((int)$v['is_recommended'] === 1 ? ' of-variant--rec' : '');
         $o .= '<div class="' . $cls . '">';
         $o .= '<div class="of-vhead">';
-        if ($multi) $o .= '<span class="of-vcode">' . h($v['code']) . '</span>';
+        if ($multi) $o .= '<span class="of-vcode">' . h($v['code']) . ' · </span>';
         $o .= '<span class="of-vname">' . h($v['name']) . '</span>';
-        if ((int)$v['is_recommended'] === 1) $o .= '<span class="of-badge of-badge--rec">rekomendowany</span>';
-        if ($is_sel) $o .= '<span class="of-badge of-badge--sel">wybrany przez klienta</span>';
+        if ((int)$v['is_recommended'] === 1) $o .= '<span class="of-badge of-badge--rec">&nbsp;&nbsp;rekomendowany</span>';
+        if ($is_sel) $o .= '<span class="of-badge of-badge--sel">&nbsp;&nbsp;wybrany przez klienta</span>';
         $o .= '</div>';
         if (!empty($v['description'])) $o .= '<div class="of-vdesc">' . nl2br(h($v['description'])) . '</div>';
 
+        $vat_notes = [];
+        foreach (($v['items'] ?? []) as $it) {
+            if (!empty($it['vat_basis'])) $vat_notes[trim((string)$it['vat_basis'])] = true;
+        }
         $o .= '<table class="of-items" width="100%"><thead><tr>'
             . '<th style="width:26px">#</th><th>Pozycja</th><th style="width:70px">Ilość</th>'
             . '<th style="width:90px">Cena netto</th><th style="width:52px">Rabat</th>'
             . '<th style="width:48px">VAT</th><th style="width:92px">Wartość netto</th>'
             . '<th style="width:96px">Wartość brutto</th></tr></thead><tbody>';
         $i = 0;
+        $has_optional = false;
         foreach (($v['items'] ?? []) as $it) {
             $i++;
+            if ((int)($it['is_optional'] ?? 0) === 1) $has_optional = true;
             $vr = CRM_OFFER_VAT_RATES[$it['vat_rate']] ?? ['label' => $it['vat_rate']];
             $o .= '<tr' . ((int)$it['is_optional'] === 1 ? ' class="of-opt"' : '') . '>';
             $o .= '<td>' . $i . '</td><td><strong>' . h($it['name']) . '</strong>';
             if ((int)$it['is_optional'] === 1) $o .= ' <span class="of-badge">opcja</span>';
             if (!empty($it['description'])) $o .= '<div class="of-small">' . nl2br(h($it['description'])) . '</div>';
-            if (!empty($it['vat_basis']))   $o .= '<div class="of-small">Podstawa zwolnienia VAT: ' . h($it['vat_basis']) . '</div>';
             if ($internal && !empty($it['merit_note'])) $o .= '<div class="of-small of-int">Merytorycznie: ' . h($it['merit_note']) . '</div>';
             $o .= '</td>';
             $o .= '<td>' . h(crm_offer_qty((float)$it['qty']) . ' ' . $it['unit']) . '</td>';
@@ -1500,17 +1505,20 @@ function crm_offer_document_html(array $full, array $opt = []): string {
         }
         if (!$i) $o .= '<tr><td colspan="8" class="of-small">Brak pozycji.</td></tr>';
         $o .= '</tbody><tfoot><tr>';
-        $o .= '<td colspan="6" class="of-num of-label">Razem (bez pozycji opcjonalnych)</td>';
+        $o .= '<td colspan="6" class="of-num of-sumlabel">Razem'
+            . ($has_optional ? ' (bez pozycji opcjonalnych)' : '') . '</td>';
         $o .= '<td class="of-num">' . h(number_format((float)$v['total_net'], 2, ',', ' ')) . '</td>';
         $o .= '<td class="of-num of-total">' . h(number_format((float)$v['total_gross'], 2, ',', ' ')) . '</td>';
         $o .= '</tr>';
         if ((float)$v['total_vat'] > 0) {
             $o .= '<tr><td colspan="6" class="of-num of-small">w tym VAT</td>'
-                . '<td colspan="2" class="of-num of-small">' . h(crm_offer_money((float)$v['total_vat'], $cur)) . '</td></tr>';
+                . '<td colspan="2" class="of-num of-small">' . h(number_format((float)$v['total_vat'], 2, ',', ' ')) . ' ' . h($cur) . '</td></tr>';
         }
         $o .= '</tfoot></table>';
-        $o .= '<div class="of-vsum">Wartość wariantu: <strong>' . h(crm_offer_money((float)$v['total_gross'], $cur))
-            . '</strong> brutto (' . h(crm_offer_money((float)$v['total_net'], $cur)) . ' netto)</div>';
+        if ($vat_notes) {
+            $o .= '<div class="of-small of-vatnote">Podstawa zwolnienia z VAT: '
+                . h(implode('; ', array_keys($vat_notes))) . '.</div>';
+        }
         $o .= '</div>';
     }
 
@@ -1650,59 +1658,74 @@ function crm_offer_font_link(): string {
 
 /**
  * Arkusz stylów dokumentu — wspólny dla wydruku, PDF i strony klienta.
- * Kolory pochodzą z ustawień organizacji (crm_offer_brand()), więc dokument
- * jest w barwach fundacji, a nie w zaszytej palecie.
+ *
+ * Zasada: dokument handlowy, nie kolorowa ulotka. Zamiast obramowań i tłem
+ * wypełnionych pudełek — typografia, światło i cienkie linie. Kolor marki
+ * (crm_offer_brand()) pojawia się tylko w akcentach: belka nagłówka, tytuł
+ * dokumentu, linie tabel i sumy.
  */
 function crm_offer_document_css(bool $for_pdf = false): string {
     $b  = crm_offer_brand();
     $f  = crm_offer_font_stacks($for_pdf);
     $pr = $b['primary'];
     $dk = $b['dark'];
-    $sf = $b['soft'];
 
     return <<<CSS
-.of-doc { color:#111827; font-size:11pt; line-height:1.45; font-family:{$f['body']}; }
+.of-doc { color:#1A1D21; font-size:10.5pt; line-height:1.5; font-family:{$f['body']}; }
 .of-doc h1, .of-doc h2, .of-doc .of-doc-title, .of-doc .of-org,
-.of-doc .of-vname, .of-doc .of-label { font-family:{$f['head']}; }
-.of-head { padding-bottom:6px; }
-.of-logo { max-height:44px; max-width:210px; margin-bottom:6px; }
-.of-rule { height:3px; background:{$pr}; margin:0 0 14px; }
-.of-org { font-weight:700; font-size:13pt; color:{$dk}; }
-.of-doc-title { font-size:17pt; font-weight:800; letter-spacing:.06em; color:{$pr}; }
-.of-doc-nr { font-family:monospace; font-size:11pt; font-weight:700; color:{$dk}; }
+.of-doc .of-vname, .of-doc .of-label, .of-doc .of-title { font-family:{$f['head']}; }
+
+/* Nagłówek */
+.of-head { padding-bottom:4px; }
+.of-logo { max-height:46px; max-width:220px; margin-bottom:5px; }
+.of-rule { height:2px; background:{$pr}; margin:0 0 18px; }
+.of-org { font-weight:700; font-size:12pt; color:{$dk}; letter-spacing:.01em; }
+.of-doc-title { font-size:20pt; font-weight:700; letter-spacing:.14em; color:{$pr}; line-height:1.1; }
+.of-doc-nr { font-family:monospace; font-size:11pt; font-weight:700; color:#1A1D21; margin-bottom:3px; }
 .of-small { font-size:8.5pt; color:#6B7280; }
 .of-int { color:#7C3AED; }
-.of-label { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6B7280; margin-bottom:2px; }
-.of-parties { margin-bottom:14px; }
-.of-client { font-weight:700; font-size:11.5pt; color:{$dk}; }
-.of-title { font-size:14pt; font-weight:700; margin:6px 0 6px; color:{$dk}; }
-.of-intro { margin-bottom:12px; }
-.of-variant { border:1px solid #E5E7EB; border-radius:6px; padding:10px 12px; margin-bottom:12px; }
-.of-variant--rec { border-color:{$pr}; }
-.of-variant--sel { border-color:{$dk}; background:{$sf}; }
-.of-vhead { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
-.of-vcode { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:4px; background:{$pr}; color:{$b['on_dark']}; font-weight:700; font-size:9pt; }
-.of-vname { font-weight:700; font-size:11.5pt; color:{$dk}; }
-.of-vdesc { font-size:9.5pt; color:#374151; margin-bottom:6px; }
-.of-badge { display:inline-block; padding:1px 6px; border-radius:10px; background:#F3F4F6; color:#4B5563; font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-.of-badge--rec { background:{$sf}; color:{$dk}; }
-.of-badge--sel { background:{$sf}; color:{$dk}; }
-.of-items { border-collapse:collapse; width:100%; margin-top:6px; }
-.of-items th { background:{$sf}; border-bottom:1px solid {$pr}; font-size:8pt; text-transform:uppercase; letter-spacing:.04em; color:{$dk}; padding:4px 5px; text-align:left; }
-.of-items td { border-bottom:1px solid #F3F4F6; padding:5px; font-size:9.5pt; vertical-align:top; }
-.of-items tfoot td { border-top:1px solid {$pr}; border-bottom:none; font-size:9.5pt; padding-top:6px; }
+.of-label { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#8A9099; margin-bottom:3px; }
+
+/* Strony umowy */
+.of-parties { margin-bottom:20px; }
+.of-client { font-weight:700; font-size:11.5pt; color:#1A1D21; }
+.of-title { font-size:15pt; font-weight:700; margin:2px 0 8px; color:{$dk}; line-height:1.25; }
+.of-intro { margin-bottom:16px; }
+
+/* Warianty — bez ramek, oddzielone linią i światłem */
+.of-variant { padding:0; margin:0 0 20px; border-top:1px solid #E3E6EA; padding-top:10px; }
+.of-variant--rec { border-top:2px solid {$pr}; }
+.of-variant--sel { border-top:2px solid {$dk}; }
+.of-vhead { margin-bottom:2px; }
+.of-vcode { font-family:{$f['head']}; font-weight:700; font-size:11.5pt; color:{$pr}; letter-spacing:.06em; }
+.of-vname { font-weight:700; font-size:11.5pt; color:#1A1D21; }
+.of-vdesc { font-size:9.5pt; color:#4B5563; margin-bottom:4px; }
+.of-badge { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:#8A9099; }
+.of-badge--rec { color:{$pr}; }
+.of-badge--sel { color:{$dk}; }
+
+/* Pozycje — układ rachunkowy: linia pod nagłówkiem, włoskowate linie wierszy */
+.of-items { border-collapse:collapse; width:100%; margin-top:8px; }
+.of-items th { border-bottom:1px solid {$pr}; font-size:7.5pt; font-weight:700; text-transform:uppercase;
+  letter-spacing:.08em; color:#6B7280; padding:0 6px 4px; text-align:left; background:none; }
+.of-items td { border-bottom:1px solid #EDEFF2; padding:6px; font-size:9.5pt; vertical-align:top; }
+.of-items tfoot td { border-top:1px solid #C9CED4; border-bottom:none; padding:7px 6px 0; font-size:9.5pt; }
 .of-num { text-align:right; white-space:nowrap; }
-.of-total { font-weight:800; font-size:11pt; color:{$dk}; }
-.of-opt td { background:#FCFCFD; color:#6B7280; }
-.of-vsum { text-align:right; margin-top:6px; font-size:10.5pt; }
-.of-sect { margin:10px 0; }
-.of-note { background:#F9FAFB; border-left:3px solid #9CA3AF; padding:7px 10px; font-size:9.5pt; margin:8px 0; }
-.of-note--vat { border-left-color:{$pr}; background:{$sf}; }
-.of-confirm { border:1px dashed #EA580C; background:#FFF7ED; padding:9px 11px; font-size:9.5pt; margin:12px 0; }
-.of-pay { background:{$sf}; border-radius:6px; padding:8px 11px; }
-.of-acct { margin-bottom:3px; }
-.of-nrb { font-family:monospace; font-weight:700; font-size:10pt; color:{$dk}; }
-.of-footer { margin-top:16px; border-top:1px solid #E5E7EB; padding-top:8px; font-size:8.5pt; color:#6B7280; }
+.of-sumlabel { font-size:9pt; color:#4B5563; }
+.of-vatnote { margin-top:5px; }
+.of-total { font-weight:700; font-size:11.5pt; color:{$dk}; }
+.of-opt td { color:#7A828C; }
+.of-vsum { text-align:right; margin-top:5px; font-size:10pt; color:#374151; }
+
+/* Sekcje opisowe */
+.of-sect { margin:14px 0; }
+.of-note { padding:0; margin:10px 0; font-size:9.5pt; color:#4B5563; }
+.of-note--vat { color:#374151; }
+.of-confirm { border-left:2px solid {$pr}; padding:2px 0 2px 10px; font-size:9.5pt; margin:16px 0; color:#1A1D21; }
+.of-pay { margin:14px 0; }
+.of-acct { margin-bottom:2px; }
+.of-nrb { font-family:monospace; font-weight:700; font-size:10.5pt; color:{$dk}; letter-spacing:.02em; }
+.of-footer { margin-top:22px; border-top:1px solid #E3E6EA; padding-top:7px; font-size:8pt; color:#8A9099; }
 CSS;
 }
 
