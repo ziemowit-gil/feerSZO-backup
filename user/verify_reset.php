@@ -555,157 +555,33 @@ $step_labels = [
     2 => 'Kod SMS',
     3 => 'Nowe hasło',
 ];
+
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
+auth_screen_head([
+    'title'     => 'Odzyskiwanie dostępu',
+    'mode'      => 'plain',
+    'width'     => 640,
+    'bootstrap' => true,
+    'main_id'   => 'reset-main',
+]);
 ?>
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Odzyskiwanie dostępu — <?= h($org_name) ?></title>
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-        crossorigin="anonymous">
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    :root{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
-    body {
-      background:
-        radial-gradient(1200px 500px at 50% -10%, #e7f0ff 0%, rgba(231,240,255,0) 60%),
-        #F4F6F9;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      color:#111827;
-    }
-    .reset-wrapper {
-      max-width: 540px;
-      width: 100%;
-    }
-    .tz-brandbar{display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:1.25rem}
-    .tz-brandbar .mark{width:34px;height:34px;border-radius:10px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.05rem}
-    .tz-brandbar .txt{font-weight:700;letter-spacing:.02em;color:#1146ad}
-    .tz-brandbar .txt small{display:block;font-weight:500;font-size:.68rem;letter-spacing:.06em;color:#6B7280;text-transform:uppercase}
-    .reset-wrapper .card{border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 12px 40px -12px rgba(30,109,255,.25)}
-    .reset-wrapper .btn-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c;--bs-btn-active-bg:#0f3c9c}
-    .reset-wrapper .btn-outline-primary{--bs-btn-color:var(--tz-strong);--bs-btn-border-color:var(--tz-line);--bs-btn-hover-bg:var(--tz-50);--bs-btn-hover-color:var(--tz-strong);--bs-btn-hover-border-color:var(--tz)}
-    .reset-wrapper .text-primary{color:var(--tz-strong)!important}
-    .reset-wrapper .form-control:focus{border-color:var(--tz);box-shadow:0 0 0 .2rem rgba(30,109,255,.18)}
-    .reset-wrapper .card.border-primary{border-color:var(--tz)!important}
-    .reset-wrapper a{color:var(--tz-strong)}
-    /* Pasek postępu kroków */
-    .step-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 2rem;
-    }
-    .step-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-    .step-circle {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: .9rem;
-      border: 2px solid;
-    }
-    .step-circle.done {
-      background: #1E6DFF;
-      border-color: #1E6DFF;
-      color: #fff;
-    }
-    .step-circle.active {
-      background: #fff;
-      border-color: #1E6DFF;
-      color: #1E6DFF;
-    }
-    .step-circle.pending {
-      background: #fff;
-      border-color: #dee2e6;
-      color: #adb5bd;
-    }
-    .step-label {
-      font-size: .72rem;
-      text-align: center;
-      color: #6c757d;
-      max-width: 80px;
-    }
-    .step-label.active { color: #1E6DFF; font-weight: 600; }
-    .step-connector {
-      flex: 1;
-      height: 2px;
-      background: #dee2e6;
-      margin: 0 8px;
-      margin-bottom: 20px;
-    }
-    .step-connector.done { background: #1E6DFF; }
-  </style>
-</head>
-<body>
-<div class="reset-wrapper">
 
-  <!-- Pasek systemu Tożsamości -->
-  <div class="tz-brandbar">
-    <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
-    <span class="txt">System Tożsamości<small><?= h($org_name) ?></small></span>
-  </div>
+  <div class="ks-hero-ico" aria-hidden="true"><i class="bi bi-shield-lock-fill"></i></div>
+  <h1 class="ks-hero-h1">Odzyskiwanie dostępu</h1>
+  <p class="ks-hero-lead">Zresetuj hasło do panelu SZO i Microsoft 365 — autoryzacja kodem SMS</p>
 
-  <!-- Nagłówek -->
-  <div class="text-center mb-4">
-    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
-         style="width:64px;height:64px;background:#eef4ff">
-      <i class="bi bi-shield-lock-fill fs-2" style="color:#1E6DFF"></i>
-    </div>
-    <h1 class="h5 fw-bold mb-1">Odzyskiwanie dostępu</h1>
-    <p class="text-muted small mb-0">Zresetuj hasło do panelu SZO i Microsoft 365 · autoryzacja kodem SMS</p>
-  </div>
+  <?php auth_screen_steps($step_labels, $reset_step, true); ?>
 
-  <!-- Pasek kroków -->
-  <div class="step-bar">
-    <?php for ($i = 1; $i <= 3; $i++): ?>
-      <?php if ($i > 1): ?>
-        <div class="step-connector<?= $reset_step > $i - 1 ? ' done' : '' ?>"></div>
-      <?php endif; ?>
-      <div class="step-item">
-        <div class="step-circle <?=
-          $reset_step > $i  ? 'done'    :
-          ($reset_step == $i ? 'active' : 'pending')
-        ?>">
-          <?php if ($reset_step > $i): ?>
-            <i class="bi bi-check-lg"></i>
-          <?php else: ?>
-            <?= $i ?>
-          <?php endif; ?>
-        </div>
-        <span class="step-label<?= $reset_step == $i ? ' active' : '' ?>">
-          <?= h($step_labels[$i]) ?>
-        </span>
-      </div>
-    <?php endfor; ?>
-  </div>
-
-  <!-- Komunikaty -->
   <?php if ($error !== ''): ?>
   <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
-    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
-    <div><?= h($error) ?></div>
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div id="login-error-text"><?= h($error) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($success !== ''): ?>
-  <div class="alert alert-info d-flex align-items-start gap-2" role="alert">
-    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+  <div class="alert alert-info d-flex align-items-start gap-2" role="status">
+    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div><?= h($success) ?></div>
   </div>
   <?php endif; ?>
@@ -1065,9 +941,9 @@ $step_labels = [
             <input type="password" class="form-control" id="password_new" name="password_new"
                    minlength="8" required autofocus
                    autocomplete="new-password">
-            <button class="btn btn-outline-secondary" type="button" id="togglePwdNew"
-                    aria-label="Pokaż/ukryj hasło">
-              <i class="bi bi-eye" id="eyeNew"></i>
+            <button class="btn btn-outline-secondary" type="button" aria-pressed="false"
+                    aria-label="Pokaż hasło" onclick="togglePass('password_new', this)">
+              <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
           <div class="form-text">Min. 8 znaków, wielka litera, mała litera, cyfra.</div>
@@ -1080,9 +956,9 @@ $step_labels = [
             <input type="password" class="form-control" id="password_confirm" name="password_confirm"
                    minlength="8" required
                    autocomplete="new-password">
-            <button class="btn btn-outline-secondary" type="button" id="togglePwdConfirm"
-                    aria-label="Pokaż/ukryj powtórzone hasło">
-              <i class="bi bi-eye" id="eyeConfirm"></i>
+            <button class="btn btn-outline-secondary" type="button" aria-pressed="false"
+                    aria-label="Pokaż powtórzone hasło" onclick="togglePass('password_confirm', this)">
+              <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
         </div>
@@ -1097,47 +973,11 @@ $step_labels = [
   </div>
   <?php endif; ?>
 
-  <!-- Link powrotu do logowania -->
-  <div class="text-center mt-3">
-    <a href="<?= h(APP_URL . '/auth/login.php') ?>" class="text-muted small text-decoration-none">
-      <i class="bi bi-arrow-left me-1"></i>Wróć do strony logowania
-    </a>
-  </div>
-
-</div><!-- /.reset-wrapper -->
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmY+ASSbXX+/Y0DmfhVpJkJEYJA3"
-        crossorigin="anonymous"></script>
-<script>
-  // Toggle widoczności hasła
-  function togglePwd(btnId, inputId, eyeId) {
-    var btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var inp = document.getElementById(inputId);
-      var eye = document.getElementById(eyeId);
-      if (!inp) return;
-      var show = inp.type === 'password';
-      inp.type = show ? 'text' : 'password';
-      if (eye) {
-        eye.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-      }
-    });
-  }
-  togglePwd('togglePwdNew',     'password_new',     'eyeNew');
-  togglePwd('togglePwdConfirm', 'password_confirm', 'eyeConfirm');
-
-  // Automatyczne przejście do następnego pola po wpisaniu 6 cyfr kodu SMS
-  var smsInput = document.getElementById('sms_code');
-  if (smsInput) {
-    smsInput.addEventListener('input', function () {
-      if (this.value.replace(/\D/g, '').length === 6) {
-        this.form.submit();
-      }
-    });
-  }
-
-</script>
-</body>
-</html>
+<?php
+auth_screen_foot([
+    'links' => [
+        ['url' => APP_URL . '/auth/login.php',              'label' => 'Wróć do logowania',  'icon' => 'bi-arrow-left'],
+        ['url' => APP_URL . '/user/register.php',           'label' => 'Załóż konto',        'icon' => 'bi-person-plus'],
+        ['url' => APP_URL . '/auth/report_login_issue.php', 'label' => 'Problem z kontem',   'icon' => 'bi-life-preserver'],
+    ],
+]);

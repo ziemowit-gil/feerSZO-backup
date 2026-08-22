@@ -385,9 +385,14 @@ $otp_ready        = !empty($u_fresh['ika_email_otp'])
     && !empty($u_fresh['ika_email_otp_expires'])
     && $u_fresh['ika_email_otp_expires'] > date('Y-m-d H:i:s');
 
-$PAGE_TITLE = 'Weryfikacja IKA';
-$TZ_ACTIVE  = '';
-include dirname(__DIR__) . '/tozsamosc/_head.php';
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
+auth_screen_head([
+    'title'     => 'Weryfikacja IKA',
+    'mode'      => 'plain',
+    'width'     => 640,
+    'bootstrap' => true,
+    'main_id'   => 'ika-main',
+]);
 ?>
 
 <style>
@@ -395,7 +400,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 .digit-row{display:flex;gap:.38rem;justify-content:center;margin:.8rem 0}
 .digit-box{
   width:48px;height:60px;border:2px solid var(--tz-line);border-radius:10px;
-  background:var(--tz-canvas);font-size:1.8rem;font-weight:800;font-family:monospace;
+  background:#f9fafb;font-size:1.8rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;caret-color:transparent;
   transition:border-color .15s,box-shadow .15s,background .15s;color:#0f172a;
 }
@@ -405,7 +410,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 .pesel-row{display:flex;gap:.45rem;justify-content:center;margin:.9rem 0}
 .pesel-box{
   width:52px;height:64px;border:2px solid var(--tz-line);border-radius:10px;
-  background:var(--tz-canvas);font-size:2rem;font-weight:800;font-family:monospace;
+  background:#f9fafb;font-size:2rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;color:#0f172a;
   transition:border-color .15s,box-shadow .15s;
 }
@@ -975,4 +980,10 @@ initDigitGroup('emailDigits', 'emailOtpHidden', 'btnEmailOtp', 'spinEmailOtp');
 })();
 </script>
 
-<?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>
+<?php
+auth_screen_foot([
+    'links' => [
+        ['url' => APP_URL . '/portal.php',                  'label' => 'Wróć do portalu',  'icon' => 'bi-arrow-left'],
+        ['url' => APP_URL . '/auth/report_login_issue.php', 'label' => 'Problem z IKA',    'icon' => 'bi-life-preserver'],
+    ],
+]);

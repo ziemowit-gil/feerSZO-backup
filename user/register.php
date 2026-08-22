@@ -261,373 +261,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$_b          = branding_load();
-$_tagline    = '';
-try { $_tagline = org_setting('login_tagline') ?: ''; } catch (\Throwable $e) {}
-$org_name    = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju FEER');
 $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
+
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
+auth_screen_head([
+    'title'   => 'Załóż konto',
+    'tab'     => 'register',
+    'main_id' => 'reg-main',
+]);
 ?>
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Załóż konto — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
-<style>
-/* ── Reset ───────────────────────────────────────────────────── */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-size:16px;-webkit-text-size-adjust:100%}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
-  background:#f0f4f8;
-  color:#0d1b2a;
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-}
 
-/* ── Focus ───────────────────────────────────────────────────── */
-.skip-link{position:absolute;top:-9em;left:1rem;z-index:999;background:var(--c,#2563eb);color:#fff;padding:.5rem 1rem;border-radius:0 0 6px 6px;font-weight:700;text-decoration:none}
-.skip-link:focus{top:0}
-*:focus-visible{outline:2.5px solid var(--c,#2563eb);outline-offset:3px;border-radius:3px}
-*:focus:not(:focus-visible){outline:none}
+    <?php auth_screen_steps($step_labels, $step); ?>
 
-/* ── Top bar ─────────────────────────────────────────────────── */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:.9rem 1.5rem;
-  border-bottom:1px solid #dde3ea;
-  background:#fff;
-}
-.topbar-brand{display:flex;align-items:center;gap:.55rem;text-decoration:none}
-.topbar-logo{max-height:26px;object-fit:contain}
-.topbar-icon{width:28px;height:28px;border-radius:7px;background:var(--c,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
-.topbar-org{font-size:.88rem;font-weight:700;color:#0d1b2a;letter-spacing:-.01em}
-.topbar-back{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;color:#64748b;text-decoration:none}
-.topbar-back:hover{color:var(--c,#2563eb)}
-
-/* ── Page body ───────────────────────────────────────────────── */
-.page{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:3rem 1.25rem 4rem}
-.frame{width:100%;max-width:440px}
-
-/* ── Step dots ───────────────────────────────────────────────── */
-.step-dots{display:flex;align-items:center;gap:0;margin-bottom:2.25rem}
-.step-dot-wrap{display:flex;align-items:center;gap:0}
-.step-dot{
-  width:8px;height:8px;border-radius:50%;
-  border:2px solid #c9d2dd;
-  background:transparent;
-  transition:background .25s,border-color .25s,transform .25s;
-}
-.step-dot.done{background:var(--c,#2563eb);border-color:var(--c,#2563eb)}
-.step-dot.active{
-  width:28px;border-radius:4px;
-  background:var(--c,#2563eb);border-color:var(--c,#2563eb);
-}
-.step-line{width:24px;height:2px;background:#c9d2dd;flex-shrink:0}
-.step-line.done{background:var(--c,#2563eb)}
-.step-count{margin-left:auto;font-size:.76rem;font-weight:600;color:#94a3b8;letter-spacing:.04em}
-
-/* ── Heading ─────────────────────────────────────────────────── */
-.heading{font-size:1.75rem;font-weight:800;color:#0d1b2a;letter-spacing:-.025em;line-height:1.15;margin-bottom:.5rem;text-wrap:balance}
-.sub{font-size:.9rem;color:#64748b;line-height:1.6;margin-bottom:2rem}
-.sub strong{color:#475569}
-
-/* ── Alerts ──────────────────────────────────────────────────── */
-.alert{display:flex;align-items:flex-start;gap:.6rem;padding:.85rem 1rem;border-radius:10px;margin-bottom:1.5rem;font-size:.85rem;line-height:1.55}
-.alert i{flex-shrink:0;margin-top:.1rem;font-size:1rem}
-.alert-danger{background:#fef2f2;border:1.5px solid #fca5a5;color:#7f1d1d}
-.alert-info{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a}
-
-/* ── Field ───────────────────────────────────────────────────── */
-.field{margin-bottom:1.25rem}
-.field-label{display:block;font-size:.8rem;font-weight:600;color:#374151;letter-spacing:.02em;margin-bottom:.4rem}
-.field-wrap{position:relative}
-.field-icon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.95rem;pointer-events:none}
-.field-input{
-  width:100%;padding:.75rem .9rem .75rem 2.4rem;
-  border:1.5px solid #d1d5db;border-radius:10px;
-  font-size:.93rem;color:#0d1b2a;
-  background:#fff;
-  transition:border-color .15s,box-shadow .15s;
-  appearance:none;
-}
-.field-input::placeholder{color:#c0c7d0}
-.field-input:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
-.field-input.no-icon{padding-left:.9rem}
-.field-hint{font-size:.76rem;color:#94a3b8;margin-top:.35rem;line-height:1.5}
-.field-hint code{background:#f1f5f9;border-radius:3px;padding:.05em .3em;font-size:.9em}
-
-/* Pokaż/ukryj hasło */
-.pwd-wrap{position:relative}
-.pwd-wrap .field-input{padding-right:2.6rem}
-.pwd-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:.25rem;font-size:1rem;line-height:1;border-radius:4px}
-.pwd-toggle:hover{color:#475569}
-
-/* SMS */
-.sms-wrap{display:flex;justify-content:center;margin-bottom:.5rem}
-.sms-input{
-  width:180px;text-align:center;
-  font-size:2rem;font-weight:700;letter-spacing:.35em;
-  padding:.6rem .5rem;border:1.5px solid #d1d5db;border-radius:12px;
-  color:#0d1b2a;background:#fff;
-  transition:border-color .15s,box-shadow .15s;
-}
-.sms-input:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
-.sms-hint{text-align:center;font-size:.8rem;color:#94a3b8;margin-bottom:1.5rem}
-.sms-hint.err{color:#dc2626}
-
-/* ── Buttons ─────────────────────────────────────────────────── */
-.btn-primary{
-  display:flex;align-items:center;justify-content:center;gap:.5rem;
-  width:100%;padding:.8rem 1rem;
-  background:var(--c,#2563eb);color:#fff;
-  border:none;border-radius:10px;
-  font-size:.95rem;font-weight:700;cursor:pointer;min-height:50px;
-  transition:background .15s,transform .1s;
-  letter-spacing:.01em;
-}
-.btn-primary:hover{background:var(--c-dark,#1d4ed8)}
-.btn-primary:active{transform:scale(.98)}
-.btn-primary.success-color{background:#16a34a}
-.btn-primary.success-color:hover{background:#15803d}
-
-.btn-ghost{
-  display:inline-flex;align-items:center;gap:.35rem;
-  background:none;border:none;cursor:pointer;
-  font-size:.82rem;color:#64748b;padding:.4rem 0;
-  margin-top:.75rem;
-}
-.btn-ghost:hover{color:var(--c,#2563eb)}
-
-/* ── Note ────────────────────────────────────────────────────── */
-.note{font-size:.8rem;color:#94a3b8;line-height:1.6;padding-top:1.25rem;margin-top:1.5rem;border-top:1px solid #e5e9ef}
-.note a{color:#64748b;text-decoration:underline;text-underline-offset:2px}
-.note a:hover{color:var(--c,#2563eb)}
-
-/* ── Footer ──────────────────────────────────────────────────── */
-.foot{text-align:center;padding:1.5rem;font-size:.75rem;color:#b0bac7}
-.foot a{color:#94a3b8;text-decoration:none}
-.foot a:hover{color:#64748b}
-
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
-@media(max-width:520px){
-  .page{padding:1.75rem 1rem 3rem}
-  .heading{font-size:1.45rem}
-  .topbar{padding:.75rem 1rem}
-}
-</style>
-</head>
-<body>
-
-<a href="#reg-main" class="skip-link">Przejdź do formularza</a>
-
-<!-- Top bar -->
-<header class="topbar">
-  <a href="<?= APP_URL ?>/auth/login.php" class="topbar-brand" aria-label="<?= h($org_name) ?> — strona główna">
-    <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="" class="topbar-logo">
-    <?php else: ?>
-    <span class="topbar-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></span>
+    <?php if ($error !== ''): ?>
+    <div class="l-alert l-alert-danger" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      <span id="login-error-text"><?= h($error) ?></span>
+    </div>
     <?php endif; ?>
-    <span class="topbar-org"><?= h($org_name) ?></span>
-  </a>
-  <a href="<?= APP_URL ?>/auth/login.php" class="topbar-back">
-    <i class="bi bi-arrow-left" aria-hidden="true"></i>Logowanie
-  </a>
-</header>
 
-<!-- Main -->
-<div class="page">
-<main class="frame" id="reg-main" tabindex="-1">
+    <?php if ($success !== ''): ?>
+    <div class="l-alert l-alert-info" role="status">
+      <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+      <span><?= h($success) ?></span>
+    </div>
+    <?php endif; ?>
 
-  <!-- Step indicator -->
-  <div class="step-dots" aria-label="Postęp: krok <?= $step ?> z 3" role="status">
-    <?php foreach ($step_labels as $i => $lbl): ?>
-      <?php if ($i > 1): ?>
-        <div class="step-line <?= $step > $i - 1 ? 'done' : '' ?>"></div>
-      <?php endif; ?>
-      <div class="step-dot <?= $step > $i ? 'done' : ($step === $i ? 'active' : '') ?>"
-           title="<?= h($lbl) ?>"></div>
-    <?php endforeach; ?>
-    <span class="step-count"><?= $step ?> / 3</span>
-  </div>
+    <?php if ($step === 1): ?>
+    <!-- ══ Krok 1 — dane z umowy ════════════════════════════════════════ -->
+    <h1 class="ks-h1">Załóż konto</h1>
+    <p class="ks-lead">Podaj e-mail i PESEL z umowy wolontariackiej — wyślemy kod SMS na Twój numer telefonu.</p>
 
-  <!-- Alerts -->
-  <?php if ($error !== ''): ?>
-  <div class="alert alert-danger" role="alert">
-    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-    <div><?= h($error) ?></div>
-  </div>
-  <?php endif; ?>
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="verify">
 
-  <?php if ($success !== ''): ?>
-  <div class="alert alert-info" role="status">
-    <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
-    <div><?= h($success) ?></div>
-  </div>
-  <?php endif; ?>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 1                                                                   -->
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <?php if ($step === 1): ?>
-  <h1 class="heading">Dane z&nbsp;umowy</h1>
-  <p class="sub">Podaj e-mail i PESEL z umowy wolontariackiej — wyślemy kod SMS na&nbsp;Twój numer telefonu.</p>
-
-  <form method="post" novalidate>
-    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_action" value="verify">
-
-    <div class="field">
-      <label for="email" class="field-label">Adres e-mail</label>
-      <div class="field-wrap">
-        <i class="bi bi-envelope field-icon" aria-hidden="true"></i>
-        <input type="email" class="field-input" id="email" name="email"
-               placeholder="adres@email.pl"
-               value="<?= h($_POST['email'] ?? '') ?>"
+      <div class="ks-field">
+        <label for="email">Adres e-mail</label>
+        <input type="email" class="form-control" id="email" name="email"
+               placeholder="adres@email.pl" value="<?= h($_POST['email'] ?? '') ?>"
                required autofocus autocomplete="email">
       </div>
-    </div>
 
-    <div class="field">
-      <label for="pesel_or_doc" class="field-label">PESEL lub numer dokumentu</label>
-      <div class="field-wrap">
-        <i class="bi bi-person-vcard field-icon" aria-hidden="true"></i>
-        <input type="text" class="field-input" id="pesel_or_doc" name="pesel_or_doc"
+      <div class="ks-field">
+        <label for="pesel_or_doc">PESEL lub numer dokumentu</label>
+        <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
                placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
-               value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
-               required>
+               value="<?= h($_POST['pesel_or_doc'] ?? '') ?>" required>
+        <p class="ks-fieldhint">Ostatnie 5 cyfr PESEL (np. <code>12345</code>) lub pełny numer dokumentu tożsamości.</p>
       </div>
-      <p class="field-hint">Ostatnie 5 cyfr PESEL (np.&nbsp;<code>12345</code>) lub pełny numer dokumentu tożsamości.</p>
-    </div>
 
-    <button type="submit" class="btn-primary">
-      <i class="bi bi-shield-check" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
-    </button>
-  </form>
+      <button type="submit" class="ks-btn ks-btn--primary">
+        <i class="bi bi-shield-check" aria-hidden="true"></i>Zweryfikuj i wyślij kod SMS
+      </button>
+    </form>
 
-  <p class="note">
-    Rejestracja wyłącznie dla umów wolontariackich. Inny typ umowy? Skontaktuj się z administratorem.<br>
-    Masz konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a> lub
-    <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">zresetuj hasło</a>.
-  </p>
+    <p class="ks-note">
+      Rejestracja wyłącznie dla umów wolontariackich. Inny typ umowy? Skontaktuj się z administratorem.<br>
+      Masz już konto? <a href="<?= h(APP_URL . '/auth/login.php') ?>">Zaloguj się</a> lub
+      <a href="<?= h(APP_URL . '/user/verify_reset.php') ?>">odzyskaj dostęp</a>.
+    </p>
 
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 2                                                                   -->
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <?php elseif ($step === 2): ?>
-  <h1 class="heading">Kod SMS</h1>
-  <p class="sub">Wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy. Kod jest ważny przez&nbsp;<strong>10&nbsp;minut</strong>.</p>
+    <?php elseif ($step === 2): ?>
+    <!-- ══ Krok 2 — kod SMS ═════════════════════════════════════════════ -->
+    <h1 class="ks-h1">Kod SMS</h1>
+    <p class="ks-lead">Wysłaliśmy 6-cyfrowy kod na numer telefonu z umowy. Kod jest ważny przez <strong>10 minut</strong>.</p>
 
-  <form method="post" novalidate>
-    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_action" value="verify_sms">
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="verify_sms">
 
-    <div class="sms-wrap">
-      <input type="text" class="sms-input"
-             id="sms_code" name="sms_code"
-             maxlength="6" minlength="6"
-             inputmode="numeric" pattern="[0-9]{6}"
-             placeholder="000000"
-             autocomplete="one-time-code"
-             required autofocus
-             aria-label="Kod SMS — 6 cyfr">
-    </div>
-    <?php if ($sms_fails > 0): ?>
-    <p class="sms-hint err">Błędna próba <?= $sms_fails ?>/3 — po 3 błędach zaczniesz od nowa.</p>
-    <?php else: ?>
-    <p class="sms-hint">Wpisz 6 cyfr z wiadomości SMS</p>
+      <div class="ks-field">
+        <label for="sms_code" class="sr">Kod SMS — 6 cyfr</label>
+        <input type="text" class="form-control ks-otp" id="sms_code" name="sms_code"
+               maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]{6}"
+               placeholder="000000" autocomplete="one-time-code" required autofocus
+               aria-describedby="sms-hint">
+        <p class="ks-fieldhint" id="sms-hint" style="text-align:center<?= $sms_fails > 0 ? ';color:#b91c1c' : '' ?>">
+          <?= $sms_fails > 0
+              ? 'Błędna próba ' . (int)$sms_fails . '/3 — po 3 błędach zaczniesz od nowa.'
+              : 'Wpisz 6 cyfr z wiadomości SMS' ?>
+        </p>
+      </div>
+
+      <button type="submit" class="ks-btn ks-btn--primary">
+        <i class="bi bi-check-circle" aria-hidden="true"></i>Potwierdź kod
+      </button>
+    </form>
+
+    <form method="post">
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="restart">
+      <button type="submit" class="ks-btn ks-btn--ghost">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć i popraw dane
+      </button>
+    </form>
+
+    <?php elseif ($step === 3): ?>
+    <!-- ══ Krok 3 — hasło ═══════════════════════════════════════════════ -->
+    <h1 class="ks-h1">Ustaw hasło</h1>
+    <p class="ks-lead">Tożsamość potwierdzona. Wybierz hasło — po jego ustawieniu konto będzie gotowe.</p>
+
+    <form method="post" novalidate>
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="set_password">
+
+      <div class="ks-field">
+        <label for="password_new">Hasło</label>
+        <div class="pass-wrap">
+          <input type="password" class="form-control" id="password_new" name="password_new"
+                 minlength="8" required autofocus autocomplete="new-password">
+          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
+                  onclick="togglePass('password_new', this)">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+          </button>
+        </div>
+        <p class="ks-fieldhint">Min. 8 znaków, wielka litera, mała litera, cyfra.</p>
+      </div>
+
+      <div class="ks-field">
+        <label for="password_confirm">Powtórz hasło</label>
+        <div class="pass-wrap">
+          <input type="password" class="form-control" id="password_confirm" name="password_confirm"
+                 minlength="8" required autocomplete="new-password">
+          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
+                  onclick="togglePass('password_confirm', this)">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="ks-btn ks-btn--ok">
+        <i class="bi bi-person-check" aria-hidden="true"></i>Załóż konto i zaloguj się
+      </button>
+    </form>
     <?php endif; ?>
 
-    <button type="submit" class="btn-primary">
-      <i class="bi bi-check-circle" aria-hidden="true"></i>Potwierdź kod
-    </button>
-  </form>
-
-  <form method="post" style="display:block">
-    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_action" value="restart">
-    <button type="submit" class="btn-ghost">
-      <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć i popraw dane
-    </button>
-  </form>
-
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- KROK 3                                                                   -->
-  <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <?php elseif ($step === 3): ?>
-  <h1 class="heading">Ustaw hasło</h1>
-  <p class="sub">Tożsamość potwierdzona. Wybierz hasło — po jego ustawieniu konto będzie gotowe.</p>
-
-  <form method="post" novalidate>
-    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_action" value="set_password">
-
-    <div class="field">
-      <label for="password_new" class="field-label">Hasło</label>
-      <div class="field-wrap pwd-wrap">
-        <i class="bi bi-lock field-icon" aria-hidden="true"></i>
-        <input type="password" class="field-input" id="password_new" name="password_new"
-               minlength="8" required autofocus autocomplete="new-password">
-        <button type="button" class="pwd-toggle" id="togglePwdNew" aria-label="Pokaż hasło">
-          <i class="bi bi-eye" id="eyeNew" aria-hidden="true"></i>
-        </button>
-      </div>
-      <p class="field-hint">Min.&nbsp;8&nbsp;znaków, wielka litera, mała litera, cyfra.</p>
-    </div>
-
-    <div class="field">
-      <label for="password_confirm" class="field-label">Powtórz hasło</label>
-      <div class="field-wrap pwd-wrap">
-        <i class="bi bi-lock-fill field-icon" aria-hidden="true"></i>
-        <input type="password" class="field-input" id="password_confirm" name="password_confirm"
-               minlength="8" required autocomplete="new-password">
-        <button type="button" class="pwd-toggle" id="togglePwdConfirm" aria-label="Pokaż hasło">
-          <i class="bi bi-eye" id="eyeConfirm" aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-
-    <button type="submit" class="btn-primary success-color">
-      <i class="bi bi-person-check" aria-hidden="true"></i>Załóż konto i zaloguj się
-    </button>
-  </form>
-  <?php endif; ?>
-
-</main>
-</div>
-
-<footer class="foot">
-  &copy; <?= date('Y') ?> <a href="<?= APP_URL ?>/auth/login.php"><?= h($org_name) ?></a>
-</footer>
-
-<script>
-function togglePwd(btnId, inputId, eyeId) {
-  var btn = document.getElementById(btnId);
-  if (!btn) return;
-  btn.addEventListener('click', function() {
-    var inp = document.getElementById(inputId);
-    var eye = document.getElementById(eyeId);
-    if (!inp) return;
-    var show = inp.type === 'password';
-    inp.type  = show ? 'text' : 'password';
-    inp.setAttribute('autocomplete', show ? 'off' : 'new-password');
-    if (eye) eye.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-    this.setAttribute('aria-label', show ? 'Ukryj hasło' : 'Pokaż hasło');
-  });
-}
-togglePwd('togglePwdNew',     'password_new',     'eyeNew');
-togglePwd('togglePwdConfirm', 'password_confirm', 'eyeConfirm');
-
-var smsInput = document.getElementById('sms_code');
-if (smsInput) {
-  smsInput.addEventListener('input', function() {
-    if (this.value.replace(/\D/g,'').length === 6) this.form.submit();
-  });
-}
-</script>
-</body>
-</html>
+<?php
+auth_screen_foot([
+    'links' => [
+        ['url' => APP_URL . '/auth/login.php',              'label' => 'Wróć do logowania',   'icon' => 'bi-arrow-left'],
+        ['url' => APP_URL . '/auth/report_login_issue.php', 'label' => 'Problem z kontem',    'icon' => 'bi-life-preserver'],
+    ],
+]);
