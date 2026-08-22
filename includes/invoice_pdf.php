@@ -100,18 +100,38 @@ function invoice_amount_words(float $amount, string $currency = 'PLN'): string
 // ── Dane sprzedawcy ──────────────────────────────────────────────────────────
 
 /** Dane wystawcy z ustawień organizacji + pierwszy rachunek bankowy. */
-function invoice_seller(): array
+function invoice_seller(string $currency = 'PLN'): array
 {
+    // Rachunek dobieramy po PRZEZNACZENIU, nie „pierwszy z listy": faktura dotyczy
+    // działalności odpłatnej (szkolenia, zajęcia), więc rachunek opisany jako
+    // szkoleniowy/odpłatny musi wygrać z rachunkiem dotacyjnym. Ten sam helper
+    // co oferty CRM, żeby na fakturze i na ofercie był ten sam numer.
     $accounts = [];
-    $raw = org_setting('org_rachunki_bankowe');
-    foreach (($raw ? (json_decode($raw, true) ?: []) : []) as $a) {
-        if (!is_array($a) || empty($a['nrb'])) continue;
-        $accounts[] = [
-            'nrb'  => (string)$a['nrb'],
-            'bank' => (string)($a['bank'] ?? ''),
-            'opis' => (string)($a['opis'] ?? ''),
-        ];
+    try {
+        require_once __DIR__ . '/crm_offers.php';
+        if (function_exists('crm_offer_bank_accounts')) {
+            foreach (crm_offer_bank_accounts('odplatna', $currency) as $a) {
+                $accounts[] = ['nrb' => (string)$a['nrb'], 'bank' => (string)($a['bank'] ?? ''), 'opis' => (string)($a['opis'] ?? '')];
+            }
+        }
+    } catch (\Throwable $e) { $accounts = []; }
+
+    // Zapas: surowa lista z ustawień, gdy helper niedostępny albo nic nie dopasował.
+    if (!$accounts) {
+        $raw = org_setting('org_rachunki_bankowe');
+        foreach (($raw ? (json_decode($raw, true) ?: []) : []) as $a) {
+            if (!is_array($a) || empty($a['nrb'])) continue;
+            $accounts[] = [
+                'nrb'  => (string)$a['nrb'],
+                'bank' => (string)($a['bank'] ?? ''),
+                'opis' => (string)($a['opis'] ?? ''),
+            ];
+        }
     }
+
+    $logo_f = trim((string)org_setting('org_logo'));
+    $logo   = $logo_f !== '' ? dirname(__DIR__) . '/assets/logo/' . $logo_f : '';
+    if ($logo !== '' && !is_file($logo)) $logo = '';
 
     return [
         'name'   => org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''),
@@ -120,6 +140,10 @@ function invoice_seller(): array
         'regon'  => org_setting('org_regon'),
         'krs'    => org_setting('org_krs'),
         'miasto' => org_setting('org_miejscowosc'),
+        'email'  => org_setting('org_email'),
+        'tel'    => org_setting('org_telefon'),
+        'www'    => org_setting('org_www'),
+        'logo'   => $logo,
         'accounts' => $accounts,
     ];
 }
@@ -158,7 +182,7 @@ function invoice_vat_summary(array $items): array
  */
 function invoice_pdf_html(array $inv, array $opts = []): string
 {
-    $s     = invoice_seller();
+    $s     = invoice_seller((string)($inv['currency'] ?: 'PLN'));
     $items = $inv['items'] ?? [];
 
     // Fakturę wystawia zawsze konkretny użytkownik — imiennie na dokumencie,
@@ -190,7 +214,7 @@ function invoice_pdf_html(array $inv, array $opts = []): string
         $prev = invoice_ti_number_preview($inv);
         if ($prev !== '') { $shown_number = $prev; $number_note = ' (numer poglądowy)'; }
     }
-    $title = $kind_label . ' nr ' . ($shown_number ?: 'szkic/' . (int)$inv['id']) . $number_note;
+    $title = $kind_label . ' nr ' . ($shown_number ?: 'szkic/' . (int)$inv['id']);
     $is_draft = ($inv['status'] ?? '') === 'szkic' || ($inv['status'] ?? '') === 'blad';
 
     $annot = [];
@@ -242,15 +266,21 @@ function invoice_pdf_html(array $inv, array $opts = []): string
 
 <table>
   <tr>
-    <td style="width:60%">
+    <td style="width:58%">
+      <?php if ($s['logo'] !== ''): ?>
+      <img src="<?= h($s['logo']) ?>" alt="" style="max-height:38px;margin-bottom:5px">
+      <?php endif; ?>
       <div class="hdr-title"><?= h($title) ?></div>
+      <?php if ($number_note !== ''): ?>
+      <div class="hdr-sub" style="color:#92400e"><?= h(trim($number_note, ' ()')) ?></div>
+      <?php endif; ?>
       <div class="hdr-sub">
         Miejsce wystawienia: <?= h($s['miasto'] ?: '—') ?><br>
         Data wystawienia: <strong><?= h($d($inv['issue_date'])) ?></strong><br>
         Data sprzedaży: <strong><?= h($d($inv['sell_date'])) ?></strong>
       </div>
     </td>
-    <td style="width:40%; text-align:right">
+    <td style="width:42%; text-align:right">
       <?php foreach ($annot as $a): ?>
       <div class="annot" style="margin-bottom:3px"><?= h($a) ?></div>
       <?php endforeach; ?>
@@ -268,6 +298,11 @@ function invoice_pdf_html(array $inv, array $opts = []): string
         <?php if ($s['nip']):   ?><div>NIP: <?= h($s['nip']) ?></div><?php endif; ?>
         <?php if ($s['regon']): ?><div>REGON: <?= h($s['regon']) ?></div><?php endif; ?>
         <?php if ($s['krs']):   ?><div>KRS: <?= h($s['krs']) ?></div><?php endif; ?>
+        <?php if ($s['email'] || $s['tel'] || $s['www']): ?>
+        <div style="margin-top:2px">
+          <?= h(implode(' · ', array_filter([$s['email'], $s['tel'], $s['www']]))) ?>
+        </div>
+        <?php endif; ?>
       </div>
     </td>
     <td style="width:2%"></td>
@@ -374,6 +409,9 @@ function invoice_pdf_html(array $inv, array $opts = []): string
       <?php if ($s['accounts']): $a = $s['accounts'][0]; ?>
         <strong style="font-size:9.5pt"><?= h(invoice_iban_fmt($a['nrb'])) ?></strong>
         <?= $a['bank'] ? ' <span style="color:#555">— ' . h($a['bank']) . '</span>' : '' ?>
+        <?php if (trim((string)$a['opis']) !== ''): ?>
+        <div style="color:#555;font-size:7.5pt"><?= h($a['opis']) ?></div>
+        <?php endif; ?>
       <?php else: ?>
         <span style="color:#555">— nie ustawiono rachunku bankowego organizacji —</span>
       <?php endif; ?>
