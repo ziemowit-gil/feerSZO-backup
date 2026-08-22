@@ -15,6 +15,18 @@ $TABLE = 'umowy_uslugi';
 $errors = [];
 $row = ['numer_umowy' => next_contract_number($TYPE), 'status' => 'projekt', 'waluta' => 'PLN'];
 
+// ── Wstępne wypełnienie z oferty CRM (konwersja 1-kliknięciem) ───────────────
+// crm/offers/action.php buduje adres z parametrami — przenosimy tylko pola,
+// które istnieją w formularzu, żeby nie dało się wstrzyknąć obcych kolumn.
+$offer_id = (int)($_GET['offer_id'] ?? $_POST['offer_id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $offer_id) {
+    $prefill_allowed = ['nazwa_wykonawcy','nip_pesel','adres','email','telefon','przedmiot_uslugi',
+        'zakres_uslug','wartosc_netto','wartosc_brutto','stawka_vat','waluta','termin_platnosci_dni'];
+    foreach ($prefill_allowed as $pf) {
+        if (isset($_GET[$pf]) && $_GET[$pf] !== '') $row[$pf] = $_GET[$pf];
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $row = $_POST;
@@ -71,6 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) {
             error_log('[crm_case_auto] ' . $e->getMessage());
         }
+        if ($offer_id) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
+                crm_offer_link_contract($offer_id, $id, $TYPE);
+            } catch (\Throwable $e) {
+                error_log('[crm_offer_link] ' . $e->getMessage());
+            }
+        }
         flash_set('success', 'Umowa o świadczenie usług została dodana.');
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
         exit;
@@ -89,8 +109,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>".h($e)."</li>"; ?></ul></div>
 <?php endif; ?>
 
+<?php if ($offer_id): ?>
+<div class="alert alert-info d-flex align-items-center gap-2 py-2">
+  <i class="bi bi-file-earmark-ruled-fill"></i>
+  <div class="flex-grow-1">Dane wypełnione z oferty CRM — po zapisaniu umowa zostanie do niej dowiązana.</div>
+  <a class="btn btn-sm btn-outline-primary" href="<?= APP_URL ?>/crm/offers/view.php?id=<?= (int)$offer_id ?>">Otwórz ofertę</a>
+</div>
+<?php endif; ?>
+
 <form method="post" enctype="multipart/form-data">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+<?php if ($offer_id): ?><input type="hidden" name="offer_id" value="<?= (int)$offer_id ?>"><?php endif; ?>
 
 <!-- Numery referencyjne -->
 <div class="card shadow-sm mb-3">

@@ -22,6 +22,9 @@ const EVENTS = [
     'tag_added'              => 'Dodano tag',
     'case_created'           => 'Nowa sprawa',
     'case_status_changed'    => 'Zmiana statusu sprawy',
+    'offer_sent'             => 'Oferta wysłana do klienta',
+    'offer_accepted'         => 'Oferta zaakceptowana',
+    'offer_rejected'         => 'Oferta odrzucona',
 ];
 const ACTIONS = [
     'send_email_template'  => 'Wyślij e-mail z szablonu',

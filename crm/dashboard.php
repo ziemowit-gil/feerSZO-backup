@@ -75,6 +75,17 @@ $open_cases = db_all(
      LIMIT 8"
 );
 
+
+// ── Oferty (działalność odpłatna) — KPI i alert o brakujących potwierdzeniach ─
+require_once dirname(__DIR__) . '/includes/crm_offers.php';
+crm_offers_migrate();
+$offer_stats  = crm_offer_stats();
+$offer_noconf = (int)(crm_one(
+    "SELECT COUNT(*) AS n FROM crm_offers
+     WHERE deleted_at IS NULL AND requires_confirmation=1 AND confirmation_id IS NULL
+       AND status IN ('wyslana','zaakceptowana')"
+)['n'] ?? 0);
+
 include __DIR__ . '/includes/header_crm.php';
 ?>
 
@@ -189,6 +200,22 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
 
+  <div class="col-6 col-lg">
+    <a href="<?= APP_URL ?>/crm/offers/index.php" class="crm-kpi-card text-decoration-none d-block">
+      <div class="crm-kpi-icon" style="background:#E6F6F2;color:#0F766E">
+        <i class="bi bi-file-earmark-ruled-fill"></i>
+      </div>
+      <div class="crm-kpi-value"><?= h(number_format((float)$offer_stats['pipeline'], 0, ',', ' ')) ?> zł</div>
+      <div class="crm-kpi-label">Oferty w toku</div>
+      <?php if ($offer_noconf): ?>
+      <div class="crm-kpi-delta" style="color:#B45309">
+        <i class="bi bi-exclamation-triangle-fill" style="font-size:.6rem"></i>
+        <?= $offer_noconf ?> bez potwierdzenia
+      </div>
+      <?php endif; ?>
+    </a>
+  </div>
+
 </div><!-- /kpi row -->
 
 <!-- ══ GŁÓWNA SEKCJA — układ „sprawy najpierw" ═══════════════════════════════ -->
@@ -268,6 +295,14 @@ include __DIR__ . '/includes/header_crm.php';
             <div>
               <div class="fw-semibold" style="font-size:.87rem">Nowa sprawa</div>
               <div class="text-muted" style="font-size:.75rem">Powiązana z kontaktem</div>
+            </div>
+            <i class="bi bi-chevron-right ms-auto text-muted opacity-50"></i>
+          </a>
+          <a href="<?= APP_URL ?>/crm/offers/form.php" class="crm-quick-action">
+            <div class="crm-quick-icon" style="background:#E6F6F2;color:#0F766E"><i class="bi bi-file-earmark-ruled-fill"></i></div>
+            <div>
+              <div class="fw-semibold" style="font-size:.87rem">Nowa oferta</div>
+              <div class="text-muted" style="font-size:.75rem">Działalność odpłatna, warianty, PDF</div>
             </div>
             <i class="bi bi-chevron-right ms-auto text-muted opacity-50"></i>
           </a>

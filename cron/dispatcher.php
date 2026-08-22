@@ -169,6 +169,11 @@ $AGENTS = [
         'interval' => 60,           // co minutę — konsumuje kolejkę RabbitMQ „poczta_skanowanie"
         'schedule' => [6, 23],
     ],
+    'crm_offers' => [
+        'file'     => __DIR__ . '/crm_offers_agent.php',
+        'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń
+        'schedule' => [7, 9],       // między 7:00 a 9:00
+    ],
     'ezd_mail_ingest' => [
         'file'     => __DIR__ . '/ezd_mail_ingest.php',
         'interval' => 300,          // co 5 min — match [EZD:ZNAK] i Inbox Ogólny
