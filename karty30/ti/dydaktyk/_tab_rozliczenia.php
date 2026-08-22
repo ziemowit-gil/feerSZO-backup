@@ -17,7 +17,10 @@ $roz_enrolled = db_all(
 
 $roz_balances = [];
 foreach ($roz_enrolled as $en) {
-    $roz_balances[(int)$en['id']] = ti_client_balance((int)$en['id']);
+    // Model kombinowany — saldo TEJ grupy (nie całego konta kursanta)
+    $rb = ti_group_balance((int)$en['id'], (int)$cur_course);
+    $rb['payments'] = $rb['applied'];   // środki zaliczone na tę grupę
+    $roz_balances[(int)$en['id']] = $rb;
 }
 
 $roz_total_charges  = array_sum(array_column($roz_balances, 'charges'));

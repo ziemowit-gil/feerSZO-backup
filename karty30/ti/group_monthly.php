@@ -1,8 +1,10 @@
 <?php
 /**
  * karty30/ti/group_monthly.php — Raport MIESIĘCZNY per grupa (kurs) → PDF.
- * Sekcja na kurs: frekwencja uczestników w tej grupie + ich rozliczenia
- * (należności/wpłaty w miesiącu) i bieżące saldo konta. Podsumowanie grupy: śr. frekwencja.
+ * Sekcja na kurs: frekwencja uczestników w tej grupie + rozliczenia TEJ GRUPY
+ * (model kombinowany — każda grupa ma własne rozliczenia i własne saldo):
+ * należności i wpłaty miesiąca oraz bieżące saldo grupy (nadpłata / niedopłata).
+ * Podsumowanie grupy: śr. frekwencja, sumy należności/wpłat, łączne nadpłaty i niedopłaty.
  * GET: ?m=YYYY-MM (domyślnie bieżący), ?course_id=N (opcjonalnie — jedna grupa).
  * Dostęp: pracownik D3 / administrator. Wynik: tylko PDF.
  */
@@ -92,17 +94,23 @@ try {
         $pdf->Cell($cW['ni'],   6, $pl('Nieob.'),    1, 0, 'C', true);
         $pdf->Cell($cW['fr'],   6, $pl('Frekw.'),    1, 0, 'C', true);
         $pdf->Cell($cW['nal'],  6, $pl('Należn.'),   1, 0, 'R', true);
-        $pdf->Cell($cW['wpl'],  6, $pl('Wpłaty'),    1, 0, 'R', true);
+        $pdf->Cell($cW['wpl'],  6, $pl('Pokryte'),   1, 0, 'R', true);
         $pdf->Cell($cW['sal'],  6, $pl('Saldo'),     1, 1, 'R', true);
 
         $pdf->SetFont('Helvetica', '', 7.5);
         $fill = false;
+        $g_nal = 0.0; $g_wpl = 0.0; $g_debt = 0.0; $g_credit = 0.0;
         foreach ($ga['participants'] as $p) {
             if ($pdf->GetY() > $pdf->GetPageHeight() - 18) {
                 $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 7.5);
             }
-            $bil = ti_pr_billing_month((int)$p['client_id'], $year, $month);
-            $bal = ti_client_balance((int)$p['client_id']);
+            // Rozliczenia dotyczą TEJ grupy (nie całego konta kursanta)
+            $bil = ti_group_month_billing((int)$p['client_id'], $cid, $year, $month);
+            $bal = ti_group_balance((int)$p['client_id'], $cid);
+            $g_nal    = round($g_nal + $bil['charges'], 2);
+            $g_wpl    = round($g_wpl + $bil['paid'], 2);
+            $g_debt   = round($g_debt + $bal['debt'], 2);
+            $g_credit = round($g_credit + $bal['credit'], 2);
             $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
 
             $pdf->Cell($cW['name'], 6, $pl(mb_strimwidth($p['name'], 0, 40, '…')), 1, 0, 'L', true);
@@ -113,7 +121,7 @@ try {
             $pdf->Cell($cW['fr'],   6, $pctColor($p['pct']), 1, 0, 'C', true);
             $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->Cell($cW['nal'],  6, ti_pr_zl($bil['charges']),  1, 0, 'R', true);
-            $pdf->Cell($cW['wpl'],  6, ti_pr_zl($bil['payments']), 1, 0, 'R', true);
+            $pdf->Cell($cW['wpl'],  6, ti_pr_zl($bil['paid']), 1, 0, 'R', true);
             // Saldo: +nadpłata (zielony) / -niedopłata (czerwony) / 0 rozliczone
             if ($bal['debt'] > 0.005)       { $pdf->SetTextColor(170, 0, 0);  $stxt = '-' . ti_pr_zl($bal['debt']); }
             elseif ($bal['credit'] > 0.005) { $pdf->SetTextColor(0, 120, 0);  $stxt = '+' . ti_pr_zl($bal['credit']); }
@@ -125,6 +133,22 @@ try {
         }
         if (!$ga['participants']) {
             $pdf->Cell($W, 6, $pl('Brak aktywnych uczestników w tej grupie.'), 1, 1, 'L');
+        } else {
+            // Podsumowanie rozliczeń grupy
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 22) $pdf->AddPage();
+            $pdf->SetFont('Helvetica', 'B', 7.5);
+            $pdf->SetFillColor(240, 244, 250); $pdf->SetTextColor(0, 0, 0);
+            $pdf->Cell($cW['name'] + $cW['les'] + $cW['ob'] + $cW['ni'] + $cW['fr'], 6.5, $pl('Razem grupa'), 1, 0, 'R', true);
+            $pdf->Cell($cW['nal'], 6.5, ti_pr_zl($g_nal), 1, 0, 'R', true);
+            $pdf->Cell($cW['wpl'], 6.5, ti_pr_zl($g_wpl), 1, 0, 'R', true);
+            if ($g_debt > 0.005 && $g_credit <= 0.005)      { $pdf->SetTextColor(170, 0, 0);  $gs = '-' . ti_pr_zl($g_debt); }
+            elseif ($g_credit > 0.005 && $g_debt <= 0.005)  { $pdf->SetTextColor(0, 120, 0);  $gs = '+' . ti_pr_zl($g_credit); }
+            else                                            { $pdf->SetTextColor(80, 80, 80); $gs = ti_pr_zl($g_credit - $g_debt); }
+            $pdf->Cell($cW['sal'], 6.5, $gs, 1, 1, 'R', true);
+            $pdf->SetTextColor(80, 80, 80); $pdf->SetFont('Helvetica', '', 7);
+            $pdf->Cell($W, 4.5, $pl('Nadpłaty w grupie: ' . ti_pr_zl($g_credit) . ' zł   ·   niedopłaty w grupie: '
+                                    . ti_pr_zl($g_debt) . ' zł'), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
         }
         $pdf->Ln(4);
     }
@@ -134,8 +158,12 @@ try {
     $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności. '
-        . 'Należności/Wpłaty dotyczą wybranego miesiąca; Saldo (+ nadpłata / − niedopłata) jest bieżące '
-        . 'i dotyczy CAŁEGO konta kursanta (wszystkie jego grupy).'), 0, 'L');
+        . 'Model kombinowany: każda grupa (przedmiot) ma osobne rozliczenia, dlatego Należności/Pokryte '
+        . 'i Saldo (+ nadpłata / − niedopłata) dotyczą WYŁĄCZNIE TEJ GRUPY. „Pokryte" to kwota wpłat '
+        . 'zaliczonych na należności tej grupy (także z wpłat ogólnych). Należności i Pokryte obejmują '
+        . 'wybrany miesiąc, Saldo grupy jest bieżące. Wpłaty ogólne (bez wskazania grupy) pokrywają '
+        . 'należności od najstarszej i mogą pomniejszać saldo innej grupy. Pełne saldo konta kursanta '
+        . '(wszystkie grupy razem) znajdziesz w zestawieniu płatności kursanta.'), 0, 'L');
 
     $__pdfData = $pdf->Output('S');
     $__fname   = 'raport_grupa_' . $ym . '.pdf';

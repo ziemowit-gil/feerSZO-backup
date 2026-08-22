@@ -402,20 +402,33 @@ HTML;
 
     // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
     $ti_billing_body = <<<'HTML'
-<p>Dzień dobry{{name_suffix}},</p>
-<p>Wystawiliśmy rozliczenie za zajęcia ({{org}}) za okres <strong>{{period}}</strong>.</p>
+<p>Dzień dobry,</p>
+<p>W związku z realizacją zajęć przesyłamy zestawienie należności.
+   To automatyczny komunikat z systemu {{org}}.</p>
+<p>Faktura została wysłana osobno przez system fakturujący
+   (a w przypadku indywidualnego kodu rozliczeń – przez opiekuna konta).</p>
+<ul style="margin:14px 0;padding-left:20px">
+  <li>Beneficjent: <strong>{{client_name}}</strong></li>
+  <li>Kod grupy: <strong>{{group_code}}</strong></li>
+</ul>
+<p>Poniżej znajduje się szczegółowe wyliczenie kwot:</p>
 <div style="background:#f8f9fa;border-left:3px solid #059669;border-radius:4px;padding:14px 18px;margin:14px 0">
-  {{details_html}}
+  <ul style="margin:0;padding-left:20px">
+    <li>Tytuł należności / Okres: {{period_title}} – <strong>{{amount_main}}</strong></li>
+    <li>Opłaty dodatkowe: {{extra_desc}} – <strong>{{extra_amount}}</strong></li>
+    <li>Razem do zapłaty: <strong>{{total}}</strong></li>
+  </ul>
 </div>
-<p style="font-size:.9em;color:#495057">
+<p>Prosimy o wpłatę powyższej kwoty na rachunek bankowy wskazany na fakturze:
+   na konto ogólne (z końcówką 0002) lub na indywidualny numer rachunku Beneficjenta –
+   w zależności od tego, kto jest płatnikiem.</p>
+<p>W tytule przelewu prosimy wpisać: <strong>„{{transfer_title}}”</strong>.</p>
+<p>W razie pytań chętnie pomożemy.</p>
+<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
+<p style="font-size:.85em;color:#495057">
   Szczegóły i historia rozliczeń w panelu kursanta:
   <a href="{{portal}}" style="color:#059669">{{portal}}</a>
 </p>
-<div style="margin:20px 0;text-align:center">
-  <a href="{{portal}}" style="background:#059669;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-    Otwórz panel kursanta →
-  </a>
-</div>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
   Wiadomość wygenerowana automatycznie.
 </p>
@@ -738,15 +751,23 @@ HTML;
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-receipt',
             'auto'        => true,
-            'description' => 'Powiadomienie dla kursanta o wystawieniu rozliczenia miesięcznego za zajęcia TI.',
-            'subject'     => 'Rozliczenie za {{period}} — {{org}}',
+            'description' => 'Zestawienie należności wysyłane po wystawieniu rozliczenia (faktura wystawiana osobno w systemie fakturującym).',
+            'subject'     => 'Rozliczenie należności za zajęcia{{invoice_subject}} – {{surname}}',
             'body'        => $ti_billing_body,
             'vars'        => [
-                'org'         => ['label' => 'Nazwa organizacji',         'sample' => 'Dydaktyka TI'],
-                'name_suffix' => ['label' => 'Imię odbiorcy z przecinkiem (np. ", Jan")', 'sample' => ', Jan'],
-                'period'      => ['label' => 'Okres rozliczenia',         'sample' => 'czerwiec 2026'],
-                'details_html'=> ['label' => 'Tabela szczegółów płatności (HTML)', 'sample' => '<table style="border-collapse:collapse;width:100%"><tr><td style="padding:4px 12px 4px 0;color:#555">Kwota do zapłaty:</td><td><strong>120,00 zł</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Termin płatności:</td><td><strong>15.07.2026</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Nr konta:</td><td>12 3456 7890 1234 5678</td></tr></table>'],
-                'portal'      => ['label' => 'URL panelu kursanta',       'sample' => $base . '/karty30/ti/kursant/index.php'],
+                'org'            => ['label' => 'Nazwa organizacji',      'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'client_name'    => ['label' => 'Imię i nazwisko beneficjenta', 'sample' => 'Jan Kowalski'],
+                'surname'        => ['label' => 'Nazwisko beneficjenta',  'sample' => 'Kowalski'],
+                'group_code'     => ['label' => 'Kod grupy',              'sample' => 'ANG.94826.Kowalski'],
+                'invoice_subject'=> ['label' => 'Fragment tematu z numerem faktury (pusty, gdy brak faktury)', 'sample' => ' – faktura nr FV/123/2026'],
+                'invoice_no'     => ['label' => 'Numer faktury',          'sample' => 'FV/123/2026'],
+                'period_title'   => ['label' => 'Tytuł należności / okres', 'sample' => 'Angielski — sierpień 2026'],
+                'amount_main'    => ['label' => 'Kwota za zajęcia',       'sample' => '200,00 PLN'],
+                'extra_desc'     => ['label' => 'Opis opłat dodatkowych', 'sample' => 'brak'],
+                'extra_amount'   => ['label' => 'Kwota opłat dodatkowych','sample' => '0,00 PLN'],
+                'total'          => ['label' => 'Razem do zapłaty',       'sample' => '200,00 PLN'],
+                'transfer_title' => ['label' => 'Tytuł przelewu',         'sample' => 'Faktura nr FV/123/2026 – Kowalski'],
+                'portal'         => ['label' => 'URL panelu kursanta',    'sample' => $base . '/karty30/ti/kursant/index.php'],
             ],
         ],
 

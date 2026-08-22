@@ -34,9 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $method  = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','other'], true)
                    ? $_POST['method'] : 'transfer';
         $note    = trim($_POST['note'] ?? '');
+        // Model kombinowany: wpłatę można zaksięgować na konkretną grupę (0 = ogólna na konto)
+        $pay_course = (int)($_POST['pay_course_id'] ?? 0);
+        if ($pay_course > 0 && !db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=?", [$client_id, $pay_course])) {
+            $pay_course = 0;
+        }
         if ($amount > 0) {
-            $r = ti_payment_add($client_id, $amount, $paid_at, $method, $note);
-            $msg = 'Wpłata ' . number_format($amount, 2, ',', ' ') . ' zł zapisana.';
+            $r = ti_payment_add($client_id, $amount, $paid_at, $method, $note, 'manual', 0, $pay_course);
+            $gname = $pay_course ? (db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$pay_course])['name'] ?? '') : '';
+            $msg = 'Wpłata ' . number_format($amount, 2, ',', ' ') . ' zł zapisana'
+                 . ($gname !== '' ? ' na grupę „' . $gname . '”' : ' (ogólna)') . '.';
             if ($r['credit'] > 0)
                 $msg .= ' Nadpłata: ' . number_format($r['credit'], 2, ',', ' ') . ' zł'
                       . (!empty($r['emailed']) ? ' (wysłano e-mail).' : '.');
@@ -60,6 +67,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 $bal      = ti_billing_recompute($client_id);  // odświeżamy alokację FIFO przed wyświetleniem
 $balance  = ti_client_balance($client_id);
 $payments = ti_payments_for_client($client_id);
+// Model kombinowany — rozbicie salda na grupy (przedmioty) + grupy do wyboru przy wpłacie
+$group_bal   = ti_client_group_balances($client_id);
+$client_enr  = db_all("SELECT e.course_id, c.name FROM k30_ti_enrollments e
+                       JOIN k30_ti_courses c ON c.id=e.course_id
+                       WHERE e.client_id=? AND e.status='active' ORDER BY c.name", [$client_id]);
+$course_names = [];
+foreach ($client_enr as $ce)                 $course_names[(int)$ce['course_id']] = (string)$ce['name'];
+foreach ($group_bal['groups'] as $gc => $gg) $course_names[(int)$gc] = $course_names[(int)$gc] ?? (string)$gg['course_name'];
 
 // Wszystkie należności (poza anulowanymi) najstarsze → najnowsze
 $billings = db_all(
@@ -107,7 +122,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h4 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill text-primary me-2" aria-hidden="true"></i><?= h($client['name']) ?></h4>
   <span class="badge bg-secondary">ID <?= $client_id ?></span>
-  <button class="btn btn-outline-secondary btn-sm ms-auto no-print" onclick="window.print()">
+  <a class="btn btn-outline-primary btn-sm ms-auto no-print" target="_blank" rel="noopener"
+     href="hours_pdf.php?client_id=<?= $client_id ?>&amp;month=<?= (int)date('n') ?>&amp;year=<?= (int)date('Y') ?>"
+     title="Szczegółowa rozpiska zajęć i godzin za bieżący miesiąc">
+    <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Rozpiska godzin (PDF)
+  </a>
+  <button class="btn btn-outline-secondary btn-sm no-print" onclick="window.print()">
     <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj
   </button>
 </div>
@@ -170,6 +190,59 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 <?php endif; ?>
 
+<!-- ── Rozliczenia per grupa (model kombinowany) ──────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-collection text-primary me-2" aria-hidden="true"></i>Rozliczenia per grupa
+    <span class="badge bg-secondary ms-2"><?= count($group_bal['groups']) ?></span>
+    <?php if ($group_bal['general_credit'] > 0.005): ?>
+    <span class="ms-auto small fw-normal text-success">
+      Nadpłata ogólna (dowolna grupa): <strong><?= number_format($group_bal['general_credit'], 2, ',', ' ') ?> zł</strong>
+    </span>
+    <?php endif; ?>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Należności, wpłaty i saldo kursanta w podziale na grupy</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Grupa / przedmiot</th>
+          <th scope="col" class="text-end">Należności</th>
+          <th scope="col" class="text-end">Wpłaty na grupę</th>
+          <th scope="col" class="text-end">Pokryte</th>
+          <th scope="col" class="text-end">Saldo grupy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (!$group_bal['groups']): ?>
+        <tr><td colspan="5" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
+        <?php endif; ?>
+        <?php foreach ($group_bal['groups'] as $g): ?>
+        <tr>
+          <th scope="row" class="fw-normal"><?= h($g['course_name']) ?></th>
+          <td class="text-end"><?= number_format($g['charges'], 2, ',', ' ') ?> zł</td>
+          <td class="text-end"><?= number_format($g['payments'], 2, ',', ' ') ?> zł</td>
+          <td class="text-end"><?= number_format($g['paid'], 2, ',', ' ') ?> zł</td>
+          <td class="text-end fw-semibold">
+            <?php if ($g['debt'] > 0.005): ?>
+              <span class="text-danger">−<?= number_format($g['debt'], 2, ',', ' ') ?> zł</span>
+            <?php elseif ($g['credit'] > 0.005): ?>
+              <span class="text-success">+<?= number_format($g['credit'], 2, ',', ' ') ?> zł</span>
+            <?php else: ?>
+              <span class="text-body-secondary">0,00 zł</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white small text-body-secondary">
+    Każda grupa (przedmiot) ma osobne rozliczenia i osobne saldo. Nadpłata przypisana do grupy pokrywa wyłącznie
+    kolejne zajęcia w tej grupie; wpłaty ogólne pokrywają należności od najstarszej (FIFO) niezależnie od grupy.
+  </div>
+</div>
+
 <!-- ── Dopisanie wpłaty ───────────────────────────────────────────────────── -->
 <?php if ($can_write): ?>
 <div class="card border-0 shadow-sm mb-4 no-print">
@@ -197,6 +270,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </select>
       </div>
       <div class="col-sm-4">
+        <label class="form-label small mb-1" for="paygrp">Zaksięguj na grupę</label>
+        <select name="pay_course_id" id="paygrp" class="form-select">
+          <option value="0">— wpłata ogólna (FIFO) —</option>
+          <?php foreach ($client_enr as $ce): ?>
+          <option value="<?= (int)$ce['course_id'] ?>"><?= h($ce['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-8">
         <label class="form-label small mb-1" for="paynote">Notatka (opcjonalnie)</label>
         <input type="text" name="note" id="paynote" class="form-control" placeholder="np. tytuł przelewu">
       </div>
@@ -225,6 +307,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <th scope="col">Data</th>
           <th scope="col">Kwota</th>
+          <th scope="col">Grupa</th>
           <th scope="col">Metoda</th>
           <th scope="col">Notatka</th>
           <th scope="col">Źródło</th>
@@ -233,7 +316,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       </thead>
       <tbody>
         <?php if (!$payments): ?>
-        <tr><td colspan="<?= $can_delete ? 6 : 5 ?>" class="text-center text-body-secondary py-4">Brak wpłat.</td></tr>
+        <tr><td colspan="<?= $can_delete ? 7 : 6 ?>" class="text-center text-body-secondary py-4">Brak wpłat.</td></tr>
         <?php endif; ?>
         <?php foreach ($payments as $pm):
           $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method'];
@@ -242,6 +325,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
           <td class="fw-semibold text-success">+<?= number_format((float)$pm['amount'], 2, ',', ' ') ?> zł</td>
+          <td><?php $pmc = (int)($pm['course_id'] ?? 0); ?>
+            <?php if ($pmc > 0): ?>
+              <span class="badge bg-light text-secondary border" style="font-size:.75rem"><?= h($course_names[$pmc] ?? ('Grupa #'.$pmc)) ?></span>
+            <?php else: ?>
+              <span class="text-body-secondary small">ogólna</span>
+            <?php endif; ?>
+          </td>
           <td><?= h($mlabel) ?></td>
           <td class="text-body-secondary"><?= h(mb_substr($pm['note'] ?? '', 0, 80)) ?></td>
           <td><span class="badge bg-light text-secondary border" style="font-size:.75rem"><?= $slabel ?></span></td>

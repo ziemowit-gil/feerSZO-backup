@@ -114,6 +114,55 @@ unset($_mg);
 </div>
 <?php endif; ?>
 
+<?php
+// Rozliczenia per grupa (przedmiot) — każda grupa ma osobne saldo
+$rv_groups = ti_client_group_balances((int)$rv_client_id);
+if (count($rv_groups['groups']) > 1):
+?>
+<div class="card mb-4">
+  <div class="card-header fw-semibold bg-white">
+    <i class="bi bi-collection text-primary me-2" aria-hidden="true"></i>Saldo w podziale na grupy
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Należności, wpłaty i saldo w podziale na grupy zajęciowe</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Grupa / przedmiot</th>
+          <th scope="col" class="text-end">Należności</th>
+          <th scope="col" class="text-end">Pokryte</th>
+          <th scope="col" class="text-end">Saldo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($rv_groups['groups'] as $rvg): ?>
+        <tr>
+          <th scope="row" class="fw-normal"><?= h($rvg['course_name']) ?></th>
+          <td class="text-end"><?= number_format($rvg['charges'], 2, ',', ' ') ?> zł</td>
+          <td class="text-end"><?= number_format($rvg['paid'], 2, ',', ' ') ?> zł</td>
+          <td class="text-end fw-semibold">
+            <?php if ($rvg['debt'] > 0.005): ?>
+              <span class="text-danger">do zapłaty <?= number_format($rvg['debt'], 2, ',', ' ') ?> zł</span>
+            <?php elseif ($rvg['credit'] > 0.005): ?>
+              <span class="text-success">nadpłata <?= number_format($rvg['credit'], 2, ',', ' ') ?> zł</span>
+            <?php else: ?>
+              <span class="text-body-secondary">rozliczone</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white small text-body-secondary">
+    Każdy przedmiot rozliczany jest osobno. Nadpłata przy grupie zostanie zaliczona na kolejne zajęcia w tej właśnie grupie.
+    <?php if ($rv_groups['general_credit'] > 0.005): ?>
+    Dodatkowo nadpłata ogólna <strong><?= number_format($rv_groups['general_credit'], 2, ',', ' ') ?> zł</strong> — do wykorzystania w dowolnej grupie.
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <div class="table-responsive">
     <table class="table align-middle mb-0">
@@ -127,11 +176,12 @@ unset($_mg);
           <th scope="col">Termin</th>
           <th scope="col">Status</th>
           <th scope="col">Faktura</th>
+          <th scope="col">Rozpiska godzin</th>
         </tr>
       </thead>
       <tbody>
         <?php if (!$_rv_grouped): ?>
-        <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
+        <tr><td colspan="8" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
         <?php endif; ?>
 
         <?php foreach ($_rv_grouped as $mg):
@@ -158,6 +208,13 @@ unset($_mg);
           </td>
           <td><span class="badge text-bg-<?= $mcol ?>"><?= h($mlbl) ?></span></td>
           <td></td>
+          <td>
+            <a href="hours_pdf.php?month=<?= (int)$mg['month'] ?>&amp;year=<?= (int)$mg['year'] ?>"
+               class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+               title="Szczegółowa rozpiska zajęć i godzin za ten miesiąc">
+              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Godziny
+            </a>
+          </td>
         </tr>
 
         <?php /* Wiersze per kurs (rozbicie) */ ?>
@@ -186,6 +243,13 @@ unset($_mg);
               <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>FVAT
             </a>
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td>
+            <a href="hours_pdf.php?month=<?= (int)$b['month'] ?>&amp;year=<?= (int)$b['year'] ?>&amp;course_id=<?= (int)$b['course_id'] ?>"
+               class="btn btn-sm btn-outline-secondary py-0 px-2" target="_blank" rel="noopener" style="font-size:.78rem"
+               title="Rozpiska godzin tej grupy za ten miesiąc">
+              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Godziny
+            </a>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -221,6 +285,13 @@ unset($_mg);
               <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz FVAT
             </a>
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td>
+            <a href="hours_pdf.php?month=<?= (int)$b['month'] ?>&amp;year=<?= (int)$b['year'] ?><?= (int)($b['course_id'] ?? 0) ? '&amp;course_id='.(int)$b['course_id'] : '' ?>"
+               class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+               title="Szczegółowa rozpiska zajęć i godzin za ten miesiąc">
+              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Godziny
+            </a>
           </td>
         </tr>
         <?php endif; /* multi / single */ ?>

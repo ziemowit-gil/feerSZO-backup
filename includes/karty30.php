@@ -1373,6 +1373,19 @@ HTML;
         }
     }
 
+    // Faktura jednorazowa wystawiana poza panelem (np. Comarch ERP Optima): rodzaj, numer,
+    // data wystawienia i system źródłowy. Skan PDF (invoice_path) jest wymagany przy zapisie.
+    // UWAGA: musi być PO rekonstrukcji k30_ti_billing powyżej — odtwarza ona tabelę ze stałej
+    // listy kolumn i skasowałaby te dodane wcześniej.
+    foreach ([
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_kind      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_no        TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_system    TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_issued_on DATE",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
     // Jednorazowy reset: lekcje przyszłe błędnie oznaczone jako odbyte → zaplanowana
     try {
         $pdo->exec("UPDATE k30_ti_sessions SET status='planned'
@@ -4742,14 +4755,24 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
 }
 
 /**
- * Wystawia rozliczenia per kurs gdy kursant ma >1 aktywny kurs z lekcjami w danym miesiącu,
- * w przeciwnym razie jedno łączne rozliczenie (course_id=0).
+ * MODEL KOMBINOWANY — wystawia OSOBNE rozliczenie na każdą grupę (przedmiot), w której
+ * kursant ma w danym miesiącu podstawę do naliczenia:
+ *   - grupy z lekcjami (obecność lub no-show) w tym miesiącu, ORAZ
+ *   - grupy z aktywnym zapisem rozliczanym ryczałtem (model 1 miesięczny / 3 stały),
+ *     gdzie kwota należy się niezależnie od liczby lekcji.
+ * Kursant w kilku grupach dostaje kilka rozliczeń — każde ze swoim modelem i saldem.
+ * Gdy nie ma żadnej grupy do naliczenia, wystawiane jest rozliczenie łączne (course_id=0),
+ * które obsługuje też opłaty spoza zajęć (ti_billing_add_charge).
+ *
  * Zwraca tablicę id wystawionych rozliczeń.
  */
 function k30_ti_issue_billing_split(int $client_id, int $month, int $year, string $notes = ''): array {
     $from = sprintf('%04d-%02d-01', $year, $month);
     $to   = date('Y-m-t', strtotime($from));
-    $courses_with_sessions = db_all(
+    $ids  = [];
+
+    // (a) grupy z lekcjami w miesiącu
+    $with_sessions = db_all(
         "SELECT DISTINCT s.course_id FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
               AND s.status IN ('held','individual_change','remote_material')
@@ -4758,14 +4781,130 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
          WHERE a.client_id=? AND (a.attended=1 OR COALESCE(a.no_show,0)=1)",
         [$from, $to, $client_id]
     );
-    if (count($courses_with_sessions) > 1) {
-        $bids = [];
-        foreach ($courses_with_sessions as $c) {
-            $bids[] = k30_ti_issue_billing($client_id, $month, $year, $notes, (int)$c['course_id']);
+    foreach ($with_sessions as $c) $ids[(int)$c['course_id']] = true;
+
+    // (b) grupy z ryczałtem (miesięczny / stały) — naliczane mimo braku lekcji
+    $enrs = db_all(
+        "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount
+         FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+         WHERE e.client_id=? AND e.status='active'",
+        [$client_id]
+    );
+    foreach ($enrs as $e) {
+        $eff = k30_ti_effective_billing($e, [
+            'billing_model'  => $e['course_billing_model'],
+            'billing_amount' => $e['course_billing_amount'],
+        ]);
+        if (in_array($eff['model'], [1, 3], true) && (float)$eff['amount'] > 0) {
+            $ids[(int)$e['course_id']] = true;
         }
-        return $bids;
     }
-    return [k30_ti_issue_billing($client_id, $month, $year, $notes, 0)];
+
+    if (!$ids) return [k30_ti_issue_billing($client_id, $month, $year, $notes, 0)];
+
+    $bids = [];
+    foreach (array_keys($ids) as $cid) {
+        $bids[] = k30_ti_issue_billing($client_id, $month, $year, $notes, (int)$cid);
+    }
+    // Rozliczenie łączne z tego samego miesiąca zostaje zredukowane do samych opłat
+    // spoza zajęć (adjustment), żeby zajęcia nie policzyły się drugi raz.
+    k30_ti_billing_absorb_combined($client_id, $month, $year);
+    return $bids;
+}
+
+/**
+ * Po rozdzieleniu rozliczeń per grupa: stare rozliczenie łączne (course_id=0) za ten sam
+ * miesiąc traci część „za zajęcia" (amount/hours → 0). Gdy nie ma na nim żadnej korekty
+ * (opłat spoza zajęć), jest anulowane. Chroni przed podwójnym naliczeniem.
+ */
+function k30_ti_billing_absorb_combined(int $client_id, int $month, int $year): void {
+    $c = db_one("SELECT id, amount, hours_billed, adjustment, status FROM k30_ti_billing
+                 WHERE client_id=? AND month=? AND year=? AND COALESCE(course_id,0)=0
+                   AND status IN ('draft','issued','paid')",
+                [$client_id, $month, $year]);
+    if (!$c) return;
+    $adj = round((float)($c['adjustment'] ?? 0), 2);
+    if (abs($adj) > 0.005) {
+        if ((float)$c['amount'] > 0.005 || (float)$c['hours_billed'] > 0.005) {
+            db()->prepare("UPDATE k30_ti_billing SET amount=0, hours_billed=0,
+                           notes=TRIM(COALESCE(notes,'') || ' Zajęcia rozdzielone na rozliczenia per grupa.')
+                           WHERE id=?")->execute([(int)$c['id']]);
+        }
+        return;
+    }
+    db()->prepare("UPDATE k30_ti_billing SET status='cancelled',
+                   notes=TRIM(COALESCE(notes,'') || ' Zastąpione rozliczeniami per grupa.')
+                   WHERE id=?")->execute([(int)$c['id']]);
+}
+
+/** Nazwa systemu, w którym wystawiane są faktury (ustawienie `ti_invoice_system`). */
+function k30_ti_invoice_system(): string {
+    $v = trim(org_setting('ti_invoice_system'));
+    return $v !== '' ? $v : 'Comarch ERP Optima';
+}
+
+/** Stawka VAT drukowana na podsumowaniu pozycji do faktury (ustawienie `ti_invoice_vat`). */
+function k30_ti_invoice_vat(): string {
+    $v = trim(org_setting('ti_invoice_vat'));
+    return $v !== '' ? $v : 'zw';
+}
+
+/**
+ * Pozycje do faktury VAT dla rozliczenia — gotowe do przepisania do systemu fakturowego.
+ * Dla rozliczenia per grupa (course_id>0) jedna pozycja za tę grupę; dla łącznego —
+ * pozycja na każdą grupę z naliczeniem. Korekta (opłata dodatkowa / rabat) to osobna pozycja.
+ *
+ * @return array<int,array{name:string,unit:string,qty:float,unit_price:float,value:float}>
+ */
+function k30_ti_billing_fv_positions(array $b): array {
+    $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                  7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+    $m      = (int)$b['month'];
+    $y      = (int)$b['year'];
+    $period = ($months_pl[$m] ?? $m) . ' ' . $y;
+    $cid    = (int)($b['course_id'] ?? 0);
+    $calc   = k30_ti_calculate_billing((int)$b['client_id'], $m, $y, $cid);
+
+    $pos = [];
+    foreach ($calc['courses'] as $c) {
+        if ((float)$c['amount'] <= 0.005 && (float)$c['hours_billed'] <= 0.005) continue;
+        $hourly = ((int)$c['model'] === 2);
+        $qty    = $hourly ? round((float)$c['hours_billed'], 2) : 1.0;
+        $val    = round((float)$c['amount'], 2);
+        $pos[] = [
+            'name'       => 'Zajęcia TI — ' . $c['course_name'] . ' (' . $period . ')',
+            'unit'       => $hourly ? 'godz.' : 'usł.',
+            'qty'        => $qty,
+            'unit_price' => $qty > 0 ? round($val / $qty, 2) : $val,
+            'value'      => $val,
+        ];
+    }
+    // Fallback: zapis nieaktywny / dane kursu zmienione → pozycja wprost z rozliczenia,
+    // żeby wydruk nigdy nie wyszedł pusty przy niezerowej kwocie.
+    if (!$pos && (float)($b['amount'] ?? 0) > 0.005) {
+        $hours = round((float)($b['hours_billed'] ?? 0), 2);
+        $val   = round((float)$b['amount'], 2);
+        $cname = $cid > 0 ? (db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid])['name'] ?? ('grupa #'.$cid)) : 'zajęcia';
+        $pos[] = [
+            'name'       => 'Zajęcia TI — ' . $cname . ' (' . $period . ')',
+            'unit'       => $hours > 0 ? 'godz.' : 'usł.',
+            'qty'        => $hours > 0 ? $hours : 1.0,
+            'unit_price' => $hours > 0 ? round($val / $hours, 2) : $val,
+            'value'      => $val,
+        ];
+    }
+    $adj = round((float)($b['adjustment'] ?? 0), 2);
+    if (abs($adj) > 0.005) {
+        $note = trim((string)($b['adjustment_note'] ?? ''));
+        $pos[] = [
+            'name'       => ($adj > 0 ? 'Opłata dodatkowa' : 'Rabat') . ($note !== '' ? ' — ' . $note : '') . ' (' . $period . ')',
+            'unit'       => 'usł.',
+            'qty'        => 1.0,
+            'unit_price' => $adj,
+            'value'      => $adj,
+        ];
+    }
+    return $pos;
 }
 
 /**
@@ -4775,7 +4914,7 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
  * Zwraca ['ok','sms'=>bool,'email'=>bool,'skipped'=>bool,'msg'].
  */
 function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
-    $b = db_one("SELECT b.*, c.name AS course_name
+    $b = db_one("SELECT b.*, c.name AS course_name, c.group_code AS course_group_code
                  FROM k30_ti_billing b
                  LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
                  WHERE b.id=?", [$billing_id]);
@@ -4819,24 +4958,58 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
         }
     }
 
-    // ── E-mail ──
+    // ── E-mail: zestawienie należności (faktura wystawiana osobno w systemie fakturującym) ──
     if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         require_once __DIR__ . '/mail_queue.php';
         if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
-        $detail_rows = (!empty($b['course_name'])
-            ? "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kurs:</td><td><strong>" . h($b['course_name']) . "</strong></td></tr>" : '')
-                     . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
-                     . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
-        if ($due_s !== '')          $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Termin płatności:</td><td><strong>" . h($due_s) . "</strong></td></tr>";
-        if ($pay['account'] !== '') $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
-        if ($pay['title'] !== '')   $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Tytuł wpłaty:</td><td>" . h($pay['title']) . "</td></tr>";
-        $r = function_exists('email_tpl_render') ? email_tpl_render('ti_billing', [
-            'org'          => $org,
-            'name_suffix'  => $toName ? ', ' . h($toName) : '',
-            'period'       => h($period),
-            'details_html' => "<table style='border-collapse:collapse;width:100%'>{$detail_rows}</table>",
-            'portal'       => h($portal),
-        ]) : ['subject' => "Rozliczenie za {$period}{$course_label} — {$org}", 'html' => "<table>{$detail_rows}</table>", 'enabled' => true];
+
+        $client_name = trim((string)($client['name'] ?? ''));
+        $parts       = preg_split('/\s+/', $client_name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $surname     = $parts ? (string)end($parts) : $client_name;
+        // Kod grupy: z kursu rozliczenia; dla rozliczenia łącznego — kody wszystkich aktywnych grup
+        $group_code  = trim((string)($b['course_group_code'] ?? ''));
+        if ($group_code === '') {
+            if ((int)($b['course_id'] ?? 0) > 0) {
+                $group_code = (string)($b['course_name'] ?? '—');
+            } else {
+                $codes = db_all("SELECT COALESCE(NULLIF(c.group_code,''), c.name) AS code
+                                 FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+                                 WHERE e.client_id=? AND e.status='active' ORDER BY c.name", [(int)$b['client_id']]);
+                $group_code = $codes ? implode(', ', array_column($codes, 'code')) : '—';
+            }
+        }
+        $adj        = round((float)($b['adjustment'] ?? 0), 2);
+        $base_amt   = round((float)$b['amount'], 2);
+        $inv_no     = trim((string)($b['invoice_no'] ?? ''));
+        $zl         = fn($x) => number_format((float)$x, 2, ',', ' ') . ' PLN';
+        $period_ttl = ($b['course_name'] ? $b['course_name'] . ' — ' : 'Zajęcia TI — ') . $period;
+        $extra_desc = trim((string)($b['adjustment_note'] ?? ''));
+        if ($extra_desc === '') $extra_desc = abs($adj) > 0.005 ? ($adj > 0 ? 'opłata dodatkowa' : 'rabat') : 'brak';
+        $transfer   = $inv_no !== ''
+            ? 'Faktura nr ' . $inv_no . ' – ' . $surname
+            : 'Rozliczenie ' . $period . ' – ' . $surname;
+
+        $tpl_vars = [
+            'org'             => h($org),
+            'client_name'     => h($client_name),
+            'surname'         => h($surname),
+            'group_code'      => h($group_code),
+            'invoice_no'      => h($inv_no),
+            'invoice_subject' => $inv_no !== '' ? ' – faktura nr ' . $inv_no : '',
+            'period_title'    => h($period_ttl),
+            'amount_main'     => $zl($base_amt),
+            'extra_desc'      => h($extra_desc),
+            'extra_amount'    => $zl($adj),
+            'total'           => $zl($base_amt + $adj),
+            'transfer_title'  => h($transfer),
+            'portal'          => h($portal),
+        ];
+        $r = function_exists('email_tpl_render')
+            ? email_tpl_render('ti_billing', $tpl_vars)
+            : ['subject' => 'Rozliczenie należności za zajęcia'
+                            . ($inv_no !== '' ? ' – faktura nr ' . $inv_no : '') . ' – ' . $surname,
+               'html'    => '<p>Razem do zapłaty: <strong>' . $zl($base_amt + $adj) . '</strong></p>',
+               'enabled' => true];
         try {
             mail_queue_add($email, $toName, $r['subject'], $r['html'], '', 'ti_billing', $billing_id, '', false);
             $mail_sent = true;

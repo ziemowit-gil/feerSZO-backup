@@ -231,11 +231,12 @@ function payu_mark_paid(int $payment_id): void {
     db()->prepare("UPDATE payu_payments SET status='paid', paid_at=datetime('now') WHERE id=?")->execute([$payment_id]);
     try {
         if ($p['source_type'] === 'k30_ti_billing' && (int)$p['source_id'] > 0) {
-            $bill = db_one("SELECT client_id FROM k30_ti_billing WHERE id=?", [(int)$p['source_id']]);
+            $bill = db_one("SELECT client_id, COALESCE(course_id,0) AS course_id FROM k30_ti_billing WHERE id=?", [(int)$p['source_id']]);
             if ($bill) {
                 require_once __DIR__ . '/ti_payments.php';
+                // Wpłata księgowana na grupę, której dotyczy opłacone rozliczenie (model kombinowany)
                 ti_payment_add((int)$bill['client_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
-                               'payu', 'Płatność PayU', 'payu', (int)$p['source_id']);
+                               'payu', 'Płatność PayU', 'payu', (int)$p['source_id'], (int)$bill['course_id']);
             }
         }
         // Kolejne źródła można dodać tutaj.

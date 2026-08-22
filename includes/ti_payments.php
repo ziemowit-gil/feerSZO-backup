@@ -14,6 +14,17 @@
  *
  * Zasada częściowego pokrycia (decyzja): zużywamy całą dostępną nadpłatę, a pozostała
  * kwota pozostaje jako należność oznaczona w panelu jako NIEDOPŁATA.
+ *
+ * MODEL KOMBINOWANY (osobne rozliczenie na każdą grupę/przedmiot):
+ *   Kursant może być w kilku grupach i mieć w każdej inny model rozliczania — każda grupa
+ *   dostaje własne rozliczenie (k30_ti_billing.course_id > 0). Wpłata może być ZNACZONA
+ *   na grupę (k30_ti_payments.course_id > 0) albo OGÓLNA (course_id = 0).
+ *   Alokacja przebiega dwufazowo:
+ *     faza 1 — wpłaty znaczone pokrywają FIFO wyłącznie należności swojej grupy;
+ *              nadwyżka zostaje jako NADPŁATA TEJ GRUPY (nie przechodzi na inne grupy),
+ *     faza 2 — wpłaty ogólne pokrywają FIFO wszystko, co zostało niedopłacone;
+ *              nadwyżka to NADPŁATA OGÓLNA konta (użyta na kolejne zajęcia w dowolnej grupie).
+ *   Dzięki fazie 2 zachowanie sprzed zmiany (same wpłaty ogólne) pozostaje identyczne.
  */
 
 function ti_payments_migrate(): void {
@@ -35,6 +46,10 @@ function ti_payments_migrate(): void {
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_pay_client ON k30_ti_payments(client_id)");
+    // Model kombinowany: wpłata może być zaksięgowana na konkretną grupę (kurs).
+    // 0 = wpłata ogólna na konto kursanta (pokrywa należności FIFO ze wszystkich grup).
+    try { $pdo->exec("ALTER TABLE k30_ti_payments ADD COLUMN course_id INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_pay_course ON k30_ti_payments(client_id, course_id)");
     // Należność: ile już pokryto (alokacja FIFO wpłat)
     try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // Wnioski o przeniesienie płatności na następny miesiąc
@@ -75,35 +90,254 @@ function ti_charges_total(int $client_id): float {
 }
 
 /**
- * Alokuje wpłaty FIFO na należności (najstarsze najpierw), ustawiając paid_amount i status.
- * Idempotentne — można wołać po każdej zmianie wpłaty/należności.
- * Zwraca ['payments'=>float,'charges'=>float,'credit'=>float,'debt'=>float].
+ * Wylicza alokację wpłat na należności kursanta — BEZ zapisu do bazy (do raportów i podglądu).
+ *
+ * Faza 1: wpłaty znaczone na grupę (course_id > 0) pokrywają FIFO tylko należności tej grupy.
+ * Faza 2: wpłaty ogólne (course_id = 0) pokrywają FIFO wszystko, co pozostało niedopłacone.
+ *
+ * @return array{
+ *   payments:float, charges:float, paid:float, credit:float, debt:float,
+ *   general_credit:float, group_credit:float,
+ *   rows:array<int,array{id:int,course_id:int,due:float,paid:float,status:string}>,
+ *   groups:array<int,array{charges:float,paid:float,debt:float,payments:float,credit:float}>
+ * }
  */
-function ti_billing_recompute(int $client_id): array {
+function ti_client_allocation(int $client_id): array {
     ti_payments_migrate();
-    $payments = ti_payments_total($client_id);
-    $charges  = db_all(
-        "SELECT id, (amount + COALESCE(adjustment,0)) AS due
+    $charges = db_all(
+        "SELECT id, COALESCE(course_id,0) AS course_id, (amount + COALESCE(adjustment,0)) AS due
          FROM k30_ti_billing
          WHERE client_id=? AND status IN ('issued','paid')
          ORDER BY year ASC, month ASC, id ASC",
         [$client_id]
     );
-    $remaining = $payments;
-    $debt = 0.0;
-    foreach ($charges as $c) {
-        $due     = round((float)$c['due'], 2);
-        $applied = min($remaining, $due);
-        if ($applied < 0) $applied = 0;
-        $remaining = round($remaining - $applied, 2);
-        $status  = ($applied + 0.001 >= $due) ? 'paid' : 'issued';
-        if ($status !== 'paid') $debt = round($debt + ($due - $applied), 2);
-        db()->prepare("UPDATE k30_ti_billing SET paid_amount=?, status=? WHERE id=?")
-           ->execute([round($applied, 2), $status, (int)$c['id']]);
+    $pay_rows = db_all(
+        "SELECT COALESCE(course_id,0) AS course_id, COALESCE(SUM(amount),0) AS s
+         FROM k30_ti_payments WHERE client_id=? GROUP BY COALESCE(course_id,0)",
+        [$client_id]
+    );
+
+    $earmarked = [];     // course_id > 0 => kwota wpłat znaczonych
+    $general   = 0.0;    // wpłaty ogólne
+    $payments  = 0.0;
+    foreach ($pay_rows as $pr) {
+        $cid = (int)$pr['course_id'];
+        $sum = round((float)$pr['s'], 2);
+        $payments = round($payments + $sum, 2);
+        if ($cid > 0) $earmarked[$cid] = round(($earmarked[$cid] ?? 0) + $sum, 2);
+        else          $general = round($general + $sum, 2);
     }
-    $credit = round(max(0, $remaining), 2);
-    return ['payments' => $payments, 'charges' => round(array_sum(array_map(fn($c)=>(float)$c['due'],$charges)),2),
-            'credit' => $credit, 'debt' => $debt];
+
+    $rows = [];
+    foreach ($charges as $c) {
+        $rows[] = ['id' => (int)$c['id'], 'course_id' => (int)$c['course_id'],
+                   'due' => round((float)$c['due'], 2), 'paid' => 0.0, 'status' => 'issued'];
+    }
+
+    // Faza 1 — wpłaty znaczone na grupę
+    $group_credit_map = [];
+    foreach ($earmarked as $cid => $sum) {
+        $rem = $sum;
+        foreach ($rows as $k => $r) {
+            if ($rem <= 0) break;
+            if ($r['course_id'] !== $cid) continue;
+            $need = round($r['due'] - $r['paid'], 2);
+            if ($need <= 0) continue;
+            $take = min($rem, $need);
+            $rows[$k]['paid'] = round($r['paid'] + $take, 2);
+            $rem = round($rem - $take, 2);
+        }
+        $group_credit_map[$cid] = round(max(0, $rem), 2);
+    }
+
+    // Faza 2 — wpłaty ogólne, FIFO po wszystkich należnościach
+    $rem = $general;
+    foreach ($rows as $k => $r) {
+        if ($rem <= 0) break;
+        $need = round($r['due'] - $r['paid'], 2);
+        if ($need <= 0) continue;
+        $take = min($rem, $need);
+        $rows[$k]['paid'] = round($r['paid'] + $take, 2);
+        $rem = round($rem - $take, 2);
+    }
+    $general_credit = round(max(0, $rem), 2);
+
+    // Statusy + agregacja per grupa
+    $groups = [];
+    $tot_due = 0.0; $tot_paid = 0.0; $tot_debt = 0.0;
+    foreach ($rows as $k => $r) {
+        $rows[$k]['status'] = ($r['paid'] + 0.001 >= $r['due']) ? 'paid' : 'issued';
+        $cid  = $r['course_id'];
+        $debt = round(max(0, $r['due'] - $r['paid']), 2);
+        if (!isset($groups[$cid])) $groups[$cid] = ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'payments'=>0.0,'credit'=>0.0];
+        $groups[$cid]['charges'] = round($groups[$cid]['charges'] + $r['due'], 2);
+        $groups[$cid]['paid']    = round($groups[$cid]['paid'] + $r['paid'], 2);
+        $groups[$cid]['debt']    = round($groups[$cid]['debt'] + $debt, 2);
+        $tot_due  = round($tot_due + $r['due'], 2);
+        $tot_paid = round($tot_paid + $r['paid'], 2);
+        $tot_debt = round($tot_debt + $debt, 2);
+    }
+    // Grupy, na które są wpłaty, ale nie ma (jeszcze) należności
+    foreach ($earmarked as $cid => $sum) {
+        if (!isset($groups[$cid])) $groups[$cid] = ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'payments'=>0.0,'credit'=>0.0];
+        $groups[$cid]['payments'] = $sum;
+        $groups[$cid]['credit']   = $group_credit_map[$cid] ?? 0.0;
+    }
+
+    // 'applied' = środki faktycznie przypisane do grupy: pokryte należności + nadpłata grupy.
+    // (różni się od 'payments', czyli sumy wpłat ZNACZONYCH na grupę — należność może być
+    //  pokryta również wpłatą ogólną).
+    foreach ($groups as $gk => $g) $groups[$gk]['applied'] = round($g['paid'] + $g['credit'], 2);
+
+    $group_credit = round(array_sum(array_map(fn($g) => $g['credit'], $groups)), 2);
+    return [
+        'payments'       => $payments,
+        'charges'        => $tot_due,
+        'paid'           => $tot_paid,
+        'debt'           => $tot_debt,
+        'credit'         => round($general_credit + $group_credit, 2),
+        'general_credit' => $general_credit,
+        'group_credit'   => $group_credit,
+        'rows'           => $rows,
+        'groups'         => $groups,
+    ];
+}
+
+/**
+ * Alokuje wpłaty na należności (patrz ti_client_allocation) i ZAPISUJE wynik:
+ * paid_amount + status na każdym rozliczeniu. Idempotentne.
+ * Zwraca ['payments','charges','credit','debt','general_credit','group_credit','groups'].
+ */
+function ti_billing_recompute(int $client_id): array {
+    $a  = ti_client_allocation($client_id);
+    $st = db()->prepare("UPDATE k30_ti_billing SET paid_amount=?, status=? WHERE id=?");
+    foreach ($a['rows'] as $r) {
+        $st->execute([$r['paid'], $r['status'], $r['id']]);
+    }
+    unset($a['rows']);
+    return $a;
+}
+
+/**
+ * Saldo kursanta w JEDNEJ grupie (model kombinowany).
+ * charges = należności grupy, paid = pokryte, debt = niedopłata, credit = nadpłata grupy,
+ * payments = wpłaty ZNACZONE na grupę, applied = środki przypisane do grupy (paid + credit).
+ * @return array{charges:float,paid:float,debt:float,payments:float,credit:float,applied:float}
+ */
+function ti_group_balance(int $client_id, int $course_id): array {
+    $a = ti_client_allocation($client_id);
+    return $a['groups'][$course_id] ?? ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'payments'=>0.0,'credit'=>0.0,'applied'=>0.0];
+}
+
+/**
+ * Rozbicie salda kursanta na grupy + nadpłata ogólna (nieprzypisana do grupy).
+ * Grupy dostają nazwy kursów; pozycja course_id=0 to rozliczenia łączne / opłaty poza zajęciami.
+ * @return array{groups:array<int,array>,general_credit:float,total:array}
+ */
+function ti_client_group_balances(int $client_id): array {
+    $a    = ti_client_allocation($client_id);
+    $out  = [];
+    foreach ($a['groups'] as $cid => $g) {
+        $name = 'Rozliczenie łączne / opłaty poza zajęciami';
+        if ($cid > 0) {
+            $r = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid]);
+            $name = $r['name'] ?? ('Grupa #' . $cid);
+        }
+        $out[$cid] = $g + ['course_id' => $cid, 'course_name' => $name];
+    }
+    uasort($out, fn($x, $y) => strcmp((string)$x['course_name'], (string)$y['course_name']));
+    return [
+        'groups'         => $out,
+        'general_credit' => $a['general_credit'],
+        'total'          => ['charges'=>$a['charges'], 'paid'=>$a['paid'], 'debt'=>$a['debt'],
+                             'payments'=>$a['payments'], 'credit'=>$a['credit']],
+    ];
+}
+
+/**
+ * Rozliczenia jednej grupy w danym miesiącu dla jednego kursanta
+ * (należności i wpłaty zaksięgowane na tę grupę w tym miesiącu).
+ * @return array{charges:float,paid:float,payments:float}
+ */
+function ti_group_month_billing(int $client_id, int $course_id, int $year, int $month): array {
+    ti_payments_migrate();
+    $ch = db_one(
+        "SELECT COALESCE(SUM(amount + COALESCE(adjustment,0)),0) AS charges,
+                COALESCE(SUM(COALESCE(paid_amount,0)),0)         AS paid
+         FROM k30_ti_billing
+         WHERE client_id=? AND COALESCE(course_id,0)=CAST(? AS INTEGER) AND year=? AND month=? AND status IN ('issued','paid')",
+        [$client_id, $course_id, $year, $month]
+    );
+    $pay = db_one(
+        "SELECT COALESCE(SUM(amount),0) AS s FROM k30_ti_payments
+         WHERE client_id=? AND COALESCE(course_id,0)=CAST(? AS INTEGER) AND strftime('%Y-%m', COALESCE(paid_at, created_at))=?",
+        [$client_id, $course_id, sprintf('%04d-%02d', $year, $month)]
+    );
+    return ['charges'  => round((float)$ch['charges'], 2),
+            'paid'     => round((float)$ch['paid'], 2),
+            'payments' => round((float)$pay['s'], 2)];
+}
+
+/**
+ * Rozliczenia jednej grupy w całym roku dla jednego kursanta.
+ * @return array{charges:float,paid:float,payments:float}
+ */
+function ti_group_year_billing(int $client_id, int $course_id, int $year): array {
+    ti_payments_migrate();
+    $ch = db_one(
+        "SELECT COALESCE(SUM(amount + COALESCE(adjustment,0)),0) AS charges,
+                COALESCE(SUM(COALESCE(paid_amount,0)),0)         AS paid
+         FROM k30_ti_billing
+         WHERE client_id=? AND COALESCE(course_id,0)=CAST(? AS INTEGER) AND year=? AND status IN ('issued','paid')",
+        [$client_id, $course_id, $year]
+    );
+    $pay = db_one(
+        "SELECT COALESCE(SUM(amount),0) AS s FROM k30_ti_payments
+         WHERE client_id=? AND COALESCE(course_id,0)=CAST(? AS INTEGER) AND strftime('%Y', COALESCE(paid_at, created_at))=?",
+        [$client_id, $course_id, (string)$year]
+    );
+    return ['charges'  => round((float)$ch['charges'], 2),
+            'paid'     => round((float)$ch['paid'], 2),
+            'payments' => round((float)$pay['s'], 2)];
+}
+
+/**
+ * Zbiorcze rozliczenie GRUPY: uczestnicy + sumy należności/wpłat/nadpłat/niedopłat.
+ * $year/$month = 0 → tylko salda bieżące (bez części miesięcznej).
+ * @return array{participants:array<int,array>,totals:array}
+ */
+function ti_course_billing_summary(int $course_id, int $year = 0, int $month = 0): array {
+    ti_payments_migrate();
+    $rows = db_all(
+        "SELECT DISTINCT cl.id AS client_id, cl.name AS client_name
+         FROM k30_clients cl
+         WHERE cl.id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active')
+            OR cl.id IN (SELECT client_id FROM k30_ti_billing WHERE COALESCE(course_id,0)=CAST(? AS INTEGER) AND status IN ('issued','paid'))
+         ORDER BY cl.name",
+        [$course_id, $course_id]
+    );
+    $participants = [];
+    $totals = ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'credit'=>0.0,
+               'm_charges'=>0.0,'m_paid'=>0.0,'m_payments'=>0.0];
+    foreach ($rows as $r) {
+        $cid = (int)$r['client_id'];
+        $g   = ti_group_balance($cid, $course_id);
+        $m   = ($year && $month) ? ti_group_month_billing($cid, $course_id, $year, $month)
+                                 : ['charges'=>0.0,'paid'=>0.0,'payments'=>0.0];
+        $participants[$cid] = [
+            'client_id'   => $cid,
+            'client_name' => (string)$r['client_name'],
+            'charges'     => $g['charges'], 'paid' => $g['paid'],
+            'debt'        => $g['debt'],    'credit' => $g['credit'],
+            'payments'    => $g['payments'],
+            'm_charges'   => $m['charges'], 'm_paid' => $m['paid'], 'm_payments' => $m['payments'],
+        ];
+        foreach (['charges','paid','debt','credit'] as $k) $totals[$k] = round($totals[$k] + $g[$k], 2);
+        $totals['m_charges']  = round($totals['m_charges']  + $m['charges'], 2);
+        $totals['m_paid']     = round($totals['m_paid']     + $m['paid'], 2);
+        $totals['m_payments'] = round($totals['m_payments'] + $m['payments'], 2);
+    }
+    return ['participants' => $participants, 'totals' => $totals];
 }
 
 /**
@@ -119,7 +353,11 @@ function ti_billing_add_charge(int $clientId, float $amount, string $note, ?int 
     $year   = $year  ?? (int)date('Y');
     $amount = round($amount, 2);
 
-    $existing = db_one("SELECT id, adjustment, adjustment_note FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=0", [$clientId, $month, $year]);
+    // Tylko żywe rozliczenie łączne — anulowane (np. zastąpione rozliczeniami per grupa) pomijamy,
+    // żeby opłata spoza zajęć nie wylądowała na niewidocznym wierszu.
+    $existing = db_one("SELECT id, adjustment, adjustment_note FROM k30_ti_billing
+                        WHERE client_id=? AND month=? AND year=? AND COALESCE(course_id,0)=0
+                          AND status IN ('draft','issued','paid')", [$clientId, $month, $year]);
     if ($existing) {
         $id       = (int)$existing['id'];
         $newAdj   = round((float)$existing['adjustment'] + $amount, 2);
@@ -146,17 +384,22 @@ function ti_billing_add_charge(int $clientId, float $amount, string $note, ?int 
     return $id;
 }
 
-/** Saldo klienta (bez przeliczania zapisu): nadpłata (credit) lub niedopłata (debt). */
+/**
+ * Saldo klienta (bez zapisu do bazy): nadpłata (credit) lub niedopłata (debt).
+ * Liczone z alokacji świadomej grup — przy wpłatach znaczonych na grupę kursant może
+ * jednocześnie mieć nadpłatę w jednej grupie i niedopłatę w innej.
+ */
 function ti_client_balance(int $client_id): array {
-    $payments = ti_payments_total($client_id);
-    $charges  = ti_charges_total($client_id);
-    $bal      = round($payments - $charges, 2);
+    $a = ti_client_allocation($client_id);
     return [
-        'payments' => $payments,
-        'charges'  => $charges,
-        'balance'  => $bal,
-        'credit'   => round(max(0, $bal), 2),   // nadpłata
-        'debt'     => round(max(0, -$bal), 2),  // niedopłata (saldo ujemne)
+        'payments'       => $a['payments'],
+        'charges'        => $a['charges'],
+        'balance'        => round($a['payments'] - $a['charges'], 2),
+        'credit'         => $a['credit'],          // nadpłata (grupowa + ogólna)
+        'debt'           => $a['debt'],            // niedopłata (nie pokryte należności)
+        'general_credit' => $a['general_credit'],  // nadpłata do wykorzystania w dowolnej grupie
+        'group_credit'   => $a['group_credit'],    // nadpłata przypisana do konkretnych grup
+        'groups'         => $a['groups'],
     ];
 }
 
@@ -171,13 +414,15 @@ function ti_payments_for_client(int $client_id): array {
  * @return array ['payment_id','credit','debt','emailed'=>bool]
  */
 function ti_payment_add(int $client_id, float $amount, string $paid_at = '', string $method = 'transfer',
-                        string $note = '', string $source_type = 'manual', int $source_id = 0): array {
+                        string $note = '', string $source_type = 'manual', int $source_id = 0,
+                        int $course_id = 0): array {
     ti_payments_migrate();
     $amount = round($amount, 2);
     $credit_before = ti_client_balance($client_id)['credit'];
 
     $pid = db_insert('k30_ti_payments', [
         'client_id'   => $client_id,
+        'course_id'   => max(0, $course_id),   // >0 = wpłata znaczona na grupę
         'amount'      => $amount,
         'paid_at'     => $paid_at !== '' ? $paid_at : date('Y-m-d'),
         'method'      => $method,
@@ -193,7 +438,7 @@ function ti_payment_add(int $client_id, float $amount, string $paid_at = '', str
 
     // Nadpłata powstała/wzrosła wskutek tej wpłaty → powiadom opiekuna/kursanta
     if ($credit > 0 && $credit + 0.001 >= $credit_before && $amount > 0) {
-        $emailed = ti_payment_notify_overpay($client_id, $amount, $credit, $pid);
+        $emailed = ti_payment_notify_overpay($client_id, $amount, $credit, $pid, max(0, $course_id));
     }
     return ['payment_id' => $pid, 'credit' => $credit, 'debt' => $res['debt'], 'emailed' => $emailed];
 }
@@ -211,7 +456,7 @@ function ti_payment_delete(int $payment_id): void {
  * E-mail o zaksięgowaniu nadpłaty (kwota wpłaty, wysokość nadpłaty, info o auto-użyciu)
  * + podziękowanie od Fundacji FEER. Adresat: opiekun (małoletni) lub kursant.
  */
-function ti_payment_notify_overpay(int $client_id, float $payment_amount, float $credit, int $payment_id = 0): bool {
+function ti_payment_notify_overpay(int $client_id, float $payment_amount, float $credit, int $payment_id = 0, int $course_id = 0): bool {
     $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$client_id]) ?: [];
     $acc    = db_one("SELECT is_minor, guardian_name, guardian_email FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$client_id]);
     $minor  = $acc && !empty($acc['is_minor']);
@@ -224,10 +469,18 @@ function ti_payment_notify_overpay(int $client_id, float $payment_amount, float 
     $wp    = number_format($payment_amount, 2, ',', ' ');
     $cr    = number_format($credit, 2, ',', ' ');
     $portal = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/login.php';
+    // Wpłata znaczona na grupę → nadpłata dotyczy tylko tej grupy
+    $grp_name = '';
+    if ($course_id > 0) {
+        $gr = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
+        $grp_name = (string)($gr['name'] ?? '');
+    }
+    $grp_txt  = $grp_name !== '' ? ' w grupie <strong>' . h($grp_name) . '</strong>' : '';
+    $grp_next = $grp_name !== '' ? ' w tej grupie' : '';
     $html = "<p>Dzień dobry" . ($toName ? ', ' . h($toName) : '') . ",</p>"
           . "<p>Dziękujemy za wpłatę w wysokości <strong>{$wp} zł</strong>.</p>"
-          . "<p>Po rozliczeniu zajęć na koncie kursanta powstała <strong>nadpłata: {$cr} zł</strong>.</p>"
-          . "<p>Środki te <strong>zostaną automatycznie zaliczone na poczet kolejnych zajęć</strong> — nie trzeba nic robić.</p>"
+          . "<p>Po rozliczeniu zajęć na koncie kursanta powstała <strong>nadpłata: {$cr} zł</strong>" . $grp_txt . ".</p>"
+          . "<p>Środki te <strong>zostaną automatycznie zaliczone na poczet kolejnych zajęć</strong>" . $grp_next . " — nie trzeba nic robić.</p>"
           . "<p>Szczegóły rozliczeń znajdą Państwo w panelu: <a href='" . h($portal) . "'>" . h($portal) . "</a></p>"
           . "<p style='margin-top:16px'>Dziękujemy za zaufanie i wsparcie naszej misji.<br>Zespół <strong>" . h($org) . "</strong></p>"
           . "<p style='color:#888;font-size:12px'>Wiadomość wygenerowana automatycznie.</p>";

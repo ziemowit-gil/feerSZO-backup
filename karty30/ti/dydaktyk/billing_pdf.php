@@ -33,7 +33,9 @@ $enrolled = db_all(
 $balances = [];
 $total_charges = $total_payments = 0.0;
 foreach ($enrolled as $en) {
-    $b = ti_client_balance((int)$en['id']);
+    // Model kombinowany — saldo TEJ grupy (nie całego konta kursanta)
+    $b = ti_group_balance((int)$en['id'], (int)$course_id);
+    $b['payments'] = $b['applied'];   // środki zaliczone na tę grupę
     $balances[(int)$en['id']] = $b;
     $total_charges  += $b['charges'];
     $total_payments += $b['payments'];

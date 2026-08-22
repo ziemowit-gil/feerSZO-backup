@@ -92,6 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_pay
     header('Location: index.php'); exit;
 }
 
+// Ustawienia fakturowania (system zewnętrzny + stawka VAT na wydruku pozycji) — tylko administrator
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_invoice_settings') {
+    csrf_check();
+    if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+    org_setting_set('ti_invoice_system', mb_substr(trim((string)($_POST['ti_invoice_system'] ?? '')), 0, 100));
+    org_setting_set('ti_invoice_vat',    mb_substr(trim((string)($_POST['ti_invoice_vat'] ?? '')), 0, 10));
+    flash_set('success', 'Ustawienia fakturowania zapisane.');
+    header('Location: index.php'); exit;
+}
+
 // Ustawienia alertu niskiej frekwencji — tylko administrator
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_low_att_settings') {
     csrf_check();
@@ -751,6 +761,41 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         Podatek: <strong><?= $_fmt($_ex['pit']) ?> zł</strong> ·
         Na rękę: <strong class="text-success"><?= $_fmt($_ex['netto']) ?> zł</strong>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white d-flex align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#invCfg" aria-expanded="false">
+    <i class="bi bi-receipt-cutoff me-2 text-primary"></i>
+    <span class="fw-semibold">Fakturowanie — system zewnętrzny</span>
+    <span class="badge bg-light text-secondary border ms-2"><?= h(k30_ti_invoice_system()) ?></span>
+    <i class="bi bi-chevron-down ms-auto"></i>
+  </div>
+  <div class="collapse" id="invCfg">
+    <div class="card-body">
+      <p class="text-body-secondary small mb-3">
+        Panel nie wystawia faktur — robimy to w zewnętrznym systemie księgowym. Przy rozliczeniu rejestrujemy
+        numer faktury i <strong>obowiązkowy skan PDF</strong>, a pozycje do przepisania drukujemy z rozliczenia
+        („Podsumowanie do FVAT"). Poniższa nazwa i stawka VAT pojawiają się na tym wydruku.
+      </p>
+      <form method="post" class="row g-3 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="save_invoice_settings">
+        <div class="col-sm-6">
+          <label class="form-label small fw-semibold" for="ti_inv_sys">System fakturowy</label>
+          <input type="text" class="form-control" name="ti_invoice_system" id="ti_inv_sys"
+                 value="<?= h(k30_ti_invoice_system()) ?>" placeholder="Comarch ERP Optima">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small fw-semibold" for="ti_inv_vat">Stawka VAT na wydruku</label>
+          <input type="text" class="form-control" name="ti_invoice_vat" id="ti_inv_vat"
+                 value="<?= h(k30_ti_invoice_vat()) ?>" placeholder="zw">
+        </div>
+        <div class="col-sm-3">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

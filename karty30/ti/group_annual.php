@@ -85,15 +85,16 @@ try {
         $pdf->Cell($cW['ni'],   6, $pl('Nieob.'),    1, 0, 'C', true);
         $pdf->Cell($cW['fr'],   6, $pl('Frekw.'),    1, 0, 'C', true);
         $pdf->Cell($cW['nal'],  6, $pl('Należn.'),   1, 0, 'R', true);
-        $pdf->Cell($cW['wpl'],  6, $pl('Wpłaty'),    1, 0, 'R', true);
+        $pdf->Cell($cW['wpl'],  6, $pl('Pokryte'),   1, 0, 'R', true);
         $pdf->Cell($cW['sal'],  6, $pl('Saldo'),     1, 1, 'R', true);
 
         $pdf->SetFont('Helvetica', '', 7.5);
         $fill = false;
         foreach ($ga['participants'] as $p) {
             if ($pdf->GetY() > $pdf->GetPageHeight() - 18) { $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 7.5); }
-            $by  = ti_pr_billing_year((int)$p['client_id'], $year)['totals'];
-            $bal = ti_client_balance((int)$p['client_id']);
+            // Model kombinowany — rozliczenia i saldo TEJ grupy (nie całego konta kursanta)
+            $by  = ti_group_year_billing((int)$p['client_id'], $cid, $year);
+            $bal = ti_group_balance((int)$p['client_id'], $cid);
             $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
 
             $pdf->Cell($cW['name'], 6, $pl(mb_strimwidth($p['name'], 0, 40, '…')), 1, 0, 'L', true);
@@ -104,7 +105,7 @@ try {
             $pdf->Cell($cW['fr'],   6, $pctColor($p['pct']), 1, 0, 'C', true);
             $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->Cell($cW['nal'],  6, ti_pr_zl($by['charges']),  1, 0, 'R', true);
-            $pdf->Cell($cW['wpl'],  6, ti_pr_zl($by['payments']), 1, 0, 'R', true);
+            $pdf->Cell($cW['wpl'],  6, ti_pr_zl($by['paid']), 1, 0, 'R', true);
             if ($bal['debt'] > 0.005)       { $pdf->SetTextColor(170, 0, 0);  $stxt = '-' . ti_pr_zl($bal['debt']); }
             elseif ($bal['credit'] > 0.005) { $pdf->SetTextColor(0, 120, 0);  $stxt = '+' . ti_pr_zl($bal['credit']); }
             else                            { $pdf->SetTextColor(80, 80, 80); $stxt = ti_pr_zl(0); }
@@ -124,8 +125,9 @@ try {
     $pdf->SetFont('Helvetica', '', 6.5); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 4, $pl(
         'Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności. '
-        . 'Należności/Wpłaty dotyczą wybranego roku; Saldo (+ nadpłata / − niedopłata) jest bieżące '
-        . 'i dotyczy CAŁEGO konta kursanta (wszystkie jego grupy).'), 0, 'L');
+        . 'Należności/Pokryte dotyczą wybranego roku („Pokryte" = wpłaty zaliczone na należności tej grupy); '
+        . 'Saldo (+ nadpłata / − niedopłata) jest bieżące '
+        . 'i dotyczy TEJ GRUPY (model kombinowany — każda grupa ma osobne rozliczenia i saldo).'), 0, 'L');
 
     $__pdfData = $pdf->Output('S');
     $__fname   = 'raport_grupa_rok_' . $year . '.pdf';

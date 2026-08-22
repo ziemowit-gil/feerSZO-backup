@@ -101,7 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $due       = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
             $remaining = round($due - (float)($b['paid_amount'] ?? 0), 2);
             if ($remaining > 0) {
-                $r = ti_payment_add((int)$b['client_id'], $remaining, date('Y-m-d'), 'manual', 'Oznaczono jako opłacone (rozl. '.$b['month'].'/'.$b['year'].')');
+                $r = ti_payment_add((int)$b['client_id'], $remaining, date('Y-m-d'), 'manual',
+                                    'Oznaczono jako opłacone (rozl. '.$b['month'].'/'.$b['year'].')',
+                                    'manual', 0, (int)($b['course_id'] ?? 0));
                 flash_set('success', 'Zarejestrowano wpłatę ' . number_format($remaining,2,',',' ') . ' zł.' . (!empty($r['emailed']) ? ' Wysłano e-mail.' : ''));
             } else {
                 flash_set('info', 'Rozliczenie jest już w pełni pokryte.');
@@ -117,9 +119,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $paid_at   = trim($_POST['paid_at'] ?? '');
         $method    = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','other'], true) ? $_POST['method'] : 'transfer';
         $note      = trim($_POST['note'] ?? '');
+        // Model kombinowany: wpłatę można zaksięgować na konkretną grupę (0 = ogólna na konto)
+        $pay_course = (int)($_POST['pay_course_id'] ?? 0);
+        if ($pay_course > 0 && !db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=?", [$client_id, $pay_course])) {
+            $pay_course = 0;
+        }
         if ($client_id && $amount > 0) {
-            $r = ti_payment_add($client_id, $amount, $paid_at, $method, $note);
-            $msg = 'Wpłata ' . number_format($amount,2,',',' ') . ' zł zapisana.';
+            $r = ti_payment_add($client_id, $amount, $paid_at, $method, $note, 'manual', 0, $pay_course);
+            $gname = $pay_course ? (db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$pay_course])['name'] ?? '') : '';
+            $msg = 'Wpłata ' . number_format($amount,2,',',' ') . ' zł zapisana' . ($gname !== '' ? ' na grupę „' . $gname . '”' : ' (ogólna)') . '.';
             if ($r['credit'] > 0) $msg .= ' Nadpłata: ' . number_format($r['credit'],2,',',' ') . ' zł' . (!empty($r['emailed']) ? ' (wysłano e-mail).' : '.');
             flash_set('success', $msg);
         } else {
@@ -227,21 +235,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
-    // Dodanie / wymiana faktury (FVAT) — plik PDF dołączany do rozliczenia
+    // Faktura (FVAT) wystawiona poza panelem — numer, data, rodzaj + WYMAGANY skan PDF.
+    // Faktury wystawiamy w zewnętrznym systemie (domyślnie Comarch ERP Optima); tu trzymamy skan.
     if ($op === 'upload_invoice') {
         $bid = (int)($_POST['billing_id'] ?? 0);
         $b   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
         if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
         else {
+            $kind   = ($_POST['invoice_kind'] ?? '') === 'oneoff' ? 'oneoff' : '';
+            $inv_no = mb_substr(trim((string)($_POST['invoice_no'] ?? '')), 0, 60);
+            $inv_on = trim((string)($_POST['invoice_issued_on'] ?? ''));
+            $inv_on = preg_match('/^\d{4}-\d{2}-\d{2}$/', $inv_on) ? $inv_on : null;
             try {
-                $up = k30_ti_invoice_upload('invoice', 'fv' . $bid);
-                if ($up) {
-                    if (!empty($b['invoice_path'])) k30_ti_invoice_delete_file($b['invoice_path']);
-                    db()->prepare("UPDATE k30_ti_billing SET invoice_path=?, invoice_name=?, invoice_at=datetime('now') WHERE id=?")
-                       ->execute([$up['stored'], $up['name'], $bid]);
-                    flash_set('success', 'Faktura dodana.');
+                $up  = k30_ti_invoice_upload('invoice', 'fv' . $bid);
+                $has = $up || !empty($b['invoice_path']);
+                if (!$has) {
+                    // Blokada: bez skanu faktury nic nie zapisujemy
+                    flash_set('danger', 'Skan faktury (PDF) jest wymagany — bez pliku nie można zapisać danych faktury.');
                 } else {
-                    flash_set('danger', 'Nie wybrano pliku faktury (PDF).');
+                    if ($up && !empty($b['invoice_path'])) k30_ti_invoice_delete_file($b['invoice_path']);
+                    $sql = "UPDATE k30_ti_billing SET invoice_kind=?, invoice_no=?, invoice_issued_on=?, invoice_system=?";
+                    $par = [$kind, $inv_no, $inv_on, k30_ti_invoice_system()];
+                    if ($up) {
+                        $sql .= ", invoice_path=?, invoice_name=?, invoice_at=datetime('now')";
+                        $par[] = $up['stored']; $par[] = $up['name'];
+                    }
+                    $sql .= " WHERE id=?"; $par[] = $bid;
+                    db()->prepare($sql)->execute($par);
+                    flash_set('success', ($up ? 'Skan faktury zapisany.' : 'Dane faktury zapisane.')
+                                       . ($kind === 'oneoff' ? ' Oznaczono jako faktura jednorazowa.' : ''));
                 }
             } catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
         }
@@ -254,7 +276,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $b   = $bid ? db_one("SELECT invoice_path FROM k30_ti_billing WHERE id=?", [$bid]) : null;
         if ($b) {
             if (!empty($b['invoice_path'])) k30_ti_invoice_delete_file($b['invoice_path']);
-            db()->prepare("UPDATE k30_ti_billing SET invoice_path='', invoice_name='', invoice_at=NULL WHERE id=?")->execute([$bid]);
+            db()->prepare("UPDATE k30_ti_billing SET invoice_path='', invoice_name='', invoice_at=NULL,
+                           invoice_kind='', invoice_no='', invoice_issued_on=NULL, invoice_system='' WHERE id=?")->execute([$bid]);
             flash_set('success', 'Faktura usunięta.');
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
@@ -415,6 +438,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <h4 class="mb-0 fw-bold"><i class="bi bi-receipt text-primary me-2"></i>
     Rozliczenia TI<?= $course ? ' — '.h($course['name']) : '' ?>
   </h4>
+  <?php if ($course_id): ?>
+  <a class="btn btn-sm btn-outline-secondary ms-auto" target="_blank" rel="noopener"
+     href="billing_fv_summary.php?course_id=<?= $course_id ?>&amp;month=<?= $month ?>&amp;year=<?= $year ?>"
+     title="Pozycje do faktury dla całej grupy — do przepisania do systemu fakturowego">
+    <i class="bi bi-printer me-1" aria-hidden="true"></i>Podsumowanie do FVAT — grupa
+  </a>
+  <?php endif; ?>
+</div>
+
+<div class="alert alert-light border d-flex align-items-start gap-2 py-2 px-3 small" role="note">
+  <i class="bi bi-info-circle text-primary mt-1" aria-hidden="true"></i>
+  <div>
+    <strong>Model kombinowany:</strong> każda grupa (przedmiot) ma osobne rozliczenie i osobne saldo —
+    kursant zapisany do kilku grup dostaje kilka rozliczeń, każde ze swoim modelem.
+    Wpłatę można zaksięgować na wskazaną grupę (nadpłata zostaje wtedy w tej grupie) albo ogólnie na konto (FIFO).
+    Faktury wystawiamy w systemie <strong><?= h(k30_ti_invoice_system()) ?></strong> — w panelu rejestrujemy numer
+    i obowiązkowy skan PDF, a pozycje drukujemy przyciskiem „Podsumowanie do FVAT".
+  </div>
 </div>
 
 <?= flash_html() ?>
@@ -623,10 +664,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if (!empty($bpay['account']) || !empty($bpay['title'])): ?>
             <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($bpay['account'] ?: '—') ?><?php if (!empty($bpay['title'])): ?> · „<?= h($bpay['title']) ?>"<?php endif; ?></div>
             <?php endif; ?>
+            <?php
+              // Saldo TEJ grupy (model kombinowany) — obok salda całego konta
+              $gb = (int)$b['course_id'] > 0 ? ti_group_balance((int)$b['client_id'], (int)$b['course_id']) : null;
+              if ($gb && ($gb['credit'] > 0.005 || $gb['debt'] > 0.005)): ?>
+            <div class="small mt-1">
+              <?php if ($gb['credit'] > 0.005): ?>
+              <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata przypisana do tej grupy">
+                <i class="bi bi-piggy-bank me-1"></i>nadpłata grupy <?= number_format($gb['credit'],2,',',' ') ?> zł</span>
+              <?php else: ?>
+              <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata w tej grupie">
+                <i class="bi bi-exclamation-triangle me-1"></i>niedopłata grupy <?= number_format($gb['debt'],2,',',' ') ?> zł</span>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['credit'] > 0.005): ?>
-            <div class="small mt-1"><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata zostanie użyta na kolejne zajęcia"><i class="bi bi-piggy-bank me-1"></i>nadpłata <?= number_format($bbal['credit'],2,',',' ') ?> zł</span></div>
+            <div class="small mt-1"><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-piggy-bank me-1"></i>nadpłata <?= number_format($bbal['credit'],2,',',' ') ?> zł</span></div>
             <?php elseif ($bbal && $bbal['debt'] > 0.005): ?>
-            <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Saldo ujemne kursanta"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
+            <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
             <?php endif; ?>
             <div class="text-muted" style="font-size:.72rem">
               <i class="bi bi-person-badge me-1"></i>Płatnik: <?= h(k30_ti_billing_payer_label($b)) ?>
@@ -634,7 +689,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if (!empty($b['invoice_path'])): ?>
             <div style="font-size:.72rem">
               <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
-              <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">Faktura<?= !empty($b['invoice_at']) ? ' ('.h(substr($b['invoice_at'],0,10)).')' : '' ?></a>
+              <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">Faktura<?= !empty($b['invoice_no']) ? ' '.h($b['invoice_no']) : '' ?><?= !empty($b['invoice_at']) ? ' ('.h(substr($b['invoice_at'],0,10)).')' : '' ?></a>
+              <?php if (($b['invoice_kind'] ?? '') === 'oneoff'): ?>
+              <span class="badge bg-warning text-dark" style="font-size:.66rem" title="Faktura jednorazowa">jednorazowa</span>
+              <?php endif; ?>
             </div>
             <?php endif; ?>
             <?php if ($b['notes']): ?><div class="text-muted small"><?= h($b['notes']) ?></div><?php endif; ?>
@@ -684,6 +742,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"
                title="Zestawienie płatności kursanta">
               <i class="bi bi-person-lines-fill"></i>
+            </a>
+            <a href="hours_pdf.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener"
+               class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"
+               title="Rozpiska godzin dla beneficjenta (PDF)">
+              <i class="bi bi-clock-history"></i>
             </a>
             <?php if ($can_write): ?>
             <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
@@ -745,20 +808,20 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </form>
             <?php endif; ?>
             <?php if ($can_delete): ?>
-            <form method=”post” class=”d-inline” onsubmit=”return confirm('Usunąć rozliczenie dla „<?= h(addslashes($b['client_name'])) ?>”?')”>
-              <input type=”hidden” name=”_csrf”       value=”<?= h(csrf_token()) ?>”>
-              <input type=”hidden” name=”_op”         value=”delete”>
-              <input type=”hidden” name=”billing_id”  value=”<?= (int)$b['id'] ?>”>
-              <button type=”submit” class=”btn btn-xs btn-sm btn-outline-danger py-0 px-2” title=”Usuń rozliczenie”>
-                <i class=”bi bi-trash”></i>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć rozliczenie dla <?= h(addslashes($b['client_name'])) ?>?')">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="delete">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń rozliczenie">
+                <i class="bi bi-trash"></i>
               </button>
             </form>
             <?php endif; ?>
             <?php if ($can_write && in_array($b['status'], ['issued','draft'], true)): ?>
-            <button type=”button” class=”btn btn-xs btn-sm btn-outline-warning py-0 px-2”
-                    title=”Złóż wniosek o przeniesienie płatności na następny miesiąc”
-                    data-bs-toggle=”modal” data-bs-target=”#deferBill<?= (int)$b['id'] ?>”>
-              <i class=”bi bi-calendar-arrow-right”></i>
+            <button type="button" class="btn btn-xs btn-sm btn-outline-warning py-0 px-2"
+                    title="Złóż wniosek o przeniesienie płatności na następny miesiąc"
+                    data-bs-toggle="modal" data-bs-target="#deferBill<?= (int)$b['id'] ?>">
+              <i class="bi bi-calendar-arrow-right"></i>
             </button>
             <?php endif; ?>
           </td>
@@ -786,13 +849,73 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
-        <?php $cbal = $balances[(int)$b['client_id']] ?? ti_client_balance((int)$b['client_id']); $cpayments = ti_payments_for_client((int)$b['client_id']); ?>
+        <?php
+          $cbal      = $balances[(int)$b['client_id']] ?? ti_client_balance((int)$b['client_id']);
+          $cpayments = ti_payments_for_client((int)$b['client_id']);
+          // Model kombinowany: rozbicie salda na grupy + grupy kursanta do wyboru przy wpłacie
+          $cgroups   = ti_client_group_balances((int)$b['client_id']);
+          $cenr      = db_all("SELECT e.course_id, c.name FROM k30_ti_enrollments e
+                               JOIN k30_ti_courses c ON c.id=e.course_id
+                               WHERE e.client_id=? AND e.status='active' ORDER BY c.name", [(int)$b['client_id']]);
+          $cnames    = [];
+          foreach ($cenr as $ce) $cnames[(int)$ce['course_id']] = (string)$ce['name'];
+        ?>
         <p class="text-body-secondary small mb-3">
           Okres: <strong><?= h($period) ?></strong> · Do zapłaty: <strong><?= number_format($tot,2,',',' ') ?> zł</strong>
           <?php if ($cbal['credit'] > 0.005): ?> · <span class="text-success fw-semibold">nadpłata: <?= number_format($cbal['credit'],2,',',' ') ?> zł</span>
           <?php elseif ($cbal['debt'] > 0.005): ?> · <span class="text-danger fw-semibold">niedopłata: <?= number_format($cbal['debt'],2,',',' ') ?> zł</span>
           <?php else: ?> · <span class="text-success">saldo rozliczone</span><?php endif; ?>
         </p>
+
+        <!-- Saldo per grupa (model kombinowany) -->
+        <section class="border rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-collection text-primary me-2" aria-hidden="true"></i>Rozliczenia per grupa</h3>
+          <?php if ($cgroups['groups']): ?>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2" style="font-size:.82rem">
+              <caption class="visually-hidden">Należności, wpłaty i saldo kursanta w podziale na grupy</caption>
+              <thead class="table-light">
+                <tr><th scope="col">Grupa / przedmiot</th><th scope="col" class="text-end">Należności</th>
+                    <th scope="col" class="text-end">Pokryte</th><th scope="col" class="text-end">Saldo grupy</th></tr>
+              </thead>
+              <tbody>
+                <?php foreach ($cgroups['groups'] as $gcid => $g): ?>
+                <tr<?= (int)$gcid === (int)$b['course_id'] ? ' class="table-primary"' : '' ?>>
+                  <th scope="row" class="fw-normal">
+                    <?= h($g['course_name']) ?>
+                    <?php if ((int)$gcid === (int)$b['course_id']): ?>
+                    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-1">to rozliczenie</span>
+                    <?php endif; ?>
+                  </th>
+                  <td class="text-end"><?= number_format($g['charges'],2,',',' ') ?> zł</td>
+                  <td class="text-end"><?= number_format($g['paid'],2,',',' ') ?> zł</td>
+                  <td class="text-end fw-semibold">
+                    <?php if ($g['debt'] > 0.005): ?>
+                      <span class="text-danger">−<?= number_format($g['debt'],2,',',' ') ?> zł</span>
+                    <?php elseif ($g['credit'] > 0.005): ?>
+                      <span class="text-success">+<?= number_format($g['credit'],2,',',' ') ?> zł</span>
+                    <?php else: ?>
+                      <span class="text-body-secondary">0,00 zł</span>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <?php else: ?>
+          <p class="text-body-secondary small mb-2">Brak rozliczeń w podziale na grupy.</p>
+          <?php endif; ?>
+          <p class="form-text mb-0">
+            Nadpłata <strong>przypisana do grupy</strong> pokrywa tylko kolejne zajęcia w tej grupie.
+            <?php if ($cgroups['general_credit'] > 0.005): ?>
+            Nadpłata ogólna (do wykorzystania w dowolnej grupie):
+            <strong class="text-success"><?= number_format($cgroups['general_credit'],2,',',' ') ?> zł</strong>.
+            <?php else: ?>
+            Wpłaty bez wskazania grupy pokrywają należności od najstarszej (FIFO).
+            <?php endif; ?>
+          </p>
+        </section>
 
         <!-- Wpłaty i saldo -->
         <section class="border rounded p-3 mb-3">
@@ -820,20 +943,39 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-sm-3 d-flex align-items-end">
               <button class="btn btn-sm btn-success w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj wpłatę</button>
             </div>
-            <div class="col-12"><input type="text" name="note" class="form-control form-control-sm" placeholder="Notatka (opcjonalnie)"></div>
-            <div class="col-12"><span class="form-text">Wpłata wyższa niż należność utworzy nadpłatę (rodzic/opiekun dostanie e-mail). Nadpłata jest automatycznie używana na kolejne zajęcia.</span></div>
+            <div class="col-sm-6">
+              <label class="form-label small mb-0" for="paygrp<?= (int)$b['id'] ?>">Zaksięguj na grupę</label>
+              <select name="pay_course_id" id="paygrp<?= (int)$b['id'] ?>" class="form-select form-select-sm">
+                <option value="0">— wpłata ogólna (pokrywa najstarsze należności) —</option>
+                <?php foreach ($cenr as $ce): ?>
+                <option value="<?= (int)$ce['course_id'] ?>" <?= (int)$ce['course_id'] === (int)$b['course_id'] ? 'selected' : '' ?>>
+                  <?= h($ce['name']) ?>
+                </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-sm-6"><label class="form-label small mb-0" for="paynote<?= (int)$b['id'] ?>">Notatka (opcjonalnie)</label>
+              <input type="text" name="note" id="paynote<?= (int)$b['id'] ?>" class="form-control form-control-sm" placeholder="np. przelew za marzec"></div>
+            <div class="col-12"><span class="form-text">Wpłata wyższa niż należność utworzy nadpłatę (rodzic/opiekun dostanie e-mail). Wpłata zaksięgowana na grupę pokrywa wyłącznie należności tej grupy — nadwyżka zostaje jako nadpłata tej grupy.</span></div>
           </form>
           <?php if ($cpayments): ?>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0" style="font-size:.82rem">
               <caption class="visually-hidden">Historia wpłat kursanta</caption>
-              <thead class="table-light"><tr><th>Data</th><th>Kwota</th><th>Metoda</th><th>Notatka</th><th class="text-end">Akcje</th></tr></thead>
+              <thead class="table-light"><tr><th>Data</th><th>Kwota</th><th>Grupa</th><th>Metoda</th><th>Notatka</th><th class="text-end">Akcje</th></tr></thead>
               <tbody>
                 <?php foreach ($cpayments as $pm):
                   $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
                 <tr>
                   <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
                   <td class="fw-semibold text-success">+<?= number_format((float)$pm['amount'],2,',',' ') ?> zł</td>
+                  <td><?php $pmc = (int)($pm['course_id'] ?? 0); ?>
+                    <?php if ($pmc > 0): ?>
+                      <span class="badge bg-light text-secondary border"><?= h($cnames[$pmc] ?? ('Grupa #'.$pmc)) ?></span>
+                    <?php else: ?>
+                      <span class="text-body-secondary">ogólna</span>
+                    <?php endif; ?>
+                  </td>
                   <td><?= h($mlabel) ?></td>
                   <td class="text-body-secondary"><?= h(mb_substr($pm['note'] ?? '', 0, 60)) ?></td>
                   <td class="text-end">
@@ -934,27 +1076,81 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <!-- Faktura (FVAT) -->
         <section class="border rounded p-3">
           <h3 class="h6 fw-semibold mb-2"><i class="bi bi-file-earmark-pdf text-secondary me-2" aria-hidden="true"></i>Faktura (FVAT)</h3>
+          <div class="alert alert-info py-2 px-3 small d-flex align-items-start gap-2" role="note">
+            <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+            <div>
+              Faktury wystawiamy w systemie <strong><?= h(k30_ti_invoice_system()) ?></strong> — panel ich nie generuje.
+              Tutaj rejestrujemy numer i <strong>obowiązkowy skan</strong> wystawionej faktury.
+              Pozycje do przepisania na fakturę wydrukujesz przyciskiem „Podsumowanie do FVAT".
+            </div>
+          </div>
+          <p class="mb-2">
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+               href="billing_fv_summary.php?id=<?= (int)$b['id'] ?>">
+              <i class="bi bi-printer me-1" aria-hidden="true"></i>Podsumowanie do FVAT (PDF)
+            </a>
+            <?php if ((int)$b['course_id'] > 0): ?>
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+               href="billing_fv_summary.php?course_id=<?= (int)$b['course_id'] ?>&amp;month=<?= (int)$b['month'] ?>&amp;year=<?= (int)$b['year'] ?>">
+              <i class="bi bi-printer me-1" aria-hidden="true"></i>Cała grupa (PDF)
+            </a>
+            <?php endif; ?>
+            <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+               href="hours_pdf.php?id=<?= (int)$b['id'] ?>"
+               title="Szczegółowa rozpiska zajęć i godzin dla beneficjenta">
+              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Rozpiska godzin (PDF)
+            </a>
+          </p>
           <?php if (!empty($b['invoice_path'])): ?>
           <p class="small mb-2">
-            <i class="bi bi-file-earmark-pdf text-danger me-1" aria-hidden="true"></i>Załączono:
+            <i class="bi bi-file-earmark-pdf text-danger me-1" aria-hidden="true"></i>Skan załączony:
             <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener"><?= h($b['invoice_name'] ?: 'faktura.pdf') ?></a>
             <?= !empty($b['invoice_at']) ? '<span class="text-body-secondary">('.h(substr($b['invoice_at'],0,10)).')</span>' : '' ?>
+            <?php if (($b['invoice_kind'] ?? '') === 'oneoff'): ?>
+            <span class="badge bg-warning text-dark ms-1">faktura jednorazowa</span>
+            <?php endif; ?>
+            <?php if (!empty($b['invoice_no'])): ?>
+            <span class="text-body-secondary">· nr <?= h($b['invoice_no']) ?></span>
+            <?php endif; ?>
           </p>
+          <?php else: ?>
+          <p class="small text-danger mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak skanu faktury — dane faktury zapiszesz dopiero po wgraniu pliku PDF.</p>
           <?php endif; ?>
           <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
             <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="_op"        value="upload_invoice">
             <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-4">
+              <label class="form-label small mb-0" for="invkind<?= (int)$b['id'] ?>">Rodzaj</label>
+              <select name="invoice_kind" id="invkind<?= (int)$b['id'] ?>" class="form-select form-select-sm">
+                <option value=""       <?= ($b['invoice_kind'] ?? '') !== 'oneoff' ? 'selected' : '' ?>>Faktura do rozliczenia (cykliczna)</option>
+                <option value="oneoff" <?= ($b['invoice_kind'] ?? '') === 'oneoff' ? 'selected' : '' ?>>Faktura jednorazowa</option>
+              </select>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small mb-0" for="invno<?= (int)$b['id'] ?>">Numer faktury</label>
+              <input type="text" name="invoice_no" id="invno<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= h($b['invoice_no'] ?? '') ?>" placeholder="np. FV/123/2026">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small mb-0" for="invdate<?= (int)$b['id'] ?>">Data wystawienia</label>
+              <input type="date" name="invoice_issued_on" id="invdate<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= h($b['invoice_issued_on'] ?? '') ?>">
+            </div>
             <div class="col-sm-8">
-              <label class="form-label small mb-0" for="inv<?= (int)$b['id'] ?>">Plik PDF</label>
-              <input type="file" name="invoice" id="inv<?= (int)$b['id'] ?>" accept="application/pdf" class="form-control form-control-sm">
+              <label class="form-label small mb-0" for="inv<?= (int)$b['id'] ?>">
+                Skan faktury (PDF)<?= empty($b['invoice_path']) ? ' — wymagany' : '' ?>
+              </label>
+              <input type="file" name="invoice" id="inv<?= (int)$b['id'] ?>" accept="application/pdf"
+                     class="form-control form-control-sm" <?= empty($b['invoice_path']) ? 'required aria-required="true"' : '' ?>>
+              <span class="form-text">Bez skanu danych faktury nie da się zapisać.</span>
             </div>
             <div class="col-12 d-flex align-items-center gap-2">
-              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1" aria-hidden="true"></i><?= !empty($b['invoice_path']) ? 'Wymień fakturę' : 'Dodaj fakturę' ?></button>
+              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1" aria-hidden="true"></i><?= !empty($b['invoice_path']) ? 'Zapisz / wymień skan' : 'Zapisz fakturę ze skanem' ?></button>
             </div>
           </form>
           <?php if (!empty($b['invoice_path'])): ?>
-          <form method="post" class="mt-2" onsubmit="return confirm('Usunąć fakturę z tego rozliczenia?')">
+          <form method="post" class="mt-2" onsubmit="return confirm('Usunąć fakturę (skan i dane) z tego rozliczenia?')">
             <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="_op"        value="delete_invoice">
             <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
