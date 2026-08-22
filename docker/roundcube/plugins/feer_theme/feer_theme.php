@@ -23,7 +23,7 @@ class feer_theme extends rcube_plugin
      * montowany read-only, więc mtime pliku w kontenerze nie jest wskazówką
      * dla przeglądarki, a Roundcube nie wersjonuje arkuszy pluginów).
      */
-    private const ASSET_VERSION = '2';
+    private const ASSET_VERSION = '3';
 
     public function init(): void
     {

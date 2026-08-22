@@ -223,6 +223,24 @@ docker logs -f feer-rc
   `outlook_contacts_sync` lub `feer_theme` — spróbuj chwilowo usunąć podejrzany
   wpis z `$config['plugins']` w `config.inc.php` i zrestartować kontener, żeby
   sprawdzić, czy błąd zniknie.
+- **Zmiany w `config.inc.php`/pluginach nie działają, a `docker compose up -d rc`
+  pisze „Container feer-rc Running"** (potwierdzone na produkcji) — Compose uznał
+  konfigurację za niezmienioną i NIE przeładował kontenera; działa nadal ten
+  utworzony kiedyś, ze starym zestawem montowań. Objaw wtedy: nowy plugin nie
+  ładuje się w ogóle (np. brak `plugins/feer_theme/feer_theme.css` w `<head>`
+  strony, choć jest w `$config['plugins']`), a `logs/errors.log` ma wpisy
+  o nieudanym ładowaniu pluginu. Naprawa:
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    -f docker-compose.rc.yml --env-file .env.prod up -d --force-recreate rc
+  docker exec feer-rc ls /var/www/html/plugins   # muszą być wszystkie własne pluginy
+  ```
+- **`managesieve` na Microsoft 365 nie ma jak działać** — plugin wymaga usługi
+  ManageSieve (Dovecot/Cyrus), której Exchange Online **nie udostępnia**, więc
+  zakładka „Filtry" tylko generuje wpisy w `logs/errors.log`. Reguły ustawia się
+  w Outlooku (działają po stronie serwera, obowiązują też w Roundcube). Jeśli te
+  błędy przeszkadzają, usuń `'managesieve'` z `$config['plugins']` i przeładuj
+  kontener — celowo zostawione, bo nie blokuje logowania ani poczty.
 - **Przycisk „ownCloud" w compose się nie pojawia** — to zamierzone zachowanie
   pluginu, gdy `RC_OWNCLOUD_URL`/`RC_OWNCLOUD_USERNAME`/`RC_OWNCLOUD_PASSWORD`
   nie są ustawione (patrz `configured()` w `owncloud_picker.php`) — uzupełnij

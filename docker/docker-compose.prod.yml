@@ -152,6 +152,22 @@ services:
       - "traefik.http.routers.feer-kursant-http.middlewares=kursant-redir@docker"
       - "traefik.http.routers.feer-kursant-http.service=feer"
 
+      # ── poczta.feer.org.pl → strona wyboru klienta poczty (webmail/) ──────
+      # Publiczny rozjazd „Outlook w przeglądarce albo Roundcube" — mapowanie
+      # hosta na katalog webmail/ robi .htaccess (jak przy crm./tozsamosc.),
+      # więc bez middleware addprefix. Wymaga rekordu A poczta.feer.org.pl →
+      # IP serwera (LE wystawia cert przy pierwszym żądaniu).
+      - "traefik.http.routers.feer-poczta.rule=Host(`poczta.feer.org.pl`)"
+      - "traefik.http.routers.feer-poczta.entrypoints=websecure"
+      - "traefik.http.routers.feer-poczta.tls=true"
+      - "traefik.http.routers.feer-poczta.tls.certresolver=le"
+      - "traefik.http.routers.feer-poczta.middlewares=sec-headers@docker,error-pages@docker"
+      - "traefik.http.routers.feer-poczta.service=feer"
+      - "traefik.http.routers.feer-poczta-http.rule=Host(`poczta.feer.org.pl`)"
+      - "traefik.http.routers.feer-poczta-http.entrypoints=web"
+      - "traefik.http.routers.feer-poczta-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-poczta-http.service=feer"
+
       # ── zadania.feer.org.pl ───────────────────────────────────────────────
       - "traefik.http.routers.feer-zadania.rule=Host(`zadania.feer.org.pl`)"
       - "traefik.http.routers.feer-zadania.entrypoints=websecure"

@@ -135,6 +135,14 @@ if (module_enabled('org_documents_enabled')) $_pv_daily[] = ['href'=>APP_URL.'/p
 if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')) $_pv_daily[] = ['href'=>APP_URL.'/panel/whatsapp_group.php','icon'=>'bi-whatsapp','label'=>'Grupa WhatsApp','sub'=>'dołącz do grupy'];
 if (module_enabled('ezd_enabled') && can_read('ezd')) $_pv_daily[] = ['href'=>APP_URL.'/ezd/index.php','icon'=>'bi-folder2-open','label'=>'Wirtualne biurko','sub'=>'sprawy i pisma'];
 
+/* ── Poczta: dwa klienty do wyboru (od 1 IX 2026) ─────────────────────────
+   Adresy z ustawień organizacji (Admin → Poczta → Webmail), z wartościami
+   zapasowymi. Strona rozjazdu z porównaniem: webmail/index.php pod
+   poczta.feer.org.pl oraz aliasem szo.feer.org.pl/poczta (.htaccess). */
+$_mail_chooser = rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
+$_mail_owa     = rtrim(org_setting('poczta_owa_url') ?: 'https://outlook.office.com/mail/', '/') . '/';
+$_mail_rc      = rtrim(org_setting('poczta_webmail_url') ?: 'https://rc.feer.org.pl', '/');
+
 /* ── Aktywność: ostatnie wnioski ─────────────────────────────────────────── */
 $_pv_apps = $my_apps ? array_map(fn($a) => [
     'tytul' => $a['tytul'], 'type_label' => $a['type_label'] ?? '', 'type_icon' => $a['type_icon'] ?? 'bi-file-text',
@@ -282,6 +290,21 @@ $_pv_rel_time = function (string $dt): string {
 .pvtz .tz-btn--ghost{background:var(--tz-bg);color:var(--tz-strong);border:1px solid var(--tz-line)}
 .pvtz .tz-btn--ghost:hover{background:var(--tz-50);filter:none}
 .pvtz .tz-empty{background:var(--tz-bg);border:2px dashed var(--tz-line);border-radius:14px;text-align:center;padding:2rem 1rem;color:var(--tz-muted)}
+/* Wybór klienta poczty (sekcja „Konta i dostępy") */
+.pvtz .tz-badge--new{background:var(--tz-50);color:var(--tz-strong);border-color:rgba(var(--tz-rgb),.35)}
+.pvtz .pv-mail-pick{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:.75rem 0 .2rem}
+.pvtz .pv-mail-btn{display:flex;flex-direction:column;gap:.1rem;padding:.7rem .9rem;border:1px solid var(--tz-line);border-radius:12px;background:var(--tz-bg);text-decoration:none;color:var(--tz-ink);font-weight:700;font-size:.9rem;min-height:44px;transition:border-color .15s,transform .15s,box-shadow .15s}
+.pvtz .pv-mail-btn:hover,.pvtz .pv-mail-btn:focus-visible{border-color:var(--tz);transform:translateY(-1px);box-shadow:0 6px 18px -8px rgba(var(--tz-rgb),.35);color:var(--tz-ink)}
+.pvtz .pv-mail-btn span{font-weight:400;font-size:.78rem;color:var(--tz-muted)}
+.pvtz .pv-mail-btn i{color:var(--tz-strong);margin-right:.35rem}
+.pvtz .pv-mail-diff{margin-top:.55rem;font-size:.84rem}
+.pvtz .pv-mail-diff>summary{cursor:pointer;font-weight:600;color:var(--tz-strong);list-style:none;display:inline-flex;align-items:center;gap:.35rem;min-height:32px}
+.pvtz .pv-mail-diff>summary::-webkit-details-marker{display:none}
+.pvtz .pv-mail-diff>summary::after{content:'\203A';transition:transform .15s;display:inline-block}
+.pvtz .pv-mail-diff[open]>summary::after{transform:rotate(90deg)}
+.pvtz .pv-mail-diff dl{margin:.5rem 0 0;display:grid;gap:.45rem}
+.pvtz .pv-mail-diff dt{font-weight:700;color:var(--tz-ink);font-size:.84rem}
+.pvtz .pv-mail-diff dd{margin:0 0 .25rem;color:var(--tz-muted)}
 .pvtz .pv-status-badge{font-size:.76rem;font-weight:700;padding:.25rem .7rem;border-radius:999px;white-space:nowrap;border:1px solid transparent}
 .pvtz .pv-status-badge.is-active{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
 .pvtz .pv-status-badge.is-ended{background:#f3f4f6;color:#4b5563;border-color:#e5e7eb}
@@ -774,13 +797,53 @@ $_pv_rel_time = function (string $dt): string {
       </div>
       <?php endif; ?>
 
-      <!-- Poczta -->
+      <!-- Poczta — dwa klienty do wyboru (komunikat: od 1 IX 2026) -->
       <div class="tz-svc">
         <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-envelope-fill"></i></span>
         <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Poczta organizacji</div>
-          <div class="tz-kv">Skrzynka służbowa organizacji.</div>
-          <div class="tz-svc__foot"><a href="https://poczta.feer.org.pl" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>poczta.feer.org.pl</a></div>
+          <div class="tz-svc__ttl">Poczta organizacji
+            <span class="tz-badge tz-badge--new ms-1"><i class="bi bi-stars" aria-hidden="true"></i>Nowość: wybór klienta</span>
+          </div>
+          <div class="tz-kv" style="display:block">
+            <strong>Od 1 września 2026</strong> sam wybierasz, w czym czytasz służbową pocztę —
+            <strong>korzystać możesz już teraz</strong>, bez zgłaszania czegokolwiek.
+            To ta sama skrzynka i te same wiadomości; różni się tylko widok i to, co program
+            dodatkowo potrafi. Wybór jest odwracalny — możesz używać obu równolegle.
+          </div>
+
+          <div class="pv-mail-pick">
+            <a class="pv-mail-btn" href="<?= h($_mail_owa) ?>" target="_blank" rel="noopener noreferrer">
+              <span style="font-weight:700;color:inherit"><i class="bi bi-microsoft" aria-hidden="true"></i>Outlook w przeglądarce</span>
+              <span>pełny M365: kalendarz, Teams, skrzynki wspólne</span>
+            </a>
+            <a class="pv-mail-btn" href="<?= h($_mail_rc) ?>" target="_blank" rel="noopener noreferrer">
+              <span style="font-weight:700;color:inherit"><i class="bi bi-envelope-open" aria-hidden="true"></i>Roundcube</span>
+              <span>lekki i szybki, sama poczta</span>
+            </a>
+          </div>
+
+          <details class="pv-mail-diff">
+            <summary>Czym się różnią?</summary>
+            <dl>
+              <dt><i class="bi bi-microsoft" aria-hidden="true"></i> Outlook w przeglądarce — zalecany do codziennej pracy</dt>
+              <dd>Poczta razem z <strong>kalendarzem</strong> i spotkaniami, <strong>Teams</strong>,
+                  <strong>skrzynki współdzielone</strong> (np. fundacja@feer.org.pl) i dostęp w zastępstwie,
+                  <strong>reguły i autoodpowiedź</strong>, aplikacja na telefon z powiadomieniami,
+                  wyszukiwanie w całej skrzynce.</dd>
+              <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Roundcube — gdy chcesz lekko i szybko</dt>
+              <dd>Tylko poczta: <strong>bez kalendarza, Teams i skrzynek współdzielonych</strong>.
+                  W zamian otwiera się na <strong>słabym łączu i starszym sprzęcie</strong>, logujesz się
+                  jednym przyciskiem „Microsoft 365" (bez osobnego hasła), dołączasz pliki
+                  z <strong>OneDrive i ownCloud</strong>, a kontakty z Outlooka kopiują się
+                  do adresownika przy logowaniu.</dd>
+              <dt><i class="bi bi-info-circle" aria-hidden="true"></i> Co jest wspólne</dt>
+              <dd>Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości. Reguły, podpis
+                  i autoodpowiedź ustawione w Outlooku działają na serwerze, więc obowiązują też
+                  w Roundcube.</dd>
+            </dl>
+          </details>
+
+          <div class="tz-svc__foot"><a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Porównanie i wybór: <?= h(preg_replace('~^https?://~', '', $_mail_chooser)) ?></a></div>
         </div>
       </div>
 

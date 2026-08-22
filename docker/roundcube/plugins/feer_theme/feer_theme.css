@@ -449,8 +449,9 @@ body.task-login #login-form .box-inner {
   margin: 0 auto;
 }
 
-body.task-login #login-form img.logo,
-body.task-login .logo, body.task-login #logo {
+body.task-login #logo,
+body.task-login img.logo,
+body.task-login #login-form img.logo {
   max-height: 64px;
   width: auto;
   margin: 0 auto 1.1rem;
@@ -469,33 +470,48 @@ body.task-login .alert-info {
   line-height: 1.5;
 }
 
-/* Jedyny przycisk na stronie (logowanie Microsoft 365) — duży i oczywisty.
-   Elastic/rdzeń nadaje mu .btn-primary; a[href*=oauth] to zapas na wypadek
-   zmiany klas w kolejnych wydaniach. */
-body.task-login .formbuttons .btn,
-body.task-login button[type="submit"],
-body.task-login input[type="submit"],
-body.task-login a.btn-primary,
+/* Przyciski na stronie logowania — sprawdzone na żywej instancji (RC 1.6,
+   skin Elastic): rdzeń renderuje DWA elementy —
+     BUTTON#rcmloginsubmit  (zwykłe logowanie hasłem)
+     A#rcmloginoauth        (logowanie Microsoft 365)
+   Skrzynki są WYŁĄCZNIE przez OAuth (plugin login_notice usuwa pola
+   login/hasło), więc #rcmloginsubmit to przycisk „Zaloguj", który nie ma czego
+   wysłać — mylił użytkowników i był pierwszym, na który padał wzrok. Chowamy
+   go, a przycisk Microsoft dostaje rolę głównej akcji. */
+body.task-login #rcmloginsubmit,
+body.task-login .formbuttons button[type="submit"],
+body.task-login .formbuttons input[type="submit"] {
+  display: none !important;
+}
+
+body.task-login #rcmloginoauth,
+body.task-login a.button.oauth,
 body.task-login a[href*="oauth"] {
-  display: block;
+  display: flex !important;
   width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
   background-color: var(--feer-blue) !important;
   border-color: var(--feer-blue) !important;
   color: #fff !important;
   border-radius: var(--feer-radius) !important;
-  padding: .7rem 1rem !important;
+  padding: .75rem 1rem !important;
   font-size: 1rem !important;
   font-weight: 700 !important;
-  text-align: center;
+  text-transform: none !important;
+  box-shadow: 0 6px 18px -8px rgba(29, 78, 216, .6);
 }
-body.task-login .formbuttons .btn:hover,
+body.task-login #rcmloginoauth:hover,
+body.task-login a.button.oauth:hover,
 body.task-login a[href*="oauth"]:hover {
   background-color: var(--feer-navy) !important;
   border-color: var(--feer-navy) !important;
+  color: #fff !important;
 }
 
 /* Stopka „Poczta FEER" pod kartą — czytelna na ciemnym tle */
-body.task-login .footer, body.task-login #login-footer,
+body.task-login #login-footer, body.task-login .footer,
 body.task-login .username, body.task-login p.version {
   color: rgba(255, 255, 255, .75) !important;
 }

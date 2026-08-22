@@ -12,6 +12,15 @@ RewriteRule ^mobilna$          /mobilna/ [R=301,L]
 RewriteRule ^mobilna/$         /crm/mobile/index.php [L]
 RewriteRule ^mobilna/(.+)$     /crm/mobile/$1 [L]
 
+# ── Wybór klienta poczty: /poczta → strona rozjazdu (webmail/) ──────────────
+# Publiczna strona „w czym czytam pocztę" (Outlook w przeglądarce vs Roundcube)
+# ma DWA adresy: poczta.feer.org.pl (blok subdomeny niżej) oraz krótki alias
+# szo.feer.org.pl/poczta. Reguła łapie tylko goły katalog („/poczta" i
+# „/poczta/"), więc moduł Poczta (skanowanie korespondencji do CRM/EZD) działa
+# bez zmian pod swoimi ścieżkami: /poczta/dashboard.php, /poczta/index.php itd.
+# Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
+RewriteRule ^poczta/?$         /webmail/index.php [L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:
@@ -65,6 +74,15 @@ RewriteCond %{HTTP_HOST} ^crm\. [NC]
 RewriteCond %{REQUEST_URI} !^/crm/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /crm/$1 [L]
+
+# ── Subdomena poczta. → strona wyboru klienta poczty ────────────────────────
+# Host poczta.feer.org.pl WEWNĘTRZNIE serwuje webmail/ (publiczny rozjazd do
+# Outlooka albo Roundcube — bez logowania, patrz webmail/index.php). Pomijamy
+# sam katalog (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
+RewriteCond %{HTTP_HOST} ^poczta\. [NC]
+RewriteCond %{REQUEST_URI} !^/webmail/ [NC]
+RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteRule ^(.*)$ /webmail/$1 [L]
 
 # ── Subdomena strukturaorg. → katalog / struktura organizacji ───────────────
 # Host strukturaorg.feer.org.pl WEWNĘTRZNIE serwuje moduł directory/ (URL w
