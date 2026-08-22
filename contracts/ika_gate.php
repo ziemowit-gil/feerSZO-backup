@@ -405,6 +405,13 @@ auth_screen_head([
   transition:border-color .15s,box-shadow .15s,background .15s;color:#0f172a;
 }
 .digit-box:focus{border-color:var(--tz);box-shadow:0 0 0 3px rgba(30,109,255,.18);background:#fff}
+/* Kod jest maskowany kropkami — nikt zza pleców nie odczyta cyfr.
+   Rozstrzelenie zerowane, żeby kropka stała na środku pola. */
+.digit-box[type="password"]{font-size:2.4rem;line-height:1;letter-spacing:0;padding:0}
+.reveal-row{display:flex;justify-content:center;margin:-.2rem 0 .8rem}
+.reveal-btn{display:inline-flex;align-items:center;gap:.35rem;background:none;border:none;cursor:pointer;
+  color:var(--tz-muted);font-size:.8rem;font-family:inherit;padding:.25rem .5rem;border-radius:6px}
+.reveal-btn:hover{color:var(--tz-strong);background:var(--tz-50)}
 .digit-box.filled{background:var(--tz-50);border-color:var(--tz)}
 .digit-box.is-error{border-color:#ef4444;background:#fef2f2}
 .pesel-row{display:flex;gap:.45rem;justify-content:center;margin:.9rem 0}
@@ -690,12 +697,18 @@ $head_title = match(true) {
         <p class="text-muted small text-center mb-1">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
-          <input type="text" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
+          <input type="password" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
                  maxlength="1" inputmode="numeric" pattern="\d"
                  id="d<?= $i ?>" data-idx="<?= $i ?>"
-                 autocomplete="off" aria-label="Cyfra <?= $i ?>">
+                 autocomplete="off" data-1p-ignore data-lpignore="true"
+                 aria-label="Cyfra <?= $i ?> kodu IKA">
           <?php endfor; ?>
           <input type="hidden" name="ika_code" id="ikaCodeHidden">
+        </div>
+        <div class="reveal-row">
+          <button type="button" class="reveal-btn" data-group="ikaDigits" aria-pressed="false">
+            <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
+          </button>
         </div>
         <button type="submit" class="tz-btn tz-btn--wide" id="btnVerify" disabled>
           <span class="spin-icon" id="ikaSpinner"></span>
@@ -781,11 +794,17 @@ $head_title = match(true) {
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
         <div class="digit-row" id="emailDigits" role="group" aria-label="Kod e-mail — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
-          <input type="text" class="digit-box<?= $error && $active_method === 'email' ? ' is-error' : '' ?>"
+          <input type="password" class="digit-box<?= $error && $active_method === 'email' ? ' is-error' : '' ?>"
                  maxlength="1" inputmode="numeric" pattern="\d"
-                 id="ed<?= $i ?>" data-idx="<?= $i ?>" autocomplete="off" aria-label="Cyfra <?= $i ?>">
+                 id="ed<?= $i ?>" data-idx="<?= $i ?>" autocomplete="off"
+                 data-1p-ignore data-lpignore="true" aria-label="Cyfra <?= $i ?> kodu z e-maila">
           <?php endfor; ?>
           <input type="hidden" name="email_otp" id="emailOtpHidden">
+        </div>
+        <div class="reveal-row">
+          <button type="button" class="reveal-btn" data-group="emailDigits" aria-pressed="false">
+            <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
+          </button>
         </div>
         <button type="submit" class="tz-btn tz-btn--email tz-btn--wide" id="btnEmailOtp" disabled>
           <span class="spin-icon" id="spinEmailOtp"></span>
@@ -887,6 +906,19 @@ window.switchMethod = switchMethod;
     tabs[n].click();
   });
 })();
+
+/* ── Podgląd zamaskowanego kodu ────────────────────────── */
+document.querySelectorAll('.reveal-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var group = document.getElementById(btn.dataset.group);
+    if (!group) return;
+    var show = btn.getAttribute('aria-pressed') !== 'true';
+    group.querySelectorAll('.digit-box').forEach(function (i) { i.type = show ? 'text' : 'password'; });
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    btn.querySelector('span').textContent = show ? 'Ukryj kod' : 'Pokaż kod';
+    btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+  });
+});
 
 /* ── Helper: 6-box digit group ─────────────────────────── */
 function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {

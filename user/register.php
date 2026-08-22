@@ -22,6 +22,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 require_once dirname(__DIR__) . '/includes/password_validator.php';
+require_once dirname(__DIR__) . '/includes/auth_security.php';
 
 auth_start();
 
@@ -63,6 +64,7 @@ const REG_ERR_HASACCOUNT = 'Dla tej umowy istnieje już aktywne konto. Zaloguj s
 const REG_ERR_NOPHONE    = 'Brak numeru telefonu w umowie — rejestracja wymaga weryfikacji SMS. Skontaktuj się z biurem.';
 const REG_ERR_RATE       = 'Zbyt wiele prób weryfikacji. Spróbuj ponownie za godzinę.';
 const REG_ERR_SMS        = 'Podany kod jest nieprawidłowy lub wygasł. Spróbuj ponownie.';
+const REG_ERR_PIN        = 'Nieprawidłowy PIN rejestracji. Poproś administratora o aktualny kod.';
 
 /**
  * Szuka umowy wolontariackiej pasującej do danych.
@@ -147,35 +149,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             _reg_rate_record();
             $email = trim($_POST['email']        ?? '');
             $pesel = trim($_POST['pesel_or_doc'] ?? '');
+            $pin   = trim($_POST['register_pin'] ?? '');
 
-            $result = _reg_find_contract($email, $pesel);
-
-            if ($result === null) {
-                $error = REG_ERR_NOTFOUND;
-            } elseif ($result === 'has_account') {
-                $error = REG_ERR_HASACCOUNT;
-            } elseif ($result === 'no_phone') {
-                $error = REG_ERR_NOPHONE;
+            // PIN od administratora — brama przed jakimkolwiek szukaniem umowy,
+            // żeby formularz nie potwierdzał istnienia danych osobie bez PIN-u.
+            if (!register_pin_check($pin)) {
+                authlog_write(null, 'register_pin_fail', $email,
+                              'Błędny PIN rejestracji, IP: ' . ($_SERVER['REMOTE_ADDR'] ?? ''));
+                $error = REG_ERR_PIN;
             } else {
-                // Generujemy kod SMS — konto zakładamy DOPIERO po weryfikacji
-                $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-                $exp  = time() + 600;
+                $result = _reg_find_contract($email, $pesel);
 
-                try {
-                    $org_name = defined('ORG_NAME') ? ORG_NAME : '';
-                    sms_send($result['phone'], "Kod rejestracji konta: {$code}. Ważny 10 min. [{$org_name}]");
-                } catch (\Throwable $e) {
-                    // Milcząco — nie ujawniamy błędu
+                if ($result === null) {
+                    $error = REG_ERR_NOTFOUND;
+                } elseif ($result === 'has_account') {
+                    $error = REG_ERR_HASACCOUNT;
+                } elseif ($result === 'no_phone') {
+                    $error = REG_ERR_NOPHONE;
+                } else {
+                    // Generujemy kod SMS — konto zakładamy DOPIERO po weryfikacji
+                    $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                    $exp  = time() + 600;
+
+                    try {
+                        $org_name = defined('ORG_NAME') ? ORG_NAME : '';
+                        sms_send($result['phone'], "Kod rejestracji konta: {$code}. Ważny 10 min. [{$org_name}]");
+                    } catch (\Throwable $e) {
+                        // Milcząco — nie ujawniamy błędu
+                    }
+
+                    $_SESSION['reg_step']       = 2;
+                    $_SESSION['reg_sms_code']   = $code;
+                    $_SESSION['reg_sms_exp']    = $exp;
+                    $_SESSION['reg_email']      = $result['contract']['email'];
+                    $_SESSION['reg_contract_id'] = (int) $result['contract']['id'];
+                    $_SESSION['reg_sms_fails']  = 0;
+                    $step = 2;
+                    $success = 'Jeśli dane są poprawne, kod weryfikacyjny został wysłany SMS-em na numer z umowy.';
                 }
-
-                $_SESSION['reg_step']       = 2;
-                $_SESSION['reg_sms_code']   = $code;
-                $_SESSION['reg_sms_exp']    = $exp;
-                $_SESSION['reg_email']      = $result['contract']['email'];
-                $_SESSION['reg_contract_id'] = (int) $result['contract']['id'];
-                $_SESSION['reg_sms_fails']  = 0;
-                $step = 2;
-                $success = 'Jeśli dane są poprawne, kod weryfikacyjny został wysłany SMS-em na numer z umowy.';
             }
         }
     }
@@ -287,14 +298,40 @@ auth_screen_head([
     </div>
     <?php endif; ?>
 
-    <?php if ($step === 1): ?>
+    <?php if (!register_is_open() && $step === 1): ?>
+    <!-- ══ Rejestracja zamknięta przez administratora ═══════════════════ -->
+    <h1 class="ks-h1">Rejestracja zamknięta</h1>
+    <p class="ks-lead">
+      Zakładanie kont z formularza jest w tej chwili wyłączone. Jeśli masz podpisaną umowę
+      i potrzebujesz konta, poproś administratora o <strong>PIN rejestracji</strong> albo
+      o założenie konta.
+    </p>
+    <a href="<?= h(APP_URL . '/auth/report_login_issue.php') ?>" class="ks-btn ks-btn--primary">
+      <i class="bi bi-envelope" aria-hidden="true"></i>Napisz do administratora
+    </a>
+    <a href="<?= h(APP_URL . '/auth/login.php') ?>" class="ks-btn ks-btn--ghost">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć do logowania
+    </a>
+
+    <?php elseif ($step === 1): ?>
     <!-- ══ Krok 1 — dane z umowy ════════════════════════════════════════ -->
     <h1 class="ks-h1">Załóż konto</h1>
-    <p class="ks-lead">Podaj e-mail i PESEL z umowy wolontariackiej — wyślemy kod SMS na Twój numer telefonu.</p>
+    <p class="ks-lead">Podaj PIN od administratora oraz e-mail i PESEL z umowy wolontariackiej — wyślemy kod SMS na Twój numer telefonu.</p>
 
     <form method="post" novalidate>
       <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_action" value="verify">
+
+      <div class="ks-field">
+        <label for="register_pin">PIN rejestracji <span style="color:var(--ks-muted);font-weight:400">(6 cyfr od administratora)</span></label>
+        <input type="text" class="form-control ks-otp" id="register_pin" name="register_pin"
+               maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]{6}"
+               placeholder="000000" autocomplete="off" required autofocus
+               aria-describedby="pin-hint">
+        <p class="ks-fieldhint" id="pin-hint">
+          Kod otrzymasz od osoby, która przyjmowała Twoją umowę. Bez niego nie założysz konta.
+        </p>
+      </div>
 
       <div class="ks-field">
         <label for="email">Adres e-mail</label>

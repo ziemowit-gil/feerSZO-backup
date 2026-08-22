@@ -3,6 +3,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/auth_security.php';
 
 require_role('admin');
 if (!defined('TZ_ADMIN_CHROME')) {
@@ -57,6 +58,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         _lm_set('login_method_local', true);
         flash_set('success', 'Ustawienia metod logowania zapisane.');
         header('Location: ' . APP_URL . '/admin/login_settings.php'); exit;
+    }
+
+    // Rejestracja samodzielna: włącznik + PIN
+    if ($action === 'save_register') {
+        $on  = isset($_POST['register_enabled']);
+        db()->prepare("INSERT INTO settings (key_, value) VALUES ('register_enabled', ?)
+                       ON CONFLICT(key_) DO UPDATE SET value=excluded.value")->execute([$on ? '1' : '0']);
+
+        $pin_raw = preg_replace('/\D/', '', (string)($_POST['register_pin'] ?? '')) ?? '';
+        if ($pin_raw === '') {
+            register_pin_set('');                       // puste = rejestracja zamknięta
+            flash_set('warning', 'PIN wyczyszczony — samodzielna rejestracja jest zamknięta.');
+        } elseif (strlen($pin_raw) !== 6) {
+            flash_set('error', 'PIN rejestracji musi mieć dokładnie 6 cyfr — nie zapisano.');
+        } else {
+            register_pin_set($pin_raw);
+            flash_set('success', $on
+                ? 'Ustawienia rejestracji zapisane. PIN: ' . $pin_raw
+                : 'PIN zapisany, ale rejestracja pozostaje wyłączona.');
+        }
+        authlog_write((int)(current_user()['id'] ?? 0), 'register_pin_set',
+                      current_user()['email'] ?? '', 'Zmiana ustawień samodzielnej rejestracji');
+        header('Location: ' . APP_URL . '/admin/login_settings.php#register'); exit;
+    }
+
+    // Losowy PIN rejestracji
+    if ($action === 'gen_register_pin') {
+        $pin = register_pin_generate();
+        authlog_write((int)(current_user()['id'] ?? 0), 'register_pin_set',
+                      current_user()['email'] ?? '', 'Wygenerowano nowy PIN rejestracji');
+        flash_set('success', 'Nowy PIN rejestracji: ' . $pin);
+        header('Location: ' . APP_URL . '/admin/login_settings.php#register'); exit;
     }
 
     // Generuj kod jednorazowy dla użytkownika
@@ -121,6 +154,10 @@ foreach (array_keys($method_keys) as $k) {
 }
 
 $users = db_all("SELECT id, name, email, login_code, is_active, role FROM users WHERE email != 'serwis@local' ORDER BY name, email");
+
+$register_pin     = register_pin_get();
+$register_enabled = register_enabled();
+$register_open    = register_is_open();
 
 $TZ_ACTIVE = 'administracja';
 include dirname(__DIR__) . '/tozsamosc/_head.php';
@@ -292,6 +329,66 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-floppy me-1"></i>Zapisz ustawienia
     </button>
+  </form>
+</div>
+</div>
+
+<!-- ══ Samodzielna rejestracja ═══════════════════════════════════════════ -->
+<div class="card shadow-sm mb-4" id="register">
+<div class="card-header fw-semibold"><i class="bi bi-person-plus text-primary me-1"></i> Samodzielna rejestracja</div>
+<div class="card-body">
+  <p class="small text-muted">
+    Formularz <code>/user/register.php</code> zakłada konto osobie, która ma podpisaną umowę
+    wolontariacką. Żeby nie rejestrował się ktokolwiek, kto zna dane z umowy, wymagany jest
+    <strong>6-cyfrowy PIN</strong> przekazywany przez administratora.
+  </p>
+
+  <?php if (!$register_open): ?>
+  <div class="alert alert-warning py-2 px-3 small mb-3">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <?= $register_pin === ''
+        ? 'Brak PIN-u — rejestracja jest teraz <strong>zamknięta</strong>. Ustaw PIN, aby ją otworzyć.'
+        : 'Rejestracja jest <strong>wyłączona</strong> przełącznikiem poniżej.' ?>
+  </div>
+  <?php else: ?>
+  <div class="alert alert-success py-2 px-3 small mb-3">
+    <i class="bi bi-check-circle me-1"></i>Rejestracja otwarta — osoba musi podać PIN z pola poniżej.
+  </div>
+  <?php endif; ?>
+
+  <form method="post">
+    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="save_register">
+
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" name="register_enabled" id="reg_on"
+             style="width:2.5rem;height:1.3rem" <?= $register_enabled ? 'checked' : '' ?>>
+      <label class="form-check-label ms-2" for="reg_on">Pozwól zakładać konta z formularza rejestracji</label>
+    </div>
+
+    <label for="reg_pin" class="form-label fw-semibold small">PIN rejestracji (6 cyfr)</label>
+    <div class="input-group mb-2">
+      <span class="input-group-text"><i class="bi bi-hash"></i></span>
+      <input type="text" class="form-control font-monospace" id="reg_pin" name="register_pin"
+             value="<?= h($register_pin) ?>" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             placeholder="np. 481902" style="letter-spacing:.25em;font-size:1.1rem"
+             aria-describedby="reg_pin_help">
+    </div>
+    <div class="form-text mb-3" id="reg_pin_help">
+      Puste pole = rejestracja zamknięta. PIN przekazuj tylko osobom, które mają podpisaną umowę
+      — po jego zmianie starych PIN-ów nie da się już użyć.
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Zapisz</button>
+      <button type="submit" class="btn btn-outline-secondary" form="gen-pin-form">
+        <i class="bi bi-shuffle me-1"></i>Wylosuj nowy PIN
+      </button>
+    </div>
+  </form>
+  <form method="post" id="gen-pin-form" class="d-none">
+    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="gen_register_pin">
   </form>
 </div>
 </div>

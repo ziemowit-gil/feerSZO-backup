@@ -266,7 +266,8 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 .crm-page-subtitle { font-size: .82rem; color: #6B7280; }
 .crm-page-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
 </style>
-<?php require_once dirname(dirname(__DIR__)) . '/includes/app_bg.php'; app_bg_css(); ?>
+<?php /* CRM to głównie tabele i listy — tło ledwie zaznaczone */ ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/app_bg.php'; app_bg_css('#EFF1F5', 'subtle'); ?>
 <!-- Quill — ładowany globalnie, potrzebny dla modalnego kompozytora -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>

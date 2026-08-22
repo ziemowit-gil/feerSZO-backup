@@ -394,7 +394,9 @@ $_modals_html = ob_get_clean();
     <hr class="ks-sep">
 
     <p class="ks-sub">Jeszcze nie masz konta?</p>
+    <?php if (register_is_open()): ?>
     <a href="<?= APP_URL ?>/user/register.php" class="ks-btn ks-btn--ghost">Zarejestruj się</a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-btn ks-btn--ghost">Odzyskaj dostęp do konta</a>
 
     <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>

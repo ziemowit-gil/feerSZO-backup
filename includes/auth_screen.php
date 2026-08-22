@@ -18,6 +18,7 @@
  */
 
 require_once __DIR__ . '/branding.php';
+require_once __DIR__ . '/auth_security.php';
 
 /**
  * Otwiera stronę: <head>, pasek dostępności, marka, zakładki, karta.
@@ -274,11 +275,23 @@ html[data-news="off"] .ks-news{display:none}
 .ks-shell .tz-subnav a.on{background:#fff;color:var(--ks)}
 .ks-shell .tz-subnav a.on i{color:var(--ks)}
 
-/* ── Elementy na tle marki: kolor tekstu niezależny od reguł treści ────── */
-.ks-shell .ks-tabs a,.ks-shell .ks-links a,.ks-shell .ks-links a:hover{color:#fff}
-.ks-shell .ks-tab[aria-current="page"]{color:var(--ks)}
-.ks-shell .ks-hero-h1,.ks-shell .ks-hero-lead{color:#fff}
-.ks-shell .ks-hero-lead{color:rgba(255,255,255,.85)}
+/* ── Kontrast: co leży na kolorze marki, jest białe; co na białym — ciemne ──
+   Reguła generalna zamiast łatania pojedynczych elementów: wszystko wewnątrz
+   .ks-hero (tło marki) domyślnie białe, a powierzchnie białe (karta, .card,
+   .tz-card, alert, modal) przywracają ciemny tekst i markowe linki. Dzięki
+   temu żaden nowy element nie wyląduje w kolorze marki na kolorze marki. */
+.ks-hero,.ks-hero a{color:#fff}
+.ks-hero .ks-tab[aria-current="page"]{color:var(--ks)}
+.ks-hero .ks-hero-lead,.ks-hero .ks-copy{color:rgba(255,255,255,.85)}
+.ks-card,.ks-shell .card,.ks-shell .tz-card,.ks-shell .alert,.ks-shell .modal,
+.ks-card .ks-btn--ghost,.ks-card .form-control{color:var(--ks-ink)}
+.ks-card a,.ks-shell .card a,.ks-shell .alert a,.ks-shell .tz-card a,.ks-shell .modal a{color:var(--ks)}
+.ks-card .ks-lead,.ks-card .ks-hint,.ks-card .ks-fieldhint,.ks-card .ks-note,
+.ks-card .ks-or,.ks-card .ks-optsub,.ks-card .ks-news p{color:var(--ks-muted)}
+.ks-card .ks-btn--primary,.ks-card .ks-btn--ok{color:var(--ks-on)}
+.ks-shell .l-alert-danger{color:#991b1b}
+.ks-shell .l-alert-success{color:#166534}
+.ks-shell .l-alert-info{color:#1e40af}
 
 /* ── Wysoki kontrast ───────────────────────────────────────────────────── */
 html[data-theme="hc"]{--ks:#000;--ks-dark:#000;--ks-on:#fff;--ks-ink:#000;--ks-line:#000;--ks-muted:#000}
@@ -340,7 +353,10 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
   <div class="ks-toprow">
     <nav class="ks-tabs" aria-label="Logowanie lub rejestracja">
       <a class="ks-tab" href="<?= APP_URL ?>/auth/login.php"    <?= $tab === 'login'    ? 'aria-current="page"' : '' ?>>Zaloguj</a>
+      <?php /* Zakładka znika, gdy administrator zamknął rejestrację (brak PIN-u lub wyłączona) */ ?>
+      <?php if (register_is_open() || $tab === 'register'): ?>
       <a class="ks-tab" href="<?= APP_URL ?>/user/register.php" <?= $tab === 'register' ? 'aria-current="page"' : '' ?>>Rejestracja</a>
+      <?php endif; ?>
     </nav>
   </div>
   <?php endif; ?>

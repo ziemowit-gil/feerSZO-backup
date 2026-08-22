@@ -405,7 +405,12 @@ body { background: #f8fafc; }
 .oc-sub { padding: 0 0 2px 0; }
 .oc-sub .oc-link { padding-left: 2.3rem; }
 </style>
-<?php require_once __DIR__ . '/app_bg.php'; app_bg_css(); ?>
+<?php
+require_once __DIR__ . '/app_bg.php';
+/* EZD ma gęste tabele i podglądy dokumentów — tam geometria ledwie zaznaczona */
+$__bg_subtle = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ezd/') || !empty($APP_BG_SUBTLE);
+app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'normal');
+?>
 </head>
 <body>
 <?= function_exists('ctx_banner_html') ? ctx_banner_html() : '' ?>

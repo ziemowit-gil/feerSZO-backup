@@ -91,6 +91,53 @@ const BRUTE_LOCK_SEC     = 900;    // czas blokady (15 min)
  * Sprawdza czy dany email lub IP jest zablokowany.
  * Zwraca null (OK) lub liczbę sekund pozostałych do odblokowania.
  */
+// ── Kod rejestracji (PIN od administratora) ──────────────────────────────────
+// Samodzielna rejestracja (/user/register.php) wymaga 6-cyfrowego PIN-u, który
+// administrator ustawia w „Metody logowania". Bez PIN-u rejestracja jest
+// zamknięta — nikt postronny nie założy konta, nawet znając dane z umowy.
+
+/** Zwraca ustawiony PIN rejestracji ('' = brak). */
+function register_pin_get(): string {
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", ['register_pin']);
+        return trim((string)($r['value'] ?? ''));
+    } catch (\Throwable $e) { return ''; }
+}
+
+/** Zapisuje PIN rejestracji ('' kasuje = zamyka rejestrację). */
+function register_pin_set(string $pin): void {
+    $pin = preg_replace('/\D/', '', $pin) ?? '';
+    db()->prepare("INSERT INTO settings (key_, value) VALUES ('register_pin', ?)
+                   ON CONFLICT(key_) DO UPDATE SET value=excluded.value")->execute([$pin]);
+}
+
+/** Losuje nowy 6-cyfrowy PIN i zapisuje go. Zwraca wylosowaną wartość. */
+function register_pin_generate(): string {
+    $pin = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    register_pin_set($pin);
+    return $pin;
+}
+
+/** Czy administrator w ogóle dopuszcza samodzielną rejestrację. */
+function register_enabled(): bool {
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", ['register_enabled']);
+        return $r === null ? true : (bool)$r['value'];
+    } catch (\Throwable $e) { return true; }
+}
+
+/** Rejestracja działa tylko, gdy jest włączona I ma ustawiony 6-cyfrowy PIN. */
+function register_is_open(): bool {
+    return register_enabled() && preg_match('/^\d{6}$/', register_pin_get()) === 1;
+}
+
+/** Porównanie PIN-u odporne na pomiar czasu. */
+function register_pin_check(string $input): bool {
+    $pin = register_pin_get();
+    if ($pin === '') return false;
+    return hash_equals($pin, trim(preg_replace('/\D/', '', $input) ?? ''));
+}
+
 function brute_check(string $email): ?int {
     _auth_security_init();
     $ip = _auth_ip();

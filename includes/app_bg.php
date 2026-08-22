@@ -8,8 +8,9 @@
  * Wywoływać w <head> PO własnym bloku <style> powłoki — reguła body musi wygrać.
  *
  *   require_once __DIR__ . '/app_bg.php';
- *   app_bg_css();                       // domyślna kanwa
- *   app_bg_css('var(--pvl-body)');      // gdy powłoka trzyma kolor w zmiennej
+ *   app_bg_css();                              // domyślna kanwa
+ *   app_bg_css('var(--pvl-body)');             // gdy powłoka trzyma kolor w zmiennej
+ *   app_bg_css('#EFF1F5', 'subtle');           // moduły z gęstą treścią (CRM, EZD)
  */
 
 /** Zwraca data-URI kafla z geometrią (te same kształty co ekran logowania). */
@@ -28,28 +29,34 @@ function app_bg_tile(string $fill, string $opacity): string {
 /**
  * Emituje <style> z tłem strony.
  *
- * @param string $color Kolor kanwy (literał lub var(--…)). Domyślnie kanwa
- *                      przyciemniona względem dotychczasowej (#F0F2F5/#f8fafc).
+ * @param string $color     Kolor kanwy (literał lub var(--…)). Domyślnie kanwa
+ *                          przyciemniona względem dotychczasowej (#F0F2F5/#f8fafc).
+ * @param string $intensity 'normal' — widoczna geometria (SZO, panel);
+ *                          'subtle' — ledwie zaznaczona, dla modułów z gęstą
+ *                          treścią i tabelami (CRM, EZD), gdzie wzór rozprasza.
  */
-function app_bg_css(string $color = '#E8EBF0'): void {
-    $light = app_bg_tile('#000', '.045');
-    $dark  = app_bg_tile('#fff', '.035');
+function app_bg_css(string $color = '#E8EBF0', string $intensity = 'normal'): void {
+    $subtle = ($intensity === 'subtle');
+    $light  = app_bg_tile('#000', $subtle ? '.016' : '.045');
+    $dark   = app_bg_tile('#fff', $subtle ? '.014' : '.035');
+    $strp_l = $subtle ? '.010' : '.028';
+    $strp_d = $subtle ? '.008' : '.02';
     ?>
 <style>
 /* Tło aplikacji — geometria jak na ekranie logowania, wyciszona */
 body{
   background-color:<?= $color ?>;
-  background-image:<?= $light ?>,repeating-linear-gradient(135deg,rgba(0,0,0,.028) 0 3px,transparent 3px 26px);
+  background-image:<?= $light ?>,repeating-linear-gradient(135deg,rgba(0,0,0,<?= $strp_l ?>) 0 3px,transparent 3px 26px);
   background-size:420px 420px,auto;
   background-attachment:fixed;
   background-position:center top;
 }
 :root[data-theme="dark"] body{
-  background-image:<?= $dark ?>,repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 3px,transparent 3px 26px);
+  background-image:<?= $dark ?>,repeating-linear-gradient(135deg,rgba(255,255,255,<?= $strp_d ?>) 0 3px,transparent 3px 26px);
 }
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]):not([data-theme="hc"]) body{
-    background-image:<?= $dark ?>,repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 3px,transparent 3px 26px);
+    background-image:<?= $dark ?>,repeating-linear-gradient(135deg,rgba(255,255,255,<?= $strp_d ?>) 0 3px,transparent 3px 26px);
   }
 }
 /* Wysoki kontrast — czysta biel, żadnej tekstury */
