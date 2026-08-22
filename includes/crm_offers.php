@@ -587,6 +587,7 @@ function crm_offer_get(int $id): ?array {
     if (!$o) return null;
     $o['owner_name']  = crm_offer_user_name((int)($o['owner_id'] ?? 0));
     $o['author_name'] = crm_offer_user_name((int)($o['created_by'] ?? 0));
+    $o += crm_offer_user_contact((int)($o['owner_id'] ?? 0));
     return $o;
 }
 
@@ -612,6 +613,22 @@ function crm_offer_user_name(int $uid): string {
         if ($n === '') $n = (string)($u['email'] ?? '');
     }
     return $cache[$uid] = $n;
+}
+
+/** E-mail i telefon opiekuna — na dokumencie klient ma wiedzieć, do kogo dzwonić. */
+function crm_offer_user_contact(int $uid): array {
+    static $cache = [];
+    if (!$uid) return ['owner_email' => '', 'owner_phone' => ''];
+    if (isset($cache[$uid])) return $cache[$uid];
+    $out = ['owner_email' => '', 'owner_phone' => ''];
+    try {
+        $u = db_one("SELECT * FROM users WHERE id=?", [$uid]);
+        if ($u) {
+            $out['owner_email'] = (string)($u['email'] ?? '');
+            $out['owner_phone'] = (string)($u['phone_number'] ?? '');
+        }
+    } catch (\Throwable $e) {}
+    return $cache[$uid] = $out;
 }
 
 function crm_offer_variants_list(int $offer_id): array {
@@ -1452,9 +1469,8 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     $o .= '</td><td style="vertical-align:top">';
     $o .= '<div class="of-label">Osoba prowadząca</div>';
     $o .= '<div class="of-small"><strong>' . h($full['owner_name'] ?: $full['author_name']) . '</strong></div>';
-    if ($org['email']) $o .= '<div class="of-small">' . h($org['email']) . '</div>';
-    $o .= '<div class="of-label" style="margin-top:8px">Termin płatności</div>';
-    $o .= '<div class="of-small">' . (int)$full['payment_terms_days'] . ' dni od doręczenia faktury / rachunku</div>';
+    if (!empty($full['owner_email'])) $o .= '<div class="of-small">' . h($full['owner_email']) . '</div>';
+    if (!empty($full['owner_phone'])) $o .= '<div class="of-small">' . h($full['owner_phone']) . '</div>';
     $o .= '</td></tr></table>';
 
     $o .= '<h1 class="of-title">' . h($full['title']) . '</h1>';
@@ -1515,14 +1531,14 @@ function crm_offer_document_html(array $full, array $opt = []): string {
                 . '<td colspan="2" class="of-num of-small">' . h(number_format((float)$v['total_vat'], 2, ',', ' ')) . ' ' . h($cur) . '</td></tr>';
         }
         $o .= '</tfoot></table>';
-        if ($vat_notes) {
+        if ($vat_notes && $internal) {
             $o .= '<div class="of-small of-vatnote">Podstawa zwolnienia z VAT: '
                 . h(implode('; ', array_keys($vat_notes))) . '.</div>';
         }
         $o .= '</div>';
     }
 
-    if ((float)($full['discount_pct'] ?? 0) > 0) {
+    if ($internal && (float)($full['discount_pct'] ?? 0) > 0) {
         $o .= '<div class="of-note"><strong>Rabat ogólny:</strong> '
             . h(rtrim(rtrim(number_format((float)$full['discount_pct'], 2, ',', ' '), '0'), ',')) . '%'
             . (!empty($full['discount_reason']) ? ' — ' . h($full['discount_reason']) : '')
@@ -1534,7 +1550,7 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     foreach (($full['variants'] ?? []) as $v) {
         foreach (($v['items'] ?? []) as $it) $vat_codes[$it['vat_rate']] = true;
     }
-    if (isset($vat_codes['zw']) || isset($vat_codes['np'])) {
+    if ($internal && (isset($vat_codes['zw']) || isset($vat_codes['np']))) {
         $o .= '<div class="of-note of-note--vat">';
         if (isset($vat_codes['zw'])) $o .= 'Część pozycji objęta zwolnieniem z VAT (art. 43 ustawy o podatku od towarów i usług). ';
         if (isset($vat_codes['np'])) $o .= 'Część pozycji nie podlega opodatkowaniu VAT. ';
@@ -1548,7 +1564,7 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     if (!empty($full['terms'])) {
         $o .= '<div class="of-sect"><div class="of-label">Warunki oferty</div><div>' . nl2br(h($full['terms'])) . '</div></div>';
     }
-    if (!empty($full['statutory_note'])) {
+    if ($internal && !empty($full['statutory_note'])) {
         $o .= '<div class="of-sect"><div class="of-label">Zgodność z celami statutowymi</div><div>'
             . nl2br(h($full['statutory_note'])) . '</div></div>';
     }
@@ -1560,6 +1576,29 @@ function crm_offer_document_html(array $full, array $opt = []): string {
         $o .= '<div class="of-sect of-int"><div class="of-label">Notatki wewnętrzne (nie dla klienta)</div><div>'
             . nl2br(h($full['notes_internal'])) . '</div></div>';
     }
+
+    // Zamknięcie dokumentu — jedyne, co odbiorca musi wiedzieć po przeczytaniu cen
+    $o .= '<div class="of-close">';
+    $o .= '<div class="of-label">Jak przyjąć ofertę</div>';
+    $steps = [];
+    $steps[] = count($full['variants'] ?? []) > 1
+        ? 'Wybierają Państwo wariant i potwierdzają przyjęcie oferty.'
+        : 'Potwierdzają Państwo przyjęcie oferty.';
+    $steps[] = 'Po przyjęciu oferty wystawiamy fakturę VAT z terminem płatności '
+             . (int)$full['payment_terms_days'] . ' dni.';
+    $steps[] = 'Realizację uzgadnia opiekun oferty — prosimy o kontakt w razie pytań lub zmian w zakresie.';
+    $o .= '<div>' . implode(' ', array_map('h', $steps)) . '</div>';
+
+    $owner_line = array_filter([
+        (string)($full['owner_name'] ?: $full['author_name']),
+        (string)($full['owner_email'] ?? ''),
+        (string)($full['owner_phone'] ?? ''),
+    ]);
+    if ($owner_line) {
+        $o .= '<div class="of-owner"><span class="of-label" style="margin:0">Opiekun oferty</span> '
+            . h(implode(' · ', $owner_line)) . '</div>';
+    }
+    $o .= '</div>';
 
     if (crm_offer_requires_confirmation($full)) {
         $conf = crm_offer_confirmation((int)$full['id']);
@@ -1577,7 +1616,7 @@ function crm_offer_document_html(array $full, array $opt = []): string {
         $o .= '</div>';
     }
 
-    $accounts = crm_offer_bank_accounts((string)$full['funding_source'], $cur);
+    $accounts = $internal ? crm_offer_bank_accounts((string)$full['funding_source'], $cur) : [];
     if ($accounts) {
         // Pierwszy rachunek = właściwy dla tego rodzaju działalności (patrz
         // crm_offer_bank_accounts); pozostałe podajemy tylko dla walut innych niż oferta.
@@ -1725,6 +1764,8 @@ function crm_offer_document_css(bool $for_pdf = false): string {
 .of-pay { margin:14px 0; }
 .of-acct { margin-bottom:2px; }
 .of-nrb { font-family:monospace; font-weight:700; font-size:10.5pt; color:{$dk}; letter-spacing:.02em; }
+.of-close { margin:20px 0 0; border-top:1px solid #E3E6EA; padding-top:10px; font-size:9.5pt; color:#374151; }
+.of-owner { margin-top:5px; font-size:9.5pt; color:#1A1D21; }
 .of-footer { margin-top:22px; border-top:1px solid #E3E6EA; padding-top:7px; font-size:8pt; color:#8A9099; }
 CSS;
 }
