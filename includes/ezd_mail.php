@@ -40,6 +40,20 @@ require_once __DIR__ . '/mail_queue.php';
     // wiadomości ze sprawą i przy zmianie statusu — SQLite zwracał wtedy
     // „no such column: updated_at" i cała operacja przerywała się wyjątkiem.
     $exec("ALTER TABLE crm_communications ADD COLUMN updated_at DATETIME");
+    // Dziennik przypisań i przekazań korespondencji. Bez niego nie da się
+    // odtworzyć, kto komu przekazał wiadomość i kiedy — a przy korespondencji
+    // wpływającej to podstawowa informacja rozliczalna.
+    $exec("CREATE TABLE IF NOT EXISTS poczta_assign_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        comm_id     INTEGER NOT NULL REFERENCES crm_communications(id) ON DELETE CASCADE,
+        from_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        to_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        note        TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $exec("CREATE INDEX IF NOT EXISTS idx_poczta_assign_comm ON poczta_assign_log(comm_id, id)");
+
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_ezd_sprawa  ON crm_communications(ezd_sprawa_id)");
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_inbox       ON crm_communications(inbox_status, is_read, sent_at)");
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_thread      ON crm_communications(thread_key)");
@@ -494,11 +508,68 @@ class EzdMailService
         }
     }
 
-    public function assignToUser(int $comm_id, ?int $user_id): void
+    /**
+     * Przypisuje wiadomość do użytkownika (albo zdejmuje przypisanie: $user_id = null).
+     *
+     * Każda zmiana idzie do poczta_assign_log — to jedyne miejsce, przez które
+     * przechodzą wszystkie przypisania, więc dziennik jest kompletny niezależnie
+     * od tego, skąd akcja przyszła (Inbox EZD, karta pisma, Skrzynka CRM).
+     * Przekazanie „dalej" to zwykłe przypisanie z podanym powodem — z punktu
+     * widzenia akt liczy się para (od kogo, do kogo) i uzasadnienie.
+     *
+     * @param string   $note Powód / dyspozycja dla odbiorcy.
+     * @param int|null $by   Kto przekazuje; domyślnie zalogowany użytkownik.
+     */
+    public function assignToUser(int $comm_id, ?int $user_id, string $note = '', ?int $by = null): void
     {
+        $prev = db_one("SELECT assigned_to FROM crm_communications WHERE id=?", [$comm_id]);
+        $from = $prev ? ((int)($prev['assigned_to'] ?? 0) ?: null) : null;
+        $to   = $user_id ?: null;
+
         $this->pdo->prepare(
             "UPDATE crm_communications SET assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE id=?"
-        )->execute([$user_id ?: null, $comm_id]);
+        )->execute([$to, $comm_id]);
+
+        // Brak zmiany adresata bez treści dyspozycji nie jest zdarzeniem —
+        // nie zaśmiecamy dziennika powtórzeniami tego samego przypisania.
+        if ($from === $to && trim($note) === '') return;
+
+        if ($by === null && function_exists('current_user')) {
+            $by = (int)(current_user()['id'] ?? 0) ?: null;
+        }
+
+        try {
+            $this->pdo->prepare(
+                "INSERT INTO poczta_assign_log (comm_id, from_user_id, to_user_id, by_user_id, note, created_at)
+                 VALUES (?,?,?,?,?,?)"
+            )->execute([$comm_id, $from, $to, $by, trim($note), date('Y-m-d H:i:s')]);
+        } catch (\Throwable $e) {
+            // Dziennik nie może zablokować samego przekazania.
+        }
+    }
+
+    /**
+     * Historia przypisań i przekazań wiadomości — najstarsze pierwsze.
+     *
+     * @return list<array{id:int,note:string,created_at:string,from_name:?string,to_name:?string,by_name:?string}>
+     */
+    public function assignHistory(int $comm_id): array
+    {
+        try {
+            return db_all(
+                "SELECT l.id, l.note, l.created_at,
+                        uf.name AS from_name, ut.name AS to_name, ub.name AS by_name
+                   FROM poczta_assign_log l
+                   LEFT JOIN users uf ON uf.id = l.from_user_id
+                   LEFT JOIN users ut ON ut.id = l.to_user_id
+                   LEFT JOIN users ub ON ub.id = l.by_user_id
+                  WHERE l.comm_id = ?
+               ORDER BY l.id",
+                [$comm_id]
+            );
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     public function assignToSprawa(int $comm_id, int $sprawa_id): ?int

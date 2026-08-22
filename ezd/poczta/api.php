@@ -144,12 +144,32 @@ switch ($action) {
         }
         break;
 
+    // Przypisanie i przekazanie „dalej" to ta sama operacja — różni je tylko to,
+    // czy wiadomość miała już adresata i czy podano dyspozycję. Dziennik zapisuje
+    // EzdMailService::assignToUser() (poczta_assign_log).
     case 'assign_user':
+    case 'forward_user':
         if (!$comm) break;
         $user_id = (int)($data['user_id'] ?? 0) ?: null;
-        $svc->assignToUser($comm_id, $user_id);
+        $note    = trim((string)($data['note'] ?? ''));
+        $prev_to = (int)($comm['assigned_to'] ?? 0);
+
+        if ($action === 'forward_user' && !$user_id) {
+            echo json_encode(['ok' => false, 'error' => 'Wskaż osobę, której przekazujesz wiadomość.']); break;
+        }
+        if ($user_id && $user_id === $prev_to && $note === '') {
+            echo json_encode(['ok' => false, 'error' => 'Wiadomość jest już przypisana do tej osoby.']); break;
+        }
+
+        $svc->assignToUser($comm_id, $user_id, $note);
         $uname = $user_id ? (db_one("SELECT name FROM users WHERE id=?", [$user_id])['name'] ?? '') : '(odpisano)';
-        echo json_encode(['ok' => true, 'message' => "Przypisano do: {$uname}."]);
+        echo json_encode([
+            'ok'      => true,
+            'message' => $prev_to && $user_id
+                ? "Przekazano dalej do: {$uname}."
+                : "Przypisano do: {$uname}.",
+            'history' => $svc->assignHistory($comm_id),
+        ]);
         break;
 
     case 'convert_to_sprawa':
