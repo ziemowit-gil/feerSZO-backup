@@ -206,19 +206,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_e
         'okres'            => trim($_POST['rach_okres'] ?? ''),
         'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
         'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
+        'test_mode'        => !empty($_POST['rach_test']) ? 1 : 0,
     ];
     try {
         if (($_FILES['rach_plik']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $_data = array_merge($_data, rachunek_store_file($_FILES['rach_plik']));
         }
         $_rid  = create_rachunek($_data, $_uid);
+        $_rrow = get_rachunek($_rid);
         $_opis = 'Dodano rachunek #' . $_rid
-               . ($_data['numer'] ? ' nr ' . $_data['numer'] : '')
+               . (!empty($_data['test_mode']) ? ' [TESTOWY]' : '')
+               . (!empty($_rrow['numer']) ? ' nr ' . $_rrow['numer'] : '')
                . ($_data['okres'] ? ' za ' . $_data['okres'] : '')
                . (empty($_data['plik']) ? ' (bez pliku)' : ' z plikiem ' . $_data['plik_nazwa']);
         log_contract_action($TYPE, $id, $_uid, 'rachunek_add', $_opis);
 
-        $_msgs = ['Rachunek dodany do rejestru.'];
+        $_msgs = [!empty($_data['test_mode'])
+            ? 'Rachunek TESTOWY dodany — nie trafi do EOD Dokumentów Księgowych.'
+            : 'Rachunek dodany do rejestru' . (!empty($_rrow['numer']) ? ' pod numerem ' . $_rrow['numer'] : '') . '.'];
         if (!empty($_POST['rach_notify'])) {
             $_res = rachunek_notify_contractor($_rid, $_uid);
             $_msgs[] = $_res['ok']
@@ -1007,6 +1012,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <td class="text-muted">#<?= $_rid ?></td>
       <td id="rach-status-<?= $_rid ?>"><?= rachunek_status_badge($rr['status']) ?></td>
       <td>
+        <?php if (rachunek_is_test($rr)): ?>
+        <span class="badge bg-warning text-dark" title="Rachunek testowy — poza obiegiem księgowym">TEST</span>
+        <?php endif; ?>
         <?= $rr['numer'] ? '<strong>' . h($rr['numer']) . '</strong>' : '<span class="text-muted">bez numeru</span>' ?>
         <?php if (!empty($rr['okres'])): ?><br><span class="small text-muted"><?= h($rr['okres']) ?></span><?php endif; ?>
       </td>
@@ -1076,6 +1084,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         <?php if (!empty($rr['kdok_doc_id'])): ?>
         <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"
            title="Dokument w EOD Dok. Księgowych"><code><?= h($rr['kdok_number'] ?: '#' . (int)$rr['kdok_doc_id']) ?></code></a>
+        <?php elseif (rachunek_is_test($rr)): ?>
+        <span class="text-muted" title="Rachunek testowy nie trafia do obiegu księgowego">poza obiegiem</span>
         <?php else: ?>
         <span class="text-muted">—</span>
         <?php endif; ?>
@@ -1111,9 +1121,18 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php endforeach; ?>
           </ul>
         </div>
-        <?php if (empty($rr['kdok_doc_id']) && !empty($rr['plik'])): ?>
+        <?php if (empty($rr['kdok_doc_id']) && !empty($rr['plik']) && !rachunek_is_test($rr)): ?>
         <button type="button" class="btn btn-sm btn-outline-success" onclick="rachToKdok(<?= $_rid ?>, this)"
                 title="Przekaż do EOD Dokumentów Księgowych"><i class="bi bi-box-arrow-in-right"></i></button>
+        <?php endif; ?>
+        <?php if (empty($rr['kdok_doc_id'])): ?>
+        <button type="button" class="btn btn-sm <?= rachunek_is_test($rr) ? 'btn-warning text-dark' : 'btn-outline-warning' ?>"
+                onclick="rachTestToggle(<?= $_rid ?>, <?= rachunek_is_test($rr) ? 0 : 1 ?>, this)"
+                title="<?= rachunek_is_test($rr)
+                    ? 'Zdejmij oznaczenie testowe (rachunek dostanie numer i będzie mógł wejść do EOD)'
+                    : 'Oznacz jako rachunek testowy (poza obiegiem księgowym)' ?>">
+          <i class="bi bi-flask"></i>
+        </button>
         <?php endif; ?>
         <?php endif; ?>
         <?php $_cc = (int)($_rach_com_count[$_rid] ?? 0); ?>
@@ -1771,7 +1790,9 @@ window.CVTabsConfig = {
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label small fw-semibold" for="rachNumer">Numer rachunku</label>
-            <input id="rachNumer" name="rach_numer" class="form-control" placeholder="np. 1/2026" maxlength="60">
+            <input id="rachNumer" name="rach_numer" class="form-control"
+                   placeholder="<?= h(rachunek_next_number()) ?>" maxlength="60">
+            <div class="form-text">Zostaw puste — system nada kolejny numer. Rachunek testowy numeru nie dostaje.</div>
           </div>
           <div class="col-md-4">
             <label class="form-label small fw-semibold" for="rachData">Data wystawienia</label>
@@ -1816,6 +1837,16 @@ window.CVTabsConfig = {
                 Poinformuj opiekuna umowy i jej autora <span class="text-muted">(powiadomienie w systemie + e-mail)</span>
               </label>
             </div>
+            <hr class="my-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rachTest" name="rach_test" value="1">
+              <label class="form-check-label" for="rachTest">
+                <strong>Rachunek testowy</strong>
+                <span class="text-muted">— do przećwiczenia obiegu. Nie trafia do EOD Dokumentów Księgowych,
+                nie dostaje numeru i nie wycisza banera „Wyślij rachunek”. W temacie maila pojawi się
+                <code>[TEST]</code>.</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -1853,6 +1884,16 @@ window.CVTabsConfig = {
   window.rachStatus = function (rid, status) {
     post('rachunek_status', {rachunek_id: rid, status: status}, null, function () {
       setTimeout(function () { location.reload(); }, 500);
+    });
+  };
+
+  window.rachTestToggle = function (rid, on, btn) {
+    var q = on
+      ? 'Oznaczyć rachunek jako TESTOWY? Nie trafi do EOD Dokumentów Księgowych.'
+      : 'Zdjąć oznaczenie testowe? Rachunek dostanie kolejny numer RACH/… i będzie mógł wejść do obiegu księgowego.';
+    if (!confirm(q)) return;
+    post('rachunek_test_toggle', {rachunek_id: rid, test: on ? 1 : 0}, btn, function () {
+      setTimeout(function () { location.reload(); }, 600);
     });
   };
 

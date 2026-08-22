@@ -9,8 +9,10 @@
  *
  * Uruchom:
  *   php seed_test_zlecenie.php              — konto + umowa (baner „wyślij rachunek")
- *   php seed_test_zlecenie.php --rachunek   — dodatkowo rachunek + link z tokenem
- *   php seed_test_zlecenie.php --reset      — usuwa rachunki testowej umowy i zaczyna od zera
+ *   php seed_test_zlecenie.php --rachunek       — dodatkowo rachunek w trybie TESTOWYM
+ *                                                 (bez numeru, poza obiegiem księgowym)
+ *   php seed_test_zlecenie.php --rachunek-real  — rachunek zwykły: numer RACH/{nr}/{MM}/{RRRR}
+ *   php seed_test_zlecenie.php --reset          — usuwa rachunki testowej umowy i zaczyna od zera
  *
  * Bezpieczne do wielokrotnego uruchamiania — aktualizuje istniejące wpisy
  * (dopasowanie po e-mailu konta i numerze umowy) zamiast tworzyć duplikaty.
@@ -31,7 +33,8 @@ require_once __DIR__ . '/includes/zlecenie_schema.php';
 require_once __DIR__ . '/includes/zlecenie_rachunki.php';
 
 $opts        = array_slice($argv ?? [], 1);
-$with_rach   = in_array('--rachunek', $opts, true);
+$rach_real   = in_array('--rachunek-real', $opts, true);
+$with_rach   = $rach_real || in_array('--rachunek', $opts, true);
 $do_reset    = in_array('--reset',    $opts, true);
 
 // ── Stałe testowe ─────────────────────────────────────────────────────────────
@@ -134,14 +137,18 @@ $rach_link = null;
 if ($with_rach) {
     $rid = create_rachunek([
         'contract_id'      => $contract_id,
-        'numer'            => date('n') . '/' . date('Y'),
         'data_wystawienia' => $today,
         'okres'            => rachunek_month_label(),
         'kwota_brutto'     => 3200.00,
-        'uwagi'            => 'Rachunek testowy (seed). Plik nie jest dołączony — wgraj własny, aby przetestować pobieranie.',
+        'test_mode'        => $rach_real ? 0 : 1,
+        'uwagi'            => 'Rachunek z seeda. Plik nie jest dołączony — wgraj własny, aby przetestować pobieranie.',
     ], $creator_id ?: null);
     $rach_link = rachunek_public_url($rid);
-    echo "✓ Dodano rachunek testowy #{$rid} za " . rachunek_month_label() . "\n";
+    $rach_row  = get_rachunek($rid);
+    echo $rach_real
+        ? "✓ Dodano rachunek #{$rid} nr {$rach_row['numer']} za " . rachunek_month_label() . "\n"
+        : "✓ Dodano rachunek TESTOWY #{$rid} za " . rachunek_month_label()
+          . " (bez numeru, poza obiegiem księgowym)\n";
 }
 
 // ── Podsumowanie ──────────────────────────────────────────────────────────────
@@ -159,6 +166,10 @@ echo " Umowa (pracownik):{$base}/contracts/zlecenie/view.php?id={$contract_id}&t
 if ($rach_link) {
     echo " Rachunek (link publiczny, bez logowania):\n";
     echo "   {$rach_link}\n";
+    if (!$rach_real) {
+        echo "\n Rachunek jest TESTOWY: nie trafi do EOD, nie ma numeru i NIE wycisza\n";
+        echo " banera „Wyślij rachunek”. Zwykły rachunek: php seed_test_zlecenie.php --rachunek-real\n";
+    }
 } else {
     echo " Rachunku brak — w panelu i na umowie zobaczysz baner „Wyślij rachunek”.\n";
     echo " Aby dodać rachunek testowy: php seed_test_zlecenie.php --rachunek\n";

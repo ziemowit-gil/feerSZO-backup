@@ -406,6 +406,26 @@ switch ($action) {
         ajax_ok(['status' => $status], 'Status: ' . rachunek_status_label($status));
     }
 
+    // ── rachunek_test_toggle — włącz/wyłącz tryb testowy rachunku ──────────────
+    case 'rachunek_test_toggle': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid  = (int)($_POST['rachunek_id'] ?? 0);
+        $test = !empty($_POST['test']);
+        if (!$rid) ajax_err('Brak id rachunku');
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+
+        $res = rachunek_set_test_mode($rid, $test);
+        if (empty($res['ok'])) ajax_err($res['msg']);
+
+        log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_test_mode',
+            'Rachunek #' . $rid . ($test ? ' oznaczony jako testowy' : ' — zdjęto oznaczenie testowe')
+            . (!empty($res['numer']) ? ', numer ' . $res['numer'] : ''));
+
+        ajax_ok(['test' => $test ? 1 : 0, 'numer' => $res['numer'] ?? ''], $res['msg']);
+    }
+
     // ── rachunek_kdok — przekaż rachunek do EOD Dokumentów Księgowych ───────────
     case 'rachunek_kdok': {
         if (!can_edit()) ajax_err('Brak uprawnień', 403);

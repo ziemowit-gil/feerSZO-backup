@@ -192,6 +192,13 @@ a{color:#1d4ed8}
       <?php if ($org_logo_url): ?><img src="<?= h($org_logo_url) ?>" alt=""><?php endif; ?>
     </div>
     <div class="body">
+      <?php if (rachunek_is_test($rach)): ?>
+      <div class="warn" style="margin-bottom:18px">
+        <strong>Dokument testowy.</strong> Ten rachunek został wystawiony w trybie testowym —
+        służy wyłącznie sprawdzeniu, czy obieg działa. Nie wywołuje skutków księgowych
+        i nie wymaga od Ciebie żadnych działań.
+      </div>
+      <?php endif; ?>
       <h1>Rachunek do umowy zlecenie</h1>
       <p class="lead">
         Dzień dobry<?= $imie_nazw ? ', ' . h($imie_nazw) : '' ?>. Poniżej znajdziesz rachunek

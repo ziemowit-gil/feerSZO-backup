@@ -28,6 +28,7 @@ require_once __DIR__ . '/db.php';
             contract_type    TEXT NOT NULL DEFAULT 'zlecenie',
             contract_id      INTEGER NOT NULL,
             status           TEXT NOT NULL DEFAULT 'nowy',
+            test_mode        INTEGER DEFAULT 0,
             numer            TEXT,
             data_wystawienia TEXT,
             okres            TEXT,
@@ -82,6 +83,7 @@ require_once __DIR__ . '/db.php';
             'accepted_by'          => 'INTEGER',
             'accepted_at'          => 'DATETIME',
             'paid_at'              => 'DATETIME',
+            'test_mode'            => 'INTEGER',
             'plik_podpisany'       => 'TEXT',
             'plik_podpisany_nazwa' => 'TEXT',
             'plik_podpisany_size'  => 'INTEGER',
@@ -119,6 +121,77 @@ function rachunek_status_badge(string $status): string {
 
 function rachunek_status_label(string $status): string {
     return ZLEC_RACHUNEK_STATUSES[$status]['label'] ?? $status;
+}
+
+// ── Tryb testowy i numeracja ───────────────────────────────────────────────────
+
+/**
+ * Rachunek testowy — służy do przećwiczenia obiegu (mail, link, podpis,
+ * komentarze) bez skutków księgowych. Nie trafia do EOD Dokumentów Księgowych,
+ * nie dostaje numeru RACH/… i nie wycisza banera „Wyślij rachunek”.
+ */
+function rachunek_is_test(array $rach): bool {
+    return !empty($rach['test_mode']);
+}
+
+/**
+ * Kolejny numer rachunku w masce RACH/{nr}/{MM}/{RRRR}, np. RACH/3/08/2026.
+ * Licznik startuje od 1 w każdym miesiącu; brany jest najwyższy dotąd nadany
+ * numer w tym miesiącu, żeby usunięcie rekordu nie powodowało kolizji.
+ * Numery dostają wyłącznie rachunki nietestowe.
+ */
+function rachunek_next_number(?string $date = null): string {
+    $t  = $date ? strtotime($date) : false;
+    $t  = $t ?: time();
+    $mm = date('m', $t);
+    $yy = date('Y', $t);
+    $next = 1;
+    try {
+        $rows = db_all(
+            "SELECT numer FROM zlecenie_rachunki WHERE numer LIKE ?",
+            ['RACH/%/' . $mm . '/' . $yy]
+        );
+        foreach ($rows as $r) {
+            if (preg_match('#^RACH/(\d+)/' . $mm . '/' . $yy . '$#', (string)$r['numer'], $m)) {
+                $next = max($next, (int)$m[1] + 1);
+            }
+        }
+    } catch (\Throwable $e) {}
+    return 'RACH/' . $next . '/' . $mm . '/' . $yy;
+}
+
+/**
+ * Nadaje numer rachunkowi nietestowemu, który go jeszcze nie ma.
+ * Wywoływane przy tworzeniu i przy zdjęciu oznaczenia „testowy”.
+ *
+ * @return string Nadany (lub istniejący) numer; '' dla rachunku testowego.
+ */
+function rachunek_assign_number(int $rid): string {
+    $r = get_rachunek($rid);
+    if (!$r || rachunek_is_test($r)) return '';
+    if (trim((string)($r['numer'] ?? '')) !== '') return (string)$r['numer'];
+    $numer = rachunek_next_number($r['data_wystawienia'] ?? ($r['created_at'] ?? null));
+    update_rachunek($rid, ['numer' => $numer]);
+    return $numer;
+}
+
+/** Przełącza tryb testowy; przy wyłączeniu nadaje numer, jeśli go brakuje. */
+function rachunek_set_test_mode(int $rid, bool $test): array {
+    $r = get_rachunek($rid);
+    if (!$r) return ['ok' => false, 'msg' => 'Nie znaleziono rachunku.'];
+    if (!$test && !empty($r['kdok_doc_id'])) {
+        // Dokument jest już w obiegu księgowym — nie da się go „odtestować” wstecz.
+        return ['ok' => false, 'msg' => 'Rachunek jest już w obiegu księgowym.'];
+    }
+    if ($test && !empty($r['kdok_doc_id'])) {
+        return ['ok' => false, 'msg' => 'Nie można oznaczyć jako testowy — rachunek trafił już do EOD ('
+              . ($r['kdok_number'] ?: '#' . (int)$r['kdok_doc_id']) . ').'];
+    }
+    update_rachunek($rid, ['test_mode' => $test ? 1 : 0]);
+    $numer = $test ? '' : rachunek_assign_number($rid);
+    return ['ok' => true, 'test' => $test, 'numer' => $numer,
+            'msg' => $test ? 'Oznaczono jako rachunek testowy.'
+                           : 'Zdjęto oznaczenie testowe.' . ($numer ? ' Numer: ' . $numer : '')];
 }
 
 // ── Odczyt ─────────────────────────────────────────────────────────────────────
@@ -184,12 +257,20 @@ function get_rachunki_open_count(string $type, int $id): int {
 
 /** Tworzy rekord rachunku. $data: contract_id + numer/data_wystawienia/okres/kwota_brutto/uwagi/plik*. */
 function create_rachunek(array $data, ?int $user_id, string $type = 'zlecenie'): int {
-    $now = date('Y-m-d H:i:s');
-    return db_insert('zlecenie_rachunki', [
+    $now  = date('Y-m-d H:i:s');
+    $test = !empty($data['test_mode']);
+
+    // Rachunek nietestowy bez własnego numeru dostaje numer z maski RACH/{nr}/{MM}/{RRRR}.
+    $numer = trim((string)($data['numer'] ?? ''));
+    if ($numer === '' && !$test) {
+        $numer = rachunek_next_number($data['data_wystawienia'] ?? null);
+    }
+
+    $rid = db_insert('zlecenie_rachunki', [
         'contract_type'    => $type,
         'contract_id'      => (int)($data['contract_id'] ?? 0),
         'status'           => $data['status'] ?? 'nowy',
-        'numer'            => ($data['numer'] ?? '') !== '' ? $data['numer'] : null,
+        'numer'            => $numer !== '' ? $numer : null,
         'data_wystawienia' => ($data['data_wystawienia'] ?? '') !== '' ? $data['data_wystawienia'] : null,
         'okres'            => ($data['okres'] ?? '') !== '' ? $data['okres'] : null,
         'kwota_brutto'     => ($data['kwota_brutto'] ?? '') === '' || $data['kwota_brutto'] === null
@@ -200,11 +281,13 @@ function create_rachunek(array $data, ?int $user_id, string $type = 'zlecenie'):
         'plik_nazwa'       => $data['plik_nazwa']  ?? null,
         'plik_size'        => $data['plik_size']   ?? null,
         'plik_sha256'      => $data['plik_sha256'] ?? null,
+        'test_mode'        => $test ? 1 : 0,
         'download_count'   => 0,
         'created_by'       => $user_id,
         'created_at'       => $now,
         'updated_at'       => $now,
     ]);
+    return $rid;
 }
 
 function update_rachunek(int $rid, array $data): void {
@@ -438,6 +521,8 @@ function rachunek_notify_contractor(int $rid, ?int $actor_id = null): array {
         return ['ok' => false, 'msg' => 'Szablon „Nowy rachunek w systemie” jest wyłączony w Ustawieniach → Szablony e-mail.'];
     }
     $subject   = $tpl['subject'] ?: ('Nowy rachunek w systemie – ' . $org);
+    // Rachunek testowy — odbiorca musi od razu widzieć, że to próba obiegu.
+    if (rachunek_is_test($rach)) $subject = '[TEST] ' . $subject;
     $body_html = $tpl['html'];
     $txt_skan = $dl['skan']     ? ' (do ' . date_pl($dl['skan']) . ')'     : '';
     $txt_oryg = $dl['oryginal'] ? ' (do ' . date_pl($dl['oryginal']) . ')' : '';
@@ -724,10 +809,15 @@ function rachunek_comment_delete(int $comment_id): void {
 /** Statusy umowy, przy których oczekujemy rachunku za bieżący miesiąc. */
 const ZLEC_RACHUNEK_ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'do rozliczenia', 'obowiązująca'];
 
-/** Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie bieżący). */
+/**
+ * Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie bieżący).
+ * Rachunki testowe są POMIJANE — baner „Wyślij rachunek” to przypomnienie
+ * operacyjne i nie może go wyciszyć dokument dodany na próbę.
+ */
 function rachunek_exists_for_month(int $contract_id, ?string $ym = null, string $type = 'zlecenie'): bool {
     $ym = $ym ?: date('Y-m');
     foreach (get_rachunki($type, $contract_id) as $r) {
+        if (rachunek_is_test($r)) continue;
         $d = $r['data_wystawienia'] ?: ($r['created_at'] ?? '');
         if ($d !== '' && substr((string)$d, 0, 7) === $ym) return true;
     }
@@ -768,6 +858,10 @@ function rachunek_month_label(?string $ym = null): string {
 function rachunek_push_to_kdok(int $rid, ?int $user_id): array {
     $rach = get_rachunek($rid);
     if (!$rach)                    return ['ok' => false, 'msg' => 'Nie znaleziono rachunku.'];
+    if (rachunek_is_test($rach)) {
+        return ['ok' => false, 'msg' => 'Rachunek testowy nie trafia do EOD Dokumentów Księgowych. '
+              . 'Zdejmij oznaczenie „testowy”, jeśli dokument ma wejść do obiegu księgowego.'];
+    }
     if (!empty($rach['kdok_doc_id'])) {
         return ['ok' => false, 'msg' => 'Ten rachunek jest już w obiegu jako ' . ($rach['kdok_number'] ?: '#' . (int)$rach['kdok_doc_id']) . '.'];
     }
