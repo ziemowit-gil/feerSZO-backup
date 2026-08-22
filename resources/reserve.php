@@ -1,6 +1,9 @@
 <?php
 /**
  * resources/reserve.php — Formularz rezerwacji zasobu.
+ *
+ * Powłoka: panel wolontariusza dla wolontariuszy, powłoka SZO dla edytorów/adminów.
+ * Treść w języku wizualnym modułu „Tożsamość" (pv_ui.php: .tz-card, .tz-note, .tz-btn).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -77,36 +80,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-include dirname(__DIR__) . '/includes/header.php';
+$_is_volunteer_only = is_viewer()
+    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+
+if ($_is_volunteer_only) {
+    include dirname(__DIR__) . '/panel/includes/header_panel.php';
+} else {
+    include dirname(__DIR__) . '/includes/header.php';
+}
+require_once dirname(__DIR__) . '/panel/includes/pv_ui.php';
+
+pv_page_header($resource['name'], [
+    'icon' => $resource['cat_icon'] ?? 'bi-box',
+    'sub'  => trim(($resource['cat_name'] ?? '') . ($resource['location'] ? ' · ' . $resource['location'] : '')) ?: 'Rezerwacja zasobu',
+    'back' => ['url' => APP_URL . '/resources/', 'label' => 'Zasoby'],
+]);
 ?>
 
-<nav aria-label="Ścieżka" class="mb-3">
-  <ol class="breadcrumb mb-0" style="font-size:.83rem">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/resources/">Zasoby</a></li>
-    <li class="breadcrumb-item active"><?= h($resource['name']) ?></li>
-  </ol>
-</nav>
+<div class="pv-wrap">
 
-<div class="row g-4" style="max-width:900px">
+<?= flash_html() ?>
+
+<?php if ($resource['requires_approval']): ?>
+<div class="tz-note tz-note--warn" role="note">
+  <i class="bi bi-shield-check" aria-hidden="true"></i>
+  <span>Rezerwacja tego zasobu <strong>wymaga zatwierdzenia</strong> — najpierw przez administratora,
+    a potem przez dysponenta<?= $resource['dysponent_name'] ? ' (' . h($resource['dysponent_name']) . ')' : '' ?>.
+    O każdej decyzji dostaniesz powiadomienie.</span>
+</div>
+<?php else: ?>
+<div class="tz-note tz-note--ok" role="note">
+  <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+  <span>Ten zasób rezerwujesz <strong>bezpośrednio</strong> — rezerwacja jest potwierdzana od razu po wysłaniu.</span>
+</div>
+<?php endif; ?>
+
+<div class="row g-3">
   <div class="col-lg-8">
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <h5 class="mb-1 d-flex align-items-center gap-2">
-          <span class="rounded d-inline-flex align-items-center justify-content-center"
-                style="width:34px;height:34px;background:<?= h($resource['cat_color'] ?? '#6366f1') ?>1a;color:<?= h($resource['cat_color'] ?? '#6366f1') ?>">
-            <i class="bi <?= h($resource['cat_icon'] ?? 'bi-box') ?>"></i>
-          </span>
-          <?= h($resource['name']) ?>
-        </h5>
-        <?php if ($resource['description']): ?>
-        <p class="text-muted small mb-3"><?= nl2br(h($resource['description'])) ?></p>
-        <?php endif; ?>
+    <div class="tz-card mb-0">
+      <div class="tz-card__hd"><i class="bi bi-calendar-plus" aria-hidden="true"></i>Termin i cel</div>
+      <div class="tz-card__bd">
 
         <?php if ($errors): ?>
-        <div class="alert alert-danger py-2">
-          <ul class="mb-0 ps-3">
-            <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
-          </ul>
+        <div class="pv-alert pv-alert-danger" role="alert">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <div>
+            <strong>Nie udało się zapisać rezerwacji:</strong>
+            <ul class="mb-0 ps-3 mt-1">
+              <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
+            </ul>
+          </div>
         </div>
         <?php endif; ?>
 
@@ -143,13 +166,12 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
 
           <?php if ($field_defs): ?>
-          <hr class="my-3">
-          <div class="mb-1 fw-semibold text-muted small text-uppercase" style="letter-spacing:.07em">Dodatkowe informacje</div>
+          <h2 class="tz-section-h">Dodatkowe informacje</h2>
           <div class="row g-3 mb-3">
             <?php foreach ($field_defs as $fd):
-              $fval = $_POST['extra_fields'][$fd['id']] ?? '';
+              $fval  = $_POST['extra_fields'][$fd['id']] ?? '';
               $fname = "extra_fields[{$fd['id']}]";
-              $col = $fd['field_type'] === 'textarea' ? 'col-12' : 'col-sm-6';
+              $col   = $fd['field_type'] === 'textarea' ? 'col-12' : 'col-sm-6';
             ?>
             <div class="<?= $col ?>">
               <label class="form-label" for="ef_<?= (int)$fd['id'] ?>">
@@ -184,46 +206,50 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
           <?php endif; ?>
 
-          <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-calendar-check me-1"></i>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="submit" class="tz-btn">
+              <i class="bi bi-calendar-check" aria-hidden="true"></i>
               <?= $resource['requires_approval'] ? 'Złóż wniosek' : 'Zarezerwuj' ?>
             </button>
-            <a href="<?= APP_URL ?>/resources/" class="btn btn-outline-secondary">Anuluj</a>
+            <a href="<?= APP_URL ?>/resources/" class="tz-btn tz-btn--ghost">Anuluj</a>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- Info panel -->
+  <!-- Informacje o zasobie -->
   <div class="col-lg-4">
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body" style="font-size:.85rem">
-        <div class="fw-semibold mb-2">Informacje o zasobie</div>
+    <div class="tz-card mb-0">
+      <div class="tz-card__hd"><i class="bi bi-info-circle" aria-hidden="true"></i>O zasobie</div>
+      <div class="tz-card__bd">
+        <?php if ($resource['description']): ?>
+        <p style="font-size:.86rem;color:var(--tz-muted)"><?= nl2br(h($resource['description'])) ?></p>
+        <?php endif; ?>
+        <div class="tz-kv"><i class="bi bi-tag" aria-hidden="true"></i><?= h($resource['cat_name'] ?? 'Zasób') ?></div>
         <?php if ($resource['location']): ?>
-        <div class="mb-1"><i class="bi bi-geo-alt text-muted me-1"></i><?= h($resource['location']) ?></div>
+        <div class="tz-kv"><i class="bi bi-geo-alt" aria-hidden="true"></i><?= h($resource['location']) ?></div>
         <?php endif; ?>
         <?php if ($resource['capacity']): ?>
-        <div class="mb-1"><i class="bi bi-people text-muted me-1"></i>Max <?= (int)$resource['capacity'] ?> osób</div>
+        <div class="tz-kv"><i class="bi bi-people" aria-hidden="true"></i>Maksymalnie <?= (int)$resource['capacity'] ?> osób</div>
         <?php endif; ?>
         <?php if ($resource['dysponent_name']): ?>
-        <div class="mb-1"><i class="bi bi-person-check text-muted me-1"></i>Dysponent: <strong><?= h($resource['dysponent_name']) ?></strong></div>
+        <div class="tz-kv"><i class="bi bi-person-check" aria-hidden="true"></i>Dysponent: <strong><?= h($resource['dysponent_name']) ?></strong></div>
         <?php endif; ?>
-        <?php if ($resource['requires_approval']): ?>
-        <div class="alert alert-warning small mt-2 mb-0 py-2">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          Rezerwacja tego zasobu wymaga zatwierdzenia przez administratora i dysponenta.
-        </div>
-        <?php else: ?>
-        <div class="alert alert-success small mt-2 mb-0 py-2">
-          <i class="bi bi-check-circle me-1"></i>
-          Rezerwacja jest zatwierdzana automatycznie.
-        </div>
-        <?php endif; ?>
+      </div>
+      <div class="tz-card__ft">
+        <a href="<?= APP_URL ?>/resources/my.php" class="tz-card__link">
+          <i class="bi bi-list-check" aria-hidden="true"></i>Moje rezerwacje
+        </a>
       </div>
     </div>
   </div>
 </div>
 
+</div><!-- /pv-wrap -->
+
+<?php if ($_is_volunteer_only): ?>
+<?php include dirname(__DIR__) . '/panel/includes/footer_panel.php'; ?>
+<?php else: ?>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php endif; ?>

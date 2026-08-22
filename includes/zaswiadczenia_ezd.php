@@ -95,10 +95,17 @@ function ezd_zas_status_badge(string $status): string {
 
 function ezd_zas_typy_all(bool $only_active = false): array {
     $w = $only_active ? 'WHERE zt.is_active=1' : '';
-    return db_all(
+    $rows = db_all(
         "SELECT zt.*, j.symbol AS jrwa_symbol FROM ezd_zas_typy zt
          LEFT JOIN ezd_jrwa j ON j.id=zt.jrwa_id $w ORDER BY zt.nazwa"
     );
+    // Pola formularza jak w ezd_zas_typ_get() — bez tego konsumenci listy
+    // (m.in. panel/zaswiadczenia.php) iterowali po nieistniejącym kluczu 'pola'.
+    foreach ($rows as &$r) {
+        $r['pola'] = json_decode($r['szablon_pola'] ?? '[]', true) ?: [];
+    }
+    unset($r);
+    return $rows;
 }
 
 function ezd_zas_typ_get(int $id): ?array {
@@ -1111,7 +1118,7 @@ function ezd_zas_by_verify_code(string $code): ?array {
         // Wyczyść też już wydane zaświadczenia tego typu (tresc_html)
         try {
             $issued = db_all(
-                "SELECT w.id, w.tresc_html, w.dane FROM ezd_zaswiadczenia_wlasne w
+                "SELECT w.id, w.tresc_html, w.dane_json FROM ezd_zaswiadczenia_wlasne w
                  JOIN ezd_zas_typy zt ON zt.id=w.typ_id
                  WHERE zt.kod='oswiadczenie_student_wspolpraca' AND w.tresc_html != ''"
             );
@@ -1120,7 +1127,10 @@ function ezd_zas_by_verify_code(string $code): ?array {
                 '<p>Oświadczenie wydano na pro',  // partial match — strip whole <p>
             ];
             foreach ($issued as $_w) {
-                $_ht = $_w['tresc_html'];
+                $_ht  = $_w['tresc_html'];
+                // Dane wniosku (kolumna dane_json) — potrzebne niżej do usunięcia
+                // wyrenderowanej wartości byl_aktywny.
+                $dane = json_decode($_w['dane_json'] ?? '[]', true) ?: [];
                 // Usuń akapit byl_aktywny — może mieć dowolną treść między <p>…</p>
                 // Rozpoznajemy po tym że poprzedza akapit_uczelni lub jest przed nim pusty wiersz
                 // Najpewniej: usuń <p>...</p> gdzie treść to tylko tekst (nie zaczyna się od '<')

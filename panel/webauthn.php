@@ -152,7 +152,7 @@ function ab_to_b64u(buf) {
 function setStatus(msg, type) {
     type = type || 'info';
     var d = document.getElementById('regStatus');
-    d.innerHTML = '<div class="alert alert-' + type + ' py-2 small">' + msg + '</div>';
+    d.innerHTML = '<div class="pv-alert pv-alert-' + type + ' py-2 small">' + msg + '</div>';
 }
 
 async function registerKey() {

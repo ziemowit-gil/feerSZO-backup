@@ -381,7 +381,7 @@ function ppCheckEligibility(umowa_id) {
         .then(r => r.text())
         .then(html => { box.innerHTML = html; })
         .catch(() => {
-            box.innerHTML = '<div class="pv-alert pv-alert-warning py-1 small mb-0">Nie udało się sprawdzić dostępności.</div>';
+            box.innerHTML = '<div class="pv-alert pv-alert-warn py-1 small mb-0">Nie udało się sprawdzić dostępności.</div>';
         });
 }
 

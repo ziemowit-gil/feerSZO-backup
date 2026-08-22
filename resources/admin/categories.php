@@ -53,19 +53,16 @@ $ICONS = ['bi-box','bi-door-open-fill','bi-pc-display','bi-router-fill','bi-came
           'bi-car-front-fill','bi-bicycle','bi-tools','bi-lightning-charge-fill','bi-building','bi-tv'];
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
-?>
+require_once dirname(dirname(__DIR__)) . '/panel/includes/pv_ui.php';
 
-<div class="d-flex align-items-center mb-3 gap-2">
-  <h4 class="mb-0"><i class="bi bi-tags text-primary me-1"></i>Kategorie zasobów</h4>
-  <div class="ms-auto d-flex gap-2">
-    <?php if (!$show_new && !$edit_row): ?>
-    <a href="?new=1" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Dodaj</a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/resources/admin/" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Rezerwacje
-    </a>
-  </div>
-</div>
+pv_page_header('Kategorie zasobów', [
+    'icon'    => 'bi-tags',
+    'sub'     => 'Grupy zasobów widoczne jako filtr na liście rezerwacji',
+    'back'    => ['url' => APP_URL . '/resources/admin/index.php', 'label' => 'Rezerwacje'],
+    'actions' => (!$show_new && !$edit_row)
+        ? '<a href="?new=1" class="tz-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i>Dodaj kategorię</a>' : '',
+]);
+?>
 
 <?= flash_html() ?>
 

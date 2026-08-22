@@ -176,6 +176,12 @@ $_pv_dark = (function (string $hex): string {
 .pv-alert-ok,.pv-alert-success{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
 .pv-alert-err,.pv-alert-danger{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
 .pv-alert-warn,.pv-alert-warning{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.pv-alert-info{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.pv-alert-secondary,.pv-alert-light{background:var(--tz-bg-page);color:var(--tz-muted);border:1px solid var(--tz-line)}
+.pv-alert .btn-close{margin-left:auto;flex-shrink:0}
+/* Wiersz tabeli wymagający uwagi (zamiennik .table-warning) */
+.pv-table tr.pv-row-attn td{background:#fff7ed}
+.pv-table tr.pv-row-attn:hover td{background:#ffedd5}
 
 /* Warianty kolorystyczne notek .tz-note--* */
 .tz-note--warning,.tz-note--warn{background:#fff7ed;border-color:#fed7aa}
@@ -208,6 +214,8 @@ $_pv_dark = (function (string $hex): string {
 .pv-stats-bar{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.1rem}
 .pv-stat-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:2rem;background:var(--tz-bg);border:1px solid var(--tz-line);font-size:.79rem;font-weight:500;color:#374151;box-shadow:0 1px 2px rgba(16,24,40,.05);text-decoration:none}
 .pv-stat-pill:hover{border-color:var(--tz);color:var(--tz)}
+.pv-stat-pill--on{background:var(--tz);border-color:var(--tz);color:#fff;font-weight:600}
+.pv-stat-pill--on:hover,.pv-stat-pill--on i{color:#fff}
 .pv-stat-num{font-weight:700;color:var(--tz)}
 
 /* Wysoki kontrast — wzmocnione obrysy, brak cieni */
@@ -221,6 +229,8 @@ $_pv_dark = (function (string $hex): string {
 [data-theme="hc"] .pv-table-wrap{border-width:2px;border-color:#000}
 [data-theme="hc"] .pv-table th{border-bottom:3px solid #000}
 [data-theme="hc"] .pv-table tr:hover td{background:rgba(0,0,0,.08)}
+[data-theme="hc"] .pv-table tr.pv-row-attn td{background:#fff;box-shadow:inset 3px 0 0 #000}
+[data-theme="hc"] .pv-alert{border-width:2px;border-color:#000;background:#fff;color:#000}
 [data-theme="hc"] .tz-badge{border-width:2px}
 [data-theme="hc"] .tz-badge--ok{background:#fff;color:#000;border-color:#000}
 [data-theme="hc"] .tz-badge--wait{background:#fff;color:#000;border-color:#000}
@@ -228,6 +238,8 @@ $_pv_dark = (function (string $hex): string {
 [data-theme="hc"] .tz-badge--success,[data-theme="hc"] .tz-badge--warning,[data-theme="hc"] .tz-badge--danger{background:#fff;color:#000;border-color:#000}
 [data-theme="hc"] .tz-card__ft{border-top-width:2px;border-top-color:#000;background:#fff}
 [data-theme="hc"] .pv-status-pill{background:#fff;color:#000;border:2px solid #000}
+[data-theme="hc"] .pv-stat-pill--on{background:#000;color:#fff;border-color:#000}
+[data-theme="hc"] .pv-stat-pill--on i{color:#fff}
 [data-theme="hc"] .vol-activity,[data-theme="hc"] .pv-list.list-group{border-width:2px;border-color:#000}
 [data-theme="hc"] .tz-empty{border-width:3px;border-color:#000}
 [data-theme="hc"] .vol-activity-row{border-bottom-color:#000}

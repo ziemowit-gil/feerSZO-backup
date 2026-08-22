@@ -213,7 +213,7 @@ if ($_is_volunteer_only) {
 <?= flash_html() ?>
 
 <?php if ($force_change): ?>
-<div class="alert alert-warning d-flex align-items-start gap-2">
+<div class="pv-alert pv-alert-warning d-flex align-items-start gap-2" role="alert">
   <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
   <div>
     <strong>Wymagana zmiana hasła</strong><br>
@@ -226,7 +226,7 @@ if ($_is_volunteer_only) {
 <div class="col-md-6 col-lg-5">
 
 <?php if ($success): ?>
-<div class="alert alert-success d-flex align-items-center gap-2">
+<div class="pv-alert pv-alert-success d-flex align-items-center gap-2" role="status">
   <i class="bi bi-check-circle-fill fs-5"></i>
   <div>Hasło zostało zmienione. Możesz je teraz używać przy kolejnym logowaniu.</div>
 </div>
@@ -236,7 +236,7 @@ if ($_is_volunteer_only) {
 <?php else: ?>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger"><ul class="mb-0">
+<div class="pv-alert pv-alert-danger" role="alert"><ul class="mb-0">
   <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
 </ul></div>
 <?php endif; ?>
@@ -244,7 +244,7 @@ if ($_is_volunteer_only) {
 <div class="card shadow-sm">
   <div class="card-body p-4">
     <button type="button" id="pwd-toggle-btn"
-            class="btn btn-outline-warning"
+            class="btn btn-outline-secondary"
             style="<?= $show_pwd_form ? 'display:none' : '' ?>"
             onclick="document.getElementById('pwd-form-wrap').style.display='block'; this.style.display='none';">
       <i class="bi bi-key me-1" aria-hidden="true"></i> Zmień hasło
@@ -259,7 +259,7 @@ if ($_is_volunteer_only) {
         <input type="password" name="current_password" class="form-control" required autofocus>
       </div>
       <?php else: ?>
-      <div class="alert alert-info small">
+      <div class="pv-alert pv-alert-info small">
         <i class="bi bi-info-circle me-1"></i>
         Twoje konto nie ma jeszcze hasła lokalnego. Ustaw je poniżej.
       </div>
@@ -292,7 +292,7 @@ if ($_is_volunteer_only) {
   <div class="card-body p-4">
     <h6 class="fw-semibold mb-3"><i class="bi bi-phone me-2" aria-hidden="true"></i>Numer telefonu</h6>
     <?php if ($phone_errors): ?>
-    <div class="alert alert-danger"><ul class="mb-0">
+    <div class="pv-alert pv-alert-danger" role="alert"><ul class="mb-0">
       <?php foreach ($phone_errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
     </ul></div>
     <?php endif; ?>

@@ -419,10 +419,33 @@ function res_conflicts(int $resource_id, string $date_from, string $date_to, int
     );
 }
 
-// Helper: badge statusu
+/**
+ * Znacznik statusu — pigułka w języku wizualnym modułu „Tożsamość".
+ *
+ * Kształt jest w inline-style (a nie w klasie `.res-status-badge`), bo funkcja
+ * bywa wołana ze stron, które tej klasy nie definiują (np. sekcja rezerwacji
+ * w panelu wolontariusza) — wcześniej znacznik renderował się tam jako goły tekst.
+ */
 function res_status_badge(string $status): string {
-    $s = RES_STATUSES[$status] ?? ['label'=>$status,'color'=>'#666','bg'=>'#eee'];
-    return '<span class="res-status-badge" style="background:' . h($s['bg']) . ';color:' . h($s['color']) . ';border:1px solid ' . h($s['color']) . '33">' . h($s['label']) . '</span>';
+    $s = RES_STATUSES[$status] ?? ['label' => $status, 'color' => '#4b5563', 'bg' => '#f3f4f6'];
+    return '<span class="res-status-badge" style="display:inline-flex;align-items:center;gap:.3rem;'
+        . 'padding:.2rem .6rem;border-radius:999px;font-size:.74rem;font-weight:600;white-space:nowrap;'
+        . 'background:' . h($s['bg']) . ';color:' . h($s['color']) . ';border:1px solid ' . h($s['color']) . '55">'
+        . h($s['label']) . '</span>';
+}
+
+/** Czy użytkownik jest dysponentem choćby jednego zasobu (dostęp do panelu decyzji). */
+function res_is_dysponent(int $user_id): bool {
+    if ($user_id <= 0) return false;
+    return (bool)db_one("SELECT 1 AS x FROM resources WHERE dysponent_user_id=? LIMIT 1", [$user_id]);
+}
+
+/** Liczba rezerwacji czekających na decyzję danego użytkownika (admin i/lub dysponent). */
+function res_pending_count_for(int $user_id, bool $is_admin): int {
+    $n = 0;
+    if ($is_admin) $n += count(res_reservations_pending_admin());
+    $n += count(res_reservations_pending_dysponent($user_id));
+    return $n;
 }
 
 // ── Powiadomienia ─────────────────────────────────────────────────────────────

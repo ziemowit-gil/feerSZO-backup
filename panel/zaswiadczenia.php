@@ -61,7 +61,7 @@ include __DIR__ . '/includes/header_panel.php';
 <h1 class="pv-page-title"><i class="bi bi-award-fill me-2" aria-hidden="true"></i>Zaświadczenia</h1>
 
 <?php if ($error): ?>
-<div class="alert alert-danger py-2 mb-3" style="font-size:.88rem"><i class="bi bi-exclamation-triangle me-1"></i><?= $error ?></div>
+<div class="pv-alert pv-alert-danger" role="alert" style="font-size:.88rem"><i class="bi bi-exclamation-triangle me-1"></i><?= $error ?></div>
 <?php endif; ?>
 <?= flash_html() ?>
 
@@ -85,7 +85,7 @@ include __DIR__ . '/includes/header_panel.php';
           <span class="font-monospace text-primary" style="font-size:.8rem"><?= h($m['nr_zaswiadczenia']) ?></span>
           <?php endif; ?>
           <?php if ($exp): ?>
-          <span class="badge bg-warning text-dark" style="font-size:.65rem">WYGASŁE</span>
+          <span class="tz-badge tz-badge--warn">WYGASŁE</span>
           <?php elseif ($m['wazne_do']): ?>
           <span class="text-muted" style="font-size:.72rem">ważne do <?= date('d.m.Y', $wdt) ?></span>
           <?php endif; ?>

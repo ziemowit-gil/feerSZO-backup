@@ -109,20 +109,19 @@ $FIELD_TYPES = ['text'=>'Tekst','textarea'=>'Tekst długi','number'=>'Liczba','d
                 'select'=>'Lista wyboru','checkbox'=>'Tak/Nie','url'=>'Link'];
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
-?>
+require_once dirname(dirname(__DIR__)) . '/panel/includes/pv_ui.php';
 
-<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
-  <h4 class="mb-0"><i class="bi bi-box text-primary me-1"></i>Zasoby organizacji</h4>
-  <div class="ms-auto d-flex gap-2">
-    <?php if (!$show_new && !$edit_row): ?>
-    <a href="?new=1" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Dodaj zasób</a>
-    <?php endif; ?>
-    <a href="categories.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Kategorie</a>
-    <a href="<?= APP_URL ?>/resources/admin/" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Rezerwacje
-    </a>
-  </div>
-</div>
+$_actions = (!$show_new && !$edit_row)
+    ? '<a href="?new=1" class="tz-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i>Dodaj zasób</a> ' : '';
+$_actions .= '<a href="categories.php" class="tz-btn tz-btn--ghost"><i class="bi bi-tags" aria-hidden="true"></i>Kategorie</a>';
+
+pv_page_header('Zasoby organizacji', [
+    'icon'    => 'bi-box',
+    'sub'     => 'Sale, sprzęt i pozostałe zasoby dostępne do rezerwacji',
+    'back'    => ['url' => APP_URL . '/resources/admin/index.php', 'label' => 'Rezerwacje'],
+    'actions' => $_actions,
+]);
+?>
 
 <?= flash_html() ?>
 

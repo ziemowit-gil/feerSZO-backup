@@ -121,47 +121,63 @@ try {
 } catch (\Throwable $e) { $res_enabled = false; }
 ?>
 <?php if ($res_enabled): ?>
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body">
-    <div class="d-flex align-items-center mb-3">
-      <h2 class="h6 mb-0 fw-bold"><i class="bi bi-calendar-check-fill text-primary me-2"></i>Rezerwacje zasobów</h2>
-      <div class="ms-auto d-flex gap-2">
-        <?php if ($my_res_pending): ?>
-        <span class="badge bg-warning text-dark"><?= count($my_res_pending) ?> oczekuje</span>
-        <?php endif; ?>
-        <a href="<?= APP_URL ?>/resources/" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-plus-lg me-1"></i>Zarezerwuj zasób
-        </a>
-        <a href="<?= APP_URL ?>/resources/my.php" class="btn btn-sm btn-outline-secondary">
-          Moje rezerwacje
-        </a>
-      </div>
+<section class="tz-card" aria-labelledby="pv-res-h">
+  <div class="tz-card__hd">
+    <i class="bi bi-calendar-check-fill" aria-hidden="true"></i>
+    <h2 class="h6 mb-0 fw-bold" id="pv-res-h">Rezerwacje zasobów</h2>
+    <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+      <?php if ($my_res_pending): ?>
+      <span class="tz-badge tz-badge--warn"><i class="bi bi-hourglass-split" aria-hidden="true"></i><?= count($my_res_pending) ?> oczekuje</span>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/resources/" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Zarezerwuj zasób
+      </a>
     </div>
-    <?php if ($my_res_active): ?>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0" style="font-size:.84rem">
-        <thead class="table-light">
-          <tr><th>Zasób</th><th>Termin</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-          <?php foreach (array_slice($my_res_active, 0, 5) as $rr): ?>
-          <tr>
-            <td>
-              <i class="bi <?= h($rr['cat_icon']??'bi-box') ?>" style="color:<?= h($rr['cat_color']??'#666') ?>"></i>
-              <?= h($rr['res_name']) ?>
-            </td>
-            <td class="text-nowrap"><?= h($rr['date_from']) ?><?= $rr['date_to']!==$rr['date_from']?' – '.h($rr['date_to']):'' ?></td>
-            <td><?= res_status_badge($rr['status']) ?></td>
-            <td><a href="<?= APP_URL ?>/resources/view.php?id=<?= (int)$rr['id'] ?>" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2" aria-label="Podgląd rezerwacji"><i class="bi bi-eye"></i></a></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-    <?php else: ?>
-    <p class="text-muted small mb-0">Brak aktywnych rezerwacji. <a href="<?= APP_URL ?>/resources/">Przeglądaj dostępne zasoby</a>.</p>
-    <?php endif; ?>
   </div>
-</div>
-<style>.res-status-badge{display:inline-block;padding:.18em .5em;border-radius:6px;font-size:.73rem;font-weight:600;}</style>
-<?php endif; ?>
+  <?php if ($my_res_active): ?>
+  <div class="pv-table-wrap mb-0" style="border:0;border-radius:0">
+    <table class="pv-table">
+      <caption class="visually-hidden">Twoje aktywne rezerwacje</caption>
+      <thead>
+        <tr>
+          <th scope="col">Zasób</th><th scope="col">Termin</th><th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach (array_slice($my_res_active, 0, 5) as $rr): ?>
+        <tr>
+          <td>
+            <span class="d-inline-flex align-items-center gap-2">
+              <i class="bi <?= h($rr['cat_icon'] ?? 'bi-box') ?>" style="color:<?= h($rr['cat_color'] ?? '#6b7280') ?>" aria-hidden="true"></i>
+              <span class="fw-semibold"><?= h($rr['res_name']) ?></span>
+            </span>
+          </td>
+          <td class="text-nowrap"><?= h($rr['date_from']) ?><?= $rr['date_to'] !== $rr['date_from'] ? ' – ' . h($rr['date_to']) : '' ?></td>
+          <td><?= res_status_badge($rr['status']) ?></td>
+          <td class="text-end">
+            <a href="<?= APP_URL ?>/resources/view.php?id=<?= (int)$rr['id'] ?>" class="btn btn-sm btn-outline-secondary"
+               aria-label="Podgląd rezerwacji <?= h($rr['res_name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php if (count($my_res_active) > 5): ?>
+  <div class="tz-card__ft">
+    <a href="<?= APP_URL ?>/resources/my.php" class="tz-card__link">
+      <i class="bi bi-list-check" aria-hidden="true"></i>Wszystkie moje rezerwacje (<?= count($my_res_active) ?>)
+    </a>
+  </div>
+  <?php endif; ?>
+  <?php else: ?>
+  <div class="tz-card__bd">
+    <p class="mb-0" style="font-size:.86rem;color:var(--tz-muted)">
+      Brak aktywnych rezerwacji. <a href="<?= APP_URL ?>/resources/">Przeglądaj dostępne zasoby</a>.
+    </p>
+  </div>
+  <?php endif; ?>
+</section>
+
+<?php endif; /* $res_enabled */ ?>

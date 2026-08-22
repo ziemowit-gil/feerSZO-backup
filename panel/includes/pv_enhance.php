@@ -121,7 +121,7 @@ $GLOBALS['__pv_enhance_booted'] = true;
       fetch(BASE + '/tasks/detail.php?id=' + id)
         .then(function (r){ return r.text(); })
         .then(function (htmlStr){ body.innerHTML = ''; body.appendChild(document.createRange().createContextualFragment(htmlStr)); })
-        .catch(function (){ body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania.</div>'; });
+        .catch(function (){ body.innerHTML = '<div class="pv-alert pv-alert-danger m-3">Błąd ładowania.</div>'; });
     }
 
     root.addEventListener('click', function (e){

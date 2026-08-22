@@ -448,7 +448,7 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
     <i class="bi <?= $type_icons[$_active_contract['contract_type']] ?? 'bi-file-text' ?> text-primary"></i>
     <span class="fw-semibold small"><?= h(CONTRACT_TYPES[$_active_contract['contract_type']] ?? '') ?> &nbsp;·&nbsp; <?= h($_active_row['numer_umowy'] ?? '') ?></span>
     <?= status_badge($_active_contract['status']) ?>
-    <?php if ($_is_guardian): ?><span class="badge bg-warning text-dark ms-1"><i class="bi bi-person-hearts me-1"></i>Opiekun</span><?php endif; ?>
+    <?php if ($_is_guardian): ?><span class="tz-badge tz-badge--warn ms-1"><i class="bi bi-person-hearts"></i>Opiekun</span><?php endif; ?>
     <a href="<?= APP_URL ?>/contracts/<?= $_active_contract['contract_type'] ?>/view.php?id=<?= $_active_contract['id'] ?>" class="btn btn-outline-secondary btn-sm ms-auto" style="font-size:.75rem;padding:.15rem .5rem"><i class="bi bi-eye me-1"></i>Pełne dane</a>
   </div>
   <div class="card-body py-3">

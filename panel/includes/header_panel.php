@@ -176,9 +176,16 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-bar-inner .pv-brand-icon { width:32px; height:32px; border-radius:8px; font-size:.95rem; }
 .pv-bar-inner .pv-brand-sub { font-size:.65rem; color:var(--pvl-sub); opacity:1; }
 .pv-bar-inner .pv-avatar { width:30px; height:30px; font-size:.72rem; }
-.pv-bar-inner .pv-menu-btn { width:32px; height:32px; border:none; background:none; border-radius:6px;
-  font-size:1.2rem; color:var(--pvl-sub); }
-.pv-bar-inner .pv-menu-btn:hover { background:var(--pvl-div); color:var(--pvl-txt); }
+/* Przycisk menu — jedyne wejście do nawigacji panelu, więc musi być widoczny
+   od pierwszego spojrzenia: ikona + słowo „Menu" w ramce koloru wolontariusza. */
+.pv-bar-inner .pv-menu-btn { width:auto; height:34px; padding:0 .7rem; border:1.5px solid var(--vol-color);
+  background:var(--vol-bg); border-radius:8px; display:inline-flex; align-items:center; gap:.4rem;
+  font-size:.85rem; font-weight:700; color:var(--vol-color); }
+.pv-bar-inner .pv-menu-btn > i { font-size:1.15rem; line-height:1 }
+.pv-bar-inner .pv-menu-btn:hover, .pv-bar-inner .pv-menu-btn:focus-visible { background:var(--vol-color); color:var(--vol-on); border-color:var(--vol-color); }
+@media(max-width:420px){ .pv-menu-btn__lbl { display:none } .pv-bar-inner .pv-menu-btn { padding:0 .5rem } }
+[data-theme="hc"] .pv-bar-inner .pv-menu-btn { border:2px solid #000; background:#fff; color:#000 }
+[data-theme="hc"] .pv-bar-inner .pv-menu-btn:hover, [data-theme="hc"] .pv-bar-inner .pv-menu-btn:focus-visible { background:#000; color:#fff }
 .pv-bar-inner > nav { margin-left:auto; display:flex; align-items:center; gap:.15rem; }
 .pv-lnk { color:var(--pvl-sub); text-decoration:none; font-size:.83rem; padding:.35rem .6rem; border-radius:6px;
   display:inline-flex; align-items:center; gap:.35rem; background:none; border:none; cursor:pointer; white-space:nowrap; }
@@ -280,8 +287,9 @@ try {
 <header class="pv-navbar" role="banner">
   <div class="pv-bar-inner">
     <button class="pv-menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#pvNav"
-            aria-controls="pvNav" aria-label="Otwórz menu nawigacji">
+            aria-controls="pvNav" aria-label="Otwórz menu nawigacji panelu">
       <i class="bi bi-list" aria-hidden="true"></i>
+      <span class="pv-menu-btn__lbl">Menu</span>
     </button>
     <a href="<?= APP_URL ?>/panel/index.php" class="pv-brand" aria-label="Panel wolontariusza — strona główna">
       <span class="pv-brand-icon" aria-hidden="true"><i class="bi bi-person-circle"></i></span>
@@ -592,7 +600,7 @@ if ($_flash):
   $ft = $_flash['type'] ?? 'info';
   $fi = ['success'=>'bi-check-circle-fill','danger'=>'bi-exclamation-triangle-fill','warning'=>'bi-exclamation-circle','info'=>'bi-info-circle-fill'];
 ?>
-<div class="alert alert-<?= h($ft) ?> d-flex align-items-center gap-2 mb-3 alert-dismissible fade show" role="alert" aria-live="polite">
+<div class="pv-alert pv-alert-<?= h($ft) ?> alert-dismissible fade show" role="alert" aria-live="polite">
   <i class="bi <?= h($fi[$ft]??'bi-info-circle-fill') ?>" aria-hidden="true"></i>
   <span><?= h($_flash['msg']) ?></span>
   <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Zamknij"></button>
@@ -853,12 +861,12 @@ if (empty($_SESSION['rpts_consent_snoozed'])) {
         if (d.ok) {
           modal.hide();
         } else {
-          alertB.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.85rem">' + (d.error || 'Błąd zapisu.') + '</div>';
+          alertB.innerHTML = '<div class="pv-alert pv-alert-danger py-2 px-3 mb-3" style="font-size:.85rem">' + (d.error || 'Błąd zapisu.') + '</div>';
           submit.disabled = false;
         }
       })
       .catch(function () {
-        alertB.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.85rem">Błąd połączenia. Spróbuj ponownie.</div>';
+        alertB.innerHTML = '<div class="pv-alert pv-alert-danger py-2 px-3 mb-3" style="font-size:.85rem">Błąd połączenia. Spróbuj ponownie.</div>';
         submit.disabled = false;
       });
   });
