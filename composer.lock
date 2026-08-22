@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aab9b485a7497739c637d9fefdf52d17",
+    "content-hash": "648e01eb0a3c5618c296cfb59e82684b",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1109,6 +1109,54 @@
                 }
             ],
             "time": "2026-07-16T22:23:49+00:00"
+        },
+        {
+            "name": "intermedia/ksef-api-v2",
+            "version": "v0.11.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/tommekk83/ksef-api-v2.git",
+                "reference": "0a40b79dd23a1f527985392287cfe888eb1a4218"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/tommekk83/ksef-api-v2/zipball/0a40b79dd23a1f527985392287cfe888eb1a4218",
+                "reference": "0a40b79dd23a1f527985392287cfe888eb1a4218",
+                "shasum": ""
+            },
+            "require": {
+                "brick/date-time": ">=0.7.0",
+                "brick/math": ">=0.12.1",
+                "ext-dom": "*",
+                "ext-openssl": "*",
+                "galbar/jsonpath": ">=3.0",
+                "guzzlehttp/guzzle": "^7.0",
+                "php": ">=8.2",
+                "phpdocumentor/type-resolver": ">=1.8",
+                "phpseclib/phpseclib": "^3.0",
+                "speakeasy/serializer": "^4.0.3"
+            },
+            "require-dev": {
+                "laravel/pint": ">=1.21.2",
+                "phpstan/phpstan": ">=2.1.0",
+                "phpunit/phpunit": ">=10",
+                "roave/security-advisories": "dev-latest"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Intermedia\\Ksef\\Apiv2\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "support": {
+                "issues": "https://github.com/tommekk83/ksef-api-v2/issues",
+                "source": "https://github.com/tommekk83/ksef-api-v2/tree/v0.11.5"
+            },
+            "time": "2026-01-07T08:13:37+00:00"
         },
         {
             "name": "jms/metadata",
@@ -2492,16 +2540,16 @@
         },
         {
             "name": "phpseclib/phpseclib",
-            "version": "3.0.52",
+            "version": "3.0.56",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpseclib/phpseclib.git",
-                "reference": "2adaefc83df2ec548558307690f376dd7d4f4fce"
+                "reference": "7adbbe38cde25e2df2116dbf2673c407e24fa305"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/2adaefc83df2ec548558307690f376dd7d4f4fce",
-                "reference": "2adaefc83df2ec548558307690f376dd7d4f4fce",
+                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/7adbbe38cde25e2df2116dbf2673c407e24fa305",
+                "reference": "7adbbe38cde25e2df2116dbf2673c407e24fa305",
                 "shasum": ""
             },
             "require": {
@@ -2582,7 +2630,7 @@
             ],
             "support": {
                 "issues": "https://github.com/phpseclib/phpseclib/issues",
-                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.52"
+                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.56"
             },
             "funding": [
                 {
@@ -2598,7 +2646,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-04-27T07:02:15+00:00"
+            "time": "2026-08-03T04:36:50+00:00"
         },
         {
             "name": "phpstan/phpdoc-parser",

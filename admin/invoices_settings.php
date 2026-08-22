@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc = preg_replace('/[^a-z0-9\-]/', '', (string)$acc);
 
         org_setting_set('fakturownia_account',      (string)$acc);
-        org_setting_set('fakturownia_default_vat',  trim($_POST['default_vat'] ?? '23') ?: '23');
+        org_setting_set('fakturownia_default_vat',  trim($_POST['default_vat'] ?? 'zw') ?: 'zw');
+        org_setting_set('fakturownia_vat_exempt_basis', trim($_POST['zw_basis'] ?? ''));
         org_setting_set('fakturownia_default_kind', trim($_POST['default_kind'] ?? 'vat') ?: 'vat');
         org_setting_set('fakturownia_payment_days', (string)max(0, (int)($_POST['payment_days'] ?? 14)));
 
@@ -113,8 +114,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <div class="col-sm-4">
               <label class="form-label fw-semibold" for="default_vat">Domyślna stawka VAT</label>
               <input type="text" class="form-control" id="default_vat" name="default_vat"
-                     value="<?= h($cfg['vat']) ?>" placeholder="23">
-              <div class="form-text">Liczba albo <code>zw</code> / <code>np</code>.</div>
+                     value="<?= h($cfg['vat']) ?>" placeholder="zw">
+              <div class="form-text">
+                Domyślnie <code>zw</code> — zwolnione. Można wpisać liczbę (<code>23</code>, <code>8</code>,
+                <code>0</code>) albo <code>np</code>. Stawkę da się nadpisać przy każdej pozycji faktury.
+              </div>
             </div>
             <div class="col-sm-4">
               <label class="form-label fw-semibold" for="payment_days">Termin płatności (dni)</label>
@@ -128,6 +132,16 @@ include dirname(__DIR__) . '/includes/header.php';
                 <option value="<?= h($k) ?>"<?= $cfg['kind'] === $k ? ' selected' : '' ?>><?= h($lbl) ?></option>
                 <?php endforeach; ?>
               </select>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label fw-semibold" for="zw_basis">Podstawa zwolnienia z VAT</label>
+            <input type="text" class="form-control" id="zw_basis" name="zw_basis"
+                   value="<?= h($cfg['zw_basis']) ?>" aria-describedby="zwHelp">
+            <div id="zwHelp" class="form-text">
+              Drukowana na fakturze, gdy którakolwiek pozycja ma stawkę zwolnioną —
+              wymaga tego art. 106e ust. 1 pkt 19 ustawy o VAT.
             </div>
           </div>
 

@@ -109,9 +109,17 @@ function invoices_config(): array
     return [
         'account'   => trim(org_setting('fakturownia_account')),
         'token'     => trim(org_setting('fakturownia_token')),
-        'vat'       => trim(org_setting('fakturownia_default_vat'))  ?: '23',
+        // Domyślnie ZWOLNIONE z VAT — działalność statutowa i usługi edukacyjne
+        // fundacji są zwolnione przedmiotowo. Stawkę można nadpisać per pozycja.
+        'vat'       => trim(org_setting('fakturownia_default_vat'))  ?: 'zw',
         'days'      => (int)(org_setting('fakturownia_payment_days') ?: 14),
         'kind'      => trim(org_setting('fakturownia_default_kind')) ?: 'vat',
+        // Podstawa zwolnienia — wymagana na fakturze ze stawką „zw"
+        // (art. 106e ust. 1 pkt 19 ustawy o VAT). Domyślnie zwolnienie PODMIOTOWE
+        // z uwagi na nieprzekroczenie limitu sprzedaży 200 000 zł.
+        'zw_basis'  => trim(org_setting('fakturownia_vat_exempt_basis'))
+                       ?: 'art. 113 ust. 1 ustawy o podatku od towarów i usług '
+                          . '— sprzedaż nie przekroczyła limitu 200 000 zł',
     ];
 }
 

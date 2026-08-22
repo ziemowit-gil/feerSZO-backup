@@ -5,6 +5,7 @@
     "require": {
         "php": ">=8.1",
         "bacon/bacon-qr-code": "^3.0",
+        "intermedia/ksef-api-v2": "^0.11.5",
         "mpdf/mpdf": "^8.3",
         "mpdf/qrcode": "^1.2",
         "n1ebieski/ksef-php-client": "*",

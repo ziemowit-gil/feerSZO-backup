@@ -160,6 +160,17 @@ function invoice_pdf_html(array $inv, array $opts = []): string
 {
     $s     = invoice_seller();
     $items = $inv['items'] ?? [];
+
+    // Fakturę wystawia zawsze konkretny użytkownik — imiennie na dokumencie,
+    // żeby było wiadomo, kto ją sporządził (created_by z chwili utworzenia).
+    $issuer = '';
+    if (!empty($inv['created_by'])) {
+        $u = db_one("SELECT name, first_name, last_name FROM users WHERE id=?", [(int)$inv['created_by']]);
+        if ($u) {
+            $issuer = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+            if ($issuer === '') $issuer = trim((string)($u['name'] ?? ''));
+        }
+    }
     $vat   = invoice_vat_summary($items);
     $cur   = (string)$inv['currency'];
 
@@ -383,13 +394,30 @@ function invoice_pdf_html(array $inv, array $opts = []): string
   </tr>
 </table>
 
+<?php
+  // Faktura ze stawką zwolnioną musi wskazywać podstawę prawną zwolnienia
+  // (art. 106e ust. 1 pkt 19 ustawy o VAT).
+  $has_zw = false;
+  foreach (array_keys($vat) as $r) if (!is_numeric($r)) { $has_zw = true; break; }
+?>
+<?php if ($has_zw): ?>
+<div class="note" style="margin-top:8px">
+  <strong>Podstawa zwolnienia z VAT:</strong> <?= h(invoices_config()['zw_basis']) ?>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($inv['notes'])): ?>
 <div class="note" style="margin-top:8px"><strong>Uwagi:</strong> <?= nl2br(h($inv['notes'])) ?></div>
 <?php endif; ?>
 
 <table style="margin-top:26px">
   <tr>
-    <td style="width:42%"><div class="sign">Podpis osoby upoważnionej do wystawienia</div></td>
+    <td style="width:42%">
+      <?php if ($issuer !== ''): ?>
+      <div style="text-align:center; font-size:9pt; padding-bottom:2px"><?= h($issuer) ?></div>
+      <?php endif; ?>
+      <div class="sign">Wystawił<?= $issuer !== '' ? '' : ' — osoba upoważniona' ?></div>
+    </td>
     <td style="width:16%"></td>
     <td style="width:42%"><div class="sign">Podpis osoby upoważnionej do odbioru</div></td>
   </tr>
@@ -447,10 +475,9 @@ function invoice_pdf_ti_settlement(int $client_id): string
                 'payu' => 'PayU', 'other' => 'inna'];
 
     ob_start(); ?>
-<pagebreak />
-<div class="hdr-title" style="font-size:12pt">Rozliczenie środków</div>
-<div class="hdr-sub" style="margin-bottom:8px">
-  Stan konta kursanta na <?= h(date('d.m.Y')) ?> — załącznik informacyjny do faktury.
+<div class="party-lbl" style="margin-top:14px">Rozliczenie środków</div>
+<div class="note" style="margin-bottom:6px">
+  Stan konta kursanta na <?= h(date('d.m.Y')) ?> — informacyjnie.
 </div>
 
 <table class="sum">
@@ -562,6 +589,132 @@ function invoice_pdf_ti_settlement(int $client_id): string
     return (string)ob_get_clean();
 }
 
+/**
+ * Wykaz lekcji kursanta w okresie rozliczeniowym — data, grupa, czas, godziny
+ * do rozliczenia i kwota za lekcję.
+ *
+ * Godziny liczymy DOKŁADNIE jak k30_ti_calculate_billing(): tylko lekcje ze
+ * statusem odbytym ('held','individual_change','remote_material'), z obecnością
+ * i nieodwołane, a czas zaokrąglany w górę do pełnych godzin PER LEKCJA.
+ * Kwota per lekcja ma sens tylko w modelu godzinowym — przy modelu miesięcznym
+ * czy stałym opłata nie zależy od liczby lekcji, więc pokazujemy ją osobno.
+ *
+ * @return string HTML albo '' gdy nie ma lekcji.
+ */
+function invoice_pdf_ti_lessons(int $client_id, int $month, int $year): string
+{
+    if ($client_id <= 0 || $month < 1 || $month > 12) return '';
+
+    $file = dirname(__DIR__) . '/includes/karty30.php';
+    if (!function_exists('k30_ti_calculate_billing')) {
+        if (!is_file($file)) return '';
+        require_once $file;
+    }
+    if (!function_exists('k30_ti_calculate_billing')) return '';
+
+    $from = sprintf('%04d-%02d-01', $year, $month);
+    $to   = date('Y-m-t', strtotime($from));
+
+    try {
+        $calc = k30_ti_calculate_billing($client_id, $month, $year);
+    } catch (\Throwable $e) {
+        return '';
+    }
+
+    // Stawka i model per kurs — z rozbicia zwróconego przez kalkulator.
+    $per_course = [];
+    foreach (($calc['courses'] ?? []) as $c) $per_course[(int)$c['course_id']] = $c;
+
+    $rates = [];
+    foreach (db_all("SELECT course_id, hourly_rate FROM k30_ti_enrollments WHERE client_id=?", [$client_id]) as $e) {
+        $rates[(int)$e['course_id']] = (float)$e['hourly_rate'];
+    }
+
+    $lessons = db_all(
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status,
+                s.course_id, co.name AS course_name,
+                COALESCE(a.no_show,0) AS no_show, COALESCE(a.no_show_billing,'') AS no_show_billing
+           FROM k30_ti_attendance a
+           JOIN k30_ti_sessions   s  ON s.id = a.session_id
+           JOIN k30_ti_courses    co ON co.id = s.course_id
+          WHERE a.client_id = ?
+            AND s.status IN ('held','individual_change','remote_material')
+            AND s.lesson_date BETWEEN ? AND ?
+            AND ((a.attended = 1 AND COALESCE(a.cancelled,0) = 0) OR COALESCE(a.no_show,0) = 1)
+       ORDER BY s.lesson_date, s.time_from",
+        [$client_id, $from, $to]
+    );
+    if (!$lessons) return '';
+
+    $m       = fn(float $v) => number_format($v, 2, ',', ' ');
+    $okres   = str_pad((string)$month, 2, '0', STR_PAD_LEFT) . '/' . $year;
+    $sum_h   = 0.0;
+    $sum_amt = 0.0;
+
+    ob_start(); ?>
+<div class="party-lbl" style="margin-top:12px">Wykaz lekcji — okres <?= h($okres) ?></div>
+<table class="items" style="margin-top:3px">
+  <thead>
+    <tr>
+      <th style="width:13%">Data</th>
+      <th style="width:13%">Godziny</th>
+      <th>Grupa</th>
+      <th class="num" style="width:11%">Do rozliczenia</th>
+      <th class="num" style="width:12%">Stawka</th>
+      <th class="num" style="width:13%">Kwota</th>
+    </tr>
+  </thead>
+  <tbody>
+  <?php foreach ($lessons as $l):
+      $cid   = (int)$l['course_id'];
+      $model = (int)($per_course[$cid]['model'] ?? 2);
+      // No-show rozliczany wg modelu: pełna lekcja albo 1 godzina.
+      $h = !empty($l['no_show']) && $l['no_show_billing'] === '1h'
+          ? 1.0
+          : (float)ceil((int)$l['duration_min'] / 60);
+      $hourly = $model !== 1 && $model !== 3;
+      $rate   = $rates[$cid] ?? 0.0;
+      $amt    = $hourly ? $h * $rate : 0.0;
+      $sum_h   += $h;
+      $sum_amt += $amt;
+      $czas = trim((string)$l['time_from']) !== ''
+          ? substr((string)$l['time_from'], 0, 5) . (trim((string)$l['time_to']) !== '' ? '–' . substr((string)$l['time_to'], 0, 5) : '')
+          : '—';
+  ?>
+    <tr>
+      <td><?= h(date('d.m.Y', strtotime((string)$l['lesson_date']))) ?></td>
+      <td><?= h($czas) ?></td>
+      <td>
+        <?= h((string)$l['course_name']) ?>
+        <?php if (!empty($l['no_show'])): ?><span style="color:#b3261e"> (nieobecność płatna)</span><?php endif; ?>
+        <?php if ($l['status'] === 'remote_material'): ?><span style="color:#555"> (praca własna)</span><?php endif; ?>
+      </td>
+      <td class="num"><?= h(rtrim(rtrim(number_format($h, 2, ',', ' '), '0'), ',')) ?> godz.</td>
+      <td class="num"><?= $hourly ? $m($rate) : '—' ?></td>
+      <td class="num"><?= $hourly ? $m($amt) : 'w opłacie stałej' ?></td>
+    </tr>
+  <?php endforeach; ?>
+  </tbody>
+  <tfoot class="table-light">
+    <tr>
+      <th colspan="3" class="num">Razem</th>
+      <th class="num"><?= h(rtrim(rtrim(number_format($sum_h, 2, ',', ' '), '0'), ',')) ?> godz.</th>
+      <th></th>
+      <th class="num"><?= $m($sum_amt) ?></th>
+    </tr>
+  </tfoot>
+</table>
+<div class="note" style="margin-top:4px">
+  Czas każdej lekcji zaokrąglany w górę do pełnych godzin — zgodnie z zasadą rozliczania zajęć.
+  <?php foreach (($calc['courses'] ?? []) as $c): if ((int)$c['model'] === 1 || (int)$c['model'] === 3): ?>
+  <br>Grupa <strong><?= h((string)$c['course_name']) ?></strong>: opłata stała
+  <strong><?= $m((float)$c['amount']) ?> zł</strong> za okres, niezależna od liczby lekcji.
+  <?php endif; endforeach; ?>
+</div>
+<?php
+    return (string)ob_get_clean();
+}
+
 // ── Render ───────────────────────────────────────────────────────────────────
 
 /**
@@ -606,8 +759,13 @@ function invoice_pdf_render(array $inv, array $opts = []): string
     // Faktura z rozliczenia TI dostaje załącznik z rozliczeniem środków —
     // faktura pokazuje jeden okres, załącznik cały stan konta kursanta.
     if (($inv['source'] ?? '') === 'ti_billing' && !empty($inv['source_id']) && empty($opts['no_settlement'])) {
-        $b = db_one("SELECT client_id FROM k30_ti_billing WHERE id=?", [(int)$inv['source_id']]);
-        if ($b) $html .= invoice_pdf_ti_settlement((int)$b['client_id']);
+        $b = db_one("SELECT client_id, month, year FROM k30_ti_billing WHERE id=?", [(int)$inv['source_id']]);
+        if ($b) {
+            $html .= '<pagebreak />'
+                   . '<div class="hdr-title" style="font-size:12pt">Załącznik do faktury</div>'
+                   . invoice_pdf_ti_lessons((int)$b['client_id'], (int)$b['month'], (int)$b['year'])
+                   . invoice_pdf_ti_settlement((int)$b['client_id']);
+        }
     }
 
     $mpdf->WriteHTML($html);
