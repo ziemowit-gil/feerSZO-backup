@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/crm.php';
+require_once __DIR__ . '/poczta_acl.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -35,13 +36,14 @@ function crm_mailbox_ready(): bool {
     return $ok;
 }
 
-/** Skrzynki, których wiadomości widzi CRM. */
+/** Skrzynki, których wiadomości widzi bieżący użytkownik (wg poczta_mailbox_acl). */
 function crm_mailbox_list(bool $only_enabled = true): array {
     if (!crm_mailbox_ready()) return [];
-    $w = $only_enabled ? 'WHERE enabled=1' : '';
-    try {
-        return db_all("SELECT * FROM poczta_mailboxes $w ORDER BY mailbox");
-    } catch (\Throwable $e) { return []; }
+    $rows = poczta_mailboxes_for_user();
+    if ($only_enabled) {
+        $rows = array_values(array_filter($rows, static fn($r) => (int)($r['enabled'] ?? 1) === 1));
+    }
+    return $rows;
 }
 
 /** Czy nieznany nadawca ma zakładać kartotekę (wspólne z Inboksem EZD). */
@@ -92,7 +94,12 @@ function crm_mailbox_inbox(array $f = []): array {
     $params = [];
     $where  = [_crm_mailbox_view_sql($view, $uid, $params)];
 
-    if (!empty($f['mailbox_id']))  { $where[] = 'c.mailbox_id=?';  $params[] = (int)$f['mailbox_id']; }
+    // Widok obejmuje wyłącznie skrzynki, do których użytkownik ma dostęp
+    $where[] = poczta_scope_sql('c.mailbox_id');
+    if (!empty($f['mailbox_id'])) {
+        if (!poczta_can_access((int)$f['mailbox_id'], 'read')) return ['rows' => [], 'total' => 0, 'page' => 1, 'per_page' => 25];
+        $where[] = 'c.mailbox_id=?'; $params[] = (int)$f['mailbox_id'];
+    }
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
     if (!empty($f['q'])) {
@@ -135,7 +142,7 @@ function crm_mailbox_counts(): array {
     $out = [];
     foreach (array_keys(CRM_MAILBOX_VIEWS) as $view) {
         $params = [];
-        $sql = _crm_mailbox_view_sql($view, $uid, $params);
+        $sql = _crm_mailbox_view_sql($view, $uid, $params) . ' AND ' . poczta_scope_sql('c.mailbox_id');
         try {
             $out[$view] = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications c WHERE $sql", $params)['n'] ?? 0);
         } catch (\Throwable $e) { $out[$view] = 0; }
@@ -157,6 +164,10 @@ function crm_mailbox_message(int $id): ?array {
          WHERE c.id=?", [$id]
     );
     if (!$m) return null;
+    // Wiadomość ze skrzynki, do której nie ma dostępu, nie może być otwarta z URL-a
+    $mb_id = (int)($m['mailbox_id'] ?? 0);
+    if ($mb_id && !poczta_can_access($mb_id, 'read')) return null;
+    if (!$mb_id && !(function_exists('is_admin') && is_admin())) return null;
 
     $m['attachments'] = [];
     try {
@@ -405,7 +416,8 @@ function crm_mailbox_scan(?int $mailbox_id = null): array {
     $boxes = $mailbox_id
         ? array_filter(crm_mailbox_list(false), static fn($b) => (int)$b['id'] === $mailbox_id)
         : crm_mailbox_list(true);
-    if (!$boxes) return ['ok' => false, 'error' => 'Nie skonfigurowano żadnej skrzynki.'];
+    $boxes = array_filter($boxes, static fn($b) => poczta_can_access((int)$b['id'], 'manage'));
+    if (!$boxes) return ['ok' => false, 'error' => 'Brak skrzynki, którą możesz skanować (potrzebne uprawnienie zarządzania).'];
 
     $sum = ['fetched' => 0, 'created' => 0, 'matched' => 0, 'skipped' => 0, 'errors' => []];
     $svc = new PocztaScanService();

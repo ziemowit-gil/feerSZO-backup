@@ -4,35 +4,42 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/poczta.php';
+require_once dirname(__DIR__) . '/includes/poczta_acl.php';
 
 require_login();
 require_module_enabled('poczta_enabled', 'Moduł Poczty');
 
 $PAGE_TITLE = 'Dashboard';
 
-$_kpi_mailboxes = 0;
-$_kpi_attention = 0;
+// Widok obejmuje tylko skrzynki, do których użytkownik ma dostęp (ACL).
+// Wolontariusz zobaczy więc swoją skrzynkę osobistą i te współdzielone, które mu nadano.
+poczta_acl_migrate();
+$_mailboxes = poczta_mailboxes_for_user();
+$_scope     = poczta_scope_sql('mailbox_id');
+$_can_add   = is_admin();
+
+$_kpi_mailboxes = count(array_filter($_mailboxes, static fn($m) => (int)($m['enabled'] ?? 1) === 1));
+$_kpi_attention = count(array_filter($_mailboxes, static fn($m) => in_array($m['status'] ?? '', ['auth_error','rate_limited'], true)));
 $_kpi_today     = 0;
 $_kpi_total     = 0;
 try {
-    $_kpi_mailboxes = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes WHERE enabled=1")['n'] ?? 0);
-    $_kpi_attention = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes WHERE status IN ('auth_error','rate_limited')")['n'] ?? 0);
-    $_kpi_today     = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications WHERE mailbox_id IS NOT NULL AND DATE(sent_at)=DATE('now','localtime')")['n'] ?? 0);
-    $_kpi_total     = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications WHERE mailbox_id IS NOT NULL")['n'] ?? 0);
-} catch (\Throwable $e) {}
-
-$_mailboxes = [];
-try {
-    $_mailboxes = db_all("SELECT * FROM poczta_mailboxes ORDER BY (status != 'ok') DESC, mailbox ASC");
+    $_kpi_today = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications
+        WHERE mailbox_id IS NOT NULL AND $_scope AND DATE(sent_at)=DATE('now','localtime')")['n'] ?? 0);
+    $_kpi_total = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications
+        WHERE mailbox_id IS NOT NULL AND $_scope")['n'] ?? 0);
 } catch (\Throwable $e) {}
 
 $_recent_log = [];
+$_ids = array_map('intval', array_column($_mailboxes, 'id'));
 try {
-    $_recent_log = db_all(
-        "SELECT l.*, m.mailbox FROM poczta_scan_log l
-         LEFT JOIN poczta_mailboxes m ON m.id = l.mailbox_id
-         ORDER BY l.run_at DESC LIMIT 15"
-    );
+    if ($_ids) {
+        $_in = implode(',', $_ids);
+        $_recent_log = db_all(
+            "SELECT l.*, m.mailbox FROM poczta_scan_log l
+             LEFT JOIN poczta_mailboxes m ON m.id = l.mailbox_id
+             WHERE l.mailbox_id IN ($_in) ORDER BY l.run_at DESC LIMIT 15"
+        );
+    }
 } catch (\Throwable $e) {}
 
 $_webmail_url = org_setting('poczta_webmail_url');
@@ -43,16 +50,53 @@ include __DIR__ . '/includes/header_poczta.php';
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0 fw-bold"><i class="bi bi-envelope-fill me-2" style="color:var(--pc-blue)"></i>Poczta — dashboard</h4>
     <div class="d-flex gap-2">
-        <?php if ($_webmail_url): ?>
-        <a href="<?= h($_webmail_url) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz Roundcube
+        <a href="<?= APP_URL ?>/crm/inbox.php" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-inbox me-1"></i>Skrzynka CRM
         </a>
-        <?php endif; ?>
+        <?php if ($_can_add): ?>
         <a href="<?= APP_URL ?>/poczta/add.php" class="btn btn-sm btn-primary" style="background:var(--pc-blue);border-color:var(--pc-blue)">
             <i class="bi bi-plus-lg me-1"></i>Dodaj skrzynkę
         </a>
+        <?php endif; ?>
     </div>
 </div>
+
+<?php /* Do czytania i pisania maili wygodniej użyć webmaila — ten moduł służy
+         do zaciągania korespondencji do CRM/EZD, nie do codziennej pracy w poczcie. */ ?>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="fw-semibold mb-2" style="font-size:.92rem">
+      <i class="bi bi-lightbulb me-1" style="color:#B45309"></i>Do czytania i pisania poczty użyj webmaila
+    </div>
+    <div class="row g-2">
+      <?php foreach (poczta_webmail_options() as $w): ?>
+      <div class="col-md-6">
+        <a href="<?= h($w['url']) ?>" target="_blank" rel="noopener"
+           class="d-flex gap-2 p-2 border rounded text-decoration-none h-100" style="color:inherit">
+          <i class="bi <?= h($w['icon']) ?> fs-4" style="color:var(--pc-blue)"></i>
+          <span>
+            <span class="fw-semibold d-block"><?= h($w['label']) ?>
+              <i class="bi bi-box-arrow-up-right" style="font-size:.75rem"></i></span>
+            <span class="text-muted" style="font-size:.8rem"><?= h($w['hint']) ?></span>
+          </span>
+        </a>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div class="text-muted mt-2" style="font-size:.78rem">
+      Ten moduł tylko <strong>zaciąga</strong> korespondencję do kartotek CRM i spraw EZD —
+      historia i załączniki trafiają do systemu, a codzienną pracę na mailach wykonujesz w webmailu.
+    </div>
+  </div>
+</div>
+
+<?php if (!$_mailboxes): ?>
+<div class="alert alert-info">
+  <strong>Nie masz dostępu do żadnej skrzynki.</strong>
+  Skrzynki współdzielone przydziela administrator (Poczta → Skrzynki → Uprawnienia),
+  a skrzynka osobista wymaga skonfigurowania konta w module.
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">

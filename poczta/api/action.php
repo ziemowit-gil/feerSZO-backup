@@ -1,6 +1,9 @@
 <?php
 /**
- * poczta/api/action.php — Akcje AJAX modułu Poczty (tylko admin, sesja).
+ * poczta/api/action.php — Akcje AJAX modułu Poczty.
+ *
+ * Dostęp: zalogowany użytkownik z uprawnieniem ZARZĄDZANIA daną skrzynką
+ * (admin, właściciel skrzynki osobistej albo osoba z can_manage w ACL).
  *
  * POST body (JSON): {action: "scan_now"|"toggle_enabled"|"reset_status", mailbox_id: N, enabled?: 0|1}
  * Odpowiedź: JSON {ok, message, data}
@@ -12,15 +15,17 @@ require_once $_root . '/includes/db.php';
 require_once $_root . '/includes/auth.php';
 require_once $_root . '/includes/functions.php';
 require_once $_root . '/includes/poczta.php';
+require_once $_root . '/includes/poczta_acl.php';
 
 auth_start();
 header('Content-Type: application/json; charset=utf-8');
 
-if (!current_user() || !is_admin()) {
+if (!current_user()) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'message' => 'Brak dostępu.']);
     exit;
 }
+poczta_acl_migrate();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -36,6 +41,13 @@ $mailbox_id = (int)($input['mailbox_id'] ?? 0);
 
 if (!$mailbox_id) {
     echo json_encode(['ok' => false, 'message' => 'Brak mailbox_id.']);
+    exit;
+}
+
+// Każda akcja zmienia stan skrzynki — wymagamy uprawnienia zarządzania właśnie tą skrzynką
+if (!poczta_can_access($mailbox_id, 'manage')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'Brak uprawnień do tej skrzynki.']);
     exit;
 }
 

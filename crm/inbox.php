@@ -239,9 +239,16 @@ include __DIR__ . '/includes/header_crm.php';
   Skonfiguruj skrzynkę w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
 </div>
 <?php elseif (!$boxes): ?>
+<?php $any_mailbox = 0; try { $any_mailbox = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes")['n'] ?? 0); } catch (\Throwable $e) {} ?>
 <div class="alert alert-info">
+  <?php if ($any_mailbox && !is_admin()): ?>
+  <strong>Nie masz dostępu do żadnej skrzynki.</strong>
+  Skrzynki współdzielone przydziela administrator (Poczta → Skrzynki → Edytuj → „Kto ma dostęp"),
+  a skrzynka osobista jest widoczna dla swojego właściciela.
+  <?php else: ?>
   Nie dodano jeszcze żadnej skrzynki — dodaj ją w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
   Wiadomości pojawią się tu po pierwszym skanowaniu.
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 

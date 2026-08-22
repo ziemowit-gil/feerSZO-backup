@@ -11,15 +11,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/poczta.php';
 require_once dirname(dirname(__DIR__)) . '/includes/permissions.php';
 
 require_login();
+require_once dirname(dirname(__DIR__)) . '/includes/poczta_acl.php';
 
-// Sprawdź uprawnienie do modułu (admin zawsze ma dostęp)
-if (!is_admin()) {
-    _permissions_init();
-    if (!can_read('poczta')) {
-        flash_set('error', 'Brak uprawnień do modułu Poczty.');
-        header('Location: ' . APP_URL . '/index.php'); exit;
-    }
-}
+// Moduł jest dostępny dla każdego zalogowanego — także wolontariusza. To, CO widzi,
+// wynika z uprawnień do poszczególnych skrzynek (poczta_mailbox_acl): własna skrzynka
+// osobista i te współdzielone, do których administrator nadał dostęp. Dane skrzynek,
+// do których nie ma uprawnień, nie są w ogóle pobierane (patrz poczta_scope_sql()).
+poczta_acl_migrate();
+$_pc_my_mailboxes = poczta_allowed_mailbox_ids();
 
 $_pu       = current_user();
 $_pc_title = $PAGE_TITLE ?? 'Poczta';

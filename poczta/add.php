@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/poczta.php';
+require_once dirname(__DIR__) . '/includes/poczta_acl.php';
 
 require_login();
 require_module_enabled('poczta_enabled', 'Moduł Poczty');
@@ -31,15 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($found['id'])) {
                     $error = "Nie znaleziono konta Microsoft 365 dla adresu {$mailbox}. Sprawdź adres i konfigurację M365.";
                 } else {
+                    // Rodzaj skrzynki decyduje o dostępie: osobista należy do właściciela,
+                    // współdzielona wymaga wpisów w poczta_mailbox_acl (patrz poczta_acl.php)
+                    $kind  = in_array($_POST['kind'] ?? '', array_keys(POCZTA_KINDS), true) ? $_POST['kind'] : 'shared';
+                    $owner = $kind === 'personal' ? ((int)($_POST['owner_user_id'] ?? 0) ?: null) : null;
                     $id = db_insert('poczta_mailboxes', [
-                        'mailbox'      => $mailbox,
-                        'ms_user_id'   => $found['id'],
-                        'display_name' => $display_name ?: ($found['displayName'] ?? ''),
-                        'enabled'      => 1,
-                        'created_by'   => (int)(current_user()['id'] ?? 0),
+                        'mailbox'       => $mailbox,
+                        'ms_user_id'    => $found['id'],
+                        'display_name'  => $display_name ?: ($found['displayName'] ?? ''),
+                        'enabled'       => 1,
+                        'kind'          => $kind,
+                        'owner_user_id' => $owner,
+                        'created_by'    => (int)(current_user()['id'] ?? 0),
                     ]);
-                    flash_set('success', 'Skrzynka dodana do listy skanowania.');
-                    header('Location: ' . APP_URL . '/poczta/index.php'); exit;
+                    flash_set('success', $kind === 'personal'
+                        ? 'Skrzynka osobista dodana — właściciel ma do niej dostęp od razu.'
+                        : 'Skrzynka współdzielona dodana. Nadaj dostęp osobom w „Edytuj skrzynkę".');
+                    header('Location: ' . APP_URL . '/poczta/edit.php?id=' . $id); exit;
                 }
             } catch (\Throwable $e) {
                 $error = 'Błąd sprawdzania konta M365: ' . $e->getMessage();
@@ -74,6 +83,32 @@ include __DIR__ . '/includes/header_poczta.php';
                 <label class="form-label">Nazwa wyświetlana (opcjonalnie)</label>
                 <input type="text" name="display_name" class="form-control"
                        placeholder="np. Skrzynka ogólna fundacji" value="<?= h($_POST['display_name'] ?? '') ?>">
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="form-label">Rodzaj skrzynki</label>
+                    <select name="kind" class="form-select"
+                            onchange="document.getElementById('pc-owner-wrap').style.display = this.value === 'personal' ? '' : 'none'">
+                        <?php foreach (POCZTA_KINDS as $kk => $kv): ?>
+                        <option value="<?= h($kk) ?>" <?= ($_POST['kind'] ?? 'shared') === $kk ? 'selected' : '' ?>><?= h($kv['label']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text" style="font-size:.75rem">
+                        Współdzielona (np. fundacja@) — dostęp nadajesz osobom po dodaniu.
+                        Osobista — poczta współpracownika, widoczna dla właściciela.
+                    </div>
+                </div>
+                <div class="col-6" id="pc-owner-wrap" style="<?= ($_POST['kind'] ?? 'shared') === 'personal' ? '' : 'display:none' ?>">
+                    <label class="form-label">Właściciel skrzynki</label>
+                    <select name="owner_user_id" class="form-select">
+                        <option value="">— wskaż osobę —</option>
+                        <?php foreach (db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name") as $u): ?>
+                        <option value="<?= (int)$u['id'] ?>" <?= (int)($_POST['owner_user_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+                            <?= h($u['name']) ?> (<?= h($u['email']) ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary" style="background:var(--pc-blue);border-color:var(--pc-blue)">
                 <i class="bi bi-check-lg me-1"></i>Dodaj i zweryfikuj konto M365
