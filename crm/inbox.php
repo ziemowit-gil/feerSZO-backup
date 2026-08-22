@@ -197,17 +197,9 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
-.ib-drawer { border-top:1px solid #F1F2F4 }
-/* Szuflada, do której przeskoczono — krótkie podświetlenie, żeby było widać,
-   co się otworzyło poniżej. */
-.ib-drawer.ib-flash > summary { background:#FFFBEB }
-.ib-drawer > summary { padding:.6rem 1.15rem; cursor:pointer; font-size:.85rem; font-weight:600; color:#374151;
-  display:flex; align-items:center; gap:.45rem; list-style:none }
-.ib-drawer > summary::-webkit-details-marker { display:none }
-.ib-drawer > summary::after { content:'▾'; margin-left:auto; color:#9CA3AF }
-.ib-drawer[open] > summary::after { content:'▴' }
-.ib-drawer > summary:hover { background:#FAFBFC }
-.ib-drawer .ib-dbody { padding:.2rem 1.15rem 1rem }
+/* Formularze akcji przeniesione do modali — z dawnych szuflad zostaje tylko
+   wypełnienie treści, używane w oknach. */
+.ib-dbody { padding:.2rem 0 0 }
 .ib-ctx { padding:.9rem 1.15rem; border-top:1px solid #F1F2F4; font-size:.82rem }
 .ib-ctx a { text-decoration:none }
 .ib-lbl { font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#9CA3AF; margin-bottom:.25rem }
@@ -494,17 +486,17 @@ include __DIR__ . '/includes/header_crm.php';
              powodem, dla którego ktoś tu wchodzi. Klik rozwija i przewija do
              właściwej szuflady. -->
         <span class="ib-sep" aria-hidden="true"></span>
-        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwSprawa"
-                title="Załóż sprawę CRM z tej wiadomości" aria-label="Załóż sprawę CRM">
-          <i class="bi bi-briefcase-fill" style="color:#1D4ED8" aria-hidden="true"></i>
+        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdCase"
+                title="Załóż sprawę CRM z tej wiadomości">
+          <i class="bi bi-briefcase-fill me-1" style="color:#1D4ED8" aria-hidden="true"></i>Sprawa
         </button>
-        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwEzd"
-                title="Przekaż do EZD" aria-label="Przekaż do EZD">
-          <i class="bi bi-folder-symlink-fill" style="color:#0F766E" aria-hidden="true"></i>
+        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdEzd"
+                title="Przekaż wiadomość do EZD">
+          <i class="bi bi-folder-symlink-fill me-1" style="color:#0F766E" aria-hidden="true"></i>EZD
         </button>
-        <button type="button" class="btn btn-crm-ghost btn-sm ib-jump" data-target="dwFwd"
-                title="Przekaż e-mailem" aria-label="Przekaż e-mailem">
-          <i class="bi bi-forward-fill" style="color:#B45309" aria-hidden="true"></i>
+        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdFwd"
+                title="Przekaż wiadomość e-mailem">
+          <i class="bi bi-forward-fill me-1" style="color:#B45309" aria-hidden="true"></i>Przekaż
         </button>
         <?php endif; ?>
         <form method="post" class="ms-auto"><?= $hidden ?><input type="hidden" name="_op" value="assign">
@@ -553,9 +545,12 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
 
       <?php if ($can_write): ?>
-      <!-- ── Sprawa CRM ─────────────────────────────────────────────────── -->
-      <details class="ib-drawer" id="dwSprawa">
-        <summary><i class="bi bi-briefcase-fill" style="color:#1D4ED8"></i> Załóż sprawę CRM</summary>
+      <?php
+        /* Formularze akcji buforujemy TUTAJ, a pokazujemy w modalach na końcu
+           strony. Znaczniki żyją w jednym miejscu (bez duplikacji), a okno nie
+           zależy od przewinięcia długiej wiadomości. Modale muszą stać POZA
+           .ib-wrap — modal w kontenerze z overflow potrafi się źle pozycjonować. */
+        ob_start(); ?>
         <div class="ib-dbody">
           <form method="post" class="row g-2 align-items-end"><?= $hidden ?>
             <input type="hidden" name="_op" value="case">
@@ -592,11 +587,7 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
           </form>
         </div>
-      </details>
-
-      <!-- ── Przekazanie do EZD ────────────────────────────────────────── -->
-      <details class="ib-drawer" id="dwEzd">
-        <summary><i class="bi bi-folder-symlink-fill" style="color:#0F766E"></i> Przekaż do EZD</summary>
+      <?php $mdl_case = ob_get_clean(); ob_start(); ?>
         <div class="ib-dbody">
           <?php if (!$ezd_on): ?>
             <div class="text-muted" style="font-size:.85rem">
@@ -645,11 +636,7 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
           <?php endif; ?>
         </div>
-      </details>
-
-      <!-- ── Przekazanie e-mailem ──────────────────────────────────────── -->
-      <details class="ib-drawer" id="dwFwd">
-        <summary><i class="bi bi-forward-fill" style="color:#B45309"></i> Przekaż e-mailem</summary>
+      <?php $mdl_ezd = ob_get_clean(); ob_start(); ?>
         <div class="ib-dbody">
           <form method="post" class="row g-2 align-items-end"><?= $hidden ?>
             <input type="hidden" name="_op" value="forward">
@@ -674,7 +661,7 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
           </form>
         </div>
-      </details>
+      <?php $mdl_fwd = ob_get_clean(); ?>
       <?php endif; ?>
 
       <?php if (!empty($msg['ctx']['cases']) || !empty($msg['ctx']['offers']) || count($msg['ctx']['thread']) > 1): ?>
@@ -718,21 +705,47 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
+<?php if ($msg && $can_write): ?>
+<?php
+  /* Modale akcji — POZA .ib-wrap, bo w kontenerze siatki z overflow Bootstrap
+     pozycjonuje je względem rodzica i okno potrafi zostać przycięte. */
+  $mdls = [
+      'mdCase' => ['Załóż sprawę CRM',  'bi-briefcase-fill',       '#1D4ED8', $mdl_case ?? ''],
+      'mdEzd'  => ['Przekaż do EZD',    'bi-folder-symlink-fill',  '#0F766E', $mdl_ezd  ?? ''],
+      'mdFwd'  => ['Przekaż e-mailem',  'bi-forward-fill',         '#B45309', $mdl_fwd  ?? ''],
+  ];
+?>
+<?php foreach ($mdls as $mid => [$mtitle, $micon, $mcolor, $mbody]): if ($mbody === '') continue; ?>
+<div class="modal fade" id="<?= h($mid) ?>" tabindex="-1" aria-labelledby="<?= h($mid) ?>Label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fw-bold" id="<?= h($mid) ?>Label" style="font-size:1rem">
+          <i class="bi <?= h($micon) ?> me-2" style="color:<?= h($mcolor) ?>" aria-hidden="true"></i><?= h($mtitle) ?>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="text-muted mb-2" style="font-size:.8rem">
+          <?= h(mb_strimwidth((string)($msg['subject'] ?: '(bez tematu)'), 0, 90, '…')) ?>
+        </div>
+        <?= $mbody ?>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endforeach; ?>
 <script>
-// Skróty z paska: rozwijają odpowiednią szufladę i przewijają do niej, zamiast
-// zmuszać do szukania na dole długiej wiadomości.
-document.addEventListener('click', function (ev) {
-  var b = ev.target.closest('.ib-jump');
-  if (!b) return;
-  var d = document.getElementById(b.dataset.target);
-  if (!d) return;
-  d.open = true;
-  d.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  d.classList.add('ib-flash');
-  setTimeout(function () { d.classList.remove('ib-flash'); }, 1200);
-  var f = d.querySelector('input:not([type=hidden]), select, textarea');
-  if (f) setTimeout(function () { f.focus({ preventScroll: true }); }, 350);
+// Kursor w pierwszym polu po otwarciu okna — bez tego trzeba klikać w formularz.
+['mdCase','mdEzd','mdFwd'].forEach(function (id) {
+  var m = document.getElementById(id);
+  if (!m) return;
+  m.addEventListener('shown.bs.modal', function () {
+    var f = m.querySelector('input:not([type=hidden]):not([type=checkbox]), select, textarea');
+    if (f) f.focus();
+  });
 });
 </script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
