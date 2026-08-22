@@ -430,6 +430,10 @@ function ezd_is_manager(?int $user_id = null): bool {
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_sprawa     ON ezd_zalaczniki(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_log_sprawa     ON ezd_log(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_rok        ON ezd_rpw(rok, rpw_nr)",
+        // Wiadomość e-mail zarejestrowana w dzienniku podawczym. Indeks UNIQUE
+        // (częściowy) pilnuje, żeby ten sam mail nie dostał dwóch numerów RPW.
+        "ALTER TABLE ezd_rpw ADD COLUMN comm_id INTEGER REFERENCES crm_communications(id) ON DELETE SET NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_ezd_rpw_comm ON ezd_rpw(comm_id) WHERE comm_id IS NOT NULL",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_status     ON ezd_rpw(status)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_sprawa     ON ezd_rpw(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_notatki_sprawa ON ezd_notatki(sprawa_id)",

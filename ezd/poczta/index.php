@@ -219,6 +219,31 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                     data-id="<?= (int)$row['id'] ?>" title="Przypisz osobę">
               <i class="bi bi-person-check"></i>
             </button>
+            <?php
+              // Dziennik podawczy ma obejmować całą korespondencję wpływającą,
+              // także elektroniczną. Numer RPW nadajemy raz — UNIQUE na comm_id.
+              $_rpw = null;
+              try {
+                  $_rpw = db_one("SELECT id, rpw_nr, rok FROM ezd_rpw WHERE comm_id=?", [(int)$row['id']]);
+              } catch (\Throwable $e) { /* kolumna dochodzi migracją */ }
+            ?>
+            <?php if ($_rpw): ?>
+            <a href="<?= APP_URL ?>/ezd/rpw/view.php?id=<?= (int)$_rpw['id'] ?>"
+               class="btn btn-sm btn-success py-0 px-2"
+               title="W dzienniku podawczym: <?= h(ezd_rpw_label($_rpw)) ?>">
+              <i class="bi bi-mailbox2"></i>
+            </a>
+            <?php else: ?>
+            <form method="post" action="<?= APP_URL ?>/ezd/rpw/from_mail.php" class="d-inline">
+              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+              <input type="hidden" name="comm_id" value="<?= (int)$row['id'] ?>">
+              <input type="hidden" name="back"    value="<?= h(APP_URL . '/ezd/poczta/index.php') ?>">
+              <button type="submit" class="btn btn-sm btn-outline-info py-0 px-2"
+                      title="Zarejestruj jako korespondencję przychodzącą (dziennik podawczy)">
+                <i class="bi bi-mailbox2"></i>
+              </button>
+            </form>
+            <?php endif; ?>
             <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-archive"
                     data-id="<?= (int)$row['id'] ?>" title="Archiwizuj">
               <i class="bi bi-archive"></i>
