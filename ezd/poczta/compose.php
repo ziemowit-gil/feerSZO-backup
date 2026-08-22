@@ -337,9 +337,23 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
         </div>
 
-        <!-- TinyMCE editor ──────────────────────────────────────────────────── -->
+        <!-- Edytor treści ────────────────────────────────────────────────────
+             PUŁAPKA (naprawiony błąd): ten <textarea> NIE MOŻE mieć
+             style="display:none". TinyMCE przenosi oryginalną wartość
+             `display` elementu na swój kontener, więc ukryty textarea dawał
+             edytor z display:none — mierzony w DOM jako 0×0 px. Efekt: strona
+             „Nowa wiadomość e-mail" wyglądała, jakby w ogóle nie miała pola
+             treści. Textarea jest widoczny, a TinyMCE sam go chowa, gdy się
+             zainicjuje (i zostaje zapasem, gdy się nie wczyta). -->
         <div class="mb-3">
-          <textarea id="bodyEditor" name="body_html" style="display:none"></textarea>
+          <label class="visually-hidden" for="bodyEditor">Treść wiadomości</label>
+          <textarea id="bodyEditor" name="body_html" class="form-control" rows="14"
+                    style="font-size:.9rem;line-height:1.6"></textarea>
+          <div id="bodyEditorFallback" class="form-text text-warning" hidden>
+            <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+            Edytor formatowania się nie wczytał (brak dostępu do CDN?) — piszesz zwykłym
+            tekstem, wiadomość i tak wyjdzie poprawnie.
+          </div>
         </div>
 
         <!-- Załączniki ─────────────────────────────────────────────────────── -->
@@ -381,7 +395,30 @@ const _SIG_USER = <?= json_encode($sigs['user']) ?>;
 const _SIG_ORG  = <?= json_encode($sigs['org']) ?>;
 const _SPRAWA_ID = <?= $sprawa_id ?: 'null' ?>;
 
+// ── Bezpieczny dostęp do edytora ─────────────────────────────────────────────
+// Gdy TinyMCE się nie wczyta (brak dostępu do CDN — EZD chodzi po VPN, offline,
+// blokada w przeglądarce), NIE wolno wywalić całego skryptu: bez tego padłaby
+// też wysyłka, wyszukiwarka spraw i wstawianie podpisu. Zostaje zwykły
+// <textarea> i formularz działa dalej.
+function bodyEd() {
+  return (window.tinymce && typeof tinymce.get === 'function') ? tinymce.get('bodyEditor') : null;
+}
+function bodyInsert(html) {
+  const ed = bodyEd();
+  if (ed) { ed.insertContent(html); return; }
+  const ta = document.getElementById('bodyEditor');
+  if (!ta) return;
+  const from = ta.selectionStart ?? ta.value.length;
+  const to   = ta.selectionEnd   ?? from;
+  ta.value = ta.value.slice(0, from) + html + ta.value.slice(to);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = from + html.length;
+}
+
 // ── TinyMCE init ──────────────────────────────────────────────────────────────
+if (!window.tinymce) {
+  document.getElementById('bodyEditorFallback')?.removeAttribute('hidden');
+} else
 tinymce.init({
   selector: '#bodyEditor',
   license_key: 'gpl',
@@ -405,18 +442,13 @@ tinymce.init({
 
 // ── Wstaw zmienną szablonu ────────────────────────────────────────────────────
 document.querySelectorAll('.btn-insert-var').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const ed = tinymce.get('bodyEditor');
-    if (ed) ed.insertContent(btn.dataset.var);
-  });
+  btn.addEventListener('click', () => bodyInsert(btn.dataset.var));
 });
 
 // ── Wstaw podpis użytkownika ──────────────────────────────────────────────────
 document.getElementById('btnInsertUserSig')?.addEventListener('click', () => {
-  const ed = tinymce.get('bodyEditor');
-  if (!ed) return;
   if (_SIG_USER) {
-    ed.insertContent('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_USER);
+    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_USER);
   } else {
     alert('Nie masz ustawionego podpisu e-mail. Skonfiguruj go w Ustawieniach konta → Podpis CRM.');
   }
@@ -424,10 +456,8 @@ document.getElementById('btnInsertUserSig')?.addEventListener('click', () => {
 
 // ── Wstaw stopkę organizacji ──────────────────────────────────────────────────
 document.getElementById('btnInsertOrgSig')?.addEventListener('click', () => {
-  const ed = tinymce.get('bodyEditor');
-  if (!ed) return;
   if (_SIG_ORG) {
-    ed.insertContent('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_ORG);
+    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_ORG);
   } else {
     alert('Stopka organizacji nie jest ustawiona. Skonfiguruj ją w Ustawieniach CRM.');
   }
@@ -489,8 +519,8 @@ document.getElementById('changeSprawaBtn')?.addEventListener('click', e => {
 document.getElementById('composeForm')?.addEventListener('submit', async function(e) {
   e.preventDefault();
 
-  const ed = tinymce.get('bodyEditor');
-  if (ed) ed.save();
+  const ed = bodyEd();
+  if (ed) ed.save();   // przepisz treść z edytora do <textarea> przed FormData
 
   const btn = document.getElementById('btnSend');
   btn.disabled = true;
@@ -511,7 +541,7 @@ document.getElementById('composeForm')?.addEventListener('submit', async functio
       alertEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>' + data.message;
       alertEl.style.display = '';
       this.reset();
-      ed?.setContent('');
+      ed ? ed.setContent('') : (document.getElementById('bodyEditor').value = '');
       setTimeout(() => {
         if (_SPRAWA_ID) {
           window.location = _APP_URL + '/ezd/sprawy/view.php?id=' + _SPRAWA_ID + '#tab-korespondencja';
