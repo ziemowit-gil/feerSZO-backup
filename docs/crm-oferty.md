@@ -320,3 +320,53 @@ Nowe metody Graph w `includes/m365.php`: `create_outlook_contact()`, `update_out
   maili zwraca HTTP 403 — dotyczy też `sync_messages()` i śledzenia skrzynki.
   Dodać w App registrations → API permissions → Microsoft Graph → Application permissions
   i zatwierdzić zgodą administratora.
+
+
+---
+
+# Skrzynka odbiorcza współdzielona w CRM
+
+`crm/inbox.php` + `includes/crm_mailbox.php`. Czyta **te same** wiadomości co Inbox Ogólny
+EZD — jedna baza (`crm_communications` zasilane przez `PocztaScanService`), dwa widoki:
+kancelaria pracuje w EZD, sprzedaż w CRM. Status „przeczytane" i przypisanie są wspólne,
+bo to te same kolumny, nie kopia danych.
+
+Różnice widoku CRM:
+
+* **bez zależności od EZD** — żadnych JOIN-ów do `ezd_sprawy`, więc działa przy wyłączonym
+  module EZD; uprawnienia to `can_read`/`can_write('crm')`, nie `ezd_require_access()`,
+* **kontekst sprzedażowy** przy wiadomości: kontakt (typ, dane), jego sprawy CRM, oferty
+  i wątek korespondencji,
+* **akcje CRM**: „Wezmę to" (przypisanie), odpowiedź przez kompozytor CRM, „Utwórz sprawę"
+  (wiadomość → sprawa + przypisanie + archiwizacja), „Nowa oferta" z kontaktem w tle,
+  załatwione / spam / przywróć, oznacz nieprzeczytane, przypisanie innej osobie,
+* **widoki**: Nowe, Przypisane mi, Bez opiekuna, Wszystkie, Załatwione, Spam — z licznikami,
+* **układ master-detail** (lista + treść), bez modali, z klawiatury,
+* treść HTML wiadomości renderowana po odfiltrowaniu `script/style/iframe/object/embed/form`,
+  atrybutów `on*` i `javascript:` w `href`/`src`.
+
+## Nieznany nadawca
+
+`PocztaScanService` **pomijał** wiadomości od adresów, których nie ma w kartotece —
+czyli zapytania od nowych klientów nigdy nie trafiały do systemu. Doszło ustawienie
+`poczta_autocreate_contacts` (przełącznik na górze Skrzynki CRM, domyślnie **wyłączone**):
+gdy włączone, nieznany nadawca zakłada kartotekę (`source='skrzynka'`), pomijając adresy
+z domeny własnej organizacji. Zmiana dotyczy też Inboksu EZD — to wspólna ścieżka pobierania.
+
+## Diagnostyka błędów Microsoft 365
+
+Każdy komunikat błędu Graph w module CRM zawiera teraz **Client ID i Tenant ID**
+(`crm_office_error_context()`), a *Ustawienia CRM → Microsoft 365* pokazują nazwę rejestracji
+aplikacji, jej Client ID, Tenant ID i stan uprawnień `Contacts.ReadWrite` / `Mail.Read`.
+Bez tego „Access is denied" nie mówi, którą rejestrację poprawić — instalacje mają osobne
+aplikacje dla produkcji i preprodukcji.
+
+Nadawanie uprawnień: `docker/scripts/grant-graph-permissions.sh` (Azure CLI). Domyślnie
+tylko podgląd, zmiany po `--apply`; identyfikatory ról czyta z tenanta, więc nie ma
+zaszytych GUID-ów. Skrypt tworzy service principal, gdy go brak, dodaje brakujące
+uprawnienia aplikacyjne i wykonuje `admin-consent`, na końcu weryfikuje wynik.
+
+```bash
+bash docker/scripts/grant-graph-permissions.sh --client-id <appId>           # podgląd
+bash docker/scripts/grant-graph-permissions.sh --client-id <appId> --apply   # wykonanie
+```

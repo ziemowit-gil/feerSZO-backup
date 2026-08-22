@@ -235,6 +235,13 @@ class PocztaScanService
         if (!$emails) { $result['skipped']++; return; }
 
         $contact_ids = $this->contacts_by_emails($emails);
+
+        // Nieznany nadawca: albo zakładamy kartotekę (skrzynka jako źródło zapytań
+        // sprzedażowych — Skrzynka CRM), albo pomijamy wiadomość jak dotychczas.
+        if (!$contact_ids && $direction === 'in' && $this->autocreate_contacts()) {
+            $cid = $this->create_contact_from_sender($msg);
+            if ($cid) $contact_ids = [$cid];
+        }
         if (!$contact_ids) { $result['skipped']++; return; }
         $result['matched']++;
 
@@ -348,6 +355,51 @@ class PocztaScanService
         );
         $s->execute($emails);
         return array_map('intval', $s->fetchAll(\PDO::FETCH_COLUMN) ?: []);
+    }
+
+    /** Czy nieznany nadawca ma zakładać kartotekę CRM (settings.poczta_autocreate_contacts). */
+    private function autocreate_contacts(): bool {
+        static $flag = null;
+        if ($flag === null) {
+            try {
+                $r = db_one("SELECT value FROM settings WHERE key_='poczta_autocreate_contacts'");
+                $flag = (($r['value'] ?? '0') === '1');
+            } catch (\Throwable $e) { $flag = false; }
+        }
+        return $flag;
+    }
+
+    /**
+     * Tworzy kartotekę na podstawie nadawcy wiadomości. Zwraca id kontaktu albo null.
+     * Nie zakłada kontaktów dla adresów własnej organizacji ani dla niepoprawnych adresów.
+     */
+    private function create_contact_from_sender(array $msg): ?int {
+        $addr = strtolower(trim($msg['from']['emailAddress']['address'] ?? ''));
+        $name = trim($msg['from']['emailAddress']['name'] ?? '');
+        if ($addr === '' || !filter_var($addr, FILTER_VALIDATE_EMAIL)) return null;
+
+        $own = strtolower((string)(org_setting('org_email') ?: ''));
+        $own_domain = $own !== '' ? substr(strrchr($own, '@') ?: '', 1) : '';
+        if ($own_domain !== '' && str_ends_with($addr, '@' . $own_domain)) return null;
+
+        try {
+            require_once __DIR__ . '/crm.php';
+            $disp  = $name !== '' ? $name : ucfirst((string)strtok($addr, '@'));
+            $parts = preg_split('/\s+/', $disp, 2);
+            $cid = CrmManager::createContact([
+                'type'          => 'osoba',
+                'status'        => 'prospect',
+                'imie_nazwisko' => $disp,
+                'imie'          => $parts[0] ?? '',
+                'nazwisko'      => $parts[1] ?? '',
+                'email'         => $addr,
+                'source'        => 'skrzynka',
+            ]);
+            return $cid ?: null;
+        } catch (\Throwable $e) {
+            error_log('[poczta autocreate] ' . $e->getMessage());
+            return null;
+        }
     }
 
     private function parse_msg_dt(string $raw): string

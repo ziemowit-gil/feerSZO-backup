@@ -60,6 +60,23 @@ function crm_office_migrate(): bool {
 // KONFIGURACJA
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Dopisuje do komunikatu o błędzie identyfikację rejestracji aplikacji.
+ * Bez tego „Access is denied" nie mówi, KTÓRĄ aplikację w Entra ID poprawić —
+ * a instalacje mają osobne rejestracje dla produkcji i preprodukcji.
+ */
+function crm_office_error_context(string $msg): string {
+    try {
+        $g = new M365Graph();
+        $cid = $g->client_id();
+        $tid = $g->tenant_id();
+    } catch (\Throwable $e) { return $msg; }
+    $bits = [];
+    if ($cid !== '') $bits[] = 'Client ID: ' . $cid;
+    if ($tid !== '') $bits[] = 'Tenant: ' . $tid;
+    return $bits ? ($msg . ' [' . implode(' · ', $bits) . ']') : $msg;
+}
+
 /** Skrzynka, której książkę adresową zasilamy (UPN lub Azure AD User ID). */
 function crm_office_mailbox(): string {
     return crm_setting('crm_office_mailbox')
@@ -102,11 +119,21 @@ function crm_office_permissions(): array {
     return $need;
 }
 
+/** Nazwa aplikacji z Entra ID (service principal) — do wskazania właściwej rejestracji. */
+function crm_office_app_name(): string {
+    try {
+        $p = (new M365Graph())->get_granted_permissions();
+        return (string)($p['sp_display_name'] ?? '');
+    } catch (\Throwable $e) { return ''; }
+}
+
 /** Stan integracji dla UI: co jest skonfigurowane, a czego brakuje. */
 function crm_office_status(): array {
     $graph = new M365Graph();
     return [
         'graph_configured' => $graph->is_configured(),
+        'client_id'        => $graph->client_id(),
+        'tenant_id'        => $graph->tenant_id(),
         'mailbox'          => crm_office_mailbox(),
         'push_enabled'     => crm_office_push_enabled(),
         'auto_push'        => crm_office_auto_push(),
@@ -222,7 +249,9 @@ function crm_office_push_contact(int $contact_id, bool $force = false): array {
                 $existing = '';
             } elseif ($st >= 400) {
                 $err = $graph->last_error();
-                $out['error'] = 'Graph HTTP ' . $st . ($err['message'] ?? '' ? ': ' . $err['message'] : '');
+                $out['error'] = crm_office_error_context(
+                    'Graph HTTP ' . $st . ($err['message'] ?? '' ? ': ' . $err['message'] : '')
+                );
                 crm_update('crm_contacts', ['office_push_error' => $out['error']], $contact_id);
                 return $out;
             } else {
@@ -236,8 +265,10 @@ function crm_office_push_contact(int $contact_id, bool $force = false): array {
             if ($new_id === '') {
                 $st  = $graph->last_status();
                 $err = $graph->last_error();
-                $out['error'] = 'Graph HTTP ' . $st . ($err['message'] ?? '' ? ': ' . $err['message'] : '')
-                              . ($st === 403 ? ' — brak uprawnienia Contacts.ReadWrite dla aplikacji.' : '');
+                $out['error'] = crm_office_error_context(
+                    'Graph HTTP ' . $st . ($err['message'] ?? '' ? ': ' . $err['message'] : '')
+                    . ($st === 403 ? ' — brak uprawnienia Contacts.ReadWrite dla aplikacji.' : '')
+                );
                 crm_update('crm_contacts', ['office_push_error' => $out['error']], $contact_id);
                 return $out;
             }
@@ -353,6 +384,7 @@ function crm_office_pull_contact_mail(int $contact_id, ?int $days = null, ?int $
             $res['error'] .= ' — aplikacja w Entra ID nie ma uprawnienia Mail.Read (Application)'
                            . ' albo brakuje zgody administratora.';
         }
+        $res['error'] = crm_office_error_context($res['error']);
         return $res;
     }
 

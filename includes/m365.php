@@ -30,6 +30,12 @@ class M365Graph {
         return json_decode($payload ?: '{}', true) ?? [];
     }
 
+    /** Client ID (appId) rejestracji aplikacji — do komunikatów o błędach. */
+    public function client_id(): string { return $this->client_id; }
+
+    /** Tenant ID — do komunikatów o błędach. */
+    public function tenant_id(): string { return $this->tenant_id; }
+
     public function is_configured(): bool {
         return !empty($this->client_id) && !empty($this->client_secret) && !empty($this->tenant_id);
     }

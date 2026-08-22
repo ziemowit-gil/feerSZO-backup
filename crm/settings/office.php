@@ -123,6 +123,13 @@ require_once __DIR__ . '/_nav.php';
         <div class="d-flex justify-content-between"><span class="text-muted">Graph skonfigurowany</span>
           <strong class="<?= $st['graph_configured'] ? 'text-success' : 'text-danger' ?>">
             <?= $st['graph_configured'] ? 'tak' : 'nie' ?></strong></div>
+        <?php $app_name = crm_office_app_name(); ?>
+        <div class="d-flex justify-content-between"><span class="text-muted">Aplikacja w Entra ID</span>
+          <strong><?= h($app_name ?: '—') ?></strong></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Client ID</span>
+          <code style="font-size:.75rem"><?= h($st['client_id'] ?: '—') ?></code></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Tenant ID</span>
+          <code style="font-size:.75rem"><?= h($st['tenant_id'] ?: '—') ?></code></div>
         <div class="d-flex justify-content-between"><span class="text-muted">Skrzynka docelowa</span>
           <strong><?= h($st['mailbox'] ?: '—') ?></strong></div>
         <div class="d-flex justify-content-between"><span class="text-muted">Kontakty powiązane</span>
@@ -148,8 +155,11 @@ require_once __DIR__ . '/_nav.php';
           <?php endforeach; ?>
           <?php if (in_array(false, $perms, true)): ?>
           <div class="alert alert-warning py-2 mt-1 mb-0" style="font-size:.78rem">
-            Brakujące uprawnienie trzeba dodać w rejestracji aplikacji (Entra ID → App registrations →
-            API permissions → Microsoft Graph → Application permissions) i zatwierdzić zgodą administratora.
+            Brakujące uprawnienie trzeba dodać <strong>w tej rejestracji</strong>:
+            <?= h($app_name ?: 'aplikacja') ?> — <code><?= h($st['client_id'] ?: '?') ?></code>
+            (Entra ID → App registrations → ta aplikacja → API permissions → Microsoft Graph →
+            Application permissions), a potem kliknąć <strong>Grant admin consent</strong>.
+            Uprawnienie dodane bez zgody administratora nie działa i nie widać go na tej liście.
             Bez <code>Mail.Read</code> pobieranie maili zwraca HTTP 403 — dotyczy też
             synchronizacji przychodzącej i śledzenia skrzynki.
           </div>

@@ -48,6 +48,15 @@ try {
     $_crm_total = (int)(db_one("SELECT COUNT(*) AS c FROM crm_contacts WHERE crm_active=1")['c'] ?? 0);
 } catch (\Throwable $e) { $_crm_total = 0; }
 
+// Nieprzeczytane w skrzynce współdzielonej (badge) — tabela może nie istnieć
+$_crm_inbox_unread = 0;
+try {
+    $_crm_inbox_unread = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_communications
+         WHERE direction='in' AND is_read=0 AND inbox_status='active'"
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+
 // Liczniki modułu Oferty (badge w pasku) — cicho, gdy modułu jeszcze nie migrowano
 $_crm_offers_pending = 0;
 $_crm_offers_noconf  = 0;
@@ -511,6 +520,11 @@ window.openCommModal = function(contactId, channel) {
         <?php endif; ?>
       </ul>
     </div>
+
+    <a href="<?= APP_URL ?>/crm/inbox.php" class="crm-navlink<?= str_contains($_uri,'/crm/inbox') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/inbox') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-inbox-fill"></i><span>Skrzynka</span>
+      <?php if (!empty($_crm_inbox_unread)): ?><span class="crm-nav-badge"><?= $_crm_inbox_unread > 99 ? '99+' : (int)$_crm_inbox_unread ?></span><?php endif; ?>
+    </a>
 
     <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= str_contains($_uri,'/crm/calendar.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/calendar.php') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
