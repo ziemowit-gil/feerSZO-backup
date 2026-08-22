@@ -43,11 +43,21 @@ $rows = db_all(
     $params
 );
 
-echo json_encode(array_map(fn($r) => [
-    'id'          => (int)$r['id'],
-    'name'        => $r['imie_nazwisko'],
-    'email'       => $r['email'] ?: null,
-    'telefon'     => $r['telefon'] ?: null,
-    'organizacja' => $r['organizacja'] ?: null,
-    'type'        => $r['type'],
-], $rows), JSON_UNESCAPED_UNICODE);
+// Poza własnymi danymi kontaktu zwracamy też adres RZECZYWISTEGO adresata
+// (osoba oznaczona jako domyślny adresat → osoba główna → podmiot). Firma bez
+// adresu ogólnego, ale z e-mailem osoby kontaktowej, jest osiągalna — pola
+// `email`/`telefon` zostają nietknięte dla pozostałych konsumentów tego API.
+echo json_encode(array_map(function ($r) {
+    $to = crm_contact_recipient((int)$r['id'], null, $r);
+    return [
+        'id'          => (int)$r['id'],
+        'name'        => $r['imie_nazwisko'],
+        'email'       => $r['email'] ?: null,
+        'telefon'     => $r['telefon'] ?: null,
+        'organizacja' => $r['organizacja'] ?: null,
+        'type'        => $r['type'],
+        'to_email'    => $to['email']   ?: null,
+        'to_telefon'  => $to['telefon'] ?: null,
+        'to_name'     => $to['person_id'] ? $to['name'] : null,
+    ];
+}, $rows), JSON_UNESCAPED_UNICODE);

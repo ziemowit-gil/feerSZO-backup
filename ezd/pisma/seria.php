@@ -102,8 +102,28 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </select>
     </div>
     <div class="mb-1">
-      <label class="form-label fw-semibold">Adresaci <span class="text-danger">*</span></label>
-      <textarea name="adresaci" class="form-control font-monospace" rows="10" style="font-size:.85rem"
+      <label class="form-label fw-semibold" for="adresaci_ta">Adresaci <span class="text-danger">*</span></label>
+
+      <!-- Wstawianie adresatów z CRM. Domyślnie proponujemy osobę oznaczoną w
+           kartotece jako „domyślny adresat"; można wskazać inną osobę podmiotu. -->
+      <?php if (module_enabled('crm_enabled') && (can_read('crm') || is_admin())): ?>
+      <div class="position-relative mb-2">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+          <input type="text" id="crmPick" class="form-control" autocomplete="off"
+                 placeholder="Wstaw adresata z CRM — nazwa, firma lub NIP…"
+                 aria-label="Szukaj adresata w CRM" aria-describedby="crmPickHelp">
+        </div>
+        <div id="crmPickDd" class="list-group position-absolute w-100 shadow"
+             style="z-index:20;display:none;max-height:280px;overflow-y:auto"></div>
+        <div id="crmPickHelp" class="form-text">
+          Klik dopisuje adresata w nowym wierszu. Gdy podmiot ma kilka osób kontaktowych,
+          wybierz osobę z listy przy wyniku.
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <textarea name="adresaci" id="adresaci_ta" class="form-control font-monospace" rows="10" style="font-size:.85rem"
         placeholder="Jeden adresat w wierszu. Opcjonalnie znak pisma adresata po pionowej kresce:&#10;Jan Kowalski, ul. Polna 1, 00-001 Warszawa&#10;Firma ABC Sp. z o.o. | ABC/123/2026"><?= h($adresaci) ?></textarea>
     </div>
     <p class="text-muted small mb-0">
@@ -120,5 +140,88 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </form>
 </div></div>
 <?php endif; ?>
+
+<script>
+// Wyszukiwanie adresatów w CRM i dopisywanie ich do listy. Linia adresowa
+// powstaje na serwerze (crm_recipient_postal_line), żeby format był identyczny
+// z kopertami i pismami pojedynczymi.
+(function () {
+  var inp = document.getElementById('crmPick');
+  var dd  = document.getElementById('crmPickDd');
+  var ta  = document.getElementById('adresaci_ta');
+  if (!inp || !dd || !ta) return;
+
+  var API = <?= json_encode(APP_URL . '/crm/api/postal_lookup.php', JSON_UNESCAPED_SLASHES) ?>;
+  var timer = null;
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function appendLine(line) {
+    if (!line) return;
+    var cur = ta.value.replace(/\s*$/, '');
+    ta.value = (cur === '' ? '' : cur + '\n') + line;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function render(rows) {
+    if (!rows.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = rows.map(function (c) {
+      var many = (c.persons || []).length > 1;
+      var pick = many
+        ? '<select class="form-select form-select-sm mt-1" data-line-src>' +
+            '<option value="' + esc(c.line) + '">Podmiot / domyślny adresat</option>' +
+            c.persons.map(function (p) {
+              return '<option value="' + esc(p.line) + '"' + (p.default ? ' selected' : '') + '>' +
+                     esc(p.name) + (p.role ? ' · ' + esc(p.role) : '') + '</option>';
+            }).join('') +
+          '</select>'
+        : '';
+      return '<div class="list-group-item">' +
+        '<div class="d-flex gap-2 align-items-start">' +
+          '<div class="flex-grow-1" style="min-width:0">' +
+            '<div class="fw-semibold" style="font-size:.85rem">' + esc(c.name) +
+              (c.org ? ' <span class="text-muted fw-normal">· ' + esc(c.org) + '</span>' : '') + '</div>' +
+            '<div class="text-muted" style="font-size:.75rem">' + esc(c.line) + '</div>' +
+            pick +
+          '</div>' +
+          '<button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0" data-add ' +
+                  'data-line="' + esc(c.line) + '">Dodaj</button>' +
+        '</div></div>';
+    }).join('');
+    dd.style.display = '';
+  }
+
+  inp.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = inp.value.trim();
+    if (q.length < 2) { dd.style.display = 'none'; return; }
+    timer = setTimeout(function () {
+      fetch(API + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(render)
+        .catch(function () { dd.style.display = 'none'; });
+    }, 220);
+  });
+
+  dd.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-add]');
+    if (!btn) return;
+    var item = btn.closest('.list-group-item');
+    var sel  = item ? item.querySelector('[data-line-src]') : null;
+    appendLine(sel ? sel.value : btn.dataset.line);
+    dd.style.display = 'none';
+    inp.value = '';
+    inp.focus();
+  });
+
+  document.addEventListener('click', function (ev) {
+    if (!dd.contains(ev.target) && ev.target !== inp) dd.style.display = 'none';
+  });
+})();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

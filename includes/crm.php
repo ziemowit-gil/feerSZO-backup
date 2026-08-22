@@ -267,6 +267,86 @@ function crm_services_status_label(): string
     return (string)($st[CRM_SERVICES_STATUS]['label'] ?? 'Partner');
 }
 
+/**
+ * Ustala adresata korespondencji dla kontaktu.
+ *
+ * Kolejność: wskazana osoba → osoba oznaczona jako domyślny adresat → osoba
+ * główna → dane samego podmiotu. Dzięki temu wysyłka do firmy trafia do
+ * konkretnego człowieka, a nie na adres ogólny, o ile ktoś taki jest wpisany.
+ *
+ * @param int|null $person_id Wymuszona osoba (wybór operatora w formularzu wysyłki).
+ * @return array{email:string,telefon:string,name:string,person_id:int,source:string}
+ *         source: 'wybrana' | 'domyślna' | 'główna' | 'podmiot'
+ */
+function crm_contact_recipient(int $contact_id, ?int $person_id = null, ?array $contact = null): array
+{
+    $contact ??= crm_one("SELECT id, imie_nazwisko, email, telefon FROM crm_contacts WHERE id=?", [$contact_id]);
+    $fallback = [
+        'email'     => trim((string)($contact['email']   ?? '')),
+        'telefon'   => trim((string)($contact['telefon'] ?? '')),
+        'name'      => (string)($contact['imie_nazwisko'] ?? ''),
+        'person_id' => 0,
+        'source'    => 'podmiot',
+    ];
+
+    $persons = crm_all(
+        "SELECT id, imie_nazwisko, email, telefon, is_primary, is_default_recipient
+           FROM crm_contact_persons WHERE contact_id=? ORDER BY sort_order, id",
+        [$contact_id]
+    );
+    if (!$persons) return $fallback;
+
+    $pick = null; $source = '';
+    if ($person_id) {
+        foreach ($persons as $p) if ((int)$p['id'] === $person_id) { $pick = $p; $source = 'wybrana'; break; }
+    }
+    if (!$pick) {
+        foreach ($persons as $p) if (!empty($p['is_default_recipient'])) { $pick = $p; $source = 'domyślna'; break; }
+    }
+    if (!$pick) {
+        foreach ($persons as $p) if (!empty($p['is_primary'])) { $pick = $p; $source = 'główna'; break; }
+    }
+    if (!$pick) return $fallback;
+
+    // Osoba bez adresu nie zastępuje adresu podmiotu — inaczej wysyłka po prostu
+    // by przepadła. Uzupełniamy pole po polu.
+    $email = trim((string)($pick['email']   ?? ''));
+    $tel   = trim((string)($pick['telefon'] ?? ''));
+    if ($email === '' && $tel === '') return $fallback;
+
+    return [
+        'email'     => $email !== '' ? $email : $fallback['email'],
+        'telefon'   => $tel   !== '' ? $tel   : $fallback['telefon'],
+        'name'      => (string)$pick['imie_nazwisko'],
+        'person_id' => (int)$pick['id'],
+        'source'    => $source,
+    ];
+}
+
+/**
+ * Adresat w formie jednej linii adresowej — do korespondencji listownej
+ * (EZD → korespondencja seryjna, koperty, pisma).
+ *
+ * Osoba kontaktowa nie ma własnego adresu pocztowego, więc linia to zawsze
+ * „osoba, podmiot, adres podmiotu"; bez wskazanej osoby zostaje sam podmiot.
+ */
+function crm_recipient_postal_line(int $contact_id, ?int $person_id = null): string
+{
+    $c = crm_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id]);
+    if (!$c) return '';
+
+    $to    = crm_contact_recipient($contact_id, $person_id, $c);
+    $parts = [];
+    if ($to['person_id'] && $to['name'] !== '') $parts[] = $to['name'];
+    $parts[] = (string)$c['imie_nazwisko'];
+
+    require_once __DIR__ . '/address.php';
+    $addr = trim(address_format($c)) ?: trim((string)($c['adres'] ?? ''));
+    if ($addr !== '') $parts[] = preg_replace('/\s*\R\s*/u', ', ', $addr);
+
+    return implode(', ', array_filter(array_map('trim', $parts), fn($v) => $v !== ''));
+}
+
 // Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
 function crm_one(string $sql, array $p = []): ?array {
     $st = crm_db()->prepare($sql); $st->execute($p);
@@ -422,6 +502,9 @@ function crm_migrate(): void {
         updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_cperson_contact ON crm_contact_persons(contact_id)");
+    // Domyślny adresat korespondencji — OSOBNE od is_primary. Osoba główna to
+    // reprezentant podmiotu; korespondencję może odbierać ktoś inny (np. księgowość).
+    try { $pdo->exec("ALTER TABLE crm_contact_persons ADD COLUMN is_default_recipient INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Otwarty katalog rodzajów usług świadczonych na rzecz organizacji.
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_service_types (
@@ -479,6 +562,8 @@ function crm_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_contact ON crm_communications(contact_id)");
     // Identyfikator zewnętrzny (np. ID wiadomości Graph) — deduplikacja przychodzących. v1.9
     try { $pdo->exec("ALTER TABLE crm_communications ADD COLUMN external_id TEXT"); } catch (\Throwable $e) {}
+    // Osoba kontaktowa, do której faktycznie poszła wiadomość (NULL = adres podmiotu).
+    try { $pdo->exec("ALTER TABLE crm_communications ADD COLUMN person_id INTEGER REFERENCES crm_contact_persons(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_extid ON crm_communications(external_id)"); } catch (\Throwable $e) {}
 
     // Szablony wiadomości
@@ -1575,6 +1660,23 @@ class CrmManager
         self::syncPrimaryPersonName($contact_id);
     }
 
+    /**
+     * Oznacza osobę jako domyślnego adresata korespondencji podmiotu.
+     * Adresat jest jeden — ustawienie nowego zdejmuje flagę z pozostałych.
+     * $person_id = 0 czyści wskazanie (wraca zachowanie: osoba główna / podmiot).
+     */
+    public static function setDefaultRecipient(int $contact_id, int $person_id): void
+    {
+        try {
+            crm_db()->prepare("UPDATE crm_contact_persons SET is_default_recipient=0 WHERE contact_id=?")
+                ->execute([$contact_id]);
+            if ($person_id > 0) {
+                crm_db()->prepare("UPDATE crm_contact_persons SET is_default_recipient=1 WHERE id=? AND contact_id=?")
+                    ->execute([$person_id, $contact_id]);
+            }
+        } catch (\Throwable $e) {}
+    }
+
     /** Przepisuje nazwę osoby głównej do crm_contacts.osoba_kontaktowa. */
     public static function syncPrimaryPersonName(int $contact_id): void
     {
@@ -1762,28 +1864,33 @@ class CrmManager
         string $template_name = '',
         bool   $do_send       = true,
         array  $attachments   = [],
-        string $from_email    = ''   // skrzynka nadawcy (np. konto M365 usera); '' = systemowy
+        string $from_email    = '',  // skrzynka nadawcy (np. konto M365 usera); '' = systemowy
+        ?int   $person_id     = null // osoba kontaktowa jako adresat; null = rozstrzyga resolver
     ): int {
         $user    = current_user();
         $user_id = (int)($user['id'] ?? 0);
         $status  = 'zaplanowana';
 
+        // Adresata ustalamy zawsze — także dla wpisu bez wysyłki, żeby w historii
+        // było widać, do kogo wiadomość była adresowana.
+        $contact = db_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
+        $to      = crm_contact_recipient($contact_id, $person_id, $contact ?: null);
+
         if ($do_send) {
-            $contact   = db_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
             $user_sig  = db_one("SELECT crm_email_signature, crm_sms_signature FROM users WHERE id=?", [$user_id]);
             try {
-                if ($channel === 'sms' && ($contact['telefon'] ?? '')) {
+                if ($channel === 'sms' && $to['telefon'] !== '') {
                     require_once __DIR__ . '/sms.php';
                     $sms_body = $body;
                     $sms_sig  = trim($user_sig['crm_sms_signature'] ?? '');
                     if ($sms_sig !== '') {
                         $sms_body = rtrim($sms_body) . "\n" . $sms_sig;
                     }
-                    sms_send($contact['telefon'], $sms_body);
+                    sms_send($to['telefon'], $sms_body);
                     $status = 'wysłana';
-                } elseif ($channel === 'email' && ($contact['email'] ?? '')) {
+                } elseif ($channel === 'email' && $to['email'] !== '') {
                     require_once __DIR__ . '/mail_queue.php';
-                    $to_name = $contact['imie_nazwisko'] ?? '';
+                    $to_name = $to['name'] !== '' ? $to['name'] : ($contact['imie_nazwisko'] ?? '');
                     // Wyślij HTML jeśli treść zawiera tagi, inaczej zawiń w prosty HTML
                     $is_html = strip_tags($body) !== $body;
                     $html_body = $is_html ? $body : nl2br(htmlspecialchars($body));
@@ -1797,7 +1904,7 @@ class CrmManager
                     if ($crm_footer !== '') {
                         $html_body .= "\n<hr>\n" . $crm_footer;
                     }
-                    mail_queue_add($contact['email'], $to_name, $subject ?: 'Wiadomość', $html_body, $body, 'crm', $contact_id, '', false, $attachments, $from_email);
+                    mail_queue_add($to['email'], $to_name, $subject ?: 'Wiadomość', $html_body, $body, 'crm', $contact_id, '', false, $attachments, $from_email);
                     // Wyślij natychmiast (nie czekaj na cron) — przez M365/SMTP/mail()
                     mail_queue_process(1);
                     $status = 'wysłana';
@@ -1809,6 +1916,7 @@ class CrmManager
 
         $id = db_insert('crm_communications', [
             'contact_id'    => $contact_id,
+            'person_id'     => !empty($to['person_id']) ? (int)$to['person_id'] : null,
             'channel'       => $channel,
             'direction'     => 'out',
             'template_name' => $template_name ?: null,

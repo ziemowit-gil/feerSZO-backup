@@ -580,6 +580,9 @@ const MS = (function() {
   let _group_ids    = new Set();
   let _tag_filters  = new Set();
   let _contact_ids  = new Map(); // id → {name, email}
+  // Wybór osoby kontaktowej per podmiot: { contact_id: person_id }. Pusty = adresat
+  // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
+  let _person_over  = {};
   let _dw_emails    = new Map(); // email → label
   let _quill        = null;
   let _total        = 0;
@@ -657,9 +660,11 @@ const MS = (function() {
 
   // ── Contact search ───────────────────────────────────────────────────────────
   // Sprawdź czy kontakt ma pole wymagane przez aktualny kanał
+  // O osiągalności decyduje adres ADRESATA (to_email/to_telefon z API), a nie
+  // wyłącznie adres podmiotu — firma może mieć e-mail tylko przy osobie kontaktowej.
   function contactValidForChannel(c) {
-    if (_channel === 'email') return !!c.email;
-    if (_channel === 'sms')   return !!c.telefon;
+    if (_channel === 'email') return !!(c.to_email   || c.email);
+    if (_channel === 'sms')   return !!(c.to_telefon || c.telefon);
     return true;
   }
   function channelMissingLabel() {
@@ -682,7 +687,7 @@ const MS = (function() {
             <div class="contact-dropdown-item${ok?'':' ms-disabled'}"
                  data-id="${c.id}" data-name="${esc(c.name)}"
                  data-email="${esc(c.email||'')}" data-telefon="${esc(c.telefon||'')}"
-                 ${ok?`onclick="MS.addContact(${c.id},'${esc(c.name)}','${esc(c.email||'')}','${esc(c.telefon||'')}')"`:``}
+                 ${ok?`onclick="MS.addContact(${c.id},'${esc(c.name)}','${esc(c.to_email||c.email||'')}','${esc(c.to_telefon||c.telefon||'')}')"`:``}
                  title="${ok?'':('Nie można wybrać — '+missing)}">
               <div class="ci-name">
                 ${esc(c.name)}${c.organizacja?` <span style="font-weight:400;color:#9CA3AF">· ${esc(c.organizacja)}</span>`:''}
@@ -690,7 +695,7 @@ const MS = (function() {
                 ${!ok?`<span class="badge bg-warning text-dark ms-1" style="font-size:.62rem"><i class="bi bi-exclamation-triangle-fill"></i> ${esc(missing)}</span>`:''}
               </div>
               <div class="ci-sub" style="${ok?'':'color:#D97706'}">
-                ${ok ? (esc(c.email||'')+( c.telefon?' · '+esc(c.telefon):'')) : '<i>'+esc(missing)+'</i>'}
+                ${ok ? (esc(c.to_email||c.email||'')+( (c.to_telefon||c.telefon)?' · '+esc(c.to_telefon||c.telefon):'')+(c.to_name?' · '+esc(c.to_name):'')) : '<i>'+esc(missing)+'</i>'}
               </div>
             </div>`;
           }).join('');
@@ -854,6 +859,36 @@ const MS = (function() {
     preview();
   }
 
+  // Wiersz podglądu odbiorcy. Gdy podmiot ma więcej niż jedną osobę z adresem,
+  // dokładamy listę wyboru — domyślnie zaznaczony adresat wyliczony na serwerze.
+  function recipientRow(c) {
+    const addr  = _channel === 'sms' ? (c.telefon || '—brak tel.') : (c.email || '—brak e-mail');
+    const many  = (c.persons || []).length > 1;
+    const right = many
+      ? `<select class="form-select form-select-sm" style="max-width:230px;font-size:.72rem"
+                 data-person-pick="${c.id}" aria-label="Osoba kontaktowa dla ${esc(c.name)}">
+           <option value="0">Adres podmiotu / domyślny — ${esc(addr)}</option>
+           ${c.persons.map(p => `<option value="${p.id}"${p.id === c.person_id ? ' selected' : ''}>${esc(p.name)}${p.role ? ' · ' + esc(p.role) : ''} — ${esc(p.address)}</option>`).join('')}
+         </select>`
+      : `<span class="text-muted">${esc(addr)}${c.to_source && c.to_source !== 'podmiot' ? ' · ' + esc(c.to_name) : ''}</span>`;
+
+    return `<div class="d-flex gap-2 py-1 border-bottom align-items-center" style="border-color:#F3F4F6">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${esc(c.name)}</span>
+      ${right}
+    </div>`;
+  }
+
+  // Zmiana osoby nie wymaga ponownego zapytania — zapisujemy wybór i odświeżamy
+  // podgląd tylko po to, żeby zsynchronizować liczniki i pozostałe wiersze.
+  document.addEventListener('change', function (ev) {
+    const sel = ev.target.closest('[data-person-pick]');
+    if (!sel) return;
+    const cid = parseInt(sel.dataset.personPick, 10);
+    const pid = parseInt(sel.value, 10) || 0;
+    if (pid) _person_over[cid] = pid; else delete _person_over[cid];
+    preview();
+  });
+
   function preview() {
     const groups  = [..._group_ids];
     const tags    = [..._tag_filters].join(',');
@@ -874,22 +909,20 @@ const MS = (function() {
       group_id: groups[0] || 0,
       tag_filter: tags,
       contact_ids: c_ids,
-      channel: _channel
+      channel: _channel,
+      person_overrides: _person_over
     };
 
     // Multiple groups: merge all
     if (groups.length > 1 || c_ids.length) {
-      const allPayload = { action:'preview', group_id: groups[0]||0, tag_filter: tags, contact_ids: c_ids, channel: _channel, group_ids: groups };
+      const allPayload = { action:'preview', group_id: groups[0]||0, tag_filter: tags, contact_ids: c_ids, channel: _channel, group_ids: groups, person_overrides: _person_over };
       fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(allPayload) })
         .then(r=>r.json()).then(res=>{
           if (!res.ok) return;
           _total = res.data.total;
           updateCounters();
           const list = res.data.contacts.slice(0,15).map(c=>
-            `<div class="d-flex gap-2 py-1 border-bottom" style="border-color:#F3F4F6">
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${esc(c.name)}</span>
-              <span class="text-muted">${esc(_channel==='sms'?c.telefon||'—brak tel.':c.email||'—brak e-mail')}</span>
-            </div>`
+recipientRow(c)
           ).join('');
           document.getElementById('recipientList').innerHTML = list +
             (res.data.total > 15 ? `<div class="text-muted mt-1" style="font-size:.72rem">… i ${res.data.total-15} więcej</div>` : '');
@@ -905,10 +938,7 @@ const MS = (function() {
         _total = res.data.total;
         updateCounters();
         const list = res.data.contacts.slice(0,15).map(c=>
-          `<div class="d-flex gap-2 py-1 border-bottom" style="border-color:#F3F4F6">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${esc(c.name)}</span>
-            <span class="text-muted">${esc(_channel==='sms'?c.telefon||'—brak tel.':c.email||'—brak e-mail')}</span>
-          </div>`
+recipientRow(c)
         ).join('');
         document.getElementById('recipientList').innerHTML = list +
           (res.data.total > 15 ? `<div class="text-muted mt-1" style="font-size:.72rem">… i ${res.data.total-15} więcej</div>` : '');
@@ -1010,6 +1040,7 @@ const MS = (function() {
       template_name: tplText,
       dw: dw,
       send_as: (document.getElementById('ms_send_as')?.value) || 'system',
+      person_overrides: _person_over,
     };
 
     const startRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(startPayload)}).then(r=>r.json());

@@ -68,17 +68,62 @@ function collect_recipients(array $body): array {
     return array_values(array_unique(array_filter($ids)));
 }
 
+/**
+ * Nadpisania adresata: { contact_id: person_id }. Operator może dla każdego
+ * podmiotu wskazać inną osobę kontaktową niż domyślna.
+ *
+ * @return array<int,int>
+ */
+function recipient_overrides(array $body): array
+{
+    $out = [];
+    foreach ((array)($body['person_overrides'] ?? []) as $cid => $pid) {
+        $cid = (int)$cid; $pid = (int)$pid;
+        if ($cid > 0 && $pid > 0) $out[$cid] = $pid;
+    }
+    return $out;
+}
+
 if ($action === 'preview') {
-    $ids = collect_recipients($body);
-    $channel = $body['channel'] ?? 'email';
-    // Filtruj wg kanału — tylko kontakty z wymaganymi danymi
+    $ids       = collect_recipients($body);
+    $channel   = $body['channel'] ?? 'email';
+    $overrides = recipient_overrides($body);
+
+    // Adres bierzemy z resolvera, nie wprost z kontaktu: firma bez adresu ogólnego,
+    // ale z e-mailem osoby kontaktowej, jest prawidłowym odbiorcą.
     $valid = [];
     foreach ($ids as $cid) {
         $c = db_one("SELECT id, imie_nazwisko, email, telefon FROM crm_contacts WHERE id=? AND crm_active=1", [$cid]);
         if (!$c) continue;
-        if ($channel === 'email' && !$c['email']) continue;
-        if ($channel === 'sms'   && !$c['telefon']) continue;
-        $valid[] = ['id'=>(int)$c['id'],'name'=>$c['imie_nazwisko'],'email'=>$c['email'],'telefon'=>$c['telefon']];
+
+        $to = crm_contact_recipient((int)$c['id'], $overrides[(int)$c['id']] ?? null, $c);
+        if ($channel === 'email' && $to['email']   === '') continue;
+        if ($channel === 'sms'   && $to['telefon'] === '') continue;
+
+        // Lista osób do wyboru w interfejsie — tylko te, do których da się napisać.
+        $persons = [];
+        foreach (CrmManager::getContactPersons((int)$c['id']) as $p) {
+            $addr = $channel === 'sms' ? trim((string)$p['telefon']) : trim((string)$p['email']);
+            if ($addr === '') continue;
+            $persons[] = [
+                'id'      => (int)$p['id'],
+                'name'    => $p['imie_nazwisko'],
+                'role'    => $p['stanowisko'] ?: '',
+                'address' => $addr,
+                'default' => !empty($p['is_default_recipient']),
+            ];
+        }
+
+        $valid[] = [
+            'id'         => (int)$c['id'],
+            'name'        => $c['imie_nazwisko'],
+            'email'       => $to['email'],
+            'telefon'     => $to['telefon'],
+            'to_name'     => $to['name'],
+            'to_source'   => $to['source'],
+            'person_id'   => $to['person_id'],
+            'persons'     => $persons,
+        ];
     }
     api_ok(['count'=>count($valid),'contacts'=>array_slice($valid,0,20),'total'=>count($valid)]);
 }
@@ -129,7 +174,16 @@ if ($action === 'start') {
 
     // Zapisz listę odbiorców i DW w body jako JSON
     db()->prepare("UPDATE crm_mass_sends SET body=? WHERE id=?")
-        ->execute([json_encode(['body'=>$msg,'ids'=>$ids,'dw'=>$dw_clean,'subject'=>$subject,'from_email'=>$from_email]), $send_id]);
+        ->execute([json_encode([
+            'body'       => $msg,
+            'ids'        => $ids,
+            'dw'         => $dw_clean,
+            'subject'    => $subject,
+            'from_email' => $from_email,
+            // Wybór osoby kontaktowej per podmiot — zapisany razem z wysyłką,
+            // żeby wykonanie (execute) trafiło dokładnie tam, co podgląd.
+            'persons'    => recipient_overrides($body),
+        ]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
 }
@@ -149,20 +203,27 @@ if ($action === 'execute') {
     $subject  = $ms['subject'] ?? '';
     $tpl      = $ms['template_name'] ?? '';
     $from_email = $payload['from_email'] ?? '';
+    $overrides  = [];
+    foreach ((array)($payload['persons'] ?? []) as $k => $v) $overrides[(int)$k] = (int)$v;
 
     $ok = $fail = 0;
     $failed_cids = [];
     foreach ($ids as $cid) {
         $contact = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [(int)$cid]);
         if (!$contact) { $fail++; $failed_cids[] = (int)$cid; continue; }
-        if ($channel === 'email' && !$contact['email']) { $fail++; $failed_cids[] = (int)$cid; continue; }
-        if ($channel === 'sms'   && !$contact['telefon']) { $fail++; $failed_cids[] = (int)$cid; continue; }
+
+        // Ten sam resolver co w podglądzie — inaczej odbiorca z adresem tylko przy
+        // osobie kontaktowej byłby tu policzony jako błąd.
+        $pid = $overrides[(int)$cid] ?? null;
+        $to  = crm_contact_recipient((int)$cid, $pid, $contact);
+        if ($channel === 'email' && $to['email']   === '') { $fail++; $failed_cids[] = (int)$cid; continue; }
+        if ($channel === 'sms'   && $to['telefon'] === '') { $fail++; $failed_cids[] = (int)$cid; continue; }
 
         $rendered_body    = CrmManager::renderTemplate($msg_body, $contact);
         $rendered_subject = CrmManager::renderTemplate($subject, $contact);
 
         try {
-            CrmManager::sendAndLog((int)$cid, $channel, $rendered_body, $rendered_subject, $tpl, true, [], $from_email);
+            CrmManager::sendAndLog((int)$cid, $channel, $rendered_body, $rendered_subject, $tpl, true, [], $from_email, $pid);
             $ok++;
         } catch (\Throwable $e) {
             $fail++;

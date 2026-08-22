@@ -251,6 +251,10 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
               <?php if (!empty($p['is_primary'])): ?>
               <span class="cv-chip" title="Osoba główna — jej nazwisko trafia na listy i do eksportu">główna</span>
               <?php endif; ?>
+              <?php if (!empty($p['is_default_recipient'])): ?>
+              <span class="cv-chip" style="background:var(--crm-accent-bg);color:var(--crm-accent)"
+                    title="Domyślny adresat — na ten adres idzie korespondencja i wysyłka masowa">adresat</span>
+              <?php endif; ?>
             </div>
             <?php if (!empty($p['stanowisko'])): ?>
             <div class="crm-name-sub"><?= h($p['stanowisko']) ?></div>
@@ -266,6 +270,20 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
             <?php endif; ?>
           </div>
           <div class="d-flex flex-column gap-1 align-items-end">
+            <?php if ($can_w && ($p['email'] ?? '') . ($p['telefon'] ?? '') !== ''): ?>
+            <?php $_is_rcp = !empty($p['is_default_recipient']); ?>
+            <form method="post" class="d-inline" data-ajax-section="persons">
+              <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action"   value="set_default_recipient">
+              <input type="hidden" name="person_id" value="<?= $_is_rcp ? 0 : (int)$p['id'] ?>">
+              <button type="submit" class="border-0 p-0 bg-transparent" style="font-size:.85rem;cursor:pointer;<?= $_is_rcp ? 'color:var(--crm-accent)' : '' ?>"
+                      aria-pressed="<?= $_is_rcp ? 'true' : 'false' ?>"
+                      aria-label="<?= $_is_rcp ? 'Odznacz' : 'Oznacz' ?> <?= h($p['imie_nazwisko']) ?> jako domyślnego adresata korespondencji"
+                      title="<?= $_is_rcp ? 'Domyślny adresat korespondencji — kliknij, aby odznaczyć' : 'Oznacz jako domyślnego adresata korespondencji' ?>">
+                <i class="bi <?= $_is_rcp ? 'bi-envelope-check-fill' : 'bi-envelope' ?>" aria-hidden="true"></i>
+              </button>
+            </form>
+            <?php endif; ?>
             <?php if ($can_w && empty($p['is_primary'])): ?>
             <form method="post" class="d-inline" data-ajax-section="persons">
               <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
@@ -771,6 +789,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         $pid = (int)($_POST['person_id'] ?? 0);
         $p   = $pid ? CrmManager::getContactPerson($pid) : null;
         if ($p && (int)$p['contact_id'] === $id) CrmManager::deleteContactPerson($pid);
+        $affected_section = 'persons';
+    }
+    if ($action === 'set_default_recipient') {
+        // person_id = 0 czyści wskazanie (wraca osoba główna / adres podmiotu).
+        $pid = (int)($_POST['person_id'] ?? 0);
+        if ($pid === 0) {
+            CrmManager::setDefaultRecipient($id, 0);
+        } else {
+            $p = CrmManager::getContactPerson($pid);
+            if ($p && (int)$p['contact_id'] === $id) CrmManager::setDefaultRecipient($id, $pid);
+        }
         $affected_section = 'persons';
     }
     if ($action === 'set_primary_person') {
