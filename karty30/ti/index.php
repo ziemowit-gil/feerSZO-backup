@@ -135,6 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
         'is_online'           => isset($_POST['is_online']) ? 1 : 0,
         'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
+        // Grupa wyłączona z fakturowania — rozliczenia i ewidencja godzin działają
+        // dalej, blokujemy wyłącznie wystawianie faktur (np. zajęcia z dotacji).
+        'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
         'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
         'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
     ];
@@ -573,6 +576,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <input class="form-check-input" type="checkbox" name="wup_exclude" id="c_wupx" <?= !empty($f['wup_exclude'])?'checked':'' ?>>
         <label class="form-check-label" for="c_wupx">
           Nie uwzględniaj w raporcie WUP <span class="text-body-secondary small">(grupa pomijana w sprawozdaniu do Urzędu Pracy)</span>
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="no_invoice" id="c_noinv" <?= !empty($f['no_invoice'])?'checked':'' ?>>
+        <label class="form-check-label" for="c_noinv">
+          Nie fakturuj tej grupy
+          <span class="text-body-secondary small">(rozliczenia i ewidencja godzin działają dalej — blokujemy tylko wystawianie faktur, np. przy zajęciach z dotacji)</span>
         </label>
       </div>
       <div class="form-check form-switch mb-3">

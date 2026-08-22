@@ -375,6 +375,10 @@ function karty30_migrate(): void {
         // Oceny włączone dla osoby globalnie (per osoba) — niezależnie od kursu
         "ALTER TABLE k30_clients   ADD COLUMN ti_grades_enabled INTEGER NOT NULL DEFAULT 1",
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
+        // Grupa wyłączona z fakturowania (np. finansowana z dotacji, gdzie faktury
+        // się nie wystawia). Rozliczenia nadal powstają — nie znika ewidencja
+        // godzin i saldo; blokujemy wyłącznie wystawianie faktur.
+        "ALTER TABLE k30_ti_courses ADD COLUMN no_invoice INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 2",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
         // Wynagrodzenie prowadzącego: stała kwota brutto-brutto za przeprowadzoną lekcję

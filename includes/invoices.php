@@ -955,6 +955,18 @@ function invoice_from_ti_billing(int $billing_id, int $uid, bool $demo = false):
     $amount = (float)$b['amount'];
     if ($amount <= 0) return ['ok' => false, 'error' => 'Rozliczenie ma kwotę zero — nie ma czego fakturować.'];
 
+    // Grupa może być wyłączona z fakturowania (k30_ti_courses.no_invoice) — np.
+    // zajęcia finansowane z dotacji. Sprawdzamy w modelu, nie tylko w interfejsie,
+    // żeby reguła obowiązywała też generowanie zbiorcze i przyszłe wywołania.
+    if ((int)$b['course_id'] > 0) {
+        try {
+            $co = db_one("SELECT name, COALESCE(no_invoice,0) AS no_invoice FROM k30_ti_courses WHERE id=?", [(int)$b['course_id']]);
+            if ($co && !empty($co['no_invoice'])) {
+                return ['ok' => false, 'error' => 'Grupa „' . (string)$co['name'] . '" jest wyłączona z fakturowania.'];
+            }
+        } catch (\Throwable $e) { /* kolumna dochodzi migracją */ }
+    }
+
     $cfg    = invoices_config();
     $okres  = str_pad((string)(int)$b['month'], 2, '0', STR_PAD_LEFT) . '/' . (int)$b['year'];
     $hours  = (float)$b['hours_billed'];

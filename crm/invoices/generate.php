@@ -85,7 +85,8 @@ $groups = [];
 
 if ($src === 'ti' && $ti_on) {
     try {
-        $groups = db_all("SELECT id, name FROM k30_ti_courses WHERE is_active=1 ORDER BY name");
+        $groups = db_all("SELECT id, name FROM k30_ti_courses
+                           WHERE is_active=1 AND COALESCE(no_invoice,0)=0 ORDER BY name");
     } catch (\Throwable $e) { $groups = []; }
 
     // Bez faktury = brak wpisu w invoices dla tego źródła (poza demo i usuniętymi).
@@ -105,6 +106,7 @@ if ($src === 'ti' && $ti_on) {
                 AND b.amount > 0
                 AND b.status != 'cancelled'
                 {$gsql}
+                AND COALESCE(co.no_invoice,0) = 0
                 AND NOT EXISTS (SELECT 1 FROM invoices i
                                  WHERE i.source='ti_billing' AND i.source_id=b.id
                                    AND i.is_test=0 AND i.deleted_at IS NULL)

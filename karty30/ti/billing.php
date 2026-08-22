@@ -879,11 +879,27 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               } catch (\Throwable $e) { /* moduł jeszcze nie migrowany */ }
             ?>
             <div style="font-size:.72rem" class="mt-1">
+              <?php
+                // Grupa wyłączona z fakturowania — pokazujemy powód zamiast przycisku,
+                // żeby nie wyglądało to na brakującą funkcję. Liczymy PRZED łańcuchem
+                // warunków, bo używa go też przycisk demo poniżej.
+                $_noinv = false;
+                if (!empty($b['course_id'])) {
+                    try {
+                        $_noinv = !empty(db_one("SELECT COALESCE(no_invoice,0) AS n FROM k30_ti_courses WHERE id=?",
+                                                [(int)$b['course_id']])['n']);
+                    } catch (\Throwable $e) {}
+                }
+              ?>
               <?php if ($_fv): ?>
                 <i class="bi bi-receipt text-success me-1"></i>
                 <a href="<?= APP_URL ?>/crm/invoices/view.php?id=<?= (int)$_fv['id'] ?>">
                   <?= h($_fv['number'] ?: 'szkic faktury') ?></a>
                 <span class="text-muted">(<?= h(INVOICE_STATUSES[$_fv['status']]['label'] ?? $_fv['status']) ?>)</span>
+              <?php elseif ($_noinv): ?>
+                <span class="text-body-secondary" title="Grupa oznaczona jako niefakturowana (ustawienie grupy)">
+                  <i class="bi bi-slash-circle me-1"></i>grupa nie fakturowana
+                </span>
               <?php elseif ((float)$b['amount'] > 0): ?>
                 <form method="post" class="d-inline">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -929,7 +945,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                   </button>
                 </form>
               <?php endif; ?>
-              <?php if (is_admin() && (float)$b['amount'] > 0): ?>
+              <?php if (is_admin() && (float)$b['amount'] > 0 && !$_noinv): ?>
                 <form method="post" class="d-inline ms-2">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                   <input type="hidden" name="op" value="demo_invoice">
