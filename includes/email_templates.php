@@ -502,6 +502,26 @@ HTML;
 </p>
 HTML;
 
+    // — Nowy rachunek w systemie (umowa zlecenie) ————————————————
+    $zlecenie_rachunek_body = <<<'HTML'
+<p style="margin:0 0 16px">Dzień dobry,</p>
+<p style="margin:0 0 16px">
+  Informujemy, że w systemie został wygenerowany nowy rachunek.
+</p>
+<p style="margin:0 0 12px">Możesz przejść do niego bezpośrednio pod poniższym adresem:</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#2563eb;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz rachunek →
+  </a>
+</div>
+<p style="margin:0 0 16px;font-size:.85em;color:#6c757d;word-break:break-all">{{url}}</p>
+<p style="margin:0 0 16px">
+  Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.
+</p>
+<p style="margin:0 0 16px">W razie pytań lub problemów technicznych pozostajemy do dyspozycji.</p>
+<p style="margin:0">Z poważaniem,<br><strong>{{org}}</strong></p>
+HTML;
+
     $base = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
 
     $reg = [
@@ -561,6 +581,24 @@ HTML;
                 'deadline' => ['label' => 'Termin (data)',    'sample' => '20.06.2026'],
                 'pilnosc'  => ['label' => 'Tekst pilności',   'sample' => 'Pozostały <strong>3 dni</strong>.'],
                 'url'      => ['label' => 'Link do umowy',    'sample' => $base . '/contracts/zlecenie/view.php?id=14'],
+            ],
+        ],
+
+        'zlecenie_rachunek_new' => [
+            'label'       => 'Nowy rachunek w systemie (do zleceniobiorcy)',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-receipt',
+            'auto'        => false,
+            'description' => 'Wysyłany po dodaniu rachunku w zakładce „Rachunki” umowy zlecenie — z linkiem do pobrania dokumentu.',
+            'subject'     => 'Nowy rachunek w systemie – {{org}}',
+            'body'        => $zlecenie_rachunek_body,
+            'vars'        => [
+                'org'            => ['label' => 'Nazwa organizacji',   'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'name'           => ['label' => 'Imię i nazwisko zleceniobiorcy', 'sample' => 'Jan Kowalski'],
+                'numer'          => ['label' => 'Numer umowy',         'sample' => 'UZ/2026/014'],
+                'numer_rachunku' => ['label' => 'Numer rachunku',      'sample' => '1/2026'],
+                'okres'          => ['label' => 'Okres rachunku',      'sample' => 'czerwiec 2026'],
+                'url'            => ['label' => 'Link do rachunku',    'sample' => $base . '/contracts/zlecenie/rachunek_pobierz.php?token=abc123'],
             ],
         ],
 

@@ -2,6 +2,7 @@
  * contract-view-tabs.js
  * Logika zakładek dla widoków umów.
  * Wymaga window.CVTabsConfig = { tabsId, storageKey, defaultTab }
+ * Opcjonalnie: forceTab — zakładka z ?tab= w URL, ma priorytet nad localStorage.
  */
 document.addEventListener('DOMContentLoaded', function () {
   var cfg  = window.CVTabsConfig;
@@ -13,6 +14,12 @@ document.addEventListener('DOMContentLoaded', function () {
   function showTab(btn) { if (btn) new bootstrap.Tab(btn).show(); }
 
   var hash = location.hash;
+
+  // Zakładka wskazana w URL (?tab=) — wygrywa z zapamiętaną w localStorage
+  if (cfg.forceTab) {
+    var forced = document.querySelector('[data-bs-target="#' + cfg.forceTab + '"]');
+    if (forced) { showTab(forced); localStorage.setItem(cfg.storageKey, cfg.forceTab); return; }
+  }
 
   // Hash URL ma priorytet
   if (hash && hash.startsWith('#tab-')) {

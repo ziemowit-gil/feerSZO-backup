@@ -20,6 +20,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ksiegowy_email.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rozliczenia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_rachunki.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ksiegowosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/impersonation.php';
 
@@ -34,7 +35,7 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 $PAGE_TITLE = 'Umowa zlecenie ' . $row['numer_umowy'];
-$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','obieg','m365','historia','docusign','autenti','formalnosci','tasks','godziny','messages'])
+$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','rachunki','obieg','m365','historia','docusign','autenti','formalnosci','tasks','godziny','messages'])
     ? $_GET['tab'] : 'umowa';
 
 // ── Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) ────
@@ -170,6 +171,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit()) {
     }
 }
 
+// ── Rachunki — dodanie rachunku do rejestru (+ powiadomienia) ─────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_edit()) {
+    csrf_check();
+    $_uid  = (int)current_user()['id'];
+    $_data = [
+        'contract_id'      => $id,
+        'numer'            => trim($_POST['rach_numer'] ?? ''),
+        'data_wystawienia' => trim($_POST['rach_data']  ?? ''),
+        'okres'            => trim($_POST['rach_okres'] ?? ''),
+        'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
+        'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
+    ];
+    try {
+        if (($_FILES['rach_plik']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $_data = array_merge($_data, rachunek_store_file($_FILES['rach_plik']));
+        }
+        $_rid  = create_rachunek($_data, $_uid);
+        $_opis = 'Dodano rachunek #' . $_rid
+               . ($_data['numer'] ? ' nr ' . $_data['numer'] : '')
+               . ($_data['okres'] ? ' za ' . $_data['okres'] : '')
+               . (empty($_data['plik']) ? ' (bez pliku)' : ' z plikiem ' . $_data['plik_nazwa']);
+        log_contract_action($TYPE, $id, $_uid, 'rachunek_add', $_opis);
+
+        $_msgs = ['Rachunek dodany do rejestru.'];
+        if (!empty($_POST['rach_notify'])) {
+            $_res = rachunek_notify_contractor($_rid, $_uid);
+            $_msgs[] = $_res['ok']
+                ? 'Powiadomiono zleceniobiorcę (' . $_res['email'] . ').'
+                : 'Nie wysłano powiadomienia do zleceniobiorcy: ' . $_res['msg'];
+            if ($_res['ok']) {
+                log_contract_action($TYPE, $id, $_uid, 'rachunek_notify',
+                    'Powiadomienie o rachunku #' . $_rid . ' → ' . $_res['email']);
+            }
+        }
+        if (!empty($_POST['rach_notify_team'])) {
+            $_done = rachunek_notify_internal($_rid, $_uid);
+            if ($_done) $_msgs[] = 'Poinformowano: ' . implode(', ', $_done) . '.';
+        }
+        flash_set('success', implode(' ', $_msgs));
+    } catch (\Throwable $e) {
+        flash_set('error', 'Nie udało się dodać rachunku: ' . $e->getMessage());
+    }
+    header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+}
+
 $_pending_term    = get_pending_termination_for_contract($TYPE, $id);
 $amendments       = get_amendments($TYPE, $id);
 $edit_requests    = get_edit_requests($TYPE, $id);
@@ -179,6 +225,8 @@ $_letters         = get_contract_letters($TYPE, $id);
 $_ezd_certs       = ezd_zas_for_contract($TYPE, $id);
 $rozliczenia      = get_rozliczenia($TYPE, $id);
 $_rozl_open       = count(array_filter($rozliczenia, fn($r) => in_array($r['status'], ['oczekuje','wyslane'], true)));
+$rachunki         = get_rachunki($TYPE, $id);
+$_rach_open       = get_rachunki_open_count($TYPE, $id);
 try { $kdok_docs = kdok_documents_for_contract($TYPE, $id); } catch (\Throwable $e) { $kdok_docs = []; }
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 $m365_enabled     = m365_setting('m365_enabled') === '1';
@@ -303,6 +351,16 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <i class="bi bi-cash-coin"></i> Rozliczenia
       <?php if ($_rozl_open): ?>
       <span class="badge bg-info text-dark ms-1"><?= $_rozl_open ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='rachunki') echo ' active'; ?>" id="tab-rachunki-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-rachunki" type="button" role="tab">
+      <i class="bi bi-receipt"></i> Rachunki
+      <?php if ($_rach_open): ?>
+      <span class="badge bg-primary ms-1"><?= $_rach_open ?></span>
       <?php endif; ?>
     </button>
   </li>
@@ -848,6 +906,146 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 </div><!-- /tab-rozliczenia -->
 
+<!-- ═══════════════════ TAB — RACHUNKI ═══════════════════ -->
+<div class="tab-pane fade<?php if($_tab==='rachunki') echo ' show active'; ?>" id="tab-rachunki" role="tabpanel">
+
+  <?php $_rach_email = trim((string)($row['email'] ?? '')); ?>
+  <div class="card shadow-sm">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-receipt"></i> Rachunki do umowy</span>
+    <?php if (can_edit()): ?>
+    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#rachAddModal">
+      <i class="bi bi-plus-lg"></i> Dodaj rachunek
+    </button>
+    <?php endif; ?>
+  </div>
+
+  <div class="card-body pb-0">
+    <p class="text-muted small mb-2">
+      Rejestr rachunków wgranych do systemu przez księgowego lub opiekuna umowy. Po dodaniu rachunku
+      zleceniobiorca dostaje e-mail z linkiem do pobrania dokumentu, a system odnotowuje, kiedy plik został pobrany.
+    </p>
+    <?php if (!$_rach_email): ?>
+    <div class="alert alert-warning small py-2">
+      <i class="bi bi-exclamation-triangle"></i> Zleceniobiorca nie ma adresu e-mail w umowie — powiadomienie
+      o nowym rachunku będzie niedostępne. Uzupełnij adres w zakładce <strong>Zleceniobiorca</strong>.
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($rachunki): ?>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover mb-0 align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>#</th><th>Status</th><th>Rachunek</th><th>Data</th><th>Kwota</th>
+        <th>Plik</th><th>Zleceniobiorca</th><th>EOD</th><th>Dodał</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($rachunki as $rr): $_rid = (int)$rr['id']; ?>
+    <tr id="rach-row-<?= $_rid ?>">
+      <td class="text-muted">#<?= $_rid ?></td>
+      <td id="rach-status-<?= $_rid ?>"><?= rachunek_status_badge($rr['status']) ?></td>
+      <td>
+        <?= $rr['numer'] ? '<strong>' . h($rr['numer']) . '</strong>' : '<span class="text-muted">bez numeru</span>' ?>
+        <?php if (!empty($rr['okres'])): ?><br><span class="small text-muted"><?= h($rr['okres']) ?></span><?php endif; ?>
+      </td>
+      <td class="text-nowrap"><?= date_pl($rr['data_wystawienia']) ?></td>
+      <td class="text-nowrap"><?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) : '—' ?></td>
+      <td class="small">
+        <?php if (!empty($rr['plik'])): ?>
+        <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&inline=1" target="_blank"
+           title="<?= h($rr['plik_nazwa'] ?? '') ?>">
+          <i class="bi bi-paperclip"></i> <?= h(mb_strimwidth((string)($rr['plik_nazwa'] ?? 'plik'), 0, 22, '…')) ?>
+        </a>
+        <?php if (!empty($rr['plik_size'])): ?>
+        <br><span class="text-muted" style="font-size:.8em"><?= h(rachunek_file_size_h((int)$rr['plik_size'])) ?></span>
+        <?php endif; ?>
+        <?php else: ?>
+        <span class="text-muted">—</span>
+        <?php endif; ?>
+      </td>
+      <td class="small text-nowrap" id="rach-notif-<?= $_rid ?>">
+        <?php if (!empty($rr['notified_at'])): ?>
+        <span class="text-success" title="Powiadomienie wysłane do: <?= h($rr['notified_to_email'] ?? '') ?>">
+          <i class="bi bi-envelope-check"></i> <?= date_pl($rr['notified_at']) ?>
+        </span>
+        <?php else: ?>
+        <span class="text-muted"><i class="bi bi-envelope"></i> nie powiadomiono</span>
+        <?php endif; ?>
+        <br>
+        <?php if (!empty($rr['downloaded_at'])): ?>
+        <span class="text-primary" title="Liczba pobrań: <?= (int)$rr['download_count'] ?>">
+          <i class="bi bi-download"></i> pobrano <?= date_pl($rr['downloaded_at']) ?>
+        </span>
+        <?php else: ?>
+        <span class="text-muted" style="font-size:.85em">niepobrany</span>
+        <?php endif; ?>
+      </td>
+      <td class="small text-nowrap">
+        <?php if (!empty($rr['kdok_doc_id'])): ?>
+        <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"
+           title="Dokument w EOD Dok. Księgowych"><code><?= h($rr['kdok_number'] ?: '#' . (int)$rr['kdok_doc_id']) ?></code></a>
+        <?php else: ?>
+        <span class="text-muted">—</span>
+        <?php endif; ?>
+      </td>
+      <td class="small text-muted">
+        <?= h($rr['created_by_name'] ?? '—') ?><br>
+        <span style="font-size:.8em"><?= date_pl($rr['created_at']) ?></span>
+      </td>
+      <td class="text-end text-nowrap">
+        <?php if (can_edit()): ?>
+        <?php if ($_rach_email): ?>
+        <button type="button" class="btn btn-sm btn-outline-info" onclick="rachNotify(<?= $_rid ?>, this)"
+                title="<?= empty($rr['notified_at']) ? 'Powiadom zleceniobiorcę o nowym rachunku' : 'Wyślij powiadomienie ponownie' ?> (<?= h($_rach_email) ?>)">
+          <i class="bi bi-send"></i>
+        </button>
+        <?php else: ?>
+        <button type="button" class="btn btn-sm btn-outline-info" disabled
+                title="Brak adresu e-mail zleceniobiorcy"><i class="bi bi-send"></i></button>
+        <?php endif; ?>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="rachCopyLink(<?= $_rid ?>, this)"
+                title="Kopiuj link dla zleceniobiorcy"><i class="bi bi-link-45deg"></i></button>
+        <div class="btn-group">
+          <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"
+                  aria-expanded="false" title="Zmień status">
+            <i class="bi bi-check2-square"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <?php foreach (ZLEC_RACHUNEK_STATUSES as $_sk => $_sv): ?>
+            <li>
+              <button type="button" class="dropdown-item small<?= $rr['status'] === $_sk ? ' active' : '' ?>"
+                      onclick="rachStatus(<?= $_rid ?>, '<?= $_sk ?>')"><?= h($_sv['label']) ?></button>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php if (empty($rr['kdok_doc_id']) && !empty($rr['plik'])): ?>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="rachToKdok(<?= $_rid ?>, this)"
+                title="Przekaż do EOD Dokumentów Księgowych"><i class="bi bi-box-arrow-in-right"></i></button>
+        <?php endif; ?>
+        <?php endif; ?>
+        <?php if ((current_user()['role'] ?? '') === 'admin'): ?>
+        <button type="button" class="btn btn-sm btn-outline-danger ms-1" onclick="rachDelete(<?= $_rid ?>)"
+                title="Usuń rachunek (wymaga kodu IKA i powodu)"><i class="bi bi-trash"></i></button>
+        <?php endif; ?>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+  <?php else: ?>
+  <div class="card-body text-muted small pt-0">
+    Brak rachunków w rejestrze<?= can_edit() ? ' — kliknij „Dodaj rachunek”, aby wgrać pierwszy dokument.' : '.' ?>
+  </div>
+  <?php endif; ?>
+  </div>
+
+</div><!-- /tab-rachunki -->
+
 <!-- ═══════════════════ TAB 4 — OBIEG ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='obieg') echo ' show active'; ?>" id="tab-obieg" role="tabpanel">
 
@@ -1329,6 +1527,7 @@ window.CVTabsConfig = {
   tabsId:     'zlecenieTabs',
   storageKey: 'zlecenie_tab_<?= $id ?>',
   defaultTab: 'tab-umowa',
+  forceTab:   <?= json_encode(isset($_GET['tab']) ? 'tab-' . $_tab : '') ?>,
   appUrl:     <?= json_encode(rtrim(APP_URL, '/')) ?>,
   csrf:       <?= json_encode(csrf_token()) ?>
 };
@@ -1391,6 +1590,200 @@ window.CVTabsConfig = {
         if (res && res.ok) {
           bootstrap.Modal.getInstance(document.getElementById('rozlDeleteModal')).hide();
           if (typeof ajaxToast === 'function') ajaxToast(res.msg || 'Rozliczenie usunięte');
+          setTimeout(function () { location.reload(); }, 500);
+        } else {
+          showErr((res && res.msg) || 'Nie udało się usunąć.');
+        }
+      })
+      .catch(function () { btn.disabled = false; showErr('Błąd połączenia.'); });
+  });
+})();
+</script>
+<?php endif; ?>
+
+<?php if (can_edit()): ?>
+<!-- ═══════════════════ MODAL — dodanie rachunku do rejestru ═══════════════════ -->
+<div class="modal fade" id="rachAddModal" tabindex="-1" aria-labelledby="rachAddLabel">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form method="post" enctype="multipart/form-data" class="modal-content">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_rach_add" value="1">
+      <div class="modal-header" style="background:#2563eb;color:#fff">
+        <h5 class="modal-title" id="rachAddLabel"><i class="bi bi-receipt me-2"></i>Nowy rachunek</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">
+          Wgraj dokument rachunku i uzupełnij dane rejestrowe. Zaznaczone powiadomienia zostaną wysłane od razu po zapisaniu.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold" for="rachNumer">Numer rachunku</label>
+            <input id="rachNumer" name="rach_numer" class="form-control" placeholder="np. 1/2026" maxlength="60">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold" for="rachData">Data wystawienia</label>
+            <input id="rachData" name="rach_data" type="date" class="form-control" value="<?= h(date('Y-m-d')) ?>">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold" for="rachKwota">Kwota brutto (PLN)</label>
+            <input id="rachKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"
+                   placeholder="<?= h(number_format((float)($row['wynagrodzenie_brutto'] ?? 0), 2, ',', ' ')) ?>">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="rachOkres">Za jaki okres</label>
+            <input id="rachOkres" name="rach_okres" class="form-control" placeholder="np. czerwiec 2026" maxlength="120">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="rachPlik">Plik rachunku</label>
+            <input id="rachPlik" name="rach_plik" type="file" class="form-control"
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+            <div class="form-text">PDF, JPG, PNG, DOC lub DOCX — do 30 MB.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold" for="rachUwagi">Uwagi</label>
+            <textarea id="rachUwagi" name="rach_uwagi" class="form-control" rows="2"
+                      placeholder="np. rachunek za realizację zlecenia w czerwcu"></textarea>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rachNotify" name="rach_notify" value="1"
+                     <?= trim((string)($row['email'] ?? '')) ? 'checked' : 'disabled' ?>>
+              <label class="form-check-label" for="rachNotify">
+                Powiadom zleceniobiorcę e-mailem
+                <?php if (trim((string)($row['email'] ?? ''))): ?>
+                <span class="text-muted">(<?= h($row['email']) ?>)</span>
+                <?php else: ?>
+                <span class="text-danger">— brak adresu e-mail w umowie</span>
+                <?php endif; ?>
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rachNotifyTeam" name="rach_notify_team" value="1" checked>
+              <label class="form-check-label" for="rachNotifyTeam">
+                Poinformuj opiekuna umowy i jej autora <span class="text-muted">(powiadomienie w systemie + e-mail)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Zapisz rachunek</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var APP = <?= json_encode(rtrim(APP_URL, '/')) ?>;
+
+  function post(action, data, btn, okCb) {
+    if (btn) btn.disabled = true;
+    return csrfFetch(APP + '/api/ajax.php', Object.assign({action: action}, data))
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res && res.ok) { ajaxToast(res.msg || 'Gotowe'); if (okCb) okCb(res); }
+        else { ajaxToast((res && res.msg) || 'Błąd operacji', 'error'); }
+        return res;
+      })
+      .catch(function () { if (btn) btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  }
+
+  window.rachNotify = function (rid, btn) {
+    if (!confirm('Wysłać do zleceniobiorcy e-mail z linkiem do rachunku?')) return;
+    post('rachunek_notify', {rachunek_id: rid}, btn, function () {
+      setTimeout(function () { location.reload(); }, 600);
+    });
+  };
+
+  window.rachStatus = function (rid, status) {
+    post('rachunek_status', {rachunek_id: rid, status: status}, null, function () {
+      setTimeout(function () { location.reload(); }, 500);
+    });
+  };
+
+  window.rachToKdok = function (rid, btn) {
+    if (!confirm('Przekazać rachunek do EOD Dokumentów Księgowych?')) return;
+    post('rachunek_kdok', {rachunek_id: rid}, btn, function () {
+      setTimeout(function () { location.reload(); }, 800);
+    });
+  };
+
+  window.rachCopyLink = function (rid, btn) {
+    post('rachunek_link', {rachunek_id: rid}, btn, function (res) {
+      if (!res.url) return;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(res.url).then(function () { ajaxToast('Link skopiowany'); });
+      } else {
+        window.prompt('Link dla zleceniobiorcy:', res.url);
+      }
+    });
+  };
+})();
+</script>
+<?php endif; ?>
+
+<?php if ((current_user()['role'] ?? '') === 'admin'): ?>
+<!-- ═══════════════════ MODAL — usunięcie rachunku (admin + IKA + powód) ═══════════════════ -->
+<div class="modal fade" id="rachDeleteModal" tabindex="-1" aria-labelledby="rachDeleteLabel">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#dc3545;color:#fff">
+        <h5 class="modal-title" id="rachDeleteLabel"><i class="bi bi-trash me-2"></i>Usuń rachunek</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">
+          Usunięcie jest trwałe — kasuje też wgrany plik — i wymaga potwierdzenia <strong>kodem IKA</strong>.
+          Operacja zostanie zapisana w dzienniku z podanym powodem.
+        </p>
+        <input type="hidden" id="rachDelId" value="">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="rachDelReason">Powód usunięcia <span class="text-danger">*</span></label>
+          <textarea id="rachDelReason" class="form-control" rows="2" placeholder="np. błędny dokument, duplikat"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" for="rachDelIka">Kod IKA <span class="text-danger">*</span></label>
+          <input type="password" id="rachDelIka" class="form-control" autocomplete="off" placeholder="Twój kod IKA">
+        </div>
+        <div id="rachDelErr" class="text-danger small d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-danger" id="rachDelConfirm"><i class="bi bi-trash me-1"></i>Usuń trwale</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var APP = <?= json_encode(rtrim(APP_URL, '/')) ?>;
+  window.rachDelete = function (rid) {
+    document.getElementById('rachDelId').value = rid;
+    document.getElementById('rachDelReason').value = '';
+    document.getElementById('rachDelIka').value = '';
+    var err = document.getElementById('rachDelErr'); err.classList.add('d-none'); err.textContent = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('rachDeleteModal')).show();
+  };
+  var btn = document.getElementById('rachDelConfirm');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var rid    = parseInt(document.getElementById('rachDelId').value, 10);
+    var reason = document.getElementById('rachDelReason').value.trim();
+    var ika    = document.getElementById('rachDelIka').value.trim();
+    var err    = document.getElementById('rachDelErr');
+    function showErr(m){ err.textContent = m; err.classList.remove('d-none'); }
+    if (!reason) { showErr('Podaj powód usunięcia.'); return; }
+    if (!ika)    { showErr('Podaj kod IKA.'); return; }
+    btn.disabled = true;
+    csrfFetch(APP + '/api/ajax.php', {action: 'rachunek_delete', rachunek_id: rid, reason: reason, ika: ika})
+      .then(function (res) {
+        btn.disabled = false;
+        if (res && res.ok) {
+          bootstrap.Modal.getInstance(document.getElementById('rachDeleteModal')).hide();
+          if (typeof ajaxToast === 'function') ajaxToast(res.msg || 'Rachunek usunięty');
           setTimeout(function () { location.reload(); }, 500);
         } else {
           showErr((res && res.msg) || 'Nie udało się usunąć.');

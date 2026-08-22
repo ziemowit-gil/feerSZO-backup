@@ -20,6 +20,7 @@ require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
 require_once dirname(__DIR__) . '/includes/rozliczenia.php';
+require_once dirname(__DIR__) . '/includes/zlecenie_rachunki.php';
 require_once dirname(__DIR__) . '/includes/ksiegowy_email.php';
 require_once dirname(__DIR__) . '/includes/guardian_consent.php';
 require_once dirname(__DIR__) . '/includes/wolontariat_schema.php';
@@ -354,6 +355,102 @@ switch ($action) {
             'Usunięto rozliczenie #' . $rid . ' (potwierdzone IKA). Powód: ' . $reason);
 
         ajax_ok([], 'Rozliczenie usunięte');
+    }
+
+    // ── rachunek_notify — powiadom zleceniobiorcę o rachunku (link z tokenem) ───
+    case 'rachunek_notify': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rachunek_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rachunku');
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+
+        $res = rachunek_notify_contractor($rid, (int)current_user()['id']);
+        if (empty($res['ok'])) ajax_err($res['msg']);
+
+        log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_notify',
+            'Powiadomienie o rachunku #' . $rid . ' → ' . $res['email']);
+
+        ajax_ok(['sent_to' => $res['email'], 'url' => $res['url']], $res['msg']);
+    }
+
+    // ── rachunek_link — zwróć publiczny link do rachunku (do skopiowania) ───────
+    case 'rachunek_link': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rachunek_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rachunku');
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+
+        ajax_ok(['url' => rachunek_public_url($rid)], 'Link gotowy');
+    }
+
+    // ── rachunek_status — zmiana statusu rachunku ───────────────────────────────
+    case 'rachunek_status': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid    = (int)($_POST['rachunek_id'] ?? 0);
+        $status = trim($_POST['status'] ?? '');
+        if (!$rid)                                     ajax_err('Brak id rachunku');
+        if (!isset(ZLEC_RACHUNEK_STATUSES[$status]))   ajax_err('Nieznany status: ' . $status);
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+        if ($rach['status'] === $status) ajax_ok([], 'Status niezmieniony');
+
+        rachunek_set_status($rid, $status, (int)current_user()['id']);
+        log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_status',
+            'Rachunek #' . $rid . ': ' . rachunek_status_label($rach['status']) . ' → ' . rachunek_status_label($status));
+
+        ajax_ok(['status' => $status], 'Status: ' . rachunek_status_label($status));
+    }
+
+    // ── rachunek_kdok — przekaż rachunek do EOD Dokumentów Księgowych ───────────
+    case 'rachunek_kdok': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rachunek_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rachunku');
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+
+        $res = rachunek_push_to_kdok($rid, (int)current_user()['id']);
+        if (empty($res['ok'])) ajax_err($res['msg']);
+
+        log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_kdok',
+            'Rachunek #' . $rid . ' przekazany do EOD jako ' . $res['number']);
+
+        ajax_ok(['doc_id' => $res['doc_id'], 'number' => $res['number']], $res['msg']);
+    }
+
+    // ── rachunek_delete — TRWAŁE usunięcie rachunku (admin + IKA + powód) ───────
+    case 'rachunek_delete': {
+        if ((current_user()['role'] ?? '') !== 'admin') ajax_err('Tylko administrator może usuwać rachunki', 403);
+        $rid    = (int)($_POST['rachunek_id'] ?? 0);
+        $reason = trim($_POST['reason'] ?? '');
+        $ika    = trim($_POST['ika'] ?? '');
+        if (!$rid)          ajax_err('Brak id rachunku');
+        if ($reason === '') ajax_err('Podaj powód usunięcia');
+        if ($ika === '')    ajax_err('Podaj kod IKA');
+
+        $rach = get_rachunek($rid);
+        if (!$rach) ajax_err('Nie znaleziono rachunku');
+
+        $uid = (int)current_user()['id'];
+        require_once dirname(__DIR__) . '/includes/cpc.php';
+        $vr = cpc_verify($uid, $ika);
+        if (empty($vr['ok'])) {
+            ajax_err(!empty($vr['blocked'])
+                ? 'Kod IKA zablokowany po błędnych próbach — spróbuj później.'
+                : 'Nieprawidłowy kod IKA.', 403);
+        }
+
+        delete_rachunek($rid);
+        log_contract_action('zlecenie', (int)$rach['contract_id'], $uid, 'rachunek_deleted',
+            'Usunięto rachunek #' . $rid . ' (potwierdzone IKA). Powód: ' . $reason);
+
+        ajax_ok([], 'Rachunek usunięty');
     }
 
     // ── set_favorite ──────────────────────────────────────────────────────────
