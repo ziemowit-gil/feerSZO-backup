@@ -277,25 +277,41 @@
 .crm-stat-delta.up   { color: var(--crm-primary); }
 .crm-stat-delta.down { color: #EA001E; }
 
-/* ── Kontakt — karta (view.php) ───────────────────────────────── */
+/* ── Kontakt — karta (view.php) ─────────────────────────────────
+   Nagłówek rekordu świadomie SUBTELNY: biała płaszczyzna jak reszta karty,
+   marka sygnalizowana cienką kreską u góry i zielonymi inicjałami w awatarze.
+   Wcześniej był pełnokolorowy gradient — na widoku kontaktu, gdzie liczy się
+   treść (dane, sprawy, notatki), przeciągał na siebie całą uwagę i wymuszał
+   drugi zestaw kolorów tekstu (biały na zielonym). Używane tylko w
+   crm/contact/view.php. */
 .crm-contact-header {
-  background: linear-gradient(135deg, var(--crm-primary-dark) 0%, var(--crm-primary) 100%);
-  color: #fff;
+  background: #fff;
+  color: var(--crm-text);
+  border-top: 3px solid var(--crm-primary);
   border-radius: var(--crm-radius-lg) var(--crm-radius-lg) 0 0;
-  padding: 1.5rem 1.75rem;
-  display: flex; align-items: center; gap: 1.25rem;
+  padding: 1.1rem 1.5rem;
+  display: flex; align-items: center; gap: 1rem;
 }
 .crm-contact-avatar-lg {
-  width: 64px; height: 64px;
+  width: 48px; height: 48px;
   border-radius: 50%;
-  background: rgba(255,255,255,.2);
-  border: 2px solid rgba(255,255,255,.5);
+  background: var(--crm-primary-bg);
+  border: 1px solid var(--crm-border);
+  color: var(--crm-primary-dark);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; font-weight: 700;
+  font-size: 1.05rem; font-weight: 700; letter-spacing: .02em;
   flex-shrink: 0;
 }
-.crm-contact-name { font-size: 1.35rem; font-weight: 700; margin: 0 0 .2rem; }
-.crm-contact-sub  { font-size: .85rem; opacity: .8; }
+.crm-contact-name {
+  font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em;
+  color: var(--crm-text);
+  margin: 0 0 .1rem;
+}
+.crm-contact-sub {
+  font-size: .82rem;
+  color: var(--crm-text-light);
+}
+.crm-contact-sub i { color: var(--crm-primary); }
 
 /* Sekcje na karcie kontaktu */
 .crm-section-title {
