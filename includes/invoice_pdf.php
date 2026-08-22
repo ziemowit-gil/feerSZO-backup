@@ -229,19 +229,20 @@ function invoice_pdf_html(array $inv, array $opts = []): string
   body { font-family: dejavusans, sans-serif; font-size: 10pt; color: #111; line-height: 1.35; }
 
   .hdr-title { font-size: 17pt; font-weight: bold; letter-spacing: -.01em; }
-  .hdr-sub   { font-size: 9pt; color: #444; line-height: 1.45; }
+  .hdr-sub   { font-size: 9pt; color: #333; line-height: 1.45; }
   .annot     { font-size: 9pt; font-weight: bold; color: #92400e;
                border: 1px solid #d97706; background: #fef9c3; padding: 4px 7px; }
 
   table      { width: 100%; border-collapse: collapse; }
 
   .party td  { vertical-align: top; padding: 0; }
-  /* Bez pełnej ramki — wystarczy pasek z boku i tło, mniej linii na stronie. */
-  .party-box { background: #f7f8fa; border-left: 3px solid #555; padding: 8px 10px; }
+  /* Strony transakcji BEZ szarego tła — dane na białym, pełną czernią.
+     Za strukturę odpowiada wyłącznie cienki pasek z boku. */
+  .party-box { border-left: 2px solid #333; padding: 2px 0 2px 9px; }
   .party-lbl { font-size: 8pt; text-transform: uppercase; letter-spacing: .06em;
-               color: #666; margin-bottom: 2px; }
-  .party-nm  { font-weight: bold; font-size: 11.5pt; line-height: 1.25; }
-  .party-box div { font-size: 9.5pt; }
+               color: #333; font-weight: bold; margin-bottom: 3px; }
+  .party-nm  { font-weight: bold; font-size: 11.5pt; line-height: 1.25; color: #000; }
+  .party-box div { font-size: 9.5pt; color: #111; }
 
   /* Tabela pozycji: nagłówek na ciemnym tle, wiersze rozdzielone poziomą linią,
      bez siatki pionowej — oko prowadzi wiersz, nie kratka. */

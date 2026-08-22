@@ -345,39 +345,73 @@ function invoice_delete(int $id): ?string
 // ── Numeracja faktur TI ──────────────────────────────────────────────────────
 
 /**
- * Kolejny numer w serii TI: `TI/nr/mm/rok/grupa`.
+ * Format numeru faktury: `SERIA/RRRR/MM/NNN`.
  *
- * Każda grupa ma WŁASNĄ sekwencję w obrębie miesiąca: dwie grupy rozliczane za ten
- * sam miesiąc dostają TI/1/08/2026/3 i TI/1/08/2026/5. Numery pozostają unikalne,
- * bo różni je segment grupy. Rozliczenie bez przypisania do grupy (model
- * niekombinowany, course_id = 0) ma osobną sekwencję i kończy się na roku —
- * zamiast dopisywać mylące „/0".
+ * Dlaczego tak:
+ *  • RRRR/MM przed numerem kolejnym sprawia, że numery SORTUJĄ SIĘ chronologicznie
+ *    jako zwykły tekst — w rejestrze, eksporcie do arkusza i w nazwie pliku PDF.
+ *    Przy „nr/mm/rok" sortowanie tekstowe daje bezsens (10 przed 9).
+ *  • NNN z zerami wiodącymi — 001…999 układa się poprawnie także tekstowo.
+ *  • Prefiks serii mówi, skąd dokument pochodzi (TI = zajęcia, FV = pozostałe),
+ *    a art. 106e ust. 1 pkt 2 ustawy o VAT wprost dopuszcza więcej niż jedną serię,
+ *    byle numer jednoznacznie identyfikował fakturę.
+ *  • Sekwencja jest ciągła w obrębie serii i miesiąca.
+ *
+ * Przykłady: TI/2026/08/001, FV/2026/08/007, TEST/FV/2026/08/001.
  *
  * Numer nadajemy przy WYSTAWIENIU, nie przy tworzeniu szkicu — inaczej usunięty
- * szkic zostawiałby lukę w numeracji. Dla szkicu liczymy numer poglądowo
- * (invoice_ti_number_preview) i nie zapisujemy go.
+ * szkic zostawiałby lukę w numeracji.
+ */
+const INVOICE_SERIES_TI  = 'TI';
+const INVOICE_SERIES_OWN = 'FV';
+
+/**
+ * Kolejny numer w danej serii dla miesiąca.
+ *
+ * Do sekwencji wliczamy też numery nadane STARYM formatem (SERIA/nr/MM/RRRR,
+ * czasem z segmentem grupy na końcu) — inaczej po zmianie formatu numeracja
+ * zaczęłaby się od nowa i powtórzyła istniejące dokumenty.
+ */
+function invoice_series_number(string $series, int $month, int $year, bool $test = false): string
+{
+    invoices_migrate();
+    $mm  = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
+    $pre = $test ? INVOICE_TEST_PREFIX : '';
+    $max = 0;
+
+    $scan = function (string $like, string $re) use (&$max): void {
+        foreach (db_all(
+            "SELECT number FROM invoices WHERE number LIKE ? AND deleted_at IS NULL", [$like]
+        ) as $r) {
+            if (preg_match($re, (string)$r['number'], $m)) $max = max($max, (int)$m[1]);
+        }
+    };
+
+    // Separator przed serią MUSI być opcjonalny: numer produkcyjny zaczyna się od
+    // serii („TI/…"), a testowy ma przed nią prefiks („TEST/TI/…"). Wymóg ukośnika
+    // sprawiał, że numery produkcyjne nie liczyły się do sekwencji — i każdy nowy
+    // dostawał 001, czyli duplikat.
+    $ser = preg_quote($series, '#');
+
+    // Format bieżący: SERIA/RRRR/MM/NNN
+    $scan($pre . $series . '/' . $year . '/' . $mm . '/%',
+          '#(?:^|/)' . $ser . '/' . $year . '/' . $mm . '/(\d+)$#');
+    // Format historyczny: SERIA/nr/MM/RRRR[/grupa]
+    $scan($pre . $series . '/%/' . $mm . '/' . $year . '%',
+          '#(?:^|/)' . $ser . '/(\d+)/#');
+
+    return $pre . $series . '/' . $year . '/' . $mm . '/' . str_pad((string)($max + 1), 3, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Numer faktury z rozliczenia TI (seria TI).
+ *
+ * @param int $course_id Zachowany dla zgodności wywołań — grupa nie wchodzi już
+ *                       do numeru; jest widoczna w pozycji faktury i w załączniku.
  */
 function invoice_ti_number(int $month, int $year, int $course_id = 0, bool $test = false): string
 {
-    invoices_migrate();
-    $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
-    $sfx  = '/' . $mm . '/' . $year . ($course_id > 0 ? '/' . $course_id : '');
-    $pre  = $test ? INVOICE_TEST_PREFIX : '';
-    $next = 1;
-
-    // Wzorzec BEZ „%" na końcu — koniec numeru jest dopasowany dokładnie, więc
-    // sekwencja grupy 3 nie widzi numerów grupy 5 ani numerów bez grupy.
-    // Bierzemy tylko numery faktycznie nadane (wystawione), żeby seria była ciągła.
-    foreach (db_all(
-        "SELECT number FROM invoices
-          WHERE source='ti_billing' AND number LIKE ? AND deleted_at IS NULL",
-        [$pre . 'TI/%' . $sfx]
-    ) as $r) {
-        if (preg_match('#TI/(\d+)/#', (string)$r['number'], $m)) {
-            $next = max($next, (int)$m[1] + 1);
-        }
-    }
-    return $pre . 'TI/' . $next . $sfx;
+    return invoice_series_number(INVOICE_SERIES_TI, $month, $year, $test);
 }
 
 /** Okres i grupa rozliczenia TI, z którego powstała faktura. */
@@ -405,100 +439,12 @@ function invoice_ti_number_preview(array $inv): string
 }
 
 /**
- * Kolejny numer własnej serii `FV/nr/mm/rok` — dla faktur wystawianych w SZO
- * (bez Fakturowni i bez KSeF). Numeracja narasta w obrębie miesiąca.
- *
- * Faktury z TI mają własną serię TI/… (invoice_ti_number) — tu obsługujemy
- * pozostałe źródła: oferty CRM i faktury ręczne.
+ * Kolejny numer własnej serii (FV) — faktury z ofert CRM i wystawiane ręcznie.
+ * Format i zasady jak w invoice_series_number().
  */
 function invoice_own_number(int $month, int $year, bool $test = false): string
 {
-    invoices_migrate();
-    $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
-    $sfx  = '/' . $mm . '/' . $year;
-    $next = 1;
-
-    foreach (db_all(
-        "SELECT number FROM invoices WHERE number LIKE ? AND deleted_at IS NULL",
-        [($test ? INVOICE_TEST_PREFIX : '') . 'FV/%' . $sfx]
-    ) as $r) {
-        if (preg_match('#FV/(\d+)/#', (string)$r['number'], $m)) {
-            $next = max($next, (int)$m[1] + 1);
-        }
-    }
-    // Testowe mają własną sekwencję — nie zużywają numerów produkcyjnych.
-    return ($test ? INVOICE_TEST_PREFIX : '') . 'FV/' . $next . $sfx;
-}
-
-/** Przedrostek numeru faktury testowej. */
-const INVOICE_TEST_PREFIX = 'TEST/';
-
-/** Czy faktura jest testowa (nie trafia do systemów zewnętrznych ani do akt). */
-function invoice_is_test(array $inv): bool
-{
-    return !empty($inv['is_test']);
-}
-
-/**
- * Czy fakturę należy wystawić w KSeF.
- *
- * KSeF obejmuje obrót między podatnikami (B2B). Faktura dla osoby fizycznej
- * nieprowadzącej działalności — czyli bez NIP-u — jest poza tym obowiązkiem
- * i wystawiamy ją lokalnie, z numerem nadanym przez SZO.
- *
- * Rozstrzyga obecność poprawnego NIP-u nabywcy: nie mamy innego pewnego sygnału,
- * a brak NIP-u przy sprzedaży konsumenckiej jest regułą, nie wyjątkiem.
- * Dla faktur z rozliczeń TI to przypadek domyślny — nabywcą jest zwykle kursant
- * albo jego opiekun.
- */
-function invoice_ksef_applicable(array $inv): bool
-{
-    if (invoice_is_test($inv)) return false;   // dokument testowy nigdy nie wychodzi
-    $nip = preg_replace('/\D+/', '', (string)($inv['buyer_tax_no'] ?? '')) ?? '';
-    return strlen($nip) === 10;
-}
-
-/**
- * Rodzaj nabywcy: 'OF' (osoba fizyczna — brak NIP) albo 'NIP' (podatnik).
- *
- * Decyduje o tym samym co invoice_ksef_applicable(), ale służy do POKAZANIA
- * operatorowi, z kim ma do czynienia — brak NIP-u znaczy sprzedaż konsumencka,
- * a więc dokument poza KSeF.
- */
-function invoice_buyer_kind(?string $tax_no): string
-{
-    return strlen(preg_replace('/\D+/', '', (string)$tax_no) ?? '') === 10 ? 'NIP' : 'OF';
-}
-
-/**
- * Ustala nabywcę, jaki powstanie z rozliczenia TI — bez tworzenia faktury.
- *
- * Ta sama logika co invoice_from_ti_billing(): płatnik rozliczenia, a gdy go nie
- * ma — sam kursant; NIP dociągamy z kartoteki CRM po nazwie. Dzięki temu panel
- * generowania pokazuje „OF" albo NIP ZANIM operator kliknie.
- *
- * @return array{name:string,tax_no:string,kind:string}
- */
-function invoice_ti_buyer_preview(array $billing_row): array
-{
-    $name = trim((string)($billing_row['payer_name'] ?? '')) ?: trim((string)($billing_row['client_name'] ?? ''));
-    $nip  = '';
-    if ($name !== '') {
-        try {
-            $c = db_one("SELECT nip FROM crm_contacts WHERE crm_active=1 AND LOWER(imie_nazwisko)=LOWER(?) LIMIT 1", [$name]);
-            $nip = (string)($c['nip'] ?? '');
-        } catch (\Throwable $e) { $nip = ''; }
-    }
-    return ['name' => $name, 'tax_no' => $nip, 'kind' => invoice_buyer_kind($nip)];
-}
-
-/** Powód, dla którego faktura nie idzie do KSeF — do pokazania operatorowi. */
-function invoice_ksef_skip_reason(array $inv): string
-{
-    if (invoice_is_test($inv)) return 'Faktura testowa — nie jest wysyłana do KSeF ani do systemu księgowego.';
-    return invoice_ksef_applicable($inv)
-        ? ''
-        : 'Nabywca bez NIP — sprzedaż na rzecz osoby fizycznej jest poza KSeF.';
+    return invoice_series_number(INVOICE_SERIES_OWN, $month, $year, $test);
 }
 
 /**
