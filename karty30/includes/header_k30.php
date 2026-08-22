@@ -145,154 +145,113 @@ function _k30_active(string $path): bool {
     </div>
   </nav>
 
-  <!-- ══ Menu modułu ════════════════════════════════════════════════════════ -->
+</header>
+
+  <!-- ══ Menu modułu (panel boczny — układ jak w panelu dydaktyka) ═════════ -->
   <?php
   $_k30_wait_count = 0;
   try {
       $r = db_one("SELECT COUNT(*) AS c FROM k30_waiting_list WHERE status IN ('waiting','contacted')");
       $_k30_wait_count = (int)($r['c'] ?? 0);
   } catch (\Throwable $e) {}
-  $g_ti      = _k30_active('/karty30/ti/');
-  $g_clients = _k30_active('/karty30/clients');
-  $g_pfron   = _k30_active('/karty30/pfron/');
-  $g_kons    = $g_clients || _k30_active('/karty30/waiting')
-            || _k30_active('/karty30/schedules') || _k30_active('/karty30/consultations')
-            || _k30_active('/karty30/reports') || _k30_active('/karty30/blacklist')
-            || _k30_active('/karty30/admin/');
+
+  /**
+   * Spec menu bocznego: 'section' (nagłówek), 'sep' (linia), 'link' (pozycja).
+   * Pozycja: [label, ikona, href, dopasowania… (prefiksy URL), 'badge'=>int]
+   */
+  $K30_NAV = [];
+  $K30_NAV[] = ['link', 'Dashboard', 'grid-1x2-fill', '/karty30/index.php', ['/karty30/index']];
+  $K30_NAV[] = ['link', 'Beneficjenci', 'people-fill', '/karty30/clients/index.php', ['/karty30/clients']];
+
+  $K30_NAV[] = ['section', 'Dydaktyka (TI)'];
+  $K30_NAV[] = ['link', 'Kursy i zajęcia', 'pc-display', '/karty30/ti/index.php', ['/karty30/ti/index','/karty30/ti/course','/karty30/ti/lesson']];
+  if ($_can_write) {
+      $K30_NAV[] = ['link', 'Plan nauczania',    'list-check',      '/karty30/ti/curriculum.php',  ['/karty30/ti/curriculum']];
+      $K30_NAV[] = ['link', 'Testy',             'card-checklist',  '/karty30/ti/tests.php',       ['/karty30/ti/tests','/karty30/ti/test_build']];
+      $K30_NAV[] = ['link', 'Materiały / eLearning', 'collection-play', '/karty30/ti/materials.php', ['/karty30/ti/materials']];
+      $K30_NAV[] = ['link', 'Zadania domowe',    'journal-check',   '/karty30/ti/homework.php',    ['/karty30/ti/homework']];
+      $K30_NAV[] = ['link', 'Dziennik ocen',     'table',           '/karty30/ti/grades.php',      ['/karty30/ti/grades']];
+      $K30_NAV[] = ['link', 'Wiadomości',        'envelope',        '/karty30/ti/messages.php',    ['/karty30/ti/messages']];
+      $K30_NAV[] = ['link', 'Komunikacja',       'megaphone',       '/karty30/ti/komunikacja.php', ['/karty30/ti/komunikacja']];
+      $K30_NAV[] = ['link', 'Urlopy prowadzących','airplane',       '/karty30/ti/urlopy.php',      ['/karty30/ti/urlopy']];
+      $K30_NAV[] = ['link', 'Rozliczenia (klasyczne)', 'receipt',   '/karty30/ti/billing.php',     ['/karty30/ti/billing']];
+      $K30_NAV[] = ['link', 'Moduł Rozliczenia', 'cash-coin',       '/rozliczenia/index.php',      ['/rozliczenia/']];
+  }
+  if (is_admin()) {
+      $K30_NAV[] = ['section', 'Administracja TI'];
+      $K30_NAV[] = ['link', 'Konta kursantów',   'person-badge',    '/karty30/ti/kursant/accounts.php', ['/karty30/ti/kursant/accounts']];
+      $K30_NAV[] = ['link', 'Dostępność prowadzących', 'clock-history', '/karty30/ti/availability.php', ['/karty30/ti/availability']];
+      $K30_NAV[] = ['link', 'Nauka online',      'camera-video',    '/karty30/ti/online_admin.php',     ['/karty30/ti/online_admin']];
+      $K30_NAV[] = ['link', 'Moodle',            'mortarboard',     '/karty30/ti/moodle_admin.php',     ['/karty30/ti/moodle_admin']];
+      $K30_NAV[] = ['link', 'Licencje',          'key',             '/karty30/ti/licencje_admin.php',   ['/karty30/ti/licencje_admin']];
+      $K30_NAV[] = ['link', 'VLAB / Docker',     'hdd-stack',       '/karty30/ti/vlab_admin.php',       ['/karty30/ti/vlab_admin']];
+      $K30_NAV[] = ['link', 'Umowy VLab',        'file-earmark-lock','/karty30/ti/vlab_contracts.php',  ['/karty30/ti/vlab_contracts']];
+      $K30_NAV[] = ['link', 'Regulaminy',        'file-earmark-text','/karty30/ti/terms_admin.php',     ['/karty30/ti/terms_admin']];
+      $K30_NAV[] = ['link', 'M365 K30',          'microsoft',       '/karty30/admin/m365.php',          ['/karty30/admin/m365']];
+      $K30_NAV[] = ['link', 'Szablony e-mail',   'envelope-paper',  '/karty30/ti/email_templates.php',  ['/karty30/ti/email_templates']];
+  }
+
+  if (k30_pfron_enabled()) {
+      $K30_NAV[] = ['section', 'PFRON'];
+      $K30_NAV[] = ['link', 'Szkolenia PFRON',   'mortarboard',     '/karty30/pfron/training.php', ['/karty30/pfron/training']];
+      $K30_NAV[] = ['link', 'Dokumenty PFRON',   'file-earmark-pdf','/karty30/pfron/docs.php',     ['/karty30/pfron/docs','/karty30/pfron/doc_print']];
+  }
+
+  $K30_NAV[] = ['section', 'Konsultacje tyflo'];
+  $K30_NAV[] = ['link', 'Lista oczekujących', 'hourglass-split', '/karty30/waiting/index.php', ['/karty30/waiting'], $_k30_wait_count];
+  $K30_NAV[] = ['link', 'Harmonogram wizyt',  'calendar3',       '/karty30/schedules/index.php',
+                ['/karty30/schedules/index','/karty30/schedules/add','/karty30/schedules/edit','/karty30/schedules/view']];
+  $K30_NAV[] = ['link', 'Kalendarz',          'calendar-week',   '/karty30/schedules/calendar.php', ['/karty30/schedules/calendar']];
+  if ($_can_write)
+      $K30_NAV[] = ['link', 'Szybka rezerwacja', 'lightning-charge-fill', '/karty30/schedules/quick.php', ['/karty30/schedules/quick']];
+  $K30_NAV[] = ['link', 'Konsultacje',        'clipboard2-check','/karty30/consultations/index.php', ['/karty30/consultations']];
+  $K30_NAV[] = ['link', 'Raporty',            'bar-chart-line',  '/karty30/reports/index.php',       ['/karty30/reports']];
+  $K30_NAV[] = ['link', 'Czarna lista',       'slash-circle',    '/karty30/blacklist/index.php',     ['/karty30/blacklist']];
+
+  if (is_admin()) {
+      $K30_NAV[] = ['section', 'Administracja'];
+      $K30_NAV[] = ['link', 'Doradcy',            'people-fill',      '/karty30/admin/consultants.php', ['/karty30/admin/consultants']];
+      $K30_NAV[] = ['link', 'Certyfikaty x509',   'patch-check-fill', '/karty30/admin/cert_upload.php', ['/karty30/admin/cert_upload']];
+      $K30_NAV[] = ['link', 'Cennik',             'currency-exchange','/karty30/admin/pricing.php',     ['/karty30/admin/pricing']];
+      $K30_NAV[] = ['link', 'Rejestr dostępu',    'shield-lock',      '/karty30/admin/access_log.php',  ['/karty30/admin/access_log']];
+      $K30_NAV[] = ['link', 'Testowe logowanie',  'person-fill-gear', '/karty30/admin/test_login.php',  ['/karty30/admin/test_login']];
+      $K30_NAV[] = ['link', 'Wyczyść dane D3',    'trash3',           '/karty30/admin/clean_k30.php',   ['/karty30/admin/clean_k30'], 0, true];
+  }
+
+  $K30_NAV[] = ['sep'];
+  if ($_can_write)
+      $K30_NAV[] = ['link', 'Nowy beneficjent', 'person-plus', '/karty30/clients/add.php', ['/karty30/clients/add']];
+  $K30_NAV[] = ['link', 'Portal SZO', 'box-arrow-left', '/portal.php', ['/portal.php']];
   ?>
-  <nav class="navbar navbar-expand-lg py-0 k30-subnav" id="k30-nav" aria-label="Nawigacja modułu">
-    <div class="container-fluid">
-      <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse"
-              data-bs-target="#k30-menu" aria-controls="k30-menu" aria-expanded="false"
-              aria-label="Przełącz nawigację">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="k30-menu">
-        <ul class="navbar-nav me-auto">
-          <li class="nav-item">
-            <a class="nav-link d-inline-flex align-items-center gap-2 <?= _k30_active('/karty30/index') ? 'active' : '' ?>"
-               href="<?= APP_URL ?>/karty30/index.php" <?= _k30_active('/karty30/index') ? 'aria-current="page"' : '' ?>>
-              <i class="bi bi-grid-1x2-fill" aria-hidden="true"></i>Dashboard</a>
-          </li>
 
-          <li class="nav-item">
-            <a class="nav-link d-inline-flex align-items-center gap-2 <?= $g_clients ? 'active' : '' ?>"
-               href="<?= APP_URL ?>/karty30/clients/index.php" <?= $g_clients ? 'aria-current="page"' : '' ?>>
-              <i class="bi bi-people-fill" aria-hidden="true"></i>Beneficjenci</a>
-          </li>
+  <button id="k30SbToggle" type="button" aria-label="Pokaż menu modułu" aria-controls="k30-nav" aria-expanded="false">
+    <i class="bi bi-list" aria-hidden="true"></i>
+  </button>
+  <div class="k30-sb-overlay" id="k30SbOverlay" hidden></div>
 
-          <!-- ══ Dydaktyka (TI) ══ -->
-          <li class="nav-item dropdown">
-            <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_ti ? 'active' : '' ?>"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-pc-display" aria-hidden="true"></i>Dydaktyka (TI)</button>
-            <div class="dropdown-menu k30-mega p-2">
-              <div class="row g-2">
-                <div class="col-12 col-md-6">
-                  <h6 class="dropdown-header">Nauka i zajęcia</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/index.php" <?= _k30_active('/karty30/ti/index') || _k30_active('/karty30/ti/course') || _k30_active('/karty30/ti/lesson') ? 'aria-current="page"' : '' ?>><i class="bi bi-pc-display me-2" aria-hidden="true"></i>Kursy i zajęcia</a>
-                  <?php if ($_can_write): ?>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/curriculum.php" <?= _k30_active('/karty30/ti/curriculum') ? 'aria-current="page"' : '' ?>><i class="bi bi-list-check me-2" aria-hidden="true"></i>Plan nauczania</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/tests.php" <?= _k30_active('/karty30/ti/tests') || _k30_active('/karty30/ti/test_build') ? 'aria-current="page"' : '' ?>><i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Testy</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/materials.php" <?= _k30_active('/karty30/ti/materials') ? 'aria-current="page"' : '' ?>><i class="bi bi-collection-play me-2" aria-hidden="true"></i>Materiały / eLearning</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/homework.php" <?= _k30_active('/karty30/ti/homework') ? 'aria-current="page"' : '' ?>><i class="bi bi-journal-check me-2" aria-hidden="true"></i>Zadania domowe</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/grades.php" <?= _k30_active('/karty30/ti/grades') ? 'aria-current="page"' : '' ?>><i class="bi bi-table me-2" aria-hidden="true"></i>Dziennik ocen</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/messages.php" <?= _k30_active('/karty30/ti/messages') ? 'aria-current="page"' : '' ?>><i class="bi bi-envelope me-2" aria-hidden="true"></i>Wiadomości</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/komunikacja.php" <?= _k30_active('/karty30/ti/komunikacja') ? 'aria-current="page"' : '' ?>><i class="bi bi-megaphone me-2" aria-hidden="true"></i>Komunikacja (e-mail/SMS)</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/urlopy.php" <?= _k30_active('/karty30/ti/urlopy') ? 'aria-current="page"' : '' ?>><i class="bi bi-airplane me-2" aria-hidden="true"></i>Urlopy prowadzących</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/billing.php" <?= _k30_active('/karty30/ti/billing') ? 'aria-current="page"' : '' ?>><i class="bi bi-receipt me-2" aria-hidden="true"></i>Rozliczenia</a>
-                  <?php endif; ?>
-                </div>
-                <?php if (is_admin()): ?>
-                <div class="col-12 col-md-6 border-start-md">
-                  <h6 class="dropdown-header">Administracja TI</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/kursant/accounts.php" <?= _k30_active('/karty30/ti/kursant/accounts') ? 'aria-current="page"' : '' ?>><i class="bi bi-person-badge me-2" aria-hidden="true"></i>Konta kursantów</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/availability.php" <?= _k30_active('/karty30/ti/availability') ? 'aria-current="page"' : '' ?>><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Dostępność prowadzących</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/online_admin.php" <?= _k30_active('/karty30/ti/online_admin') ? 'aria-current="page"' : '' ?>><i class="bi bi-camera-video me-2" aria-hidden="true"></i>Nauka online</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/moodle_admin.php" <?= _k30_active('/karty30/ti/moodle_admin') ? 'aria-current="page"' : '' ?>><i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Moodle</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/licencje_admin.php" <?= _k30_active('/karty30/ti/licencje_admin') ? 'aria-current="page"' : '' ?>><i class="bi bi-key me-2" aria-hidden="true"></i>Licencje</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/vlab_admin.php" <?= _k30_active('/karty30/ti/vlab_admin') ? 'aria-current="page"' : '' ?>><i class="bi bi-hdd-stack me-2" aria-hidden="true"></i>VLAB / Docker</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/vlab_contracts.php" <?= _k30_active('/karty30/ti/vlab_contracts') ? 'aria-current="page"' : '' ?>><i class="bi bi-file-earmark-lock me-2" aria-hidden="true"></i>Umowy VLab</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/terms_admin.php" <?= _k30_active('/karty30/ti/terms_admin') ? 'aria-current="page"' : '' ?>><i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Regulaminy</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/m365.php" <?= _k30_active('/karty30/admin/m365') ? 'aria-current="page"' : '' ?>><i class="bi bi-microsoft me-2" aria-hidden="true"></i>M365 K30</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/email_templates.php" <?= _k30_active('/karty30/ti/email_templates') ? 'aria-current="page"' : '' ?>><i class="bi bi-envelope-paper me-2" aria-hidden="true"></i>Szablony e-mail</a>
-                </div>
-                <?php endif; ?>
-              </div>
-            </div>
-          </li>
-
-          <?php if (k30_pfron_enabled()): ?>
-          <!-- ══ PFRON ══ -->
-          <li class="nav-item dropdown">
-            <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_pfron ? 'active' : '' ?>"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-building-fill-check" aria-hidden="true"></i>PFRON</button>
-            <div class="dropdown-menu shadow py-1" style="min-width:220px">
-              <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/training.php" <?= _k30_active('/karty30/pfron/training') ? 'aria-current="page"' : '' ?>>
-                <i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Szkolenia PFRON</a>
-              <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/docs.php" <?= _k30_active('/karty30/pfron/docs') || _k30_active('/karty30/pfron/doc_print') ? 'aria-current="page"' : '' ?>>
-                <i class="bi bi-file-earmark-pdf me-2 text-danger" aria-hidden="true"></i>Dokumenty PFRON</a>
-            </div>
-          </li>
-          <?php endif; ?>
-
-          <!-- ══ Konsultacje tyflo ══ -->
-          <li class="nav-item dropdown">
-            <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_kons ? 'active' : '' ?>"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-clipboard2-check" aria-hidden="true"></i>Konsultacje tyflo<?php if ($_k30_wait_count > 0): ?> <span class="badge text-bg-warning"><?= $_k30_wait_count ?></span><?php endif; ?></button>
-            <div class="dropdown-menu k30-mega p-2">
-              <div class="row g-2">
-                <div class="col-12 col-md-6">
-                  <h6 class="dropdown-header">Beneficjenci</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/clients/index.php" <?= _k30_active('/karty30/clients') ? 'aria-current="page"' : '' ?>><i class="bi bi-people-fill me-2" aria-hidden="true"></i>Beneficjenci</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/waiting/index.php" <?= _k30_active('/karty30/waiting') ? 'aria-current="page"' : '' ?>><i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>Lista oczekujących<?php if ($_k30_wait_count > 0): ?> <span class="badge text-bg-warning"><?= $_k30_wait_count ?></span><?php endif; ?></a>
-                  <h6 class="dropdown-header">Wizyty</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/schedules/index.php" <?= _k30_active('/karty30/schedules/index') || _k30_active('/karty30/schedules/add') || _k30_active('/karty30/schedules/edit') || _k30_active('/karty30/schedules/view') ? 'aria-current="page"' : '' ?>><i class="bi bi-calendar3 me-2" aria-hidden="true"></i>Harmonogram wizyt</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/schedules/calendar.php" <?= _k30_active('/karty30/schedules/calendar') ? 'aria-current="page"' : '' ?>><i class="bi bi-calendar-week me-2" aria-hidden="true"></i>Kalendarz</a>
-                  <?php if ($_can_write): ?>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/schedules/quick.php" <?= _k30_active('/karty30/schedules/quick') ? 'aria-current="page"' : '' ?>><i class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>Szybka rezerwacja</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/schedules/add.php"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Nowy termin</a>
-                  <?php endif; ?>
-                </div>
-                <div class="col-12 col-md-6 border-start-md">
-                  <h6 class="dropdown-header">Konsultacje i raporty</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/consultations/index.php" <?= _k30_active('/karty30/consultations') ? 'aria-current="page"' : '' ?>><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Konsultacje</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/reports/index.php" <?= _k30_active('/karty30/reports') ? 'aria-current="page"' : '' ?>><i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Raporty</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/blacklist/index.php" <?= _k30_active('/karty30/blacklist') ? 'aria-current="page"' : '' ?>><i class="bi bi-slash-circle me-2" aria-hidden="true"></i>Czarna lista</a>
-                  <?php if (is_admin()): ?>
-                  <h6 class="dropdown-header">Administracja</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/consultants.php" <?= _k30_active('/karty30/admin/consultants') ? 'aria-current="page"' : '' ?>><i class="bi bi-people-fill me-2" aria-hidden="true"></i>Doradcy</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/cert_upload.php" <?= _k30_active('/karty30/admin/cert_upload') ? 'aria-current="page"' : '' ?>><i class="bi bi-patch-check-fill me-2" aria-hidden="true"></i>Certyfikaty x509</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/pricing.php" <?= _k30_active('/karty30/admin/pricing') ? 'aria-current="page"' : '' ?>><i class="bi bi-currency-exchange me-2" aria-hidden="true"></i>Cennik</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/access_log.php" <?= _k30_active('/karty30/admin/access_log') ? 'aria-current="page"' : '' ?>><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rejestr dostępu (RODO)</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/test_login.php" <?= _k30_active('/karty30/admin/test_login') ? 'aria-current="page"' : '' ?>><i class="bi bi-person-fill-gear me-2" aria-hidden="true"></i>Testowe logowanie</a>
-                  <a class="dropdown-item text-danger" href="<?= APP_URL ?>/karty30/admin/clean_k30.php" <?= _k30_active('/karty30/admin/clean_k30') ? 'aria-current="page"' : '' ?>><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Wyczyść dane D3</a>
-                  <?php endif; ?>
-                </div>
-              </div>
-            </div>
-          </li>
-        </ul>
-
-        <div class="d-flex align-items-center gap-2 flex-wrap py-1 py-lg-0">
-          <?php if ($_can_write): ?>
-          <a class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1" href="<?= APP_URL ?>/karty30/clients/add.php">
-            <i class="bi bi-person-plus" aria-hidden="true"></i>Nowy beneficjent</a>
-          <?php endif; ?>
-          <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" href="<?= APP_URL ?>/portal.php" aria-label="Wróć do wyboru systemu — portal główny">
-            <i class="bi bi-box-arrow-left" aria-hidden="true"></i>Portal</a>
-        </div>
-      </div>
-    </div>
+  <nav class="k30-sidebar" id="k30-nav" aria-label="Nawigacja modułu">
+    <?php foreach ($K30_NAV as $_it):
+      if ($_it[0] === 'sep')     { echo '<div class="k30-sb-sep"></div>'; continue; }
+      if ($_it[0] === 'section') { echo '<div class="k30-sb-section">' . h($_it[1]) . '</div>'; continue; }
+      [, $_lbl, $_ico, $_href, $_matches] = $_it;
+      $_badge  = $_it[5] ?? 0;
+      $_danger = !empty($_it[6]);
+      $_on = false;
+      foreach ($_matches as $_m) { if (_k30_active($_m)) { $_on = true; break; } }
+    ?>
+    <a class="k30-sb-link<?= $_on ? ' active' : '' ?><?= $_danger ? ' k30-sb-danger' : '' ?>"
+       href="<?= APP_URL . h($_href) ?>" <?= $_on ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-<?= h($_ico) ?>" aria-hidden="true"></i><span class="k30-sb-txt"><?= h($_lbl) ?></span>
+      <?php if ($_badge > 0): ?><span class="badge text-bg-warning ms-auto"><?= (int)$_badge ?></span><?php endif; ?>
+    </a>
+    <?php endforeach; ?>
   </nav>
-</header>
+
 
 <?php $_brw = dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; if (is_file($_brw)) require_once $_brw; ?>
 
 <!-- ══ GŁÓWNA TREŚĆ ════════════════════════════════════════════════════════ -->
-<main class="container-fluid py-4 k30-main-content" id="k30-main" role="main" tabindex="-1">
+<main class="container-fluid py-4 k30-main-content k30-content k30-wrap" id="k30-main" role="main" tabindex="-1">
 
 <?php
 // Flash messages — ogłoszone przez aria-live

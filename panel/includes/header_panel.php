@@ -84,7 +84,7 @@ if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php'
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
   /* Tokeny layoutu (navbar / sidebar / body) */
-  --pvl-body:#F0F2F5;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
+  --pvl-body:#F9FAFB;--pvl-nav:#fff;--pvl-nav-b:#E5E7EB;
   --pvl-txt:#374151;--pvl-sub:#9CA3AF;
   --pvl-btn:#fff;--pvl-btn-b:#E5E7EB;--pvl-btn-t:#374151;
   --pvl-div:#F3F4F6;--pvl-brand:#111827;
@@ -113,15 +113,22 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-skip:focus{top:0}
 *:focus-visible{outline:3px solid #FBBF24 !important;outline-offset:3px !important;border-radius:3px}
 
-/* Górny pasek (navbar) */
-.pv-navbar{background:var(--pvl-nav);border-bottom:1px solid var(--pvl-nav-b);box-shadow:0 1px 3px rgba(0,0,0,.04);position:sticky;top:0;z-index:1040}
-.pv-menu-btn{border:1px solid var(--pvl-btn-b);background:var(--pvl-btn);border-radius:9px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--pvl-btn-t);cursor:pointer;flex-shrink:0;transition:border-color .12s,color .12s}
-.pv-menu-btn:hover{border-color:var(--vol-color);color:var(--vol-color)}
-.pv-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--pvl-brand);font-weight:800;font-size:.98rem;min-width:0}
+/* Górny pasek (navbar) — układ jak w module „Tożsamość" (tozsamosc/_head.php):
+   biały, płaski (bez cienia), zawartość w kolumnie 960 px, akcje jako
+   dyskretne linki tekstowe, mała awatarka. */
+.pv-navbar{background:var(--pvl-nav);border-bottom:1px solid var(--pvl-nav-b);position:sticky;top:0;z-index:1040}
+.pv-bar-inner{max-width:960px;margin:0 auto;padding:.55rem 1rem;display:flex;align-items:center;gap:.75rem}
+.pv-menu-btn{border:none;background:none;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--pvl-sub);cursor:pointer;flex-shrink:0;transition:background .12s,color .12s}
+.pv-menu-btn:hover{background:var(--pvl-div);color:var(--pvl-txt)}
+.pv-brand{display:flex;align-items:center;gap:.55rem;text-decoration:none;color:var(--pvl-brand);font-weight:700;font-size:.95rem;min-width:0;line-height:1.05}
 .pv-brand:hover{color:var(--pvl-brand)}
-.pv-brand-icon{width:34px;height:34px;background:var(--vol-color);color:var(--vol-on);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
-.pv-brand-sub{font-size:.66rem;opacity:.6;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-.pv-avatar{width:36px;height:36px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;cursor:pointer;border:none;line-height:1}
+.pv-brand-icon{width:32px;height:32px;background:var(--vol-color);color:var(--vol-on);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.pv-brand-sub{font-size:.65rem;color:var(--pvl-sub);opacity:1;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+/* Dyskretny link akcji w pasku (odpowiednik .tzbar .lnk) */
+.pv-lnk{color:var(--pvl-sub);text-decoration:none;font-size:.83rem;padding:.35rem .6rem;border-radius:6px;display:inline-flex;align-items:center;gap:.35rem;background:none;border:none;cursor:pointer;position:relative;white-space:nowrap}
+.pv-lnk:hover,.pv-lnk:focus-visible{background:var(--pvl-div);color:var(--pvl-txt)}
+.pv-lnk .pv-lnk-badge{background:var(--vol-color);color:var(--vol-on);font-size:.62rem;font-weight:700;line-height:1;padding:.15rem .35rem;border-radius:999px}
+.pv-avatar{width:30px;height:30px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;cursor:pointer;border:none;line-height:1;flex-shrink:0}
 
 /* Menu sekcji w offcanvas */
 .pv-offcanvas{max-width:285px}
@@ -138,19 +145,66 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-nav-divider{height:1px;background:var(--pvl-div);margin:.4rem .75rem}
 .pv-sidebar-bottom{margin-top:auto;border-top:1px solid var(--pvl-div);padding:.5rem}
 
-/* Treść — wyśrodkowany kontener */
-#pv-main{flex:1 0 auto;width:100%}
-.pv-footer{border-top:1px solid var(--pvl-nav-b);padding:.6rem 1.5rem;font-size:.75rem;color:var(--pvl-sub);background:var(--pvl-nav);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
+/* Treść — kolumna 960 px wyśrodkowana (jak .tz-wrap w Tożsamości) */
+#pv-main{flex:1 0 auto;width:100%;max-width:960px;margin:0 auto;padding:1.5rem 1rem 3rem}
+.pv-footer{border-top:1px solid var(--pvl-nav-b);font-size:.75rem;color:var(--pvl-sub);background:var(--pvl-nav)}
+.pv-footer-inner{max-width:960px;margin:0 auto;padding:.6rem 1rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
 
 /* Live region */
 .pv-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-@media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} }
+@media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} .pv-bar-inner{gap:.4rem} }
+
+/* ── Układ jak w panelu dydaktyka: stały panel boczny 220 px od breakpointu lg ──
+   Poniżej lg menu pozostaje wysuwane (Bootstrap offcanvas-lg). Tryb wysokiego
+   kontrastu (data-theme="hc") zachowuje własną kolorystykę — bez granatu.      */
+@media(min-width:992px){
+  .pv-menu-btn{display:none}
+  .pv-bar-inner{max-width:none}
+  .pv-offcanvas{
+    position:fixed;top:49px;left:0;bottom:0;width:220px;
+    overflow-y:auto;overflow-x:hidden;z-index:1035;
+    border-right:1px solid var(--pvl-nav-b);
+  }
+  .pv-offcanvas .offcanvas-header{display:none}
+  .pv-offcanvas .offcanvas-body{padding:.35rem 0}
+  #pv-main{
+    max-width:none;margin-left:220px;
+    padding-left:max(1rem,calc((100% - 1100px)/2));
+    padding-right:max(1rem,calc((100% - 1100px)/2));
+  }
+  .pv-footer-inner{max-width:none;margin-left:220px}
+
+  /* Granatowa kolorystyka paska i panelu bocznego (poza trybem hc) */
+  :root:not([data-theme="hc"]) .pv-navbar{background:#1b2e45;border-bottom-color:rgba(255,255,255,.08)}
+  :root:not([data-theme="hc"]) .pv-brand,
+  :root:not([data-theme="hc"]) .pv-brand:hover{color:#fff}
+  :root:not([data-theme="hc"]) .pv-brand-sub{color:rgba(255,255,255,.6)}
+  :root:not([data-theme="hc"]) .pv-lnk{color:rgba(255,255,255,.78)}
+  :root:not([data-theme="hc"]) .pv-lnk:hover,
+  :root:not([data-theme="hc"]) .pv-lnk:focus-visible{background:rgba(255,255,255,.12);color:#fff}
+  :root:not([data-theme="hc"]) .pv-offcanvas{background:#1b2e45;border-right-color:rgba(255,255,255,.08)}
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link{
+    color:rgba(255,255,255,.8);margin:0;border-radius:0;padding:.5rem 1rem;font-weight:600;
+  }
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link i{color:rgba(255,255,255,.6)}
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link:hover{
+    background:rgba(255,255,255,.1);color:#fff;border-left-color:rgba(255,255,255,.2);
+  }
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link:hover i{color:#fff}
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link.pv-active{
+    background:rgba(255,255,255,.12);color:#fff;font-weight:700;border-left-color:var(--vol-color,#5bbcff);
+  }
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-link.pv-active i{color:#fff}
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-label{color:rgba(255,255,255,.35)}
+  :root:not([data-theme="hc"]) .pv-offcanvas .pv-nav-divider{background:rgba(255,255,255,.1)}
+  :root:not([data-theme="hc"]) .pv-sidebar-bottom{border-top-color:rgba(255,255,255,.1)}
+}
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Wysoki kontrast — layout */
 [data-theme="hc"] .pv-navbar{border-bottom-width:2px;box-shadow:none}
-[data-theme="hc"] .pv-menu-btn{border-width:2px}
+[data-theme="hc"] .pv-menu-btn,[data-theme="hc"] .pv-lnk{color:#000}
 [data-theme="hc"] .pv-nav-link:hover,[data-theme="hc"] .pv-nav-link.pv-active{background:#000;color:#fff;border-left-color:#000}
 [data-theme="hc"] .pv-nav-link:hover i,[data-theme="hc"] .pv-nav-link.pv-active i{color:#fff}
 [data-theme="hc"] .pv-nav-divider{height:2px}
@@ -186,7 +240,7 @@ try {
 ?>
 <!-- Navbar -->
 <header class="pv-navbar" role="banner">
-  <div class="container d-flex align-items-center gap-2 py-2">
+  <div class="pv-bar-inner">
     <button class="pv-menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#pvNav"
             aria-controls="pvNav" aria-label="Otwórz menu nawigacji">
       <i class="bi bi-list" aria-hidden="true"></i>
@@ -198,24 +252,23 @@ try {
         <?php if ($_pv_org): ?><span class="pv-brand-sub" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></span><?php endif; ?>
       </span>
     </a>
-    <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
-      <a href="<?= APP_URL ?>/komunikaty/index.php"
-         class="btn btn-sm position-relative d-inline-flex align-items-center gap-1"
-         style="background:var(--vol-color);color:#fff;font-weight:600"
+    <span class="ms-auto"></span>
+    <nav class="d-flex align-items-center gap-1" aria-label="Akcje użytkownika">
+      <a href="<?= APP_URL ?>/komunikaty/index.php" class="pv-lnk"
          title="Komunikaty organizacji"
          aria-label="Komunikaty<?= $_pv_unread ? " — {$_pv_unread} nieprzeczytanych" : '' ?>">
         <i class="bi bi-megaphone<?= $_pv_unread ? '-fill' : '' ?>" aria-hidden="true"></i>
         <span class="d-none d-sm-inline">Komunikaty</span>
         <?php if ($_pv_unread): ?>
-        <span class="badge rounded-pill bg-light text-dark" style="font-size:.62rem"><?= min($_pv_unread, 99) ?></span>
+        <span class="pv-lnk-badge"><?= min($_pv_unread, 99) ?></span>
         <?php endif; ?>
       </a>
       <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
-      <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+      <button type="button" class="pv-lnk"
               data-bs-toggle="modal" data-bs-target="#bugReportModal"
               title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd">
         <i class="bi bi-bug-fill" aria-hidden="true"></i>
-        <span class="d-none d-sm-inline">Zgłoś błąd</span>
+        <span class="d-none d-lg-inline">Zgłoś błąd</span>
       </button>
       <?php endif; ?>
       <?php if ($_pu): ?>
@@ -241,7 +294,7 @@ try {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
 <!-- Menu sekcji (offcanvas) -->
-<div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
+<div class="offcanvas offcanvas-lg offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
   <div class="offcanvas-header">
     <span class="offcanvas-title fw-bold d-flex align-items-center gap-2">
       <i class="bi bi-person-circle" aria-hidden="true"></i>Panel wolontariusza
@@ -459,7 +512,7 @@ try {
   </nav>
 </div><!-- /offcanvas -->
 
-<main class="container py-4" id="pv-main" role="main" tabindex="-1">
+<main id="pv-main" role="main" tabindex="-1">
 
 <?php if (!empty($_SESSION['_admin_original'])): ?>
 <?php $_imp_name = $_SESSION['user']['name'] ?? 'użytkownik'; ?>

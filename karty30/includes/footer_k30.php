@@ -8,7 +8,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
 </main><!-- /k30-main -->
 
-<footer class="border-top bg-body mt-4" role="contentinfo">
+<footer class="border-top bg-body mt-4 k30-content" role="contentinfo">
   <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center gap-2 py-3 small text-body-secondary k30-main-content">
     <span>
       <i class="bi bi-card-checklist me-1 text-primary" aria-hidden="true"></i>
@@ -22,6 +22,20 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ── Panel boczny modułu na mobile: otwieranie/zamykanie + overlay + Escape ── */
+(function () {
+  var sb = document.getElementById('k30-nav');
+  var ov = document.getElementById('k30SbOverlay');
+  var bt = document.getElementById('k30SbToggle');
+  if (!sb || !ov || !bt) return;
+  function open()  { sb.classList.add('open');  ov.hidden = false; ov.classList.add('show');  bt.setAttribute('aria-expanded', 'true'); }
+  function close() { sb.classList.remove('open'); ov.classList.remove('show'); ov.hidden = true; bt.setAttribute('aria-expanded', 'false'); }
+  bt.addEventListener('click', function () { sb.classList.contains('open') ? close() : open(); });
+  ov.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sb.classList.contains('open')) close(); });
+})();
+</script>
 <script>
 /* ── Dostępność: globalne skrypty ───────────────────────────────── */
 (function() {

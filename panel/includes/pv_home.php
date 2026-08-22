@@ -220,14 +220,14 @@ $_pv_rel_time = function (string $dt): string {
   --tz-rgb:<?= h($_vol_rgb) ?>;
   --tz-50:rgba(var(--tz-rgb),.08);
   --tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;
-  --tz-bg:#fff;--tz-bg-page:#F4F6F9;
+  --tz-bg:#fff;--tz-bg-page:#F9FAFB;
   max-width:960px;margin:0 auto;color:var(--tz-ink);
 }
 @media(prefers-color-scheme:dark){
   .pvtz{--tz-line:#1e2535;--tz-muted:#94a3b8;--tz-ink:#f1f5f9;--tz-bg:#0f172a;--tz-bg-page:#0a0f1e;--tz-50:rgba(var(--tz-rgb),.16)}
 }
 :root[data-theme="dark"] .pvtz{--tz-line:#1e2535;--tz-muted:#94a3b8;--tz-ink:#f1f5f9;--tz-bg:#0f172a;--tz-bg-page:#0a0f1e;--tz-50:rgba(var(--tz-rgb),.16)}
-:root[data-theme="light"] .pvtz{--tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;--tz-bg:#fff;--tz-bg-page:#F4F6F9;--tz-50:rgba(var(--tz-rgb),.08)}
+:root[data-theme="light"] .pvtz{--tz-line:#E5E9F0;--tz-muted:#5b6472;--tz-ink:#111827;--tz-bg:#fff;--tz-bg-page:#F9FAFB;--tz-50:rgba(var(--tz-rgb),.08)}
 
 .pvtz *:focus-visible{outline:3px solid #FBBF24;outline-offset:2px}
 .pvtz .card{border:1px solid var(--tz-line)!important;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
@@ -236,8 +236,8 @@ $_pv_rel_time = function (string $dt): string {
 
 /* Nagłówek strony */
 .pvtz .tz-h{margin-bottom:1.1rem}
-.pvtz .tz-h h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin:0;line-height:1.2}
-.pvtz .tz-h p{color:var(--tz-muted);margin:.2rem 0 0;font-size:.9rem}
+.pvtz .tz-h h1{font-size:1.35rem;font-weight:700;letter-spacing:-.01em;margin:0;line-height:1.25}
+.pvtz .tz-h p{color:var(--tz-muted);margin:.1rem 0 0;font-size:.85rem}
 
 /* Zachowane komponenty ─────────────────────────────────────────────────── */
 .pvtz .tz-card{background:var(--tz-bg);border:1px solid var(--tz-line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.08);overflow:hidden;margin-bottom:1.1rem}

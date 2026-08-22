@@ -2,9 +2,10 @@
 /**
  * panel/standalone.php — Panel wolontariusza bez umowy.
  *
- * Pokazuje karty z danymi logowania do platform (portal, M365, Moodle)
- * oraz podsumowanie zadań. Wzorowany na wyświetlaniu konta M365
- * w panelu wolontariusza z umową.
+ * Pokazuje dane logowania do platform (portal, M365, Moodle), podsumowanie
+ * zadań i skróty. Układ i komponenty jak w module „Tożsamość"
+ * (tozsamosc/_head.php): nagłówek .tz-h, karta .tz-card z wierszami usług
+ * .tz-svc, kafelki .tz-tile — style z panel/includes/pv_styles.php.
  */
 
 require_once dirname(__DIR__) . '/config.php';
@@ -66,313 +67,208 @@ $first_name = trim($u_db['first_name'] ?? '') ?: explode(' ', $display_name)[0];
 
 include __DIR__ . '/includes/header_panel.php';
 ?>
-
 <div class="pv-wrap">
 
-  <div class="pv-page-header">
-    <a href="<?= APP_URL ?>/auth/logout.php" class="pv-page-back" aria-label="Wyloguj się">
-      <i class="bi bi-power" aria-hidden="true"></i>
+  <div class="tz-h">
+    <div>
+      <h1><?= h($greeting) ?>, <?= h($first_name) ?></h1>
+      <p>
+        <?= h($org_name) ?>
+        <?php if ($org_unit_name): ?> · <?= h($org_unit_name) ?><?php endif; ?>
+        · <?= date('d.m.Y') ?>
+      </p>
+    </div>
+    <a href="<?= APP_URL ?>/tasks/index.php" class="tz-btn">
+      <i class="bi bi-check2-square" aria-hidden="true"></i>Moje zadania
+      <?php if ($task_count): ?><span class="tz-badge tz-badge--off" style="background:rgba(255,255,255,.22);color:#fff;border-color:transparent"><?= $task_count ?></span><?php endif; ?>
     </a>
-    <h1 class="pv-page-title"><?= h($greeting) ?>, <?= h($first_name) ?> 👋</h1>
-    <p class="pv-page-sub">
-      <?= h($org_name) ?>
-      <?php if ($org_unit_name): ?> · <?= h($org_unit_name) ?><?php endif; ?>
-    </p>
   </div>
 
-  <!-- ── Karty platform ──────────────────────────────────────── -->
-  <div class="row g-3 mb-4">
+  <?= function_exists('flash_html') ? flash_html() : '' ?>
 
-    <!-- 1. Portal feerSZO -->
-    <div class="col-sm-6 col-xl-4">
-      <div class="tz-card h-100">
-        <div class="tz-card__hd">
-          <div class="tz-card__icon" style="background:var(--vol-bg);color:var(--vol-color)" aria-hidden="true">
-            <i class="bi bi-house-fill"></i>
-          </div>
-          <div>
-            <div class="tz-card__title">Portal wolontariusza</div>
-            <div class="tz-card__sub"><?= h(parse_url(APP_URL, PHP_URL_HOST)) ?></div>
-          </div>
-        </div>
-        <div class="tz-card__bd">
-          <div class="pv-field">
-            <div class="pv-field__lbl">Login (e-mail)</div>
-            <div class="pv-field__val">
-              <?= h($email) ?>
-              <button class="pv-copy-btn" type="button"
-                      onclick="copyText(<?= json_encode($email) ?>, this)"
-                      aria-label="Kopiuj adres e-mail do schowka">
-                <i class="bi bi-copy" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Adres platformy</div>
-            <div class="pv-field__val">
-              <a href="<?= h(APP_URL) ?>/auth/login.php" target="_blank" rel="noopener"
-                 aria-label="Otwórz portal <?= h(parse_url(APP_URL, PHP_URL_HOST)) ?> (nowa karta)">
-                <?= h(APP_URL) ?>
-              </a>
-            </div>
-          </div>
-        </div>
-        <div class="tz-card__ft">
-          <a href="<?= APP_URL ?>/panel/password.php" class="tz-card__link">
-            <i class="bi bi-key" aria-hidden="true"></i> Zmień hasło
-          </a>
-        </div>
-      </div>
+  <!-- ── Konta i dostępy ─────────────────────────────────────── -->
+  <section class="tz-card" aria-labelledby="sa-accounts">
+    <div class="tz-card__hd" id="sa-accounts">
+      <i class="bi bi-key-fill" aria-hidden="true"></i>Twoje konta i dostępy
     </div>
+    <div class="tz-card__bd">
 
-    <!-- 2. Microsoft 365 (jeśli jest login) -->
-    <?php if ($m365_login): ?>
-    <div class="col-sm-6 col-xl-4">
-      <div class="tz-card h-100">
-        <div class="tz-card__hd">
-          <div class="tz-card__icon bg-primary bg-opacity-10 text-primary" aria-hidden="true">
-            <i class="bi bi-microsoft"></i>
+      <!-- 1. Portal wolontariusza -->
+      <div class="tz-svc">
+        <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-house-fill"></i></span>
+        <div class="tz-svc__bd">
+          <div class="tz-svc__ttl">Portal wolontariusza</div>
+          <div class="tz-kv">
+            Login (e-mail): <code><?= h($email) ?></code>
+            <button class="tz-copy" type="button" data-copy="<?= h($email) ?>"
+                    aria-label="Kopiuj adres e-mail do schowka">
+              <i class="bi bi-copy" aria-hidden="true"></i>
+            </button>
           </div>
-          <div>
-            <div class="tz-card__title">Microsoft 365</div>
-            <div class="tz-card__sub">Outlook, Teams, OneDrive</div>
+          <div class="tz-kv"><?= h(parse_url(APP_URL, PHP_URL_HOST)) ?></div>
+          <div class="tz-svc__foot">
+            <a href="<?= APP_URL ?>/panel/password.php">
+              <i class="bi bi-key" aria-hidden="true"></i>Zmień hasło
+            </a>
           </div>
         </div>
-        <div class="tz-card__bd">
-          <div class="pv-field">
-            <div class="pv-field__lbl">Login M365</div>
-            <div class="pv-field__val">
-              <?= h($m365_login) ?>
-              <button class="pv-copy-btn" type="button"
-                      onclick="copyText(<?= json_encode($m365_login) ?>, this)"
-                      aria-label="Kopiuj login M365 do schowka">
-                <i class="bi bi-copy" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Status</div>
-            <div>
-              <span class="tz-badge tz-badge--success">
-                <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Aktywne
-              </span>
-            </div>
-          </div>
-          <?php if (!empty($u_db['m365_security_group_name'])): ?>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Grupa dostępu</div>
-            <div class="pv-field__val"><?= h($u_db['m365_security_group_name']) ?></div>
-          </div>
-          <?php endif; ?>
-        </div>
-        <div class="tz-card__ft">
-          <a href="https://portal.office.com" target="_blank" rel="noopener" class="tz-card__link"
-             aria-label="Otwórz portal.office.com (nowa karta)">
-            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Otwórz portal.office.com
-          </a>
-        </div>
+        <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span>
       </div>
-    </div>
-    <?php elseif (!empty($u_db['microsoft_id'])): ?>
-    <!-- Ma konto M365 ale bez loginu -->
-    <div class="col-sm-6 col-xl-4">
-      <div class="tz-card h-100">
-        <div class="tz-card__hd">
-          <div class="tz-card__icon bg-primary bg-opacity-10 text-primary" aria-hidden="true">
-            <i class="bi bi-microsoft"></i>
-          </div>
-          <div>
-            <div class="tz-card__title">Microsoft 365</div>
-            <div class="tz-card__sub">Outlook, Teams, OneDrive</div>
-          </div>
-        </div>
-        <div class="tz-card__bd">
-          <div class="pv-field">
-            <div class="pv-field__lbl">Status</div>
-            <div>
-              <span class="tz-badge tz-badge--success">
-                <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Aktywne
-              </span>
-            </div>
-          </div>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Login</div>
-            <div class="pv-field__val pv-field__val--muted">
-              Użyj swojego adresu e-mail: <?= h($email) ?>
-            </div>
-          </div>
-        </div>
-        <div class="tz-card__ft">
-          <a href="https://portal.office.com" target="_blank" rel="noopener" class="tz-card__link"
-             aria-label="Otwórz portal.office.com (nowa karta)">
-            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Otwórz portal.office.com
-          </a>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- 3. Moodle (jeśli skonfigurowane) -->
-    <?php if ($moodle_url): ?>
-    <div class="col-sm-6 col-xl-4">
-      <div class="tz-card h-100">
-        <div class="tz-card__hd">
-          <div class="tz-card__icon bg-warning bg-opacity-10 text-warning" aria-hidden="true">
-            <i class="bi bi-mortarboard-fill"></i>
-          </div>
-          <div>
-            <div class="tz-card__title">Platforma e-learningowa</div>
-            <div class="tz-card__sub">Moodle — kursy i szkolenia</div>
-          </div>
-        </div>
-        <div class="tz-card__bd">
-          <?php if ($moodle_login): ?>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Login Moodle</div>
-            <div class="pv-field__val">
-              <?= h($moodle_login) ?>
-              <button class="pv-copy-btn" type="button"
-                      onclick="copyText(<?= json_encode($moodle_login) ?>, this)"
-                      aria-label="Kopiuj login Moodle do schowka">
-                <i class="bi bi-copy" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Status</div>
-            <div>
-              <span class="tz-badge tz-badge--success">
-                <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Konto aktywne
-              </span>
-            </div>
+      <!-- 2. Microsoft 365 -->
+      <?php if ($m365_login || !empty($u_db['microsoft_id'])): ?>
+      <div class="tz-svc">
+        <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-microsoft"></i></span>
+        <div class="tz-svc__bd">
+          <div class="tz-svc__ttl">Microsoft 365</div>
+          <div class="tz-kv">Outlook, Teams, OneDrive</div>
+          <?php if ($m365_login): ?>
+          <div class="tz-kv">
+            Login: <code><?= h($m365_login) ?></code>
+            <button class="tz-copy" type="button" data-copy="<?= h($m365_login) ?>"
+                    aria-label="Kopiuj login Microsoft 365 do schowka">
+              <i class="bi bi-copy" aria-hidden="true"></i>
+            </button>
           </div>
           <?php else: ?>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Login</div>
-            <div class="pv-field__val pv-field__val--muted">
-              Użyj swojego adresu e-mail: <?= h($email) ?>
-            </div>
-          </div>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Status</div>
-            <div>
-              <span class="tz-badge tz-badge--muted">
-                <i class="bi bi-clock" aria-hidden="true"></i> Oczekuje na synchronizację
-              </span>
-            </div>
-          </div>
+          <div class="tz-kv">Login: <code><?= h($email) ?></code> <span>(Twój adres e-mail)</span></div>
           <?php endif; ?>
-          <div class="pv-field">
-            <div class="pv-field__lbl">Adres platformy</div>
-            <div class="pv-field__val">
-              <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"
-                 aria-label="Otwórz platformę Moodle: <?= h(parse_url($moodle_url, PHP_URL_HOST)) ?> (nowa karta)">
-                <?= h(parse_url($moodle_url, PHP_URL_HOST)) ?>
-              </a>
-            </div>
+          <?php if (!empty($u_db['m365_security_group_name'])): ?>
+          <div class="tz-kv">Grupa dostępu: <code><?= h($u_db['m365_security_group_name']) ?></code></div>
+          <?php endif; ?>
+          <div class="tz-svc__foot">
+            <a href="https://portal.office.com" target="_blank" rel="noopener"
+               aria-label="Otwórz portal.office.com (nowa karta)">
+              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz portal.office.com
+            </a>
           </div>
         </div>
-        <div class="tz-card__ft">
-          <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="tz-card__link"
-             aria-label="Otwórz platformę Moodle (nowa karta)">
-            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Otwórz platformę Moodle
-          </a>
+        <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span>
+      </div>
+      <?php endif; ?>
+
+      <!-- 3. Moodle -->
+      <?php if ($moodle_url): ?>
+      <div class="tz-svc">
+        <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
+        <div class="tz-svc__bd">
+          <div class="tz-svc__ttl">Platforma e-learningowa</div>
+          <div class="tz-kv">Moodle — kursy i szkolenia</div>
+          <?php if ($moodle_login): ?>
+          <div class="tz-kv">
+            Login: <code><?= h($moodle_login) ?></code>
+            <button class="tz-copy" type="button" data-copy="<?= h($moodle_login) ?>"
+                    aria-label="Kopiuj login Moodle do schowka">
+              <i class="bi bi-copy" aria-hidden="true"></i>
+            </button>
+          </div>
+          <?php else: ?>
+          <div class="tz-kv">Login: <code><?= h($email) ?></code> <span>(Twój adres e-mail)</span></div>
+          <?php endif; ?>
+          <div class="tz-svc__foot">
+            <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"
+               aria-label="Otwórz platformę Moodle (nowa karta)">
+              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><?= h(parse_url($moodle_url, PHP_URL_HOST)) ?>
+            </a>
+          </div>
         </div>
-      </div>
-    </div>
-    <?php endif; ?>
-
-  </div><!-- /row (platform cards) -->
-
-  <!-- ── Zadania ─────────────────────────────────────────────── -->
-  <div class="tz-card mb-3" role="region" aria-label="Podsumowanie zadań">
-    <div class="tz-card__bd d-flex align-items-center justify-content-between gap-3 flex-wrap">
-      <div>
-        <div class="pv-stat__num" aria-label="<?= $task_count ?> aktywnych zadań"><?= $task_count ?></div>
-        <div class="pv-stat__lbl" aria-hidden="true">aktywnych zadań</div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <?php if ($notif_count): ?>
-        <a href="<?= APP_URL ?>/komunikaty/index.php" class="tz-btn tz-btn--ghost">
-          <i class="bi bi-bell-fill me-1" aria-hidden="true"></i><?= $notif_count ?> nowych powiadomień
-        </a>
+        <?php if ($moodle_login): ?>
+        <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span>
+        <?php else: ?>
+        <span class="tz-badge tz-badge--wait"><i class="bi bi-clock" aria-hidden="true"></i>Oczekuje na synchronizację</span>
         <?php endif; ?>
-        <a href="<?= APP_URL ?>/tasks/index.php" class="tz-btn">
-          <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Moje zadania
-        </a>
       </div>
-    </div>
-  </div>
+      <?php endif; ?>
 
-  <!-- ── Szybkie linki ───────────────────────────────────────── -->
-  <nav class="row g-2" aria-label="Szybkie linki">
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/tasks/index.php" class="pv-quick">
-        <i class="bi bi-check2-square" style="color:var(--vol-color)" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Zadania</div><div class="text-muted small">Przypisane projekty</div></div>
-      </a>
     </div>
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/komunikaty/index.php" class="pv-quick">
-        <i class="bi bi-megaphone-fill text-warning" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Ogłoszenia</div><div class="text-muted small">Komunikaty organizacji</div></div>
-      </a>
+    <div class="tz-note" style="margin:0;border:0;border-top:1px solid var(--tz-line);border-radius:0">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <span>Hasło do portalu zmieniasz w Ustawieniach konta. Jeśli któryś dostęp nie działa, napisz do administratora.</span>
     </div>
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/panel/password.php" class="pv-quick">
-        <i class="bi bi-key-fill text-secondary" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Hasło</div><div class="text-muted small">Zmień hasło</div></div>
-      </a>
-    </div>
+  </section>
+
+  <!-- ── Skróty ──────────────────────────────────────────────── -->
+  <h2 class="tz-section-h">Skróty</h2>
+  <nav class="tz-tiles" aria-label="Szybkie linki">
+
+    <a href="<?= APP_URL ?>/tasks/index.php" class="tz-tile">
+      <?php if ($task_count): ?><span class="tz-tile__badge" aria-hidden="true"><?= $task_count ?></span><?php endif; ?>
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-check2-square"></i></span>
+      <span class="tz-tile__ttl">Zadania</span>
+      <span class="tz-tile__sub"><?= $task_count ? $task_count . ' aktywnych' : 'Przypisane projekty' ?></span>
+    </a>
+
+    <a href="<?= APP_URL ?>/komunikaty/index.php" class="tz-tile">
+      <?php if ($notif_count): ?><span class="tz-tile__badge" aria-hidden="true"><?= $notif_count ?></span><?php endif; ?>
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-megaphone-fill"></i></span>
+      <span class="tz-tile__ttl">Ogłoszenia</span>
+      <span class="tz-tile__sub"><?= $notif_count ? $notif_count . ' nowych' : 'Komunikaty organizacji' ?></span>
+    </a>
+
+    <a href="<?= APP_URL ?>/panel/password.php" class="tz-tile">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-key-fill"></i></span>
+      <span class="tz-tile__ttl">Ustawienia konta</span>
+      <span class="tz-tile__sub">Hasło, telefon</span>
+    </a>
+
     <?php if ($moodle_url): ?>
-    <div class="col-6 col-md-3">
-      <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="pv-quick"
-         aria-label="Kursy — otwórz platformę Moodle (nowa karta)">
-        <i class="bi bi-mortarboard-fill text-warning" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Kursy</div><div class="text-muted small">Platforma Moodle</div></div>
-      </a>
-    </div>
+    <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="tz-tile"
+       aria-label="Kursy — otwórz platformę Moodle (nowa karta)">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
+      <span class="tz-tile__ttl">Kursy</span>
+      <span class="tz-tile__sub">Platforma Moodle</span>
+    </a>
     <?php endif; ?>
+
     <?php if (module_enabled('procedures_enabled')): ?>
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/panel/procedures.php" class="pv-quick">
-        <i class="bi bi-journal-text text-info" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Procedury</div><div class="text-muted small">Dokumenty i instrukcje</div></div>
-      </a>
-    </div>
+    <a href="<?= APP_URL ?>/panel/procedures.php" class="tz-tile">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-journal-text"></i></span>
+      <span class="tz-tile__ttl">Procedury</span>
+      <span class="tz-tile__sub">Dokumenty i instrukcje</span>
+    </a>
     <?php endif; ?>
+
     <?php if (module_enabled('org_documents_enabled')): ?>
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/panel/org_documents.php" class="pv-quick">
-        <i class="bi bi-folder2-open text-success" aria-hidden="true"></i>
-        <div><div class="fw-semibold">Dokumenty organizacji</div><div class="text-muted small">Statut, regulaminy, wzory</div></div>
-      </a>
-    </div>
+    <a href="<?= APP_URL ?>/panel/org_documents.php" class="tz-tile">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-folder2-open"></i></span>
+      <span class="tz-tile__ttl">Dokumenty organizacji</span>
+      <span class="tz-tile__sub">Statut, regulaminy, wzory</span>
+    </a>
     <?php endif; ?>
+
     <?php if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')): ?>
-    <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/panel/whatsapp_group.php" class="pv-quick">
-        <i class="bi bi-whatsapp text-success" aria-hidden="true"></i>
-        <div><div class="fw-semibold">WhatsApp — grupa</div><div class="text-muted small">Dołącz do grupy</div></div>
-      </a>
-    </div>
+    <a href="<?= APP_URL ?>/panel/whatsapp_group.php" class="tz-tile">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-whatsapp"></i></span>
+      <span class="tz-tile__ttl">WhatsApp — grupa</span>
+      <span class="tz-tile__sub">Dołącz do grupy</span>
+    </a>
     <?php endif; ?>
+
+    <?php if (module_enabled('helpdesk_enabled')): ?>
+    <a href="<?= APP_URL ?>/panel/helpdesk.php" class="tz-tile">
+      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-headset"></i></span>
+      <span class="tz-tile__ttl">Helpdesk IT</span>
+      <span class="tz-tile__sub">Zgłoś problem</span>
+    </a>
+    <?php endif; ?>
+
   </nav>
 
 </div><!-- /pv-wrap -->
 
 <script>
-function copyText(text, btn) {
-  navigator.clipboard.writeText(text).then(function() {
+/* Kopiowanie loginów — te same przyciski .tz-copy co w module Tożsamość */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.tz-copy[data-copy]');
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.dataset.copy).then(function () {
     var i = btn.querySelector('i');
+    if (!i) return;
     i.className = 'bi bi-check-lg';
     btn.style.color = '#16a34a';
-    setTimeout(function() {
-      i.className = 'bi bi-copy';
-      btn.style.color = '';
-    }, 1800);
+    setTimeout(function () { i.className = 'bi bi-copy'; btn.style.color = ''; }, 1800);
   });
-}
+});
 </script>
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>

@@ -10,7 +10,7 @@
   --k30-accent:     #c2410c;
   --k30-accent-dk:  #9a3412;
   --k30-accent-dkr: #7c2d12;
-  --k30-top:        #0f172a;
+  --k30-top:        #1b2e45;   /* granat jak w panelu dydaktyka */
   --k30-top-border: rgba(255,255,255,.06);
   --k30-top-btn:    rgba(255,255,255,.2);
   --k30-top-btn-hv: rgba(255,255,255,.1);
@@ -282,3 +282,62 @@
   opacity: .55;
   margin-bottom: .3rem;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Panel boczny modułu — układ jak w panelu dydaktyka (granatowy sidebar 220 px,
+ * treść wyśrodkowana do 1100 px). Zastąpił poziomy mega-menu.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+.k30-sidebar {
+  position: fixed; left: 0; top: 48px; bottom: 0; width: 220px;
+  background: var(--k30-top, #1b2e45); z-index: 100;
+  overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; padding: .5rem 0 1rem;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.k30-sb-link {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem 1rem; font-size: .84rem; font-weight: 600;
+  color: rgba(255,255,255,.8); text-decoration: none;
+  border-left: 3px solid transparent; white-space: nowrap;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.k30-sb-link .k30-sb-txt { overflow: hidden; text-overflow: ellipsis; }
+.k30-sb-link:hover { background: rgba(255,255,255,.1); color: #fff; border-left-color: rgba(255,255,255,.2); }
+.k30-sb-link.active { background: rgba(255,255,255,.12); color: #fff; font-weight: 700; border-left-color: #f97316; }
+.k30-sb-link:focus-visible { outline: 3px solid var(--k30-focus, #facc15); outline-offset: -3px; }
+.k30-sb-link.k30-sb-danger { color: #fca5a5; }
+.k30-sb-link.k30-sb-danger:hover { color: #fecaca; }
+.k30-sb-section {
+  padding: .65rem 1rem .2rem; font-size: .67rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.35);
+}
+.k30-sb-sep { border-top: 1px solid rgba(255,255,255,.1); margin: .35rem 0; }
+
+.k30-wrap {
+  padding-left:  max(1rem, calc((100% - 1100px) / 2));
+  padding-right: max(1rem, calc((100% - 1100px) / 2));
+}
+@media (min-width: 768px) {
+  .k30-content { margin-left: 220px; }
+  #k30SbToggle { display: none; }
+}
+@media (max-width: 767.98px) {
+  .k30-sidebar { transform: translateX(-220px); transition: transform .22s ease; }
+  .k30-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,.35); }
+  .k30-sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; }
+  .k30-sb-overlay.show { display: block; }
+}
+#k30SbToggle {
+  position: fixed; top: 56px; left: 8px; z-index: 101;
+  width: 32px; height: 32px; padding: 0; line-height: 1;
+  background: var(--k30-top, #1b2e45); border: 1px solid rgba(255,255,255,.22);
+  border-radius: 6px; color: rgba(255,255,255,.85);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+#k30SbToggle:hover { background: #243d5c; color: #fff; }
+
+/* Karty i zakładki — spójne z panelem dydaktyka */
+.k30-wrap .card { border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04); }
+.k30-wrap .card-header { border-radius: 12px 12px 0 0; }
