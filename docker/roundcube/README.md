@@ -87,10 +87,50 @@ adresem zostanie przy kolejnym sync nadpisany danymi z Outlooka. Podobnie jak
 samym mechanizmem `grant_type=refresh_token` — wymaga dodania tego uprawnienia
 w Azure AD, zob. punkt 3.
 
-Plugin `feer_theme` (montowany z `plugins/feer_theme/`) to nakładka CSS na
-wbudowany skin Elastic (kolory FEER — `#1e293b`/`#2563eb`, te same co domyślne
-`sidebar_color`/`volunteer_color` w `admin/org_settings.php` głównej
-aplikacji), nie fork skina — mniej kodu, przetrwa aktualizacje obrazu.
+### Wygląd (skin + plugin `feer_theme`)
+
+Skin: **tylko wbudowany `elastic`** (`ROUNDCUBEMAIL_SKIN` w
+`docker-compose.rc.yml` + `$config['skins_allowed'] = ['elastic']`) — jedyny
+aktywnie utrzymywany skin Roundcube: responsywny, z trybem ciemnym, wspierany
+przez upstream.
+
+Plugin `feer_theme` (montowany z `plugins/feer_theme/`) to **warstwa wizualna
+nałożona na Elastic** — nie fork skina. Odwzorowuje paletę i typografię modułu
+Poczta głównej aplikacji (`poczta/includes/header_poczta.php`, zmienne
+`--pc-*`): granat `#1e3a8a` (pasek zadań, tło logowania), niebieski `#1d4ed8`
+(akcent, przyciski akcji), żółty pierścień focusu `#facc15` (WCAG), font
+`system-ui`, narożniki 8 px. Webmail jest osadzany w iframe
+(`crm/webmail.php`), więc ma wyglądać jak przedłużenie modułu, a nie obca
+aplikacja. Obejmuje: szynę zadań, listy folderów/wiadomości/kontaktów
+(nieprzeczytane, zaznaczenie, liczniki), toolbar i przyciski, podgląd
+wiadomości i załączniki, formularze i Ustawienia, menu/dialogi/komunikaty,
+**stronę logowania** (karta na granatowym gradiencie, duży przycisk Microsoft
+365, komunikat z `login_notice` jako panel informacyjny), **tryb ciemny**
+(`html.dark-mode`) oraz osobne reguły dla mobile i wydruku.
+
+Dlaczego nakładka, a nie własny skin: arkusz pluginu ładuje się **po** arkuszu
+skina, więc wygrywa przy równej specyficzności; skin `extends: elastic` z
+własnym `styles/styles.css` **zastępuje** arkusz rodzica (trzeba by utrzymywać
+kopię całego CSS Elastica), a fork wymagałby mergowania przy każdej
+aktualizacji obrazu.
+
+Zmiana barw = edycja bloku `:root` (i `html.dark-mode`) w
+`plugins/feer_theme/feer_theme.css`. **Po każdej zmianie CSS bumpnij
+`ASSET_VERSION` w `feer_theme.php`** — inaczej przeglądarki użytkowników
+zostaną na starym arkuszu. Restart kontenera nie jest potrzebny do samego CSS
+(plugin montowany, PHP odczytuje plik na żądanie), ale przy zmianie
+`feer_theme.php` tak: `docker compose ... up -d rc`.
+
+> **Historia:** wcześniej aktywny był zwendorowany skin `chameleon-blue`
+> (rodzina Larry, Kolab Chameleon), montowany z `roundcube/skins/`. Porzucony z
+> dwóch powodów: (1) skiny rodziny Larry zostały **wycięte z rdzenia w
+> Roundcube 1.6**, więc `"extends": "larry"` nie miał po czym dziedziczyć;
+> (2) katalog skina zniknął z repo (commit `277432b1`), a `docker-compose.rc.yml`
+> wciąż ustawiał `ROUNDCUBEMAIL_SKIN: chameleon-blue` i montował nieistniejącą
+> ścieżkę — Docker tworzy wtedy **pusty** katalog bind-mounta, więc Roundcube
+> dostawał skin bez `meta.json` i sypał błędem na każdym żądaniu. Kod skina
+> jest w historii gita, jeśli kiedyś potrzebny
+> (`git log --diff-filter=D -- docker/roundcube/skins`).
 
 ## 2. Wymagania
 
@@ -167,9 +207,19 @@ docker logs -f feer-rc
   docker exec -u root feer-rc chown -R www-data:www-data /var/roundcube/db
   ```
   `setup-rc.sh` robi to automatycznie od teraz po każdym `up -d`. Inne możliwe
-  przyczyny: (b) literówka/brak wartości w
+  przyczyny: (b) **brakujący/niepoprawny skin** — w `logs/errors.log` widać
+  wtedy wpis o skinie (np. `Skin directory not found` / `Error loading skin`).
+  Tak działo się z usuniętym już `chameleon-blue`: dziedziczył po skinie
+  `larry`, którego Roundcube 1.6 nie zawiera. Sprawdź, co obraz naprawdę ma:
+  ```bash
+  docker exec feer-rc ls /var/www/html/skins       # powinno być: elastic
+  docker exec feer-rc grep -n "^\$config\['skin'\]" /var/roundcube/config/config.inc.php
+  ```
+  Jeśli użytkownik ma w preferencjach zapisany nieistniejący skin, ratuje go
+  `$config['skins_allowed'] = ['elastic']` (jest w `config.inc.php`) — wraca do
+  domyślnego. (c) literówka/brak wartości w
   `RC_OAUTH_CLIENT_ID`/`RC_OAUTH_CLIENT_SECRET`/`RC_TENANT_ID` w `.env.prod`,
-  (c) błąd w niestandardowym pluginie `onedrive_picker`, `owncloud_picker`,
+  (d) błąd w niestandardowym pluginie `onedrive_picker`, `owncloud_picker`,
   `outlook_contacts_sync` lub `feer_theme` — spróbuj chwilowo usunąć podejrzany
   wpis z `$config['plugins']` w `config.inc.php` i zrestartować kontener, żeby
   sprawdzić, czy błąd zniknie.

@@ -22,8 +22,8 @@
 # Plugin outlook_contacts_sync — jednostronna synchronizacja kontaktów Outlooka
 # do lokalnego adresownika Roundcube przy logowaniu, zob.
 # ./roundcube/plugins/outlook_contacts_sync/.
-# Plugin feer_theme — nakładka kolorystyczna skina Elastic, zob.
-# ./roundcube/plugins/feer_theme/.
+# Plugin feer_theme — warstwa wizualna (nakładka CSS na skin Elastic) w barwach
+# modułu Poczta głównej aplikacji, zob. ./roundcube/plugins/feer_theme/.
 
 services:
 
@@ -33,15 +33,14 @@ services:
     restart: unless-stopped
     environment:
       ROUNDCUBEMAIL_DB_TYPE:   sqlite
-      # Skin domyślny. "chameleon-blue" to zwendorowany skin (Kolab Chameleon,
-      # niebieski wariant Pavla Kosko) montowany niżej z
-      # ./roundcube/skins/chameleon-blue. Dziedziczy po wbudowanym skinie
-      # "larry" (obraz roundcube/roundcubemail nadal go zawiera). styles.css
-      # jest prekompilowany ze styles.less (skin ma go pustego) — patrz
-      # roundcube/skins/chameleon-blue/README.FEER. Powrót do domyślnego:
-      # ustaw z powrotem "elastic" (wtedy działa nakładka pluginu feer_theme,
-      # która celuje w Elastic i przy chameleon-blue jest bez efektu).
-      ROUNDCUBEMAIL_SKIN:      chameleon-blue
+      # Skin: WYŁĄCZNIE wbudowany "elastic" (jedyny aktywnie utrzymywany skin
+      # Roundcube — responsywny, z trybem ciemnym). Wygląd FEER dokłada plugin
+      # feer_theme (nakładka CSS), zob. ./roundcube/plugins/feer_theme/.
+      # NIE wracać do skinów rodziny Larry (larry/classic/chameleon-*): zostały
+      # usunięte z rdzenia w Roundcube 1.6 i skin dziedziczący po "larry" wywala
+      # webmaila błędem na każdym żądaniu. Lista dozwolonych skinów jest też
+      # zablokowana w config.inc.php ($config['skins_allowed']).
+      ROUNDCUBEMAIL_SKIN:      elastic
       RC_DOMAIN:               ${RC_DOMAIN:-localhost}
       RC_TENANT_ID:            ${RC_TENANT_ID:-}
       RC_OAUTH_CLIENT_ID:      ${RC_OAUTH_CLIENT_ID:-}
@@ -65,10 +64,6 @@ services:
       - ./roundcube/plugins/outlook_contacts_sync:/var/www/html/plugins/outlook_contacts_sync:ro
       - ./roundcube/plugins/login_notice:/var/www/html/plugins/login_notice:ro
       - ./roundcube/plugins/feer_theme:/var/www/html/plugins/feer_theme:ro
-      # Skin Chameleon Blue (aktywny przez ROUNDCUBEMAIL_SKIN wyżej). Skiny
-      # Roundcube leżą w /var/www/html/skins/<nazwa>; parent "larry" jest już
-      # w obrazie, więc montujemy tylko sam chameleon-blue.
-      - ./roundcube/skins/chameleon-blue:/var/www/html/skins/chameleon-blue:ro
     labels:
       # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
       - "traefik.enable=true"

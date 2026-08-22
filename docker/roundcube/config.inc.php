@@ -93,7 +93,21 @@ $config['owncloud_password']    = getenv('RC_OWNCLOUD_PASSWORD') ?: '';
 $config['owncloud_base_folder'] = getenv('RC_OWNCLOUD_BASE_FOLDER') ?: 'poczta-udostepnione';
 
 // ── Wygląd / pluginy ─────────────────────────────────────────────────────────
+// Skin: tylko wbudowany "elastic" — jedyny aktywnie utrzymywany skin Roundcube
+// (responsywny, tryb ciemny, obsługiwany przez upstream). Barwy FEER dokłada
+// plugin feer_theme (nakładka CSS na Elastic), zob. plugins/feer_theme/.
 $config['skin'] = getenv('ROUNDCUBEMAIL_SKIN') ?: 'elastic';
+// Blokada listy skinów w Ustawieniach użytkownika. Obraz zawiera też starocie
+// (larry/classic w starszych tagach) i przełączenie się na nie psuje wygląd —
+// a od Roundcube 1.6 skiny rodziny Larry są w ogóle usunięte z rdzenia, więc
+// zapisana w preferencjach nazwa nieistniejącego skina kończy się błędem
+// renderowania. Ta lista sprawia, że użytkownik nie ma czego zepsuć, a stare
+// preferencje (np. "chameleon-blue" po migracji) wracają do wartości domyślnej.
+$config['skins_allowed'] = ['elastic'];
+// Domyślny układ trzykolumnowy (lista + podgląd obok siebie) — dużo
+// czytelniejszy na monitorach niż domyślna wąska lista; user może zmienić
+// w Ustawieniach → Interfejs.
+$config['layout'] = 'widescreen';
 $config['plugins'] = [
     'archive',
     'zipdownload',
@@ -102,7 +116,7 @@ $config['plugins'] = [
     'owncloud_picker',        // własny plugin — zob. plugins/owncloud_picker/
     'outlook_contacts_sync',  // własny plugin — zob. plugins/outlook_contacts_sync/
     'login_notice',           // własny plugin — komunikat na stronie logowania, zob. plugins/login_notice/
-    'feer_theme',             // własny plugin — nakładka kolorystyczna skina, zob. plugins/feer_theme/
+    'feer_theme',             // własny plugin — warstwa wizualna (barwy modułu Poczta), zob. plugins/feer_theme/
 
     // ── UX / wygoda ──────────────────────────────────────────────────────────
     'markasjunk',          // przycisk „Oznacz jako spam"
