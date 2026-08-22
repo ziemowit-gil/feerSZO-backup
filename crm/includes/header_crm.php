@@ -552,9 +552,19 @@ window.openCommModal = function(contactId, channel) {
     </div>
 
     <?php if (module_enabled('invoices_enabled')): ?>
-    <a href="<?= APP_URL ?>/crm/invoices/index.php" class="crm-navlink<?= _crm_nav_active('/crm/invoices') ?>"<?= _crm_nav_active('/crm/invoices') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-receipt"></i><span>Faktury</span>
-    </a>
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= _crm_nav_active('/crm/invoices') ?>">
+        <i class="bi bi-receipt"></i><span>Faktury</span>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/index.php"><i class="bi bi-list-ul me-2"></i>Rejestr faktur</a></li>
+        <?php if ($_crm_can_write): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/generate.php"><i class="bi bi-layer-forward me-2"></i>Generuj zbiorczo</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa faktura</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
     <?php endif; ?>
 
     <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>

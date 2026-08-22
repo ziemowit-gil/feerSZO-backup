@@ -52,6 +52,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </span>
     <?php endif; ?>
     <?php if ($can_write): ?>
+    <a href="<?= APP_URL ?>/crm/invoices/generate.php" class="btn btn-sm btn-crm-outline">
+      <i class="bi bi-layer-forward me-1"></i>Generuj zbiorczo
+    </a>
     <a href="<?= APP_URL ?>/crm/invoices/form.php" class="btn btn-sm btn-crm-primary">
       <i class="bi bi-plus-lg me-1"></i>Nowa faktura
     </a>
