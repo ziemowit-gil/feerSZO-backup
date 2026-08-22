@@ -602,7 +602,43 @@ class EzdMailService
         if ($user === '') $user = self::defaultUserSignature($user_row);
         if ($org === '')  $org  = self::defaultOrgFooter();
 
-        return ['user' => $user, 'org' => $org];
+        // Podpisy zapisane w CRM mają zwykle każdą linię w osobnym <p>, a <p>
+        // ma w klientach poczty domyślnie ~1rem marginesu — blok „imię /
+        // stanowisko / e-mail / telefon" rozjeżdżał się wtedy na pół ekranu.
+        // Ściskamy odstępy inline (nie CSS-em edytora), żeby wiadomość
+        // wyglądała tak samo u odbiorcy.
+        return ['user' => self::tightenSigHtml($user), 'org' => self::tightenSigHtml($org)];
+    }
+
+    /**
+     * Ścieśnia odstępy w bloku podpisu/stopki: wyrzuca puste akapity i nadaje
+     * <p>/<div> mały margines inline (klienci poczty ignorują <style>, więc
+     * musi być na atrybucie). Nie rusza treści ani pozostałych tagów.
+     */
+    public static function tightenSigHtml(string $html): string
+    {
+        $html = trim($html);
+        if ($html === '') return '';
+
+        // Puste akapity („<p>&nbsp;</p>", „<p><br></p>") = przypadkowe puste
+        // linie w podpisie — w bloku kontaktowym są zawsze niechciane.
+        $html = preg_replace('~<p\b[^>]*>\s*(?:&nbsp;|<br\s*/?>|\s)*</p>~i', '', $html) ?? $html;
+
+        return preg_replace_callback('~<(p|div)\b([^>]*)>~i', static function (array $m): string {
+            $tag   = strtolower($m[1]);
+            $attrs = $m[2];
+            $tight = 'margin:0 0 2px;line-height:1.35;';
+
+            if (preg_match('~\sstyle\s*=\s*(["\'])(.*?)\1~i', $attrs, $sm)) {
+                // Własny styl autora podpisu ma pierwszeństwo — nasz idzie PRZED nim.
+                $merged = $tight . trim($sm[2]);
+                $attrs  = str_replace($sm[0], ' style="' . str_replace('"', '&quot;', $merged) . '"', $attrs);
+            } else {
+                $attrs .= ' style="' . $tight . '"';
+            }
+
+            return '<' . $tag . $attrs . '>';
+        }, $html) ?? $html;
     }
 
     /**
@@ -626,7 +662,7 @@ class EzdMailService
         }
         if ($phone !== '') $lines[] = 'tel. ' . htmlspecialchars($phone, ENT_QUOTES, 'UTF-8');
 
-        return '<div style="font-size:13px;line-height:1.55;color:#1f2937">'
+        return '<div style="font-size:13px;line-height:1.35;color:#1f2937">'
              . implode('<br>', $lines) . '</div>';
     }
 
@@ -652,7 +688,7 @@ class EzdMailService
         }
         if ($reg) $lines[] = implode(' &middot; ', $reg);
 
-        return '<div style="font-size:11px;line-height:1.5;color:#6b7280">'
+        return '<div style="font-size:11px;line-height:1.35;color:#6b7280">'
              . implode('<br>', $lines) . '</div>';
     }
 

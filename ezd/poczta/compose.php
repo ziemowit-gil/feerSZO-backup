@@ -183,7 +183,7 @@ $sigs = EzdMailService::fetchSignatures($user_id);
 // organizacji (crm_email_footer, a gdy pusty — nazwa, adres, NIP/KRS/REGON).
 // Wcześniej trzeba było pamiętać o dwóch przyciskach „Mój podpis"/„Stopka org."
 // i wiadomości wychodziły bez identyfikacji nadawcy.
-$_sig_hr = '<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">';
+$_sig_hr = '<hr style="border:none;border-top:1px solid #e5e7eb;margin:.5rem 0">';
 $body_prefill = '<p><br></p>';
 if ($sigs['user'] !== '' || $sigs['org'] !== '') {
     $body_prefill .= '<p>Z poważaniem,</p>';
@@ -443,8 +443,12 @@ tinymce.init({
   plugins: 'lists link image table code',
   height: 360,
   content_style: [
-    'body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; color: #1f2937; padding: 12px 16px; }',
-    'a { color: #2563eb; } blockquote { border-left: 3px solid #e5e7eb; padding-left: 1rem; color: #6b7280; margin: 0 0 1rem; }'
+    'body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; color: #1f2937; padding: 10px 14px; }',
+    // Domyślny margines <p> (1rem) rozjeżdżał podpis: każda linia podpisu z CRM
+    // to osobny akapit. Tu tylko podglądowo — w wysyłanej treści odstępy są
+    // inline (EzdMailService::tightenSigHtml).
+    'p { margin: 0 0 .5rem; }',
+    'a { color: #2563eb; } blockquote { border-left: 3px solid #e5e7eb; padding-left: 1rem; color: #6b7280; margin: 0 0 .6rem; }'
   ].join(' '),
   entity_encoding: 'raw',
   setup: function(editor) {
@@ -461,7 +465,7 @@ document.querySelectorAll('.btn-insert-var').forEach(btn => {
 // ── Wstaw podpis użytkownika ──────────────────────────────────────────────────
 document.getElementById('btnInsertUserSig')?.addEventListener('click', () => {
   if (_SIG_USER) {
-    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_USER);
+    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:.5rem 0">' + _SIG_USER);
   } else {
     alert('Nie masz ustawionego podpisu e-mail. Skonfiguruj go w Ustawieniach konta → Podpis CRM.');
   }
@@ -470,7 +474,7 @@ document.getElementById('btnInsertUserSig')?.addEventListener('click', () => {
 // ── Wstaw stopkę organizacji ──────────────────────────────────────────────────
 document.getElementById('btnInsertOrgSig')?.addEventListener('click', () => {
   if (_SIG_ORG) {
-    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:1rem 0">' + _SIG_ORG);
+    bodyInsert('<hr style="border:none;border-top:1px solid #e5e7eb;margin:.5rem 0">' + _SIG_ORG);
   } else {
     alert('Stopka organizacji nie jest ustawiona. Skonfiguruj ją w Ustawieniach CRM.');
   }
