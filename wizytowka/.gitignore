@@ -1,0 +1,8 @@
+database.sqlite
+database.sqlite-shm
+database.sqlite-wal
+config.local.php
+uploads/avatars/*
+uploads/gallery/*
+uploads/tiles/*
+!uploads/**/.gitkeep

@@ -1,0 +1,11 @@
+<?php
+/**
+ * config.local.php.example — opcjonalne nadpisania.
+ * Skopiuj jako config.local.php, jeśli potrzebujesz innych ścieżek.
+ */
+
+// Baza poza katalogiem publicznym (zalecane na produkcji):
+// define('DB_FILE', dirname(__DIR__) . '/private/database.sqlite');
+
+// Inny katalog na pliki:
+// define('UPLOAD_ROOT', __DIR__ . '/uploads');

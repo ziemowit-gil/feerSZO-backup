@@ -1,0 +1,28 @@
+# Przykładowa konfiguracja Nginx (odpowiednik .htaccess)
+server {
+    listen 80;
+    server_name wizytowka.example.com;
+    root /var/www/wizytowka;
+    index index.php;
+
+    # Ładne adresy → front controller
+    location / {
+        try_files $uri $uri/ /index.php?r=$uri&$args;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    # Pliki użytkownika: nigdy nie wykonuj PHP
+    location ^~ /uploads/ {
+        location ~ \.(php|phtml|phps|cgi|pl|py)$ { deny all; }
+        add_header X-Content-Type-Options nosniff;
+    }
+
+    # Baza, schemat i kod aplikacji poza zasięgiem
+    location ~* \.(sqlite|sqlite3|db|sql|log|lock)$ { deny all; }
+    location ~ ^/(includes|controllers|views)/ { deny all; }
+}

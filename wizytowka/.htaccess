@@ -1,0 +1,48 @@
+# ── Wizytówka / Portfolio — reguły serwera Apache ────────────────────────
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Działa też w podkatalogu (RewriteBase wykrywany automatycznie przez PHP)
+    # Nie przepisuj istniejących plików i katalogów (uploads, assets, ...)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Wszystko pozostałe → front controller
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Blokada dostępu do bazy, schematu i konfiguracji
+<FilesMatch "\.(sqlite|sqlite3|db|sql|log|md|lock)$">
+    Require all denied
+</FilesMatch>
+<Files "config.local.php">
+    Require all denied
+</Files>
+
+# Katalogi wewnętrzne niedostępne z zewnątrz
+RedirectMatch 404 ^/?(includes|controllers|views)/
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/avif "access plus 30 days"
+</IfModule>
+
+DirectoryIndex index.php
