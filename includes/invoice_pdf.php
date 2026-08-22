@@ -223,33 +223,52 @@ function invoice_pdf_html(array $inv, array $opts = []): string
 
     ob_start(); ?>
 <style>
-  /* mPDF nie obsługuje flexboksa ani grida — układ opiera się na tabelach. */
-  body { font-family: dejavusans, sans-serif; font-size: 9pt; color: #111; }
-  .hdr-title { font-size: 15pt; font-weight: bold; }
-  .hdr-sub   { font-size: 8pt; color: #555; }
-  .annot     { font-size: 8.5pt; font-weight: bold; color: #92400e;
-               border: 1px solid #d97706; background: #fef9c3; padding: 3px 6px; }
+  /* mPDF nie obsługuje flexboksa ani grida — układ opiera się na tabelach.
+     Typografia nastawiona na CZYTELNOŚĆ wydruku, nie na upchanie treści:
+     większy stopień pisma, więcej światła w komórkach, mniej linii. */
+  body { font-family: dejavusans, sans-serif; font-size: 10pt; color: #111; line-height: 1.35; }
+
+  .hdr-title { font-size: 17pt; font-weight: bold; letter-spacing: -.01em; }
+  .hdr-sub   { font-size: 9pt; color: #444; line-height: 1.45; }
+  .annot     { font-size: 9pt; font-weight: bold; color: #92400e;
+               border: 1px solid #d97706; background: #fef9c3; padding: 4px 7px; }
+
   table      { width: 100%; border-collapse: collapse; }
+
   .party td  { vertical-align: top; padding: 0; }
-  .party-box { border: 1px solid #999; padding: 6px 8px; }
-  .party-lbl { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #555; }
-  .party-nm  { font-weight: bold; font-size: 10pt; }
-  .items th  { background: #eee; border: 1px solid #999; padding: 4px 5px;
-               font-size: 7.5pt; text-align: left; }
-  .items td  { border: 1px solid #bbb; padding: 4px 5px; font-size: 8.5pt; }
+  /* Bez pełnej ramki — wystarczy pasek z boku i tło, mniej linii na stronie. */
+  .party-box { background: #f7f8fa; border-left: 3px solid #555; padding: 8px 10px; }
+  .party-lbl { font-size: 8pt; text-transform: uppercase; letter-spacing: .06em;
+               color: #666; margin-bottom: 2px; }
+  .party-nm  { font-weight: bold; font-size: 11.5pt; line-height: 1.25; }
+  .party-box div { font-size: 9.5pt; }
+
+  /* Tabela pozycji: nagłówek na ciemnym tle, wiersze rozdzielone poziomą linią,
+     bez siatki pionowej — oko prowadzi wiersz, nie kratka. */
+  .items th  { background: #333; color: #fff; padding: 6px 6px;
+               font-size: 8.5pt; text-align: left; font-weight: bold; }
+  .items td  { border-bottom: 1px solid #ddd; padding: 6px 6px; font-size: 9.5pt;
+               vertical-align: top; }
+  .items tbody tr:nth-child(even) td { background: #fafafa; }
+  .items tfoot th, .items tfoot td { border-top: 2px solid #333; }
+
   .num       { text-align: right; }
   .ctr       { text-align: center; }
-  .sum th, .sum td { border: 1px solid #999; padding: 4px 6px; font-size: 8.5pt; }
-  .sum th    { background: #eee; text-align: left; }
-  .total     { font-size: 11pt; font-weight: bold; }
-  .sign      { border-top: 1px solid #999; padding-top: 3px; font-size: 7.5pt;
+  /* Cyfry o równej szerokości — kolumny kwot układają się w słup. */
+  .num, .money { font-variant-numeric: tabular-nums; }
+
+  .sum th, .sum td { border-bottom: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; }
+  .sum th    { background: #f0f1f3; text-align: left; font-weight: bold; }
+  .total     { font-size: 13pt; font-weight: bold; }
+
+  .sign      { border-top: 1px solid #888; padding-top: 4px; font-size: 8.5pt;
                color: #555; text-align: center; }
-  .note      { font-size: 8pt; color: #444; }
-  .draft-bar { border: 2px solid #b3261e; background: #fee2e2; color: #7f1d1d;
-               padding: 6px 8px; margin-bottom: 8px; text-align: center;
-               font-size: 11pt; font-weight: bold; letter-spacing: .04em; }
-  .draft-bar-sub { display: block; font-size: 8pt; font-weight: normal;
-                   letter-spacing: 0; margin-top: 2px; }
+  .note      { font-size: 9pt; color: #333; line-height: 1.4; }
+  .draft-bar { border-left: 4px solid #b3261e; background: #fef2f2; color: #7f1d1d;
+               padding: 6px 10px; margin-bottom: 10px;
+               font-size: 10.5pt; font-weight: bold; letter-spacing: .02em; }
+  .draft-bar-sub { display: block; font-size: 8.5pt; font-weight: normal;
+                   letter-spacing: 0; margin-top: 2px; line-height: 1.35; }
 </style>
 
 <?php if ($is_draft): ?>
@@ -288,7 +307,7 @@ function invoice_pdf_html(array $inv, array $opts = []): string
   </tr>
 </table>
 
-<table class="party" style="margin-top:10px">
+<table class="party" style="margin-top:14px">
   <tr>
     <td style="width:49%">
       <div class="party-box">
@@ -320,7 +339,7 @@ function invoice_pdf_html(array $inv, array $opts = []): string
   </tr>
 </table>
 
-<table class="items" style="margin-top:12px">
+<table class="items" style="margin-top:16px">
   <thead>
     <tr>
       <th style="width:4%"  class="ctr">Lp.</th>
@@ -448,7 +467,7 @@ function invoice_pdf_html(array $inv, array $opts = []): string
 <div class="note" style="margin-top:8px"><strong>Uwagi:</strong> <?= nl2br(h($inv['notes'])) ?></div>
 <?php endif; ?>
 
-<table style="margin-top:26px">
+<table style="margin-top:34px">
   <tr>
     <td style="width:42%">
       <?php if ($issuer !== ''): ?>
