@@ -7,7 +7,7 @@
 <div class="mt-3">
 
   <?php /* ── Dane kontaktowe prowadzącego ───────────────────────────────── */ ?>
-  <?= flash_get_html() ?>
+  <?= flash_html() ?>
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-transparent fw-semibold">
       <i class="bi bi-person-lines-fill text-primary me-2" aria-hidden="true"></i>Dane kontaktowe do prowadzącego

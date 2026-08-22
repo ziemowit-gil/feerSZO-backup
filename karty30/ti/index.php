@@ -705,15 +705,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <input type="hidden" name="_op" value="save_instructor_flags">
         <div class="d-flex flex-column gap-2 mb-3">
           <?php foreach ($_all_instrs as $_instr):
-                $_pf = $_instr['payout_form'] ?? 'zlecenie'; ?>
+                $_ipf = $_instr['payout_form'] ?? 'zlecenie'; ?>
           <div class="d-flex align-items-center gap-3">
             <span style="min-width:200px"><?= h($_instr['name']) ?></span>
             <select name="payout_form[<?= (int)$_instr['id'] ?>]" class="form-select form-select-sm" style="max-width:260px">
               <?php foreach ($_payout_form_labels as $_fv => $_fl): ?>
-              <option value="<?= h($_fv) ?>" <?= $_pf === $_fv ? 'selected' : '' ?>><?= h($_fl) ?></option>
+              <option value="<?= h($_fv) ?>" <?= $_ipf === $_fv ? 'selected' : '' ?>><?= h($_fl) ?></option>
               <?php endforeach; ?>
             </select>
-            <?php if (in_array($_pf, ['student','b2b'], true)): ?>
+            <?php if (in_array($_ipf, ['student','b2b'], true)): ?>
             <span class="badge bg-info-subtle text-info-emphasis" style="font-size:.7rem">100% netto</span>
             <?php endif; ?>
           </div>

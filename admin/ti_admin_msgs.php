@@ -53,7 +53,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
   <span class="badge bg-secondary ms-1"><?= count($msgs) ?></span>
 </div>
 
-<?php echo flash_get_html(); ?>
+<?php echo flash_html(); ?>
 
 <div class="row g-3">
   <!-- Lista -->
