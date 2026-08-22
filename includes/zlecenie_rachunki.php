@@ -540,17 +540,22 @@ function rachunek_notify_contractor(int $rid, ?int $actor_id = null): array {
         . "W razie pytań lub problemów technicznych pozostajemy do dyspozycji.\n\n"
         . "Z poważaniem,\n{$org}";
 
+    // DW — stała kopia wysyłki rachunków (bez adresu głównego odbiorcy).
+    $cc = array_values(array_filter(rachunek_cc_emails(),
+        fn($e) => strcasecmp($e, $email) !== 0));
+
     try {
         $mail_id = mail_queue_add($email, $imie, $subject, $body_html, $body_text,
-            'zlecenie', (int)$rach['contract_id'], '', true);
+            'zlecenie', (int)$rach['contract_id'], '', true, [], '', $cc);
     } catch (\Throwable $e) {
         return ['ok' => false, 'msg' => 'Błąd wysyłki: ' . $e->getMessage()];
     }
 
     rachunek_notify_mark($rid, $email, $mail_id);
 
-    return ['ok' => true, 'msg' => 'Wysłano powiadomienie do: ' . $email,
-            'email' => $email, 'url' => $url, 'mail_id' => $mail_id];
+    return ['ok' => true,
+            'msg'   => 'Wysłano powiadomienie do: ' . $email . ($cc ? ' (DW: ' . implode(', ', $cc) . ')' : ''),
+            'email' => $email, 'cc' => $cc, 'url' => $url, 'mail_id' => $mail_id];
 }
 
 /**
@@ -622,6 +627,22 @@ function rachunek_skan_email(): string {
     $v = trim((string)org_setting('org_email'));
     if ($v !== '') return $v;
     return defined('ORG_EMAIL') ? ORG_EMAIL : 'fundacja@feer.org.pl';
+}
+
+/**
+ * Adresy DW (kopia) dla wysyłki rachunków do zleceniobiorcy.
+ * Ustawienie `rachunek_cc_emails` — lista rozdzielona przecinkami lub średnikami.
+ * Domyślnie ziemowit.gil@feer.org.pl, żeby żadna wysyłka nie przeszła bez kopii.
+ */
+function rachunek_cc_emails(): array {
+    $raw = trim((string)org_setting('rachunek_cc_emails'));
+    if ($raw === '') $raw = 'ziemowit.gil@feer.org.pl';
+    $out = [];
+    foreach (preg_split('/[,;\s]+/', $raw) as $e) {
+        $e = trim($e);
+        if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) $out[strtolower($e)] = $e;
+    }
+    return array_values($out);
 }
 
 /** Adres siedziby organizacji — dla dostarczenia oryginału. */
@@ -730,6 +751,16 @@ function rachunek_notify_signed(int $rid): array {
             mail_queue_add($u['email'], $u['name'] ?? '', $title . ' — ' . $org, $html, '',
                 'zlecenie', (int)$rach['contract_id'], '', true);
             $done[] = $u['email'];
+        } catch (\Throwable $e) {}
+    }
+
+    // Stałe adresy DW rachunków — dostają też informację o podpisanym dokumencie.
+    foreach (rachunek_cc_emails() as $cc_mail) {
+        if (in_array($cc_mail, $done, true)) continue;
+        try {
+            mail_queue_add($cc_mail, '', $title . ' — ' . $org, $html, '',
+                'zlecenie', (int)$rach['contract_id'], '', true);
+            $done[] = $cc_mail;
         } catch (\Throwable $e) {}
     }
 

@@ -34,7 +34,7 @@ $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
-                  'm365_send_from_email','ksiegowy_email','rachunek_skan_email',
+                  'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails',
                   'admin_ip_restrict','admin_ip_whitelist',
                   'ezd_vpn_only','ezd_vpn_allowlist'];
 $saved = [];
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mail_keys = ['notify_from_name','notify_from_email',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                       'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
-                      'm365_send_from_email','ksiegowy_email','rachunek_skan_email'];
+                      'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($mail_keys as $k) {
             $v = trim($_POST[$k] ?? '');
@@ -775,6 +775,16 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="form-text">
             Adres podawany zleceniobiorcy w mailu i na stronie rachunku (moduł <em>Rachunki</em> umowy zlecenie)
             jako miejsce wysyłki skanu podpisanego rachunku. Puste = adres organizacji.
+          </div>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold">Stałe DW przy wysyłce rachunków</label>
+          <input type="text" name="rachunek_cc_emails" class="form-control form-control-sm"
+                 value="<?= h($saved['rachunek_cc_emails'] ?? '') ?>" placeholder="ziemowit.gil@feer.org.pl">
+          <div class="form-text">
+            Adresy (oddzielone przecinkami) dostające kopię <strong>każdego</strong> maila z rachunkiem
+            wysłanego do zleceniobiorcy oraz powiadomienia o wgraniu podpisanego rachunku.
+            Puste = <code>ziemowit.gil@feer.org.pl</code>.
           </div>
         </div>
       </div>
