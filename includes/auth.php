@@ -1,4 +1,9 @@
 <?php
+// db.php PRZED czymkolwiek innym: DbSessionHandler w auth_start() potrzebuje db().
+// Bez tego strony, które includują tylko auth.php, cicho spadały na sesje plikowe
+// („[auth_start] session handler fallback: Call to undefined function db()"),
+// czyli traciły sesję z bazy — w tym token weryfikacji IKA.
+require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/context.php';
 

@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'organizacja'    => trim($_POST['organizacja']?? '') ?: null,
         'branza'         => trim($_POST['branza']     ?? '') ?: null,
         'strona_www'     => trim($_POST['strona_www'] ?? '') ?: null,
-        'source'         => trim($_POST['source']     ?? '') ?: null,
+        'source'         => trim($_POST['source']     ?? '') ?: 'manual',   // kolumna NOT NULL DEFAULT 'manual'
         'notatka'        => trim($_POST['notatka']    ?? '') ?: null,
         // Dane formalne (ukryte — potrzebne do umów)
         'pesel'          => preg_replace('/\D/', '', $_POST['pesel'] ?? '') ?: null,

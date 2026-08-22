@@ -1139,6 +1139,39 @@ function crm_sys_field_editable(string $field_key): bool {
 // KLASA CrmManager — logika biznesowa (Single Responsibility)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Usuwa z danych klucze o wartości NULL/'' dla kolumn NOT NULL, które mają
+ * wartość domyślną — wtedy zadziała DEFAULT zamiast wysypać INSERT/UPDATE.
+ * Formularze często wysyłają `?: null` dla pól nieobowiązkowych (np. crm_contacts.source
+ * = NOT NULL DEFAULT 'manual'), co bez tego kończyło się błędem 500.
+ */
+function crm_strip_null_notnull(array $data, string $table): array {
+    static $cache = [];
+    if (!isset($cache[$table])) {
+        $cols = [];
+        try {
+            if (DB_TYPE === 'sqlite') {
+                foreach (crm_db()->query("PRAGMA table_info(`$table`)")->fetchAll(\PDO::FETCH_ASSOC) as $c) {
+                    if ((int)($c['notnull'] ?? 0) === 1 && $c['dflt_value'] !== null) $cols[] = $c['name'];
+                }
+            } else {
+                foreach (crm_db()->query("SHOW COLUMNS FROM `$table`")->fetchAll(\PDO::FETCH_ASSOC) as $c) {
+                    if (($c['Null'] ?? '') === 'NO' && $c['Default'] !== null) $cols[] = $c['Field'];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[crm_strip_null_notnull] ' . $e->getMessage());
+        }
+        $cache[$table] = $cols;
+    }
+    foreach ($cache[$table] as $col) {
+        if (array_key_exists($col, $data) && ($data[$col] === null || $data[$col] === '')) {
+            unset($data[$col]);
+        }
+    }
+    return $data;
+}
+
 class CrmManager
 {
     // ── Kontakty ──────────────────────────────────────────────────────────────
@@ -1342,6 +1375,7 @@ class CrmManager
             'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
+        $data = crm_strip_null_notnull($data, 'crm_contacts');
         $id = db_insert('crm_contacts', $data);
         require_once __DIR__ . '/crm_automation.php';
         crm_automation_fire('contact_created', $id);
@@ -1370,6 +1404,7 @@ class CrmManager
             'swiadczy_uslugi',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
+        $data = crm_strip_null_notnull($data, 'crm_contacts');
         db_update('crm_contacts', $data, $id);
     }
 
