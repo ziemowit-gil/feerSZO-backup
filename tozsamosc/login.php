@@ -18,6 +18,8 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
+require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
 require_once dirname(__DIR__) . '/includes/approval.php'; // log_auth_action()
 
 auth_start();
@@ -101,12 +103,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root{--tz:#1E6DFF;--tz-strong:#1656d6;--tz-50:#eef4ff;--tz-line:#E5E9F0;}
-    body{background:radial-gradient(1200px 500px at 50% -10%, #e7f0ff 0%, rgba(231,240,255,0) 60%), #F4F6F9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#111827}
+    body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#111827}
     .wrap{max-width:440px;width:100%}
     .brandbar{display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:1.25rem}
     .brandbar .mark{width:36px;height:36px;border-radius:10px;background:var(--tz);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
-    .brandbar .txt{font-weight:700;color:#1146ad;line-height:1.05}
-    .brandbar .txt small{display:block;font-weight:500;font-size:.68rem;letter-spacing:.06em;color:#6B7280;text-transform:uppercase}
+    /* Marka i stopka stoją bezpośrednio na tle marki — muszą być białe */
+    .brandbar .mark{background:rgba(255,255,255,.16)}
+    .brandbar .txt{font-weight:700;color:#fff;line-height:1.05}
+    .brandbar .txt small{display:block;font-weight:500;font-size:.68rem;letter-spacing:.06em;color:rgba(255,255,255,.85);text-transform:uppercase}
+    .page-foot{color:rgba(255,255,255,.85)!important}
     .card{border:1px solid var(--tz-line);border-radius:16px;box-shadow:0 12px 40px -12px rgba(30,109,255,.25)}
     .btn-primary{--bs-btn-bg:var(--tz-strong);--bs-btn-border-color:var(--tz-strong);--bs-btn-hover-bg:#0f3c9c;--bs-btn-hover-border-color:#0f3c9c}
     .btn-ms{background:#fff;border:1px solid var(--tz-line);color:#1f2937;font-weight:600}
@@ -119,6 +124,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .skip{position:absolute;left:-999px;top:auto}
     .skip:focus{left:1rem;top:1rem;background:var(--tz);color:#fff;padding:.5rem 1rem;border-radius:8px;z-index:10}
   </style>
+<?php branding_css(branding_load()); ?>
+<?php auth_screen_bg_css(); ?>
 </head>
 <body>
 <a href="#login-form" class="skip">Przejdź do formularza logowania</a>
@@ -196,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 
-  <p class="text-center text-muted mt-3" style="font-size:.75rem">
+  <p class="text-center text-muted mt-3 page-foot" style="font-size:.75rem">
     <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Połączenie szyfrowane · © <?= date('Y') ?> <?= h($org_name) ?>
   </p>
 </div>

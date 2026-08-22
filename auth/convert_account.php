@@ -71,10 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $me && !$no_ms) {
 }
 
 require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
 $_b       = branding_load();
 $org_name = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Organizacja');
-$_login_bg = org_setting('login_bg_color') ?: '#EEF2F7';
-if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $_login_bg)) $_login_bg = '#EEF2F7';
 
 $login_url     = APP_URL . '/auth/login.php';
 $emergency_url = APP_URL . '/auth/awaryjne.php';
@@ -93,10 +92,10 @@ if (!$not_logged && !$no_ms && !empty($me['microsoft_id'])) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
+<?php auth_screen_bg_css(); ?>
 <style>
-:root { --login-bg: <?= h($_login_bg) ?>; }
 *, *::before, *::after { box-sizing: border-box; }
-html, body { min-height: 100%; margin: 0; background: var(--login-bg, #EEF2F7); }
+html, body { min-height: 100%; margin: 0; }
 .page-wrap {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   padding: 2rem 1rem;

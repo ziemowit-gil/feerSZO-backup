@@ -4,6 +4,8 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/totp.php';
+require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
 
 auth_start();
 
@@ -170,12 +172,17 @@ function mask_phone(string $p): string
 <title>Weryfikacja dwuetapowa — <?= h(ORG_NAME) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php branding_css(branding_load()); ?>
+<?php auth_screen_bg_css(); ?>
 <style>
-body { background: #f0f4f8; }
 .twofa-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
 .twofa-card { width: 100%; max-width: 420px; }
-.brand-icon { font-size: 2.4rem; color: #2563eb; }
+/* Marka stoi bezpośrednio na kolorowym tle — biel, nie domyślna czerń Bootstrapa */
+.twofa-brand, .twofa-brand h4 { color: #fff; }
+.twofa-brand p { color: rgba(255,255,255,.85) !important; }
+.brand-icon { font-size: 2.4rem; color: #fff; }
 .code-input  { font-size: 2rem; letter-spacing: .5rem; text-align: center; font-weight: 700; }
+.card { box-shadow: 0 18px 44px rgba(0,0,0,.16) !important; border: none; border-radius: 16px; }
 </style>
 </head>
 <body>
@@ -183,7 +190,7 @@ body { background: #f0f4f8; }
 <div class="twofa-card">
 
   <!-- Brand -->
-  <div class="text-center mb-4">
+  <div class="text-center mb-4 twofa-brand">
     <i class="bi bi-shield-lock brand-icon"></i>
     <h4 class="fw-bold mt-2 mb-0"><?= h(ORG_NAME) ?></h4>
     <p class="text-muted small">Weryfikacja dwuetapowa</p>

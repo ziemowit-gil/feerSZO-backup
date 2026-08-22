@@ -20,6 +20,35 @@
 require_once __DIR__ . '/branding.php';
 require_once __DIR__ . '/auth_security.php';
 
+/** Wzór geometryczny tła ekranów wejścia (data URI, bez zewnętrznych zasobów). */
+const AUTH_SCREEN_BG_SVG = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'420\' height=\'420\' viewBox=\'0 0 420 420\'%3E%3Cg fill=\'%23000\' fill-opacity=\'.055\'%3E%3Crect x=\'24\' y=\'40\' width=\'120\' height=\'120\' rx=\'8\'/%3E%3Ccircle cx=\'330\' cy=\'96\' r=\'58\'/%3E%3Crect x=\'210\' y=\'250\' width=\'150\' height=\'150\' rx=\'8\'/%3E%3Cpath d=\'M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z\'/%3E%3Cpath d=\'M300 0l60 60-24 24-60-60z\'/%3E%3C/g%3E%3C/svg%3E")';
+
+/**
+ * Warstwy graficzne tła ekranów wejścia — geometria + delikatny skos.
+ * Jedno źródło wzoru dla powłoki (.ks-hero) i dla ekranów z własnym układem
+ * (auth_screen_bg_css()), żeby logowanie, 2FA i weryfikacje wyglądały tak samo.
+ */
+function auth_screen_bg_layers(): string {
+    return "background-image:" . AUTH_SCREEN_BG_SVG . ",\n"
+         . "    repeating-linear-gradient(135deg,rgba(0,0,0,.045) 0 3px,transparent 3px 26px);\n"
+         . "  background-size:420px 420px,auto";
+}
+
+/**
+ * Emituje <style> z tłem ekranu logowania dla stron, które mają własny układ
+ * i nie korzystają z auth_screen_head() (2FA, logowanie Tożsamości, ustawianie
+ * hasła). Wywołaj w <head> PO branding_css() — kolor bierze się z --c.
+ *
+ * @param string $sel selektor, na który nakładamy tło (domyślnie html,body)
+ */
+function auth_screen_bg_css(string $sel = 'html,body'): void {
+    echo '<style>' . $sel . '{background-color:var(--c,#DC2626);'
+       . auth_screen_bg_layers() . ';background-attachment:fixed}'
+       . 'html[data-theme="hc"] ' . str_replace(',', ',html[data-theme="hc"] ', $sel)
+       . '{background:#000;background-image:none}'
+       . '</style>' . "\n";
+}
+
 /**
  * Otwiera stronę: <head>, pasek dostępności, marka, zakładki, karta.
  *
@@ -101,9 +130,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ks-in
 /* ── Tło z geometrią ───────────────────────────────────────────────────── */
 .ks-hero{position:relative;min-height:calc(100vh - 34px);padding:2.25rem 1rem 3rem;overflow:hidden}
 .ks-hero::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='%23000' fill-opacity='.055'%3E%3Crect x='24' y='40' width='120' height='120' rx='8'/%3E%3Ccircle cx='330' cy='96' r='58'/%3E%3Crect x='210' y='250' width='150' height='150' rx='8'/%3E%3Cpath d='M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z'/%3E%3Cpath d='M300 0l60 60-24 24-60-60z'/%3E%3C/g%3E%3C/svg%3E"),
-    repeating-linear-gradient(135deg,rgba(0,0,0,.045) 0 3px,transparent 3px 26px);
-  background-size:420px 420px,auto}
+  <?= auth_screen_bg_layers() ?>}
 .ks-shell{position:relative;max-width:var(--ks-col);margin:0 auto}
 
 /* ── Marka ─────────────────────────────────────────────────────────────── */

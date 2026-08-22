@@ -185,7 +185,9 @@ $info      = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrf_ok = hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '');
     if (!$csrf_ok) { $error = 'Nieprawidłowy token CSRF. Odśwież stronę.'; goto render; }
-    if (!empty($_POST['_hp'])) { sleep(2); $error = 'Weryfikacja nieudana.'; goto render; }
+    // Honeypot usunięty: menedżery haseł i autouzupełnianie przeglądarki wpisywały
+    // wartość w ukryte pole pułapki i blokowały weryfikację mimo poprawnego kodu.
+    // Bramka i tak wymaga zalogowanej sesji, tokenu CSRF oraz limitu prób per IP/kod.
     if ($_ip_blocked) { $error = 'Zbyt wiele prób z tego komputera. Zamknij i otwórz przeglądarkę.'; goto render; }
 
     $mode = $_POST['_mode'] ?? 'ika';
@@ -583,7 +585,6 @@ $head_title = match(true) {
       <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
       <input type="hidden" name="_mode" value="verify_pesel">
       <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-      <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
       <div class="pesel-row">
         <?php foreach ($pos as $idx => $p): $n = $idx + 1; ?>
         <div style="text-align:center">
@@ -721,7 +722,6 @@ $head_title = match(true) {
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="ika">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-        <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
         <p class="text-muted small text-center mb-1">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
@@ -795,7 +795,6 @@ $head_title = match(true) {
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="request_email_otp">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-        <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
         <button type="submit" class="tz-btn tz-btn--email tz-btn--wide">
           <i class="bi bi-envelope-arrow-down-fill" aria-hidden="true"></i>
           Wyślij kod na <?= h($user_email) ?>
@@ -820,7 +819,6 @@ $head_title = match(true) {
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="verify_email_otp">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-        <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
         <div class="digit-row" id="emailDigits" role="group" aria-label="Kod e-mail — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="password" class="digit-box<?= $error && $active_method === 'email' ? ' is-error' : '' ?>"
@@ -846,7 +844,6 @@ $head_title = match(true) {
           <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
           <input type="hidden" name="_mode" value="request_email_otp">
           <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-          <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
           <button type="submit"
                   style="background:none;border:none;color:var(--tz-muted);font-size:.82rem;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:.3rem">
             <i class="bi bi-arrow-clockwise"></i>Wyślij nowy kod
