@@ -1,12 +1,27 @@
-<?php if (str_contains($_SERVER['REQUEST_URI'] ?? '', '/ezd/')): ?>
+<?php
+// Widok EZD ma węższą stopkę: pion ekranu jest tam cenny (długie listy pism,
+// koszulki), a stopka niesie tylko metryczkę systemu. Reszta aplikacji zostaje
+// bez zmian — dlatego klasa .ezd-footer, a nie zmiana wspólnych klas.
+$_ezd_view = str_contains($_SERVER['REQUEST_URI'] ?? '', '/ezd/');
+?>
+<?php if ($_ezd_view): ?>
   </div><!-- /.ezd-main -->
   </div><!-- /.ezd-body -->
+  <style>
+    /* Stopka w EZD — ciaśniej: mniejszy padding, odstępy i tekst. */
+    .ezd-footer{padding:.2rem .85rem!important;font-size:.7rem;line-height:1.25;row-gap:.15rem}
+    .ezd-footer .footer-meta{gap:.6rem!important}
+    .ezd-footer a{font-size:inherit}
+    @media (max-width:575.98px){
+      .ezd-footer{flex-wrap:wrap;justify-content:center!important;text-align:center;gap:.15rem .6rem}
+    }
+  </style>
 <?php endif; ?>
   </div><!-- /content -->
 
-  <footer class="border-top py-2 px-4 text-muted small bg-white d-flex justify-content-between align-items-center">
+  <footer class="border-top text-muted small bg-white d-flex justify-content-between align-items-center<?= $_ezd_view ? ' ezd-footer' : ' py-2 px-4' ?>">
     <span>System Zarządzania Organizacją</span>
-    <span class="d-flex align-items-center gap-3">
+    <span class="footer-meta d-flex align-items-center gap-3">
       <?php
         $_w5 = preg_split('/\s+/', trim(ORG_NAME));
         $_acr = count($_w5) >= 2 ? implode('', array_map(fn($w) => mb_strtoupper(mb_substr($w,0,1,'UTF-8'),'UTF-8'), $_w5)) : mb_substr(ORG_NAME,0,12,'UTF-8');
