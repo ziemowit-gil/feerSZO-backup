@@ -802,6 +802,13 @@ function ika_require(string $return_url = '', int $ttl = 1800): void {
  */
 function ika_ok(string $context_url = '', int $ttl = 1800): bool {
     if (!function_exists('current_user')) return true;
+
+    // Przełącznik modułu „Kody IKA" (Administracja → Moduły) — bez tego wyłączenie
+    // modułu nie miało żadnego skutku i brama nadal blokowała wejście.
+    // module_enabled() traktuje brak wpisu jako włączone, więc domyślne zachowanie
+    // istniejących instalacji się nie zmienia.
+    if (function_exists('module_enabled') && !module_enabled('ika_enabled')) return true;
+
     $user = current_user();
     if (!$user) return true;
     $role = $user['role'] ?? '';
