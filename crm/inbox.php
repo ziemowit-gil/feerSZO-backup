@@ -151,8 +151,16 @@ $day_label = static function (string $ts): string {
 include __DIR__ . '/includes/header_crm.php';
 ?>
 <style>
-.ib-wrap { display:grid; grid-template-columns:minmax(320px, 400px) 1fr; gap:1.1rem; align-items:start }
-@media (max-width:1099px) { .ib-wrap { grid-template-columns:1fr } }
+.ib-wrap { display:grid; grid-template-columns:minmax(340px, 420px) 1fr; gap:1.1rem;
+  align-items:stretch; min-height:26rem }
+@media (max-width:1099px) { .ib-wrap { grid-template-columns:1fr; min-height:0 } }
+/* Panel bez wybranej wiadomości: treść wyśrodkowana, a nie przyklejona do góry
+   cienkiego paska — inaczej obok wysokiej listy wygląda jak błąd układu. */
+.ib-empty { display:flex; align-items:center; justify-content:center; padding:2.5rem 1.15rem }
+/* Lista ma się rozciągać na wysokość kolumny, żeby ramki obu paneli kończyły
+   się na tej samej linii. */
+.ib-wrap > div { min-width:0 }
+.ib-wrap > div > .ib-list { height:100% }
 
 /* ── Lista ─────────────────────────────────────────────────────────────── */
 .ib-list { background:#fff; border:1px solid #E5E7EB; border-radius:12px; overflow:hidden }
@@ -199,8 +207,11 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-ctx { padding:.9rem 1.15rem; border-top:1px solid #F1F2F4; font-size:.82rem }
 .ib-ctx a { text-decoration:none }
 .ib-lbl { font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#9CA3AF; margin-bottom:.25rem }
-.ib-pill { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .8rem; border-radius:2rem;
+.ib-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .5rem .3rem .8rem; border-radius:2rem;
   font-size:.78rem; font-weight:600; text-decoration:none; border:2px solid transparent }
+/* Licznik jako osobna plakietka — inaczej „Nowe 23" czyta się jak jedno wyrażenie. */
+.ib-cnt { display:inline-block; min-width:1.5rem; padding:0 .35rem; border-radius:2rem;
+  font-size:.72rem; font-weight:700; line-height:1.4; text-align:center }
 </style>
 
 <div class="crm-page-header">
@@ -229,6 +240,20 @@ include __DIR__ . '/includes/header_crm.php';
       </button>
     </form>
     <a href="<?= APP_URL ?>/poczta/index.php" class="btn btn-crm-ghost btn-sm" title="Konfiguracja skrzynek"><i class="bi bi-gear"></i></a>
+    <?php if (crm_mailbox_autocreate()): ?>
+    <!-- Stan „włączone" nie zasługuje na osobny wiersz nad listą — to potwierdzenie,
+         nie ostrzeżenie. Wariant WYŁĄCZONY zostaje pełnym alertem niżej, bo mówi
+         o wiadomościach, które są pomijane. -->
+    <form method="post" class="d-inline-flex align-items-center gap-1" style="font-size:.76rem">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_op" value="autocreate">
+      <input type="hidden" name="view" value="<?= h($view) ?>">
+      <span class="text-success text-nowrap" title="Wiadomości od nieznanych nadawców zakładają kartotekę kontaktu">
+        <i class="bi bi-check-circle-fill" aria-hidden="true"></i> auto-kartoteka
+      </span>
+      <button class="btn btn-link btn-sm p-0 text-muted" name="on" value="" style="font-size:.76rem">wyłącz</button>
+    </form>
+    <?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
@@ -264,14 +289,6 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <button class="btn btn-sm btn-outline-dark">Zakładaj kartotekę dla nieznanych nadawców</button>
 </form>
-<?php elseif (is_admin()): ?>
-<form method="post" class="mb-3 d-flex align-items-center gap-2" style="font-size:.8rem">
-  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-  <input type="hidden" name="_op" value="autocreate">
-  <input type="hidden" name="view" value="<?= h($view) ?>">
-  <span class="text-success"><i class="bi bi-check-circle-fill"></i> Nieznani nadawcy zakładają kartotekę.</span>
-  <button class="btn btn-link btn-sm p-0" name="on" value="">wyłącz</button>
-</form>
 <?php endif; ?>
 
 <!-- Widoki -->
@@ -282,7 +299,14 @@ include __DIR__ . '/includes/header_crm.php';
             color:<?= $view === $vk ? 'var(--crm-primary)' : '#374151' ?>;
             border-color:<?= $view === $vk ? 'var(--crm-primary)' : 'transparent' ?>">
     <i class="bi <?= $vv['icon'] ?>" aria-hidden="true"></i><?= h($vv['label']) ?>
-    <?php if ($n): ?><strong><?= $n ?></strong><?php endif; ?>
+    <?php
+      // Licznik pokazujemy ZAWSZE, wyszarzony przy zerze. Ukrywanie zera sprawiało,
+      // że „Spam" wyglądał na widok bez licznika, a nie na widok pusty.
+      $cnt_style = $n
+        ? ($view === $vk ? 'background:var(--crm-primary);color:#fff' : 'background:#E5E7EB;color:#374151')
+        : 'background:transparent;color:#9CA3AF;border:1px solid #E5E7EB';
+    ?>
+    <span class="ib-cnt" style="<?= $cnt_style ?>"><?= $n ?></span>
   </a>
   <?php endforeach; ?>
   <form method="get" class="d-flex gap-1 ms-auto">
@@ -312,9 +336,12 @@ include __DIR__ . '/includes/header_crm.php';
   <div>
     <div class="ib-list" role="list" aria-label="Wiadomości">
       <?php if (!$inbox['rows']): ?>
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-inbox display-6 d-block mb-2 opacity-25"></i>
-        <div style="font-size:.88rem">Brak wiadomości w tym widoku.</div>
+      <div class="text-center text-muted d-flex flex-column justify-content-center" style="min-height:22rem;padding:1.15rem">
+        <div>
+          <i class="bi bi-inbox display-6 d-block mb-2 opacity-25" aria-hidden="true"></i>
+          <div style="font-size:.9rem">Brak wiadomości w tym widoku</div>
+          <div style="font-size:.78rem" class="mt-1">Zmień filtr albo sprawdź skrzynkę ponownie.</div>
+        </div>
       </div>
       <?php else: $last_day = ''; foreach ($inbox['rows'] as $r):
         $day = $day_label((string)$r['sent_at']);
@@ -368,7 +395,15 @@ include __DIR__ . '/includes/header_crm.php';
   <!-- ══ WIADOMOŚĆ ═══════════════════════════════════════════════════════ -->
   <div>
   <?php if (!$msg): ?>
-    <div class="ib-pane"><div class="ib-body text-muted">Wybierz wiadomość z listy.</div></div>
+    <div class="ib-pane ib-empty">
+      <div class="text-center text-muted">
+        <i class="bi bi-envelope-open display-6 d-block mb-2 opacity-25" aria-hidden="true"></i>
+        <div style="font-size:.9rem">Wybierz wiadomość z listy</div>
+        <div style="font-size:.78rem" class="mt-1">
+          <?= $inbox['rows'] ? 'Treść, załączniki i akcje pokażą się tutaj.' : 'W tym widoku nie ma wiadomości.' ?>
+        </div>
+      </div>
+    </div>
   <?php else:
     $hidden = '<input type="hidden" name="_csrf" value="' . csrf_token() . '">'
             . '<input type="hidden" name="msg_id" value="' . (int)$msg['id'] . '">'
