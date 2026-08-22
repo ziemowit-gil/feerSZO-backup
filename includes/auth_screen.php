@@ -234,8 +234,11 @@ html[data-news="off"] .ks-news{display:none}
 .ks-shell .btn-outline-primary{--bs-btn-color:var(--ks);--bs-btn-border-color:var(--ks-line);
   --bs-btn-hover-bg:var(--c-bg,rgba(220,38,38,.07));--bs-btn-hover-color:var(--ks);--bs-btn-hover-border-color:var(--ks)}
 .ks-shell .text-primary{color:var(--ks)!important}
-.ks-shell a{color:var(--ks)}
-.ks-shell a.text-muted{color:var(--ks-muted)!important}
+/* UWAGA: tylko treść na białym tle. Reguła `.ks-shell a` przejmowała też
+   zakładki i linki stopki, które leżą na tle marki — kolor marki na kolorze
+   marki znikał (np. niewidoczna zakładka „Rejestracja"). */
+.ks-card a,.ks-shell .card a,.ks-shell .alert a,.ks-shell .tz-card a{color:var(--ks)}
+.ks-shell .card a.text-muted,.ks-card a.text-muted{color:var(--ks-muted)!important}
 .ks-shell .form-label{font-size:.92rem;color:var(--ks-ink)}
 .ks-shell .input-group-text{background:#f9fafb;border-color:var(--ks-line);color:var(--ks-muted)}
 .ks-shell .input-group .form-control{min-height:46px}
@@ -270,6 +273,12 @@ html[data-news="off"] .ks-news{display:none}
 .ks-shell .tz-subnav a:hover{background:rgba(255,255,255,.18);color:#fff}
 .ks-shell .tz-subnav a.on{background:#fff;color:var(--ks)}
 .ks-shell .tz-subnav a.on i{color:var(--ks)}
+
+/* ── Elementy na tle marki: kolor tekstu niezależny od reguł treści ────── */
+.ks-shell .ks-tabs a,.ks-shell .ks-links a,.ks-shell .ks-links a:hover{color:#fff}
+.ks-shell .ks-tab[aria-current="page"]{color:var(--ks)}
+.ks-shell .ks-hero-h1,.ks-shell .ks-hero-lead{color:#fff}
+.ks-shell .ks-hero-lead{color:rgba(255,255,255,.85)}
 
 /* ── Wysoki kontrast ───────────────────────────────────────────────────── */
 html[data-theme="hc"]{--ks:#000;--ks-dark:#000;--ks-on:#fff;--ks-ink:#000;--ks-line:#000;--ks-muted:#000}
