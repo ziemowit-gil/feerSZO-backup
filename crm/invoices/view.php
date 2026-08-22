@@ -223,6 +223,36 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           </table>
         </div>
       </div>
+
+      <!-- Podgląd dokumentu w module — bez otwierania nowej karty.
+           Ramka doładowuje się DOPIERO po rozwinięciu: render PDF jest kosztowny,
+           a większość wejść na kartę faktury go nie potrzebuje. -->
+      <div class="card border-0 shadow-sm mt-3">
+        <details id="invPreview">
+          <summary class="card-header fw-semibold py-2" style="cursor:pointer;list-style:none">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Podgląd dokumentu
+            <span class="text-muted fw-normal" style="font-size:.8rem">
+              — <?= !empty($inv['pdf_path']) ? 'zapisana kopia PDF' : 'z szablonu SZO' ?>
+            </span>
+          </summary>
+          <div class="card-body p-0">
+            <iframe id="invPreviewFrame" title="Podgląd faktury <?= h((string)($inv['number'] ?: $inv['id'])) ?>"
+                    data-src="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?><?= empty($inv['pdf_path']) ? '&gen=1' : '' ?>"
+                    style="width:100%;height:70vh;border:0;display:block"></iframe>
+            <div class="px-3 py-2 d-flex gap-3 align-items-center" style="font-size:.8rem">
+              <a target="_blank" rel="noopener"
+                 href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?><?= empty($inv['pdf_path']) ? '&gen=1' : '' ?>">
+                Otwórz w nowej karcie <i class="bi bi-box-arrow-up-right"></i>
+              </a>
+              <?php if (!empty($inv['pdf_path'])): ?>
+              <a href="<?= APP_URL ?>/crm/invoices/pdf.php?id=<?= $id ?>&gen=1" target="_blank" rel="noopener" class="text-muted">
+                Podejrzyj wersję z szablonu SZO
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
 
     <!-- Metryka + akcje -->
@@ -390,4 +420,24 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 
 </div>
+<style>
+/* Domyślny trójkącik <details> psuje nagłówek karty — zastępujemy go strzałką
+   po prawej, żeby było widać, że blok się rozwija. */
+#invPreview > summary { display:flex; align-items:center }
+#invPreview > summary::-webkit-details-marker { display:none }
+#invPreview > summary::after { content:'▾'; margin-left:auto; color:#6B7280 }
+#invPreview[open] > summary::after { content:'▴' }
+</style>
+<script>
+// Ramka podglądu dostaje adres przy pierwszym rozwinięciu — dzięki temu wejście
+// na kartę faktury nie renderuje PDF-a niepotrzebnie.
+(function () {
+  var det = document.getElementById('invPreview');
+  var fr  = document.getElementById('invPreviewFrame');
+  if (!det || !fr) return;
+  det.addEventListener('toggle', function () {
+    if (det.open && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
+  });
+})();
+</script>
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>
