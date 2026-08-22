@@ -322,13 +322,18 @@ function invoice_delete(int $id): ?string
 // ── Numeracja faktur TI ──────────────────────────────────────────────────────
 
 /**
- * Kolejny numer w serii TI: `TI/nr/mm/rok`, numeracja narastająca w obrębie miesiąca.
+ * Kolejny numer w serii TI: `TI/nr/mm/rok/grupa`.
+ *
+ * Numeracja narasta w obrębie miesiąca (jedna ciągła seria na miesiąc, niezależnie
+ * od grupy); numer grupy jest tylko oznaczeniem na końcu. Rozliczenie bez przypisania
+ * do grupy (model niekombinowany, course_id = 0) kończy się na roku — zamiast
+ * dopisywać mylące „/0".
  *
  * Numer nadajemy przy WYSTAWIENIU, nie przy tworzeniu szkicu — inaczej usunięty
  * szkic zostawiałby lukę w numeracji. Dla szkicu liczymy numer poglądowo
  * (invoice_ti_number_preview) i nie zapisujemy go.
  */
-function invoice_ti_number(int $month, int $year): string
+function invoice_ti_number(int $month, int $year, int $course_id = 0): string
 {
     invoices_migrate();
     $mm   = str_pad((string)$month, 2, '0', STR_PAD_LEFT);
@@ -336,32 +341,41 @@ function invoice_ti_number(int $month, int $year): string
     $next = 1;
 
     // Bierzemy tylko numery faktycznie nadane (wystawione), żeby seria była ciągła.
+    // Wzorzec z „%" na końcu — numer może mieć jeszcze segment grupy po roku.
     foreach (db_all(
         "SELECT number FROM invoices
           WHERE source='ti_billing' AND number LIKE ? AND deleted_at IS NULL",
-        ['TI/%' . $sfx]
+        ['TI/%' . $sfx . '%']
     ) as $r) {
         if (preg_match('#^TI/(\d+)/#', (string)$r['number'], $m)) {
             $next = max($next, (int)$m[1] + 1);
         }
     }
-    return 'TI/' . $next . $sfx;
+    return 'TI/' . $next . $sfx . ($course_id > 0 ? '/' . $course_id : '');
 }
 
-/** Okres (miesiąc, rok) rozliczenia TI, z którego powstała faktura. */
+/** Okres i grupa rozliczenia TI, z którego powstała faktura. */
 function invoice_ti_period(array $inv): ?array
 {
     if (($inv['source'] ?? '') !== 'ti_billing' || empty($inv['source_id'])) return null;
-    $b = db_one("SELECT month, year FROM k30_ti_billing WHERE id=?", [(int)$inv['source_id']]);
+    // course_id doszedł ALTER-em (model kombinowany) — COALESCE dla starszych baz.
+    $b = db_one(
+        "SELECT month, year, COALESCE(course_id,0) AS course_id FROM k30_ti_billing WHERE id=?",
+        [(int)$inv['source_id']]
+    );
     if (!$b) return null;
-    return ['month' => (int)$b['month'], 'year' => (int)$b['year']];
+    return [
+        'month'     => (int)$b['month'],
+        'year'      => (int)$b['year'],
+        'course_id' => (int)$b['course_id'],
+    ];
 }
 
 /** Numer poglądowy dla szkicu TI — do wydruku roboczego, nie zapisywany. */
 function invoice_ti_number_preview(array $inv): string
 {
     $p = invoice_ti_period($inv);
-    return $p ? invoice_ti_number($p['month'], $p['year']) : '';
+    return $p ? invoice_ti_number($p['month'], $p['year'], $p['course_id']) : '';
 }
 
 // ── Fakturownia: wystawianie i synchronizacja ────────────────────────────────
@@ -404,7 +418,7 @@ function invoice_push(int $id): array
     // żeby oznaczenie zgadzało się z panelem. Pozostałe źródła numeruje Fakturownia.
     $own_number = null;
     if ($inv['source'] === 'ti_billing' && ($p = invoice_ti_period($inv))) {
-        $own_number = invoice_ti_number($p['month'], $p['year']);
+        $own_number = invoice_ti_number($p['month'], $p['year'], $p['course_id']);
     }
 
     $res = fakturownia_create_invoice($cfg['account'], $cfg['token'], [
