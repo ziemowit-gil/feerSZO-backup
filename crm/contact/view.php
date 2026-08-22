@@ -1147,6 +1147,41 @@ include __DIR__ . '/../includes/header_crm.php';
       <?php if (($contact['source'] ?? '') !== 'manual'): ?>· Źródło: <?= h($contact['source'] ?? '') ?><?php endif; ?>
     </span>
   </div>
+
+  <?php
+  // Fakty o kliencie w jednym pasku — żeby nie trzeba było ich szukać po zakładkach
+  $_open_cases = count(array_filter($contact_cases, static fn($c) => in_array($c['status'] ?? '', ['open','in_progress'], true)));
+  $_last_comm  = null;
+  try {
+      $_last_comm = db_one("SELECT sent_at, direction FROM crm_communications WHERE contact_id=? ORDER BY sent_at DESC LIMIT 1", [(int)$id]);
+  } catch (\Throwable $e) {}
+  ?>
+  <div class="cv-facts">
+    <div class="cv-fact">
+      <span class="cv-fact__v"><?= (int)$_open_cases ?></span>
+      <span class="cv-fact__l">sprawy otwarte</span>
+    </div>
+    <div class="cv-fact">
+      <span class="cv-fact__v"><?= (int)($offers_summary['open'] ?? 0) ?></span>
+      <span class="cv-fact__l">oferty w toku</span>
+    </div>
+    <div class="cv-fact">
+      <span class="cv-fact__v"><?= h(number_format((float)($offers_summary['won_value'] ?? 0), 0, ',', ' ')) ?> zł</span>
+      <span class="cv-fact__l">wygrane oferty</span>
+    </div>
+    <div class="cv-fact">
+      <span class="cv-fact__v">
+        <?= $_last_comm ? h(date_pl($_last_comm['sent_at'])) : '—' ?>
+      </span>
+      <span class="cv-fact__l">
+        ostatni kontakt<?= $_last_comm ? ($_last_comm['direction'] === 'in' ? ' (od klienta)' : ' (od nas)') : '' ?>
+      </span>
+    </div>
+    <div class="cv-fact">
+      <span class="cv-fact__v"><?= count($contact['notes']) ?></span>
+      <span class="cv-fact__l">notatki</span>
+    </div>
+  </div>
 </div>
 
 <!-- ══ TREŚĆ: aside referencyjny + główna z zakładkami ════════════════════════ -->
@@ -1163,10 +1198,221 @@ $case_status_cfg = [
 ];
 ?>
 
-<div class="row g-3">
+<div class="cv-single">
 
-  <!-- ── ASIDE: tożsamość i dane referencyjne ──────────────────────────────── -->
-  <div class="col-lg-4">
+    <ul class="nav cv-tabs cv-tabs--sticky mb-3" id="cvTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="cv-tab-activity-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-activity" type="button" role="tab"
+                aria-controls="cv-tab-activity" aria-selected="true">
+          <i class="bi bi-activity" aria-hidden="true"></i>Aktywność
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-cases-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-cases" type="button" role="tab"
+                aria-controls="cv-tab-cases" aria-selected="false">
+          <i class="bi bi-briefcase" aria-hidden="true"></i>Sprawy
+          <span class="cv-count"><?= count($contact_cases) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-offers-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-offers" type="button" role="tab"
+                aria-controls="cv-tab-offers" aria-selected="false">
+          <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>Oferty
+          <span class="cv-count"><?= count($contact_offers) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-notes-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-notes" type="button" role="tab"
+                aria-controls="cv-tab-notes" aria-selected="false">
+          <i class="bi bi-sticky" aria-hidden="true"></i>Notatki
+          <span class="cv-count"><?= count($contact['notes']) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-engage-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-engage" type="button" role="tab"
+                aria-controls="cv-tab-engage" aria-selected="false">
+          <i class="bi bi-people-fill" aria-hidden="true"></i>Zaangażowanie
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-data-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-data" type="button" role="tab"
+                aria-controls="cv-tab-data" aria-selected="false">
+          <i class="bi bi-card-list" aria-hidden="true"></i>Dane i powiązania
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+
+      <!-- ZAKŁADKA: Aktywność -->
+      <div class="tab-pane fade show active" id="cv-tab-activity" role="tabpanel"
+           aria-labelledby="cv-tab-activity-btn" tabindex="0">
+
+        <div class="cv-panel" id="activities-section"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-lightning-charge-fill cv-shead__icon" style="color:#B45309" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Planowane działania</h2>
+          </div>
+          <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
+        </div></div>
+
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-chat-left-text cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Historia komunikacji</h2>
+            <div class="cv-shead__aside">
+              <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'email')">
+                <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
+              </button>
+            </div>
+          </div>
+          <?= _cv_communications_html($contact, $id) ?>
+        </div></div>
+
+      </div>
+
+      <!-- ZAKŁADKA: Notatki -->
+      <div class="tab-pane fade" id="cv-tab-notes" role="tabpanel"
+           aria-labelledby="cv-tab-notes-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-sticky cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Notatki</h2>
+            <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['notes']) ?></span></div>
+          </div>
+          <?= _cv_notes_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Sprawy -->
+      <div class="tab-pane fade" id="cv-tab-cases" role="tabpanel"
+           aria-labelledby="cv-tab-cases-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-briefcase cv-shead__icon" style="color:#1D4ED8" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Sprawy</h2>
+            <div class="cv-shead__aside">
+              <span class="cv-count"><?= count($contact_cases) ?></span>
+              <?php if ($crm_can_write): ?>
+              <a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>"
+                 class="btn btn-crm-outline btn-sm py-0 px-2">
+                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if ($contact_cases): ?>
+          <div class="d-flex flex-column">
+            <?php foreach ($contact_cases as $cs):
+              $csc = $case_status_cfg[$cs['status']] ?? $case_status_cfg['open'];
+            ?>
+            <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$cs['id'] ?>"
+               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
+               style="color:#181818;font-size:.88rem">
+              <span style="width:8px;height:8px;border-radius:50%;background:<?= $csc['color'] ?>;flex-shrink:0" aria-hidden="true"></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">
+                <?= h($cs['title']) ?>
+              </span>
+              <span style="display:inline-flex;align-items:center;padding:.12rem .55rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $csc['bg'] ?>;color:<?= $csc['color'] ?>;white-space:nowrap">
+                <?= $csc['label'] ?>
+              </span>
+            </a>
+            <?php endforeach; ?>
+          </div>
+          <a href="<?= APP_URL ?>/crm/cases/index.php?contact_id=<?= (int)$id ?>"
+             class="btn btn-crm-outline btn-sm w-100 mt-3">
+            Wszystkie sprawy tego kontaktu
+          </a>
+          <?php else: ?>
+          <div class="cv-empty">
+            <i class="bi bi-briefcase" aria-hidden="true"></i>
+            Brak spraw
+            <?php if ($crm_can_write): ?>
+            <div class="mt-1"><a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>">Utwórz pierwszą →</a></div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Oferty (działalność odpłatna) -->
+      <div class="tab-pane fade" id="cv-tab-offers" role="tabpanel"
+           aria-labelledby="cv-tab-offers-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-file-earmark-ruled cv-shead__icon" style="color:#0176D3" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Oferty</h2>
+            <div class="cv-shead__aside">
+              <span class="cv-count"><?= count($contact_offers) ?></span>
+              <?php if ($offers_can_write): ?>
+              <a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>"
+                 class="btn btn-crm-outline btn-sm py-0 px-2">
+                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa oferta
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="row g-2 text-center mb-3">
+            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['cnt'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">ofert łącznie</div></div>
+            <div class="col-3"><div class="fw-bold text-success" style="font-size:1.05rem"><?= (int)$offers_summary['won'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">wygrane</div></div>
+            <div class="col-3"><div class="fw-bold text-danger" style="font-size:1.05rem"><?= (int)$offers_summary['lost'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">odrzucone</div></div>
+            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['open'] ?></div>
+              <div class="text-muted" style="font-size:.7rem">w toku</div></div>
+          </div>
+          <?php if ((float)$offers_summary['won_value'] > 0): ?>
+          <div class="mb-2" style="font-size:.85rem">
+            Wartość wygranych ofert: <strong><?= h(crm_offer_money((float)$offers_summary['won_value'])) ?></strong>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($contact_offers): ?>
+          <div class="d-flex flex-column">
+            <?php foreach ($contact_offers as $co):
+              $co_needs = crm_offer_requires_confirmation($co);
+              $co_conf  = (int)($co['confirmation_id'] ?? 0); ?>
+            <a href="<?= APP_URL ?>/crm/offers/view.php?id=<?= (int)$co['id'] ?>"
+               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
+               style="color:#181818;font-size:.86rem">
+              <span style="font-family:monospace;font-size:.74rem;color:#1D4ED8;white-space:nowrap"><?= h($co['offer_number']) ?></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"><?= h($co['title']) ?></span>
+              <?php if ($co_needs && !$co_conf): ?>
+              <span title="Brak potwierdzenia klienta (osoba fizyczna)" style="color:#B45309">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+              </span>
+              <?php endif; ?>
+              <span style="white-space:nowrap;font-weight:600"><?= h(crm_offer_money((float)$co['total_gross'], (string)$co['currency'])) ?></span>
+              <?= crm_offer_status_pill((string)$co['status'], true) ?>
+            </a>
+            <?php endforeach; ?>
+          </div>
+          <a href="<?= APP_URL ?>/crm/offers/index.php?contact_id=<?= (int)$id ?>"
+             class="btn btn-crm-outline btn-sm w-100 mt-3">Rejestr ofert tego klienta</a>
+          <?php else: ?>
+          <div class="cv-empty">
+            <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>
+            Brak ofert
+            <?php if ($offers_can_write): ?>
+            <div class="mt-1"><a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>">Przygotuj pierwszą →</a></div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Dane i powiązania (dawna kolumna boczna) -->
+      <div class="tab-pane fade" id="cv-tab-data" role="tabpanel"
+           aria-labelledby="cv-tab-data-btn" tabindex="0">
+        <div class="cv-datagrid">
 
     <!-- Tagi -->
     <div class="cv-panel"><div class="cv-panel__body">
@@ -1419,211 +1665,7 @@ $case_status_cfg = [
     </script>
     <?php endif; ?>
 
-  </div><!-- /aside -->
-
-  <!-- ── GŁÓWNA: zakładki ───────────────────────────────────────────────────── -->
-  <div class="col-lg-8">
-
-    <ul class="nav cv-tabs mb-3" id="cvTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="cv-tab-activity-btn" data-bs-toggle="tab"
-                data-bs-target="#cv-tab-activity" type="button" role="tab"
-                aria-controls="cv-tab-activity" aria-selected="true">
-          <i class="bi bi-activity" aria-hidden="true"></i>Aktywność
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="cv-tab-notes-btn" data-bs-toggle="tab"
-                data-bs-target="#cv-tab-notes" type="button" role="tab"
-                aria-controls="cv-tab-notes" aria-selected="false">
-          <i class="bi bi-sticky" aria-hidden="true"></i>Notatki
-          <span class="cv-count"><?= count($contact['notes']) ?></span>
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="cv-tab-cases-btn" data-bs-toggle="tab"
-                data-bs-target="#cv-tab-cases" type="button" role="tab"
-                aria-controls="cv-tab-cases" aria-selected="false">
-          <i class="bi bi-briefcase" aria-hidden="true"></i>Sprawy
-          <span class="cv-count"><?= count($contact_cases) ?></span>
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="cv-tab-offers-btn" data-bs-toggle="tab"
-                data-bs-target="#cv-tab-offers" type="button" role="tab"
-                aria-controls="cv-tab-offers" aria-selected="false">
-          <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>Oferty
-          <span class="cv-count"><?= count($contact_offers) ?></span>
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="cv-tab-engage-btn" data-bs-toggle="tab"
-                data-bs-target="#cv-tab-engage" type="button" role="tab"
-                aria-controls="cv-tab-engage" aria-selected="false">
-          <i class="bi bi-people-fill" aria-hidden="true"></i>Zaangażowanie
-        </button>
-      </li>
-    </ul>
-
-    <div class="tab-content">
-
-      <!-- ZAKŁADKA: Aktywność -->
-      <div class="tab-pane fade show active" id="cv-tab-activity" role="tabpanel"
-           aria-labelledby="cv-tab-activity-btn" tabindex="0">
-
-        <div class="cv-panel" id="activities-section"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-lightning-charge-fill cv-shead__icon" style="color:#B45309" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Planowane działania</h2>
-          </div>
-          <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
-        </div></div>
-
-        <div class="cv-panel"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-chat-left-text cv-shead__icon" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Historia komunikacji</h2>
-            <div class="cv-shead__aside">
-              <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'email')">
-                <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
-              </button>
-            </div>
-          </div>
-          <?= _cv_communications_html($contact, $id) ?>
-        </div></div>
-
-      </div>
-
-      <!-- ZAKŁADKA: Notatki -->
-      <div class="tab-pane fade" id="cv-tab-notes" role="tabpanel"
-           aria-labelledby="cv-tab-notes-btn" tabindex="0">
-        <div class="cv-panel"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-sticky cv-shead__icon" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Notatki</h2>
-            <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['notes']) ?></span></div>
-          </div>
-          <?= _cv_notes_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
-        </div></div>
-      </div>
-
-      <!-- ZAKŁADKA: Sprawy -->
-      <div class="tab-pane fade" id="cv-tab-cases" role="tabpanel"
-           aria-labelledby="cv-tab-cases-btn" tabindex="0">
-        <div class="cv-panel"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-briefcase cv-shead__icon" style="color:#1D4ED8" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Sprawy</h2>
-            <div class="cv-shead__aside">
-              <span class="cv-count"><?= count($contact_cases) ?></span>
-              <?php if ($crm_can_write): ?>
-              <a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>"
-                 class="btn btn-crm-outline btn-sm py-0 px-2">
-                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa
-              </a>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php if ($contact_cases): ?>
-          <div class="d-flex flex-column">
-            <?php foreach ($contact_cases as $cs):
-              $csc = $case_status_cfg[$cs['status']] ?? $case_status_cfg['open'];
-            ?>
-            <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$cs['id'] ?>"
-               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
-               style="color:#181818;font-size:.88rem">
-              <span style="width:8px;height:8px;border-radius:50%;background:<?= $csc['color'] ?>;flex-shrink:0" aria-hidden="true"></span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">
-                <?= h($cs['title']) ?>
-              </span>
-              <span style="display:inline-flex;align-items:center;padding:.12rem .55rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $csc['bg'] ?>;color:<?= $csc['color'] ?>;white-space:nowrap">
-                <?= $csc['label'] ?>
-              </span>
-            </a>
-            <?php endforeach; ?>
-          </div>
-          <a href="<?= APP_URL ?>/crm/cases/index.php?contact_id=<?= (int)$id ?>"
-             class="btn btn-crm-outline btn-sm w-100 mt-3">
-            Wszystkie sprawy tego kontaktu
-          </a>
-          <?php else: ?>
-          <div class="cv-empty">
-            <i class="bi bi-briefcase" aria-hidden="true"></i>
-            Brak spraw
-            <?php if ($crm_can_write): ?>
-            <div class="mt-1"><a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>">Utwórz pierwszą →</a></div>
-            <?php endif; ?>
-          </div>
-          <?php endif; ?>
-        </div></div>
-      </div>
-
-      <!-- ZAKŁADKA: Oferty (działalność odpłatna) -->
-      <div class="tab-pane fade" id="cv-tab-offers" role="tabpanel"
-           aria-labelledby="cv-tab-offers-btn" tabindex="0">
-        <div class="cv-panel"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-file-earmark-ruled cv-shead__icon" style="color:#0176D3" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Oferty</h2>
-            <div class="cv-shead__aside">
-              <span class="cv-count"><?= count($contact_offers) ?></span>
-              <?php if ($offers_can_write): ?>
-              <a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>"
-                 class="btn btn-crm-outline btn-sm py-0 px-2">
-                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa oferta
-              </a>
-              <?php endif; ?>
-            </div>
-          </div>
-
-          <div class="row g-2 text-center mb-3">
-            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['cnt'] ?></div>
-              <div class="text-muted" style="font-size:.7rem">ofert łącznie</div></div>
-            <div class="col-3"><div class="fw-bold text-success" style="font-size:1.05rem"><?= (int)$offers_summary['won'] ?></div>
-              <div class="text-muted" style="font-size:.7rem">wygrane</div></div>
-            <div class="col-3"><div class="fw-bold text-danger" style="font-size:1.05rem"><?= (int)$offers_summary['lost'] ?></div>
-              <div class="text-muted" style="font-size:.7rem">odrzucone</div></div>
-            <div class="col-3"><div class="fw-bold" style="font-size:1.05rem"><?= (int)$offers_summary['open'] ?></div>
-              <div class="text-muted" style="font-size:.7rem">w toku</div></div>
-          </div>
-          <?php if ((float)$offers_summary['won_value'] > 0): ?>
-          <div class="mb-2" style="font-size:.85rem">
-            Wartość wygranych ofert: <strong><?= h(crm_offer_money((float)$offers_summary['won_value'])) ?></strong>
-          </div>
-          <?php endif; ?>
-
-          <?php if ($contact_offers): ?>
-          <div class="d-flex flex-column">
-            <?php foreach ($contact_offers as $co):
-              $co_needs = crm_offer_requires_confirmation($co);
-              $co_conf  = (int)($co['confirmation_id'] ?? 0); ?>
-            <a href="<?= APP_URL ?>/crm/offers/view.php?id=<?= (int)$co['id'] ?>"
-               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
-               style="color:#181818;font-size:.86rem">
-              <span style="font-family:monospace;font-size:.74rem;color:#1D4ED8;white-space:nowrap"><?= h($co['offer_number']) ?></span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"><?= h($co['title']) ?></span>
-              <?php if ($co_needs && !$co_conf): ?>
-              <span title="Brak potwierdzenia klienta (osoba fizyczna)" style="color:#B45309">
-                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-              </span>
-              <?php endif; ?>
-              <span style="white-space:nowrap;font-weight:600"><?= h(crm_offer_money((float)$co['total_gross'], (string)$co['currency'])) ?></span>
-              <?= crm_offer_status_pill((string)$co['status'], true) ?>
-            </a>
-            <?php endforeach; ?>
-          </div>
-          <a href="<?= APP_URL ?>/crm/offers/index.php?contact_id=<?= (int)$id ?>"
-             class="btn btn-crm-outline btn-sm w-100 mt-3">Rejestr ofert tego klienta</a>
-          <?php else: ?>
-          <div class="cv-empty">
-            <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>
-            Brak ofert
-            <?php if ($offers_can_write): ?>
-            <div class="mt-1"><a href="<?= APP_URL ?>/crm/offers/form.php?contact_id=<?= (int)$id ?>">Przygotuj pierwszą →</a></div>
-            <?php endif; ?>
-          </div>
-          <?php endif; ?>
-        </div></div>
+        </div>
       </div>
 
       <!-- ZAKŁADKA: Zaangażowanie (działania + wolontariat) -->
@@ -1714,9 +1756,7 @@ $case_status_cfg = [
       </div>
 
     </div><!-- /tab-content -->
-
-  </div><!-- /główna -->
-</div><!-- /row -->
+</div><!-- /cv-single -->
 
 <!-- ══ MODALS: Planowane działania ═══════════════════════════════════════════ -->
 <?php if ($crm_can_write): ?>

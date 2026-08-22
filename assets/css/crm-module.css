@@ -691,6 +691,45 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
 .cv-tabs .nav-link i { font-size: 1rem; }
 .cv-tabs .nav-link:focus-visible { outline: 3px solid var(--crm-accent); outline-offset: -3px; }
 
+/* ── Widok rekordu na pełną szerokość (bez ciasnej kolumny bocznej) ────────
+   Kartoteka rozrosła się na tyle, że dane referencyjne nie mieszczą się już
+   sensownie w wąskiej kolumnie — trafiły do zakładki „Dane i powiązania",
+   a treść zajmuje pełną szerokość. Panele w tej zakładce układamy w kolumny
+   przez CSS `columns`, więc nie trzeba przebudowywać znaczników każdego z nich. */
+.cv-single { width: 100%; }
+
+.cv-datagrid { columns: 2; column-gap: 1rem; }
+.cv-datagrid > .cv-panel,
+.cv-datagrid > div { break-inside: avoid; -webkit-column-break-inside: avoid; }
+@media (max-width: 991px) { .cv-datagrid { columns: 1; } }
+
+/* Pasek zakładek zostaje w zasięgu wzroku przy długiej treści */
+.cv-tabs.cv-tabs--sticky {
+  position: sticky; top: 0; z-index: 5;
+  background: #fff; padding-top: .15rem;
+  box-shadow: 0 6px 12px -12px rgba(0,0,0,.35);
+}
+.cv-tabs { overflow-x: auto; scrollbar-width: none; }
+.cv-tabs::-webkit-scrollbar { display: none; }
+.cv-tabs .nav-link { white-space: nowrap; }
+
+/* Pasek faktów o rekordzie — liczby, po które inaczej trzeba by wchodzić w zakładki */
+.cv-facts {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-top: 1px solid var(--crm-border);
+  background: #fff;
+}
+.cv-fact {
+  flex: 1 1 auto; min-width: 8.5rem;
+  padding: .6rem 1.15rem;
+  border-right: 1px solid var(--crm-border);
+  display: flex; flex-direction: column; gap: .1rem;
+}
+.cv-fact:last-child { border-right: none; }
+.cv-fact__v { font-size: 1.02rem; font-weight: 700; color: var(--crm-text); line-height: 1.2; }
+.cv-fact__l { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #5E6470; }
+@media (max-width: 575px) { .cv-fact { min-width: 50%; border-right: none; } }
+
 /* Pusty stan sekcji */
 .cv-empty { text-align: center; padding: 1.6rem 1rem; color: #5E6470; font-size: .86rem; }
 .cv-empty i { display: block; font-size: 1.8rem; opacity: .35; margin-bottom: .5rem; }
