@@ -338,6 +338,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Ponowne wystawienie rozliczenia — przelicza godziny i kwotę z AKTUALNYCH
+    // lekcji. Potrzebne, gdy po wystawieniu doszły albo zostały poprawione
+    // zajęcia: bez tego rozliczenie zostaje z nieaktualną kwotą.
+    //
+    // Blokujemy, gdy z rozliczenia wystawiono fakturę produkcyjną — kwota na
+    // wystawionym dokumencie przestałaby zgadzać się z podstawą, a faktury nie
+    // poprawia się przez przeliczenie należności, tylko korektą.
+    // Powiadomień NIE wysyłamy ponownie: kursant już je dostał.
+    if ($op === 'reissue_billing') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $bill = $bid ? db_one(
+            "SELECT id, client_id, month, year, COALESCE(course_id,0) AS course_id, amount, hours_billed, notes
+               FROM k30_ti_billing WHERE id=?", [$bid]
+        ) : null;
+
+        if (!$bill) {
+            flash_set('danger', 'Nie znaleziono rozliczenia.');
+        } elseif (!$can_delete && !is_admin()) {
+            flash_set('danger', 'Brak uprawnień do ponownego wystawiania rozliczeń.');
+        } else {
+            $prod = null;
+            if (module_enabled('invoices_enabled')) {
+                try {
+                    $prod = db_one("SELECT id, number FROM invoices
+                                     WHERE source='ti_billing' AND source_id=? AND is_test=0 AND deleted_at IS NULL", [$bid]);
+                } catch (\Throwable $e) {}
+            }
+            if ($prod) {
+                flash_set('danger', 'Nie można przeliczyć: z tego rozliczenia wystawiono fakturę '
+                    . h((string)($prod['number'] ?: '#' . $prod['id']))
+                    . '. Kwota na dokumencie przestałaby się zgadzać — potrzebna jest korekta faktury.');
+            } else {
+                $old_a = (float)$bill['amount'];
+                $old_h = (float)$bill['hours_billed'];
+
+                k30_ti_issue_billing((int)$bill['client_id'], (int)$bill['month'], (int)$bill['year'],
+                                     (string)($bill['notes'] ?? ''), (int)$bill['course_id']);
+                ti_billing_recompute((int)$bill['client_id']);
+
+                $fresh = db_one("SELECT amount, hours_billed FROM k30_ti_billing WHERE id=?", [$bid]);
+                $new_a = (float)($fresh['amount'] ?? 0);
+                $new_h = (float)($fresh['hours_billed'] ?? 0);
+
+                $diff = abs($new_a - $old_a) > 0.005 || abs($new_h - $old_h) > 0.005
+                    ? sprintf(' Zmiana: %s → %s zł, %s → %s godz.',
+                        number_format($old_a, 2, ',', ' '), number_format($new_a, 2, ',', ' '),
+                        rtrim(rtrim(number_format($old_h, 2, ',', ' '), '0'), ','),
+                        rtrim(rtrim(number_format($new_h, 2, ',', ' '), '0'), ','))
+                    : ' Bez zmian — dane lekcji są takie same.';
+
+                flash_set('success', 'Rozliczenie przeliczone ponownie.' . $diff
+                    . ' Powiadomienia nie zostały wysłane ponownie.');
+            }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // TRWAŁE usunięcie rozliczenia — tylko administrator. OSOBNE od op='delete',
     // które jedynie anuluje (status='cancelled') i zostawia ślad w historii.
     //
@@ -848,6 +905,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                     } catch (\Throwable $e) {}
                 }
               ?>
+              <?php if ($can_delete || is_admin()): ?>
+                <form method="post" class="d-inline ms-2"
+                      onsubmit="return confirm('Przeliczyć rozliczenie ponownie z aktualnych lekcji?\n\nKwota i godziny mogą się zmienić. Powiadomienia NIE zostaną wysłane ponownie.')">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="op" value="reissue_billing">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem"
+                          title="Przelicz godziny i kwotę z aktualnych lekcji. Zablokowane, gdy wystawiono fakturę.">
+                    <i class="bi bi-arrow-repeat me-1"></i>Wystaw ponownie
+                  </button>
+                </form>
+              <?php endif; ?>
               <?php if (is_admin()): ?>
                 <form method="post" class="d-inline ms-2"
                       onsubmit="return confirm('TRWALE usunąć to rozliczenie?\n\nOdejdą też alokacje wpłat i faktura demo, a saldo kursanta zostanie przeliczone. Operacja jest nieodwracalna.')">
