@@ -36,6 +36,10 @@ require_once __DIR__ . '/mail_queue.php';
     $exec("ALTER TABLE crm_communications ADD COLUMN from_name      TEXT    NOT NULL DEFAULT ''");
     $exec("ALTER TABLE crm_communications ADD COLUMN from_email     TEXT    NOT NULL DEFAULT ''");
     $exec("ALTER TABLE crm_communications ADD COLUMN is_read        INTEGER NOT NULL DEFAULT 0");
+    // Kolumny nie było, a serwis próbował ją aktualizować przy każdym powiązaniu
+    // wiadomości ze sprawą i przy zmianie statusu — SQLite zwracał wtedy
+    // „no such column: updated_at" i cała operacja przerywała się wyjątkiem.
+    $exec("ALTER TABLE crm_communications ADD COLUMN updated_at DATETIME");
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_ezd_sprawa  ON crm_communications(ezd_sprawa_id)");
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_inbox       ON crm_communications(inbox_status, is_read, sent_at)");
     $exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_thread      ON crm_communications(thread_key)");

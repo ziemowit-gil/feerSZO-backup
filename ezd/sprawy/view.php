@@ -981,6 +981,12 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
            class="btn btn-sm btn-outline-primary align-self-start">
           <i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Generuj DOCX
         </a>
+        <!-- Import korespondencji e-mail do akt (pisma z crm_communications) -->
+        <a href="<?= APP_URL ?>/ezd/sprawy/import_mail.php?id=<?= $id ?>"
+           class="btn btn-sm btn-outline-primary align-self-start"
+           title="Wybierz maile z dostępnych skrzynek i dołącz je do tej koszulki jako pisma">
+          <i class="bi bi-envelope-arrow-down me-1" aria-hidden="true"></i>Importuj maile
+        </a>
       </div>
       <!-- Notatka inline (ukryta) -->
       <form method="post" class="mt-2 d-none" id="notatkaInlineForm">

@@ -370,3 +370,61 @@ uprawnienia aplikacyjne i wykonuje `admin-consent`, na końcu weryfikuje wynik.
 bash docker/scripts/grant-graph-permissions.sh --client-id <appId>           # podgląd
 bash docker/scripts/grant-graph-permissions.sh --client-id <appId> --apply   # wykonanie
 ```
+
+
+---
+
+# Poczta: uprawnienia, skrzynki osobiste, import do EZD
+
+## Kto co widzi
+
+Moduł Poczty (`/poczta/*`) jest dostępny dla **każdego zalogowanego**, także wolontariusza.
+Zakres danych wynika z uprawnień do skrzynek, nie z roli (`includes/poczta_acl.php`):
+
+| Rodzaj skrzynki | Kto ma dostęp |
+|---|---|
+| **Współdzielona** (`kind='shared'`, np. fundacja@) | osoby z wpisem w `poczta_mailbox_acl` + administrator |
+| **Osobista** (`kind='personal'`, poczta współpracownika) | właściciel (`owner_user_id`) + delegaci z ACL + administrator |
+
+Dwa poziomy w ACL: **odczyt** (widzi wiadomości w Skrzynce CRM i Poczcie EZD) oraz
+**zarządzanie** (skanowanie „teraz", włączanie/wyłączanie, konfiguracja skrzynki).
+Zakres jest *fail-closed* — `poczta_scope_sql()` przy braku uprawnień zwraca `1=0`,
+więc zapytania nie zwracają nic, zamiast pokazywać wszystko.
+
+Egzekwowanie: lista skrzynek i dashboard (`poczta/index.php`, `poczta/dashboard.php`),
+akcje AJAX per skrzynka (`poczta/api/action.php`), Skrzynka CRM (lista, liczniki,
+otwarcie wiadomości z URL-a, skanowanie), import do EZD.
+
+Administrator nadaje dostęp w *Poczta → Skrzynki → Edytuj → „Kto ma dostęp"*, tam też
+ustawia rodzaj skrzynki i właściciela. Masowe akcje (skan, włącz, wyłącz, reset statusu)
+działają na zaznaczonych skrzynkach z listy.
+
+## Webmail zamiast czytania w systemie
+
+Moduł tylko **zaciąga** korespondencję do kartotek i spraw. Do czytania i pisania
+dashboard podpowiada dwa webmaile (`poczta_webmail_options()`):
+Outlook w przeglądarce (pełny klient M365, skrzynki współdzielone, kalendarz) oraz
+Roundcube `rc.feer.org.pl` (lżejszy, szybszy przy słabym łączu). Adresy można nadpisać
+ustawieniami `poczta_owa_url` i `poczta_webmail_url`.
+
+## Import maili do koszulki EZD
+
+`ezd/sprawy/import_mail.php?id=<koszulka>` — przycisk „Importuj maile" w zakładce PISMA.
+Pokazuje korespondencję, która **nie jest** jeszcze przypisana do żadnej sprawy, ze skrzynek
+dostępnych użytkownikowi, domyślnie zawężoną do stron koszulki powiązanych z CRM
+(`ezd_strony.crm_id`); przełącznik pozwala przeszukać całą dostępną korespondencję,
+z filtrem tekstowym i zakresem czasu. Zaznaczone wiadomości trafiają do akt przez
+`EzdMailService::linkCommToSprawa()` — każda dostaje pismo z sygnaturą (`ZNAK.PK.NNN`),
+a w Skrzynce CRM zostaje oznaczona jako załatwiona. Powtórny import tej samej wiadomości
+nie tworzy drugiego pisma.
+
+Dostęp: poziom `write` albo `pisma` na koszulce; koszulka zamknięta blokuje import.
+
+### Naprawiony błąd blokujący
+
+`EzdMailService` aktualizował `crm_communications.updated_at` w
+`linkCommToSprawa()`, `markStatus()`, `markRead()` i `assignToUser()`, ale **tej kolumny
+nie było w schemacie** — SQLite zwracał „no such column: updated_at" i operacja kończyła
+się wyjątkiem. Dotyczyło to także istniejących akcji Poczty EZD (`assign_sprawa`,
+`convert_to_sprawa`), czyli przypisywanie maili do spraw nie działało w ogóle.
+Kolumna jest teraz dokładana w migracji `ezd_mail.php`.
