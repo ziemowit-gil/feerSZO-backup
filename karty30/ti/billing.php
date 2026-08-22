@@ -338,6 +338,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // TRWAŁE usunięcie rozliczenia — tylko administrator. OSOBNE od op='delete',
+    // które jedynie anuluje (status='cancelled') i zostawia ślad w historii.
+    //
+    // Blokujemy usunięcie, gdy z rozliczenia wystawiono fakturę produkcyjną:
+    // dokument księgowy musi mieć podstawę, a jego numer jest już nadany.
+    // Fakturę DEMO usuwamy razem z rozliczeniem — nie jest dokumentem.
+    if ($op === 'purge_billing') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+
+        $bill = $bid ? db_one("SELECT id, client_id, month, year FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if (!$bill) {
+            flash_set('danger', 'Nie znaleziono rozliczenia.');
+            header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+        }
+
+        $prod = null;
+        if (module_enabled('invoices_enabled')) {
+            try {
+                $prod = db_one("SELECT id, number FROM invoices
+                                 WHERE source='ti_billing' AND source_id=? AND is_test=0 AND deleted_at IS NULL", [$bid]);
+            } catch (\Throwable $e) {}
+        }
+        if ($prod) {
+            flash_set('danger', 'Nie można usunąć: z tego rozliczenia wystawiono fakturę '
+                . h((string)($prod['number'] ?: '#' . $prod['id']))
+                . '. Najpierw anuluj fakturę albo użyj anulowania rozliczenia.');
+            header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+        }
+
+        // Faktury demo i ich pozycje odchodzą razem z podstawą.
+        if (module_enabled('invoices_enabled')) {
+            try {
+                db()->prepare("DELETE FROM invoice_items WHERE invoice_id IN
+                               (SELECT id FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=1)")->execute([$bid]);
+                db()->prepare("DELETE FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=1")->execute([$bid]);
+            } catch (\Throwable $e) {}
+        }
+
+        // Skan faktury wgrany do rozliczenia — plik z dysku.
+        try {
+            $sc = db_one("SELECT invoice_path FROM k30_ti_billing WHERE id=?", [$bid]);
+            if (!empty($sc['invoice_path']) && function_exists('k30_ti_invoice_delete_file')) {
+                k30_ti_invoice_delete_file((string)$sc['invoice_path']);
+            }
+        } catch (\Throwable $e) {}
+
+        // Wnioski o przeniesienie płatności odchodzą kaskadą
+        // (k30_ti_payment_deferrals.billing_id ON DELETE CASCADE).
+        db()->prepare("DELETE FROM k30_ti_billing WHERE id=?")->execute([$bid]);
+
+        // Alokacja wpłat NIE jest osobną tabelą — wynika z ti_client_allocation()
+        // i zapisuje się w k30_ti_billing.paid_amount. Po usunięciu należności
+        // trzeba ją przeliczyć, inaczej saldo kursanta zostaje nieaktualne
+        // (np. wpłata dalej „pokrywa" nieistniejące już rozliczenie).
+        try { ti_billing_recompute((int)$bill['client_id']); } catch (\Throwable $e) {}
+
+        if (function_exists('log_user_action')) {
+            log_user_action((int)$bill['client_id'], (int)(current_user()['id'] ?? 0), 'ti_billing_purged',
+                'Trwale usunięto rozliczenie TI ' . str_pad((string)(int)$bill['month'], 2, '0', STR_PAD_LEFT)
+                . '/' . (int)$bill['year'] . ' (id ' . $bid . ')');
+        }
+
+        flash_set('success', 'Rozliczenie trwale usunięte, saldo kursanta przeliczone.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Wniosek o przeniesienie płatności na następny miesiąc
     if ($op === 'request_deferral') {
         $bid    = (int)($_POST['billing_id'] ?? 0);
@@ -781,6 +848,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                     } catch (\Throwable $e) {}
                 }
               ?>
+              <?php if (is_admin()): ?>
+                <form method="post" class="d-inline ms-2"
+                      onsubmit="return confirm('TRWALE usunąć to rozliczenie?\n\nOdejdą też alokacje wpłat i faktura demo, a saldo kursanta zostanie przeliczone. Operacja jest nieodwracalna.')">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="op" value="purge_billing">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem"
+                          title="Trwale usuń rozliczenie (admin). Zablokowane, gdy wystawiono z niego fakturę.">
+                    <i class="bi bi-trash me-1"></i>Usuń rozliczenie
+                  </button>
+                </form>
+              <?php endif; ?>
               <?php if (is_admin() && (float)$b['amount'] > 0): ?>
                 <form method="post" class="d-inline ms-2">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
