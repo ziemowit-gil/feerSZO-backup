@@ -458,6 +458,40 @@ function invoice_ksef_applicable(array $inv): bool
     return strlen($nip) === 10;
 }
 
+/**
+ * Rodzaj nabywcy: 'OF' (osoba fizyczna — brak NIP) albo 'NIP' (podatnik).
+ *
+ * Decyduje o tym samym co invoice_ksef_applicable(), ale służy do POKAZANIA
+ * operatorowi, z kim ma do czynienia — brak NIP-u znaczy sprzedaż konsumencka,
+ * a więc dokument poza KSeF.
+ */
+function invoice_buyer_kind(?string $tax_no): string
+{
+    return strlen(preg_replace('/\D+/', '', (string)$tax_no) ?? '') === 10 ? 'NIP' : 'OF';
+}
+
+/**
+ * Ustala nabywcę, jaki powstanie z rozliczenia TI — bez tworzenia faktury.
+ *
+ * Ta sama logika co invoice_from_ti_billing(): płatnik rozliczenia, a gdy go nie
+ * ma — sam kursant; NIP dociągamy z kartoteki CRM po nazwie. Dzięki temu panel
+ * generowania pokazuje „OF" albo NIP ZANIM operator kliknie.
+ *
+ * @return array{name:string,tax_no:string,kind:string}
+ */
+function invoice_ti_buyer_preview(array $billing_row): array
+{
+    $name = trim((string)($billing_row['payer_name'] ?? '')) ?: trim((string)($billing_row['client_name'] ?? ''));
+    $nip  = '';
+    if ($name !== '') {
+        try {
+            $c = db_one("SELECT nip FROM crm_contacts WHERE crm_active=1 AND LOWER(imie_nazwisko)=LOWER(?) LIMIT 1", [$name]);
+            $nip = (string)($c['nip'] ?? '');
+        } catch (\Throwable $e) { $nip = ''; }
+    }
+    return ['name' => $name, 'tax_no' => $nip, 'kind' => invoice_buyer_kind($nip)];
+}
+
 /** Powód, dla którego faktura nie idzie do KSeF — do pokazania operatorowi. */
 function invoice_ksef_skip_reason(array $inv): string
 {

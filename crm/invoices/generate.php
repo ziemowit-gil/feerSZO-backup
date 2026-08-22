@@ -221,7 +221,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <th scope="col">Uczestnik</th>
               <th scope="col">Grupa</th>
               <th scope="col" class="text-end">Godziny</th>
-              <th scope="col">Płatnik</th>
+              <th scope="col">Nabywca</th>
               <th scope="col" class="text-end">Kwota</th>
               <?php else: ?>
               <th scope="col">Oferta</th>
@@ -254,7 +254,17 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <td><?= h((string)$r['client_name']) ?></td>
               <td><?= h((string)($r['course_name'] ?: '—')) ?></td>
               <td class="text-end"><?= h(rtrim(rtrim(number_format((float)$r['hours_billed'], 2, ',', ' '), '0'), ',')) ?></td>
-              <td class="text-muted small"><?= h((string)($r['payer_name'] ?: 'uczestnik')) ?></td>
+              <?php $bp = invoice_ti_buyer_preview($r); ?>
+              <td class="small">
+                <?= h($bp['name'] ?: 'uczestnik') ?>
+                <?php if ($bp['kind'] === 'OF'): ?>
+                <span class="badge bg-light text-dark border" style="font-size:.6rem"
+                      title="Brak NIP — osoba fizyczna, faktura poza KSeF">OF</span>
+                <?php else: ?>
+                <span class="badge bg-info bg-opacity-10 text-info border border-info" style="font-size:.6rem"
+                      title="NIP <?= h($bp['tax_no']) ?> — podatnik, faktura podlega KSeF">NIP</span>
+                <?php endif; ?>
+              </td>
               <td class="text-end"><?= number_format((float)$r['amount'], 2, ',', ' ') ?></td>
               <?php else: ?>
               <td>
@@ -309,6 +319,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <p class="form-text mb-0">
           Domyślnie powstają <strong>szkice</strong> — numer nadaje się świadomie, po sprawdzeniu nabywcy
           i pozycji. Pozycje już zafakturowane nie są tu pokazywane.
+          <strong>OF</strong> oznacza nabywcę bez NIP-u, czyli osobę fizyczną — taka faktura jest poza KSeF
+          i przekazuje się ją nabywcy bezpośrednio.
         </p>
       </div>
     </div>

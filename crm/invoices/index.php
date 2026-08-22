@@ -166,6 +166,10 @@ include dirname(__DIR__) . '/includes/header_crm.php';
             </td>
             <td>
               <?= h($r['buyer_name']) ?>
+              <?php if (invoice_buyer_kind($r['buyer_tax_no'] ?? '') === 'OF'): ?>
+              <span class="badge bg-light text-dark border" style="font-size:.6rem"
+                    title="Osoba fizyczna (brak NIP) — faktura poza KSeF">OF</span>
+              <?php endif; ?>
               <?php if (!empty($r['contact_id'])): ?>
               <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$r['contact_id'] ?>"
                  class="text-muted ms-1" title="Kartoteka kontaktu"><i class="bi bi-box-arrow-up-right"></i></a>

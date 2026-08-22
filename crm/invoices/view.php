@@ -151,7 +151,13 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <div class="card border-0 shadow-sm mb-3">
         <div class="card-header fw-semibold py-2">Nabywca</div>
         <div class="card-body py-2">
-          <div class="fw-semibold"><?= h($inv['buyer_name'] ?: '—') ?></div>
+          <div class="fw-semibold">
+            <?= h($inv['buyer_name'] ?: '—') ?>
+            <?php if (invoice_buyer_kind($inv['buyer_tax_no'] ?? '') === 'OF'): ?>
+            <span class="badge bg-light text-dark border" style="font-size:.62rem"
+                  title="Osoba fizyczna (brak NIP) — faktura poza KSeF">osoba fizyczna</span>
+            <?php endif; ?>
+          </div>
           <?php if ($inv['buyer_tax_no']): ?><div class="small text-muted">NIP <?= h($inv['buyer_tax_no']) ?></div><?php endif; ?>
           <?php if ($inv['buyer_street'] || $inv['buyer_city']): ?>
           <div class="small"><?= h(trim($inv['buyer_street'] . ', ' . trim($inv['buyer_post_code'] . ' ' . $inv['buyer_city']), ' ,')) ?></div>
