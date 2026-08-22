@@ -1,31 +1,36 @@
 <?php
 /**
- * Seed script — testowa umowa zlecenie dla testy@feer.org.pl + konto do panelu.
+ * Seed script — demonstracyjna umowa zlecenie + konto do panelu.
  *
- * Do ręcznego przetestowania modułu „Rachunki" umowy zlecenie:
+ * Do przetestowania modułu „Rachunki" umowy zlecenie:
  *   - baner „Wyślij rachunek" (panel zleceniobiorcy, widok umowy, lista umów),
  *   - dodanie rachunku + powiadomienie e-mail z linkiem,
  *   - publiczna strona rachunku: pobranie, wgranie podpisanego skanu, komentarze.
  *
+ * Profil zależy od środowiska (zob. seed_zlecenie_common.php):
+ *   - testowe  → testy@feer.org.pl,     umowa UZ/TEST/001
+ *   - PRODUKCJA→ produkcja@feer.org.pl, umowa UZ/DEMO/001, dane demo
+ *
+ * Na produkcji seed jest dozwolony, ale wyłącznie w profilu demo:
+ *   - tworzy/aktualizuje TYLKO konto produkcja@feer.org.pl i umowę UZ/DEMO/001,
+ *   - hasło jest losowe i wypisywane raz (żadnych stałych haseł na produkcji),
+ *   - rachunki są zawsze testowe (test_mode=1) — nic nie wchodzi do EOD,
+ *     a --rachunek-real jest odrzucane.
+ * Do sprzątnięcia służy drugi skrypt: php seed_zlecenie_usun.php
+ *
  * Uruchom:
- *   php seed_test_zlecenie.php              — konto + umowa (baner „wyślij rachunek")
+ *   php seed_test_zlecenie.php                  — konto + umowa (baner „wyślij rachunek")
  *   php seed_test_zlecenie.php --rachunek       — dodatkowo rachunek w trybie TESTOWYM
  *                                                 (bez numeru, poza obiegiem księgowym)
  *   php seed_test_zlecenie.php --rachunek-real  — rachunek zwykły: numer RACH/{nr}/{MM}/{RRRR}
- *   php seed_test_zlecenie.php --reset          — usuwa rachunki testowej umowy i zaczyna od zera
+ *                                                 (niedostępne na produkcji)
+ *   php seed_test_zlecenie.php --reset          — usuwa rachunki umowy seeda i zaczyna od zera
  *
  * Bezpieczne do wielokrotnego uruchamiania — aktualizuje istniejące wpisy
  * (dopasowanie po e-mailu konta i numerze umowy) zamiast tworzyć duplikaty.
- *
- * WYŁĄCZNIE środowisko testowe — odmawia uruchomienia, gdy APP_ENV=production.
  */
 require_once __DIR__ . '/config.php';
-
-if (defined('APP_ENV') && APP_ENV === 'production') {
-    fwrite(STDERR, "BŁĄD: seed testowy nie może być uruchomiony w środowisku produkcyjnym (APP_ENV=production).\n");
-    exit(1);
-}
-
+require_once __DIR__ . '/seed_zlecenie_common.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -37,11 +42,24 @@ $rach_real   = in_array('--rachunek-real', $opts, true);
 $with_rach   = $rach_real || in_array('--rachunek', $opts, true);
 $do_reset    = in_array('--reset',    $opts, true);
 
-// ── Stałe testowe ─────────────────────────────────────────────────────────────
-const SEED_EMAIL    = 'testy@feer.org.pl';
-const SEED_PASSWORD = 'Test1234!';
-const SEED_NUMER    = 'UZ/TEST/001';
-const SEED_NAME     = 'Testowy Zleceniobiorca';
+$profile     = seed_zl_profile();
+$SEED_EMAIL  = $profile['email'];
+$SEED_NUMER  = $profile['numer'];
+$SEED_NAME   = $profile['name'];
+$IS_PROD     = seed_zl_is_production();
+
+// Na produkcji dane pozostają demo: żadnych rachunków wchodzących do księgowości.
+if ($IS_PROD && $rach_real) {
+    fwrite(STDERR, "BŁĄD: --rachunek-real jest niedostępne na produkcji — profil demo tworzy wyłącznie rachunki testowe.\n");
+    exit(1);
+}
+
+// Stałe hasło tylko poza produkcją; na produkcji losowe, pokazane raz.
+$SEED_PASSWORD = $IS_PROD
+    ? bin2hex(random_bytes(6)) . '-Demo!'
+    : 'Test1234!';
+
+seed_zl_banner('Seed umowy zlecenie');
 
 $creator = db_one("SELECT id, name FROM users WHERE role='admin' AND is_active=1 ORDER BY id LIMIT 1");
 $creator_id = (int)($creator['id'] ?? 0);
@@ -53,27 +71,27 @@ if (!$creator_id) {
 // Rola „viewer": konta @feer.org.pl są ograniczone do logowania przez MS365
 // tylko dla ról admin/editor (account_is_office_only), więc viewer zaloguje się
 // hasłem lokalnym. Dodatkowo ustawiamy allow_local_fallback=1 na wszelki wypadek.
-$hash = password_hash(SEED_PASSWORD, PASSWORD_BCRYPT);
-$user = db_one("SELECT id FROM users WHERE email=?", [SEED_EMAIL]);
+$hash = password_hash($SEED_PASSWORD, PASSWORD_BCRYPT);
+$user = db_one("SELECT id FROM users WHERE email=?", [$SEED_EMAIL]);
 $user_fields = [
-    'name'                 => SEED_NAME,
+    'name'                 => $SEED_NAME,
     'password'             => $hash,
     'role'                 => 'viewer',
     'is_active'            => 1,
     'must_change_password' => 0,
     'allow_local_fallback' => 1,
-    'm365_login'           => SEED_EMAIL,
+    'm365_login'           => $SEED_EMAIL,
 ];
 if ($user) {
     $user_id = (int)$user['id'];
     db_update('users', $user_fields, $user_id);
-    echo "· Konto istniało — zaktualizowano hasło i ustawienia: " . SEED_EMAIL . " (id={$user_id})\n";
+    echo "· Konto istniało — zaktualizowano hasło i ustawienia: {$SEED_EMAIL} (id={$user_id})\n";
 } else {
     $user_id = db_insert('users', $user_fields + [
-        'email'      => SEED_EMAIL,
+        'email'      => $SEED_EMAIL,
         'created_at' => date('Y-m-d H:i:s'),
     ]);
-    echo "✓ Utworzono konto: " . SEED_EMAIL . " (id={$user_id})\n";
+    echo "✓ Utworzono konto: {$SEED_EMAIL} (id={$user_id})\n";
 }
 
 // ── Umowa zlecenie ────────────────────────────────────────────────────────────
@@ -83,11 +101,11 @@ $today      = date('Y-m-d');
 $start      = date('Y-m-01', strtotime('-2 months'));
 $end        = date('Y-m-t',  strtotime('+4 months'));
 $contract_fields = [
-    'numer_umowy'             => SEED_NUMER,
+    'numer_umowy'             => $SEED_NUMER,
     'status'                  => 'w realizacji',
-    'imie_nazwisko'           => SEED_NAME,
-    'email'                   => SEED_EMAIL,
-    'm365_login'              => SEED_EMAIL,
+    'imie_nazwisko'           => $SEED_NAME,
+    'email'                   => $SEED_EMAIL,
+    'm365_login'              => $SEED_EMAIL,
     'pesel'                   => '90010112345',
     'addr_street'             => 'Testowa',
     'addr_house'              => '1',
@@ -96,7 +114,9 @@ $contract_fields = [
     'addr_city'               => 'Warszawa',
     'addr_country'            => 'PL',
     'rachunek_bankowy'        => 'PL61109010140000071219812874',
-    'przedmiot_zlecenia'      => 'Testowe zlecenie — wsparcie merytoryczne przy projekcie demonstracyjnym.',
+    'przedmiot_zlecenia'      => $IS_PROD
+        ? 'DEMO — rekord pokazowy modułu Rachunki. Nie jest to rzeczywista umowa.'
+        : 'Testowe zlecenie — wsparcie merytoryczne przy projekcie demonstracyjnym.',
     'data_zawarcia'           => $start,
     'data_rozpoczecia'        => $start,
     'data_zakonczenia'        => $end,
@@ -108,21 +128,22 @@ $contract_fields = [
     'wymagany_rachunek'       => 1,
     'zus_skladki'             => 1,
     'opiekun'                 => $creator['name'] ?? '',
-    'uwagi'                   => 'Rekord testowy utworzony przez seed_test_zlecenie.php — można usunąć.',
+    'uwagi'                   => ($IS_PROD ? 'REKORD DEMO' : 'Rekord testowy')
+        . ' utworzony przez seed_test_zlecenie.php. Usuwanie: php seed_zlecenie_usun.php',
     'updated_at'              => date('Y-m-d H:i:s'),
 ];
 
-$contract = db_one("SELECT id FROM umowy_zlecenie WHERE numer_umowy=?", [SEED_NUMER]);
+$contract = db_one("SELECT id FROM umowy_zlecenie WHERE numer_umowy=?", [$SEED_NUMER]);
 if ($contract) {
     $contract_id = (int)$contract['id'];
     db_update('umowy_zlecenie', $contract_fields, $contract_id);
-    echo "· Umowa istniała — zaktualizowano: " . SEED_NUMER . " (id={$contract_id})\n";
+    echo "· Umowa istniała — zaktualizowano: {$SEED_NUMER} (id={$contract_id})\n";
 } else {
     $contract_id = db_insert('umowy_zlecenie', $contract_fields + [
         'created_by' => $creator_id ?: null,
         'created_at' => date('Y-m-d H:i:s'),
     ]);
-    echo "✓ Utworzono umowę zlecenie: " . SEED_NUMER . " (id={$contract_id})\n";
+    echo "✓ Utworzono umowę zlecenie: {$SEED_NUMER} (id={$contract_id})\n";
 }
 
 // ── Opcjonalny reset rachunków ────────────────────────────────────────────────
@@ -155,11 +176,15 @@ if ($with_rach) {
 $base = rtrim(APP_URL, '/');
 echo "\n";
 echo "════════════════════════════════════════════════════════════════\n";
-echo " DANE TESTOWE\n";
+echo ($IS_PROD ? " DANE DEMO (produkcja)\n" : " DANE TESTOWE\n");
 echo "════════════════════════════════════════════════════════════════\n";
-echo " Login (panel):    " . SEED_EMAIL . "\n";
-echo " Hasło:            " . SEED_PASSWORD . "\n";
+echo " Login (panel):    {$SEED_EMAIL}\n";
+echo " Hasło:            {$SEED_PASSWORD}\n";
 echo " Rola:             viewer (logowanie hasłem lokalnym)\n";
+if ($IS_PROD) {
+    echo " Hasło losowe — zapisz je teraz, nie zostanie pokazane ponownie.\n";
+    echo " Rachunki w profilu demo są ZAWSZE testowe (poza obiegiem księgowym).\n";
+}
 echo "\n";
 echo " Panel:            {$base}/panel/index.php\n";
 echo " Umowa (pracownik):{$base}/contracts/zlecenie/view.php?id={$contract_id}&tab=rachunki\n";
@@ -174,4 +199,7 @@ if ($rach_link) {
     echo " Rachunku brak — w panelu i na umowie zobaczysz baner „Wyślij rachunek”.\n";
     echo " Aby dodać rachunek testowy: php seed_test_zlecenie.php --rachunek\n";
 }
+echo "\n Sprzątanie (umowa + rachunki + komentarze + pliki):\n";
+echo "   php seed_zlecenie_usun.php          — usuwa umowę {$SEED_NUMER}\n";
+echo "   php seed_zlecenie_usun.php --konto  — dodatkowo konto {$SEED_EMAIL}\n";
 echo "════════════════════════════════════════════════════════════════\n";
