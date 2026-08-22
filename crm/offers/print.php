@@ -39,8 +39,9 @@ if (!empty($_GET['pdf'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Oferta <?= h($offer['offer_number']) ?></title>
+<?= crm_offer_font_link() ?>
 <style>
-body { margin:0; background:#F3F4F6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+body { margin:0; background:#F3F4F6; font-family:'Lato','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
 .sheet { max-width:820px; margin:18px auto; background:#fff; padding:26px 30px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
 .bar { max-width:820px; margin:0 auto; padding:8px 4px; display:flex; gap:8px; }
 .bar a, .bar button { font-size:.85rem; padding:.35rem .8rem; border-radius:6px; border:1px solid #D1D5DB;

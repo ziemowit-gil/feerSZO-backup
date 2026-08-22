@@ -127,11 +127,14 @@ if ($offer) {
 <meta name="robots" content="noindex,nofollow">
 <title><?= $offer ? 'Oferta ' . h($offer['offer_number']) : 'Oferta' ?><?= $org['name'] ? ' — ' . h($org['name']) : '' ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?= crm_offer_font_link() ?>
 <style>
-:root { --brand:#194E31; --brand2:#2E844A; }
+<?php $_ob = crm_offer_brand(); ?>
+:root { --brand: <?= h($_ob['dark']) ?>; --brand2: <?= h($_ob['primary']) ?>; }
 * { box-sizing:border-box }
 body { margin:0; background:#EEF1F4; color:#111827;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  font-family:'Lato','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
+h1, h2, .top { font-family:'Montserrat','Lato','Segoe UI',sans-serif; }
 .top { background:var(--brand); color:#fff; padding:.7rem 1rem; }
 .top .wrap { max-width:900px; margin:0 auto; display:flex; align-items:center; gap:.6rem; font-weight:700 }
 .wrap { max-width:900px; margin:0 auto; padding:0 1rem }
@@ -159,7 +162,11 @@ body { margin:0; background:#EEF1F4; color:#111827;
 <body>
 
 <div class="top"><div class="wrap">
+  <?php $_ob = crm_offer_brand(); if ($_ob['logo_url']): ?>
+  <img src="<?= h($_ob['logo_url']) ?>" alt="" style="max-height:26px;background:#fff;border-radius:4px;padding:2px 4px">
+  <?php else: ?>
   <i class="bi bi-file-earmark-ruled-fill" aria-hidden="true"></i>
+  <?php endif; ?>
   <span><?= h($org['name'] ?: 'Oferta') ?></span>
   <?php if ($offer): ?><span style="margin-left:auto;font-weight:400;font-size:.85rem">Oferta <?= h($offer['offer_number']) ?></span><?php endif; ?>
 </div></div>

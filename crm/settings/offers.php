@@ -37,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     crm_offer_setting_save('crm_offer_discount_approvers', implode(',', array_map('trim', (array)($_POST['approvers'] ?? ['admin']))));
     crm_offer_setting_save('crm_offer_catalog_editors', implode(',', array_map('trim', (array)($_POST['catalog_editors'] ?? ['admin']))));
     crm_offer_setting_save('crm_offer_footer', trim((string)($_POST['footer'] ?? '')));
+    $bc = trim((string)($_POST['brand_color'] ?? ''));
+    crm_offer_setting_save('crm_offer_brand_color', preg_match('/^#[0-9a-fA-F]{6}$/', $bc) ? $bc : '');
 
     $limits = [];
     foreach ((array)($_POST['limit'] ?? []) as $role => $v) {
@@ -159,6 +161,16 @@ require_once __DIR__ . '/_nav.php';
         <input type="number" min="1" name="followup_days" class="form-control form-control-sm"
                value="<?= h(crm_offer_setting('crm_offer_followup_days', '3')) ?>">
         <div class="form-text" style="font-size:.75rem">Zadanie dla opiekuna po wysłaniu oferty.</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold mb-1">Kolor dokumentu (marka)</label>
+        <?php $_bc = crm_offer_setting('crm_offer_brand_color', '') ?: '#2E844A'; ?>
+        <div class="input-group input-group-sm">
+          <input type="color" name="brand_color" class="form-control form-control-color" value="<?= h($_bc) ?>"
+                 title="Kolor nagłówka, belki i akcentów w ofercie">
+          <span class="input-group-text" style="font-family:monospace"><?= h($_bc) ?></span>
+        </div>
+        <div class="form-text" style="font-size:.75rem">Logo pobierane z Administracja → Dane organizacji.</div>
       </div>
       <div class="col-12">
         <label class="form-label small fw-semibold mb-1">Stopka dokumentu oferty</label>

@@ -213,6 +213,26 @@ trzy oświadczenia i imię i nazwisko → „Potwierdzam i akceptuję ofertę”
 odrzucenie z powodem. Zapisujemy datę, godzinę i IP; opiekun dostaje e-mail.
 Link można unieważnić („Nowy link publiczny”).
 
+### Identyfikacja wizualna dokumentu
+
+* **Kolor** — `settings.crm_offer_brand_color` (*Ustawienia CRM → Reguły ofert*, pole koloru),
+  domyślnie zieleń marki CRM `#2E844A`. Kolor steruje belką pod nagłówkiem, tytułem
+  „OFERTA”, nagłówkami tabel, obramowaniem wariantu rekomendowanego i stopką PDF.
+  Świadomie **nie** używamy `volunteer_color` — to kolor panelu wolontariusza.
+* **Logo** — `settings.org_logo` (Administracja → Dane organizacji), plik z `assets/logo/`.
+  W PDF wstawiane ze ścieżki lokalnej, w HTML z URL-a; brak logo = tylko nazwa organizacji.
+* **Typografia** — Lato (tekst) + Montserrat (nagłówki). Strony HTML biorą je z Google Fonts.
+  PDF wymaga plików TTF w `assets/fonts/`:
+  `Lato-Regular/Bold/Italic/BoldItalic.ttf`, `Montserrat-Regular/Bold/Italic/BoldItalic.ttf`
+  (statyczne, nie variable). `crm_offer_pdf_fontdata()` rejestruje w mpdf tylko te rodziny,
+  których pliki istnieją — bez nich PDF powstaje w DejaVu Sans, więc brak fontów niczego nie psuje.
+* **Dane do płatności** — `settings.org_rachunki_bankowe` to JSON listy rachunków.
+  `crm_offer_bank_accounts()` porządkuje je pod rodzaj działalności: dla oferty odpłatnej
+  pierwszy jest rachunek z opisem wskazującym na odpłatność / szkolenia / przychody
+  (np. „Rozliczenia i przychody ze szkoleń i dz. odpłatnej"), dla dotacji — rachunek
+  bieżący. Numer drukowany jest jako IBAN (`PL78 1600 …`), a dodatkowe rachunki
+  pokazywane tylko wtedy, gdy mają inną walutę niż oferta.
+
 ### Wydruk i PDF
 
 `crm/offers/print.php` — wydruk HTML, `?pdf=1` — PDF (mpdf, DejaVu Sans, stopka

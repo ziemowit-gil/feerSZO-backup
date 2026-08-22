@@ -1300,11 +1300,98 @@ function crm_offer_org_block(): array {
         'adres' => org_setting('org_adres'),
         'nip'   => org_setting('org_nip'),
         'krs'   => org_setting('org_krs'),
+        'regon' => org_setting('org_regon'),
         'email' => org_setting('org_email'),
         'tel'   => org_setting('org_telefon') ?: org_setting('org_tel'),
         'www'   => org_setting('org_www'),
-        'konto' => org_setting('org_rachunki_bankowe'),
     ];
+}
+
+/**
+ * Kolory i logo fundacji na dokumencie.
+ * Źródło: ustawienia organizacji (te same, z których korzysta reszta systemu),
+ * bo dokument oferty ma wyglądać jak resztą systemu, a nie mieć własną paletę.
+ */
+function crm_offer_brand(): array {
+    static $b = null;
+    if ($b !== null) return $b;
+
+    require_once __DIR__ . '/branding.php';
+    $base = function_exists('branding_load')
+        ? branding_load()
+        : ['primary' => '', 'sidebar' => '', 'logo_url' => '', 'org_name' => ''];
+
+    // Kolor dokumentu: własne ustawienie modułu, a domyślnie zieleń marki CRM
+    // (--crm-primary z assets/css/crm-module.css). Świadomie NIE bierzemy
+    // volunteer_color — to kolor panelu wolontariusza, nie identyfikacja fundacji.
+    $primary = crm_offer_setting('crm_offer_brand_color', '');
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary)) $primary = '#2E844A';
+    $dark    = function_exists('color_darken') ? color_darken($primary, 35) : $primary;
+    $logo    = org_setting('org_logo');
+    $file    = $logo ? dirname(__DIR__) . '/assets/logo/' . $logo : '';
+    if ($file && !is_file($file)) $file = '';
+
+    $b = [
+        'primary'   => $primary,
+        'dark'      => $dark,
+        'soft'      => function_exists('color_rgba') ? color_rgba($primary, 0.08) : '#F3F6FB',
+        'on_dark'   => function_exists('color_contrast_text') ? color_contrast_text($primary) : '#ffffff',
+        'logo_file' => $file,
+        'logo_url'  => $base['logo_url'] ?? '',
+        'org_name'  => $base['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : ''),
+    ];
+    return $b;
+}
+
+/**
+ * NRB → czytelny zapis IBAN, tak samo jak format_iban_pl() w admin/org_settings.php:
+ * 'PL' + 26 cyfr = 28 znaków dzielonych na grupy po 4 (PL78 1600 1462 …).
+ */
+function crm_offer_iban(string $nrb): string {
+    $n = preg_replace('/\D/', '', $nrb);
+    if (strlen($n) !== 26) return $nrb;
+    return implode(' ', str_split('PL' . $n, 4));
+}
+
+/**
+ * Rachunki bankowe organizacji (settings.org_rachunki_bankowe to JSON) w kolejności
+ * przydatności dla danego rodzaju działalności — rachunek z opisem wskazującym na
+ * działalność odpłatną / szkolenia / przychody idzie pierwszy.
+ */
+function crm_offer_bank_accounts(string $funding = 'odplatna', string $currency = 'PLN'): array {
+    $raw  = org_setting('org_rachunki_bankowe');
+    $list = $raw ? (json_decode($raw, true) ?: []) : [];
+    if (!is_array($list)) return [];
+
+    $accounts = [];
+    foreach ($list as $a) {
+        if (!is_array($a) || empty($a['nrb'])) continue;
+        $accounts[] = [
+            'nrb'    => (string)$a['nrb'],
+            'iban'   => crm_offer_iban((string)$a['nrb']),
+            'waluta' => (string)($a['waluta'] ?? 'PLN'),
+            'nazwa'  => (string)($a['nazwa'] ?? ''),
+            'bank'   => (string)($a['bank'] ?? ''),
+            'opis'   => (string)($a['opis'] ?? ''),
+        ];
+    }
+    if (!$accounts) return [];
+
+    $wanted = in_array($funding, ['odplatna', 'gospodarcza', 'mieszane'], true)
+        ? ['odpłat', 'odplat', 'szkole', 'przychod', 'rozlicz']
+        : ['dotacj', 'projekt', 'darow', 'sponsor'];
+
+    usort($accounts, static function (array $x, array $y) use ($wanted, $currency): int {
+        $score = static function (array $a) use ($wanted, $currency): int {
+            $s = 0;
+            $opis = mb_strtolower($a['opis']);
+            foreach ($wanted as $w) { if (str_contains($opis, $w)) { $s -= 10; break; } }
+            if ($a['waluta'] !== '' && $a['waluta'] !== $currency) $s += 5;
+            return $s;
+        };
+        return $score($x) <=> $score($y);
+    });
+    return $accounts;
 }
 
 /**
@@ -1320,13 +1407,22 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     $org      = crm_offer_org_block();
     $sel      = (int)($full['selected_variant_id'] ?? 0);
 
+    $brand = crm_offer_brand();
+    // W PDF-ie mpdf czyta obrazek ze ścieżki lokalnej, w przeglądarce z URL-a
+    $logo_src = $pdf ? $brand['logo_file'] : $brand['logo_url'];
+
     $o = '';
     $o .= '<table class="of-head" width="100%"><tr>';
-    $o .= '<td style="vertical-align:top"><div class="of-org">' . h($org['name']) . '</div>';
+    $o .= '<td style="vertical-align:top">';
+    if ($logo_src) {
+        $o .= '<img class="of-logo" src="' . h($logo_src) . '" alt="' . h($org['name']) . '">';
+    }
+    $o .= '<div class="of-org">' . h($org['name']) . '</div>';
     if ($org['adres']) $o .= '<div class="of-small">' . nl2br(h($org['adres'])) . '</div>';
     $meta = array_filter([
-        $org['nip'] ? 'NIP ' . $org['nip'] : '',
-        $org['krs'] ? 'KRS ' . $org['krs'] : '',
+        $org['nip']   ? 'NIP ' . $org['nip'] : '',
+        $org['krs']   ? 'KRS ' . $org['krs'] : '',
+        $org['regon'] ? 'REGON ' . $org['regon'] : '',
     ]);
     if ($meta) $o .= '<div class="of-small">' . h(implode(' · ', $meta)) . '</div>';
     $contact_meta = array_filter([$org['email'], $org['tel'], $org['www']]);
@@ -1341,6 +1437,7 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     }
     if ((int)($full['revision'] ?? 1) > 1) $o .= '<div class="of-small">Wersja: ' . (int)$full['revision'] . '</div>';
     $o .= '</td></tr></table>';
+    $o .= '<div class="of-rule"></div>';
 
     // Odbiorca
     $o .= '<table class="of-parties" width="100%"><tr><td style="vertical-align:top;width:60%">';
@@ -1472,8 +1569,28 @@ function crm_offer_document_html(array $full, array $opt = []): string {
         $o .= '</div>';
     }
 
-    if ($org['konto']) {
-        $o .= '<div class="of-sect of-small"><div class="of-label">Dane do płatności</div>' . nl2br(h($org['konto'])) . '</div>';
+    $accounts = crm_offer_bank_accounts((string)$full['funding_source'], $cur);
+    if ($accounts) {
+        // Pierwszy rachunek = właściwy dla tego rodzaju działalności (patrz
+        // crm_offer_bank_accounts); pozostałe podajemy tylko dla walut innych niż oferta.
+        $show = [$accounts[0]];
+        foreach (array_slice($accounts, 1) as $a) {
+            if ($a['waluta'] !== '' && $a['waluta'] !== $cur) $show[] = $a;
+        }
+        $o .= '<div class="of-sect of-pay"><div class="of-label">Dane do płatności</div>';
+        foreach ($show as $a) {
+            $o .= '<div class="of-acct"><span class="of-nrb">' . h($a['iban']) . '</span>';
+            $line = array_filter([$a['bank'], $a['waluta'], $a['opis']]);
+            if ($line) $o .= '<span class="of-small"> · ' . h(implode(' · ', $line)) . '</span>';
+            if ($a['nazwa'] !== '' && $a['nazwa'] !== $org['name']) {
+                $o .= '<div class="of-small">Odbiorca: ' . h($a['nazwa']) . '</div>';
+            }
+            $o .= '</div>';
+        }
+        $o .= '<div class="of-small">Płatność na podstawie faktury / rachunku, termin '
+            . (int)$full['payment_terms_days'] . ' dni. W tytule prosimy podać numer oferty '
+            . h($full['offer_number']) . '.</div>';
+        $o .= '</div>';
     }
     $footer = crm_offer_setting('crm_offer_footer', '');
     if ($footer !== '') $o .= '<div class="of-footer">' . nl2br(h($footer)) . '</div>';
@@ -1481,43 +1598,110 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     return $o;
 }
 
-/** Arkusz stylów dokumentu — wspólny dla wydruku, PDF i strony klienta. */
-function crm_offer_document_css(): string {
+/**
+ * Pliki fontów marki (Lato = tekst, Montserrat = nagłówki) w assets/fonts.
+ * Gdy ich nie ma, PDF używa DejaVu Sans — dokument dalej się generuje, tylko
+ * bez firmowej typografii. Nazwy plików zgodne z paczkami z Google Fonts.
+ */
+function crm_offer_pdf_fontdata(): array {
+    $dir = dirname(__DIR__) . '/assets/fonts';
+    if (!is_dir($dir)) return ['dir' => '', 'data' => []];
+
+    $families = [
+        'lato' => ['R' => 'Lato-Regular.ttf', 'B' => 'Lato-Bold.ttf',
+                   'I' => 'Lato-Italic.ttf',  'BI' => 'Lato-BoldItalic.ttf'],
+        'montserrat' => ['R' => 'Montserrat-Regular.ttf', 'B' => 'Montserrat-Bold.ttf',
+                         'I' => 'Montserrat-Italic.ttf',  'BI' => 'Montserrat-BoldItalic.ttf'],
+    ];
+    $data = [];
+    foreach ($families as $name => $faces) {
+        if (!is_file($dir . '/' . $faces['R'])) continue;   // bez odmiany podstawowej nie rejestrujemy
+        $entry = [];
+        foreach ($faces as $style => $file) {
+            if (is_file($dir . '/' . $file)) $entry[$style] = $file;
+        }
+        $data[$name] = $entry;
+    }
+    return ['dir' => $dir, 'data' => $data];
+}
+
+/** Rodziny fontów do CSS. $pdf=true → nazwy zarejestrowane w mpdf. */
+function crm_offer_font_stacks(bool $pdf = false): array {
+    if (!$pdf) {
+        return [
+            'body' => "'Lato','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif",
+            'head' => "'Montserrat','Lato','Segoe UI',sans-serif",
+        ];
+    }
+    $have = crm_offer_pdf_fontdata()['data'];
+    return [
+        'body' => isset($have['lato'])       ? 'lato'       : 'dejavusans',
+        'head' => isset($have['montserrat']) ? 'montserrat' : (isset($have['lato']) ? 'lato' : 'dejavusans'),
+    ];
+}
+
+/** Link do fontów Google — dla stron HTML (wydruk, strona klienta). */
+function crm_offer_font_link(): string {
+    return '<link rel="preconnect" href="https://fonts.googleapis.com">'
+         . '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+         . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
+         . 'family=Lato:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@600;700;800&display=swap">';
+}
+
+/**
+ * Arkusz stylów dokumentu — wspólny dla wydruku, PDF i strony klienta.
+ * Kolory pochodzą z ustawień organizacji (crm_offer_brand()), więc dokument
+ * jest w barwach fundacji, a nie w zaszytej palecie.
+ */
+function crm_offer_document_css(bool $for_pdf = false): string {
+    $b  = crm_offer_brand();
+    $f  = crm_offer_font_stacks($for_pdf);
+    $pr = $b['primary'];
+    $dk = $b['dark'];
+    $sf = $b['soft'];
+
     return <<<CSS
-.of-doc { color:#111827; font-size:11pt; line-height:1.45; }
-.of-head { border-bottom:2px solid #194E31; padding-bottom:8px; margin-bottom:14px; }
-.of-org { font-weight:700; font-size:13pt; color:#194E31; }
-.of-doc-title { font-size:17pt; font-weight:800; letter-spacing:.06em; color:#194E31; }
-.of-doc-nr { font-family:monospace; font-size:11pt; font-weight:700; }
+.of-doc { color:#111827; font-size:11pt; line-height:1.45; font-family:{$f['body']}; }
+.of-doc h1, .of-doc h2, .of-doc .of-doc-title, .of-doc .of-org,
+.of-doc .of-vname, .of-doc .of-label { font-family:{$f['head']}; }
+.of-head { padding-bottom:6px; }
+.of-logo { max-height:44px; max-width:210px; margin-bottom:6px; }
+.of-rule { height:3px; background:{$pr}; margin:0 0 14px; }
+.of-org { font-weight:700; font-size:13pt; color:{$dk}; }
+.of-doc-title { font-size:17pt; font-weight:800; letter-spacing:.06em; color:{$pr}; }
+.of-doc-nr { font-family:monospace; font-size:11pt; font-weight:700; color:{$dk}; }
 .of-small { font-size:8.5pt; color:#6B7280; }
 .of-int { color:#7C3AED; }
 .of-label { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6B7280; margin-bottom:2px; }
 .of-parties { margin-bottom:14px; }
-.of-client { font-weight:700; font-size:11.5pt; }
-.of-title { font-size:14pt; font-weight:700; margin:6px 0 6px; }
+.of-client { font-weight:700; font-size:11.5pt; color:{$dk}; }
+.of-title { font-size:14pt; font-weight:700; margin:6px 0 6px; color:{$dk}; }
 .of-intro { margin-bottom:12px; }
 .of-variant { border:1px solid #E5E7EB; border-radius:6px; padding:10px 12px; margin-bottom:12px; }
-.of-variant--rec { border-color:#2E844A; }
-.of-variant--sel { border-color:#1D4ED8; background:#F8FAFF; }
+.of-variant--rec { border-color:{$pr}; }
+.of-variant--sel { border-color:{$dk}; background:{$sf}; }
 .of-vhead { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
-.of-vcode { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:4px; background:#194E31; color:#fff; font-weight:700; font-size:9pt; }
-.of-vname { font-weight:700; font-size:11.5pt; }
+.of-vcode { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:4px; background:{$pr}; color:{$b['on_dark']}; font-weight:700; font-size:9pt; }
+.of-vname { font-weight:700; font-size:11.5pt; color:{$dk}; }
 .of-vdesc { font-size:9.5pt; color:#374151; margin-bottom:6px; }
 .of-badge { display:inline-block; padding:1px 6px; border-radius:10px; background:#F3F4F6; color:#4B5563; font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-.of-badge--rec { background:#EFF7ED; color:#2E844A; }
-.of-badge--sel { background:#EEF4FF; color:#1D4ED8; }
+.of-badge--rec { background:{$sf}; color:{$dk}; }
+.of-badge--sel { background:{$sf}; color:{$dk}; }
 .of-items { border-collapse:collapse; width:100%; margin-top:6px; }
-.of-items th { background:#F9FAFB; border-bottom:1px solid #D1D5DB; font-size:8pt; text-transform:uppercase; letter-spacing:.04em; color:#4B5563; padding:4px 5px; text-align:left; }
+.of-items th { background:{$sf}; border-bottom:1px solid {$pr}; font-size:8pt; text-transform:uppercase; letter-spacing:.04em; color:{$dk}; padding:4px 5px; text-align:left; }
 .of-items td { border-bottom:1px solid #F3F4F6; padding:5px; font-size:9.5pt; vertical-align:top; }
-.of-items tfoot td { border-top:1px solid #D1D5DB; border-bottom:none; font-size:9.5pt; padding-top:6px; }
+.of-items tfoot td { border-top:1px solid {$pr}; border-bottom:none; font-size:9.5pt; padding-top:6px; }
 .of-num { text-align:right; white-space:nowrap; }
-.of-total { font-weight:800; font-size:11pt; }
+.of-total { font-weight:800; font-size:11pt; color:{$dk}; }
 .of-opt td { background:#FCFCFD; color:#6B7280; }
 .of-vsum { text-align:right; margin-top:6px; font-size:10.5pt; }
 .of-sect { margin:10px 0; }
 .of-note { background:#F9FAFB; border-left:3px solid #9CA3AF; padding:7px 10px; font-size:9.5pt; margin:8px 0; }
-.of-note--vat { border-left-color:#0F766E; background:#ECFDF5; }
+.of-note--vat { border-left-color:{$pr}; background:{$sf}; }
 .of-confirm { border:1px dashed #EA580C; background:#FFF7ED; padding:9px 11px; font-size:9.5pt; margin:12px 0; }
+.of-pay { background:{$sf}; border-radius:6px; padding:8px 11px; }
+.of-acct { margin-bottom:3px; }
+.of-nrb { font-family:monospace; font-weight:700; font-size:10pt; color:{$dk}; }
 .of-footer { margin-top:16px; border-top:1px solid #E5E7EB; padding-top:8px; font-size:8.5pt; color:#6B7280; }
 CSS;
 }
@@ -1531,16 +1715,30 @@ function crm_offer_pdf(int $offer_id, bool $internal = false): ?string {
         $tmp = UPLOAD_DIR . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
 
-        $mpdf = new \Mpdf\Mpdf([
+        // Fonty marki (Lato + Montserrat) rejestrujemy tylko, gdy pliki TTF są
+        // w assets/fonts — inaczej mpdf zostaje przy DejaVu Sans.
+        $fonts = crm_offer_pdf_fontdata();
+        $stack = crm_offer_font_stacks(true);
+        $cfg = [
             'mode' => 'utf-8', 'format' => 'A4',
             'margin_left' => 16, 'margin_right' => 14, 'margin_top' => 14, 'margin_bottom' => 16,
-            'default_font' => 'dejavusans', 'tempDir' => $tmp,
-        ]);
+            'default_font' => $stack['body'], 'tempDir' => $tmp,
+        ];
+        if ($fonts['data']) {
+            $default = (new \Mpdf\Config\FontVariables())->getDefaults();
+            $cfg['fontDir']  = array_merge((new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'], [$fonts['dir']]);
+            $cfg['fontdata'] = $default['fontdata'] + $fonts['data'];
+        }
+        $mpdf = new \Mpdf\Mpdf($cfg);
+        $brand = crm_offer_brand();
         $mpdf->SetTitle('Oferta ' . $full['offer_number']);
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
-        $mpdf->SetHTMLFooter('<div style="font-size:7.5pt;color:#9CA3AF;border-top:1px solid #E5E7EB;padding-top:3px">'
-            . h($full['offer_number']) . ' · strona {PAGENO}/{nbpg}</div>');
-        $mpdf->WriteHTML('body{font-family:"DejaVu Sans",sans-serif;} ' . crm_offer_document_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
+        $mpdf->SetHTMLFooter(
+            '<table width="100%" style="font-size:7.5pt;color:#9CA3AF;border-top:1px solid ' . $brand['primary'] . ';padding-top:3px">'
+            . '<tr><td>' . h($brand['org_name']) . '</td>'
+            . '<td style="text-align:right">' . h($full['offer_number']) . ' · strona {PAGENO}/{nbpg}</td></tr></table>'
+        );
+        $mpdf->WriteHTML('body{font-family:' . $stack['body'] . ';} ' . crm_offer_document_css(true), \Mpdf\HTMLParserMode::HEADER_CSS);
         $mpdf->WriteHTML('<div class="of-doc">' . crm_offer_document_html($full, ['pdf' => true, 'internal' => $internal]) . '</div>',
             \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);

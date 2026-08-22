@@ -47,6 +47,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@600;700;800&display=swap');
 <?= crm_offer_document_css() ?>
 .ov-card { background:#fff;border:1px solid #E5E7EB;border-radius:10px;margin-bottom:1rem }
 .ov-card > .hd { padding:.55rem .9rem;border-bottom:1px solid #F3F4F6;display:flex;align-items:center;gap:.5rem;
