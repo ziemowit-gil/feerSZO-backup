@@ -347,6 +347,101 @@ function crm_recipient_postal_line(int $contact_id, ?int $person_id = null): str
     return implode(', ', array_filter(array_map('trim', $parts), fn($v) => $v !== ''));
 }
 
+/**
+ * Umowy i zlecenia powiązane z kontaktem CRM.
+ *
+ * Dwa mechanizmy dopasowania, bo umowy tak są zbudowane:
+ *  • umowy OSOBOWE (zlecenie, wolontariat, dzieło, praca) mają person_id ORAZ
+ *    pesel — łączymy przez crm_contacts.person_id, a gdy jest puste (umowy
+ *    zakładane przed kartoteką osób), po PESEL-u,
+ *  • umowy PODMIOTOWE (usługi, inne) identyfikują stronę numerem NIP/PESEL
+ *    w polu tekstowym — dopasowujemy po znormalizowanym NIP-ie kontaktu.
+ * Powierzenie pomijamy: stroną jest organ zlecający dotację, nie nasz kontrahent.
+ *
+ * Każdy typ ma inną nazwę kolumny ze stroną umowy, dlatego mapa jest jawna —
+ * przy dodaniu nowego typu trzeba ją uzupełnić świadomie, a nie liczyć na to,
+ * że kolumna nazywa się tak samo.
+ *
+ * @return list<array{type:string,label:string,id:int,number:string,status:string,date:?string,party:string}>
+ */
+function crm_contact_contracts(array $contact): array
+{
+    $out = [];
+
+    // ── Umowy osobowe ──
+    // person_id jest twardym powiązaniem, ale w praktyce bywa puste (umowy
+    // zakładane przed powstaniem kartoteki osób). Dlatego dopuszczamy też
+    // dopasowanie po PESEL-u — bez tego panel byłby zawsze pusty.
+    $person_id = (int)($contact['person_id'] ?? 0);
+    $pesel     = preg_replace('/\D+/', '', (string)($contact['pesel'] ?? '')) ?? '';
+    if ($person_id > 0 || strlen($pesel) === 11) {
+        $where  = [];
+        $params = [];
+        if ($person_id > 0)          { $where[] = 'person_id = ?';                              $params[] = $person_id; }
+        if (strlen($pesel) === 11)   { $where[] = "REPLACE(COALESCE(pesel,''),' ','') = ?";      $params[] = $pesel; }
+        $where_sql = implode(' OR ', $where);
+
+        foreach ([
+            'zlecenie'    => 'Umowa zlecenie',
+            'wolontariat' => 'Porozumienie wolontariackie',
+            'dzielo'      => 'Umowa o dzieło',
+            'praca'       => 'Umowa o pracę',
+        ] as $type => $label) {
+            try {
+                foreach (db_all(
+                    "SELECT id, numer_umowy, status, data_zawarcia
+                       FROM umowy_{$type} WHERE {$where_sql} ORDER BY data_zawarcia DESC, id DESC",
+                    $params
+                ) as $r) {
+                    $out[] = [
+                        'type'   => $type,
+                        'label'  => $label,
+                        'id'     => (int)$r['id'],
+                        'number' => (string)($r['numer_umowy'] ?? ''),
+                        'status' => (string)($r['status'] ?? ''),
+                        'date'   => $r['data_zawarcia'] ?? null,
+                        'party'  => '',
+                    ];
+                }
+            } catch (\Throwable $e) { /* typ umowy może być wyłączony */ }
+        }
+    }
+
+    // ── Umowy podmiotowe (dopasowanie po NIP-ie) ──
+    $nip = preg_replace('/\D+/', '', (string)($contact['nip'] ?? '')) ?? '';
+    if (strlen($nip) === 10) {
+        foreach ([
+            'uslugi' => ['Umowa o świadczenie usług', 'nip_pesel',     'nazwa_wykonawcy'],
+            'inne'   => ['Inna umowa',                'pesel_nip_krs', 'strona_umowy'],
+        ] as $type => [$label, $id_col, $party_col]) {
+            try {
+                // NIP bywa zapisany z kreskami — porównujemy po samych cyfrach.
+                foreach (db_all(
+                    "SELECT id, numer_umowy, status, data_zawarcia, {$party_col} AS party
+                       FROM umowy_{$type}
+                      WHERE REPLACE(REPLACE(REPLACE(COALESCE({$id_col},''),'-',''),' ',''),'.','') = ?
+                   ORDER BY data_zawarcia DESC, id DESC",
+                    [$nip]
+                ) as $r) {
+                    $out[] = [
+                        'type'   => $type,
+                        'label'  => $label,
+                        'id'     => (int)$r['id'],
+                        'number' => (string)($r['numer_umowy'] ?? ''),
+                        'status' => (string)($r['status'] ?? ''),
+                        'date'   => $r['data_zawarcia'] ?? null,
+                        'party'  => (string)($r['party'] ?? ''),
+                    ];
+                }
+            } catch (\Throwable $e) { /* typ umowy może być wyłączony */ }
+        }
+    }
+
+    // Najnowsze na górze, niezależnie od typu.
+    usort($out, fn($a, $b) => strcmp((string)$b['date'], (string)$a['date']));
+    return $out;
+}
+
 // Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
 function crm_one(string $sql, array $p = []): ?array {
     $st = crm_db()->prepare($sql); $st->execute($p);

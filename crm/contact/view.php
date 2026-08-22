@@ -348,6 +348,54 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
 }
 
 /**
+ * Umowy i zlecenia powiązane z kontaktem.
+ *
+ * Panel jest tylko do ODCZYTU — umowy prowadzi się w swoich modułach, a kartoteka
+ * ma pokazywać, co z tym kontaktem już podpisano, żeby nie trzeba było przeszukiwać
+ * rejestrów. Statusy wypisujemy dosłownie z rejestru, bez tłumaczenia na własny
+ * słownik: inaczej kartoteka mówiłaby coś innego niż moduł umów.
+ */
+function _cv_contracts_html(array $contact, array $rows): string {
+    // Rejestry mają widok per typ: /contracts/{typ}/view.php
+    $href = fn(array $r) => APP_URL . '/contracts/' . rawurlencode($r['type']) . '/view.php?id=' . (int)$r['id'];
+
+    ob_start(); ?>
+    <div id="crm-section-contracts">
+      <?php if (!$rows): ?>
+      <p class="cv-meta mb-0">
+        Brak powiązanych umów.
+        <?php if (empty($contact['pesel']) && empty($contact['nip']) && empty($contact['person_id'])): ?>
+        <br>Powiązanie ustala się przez PESEL (osoby) albo NIP (podmioty) — uzupełnij je w kartotece.
+        <?php endif; ?>
+      </p>
+      <?php else: ?>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($rows as $r): ?>
+        <li class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid var(--crm-border)">
+          <i class="bi bi-file-earmark-text cv-shead__icon mt-1" aria-hidden="true"></i>
+          <div class="flex-grow-1 overflow-hidden">
+            <div style="font-size:.83rem;font-weight:600">
+              <a href="<?= h($href($r)) ?>" class="text-decoration-none">
+                <?= h($r['number'] !== '' ? $r['number'] : '(bez numeru)') ?>
+              </a>
+            </div>
+            <div class="crm-name-sub"><?= h($r['label']) ?><?= $r['party'] !== '' ? ' · ' . h($r['party']) : '' ?></div>
+          </div>
+          <div class="text-end flex-shrink-0">
+            <?php if ($r['status'] !== ''): ?><span class="cv-chip"><?= h($r['status']) ?></span><?php endif; ?>
+            <?php if (!empty($r['date'])): ?>
+            <div class="cv-meta" style="font-size:.72rem"><?= h(date('d.m.Y', strtotime((string)$r['date']))) ?></div>
+            <?php endif; ?>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
+/**
  * Kategoria „świadczy usługi na rzecz FEER" + rodzaje usług z otwartego katalogu.
  *
  * Dopisywanie usług jest dostępne tylko dla kontaktów o statusie „Partner"
@@ -1484,6 +1532,24 @@ $case_status_cfg = [
         <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['persons'] ?? []) ?></span></div>
       </div>
       <?= _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    </div></div>
+    <?php endif; ?>
+
+    <!-- Umowy i zlecenia (odczyt; powiązanie przez person_id/PESEL albo NIP) -->
+    <?php
+      $_contracts = crm_contact_contracts($contact);
+      $_can_link  = !empty($contact['pesel']) || !empty($contact['nip']) || !empty($contact['person_id']);
+    ?>
+    <?php if ($_contracts || $_can_link): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-file-earmark-text cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Umowy i zlecenia</h2>
+        <?php if ($_contracts): ?>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($_contracts) ?></span></div>
+        <?php endif; ?>
+      </div>
+      <?= _cv_contracts_html($contact, $_contracts) ?>
     </div></div>
     <?php endif; ?>
 
