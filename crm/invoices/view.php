@@ -11,6 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ksef.php';
 
 require_login();
 require_module_enabled('invoices_enabled', 'Moduł Faktury');
@@ -62,6 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $snd = invoice_send_to_buyer($id);
         flash_set($snd['ok'] ? 'success' : 'error',
             $snd['ok'] ? 'Faktura wysłana na ' . $snd['to'] . '.' : ('Nie wysłano: ' . $snd['error']));
+        header('Location: ' . $SELF); exit;
+    }
+    if ($action === 'ksef_send') {
+        $r = ksef_send_invoice($id);
+        flash_set($r['ok'] ? 'success' : 'error',
+            $r['ok'] ? 'Faktura przyjęta przez KSeF — numer ' . $r['ksef_number'] . '.'
+                     : ('KSeF odrzucił wysyłkę: ' . $r['error']));
         header('Location: ' . $SELF); exit;
     }
     if ($action === 'push') {
@@ -303,6 +311,28 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               </button>
             </form>
           <?php else: ?>
+            <?php if (invoice_ksef_applicable($inv)): ?>
+            <?php if (!empty($inv['ksef_number'])): ?>
+            <div class="alert alert-success py-2 px-2 mb-1" style="font-size:.78rem" role="status">
+              <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
+              W KSeF, numer:<br><span class="font-monospace"><?= h($inv['ksef_number']) ?></span>
+            </div>
+            <?php else: ?>
+            <form method="post" onsubmit="return confirm('Wysłać fakturę do KSeF? Operacja jest nieodwracalna.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="ksef_send">
+              <button class="btn btn-sm btn-crm-primary w-100" type="submit" <?= ksef_ready() ? '' : 'disabled' ?>
+                      title="<?= ksef_ready() ? 'Wyślij do Krajowego Systemu e-Faktur' : 'KSeF nieskonfigurowany (token, NIP)' ?>">
+                <i class="bi bi-bank me-1"></i>Wyślij do KSeF
+              </button>
+            </form>
+            <a class="btn btn-sm btn-crm-ghost w-100" target="_blank" rel="noopener"
+               href="<?= APP_URL ?>/crm/invoices/ksef_xml.php?id=<?= $id ?>">
+              <i class="bi bi-filetype-xml me-1"></i>Podejrzyj XML FA(3)
+            </a>
+            <?php endif; ?>
+            <?php endif; ?>
+
             <form method="post">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="sync">

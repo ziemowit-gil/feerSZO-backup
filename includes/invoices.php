@@ -83,6 +83,16 @@ function invoices_migrate(): void
     // numeru — po numerze nie da się filtrować pewnie, a decyzje zależą od tej flagi.
     try { $pdo->exec("ALTER TABLE invoices ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
+    // KSeF: numer nadany przez system, numery referencyjne sesji i wysyłki oraz UPO.
+    foreach ([
+        "ALTER TABLE invoices ADD COLUMN ksef_number    TEXT",
+        "ALTER TABLE invoices ADD COLUMN ksef_reference TEXT",
+        "ALTER TABLE invoices ADD COLUMN ksef_session   TEXT",
+        "ALTER TABLE invoices ADD COLUMN upo_path       TEXT",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_status  ON invoices(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_contact ON invoices(contact_id)");
     // Jedna faktura na źródło — druga próba wystawienia z tej samej oferty
