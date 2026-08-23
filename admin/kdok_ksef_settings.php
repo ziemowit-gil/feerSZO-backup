@@ -143,17 +143,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ── Usuń certyfikat ───────────────────────────────────────────────────
-        if ($action === 'clear_cert') {
-            $env_clr = in_array($_POST['env'] ?? '', ['production','demo','test']) ? $_POST['env'] : $ksef_env;
-            kdok_ksef_setting_save('kdok_ksef_cert_pem_'  . $env_clr, '');
-            kdok_ksef_setting_save('kdok_ksef_key_pem_'   . $env_clr, '');
-            kdok_ksef_setting_save('kdok_ksef_key_pass_'  . $env_clr, '');
-            $ksef_has_cert = false; $ksef_has_key = false; $ksef_cert_info = null;
-            flash_set('warning', 'Certyfikat i klucz prywatny zostały usunięte.');
-            header('Location: kdok_ksef_settings.php');
-            exit;
-        }
+    }
+
+    // ── Usuń certyfikat ───────────────────────────────────────────────────────
+    if ($action === 'clear_cert') {
+        $env_clr = in_array($_POST['env'] ?? '', ['production','demo','test']) ? $_POST['env'] : $ksef_env;
+        kdok_ksef_setting_save('kdok_ksef_cert_pem_'  . $env_clr, '');
+        kdok_ksef_setting_save('kdok_ksef_key_pem_'   . $env_clr, '');
+        kdok_ksef_setting_save('kdok_ksef_key_pass_'  . $env_clr, '');
+        $ksef_has_cert = false; $ksef_has_key = false; $ksef_cert_info = null;
+        flash_set('warning', 'Certyfikat i klucz prywatny zostały usunięte.');
+        header('Location: kdok_ksef_settings.php');
+        exit;
     }
 
     // ── Test połączenia ───────────────────────────────────────────────────────
@@ -426,15 +427,10 @@ echo flash_html();
               <?php if (!$ksef_cert_info['is_valid']): ?><span class="text-danger fw-bold"> — WYGASŁ</span><?php endif; ?>
               <?php if ($ksef_has_key): ?>&nbsp;·&nbsp;<i class="bi bi-key-fill text-success"></i> Klucz prywatny: zapisany<?php endif; ?>
             </div>
-            <form method="post" class="ms-auto">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="clear_cert">
-              <input type="hidden" name="env" value="<?= h($ksef_env) ?>">
-              <button type="submit" class="btn btn-sm btn-outline-danger"
-                      onclick="return confirm('Usunąć certyfikat i klucz? Autoryzacja wróci do tokena.')">
-                <i class="bi bi-trash"></i> Usuń
-              </button>
-            </form>
+            <button type="submit" form="ksefClearCertForm" class="btn btn-sm btn-outline-danger ms-auto"
+                    onclick="return confirm('Usunąć certyfikat i klucz? Autoryzacja wróci do tokena.')">
+              <i class="bi bi-trash"></i> Usuń
+            </button>
           </div>
           <?php else: ?>
           <p class="text-muted small mb-3">
@@ -513,6 +509,13 @@ echo flash_html();
           <i class="bi bi-check2 me-1"></i>Zapisz ustawienia
         </button>
       </div>
+    </form>
+
+    <!-- Formularz usuwania certyfikatu — poza formularzem zapisu (przycisk łączy się przez form=) -->
+    <form method="post" id="ksefClearCertForm" class="d-none">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="clear_cert">
+      <input type="hidden" name="env" value="<?= h($ksef_env) ?>">
     </form>
 
     <!-- Akcje: test i sync — osobne formularze (nie są save) -->
