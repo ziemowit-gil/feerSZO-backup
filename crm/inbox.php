@@ -251,13 +251,12 @@ include __DIR__ . '/includes/header_crm.php';
    się na dwie linie. Teraz jedna wysokość (32 px) i wspólny promień. */
 .ib-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem }
 .ib-views { display:flex; gap:.4rem; flex-wrap:wrap; min-width:0 }
-.ib-filters { display:flex; align-items:center; gap:.4rem; margin-left:auto; flex-wrap:wrap }
 .ib-field, .ib-toolbar .form-select, .ib-toolbar .form-control {
   height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
   background:#fff; color:#111827; padding:0 .6rem }
 .ib-field:focus, .ib-toolbar .form-select:focus, .ib-toolbar .form-control:focus {
   border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
-.ib-search { position:relative; flex:1 1 240px; min-width:200px; max-width:340px }
+.ib-search { position:relative; min-width:200px }
 .ib-search input { width:100%; padding-left:2rem }
 .ib-search i { position:absolute; left:.6rem; top:50%; transform:translateY(-50%); color:#9CA3AF; font-size:.85rem }
 .ib-tbtn { height:32px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
@@ -268,6 +267,18 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-tbtn[disabled] { opacity:.5; cursor:not-allowed }
 .ib-tbtn--primary { border-color:var(--crm-primary); color:var(--crm-primary); background:var(--crm-primary-bg) }
 .ib-tbtn--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
+.ib-tbtn--on { border-color:var(--crm-primary); color:var(--crm-primary) }
+
+/* ── Filtry w rozwijanym panelu ─────────────────────────────────────────── */
+.ib-filter { position:relative; margin-left:auto }
+.ib-filter > summary { list-style:none; user-select:none }
+.ib-filter > summary::-webkit-details-marker { display:none }
+.ib-filter-dot { width:6px; height:6px; border-radius:50%; background:var(--crm-primary) }
+.ib-filter-panel { position:absolute; right:0; top:calc(100% + .4rem); z-index:20; width:min(320px, 90vw);
+  display:flex; flex-direction:column; gap:.45rem; padding:.7rem; background:#fff;
+  border:1px solid #E5E7EB; border-radius:10px; box-shadow:0 8px 24px rgba(16,24,40,.12) }
+.ib-filter-panel .ib-field { width:100% }
+@media (max-width:575px) { .ib-filter { margin-left:0; width:100% } .ib-filter-panel { right:auto; left:0 } }
 
 /* ── Okno „Przekaż do EZD" ─────────────────────────────────────────────── */
 .ib-ezd-subject { padding:.1rem 0 .7rem; border-bottom:1px solid #F1F2F4; margin-bottom:.8rem }
@@ -442,28 +453,41 @@ include __DIR__ . '/includes/header_crm.php';
   <?php endforeach; ?>
   </div>
 
-  <form method="get" class="ib-filters" role="search">
-    <input type="hidden" name="view" value="<?= h($view) ?>">
-    <div class="ib-search">
-      <i class="bi bi-search" aria-hidden="true"></i>
-      <input name="q" class="ib-field" value="<?= h($search) ?>" aria-label="Szukaj w skrzynce"
-             placeholder="Temat, nadawca, kontakt, nr wiadomości…">
-    </div>
-    <?php if (count($boxes) > 1): ?>
-    <select name="mailbox_id" class="ib-field" style="max-width:190px" aria-label="Skrzynka">
-      <option value="">wszystkie skrzynki</option>
-      <?php foreach ($boxes as $b): ?>
-      <option value="<?= (int)$b['id'] ?>" <?= $mbox_f === (int)$b['id'] ? 'selected' : '' ?>><?= h($b['mailbox']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <?php endif; ?>
-    <button class="ib-tbtn" title="Filtruj"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button>
-    <?php if ($search || $mbox_f): ?>
-    <a href="?view=<?= h($view) ?>" class="ib-tbtn" title="Wyczyść filtry" aria-label="Wyczyść filtry">
-      <i class="bi bi-x-lg" aria-hidden="true"></i>
-    </a>
-    <?php endif; ?>
-  </form>
+  <?php $filters_on = ($search !== '' || $mbox_f > 0); ?>
+  <?php /* Filtry domyślnie schowane — pasek widoków ma zostać czysty. <details>
+           zamiast JS-a: otwiera się z klawiatury i działa bez skryptu, a gdy filtr
+           jest ustawiony, panel jest od razu otwarty (żeby nie ukrywać stanu). */ ?>
+  <details class="ib-filter" <?= $filters_on ? 'open' : '' ?>>
+    <summary class="ib-tbtn<?= $filters_on ? ' ib-tbtn--on' : '' ?>" role="button"
+             aria-label="Filtry skrzynki<?= $filters_on ? ' (aktywne)' : '' ?>">
+      <i class="bi bi-funnel<?= $filters_on ? '-fill' : '' ?>" aria-hidden="true"></i>Filtry
+      <?php if ($filters_on): ?><span class="ib-filter-dot" aria-hidden="true"></span><?php endif; ?>
+    </summary>
+    <form method="get" class="ib-filter-panel" role="search">
+      <input type="hidden" name="view" value="<?= h($view) ?>">
+      <div class="ib-search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input name="q" class="ib-field" value="<?= h($search) ?>" aria-label="Szukaj w skrzynce"
+               placeholder="Temat, nadawca, kontakt, nr wiadomości…">
+      </div>
+      <?php if (count($boxes) > 1): ?>
+      <select name="mailbox_id" class="ib-field" aria-label="Skrzynka">
+        <option value="">wszystkie skrzynki</option>
+        <?php foreach ($boxes as $b): ?>
+        <option value="<?= (int)$b['id'] ?>" <?= $mbox_f === (int)$b['id'] ? 'selected' : '' ?>><?= h($b['mailbox']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <?php endif; ?>
+      <div class="d-flex gap-2">
+        <button class="ib-tbtn ib-tbtn--primary flex-grow-1"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button>
+        <?php if ($filters_on): ?>
+        <a href="?view=<?= h($view) ?>" class="ib-tbtn" title="Wyczyść filtry">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>Wyczyść
+        </a>
+        <?php endif; ?>
+      </div>
+    </form>
+  </details>
 </div>
 
 <?php
@@ -957,6 +981,23 @@ include __DIR__ . '/includes/header_crm.php';
 <?php endif; ?>
 
 <script>
+// Panel filtrów: kursor w wyszukiwarce po otwarciu, Esc i klik obok zamykają.
+(function () {
+  var d = document.querySelector('.ib-filter');
+  if (!d) return;
+  d.addEventListener('toggle', function () {
+    if (!d.open) return;
+    var f = d.querySelector('input[name=q]');
+    if (f) f.focus();
+  });
+  document.addEventListener('click', function (e) {
+    if (d.open && !d.contains(e.target)) d.open = false;
+  });
+  d.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { d.open = false; d.querySelector('summary').focus(); }
+  });
+})();
+
 // Masowe porzucanie — checkboxy są poza <form> (form="ibBulkForm"), więc liczymy je sami.
 (function () {
   var bar = document.getElementById('ibBulkBar');
