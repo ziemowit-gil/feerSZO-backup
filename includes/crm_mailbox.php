@@ -29,11 +29,66 @@ function crm_mailbox_ready(): bool {
     try {
         require_once __DIR__ . '/poczta.php';
         db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes");
+        crm_mailbox_schema_heal();
         $ok = true;
     } catch (\Throwable $e) {
         error_log('[crm_mailbox_ready] ' . $e->getMessage());
     }
     return $ok;
+}
+
+/**
+ * Kolumny dokładane przez Skrzynkę CRM (samonaprawa — moduł bywa włączany później):
+ *   msg_no      6-cyfrowy numer wiadomości pokazywany ludziom („Nr 481203")
+ *   crm_hidden  1 = „nie pokazuj więcej w CRM Inbox" (EZD/Poczta widzą dalej)
+ */
+function crm_mailbox_schema_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    foreach ([
+        "ALTER TABLE crm_communications ADD COLUMN msg_no TEXT",
+        "ALTER TABLE crm_communications ADD COLUMN crm_hidden INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE crm_communications ADD COLUMN crm_hidden_at DATETIME",
+        "ALTER TABLE crm_communications ADD COLUMN crm_hidden_by INTEGER",
+    ] as $sql) {
+        try { $pdo->exec($sql); } catch (\Throwable $e) {}
+    }
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
+    catch (\Throwable $e) {}
+}
+
+/**
+ * Numer wiadomości — 6 cyfr, stały i unikalny. Nadawany leniwie: pierwsza
+ * wiadomość, którą ktoś otworzy albo wypisze na liście, dostaje numer i już go
+ * nie zmienia. Dzięki temu numer mają też wiadomości sprzed wdrożenia funkcji.
+ *
+ * @param int         $id       ID wiersza crm_communications
+ * @param string|null $existing Numer już odczytany z bazy (oszczędza zapytanie)
+ */
+function crm_msg_no(int $id, ?string $existing = null): string {
+    if ($id <= 0) return '';
+    $existing = trim((string)$existing);
+    if ($existing !== '') return $existing;
+
+    crm_mailbox_schema_heal();
+    try {
+        $cur = trim((string)(db_one("SELECT msg_no FROM crm_communications WHERE id=?", [$id])['msg_no'] ?? ''));
+        if ($cur !== '') return $cur;
+
+        for ($try = 0; $try < 12; $try++) {
+            $no = (string)random_int(100000, 999999);
+            $taken = db_one("SELECT id FROM crm_communications WHERE msg_no=?", [$no]);
+            if ($taken) continue;
+            db()->prepare("UPDATE crm_communications SET msg_no=? WHERE id=? AND (msg_no IS NULL OR msg_no='')")
+                ->execute([$no, $id]);
+            return trim((string)(db_one("SELECT msg_no FROM crm_communications WHERE id=?", [$id])['msg_no'] ?? $no));
+        }
+    } catch (\Throwable $e) {
+        error_log('[crm_msg_no] ' . $e->getMessage());
+    }
+    return '';
 }
 
 /** Skrzynki, których wiadomości widzi bieżący użytkownik (wg poczta_mailbox_acl). */
@@ -59,6 +114,7 @@ const CRM_MAILBOX_VIEWS = [
     'all'        => ['label' => 'Wszystkie',       'icon' => 'bi-inbox-fill'],
     'archived'   => ['label' => 'Załatwione',      'icon' => 'bi-archive-fill'],
     'spam'       => ['label' => 'Spam',            'icon' => 'bi-slash-circle'],
+    'hidden'     => ['label' => 'Ukryte',          'icon' => 'bi-eye-slash'],
 ];
 
 /** Warunek SQL dla widoku (bez prefiksu WHERE). */
@@ -75,6 +131,8 @@ function _crm_mailbox_view_sql(string $view, int $uid, array &$params): string {
             return "c.direction='in' AND c.inbox_status='archived'";
         case 'spam':
             return "c.direction='in' AND c.inbox_status='spam'";
+        case 'hidden':
+            return "c.direction='in' AND c.crm_hidden=1";
         default:
             return "c.direction='in' AND c.inbox_status IN ('active','archived')";
     }
@@ -94,6 +152,9 @@ function crm_mailbox_inbox(array $f = []): array {
     $params = [];
     $where  = [_crm_mailbox_view_sql($view, $uid, $params)];
 
+    // „Nie pokazuj więcej w CRM Inbox" — poza widokiem „Ukryte" te wiadomości znikają
+    if ($view !== 'hidden') $where[] = 'COALESCE(c.crm_hidden,0)=0';
+
     // Widok obejmuje wyłącznie skrzynki, do których użytkownik ma dostęp
     $where[] = poczta_scope_sql('c.mailbox_id');
     if (!empty($f['mailbox_id'])) {
@@ -104,8 +165,9 @@ function crm_mailbox_inbox(array $f = []): array {
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
     if (!empty($f['q'])) {
         $q = '%' . trim((string)$f['q']) . '%';
-        $where[] = '(c.subject LIKE ? OR c.from_email LIKE ? OR c.from_name LIKE ? OR ct.imie_nazwisko LIKE ?)';
-        array_push($params, $q, $q, $q, $q);
+        $where[] = '(c.subject LIKE ? OR c.from_email LIKE ? OR c.from_name LIKE ? OR ct.imie_nazwisko LIKE ?'
+                 . ' OR c.msg_no LIKE ?)';
+        array_push($params, $q, $q, $q, $q, $q);
     }
     $where_sql = 'WHERE ' . implode(' AND ', $where);
 
@@ -121,6 +183,7 @@ function crm_mailbox_inbox(array $f = []): array {
     $rows = db_all(
         "SELECT c.id, c.contact_id, c.subject, c.body, c.sent_at, c.is_read, c.inbox_status,
                 c.assigned_to, c.has_attachments, c.from_name, c.from_email, c.thread_key, c.mailbox_id,
+                c.msg_no, COALESCE(c.crm_hidden,0) AS crm_hidden,
                 ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.email AS contact_email,
                 u.name AS assigned_name, m.mailbox AS mailbox_name
          FROM crm_communications c
@@ -142,12 +205,32 @@ function crm_mailbox_counts(): array {
     $out = [];
     foreach (array_keys(CRM_MAILBOX_VIEWS) as $view) {
         $params = [];
-        $sql = _crm_mailbox_view_sql($view, $uid, $params) . ' AND ' . poczta_scope_sql('c.mailbox_id');
+        $sql = _crm_mailbox_view_sql($view, $uid, $params)
+             . ($view !== 'hidden' ? ' AND COALESCE(c.crm_hidden,0)=0' : '')
+             . ' AND ' . poczta_scope_sql('c.mailbox_id');
         try {
             $out[$view] = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications c WHERE $sql", $params)['n'] ?? 0);
         } catch (\Throwable $e) { $out[$view] = 0; }
     }
     return $out;
+}
+
+/**
+ * „Nie pokazuj więcej w CRM Inbox" — wiadomość znika z widoków Skrzynki CRM
+ * (zostaje w widoku „Ukryte"). Nie kasujemy jej i nie ruszamy inbox_status,
+ * bo tę samą wiadomość widzi Poczta i EZD — to filtr CRM-owy, nie usunięcie.
+ */
+function crm_mailbox_set_hidden(int $id, bool $hidden = true): bool {
+    crm_mailbox_schema_heal();
+    $uid = (int)(current_user()['id'] ?? 0);
+    try {
+        db()->prepare("UPDATE crm_communications SET crm_hidden=?, crm_hidden_at=?, crm_hidden_by=? WHERE id=?")
+            ->execute([$hidden ? 1 : 0, $hidden ? date('Y-m-d H:i:s') : null, $hidden ? ($uid ?: null) : null, $id]);
+        return true;
+    } catch (\Throwable $e) {
+        error_log('[crm_mailbox_set_hidden] ' . $e->getMessage());
+        return false;
+    }
 }
 
 /** Jedna wiadomość z pełną treścią i kontekstem kontaktu. */
@@ -197,7 +280,7 @@ function crm_mailbox_message(int $id): ?array {
     if (!empty($m['thread_key'])) {
         try {
             $m['ctx']['thread'] = db_all(
-                "SELECT id, direction, subject, sent_at, is_read FROM crm_communications
+                "SELECT id, direction, subject, sent_at, is_read, msg_no FROM crm_communications
                  WHERE thread_key=? ORDER BY sent_at ASC LIMIT 30", [$m['thread_key']]
             );
         } catch (\Throwable $e) {}

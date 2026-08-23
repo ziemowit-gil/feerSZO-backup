@@ -50,6 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'spam':      crm_mailbox_set_status($mid, 'spam');     flash_set('success', 'Oznaczono jako spam.'); break;
             case 'restore':   crm_mailbox_set_status($mid, 'active');   flash_set('success', 'Przywrócono do skrzynki.'); break;
             case 'assign_me': crm_mailbox_assign($mid, $uid);           flash_set('success', 'Przypisano Tobie.'); break;
+            case 'hide':      crm_mailbox_set_hidden($mid, true);
+                              flash_set('success', 'Wiadomość nie będzie już pokazywana w Skrzynce CRM (widok „Ukryte").');
+                              $back = 'inbox.php?' . http_build_query(array_filter([
+                                  'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                              ]));
+                              break;
+            case 'unhide':    crm_mailbox_set_hidden($mid, false); flash_set('success', 'Wiadomość wróciła do Skrzynki CRM.'); break;
 
             case 'assign':
                 crm_mailbox_assign($mid, (int)($_POST['user_id'] ?? 0) ?: null);
@@ -152,7 +159,12 @@ include __DIR__ . '/includes/header_crm.php';
 ?>
 <style>
 .ib-wrap { display:grid; grid-template-columns:minmax(340px, 420px) 1fr; gap:1.1rem;
-  align-items:stretch; min-height:26rem }
+  align-items:start; min-height:26rem }
+/* Trzecia szpalta (sprawy/oferty/wątek) tylko tam, gdzie jest na nią miejsce —
+   niżej ląduje pod wiadomością, a nie obok listy. */
+@media (min-width:1400px) {
+  .ib-wrap.has-rail { grid-template-columns:minmax(320px, 380px) minmax(0, 1fr) minmax(250px, 300px) }
+}
 @media (max-width:1099px) { .ib-wrap { grid-template-columns:1fr; min-height:0 } }
 /* Panel bez wybranej wiadomości: treść wyśrodkowana, a nie przyklejona do góry
    cienkiego paska — inaczej obok wysokiej listy wygląda jak błąd układu. */
@@ -217,6 +229,60 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-header-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; flex-shrink:0 }
 .ib-help { color:#9CA3AF; font-size:.9rem; cursor:help; display:inline-flex }
 .ib-help:hover, .ib-help:focus-visible { color:var(--crm-primary) }
+
+/* ── Pasek narzędzi (widoki + filtry) ───────────────────────────────────
+   Wcześniej pola i przyciski miały różne wysokości i „Sprawdź teraz" łamał
+   się na dwie linie. Teraz jedna wysokość (32 px) i wspólny promień. */
+.ib-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem }
+.ib-views { display:flex; gap:.4rem; flex-wrap:wrap; min-width:0 }
+.ib-filters { display:flex; align-items:center; gap:.4rem; margin-left:auto; flex-wrap:wrap }
+.ib-field, .ib-toolbar .form-select, .ib-toolbar .form-control {
+  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
+  background:#fff; color:#111827; padding:0 .6rem }
+.ib-field:focus, .ib-toolbar .form-select:focus, .ib-toolbar .form-control:focus {
+  border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
+.ib-search { position:relative; flex:1 1 240px; min-width:200px; max-width:340px }
+.ib-search input { width:100%; padding-left:2rem }
+.ib-search i { position:absolute; left:.6rem; top:50%; transform:translateY(-50%); color:#9CA3AF; font-size:.85rem }
+.ib-tbtn { height:32px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
+  padding:0 .7rem; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#374151;
+  font-size:.8rem; font-weight:500; text-decoration:none; cursor:pointer; transition:background .12s,border-color .12s }
+.ib-tbtn:hover { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
+.ib-tbtn:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
+.ib-tbtn[disabled] { opacity:.5; cursor:not-allowed }
+.ib-tbtn--primary { border-color:var(--crm-primary); color:var(--crm-primary); background:var(--crm-primary-bg) }
+.ib-tbtn--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
+
+/* ── Okno „Przekaż do EZD" ─────────────────────────────────────────────── */
+.ib-ezd-subject { padding:.1rem 0 .7rem; border-bottom:1px solid #F1F2F4; margin-bottom:.8rem }
+.ib-ezd-h2 { font-size:1.15rem; font-weight:700; line-height:1.35; margin:.15rem 0 .25rem; color:#111827;
+  overflow-wrap:anywhere }
+.ib-ezd-note { display:flex; gap:.6rem; align-items:flex-start; background:#ECFDF5; border:1px solid #A7F3D0;
+  border-radius:10px; padding:.7rem .85rem; font-size:.82rem; line-height:1.5; color:#065F46; margin-bottom:1rem }
+.ib-ezd-note i { font-size:1rem; color:#0F766E; flex-shrink:0; margin-top:.1rem }
+
+/* ── Numer wiadomości ───────────────────────────────────────────────────── */
+.ib-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:700;
+  color:#6B7280; background:#F3F4F6; border-radius:4px; padding:.05rem .3rem; letter-spacing:.02em }
+.ib-h1-no { font-size:.75rem; color:#9CA3AF; font-weight:600; letter-spacing:.04em }
+
+/* ── Prawa szpalta: sprawy, oferty, wątek (rozwijane) ───────────────────── */
+.ib-rail { display:flex; flex-direction:column; gap:.6rem; min-width:0 }
+.ib-card { background:#fff; border:1px solid #E5E7EB; border-radius:12px; overflow:hidden }
+.ib-card > summary { list-style:none; cursor:pointer; padding:.6rem .8rem; display:flex; align-items:center;
+  gap:.45rem; font-size:.76rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#6B7280 }
+.ib-card > summary::-webkit-details-marker { display:none }
+.ib-card > summary:hover { background:#FAFBFC; color:#374151 }
+.ib-card > summary:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
+.ib-card > summary .ib-caret { margin-left:auto; transition:transform .15s; color:#9CA3AF }
+.ib-card[open] > summary .ib-caret { transform:rotate(90deg) }
+.ib-card > summary .ib-cnt2 { font-size:.7rem; font-weight:700; color:#374151; background:#F3F4F6;
+  border-radius:2rem; padding:0 .4rem; text-transform:none; letter-spacing:0 }
+.ib-card-body { padding:.2rem .8rem .7rem; font-size:.82rem }
+.ib-card-body a { text-decoration:none }
+.ib-rail-item { display:block; padding:.3rem 0; border-top:1px solid #F3F4F6; overflow-wrap:anywhere }
+.ib-rail-item:first-child { border-top:none }
+@media (max-width:1399px) { .ib-wrap.has-rail > .ib-rail { grid-column:1 / -1 } }
 </style>
 
 <?php /* Nagłówek LOKALNY, jednowierszowy — .crm-page-header jest komponentem
@@ -235,23 +301,23 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <div class="ib-header-actions">
     <?php if (is_admin()): ?>
-    <form method="post" class="d-flex gap-1">
+    <form method="post" class="d-flex gap-1 align-items-center">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_op" value="scan">
       <input type="hidden" name="view" value="<?= h($view) ?>">
       <?php if (count($boxes) > 1): ?>
-      <select name="scan_mailbox" class="form-select form-select-sm" style="max-width:210px" aria-label="Skrzynka do sprawdzenia">
+      <select name="scan_mailbox" class="ib-field" style="max-width:200px" aria-label="Skrzynka do sprawdzenia">
         <option value="">wszystkie skrzynki</option>
         <?php foreach ($boxes as $b): ?>
         <option value="<?= (int)$b['id'] ?>"><?= h($b['mailbox']) ?></option>
         <?php endforeach; ?>
       </select>
       <?php endif; ?>
-      <button class="btn btn-crm-outline btn-sm" <?= $ready && $boxes ? '' : 'disabled' ?>>
-        <i class="bi bi-arrow-repeat me-1"></i>Sprawdź teraz
+      <button class="ib-tbtn ib-tbtn--primary" <?= $ready && $boxes ? '' : 'disabled' ?>>
+        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sprawdź teraz
       </button>
     </form>
-    <a href="<?= APP_URL ?>/poczta/index.php" class="btn btn-crm-ghost btn-sm" title="Konfiguracja skrzynek"><i class="bi bi-gear"></i></a>
+    <a href="<?= APP_URL ?>/poczta/index.php" class="ib-tbtn" title="Konfiguracja skrzynek" aria-label="Konfiguracja skrzynek"><i class="bi bi-gear" aria-hidden="true"></i></a>
     <?php if (crm_mailbox_autocreate()): ?>
     <!-- Stan „włączone" nie zasługuje na osobny wiersz nad listą — to potwierdzenie,
          nie ostrzeżenie. Wariant WYŁĄCZONY zostaje pełnym alertem niżej, bo mówi
@@ -303,9 +369,11 @@ include __DIR__ . '/includes/header_crm.php';
 </form>
 <?php endif; ?>
 
-<!-- Widoki -->
-<div class="d-flex flex-wrap gap-2 mb-3">
-  <?php foreach (CRM_MAILBOX_VIEWS as $vk => $vv): $n = (int)($counts[$vk] ?? 0); ?>
+<!-- Widoki + filtry (jeden pasek, pola tej samej wysokości) -->
+<div class="ib-toolbar">
+  <div class="ib-views">
+  <?php foreach (CRM_MAILBOX_VIEWS as $vk => $vv): $n = (int)($counts[$vk] ?? 0);
+        if ($vk === 'hidden' && !$n && $view !== 'hidden') continue;   // pusty widok „Ukryte" nie zajmuje miejsca ?>
   <a href="?<?= $qs(['view' => $vk, 'msg' => null, 'page' => null]) ?>" class="ib-pill"
      style="background:<?= $view === $vk ? 'var(--crm-primary-bg)' : '#F3F4F6' ?>;
             color:<?= $view === $vk ? 'var(--crm-primary)' : '#374151' ?>;
@@ -321,28 +389,38 @@ include __DIR__ . '/includes/header_crm.php';
     <span class="ib-cnt" style="<?= $cnt_style ?>"><?= $n ?></span>
   </a>
   <?php endforeach; ?>
-  <form method="get" class="d-flex gap-1 ms-auto">
+  </div>
+
+  <form method="get" class="ib-filters" role="search">
     <input type="hidden" name="view" value="<?= h($view) ?>">
-    <div class="input-group input-group-sm" style="max-width:280px">
-      <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input name="q" class="form-control" placeholder="Temat, nadawca, kontakt…" value="<?= h($search) ?>">
+    <div class="ib-search">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <input name="q" class="ib-field" value="<?= h($search) ?>" aria-label="Szukaj w skrzynce"
+             placeholder="Temat, nadawca, kontakt, nr wiadomości…">
     </div>
     <?php if (count($boxes) > 1): ?>
-    <select name="mailbox_id" class="form-select form-select-sm" style="max-width:190px" aria-label="Skrzynka">
+    <select name="mailbox_id" class="ib-field" style="max-width:190px" aria-label="Skrzynka">
       <option value="">wszystkie skrzynki</option>
       <?php foreach ($boxes as $b): ?>
       <option value="<?= (int)$b['id'] ?>" <?= $mbox_f === (int)$b['id'] ? 'selected' : '' ?>><?= h($b['mailbox']) ?></option>
       <?php endforeach; ?>
     </select>
     <?php endif; ?>
-    <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-funnel"></i></button>
+    <button class="ib-tbtn" title="Filtruj"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button>
     <?php if ($search || $mbox_f): ?>
-    <a href="?view=<?= h($view) ?>" class="btn btn-outline-secondary btn-sm" title="Wyczyść"><i class="bi bi-x"></i></a>
+    <a href="?view=<?= h($view) ?>" class="ib-tbtn" title="Wyczyść filtry" aria-label="Wyczyść filtry">
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    </a>
     <?php endif; ?>
   </form>
 </div>
 
-<div class="ib-wrap">
+<?php
+  // Klasa has-rail włącza trzecią szpaltę dopiero, gdy jest co w niej pokazać.
+  $has_rail = $msg && (!empty($msg['ctx']['cases']) || !empty($msg['ctx']['offers'])
+                       || count($msg['ctx']['thread'] ?? []) > 1);
+?>
+<div class="ib-wrap<?= $has_rail ? ' has-rail' : '' ?>">
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <div>
@@ -361,6 +439,7 @@ include __DIR__ . '/includes/header_crm.php';
         $act    = (int)$r['id'] === $sel_id;
         $who    = (string)($r['from_name'] ?: $r['from_email'] ?: $r['contact_name'] ?: '—');
         $unread = !(int)$r['is_read'];
+        $no     = crm_msg_no((int)$r['id'], $r['msg_no'] ?? null);
       ?>
       <a role="listitem" class="ib-item<?= $act ? ' active' : '' ?><?= $unread ? ' unread' : '' ?>"
          href="?<?= $qs(['msg' => (int)$r['id']]) ?>" aria-current="<?= $act ? 'true' : 'false' ?>">
@@ -371,7 +450,10 @@ include __DIR__ . '/includes/header_crm.php';
             <?php if ((int)$r['has_attachments']): ?><i class="bi bi-paperclip text-muted" aria-label="Załącznik"></i><?php endif; ?>
             <span class="ib-time"><?= h(date('H:i', strtotime((string)$r['sent_at']))) ?></span>
           </span>
-          <span class="ib-who d-block"><?= h($who) ?></span>
+          <span class="ib-who d-block">
+            <?= h($who) ?>
+            <?php if ($no !== ''): ?><span class="ib-no ms-1">#<?= h($no) ?></span><?php endif; ?>
+          </span>
           <span class="ib-snip d-block"><?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$r['body'])), 0, 90)) ?></span>
           <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $unread): ?>
           <span class="ib-tags">
@@ -422,9 +504,18 @@ include __DIR__ . '/includes/header_crm.php';
             . '<input type="hidden" name="view" value="' . h($view) . '">'
             . '<input type="hidden" name="q" value="' . h($search) . '">';
   ?>
+    <?php
+      $rail_cases  = $msg['ctx']['cases']  ?? [];
+      $rail_offers = $msg['ctx']['offers'] ?? [];
+      $rail_thread = count($msg['ctx']['thread'] ?? []) > 1 ? $msg['ctx']['thread'] : [];
+    ?>
     <div class="ib-pane">
 
       <div class="ib-head">
+        <?php $msg_no = crm_msg_no((int)$msg['id'], $msg['msg_no'] ?? null); ?>
+        <?php if ($msg_no !== ''): ?>
+        <div class="ib-h1-no">WIADOMOŚĆ NR <span class="ib-no">#<?= h($msg_no) ?></span></div>
+        <?php endif; ?>
         <h1 class="ib-h1"><?= h($msg['subject'] ?: '(bez tematu)') ?></h1>
         <div class="ib-meta">
           <strong><?= h($msg['from_name'] ?: ($msg['from_email'] ?: '—')) ?></strong>
@@ -455,6 +546,11 @@ include __DIR__ . '/includes/header_crm.php';
           <?php if ($msg['inbox_status'] !== 'active'): ?>
           <span class="ib-chip"><?= $msg['inbox_status'] === 'archived' ? 'załatwione' : h($msg['inbox_status']) ?></span>
           <?php endif; ?>
+          <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
+          <span class="ib-chip" style="background:#FEF3C7;color:#92400E">
+            <i class="bi bi-eye-slash"></i>ukryta w CRM
+          </span>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -480,6 +576,24 @@ include __DIR__ . '/includes/header_crm.php';
           <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako nieprzeczytane"><i class="bi bi-envelope"></i></button></form>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="spam">
           <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako spam"><i class="bi bi-slash-circle"></i></button></form>
+
+        <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
+        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unhide">
+          <button class="btn btn-crm-outline btn-sm" title="Wiadomość wróci do widoków Skrzynki CRM">
+            <i class="bi bi-eye me-1"></i>Pokazuj w CRM Inbox</button></form>
+        <?php else: ?>
+          <?php if (empty($msg['assigned_to'])): ?>
+          <!-- „Porzuć" — dla wiadomości bez opiekuna: nikt jej nie prowadzi i nie
+               będzie. Nie kasujemy nic z poczty, chowamy tylko ze Skrzynki CRM. -->
+          <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
+            <button class="btn btn-crm-ghost btn-sm text-danger" title="Nikt tego nie poprowadzi — schowaj ze Skrzynki CRM">
+              <i class="bi bi-hand-thumbs-down me-1"></i>Porzuć</button></form>
+          <?php endif; ?>
+        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
+          <button class="btn btn-crm-ghost btn-sm"
+                  title="Wiadomość zniknie z widoków Skrzynki CRM (zostanie w widoku „Ukryte", w Poczcie i EZD bez zmian)">
+            <i class="bi bi-eye-slash me-1"></i>Nie pokazuj więcej w CRM Inbox</button></form>
+        <?php endif; ?>
         <?php if ($can_write): ?>
         <!-- Skróty do trzech głównych akcji. Formularze zostają niżej, bo wymagają
              pól, ale przy długiej wiadomości były poza ekranem — a to one są
@@ -589,6 +703,32 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       <?php $mdl_case = ob_get_clean(); ob_start(); ?>
         <div class="ib-dbody">
+          <?php /* EZD to rejestr korespondencji formalnej, nie archiwum wszystkiego —
+                   dlatego zanim ktoś kliknie „Dopnij", pokazujemy czego dotyczy decyzja
+                   (pełny temat) i po co w ogóle jest EZD. */ ?>
+          <div class="ib-ezd-subject">
+            <div class="ib-lbl">Wiadomość przekazywana do EZD</div>
+            <h2 class="ib-ezd-h2"><?= h($msg['subject'] ?: '(bez tematu)') ?></h2>
+            <div class="text-muted" style="font-size:.8rem">
+              <?= h($msg['from_name'] ?: ($msg['from_email'] ?: '—')) ?>
+              · <?= h(date('d.m.Y H:i', strtotime((string)$msg['sent_at']))) ?>
+              <?php $ezd_no = crm_msg_no((int)$msg['id'], $msg['msg_no'] ?? null); ?>
+              <?php if ($ezd_no !== ''): ?> · <span class="ib-no">#<?= h($ezd_no) ?></span><?php endif; ?>
+            </div>
+          </div>
+          <div class="ib-ezd-note">
+            <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+            <div>
+              <strong>EZD prowadzi obieg korespondencji formalnej</strong> — takiej, która wszczyna
+              albo dokumentuje sprawę urzędową: pismo z urzędu wzywające do działania, wniosek
+              beneficjenta o umowę, wezwanie, skarga, decyzja. Taka wiadomość dostaje znak sprawy
+              i trafia do rejestru pism.
+              <div class="mt-1">
+                Zwykłe zapytanie handlowe, ustalenia z klientem czy korespondencja robocza
+                <strong>nie idą do EZD</strong> — zostają w CRM (sprawa CRM albo oferta).
+              </div>
+            </div>
+          </div>
           <?php if (!$ezd_on): ?>
             <div class="text-muted" style="font-size:.85rem">
               Moduł EZD jest wyłączony albo nie masz w nim uprawnień do zapisu — przekazanie niedostępne.
@@ -664,45 +804,25 @@ include __DIR__ . '/includes/header_crm.php';
       <?php $mdl_fwd = ob_get_clean(); ?>
       <?php endif; ?>
 
-      <?php if (!empty($msg['ctx']['cases']) || !empty($msg['ctx']['offers']) || count($msg['ctx']['thread']) > 1): ?>
-      <div class="ib-ctx">
-        <div class="row g-3">
-          <?php if ($msg['ctx']['cases']): ?>
-          <div class="col-md-4">
-            <div class="ib-lbl">Sprawy kontaktu</div>
-            <?php foreach ($msg['ctx']['cases'] as $c): ?>
-            <div><a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$c['id'] ?>"><?= h($c['title']) ?></a></div>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-          <?php if ($msg['ctx']['offers']): ?>
-          <div class="col-md-4">
-            <div class="ib-lbl">Oferty</div>
-            <?php foreach ($msg['ctx']['offers'] as $o): ?>
-            <div><a href="<?= APP_URL ?>/crm/offers/view.php?id=<?= (int)$o['id'] ?>"><?= h($o['offer_number']) ?></a>
-              — <?= h(number_format((float)$o['total_gross'], 0, ',', ' ')) ?> <?= h($o['currency']) ?></div>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-          <?php if (count($msg['ctx']['thread']) > 1): ?>
-          <div class="col-md-4">
-            <div class="ib-lbl">Wątek (<?= count($msg['ctx']['thread']) ?>)</div>
-            <?php foreach ($msg['ctx']['thread'] as $t): ?>
-            <div>
-              <a href="?<?= $qs(['msg' => (int)$t['id']]) ?>" class="<?= (int)$t['id'] === $sel_id ? 'fw-bold' : '' ?>">
-                <i class="bi bi-<?= $t['direction'] === 'in' ? 'arrow-down-left' : 'arrow-up-right' ?>"></i>
-                <?= h(date('d.m.Y H:i', strtotime((string)$t['sent_at']))) ?>
-              </a>
-            </div>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-        </div>
-      </div>
-      <?php endif; ?>
     </div>
+
+    <?php /* Sprawy, oferty i wątek trzymamy w prawej szpalcie — przy długiej
+             wiadomości sekcje na dole były poza ekranem. <details> zamiast JS-a:
+             rozwijanie działa z klawiatury i bez skryptu. */ ?>
+    <?php if ($rail_cases || $rail_offers || $rail_thread): ?>
+    <div class="ib-rail d-xxl-none mt-3">
+      <?php include __DIR__ . '/includes/inbox_rail.php'; ?>
+    </div>
+    <?php endif; ?>
   <?php endif; ?>
   </div>
+
+  <?php if ($msg && ($rail_cases || $rail_offers || $rail_thread)): ?>
+  <!-- ══ PRAWA SZPALTA (od 1400 px) ══════════════════════════════════════ -->
+  <div class="ib-rail d-none d-xxl-flex">
+    <?php include __DIR__ . '/includes/inbox_rail.php'; ?>
+  </div>
+  <?php endif; ?>
 </div>
 
 <?php if ($msg && $can_write): ?>
@@ -726,9 +846,11 @@ include __DIR__ . '/includes/header_crm.php';
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body pt-2">
+        <?php if ($mid !== 'mdEzd'): /* EZD ma własny, duży nagłówek tematu */ ?>
         <div class="text-muted mb-2" style="font-size:.8rem">
           <?= h(mb_strimwidth((string)($msg['subject'] ?: '(bez tematu)'), 0, 90, '…')) ?>
         </div>
+        <?php endif; ?>
         <?= $mbody ?>
       </div>
     </div>

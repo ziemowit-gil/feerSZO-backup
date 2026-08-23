@@ -2108,6 +2108,9 @@ class CrmManager
             'sent_at'       => date('Y-m-d H:i:s'),
         ]);
 
+        // 6-cyfrowy numer wiadomości — ten sam mechanizm co dla poczty przychodzącej
+        if (function_exists('crm_msg_no')) crm_msg_no((int)$id);
+
         db()->prepare("UPDATE crm_contacts SET updated_at=? WHERE id=?")
             ->execute([date('Y-m-d H:i:s'), $contact_id]);
 
