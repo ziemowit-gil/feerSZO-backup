@@ -123,8 +123,11 @@ auth_screen_head([
 .pw-alert{display:flex;gap:.7rem;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;
   border-left:4px solid #1d4ed8;color:#1e40af;border-radius:12px;padding:.85rem 1rem;font-size:.88rem;
   line-height:1.55;margin:0 0 1.1rem}
-.pw-alert i{font-size:1.1rem;flex-shrink:0}
+.pw-alert i{font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
 .pw-alert strong{color:#1e3a8a}
+.pw-alert__row{margin:0}
+.pw-alert__row + .pw-alert__row{margin-top:.6rem;padding-top:.6rem;border-top:1px solid #bfdbfe}
+.pw-alert__row--strong{color:#1e3a8a}
 </style>
 
 <h1 class="pw-h1">Poczta organizacji — wybierz klienta</h1>
@@ -134,12 +137,21 @@ auth_screen_head([
 
 <div class="pw-alert">
   <i class="bi bi-calendar-check" aria-hidden="true"></i>
-  <span>
-    <strong>Od 1 września 2026 wybór należy do Ciebie</strong> — a korzystać możesz
-    <strong>już teraz</strong>, bez zgłaszania czegokolwiek. Wybór nie jest na zawsze:
-    w każdej chwili wchodzisz z innego klienta na tę samą skrzynkę, możesz też używać
-    kilku równolegle. Żadna wiadomość przy tym nie ginie.
-  </span>
+  <div>
+    <p class="pw-alert__row">
+      <strong>Od 1 września 2026 wybór należy do Ciebie</strong> — a korzystać możesz
+      <strong>już teraz</strong>, bez zgłaszania czegokolwiek. Wybór nie jest na zawsze:
+      w każdej chwili wchodzisz z innego klienta na tę samą skrzynkę, możesz też używać
+      kilku równolegle. Żadna wiadomość przy tym nie ginie.
+    </p>
+    <p class="pw-alert__row pw-alert__row--strong">
+      <strong>Od 1 października 2026 <?= h(webmail_chooser_label()) ?> będzie jedynym
+      dedykowanym adresem do logowania do poczty.</strong>
+      Zapisz go w zakładkach — przestajemy podawać adresy Microsoftu i poszczególnych
+      klientów. Ten jeden adres zostanie ten sam, także gdy kiedyś zmienimy klienta
+      albo dodamy nowego.
+    </p>
+  </div>
 </div>
 
 <div class="pw-grid">
