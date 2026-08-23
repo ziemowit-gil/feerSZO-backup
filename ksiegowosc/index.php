@@ -84,6 +84,23 @@ $auth_ready       = $cert_ok && ($has_webauthn || $has_ikaks);
 $ikaks_session_ok = !$has_webauthn && kdok_ikaks_session_ok((int)$user['id']);
 $ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user['id']) : null;
 
+// ── KSeF: przycisk pobierania faktur ─────────────────────────────────────────
+// Widoczny tylko gdy integracja włączona i użytkownik ma uprawnienia
+// (te same co bramka w ksef_sync.php). Badge = pozycje w kolejce
+// pobrane z KSeF, ale jeszcze nie wprowadzone do obiegu EOD.
+$ksef_enabled = (org_setting('kdok_ksef_enabled') === '1')
+             && (kdok_has_role('upload') || is_admin());
+$ksef_pending = 0;
+if ($ksef_enabled) {
+    try {
+        $ksef_pending = (int)(kdok_one(
+            "SELECT COUNT(*) AS c FROM kdok_ksef_queue WHERE doc_id IS NULL"
+        )['c'] ?? 0);
+    } catch (\Throwable $_) {
+        // Tabela kolejki powstaje przy pierwszym wejściu do ksef_sync.php
+    }
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -97,6 +114,15 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/ksiegowosc/deletion_log.php" class="btn btn-outline-danger btn-sm">
       <i class="bi bi-trash3"></i> Rejestr usunięć
+    </a>
+    <?php endif; ?>
+    <?php if ($ksef_enabled): ?>
+    <a href="<?= APP_URL ?>/ksiegowosc/ksef_sync.php" class="btn btn-outline-primary btn-sm"
+       title="Pobierz faktury z Krajowego Systemu e-Faktur">
+      <i class="bi bi-cloud-arrow-down"></i> Pobierz z KSeF
+      <?php if ($ksef_pending): ?>
+        <span class="badge bg-warning text-dark ms-1"><?= $ksef_pending ?></span>
+      <?php endif; ?>
     </a>
     <?php endif; ?>
     <?php if (kdok_has_role('upload')): ?>
