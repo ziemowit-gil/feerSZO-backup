@@ -304,6 +304,19 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-bulk.is-armed { color:#4B5563 }
 .ib-bulk--restore .ib-bulk-act { color:#0F766E }
 .ib-bulk--restore .ib-bulk-act:hover { background:#ECFDF5 }
+/* ── Pasek skrzynki (kolor = skrzynka, klik = filtr) ───────────────────── */
+.ib-stripe { flex-shrink:0; width:4px; align-self:stretch; border:none; padding:0; display:block;
+  cursor:pointer; transition:width .12s }
+.ib-stripe:hover, .ib-stripe:focus-visible { width:7px; outline:none }
+.ib-mbox-legend { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; padding:0 .2rem .4rem;
+  font-size:.72rem }
+.ib-mbox-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.1rem .45rem; border-radius:2rem;
+  border:1px solid #E5E7EB; background:#fff; color:#6B7280; text-decoration:none; white-space:nowrap;
+  transition:border-color .12s, color .12s }
+.ib-mbox-chip:hover { color:#111827; border-color:#D1D5DB }
+.ib-mbox-chip.is-on { color:#111827; font-weight:600 }
+.ib-mbox-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0 }
+
 .ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6 }
 .ib-row:last-child { border-bottom:none }
 .ib-row .ib-item { flex:1; min-width:0; border-bottom:none }
@@ -508,6 +521,25 @@ include __DIR__ . '/includes/header_crm.php';
       są porzucane automatycznie. Zostają tutaj — w Poczcie i EZD bez zmian.
     </div>
     <?php endif; ?>
+    <?php if (count($boxes) > 1): ?>
+    <!-- Legenda skrzynek = filtr. Ten sam kolor ma pasek przy każdej wiadomości,
+         więc widać z listy, na którą skrzynkę wpłynęła. -->
+    <div class="ib-mbox-legend">
+      <a class="ib-mbox-chip<?= $mbox_f ? '' : ' is-on' ?>" href="?<?= $qs(['mailbox_id' => null, 'msg' => null, 'page' => null]) ?>">
+        wszystkie
+      </a>
+      <?php foreach ($boxes as $b): $bid = (int)$b['id']; $bc = crm_mailbox_color($bid); ?>
+      <a class="ib-mbox-chip<?= $mbox_f === $bid ? ' is-on' : '' ?>"
+         style="<?= $mbox_f === $bid ? 'border-color:' . h($bc) : '' ?>"
+         href="?<?= $qs(['mailbox_id' => $bid, 'msg' => null, 'page' => null]) ?>"
+         title="Pokaż tylko wiadomości ze skrzynki <?= h($b['mailbox']) ?>">
+        <span class="ib-mbox-dot" style="background:<?= h($bc) ?>" aria-hidden="true"></span>
+        <?= h($b['mailbox']) ?>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <?php if ($can_write && $inbox['rows']): ?>
     <!-- Masowe porzucanie: zaznaczenie działa na tym, co widać w bieżącym widoku. -->
     <form method="post" id="ibBulkForm">
@@ -552,6 +584,14 @@ include __DIR__ . '/includes/header_crm.php';
         $no     = crm_msg_no((int)$r['id'], $r['msg_no'] ?? null);
       ?>
       <div class="ib-row">
+      <?php if (!empty($r['mailbox_id'])): $rc = crm_mailbox_color((int)$r['mailbox_id']); ?>
+      <a class="ib-stripe" style="background:<?= h($rc) ?>"
+         href="?<?= $qs(['mailbox_id' => (int)$r['mailbox_id'], 'msg' => null, 'page' => null]) ?>"
+         title="Wpłynęło na: <?= h($r['mailbox_name'] ?: '—') ?> — kliknij, aby filtrować"
+         aria-label="Filtruj: skrzynka <?= h($r['mailbox_name'] ?: '—') ?>"></a>
+      <?php else: ?>
+      <span class="ib-stripe" style="background:#E5E7EB" aria-hidden="true"></span>
+      <?php endif; ?>
       <?php if ($can_write): ?>
       <input type="checkbox" class="ib-check" form="ibBulkForm" name="msg_ids[]" value="<?= (int)$r['id'] ?>"
              aria-label="Zaznacz wiadomość: <?= h($r['subject'] ?: '(bez tematu)') ?>">
@@ -641,7 +681,12 @@ include __DIR__ . '/includes/header_crm.php';
           &lt;<?= h($msg['from_email']) ?>&gt;
           <?php endif; ?>
           · <?= h(date('d.m.Y H:i', strtotime((string)$msg['sent_at']))) ?>
-          <?php if (!empty($msg['mailbox_name'])): ?> · na <?= h($msg['mailbox_name']) ?><?php endif; ?>
+          <?php if (!empty($msg['mailbox_name'])): ?>
+          · na <span class="ib-mbox-dot d-inline-block align-middle"
+                    style="background:<?= h(crm_mailbox_color((int)($msg['mailbox_id'] ?? 0))) ?>"
+                    aria-hidden="true"></span>
+          <?= h($msg['mailbox_name']) ?>
+          <?php endif; ?>
         </div>
         <div class="d-flex gap-2 flex-wrap mt-2">
           <?php if (!empty($msg['contact_id'])): ?>

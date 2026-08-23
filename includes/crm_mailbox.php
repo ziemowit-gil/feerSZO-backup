@@ -101,6 +101,30 @@ function crm_mailbox_list(bool $only_enabled = true): array {
     return $rows;
 }
 
+/**
+ * Kolory skrzynek — na liście każda wiadomość dostaje pasek w kolorze skrzynki,
+ * na którą wpłynęła. Kolor jest STAŁY: wynika z kolejności id skrzynek, więc nie
+ * zmienia się przy filtrowaniu ani po odświeżeniu.
+ */
+const CRM_MAILBOX_COLORS = [
+    '#0176D3', '#2E844A', '#B45309', '#7C3AED',
+    '#0F766E', '#BE123C', '#0369A1', '#A16207',
+];
+
+function crm_mailbox_color(int $mailbox_id): string {
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        try {
+            $ids = array_column(db_all("SELECT id FROM poczta_mailboxes ORDER BY id"), 'id');
+        } catch (\Throwable $e) { $ids = []; }
+        foreach (array_values($ids) as $i => $mid) {
+            $map[(int)$mid] = CRM_MAILBOX_COLORS[$i % count(CRM_MAILBOX_COLORS)];
+        }
+    }
+    return $map[$mailbox_id] ?? '#9CA3AF';
+}
+
 /** Czy nieznany nadawca ma zakładać kartotekę (wspólne z Inboksem EZD). */
 function crm_mailbox_autocreate(): bool {
     return crm_setting('poczta_autocreate_contacts') === '1';
