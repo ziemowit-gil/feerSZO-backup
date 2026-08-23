@@ -146,7 +146,7 @@ function mail_queue_add(
     // Natychmiastowa wysyłka gdy:
     //  a) flaga $immediate = true
     //  b) mała wiadomość (< 50 KB treści HTML) i brak zaplanowanego czasu
-    $is_small = strlen($body_html) < 51200;
+    $is_small = strlen($body_html ?: $body_text) < 51200;
     $sent_immediately = false;
     if (!$scheduled_at && ($immediate || $is_small)) {
         try {
@@ -443,10 +443,11 @@ function _mail_send_m365(array $msg): bool {
     $payload = [
         'message' => [
             'subject' => $msg['subject'],
-            'body'    => [
-                'contentType' => 'HTML',
-                'content'     => $msg['body_html'] ?: nl2br(htmlspecialchars($msg['body_text'])),
-            ],
+            // Brak wersji HTML = nadawca chciał zwykły tekst (np. pisma urzędowe).
+            // Wtedy nie dorabiamy HTML-a na siłę — Graph wysyła czysty text/plain.
+            'body'    => ($msg['body_html'] ?? '') !== ''
+                ? ['contentType' => 'HTML', 'content' => $msg['body_html']]
+                : ['contentType' => 'Text', 'content' => (string)$msg['body_text']],
             'toRecipients' => [[
                 'emailAddress' => [
                     'address' => $msg['to_email'],
@@ -622,29 +623,44 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $data .= _mail_extra_headers($msg);
     $data .= "MIME-Version: 1.0\r\n";
 
+    // Brak wersji HTML = wiadomość ma być zwykłym tekstem; nie dorabiamy HTML-a.
+    $plain_only = ($msg['body_html'] ?? '') === '' && ($msg['body_text'] ?? '') !== '';
+
     if ($attachments) {
         // multipart/mixed — zewnętrzna
         $data .= "Content-Type: multipart/mixed; boundary=\"{$mix_boundary}\"\r\n\r\n";
         $data .= "--{$mix_boundary}\r\n";
-        // wewnątrz: multipart/alternative (text+html)
-        $data .= "Content-Type: multipart/alternative; boundary=\"{$alt_boundary}\"\r\n\r\n";
+        if ($plain_only) {
+            $data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $data .= chunk_split(base64_encode($msg['body_text'])) . "\r\n";
+        } else {
+            // wewnątrz: multipart/alternative (text+html)
+            $data .= "Content-Type: multipart/alternative; boundary=\"{$alt_boundary}\"\r\n\r\n";
+        }
+    } elseif ($plain_only) {
+        $data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
+        $data .= chunk_split(base64_encode($msg['body_text'])) . "\r\n";
     } else {
         $data .= "Content-Type: multipart/alternative; boundary=\"{$alt_boundary}\"\r\n\r\n";
     }
 
-    // Treść tekstowa
-    if ($msg['body_text']) {
+    if (!$plain_only) {
+        // Treść tekstowa
+        if ($msg['body_text']) {
+            $data .= "--{$alt_boundary}\r\n";
+            $data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $data .= chunk_split(base64_encode($msg['body_text'])) . "\r\n";
+        }
+        // Treść HTML
         $data .= "--{$alt_boundary}\r\n";
-        $data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $data .= "Content-Type: text/html; charset=UTF-8\r\n";
         $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
-        $data .= chunk_split(base64_encode($msg['body_text'])) . "\r\n";
+        $data .= chunk_split(base64_encode($msg['body_html'] ?: nl2br(htmlspecialchars($msg['body_text'])))) . "\r\n";
+        $data .= "--{$alt_boundary}--\r\n";
     }
-    // Treść HTML
-    $data .= "--{$alt_boundary}\r\n";
-    $data .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
-    $data .= chunk_split(base64_encode($msg['body_html'] ?: nl2br(htmlspecialchars($msg['body_text'])))) . "\r\n";
-    $data .= "--{$alt_boundary}--\r\n";
 
     // Załączniki (tylko przy multipart/mixed)
     foreach ($attachments as $att) {
@@ -713,8 +729,13 @@ function _mail_send_native(array $msg): bool {
     $from_name  = _mail_from_name();
     $from_email = _mail_from();
 
+    // Brak wersji HTML = wiadomość zwykłotekstowa (jak w ścieżkach Graph/SMTP)
+    $plain_only = ($msg['body_html'] ?? '') === '' && ($msg['body_text'] ?? '') !== '';
+
     $headers  = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= $plain_only
+        ? "Content-Type: text/plain; charset=UTF-8\r\n"
+        : "Content-Type: text/html; charset=UTF-8\r\n";
     $headers .= "From: =?UTF-8?B?" . base64_encode($from_name) . "?= <{$from_email}>\r\n";
     $headers .= "Reply-To: {$from_email}\r\n";
     $headers .= "X-Mailer: RejestrUmow/2026\r\n";
@@ -728,7 +749,7 @@ function _mail_send_native(array $msg): bool {
         : $msg['to_email'];
     $subject = "=?UTF-8?B?" . base64_encode($msg['subject']) . "?=";
 
-    return mail($to, $subject, $msg['body_html'], $headers);
+    return mail($to, $subject, $plain_only ? $msg['body_text'] : $msg['body_html'], $headers);
 }
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────

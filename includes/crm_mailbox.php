@@ -249,9 +249,9 @@ function crm_mailbox_counts(): array {
 /**
  * Powiadamia NADAWCĘ, że jego sprawa trafiła do rejestru EZD.
  *
- * Treść jest stała (uzgodniona z fundacją) i wysyłana jako czysty HTML — same
- * akapity, bez firmowej ramki _feer_email_tpl() i bez stylowania; stopka
- * i klauzula RODO są już w samej treści.
+ * Treść jest stała (uzgodniona z fundacją) i wysyłana jako ZWYKŁY TEKST — bez
+ * HTML-a, ramki _feer_email_tpl() i stylowania; stopka i klauzula RODO są
+ * już w samej treści.
  *
  * Wysyłamy TYLKO przy założeniu NOWEJ koszulki. Dopięcie do już prowadzonej
  * sprawy nadawcy nie interesuje — o niej wie, korespondencja już trwa.
@@ -287,26 +287,6 @@ function crm_mailbox_notify_ezd_sender(int $comm_id): bool {
 
     $subject = 'Informacja o zarejestrowaniu sprawy w systemie EZD FEER';
 
-    // Czysty HTML, bez stylowania i ozdobników — ma wyglądać jak zwykłe pismo.
-    $html = '<p>Szanowny Panie / Szanowna Pani,</p>'
-          . '<p>Uprzejmie informujemy, że z uwagi na charakter Państwa sprawy, została ona zarejestrowana '
-          . 'w systemie Elektronicznego Zarządzania Dokumentacją FEER.</p>'
-          . '<p>Niebawem otrzymają Państwo odpowiedź w tej sprawie. W temacie oraz treści korespondencji '
-          . 'będzie pojawiał się numer koszulki / wirtualnej teczki, co ułatwi identyfikację sprawy.</p>'
-          . '<p>Informujemy również, że w związku z tym przetwarzamy Państwa dane osobowe w związku '
-          . 'z potrzebą załatwienia sprawy i prowadzoną korespondencją.</p>'
-          . '<p>W przypadku dodatkowych pytań pozostajemy do dyspozycji.</p>'
-          . '<p>Z poważaniem,</p>'
-          . '<p>Fundacja Edukacji Empatii Rozwoju "FEER"<br>'
-          . 'ul. W. Barbackiego 28/18<br>'
-          . '33-300 Nowy Sącz<br>'
-          . 'NIP: 7343570539</p>'
-          . '<p>Klauzula informacyjna RODO:</p>'
-          . '<p>Administratorem Państwa danych osobowych jest Fundacja Edukacji Empatii Rozwoju "FEER" '
-          . '(ul. W. Barbackiego 28/18, 33-300 Nowy Sącz, NIP: 7343570539). Dane są przetwarzane w celu '
-          . 'załatwienia sprawy oraz prowadzenia korespondencji. Pełna treść klauzuli informacyjnej znajduje '
-          . 'się na naszej stronie internetowej pod adresem: feer.org.pl/rodo.</p>';
-
     $text = "Szanowny Panie / Szanowna Pani,\n\n"
           . "Uprzejmie informujemy, że z uwagi na charakter Państwa sprawy, została ona zarejestrowana "
           . "w systemie Elektronicznego Zarządzania Dokumentacją FEER.\n\n"
@@ -324,7 +304,8 @@ function crm_mailbox_notify_ezd_sender(int $comm_id): bool {
 
     try {
         require_once __DIR__ . '/mail_queue.php';
-        mail_queue_add($to, (string)($m['from_name'] ?? ''), $subject, $html, $text,
+        // Pusta wersja HTML = mail_queue wysyła czysty text/plain (Graph: contentType Text)
+        mail_queue_add($to, (string)($m['from_name'] ?? ''), $subject, '', $text,
             'crm_ezd_notify', $comm_id, '', false);
     } catch (\Throwable $e) {
         error_log('[crm_mailbox_notify_ezd_sender] ' . $e->getMessage());
