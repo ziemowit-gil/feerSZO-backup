@@ -495,6 +495,9 @@ window.openCommModal = function(contactId, channel) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/index.php"><i class="bi bi-people-fill me-2"></i>Wszystkie kontakty</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/groups.php"><i class="bi bi-collection-fill me-2"></i>Grupy</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tags.php"><i class="bi bi-tags-fill me-2"></i>Tagi</a></li>
+        <?php if ($_crm_can_write): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/analyze.php"><i class="bi bi-funnel me-2"></i>Analiza kartotek z poczty</a></li>
+        <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/mobilna/"><i class="bi bi-telephone-outbound-fill me-2"></i>Szybkie dzwonienie <span class="text-body-secondary small">(mobile)</span></a></li>
       </ul>

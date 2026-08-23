@@ -382,6 +382,13 @@ class PocztaScanService
         $own_domain = $own !== '' ? substr(strrchr($own, '@') ?: '', 1) : '';
         if ($own_domain !== '' && str_ends_with($addr, '@' . $own_domain)) return null;
 
+        // Filtr nadawców z analizatora kartotek — sprawdzany U ŹRÓDŁA, więc raz
+        // odfiltrowany adres nie zakłada kartoteki po każdym kolejnym skanowaniu.
+        try {
+            require_once __DIR__ . '/crm_contact_analyzer.php';
+            if (crm_sender_blocked($addr)) return null;
+        } catch (\Throwable $e) { /* brak modułu nie może wstrzymać skanowania */ }
+
         try {
             require_once __DIR__ . '/crm.php';
             $disp  = $name !== '' ? $name : ucfirst((string)strtok($addr, '@'));
