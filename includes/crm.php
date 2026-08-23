@@ -1622,11 +1622,22 @@ class CrmManager
              WHERE n.contact_id=? ORDER BY n.is_pinned DESC, n.created_at DESC",
             [$id]
         );
+        // Historia obejmuje też wiadomości przypisane do OSÓB KONTAKTOWYCH tego
+        // podmiotu oraz przychodzące z ich adresów — korespondencja z firmą toczy
+        // się przez konkretnych ludzi, a nie adres ogólny. Dopasowanie po adresie
+        // (a nie tylko po contact_id) wyciąga też wiadomości sprzed powiązania.
         $contact['communications'] = db_all(
-            "SELECT cc.*, u.name AS sender_name
-             FROM crm_communications cc LEFT JOIN users u ON u.id=cc.sent_by
-             WHERE cc.contact_id=? ORDER BY cc.sent_at DESC LIMIT 50",
-            [$id]
+            "SELECT cc.*, u.name AS sender_name, m.mailbox AS mailbox_name
+               FROM crm_communications cc
+               LEFT JOIN users             u ON u.id = cc.sent_by
+               LEFT JOIN poczta_mailboxes  m ON m.id = cc.mailbox_id
+              WHERE cc.contact_id = ?
+                 OR cc.person_id IN (SELECT id FROM crm_contact_persons WHERE contact_id = ?)
+                 OR (COALESCE(cc.from_email,'') <> '' AND LOWER(cc.from_email) IN (
+                        SELECT LOWER(email) FROM crm_contact_persons
+                         WHERE contact_id = ? AND COALESCE(email,'') <> ''))
+           ORDER BY cc.sent_at DESC LIMIT 50",
+            [$id, $id, $id]
         );
         $contact['relations']      = self::getRelations($id);
         $contact['groups']         = self::getContactGroups($id);

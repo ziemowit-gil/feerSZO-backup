@@ -749,7 +749,11 @@ function _cv_communications_html(array $contact, int $id): string {
           $ch_info = CRM_CHANNELS[$comm['channel']] ?? ['label' => $comm['channel'], 'icon' => 'bi-chat'];
           $is_out  = in_array($comm['direction'] ?? '', ['out', 'outgoing'], true);
         ?>
-        <div class="crm-comm-item">
+        <div class="crm-comm-item cv-comm-open" role="button" tabindex="0"
+             data-comm-id="<?= (int)$comm['id'] ?>"
+             data-comm-title="<?= h(mb_strimwidth((string)($comm['subject'] ?: $ch_info['label']), 0, 80, '…')) ?>"
+             style="cursor:pointer"
+             aria-label="Podgląd wiadomości: <?= h((string)($comm['subject'] ?: $ch_info['label'])) ?>">
           <div class="crm-comm-icon <?= h($comm['channel']) ?>" aria-hidden="true">
             <i class="bi <?= h($ch_info['icon']) ?>"></i>
           </div>
@@ -770,6 +774,9 @@ function _cv_communications_html(array $contact, int $id): string {
             <div class="crm-note-meta">
               <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($comm['sender_name'] ?? '—') ?>
               · <?= date_pl($comm['sent_at']) ?>
+              <?php if (!empty($comm['mailbox_name'])): ?>
+              · <span class="font-monospace" style="font-size:.7rem"><?= h((string)$comm['mailbox_name']) ?></span>
+              <?php endif; ?>
               <span class="badge ms-1" style="font-size:.65rem;background:<?= in_array($comm['status'], ['wysłana','zsynchronizowana','odebrana'], true)?'#EFF7ED;color:#2E844A':'#fef2f2;color:#dc2626' ?>">
                 <?= h($comm['status']) ?>
               </span>
@@ -2371,4 +2378,53 @@ const ActivityUI = (function () {
 })();
 </script>
 <?php endif; ?>
+<!-- Podgląd wiadomości — modal POZA panelami kartoteki, treść doładowywana
+     z crm/api/comm_view.php (50 wpisów historii nie może siedzieć w stronie). -->
+<div class="modal fade" id="cvCommModal" tabindex="-1" aria-labelledby="cvCommModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fw-bold" id="cvCommModalLabel" style="font-size:1rem">
+          <i class="bi bi-envelope-open me-2 text-primary" aria-hidden="true"></i>
+          <span id="cvCommTitle">Wiadomość</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body" id="cvCommBody">
+        <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm" role="status"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var mEl = document.getElementById('cvCommModal');
+  if (!mEl) return;
+  var body = document.getElementById('cvCommBody');
+  var ttl  = document.getElementById('cvCommTitle');
+
+  function open(el) {
+    ttl.textContent = el.dataset.commTitle || 'Wiadomość';
+    body.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm" role="status"></span></div>';
+    bootstrap.Modal.getOrCreateInstance(mEl).show();
+    fetch('<?= APP_URL ?>/crm/api/comm_view.php?id=' + encodeURIComponent(el.dataset.commId), { credentials: 'same-origin' })
+      .then(function (r) { return r.text(); })
+      .then(function (html) { body.innerHTML = html; })
+      .catch(function () { body.innerHTML = '<div class="text-danger p-3">Nie udało się pobrać treści wiadomości.</div>'; });
+  }
+
+  // Delegacja — historia jest przeładowywana fragmentem po akcjach AJAX.
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest('.cv-comm-open');
+    if (el) open(el);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    var el = ev.target.closest('.cv-comm-open');
+    if (el) { ev.preventDefault(); open(el); }
+  });
+})();
+</script>
+
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

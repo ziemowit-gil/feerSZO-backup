@@ -345,16 +345,38 @@ class PocztaScanService
         }
     }
 
-    /** ID aktywnych kontaktów CRM pasujących do podanych adresów e-mail (indeks idx_crm_contacts_email). */
+    /**
+     * ID aktywnych kontaktów CRM pasujących do podanych adresów e-mail.
+     *
+     * Dopasowujemy po adresie samego kontaktu ORAZ po adresach jego OSÓB
+     * KONTAKTOWYCH. Bez tego drugiego wiadomość od księgowej firmy nie trafiała
+     * do historii tej firmy — a to najczęstszy przypadek w korespondencji
+     * z podmiotami, gdzie pisze konkretny człowiek, nie adres ogólny.
+     */
     private function contacts_by_emails(array $emails): array
     {
         if (!$emails) return [];
-        $ph = implode(',', array_fill(0, count($emails), '?'));
-        $s  = $this->pdo->prepare(
+        $ph  = implode(',', array_fill(0, count($emails), '?'));
+        $ids = [];
+
+        $s = $this->pdo->prepare(
             "SELECT id FROM crm_contacts WHERE LOWER(email) IN ($ph) AND crm_active = 1"
         );
         $s->execute($emails);
-        return array_map('intval', $s->fetchAll(\PDO::FETCH_COLUMN) ?: []);
+        foreach ($s->fetchAll(\PDO::FETCH_COLUMN) ?: [] as $v) $ids[(int)$v] = true;
+
+        try {
+            $s2 = $this->pdo->prepare(
+                "SELECT c.id
+                   FROM crm_contact_persons p
+                   JOIN crm_contacts       c ON c.id = p.contact_id
+                  WHERE LOWER(p.email) IN ($ph) AND c.crm_active = 1"
+            );
+            $s2->execute($emails);
+            foreach ($s2->fetchAll(\PDO::FETCH_COLUMN) ?: [] as $v) $ids[(int)$v] = true;
+        } catch (\Throwable $e) { /* brak tabeli osób nie może wstrzymać skanowania */ }
+
+        return array_keys($ids);
     }
 
     /** Czy nieznany nadawca ma zakładać kartotekę CRM (settings.poczta_autocreate_contacts). */
