@@ -278,15 +278,28 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-ezd-note i { font-size:1rem; color:#0F766E; flex-shrink:0; margin-top:.1rem }
 
 /* ── Masowe działania na liście ─────────────────────────────────────────── */
-.ib-bulk { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; padding:.45rem .7rem; margin-bottom:.5rem;
-  background:#fff; border:1px solid #E5E7EB; border-radius:10px; font-size:.78rem; color:#374151 }
-.ib-bulk.is-armed { border-color:#FCA5A5; background:#FEF7F7 }
-.ib-bulk-n { font-weight:700; color:#111827 }
+.ib-bulk { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:0 .2rem .35rem;
+  font-size:.73rem; color:#9CA3AF }
+.ib-bulk label { display:inline-flex; align-items:center; gap:.3rem; margin:0; cursor:pointer; color:#9CA3AF }
+.ib-bulk label:hover { color:#4B5563 }
+.ib-bulk input[type=checkbox] { width:.85rem; height:.85rem; cursor:pointer }
+.ib-bulk-n { color:#4B5563; font-weight:600 }
+/* Przycisk akcji chowa się, dopóki nic nie jest zaznaczone — pasek ma nie krzyczeć. */
+.ib-bulk-act { display:none; margin-left:auto; align-items:center; gap:.25rem; border:none; background:transparent;
+  padding:.1rem .35rem; border-radius:5px; font-size:.73rem; font-weight:600; color:#B91C1C; cursor:pointer }
+.ib-bulk-act:hover { background:#FEF2F2 }
+.ib-bulk-act:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
+.ib-bulk.is-armed .ib-bulk-act { display:inline-flex }
+.ib-bulk.is-armed { color:#4B5563 }
+.ib-bulk--restore .ib-bulk-act { color:#0F766E }
+.ib-bulk--restore .ib-bulk-act:hover { background:#ECFDF5 }
 .ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6 }
 .ib-row:last-child { border-bottom:none }
 .ib-row .ib-item { flex:1; min-width:0; border-bottom:none }
-.ib-row.is-checked { background:#FEF7F7 }
-.ib-check { flex-shrink:0; margin:.95rem .15rem .95rem .7rem; width:1rem; height:1rem; cursor:pointer }
+.ib-row.is-checked { background:#FAFAFA }
+.ib-check { flex-shrink:0; margin:.95rem .15rem .95rem .65rem; width:.9rem; height:.9rem; cursor:pointer;
+  opacity:.45; transition:opacity .12s }
+.ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
 
 /* ── Numer wiadomości ───────────────────────────────────────────────────── */
 /* Na liście numer nie walczy o miejsce z tematem: w rogu siedzi sama ikonka,
@@ -471,16 +484,17 @@ include __DIR__ . '/includes/header_crm.php';
       <input type="hidden" name="view" value="<?= h($view) ?>">
       <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
       <input type="hidden" name="q" value="<?= h($search) ?>">
-      <div class="ib-bulk" id="ibBulkBar">
-        <label class="d-inline-flex align-items-center gap-1 mb-0" style="cursor:pointer">
-          <input type="checkbox" id="ibCheckAll" aria-label="Zaznacz wszystkie wiadomości w tym widoku">
-          <span>Zaznacz wszystkie</span>
+      <div class="ib-bulk<?= $bulk_view ? ' ib-bulk--restore' : '' ?>" id="ibBulkBar">
+        <label>
+          <input type="checkbox" id="ibCheckAll"
+                 aria-label="Zaznacz wszystkie widoczne wiadomości (<?= count($inbox['rows']) ?>)">
+          <span>Zaznacz widoczne (<?= count($inbox['rows']) ?>)</span>
         </label>
-        <span class="text-muted">zaznaczono: <span class="ib-bulk-n" id="ibBulkN">0</span></span>
-        <button class="ib-tbtn ms-auto" id="ibBulkBtn" disabled
+        <span id="ibBulkInfo" hidden>· <span class="ib-bulk-n" id="ibBulkN">0</span> zazn.</span>
+        <button class="ib-bulk-act" id="ibBulkBtn" disabled
                 <?= $bulk_view ? '' : 'onclick="return confirm(\'Porzucić zaznaczone wiadomości? Znikną ze Skrzynki CRM — zostaną w widoku Ukryte, w Poczcie i EZD bez zmian.\')"' ?>>
           <?php if ($bulk_view): ?>
-          <i class="bi bi-eye" aria-hidden="true"></i>Przywróć zaznaczone
+          <i class="bi bi-eye" aria-hidden="true"></i>Przywróć
           <?php else: ?>
           <i class="bi bi-hand-thumbs-down" aria-hidden="true"></i>Porzuć zaznaczone
           <?php endif; ?>
@@ -952,9 +966,12 @@ include __DIR__ . '/includes/header_crm.php';
   var out   = document.getElementById('ibBulkN');
   var boxes = Array.prototype.slice.call(document.querySelectorAll('.ib-check'));
 
+  var info = document.getElementById('ibBulkInfo');
+
   function refresh() {
     var n = boxes.filter(function (b) { return b.checked; }).length;
     out.textContent = n;
+    info.hidden = n === 0;
     btn.disabled = n === 0;
     bar.classList.toggle('is-armed', n > 0);
     boxes.forEach(function (b) { b.closest('.ib-row').classList.toggle('is-checked', b.checked); });
