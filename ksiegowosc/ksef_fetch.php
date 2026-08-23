@@ -31,14 +31,8 @@ if (org_setting('kdok_ksef_enabled') !== '1') {
     json_err('Integracja KSeF nie jest włączona. Skonfiguruj ją w panelu admina.');
 }
 
-// Bramka IKA + IKAKS
-$gate = kdok_ksef_auth_gate(
-    trim($_POST['_ksef_ikaks'] ?? ''),
-    trim($_POST['_ksef_ika']   ?? '')
-);
-if (!$gate['ok']) {
-    json_err('Autoryzacja wymagana: ' . $gate['error']);
-}
+// Pobranie danych faktury to czysty odczyt z API KSeF — bez bramki IKA/IKAKS.
+// Dostęp chroni require_login() + rola upload/admin powyżej.
 
 $ref = trim($_POST['ksef_reference'] ?? '');
 if ($ref === '') {

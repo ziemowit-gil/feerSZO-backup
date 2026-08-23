@@ -39,19 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
-    // ── Bramka IKA + IKAKS — wymagana dla każdej operacji KSeF ───────────────
-    $gate_actions = ['sync', 'sync_all', 'import_ref', 'introduce'];
-    if (in_array($action, $gate_actions, true)) {
-        $gate = kdok_ksef_auth_gate(
-            trim($_POST['_ksef_ikaks'] ?? ''),
-            trim($_POST['_ksef_ika']   ?? '')
-        );
-        if (!$gate['ok']) {
-            flash_set('error', 'Autoryzacja KSeF wymagana: ' . $gate['error']);
-            header('Location: ' . APP_URL . '/ksiegowosc/ksef_sync.php');
-            exit;
-        }
-    }
+    // Pobieranie z KSeF nie wymaga IKA/IKAKS — wystarczy zalogowanie
+    // i rola upload/admin (sprawdzone na wejściu do strony). Operacje są
+    // wyłącznie odczytem z API KSeF + wprowadzeniem faktur do obiegu EOD.
 
     // Import ręczny po numerze referencyjnym KSeF
     if ($action === 'import_ref') {
@@ -339,8 +329,6 @@ require_once __DIR__ . '/../includes/header.php';
         <form method="post" id="syncForm" class="mb-3">
           <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
           <input type="hidden" name="action"     value="sync">
-          <input type="hidden" name="_ksef_ikaks" class="ksef-ikaks-val" value="">
-          <input type="hidden" name="_ksef_ika"   class="ksef-ika-val"   value="">
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <button type="submit" class="btn btn-success" id="syncBtn">
               <span id="syncBtnLabel"><i class="bi bi-arrow-repeat me-1"></i>Synchronizuj od ostatniego razu</span>
@@ -361,8 +349,6 @@ require_once __DIR__ . '/../includes/header.php';
         <form method="post" id="syncAllForm">
           <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
           <input type="hidden" name="action"      value="sync_all">
-          <input type="hidden" name="_ksef_ikaks"  class="ksef-ikaks-val" value="">
-          <input type="hidden" name="_ksef_ika"    class="ksef-ika-val"   value="">
           <div class="row g-2 align-items-end mb-2">
             <div class="col-auto">
               <label class="form-label small mb-1">Od</label>
@@ -423,8 +409,6 @@ require_once __DIR__ . '/../includes/header.php';
     <form method="post" id="importRefForm" class="d-flex gap-2 flex-wrap align-items-start">
       <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
       <input type="hidden" name="action"      value="import_ref">
-      <input type="hidden" name="_ksef_ikaks"  class="ksef-ikaks-val" value="">
-      <input type="hidden" name="_ksef_ika"    class="ksef-ika-val"   value="">
       <div style="flex:1;min-width:280px">
         <input type="text" name="ksef_reference" id="ksef_ref_input"
                class="form-control font-monospace"
@@ -578,141 +562,7 @@ require_once __DIR__ . '/../includes/header.php';
   bindSpinner('syncAllForm',  'syncAllBtn',    'syncAllLabel',    'syncAllSpinner');
   bindSpinner('importRefForm','importRefBtn',  'importRefLabel',  'importRefSpinner');
 
-  // ── Bramka IKA + IKAKS ────────────────────────────────────────────────────
-  (function () {
-    var modal      = document.getElementById('ksefAuthModal');
-    var ikaInput   = document.getElementById('ksefIkaInput');
-    var ikaksInput = document.getElementById('ksefIkaksInput');
-    var authErr    = document.getElementById('ksefAuthError');
-    var confirmBtn = document.getElementById('ksefAuthConfirm');
-    var hasIkaks   = <?= kdok_ikaks_has((int)(current_user()['id'] ?? 0)) ? 'true' : 'false' ?>;
-    var hasIkaSess = <?= (((int)($_SESSION['_ika_ts'] ?? 0)) > 0 && (time() - (int)($_SESSION['_ika_ts'] ?? 0)) < 3600) ? 'true' : 'false' ?>;
-    var _targetForm = null;
-
-    if (!modal) return;
-    var bsModal = bootstrap.Modal.getOrCreateInstance(modal);
-
-    // Przechwytuj submit każdego formularza z ksef-ikaks-val
-    document.querySelectorAll('form:has(.ksef-ikaks-val)').forEach(function (form) {
-      form.addEventListener('submit', function (e) {
-        // Jeśli pola już wypełnione — kontynuuj
-        var iv = form.querySelector('.ksef-ikaks-val');
-        var ia = form.querySelector('.ksef-ika-val');
-        if ((hasIkaks && iv && iv.value) || (hasIkaSess && !hasIkaks)) return;
-        if (!hasIkaks && !hasIkaSess && ia && ia.value) return;
-        e.preventDefault();
-        _targetForm = form;
-        // Pokaż odpowiednie pola
-        var ikaRow   = document.getElementById('ika-row');
-        var ikaksRow = document.getElementById('ikaks-row');
-        if (ikaRow)   ikaRow.style.display   = hasIkaks ? 'none' : '';
-        if (ikaksRow) ikaksRow.style.display  = hasIkaks ? '' : 'none';
-        if (authErr) authErr.textContent = '';
-        if (ikaInput)   ikaInput.value   = '';
-        if (ikaksInput) ikaksInput.value = '';
-        bsModal.show();
-        setTimeout(function () {
-          (hasIkaks ? ikaksInput : ikaInput)?.focus();
-        }, 300);
-      });
-    });
-
-    // Potwierdź w modalu
-    if (confirmBtn) confirmBtn.addEventListener('click', function () {
-      if (!_targetForm) return;
-      var iv = _targetForm.querySelector('.ksef-ikaks-val');
-      var ia = _targetForm.querySelector('.ksef-ika-val');
-      if (hasIkaks) {
-        if (!ikaksInput || !ikaksInput.value.trim()) {
-          if (authErr) authErr.textContent = 'Wpisz kod IKAKS.';
-          return;
-        }
-        if (iv) iv.value = ikaksInput.value.trim();
-      } else {
-        if (!ikaInput || !ikaInput.value.trim()) {
-          if (authErr) authErr.textContent = 'Wpisz kod IKA.';
-          return;
-        }
-        if (ia) ia.value = ikaInput.value.trim();
-      }
-      bsModal.hide();
-      setTimeout(function () { _targetForm.submit(); }, 150);
-    });
-
-    // Enter w polach
-    [ikaInput, ikaksInput].forEach(function (inp) {
-      if (!inp) return;
-      inp.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); confirmBtn && confirmBtn.click(); }
-      });
-    });
-  })();
 })();
 </script>
-
-<!-- ── Modal autoryzacji IKA / IKAKS ──────────────────────────────────────── -->
-<?php
-$_gate = kdok_ksef_gate_status();
-$_has_ikaks = $_gate['has_ikaks'];
-$_has_ika_session = $_gate['has_ika_session'];
-?>
-<div class="modal fade" id="ksefAuthModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="ksefAuthModalLabel">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
-    <div class="modal-content">
-      <div class="modal-header bg-dark text-white py-2">
-        <h5 class="modal-title" id="ksefAuthModalLabel">
-          <i class="bi bi-shield-lock-fill me-2"></i>Autoryzacja operacji KSeF
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Anuluj"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-3">
-          Operacje KSeF (import faktur, synchronizacja) wymagają potwierdzenia tożsamości
-          ze względu na dostęp do danych finansowych.
-        </p>
-
-        <?php if (!$_has_ikaks && !$_has_ika_session): ?>
-        <div class="alert alert-warning py-2 small mb-3">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          Nie masz ustawionego IKAKS. Użyj kodu IKA lub
-          <a href="<?= APP_URL ?>/user/kdok_ikaks.php" target="_blank">ustaw IKAKS w profilu</a>.
-        </div>
-        <?php endif; ?>
-
-        <!-- Pole IKAKS (gdy użytkownik ma IKAKS) -->
-        <div id="ikaks-row" <?= !$_has_ikaks ? 'style="display:none"' : '' ?>>
-          <label class="form-label fw-semibold small">
-            <i class="bi bi-key-fill text-warning me-1"></i>Kod IKAKS
-          </label>
-          <input type="password" id="ksefIkaksInput" class="form-control"
-                 placeholder="Twój indywidualny kod IKAKS…" autocomplete="off">
-          <div class="form-text">
-            IKAKS ustawiony w <a href="<?= APP_URL ?>/user/kdok_ikaks.php" target="_blank">Moim profilu → IKAKS</a>.
-          </div>
-        </div>
-
-        <!-- Pole IKA (gdy brak IKAKS lub brak sesji IKA) -->
-        <div id="ika-row" <?= $_has_ikaks ? 'style="display:none"' : '' ?>>
-          <label class="form-label fw-semibold small">
-            <i class="bi bi-person-lock me-1 text-primary"></i>Kod IKA
-          </label>
-          <input type="password" id="ksefIkaInput" class="form-control"
-                 placeholder="Twój kod IKA…" autocomplete="off">
-          <div class="form-text">
-            Indywidualny kod autoryzacyjny — ten sam co przy logowaniu do systemu.
-          </div>
-        </div>
-
-        <div id="ksefAuthError" class="text-danger small mt-2" style="min-height:1.2rem"></div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
-        <button type="button" id="ksefAuthConfirm" class="btn btn-dark btn-sm">
-          <i class="bi bi-shield-check me-1"></i>Potwierdź i kontynuuj
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
