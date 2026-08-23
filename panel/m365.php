@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/email_alias.php';
+require_once dirname(__DIR__) . '/includes/webmail_clients.php';
 email_alias_migrate();
 
 require_login();
@@ -484,8 +485,11 @@ if ($_is_volunteer_only) {
       i swojego hasła.
     </p>
     <?php
+    // Poczta prowadzi na WŁASNY adres organizacji (strona wyboru klienta), nie
+    // na outlook.office.com — jeden adres do zapamiętania, zob.
+    // includes/webmail_clients.php::webmail_chooser_url().
     $m365_apps = [
-        ['Outlook',    'https://outlook.office.com',               'bi-envelope-fill'],
+        ['Poczta',     webmail_chooser_url(),                      'bi-envelope-fill'],
         ['Teams',      'https://teams.microsoft.com',              'bi-camera-video-fill'],
         ['SharePoint', 'https://sharepoint.com',                   'bi-diagram-2-fill'],
         ['OneDrive',   'https://onedrive.live.com',                'bi-cloud-fill'],

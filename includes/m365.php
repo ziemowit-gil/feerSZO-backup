@@ -258,6 +258,16 @@ class M365Graph {
 
     private function welcome_html(string $name, string $login, string $password): string {
         $org = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+
+        // Do poczty kierujemy na WŁASNY adres organizacji (strona wyboru
+        // klienta), nie na outlook.office.com — jeden adres do zapamiętania,
+        // własna domena (a nie „dziwny" adres, który wygląda jak phishing).
+        // portal.office.com zostaje niżej, bo tam faktycznie zmienia się hasło
+        // i instaluje aplikacje Microsoftu.
+        require_once __DIR__ . '/webmail_clients.php';
+        $mail_url   = webmail_chooser_url();
+        $mail_label = webmail_chooser_label();
+
         return "
 <p>Witaj {$name},</p>
 <p>Zostało dla Ciebie utworzone konto Microsoft 365 w organizacji <strong>{$org}</strong>.</p>
@@ -266,7 +276,8 @@ class M365Graph {
   <tr><td style='padding:4px 12px 4px 0;color:#555'>Hasło tymczasowe:</td><td><strong>{$password}</strong></td></tr>
 </table>
 <p>Przy pierwszym logowaniu zostaniesz poproszony/a o zmianę hasła.</p>
-<p>Zaloguj się na: <a href='https://portal.office.com'>https://portal.office.com</a></p>
+<p><strong>Poczta:</strong> <a href='{$mail_url}'>{$mail_label}</a> — to jeden adres do zapamiętania, sam kieruje dalej.</p>
+<p style='font-size:.9em;color:#555'>Hasło i aplikacje Microsoft 365 (Word, Teams): <a href='https://portal.office.com'>portal.office.com</a></p>
 <p style='color:#888;font-size:.9em'>Wiadomość wygenerowana automatycznie przez system Rejestru Umów.</p>
 ";
     }

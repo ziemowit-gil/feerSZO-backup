@@ -259,6 +259,12 @@ HTML;
         $name  = htmlspecialchars($person_name ?: $person_email, ENT_QUOTES);
         $login = htmlspecialchars($row['m365_login'], ENT_QUOTES);
         $pass  = htmlspecialchars($password, ENT_QUOTES);
+        // Poczta pod własnym adresem organizacji (strona wyboru klienta) —
+        // portal.office.com zostaje niżej, bo tam zmienia się hasło i instaluje
+        // aplikacje Microsoftu. Zob. includes/webmail_clients.php.
+        require_once dirname(__DIR__) . '/includes/webmail_clients.php';
+        $mail_url   = webmail_chooser_url();
+        $mail_label = webmail_chooser_label();
         $mail_html = <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:linear-gradient(135deg,#0078d4,#106ebe);padding:22px 26px;border-radius:10px 10px 0 0">
@@ -281,9 +287,13 @@ HTML;
     To hasło jest jednorazowe. Po zalogowaniu system poprosi o zmianę na własne.
   </div>
   <div style="margin:20px 0;text-align:center">
-    <a href="https://portal.office.com" style="background:#0078d4;color:#fff;padding:13px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700">
-      Zaloguj się do Microsoft 365 &#8594;
+    <a href="{$mail_url}" style="background:#1d4ed8;color:#fff;padding:13px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700">
+      Otwórz pocztę &#8594;
     </a>
+    <div style="font-size:.82em;color:#6c757d;margin-top:10px">
+      {$mail_label} — nasz własny adres, jeden dla wszystkich.<br>
+      Hasło i aplikacje Microsoft (Word, Teams): <a href="https://portal.office.com" style="color:#6c757d">portal.office.com</a>
+    </div>
   </div>
   <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
     Jeśli masz problem z logowaniem, skontaktuj się z {$org}.

@@ -99,6 +99,11 @@ function _wolontariat_provision_account(
 
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
     $panel_url = APP_URL . '/panel/index.php';
+    // Poczta zawsze pod własnym adresem organizacji (strona wyboru klienta) —
+    // nie outlook.office.com. Zob. includes/webmail_clients.php.
+    require_once dirname(dirname(__DIR__)) . '/includes/webmail_clients.php';
+    $mail_url   = webmail_chooser_url();
+    $mail_label = webmail_chooser_label();
 
     // ── Blok logowania (wspólny dla wszystkich wariantów) ──────────────────────
     $login_block = <<<HTML
@@ -132,8 +137,10 @@ HTML;
     </tr>
   </table>
   <p style="margin:10px 0 0;font-size:.83em;color:#555">
-    Przy pierwszym logowaniu do Microsoft 365 zostaniesz poproszony/a o ustawienie hasła.
-    Zaloguj się na: <a href="https://portal.office.com" style="color:#0d6efd">portal.office.com</a>
+    Przy pierwszym logowaniu do Microsoft 365 zostaniesz poproszony/a o ustawienie hasła
+    (<a href="https://portal.office.com" style="color:#6c757d">portal.office.com</a>).
+    Pocztę otwierasz zawsze pod naszym adresem:
+    <a href="{$mail_url}" style="color:#0d6efd"><strong>{$mail_label}</strong></a>
   </p>
 </div>
 HTML;

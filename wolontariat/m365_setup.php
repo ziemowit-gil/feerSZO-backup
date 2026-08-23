@@ -306,6 +306,16 @@ if (!function_exists('h')) {
         <i class="bi bi-box-arrow-up-right me-2"></i>Zaloguj do Microsoft 365
       </a>
 
+      <?php
+      // Po ustawieniu hasła poczty szuka się już pod NASZYM adresem, nie pod
+      // outlook.office.com — jeden adres do zapamiętania.
+      require_once dirname(__DIR__) . '/includes/webmail_clients.php';
+      ?>
+      <p class="text-muted" style="font-size:.85rem;margin:.6rem 0 1rem;text-align:center">
+        Pocztę otwierasz potem zawsze tutaj:
+        <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener noreferrer"><strong><?= h(webmail_chooser_label()) ?></strong></a>
+      </p>
+
       <?php if ($app_url): ?>
       <a href="<?= h($app_url) ?>/panel/index.php" class="btn btn-outline-secondary w-100" style="border-radius:10px">
         <i class="bi bi-house me-2"></i>Wróć do panelu wolontariusza

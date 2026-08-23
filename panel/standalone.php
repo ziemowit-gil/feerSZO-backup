@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once __DIR__ . '/../includes/webmail_clients.php';
 require_once dirname(__DIR__) . '/includes/cpc.php';
 require_once dirname(__DIR__) . '/includes/moodle.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
@@ -136,10 +137,14 @@ include __DIR__ . '/includes/header_panel.php';
           <?php if (!empty($u_db['m365_security_group_name'])): ?>
           <div class="tz-kv">Grupa dostępu: <code><?= h($u_db['m365_security_group_name']) ?></code></div>
           <?php endif; ?>
-          <div class="tz-svc__foot">
-            <a href="https://portal.office.com" target="_blank" rel="noopener"
-               aria-label="Otwórz portal.office.com (nowa karta)">
-              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz portal.office.com
+          <div class="tz-svc__foot d-flex flex-wrap gap-3">
+            <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener"
+               aria-label="Otwórz pocztę — <?= h(webmail_chooser_label()) ?> (nowa karta)">
+              <i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h(webmail_chooser_label()) ?>
+            </a>
+            <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"
+               aria-label="Otwórz portal Microsoft 365 (nowa karta) — hasło i aplikacje">
+              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)
             </a>
           </div>
         </div>

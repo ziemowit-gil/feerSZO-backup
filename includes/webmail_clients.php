@@ -26,6 +26,28 @@
  */
 
 /**
+ * JEDEN adres poczty dla użytkowników: strona wyboru klienta.
+ *
+ * Wszędzie, gdzie mówimy współpracownikowi „otwórz pocztę", ma stać TEN adres —
+ * nie outlook.office.com, nie rc.feer.org.pl, nie portal.office.com. Dziwne,
+ * cudze domeny w instrukcjach i mailach są nie do zapamiętania i wyglądają jak
+ * phishing; poczta.feer.org.pl jest własna, jedna i sama kieruje dalej
+ * (webmail/index.php). Adresy konkretnych klientów zostają TYLKO na tej stronie
+ * i w ustawieniach admina.
+ *
+ * Zmiana adresu: Admin → Organizacja → `webmail_url` (np. gdy dochodzi
+ * webmail.feer.org.pl albo domena się zmienia).
+ */
+function webmail_chooser_url(): string {
+    return rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
+}
+
+/** Adres do pokazania (bez schematu) — „poczta.feer.org.pl". */
+function webmail_chooser_label(): string {
+    return (string)preg_replace('~^https?://~', '', webmail_chooser_url());
+}
+
+/**
  * Cechy do zestawienia — kolejność wierszy tabeli porównania.
  *
  * @return array<string, array{label:string, note:string}>

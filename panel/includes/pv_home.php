@@ -141,8 +141,9 @@ if (module_enabled('ezd_enabled') && can_read('ezd')) $_pv_daily[] = ['href'=>AP
    i aliasem szo.feer.org.pl/poczta) oraz moduł Poczta. Klient bez ustawionego
    adresu (Admin → Poczta → Webmail) po prostu się tu nie pojawia. */
 require_once $ROOT . '/includes/webmail_clients.php';
-$_mail_clients = webmail_clients();
-$_mail_chooser = rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
+$_mail_clients       = webmail_clients();
+$_mail_chooser       = webmail_chooser_url();
+$_mail_chooser_label = webmail_chooser_label();
 
 /* ── Aktywność: ostatnie wnioski ─────────────────────────────────────────── */
 $_pv_apps = $my_apps ? array_map(fn($a) => [
@@ -297,6 +298,9 @@ $_pv_rel_time = function (string $dt): string {
 .pvtz .pv-mail-btn{display:flex;flex-direction:column;gap:.1rem;padding:.7rem .9rem;border:1px solid var(--tz-line);border-radius:12px;background:var(--tz-bg);text-decoration:none;color:var(--tz-ink);font-weight:700;font-size:.9rem;min-height:44px;transition:border-color .15s,transform .15s,box-shadow .15s}
 .pvtz .pv-mail-btn:hover,.pvtz .pv-mail-btn:focus-visible{border-color:var(--tz);transform:translateY(-1px);box-shadow:0 6px 18px -8px rgba(var(--tz-rgb),.35);color:var(--tz-ink)}
 .pvtz .pv-mail-btn span{font-weight:400;font-size:.78rem;color:var(--tz-muted)}
+.pvtz .pv-mail-pick--single{grid-template-columns:1fr}
+.pvtz .pv-mail-btn--main{border-color:var(--tz);background:var(--tz-50)}
+.pvtz .pv-mail-btn--main:hover{background:var(--tz-bg)}
 .pvtz .pv-mail-btn i{color:var(--tz-strong);margin-right:.35rem}
 .pvtz .pv-mail-diff{margin-top:.55rem;font-size:.84rem}
 .pvtz .pv-mail-diff>summary{cursor:pointer;font-weight:600;color:var(--tz-strong);list-style:none;display:inline-flex;align-items:center;gap:.35rem;min-height:32px}
@@ -720,7 +724,10 @@ $_pv_rel_time = function (string $dt): string {
             <button class="tz-copy" type="button" onclick="pvCopy(<?= h(json_encode($m365_login)) ?>, this)" aria-label="Kopiuj login M365"><i class="bi bi-copy" aria-hidden="true"></i></button>
           </div>
           <?php if (!empty($u_db['m365_security_group_name'])): ?><div class="tz-kv">Grupa dostępu: <?= h($u_db['m365_security_group_name']) ?></div><?php endif; ?>
-          <div class="tz-svc__foot"><a href="https://portal.office.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz portal.office.com</a></div>
+          <div class="tz-svc__foot d-flex flex-wrap gap-3">
+            <a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h($_mail_chooser_label) ?></a>
+            <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)</a>
+          </div>
         </div>
       </div>
       <?php elseif (!empty($user['microsoft_id']) || !empty($u_db['microsoft_id'])): ?>
@@ -729,7 +736,10 @@ $_pv_rel_time = function (string $dt): string {
         <div class="tz-svc__bd">
           <div class="tz-svc__ttl">Microsoft 365 <span class="tz-badge tz-badge--ok ms-1"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span></div>
           <div class="tz-kv">Zaloguj adresem e-mail: <code><?= h($email) ?></code></div>
-          <div class="tz-svc__foot"><a href="https://portal.office.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz portal.office.com</a></div>
+          <div class="tz-svc__foot d-flex flex-wrap gap-3">
+            <a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h($_mail_chooser_label) ?></a>
+            <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)</a>
+          </div>
         </div>
       </div>
       <?php endif; ?>
@@ -812,15 +822,12 @@ $_pv_rel_time = function (string $dt): string {
             dodatkowo potrafi. Wybór jest odwracalny — możesz używać kilku klientów równolegle.
           </div>
 
-          <div class="pv-mail-pick">
-            <?php foreach ($_mail_clients as $_mc): ?>
-            <a class="pv-mail-btn" href="<?= h($_mc['url']) ?>" target="_blank" rel="noopener noreferrer">
-              <span style="font-weight:700;color:inherit"><i class="bi <?= h($_mc['icon']) ?>" aria-hidden="true"></i><?= h($_mc['label']) ?><?php
-                if ($_mc['badge'] === 'zalecany'): ?> <span class="tz-badge tz-badge--ok"><?= 'zalecany' ?></span><?php
-                elseif ($_mc['badge'] === 'awaryjny'): ?> <span class="tz-badge tz-badge--wait">awaryjny</span><?php endif; ?></span>
-              <span><?= h($_mc['tagline']) ?></span>
+          <div class="pv-mail-pick pv-mail-pick--single">
+            <a class="pv-mail-btn pv-mail-btn--main" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer">
+              <span style="font-weight:700;color:inherit"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Otwórz pocztę — <?= h($_mail_chooser_label) ?></span>
+              <span>jeden adres do zapamiętania; tam wybierasz klienta<?php
+                if ($_mail_clients) { echo ' (' . count($_mail_clients) . ' do wyboru)'; } ?></span>
             </a>
-            <?php endforeach; ?>
           </div>
 
           <details class="pv-mail-diff">
@@ -837,6 +844,10 @@ $_pv_rel_time = function (string $dt): string {
                   jednym przyciskiem „Microsoft 365" (bez osobnego hasła). Roundcube dokłada
                   załączniki z <strong>OneDrive i ownCloud</strong> oraz kontakty kopiowane z Outlooka;
                   SnappyMail ma najlżejszy interfejs i da się go „zainstalować" na telefonie.</dd>
+              <dt><i class="bi bi-signpost-split" aria-hidden="true"></i> Skąd wchodzić</dt>
+              <dd>Zawsze z <strong><?= h($_mail_chooser_label) ?></strong> — to nasz własny adres i sam
+                  kieruje dalej. Nie musisz pamiętać adresów Microsoftu ani Roundcube; jeśli kiedyś
+                  zmienimy klienta, ten adres zostanie ten sam.</dd>
               <dt><i class="bi bi-info-circle" aria-hidden="true"></i> Co jest wspólne</dt>
               <dd>Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości. Reguły, podpis
                   i autoodpowiedź ustawione w Outlooku działają na serwerze, więc obowiązują też

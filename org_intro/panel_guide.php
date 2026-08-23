@@ -438,10 +438,16 @@ include dirname(__DIR__) . '/includes/header.php';
             Dane logowania (e-mail i hasło) powinny zostać wysłane na Twój adres przy podpisaniu umowy.
           </div>
           <div class="pg-step-action">
-            <a href="https://portal.office.com" target="_blank" rel="noopener"
+            <?php require_once dirname(__DIR__) . '/includes/webmail_clients.php'; ?>
+            <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-outline-primary py-0"
-               aria-label="Otwórz portal Microsoft 365 w nowej karcie">
-              <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>portal.office.com
+               aria-label="Otwórz pocztę organizacji w nowej karcie">
+              <i class="bi bi-envelope-fill me-1" aria-hidden="true"></i><?= h(webmail_chooser_label()) ?>
+            </a>
+            <a href="https://portal.office.com" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-secondary py-0 ms-1"
+               aria-label="Otwórz portal Microsoft 365 w nowej karcie — hasło i aplikacje">
+              <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Hasło / aplikacje
             </a>
             <a href="<?= $base ?>/panel/m365.php" class="btn btn-sm btn-outline-secondary py-0 ms-1">
               <i class="bi bi-microsoft me-1" aria-hidden="true"></i>Dane konta M365

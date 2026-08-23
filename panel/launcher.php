@@ -36,8 +36,10 @@ foreach (preg_split('/\s+/', trim($_name)) as $w) {
 }
 $_ini  = mb_substr($_ini, 0, 2, 'UTF-8') ?: '?';
 
-// URL do poczty z ustawień lub fallback
-$mail_url = rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
+// Jeden adres poczty dla użytkowników (strona wyboru klienta) — wspólny helper,
+// żeby nie powielać fallbacku po plikach. Zob. includes/webmail_clients.php.
+require_once dirname(__DIR__) . '/includes/webmail_clients.php';
+$mail_url = webmail_chooser_url();
 
 $choices = [
     [
