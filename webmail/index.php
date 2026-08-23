@@ -128,6 +128,15 @@ auth_screen_head([
 .pw-alert__row{margin:0}
 .pw-alert__row + .pw-alert__row{margin-top:.6rem;padding-top:.6rem;border-top:1px solid #bfdbfe}
 .pw-alert__row--strong{color:#1e3a8a}
+
+/* ── „Dlaczego jeden adres" — pasek pełnej szerokości pod panelami ───────── */
+.pw-why{margin-top:1.1rem}
+.pw-why__grid{display:grid;gap:.9rem 1.4rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0}
+.pw-why__item{display:flex;gap:.65rem;align-items:flex-start}
+.pw-why__ico{flex-shrink:0;width:30px;height:30px;border-radius:8px;background:var(--c-bg,rgba(220,38,38,.07));
+  color:var(--ks);display:flex;align-items:center;justify-content:center;font-size:.95rem}
+.pw-why__t{font-weight:700;font-size:.9rem;margin:0 0 .1rem}
+.pw-why__d{font-size:.83rem;line-height:1.5;color:var(--ks-muted)!important;margin:0}
 </style>
 
 <h1 class="pw-h1">Poczta organizacji — wybierz klienta</h1>
@@ -245,6 +254,78 @@ auth_screen_head([
   </section>
 
 </div>
+
+<!-- ── DLACZEGO JEDEN ADRES ──────────────────────────────────────────────── -->
+<section class="pw-panel pw-why" aria-labelledby="pw-why-h">
+  <h2 class="pw-panel__h" id="pw-why-h"><i class="bi bi-patch-question" aria-hidden="true"></i>Dlaczego jeden adres</h2>
+  <p class="pw-panel__sub">
+    Nie chodzi o porządek na stronie — każdy z tych powodów kiedyś kogoś u nas kosztował czas
+    albo nerwy.
+  </p>
+
+  <div class="pw-why__grid">
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-shield-check"></i></span>
+      <div>
+        <p class="pw-why__t">Łatwiej rozpoznać oszustwo</p>
+        <p class="pw-why__d">Skoro poczta jest zawsze pod <strong><?= h(webmail_chooser_label()) ?></strong>,
+          każdy inny link „zaloguj się do poczty" — nawet ładnie wyglądający i podpisany naszą nazwą —
+          jest podejrzany. Nie musisz oceniać, czy dany adres Microsoftu jest prawdziwy: nie podajemy
+          żadnego.</p>
+      </div>
+    </div>
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></span>
+      <div>
+        <p class="pw-why__t">Adres nie zmieni się przy zmianie programu</p>
+        <p class="pw-why__d">Klienta poczty można wymienić, dodać albo wyłączyć — a instrukcje, umowy,
+          wizytówki i zakładki w przeglądarce zostają aktualne. Wcześniej każda taka zmiana oznaczała
+          rozsyłanie nowych adresów.</p>
+      </div>
+    </div>
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-braces"></i></span>
+      <div>
+        <p class="pw-why__t">Jedna rzecz do zapamiętania</p>
+        <p class="pw-why__d">Zamiast <code>outlook.office.com</code>, <code>portal.office.com</code>
+          i adresów poszczególnych webmaili — jedna nazwa, ta sama na komputerze, telefonie i na
+          kartce dla nowej osoby.</p>
+      </div>
+    </div>
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-people"></i></span>
+      <div>
+        <p class="pw-why__t">Wybór zostaje przy Tobie</p>
+        <p class="pw-why__d">Jeden adres nie znaczy jeden program: wchodzisz tu i wybierasz, w czym
+          czytasz pocztę. Każdy widzi to samo zestawienie, więc nikt nie trafia na klienta „bo taki
+          link dostał".</p>
+      </div>
+    </div>
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-life-preserver"></i></span>
+      <div>
+        <p class="pw-why__t">Krótsza pomoc, gdy coś nie działa</p>
+        <p class="pw-why__d">„Wejdź na <?= h(webmail_chooser_label()) ?>" to cała instrukcja — bez
+          dopytywania, którego programu używasz i skąd się logujesz.</p>
+      </div>
+    </div>
+
+    <div class="pw-why__item">
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-hdd-network"></i></span>
+      <div>
+        <p class="pw-why__d" style="margin-top:.35rem"><strong>Co się nie zmienia:</strong> skrzynka,
+          adres e-mail i hasło zostają dokładnie te same. To adres <em>strony do logowania</em>, nie
+          Twojego konta.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
 
 <?php
 auth_screen_foot([
