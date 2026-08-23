@@ -499,7 +499,15 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <div>
-    <?php $bulk_view = $view === 'hidden'; ?>
+    <?php $bulk_view = $view === 'hidden';
+          $abandon_days = (int)(crm_setting('crm_inbox_abandon_days') ?: 90); ?>
+    <?php if ($bulk_view && $abandon_days > 0): ?>
+    <div class="text-muted mb-2" style="font-size:.75rem">
+      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
+      Wiadomości bez akcji (aktywne, bez opiekuna, poza EZD) starsze niż <strong><?= $abandon_days ?></strong> dni
+      są porzucane automatycznie. Zostają tutaj — w Poczcie i EZD bez zmian.
+    </div>
+    <?php endif; ?>
     <?php if ($can_write && $inbox['rows']): ?>
     <!-- Masowe porzucanie: zaznaczenie działa na tym, co widać w bieżącym widoku. -->
     <form method="post" id="ibBulkForm">
@@ -657,8 +665,10 @@ include __DIR__ . '/includes/header_crm.php';
           <span class="ib-chip"><?= $msg['inbox_status'] === 'archived' ? 'załatwione' : h($msg['inbox_status']) ?></span>
           <?php endif; ?>
           <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
-          <span class="ib-chip" style="background:#FEF3C7;color:#92400E">
-            <i class="bi bi-eye-slash"></i>ukryta w CRM
+          <?php $auto = empty($msg['crm_hidden_by']); ?>
+          <span class="ib-chip" style="background:#FEF3C7;color:#92400E"
+                title="<?= $auto ? 'Porzucona automatycznie — leżała bez akcji dłużej niż próg z ustawień' : 'Ktoś schował tę wiadomość ze Skrzynki CRM' ?>">
+            <i class="bi bi-eye-slash"></i><?= $auto ? 'porzucona automatycznie' : 'ukryta w CRM' ?>
           </span>
           <?php endif; ?>
         </div>
