@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_beneficiary.php';
+if (module_enabled('donations_enabled')) require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_office.php';
@@ -796,6 +797,93 @@ function _cv_beneficiaries_html(array $contact, int $id, bool $can_w): string {
     <?php return ob_get_clean();
 }
 
+/**
+ * Darowizny kontaktu — z podziałem na lata i przyciskiem potwierdzenia do PIT.
+ *
+ * Lutowe pytanie darczyńcy („poproszę potwierdzenie za zeszły rok") ma tu
+ * odpowiedź w jednym kliknięciu, bez wchodzenia w rejestr i filtrowania.
+ */
+function _cv_donations_html(array $contact, int $id, bool $can_w): string {
+    $rows = donations_for_contact($id);
+    $m    = fn(float $v) => number_format($v, 2, ',', ' ');
+
+    // Grupowanie po roku: sumy roczne są tym, o co pytają i darczyńcy, i księgowość.
+    $by_year = [];
+    foreach ($rows as $d) {
+        $y = (int)substr((string)$d['donation_date'], 0, 4);
+        $by_year[$y][] = $d;
+    }
+    krsort($by_year);
+
+    ob_start(); ?>
+    <div id="crm-section-donations">
+      <?php if (!$rows): ?>
+      <p class="cv-meta mb-0">
+        Brak zapisanych darowizn.
+        <?php if ($can_w): ?>
+        <a href="<?= APP_URL ?>/crm/donations/form.php?contact=<?= $id ?>">Dopisz darowiznę</a>.
+        <?php endif; ?>
+      </p>
+      <?php else: ?>
+      <?php foreach ($by_year as $year => $items):
+        // Sumy ROZDZIELNE, bo potwierdzenie do PIT obejmuje wyłącznie darowizny
+        // pieniężne. Jedna suma łączna sugerowałaby, że dokument potwierdza
+        // także rzeczowe — a te mają własne oświadczenie o przyjęciu.
+        $money    = array_filter($items, fn($d) => ($d['kind'] ?? '') === 'pieniezna');
+        $sum_cash = array_sum(array_map(fn($d) => (float)$d['amount'], $money));
+        $sum_kind = array_sum(array_map(fn($d) => (float)$d['amount'],
+                        array_filter($items, fn($d) => ($d['kind'] ?? '') !== 'pieniezna')));
+      ?>
+      <div class="mb-2">
+        <div class="d-flex align-items-center gap-2 py-1">
+          <span style="font-size:.83rem;font-weight:600"><?= (int)$year ?></span>
+          <span class="cv-meta">
+            <?= count($items) ?> ×
+            <?php if ($money): ?> · pieniężne <?= h($m($sum_cash)) ?> zł<?php endif; ?>
+            <?php if ($sum_kind > 0): ?> · rzeczowe <?= h($m($sum_kind)) ?> zł<?php endif; ?>
+          </span>
+          <?php if ($money): ?>
+          <a href="<?= APP_URL ?>/crm/donations/pdf.php?contact=<?= $id ?>&year=<?= (int)$year ?>"
+             target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2 ms-auto" style="font-size:.72rem"
+             title="Potwierdzenie darowizn pieniężnych za <?= (int)$year ?> r. — dokument pomocniczy do PIT">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Potwierdzenie do PIT
+          </a>
+          <?php endif; ?>
+        </div>
+        <ul class="list-unstyled mb-0">
+          <?php foreach ($items as $d): $rzecz = ($d['kind'] ?? '') === 'pieniezna' ? false : true; ?>
+          <li class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid var(--crm-border)">
+            <i class="bi <?= $rzecz ? 'bi-box-seam' : 'bi-cash-coin' ?> cv-shead__icon mt-1" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <div style="font-size:.82rem">
+                <?= h($m((float)$d['amount'])) ?> <?= h((string)$d['currency']) ?>
+                <span class="cv-meta">· <?= h(date('d.m.Y', strtotime((string)$d['donation_date']))) ?></span>
+              </div>
+              <div class="crm-name-sub">
+                <?= h((string)($rzecz ? ($d['description'] ?: 'darowizna rzeczowa') : ($d['purpose'] ?: 'cele statutowe'))) ?>
+                <?php if (!$rzecz): ?> · <?= h(donation_channel_label((string)$d['channel'])) ?><?php endif; ?>
+              </div>
+            </div>
+            <?php if ($rzecz): ?>
+            <a href="<?= APP_URL ?>/crm/donations/pdf.php?id=<?= (int)$d['id'] ?>" target="_blank"
+               class="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0" style="font-size:.7rem"
+               title="Oświadczenie o przyjęciu darowizny rzeczowej">Oświadczenie</a>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+      <?php endforeach; ?>
+      <?php if ($can_w): ?>
+      <div class="mt-2">
+        <a href="<?= APP_URL ?>/crm/donations/form.php?contact=<?= $id ?>" class="cv-meta">Dopisz darowiznę</a>
+      </div>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
 function _cv_groups_html(array $contact, int $id, bool $can_w): string {
     $all_groups = CrmManager::getGroups();
     $current_group_ids = array_column($contact['groups'], 'id');
@@ -1305,6 +1393,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
             'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
             'beneficiaries'=> _cv_beneficiaries_html($contact, $id, $crm_can_write),
+            'donations'    => _cv_donations_html($contact, $id, $crm_can_write),
             'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
             'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
             default        => '',
@@ -1345,6 +1434,7 @@ if (isset($_GET['_section'])) {
         'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
         'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
         'beneficiaries'=> _cv_beneficiaries_html($contact, $id, $crm_can_write),
+        'donations'    => _cv_donations_html($contact, $id, $crm_can_write),
         'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
         'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
         'comms'        => _cv_communications_html($contact, $id),
@@ -1944,6 +2034,22 @@ $case_status_cfg = [
         <?php endif; ?>
       </div>
       <?= _cv_contracts_html($contact, $_contracts) ?>
+    </div></div>
+    <?php endif; ?>
+
+    <!-- Darowizny -->
+    <?php if (module_enabled('donations_enabled')): ?>
+    <?php $_dons = donations_for_contact($id); ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-gift cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Darowizny</h2>
+        <div class="cv-shead__aside">
+          <?php if ($_dons): ?><span class="cv-count"><?= count($_dons) ?></span><?php endif; ?>
+          <a href="<?= APP_URL ?>/crm/donations/index.php" class="cv-meta ms-2" style="text-decoration:none">Rejestr</a>
+        </div>
+      </div>
+      <?= _cv_donations_html($contact, $id, $crm_can_write) ?>
     </div></div>
     <?php endif; ?>
 

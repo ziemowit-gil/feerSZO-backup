@@ -554,6 +554,13 @@ window.openCommModal = function(contactId, channel) {
       </ul>
     </div>
 
+    <?php if (module_enabled('donations_enabled')): ?>
+    <a href="<?= APP_URL ?>/crm/donations/index.php"
+       class="crm-navlink<?= _crm_nav_active('/crm/donations') ?>">
+      <i class="bi bi-gift"></i><span>Darowizny</span>
+    </a>
+    <?php endif; ?>
+
     <?php if (module_enabled('invoices_enabled')): ?>
     <div class="dropdown">
       <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"

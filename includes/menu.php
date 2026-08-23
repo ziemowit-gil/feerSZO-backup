@@ -308,6 +308,8 @@ function _menu_editor(): array {
     }
     if (module_enabled('invoices_enabled') && can_read('crm'))
         $ludzie[] = _mi('Faktury','/crm/invoices/index.php','bi-receipt',['match'=>'/crm/invoices/','kw'=>'faktura faktury vat fakturownia ksef rachunek']);
+    if (module_enabled('donations_enabled') && can_read('crm'))
+        $ludzie[] = _mi('Darowizny','/crm/donations/index.php','bi-gift',['match'=>'/crm/donations/','kw'=>'darowizna darowizny darczynca pit odliczenie potwierdzenie']);
     $ludzie[] = _mi('Katalog osób','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty']);
     if (module_enabled('org_enabled'))
         $ludzie[] = _mi('Struktura org.','/org/index.php','bi-diagram-3',['match'=>'/org/','kw'=>'struktura organizacja schemat']);
