@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_beneficiary.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_office.php';
@@ -676,6 +677,125 @@ function _cv_consents_html(array $contact, int $id, bool $can_w): string {
     <?php return ob_get_clean();
 }
 
+/**
+ * Beneficjent programów — udział w działaniach prowadzonych w Dydaktyce 3.
+ *
+ * Panel jest widoczny tylko dla osób z dostępem do modułu (crm_beneficiary_can_view())
+ * i pokazuje wyłącznie fakt udziału: grupy, godziny, liczniki. Dane wrażliwe
+ * zostają w module, gdzie obowiązuje jego audyt dostępu.
+ */
+function _cv_beneficiaries_html(array $contact, int $id, bool $can_w): string {
+    $data      = crm_contact_beneficiaries($contact);
+    $linked    = $data['linked'];
+    $suggested = $data['suggested'];
+    $card      = fn(int $cid) => APP_URL . '/karty30/clients/view.php?id=' . $cid;
+
+    $hours = function (array $b): string {
+        if ($b['hours_total'] <= 0 && $b['hours_used'] <= 0) return '';
+        $fmt = fn(float $v) => rtrim(rtrim(number_format($v, 1, ',', ' '), '0'), ',');
+        return 'Godziny: ' . $fmt($b['hours_used']) . ' z ' . $fmt($b['hours_total']);
+    };
+
+    ob_start(); ?>
+    <div id="crm-section-beneficiaries">
+
+      <?php if (!$linked && !$suggested): ?>
+      <p class="cv-meta mb-0">
+        Ta osoba nie jest powiązana z kartoteką beneficjenta.
+        <?php if (empty($contact['pesel'])): ?>
+        <br>Powiązanie zakłada się automatycznie po numerze PESEL — uzupełnij go w kartotece,
+        albo dopisz adres e-mail, żeby system zaproponował dopasowanie.
+        <?php endif; ?>
+      </p>
+      <?php endif; ?>
+
+      <?php if ($linked): ?>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($linked as $b): ?>
+        <li class="d-flex align-items-start gap-2 py-2" style="border-bottom:1px solid var(--crm-border)">
+          <i class="bi bi-mortarboard-fill cv-shead__icon mt-1" aria-hidden="true"></i>
+          <div class="flex-grow-1 overflow-hidden">
+            <div style="font-size:.83rem;font-weight:600">
+              <a href="<?= h($card($b['id'])) ?>" class="text-decoration-none"><?= h($b['name']) ?></a>
+            </div>
+            <div class="crm-name-sub">
+              <?= h(crm_beneficiary_status_label($b['status'])) ?>
+              <?php if ($h = $hours($b)): ?> · <?= h($h) ?><?php endif; ?>
+              <?php if ($b['consultations'] > 0): ?> · konsultacje: <?= (int)$b['consultations'] ?><?php endif; ?>
+              <?php if (!empty($b['last_activity'])): ?>
+                · ostatnio: <?= h(date('d.m.Y', strtotime((string)$b['last_activity']))) ?>
+              <?php endif; ?>
+              <?php if ($b['match'] === 'pesel'): ?> · dopasowano po numerze PESEL<?php endif; ?>
+            </div>
+            <?php if ($b['groups']): ?>
+            <div class="mt-1 d-flex flex-wrap gap-1">
+              <?php foreach ($b['groups'] as $g): ?>
+              <span class="cv-chip" style="font-size:.7rem">
+                <?= h($g['name'] !== '' ? $g['name'] : '(grupa usunięta)') ?><?php if ($g['code'] !== ''): ?> · <?= h($g['code']) ?><?php endif; ?>
+                <?php if ($g['status'] !== 'active'): ?> · <?= h($g['status']) ?><?php endif; ?>
+              </span>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+          </div>
+          <?php if ($can_w && $b['match'] === 'manual'): ?>
+          <form method="post" data-ajax-section="beneficiaries" class="flex-shrink-0"
+                onsubmit="return confirm('Odłączyć kartotekę beneficjenta od tego kontaktu?')">
+            <?= csrf_field() ?>
+            <input type="hidden" name="_action" value="beneficiary_unlink">
+            <input type="hidden" name="client_id" value="<?= (int)$b['id'] ?>">
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem">Odłącz</button>
+          </form>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+
+      <?php if ($suggested): ?>
+      <!-- Propozycje wymagają decyzji człowieka: sam e-mail albo samo nazwisko
+           to nie tożsamość (rodzeństwo z adresu rodzica, imienniczki). -->
+      <div class="mt-3">
+        <div class="cv-meta mb-1">
+          Możliwe dopasowania (<?= count($suggested) ?>) — wymagają potwierdzenia:
+        </div>
+        <ul class="list-unstyled mb-0">
+          <?php foreach ($suggested as $b): ?>
+          <li class="d-flex align-items-start gap-2 py-2" style="border-bottom:1px solid var(--crm-border)">
+            <i class="bi bi-question-circle cv-shead__icon mt-1" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <div style="font-size:.83rem;font-weight:600"><?= h($b['name']) ?></div>
+              <div class="crm-name-sub">
+                zgodne: <?= h($b['match']) ?>
+                · <?= h(crm_beneficiary_status_label($b['status'])) ?>
+                <?php if ($b['groups']): ?> · grup: <?= count($b['groups']) ?><?php endif; ?>
+              </div>
+            </div>
+            <?php if ($can_w): ?>
+            <div class="d-flex gap-1 flex-shrink-0">
+              <form method="post" data-ajax-section="beneficiaries">
+                <?= csrf_field() ?>
+                <input type="hidden" name="_action" value="beneficiary_confirm">
+                <input type="hidden" name="client_id" value="<?= (int)$b['id'] ?>">
+                <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:.72rem">To ta osoba</button>
+              </form>
+              <form method="post" data-ajax-section="beneficiaries">
+                <?= csrf_field() ?>
+                <input type="hidden" name="_action" value="beneficiary_reject">
+                <input type="hidden" name="client_id" value="<?= (int)$b['id'] ?>">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem">To nie ta</button>
+              </form>
+            </div>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
 function _cv_groups_html(array $contact, int $id, bool $can_w): string {
     $all_groups = CrmManager::getGroups();
     $current_group_ids = array_column($contact['groups'], 'id');
@@ -1100,6 +1220,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         $contact = CrmManager::getContact($id);
         $affected_section = 'consents';
     }
+    if (in_array($action, ['beneficiary_confirm', 'beneficiary_reject', 'beneficiary_unlink'], true)) {
+        // Uprawnienie do CRM nie wystarcza — powiązanie dotyczy danych z modułu
+        // Dydaktyka 3 i podlega jego zasadom dostępu.
+        if (crm_beneficiary_can_view()) {
+            $cli = (int)($_POST['client_id'] ?? 0);
+            if ($action === 'beneficiary_unlink') {
+                crm_beneficiary_unlink($id, $cli);
+            } else {
+                crm_beneficiary_decide($id, $cli,
+                    $action === 'beneficiary_confirm' ? 'confirmed' : 'rejected', $user_id);
+            }
+        } else {
+            flash_set('error', 'Brak uprawnień do kartotek beneficjentów.');
+        }
+        $affected_section = 'beneficiaries';
+    }
     if ($action === 'add_to_group') {
         $gid = (int)($_POST['group_id'] ?? 0);
         if ($gid) CrmManager::addToGroup($gid, $id);
@@ -1168,6 +1304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
             'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
             'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
+            'beneficiaries'=> _cv_beneficiaries_html($contact, $id, $crm_can_write),
             'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
             'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
             default        => '',
@@ -1207,6 +1344,7 @@ if (isset($_GET['_section'])) {
         'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
         'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
         'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
+        'beneficiaries'=> _cv_beneficiaries_html($contact, $id, $crm_can_write),
         'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
         'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
         'comms'        => _cv_communications_html($contact, $id),
@@ -1806,6 +1944,32 @@ $case_status_cfg = [
         <?php endif; ?>
       </div>
       <?= _cv_contracts_html($contact, $_contracts) ?>
+    </div></div>
+    <?php endif; ?>
+
+    <!-- Beneficjent programów (tylko dla osób z dostępem do Dydaktyki 3) -->
+    <?php
+      $_show_benef = crm_beneficiary_can_view()
+                  && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like']);
+      $_benef = $_show_benef ? crm_contact_beneficiaries($contact) : ['linked' => [], 'suggested' => []];
+    ?>
+    <?php if ($_show_benef): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-mortarboard cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Beneficjent programów</h2>
+        <div class="cv-shead__aside">
+          <?php if ($_benef['linked']): ?>
+          <span class="cv-count"><?= count($_benef['linked']) ?></span>
+          <?php endif; ?>
+          <?php if ($_benef['suggested']): ?>
+          <span class="cv-chip ms-1" style="font-size:.7rem;color:#B45309;border-color:#FCD34D;background:#FFFBEB">
+            <?= count($_benef['suggested']) ?> do potwierdzenia
+          </span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?= _cv_beneficiaries_html($contact, $id, $crm_can_write) ?>
     </div></div>
     <?php endif; ?>
 
