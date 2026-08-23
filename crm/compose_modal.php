@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+require_once dirname(__DIR__) . '/includes/crm_attachments.php';
 
 header('X-Frame-Options: SAMEORIGIN');
 
@@ -53,7 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rendered_body    = CrmManager::renderTemplate($body, $contact);
     $rendered_subject = CrmManager::renderTemplate($subject, $contact);
 
-    CrmManager::sendAndLog($contact_id, $channel, $rendered_body, $rendered_subject, $tpl_name, $do_send);
+    // Załączniki: klient przysyła tylko tokeny z poczekalni (crm/api/attachments.php)
+    $attachments = $channel === 'email'
+        ? crm_att_resolve((array)($data['attachments'] ?? []))
+        : [];
+
+    CrmManager::sendAndLog($contact_id, $channel, $rendered_body, $rendered_subject, $tpl_name, $do_send, $attachments);
 
     $verb = $do_send ? 'Wysłano' : 'Zalogowano';
     echo json_encode(['ok' => true, 'message' => "{$verb} wiadomość do " . h($contact['imie_nazwisko']) . "."]);
@@ -191,6 +197,11 @@ $csrf      = csrf_token();
 </div>
 <div class="d-flex justify-content-between mt-1 mb-3">
   <span id="cm-char" class="text-muted" style="font-size:.72rem"></span>
+</div>
+
+<!-- Załączniki (tylko e-mail) -->
+<div id="cm-att-row" class="mb-3" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
+  <?php $ATT_UI = ['form' => false]; include __DIR__ . '/includes/attachments_ui.php'; ?>
 </div>
 
 <!-- Opcje -->
@@ -358,6 +369,8 @@ CM.init = function() {
 CM.onChannelChange = function(ch) {
     var subjRow = document.getElementById('cm-subject-row');
     if (subjRow) subjRow.style.display = ch === 'email' ? '' : 'none';
+    var attRow = document.getElementById('cm-att-row');
+    if (attRow) attRow.style.display = ch === 'email' ? '' : 'none';
     if (ch === 'sms') CM.setMode('plain');
 };
 
@@ -429,6 +442,7 @@ CM.send = function() {
             body:          body,
             template_name: (document.getElementById('cm-tpl')?.options[document.getElementById('cm-tpl').selectedIndex]?.dataset.name || ''),
             do_send:       document.getElementById('cm-do-send')?.checked,
+            attachments:   (window.CrmAtt ? window.CrmAtt.tokens() : []),
         }),
     })
     .then(r => r.json())
@@ -442,6 +456,7 @@ CM.send = function() {
             if (typeof showToast === 'function') showToast(data.message, 'success');
             else alert(data.message);
             // Odśwież historię kontaktu jeśli element istnieje
+            if (window.CrmAtt) window.CrmAtt.clear();
             if (typeof refreshContactHistory === 'function') refreshContactHistory();
         } else {
             err.textContent = data.error || 'Błąd wysyłki.';

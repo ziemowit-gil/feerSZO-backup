@@ -65,6 +65,7 @@ try {
 } catch (\Throwable $e) {}
 
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+require_once dirname(__DIR__) . '/includes/crm_attachments.php';
 $m365_mail_configured = _mail_m365_configured();
 $mail_channel = $m365_mail_configured ? 'Microsoft 365' : (
     _mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()'
@@ -95,8 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Obsługa załączników (tylko dla e-mail)
+    // Obsługa załączników (tylko dla e-mail).
+    // Widżet odkłada pliki (dysk + OneDrive) w poczekalni i przysyła same tokeny;
+    // gałąź $_FILES zostaje jako zapas, gdy JS nie zadziała.
     $attachments = [];
+    if ($channel === 'email' && !empty($_POST['crm_att_tokens'])) {
+        $attachments = crm_att_resolve((array)$_POST['crm_att_tokens']);
+    }
     if ($channel === 'email' && !empty($_FILES['crm_attachments']['name'][0])) {
         $files = $_FILES['crm_attachments'];
         $count = count($files['name']);
@@ -504,15 +510,7 @@ include __DIR__ . '/includes/header_crm.php';
 
         <!-- Załączniki (tylko e-mail) -->
         <div id="attachments-section" style="display:none;margin-bottom:1rem">
-          <label class="form-label fw-semibold small mb-1">
-            <i class="bi bi-paperclip me-1"></i>Załączniki
-            <span class="text-muted fw-normal">(max 15 MB każdy, razem max 5 plików)</span>
-          </label>
-          <input type="file" name="crm_attachments[]" id="crm_attachments"
-                 class="form-control form-control-sm"
-                 multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.zip,.rar,.odt,.ods">
-          <div id="attachments-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
-          <div class="form-text">Dozwolone: PDF, Word, Excel, obrazy, archiwa ZIP.</div>
+          <?php $ATT_UI = ['form' => true]; include __DIR__ . '/includes/attachments_ui.php'; ?>
         </div>
 
         <div class="comm-send-bar">
@@ -1116,43 +1114,17 @@ include __DIR__ . '/includes/header_crm.php';
       .catch(function(e) { if (e && e.name !== 'AbortError') setVarBadge(null); });
   };
 
-  // ── Załączniki — init ────────────────────────────────────────────────────
+  // ── Załączniki — pokazuj sekcję tylko dla e-maila ────────────────────────
+  // Sam widżet (upload + OneDrive) obsługuje crm/includes/attachments_ui.php.
   (function() {
     var attSec    = document.getElementById('attachments-section');
-    var attInput  = document.getElementById('crm_attachments');
-    var attPrev   = document.getElementById('attachments-preview');
     var channelEl = document.getElementById('channel');
-
     function refreshAttachSec() {
       if (!attSec || !channelEl) return;
       attSec.style.display = channelEl.value === 'email' ? '' : 'none';
     }
+    if (channelEl) channelEl.addEventListener('change', refreshAttachSec);
     refreshAttachSec();
-
-    if (!attInput || !attPrev) return;
-
-    attInput.addEventListener('change', function() {
-      attPrev.innerHTML = '';
-      var files = Array.from(attInput.files);
-      if (files.length > 5) {
-        attPrev.innerHTML = '<span class="text-danger small">Maksymalnie 5 załączników.</span>';
-        attInput.value = '';
-        return;
-      }
-      files.forEach(function(f) {
-        var size = f.size > 1048576
-          ? (f.size / 1048576).toFixed(1) + ' MB'
-          : Math.round(f.size / 1024) + ' KB';
-        var chip = document.createElement('span');
-        chip.style.cssText = 'background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.25rem .6rem;font-size:.8rem;display:inline-flex;align-items:center;gap:.3rem';
-        chip.innerHTML = '<i class="bi bi-paperclip" style="font-size:.75rem"></i>'
-          + esc(f.name)
-          + ' <span style="color:#94a3b8">(' + size + ')</span>';
-        attPrev.appendChild(chip);
-      });
-    });
-
-    function esc(s) { var d=document.createElement('div');d.textContent=s;return d.innerHTML; }
   })();
 })();
 </script>

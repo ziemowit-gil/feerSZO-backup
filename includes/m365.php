@@ -917,6 +917,58 @@ class M365Graph {
         return $resp['value'] ?? [];
     }
 
+    // ══ ONEDRIVE UŻYTKOWNIKA ═════════════════════════════════════════════════
+    // Uprawnienie aplikacji: Files.Read.All (odczyt OneDrive wskazanego usera).
+    // Pobieranie treści pliku idzie przez sp_download_file() — /drives/{id}/items/{id}/content.
+
+    /**
+     * Zwraca OneDrive użytkownika (UPN lub GUID).
+     *
+     * @return array ['id'=>..., 'name'=>..., 'driveType'=>...] albo [] gdy brak dostępu
+     */
+    public function od_drive(string $user): array {
+        $r = $this->http_get(
+            "https://graph.microsoft.com/v1.0/users/" . urlencode($user) . "/drive?\$select=id,name,driveType,webUrl"
+        );
+        return !empty($r['id']) ? $r : [];
+    }
+
+    /**
+     * Listuje zawartość OneDrive: korzeń (pusty $item_id) albo wskazany folder.
+     *
+     * @return array [{id, name, size, file, folder, webUrl, lastModifiedDateTime}, ...]
+     */
+    public function od_list(string $drive_id, string $item_id = '', int $top = 200): array {
+        $base = $item_id === ''
+            ? "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root/children"
+            : "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/" . urlencode($item_id) . "/children";
+        $url  = $base . '?' . http_build_query([
+            '$select'  => 'id,name,size,file,folder,webUrl,lastModifiedDateTime',
+            '$orderby' => 'folder,name',
+            '$top'     => $top,
+        ]);
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
+    /** Wyszukuje pliki w OneDrive użytkownika (Graph search(q)). */
+    public function od_search(string $drive_id, string $q, int $top = 50): array {
+        $q   = str_replace("'", "''", $q);
+        $url = "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root/search(q='" . rawurlencode($q) . "')"
+             . '?' . http_build_query(['$select' => 'id,name,size,file,folder,webUrl,lastModifiedDateTime', '$top' => $top]);
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
+    /** Metadane pojedynczego elementu drive'a (do walidacji przed pobraniem). */
+    public function od_item(string $drive_id, string $item_id): array {
+        $r = $this->http_get(
+            "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/" . urlencode($item_id)
+            . "?\$select=id,name,size,file,folder,webUrl"
+        );
+        return !empty($r['id']) ? $r : [];
+    }
+
     // ══ OUTLOOK CONTACTS (delta sync) ════════════════════════════════════════
 
     /**
