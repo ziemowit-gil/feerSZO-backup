@@ -299,10 +299,82 @@ function ann_all_list(string $kategoria = ''): array {
     }
 }
 
+/**
+ * Statusy uznawane za „umowa aktywna" — te same, których używa reszta systemu
+ * (includes/strategy.php, includes/dyspozycyjnosc.php). Trzymane w jednym
+ * miejscu, żeby komunikat do „osób z aktywnymi umowami" nie rozjechał się
+ * z tym, co panel pokazuje jako aktywne.
+ */
+const ANN_ACTIVE_CONTRACT_STATUSES = ['podpisana', 'w realizacji', 'obowiązująca', 'aktywna'];
+
+/**
+ * Użytkownicy, którzy mają CO NAJMNIEJ JEDNĄ aktywną umowę — po statusie
+ * i po dacie zakończenia (pusta data = umowa bezterminowa, liczy się).
+ *
+ * Dopasowanie umowa → konto idzie tymi samymi kolumnami co panel wolontariusza
+ * (panel/index.php::panel_contracts): adres e-mail konta, login M365 i
+ * identyfikator M365. ŚWIADOMIE bez `rodzic_email` z umów wolontariackich —
+ * opiekun prawny nie jest stroną umowy i nie ma służbowej skrzynki, więc nie
+ * powinien dostawać komunikatów kierowanych do współpracowników.
+ *
+ * Umowy z podmiotami (uslugi, inne, powierzenie) są pomijane: to kontrahenci,
+ * nie osoby z kontem w systemie.
+ *
+ * @return array<int, array{id:int, name:string, email:string}>
+ */
+function ann_active_contract_users(): array {
+    // [tabela, kolumny z adresem/loginem osoby, kolumna daty końca]
+    $sources = [
+        ['umowy_zlecenie',    ['m365_login'],           'data_zakonczenia'],
+        ['umowy_wolontariat', ['email', 'm365_login'],  'data_zakonczenia'],
+        ['umowy_dzielo',      ['m365_login'],           'termin_oddania'],
+        ['umowy_praca',       ['email_login'],          'data_zakonczenia'],
+    ];
+
+    $st_ph  = implode(',', array_fill(0, count(ANN_ACTIVE_CONTRACT_STATUSES), '?'));
+    $by_id  = [];
+
+    foreach ($sources as [$table, $cols, $end_col]) {
+        $match = [];
+        foreach ($cols as $c) $match[] = "LOWER(c.{$c}) = LOWER(u.email)";
+        $match[] = "(u.microsoft_id IS NOT NULL AND u.microsoft_id <> '' AND c.m365_user_id = u.microsoft_id)";
+
+        $sql = "SELECT DISTINCT u.id, u.name, u.email
+                  FROM users u
+                  JOIN {$table} c ON (" . implode(' OR ', $match) . ")
+                 WHERE u.is_active = 1
+                   AND u.email <> ''
+                   AND c.status IN ({$st_ph})
+                   AND (c.{$end_col} IS NULL OR c.{$end_col} = ''
+                        OR date(c.{$end_col}) >= date('now'))";
+        try {
+            foreach (db_all($sql, ANN_ACTIVE_CONTRACT_STATUSES) as $r) {
+                $by_id[(int)$r['id']] = ['id' => (int)$r['id'], 'name' => $r['name'], 'email' => $r['email']];
+            }
+        } catch (\Throwable $e) {
+            // Brak tabeli/kolumny (np. wyłączony typ umów) — pomijamy źródło.
+        }
+    }
+
+    return array_values($by_id);
+}
+
+/** Czy dany użytkownik ma aktywną umowę (dla filtrowania widoku listy). */
+function ann_user_has_active_contract(int $user_id): bool {
+    static $cache = [];
+    if (array_key_exists($user_id, $cache)) return $cache[$user_id];
+    $ids = array_column(ann_active_contract_users(), 'id');
+    foreach ($ids as $id) $cache[$id] = true;
+    return $cache[$user_id] = in_array($user_id, $ids, true);
+}
+
 function _ann_get_audience_users(string $audience): array {
     try {
         if ($audience === 'all') {
             return db_all("SELECT id, name, email FROM users WHERE is_active=1", []);
+        }
+        if ($audience === 'contracts:active') {
+            return ann_active_contract_users();
         }
         if (str_starts_with($audience, 'role:')) {
             $role = substr($audience, 5);
@@ -353,6 +425,10 @@ function ann_list_for_user(int $user_id, string $role, string $kategoria = ''): 
 
 function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
     if ($audience === 'all')    return true;
+    // Admin widzi wszystko, żeby móc sprawdzić, co poszło w świat.
+    if ($audience === 'contracts:active') {
+        return $role === 'admin' || ann_user_has_active_contract($user_id);
+    }
     if ($audience === 'public') return $role === 'admin'; // zalogowani admini też widzą
     if (str_starts_with($audience, 'role:')) {
         return $role === substr($audience, 5);
@@ -422,6 +498,7 @@ function ann_public_list(): array {
 
 function ann_audience_label(string $audience): string {
     if ($audience === 'all')    return 'Wszyscy użytkownicy';
+    if ($audience === 'contracts:active') return 'Osoby z aktywnymi umowami';
     if ($audience === 'public') return 'Strona logowania (publiczne)';
     if ($audience === 'role:admin')  return 'Administratorzy';
     if ($audience === 'role:editor') return 'Edytorzy';
