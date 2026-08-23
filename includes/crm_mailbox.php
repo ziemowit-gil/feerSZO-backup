@@ -257,6 +257,33 @@ function crm_mailbox_set_hidden(int $id, bool $hidden = true): bool {
     }
 }
 
+/**
+ * Liczba wiadomości w BIEŻĄCYM widoku w rozbiciu na skrzynki — do selektora
+ * skrzynek nad listą. Jedno zapytanie zamiast N liczników.
+ *
+ * @return array [mailbox_id => liczba]
+ */
+function crm_mailbox_counts_by_mailbox(string $view): array {
+    if (!crm_mailbox_ready()) return [];
+    $uid    = (int)(current_user()['id'] ?? 0);
+    $view   = isset(CRM_MAILBOX_VIEWS[$view]) ? $view : 'new';
+    $params = [];
+    $where  = [_crm_mailbox_view_sql($view, $uid, $params)];
+    if ($view !== 'hidden') $where[] = 'COALESCE(c.crm_hidden,0)=0';
+    $where[] = poczta_scope_sql('c.mailbox_id');
+
+    try {
+        $rows = db_all(
+            "SELECT c.mailbox_id AS mid, COUNT(*) AS n FROM crm_communications c
+             WHERE " . implode(' AND ', $where) . " GROUP BY c.mailbox_id", $params
+        );
+    } catch (\Throwable $e) { return []; }
+
+    $out = [];
+    foreach ($rows as $r) $out[(int)$r['mid']] = (int)$r['n'];
+    return $out;
+}
+
 /** Jedna wiadomość z pełną treścią i kontekstem kontaktu. */
 function crm_mailbox_message(int $id): ?array {
     if (!crm_mailbox_ready()) return null;
