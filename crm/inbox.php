@@ -58,6 +58,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               break;
             case 'unhide':    crm_mailbox_set_hidden($mid, false); flash_set('success', 'Wiadomość wróciła do Skrzynki CRM.'); break;
 
+            case 'bulk_hide':
+            case 'bulk_unhide':
+                $ids  = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
+                $hide = $op === 'bulk_hide';
+                $n = 0;
+                foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_set_hidden($bid, $hide)) $n++; }
+                if (!$n) flash_set('warning', 'Nie zaznaczono żadnej wiadomości.');
+                else flash_set('success', $hide
+                    ? 'Porzucono ' . $n . ' wiad. — zniknęły ze Skrzynki CRM (widok „Ukryte").'
+                    : 'Przywrócono ' . $n . ' wiad. do Skrzynki CRM.');
+                $back = 'inbox.php?' . http_build_query(array_filter([
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                    'q'    => $_POST['q'] ?? null,
+                ]));
+                break;
+
             case 'assign':
                 crm_mailbox_assign($mid, (int)($_POST['user_id'] ?? 0) ?: null);
                 flash_set('success', 'Przypisanie zmienione.');
@@ -158,12 +174,12 @@ $day_label = static function (string $ts): string {
 include __DIR__ . '/includes/header_crm.php';
 ?>
 <style>
-.ib-wrap { display:grid; grid-template-columns:minmax(340px, 420px) 1fr; gap:1.1rem;
+.ib-wrap { display:grid; grid-template-columns:minmax(280px, 340px) minmax(0, 1fr); gap:1.1rem;
   align-items:start; min-height:26rem }
 /* Trzecia szpalta (sprawy/oferty/wątek) tylko tam, gdzie jest na nią miejsce —
    niżej ląduje pod wiadomością, a nie obok listy. */
 @media (min-width:1400px) {
-  .ib-wrap.has-rail { grid-template-columns:minmax(320px, 380px) minmax(0, 1fr) minmax(250px, 300px) }
+  .ib-wrap.has-rail { grid-template-columns:minmax(280px, 330px) minmax(0, 1fr) minmax(230px, 270px) }
 }
 @media (max-width:1099px) { .ib-wrap { grid-template-columns:1fr; min-height:0 } }
 /* Panel bez wybranej wiadomości: treść wyśrodkowana, a nie przyklejona do góry
@@ -261,7 +277,29 @@ include __DIR__ . '/includes/header_crm.php';
   border-radius:10px; padding:.7rem .85rem; font-size:.82rem; line-height:1.5; color:#065F46; margin-bottom:1rem }
 .ib-ezd-note i { font-size:1rem; color:#0F766E; flex-shrink:0; margin-top:.1rem }
 
+/* ── Masowe działania na liście ─────────────────────────────────────────── */
+.ib-bulk { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; padding:.45rem .7rem; margin-bottom:.5rem;
+  background:#fff; border:1px solid #E5E7EB; border-radius:10px; font-size:.78rem; color:#374151 }
+.ib-bulk.is-armed { border-color:#FCA5A5; background:#FEF7F7 }
+.ib-bulk-n { font-weight:700; color:#111827 }
+.ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6 }
+.ib-row:last-child { border-bottom:none }
+.ib-row .ib-item { flex:1; min-width:0; border-bottom:none }
+.ib-row.is-checked { background:#FEF7F7 }
+.ib-check { flex-shrink:0; margin:.95rem .15rem .95rem .7rem; width:1rem; height:1rem; cursor:pointer }
+
 /* ── Numer wiadomości ───────────────────────────────────────────────────── */
+/* Na liście numer nie walczy o miejsce z tematem: w rogu siedzi sama ikonka,
+   cyfry pokazują się dopiero po najechaniu (i zawsze są w title dla czytników). */
+.ib-item { position:relative }
+.ib-id { position:absolute; right:.55rem; bottom:.4rem; display:inline-flex; align-items:center; gap:.25rem;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.66rem; font-weight:700;
+  color:#C3C8D0; background:transparent; border-radius:4px; padding:.05rem .25rem; pointer-events:none;
+  transition:color .12s, background .12s }
+.ib-id-no { max-width:0; overflow:hidden; white-space:nowrap; opacity:0; transition:max-width .16s, opacity .12s }
+.ib-item .ib-snip { padding-right:1.8rem }   /* miejsce na ikonkę numeru */
+.ib-item:hover .ib-id, .ib-item:focus-visible .ib-id, .ib-item.active .ib-id { color:#6B7280; background:#F3F4F6 }
+.ib-item:hover .ib-id-no, .ib-item:focus-visible .ib-id-no, .ib-item.active .ib-id-no { max-width:6rem; opacity:1 }
 .ib-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:700;
   color:#6B7280; background:#F3F4F6; border-radius:4px; padding:.05rem .3rem; letter-spacing:.02em }
 .ib-h1-no { font-size:.75rem; color:#9CA3AF; font-weight:600; letter-spacing:.04em }
@@ -424,6 +462,32 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <div>
+    <?php $bulk_view = $view === 'hidden'; ?>
+    <?php if ($can_write && $inbox['rows']): ?>
+    <!-- Masowe porzucanie: zaznaczenie działa na tym, co widać w bieżącym widoku. -->
+    <form method="post" id="ibBulkForm">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_op" id="ibBulkOp" value="<?= $bulk_view ? 'bulk_unhide' : 'bulk_hide' ?>">
+      <input type="hidden" name="view" value="<?= h($view) ?>">
+      <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
+      <input type="hidden" name="q" value="<?= h($search) ?>">
+      <div class="ib-bulk" id="ibBulkBar">
+        <label class="d-inline-flex align-items-center gap-1 mb-0" style="cursor:pointer">
+          <input type="checkbox" id="ibCheckAll" aria-label="Zaznacz wszystkie wiadomości w tym widoku">
+          <span>Zaznacz wszystkie</span>
+        </label>
+        <span class="text-muted">zaznaczono: <span class="ib-bulk-n" id="ibBulkN">0</span></span>
+        <button class="ib-tbtn ms-auto" id="ibBulkBtn" disabled
+                <?= $bulk_view ? '' : 'onclick="return confirm(\'Porzucić zaznaczone wiadomości? Znikną ze Skrzynki CRM — zostaną w widoku Ukryte, w Poczcie i EZD bez zmian.\')"' ?>>
+          <?php if ($bulk_view): ?>
+          <i class="bi bi-eye" aria-hidden="true"></i>Przywróć zaznaczone
+          <?php else: ?>
+          <i class="bi bi-hand-thumbs-down" aria-hidden="true"></i>Porzuć zaznaczone
+          <?php endif; ?>
+        </button>
+      </div>
+    </form>
+    <?php endif; ?>
     <div class="ib-list" role="list" aria-label="Wiadomości">
       <?php if (!$inbox['rows']): ?>
       <div class="text-center text-muted d-flex flex-column justify-content-center" style="min-height:22rem;padding:1.15rem">
@@ -441,6 +505,11 @@ include __DIR__ . '/includes/header_crm.php';
         $unread = !(int)$r['is_read'];
         $no     = crm_msg_no((int)$r['id'], $r['msg_no'] ?? null);
       ?>
+      <div class="ib-row">
+      <?php if ($can_write): ?>
+      <input type="checkbox" class="ib-check" form="ibBulkForm" name="msg_ids[]" value="<?= (int)$r['id'] ?>"
+             aria-label="Zaznacz wiadomość: <?= h($r['subject'] ?: '(bez tematu)') ?>">
+      <?php endif; ?>
       <a role="listitem" class="ib-item<?= $act ? ' active' : '' ?><?= $unread ? ' unread' : '' ?>"
          href="?<?= $qs(['msg' => (int)$r['id']]) ?>" aria-current="<?= $act ? 'true' : 'false' ?>">
         <span class="ib-av" aria-hidden="true"><?= h(CrmManager::makeInitials($who)) ?></span>
@@ -450,10 +519,7 @@ include __DIR__ . '/includes/header_crm.php';
             <?php if ((int)$r['has_attachments']): ?><i class="bi bi-paperclip text-muted" aria-label="Załącznik"></i><?php endif; ?>
             <span class="ib-time"><?= h(date('H:i', strtotime((string)$r['sent_at']))) ?></span>
           </span>
-          <span class="ib-who d-block">
-            <?= h($who) ?>
-            <?php if ($no !== ''): ?><span class="ib-no ms-1">#<?= h($no) ?></span><?php endif; ?>
-          </span>
+          <span class="ib-who d-block"><?= h($who) ?></span>
           <span class="ib-snip d-block"><?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$r['body'])), 0, 90)) ?></span>
           <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $unread): ?>
           <span class="ib-tags">
@@ -469,7 +535,13 @@ include __DIR__ . '/includes/header_crm.php';
           </span>
           <?php endif; ?>
         </span>
+        <?php if ($no !== ''): ?>
+        <span class="ib-id" title="Numer wiadomości <?= h($no) ?>">
+          <i class="bi bi-upc" aria-hidden="true"></i><span class="ib-id-no">#<?= h($no) ?></span>
+        </span>
+        <?php endif; ?>
       </a>
+      </div>
       <?php endforeach; endif; ?>
     </div>
 
@@ -591,7 +663,7 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endif; ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
           <button class="btn btn-crm-ghost btn-sm"
-                  title="Wiadomość zniknie z widoków Skrzynki CRM (zostanie w widoku „Ukryte", w Poczcie i EZD bez zmian)">
+                  title="Wiadomość zniknie z widoków Skrzynki CRM — zostanie w widoku Ukryte, w Poczcie i EZD bez zmian">
             <i class="bi bi-eye-slash me-1"></i>Nie pokazuj więcej w CRM Inbox</button></form>
         <?php endif; ?>
         <?php if ($can_write): ?>
@@ -869,5 +941,34 @@ include __DIR__ . '/includes/header_crm.php';
 });
 </script>
 <?php endif; ?>
+
+<script>
+// Masowe porzucanie — checkboxy są poza <form> (form="ibBulkForm"), więc liczymy je sami.
+(function () {
+  var bar = document.getElementById('ibBulkBar');
+  if (!bar) return;
+  var all   = document.getElementById('ibCheckAll');
+  var btn   = document.getElementById('ibBulkBtn');
+  var out   = document.getElementById('ibBulkN');
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.ib-check'));
+
+  function refresh() {
+    var n = boxes.filter(function (b) { return b.checked; }).length;
+    out.textContent = n;
+    btn.disabled = n === 0;
+    bar.classList.toggle('is-armed', n > 0);
+    boxes.forEach(function (b) { b.closest('.ib-row').classList.toggle('is-checked', b.checked); });
+    all.checked = n > 0 && n === boxes.length;
+    all.indeterminate = n > 0 && n < boxes.length;
+  }
+
+  all.addEventListener('change', function () {
+    boxes.forEach(function (b) { b.checked = all.checked; });
+    refresh();
+  });
+  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+  refresh();
+})();
+</script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
