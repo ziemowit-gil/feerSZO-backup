@@ -8,6 +8,7 @@
  *  POST JSON       a=onedrive_list     {folder, q}            → {ok, items:[{id,name,size,folder,mime}]}
  *  POST JSON       a=onedrive_pick     {ids:[itemId,…]}       → {ok, items:[…], errors:[…]}
  *  POST JSON       a=drop              {token}                → {ok}
+ *  POST JSON       a=template_atts     {template_id}          → {ok, items:[…]} (kopie plików szablonu)
  *
  * Klient nigdy nie widzi ścieżki pliku — operuje wyłącznie tokenem z poczekalni
  * (includes/crm_attachments.php).
@@ -82,6 +83,18 @@ if ($action === 'upload') {
 // ── Usunięcie z poczekalni ─────────────────────────────────────────────────
 if ($action === 'drop') {
     att_out(['ok' => crm_att_drop((string)($in['token'] ?? ''))]);
+}
+
+// ── Załączniki szablonu → poczekalnia (kopie, oryginał zostaje przy szablonie) ─
+if ($action === 'template_atts') {
+    $tid  = (int)($in['template_id'] ?? 0);
+    $items = $errors = [];
+    foreach (crm_tpl_attachments($tid) as $a) {
+        $res = crm_att_stage_copy($a);
+        if ($res['ok']) $items[] = att_public($res['token'], $res['att'], 'template');
+        else            $errors[] = $res['error'];
+    }
+    att_out(['ok' => true, 'items' => $items, 'errors' => $errors, 'error' => '']);
 }
 
 // ── OneDrive (tylko konta połączone z Microsoft 365) ───────────────────────

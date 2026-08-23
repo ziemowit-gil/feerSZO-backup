@@ -159,6 +159,90 @@ function crm_att_resolve(array $tokens): array {
     return $out;
 }
 
+/**
+ * Kopiuje istniejący załącznik (np. z szablonu) do NOWEGO pliku w poczekalni.
+ *
+ * Kopia jest konieczna: usunięcie pozycji z listy kasuje plik z dysku, a plik
+ * szablonu ma przeżyć wysyłkę i kolejne wiadomości.
+ */
+function crm_att_stage_copy(array $att): array {
+    if (crm_att_count() >= CRM_ATT_MAX_FILES) {
+        return ['ok' => false, 'error' => 'Maksymalnie ' . CRM_ATT_MAX_FILES . ' załączników.'];
+    }
+    $src = UPLOAD_DIR . ltrim((string)($att['path'] ?? ''), '/');
+    if (($att['path'] ?? '') === '' || !is_file($src)) {
+        return ['ok' => false, 'error' => 'Plik „' . ($att['name'] ?? '?') . '" nie istnieje już na dysku.'];
+    }
+    $ext = strtolower(pathinfo((string)$att['name'], PATHINFO_EXTENSION))
+        ?: strtolower(pathinfo($src, PATHINFO_EXTENSION));
+    if (!in_array($ext, crm_att_allowed_ext(), true)) {
+        return ['ok' => false, 'error' => 'Niedozwolony typ pliku: .' . $ext];
+    }
+
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $dest   = crm_att_dir() . $stored;
+    if (!@copy($src, $dest)) {
+        return ['ok' => false, 'error' => 'Nie udało się przygotować pliku „' . ($att['name'] ?? '') . '".'];
+    }
+    @chmod($dest, 0644);
+
+    $new = [
+        'path' => 'crm_attachments/' . $stored,
+        'name' => (string)($att['name'] ?? basename($src)),
+        'mime' => (string)($att['mime'] ?? (mime_content_type($dest) ?: 'application/octet-stream')),
+        'size' => filesize($dest) ?: (int)($att['size'] ?? 0),
+    ];
+    return ['ok' => true, 'error' => '', 'token' => crm_att_register($new, 'template'), 'att' => $new];
+}
+
+// ── Załączniki szablonów wiadomości ─────────────────────────────────────────
+
+/** Kolumna z załącznikami szablonu (samonaprawa — szablony są starsze niż ta funkcja). */
+function crm_tpl_att_schema_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try { db()->exec("ALTER TABLE crm_templates ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); }
+    catch (\Throwable $e) {}
+}
+
+/** Załączniki przypięte do szablonu: [['path','name','mime','size'], …]. */
+function crm_tpl_attachments(int $template_id): array {
+    if ($template_id <= 0) return [];
+    crm_tpl_att_schema_heal();
+    try {
+        $raw = (string)(db_one("SELECT attachments FROM crm_templates WHERE id=?", [$template_id])['attachments'] ?? '');
+    } catch (\Throwable $e) { return []; }
+    $arr = json_decode($raw ?: '[]', true);
+    if (!is_array($arr)) return [];
+
+    $out = [];
+    foreach ($arr as $a) {
+        if (!is_array($a) || empty($a['path']) || !is_file(UPLOAD_DIR . $a['path'])) continue;   // plik skasowany
+        $out[] = ['path' => (string)$a['path'], 'name' => (string)($a['name'] ?? basename($a['path'])),
+                  'mime' => (string)($a['mime'] ?? 'application/octet-stream'), 'size' => (int)($a['size'] ?? 0)];
+    }
+    return $out;
+}
+
+/** Zapisuje listę załączników szablonu (deskryptory jak w mail_queue_add()). */
+function crm_tpl_attachments_save(int $template_id, array $atts): void {
+    if ($template_id <= 0) return;
+    crm_tpl_att_schema_heal();
+    $clean = [];
+    foreach (array_slice($atts, 0, CRM_ATT_MAX_FILES) as $a) {
+        if (empty($a['path'])) continue;
+        $clean[] = ['path' => (string)$a['path'], 'name' => (string)($a['name'] ?? ''),
+                    'mime' => (string)($a['mime'] ?? ''), 'size' => (int)($a['size'] ?? 0)];
+    }
+    try {
+        db()->prepare("UPDATE crm_templates SET attachments=? WHERE id=?")
+            ->execute([json_encode($clean, JSON_UNESCAPED_UNICODE), $template_id]);
+    } catch (\Throwable $e) {
+        error_log('[crm_tpl_attachments_save] ' . $e->getMessage());
+    }
+}
+
 // ── OneDrive zalogowanego użytkownika ───────────────────────────────────────
 
 /**

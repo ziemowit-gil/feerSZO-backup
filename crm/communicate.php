@@ -1080,6 +1080,8 @@ include __DIR__ . '/includes/header_crm.php';
       setEditorContent(subject, body, channel);
       toggleSubject();
       tplAutoFill(body, subject, channel);
+      // Szablon może mieć przypięte załączniki — dokładamy ich kopie
+      if (channel === 'email' && window.CrmAtt) window.CrmAtt.fromTemplate(_currentTplId);
     });
   }
 

@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/crm_attachments.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -28,6 +29,27 @@ $CHANNELS = [
     'email' => ['label' => 'E-mail', 'icon' => 'bi-envelope-fill', 'color' => '#0176D3'],
     'sms'   => ['label' => 'SMS',    'icon' => 'bi-phone-fill',    'color' => '#B45309'],
 ];
+
+/**
+ * Załączniki szablonu z formularza: pozycje „keep:<i>" to te już zapisane przy
+ * szablonie (użytkownik ich nie zdjął), reszta to tokeny z poczekalni.
+ */
+function _tpl_atts_from_post(int $tid): array {
+    $tokens  = (array)($_POST['crm_att_tokens'] ?? []);
+    $current = $tid ? crm_tpl_attachments($tid) : [];
+    $out     = [];
+    $fresh   = [];
+    foreach ($tokens as $t) {
+        $t = (string)$t;
+        if (str_starts_with($t, 'keep:')) {
+            $i = (int)substr($t, 5);
+            if (isset($current[$i])) $out[] = $current[$i];
+        } else {
+            $fresh[] = $t;
+        }
+    }
+    return array_merge($out, crm_att_resolve($fresh));
+}
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
@@ -62,9 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
                 db()->prepare(
                     "UPDATE crm_templates SET name=?, channel=?, subject=?, body=?, is_active=?, is_locked=?, updated_at=? WHERE id=?"
                 )->execute([$name, $channel, $subject, $body, $active, $locked, date('Y-m-d H:i:s'), $tid]);
+                crm_tpl_attachments_save($tid, _tpl_atts_from_post($tid));
                 flash_set('success', 'Szablon „' . $name . '" zaktualizowany.');
             } else {
-                db_insert('crm_templates', [
+                $new_id = db_insert('crm_templates', [
                     'name'       => $name,
                     'channel'    => $channel,
                     'subject'    => $subject,
@@ -75,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
+                crm_tpl_attachments_save((int)$new_id, _tpl_atts_from_post(0));
                 flash_set('success', 'Szablon „' . $name . '" utworzony.');
             }
         }
@@ -251,6 +275,13 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="tpl-meta"><i class="bi bi-card-heading me-1" aria-hidden="true"></i><?= h($t['subject']) ?></div>
       <?php endif; ?>
       <div class="tpl-preview"><?= h(mb_substr(strip_tags($t['body']), 0, 240)) ?></div>
+      <?php $t_atts = crm_tpl_attachments((int)$t['id']); if ($t_atts): ?>
+      <div class="tpl-meta mt-1">
+        <i class="bi bi-paperclip me-1" aria-hidden="true"></i>
+        <?= count($t_atts) ?> <?= count($t_atts) === 1 ? 'załącznik' : 'załączniki' ?>:
+        <?= h(implode(', ', array_column($t_atts, 'name'))) ?>
+      </div>
+      <?php endif; ?>
       <div class="tpl-meta mt-1">Zmieniono: <?= h(date('d.m.Y', strtotime($t['updated_at'] ?? $t['created_at'] ?? 'now'))) ?></div>
     </div>
     <?php if ($crm_can_write && $locked && !$is_admin_user): ?>
@@ -272,6 +303,10 @@ include __DIR__ . '/includes/header_crm.php';
                   'id' => (int)$t['id'], 'name' => $t['name'], 'channel' => $t['channel'],
                   'subject' => $t['subject'] ?? '', 'body' => $t['body'],
                   'is_active' => (int)$t['is_active'], 'is_locked' => (int)($t['is_locked'] ?? 0),
+                  'atts' => array_map(static fn($a, $i) => [
+                      'token' => 'keep:' . $i, 'name' => $a['name'], 'size' => (int)$a['size'],
+                      'mime'  => $a['mime'], 'source' => 'template',
+                  ], $t_atts, array_keys($t_atts)),
               ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
         <i class="bi bi-pencil" aria-hidden="true"></i>
       </button>
@@ -376,6 +411,13 @@ include __DIR__ . '/includes/header_crm.php';
                   <?php endforeach; ?>
                 </div>
                 <div class="form-text" style="font-size:.74rem">Kliknij zmienną, aby wstawić ją w miejscu kursora.</div>
+              </div>
+            </div>
+            <div class="col-12" id="tpl_att_wrap">
+              <?php $ATT_UI = ['form' => true]; include __DIR__ . '/includes/attachments_ui.php'; ?>
+              <div class="form-text" style="font-size:.74rem">
+                Załączniki dopinają się automatycznie po wybraniu szablonu przy wysyłce
+                (plik szablonu zostaje — wysyłana jest kopia).
               </div>
             </div>
             <div class="col-12">
@@ -484,6 +526,9 @@ function tplToggleSubject() {
   document.getElementById('tpl_subject_wrap').style.display = isEmail ? '' : 'none';
   document.getElementById('tpl_body_rich_wrap').classList.toggle('d-none', !isEmail);
   document.getElementById('tpl_body_plain_wrap').classList.toggle('d-none', isEmail);
+  // Załączniki dotyczą tylko e-maila — przy SMS-ie pole nie ma sensu
+  var attWrap = document.getElementById('tpl_att_wrap');
+  if (attWrap) attWrap.classList.toggle('d-none', !isEmail);
   if (isEmail) tplInitQuill();
 }
 
@@ -499,6 +544,7 @@ function tplNew() {
   document.getElementById('tpl_body_sms').value = '';
   document.getElementById('tpl_body_err').classList.add('d-none');
   document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
+  if (window.CrmAtt) window.CrmAtt.clear();
   tplToggleSubject();
 }
 
@@ -525,6 +571,7 @@ function tplEdit(t) {
   document.getElementById('tpl_active').checked = (t.is_active === 1 || t.is_active === '1');
   var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = (t.is_locked === 1 || t.is_locked === '1');
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-pencil me-2" aria-hidden="true"></i>Edytuj szablon';
+  if (window.CrmAtt) window.CrmAtt.set(t.atts || []);
   tplToggleSubject();
   new bootstrap.Modal(document.getElementById('tplModal')).show();
 }

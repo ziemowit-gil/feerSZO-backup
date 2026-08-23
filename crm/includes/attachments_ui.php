@@ -181,6 +181,7 @@ function render() {
              + '<span class="catt-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>'
              + '<span class="catt-size">' + fmtSize(it.size) + '</span>'
              + (it.source === 'onedrive' ? '<span class="catt-src">OneDrive</span>' : '')
+             + (it.source === 'template' ? '<span class="catt-src">szablon</span>' : '')
              + '<button type="button" class="catt-x" data-i="' + i + '" '
              + 'aria-label="Usuń załącznik ' + esc(it.name) + '"><i class="bi bi-x-lg" aria-hidden="true"></i></button>'
              + '</span>';
@@ -217,6 +218,8 @@ function drop(i) {
     if (!it) return;
     _items.splice(i, 1);
     render();
+    // keep:* to załączniki już zapisane przy szablonie — nie ma czego sprzątać w poczekalni
+    if (String(it.token).indexOf('keep:') === 0) return;
     fetch(API, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -420,7 +423,23 @@ window.CrmAtt = {
     items:  function () { return _items.slice(); },
     count:  function () { return _items.length; },
     add:    addItems,
-    clear:  function () { _items = []; render(); }
+    set:    function (items) { _items = (items || []).slice(0, MAX); render(); },
+    clear:  function () { _items = []; render(); },
+    /** Dokłada załączniki szablonu (serwer robi kopie plików). */
+    fromTemplate: function (templateId) {
+        if (!templateId) return;
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({_csrf: CSRF, a: 'template_atts', template_id: templateId})
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d.items && d.items.length) addItems(d.items);
+            if (d.errors && d.errors.length) showErr(d.errors.join(' '));
+        })
+        .catch(function () {});
+    }
 };
 
 render();

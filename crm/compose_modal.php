@@ -359,6 +359,10 @@ CM.init = function() {
             }
         }
         CM.onChannelChange(opt.dataset.ch || 'email');
+        // Szablon może mieć własne załączniki — serwer robi kopie plików
+        if ((opt.dataset.ch || 'email') === 'email' && window.CrmAtt) {
+            window.CrmAtt.fromTemplate(opt.value);
+        }
         CM.updateChar();
     });
 
