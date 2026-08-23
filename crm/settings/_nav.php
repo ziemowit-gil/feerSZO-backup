@@ -102,6 +102,13 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   </a>
 
   <div class="csn-sep"></div>
+  <div class="csn-title">Wysyłki</div>
+
+  <a href="<?= APP_URL ?>/crm/settings/suppressions.php" class="csn-link<?= $_sn_a('settings/suppressions') ?>">
+    <i class="bi bi-slash-circle"></i> Lista wykluczeń
+  </a>
+
+  <div class="csn-sep"></div>
   <div class="csn-title">Automatyzacje</div>
 
   <a href="<?= APP_URL ?>/crm/settings/automations.php" class="csn-link<?= $_sn_a('settings/automations') ?>">

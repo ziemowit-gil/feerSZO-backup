@@ -1192,6 +1192,10 @@ function crm_migrate(): void {
     // Schemat pism (dane rejestrowe + Postivo) — jedno źródło prawdy.
     // Wcześniej lista kolumn pisma była tu duplikowana i rozjeżdżała się z kodem.
     require_once __DIR__ . '/letters_schema.php';
+
+    // Schemat newsletterów: edytor blokowy (design_json), zamrożona treść wysyłki,
+    // zdarzenia, linki, lista wykluczeń, zapisane segmenty — jedno źródło prawdy.
+    require_once __DIR__ . '/crm_newsletter_schema.php';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

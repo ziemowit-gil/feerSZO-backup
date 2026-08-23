@@ -20,6 +20,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/crm_consent.php';
+require_once dirname(__DIR__, 2) . '/includes/crm_campaign.php';
 
 $token = (string)($_GET['t'] ?? $_POST['t'] ?? '');
 $scope = (string)($_POST['scope'] ?? '');   // '' = tylko pokaż, 'purpose' | 'all' = wykonaj
@@ -28,7 +29,7 @@ $rcpt = null; $campaign = null; $purpose = null; $done = null; $error = false;
 
 if ($token !== '') {
     try {
-        $rcpt = db_one("SELECT id, campaign_id, contact_id FROM crm_campaign_recipients WHERE tracking_token=?", [$token]);
+        $rcpt = db_one("SELECT id, campaign_id, contact_id, unsubscribed_at FROM crm_campaign_recipients WHERE tracking_token=?", [$token]);
         if ($rcpt) {
             $campaign = db_one("SELECT id, name, purpose_id FROM crm_campaigns WHERE id=?", [(int)$rcpt['campaign_id']]);
             $pid      = (int)($campaign['purpose_id'] ?? 0);
@@ -70,7 +71,24 @@ if ($rcpt && $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($scope, ['purpose
                     ]);
                 }
             }
+            // Adres na listę wykluczeń: flaga na kontakcie chroni tylko ten jeden
+            // rekord, a ten sam adres może trafić do CRM ponownie (import, sync
+            // z Outlooka). Lista wykluczeń jest per adres, więc wypisanie
+            // przetrwa powtórne dodanie kontaktu.
+            $c_email = db_one("SELECT email FROM crm_contacts WHERE id=?", [$contact_id])['email'] ?? '';
+            if ($c_email !== '') {
+                crm_suppression_add((string)$c_email, 'unsubscribe', (int)$rcpt['campaign_id'], $detail);
+            }
             $done = 'all';
+        }
+
+        // Zdarzenie w rejestrze kampanii — źródło statystyk wypisań i podstawa
+        // segmentacji „nie pisz do tych, którzy się wypisali".
+        if ($first_time) {
+            crm_campaign_log_event(
+                (int)$rcpt['campaign_id'], (int)$rcpt['id'], $contact_id, 'unsubscribe', null,
+                ['ip' => $ip ?? '', 'ua' => $_SERVER['HTTP_USER_AGENT'] ?? '', 'detail' => 'zakres: ' . $scope]
+            );
         }
 
         // Licznik kampanii podnosimy raz — przy pierwszym wypisaniu tego odbiorcy.

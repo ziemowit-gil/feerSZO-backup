@@ -43,6 +43,10 @@
     // DW / UDW (JSON array of email strings) — v2.0
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN cc_emails  TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN bcc_emails TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
+    // Dodatkowe nagłówki wiadomości (JSON obiekt nazwa=>wartość) — v2.1.
+    // Powód: List-Unsubscribe / List-Unsubscribe-Post (RFC 8058). Gmail i Yahoo
+    // od 2024 wymagają jednoklikowego wypisu przy wysyłkach masowych.
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN headers TEXT"); } catch (\Throwable $e) {}
 })();
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -116,7 +120,8 @@ function mail_queue_add(
     array  $attachments  = [],  // [['path'=>..., 'name'=>..., 'mime'=>..., 'size'=>...], ...]
     string $from_email   = '',  // nadawca nadrzędny (np. skrzynka usera M365); '' = nadawca systemowy
     array  $cc_emails    = [],  // DW — Do Wiadomości
-    array  $bcc_emails   = []   // UDW — Ukryta Do Wiadomości
+    array  $bcc_emails   = [],  // UDW — Ukryta Do Wiadomości
+    array  $headers      = []   // dodatkowe nagłówki, np. List-Unsubscribe
 ): int {
     if (!$body_text) {
         $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
@@ -126,14 +131,15 @@ function mail_queue_add(
     $att_json = $attachments ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '[]';
     $cc_json  = $cc_emails   ? json_encode($cc_emails,   JSON_UNESCAPED_UNICODE) : '[]';
     $bcc_json = $bcc_emails  ? json_encode($bcc_emails,  JSON_UNESCAPED_UNICODE) : '[]';
+    $hdr_json = $headers     ? json_encode($headers,     JSON_UNESCAPED_UNICODE) : null;
     db()->prepare(
-        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email,cc_emails,bcc_emails)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email,cc_emails,bcc_emails,headers)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([
         $to_email, $to_name, $subject, $body_html, $body_text,
         $context_type, $context_id,
         $scheduled_at ?: date('Y-m-d H:i:s'),
-        $att_json, $from_email, $cc_json, $bcc_json,
+        $att_json, $from_email, $cc_json, $bcc_json, $hdr_json,
     ]);
     $mail_id = (int)db()->lastInsertId();
 
@@ -457,6 +463,23 @@ function _mail_send_m365(array $msg): bool {
         'saveToSentItems' => false,
     ];
 
+    // Dodatkowe nagłówki. OGRANICZENIE GRAPH API: internetMessageHeaders przyjmuje
+    // wyłącznie nazwy zaczynające się od "x-" — List-Unsubscribe przez sendMail
+    // ustawić się NIE DA. Jednoklikowy wypis (RFC 8058) działa więc tylko na
+    // ścieżce SMTP; przy wysyłce masowej z M365 zostaje link w stopce.
+    $hdrs = json_decode($msg['headers'] ?? '', true);
+    if (is_array($hdrs)) {
+        $graph_hdrs = [];
+        foreach ($hdrs as $name => $value) {
+            $n = preg_replace('/[^A-Za-z0-9-]/', '', (string)$name);
+            if ($n === '' || !str_starts_with(strtolower($n), 'x-')) continue;
+            $v = trim(preg_replace('/[\r\n]+/', ' ', (string)$value));
+            if ($v === '') continue;
+            $graph_hdrs[] = ['name' => $n, 'value' => mb_substr($v, 0, 900)];
+        }
+        if ($graph_hdrs) $payload['message']['internetMessageHeaders'] = array_slice($graph_hdrs, 0, 5);
+    }
+
     // DW / UDW
     $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
     $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];
@@ -596,6 +619,7 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $data .= "To: {$to_enc}\r\n";
     if ($cc_list) { $data .= "Cc: " . implode(', ', $cc_list) . "\r\n"; }
     $data .= "Subject: {$subj_enc}\r\n";
+    $data .= _mail_extra_headers($msg);
     $data .= "MIME-Version: 1.0\r\n";
 
     if ($attachments) {
@@ -648,6 +672,34 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
 
     if (!str_starts_with(trim($r), '250')) throw new \RuntimeException("SMTP DATA error: {$r}");
     return true;
+}
+
+/**
+ * Serializuje dodatkowe nagłówki wiadomości do bloku DATA.
+ *
+ * Biała lista nazw jest tu celowo wąska: nagłówki wędrują z bazy do surowego
+ * strumienia SMTP, więc dowolna nazwa/wartość pozwoliłaby wstrzyknąć CRLF i
+ * rozbić wiadomość (header injection). Wartości obcinamy do jednej linii.
+ */
+function _mail_extra_headers(array $msg): string {
+    $allowed = ['list-unsubscribe', 'list-unsubscribe-post', 'list-id', 'precedence',
+                'auto-submitted', 'in-reply-to', 'references'];
+    $raw = json_decode($msg['headers'] ?? '', true);
+    if (!is_array($raw)) return '';
+
+    $out = '';
+    foreach ($raw as $name => $value) {
+        $n = strtolower(trim((string)$name));
+        // Własne nagłówki X-* są bezpieczne i przydatne w diagnostyce.
+        if (!in_array($n, $allowed, true) && !str_starts_with($n, 'x-')) continue;
+        $v = preg_replace('/[\r\n]+/', ' ', (string)$value);
+        $v = trim(mb_substr($v, 0, 900));
+        if ($v === '') continue;
+        $name_clean = preg_replace('/[^A-Za-z0-9-]/', '', (string)$name);
+        if ($name_clean === '') continue;
+        $out .= "{$name_clean}: {$v}\r\n";
+    }
+    return $out;
 }
 
 function _mail_smtp_domain(): string {
