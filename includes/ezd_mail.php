@@ -232,6 +232,9 @@ class EzdMailService
         ]);
         $pismo_id = (int)$this->pdo->lastInsertId();
 
+        // ezd_log() mieszka w includes/ezd.php — wołane ze Skrzynki CRM ten plik
+        // nie jest jeszcze załadowany (na stronach /ezd/* jest zawsze).
+        require_once __DIR__ . '/ezd.php';
         ezd_log(null, $sprawa_id, $pismo_id, null, $user_id ?? 0, 'pismo_email_linked',
             "Powiązano z komunikacją CRM #{$comm['id']} ({$kierunek})");
 
