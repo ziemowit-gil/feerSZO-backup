@@ -122,9 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save
             'case_id'            => (int)($_POST['case_id'] ?? 0) ?: null,
             'owner_id'           => (int)($_POST['owner_id'] ?? 0) ?: $uid,
             'title'              => $title,
-            'intro'              => trim((string)($_POST['intro'] ?? '')) ?: null,
-            'terms'              => trim((string)($_POST['terms'] ?? '')) ?: null,
-            'delivery_terms'     => trim((string)($_POST['delivery_terms'] ?? '')) ?: null,
+            // Pola z edytora WYSIWYG — whitelista tagów przy zapisie (crm_offer_sanitize_html).
+            'intro'              => crm_offer_sanitize_html((string)($_POST['intro'] ?? '')) ?: null,
+            'terms'              => crm_offer_sanitize_html((string)($_POST['terms'] ?? '')) ?: null,
+            'delivery_terms'     => crm_offer_sanitize_html((string)($_POST['delivery_terms'] ?? '')) ?: null,
             'notes_internal'     => trim((string)($_POST['notes_internal'] ?? '')) ?: null,
             'currency'           => in_array($_POST['currency'] ?? 'PLN', ['PLN', 'EUR', 'USD'], true) ? $_POST['currency'] : 'PLN',
             'valid_until'        => trim((string)($_POST['valid_until'] ?? '')) ?: null,
@@ -401,18 +402,18 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
       <div class="mb-2">
         <label class="form-label fw-semibold small mb-1">Wstęp / opis merytoryczny</label>
-        <textarea name="intro" class="form-control form-control-sm" rows="4"
+        <textarea name="intro" id="ofRichIntro" class="form-control form-control-sm of-rich" rows="6"
                   placeholder="Kontekst, potrzeba klienta, sposób realizacji…"><?= h($val('intro')) ?></textarea>
       </div>
       <div class="row g-2">
         <div class="col-md-6">
           <label class="form-label fw-semibold small mb-1">Warunki realizacji</label>
-          <textarea name="delivery_terms" class="form-control form-control-sm" rows="3"
+          <textarea name="delivery_terms" id="ofRichDelivery" class="form-control form-control-sm of-rich" rows="5"
                     placeholder="Terminy, miejsce, wymagania organizacyjne…"><?= h($val('delivery_terms')) ?></textarea>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold small mb-1">Warunki oferty</label>
-          <textarea name="terms" class="form-control form-control-sm" rows="3"
+          <textarea name="terms" id="ofRichTerms" class="form-control form-control-sm of-rich" rows="5"
                     placeholder="Zastrzeżenia, zakres wyłączeń, warunki płatności…"><?= h($val('terms')) ?></textarea>
         </div>
       </div>
@@ -836,6 +837,49 @@ function ofRecalc() {
     document.querySelectorAll('.ofv-rec').forEach(function (el) { el.addEventListener('change', ofRecalc); });
     if (OF_CUR) OF_CUR.addEventListener('change', ofRecalc);
     ofRecalc();
+})();
+</script>
+
+
+<!-- ── Edytor WYSIWYG dla pól treści oferty ─────────────────────────────────
+     Textarea zostaje WIDOCZNA (bez display:none) — TinyMCE przenosi display
+     na swój kontener, a przy braku CDN pole działa jako zwykły textarea.      -->
+<style>
+  .tox-tinymce { border-radius:.375rem !important; border-color:#dee2e6 !important }
+  .tox .tox-toolbar__primary { background:#f8f9fa !important }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+(function () {
+  if (!window.tinymce) return;   // brak CDN → zostają zwykłe textarea
+
+  var OF_TINY = {
+    license_key: 'gpl',
+    menubar: false,
+    branding: false,
+    promotion: false,
+    statusbar: false,
+    entity_encoding: 'raw',
+    language: 'pl',
+    language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@latest/langs7/pl.js',
+    plugins: 'lists link autolink',
+    toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+    // Tagi spoza whitelisty i tak wytnie crm_offer_sanitize_html przy zapisie.
+    invalid_elements: 'script,style,img,iframe,object,embed,form,input',
+    link_default_target: '_blank',
+    content_style: 'body{font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.55;'
+                 + 'color:#1f2937;padding:6px 10px} p{margin:0 0 .5rem} ul,ol{margin:0 0 .5rem 1.1rem}',
+    setup: function (ed) { ed.on('change input undo redo', function () { ed.save(); }); }
+  };
+
+  function ofTiny(sel, h) {
+    tinymce.init(Object.assign({}, OF_TINY, { selector: sel, height: h }));
+  }
+  ofTiny('#ofRichIntro', 260);
+  ofTiny('#ofRichDelivery, #ofRichTerms', 200);
+
+  var f = document.getElementById('offerForm');
+  if (f) f.addEventListener('submit', function () { tinymce.triggerSave(); });
 })();
 </script>
 

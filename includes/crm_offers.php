@@ -1163,7 +1163,9 @@ function crm_offer_convert(array $offer, string $target, array $opts = []): arra
         $case_id = crm_insert('crm_cases', [
             'contact_id'  => (int)$full['contact_id'],
             'title'       => 'Realizacja: ' . $full['title'] . ' (' . $full['offer_number'] . ')',
-            'description' => $summary . ($full['delivery_terms'] ? "\nWarunki realizacji: " . $full['delivery_terms'] : ''),
+            'description' => $summary . (crm_offer_plain($full['delivery_terms'] ?? '') !== ''
+                                         ? "\nWarunki realizacji: " . crm_offer_plain($full['delivery_terms'])
+                                         : ''),
             'status'      => 'open',
             'priority'    => 'medium',
             'created_by'  => $uid ?: null,
@@ -1412,6 +1414,58 @@ function crm_offer_bank_accounts(string $funding = 'odplatna', string $currency 
 }
 
 /**
+ * Sanityzuje HTML z edytora WYSIWYG (pola treści oferty: intro / delivery_terms /
+ * terms / statutory_note). Whitelista tagów — bez skryptów, styli, obrazków
+ * i atrybutów zdarzeń. Wynik trafia do bazy, więc czyścimy PRZY ZAPISIE,
+ * a przy renderze tylko dla pewności (stare rekordy).
+ */
+function crm_offer_sanitize_html(string $html): string {
+    if (trim($html) === '') return '';
+    // Bloki ze skryptami/stylami usuwamy razem z treścią — strip_tags zostawiłby sam kod.
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*>.*?</\1>#is', '', $html) ?? '';
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*/?>#i', '', $html) ?? '';
+    $allowed = '<p><br><strong><b><em><i><u><s><ul><ol><li><blockquote>'
+             . '<a><span><h3><h4><h5><hr><table><thead><tbody><tr><th><td>';
+    $clean = strip_tags($html, $allowed);
+    // on* handlery i javascript: w href/src
+    $clean = preg_replace('/\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? '';
+    $clean = preg_replace('/\s+(href|src)\s*=\s*("\s*javascript:[^"]*"|\'\s*javascript:[^\']*\'|javascript:[^\s>]*)/i', '', $clean) ?? '';
+    // Pusty edytor potrafi oddać <p><br></p> lub &nbsp; — to traktujemy jak brak treści.
+    $plain = html_entity_decode(strip_tags($clean), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $plain = trim(str_replace("\xc2\xa0", ' ', $plain));
+    if ($plain === '') return '';
+    return trim($clean);
+}
+
+/**
+ * Renderuje pole treści oferty. Nowe wpisy z edytora są HTML-em (przepuszczamy
+ * przez whitelistę), starsze to czysty tekst — tam zachowujemy łamanie wierszy.
+ */
+function crm_offer_rich(?string $v): string {
+    $v = trim((string)$v);
+    if ($v === '') return '';
+    if (preg_match('#</?(p|br|div|ul|ol|li|strong|em|b|i|u|s|h[1-6]|blockquote|table|span|a)\b#i', $v)) {
+        return crm_offer_sanitize_html($v);
+    }
+    return nl2br(h($v));
+}
+
+/**
+ * Odwrotność powyższego — treść pola jako czysty tekst (do opisów spraw,
+ * prefillu umów, powiadomień SMS/e-mail bez HTML-a).
+ */
+function crm_offer_plain(?string $v): string {
+    $v = (string)$v;
+    if (trim($v) === '') return '';
+    $v = preg_replace('#<br\s*/?>#i', "\n", $v) ?? $v;
+    $v = preg_replace('#</(p|div|li|tr|h[1-6]|blockquote)>#i', "\n", $v) ?? $v;
+    $v = html_entity_decode(strip_tags($v), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $v = str_replace("\xc2\xa0", ' ', $v);
+    $v = preg_replace("/\n{3,}/", "\n\n", $v) ?? $v;
+    return trim($v);
+}
+
+/**
  * Renderuje treść dokumentu oferty (bez <html>). Używane przez wydruk, PDF,
  * publiczną stronę klienta oraz podgląd w CRM.
  *
@@ -1474,7 +1528,7 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     $o .= '</td></tr></table>';
 
     $o .= '<h1 class="of-title">' . h($full['title']) . '</h1>';
-    if (!empty($full['intro'])) $o .= '<div class="of-intro">' . nl2br(h($full['intro'])) . '</div>';
+    if (!empty($full['intro'])) $o .= '<div class="of-intro">' . crm_offer_rich($full['intro']) . '</div>';
 
     // Warianty
     $multi = count($full['variants'] ?? []) > 1;
@@ -1559,10 +1613,10 @@ function crm_offer_document_html(array $full, array $opt = []): string {
     }
 
     if (!empty($full['delivery_terms'])) {
-        $o .= '<div class="of-sect"><div class="of-label">Warunki realizacji</div><div>' . nl2br(h($full['delivery_terms'])) . '</div></div>';
+        $o .= '<div class="of-sect"><div class="of-label">Warunki realizacji</div><div>' . crm_offer_rich($full['delivery_terms']) . '</div></div>';
     }
     if (!empty($full['terms'])) {
-        $o .= '<div class="of-sect"><div class="of-label">Warunki oferty</div><div>' . nl2br(h($full['terms'])) . '</div></div>';
+        $o .= '<div class="of-sect"><div class="of-label">Warunki oferty</div><div>' . crm_offer_rich($full['terms']) . '</div></div>';
     }
     if ($internal && !empty($full['statutory_note'])) {
         $o .= '<div class="of-sect"><div class="of-label">Zgodność z celami statutowymi</div><div>'
@@ -1730,6 +1784,11 @@ function crm_offer_document_css(bool $for_pdf = false): string {
 .of-client { font-weight:700; font-size:11.5pt; color:#1A1D21; }
 .of-title { font-size:15pt; font-weight:700; margin:2px 0 8px; color:{$dk}; line-height:1.25; }
 .of-intro { margin-bottom:16px; }
+/* Treść z edytora WYSIWYG — akapity i listy bez nadmiarowych marginesów (także w mPDF) */
+.of-intro p, .of-sect p { margin:0 0 6px; }
+.of-intro p:last-child, .of-sect p:last-child { margin-bottom:0; }
+.of-intro ul, .of-intro ol, .of-sect ul, .of-sect ol { margin:0 0 6px 0; padding-left:18px; }
+.of-intro li, .of-sect li { margin:0 0 2px; }
 
 /* Warianty — bez ramek, oddzielone linią i światłem */
 .of-variant { padding:0; margin:0 0 20px; border-top:1px solid #E3E6EA; padding-top:10px; }
