@@ -52,6 +52,7 @@ function crm_mailbox_schema_heal(): void {
         "ALTER TABLE crm_communications ADD COLUMN crm_hidden INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE crm_communications ADD COLUMN crm_hidden_at DATETIME",
         "ALTER TABLE crm_communications ADD COLUMN crm_hidden_by INTEGER",
+        "ALTER TABLE crm_communications ADD COLUMN ezd_notified_at DATETIME",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
@@ -237,6 +238,119 @@ function crm_mailbox_counts(): array {
         } catch (\Throwable $e) { $out[$view] = 0; }
     }
     return $out;
+}
+
+/**
+ * Powiadamia NADAWCĘ, że jego sprawa trafiła do rejestru EZD.
+ *
+ * Treść jest stała (uzgodniona z fundacją) i wysyłana jako czysty HTML — same
+ * akapity, bez firmowej ramki _feer_email_tpl() i bez stylowania; stopka
+ * i klauzula RODO są już w samej treści.
+ *
+ * Wysyłamy TYLKO przy założeniu NOWEJ koszulki. Dopięcie do już prowadzonej
+ * sprawy nadawcy nie interesuje — o niej wie, korespondencja już trwa.
+ *
+ * Nie wysyłamy: gdy wyłączone ustawieniem `crm_ezd_notify_sender` = '0', gdy adres
+ * nadawcy jest pusty/niepoprawny, gdy to nadawca automatyczny (noreply, mailer…)
+ * albo gdy dla tej wiadomości powiadomienie już poszło (ezd_notified_at).
+ *
+ * @return bool czy wiadomość trafiła do kolejki
+ */
+function crm_mailbox_notify_ezd_sender(int $comm_id): bool {
+    if (crm_setting('crm_ezd_notify_sender') === '0') return false;
+
+    crm_mailbox_schema_heal();
+    try {
+        $m = db_one("SELECT id, contact_id, from_email, from_name, subject, thread_key, ezd_notified_at
+                     FROM crm_communications WHERE id=?", [$comm_id]);
+    } catch (\Throwable $e) { return false; }
+    if (!$m || !empty($m['ezd_notified_at'])) return false;
+
+    $to = trim((string)($m['from_email'] ?? ''));
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+
+    require_once __DIR__ . '/crm_contact_analyzer.php';
+    if (crm_is_robot_sender($to)) return false;          // do automatu nie ma po co pisać
+
+    // Nie odpisujemy sami sobie — adresy naszych skrzynek odpadają
+    try {
+        foreach (db_all("SELECT mailbox FROM poczta_mailboxes") as $mb) {
+            if (strcasecmp(trim((string)$mb['mailbox']), $to) === 0) return false;
+        }
+    } catch (\Throwable $e) {}
+
+    $subject = 'Informacja o zarejestrowaniu sprawy w systemie EZD FEER';
+
+    // Czysty HTML, bez stylowania i ozdobników — ma wyglądać jak zwykłe pismo.
+    $html = '<p>Szanowny Panie / Szanowna Pani,</p>'
+          . '<p>Uprzejmie informujemy, że z uwagi na charakter Państwa sprawy, została ona zarejestrowana '
+          . 'w systemie Elektronicznego Zarządzania Dokumentacją FEER.</p>'
+          . '<p>Niebawem otrzymają Państwo odpowiedź w tej sprawie. W temacie oraz treści korespondencji '
+          . 'będzie pojawiał się numer koszulki / wirtualnej teczki, co ułatwi identyfikację sprawy.</p>'
+          . '<p>Informujemy również, że w związku z tym przetwarzamy Państwa dane osobowe w związku '
+          . 'z potrzebą załatwienia sprawy i prowadzoną korespondencją.</p>'
+          . '<p>W przypadku dodatkowych pytań pozostajemy do dyspozycji.</p>'
+          . '<p>Z poważaniem,</p>'
+          . '<p>Fundacja Edukacji Empatii Rozwoju "FEER"<br>'
+          . 'ul. W. Barbackiego 28/18<br>'
+          . '33-300 Nowy Sącz<br>'
+          . 'NIP: 7343570539</p>'
+          . '<p>Klauzula informacyjna RODO:</p>'
+          . '<p>Administratorem Państwa danych osobowych jest Fundacja Edukacji Empatii Rozwoju "FEER" '
+          . '(ul. W. Barbackiego 28/18, 33-300 Nowy Sącz, NIP: 7343570539). Dane są przetwarzane w celu '
+          . 'załatwienia sprawy oraz prowadzenia korespondencji. Pełna treść klauzuli informacyjnej znajduje '
+          . 'się na naszej stronie internetowej pod adresem: feer.org.pl/rodo.</p>';
+
+    $text = "Szanowny Panie / Szanowna Pani,\n\n"
+          . "Uprzejmie informujemy, że z uwagi na charakter Państwa sprawy, została ona zarejestrowana "
+          . "w systemie Elektronicznego Zarządzania Dokumentacją FEER.\n\n"
+          . "Niebawem otrzymają Państwo odpowiedź w tej sprawie. W temacie oraz treści korespondencji będzie "
+          . "pojawiał się numer koszulki / wirtualnej teczki, co ułatwi identyfikację sprawy.\n\n"
+          . "Informujemy również, że w związku z tym przetwarzamy Państwa dane osobowe w związku z potrzebą "
+          . "załatwienia sprawy i prowadzoną korespondencją.\n\n"
+          . "W przypadku dodatkowych pytań pozostajemy do dyspozycji.\n\n"
+          . "Z poważaniem,\n\nFundacja Edukacji Empatii Rozwoju \"FEER\"\nul. W. Barbackiego 28/18\n"
+          . "33-300 Nowy Sącz\nNIP: 7343570539\n\n"
+          . "Klauzula informacyjna RODO:\nAdministratorem Państwa danych osobowych jest Fundacja Edukacji Empatii "
+          . "Rozwoju \"FEER\" (ul. W. Barbackiego 28/18, 33-300 Nowy Sącz, NIP: 7343570539). Dane są przetwarzane "
+          . "w celu załatwienia sprawy oraz prowadzenia korespondencji. Pełna treść klauzuli informacyjnej znajduje "
+          . "się na naszej stronie internetowej pod adresem: feer.org.pl/rodo.";
+
+    try {
+        require_once __DIR__ . '/mail_queue.php';
+        mail_queue_add($to, (string)($m['from_name'] ?? ''), $subject, $html, $text,
+            'crm_ezd_notify', $comm_id, '', false);
+    } catch (\Throwable $e) {
+        error_log('[crm_mailbox_notify_ezd_sender] ' . $e->getMessage());
+        return false;
+    }
+
+    try {
+        db()->prepare("UPDATE crm_communications SET ezd_notified_at=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $comm_id]);
+    } catch (\Throwable $e) {}
+
+    // Ślad w historii kontaktu — inaczej nikt nie wie, że nadawca dostał tę informację
+    try {
+        db_insert('crm_communications', [
+            'contact_id'    => (int)($m['contact_id'] ?? 0) ?: null,
+            'channel'       => 'email',
+            'direction'     => 'out',
+            'template_name' => 'ezd_rejestracja',
+            'subject'       => $subject,
+            'body'          => $text,
+            'status'        => 'w kolejce',
+            'sent_by'       => (int)(current_user()['id'] ?? 0) ?: null,
+            'sent_at'       => date('Y-m-d H:i:s'),
+            'inbox_status'  => 'archived',
+            'is_read'       => 1,
+            'thread_key'    => $m['thread_key'] ?: null,
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[crm_mailbox_notify_ezd_sender] log: ' . $e->getMessage());
+    }
+
+    return true;
 }
 
 /**
@@ -460,6 +574,7 @@ function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_i
     $svc = new EzdMailService();
 
     try {
+        $new_sprawa = false;
         if ($sprawa_id) {
             $svc->linkCommToSprawa($comm_id, $sprawa_id);
             $sp = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$sprawa_id]);
@@ -471,6 +586,7 @@ function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_i
         } elseif ($teczka_id) {
             $r = $svc->createSprawaFromComm($comm_id, $teczka_id);
             $out = ['ok' => true, 'error' => '', 'znak' => $r['znak'], 'url' => $r['url']];
+            $new_sprawa = true;
         } else {
             $out['error'] = 'Wskaż koszulkę EZD albo segregator dla nowej koszulki.';
             return $out;
@@ -483,6 +599,10 @@ function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_i
     // Wiadomość obsłużona — znika ze skrzynki, ale zostaje w historii kontaktu
     crm_mailbox_mark_read($comm_id, true);
     crm_mailbox_set_status($comm_id, 'archived');
+
+    // Nadawca dowiaduje się, że jego sprawa jest już w rejestrze EZD — tylko przy
+    // NOWEJ koszulce; przy dopięciu do istniejącej korespondencja już trwa.
+    $out['notified'] = $new_sprawa && crm_mailbox_notify_ezd_sender($comm_id);
     return $out;
 }
 

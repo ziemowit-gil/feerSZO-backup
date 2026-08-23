@@ -100,7 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (int)($_POST['teczka_id'] ?? 0) ?: null
                 );
                 if (!empty($r['ok'])) {
-                    flash_set('success', 'Wiadomość przekazana do EZD' . ($r['znak'] ? ' — ' . $r['znak'] : '') . '.');
+                    flash_set('success', 'Wiadomość przekazana do EZD' . ($r['znak'] ? ' — ' . $r['znak'] : '') . '.'
+                        . (!empty($r['notified']) ? ' Nadawca dostał e-mail o zarejestrowaniu sprawy.' : ''));
                     header('Location: ' . ($r['url'] ?: $back)); exit;
                 }
                 flash_set('danger', $r['error'] ?: 'Nie udało się przekazać do EZD.');
@@ -949,6 +950,8 @@ include __DIR__ . '/includes/header_crm.php';
                   </div>
                   <div class="form-text" style="font-size:.72rem">
                     Znak sprawy nadaje EZD — temat wiadomości staje się tytułem koszulki.
+                    Nadawca dostanie e-mail „Informacja o zarejestrowaniu sprawy w systemie EZD FEER"
+                    (nie wysyłamy go przy dopinaniu do istniejącej koszulki ani do nadawców automatycznych).
                   </div>
                 </form>
               </div>
