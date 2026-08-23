@@ -6,9 +6,15 @@
  *
  * Segmentacja reużywa dokładnie tę samą logikę grup/tagów co crm/api/mass_send.php
  * (collect_recipients), dokładając filtr email_opt_out + wymóg niepustego e-maila.
+ *
+ * Kampania może zadeklarować CEL (crm_campaigns.purpose_id) — wtedy odbiorcami są
+ * tylko kontakty z aktualną zgodą na ten cel. Bez celu zachowuje się jak dotąd
+ * (samo email_opt_out), żeby włączenie modułu zgód nie wyzerowało po cichu
+ * istniejących kampanii. Zob. includes/crm_consent.php.
  */
 
 require_once __DIR__ . '/crm.php';
+require_once __DIR__ . '/crm_consent.php';
 require_once __DIR__ . '/mail_queue.php';
 
 /** Zbiera ID kontaktów wg segmentu (tags|groups|contacts|all), wzorem collect_recipients() z mass_send.php. */
@@ -53,9 +59,16 @@ function crm_campaign_collect_ids(string $segment_type, array $cfg): array {
     return [];
 }
 
-/** Zwraca pełne wiersze kontaktów gotowe do wysyłki: aktywne, z e-mailem, bez opt-out. */
-function crm_campaign_resolve_recipients(string $segment_type, array $segment_config): array {
+/**
+ * Zwraca pełne wiersze kontaktów gotowe do wysyłki: aktywne, z e-mailem, bez opt-out.
+ *
+ * @param int $purpose_id Cel wysyłki; >0 zawęża do kontaktów ze zgodą na ten cel.
+ */
+function crm_campaign_resolve_recipients(string $segment_type, array $segment_config, int $purpose_id = 0): array {
     $ids = crm_campaign_collect_ids($segment_type, $segment_config);
+    // Zgoda odsiewana PRZED zapytaniem o kontakty — nie chcemy wczytywać
+    // rekordów, do których i tak nie wolno napisać.
+    if ($purpose_id > 0) $ids = crm_consent_filter($ids, $purpose_id);
     if (!$ids) return [];
 
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -109,7 +122,9 @@ function crm_campaign_queue_send(int $campaign_id): array {
     if (!$template) return ['queued' => 0, 'error' => 'Nie znaleziono szablonu.'];
 
     $segment_config = json_decode($campaign['segment_config'] ?? '{}', true) ?: [];
-    $recipients = crm_campaign_resolve_recipients($campaign['segment_type'], $segment_config);
+    $recipients = crm_campaign_resolve_recipients(
+        $campaign['segment_type'], $segment_config, (int)($campaign['purpose_id'] ?? 0)
+    );
 
     db()->prepare("UPDATE crm_campaigns SET status='sending', recipients_count=? WHERE id=?")
         ->execute([count($recipients), $campaign_id]);

@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_campaign.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -21,6 +22,7 @@ if ($campaign['status'] === 'sending') crm_campaign_refresh_stats($id);
 $campaign = db_one("SELECT * FROM crm_campaigns WHERE id=?", [$id]);
 
 $template = db_one("SELECT name FROM crm_templates WHERE id=?", [(int)$campaign['template_id']]);
+$purpose  = ((int)($campaign['purpose_id'] ?? 0)) ? crm_consent_purpose((int)$campaign['purpose_id']) : null;
 
 $recipients = db_all(
     "SELECT cr.*, ct.imie_nazwisko, ct.email FROM crm_campaign_recipients cr
@@ -58,6 +60,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       Szablon: <?= h($template['name'] ?? '—') ?> ·
       Status: <?= h($STATUS_LABELS[$campaign['status']] ?? $campaign['status']) ?>
       <?php if ($campaign['scheduled_at']): ?> · Zaplanowano na <?= h(date('d.m.Y H:i', strtotime($campaign['scheduled_at']))) ?><?php endif; ?>
+      <?php if ($purpose): ?>
+      · <span title="Wysyłka objęła tylko kontakty ze zgodą na ten cel">
+          <i class="bi bi-shield-check" aria-hidden="true"></i> Cel: <?= h($purpose['nazwa']) ?>
+        </span>
+      <?php endif; ?>
     </div>
   </div>
 </div>

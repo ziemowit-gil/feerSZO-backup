@@ -103,22 +103,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (\Throwable $e) {}
         }
 
-        // Zapisz udzielone zgody jako tagi kontaktu
+        // Zgody: zapis do rejestru (crm_consents) dla zgód mających przypisany cel.
+        //
+        // Wcześniej zgoda z formularza lądowała TYLKO jako tag `zgoda:cN`, gdzie N
+        // to pozycja checkboxa w formularzu. Po edycji formularza (usunięcie albo
+        // przestawienie zgody) te same tagi zaczynały znaczyć coś innego, a treści
+        // klauzuli, daty ani sposobu pozyskania nie było gdzie odczytać. Rejestr
+        // zapisuje cel, moment, źródło, IP i kopię klauzuli — czyli to, czym
+        // faktycznie da się wykazać zgodę.
+        //
+        // Zgoda bez przypisanego celu nadal zostaje tagiem — formularze, których
+        // nikt jeszcze nie zmapował na katalog celów, działają jak dotąd.
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
+        $consent_by_id = [];
+        foreach ($consents_config as $con) $consent_by_id[(string)$con['id']] = $con;
+
         foreach ($granted_consents as $cid) {
-            try {
-                crm_insert('crm_tags', ['contact_id'=>$contact_id,'tag'=>'zgoda:'.$cid,'created_at'=>date('Y-m-d H:i:s')]);
-            } catch (\Throwable $e) {}
-        }
-        // Ogólny tag zgody na email jeśli jakakolwiek zgoda udzielona
-        if ($granted_consents && !empty($data['email'])) {
-            try {
-                crm_insert('crm_contacts', []);
-            } catch (\Throwable $e) {}
-            // Ustaw email_consent=1 jeśli istnieje kolumna
-            try {
-                crm_db()->prepare("UPDATE crm_contacts SET email_consent=1, email_consent_at=? WHERE id=?")
-                    ->execute([date('Y-m-d H:i:s'), $contact_id]);
-            } catch (\Throwable $e) {}
+            $con = $consent_by_id[(string)$cid] ?? null;
+            $pid = (int)($con['purpose_id'] ?? 0);
+            if ($pid > 0) {
+                try {
+                    crm_consent_record($contact_id, $pid, true, [
+                        'source'        => 'formularz',
+                        'source_detail' => 'Formularz: ' . $form['title'],
+                        'klauzula'      => (string)($con['text'] ?? ''),
+                        'ip'            => $_SERVER['REMOTE_ADDR'] ?? null,
+                    ]);
+                } catch (\Throwable $e) {}
+            } else {
+                try {
+                    crm_insert('crm_tags', ['contact_id'=>$contact_id,'tag'=>'zgoda:'.$cid,'created_at'=>date('Y-m-d H:i:s')]);
+                } catch (\Throwable $e) {}
+            }
         }
 
         // Zapisz wartości pól niestandardowych

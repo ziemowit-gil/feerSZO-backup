@@ -87,6 +87,9 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   <a href="<?= APP_URL ?>/crm/settings/services.php" class="csn-link<?= $_sn_a('settings/services') ?>">
     <i class="bi bi-tools"></i> Rodzaje usług
   </a>
+  <a href="<?= APP_URL ?>/crm/settings/consents.php" class="csn-link<?= $_sn_a('settings/consents') ?>">
+    <i class="bi bi-shield-check"></i> Cele zgód
+  </a>
 
   <div class="csn-sep"></div>
   <div class="csn-title">Oferty</div>

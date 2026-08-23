@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_office.php';
@@ -507,6 +508,174 @@ function _cv_services_html(array $contact, int $id, bool $can_w, bool $can_d): s
     <?php return ob_get_clean();
 }
 
+/**
+ * Zgody na komunikację — stan per cel + rejestr zdarzeń.
+ *
+ * Pokazujemy WSZYSTKIE aktywne cele, także te bez zapisu: „brak zapisu" to
+ * informacja operacyjna („nie wiemy, czy wolno"), a nie puste miejsce. Stan
+ * bierze się z najnowszego zdarzenia — historia zostaje nietknięta.
+ */
+function _cv_consents_html(array $contact, int $id, bool $can_w): string {
+    $purposes = crm_consent_purposes(true);
+    $states   = crm_consent_states($id);
+    $history  = crm_consent_history($id, null, 60);
+    $persons  = $contact['persons'] ?? [];
+    $opt_out  = !empty($contact['email_opt_out']);
+    // Licznik i chip w nagłówku żyją POZA tą sekcją, a AJAX podmienia tylko ją.
+    // Stan przekazujemy atrybutami, żeby po zapisie nie zostawały nieaktualne.
+    $granted  = count(array_filter($states, fn($e) => (int)$e['granted'] === 1));
+
+    ob_start(); ?>
+    <div id="crm-section-consents" data-granted="<?= $granted ?>" data-optout="<?= $opt_out ? 1 : 0 ?>">
+
+      <?php if ($opt_out): ?>
+      <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-start gap-2" style="font-size:.8rem">
+        <i class="bi bi-slash-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div class="flex-grow-1">
+          <strong>Wypisany ze wszystkich wysyłek</strong>
+          <?php if (!empty($contact['email_opt_out_at'])): ?>
+            — <?= h(date('d.m.Y', strtotime((string)$contact['email_opt_out_at']))) ?>
+          <?php endif; ?>
+          <div class="cv-meta">Kampanie i automatyzacje pomijają ten kontakt niezależnie od zgód poniżej.</div>
+        </div>
+        <?php if ($can_w): ?>
+        <form method="post" data-ajax-section="consents" class="flex-shrink-0"
+              onsubmit="return confirm('Cofnąć globalne wypisanie? Nie tworzy to zgody — te zapisuje się osobno, per cel.')">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_action" value="clear_opt_out">
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem">Cofnij wypisanie</button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
+      <?php if (!$purposes): ?>
+      <p class="cv-meta mb-0">
+        Katalog celów jest pusty.
+        <a href="<?= APP_URL ?>/crm/settings/consents.php">Zdefiniuj cele zgód</a>, aby móc je tu zapisywać.
+      </p>
+      <?php else: ?>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($purposes as $p):
+          $pid   = (int)$p['id'];
+          $st    = $states[$pid] ?? null;
+          [$lbl, $cls, $ico] = crm_consent_state_label($st);
+          $form_id = 'cv_cons_form_' . $pid;
+        ?>
+        <li class="py-2" style="border-bottom:1px solid var(--crm-border)">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi <?= h($ico) ?> mt-1 text-<?= h($cls) ?>" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <div style="font-size:.83rem;font-weight:600"><?= h($p['nazwa']) ?></div>
+              <div class="crm-name-sub">
+                <?= h($lbl) ?>
+                <?php if ($st): ?>
+                  · <?= h(date('d.m.Y', strtotime((string)$st['event_at']))) ?>
+                  · <?= h(crm_consent_source_label($st['source'])) ?>
+                  <?php if (!empty($st['source_detail'])): ?> · <?= h($st['source_detail']) ?><?php endif; ?>
+                <?php endif; ?>
+                <?php if (($p['channel'] ?? '') !== 'email'): ?>
+                  · <?= h(CRM_CONSENT_CHANNELS[$p['channel']] ?? $p['channel']) ?>
+                <?php endif; ?>
+              </div>
+            </div>
+            <?php if ($can_w): ?>
+            <div class="d-flex gap-1 flex-shrink-0">
+              <?php if (!$st || (int)$st['granted'] === 0): ?>
+              <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:.72rem"
+                      aria-expanded="false" aria-controls="<?= $form_id ?>"
+                      onclick="cvConsentForm('<?= $form_id ?>', this)">Zapisz zgodę</button>
+              <?php else: ?>
+              <form method="post" data-ajax-section="consents"
+                    onsubmit="return confirm('Zapisać wycofanie zgody: <?= h(addslashes($p['nazwa'])) ?>?')">
+                <?= csrf_field() ?>
+                <input type="hidden" name="_action" value="consent_withdraw">
+                <input type="hidden" name="purpose_id" value="<?= $pid ?>">
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:.72rem">Wycofaj</button>
+              </form>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
+          </div>
+
+          <?php if ($can_w): ?>
+          <!-- Sposób pozyskania jest obowiązkowy: bez niego zapis zgody nic nie dowodzi. -->
+          <form method="post" data-ajax-section="consents" id="<?= $form_id ?>"
+                class="mt-2 ps-4" style="display:none">
+            <?= csrf_field() ?>
+            <input type="hidden" name="_action" value="consent_grant">
+            <input type="hidden" name="purpose_id" value="<?= $pid ?>">
+            <div class="row g-2">
+              <div class="col-sm-4">
+                <label class="cv-meta d-block mb-1" for="cv_cs_src_<?= $pid ?>">Sposób pozyskania *</label>
+                <select name="source" id="cv_cs_src_<?= $pid ?>" class="form-select form-select-sm" required>
+                  <option value="">— wybierz —</option>
+                  <?php foreach (CRM_CONSENT_SOURCES as $sk => $sl): ?>
+                  <option value="<?= h($sk) ?>"><?= h($sl) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-sm-3">
+                <label class="cv-meta d-block mb-1" for="cv_cs_date_<?= $pid ?>">Data zgody</label>
+                <input type="date" name="event_date" id="cv_cs_date_<?= $pid ?>"
+                       class="form-control form-control-sm" value="<?= h(date('Y-m-d')) ?>"
+                       max="<?= h(date('Y-m-d')) ?>">
+              </div>
+              <?php if ($persons): ?>
+              <div class="col-sm-5">
+                <label class="cv-meta d-block mb-1" for="cv_cs_pers_<?= $pid ?>">Kto udzielił</label>
+                <select name="person_id" id="cv_cs_pers_<?= $pid ?>" class="form-select form-select-sm">
+                  <option value="0">Podmiot / osoba główna</option>
+                  <?php foreach ($persons as $pp): ?>
+                  <option value="<?= (int)$pp['id'] ?>"><?= h($pp['imie_nazwisko']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <?php endif; ?>
+              <div class="col-12">
+                <label class="cv-meta d-block mb-1" for="cv_cs_note_<?= $pid ?>">Skąd dokładnie (np. nazwa formularza, numer umowy)</label>
+                <input type="text" name="source_detail" id="cv_cs_note_<?= $pid ?>" maxlength="255"
+                       class="form-control form-control-sm" placeholder="Opcjonalnie, ale bardzo pomaga przy weryfikacji">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-sm btn-crm-primary py-0 px-2" style="font-size:.72rem">Zapisz zgodę</button>
+                <button type="button" class="btn btn-sm btn-link py-0 px-1" style="font-size:.72rem"
+                        onclick="cvConsentForm('<?= $form_id ?>', null, true)">Anuluj</button>
+              </div>
+            </div>
+          </form>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+
+      <?php if ($history): ?>
+      <details class="mt-3">
+        <summary class="cv-meta" style="cursor:pointer">Rejestr zdarzeń (<?= count($history) ?>)</summary>
+        <ul class="list-unstyled mb-0 mt-2">
+          <?php foreach ($history as $ev): ?>
+          <li class="d-flex gap-2 py-1" style="font-size:.78rem;border-bottom:1px solid var(--crm-border)">
+            <span class="flex-shrink-0" style="width:5.5rem"><?= h(date('d.m.Y H:i', strtotime((string)$ev['event_at']))) ?></span>
+            <span class="flex-shrink-0 fw-semibold text-<?= (int)$ev['granted'] === 1 ? 'success' : 'danger' ?>"
+                  style="width:5rem"><?= (int)$ev['granted'] === 1 ? 'udzielona' : 'wycofana' ?></span>
+            <span class="flex-grow-1 overflow-hidden">
+              <?= h($ev['purpose_nazwa']) ?>
+              <span class="cv-meta">
+                · <?= h(crm_consent_source_label($ev['source'])) ?>
+                <?php if (!empty($ev['source_detail'])): ?> · <?= h($ev['source_detail']) ?><?php endif; ?>
+                <?php if (!empty($ev['user_name'])): ?> · wpisał: <?= h($ev['user_name']) ?><?php endif; ?>
+              </span>
+            </span>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+      </details>
+      <?php endif; ?>
+    </div>
+    <?php return ob_get_clean();
+}
+
 function _cv_groups_html(array $contact, int $id, bool $can_w): string {
     $all_groups = CrmManager::getGroups();
     $current_group_ids = array_column($contact['groups'], 'id');
@@ -893,6 +1062,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         CrmManager::removeContactService((int)($_POST['link_id'] ?? 0));
         $affected_section = 'services';
     }
+    if ($action === 'consent_grant') {
+        // Data z pola, ale godzina z „teraz" — sam dzień wystarcza do wykazania
+        // zgody, a sztuczna 00:00 gubiłaby kolejność kilku zapisów tego samego dnia.
+        $pid  = (int)($_POST['purpose_id'] ?? 0);
+        $date = trim($_POST['event_date'] ?? '');
+        $at   = ($date !== '' && $date <= date('Y-m-d'))
+              ? $date . ' ' . date('H:i:s')
+              : date('Y-m-d H:i:s');
+        if ($pid > 0) {
+            crm_consent_record($id, $pid, true, [
+                'source'        => $_POST['source'] ?? 'import',
+                'source_detail' => trim($_POST['source_detail'] ?? ''),
+                'person_id'     => (int)($_POST['person_id'] ?? 0),
+                'event_at'      => $at,
+                'user_id'       => $user_id,
+            ]);
+        }
+        $affected_section = 'consents';
+    }
+    if ($action === 'consent_withdraw') {
+        $pid = (int)($_POST['purpose_id'] ?? 0);
+        if ($pid > 0) {
+            crm_consent_withdraw($id, $pid, [
+                'source'        => 'osobiscie',
+                'source_detail' => 'Wycofanie zapisane w kartotece',
+                'user_id'       => $user_id,
+            ]);
+        }
+        $affected_section = 'consents';
+    }
+    if ($action === 'clear_opt_out') {
+        // Cofnięcie globalnego wypisania NIE tworzy zgody — te są per cel.
+        // Zostawiamy ślad w notatkach, bo to decyzja operatora o cudzej woli.
+        crm_db()->prepare("UPDATE crm_contacts SET email_opt_out=0, email_opt_out_at=NULL WHERE id=?")->execute([$id]);
+        CrmManager::addNote($id, 'Cofnięto globalne wypisanie z wysyłek mailowych.', $user_id);
+        $contact = CrmManager::getContact($id);
+        $affected_section = 'consents';
+    }
     if ($action === 'add_to_group') {
         $gid = (int)($_POST['group_id'] ?? 0);
         if ($gid) CrmManager::addToGroup($gid, $id);
@@ -960,6 +1167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             'groups'       => _cv_groups_html($contact, $id, $crm_can_write),
             'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
             'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
+            'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
             'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
             'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
             default        => '',
@@ -998,6 +1206,7 @@ if (isset($_GET['_section'])) {
         'groups'       => _cv_groups_html($contact, $id, $crm_can_write),
         'persons'      => _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete),
         'services'     => _cv_services_html($contact, $id, $crm_can_write, $crm_can_delete),
+        'consents'     => _cv_consents_html($contact, $id, $crm_can_write),
         'action-links' => _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)),
         'activities'   => _cv_activities_html($id, $crm_can_write, $crm_can_delete),
         'comms'        => _cv_communications_html($contact, $id),
@@ -1197,6 +1406,29 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-hash" aria-hidden="true"></i><span>NIP: <?= h($contact['nip']) ?></span>
     </span>
     <?php endif; ?>
+    <?php
+      // Stan zgód trzymamy w pasku pod ręką: przy pisaniu do kogoś to pierwsza
+      // rzecz, którą trzeba wiedzieć, a nie coś do wyszukiwania w zakładkach.
+      $_qb_states = crm_consent_states($id);
+      $_qb_yes    = count(array_filter($_qb_states, fn($e) => (int)$e['granted'] === 1));
+    ?>
+    <?php
+      if (!empty($contact['email_opt_out'])) {
+          $_qb_chip = ['bi-slash-circle-fill', 'Wypisany z wysyłek',
+                       'Kontakt wypisał się z wysyłek mailowych',
+                       'color:#B45309;border-color:#FCD34D;background:#FFFBEB'];
+      } elseif ($_qb_yes > 0) {
+          $_qb_chip = ['bi-shield-check', 'Zgody: ' . $_qb_yes,
+                       'Zgody na komunikację — szczegóły w zakładce Dane', ''];
+      } else {
+          $_qb_chip = ['bi-shield-slash', 'Brak zgód',
+                       'Brak zapisanych zgód na komunikację marketingową', ''];
+      }
+    ?>
+    <a href="#cv-panel-consents" class="cv-chip" id="cv-consents-chip" onclick="cvGoConsents(event)"
+       title="<?= h($_qb_chip[2]) ?>"<?= $_qb_chip[3] !== '' ? ' style="' . h($_qb_chip[3]) . '"' : '' ?>>
+      <i class="bi <?= h($_qb_chip[0]) ?>" aria-hidden="true"></i><span><?= h($_qb_chip[1]) ?></span>
+    </a>
     <span class="ms-auto cv-meta">
       Dodano: <?= date_pl($contact['created_at']) ?>
       <?php if (($contact['source'] ?? '') !== 'manual'): ?>· Źródło: <?= h($contact['source'] ?? '') ?><?php endif; ?>
@@ -1532,6 +1764,23 @@ $case_status_cfg = [
 
     <!-- Osoby kontaktowe (tylko podmioty: organizacja / kontrahent / partner) -->
     <?php if (!empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+    <!-- Zgody na komunikację (per cel) -->
+    <?php
+      $_consent_states = crm_consent_states($id);
+      $_consent_yes    = count(array_filter($_consent_states, fn($e) => (int)$e['granted'] === 1));
+    ?>
+    <div class="cv-panel" id="cv-panel-consents"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-shield-check cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Zgody na komunikację</h2>
+        <div class="cv-shead__aside">
+          <span class="cv-count" id="cv-consents-count"><?= $_consent_yes ?></span>
+          <a href="<?= APP_URL ?>/crm/settings/consents.php" class="cv-meta ms-2" style="text-decoration:none">Cele</a>
+        </div>
+      </div>
+      <?= _cv_consents_html($contact, $id, $crm_can_write) ?>
+    </div></div>
+
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
@@ -2055,6 +2304,26 @@ details[open] #done-chevron { transform:rotate(90deg) }
   function rebindSection(name) {
     var root = document.getElementById('crm-section-' + name);
     if (root) bindForms(root);
+    // Licznik zgód i chip w pasku są poza podmienianą sekcją — dociągamy je
+    // ze stanu, który sekcja podaje w atrybutach.
+    if (name === 'consents' && root) {
+      var g  = parseInt(root.dataset.granted, 10) || 0;
+      var oo = root.dataset.optout === '1';
+      var cnt = document.getElementById('cv-consents-count');
+      if (cnt) cnt.textContent = g;
+      var chip = document.getElementById('cv-consents-chip');
+      if (chip) {
+        chip.removeAttribute('style');
+        if (oo) {
+          chip.style.color = '#B45309'; chip.style.borderColor = '#FCD34D'; chip.style.background = '#FFFBEB';
+          chip.innerHTML = '<i class="bi bi-slash-circle-fill" aria-hidden="true"></i><span>Wypisany z wysyłek</span>';
+        } else if (g > 0) {
+          chip.innerHTML = '<i class="bi bi-shield-check" aria-hidden="true"></i><span>Zgody: ' + g + '</span>';
+        } else {
+          chip.innerHTML = '<i class="bi bi-shield-slash" aria-hidden="true"></i><span>Brak zgód</span>';
+        }
+      }
+    }
     // Dla activities — rebind ActivityUI
     if (name === 'activities') {
       // editors
@@ -2092,6 +2361,26 @@ details[open] #done-chevron { transform:rotate(90deg) }
       ta.style.height = (ta.scrollHeight) + 'px';
     });
   });
+
+  /* Rozwijanie formularza zapisu zgody */
+  window.cvConsentForm = function (formId, btn, hide) {
+    var f = document.getElementById(formId);
+    if (!f) return;
+    var show = hide ? false : (f.style.display === 'none');
+    f.style.display = show ? '' : 'none';
+    if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+    if (show) f.querySelector('select,input')?.focus();
+  };
+
+  /* Chip „Zgody" prowadzi do panelu — panel leży w zakładce Dane, więc
+     najpierw ją otwieramy, inaczej kliknięcie nie robiłoby nic widocznego. */
+  window.cvGoConsents = function (ev) {
+    if (ev) ev.preventDefault();
+    var tabBtn = document.getElementById('cv-tab-data-btn');
+    if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    var panel = document.getElementById('cv-panel-consents');
+    if (panel) setTimeout(function () { panel.scrollIntoView({behavior: 'smooth', block: 'center'}); }, 60);
+  };
 
   /* Inicjalizacja */
   bindForms(document);

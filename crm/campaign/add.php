@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_campaign.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -27,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $segment_type = in_array($_POST['segment_type'] ?? '', ['tags', 'groups', 'all'], true) ? $_POST['segment_type'] : 'tags';
     $tags         = array_values(array_filter((array)($_POST['tags'] ?? [])));
     $group_ids    = array_values(array_filter(array_map('intval', (array)($_POST['group_ids'] ?? []))));
+    $purpose_id   = (int)($_POST['purpose_id'] ?? 0);
     $when         = $_POST['when'] ?? 'now';
     $scheduled_at = trim($_POST['scheduled_at'] ?? '');
 
@@ -50,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'subject'        => $subject,
             'segment_type'   => $segment_type,
             'segment_config' => json_encode($segment_config, JSON_UNESCAPED_UNICODE),
+            'purpose_id'     => $purpose_id ?: null,
             'status'         => $status,
             'scheduled_at'   => $when === 'schedule' ? str_replace('T', ' ', $scheduled_at) . ':00' : null,
             'created_by'     => (int)(current_user()['id'] ?? 0),
@@ -66,6 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $templates = db_all("SELECT id, name, channel, subject FROM crm_templates WHERE channel='email' AND is_active=1 ORDER BY name");
+$purposes  = array_filter(crm_consent_purposes(true), fn($p) => in_array($p['channel'], ['email', 'any'], true));
+$p_counts  = crm_consent_counts();
 $all_tags  = array_column(db_all("SELECT DISTINCT tag FROM crm_tags ORDER BY tag"), 'tag');
 $groups    = db_all("SELECT id, name, color FROM crm_groups ORDER BY name");
 
@@ -135,6 +140,23 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
+      <div class="mb-3 fw-semibold">Cel wysyłki i zgoda</div>
+      <label class="form-label small mb-1" for="camp_purpose">Cel, na który odbiorca wyraził zgodę</label>
+      <select name="purpose_id" id="camp_purpose" class="form-select" onchange="campPurposeHint()">
+        <option value="0" data-count="-1" <?= empty($_POST['purpose_id']) ? 'selected' : '' ?>>
+          — bez celu: wyślij do wszystkich z segmentu —
+        </option>
+        <?php foreach ($purposes as $p): ?>
+        <option value="<?= (int)$p['id'] ?>" data-count="<?= (int)($p_counts[(int)$p['id']] ?? 0) ?>"
+                <?= (($_POST['purpose_id'] ?? 0) == $p['id']) ? 'selected' : '' ?>>
+          <?= h($p['nazwa']) ?> — <?= (int)($p_counts[(int)$p['id']] ?? 0) ?> kontakt(ów) ze zgodą
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div id="camp_purpose_hint" class="form-text mt-2"></div>
+
+      <hr class="my-3">
+
       <div class="mb-3 fw-semibold">Odbiorcy</div>
       <div class="d-flex gap-3 mb-3">
         <?php foreach (['tags' => 'Wg tagów', 'groups' => 'Wg grup', 'all' => 'Wszyscy aktywni z e-mailem'] as $sv => $sl): ?>
@@ -209,6 +231,28 @@ function campToggleWhen() {
   var v = document.querySelector('input[name=when]:checked')?.value || 'now';
   document.getElementById('camp_sched_at').style.display = (v === 'schedule') ? '' : 'none';
 }
+// Wysyłka bez celu trafia do całego segmentu (poza globalnie wypisanymi) — to
+// bywa właściwe dla komunikatów operacyjnych, ale przy treści marketingowej
+// trzeba wskazać cel, bo inaczej nie ma czym wykazać podstawy wysyłki.
+function campPurposeHint() {
+  var sel  = document.getElementById('camp_purpose');
+  var box  = document.getElementById('camp_purpose_hint');
+  var opt  = sel.options[sel.selectedIndex];
+  var cnt  = parseInt(opt.dataset.count, 10);
+  if (cnt < 0) {
+    box.innerHTML = '<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>'
+      + 'Bez celu wysyłka pójdzie do całego segmentu — pominięte będą tylko kontakty '
+      + 'wypisane globalnie. Przy treści marketingowej wskaż cel.</span>';
+  } else if (cnt === 0) {
+    box.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>'
+      + 'Żaden kontakt nie ma jeszcze zgody na ten cel — kampania nie znajdzie odbiorców. '
+      + 'Zgody zapisuje się w kartotece kontaktu albo zbiera formularzem.</span>';
+  } else {
+    box.innerHTML = '<i class="bi bi-shield-check me-1"></i>Wyślemy tylko do kontaktów z aktualną zgodą '
+      + 'na ten cel (' + cnt + ') — po przekrojeniu z wybranym segmentem może ich być mniej.';
+  }
+}
+
 function campSubjectFromTpl(sel) {
   var subjInput = document.getElementById('camp_subject');
   if (!subjInput.value) {
@@ -218,6 +262,7 @@ function campSubjectFromTpl(sel) {
 }
 campToggleSegment();
 campToggleWhen();
+campPurposeHint();
 </script>
 
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>

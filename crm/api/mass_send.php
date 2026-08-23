@@ -1,7 +1,8 @@
 <?php
 /**
  * crm/api/mass_send.php — Mass mailing/SMS do grupy lub tagów.
- * POST: { action:'start', group_id, tag_filter, channel, subject, body, template_name }
+ * POST: { action:'start', group_id, tag_filter, channel, subject, body, template_name,
+ *          purpose_id, ignore_opt_out }
  * POST: { action:'status', send_id }
  * POST: { action:'execute', send_id }
  */
@@ -10,6 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -69,6 +71,42 @@ function collect_recipients(array $body): array {
 }
 
 /**
+ * Odsiewa odbiorców, do których nie wolno (albo nie należy) pisać.
+ *
+ * Ta ścieżka wysyłki dotąd NIE respektowała nawet globalnego wypisania —
+ * kontakt, który kliknął „wypisz się" w kampanii, dalej dostawał wysyłkę
+ * masową z ekranu Komunikacja. Domyślnie filtrujemy, ale zostawiamy jawną
+ * furtkę: ten sam ekran służy też do komunikatów operacyjnych (informacja dla
+ * zleceniobiorców, zmiana terminu), których wypisanie z marketingu nie dotyczy.
+ *
+ * @return array{0:array<int>,1:array{opt_out:int,no_consent:int}}
+ */
+function filter_by_consent(array $ids, array $body, string $channel): array
+{
+    $dropped = ['opt_out' => 0, 'no_consent' => 0];
+    if (!$ids) return [$ids, $dropped];
+
+    $purpose_id = (int)($body['purpose_id'] ?? 0);
+    if ($purpose_id > 0) {
+        $before = count($ids);
+        $ids    = crm_consent_filter($ids, $purpose_id);
+        $dropped['no_consent'] = $before - count($ids);
+    }
+
+    // email_opt_out to flaga POCZTOWA — przy SMS-ach nie ma zastosowania.
+    // Dla kanału SMS podstawą jest cel o kanale „SMS / telefon".
+    if ($channel === 'email' && empty($body['ignore_opt_out']) && $ids) {
+        $ph   = implode(',', array_fill(0, count($ids), '?'));
+        $rows = db_all("SELECT id FROM crm_contacts WHERE id IN ($ph) AND COALESCE(email_opt_out,0)=0", $ids);
+        $keep = array_map(fn($r) => (int)$r['id'], $rows);
+        $dropped['opt_out'] = count($ids) - count($keep);
+        $ids = $keep;
+    }
+
+    return [array_values($ids), $dropped];
+}
+
+/**
  * Nadpisania adresata: { contact_id: person_id }. Operator może dla każdego
  * podmiotu wskazać inną osobę kontaktową niż domyślna.
  *
@@ -87,6 +125,7 @@ function recipient_overrides(array $body): array
 if ($action === 'preview') {
     $ids       = collect_recipients($body);
     $channel   = $body['channel'] ?? 'email';
+    [$ids, $dropped] = filter_by_consent($ids, $body, $channel);
     $overrides = recipient_overrides($body);
 
     // Adres bierzemy z resolvera, nie wprost z kontaktu: firma bez adresu ogólnego,
@@ -125,12 +164,19 @@ if ($action === 'preview') {
             'persons'     => $persons,
         ];
     }
-    api_ok(['count'=>count($valid),'contacts'=>array_slice($valid,0,20),'total'=>count($valid)]);
+    api_ok([
+        'count'    => count($valid),
+        'contacts' => array_slice($valid, 0, 20),
+        'total'    => count($valid),
+        'dropped'  => $dropped,
+    ]);
 }
 
 if ($action === 'start') {
-    $ids     = collect_recipients($body);
     $channel = in_array($body['channel']??'', ['email','sms']) ? $body['channel'] : 'email';
+    // Ten sam filtr co w podglądzie — wysyłka musi trafić dokładnie tam,
+    // co operator zobaczył przed kliknięciem.
+    [$ids, ] = filter_by_consent(collect_recipients($body), $body, $channel);
     $subject = trim($body['subject'] ?? '');
     $msg     = trim($body['body']    ?? '');
     $tpl     = trim($body['template_name'] ?? '');
@@ -183,6 +229,11 @@ if ($action === 'start') {
             // Wybór osoby kontaktowej per podmiot — zapisany razem z wysyłką,
             // żeby wykonanie (execute) trafiło dokładnie tam, co podgląd.
             'persons'    => recipient_overrides($body),
+            // Podstawa wysyłki — zapisana przy wysyłce, nie doliczana później:
+            // po zmianie zgód w kartotece nie da się już odtworzyć, na czym
+            // opieraliśmy się tego dnia.
+            'purpose_id'      => (int)($body['purpose_id'] ?? 0),
+            'ignore_opt_out'  => !empty($body['ignore_opt_out']),
         ]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);

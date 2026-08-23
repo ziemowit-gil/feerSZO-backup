@@ -74,6 +74,11 @@ foreach ($history as $hs) {
 
 $templates = db_all("SELECT * FROM crm_templates WHERE is_active=1 ORDER BY channel, name");
 
+// Cele zgód — podstawa wysyłki. Zob. includes/crm_consent.php.
+require_once dirname(__DIR__) . '/includes/crm_consent.php';
+$consent_purposes = crm_consent_purposes(true);
+$consent_counts   = crm_consent_counts();
+
 // Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
 $_cu_now        = current_user();
 $can_send_as_me = $m365_ok && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
@@ -242,6 +247,32 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
     <input type="hidden" id="ms_channel" value="email">
 
+    <div class="mt-3">
+      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2" for="ms_purpose">
+        <i class="bi bi-shield-check text-primary" aria-hidden="true"></i> Podstawa wysyłki
+      </label>
+      <select id="ms_purpose" class="form-select form-select-sm" style="max-width:520px"
+              onchange="MS.purposeChanged()">
+        <option value="0" data-channel="any">Komunikat operacyjny — bez zgody marketingowej</option>
+        <?php foreach ($consent_purposes as $cp): ?>
+        <option value="<?= (int)$cp['id'] ?>" data-channel="<?= h($cp['channel']) ?>">
+          <?= h($cp['nazwa']) ?> — <?= (int)($consent_counts[(int)$cp['id']] ?? 0) ?> kontakt(ów) ze zgodą
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text" style="font-size:.74rem" id="ms_purpose_hint">
+        Wybierz cel, jeśli wysyłasz treść marketingową — odbiorcami będą tylko kontakty
+        z aktualną zgodą na ten cel.
+      </div>
+      <div class="form-check mt-2" id="ms_ignore_optout_row">
+        <input class="form-check-input" type="checkbox" id="ms_ignore_optout" onchange="MS.preview()">
+        <label class="form-check-label small" for="ms_ignore_optout">
+          Uwzględnij także kontakty wypisane z wysyłek
+          <span class="text-muted">— tylko dla wiadomości niemarketingowych (np. informacja do stron umowy)</span>
+        </label>
+      </div>
+    </div>
+
     <?php if ($can_send_as_me): ?>
     <div id="ms_sender_row" class="mt-3">
       <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2" for="ms_send_as">
@@ -365,6 +396,7 @@ include __DIR__ . '/includes/header_crm.php';
         <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.72rem"
                 onclick="MS.preview()"><i class="bi bi-arrow-repeat me-1"></i>Odśwież</button>
       </div>
+      <div id="recipientDropped" class="small mb-1" style="display:none"></div>
       <div class="recipient-preview" id="recipientList">
         <div class="text-muted">Wybierz grupę, tag lub kontakt.</div>
       </div>
@@ -889,6 +921,55 @@ const MS = (function() {
     preview();
   });
 
+  // Cel wysyłki wpływa na dwie rzeczy: kto jest odbiorcą (filtr zgód po stronie
+  // API) i czy pole „uwzględnij wypisanych" ma sens — przy zadeklarowanym celu
+  // marketingowym nie ma, bo podstawą jest wtedy zgoda, nie brak sprzeciwu.
+  function purposeChanged() {
+    const sel  = document.getElementById('ms_purpose');
+    const opt  = sel.options[sel.selectedIndex];
+    const pid  = parseInt(sel.value, 10) || 0;
+    const hint = document.getElementById('ms_purpose_hint');
+    const row  = document.getElementById('ms_ignore_optout_row');
+    const box  = document.getElementById('ms_ignore_optout');
+
+    if (pid > 0) {
+      row.style.display = 'none';
+      box.checked = false;
+      const ch = opt.dataset.channel || 'any';
+      hint.innerHTML = 'Wyślemy tylko do kontaktów z aktualną zgodą na ten cel.'
+        + ((ch !== 'any' && ch !== _channel)
+            ? ' <span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> '
+              + 'Ten cel dotyczy innego kanału niż wybrany — sprawdź, czy zgoda obejmuje tę wysyłkę.</span>'
+            : '');
+    } else {
+      row.style.display = '';
+      hint.textContent = 'Bez celu wysyłka jest traktowana jako komunikat operacyjny — '
+        + 'pomijamy kontakty wypisane z wysyłek, chyba że zaznaczysz pole poniżej.';
+    }
+    preview();
+  }
+
+  function purposePayload() {
+    return {
+      purpose_id:     parseInt(document.getElementById('ms_purpose')?.value, 10) || 0,
+      ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked
+    };
+  }
+
+  // Ilu odbiorców odpadło i dlaczego. Milczące zawężenie listy jest gorsze niż
+  // brak filtra — operator musi wiedzieć, że wysyłka nie objęła części grupy.
+  function renderDropped(d) {
+    const box = document.getElementById('recipientDropped');
+    if (!box) return;
+    const parts = [];
+    if (d && d.no_consent > 0) parts.push(d.no_consent + ' bez zgody na wybrany cel');
+    if (d && d.opt_out    > 0) parts.push(d.opt_out + ' wypisanych z wysyłek');
+    if (!parts.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    box.innerHTML = '<span class="text-muted"><i class="bi bi-funnel me-1"></i>Pominięto: '
+                  + parts.join(', ') + '.</span>';
+  }
+
   function preview() {
     const groups  = [..._group_ids];
     const tags    = [..._tag_filters].join(',');
@@ -900,27 +981,29 @@ const MS = (function() {
       document.getElementById('sendCount').textContent='0';
       document.getElementById('sendBtnCount').textContent='0';
       document.getElementById('sendBtn').disabled = true;
+      renderDropped(null);
       return;
     }
     document.getElementById('recipientPreviewBox').style.display='';
 
-    const payload = {
+    const payload = Object.assign({
       action: 'preview',
       group_id: groups[0] || 0,
       tag_filter: tags,
       contact_ids: c_ids,
       channel: _channel,
       person_overrides: _person_over
-    };
+    }, purposePayload());
 
     // Multiple groups: merge all
     if (groups.length > 1 || c_ids.length) {
-      const allPayload = { action:'preview', group_id: groups[0]||0, tag_filter: tags, contact_ids: c_ids, channel: _channel, group_ids: groups, person_overrides: _person_over };
+      const allPayload = Object.assign({ action:'preview', group_id: groups[0]||0, tag_filter: tags, contact_ids: c_ids, channel: _channel, group_ids: groups, person_overrides: _person_over }, purposePayload());
       fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(allPayload) })
         .then(r=>r.json()).then(res=>{
           if (!res.ok) return;
           _total = res.data.total;
           updateCounters();
+          renderDropped(res.data.dropped);
           const list = res.data.contacts.slice(0,15).map(c=>
 recipientRow(c)
           ).join('');
@@ -937,6 +1020,7 @@ recipientRow(c)
         if (!res.ok) return;
         _total = res.data.total;
         updateCounters();
+        renderDropped(res.data.dropped);
         const list = res.data.contacts.slice(0,15).map(c=>
 recipientRow(c)
         ).join('');
@@ -1027,8 +1111,10 @@ recipientRow(c)
 
     const tplText = document.getElementById('ms_tpl_select').options[document.getElementById('ms_tpl_select').selectedIndex]?.text||'';
 
-    // Jedna wysyłka łącząca wszystkie grupy + indywidualne kontakty
-    const startPayload = {
+    // Jedna wysyłka łącząca wszystkie grupy + indywidualne kontakty.
+    // purposePayload() musi tu być ten sam co w podglądzie — serwer filtruje
+    // odbiorców ponownie, więc rozjazd oznaczałby wysyłkę do innej listy.
+    const startPayload = Object.assign(purposePayload(), {
       action: 'start',
       group_ids: groups,
       group_id:  groups[0] || 0,
@@ -1041,7 +1127,7 @@ recipientRow(c)
       dw: dw,
       send_as: (document.getElementById('ms_send_as')?.value) || 'system',
       person_overrides: _person_over,
-    };
+    });
 
     const startRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(startPayload)}).then(r=>r.json());
     if (!startRes.ok) { alert('Błąd: '+startRes.error); document.getElementById('sendBtn').disabled=false; return; }
@@ -1112,7 +1198,7 @@ recipientRow(c)
   return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
-           preview, send, insertVar, loadTemplate,
+           preview, send, insertVar, loadTemplate, purposeChanged,
            wizNext, wizBack, wizGo };
 })();
 </script>

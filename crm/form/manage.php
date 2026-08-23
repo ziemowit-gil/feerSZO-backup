@@ -88,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $consent_reqs  = (array)($_POST['consent_required'] ?? []);
         $consent_links = (array)($_POST['consent_link'] ?? []);
         $consent_ltxt  = (array)($_POST['consent_link_text'] ?? []);
+        $consent_purps = (array)($_POST['consent_purpose'] ?? []);
         foreach ($consent_texts as $i => $ct) {
             $ct = trim($ct);
             if ($ct === '') continue;
@@ -97,6 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'required'  => isset($consent_reqs[$i]),
                 'link'      => trim($consent_links[$i] ?? '') ?: null,
                 'link_text' => trim($consent_ltxt[$i] ?? '') ?: 'Więcej informacji',
+                // Cel z katalogu zgód — dzięki niemu zaznaczony checkbox zapisuje
+                // się jako zgoda w rejestrze (crm_consents), a nie tylko jako tag.
+                'purpose_id'=> (int)($consent_purps[$i] ?? 0) ?: null,
             ];
         }
 
@@ -159,6 +163,9 @@ $edit_id = (int)($_GET['edit'] ?? 0);
 $edit    = $edit_id ? db_one("SELECT * FROM crm_web_forms WHERE id=?",[$edit_id]) : null;
 $edit_fields   = $edit ? (json_decode($edit['fields_json'],   true) ?: []) : [];
 $edit_consents    = $edit ? (json_decode($edit['consents_json'],    true) ?: []) : [];
+
+require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
+$consent_purposes = crm_consent_purposes(true);
 $edit_style       = $edit ? (json_decode($edit['style_json'],       true) ?: []) : [];
 $edit_automations = $edit ? (json_decode($edit['automations_json'] ?? '[]', true) ?: []) : [];
 // Pola niestandardowe dostępne do dodania
@@ -655,8 +662,10 @@ include __DIR__ . '/../includes/header_crm.php';
         <div class="tab-pane fade" id="ftab-rodo">
           <div class="mb-2 small text-muted">
             <i class="bi bi-info-circle me-1"></i>
-            Zgody pojawią się jako checkboxy pod formularzem. Zaznaczenie zgody (wymaganej) blokuje wysyłkę.
-            Udzielone zgody są logowane jako tagi kontaktu.
+            Zgody pojawią się jako checkboxy pod formularzem. Brak zaznaczenia zgody wymaganej blokuje wysyłkę.
+            Przypisz każdej zgodzie <strong>cel</strong> z katalogu — wtedy zaznaczenie zapisuje się w rejestrze
+            zgód kontaktu (z datą, źródłem i kopią klauzuli) i filtruje wysyłki.
+            <a href="<?= APP_URL ?>/crm/settings/consents.php">Zarządzaj celami</a>.
           </div>
           <div id="consentList">
             <?php foreach ($edit_consents as $ci => $con): ?>
@@ -689,6 +698,18 @@ include __DIR__ . '/../includes/header_crm.php';
                            style="width:140px" placeholder="Tekst linku"
                            value="<?= h($con['link_text'] ?? 'Więcej informacji') ?>">
                   </div>
+                </div>
+                <div class="mt-2">
+                  <label class="form-label small mb-1">Cel zgody (rejestr)</label>
+                  <select name="consent_purpose[]" class="form-select form-select-sm">
+                    <option value="0">— tylko tag, bez zapisu w rejestrze —</option>
+                    <?php foreach ($consent_purposes as $cpp): ?>
+                    <option value="<?= (int)$cpp['id'] ?>"
+                            <?= ((int)($con['purpose_id'] ?? 0) === (int)$cpp['id']) ? 'selected' : '' ?>>
+                      <?= h($cpp['nazwa']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                  </select>
                 </div>
               </div>
             </div>
@@ -1089,13 +1110,28 @@ const FC = {
                    style="width:140px" placeholder="Tekst linku" value="Więcej informacji">
           </div>
         </div>
+        <div class="mt-2">
+          <label class="form-label small mb-1">Cel zgody (rejestr)</label>
+          <select name="consent_purpose[]" class="form-select form-select-sm">
+            <option value="0">— tylko tag, bez zapisu w rejestrze —</option>
+            <?php foreach ($consent_purposes as $cpp): ?>
+            <option value="<?= (int)$cpp['id'] ?>"><?= h($cpp['nazwa']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>`;
     document.getElementById('consentList').appendChild(div);
   },
   reindexConsents() {
+    // Treść, link i cel idą w tablicach bez kluczy, ale „wymagana" jest keyowana
+    // indeksem. Po usunięciu pozycji ze środka klucze przestawały się zgadzać
+    // z kolejnością textarea i flaga „wymagana" gubiła się przy zapisie.
     document.querySelectorAll('.consent-item').forEach((el, i) => {
       const badge = el.querySelector('.badge');
       if (badge) badge.textContent = i + 1;
+      const req = el.querySelector('input[name^="consent_required"]');
+      if (req) req.name = 'consent_required[' + i + ']';
+      el.dataset.index = i;
     });
   }
 };
