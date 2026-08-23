@@ -629,11 +629,15 @@ function crm_email_render(array $design, array $opts = []): array {
     // podgląd, nie dodając nic widocznego.
     $pre_pad    = $preheader !== '' ? str_repeat('&#847;&zwnj;&nbsp;', 40) : '';
     // Podświetlenia kanwy — obecne wyłącznie w trybie edytora.
-    $editor_css = $editable ? "  [data-cem-block]{outline:1px dashed transparent;transition:outline-color .1s}\n"
-        . "  [data-cem-block]:hover{outline-color:#93C5FD;cursor:grab}\n"
+    // touch-action:none i user-select:none są tu konieczne: przeciąganie bloku
+    // zaczyna się od pointerdown na jego treści, a bez tego przeglądarka zaczyna
+    // zaznaczać tekst (desktop) albo przewijać stronę (dotyk).
+    $editor_css = $editable ? "  [data-cem-block]{outline:1px dashed transparent;transition:outline-color .1s;"
+        . "cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}\n"
+        . "  [data-cem-block] *{user-select:none;-webkit-user-select:none;-webkit-user-drag:none}\n"
+        . "  [data-cem-block]:hover{outline-color:#93C5FD}\n"
         . "  [data-cem-block].cem-sel{outline:2px solid #0176D3 !important}\n"
-        . "  .cem-drop-before{box-shadow:inset 0 3px 0 0 #0176D3}\n"
-        . "  .cem-drop-after{box-shadow:inset 0 -3px 0 0 #0176D3}\n" : '';
+        . "  [data-cem-block].cem-dragging{opacity:.45}\n" : '';
 
     $html = <<<HTML
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">

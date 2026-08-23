@@ -7,11 +7,16 @@
  * zwrócony HTML do iframe. Nie ma tu drugiego renderera bloków, bo dwa
  * renderery zawsze się w końcu rozjeżdżają i podgląd zaczyna kłamać.
  *
- * Przeciąganie: kafelki palety żyją w dokumencie nadrzędnym, a kanwa to iframe
- * (ten sam origin), więc listenery dragover/drop zakładamy wewnątrz jego
- * dokumentu. Payload jedzie w text/plain jako "new:<typ>" albo "move:<id>".
- * Kolejność bloków w DOM odpowiada kolejności w tablicy, więc indeks upuszczenia
- * wyliczamy z pozycji elementu pod kursorem.
+ * PRZECIĄGANIE — pointer events, nie HTML5 drag&drop. Powód: kafelki palety żyją
+ * w dokumencie nadrzędnym, a kanwa to iframe, i przenoszenie natywnego dragu przez
+ * granicę dokumentów jest zawodne (dodatkowo `draggable` na <button> nie startuje
+ * dragu w części przeglądarek, a natywny drag jest niedostępny z klawiatury i na
+ * dotyku). Zamiast tego: pointerdown → setPointerCapture → pointermove/pointerup.
+ * Capture sprawia, że zdarzenia lecą dalej do elementu, który drag rozpoczął,
+ * nawet gdy kursor jest nad iframem — trzeba tylko pamiętać, w JAKIEJ przestrzeni
+ * współrzędnych przychodzą (dokument nadrzędny vs iframe) i znormalizować je do
+ * viewportu okna. Kolejność [data-cem-block] w DOM odpowiada kolejności w tablicy
+ * bloków, więc indeks wstawienia wyliczamy z pozycji elementu pod kursorem.
  */
 (function () {
   'use strict';
@@ -204,84 +209,209 @@
     });
   }
 
-  function clearDropMarks(doc) {
-    Array.prototype.forEach.call(doc.querySelectorAll('.cem-drop-before,.cem-drop-after'), function (n) {
-      n.classList.remove('cem-drop-before', 'cem-drop-after');
-    });
+  // ── Kontroler przeciągania (pointer events) ───────────────────────────────
+
+  // Jeden stan na całą operację. coordSpace mówi, czy pointermove przychodzi
+  // ze zdarzeń dokumentu nadrzędnego, czy z wnętrza iframe'a — bo capture
+  // zostaje przy elemencie, na którym wciśnięto przycisk.
+  var drag = null;
+  var indicator = null, ghost = null, suppressClick = false;
+
+  var DRAG_THRESHOLD = 4;   // px — mniejszy ruch to klik, nie przeciąganie
+
+  function beginDrag(ev, payload, label, coordSpace, captureEl) {
+    if (ev.button != null && ev.button !== 0) return;   // tylko lewy przycisk
+    drag = {
+      payload: payload, label: label, coordSpace: coordSpace,
+      startY: ev.clientY, startX: ev.clientX, moved: false,
+      pointerId: ev.pointerId, captureEl: captureEl, index: null
+    };
+    try { captureEl.setPointerCapture(ev.pointerId); } catch (e) {}
+    document.body.style.userSelect = 'none';
   }
+
+  /** Y kursora w układzie okna nadrzędnego, niezależnie od źródła zdarzenia. */
+  function normalizeY(clientY) {
+    if (!drag || drag.coordSpace !== 'frame') return clientY;
+    return clientY + frame.getBoundingClientRect().top;
+  }
+
+  function onDragMove(ev) {
+    if (!drag || (drag.pointerId != null && ev.pointerId !== drag.pointerId)) return;
+    if (!drag.moved) {
+      if (Math.abs(ev.clientY - drag.startY) < DRAG_THRESHOLD &&
+          Math.abs(ev.clientX - drag.startX) < DRAG_THRESHOLD) return;
+      drag.moved = true;
+      showGhost(drag.label);
+      if (drag.payload.indexOf('move:') === 0) markDragging(drag.payload.slice(5), true);
+    }
+    ev.preventDefault();
+
+    var y = normalizeY(ev.clientY);
+    var x = (drag.coordSpace === 'frame') ? ev.clientX + frame.getBoundingClientRect().left : ev.clientX;
+    moveGhost(x, y);
+
+    autoScroll(y);
+
+    var spot = dropSpot(y);
+    drag.index = spot ? spot.index : null;
+    if (spot) showIndicator(spot.y);
+    else hideIndicator();
+  }
+
+  /**
+   * Przewijanie kanwy, gdy kursor dojedzie do jej krawędzi. Bez tego w długim
+   * newsletterze nie da się przenieść bloku poza widoczny kawałek — a newslettery
+   * są długie. Prędkość rośnie im bliżej krawędzi.
+   */
+  var SCROLL_ZONE = 60, SCROLL_MAX = 22;
+  function autoScroll(y) {
+    var box = frame.parentNode;                 // .cem-canvas — element, który przewija
+    if (!box) return;
+    var r = box.getBoundingClientRect();
+    var dy = 0;
+    if (y < r.top + SCROLL_ZONE)         dy = -Math.ceil((r.top + SCROLL_ZONE - y) / SCROLL_ZONE * SCROLL_MAX);
+    else if (y > r.bottom - SCROLL_ZONE)  dy =  Math.ceil((y - (r.bottom - SCROLL_ZONE)) / SCROLL_ZONE * SCROLL_MAX);
+    if (dy) box.scrollTop += dy;
+  }
+
+  function onDragEnd(ev) {
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+
+    try { d.captureEl.releasePointerCapture(d.pointerId); } catch (e) {}
+    document.body.style.userSelect = '';
+    hideIndicator();
+    hideGhost();
+    if (d.payload.indexOf('move:') === 0) markDragging(d.payload.slice(5), false);
+
+    if (!d.moved) return;                 // to był klik — obsłuży go handler kliknięcia
+
+    // Ruch był przeciąganiem, więc następujący po nim klik trzeba zignorować,
+    // inaczej upuszczenie kafelka palety dodałoby blok po raz drugi.
+    suppressClick = true;
+    setTimeout(function () { suppressClick = false; }, 0);
+
+    var index = d.index;
+    if (index == null) return;            // upuszczono poza kanwą
+    if (d.payload.indexOf('new:') === 0)       insertBlock(d.payload.slice(4), index);
+    else if (d.payload.indexOf('move:') === 0) moveBlock(d.payload.slice(5), index);
+  }
+
+  /**
+   * Punkt wstawienia dla podanego Y (układ okna nadrzędnego).
+   * Zwraca indeks w tablicy bloków i Y linii wskaźnika. null = poza kanwą.
+   */
+  function dropSpot(y) {
+    var fr = frame.getBoundingClientRect();
+    // Margines tolerancji: upuszczenie chwilę pod ostatnim blokiem to „na koniec",
+    // a nie „nigdzie" — inaczej trafienie w kanwę wymaga precyzji do piksela.
+    if (y < fr.top - 40 || y > fr.bottom + 40) return null;
+
+    var doc = frame.contentDocument;
+    var nodes = doc ? doc.querySelectorAll('[data-cem-block]') : [];
+    if (!nodes.length) return { index: 0, y: fr.top + 2 };
+
+    var ids = domBlockIds(doc);
+    for (var i = 0; i < nodes.length; i++) {
+      var r = nodes[i].getBoundingClientRect();
+      var top = r.top + fr.top, bottom = r.bottom + fr.top;
+      if (y < top + r.height / 2) {
+        var idx = ids.indexOf(nodes[i].getAttribute('data-cem-block'));
+        return { index: idx < 0 ? i : idx, y: top };
+      }
+      if (i === nodes.length - 1) return { index: ids.length, y: bottom };
+    }
+    return { index: ids.length, y: fr.bottom };
+  }
+
+  function markDragging(id, on) {
+    try {
+      var n = frame.contentDocument.querySelector('[data-cem-block="' + id + '"]');
+      if (n) n.classList.toggle('cem-dragging', !!on);
+    } catch (e) {}
+  }
+
+  function showIndicator(y) {
+    var fr = frame.getBoundingClientRect();
+    if (!indicator) {
+      indicator = el('div');
+      indicator.style.cssText = 'position:fixed;height:3px;background:#0176D3;z-index:1080;' +
+        'pointer-events:none;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.7)';
+      document.body.appendChild(indicator);
+    }
+    indicator.style.display = 'block';
+    indicator.style.left  = fr.left + 'px';
+    indicator.style.width = fr.width + 'px';
+    indicator.style.top   = (y - 1.5) + 'px';
+  }
+  function hideIndicator() { if (indicator) indicator.style.display = 'none'; }
+
+  function showGhost(label) {
+    if (!ghost) {
+      ghost = el('div');
+      ghost.style.cssText = 'position:fixed;z-index:1081;pointer-events:none;background:#0176D3;color:#fff;' +
+        'font:600 11px system-ui,sans-serif;padding:.25rem .5rem;border-radius:.3rem;opacity:.92;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,.25)';
+      document.body.appendChild(ghost);
+    }
+    ghost.textContent = label || 'Blok';
+    ghost.style.display = 'block';
+  }
+  function moveGhost(x, y) { if (ghost) { ghost.style.left = (x + 12) + 'px'; ghost.style.top = (y + 12) + 'px'; } }
+  function hideGhost() { if (ghost) ghost.style.display = 'none'; }
+
+  // Zdarzenia ruchu i puszczenia przychodzą albo z dokumentu nadrzędnego, albo
+  // z wnętrza iframe'a — słuchamy w obu i normalizujemy współrzędne.
+  document.addEventListener('pointermove', onDragMove, { passive: false });
+  document.addEventListener('pointerup', onDragEnd);
+  document.addEventListener('pointercancel', onDragEnd);
+
+  // ── Kanwa: zaznaczanie i start przeciągania bloków ────────────────────────
 
   function wireCanvas(doc) {
     var nodes = doc.querySelectorAll('[data-cem-block]');
 
+    // Bez tego pointermove/up po wyjściu kursora poza iframe nie dotarłyby do
+    // kontrolera, gdy drag zaczął się wewnątrz kanwy.
+    doc.addEventListener('pointermove', onDragMove, { passive: false });
+    doc.addEventListener('pointerup', onDragEnd);
+    doc.addEventListener('pointercancel', onDragEnd);
+
     Array.prototype.forEach.call(nodes, function (node) {
       var id = node.getAttribute('data-cem-block');
       if (id === selectedId) node.classList.add('cem-sel');
-      node.setAttribute('draggable', 'true');
+      node.setAttribute('draggable', 'false');
+
+      node.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        var b = design.blocks[blockIndex(id)];
+        var label = b && B.defs[b.type] ? B.defs[b.type].label : 'Blok';
+        beginDrag(e, 'move:' + id, label, 'frame', node);
+      });
 
       node.addEventListener('click', function (e) {
         e.stopPropagation();
-        selectedId = id; showGlobal = false;
-        Array.prototype.forEach.call(nodes, function (n) { n.classList.remove('cem-sel'); });
-        node.classList.add('cem-sel');
-        renderInspector(); renderBlockList();
-      });
-
-      node.addEventListener('dragstart', function (e) {
-        e.dataTransfer.setData('text/plain', 'move:' + id);
-        e.dataTransfer.effectAllowed = 'move';
+        if (suppressClick) return;
+        selectBlock(id, nodes, node);
       });
     });
 
     // Kliknięcie w tło odznacza blok i pokazuje styl globalny.
     doc.body.addEventListener('click', function () {
+      if (suppressClick) return;
       selectedId = null; showGlobal = true;
       Array.prototype.forEach.call(nodes, function (n) { n.classList.remove('cem-sel'); });
       renderInspector(); renderBlockList();
     });
+  }
 
-    /** Element bloku pod kursorem + strona (przed/po) wg jego środka. */
-    function hit(y) {
-      var best = null;
-      Array.prototype.forEach.call(nodes, function (n) {
-        var r = n.getBoundingClientRect();
-        if (y >= r.top && y <= r.bottom) best = { node: n, after: y > r.top + r.height / 2 };
-      });
-      if (best) return best;
-      // Kursor poza blokami: nad pierwszym → na początek, pod ostatnim → na koniec.
-      if (!nodes.length) return null;
-      var first = nodes[0].getBoundingClientRect();
-      if (y < first.top) return { node: nodes[0], after: false };
-      return { node: nodes[nodes.length - 1], after: true };
-    }
-
-    doc.addEventListener('dragover', function (e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      clearDropMarks(doc);
-      var h = hit(e.clientY);
-      if (h) h.node.classList.add(h.after ? 'cem-drop-after' : 'cem-drop-before');
-    });
-
-    doc.addEventListener('dragleave', function () { clearDropMarks(doc); });
-
-    doc.addEventListener('drop', function (e) {
-      e.preventDefault();
-      clearDropMarks(doc);
-      var payload = '';
-      try { payload = e.dataTransfer.getData('text/plain') || ''; } catch (err) { return; }
-
-      var ids = domBlockIds(doc);
-      var h = hit(e.clientY);
-      var index = ids.length;
-      if (h) {
-        index = ids.indexOf(h.node.getAttribute('data-cem-block'));
-        if (index < 0) index = ids.length;
-        else if (h.after) index += 1;
-      }
-
-      if (payload.indexOf('new:') === 0)       insertBlock(payload.slice(4), index);
-      else if (payload.indexOf('move:') === 0) moveBlock(payload.slice(5), index);
-    });
+  function selectBlock(id, nodes, node) {
+    selectedId = id; showGlobal = false;
+    if (nodes) Array.prototype.forEach.call(nodes, function (n) { n.classList.remove('cem-sel'); });
+    if (node) node.classList.add('cem-sel');
+    renderInspector(); renderBlockList();
   }
 
   // ── Paleta ────────────────────────────────────────────────────────────────
@@ -304,17 +434,21 @@
       groups[g].forEach(function (item) {
         var t = el('button', 'cem-tile');
         t.type = 'button';
-        t.draggable = true;
         t.title = 'Przeciągnij na kanwę lub naciśnij Enter';
+        t.style.touchAction = 'none';
         var ic = el('i', 'bi ' + (item.def.icon || 'bi-square'));
         ic.setAttribute('aria-hidden', 'true');
         t.appendChild(ic);
         t.appendChild(el('span', null, item.def.label));
-        t.addEventListener('dragstart', function (e) {
-          e.dataTransfer.setData('text/plain', 'new:' + item.type);
-          e.dataTransfer.effectAllowed = 'copy';
+        t.addEventListener('pointerdown', function (e) {
+          beginDrag(e, 'new:' + item.type, item.def.label, 'parent', t);
         });
-        t.addEventListener('click', function () { insertBlock(item.type, design.blocks.length); });
+        // Klik (bez przeciągnięcia) dodaje blok na końcu — to także ścieżka
+        // klawiaturowa, bo kafelek jest zwykłym <button>.
+        t.addEventListener('click', function () {
+          if (suppressClick) return;
+          insertBlock(item.type, design.blocks.length);
+        });
         grid.appendChild(t);
       });
       box.appendChild(grid);
@@ -338,8 +472,8 @@
       nm.type = 'button';
       nm.textContent = (i + 1) + '. ' + d.label + summary(b);
       nm.addEventListener('click', function () {
-        selectedId = b.id; showGlobal = false;
-        renderInspector(); renderBlockList();
+        selectBlock(b.id);
+        highlightSelectionInCanvas();
         scrollCanvasTo(b.id);
       });
       row.appendChild(nm);
@@ -371,6 +505,16 @@
     b.appendChild(i);
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  /** Podświetlenie w kanwie bez pełnego przerysowania (wybór z listy bloków). */
+  function highlightSelectionInCanvas() {
+    try {
+      var doc = frame.contentDocument;
+      Array.prototype.forEach.call(doc.querySelectorAll('[data-cem-block]'), function (n) {
+        n.classList.toggle('cem-sel', n.getAttribute('data-cem-block') === selectedId);
+      });
+    } catch (e) {}
   }
 
   function scrollCanvasTo(id) {
