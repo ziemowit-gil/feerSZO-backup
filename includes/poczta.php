@@ -247,7 +247,20 @@ class PocztaScanService
 
         $subject     = trim($msg['subject'] ?? '') ?: '(bez tematu)';
         $body_html   = $store_html ? (string)($msg['body']['content'] ?? '') : '';
-        $body_text   = trim($body_html !== '' ? strip_tags($body_html) : ($msg['bodyPreview'] ?? '')) ?: '(brak treści)';
+
+        // Niektórzy nadawcy (autorespondery, bramki helpdeskowe) przychodzą tak, że
+        // Graph oddaje w treści CAŁY multipart — granice, nagłówki części i
+        // quoted-printable. Rozpakowujemy to od razu przy zapisie, żeby sieczka
+        // nie trafiła ani do Skrzynki CRM, ani do EZD.
+        require_once __DIR__ . '/mime_text.php';
+        $norm = crm_mail_normalize((string)($msg['bodyPreview'] ?? ''), $body_html);
+        if ($norm !== null) {
+            $body_html = $norm['body_html'];
+            $body_text = $norm['body'];
+        } else {
+            $body_text = trim($body_html !== '' ? strip_tags($body_html) : ($msg['bodyPreview'] ?? ''));
+        }
+        $body_text = trim((string)$body_text) ?: '(brak treści)';
         $has_attach  = !empty($msg['hasAttachments']) ? 1 : 0;
         $sent_at     = $this->parse_msg_dt(
             $direction === 'in' ? ($msg['receivedDateTime'] ?? '') : ($msg['sentDateTime'] ?? '')

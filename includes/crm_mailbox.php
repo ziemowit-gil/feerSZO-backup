@@ -20,6 +20,7 @@
 
 require_once __DIR__ . '/crm.php';
 require_once __DIR__ . '/poczta_acl.php';
+require_once __DIR__ . '/mime_text.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -358,96 +359,6 @@ function crm_mailbox_set_hidden(int $id, bool $hidden = true): bool {
     }
 }
 
-// ── Surowy MIME w treści wiadomości ─────────────────────────────────────────
-// Część nadawców (autorespondery, bramki) dostarcza wiadomość tak, że w bazie
-// ląduje CAŁY multipart: granice, nagłówki części i quoted-printable. Zamiast
-// pokazywać ten śmietnik, rozkładamy go i zostawiamy sam tekst.
-
-/** Czy treść wygląda na nierozpakowany multipart MIME? */
-function crm_mail_is_raw_mime(string $body): bool {
-    if ($body === '' || !str_contains($body, 'Content-Type:')) return false;
-    return (bool)preg_match('/^--\S{4,70}\s*$/m', $body)
-        && (bool)preg_match('/Content-Type:\s*text\//i', $body);
-}
-
-/** Dekoduje jedną część wg Content-Transfer-Encoding i charsetu. */
-function _crm_mime_decode_body(string $body, string $cte, string $charset): string {
-    $out = match (strtolower(trim($cte))) {
-        'quoted-printable' => quoted_printable_decode($body),
-        'base64'           => (string)base64_decode($body, true),
-        default            => $body,
-    };
-    $charset = strtolower(trim($charset)) ?: 'utf-8';
-    if ($charset !== 'utf-8' && $charset !== 'us-ascii' && function_exists('mb_convert_encoding')) {
-        $conv = @mb_convert_encoding($out, 'UTF-8', $charset);
-        if ($conv !== false) $out = $conv;
-    }
-    return $out;
-}
-
-/**
- * Rozkłada surowy multipart na części tekstowe.
- *
- * @return array ['text' => string, 'html' => string]
- */
-function crm_mail_decode_mime(string $raw, int $depth = 0): array {
-    $res = ['text' => '', 'html' => ''];
-    if ($depth > 3 || !preg_match('/^--(\S{4,70}?)(--)?\s*$/m', $raw, $m)) return $res;
-
-    $boundary = $m[1];
-    $parts = preg_split('/^--' . preg_quote($boundary, '/') . '(--)?[ \t]*\R?/m', $raw);
-    if (!$parts) return $res;
-    array_shift($parts);                       // preambuła przed pierwszą granicą
-
-    foreach ($parts as $part) {
-        $part = ltrim($part, "\r\n");
-        if (trim($part) === '') continue;
-        if (!preg_match('/\R[ \t]*\R/', $part, $mm, PREG_OFFSET_CAPTURE)) continue;
-
-        $hdr  = substr($part, 0, $mm[0][1]);
-        $body = substr($part, $mm[0][1] + strlen($mm[0][0]));
-
-        preg_match('/Content-Type:\s*([^;\s]+)/i', $hdr, $ct);
-        preg_match('/charset\s*=\s*"?([^";\s]+)/i', $hdr, $cs);
-        preg_match('/Content-Transfer-Encoding:\s*(\S+)/i', $hdr, $cte);
-        $type = strtolower($ct[1] ?? '');
-
-        if (str_starts_with($type, 'multipart/')) {          // np. alternative w mixed
-            $inner = crm_mail_decode_mime($part, $depth + 1);
-            if ($res['text'] === '') $res['text'] = $inner['text'];
-            if ($res['html'] === '') $res['html'] = $inner['html'];
-            continue;
-        }
-        if ($type !== 'text/plain' && $type !== 'text/html') continue;
-
-        $decoded = _crm_mime_decode_body($body, $cte[1] ?? '', $cs[1] ?? 'utf-8');
-        if ($type === 'text/plain' && $res['text'] === '') $res['text'] = trim($decoded);
-        if ($type === 'text/html'  && $res['html'] === '') $res['html'] = trim($decoded);
-    }
-    return $res;
-}
-
-/**
- * Zwraca czytelny TEKST wiadomości, jeśli w bazie siedzi surowy MIME.
- * null = treść jest w porządku, nie ma czego naprawiać.
- */
-function crm_mail_plaintext(?string $body): ?string {
-    $body = (string)$body;
-    if (!crm_mail_is_raw_mime($body)) return null;
-
-    $d = crm_mail_decode_mime($body);
-    $text = $d['text'];
-    if ($text === '' && $d['html'] !== '') {
-        $html = preg_replace('#<br\s*/?>#i', "\n", $d['html']);
-        $html = preg_replace('#</(p|div|li|tr|h[1-6])>#i', "\n", (string)$html);
-        $text = trim(html_entity_decode(strip_tags((string)$html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-    }
-    if ($text === '') return null;
-
-    $text = preg_replace("/\n{3,}/", "\n\n", $text);
-    return trim((string)$text);
-}
-
 /**
  * Liczba wiadomości w BIEŻĄCYM widoku w rozbiciu na skrzynki — do selektora
  * skrzynek nad listą. Jedno zapytanie zamiast N liczników.
@@ -494,15 +405,15 @@ function crm_mailbox_message(int $id): ?array {
     if ($mb_id && !poczta_can_access($mb_id, 'read')) return null;
     if (!$mb_id && !(function_exists('is_admin') && is_admin())) return null;
 
-    // Surowy MIME w treści — rozpakuj do zwykłego tekstu i zapisz naprawioną wersję,
-    // żeby kolejne otwarcia (i lista) miały już czysto.
-    $fixed = crm_mail_plaintext((string)($m['body'] ?? ''));
+    // Surowy MIME w treści (także w body_html) — rozpakuj i zapisz naprawioną
+    // wersję, żeby kolejne otwarcia, lista i EZD miały już czysto.
+    $fixed = crm_mail_normalize((string)($m['body'] ?? ''), (string)($m['body_html'] ?? ''));
     if ($fixed !== null) {
-        $m['body']      = $fixed;
-        $m['body_html'] = '';
+        $m['body']      = $fixed['body'];
+        $m['body_html'] = $fixed['body_html'];
         try {
-            db()->prepare("UPDATE crm_communications SET body=?, body_html='' WHERE id=?")
-                ->execute([$fixed, $id]);
+            db()->prepare("UPDATE crm_communications SET body=?, body_html=? WHERE id=?")
+                ->execute([$fixed['body'], $fixed['body_html'] ?: null, $id]);
         } catch (\Throwable $e) {
             error_log('[crm_mailbox_message] mime fix: ' . $e->getMessage());
         }
