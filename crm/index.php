@@ -54,6 +54,22 @@ $filters = [
     // Kontakty krytyczne operacyjnie (bank, dostawca łącza, hosting)
     'critical'     => !empty($_GET['critical']) ? 1 : 0,
 ];
+// Otwarcie zapisanego segmentu: przekładamy jego reguły na filtry listy. Reguł,
+// których lista nie umie pokazać (LUB, historia wysyłek), nie da się odwzorować —
+// wtedy zawężenie jest przybliżone i mówimy o tym nad listą.
+$segment_id = (int)($_GET['segment'] ?? 0);
+$segment    = null;
+if ($segment_id > 0) {
+    require_once dirname(__DIR__) . '/includes/crm_segments_ui.php';
+    $segment = crm_segment_get($segment_id);
+    if ($segment) {
+        $tree = json_decode((string)$segment['filter_json'], true) ?: [];
+        foreach (crm_filters_from_segment($tree) as $fk => $fv) {
+            if (array_key_exists($fk, $filters) && $filters[$fk] === '') $filters[$fk] = $fv;
+        }
+    }
+}
+
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 25;
 
@@ -116,6 +132,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         } else {
             echo json_encode(['ok' => false, 'msg' => 'Pusta notatka.']);
         }
+        exit;
+    }
+
+    // ── Zapisane segmenty ────────────────────────────────────────────────
+    if ($action === 'seg_save' || $action === 'seg_del') {
+        require_once dirname(__DIR__) . '/includes/crm_segments_ui.php';
+        if ($action === 'seg_save') {
+            $conv = crm_segment_from_filters($filters);
+            $r = crm_segment_save(
+                (string)($_POST['seg_name'] ?? ''),
+                $conv['tree'],
+                (string)($_POST['seg_desc'] ?? '')
+            );
+            if ($r['ok']) {
+                // Uczciwie mówimy, czego segment NIE obejmuje: silnik segmentów nie
+                // zna części filtrów listy (fraza, opiekun, „ma e-mail"). Milczenie
+                // o tym znaczyłoby, że kampania wyśle do szerszej grupy, niż widać.
+                $msg = 'Segment zapisany.';
+                if ($conv['skipped']) {
+                    $msg .= ' Nieuwzględnione filtry: ' . implode(', ', $conv['skipped'])
+                          . ' — segment obejmuje szerszą grupę niż bieżąca lista.';
+                }
+                flash_set($conv['skipped'] ? 'warning' : 'success', $msg);
+            } else {
+                flash_set('error', $r['error']);
+            }
+        } else {
+            crm_segment_delete((int)($_POST['seg_id'] ?? 0));
+            flash_set('success', 'Segment usunięty.');
+        }
+        header('Location: ' . APP_URL . '/crm/index.php?' . http_build_query(array_filter($filters)));
         exit;
     }
 
@@ -556,6 +603,57 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
+<?php if ($crm_can_write): ?>
+<?php /* Modal poza formularzem filtrów: zagnieżdżenie <form> w <form> jest
+         nieprawidłowe, a przeglądarka i tak wysłałaby wtedy filtry zamiast nazwy. */ ?>
+<div class="modal fade" id="crmSegModal" tabindex="-1" aria-labelledby="crmSegLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="<?= APP_URL ?>/crm/index.php?<?= h(http_build_query(array_filter($filters))) ?>">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="seg_save">
+      <div class="modal-header py-2">
+        <h5 class="modal-title" id="crmSegLbl" style="font-size:.95rem">
+          <i class="bi bi-bookmark-plus me-2" style="color:var(--crm-primary)" aria-hidden="true"></i>Zapisz segment
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1" for="segName">Nazwa <span class="text-danger">*</span></label>
+          <input class="form-control form-control-sm" id="segName" name="seg_name" required maxlength="120"
+                 placeholder="np. Darczyńcy z Pomorza">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1" for="segDesc">Opis</label>
+          <input class="form-control form-control-sm" id="segDesc" name="seg_desc" maxlength="300"
+                 placeholder="Po co ten segment — komu i kiedy się przydaje">
+        </div>
+        <?php
+        require_once dirname(__DIR__) . '/includes/crm_segments_ui.php';
+        $seg_prev = crm_segment_from_filters($filters);
+        ?>
+        <div class="border rounded p-2" style="font-size:.8rem;background:#FAFBFC">
+          <div class="text-muted mb-1" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em">Warunki segmentu</div>
+          <?= h(crm_segment_describe($seg_prev['tree'])) ?: '<span class="text-muted">bez warunków</span>' ?>
+        </div>
+        <?php if ($seg_prev['skipped']): ?>
+        <div class="alert alert-warning py-2 px-2 mt-2 mb-0" style="font-size:.78rem">
+          <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+          Tych filtrów segment nie obejmie: <strong><?= h(implode(', ', $seg_prev['skipped'])) ?></strong>.
+          Silnik segmentów ich nie zna, więc zapisany segment będzie szerszy niż to,
+          co widzisz na liście.
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-crm-outline" data-bs-dismiss="modal">Anuluj</button>
+        <button class="btn btn-sm btn-crm-primary"><i class="bi bi-check-lg me-1"></i>Zapisz segment</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- ══ FILTER STRIP ═══════════════════════════════════════════════════════════ -->
 <form id="crm-filter-form" method="get" action="<?= APP_URL ?>/crm/index.php"
       class="crm-filter-bar" role="search" aria-label="Filtry kontaktów">
@@ -648,6 +746,54 @@ include __DIR__ . '/includes/header_crm.php';
           aria-expanded="<?= $adv_active ? 'true' : 'false' ?>" aria-controls="crm-adv-panel">
     <i class="bi bi-sliders me-1" aria-hidden="true"></i>Zaawansowane<?= $adv_active ? ' •' : '' ?>
   </button>
+
+  <?php /* Zapisane segmenty: raz znaleziona grupa („darczyńcy z Pomorza bez wysyłki
+           od pół roku") ma dać się zapamiętać i użyć ponownie — także w kampanii,
+           bo segment zapisujemy w formacie, który rozumie silnik wysyłek. */ ?>
+  <?php require_once dirname(__DIR__) . '/includes/crm_segments_ui.php';
+        $crm_segments = crm_segments_list(); ?>
+  <div class="dropdown">
+    <button type="button" class="btn btn-crm-outline btn-sm dropdown-toggle" data-bs-toggle="dropdown"
+            aria-expanded="false" title="Zapisane zestawy filtrów">
+      <i class="bi bi-bookmark<?= $segment ? '-fill' : '' ?> me-1" aria-hidden="true"></i>Segmenty
+      <?php if ($crm_segments): ?><span class="badge bg-secondary ms-1"><?= count($crm_segments) ?></span><?php endif; ?>
+    </button>
+    <ul class="dropdown-menu shadow-sm" style="min-width:300px;font-size:.84rem">
+      <?php if (!$crm_segments): ?>
+      <li><span class="dropdown-item-text text-muted" style="font-size:.8rem">
+        Nie ma jeszcze zapisanych segmentów. Ustaw filtry i zapisz je pod nazwą.
+      </span></li>
+      <?php else: foreach ($crm_segments as $sg): ?>
+      <li class="d-flex align-items-center">
+        <a class="dropdown-item text-truncate<?= $segment_id === (int)$sg['id'] ? ' active' : '' ?>"
+           href="<?= APP_URL ?>/crm/index.php?segment=<?= (int)$sg['id'] ?>"
+           title="<?= h(crm_segment_describe(json_decode((string)$sg['filter_json'], true) ?: [])) ?>">
+          <i class="bi bi-bookmark me-2 text-muted" aria-hidden="true"></i><?= h($sg['name']) ?>
+          <?php if ($sg['cached_count'] !== null): ?>
+          <span class="text-muted">· <?= (int)$sg['cached_count'] ?></span>
+          <?php endif; ?>
+        </a>
+        <?php if ($crm_can_write): ?>
+        <form method="post" class="pe-2" onsubmit="return confirm('Usunąć segment „<?= h(addslashes($sg['name'])) ?>”?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="seg_del">
+          <input type="hidden" name="seg_id" value="<?= (int)$sg['id'] ?>">
+          <button class="btn btn-link p-0 border-0 text-muted" style="line-height:1"
+                  title="Usuń segment" aria-label="Usuń segment <?= h($sg['name']) ?>">
+            <i class="bi bi-x-lg" style="font-size:.7rem" aria-hidden="true"></i>
+          </button>
+        </form>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; endif; ?>
+      <?php if ($crm_can_write && array_filter($filters)): ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#crmSegModal">
+        <i class="bi bi-bookmark-plus me-2 text-primary" aria-hidden="true"></i>Zapisz bieżące filtry jako segment
+      </button></li>
+      <?php endif; ?>
+    </ul>
+  </div>
 
   <?php $active_filters = count(array_filter($filters)); if ($active_filters): ?>
   <a href="<?= APP_URL ?>/crm/index.php"
@@ -870,6 +1016,21 @@ include __DIR__ . '/includes/header_crm.php';
      class="visually-hidden"></div>
 
 <div id="crm-list-region" aria-label="Wyniki listy kontaktów">
+  <?php if ($segment): ?>
+  <div class="alert alert-light border d-flex align-items-center gap-2 py-2 px-3 mb-2" style="font-size:.83rem">
+    <i class="bi bi-bookmark-fill" style="color:var(--crm-primary)" aria-hidden="true"></i>
+    <div class="flex-grow-1">
+      Segment <strong><?= h($segment['name']) ?></strong>
+      <?php if (!empty($segment['description'])): ?>
+      <span class="text-muted">— <?= h($segment['description']) ?></span>
+      <?php endif; ?>
+      <div class="text-muted" style="font-size:.75rem">
+        <?= h(crm_segment_describe(json_decode((string)$segment['filter_json'], true) ?: [])) ?>
+      </div>
+    </div>
+    <a href="<?= APP_URL ?>/crm/index.php" class="btn btn-crm-outline btn-sm">Wyjdź z segmentu</a>
+  </div>
+  <?php endif; ?>
   <?= _crm_table_html($rows, $total, $paging, $per_page, $filters, $crm_can_write, $crm_can_delete) ?>
 </div>
 
