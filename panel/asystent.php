@@ -22,14 +22,17 @@ $PAGE_TITLE = 'Asystent AI';
 $user       = current_user();
 $ai_ready   = asai_enabled();
 
+// Styl kart panelu żyje w layoucie panelu (#pv-main), więc osoby pracujące
+// w layoucie głównym kierujemy do bliźniaczego ekranu w Biurze — ten sam
+// asystent, tylko obudowa dopasowana do ich widoku.
 $_is_volunteer_only = is_viewer()
     && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
-
-if ($_is_volunteer_only) {
-    include __DIR__ . '/includes/header_panel.php';
-} else {
-    include dirname(__DIR__) . '/includes/header.php';
+if (!$_is_volunteer_only) {
+    header('Location: ' . APP_URL . '/procedures/asystent.php');
+    exit;
 }
+
+include __DIR__ . '/includes/header_panel.php';
 ?>
 
 <div class="pv-wrap">
@@ -111,9 +114,4 @@ if ($_is_volunteer_only) {
 
 </div><!-- /pv-wrap -->
 
-<?php
-if ($_is_volunteer_only) {
-    include __DIR__ . '/includes/footer_panel.php';
-} else {
-    include dirname(__DIR__) . '/includes/footer.php';
-}
+<?php include __DIR__ . '/includes/footer_panel.php'; ?>
