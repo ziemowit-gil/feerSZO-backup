@@ -27,6 +27,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'crm_activities_reminder' => [
+        'file'     => __DIR__ . '/crm_activities_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [7, 9],       // między 7:00 a 9:00 — zanim ktoś zacznie dzwonić
+    ],
     'tasks_recurring' => [
         'file'     => __DIR__ . '/tasks_recurring.php',
         'interval' => 86400,

@@ -57,6 +57,20 @@ try {
     )['c'] ?? 0);
 } catch (\Throwable $e) {}
 
+// Moje działania zaległe i na dziś (badge). Liczymy tylko to, co WYMAGA reakcji —
+// plan na przyszły tydzień nie ma migać w nawigacji.
+$_crm_acts_due = 0;
+try {
+    $_crm_acts_due = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_activities a
+           JOIN crm_contacts c ON c.id=a.contact_id AND c.crm_active=1
+          WHERE a.status='planned' AND a.assigned_to=?
+            AND a.scheduled_at IS NOT NULL
+            AND date(a.scheduled_at) <= date('now','localtime')",
+        [(int)(current_user()['id'] ?? 0)]
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+
 // Liczniki modułu Oferty (badge w pasku) — cicho, gdy modułu jeszcze nie migrowano
 $_crm_offers_pending = 0;
 $_crm_offers_noconf  = 0;
@@ -536,6 +550,11 @@ window.openCommModal = function(contactId, channel) {
 
     <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= str_contains($_uri,'/crm/calendar.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/calendar.php') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
+    </a>
+
+    <a href="<?= APP_URL ?>/crm/activities.php" class="crm-navlink<?= str_contains($_uri,'/crm/activities.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/activities.php') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-list-check"></i><span>Działania</span>
+      <?php if (!empty($_crm_acts_due)): ?><span class="crm-nav-badge"><?= $_crm_acts_due > 99 ? '99+' : (int)$_crm_acts_due ?></span><?php endif; ?>
     </a>
 
     <!-- Kategoria: Oferty (działalność odpłatna) -->
