@@ -687,14 +687,12 @@ window.openCommModal = function(contactId, channel, opts) {
       </a>
       <ul class="dropdown-menu">
         <li><h6 class="dropdown-header">Moja kolejka</h6></li>
+        <?php /* Jedna pozycja: działania i zadania CRM to ta sama kolejka.
+                 Zadania CRM ≠ moduł Zadań — to przypomnienia przy kartotece. */ ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/activities.php">
-          <i class="bi bi-list-check me-2"></i>Działania
-          <?php if (!empty($_crm_acts_due)): ?><span class="badge bg-danger ms-1"><?= (int)$_crm_acts_due ?></span><?php endif; ?>
-        </a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tasks.php">
-          <i class="bi bi-check2-square me-2"></i>Zadania CRM
-          <?php /* Zadania CRM ≠ moduł Zadań: przypomnienia przy kartotece, bez obszarów i tablicy */ ?>
-          <?php if (!empty($_crm_tasks_mine)): ?><span class="badge bg-primary ms-1"><?= (int)$_crm_tasks_mine ?></span><?php endif; ?>
+          <i class="bi bi-list-check me-2"></i>Moja kolejka
+          <?php $_crm_queue_due = (int)$_crm_acts_due + (int)($_crm_tasks_mine ?? 0); ?>
+          <?php if ($_crm_queue_due): ?><span class="badge bg-danger ms-1"><?= $_crm_queue_due ?></span><?php endif; ?>
         </a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/calendar.php"><i class="bi bi-calendar3-fill me-2"></i>Kalendarz</a></li>
         <li><hr class="dropdown-divider"></li>

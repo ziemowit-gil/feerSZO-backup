@@ -72,6 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// Same zadania mają dziś wspólny ekran z działaniami (crm/activities.php) — dwie
+// listy rzeczy do zrobienia znaczyły dwa miejsca do sprawdzania. Ten adres zostaje
+// dla linków zapisanych wcześniej i dla filtrowania po jednym kontakcie.
+if (!isset($_GET['contact_id']) && ($_GET['keep'] ?? '') !== '1') {
+    header('Location: ' . APP_URL . '/crm/activities.php');
+    exit;
+}
+
 // ── Filtry ─────────────────────────────────────────────────────────────────
 $scope  = in_array($_GET['scope'] ?? 'mine', ['mine', 'all', 'overdue', 'done'], true) ? $_GET['scope'] : 'mine';
 $search = trim((string)($_GET['q'] ?? ''));

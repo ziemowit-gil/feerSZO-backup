@@ -56,6 +56,32 @@ const CRM_TASK_PRIORITIES = [
 ];
 
 /**
+ * Komu wolno zlecić zadanie CRM.
+ *
+ * Wyłącznie osobom z dostępem do CRM — te same, które mogą być opiekunami
+ * kartotek (crm_owner_candidates). Sprawdzamy to TUTAJ, a nie tylko przy
+ * wypełnianiu listy w oknie: lista podpowiada, ale samo POST-nięcie innego
+ * identyfikatora nie może wcisnąć zadania komuś, kto nawet nie otworzy
+ * kartoteki — takie zadanie nie miałoby jak zostać zrobione, a wisiałoby
+ * w statystykach jako zaległe.
+ *
+ * @return int identyfikator adresata albo 0, gdy wskazany nie ma dostępu
+ */
+function crm_task_owner_ok(int $user_id): int
+{
+    if ($user_id <= 0) return 0;
+    require_once __DIR__ . '/crm_owner_rules.php';
+    return crm_owner_can_be($user_id) ? $user_id : 0;
+}
+
+/** Osoby, którym można zlecić zadanie CRM — jedno źródło dla wszystkich okien. */
+function crm_task_people(): array
+{
+    require_once __DIR__ . '/crm_owner_rules.php';
+    return crm_owner_candidates();
+}
+
+/**
  * Dodaje zadanie CRM.
  *
  * @param array $d title, contact_id, case_id, due_date, priority, owner_id, description
@@ -76,6 +102,14 @@ function crm_task_add(array $d): array
     $due = trim((string)($d['due_date'] ?? ''));
     if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) $due = '';
 
+    // Adresat musi mieć dostęp do CRM. Wskazanie kogoś spoza CRM to nie drobiazg
+    // do cichego poprawienia — mówimy o tym wprost, bo ktoś czekałby na wykonanie.
+    $want = (int)($d['owner_id'] ?? 0);
+    if ($want > 0 && crm_task_owner_ok($want) === 0) {
+        return ['ok' => false, 'id' => 0,
+                'error' => 'Zadanie można zlecić tylko osobie z dostępem do CRM.'];
+    }
+
     try {
         $id = db_insert('crm_tasks', [
             'contact_id'  => ((int)($d['contact_id'] ?? 0)) ?: null,
@@ -87,7 +121,7 @@ function crm_task_add(array $d): array
             'status'      => 'open',
             // Bez wskazania właściciela zadanie należy do tego, kto je zapisał —
             // przypomnienie bez adresata nie przypomina nikomu
-            'owner_id'    => ((int)($d['owner_id'] ?? 0)) ?: ($uid ?: null),
+            'owner_id'    => $want ?: ($uid ?: null),
             'created_by'  => $uid ?: null,
             'created_at'  => date('Y-m-d H:i:s'),
         ]);
@@ -136,7 +170,11 @@ function crm_task_update(int $id, array $d): bool
     if (isset($d['priority']) && isset(CRM_TASK_PRIORITIES[$d['priority']])) {
         $set[] = 'priority=?'; $par[] = (string)$d['priority'];
     }
-    if (isset($d['owner_id'])) { $set[] = 'owner_id=?'; $par[] = ((int)$d['owner_id']) ?: null; }
+    if (isset($d['owner_id'])) {
+        $own = (int)$d['owner_id'];
+        if ($own > 0 && crm_task_owner_ok($own) === 0) return false;   // adresat spoza CRM
+        $set[] = 'owner_id=?'; $par[] = $own ?: null;
+    }
     if (isset($d['title'])) {
         $t = trim((string)$d['title']);
         if ($t === '') return false;

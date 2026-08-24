@@ -2067,8 +2067,8 @@ $case_status_cfg = [
               $cv_tasks = crm_tasks_for_contact($id); ?>
         <div class="cv-panel"><div class="cv-panel__body">
           <div class="cv-shead">
-            <i class="bi bi-check2-square cv-shead__icon" style="color:var(--crm-primary)" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Zadania</h2>
+            <i class="bi bi-list-check cv-shead__icon" style="color:var(--crm-primary)" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Do zrobienia</h2>
             <div class="cv-shead__aside">
               <?php if ($cv_tasks): ?><span class="cv-count"><?= count($cv_tasks) ?></span><?php endif; ?>
               <?php if ($crm_can_write): ?>
@@ -2124,14 +2124,18 @@ $case_status_cfg = [
             <?php endforeach; ?>
           </div>
           <?php endif; ?>
-        </div></div>
 
-        <div class="cv-panel" id="activities-section"><div class="cv-panel__body">
-          <div class="cv-shead">
-            <i class="bi bi-lightning-charge-fill cv-shead__icon" style="color:#B45309" aria-hidden="true"></i>
-            <h2 class="cv-shead__title">Planowane działania</h2>
+          <?php /* Działania (telefon, spotkanie) i zadania to dla pracującego to samo:
+                   rzeczy z terminem. Osobne sekcje znaczyły dwa miejsca do sprawdzenia
+                   przy jednej kartotece — stąd jedna sekcja, dwa rodzaje wpisów.
+                   Wspólną kolejkę wszystkich kartotek pokazuje crm/activities.php. */ ?>
+          <div id="activities-section" class="mt-3 pt-3" style="border-top:1px solid var(--crm-border)">
+            <div class="cv-meta mb-2">
+              <i class="bi bi-lightning-charge-fill me-1" style="color:#B45309" aria-hidden="true"></i>
+              Planowane działania
+            </div>
+            <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
           </div>
-          <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
         </div></div>
 
         <div class="cv-panel"><div class="cv-panel__body">
