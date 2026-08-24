@@ -28,6 +28,7 @@
 
 if (!function_exists('current_user')) require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/asystent_ai.php';   // asai_enabled() — pozycja „Asystent AI" w menu
 
 /** Czy fragment REQUEST_URI pasuje (podświetlenie aktywnej pozycji). */
 function _menu_hit(string $needle): bool {
@@ -178,6 +179,9 @@ function _menu_viewer(): array {
         $unread_rules = count(org_rules_unread((int)(current_user()['id'] ?? 0))); } catch (\Throwable $e) {}
     if (panel_visible('zasady'))
         $items[] = _mi('Zasady organizacji','/org_intro/index.php','bi-building-heart',['match'=>'/org_intro/','badge'=>$unread_rules,'kw'=>'zasady regulamin']);
+
+    if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled())
+        $items[] = _mi('Asystent AI','/panel/asystent.php','bi-stars',['match'=>'/panel/asystent','kw'=>'asystent ai pomoc pytanie jak gdzie procedura moje sprawy']);
 
     $items[] = _mi('Mój profil','/panel/profile_edit.php','bi-person-badge',['match'=>'/panel/profile_edit']);
     if (panel_visible('komunikaty'))
@@ -347,7 +351,7 @@ function _menu_editor(): array {
     $kanc[] = _mi('Opłacalność działań','/tools/oplacalnosc.php','bi-calculator',['match'=>'/tools/oplacalnosc','kw'=>'opłacalność kalkulator roi zlecenie wyjazd']);
     $kanc[] = _mi('Korespondencja','/correspondence/index.php','bi-mailbox',['match'=>'/correspondence/','kw'=>'korespondencja listy']);
     $kanc[] = _mi('Procedury','/procedures/index.php','bi-list-task',['match'=>'/procedures/index','kw'=>'procedury instrukcje']);
-    $kanc[] = _mi('Asystent AI (procedury)','/procedures/asystent.php','bi-robot',['match'=>'/procedures/asystent','kw'=>'asystent ai wyszukiwanie procedury dokumentacja chat pytania']);
+    $kanc[] = _mi('Asystent AI','/procedures/asystent.php','bi-stars',['match'=>'/procedures/asystent','kw'=>'asystent ai chatbot wyszukiwanie procedury dokumentacja funkcje systemu gdzie jak zrobić pytania pomoc']);
     if (module_enabled('wsparcie_ou_enabled') && can_read('wsparcie_ou'))
         $kanc[] = _mi('Wsparcie zewnętrzne OU','/wsparcie_ou/index.php','bi-building-add',['match'=>'/wsparcie_ou/','badge'=>$cnt['wsparcie_ou'],'kw'=>'wsparcie ou podmioty zewnętrzne']);
     if (module_enabled('doc_signing_enabled'))

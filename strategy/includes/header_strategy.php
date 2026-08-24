@@ -333,6 +333,8 @@ body {
   </nav>
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'strategia';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- Sidebar -->
 <nav class="strat-sidebar" id="strat-nav" aria-label="Nawigacja Strategia NGO">

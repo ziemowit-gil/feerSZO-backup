@@ -587,6 +587,8 @@ body {
 </header>
 
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'zadania';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- ══ Offcanvas — nawigacja ════════════════════════════════════════════════ -->
 <div class="offcanvas offcanvas-start tsk-offcanvas" tabindex="-1" id="tskNav"

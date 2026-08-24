@@ -175,6 +175,8 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
 
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'katalog';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- ══ SIDEBAR ════════════════════════════════════════════════════════════ -->
 <nav class="dir-sidebar" id="dirSidebar"

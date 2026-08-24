@@ -193,6 +193,8 @@ body { margin:0; background:var(--ev-bg); color:var(--ev-text);
   </div>
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'wydarzenia';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- Sidebar -->
 <nav id="ev-sidebar" class="ev-sidebar" aria-label="Nawigacja modułu Wydarzeń">

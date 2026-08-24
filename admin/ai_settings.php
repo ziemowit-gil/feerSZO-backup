@@ -32,6 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ai_settings.php#chatbot'); exit;
     }
 
+    // ── Widżet asystenta w modułach ─────────────────────────────────────────
+    if ($action === 'asystent_widget') {
+        asai_setting_set('asystent_widget_enabled', isset($_POST['asystent_widget_enabled']) ? '1' : '0');
+        flash_set('success', 'Ustawienia widżetu asystenta zapisane.');
+        header('Location: ai_settings.php#asystent'); exit;
+    }
+
     // ── Zapis kluczy / modelu AI ────────────────────────────────────────────
     $new_key   = trim($_POST['anthropic_api_key'] ?? '');
     $new_model = trim($_POST['anthropic_model'] ?? '');
@@ -51,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ai_settings.php'); exit;
 }
 
+$widget_enabled  = (db_one("SELECT value FROM settings WHERE key_='asystent_widget_enabled'")['value'] ?? '') !== '0';
 $chatbot_enabled = (db_one("SELECT value FROM settings WHERE key_='chatbot_public_enabled'")['value'] ?? '') === '1';
 $chatbot_url     = asai_public_url();
 
@@ -116,6 +124,47 @@ include dirname(__DIR__) . '/includes/header.php';
     <i class="bi bi-check2 me-1"></i>Zapisz
   </button>
 </form>
+</div>
+</div>
+
+<div class="card shadow-sm mt-3" id="asystent" style="scroll-margin-top:1rem">
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <i class="bi bi-stars"></i>Asystent w systemie (dla zalogowanych)
+  <?php if ($widget_enabled && $api_key): ?>
+    <span class="badge bg-success ms-auto">Aktywny</span>
+  <?php else: ?>
+    <span class="badge bg-secondary ms-auto">Wyłączony</span>
+  <?php endif; ?>
+</div>
+<div class="card-body">
+  <p class="small text-muted mb-2">
+    Pływający przycisk asystenta w nagłówku <strong>każdego modułu</strong> (panel wolontariusza,
+    zadania, CRM, katalog, wydarzenia, poczta, Karty 30, strategia) oraz pełne okno rozmowy:
+    <code>/panel/asystent.php</code> i <code>/procedures/asystent.php</code>.
+  </p>
+  <p class="small text-muted">
+    W trybie zalogowanym asystent zna <strong>uprawnienia rozmówcy</strong> — podpowiada tylko
+    dostępne dla niego ekrany i pokazuje wyłącznie jego własne umowy, godziny, zadania i wnioski.
+    Pozycję „Asystent AI" w panelu wolontariusza możesz osobno ukryć w
+    <a href="<?= APP_URL ?>/admin/menu_config.php">Widoczności menu</a>.
+  </p>
+
+  <form method="post">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="asystent_widget">
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" role="switch" id="aswEnabled"
+             name="asystent_widget_enabled" <?= $widget_enabled ? 'checked' : '' ?>
+             <?= $api_key ? '' : 'disabled' ?>>
+      <label class="form-check-label small" for="aswEnabled">
+        Pokazuj pływający przycisk asystenta w modułach
+      </label>
+    </div>
+    <?php if (!$api_key): ?>
+      <div class="form-text text-warning"><i class="bi bi-exclamation-triangle"></i> Najpierw zapisz klucz API Anthropic.</div>
+    <?php endif; ?>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1"></i>Zapisz</button>
+  </form>
 </div>
 </div>
 
@@ -257,8 +306,11 @@ include dirname(__DIR__) . '/includes/header.php';
     <li>CRM → Komunikacja → przycisk <strong>Wygeneruj AI</strong> w edytorze e-mail</li>
     <li>CRM → Masowa wysyłka → przycisk <strong>Wygeneruj AI</strong></li>
     <li>EZD → Koszulki → <strong>Przerejestrowanie (AI)</strong> — kwalifikacja spraw do Nowego JRWA</li>
-    <li>Biuro → Procedury → <strong>Asystent AI</strong> — agent przeszukujący procedury i dokumentację, z odpowiedziami i źródłami</li>
-    <li><strong>Publiczny asystent</strong> — link <code>/chatbot/{token}</code> do udostępnienia współpracownikom w intranecie (bez logowania)</li>
+    <li><strong>Asystent AI</strong> — pływający przycisk w nagłówku każdego modułu oraz pełne okno:
+        Biuro → Procedury → Asystent AI i Panel wolontariusza → Asystent AI. Odpowiada o procedury,
+        dokumenty, uchwały, zasady i komunikaty, o funkcje samego SZO (gdzie kliknąć, jakie kroki)
+        oraz o własne sprawy rozmówcy (umowy, godziny, zadania, wnioski)</li>
+    <li><strong>Publiczny asystent</strong> — link <code>/chatbot/{token}</code> do udostępnienia współpracownikom w intranecie (bez logowania, bez dostępu do danych osobowych)</li>
   </ul>
 </div>
 </div>

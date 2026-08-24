@@ -1,9 +1,14 @@
 <?php
 /**
- * api/asystent_ai.php — endpoint JSON dla asystenta AI (procedury i dokumentacja).
+ * api/asystent_ai.php — endpoint JSON dla asystenta AI (baza wiedzy + funkcje SZO).
  *
- * POST JSON: { _csrf, history: [ {role, text}, ... ] }
- *   history — cała rozmowa (ostatni wpis = bieżące pytanie użytkownika).
+ * Rozmowa toczy się w kontekście zalogowanego użytkownika, więc agent ma też
+ * narzędzie `moje_dane` (patrz includes/asystent_ai.php). Odpowiednik bez sesji,
+ * bramkowany tokenem publicznym, to chatbot/ai.php.
+ *
+ * POST JSON: { _csrf, history: [ {role, text}, ... ], scope? }
+ *   history — cała rozmowa (ostatni wpis = bieżące pytanie użytkownika),
+ *   scope   — moduł, z którego pyta użytkownik (informacyjnie, do audytu).
  * Response:  { ok, answer, sources:[...], trace:[...], model } | { ok:false, error }
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -19,9 +24,11 @@ if (!current_user()) {
     echo json_encode(['ok' => false, 'error' => 'Wymagane logowanie.']);
     exit;
 }
-if (!module_enabled('procedures_enabled')) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'Moduł procedur jest wyłączony.']);
+// Asystent nie jest częścią modułu procedur — odpowiada też o funkcje systemu,
+// komunikaty i dane konta. Bramką jest sam klucz API, nie moduł procedur.
+if (!asai_enabled()) {
+    http_response_code(503);
+    echo json_encode(['ok' => false, 'error' => 'Asystent AI nie jest skonfigurowany (brak klucza Anthropic API).'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -49,7 +56,10 @@ if (!$history || end($history)['role'] !== 'user') {
     exit;
 }
 
-$res = asai_run($history);
+$res = asai_run($history, 6, [
+    'mode'  => 'session',
+    'scope' => preg_replace('/[^a-z0-9_-]/', '', (string)($body['scope'] ?? '')),
+]);
 
 if (empty($res['ok'])) {
     echo json_encode([

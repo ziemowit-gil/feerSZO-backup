@@ -9,6 +9,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 
+require_once dirname(dirname(__DIR__)) . '/includes/asystent_ai.php';
+
 require_login();
 
 $_pv_title  = $PAGE_TITLE ?? 'Panel wolontariusza';
@@ -339,6 +341,8 @@ try {
   </div>
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'panel';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- Menu sekcji (offcanvas) -->
 <div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
@@ -490,6 +494,12 @@ try {
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Organizacja</div>
 
+  <?php if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled()): ?>
+  <a href="<?= APP_URL ?>/panel/asystent.php" class="pv-nav-link<?= _pv_nav_active('/panel/asystent') ?>"
+     aria-label="Asystent AI — pytania o procedury, system i moje sprawy">
+    <i class="bi bi-stars" style="color:#7c3aed" aria-hidden="true"></i>Asystent AI
+  </a>
+  <?php endif; ?>
   <?php if (module_enabled('procedures_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/procedures.php" class="pv-nav-link<?= _pv_nav_active('/panel/procedures') ?>"
      aria-label="Procedury i instrukcje organizacji">

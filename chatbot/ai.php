@@ -53,7 +53,7 @@ if (!$history || end($history)['role'] !== 'user') {
     exit;
 }
 
-$res = asai_run($history);
+$res = asai_run($history, 6, ['mode' => 'public']);
 
 if (empty($res['ok'])) {
     echo json_encode([

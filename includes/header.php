@@ -1268,6 +1268,11 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 </div>
 
 <?php require_once __DIR__ . '/bug_report_widget.php'; ?>
+<?php // Pływający czat admina (includes/chat_widget.php) siedzi w tym samym
+      // narożniku — dla can_edit() podnosimy przycisk asystenta ponad niego.
+      $ASAI_WIDGET_SCOPE  = 'system';
+      $ASAI_WIDGET_BOTTOM = (function_exists('can_edit') && can_edit()) ? '7.5rem' : '1.5rem';
+      require_once __DIR__ . '/asystent_widget.php'; ?>
 <?php require_once __DIR__ . '/welcome_notice.php'; ?>
 <?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
 

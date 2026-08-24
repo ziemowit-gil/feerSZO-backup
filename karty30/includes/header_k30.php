@@ -249,6 +249,8 @@ function _k30_active(string $path): bool {
 
 
 <?php $_brw = dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; if (is_file($_brw)) require_once $_brw; ?>
+<?php $ASAI_WIDGET_SCOPE = 'karty30';
+      $_asw = dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; if (is_file($_asw)) require_once $_asw; ?>
 
 <!-- ══ GŁÓWNA TREŚĆ ════════════════════════════════════════════════════════ -->
 <main class="container-fluid py-4 k30-main-content k30-content k30-wrap" id="k30-main" role="main" tabindex="-1">

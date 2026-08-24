@@ -496,6 +496,8 @@ window.openCommModal = function(contactId, channel) {
 
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $ASAI_WIDGET_SCOPE = 'crm';
+      require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
 <!-- ══ TOP NAVBAR (poziome menu) ════════════════════════════════════════════════ -->
 <nav class="crm-navbar" role="navigation" aria-label="Nawigacja CRM">
