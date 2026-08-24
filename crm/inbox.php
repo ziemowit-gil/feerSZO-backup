@@ -20,6 +20,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
 require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';
+require_once dirname(__DIR__) . '/includes/nozbe.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -58,6 +59,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               ]));
                               break;
             case 'unhide':    crm_mailbox_set_hidden($mid, false); flash_set('success', 'Wiadomość wróciła do Skrzynki CRM.'); break;
+
+            case 'nozbe':
+                if (!nozbe_configured()) { flash_set('warning', 'Integracja z Nozbe nie jest skonfigurowana.'); break; }
+                $nz = nozbe_push_crm_message($mid);
+                if (!empty($nz['ok'])) {
+                    flash_set('success', !empty($nz['existing'])
+                        ? 'Ta wiadomość jest już w Nozbe.'
+                        : 'Zadanie utworzone w Nozbe.');
+                } else {
+                    flash_set('danger', 'Nozbe: ' . ($nz['error'] ?: 'nie udało się utworzyć zadania.'));
+                }
+                break;
 
             case 'bulk_hide':
             case 'bulk_unhide':
@@ -932,6 +945,18 @@ include __DIR__ . '/includes/header_crm.php';
                 title="Wyślij tę wiadomość dalej e-mailem — z cytatem oryginału i notatką">
           <i class="bi bi-forward-fill" style="color:#B45309" aria-hidden="true"></i>Przekaż e-mailem
         </button>
+        <?php if (nozbe_configured()): $nz_link = nozbe_link_for('crm_message', (int)$msg['id']); ?>
+          <?php if ($nz_link): ?>
+          <a class="ib-act" href="<?= h($nz_link['url']) ?>" target="_blank" rel="noopener"
+             title="Zadanie z tej wiadomości powstało już w Nozbe — otwórz je">
+            <i class="bi bi-check2-square" style="color:#2E844A" aria-hidden="true"></i>Otwórz w Nozbe
+          </a>
+          <?php else: ?>
+          <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="nozbe">
+            <button class="ib-act" title="Utwórz w Nozbe zadanie „odpowiedz na tę wiadomość” — z linkiem do niej i treścią w komentarzu">
+              <i class="bi bi-check2-square" style="color:#2E844A" aria-hidden="true"></i>Do Nozbe</button></form>
+          <?php endif; ?>
+        <?php endif; ?>
         <?php endif; ?>
 
         <form method="post" class="ms-auto"><?= $hidden ?><input type="hidden" name="_op" value="assign">

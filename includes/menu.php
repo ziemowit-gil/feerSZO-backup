@@ -425,6 +425,7 @@ function _menu_editor(): array {
             _mi('Microsoft 365','/admin/m365_settings.php','bi-microsoft',['match'=>'/admin/m365','kw'=>'m365 integracja graph']),
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),
+            _mi('Zadania / Nozbe','/admin/nozbe_settings.php','bi-check2-square',['match'=>'/admin/nozbe_settings','kw'=>'nozbe zadania integracja']),
             _mi('Płatności / Stripe','/admin/stripe_settings.php','bi-credit-card',['match'=>'/admin/stripe_settings','kw'=>'stripe płatności']),
             _mi('Płatności / PayU','/admin/payu_settings.php','bi-wallet2',['match'=>'/admin/payu_settings','kw'=>'payu płatności']),
             _mi('Magazyn plików / ownCloud','/admin/owncloud_settings.php','bi-cloud-arrow-up',['match'=>'/admin/owncloud_settings','kw'=>'owncloud magazyn']),
