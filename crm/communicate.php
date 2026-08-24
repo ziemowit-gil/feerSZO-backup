@@ -582,7 +582,7 @@ include __DIR__ . '/includes/header_crm.php';
         <!-- Zmienne szablonu -->
         <div class="mb-2 d-flex align-items-center flex-wrap gap-1">
           <span class="text-muted small me-1">Wstaw zmienną:</span>
-          <?php foreach (['{imie}','{imie_nazwisko}','{email}','{organizacja}','{stanowisko}','{data}'] as $var): ?>
+          <?php foreach (['{zwrot}','{imie}','{imie_nazwisko}','{email}','{organizacja}','{stanowisko}','{data}'] as $var): ?>
           <button type="button" class="btn btn-outline-secondary py-0 px-1"
                   style="font-size:.7rem;font-family:monospace;line-height:1.6"
                   onclick="Comm.insertVar('<?= $var ?>')">
@@ -766,6 +766,9 @@ include __DIR__ . '/includes/header_crm.php';
           <tbody>
             <tr><td colspan="2" class="text-uppercase fw-bold" style="font-size:.66rem;letter-spacing:.05em;color:#5E6470">Odbiorca</td></tr>
             <tr><td class="font-monospace text-success">{imie}</td><td>Imię (pierwsze słowo)</td></tr>
+            <tr><td class="font-monospace text-success">{zwrot}</td>
+                <td>Zwrot dopasowany do adresu: „Dzień dobry, Anno" przy adresie imiennym,
+                    „Szanowni Państwo" przy skrzynce ogólnej (biuro@, sekretariat@)</td></tr>
             <tr><td class="font-monospace text-success">{imie_nazwisko}</td><td>Pełne imię i nazwisko</td></tr>
             <tr><td class="font-monospace text-success">{email}</td><td>Adres e-mail</td></tr>
             <tr><td class="font-monospace text-success">{organizacja}</td><td>Nazwa firmy / org.</td></tr>

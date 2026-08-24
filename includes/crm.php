@@ -2470,6 +2470,19 @@ class CrmManager
             '{powiat}'        => $contact['powiat'] ?? '',
             '{gmina}'         => $contact['gmina'] ?? '',
             '{data}'          => date('d.m.Y'),
+            // Zwrot dopasowany do adresu: imienny dostaje „Dzień dobry, Anno",
+            // ogólny — „Szanowni Państwo". Bez tego jedna z tych form zawsze
+            // trafiała w niewłaściwą skrzynkę. Zob. includes/crm_email_kind.php.
+            '{zwrot}'         => (static function (array $c): string {
+                require_once __DIR__ . '/crm_email_kind.php';
+                $kind = (string)($c['email_kind'] ?? '');
+                if ($kind === '' && !empty($c['email'])) {
+                    // Bez zapisanego rozpoznania liczymy je z samego adresu —
+                    // wysyłka nie może czekać na model
+                    $kind = crm_email_kind_local((string)$c['email'], $c['imie_nazwisko'] ?? null)['kind'];
+                }
+                return crm_contact_salutation($c, $kind);
+            })($contact),
             // Nadawca (zalogowany użytkownik)
             '{nadawca_imie}'          => $snd['imie'],
             '{nadawca_nazwisko}'      => $snd['nazwisko'],

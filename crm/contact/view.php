@@ -1874,13 +1874,30 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Pasek danych kontaktowych -->
   <div class="cv-panel__body cv-quickbar" style="background:#F9FAFB;border-top:1px solid var(--crm-border)">
     <?php if ($_sfv['email'] && $contact['email']): ?>
+    <?php /* Rodzaj adresu decyduje o zwrocie w wysyłce ({zwrot}) — pokazujemy go
+             przy adresie, bo to cecha, którą warto móc poprawić okiem.
+             Zob. includes/crm_email_kind.php. */ ?>
+    <?php require_once dirname(dirname(__DIR__)) . '/includes/crm_email_kind.php';
+          $_ek = crm_contact_email_kind($contact);
+          $_ekm = CRM_EMAIL_KINDS[$_ek['kind']] ?? CRM_EMAIL_KINDS['unknown']; ?>
     <a href="mailto:<?= h($contact['email']) ?>" class="cv-chip">
       <i class="bi bi-envelope-fill" aria-hidden="true"></i><span><?= h($contact['email']) ?></span>
+      <span class="cv-ekind" style="color:<?= h($_ekm['color']) ?>"
+            title="Adres <?= h($_ekm['label']) ?><?= $_ek['why'] ? ' — ' . h($_ek['why']) : '' ?>">
+        <i class="bi <?= h($_ekm['icon']) ?>" aria-hidden="true"></i><?= h($_ekm['label']) ?>
+      </span>
     </a>
     <?php endif; ?>
     <?php if ($_sfv['telefon'] && $contact['telefon']): ?>
+    <?php require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
+          $_mob = sms_is_mobile($contact['telefon']); ?>
     <a href="tel:<?= h($contact['telefon']) ?>" class="cv-chip">
       <i class="bi bi-telephone-fill" aria-hidden="true"></i><span><?= h($contact['telefon']) ?></span>
+      <?php if ($_mob): ?>
+      <span class="cv-ekind" style="color:#2E844A" title="Numer komórkowy — można wysłać SMS">
+        <i class="bi bi-phone-vibrate" aria-hidden="true"></i>SMS
+      </span>
+      <?php endif; ?>
     </a>
     <?php endif; ?>
     <?php $addr_display = address_format($contact); if ($_sfv['adres'] && $addr_display): ?>

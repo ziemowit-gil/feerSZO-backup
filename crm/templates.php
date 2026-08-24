@@ -214,7 +214,7 @@ include __DIR__ . '/includes/header_crm.php';
       <span class="fw-semibold" style="color:var(--crm-primary-dark)">
         <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Odbiorca:
       </span>
-      <?php foreach (['{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
+      <?php foreach (['{zwrot}','{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
       <button type="button" class="var-chip" onclick="tplCopyVar(this)" data-var="<?= h($v) ?>"><?= h($v) ?></button>
       <?php endforeach; ?>
     </div>
@@ -401,7 +401,7 @@ include __DIR__ . '/includes/header_crm.php';
               <div class="mt-2">
                 <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
                   <span class="cv-meta me-1"><i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Odbiorca:</span>
-                  <?php foreach (['{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
+                  <?php foreach (['{zwrot}','{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
                   <button type="button" class="var-chip" onclick="tplInsertVar('<?= h($v) ?>')" title="Wstaw <?= h($v) ?> w treści"><?= h($v) ?></button>
                   <?php endforeach; ?>
                 </div>

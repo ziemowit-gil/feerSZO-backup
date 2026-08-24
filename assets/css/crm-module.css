@@ -843,3 +843,11 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
 .ib-thread-who  { font-weight: 600; white-space: nowrap; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
 .ib-thread-subj { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ib-thread-date { color: var(--crm-text-light); white-space: nowrap; font-size: .72rem; }
+
+/* Znacznik przy danych kontaktowych: rodzaj adresu, komórka. Ma być widoczny,
+   ale nie ma konkurować z samą wartością — stąd wielkość liter i waga. */
+.cv-ekind {
+  display: inline-flex; align-items: center; gap: .2rem;
+  font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  margin-left: .35rem; padding: .05rem .3rem; border-radius: 3px; background: #F3F4F6;
+}

@@ -207,6 +207,12 @@ $AGENTS = [
         'schedule' => [4, 6],
         'args'     => '--apply',
     ],
+    'crm_email_kinds' => [
+        'file'     => __DIR__ . '/crm_email_kinds.php',
+        'interval' => 86400,        // raz dziennie — nowe adresy z importów i skrzynki
+        'schedule' => [4, 6],
+        'args'     => '--limit=300',
+    ],
     'crm_consents_expiring' => [
         'file'     => __DIR__ . '/crm_consents_expiring.php',
         'interval' => 604800,       // raz w tygodniu — zgody z ograniczoną ważnością
