@@ -135,14 +135,9 @@ auth_screen_head([
       </svg>
       Zaloguj przez Microsoft 365
     </a>
-    <?php /* Jeden akapit zamiast dwóch: strona obsługuje teraz dwie osoby naraz —
-             tę z kontem i tę zabłąkaną. Dłuższy wykład o politykach Entra ID odsuwał
-             rozjazd poniżej krawędzi ekranu, a osobie z kontem nie mówił nic nowego. */ ?>
-    <p class="ks-hint">
-      To jedyna droga do CRM — hasłem się tu nie wejdzie. Logowanie, jego drugi składnik
-      i odebranie dostępu dzieją się po stronie konta <strong>@<?= h($org_domain) ?></strong>,
-      bo moduł trzyma dane osobowe, zgody i korespondencję.
-    </p>
+    <?php /* Bez akapitu o politykach Entra ID pod przyciskiem: informacja, że wchodzi
+             się kontem służbowym, jest już w zdaniu wstępnym, a powtórzona spychała
+             rozjazd „to nie tutaj" poniżej krawędzi ekranu. */ ?>
 
     <?php else: ?>
     <?php /* Bez skonfigurowanego Microsoft 365 nikt się tu nie zaloguje — i nie ma
