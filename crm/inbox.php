@@ -659,6 +659,17 @@ include __DIR__ . '/includes/header_crm.php';
     <i class="bi bi-<?= $threads ? 'list-nested' : 'list' ?>" aria-hidden="true"></i>Wątki
   </a>
 
+  <?php if (crm_can('export', 'read')):
+        $exp_qs = http_build_query(array_filter([
+            'what' => 'comms', 'q' => $search ?: null, 'mailbox_id' => $mbox_f ?: null,
+            'direction' => in_array($view, ['sent', 'drafts'], true) ? 'out' : 'in',
+        ])); ?>
+  <a class="ib-tbtn" href="<?= APP_URL ?>/crm/export.php?<?= h($exp_qs) ?>&amp;format=xlsx"
+     title="Pobierz zestawienie korespondencji z bieżącego widoku (XLSX)">
+    <i class="bi bi-download" aria-hidden="true"></i>Eksport
+  </a>
+  <?php endif; ?>
+
   <button type="button" class="ib-tbtn" id="ibSoundBtn" aria-pressed="false"
           title="Sygnał dźwiękowy przy nowej wiadomości">
     <i class="bi bi-bell" id="ibSoundIco" aria-hidden="true"></i><span id="ibSoundTxt">Sygnał</span>

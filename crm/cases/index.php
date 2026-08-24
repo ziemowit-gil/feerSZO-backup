@@ -146,13 +146,35 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <div class="crm-page-title"><i class="bi bi-briefcase-fill" style="color:#0176D3"></i> Sprawy</div>
     <div class="crm-page-subtitle">Zarządzanie sprawami powiązanymi z kontaktami</div>
   </div>
-  <?php if ($can_write): ?>
   <div class="crm-page-actions">
+    <?php // Eksport bierze BIEŻĄCE filtry — inaczej zestawienie do sprawozdania
+          // trzeba było klikać po dwadzieścia pozycji na stronę.
+          $exp_qs = http_build_query(array_filter([
+              'what' => 'cases', 'q' => $search ?: null, 'status' => $status_f ?: null,
+              'priority' => $priority_f ?: null, 'contact_id' => $contact_f ?: null,
+              'type_id' => $type_f ?: null, 'mine' => $mine_f ? 1 : null,
+              'noowner' => $noowner_f ? 1 : null, 'overdue' => $overdue_f ? 1 : null,
+          ])); ?>
+    <?php if (crm_can('export', 'read')): ?>
+    <div class="dropdown">
+      <button class="btn btn-crm-outline btn-sm dropdown-toggle" data-bs-toggle="dropdown"
+              title="Pobierz zestawienie spraw pasujących do bieżących filtrów">
+        <i class="bi bi-download me-1"></i>Eksport
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item small" href="<?= APP_URL ?>/crm/export.php?<?= h($exp_qs) ?>&amp;format=csv">
+          <i class="bi bi-filetype-csv me-2"></i>CSV</a></li>
+        <li><a class="dropdown-item small" href="<?= APP_URL ?>/crm/export.php?<?= h($exp_qs) ?>&amp;format=xlsx">
+          <i class="bi bi-file-earmark-excel me-2"></i>XLSX</a></li>
+      </ul>
+    </div>
+    <?php endif; ?>
+    <?php if ($can_write): ?>
     <a href="add.php" class="btn btn-crm-primary btn-sm">
       <i class="bi bi-plus-lg me-1"></i>Nowa sprawa
     </a>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
 </div>
 
 <!-- Filtry prowadzenia: kto prowadzi i co się pali -->
