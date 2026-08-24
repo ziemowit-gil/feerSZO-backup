@@ -17,7 +17,16 @@ require_module_enabled('crm_enabled', 'Moduł CRM');
 
 $PAGE_TITLE = 'CRM — Webmail';
 
-$rc_base = rtrim(crm_setting('roundcube_url') ?: 'http://localhost:8880', '/');
+// Bez skonfigurowanego Roundcube'a strona pokazywała pustą ramkę wskazującą na
+// localhost:8880 — wyglądało to na awarię. Skrzynka CRM robi dziś to samo
+// zadanie (widoki Odebrane/Wysłane/Kopie robocze), więc tam odsyłamy.
+$rc_conf = trim((string)crm_setting('roundcube_url'));
+if ($rc_conf === '') {
+    flash_set('info', 'Webmail (Roundcube) nie jest skonfigurowany — korespondencję prowadzisz w Skrzynce CRM.');
+    header('Location: ' . APP_URL . '/crm/inbox.php');
+    exit;
+}
+$rc_base = rtrim($rc_conf, '/');
 
 // ── Generuj SSO token (ważny 90s) ────────────────────────────────────────────
 $current_user  = current_user();
