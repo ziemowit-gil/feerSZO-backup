@@ -121,22 +121,33 @@ include __DIR__ . '/includes/header_crm.php';
 ?>
 
 <style>
-.gc { background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:1rem 1.1rem;display:flex;align-items:center;gap:.85rem;transition:box-shadow .15s,border-color .15s;border-left:4px solid var(--gc-color,#E5E7EB) }
-.gc:hover { box-shadow:0 4px 12px rgba(0,0,0,.09);border-top-color:#D1D5DB;border-right-color:#D1D5DB;border-bottom-color:#D1D5DB }
-.gc-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:#fff;flex-shrink:0 }
-.gc-name { font-weight:700;font-size:.93rem;color:#111827;text-decoration:none }
+/* ══ Widok zwarty ═══════════════════════════════════════════════════════════
+   Kafle miały wysokość 76 px i cień przy najechaniu, więc na ekran wchodziło
+   kilka grup. Teraz jeden wiersz na grupę: mniejsza ikona, licznik obok nazwy,
+   akcje jako ikony w rzędzie. Kolor grupy zostaje paskiem przy krawędzi. */
+.gc { background:#fff;border:1px solid #E5E7EB;border-radius:9px;padding:.45rem .7rem;
+  display:flex;align-items:center;gap:.6rem;border-left:3px solid var(--gc-color,#E5E7EB);
+  transition:background .12s,border-color .12s }
+.gc:hover { background:#FAFBFC;border-color:#D1D5DB }
+.gc-icon { width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:.9rem;color:#fff;flex-shrink:0 }
+.gc-name { font-weight:600;font-size:.86rem;color:#111827;text-decoration:none }
 .gc-name:hover { color:var(--crm-primary) }
-.gc-sub { font-size:.75rem;color:#9CA3AF;margin-top:1px }
-.gc-stat-val { font-size:1.3rem;font-weight:800;line-height:1 }
-.gc-stat-lbl { font-size:.68rem;color:#9CA3AF }
-.gc-tag { display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .45rem;border-radius:2rem;background:#F3F4F6;color:#6B7280;font-size:.68rem;font-weight:500 }
-.gc-actions { display:flex;flex-direction:column;gap:.2rem;flex-shrink:0;opacity:0;transition:opacity .15s }
-.gc:hover .gc-actions { opacity:1 }
-/* Podgrupy — indent */
-.subgroup-block { margin-top:.5rem;padding-left:1.5rem;border-left:2px solid #F3F4F6;margin-left:22px }
-.subgroup-block .gc { border-radius:8px;padding:.75rem 1rem }
-.subgroup-block .gc-icon { width:36px;height:36px;font-size:1rem;border-radius:8px }
-.subgroup-block .gc-stat-val { font-size:1.1rem }
+.gc-sub { font-size:.72rem;color:#9CA3AF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.gc-stat-val { font-size:.95rem;font-weight:700;line-height:1 }
+.gc-stat-lbl { font-size:.64rem;color:#9CA3AF }
+.gc-tag { display:inline-flex;align-items:center;gap:.2rem;padding:.02rem .4rem;border-radius:2rem;
+  background:#F3F4F6;color:#6B7280;font-size:.66rem;font-weight:500 }
+/* Akcje widoczne zawsze — ukrywanie ich do najechania kosztowało jedno zgadywanie
+   („czy tu w ogóle da się coś zrobić?") na każdą grupę. */
+.gc-actions { display:flex;flex-direction:row;gap:.1rem;flex-shrink:0;opacity:.55;transition:opacity .12s }
+.gc:hover .gc-actions, .gc-actions:focus-within { opacity:1 }
+.gc-actions .btn { padding:.1rem .35rem !important;font-size:.78rem;line-height:1.3 }
+/* Podgrupy — węższy indent, bo wiersze też są niższe */
+.subgroup-block { margin-top:.25rem;padding-left:.9rem;border-left:2px solid #F3F4F6;margin-left:15px }
+.subgroup-block .gc { border-radius:8px;padding:.35rem .6rem }
+.subgroup-block .gc-icon { width:24px;height:24px;font-size:.75rem;border-radius:6px }
+.subgroup-block .gc-stat-val { font-size:.86rem }
 /* Kolorki / ikony picker */
 .color-swatch { width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:border-color .12s,transform .12s }
 .color-swatch:hover,.color-swatch.selected { border-color:#0f172a;transform:scale(1.15) }
@@ -147,7 +158,10 @@ include __DIR__ . '/includes/header_crm.php';
 <div class="crm-page-header mb-4">
   <div>
     <div class="crm-page-title"><i class="bi bi-collection-fill" style="color:var(--crm-primary)"></i> Grupy kontaktów</div>
-    <div class="crm-page-subtitle"><?= count($all_groups) ?> grup · hierarchia i podgrupy</div>
+    <div class="crm-page-subtitle">
+      <?= count($all_groups) ?> grup ·
+      <?= (int)array_sum(array_column($all_groups, 'member_count')) ?> przypisań kontaktów
+    </div>
   </div>
   <div class="crm-page-actions">
     <?php if ($crm_can_write): ?>
@@ -174,7 +188,7 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 <?php else: ?>
 
-<div class="d-flex flex-column gap-2">
+<div class="d-flex flex-column gap-1">
 <?php foreach ($roots as $g):
   $tags = $g['tags_csv'] ? array_filter(explode(',', $g['tags_csv'])) : [];
   $subs = $children[$g['id']] ?? [];
@@ -189,8 +203,13 @@ include __DIR__ . '/includes/header_crm.php';
         <a href="<?= APP_URL ?>/crm/group/view.php?id=<?= (int)$g['id'] ?>" class="gc-name">
           <?= h($g['name']) ?>
         </a>
-        <?php if ($g['description']): ?>
-        <div class="gc-sub"><?= h(mb_substr($g['description'], 0, 80)) ?></div>
+        <?php if ($g['description'] || $g['subgroup_count'] > 0): ?>
+        <div class="gc-sub">
+          <?= h(mb_substr((string)$g['description'], 0, 90)) ?>
+          <?php if ($g['subgroup_count'] > 0): ?>
+          <?= $g['description'] ? ' · ' : '' ?><?= (int)$g['subgroup_count'] ?> podgrup
+          <?php endif; ?>
+        </div>
         <?php endif; ?>
         <?php if ($tags): ?>
         <div class="mt-1 d-flex flex-wrap gap-1">
@@ -199,15 +218,11 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endforeach; ?>
         </div>
         <?php endif; ?>
-        <?php if ($g['subgroup_count'] > 0): ?>
-        <div class="gc-sub mt-1">
-          <i class="bi bi-diagram-3 me-1"></i><?= (int)$g['subgroup_count'] ?> podgrup
-        </div>
-        <?php endif; ?>
+
       </div>
-      <div class="text-end flex-shrink-0">
-        <div class="gc-stat-val" style="color:<?= h($g['color']) ?>"><?= (int)$g['member_count'] ?></div>
-        <div class="gc-stat-lbl">kontaktów</div>
+      <div class="text-end flex-shrink-0" title="Kontaktów w grupie">
+        <span class="gc-stat-val" style="color:<?= h($g['color']) ?>"><?= (int)$g['member_count'] ?></span>
+        <span class="gc-stat-lbl">kont.</span>
       </div>
       <div class="gc-actions">
         <a href="<?= APP_URL ?>/crm/group/view.php?id=<?= (int)$g['id'] ?>" class="btn btn-crm-ghost btn-sm py-0" title="Otwórz">
@@ -255,9 +270,9 @@ include __DIR__ . '/includes/header_crm.php';
           </div>
           <?php endif; ?>
         </div>
-        <div class="text-end flex-shrink-0">
-          <div class="gc-stat-val" style="color:<?= h($sg['color']) ?>;font-size:1.1rem"><?= (int)$sg['member_count'] ?></div>
-          <div class="gc-stat-lbl">kontaktów</div>
+        <div class="text-end flex-shrink-0" title="Kontaktów w podgrupie">
+          <span class="gc-stat-val" style="color:<?= h($sg['color']) ?>"><?= (int)$sg['member_count'] ?></span>
+          <span class="gc-stat-lbl">kont.</span>
         </div>
         <div class="gc-actions">
           <a href="<?= APP_URL ?>/crm/group/view.php?id=<?= (int)$sg['id'] ?>" class="btn btn-crm-ghost btn-sm py-0" title="Otwórz">
