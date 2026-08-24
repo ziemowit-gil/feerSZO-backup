@@ -27,6 +27,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'crm_janitor' => [
+        'file'     => __DIR__ . '/crm_janitor.php',
+        'interval' => 86400,        // raz na dobę
+        'schedule' => [2, 4],       // w nocy — przechodzi całą kartotekę
+    ],
     'crm_activities_reminder' => [
         'file'     => __DIR__ . '/crm_activities_reminder.php',
         'interval' => 86400,        // raz dziennie
