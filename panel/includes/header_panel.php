@@ -343,6 +343,7 @@ try {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 <?php $ASAI_WIDGET_SCOPE = 'panel';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
 
 <!-- Menu sekcji (offcanvas) -->
 <div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
