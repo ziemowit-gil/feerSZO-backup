@@ -33,11 +33,21 @@ require_once __DIR__ . '/functions.php';
 const CRM_PARTNER_ACTIVE_STATUSES = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
 const CRM_PARTNER_GRACE_DAYS      = 30;
 
-/** Typy umów objęte grupą (bez wolontariatu — ten ma własną grupę). */
+/**
+ * Typy umów objęte grupą „Współpracownicy".
+ *
+ * Umowa o świadczenie usług jest POZA grupą: to relacja z dostawcą (podmiot
+ * wystawiający fakturę), a nie współpraca osobista — mieszanie jej z ludźmi
+ * psuło wysyłki „do współpracowników".
+ * Wolontariat jest W grupie: wolontariusze to współpracownicy, tylko na innej
+ * podstawie. Mają dodatkowo własną grupę „Wolontariusze" i to się nie zmienia —
+ * jedna osoba może być w obu, bo służą do czego innego.
+ */
 function crm_partner_types(): array {
-    $out = [];
+    $skip = ['uslugi'];
+    $out  = [];
     foreach (CONTRACT_TYPES as $slug => $label) {
-        if ($slug === 'wolontariat') continue;
+        if (in_array($slug, $skip, true)) continue;
         $out[$slug] = $label;
     }
     return $out;
@@ -158,6 +168,23 @@ function crm_partner_groups_sync(bool $apply = true): array {
         if (!$apply) continue;
 
         $report[$slug] = array_merge($report[$slug], _crm_partner_apply($gid, $ids, $now));
+    }
+
+    // Podgrupy po typach, które wypadły z zakresu (np. usługi), zostawiłyby po sobie
+    // grupę z nieaktualnym składem — kasujemy je razem z członkostwami.
+    if ($apply) {
+        $keep = array_map(static fn($slug) => 'wspolpracownicy_' . $slug, array_keys(crm_partner_types()));
+        try {
+            foreach (db_all("SELECT id, name, auto_source FROM crm_groups
+                              WHERE auto_source LIKE 'wspolpracownicy\_%' ESCAPE '\\'") as $g) {
+                if (in_array((string)$g['auto_source'], $keep, true)) continue;
+                db()->prepare("DELETE FROM crm_group_members WHERE group_id=?")->execute([(int)$g['id']]);
+                db()->prepare("DELETE FROM crm_groups WHERE id=?")->execute([(int)$g['id']]);
+                $report['_removed'][] = (string)$g['name'];
+            }
+        } catch (\Throwable $e) {
+            error_log('[crm_partner_groups_sync] cleanup: ' . $e->getMessage());
+        }
     }
 
     $ids_root = array_keys($all_ids);

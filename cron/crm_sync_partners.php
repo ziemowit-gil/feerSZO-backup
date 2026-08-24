@@ -35,8 +35,12 @@ crm_migrate();
 $report = crm_partner_groups_sync($apply);
 
 foreach ($report as $key => $r) {
+    if ($key === '_removed') continue;
     printf("  %-28s powinno: %4d  dodano: %3d  usunięto: %3d\n",
         $r['label'], $r['should'], $r['added'], $r['removed']);
+}
+foreach ($report['_removed'] ?? [] as $gone) {
+    echo '  · usunięto nieaktualną podgrupę: ' . $gone . "\n";
 }
 
 if (!$apply) echo "  Uruchom ponownie z --apply, żeby zapisać skład grup.\n";
