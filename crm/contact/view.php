@@ -1274,6 +1274,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         ], $user_id);
         $affected_section = 'persons';
     }
+    // Ta sama osoba bywa i samodzielną kartoteką, i osobą kontaktową przy firmie.
+    // Zamiast przepisywać dane ręcznie — jedno kliknięcie, z powiązaniem
+    // linked_contact_id, żeby dało się wrócić do kartoteki źródłowej.
+    if ($action === 'assign_as_person') {
+        $target = (int)($_POST['target_contact_id'] ?? 0);
+        if ($target <= 0 || $target === $id) {
+            flash_set('warning', 'Wskaż kartotekę, przy której ma być ta osoba kontaktowa.');
+        } elseif (!crm_can_access_contact($target)) {
+            flash_set('danger', 'Brak dostępu do wskazanej kartoteki.');
+        } else {
+            $dup = null;
+            try {
+                $dup = crm_one("SELECT id FROM crm_contact_persons WHERE contact_id=? AND linked_contact_id=?",
+                    [$target, $id]);
+            } catch (\Throwable $e) {}
+
+            if ($dup) {
+                flash_set('info', 'Ta osoba jest już przypisana do wskazanej kartoteki.');
+            } else {
+                $pid = CrmManager::addContactPerson($target, [
+                    'imie_nazwisko'     => (string)$contact['imie_nazwisko'],
+                    'stanowisko'        => trim((string)($_POST['person_role'] ?? '')) ?: (string)($contact['stanowisko'] ?? ''),
+                    'email'             => (string)($contact['email'] ?? ''),
+                    'telefon'           => (string)($contact['telefon'] ?? ''),
+                    'is_primary'        => !empty($_POST['as_primary']),
+                    'linked_contact_id' => $id,
+                ], $user_id);
+                flash_set($pid ? 'success' : 'danger', $pid
+                    ? 'Osoba dopisana jako kontaktowa przy wskazanej kartotece.'
+                    : 'Nie udało się dopisać osoby kontaktowej.');
+            }
+        }
+        header('Location: view.php?id=' . $id); exit;
+    }
+
     if ($action === 'delete_person' && $crm_can_delete) {
         $pid = (int)($_POST['person_id'] ?? 0);
         $p   = $pid ? CrmManager::getContactPerson($pid) : null;
@@ -1653,6 +1688,13 @@ include __DIR__ . '/../includes/header_crm.php';
     <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'sms')">
       <i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Wyślij SMS
     </button>
+    <?php if ($crm_can_write && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="modal" data-bs-target="#assignPersonModal"
+            title="Dopisz tę osobę jako osobę kontaktową przy innej kartotece (np. przy firmie)">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Przypisz jako osobę kontaktową
+    </button>
+    <?php endif; ?>
     <?php if ($crm_can_write): ?>
     <button type="button" class="btn btn-sm btn-outline-secondary"
             data-bs-toggle="modal" data-bs-target="#convertTypeModal"
@@ -2947,6 +2989,110 @@ const ActivityUI = (function () {
 
 <?php if ($crm_can_write): ?>
 <!-- Modal: konwersja typu kontaktu -->
+<?php if ($crm_can_write && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+<!-- ══ Przypisanie jako osoba kontaktowa przy innej kartotece ═════════════ -->
+<div class="modal fade" id="assignPersonModal" tabindex="-1" aria-labelledby="assignPersonTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="assign_as_person">
+        <input type="hidden" name="target_contact_id" id="apTarget" value="">
+        <div class="modal-header py-2">
+          <h2 class="modal-title h6 fw-bold" id="assignPersonTitle">
+            <i class="bi bi-person-plus me-2 text-primary" aria-hidden="true"></i>Przypisz jako osobę kontaktową
+          </h2>
+          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">
+            <strong><?= h($contact['imie_nazwisko']) ?></strong> zostanie dopisana jako osoba kontaktowa
+            przy wskazanej kartotece (zwykle firmie albo instytucji). Kartoteka tej osoby zostaje —
+            powstaje tylko powiązanie, więc dane nie rozjadą się na dwie kopie.
+          </p>
+
+          <div class="mb-2 position-relative">
+            <label class="form-label small fw-semibold" for="apSearch">Kartoteka docelowa</label>
+            <input type="text" class="form-control form-control-sm" id="apSearch" autocomplete="off"
+                   placeholder="Wpisz nazwę firmy albo instytucji…" role="combobox" aria-expanded="false">
+            <div id="apDrop" class="list-group shadow-sm"
+                 style="display:none;position:absolute;z-index:1060;width:100%;max-height:220px;overflow-y:auto"></div>
+            <div class="form-text" id="apPicked" style="font-size:.76rem"></div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small fw-semibold" for="apRole">Stanowisko / rola (opcjonalnie)</label>
+            <input type="text" class="form-control form-control-sm" id="apRole" name="person_role"
+                   value="<?= h($contact['stanowisko'] ?? '') ?>" placeholder="np. koordynatorka projektów">
+          </div>
+
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="as_primary" id="apPrimary" value="1">
+            <label class="form-check-label small" for="apPrimary">
+              Ustaw jako osobę główną tej kartoteki
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-crm-primary btn-sm" id="apSave" disabled>
+            <i class="bi bi-check-lg me-1"></i>Przypisz
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Wyszukiwarka kartoteki docelowej — ten sam endpoint co reszta CRM-a. */
+(function () {
+  var inp = document.getElementById('apSearch');
+  if (!inp) return;
+  var drop = document.getElementById('apDrop'), hid = document.getElementById('apTarget');
+  var picked = document.getElementById('apPicked'), save = document.getElementById('apSave');
+  var timer = null;
+
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  inp.addEventListener('input', function () {
+    hid.value = ''; picked.textContent = ''; save.disabled = true;
+    var q = this.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { drop.style.display = 'none'; return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/crm/api/contacts_search.php?q=' + encodeURIComponent(q) + '&limit=8&exclude=<?= (int)$id ?>')
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+          drop.innerHTML = (rows || []).map(function (c) {
+            return '<button type="button" class="list-group-item list-group-item-action py-1" ' +
+                   'data-id="' + c.id + '" data-name="' + esc(c.name) + '">' + esc(c.name) +
+                   (c.organizacja ? ' <span class="text-muted small">' + esc(c.organizacja) + '</span>' : '') +
+                   '</button>';
+          }).join('') || '<div class="list-group-item text-muted small">Brak wyników</div>';
+          drop.style.display = '';
+          drop.querySelectorAll('button').forEach(function (b) {
+            b.addEventListener('click', function () {
+              hid.value = this.dataset.id;
+              picked.textContent = 'Wybrano: ' + this.dataset.name;
+              inp.value = this.dataset.name;
+              drop.style.display = 'none';
+              save.disabled = false;
+            });
+          });
+        })
+        .catch(function () { drop.style.display = 'none'; });
+    }, 220);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#apDrop') && e.target !== inp) drop.style.display = 'none';
+  });
+})();
+</script>
+<?php endif; ?>
+
 <div class="modal fade" id="convertTypeModal" tabindex="-1"
      aria-labelledby="convertTypeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-sm">
