@@ -28,8 +28,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 crm_require_json('contacts', 'write');
 $uid = (int)(current_user()['id'] ?? 0);
 
-if (($_GET['a'] ?? '') === 'task_lists') {
-    qc_out(['ok' => true, 'items' => crm_quick_task_lists($uid)]);
+// Zadania CRM nie mają list ani obszarów (to nie moduł Zadań) — do wyboru jest
+// osoba, która ma je zrobić. Zob. includes/crm_tasks.php.
+if (($_GET['a'] ?? '') === 'task_people') {
+    require_once dirname(dirname(__DIR__)) . '/includes/crm_owner_rules.php';
+    $people = array_values(array_filter(crm_owner_candidates(),
+        static fn($u) => (int)$u['id'] !== $uid));
+    qc_out(['ok' => true, 'items' => array_map(
+        static fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $people)]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

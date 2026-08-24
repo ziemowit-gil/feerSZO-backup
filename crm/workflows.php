@@ -26,7 +26,10 @@ if (!can_write('crm') && !is_admin()) {
 $PAGE_TITLE = 'Przepływy';
 $uid    = (int)(current_user()['id'] ?? 0);
 $types  = crm_quick_types();
-$lists  = crm_quick_task_lists($uid);
+// Kroki typu „zadanie" tworzą zadania CRM (includes/crm_tasks.php), a te nie mają
+// list ani obszarów — do wskazania jest osoba, która ma je zrobić.
+require_once dirname(dirname(__DIR__)) . '/includes/crm_owner_rules.php';
+$people = crm_owner_candidates();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -38,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $steps[] = [
                 'type'    => (string)$t,
                 'title'   => (string)($_POST['step_title'][$i] ?? ''),
-                'list_id' => (int)($_POST['step_list'][$i] ?? 0),
+                'owner_id' => (int)($_POST['step_owner'][$i] ?? 0),
             ];
         }
         $id = crm_workflow_save([
@@ -219,14 +222,15 @@ include __DIR__ . '/includes/header_crm.php';
 <script>
 var WF_TYPES = <?= json_encode(array_map(static fn($k, $t) => ['key' => $k, 'label' => $t['label']],
                     array_keys($types), $types), JSON_UNESCAPED_UNICODE) ?>;
-var WF_LISTS = <?= json_encode($lists, JSON_UNESCAPED_UNICODE) ?>;
+var WF_PEOPLE = <?= json_encode(array_map(
+    static fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $people), JSON_UNESCAPED_UNICODE) ?>;
 var WF_INIT  = <?= json_encode($edit_steps, JSON_UNESCAPED_UNICODE) ?>;
 
 function wfAddStep(step) {
   var wrap = document.getElementById('wfSteps');
   if (!wrap) return;
   var i = wrap.children.length;
-  var s = step || {type: 'task', title: '', list_id: 0};
+  var s = step || {type: 'task', title: '', owner_id: 0};
 
   var row = document.createElement('div');
   row.className = 'wf-row';
@@ -238,11 +242,11 @@ function wfAddStep(step) {
     '</select>' +
     '<input name="step_title[]" class="form-control form-control-sm" placeholder="Tytuł, np. Zadzwonić do {kontakt}" value="' +
       String(s.title || '').replace(/"/g, '&quot;') + '">' +
-    '<select name="step_list[]" class="form-select form-select-sm">' +
-      '<option value="0">— lista zadań: domyślna —</option>' +
-      WF_LISTS.map(function (l) {
-        return '<option value="' + l.list_id + '"' + (Number(s.list_id) === l.list_id ? ' selected' : '') + '>' +
-               String(l.label).replace(/</g, '&lt;') + '</option>';
+    '<select name="step_owner[]" class="form-select form-select-sm">' +
+      '<option value="0">— dla mnie —</option>' +
+      WF_PEOPLE.map(function (u) {
+        return '<option value="' + u.id + '"' + (Number(s.owner_id) === u.id ? ' selected' : '') + '>' +
+               String(u.name).replace(/</g, '&lt;') + '</option>';
       }).join('') +
     '</select>' +
     '<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" title="Usuń krok">&times;</button>';

@@ -420,6 +420,12 @@ function crm_case_status_history(int $case_id): array {
 // ── Zadania sprawy ──────────────────────────────────────────────────────────
 
 /** Zadania powiązane ze sprawą (z modułu Zadań). */
+/**
+ * Zadania z MODUŁU ZADAŃ powiązane kiedyś z tą sprawą.
+ *
+ * Sprawy mają dziś własne zadania (crm_tasks_for_case()). Ta funkcja zostaje dla
+ * powiązań założonych wcześniej — nic, co ktoś już zapisał, nie ma zniknąć z oczu.
+ */
 function crm_case_tasks(int $case_id): array {
     if ($case_id <= 0) return [];
     try {
@@ -437,33 +443,24 @@ function crm_case_tasks(int $case_id): array {
  * Zakłada zadanie w module Zadań i wiąże je ze sprawą.
  * Zadanie dostaje w opisie link do sprawy, żeby dało się wrócić z drugiej strony.
  */
-function crm_case_add_task(int $case_id, string $title, int $list_id = 0, string $due = ''): array {
-    require_once __DIR__ . '/crm_quick.php';
+function crm_case_add_task(int $case_id, string $title, string $due = '', string $priority = 'medium'): array {
+    require_once __DIR__ . '/crm_tasks.php';
 
     $case = null;
     try { $case = db_one("SELECT id, title, contact_id, owner_id FROM crm_cases WHERE id=?", [$case_id]); }
     catch (\Throwable $e) {}
-    if (!$case) return ['ok' => false, 'error' => 'Sprawa nie istnieje.'];
+    if (!$case) return ['ok' => false, 'error' => 'Sprawa nie istnieje.', 'id' => 0];
 
-    $uid = function_exists('current_user') ? (int)(current_user()['id'] ?? 0) : 0;
-    $r = crm_quick_create([
-        'type'        => 'task',
-        'title'       => $title,
-        'list_id'     => $list_id,
-        'contact_id'  => (int)($case['contact_id'] ?? 0),
-        'description' => 'Sprawa CRM: ' . (string)$case['title'] . ' — '
-                       . APP_URL . '/crm/cases/view.php?id=' . $case_id,
-    ], $uid);
-    if (!$r['ok']) return $r;
-
-    try {
-        db()->prepare("INSERT OR IGNORE INTO crm_case_tasks (case_id, task_id, created_at) VALUES (?,?,?)")
-            ->execute([$case_id, (int)$r['id'], date('Y-m-d H:i:s')]);
-        if ($due !== '') {
-            db()->prepare("UPDATE tasks SET due_date=? WHERE id=?")->execute([$due, (int)$r['id']]);
-        }
-    } catch (\Throwable $e) {
-        error_log('[crm_case_add_task] link: ' . $e->getMessage());
-    }
-    return $r;
+    // Zadanie własne CRM — patrz includes/crm_tasks.php. Wcześniej powstawał tu
+    // wiersz w module Zadań, przez co bez obszaru i listy nie dało się dopisać
+    // przypomnienia do sprawy, a tablica zespołu zbierała drobiazgi jednej osoby.
+    return crm_task_add([
+        'title'      => $title,
+        'case_id'    => $case_id,
+        'contact_id' => (int)($case['contact_id'] ?? 0),
+        'due_date'   => $due,
+        'priority'   => $priority,
+        // Domyślnie pilnuje tego, kto prowadzi sprawę
+        'owner_id'   => (int)($case['owner_id'] ?? 0),
+    ]);
 }

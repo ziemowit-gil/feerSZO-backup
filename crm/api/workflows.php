@@ -3,7 +3,7 @@
  * crm/api/workflows.php — przepływy dla widżetu szybkich akcji.
  *
  * GET  ?a=list          → {ok, items:[{id,name,description,icon,steps:[{type,label,title}]}]}
- * POST JSON {_csrf, id, subject, contact_id?, list_id?} → uruchomienie przepływu
+ * POST JSON {_csrf, id, subject, contact_id?, owner_id?} → uruchomienie przepływu
  *   → {ok, url, results:[{label,title,ok,error,url}], error}
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -58,6 +58,6 @@ if (($in['_csrf'] ?? '') !== ($_SESSION['csrf'] ?? '')) {
 $r = crm_workflow_run((int)($in['id'] ?? 0), [
     'subject'    => (string)($in['subject'] ?? ''),
     'contact_id' => (int)($in['contact_id'] ?? 0),
-    'list_id'    => (int)($in['list_id'] ?? 0),
+    'owner_id'   => (int)($in['owner_id'] ?? 0),
 ]);
 wf_out($r);

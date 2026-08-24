@@ -140,9 +140,13 @@ select.qaw-in { height: 34px; }
       <div class="qaw-picked" id="qaw-picked"></div>
     </div>
 
-    <div class="qaw-row" id="qaw-list-row" hidden>
-      <label class="qaw-lbl" for="qaw-list">Lista zadań</label>
-      <select class="qaw-in" id="qaw-list"></select>
+    <!-- Zadanie CRM nie ma listy ani obszaru (to nie moduł Zadań) — ma termin
+         i osobę, która ma je zrobić. Zob. includes/crm_tasks.php. -->
+    <div class="qaw-row" id="qaw-task-row" hidden>
+      <label class="qaw-lbl" for="qaw-due">Termin</label>
+      <input type="date" class="qaw-in" id="qaw-due">
+      <label class="qaw-lbl mt-2" for="qaw-owner">Komu</label>
+      <select class="qaw-in" id="qaw-owner"></select>
     </div>
 
     <button type="button" class="qaw-btn" id="qaw-save">Zapisz i otwórz</button>
@@ -209,7 +213,7 @@ select.qaw-in { height: 34px; }
     contact:  {label: 'Kontakt',  field: 'Imię i nazwisko / nazwa', contact: false, email: true,  list: false},
     note:     {label: 'Notatka',  field: 'Treść notatki',           contact: true,  email: false, list: false},
     'case':   {label: 'Sprawa',   field: 'Tytuł sprawy',            contact: true,  email: false, list: false},
-    task:     {label: 'Zadanie',  field: 'Co jest do zrobienia',    contact: false, email: false, list: true},
+    task:     {label: 'Zadanie',  field: 'Co jest do zrobienia',    contact: true,  email: false, list: true},
     workflow: {label: 'Przepływ', field: 'Czego dotyczy',           contact: true,  email: false, list: false}
   };
   var WF = {items: [], loaded: false};
@@ -246,7 +250,7 @@ select.qaw-in { height: 34px; }
     el('qaw-title-in').placeholder  = c.field + '…';
     el('qaw-email-row').hidden   = !c.email;
     el('qaw-contact-row').hidden = !c.contact;
-    el('qaw-list-row').hidden    = !c.list;
+    el('qaw-task-row').hidden    = !c.list;
 
     var isWf = cur === 'workflow';
     el('qaw-wf-box').hidden = !isWf;
@@ -256,19 +260,21 @@ select.qaw-in { height: 34px; }
       el('qaw-picked').textContent = '';
       el('qaw-wf-result').textContent = '';
     }
-    if (c.list && !listsLoaded) loadLists();
+    if (c.list && !listsLoaded) loadPeople();
     el('qaw-title-in').focus();
   }
 
-  function loadLists() {
-    fetch(BASE + '/crm/api/quick_create.php?a=task_lists')
+  // Kto może dostać zadanie — tylko osoby pracujące w CRM; zlecenie komuś,
+  // kto nie zobaczy kartoteki, nigdy nie zostanie zrobione.
+  function loadPeople() {
+    fetch(BASE + '/crm/api/quick_create.php?a=task_people')
       .then(function (r) { return r.json(); })
       .then(function (d) {
         listsLoaded = true;
-        var opts = (d.items || []).map(function (i) {
-          return '<option value="' + i.list_id + '">' + String(i.label).replace(/</g, '&lt;') + '</option>';
+        var opts = '<option value="0">— mnie —</option>' + (d.items || []).map(function (i) {
+          return '<option value="' + i.id + '">' + String(i.name).replace(/</g, '&lt;') + '</option>';
         }).join('');
-        el('qaw-list').innerHTML = opts || '<option value="">— brak list zadań —</option>';
+        el('qaw-owner').innerHTML = opts;
       })
       .catch(function () { listsLoaded = true; });
   }
@@ -369,7 +375,8 @@ select.qaw-in { height: 34px; }
       title: el('qaw-title-in').value.trim(),
       email: el('qaw-email').value.trim(),
       contact_id: contactId,
-      list_id: parseInt(el('qaw-list').value || '0', 10)
+      due_date: el('qaw-due').value || '',
+      owner_id: parseInt(el('qaw-owner').value || '0', 10)
     };
     if (!payload.title) { err('Wpisz treść — bez tego nie ma czego zapisać.'); return; }
 

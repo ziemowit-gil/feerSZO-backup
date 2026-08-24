@@ -124,16 +124,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: view.php?id=' . $id); exit;
     }
 
-    // Zadanie do sprawy — realne zadanie w module Zadań, z linkiem w obie strony
+    // Zadania sprawy to zadania WŁASNE CRM (includes/crm_tasks.php), nie wiersze
+    // w module Zadań — przypomnienie przy sprawie nie potrzebuje obszaru i tablicy.
     if ($action === 'add_task') {
         $t = trim((string)($_POST['task_title'] ?? ''));
         if ($t === '') {
             flash_set('warning', 'Wpisz, co jest do zrobienia.');
         } else {
-            $r = crm_case_add_task($id, $t, (int)($_POST['task_list'] ?? 0), trim((string)($_POST['task_due'] ?? '')));
+            $r = crm_case_add_task($id, $t, trim((string)($_POST['task_due'] ?? '')));
             flash_set(!empty($r['ok']) ? 'success' : 'danger',
                 !empty($r['ok']) ? 'Zadanie dodane do sprawy.' : ($r['error'] ?: 'Nie udało się dodać zadania.'));
         }
+        header('Location: view.php?id=' . $id . '#tasks'); exit;
+    }
+
+    if ($action === 'done_task' || $action === 'undone_task') {
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_tasks.php';
+        crm_task_set_done((int)($_POST['task_id'] ?? 0), $action === 'done_task');
+        header('Location: view.php?id=' . $id . '#tasks'); exit;
+    }
+
+    if ($action === 'del_task') {
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_tasks.php';
+        crm_task_delete((int)($_POST['task_id'] ?? 0));
+        flash_set('success', 'Zadanie usunięte.');
         header('Location: view.php?id=' . $id . '#tasks'); exit;
     }
 
@@ -665,7 +679,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </li>
     <?php
       $case_msgs  = crm_case_messages((int)$case['id']);
-      $case_tasks = crm_case_tasks((int)$case['id']);
+      $case_tasks     = crm_case_tasks((int)$case['id']);          // powiązania historyczne z modułem Zadań
+      require_once dirname(dirname(__DIR__)) . '/includes/crm_tasks.php';
+      $crm_case_tasks = crm_tasks_for_case((int)$case['id']);      // zadania własne CRM
       $case_hist  = crm_case_status_history((int)$case['id']);
     ?>
     <li class="nav-item" role="presentation">
@@ -673,7 +689,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               data-bs-target="#tasks" type="button" role="tab"
               aria-controls="tasks" aria-selected="false">
         <i class="bi bi-check2-square" aria-hidden="true"></i>Zadania
-        <?php if ($case_tasks): ?><span class="cv-count"><?= count($case_tasks) ?></span><?php endif; ?>
+        <?php $tab_tasks_n = count($crm_case_tasks) + count($case_tasks); ?>
+        <?php if ($tab_tasks_n): ?><span class="cv-count"><?= $tab_tasks_n ?></span><?php endif; ?>
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -712,6 +729,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </div><!-- /row -->
 
 <?php include dirname(__DIR__) . '/includes/case/modal_pismo.php'; ?>
+<?php if ($can_write):
+        $tm_case_id    = (int)$case['id'];
+        $tm_contact_id = (int)($case['contact_id'] ?? 0);
+        $tm_title_hint = 'np. Przygotować odpowiedź na skargę';
+        include dirname(__DIR__) . '/includes/task_modal.php';
+      endif; ?>
 <script>
 /* Aktywacja zakładki na podstawie kotwicy URL (#notes/#pisma/#files) — po
    przekierowaniach POST oraz przy kliknięciu w odnośnik wewnętrzny. */

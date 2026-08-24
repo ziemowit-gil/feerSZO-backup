@@ -11,22 +11,30 @@
 if (!isset($case)) { http_response_code(400); exit; }
 ?>
   <!-- ── PLIKI ───────────────────────────────────────────────────────────── -->
-  <!-- ZAKŁADKA: Zadania sprawy (realne zadania z modułu Zadań) -->
+  <!-- ZAKŁADKA: Zadania sprawy (własne zadania CRM, NIE moduł Zadań) -->
   <div class="tab-pane fade" id="tasks" role="tabpanel" aria-labelledby="case-tab-tasks-btn" tabindex="0">
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-check2-square cv-shead__icon" aria-hidden="true"></i>
         <h2 class="cv-shead__title">Zadania</h2>
-        <div class="cv-shead__aside"><span class="cv-count"><?= count($case_tasks) ?></span></div>
+        <div class="cv-shead__aside">
+          <span class="cv-count"><?= count($crm_case_tasks) ?></span>
+          <?php if ($can_write): ?>
+          <button class="btn btn-sm btn-crm-outline py-0 px-2" style="font-size:.74rem"
+                  data-bs-toggle="modal" data-bs-target="#crmTaskModal">
+            <i class="bi bi-person-up me-1"></i>Zleć komuś
+          </button>
+          <?php endif; ?>
+        </div>
       </div>
 
       <?php if ($can_write): ?>
-      <?php require_once dirname(dirname(__DIR__)) . '/includes/crm_quick.php';
-            $task_lists = crm_quick_task_lists((int)(current_user()['id'] ?? 0)); ?>
+      <?php /* Szybki dopisek: sam tytuł i termin. Zlecenie innej osobie, pilność
+               i szczegóły ma osobne okno — tu chodzi o jedno pole i Enter. */ ?>
       <form method="post" class="row g-2 align-items-end mb-3">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="add_task">
-        <div class="col-md-5">
+        <div class="col-md-7">
           <label class="form-label small fw-semibold mb-1" for="tTitle">Co jest do zrobienia</label>
           <input class="form-control form-control-sm" id="tTitle" name="task_title" required
                  placeholder="np. Przygotować odpowiedź na skargę">
@@ -35,43 +43,96 @@ if (!isset($case)) { http_response_code(400); exit; }
           <label class="form-label small fw-semibold mb-1" for="tDue">Termin</label>
           <input type="date" class="form-control form-control-sm" id="tDue" name="task_due">
         </div>
-        <div class="col-md-3">
-          <label class="form-label small fw-semibold mb-1" for="tList">Lista</label>
-          <select class="form-select form-select-sm" id="tList" name="task_list">
-            <option value="0">— domyślna —</option>
-            <?php foreach ($task_lists as $tl): ?>
-            <option value="<?= (int)$tl['list_id'] ?>"><?= h($tl['label']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-1">
+        <div class="col-md-2">
           <button class="btn btn-crm-primary btn-sm w-100"><i class="bi bi-plus-lg"></i></button>
         </div>
       </form>
       <?php endif; ?>
 
-      <?php if (!$case_tasks): ?>
+      <?php if (!$crm_case_tasks): ?>
       <p class="text-muted small mb-0">
-        Brak zadań. Zadania sprawy to realne zadania z modułu Zadań — mają termin, przypomnienia
-        i widać je na tablicy, w przeciwieństwie do kroków wpisanych w opis.
+        Brak zadań. Zadania sprawy to przypomnienia CRM — mają osobę i termin, ale nie trafiają
+        na tablicę zespołu w module Zadań; do prowadzenia sprawy potrzebna jest lista kroków,
+        a nie kolejny obszar do utrzymania.
       </p>
       <?php else: ?>
       <div class="list-group list-group-flush">
-        <?php foreach ($case_tasks as $t): $done = !empty($t['completed_at']); ?>
-        <a class="list-group-item list-group-item-action px-0 d-flex align-items-center gap-2"
-           href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$t['id'] ?>">
+        <?php foreach ($crm_case_tasks as $t):
+          $done = ($t['status'] ?? '') === 'done';
+          [$due_txt, $late] = crm_task_due_label($t['due_date'] ?? null);
+          $prio = CRM_TASK_PRIORITIES[$t['priority']] ?? CRM_TASK_PRIORITIES['medium']; ?>
+        <div class="list-group-item px-0 d-flex align-items-center gap-2">
+          <?php if ($can_write): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="<?= $done ? 'undone_task' : 'done_task' ?>">
+            <input type="hidden" name="task_id" value="<?= (int)$t['id'] ?>">
+            <button class="btn btn-link p-0 border-0" style="line-height:1"
+                    title="<?= $done ? 'Cofnij odhaczenie' : 'Odhacz zadanie' ?>"
+                    aria-label="<?= $done ? 'Cofnij odhaczenie' : 'Odhacz' ?>: <?= h($t['title']) ?>">
+              <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+            </button>
+          </form>
+          <?php else: ?>
           <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+          <?php endif; ?>
+
           <span style="font-size:.87rem<?= $done ? ';text-decoration:line-through;color:#9CA3AF' : '' ?>">
             <?= h($t['title']) ?>
           </span>
-          <span class="text-muted ms-auto" style="font-size:.74rem">
-            <?= $t['list_name'] ? h($t['list_name']) : '' ?>
-            <?php if (!empty($t['due_date'])): ?>
-              · <?= h(date('d.m.Y', strtotime((string)$t['due_date']))) ?>
+          <?php if (($t['priority'] ?? '') === 'high' && !$done): ?>
+          <span class="badge" style="background:<?= h($prio['color']) ?>;font-size:.62rem">pilne</span>
+          <?php endif; ?>
+
+          <span class="text-muted ms-auto d-flex align-items-center gap-2" style="font-size:.74rem">
+            <?php if (!empty($t['owner_name'])): ?>
+            <span title="Kto ma to zrobić"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($t['owner_name']) ?></span>
+            <?php endif; ?>
+            <?php if ($due_txt !== ''): ?>
+            <span class="<?= $late ? 'text-danger fw-semibold' : '' ?>" title="<?= $late ? 'Termin minął' : 'Termin' ?>">
+              <?= h($due_txt) ?>
+            </span>
+            <?php endif; ?>
+            <?php if ($can_write): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć to zadanie?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="del_task">
+              <input type="hidden" name="task_id" value="<?= (int)$t['id'] ?>">
+              <button class="btn btn-link p-0 border-0 text-muted" style="line-height:1" title="Usuń zadanie"
+                      aria-label="Usuń zadanie: <?= h($t['title']) ?>">
+                <i class="bi bi-x-lg" style="font-size:.72rem" aria-hidden="true"></i>
+              </button>
+            </form>
             <?php endif; ?>
           </span>
-        </a>
+        </div>
         <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+
+      <?php /* Powiązania sprzed rozdzielenia zadań — zostają widoczne, żeby nic,
+               co ktoś już założył w module Zadań, nie zniknęło z oczu. */ ?>
+      <?php if ($case_tasks): ?>
+      <div class="mt-3 pt-3" style="border-top:1px solid var(--crm-border)">
+        <div class="text-muted mb-2" style="font-size:.75rem">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>
+          Powiązane zadania w module Zadań (<?= count($case_tasks) ?>) — założone, zanim CRM dostał własne zadania.
+        </div>
+        <div class="list-group list-group-flush">
+          <?php foreach ($case_tasks as $t): $done = !empty($t['completed_at']); ?>
+          <a class="list-group-item list-group-item-action px-0 d-flex align-items-center gap-2"
+             href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$t['id'] ?>">
+            <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+            <span style="font-size:.85rem<?= $done ? ';text-decoration:line-through;color:#9CA3AF' : '' ?>">
+              <?= h($t['title']) ?>
+            </span>
+            <span class="text-muted ms-auto" style="font-size:.72rem">
+              <?= $t['list_name'] ? h($t['list_name']) : '' ?>
+              <?php if (!empty($t['due_date'])): ?> · <?= h(date('d.m.Y', strtotime((string)$t['due_date']))) ?><?php endif; ?>
+            </span>
+          </a>
+          <?php endforeach; ?>
+        </div>
       </div>
       <?php endif; ?>
     </div></div>

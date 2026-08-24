@@ -12,7 +12,10 @@
  * Przepływ jest skrótem klawiszowym dla powtarzalnej roboty jednej osoby.
  *
  * Szablon kroku:
- *   ['type' => contact|note|case|task, 'title' => 'Zadzwonić do {tytul}', 'list_id' => 0]
+ *   ['type' => contact|note|case|task, 'title' => 'Zadzwonić do {tytul}', 'owner_id' => 0]
+ *
+ * Krok „task" tworzy ZADANIE CRM (includes/crm_tasks.php), nie wiersz w module
+ * Zadań — stąd osoba zamiast listy i obszaru.
  * W tytule działają znaczniki: {tytul} (to, co wpisano w oknie), {kontakt}
  * (nazwa wybranego/utworzonego kontaktu), {data} (dzisiejsza data).
  *
@@ -82,7 +85,7 @@ function crm_workflow_steps(array $wf): array {
         if (!isset($types[$t])) continue;
         $title = trim((string)($s['title'] ?? ''));
         if ($title === '') continue;
-        $out[] = ['type' => $t, 'title' => $title, 'list_id' => (int)($s['list_id'] ?? 0)];
+        $out[] = ['type' => $t, 'title' => $title, 'owner_id' => (int)($s['owner_id'] ?? 0)];
     }
     return $out;
 }
@@ -97,7 +100,7 @@ function crm_workflow_save(array $data, ?int $id = null): int {
         $t     = (string)($s['type'] ?? '');
         $title = trim((string)($s['title'] ?? ''));
         if (!isset($types[$t]) || $title === '') continue;
-        $steps[] = ['type' => $t, 'title' => mb_substr($title, 0, 300), 'list_id' => (int)($s['list_id'] ?? 0)];
+        $steps[] = ['type' => $t, 'title' => mb_substr($title, 0, 300), 'owner_id' => (int)($s['owner_id'] ?? 0)];
     }
 
     $row = [
@@ -153,7 +156,7 @@ function _crm_wf_fill(string $tpl, string $subject, string $contact_name): strin
  * Uruchamia przepływ.
  *
  * @param int   $id    Przepływ
- * @param array $input ['subject' => tekst z okna, 'contact_id' => int, 'list_id' => int]
+ * @param array $input ['subject' => tekst z okna, 'contact_id' => int, 'owner_id' => int]
  * @return array ['ok','error','results'=>[['label','title','url','ok','error']…],'url'=>pierwszy utworzony]
  */
 function crm_workflow_run(int $id, array $input): array {
@@ -173,7 +176,7 @@ function crm_workflow_run(int $id, array $input): array {
     if ($subject === '') return ['ok' => false, 'error' => 'Wpisz, czego dotyczy przepływ.', 'results' => [], 'url' => ''];
 
     $contact_id = (int)($input['contact_id'] ?? 0);
-    $list_id    = (int)($input['list_id'] ?? 0);
+    $owner_id   = (int)($input['owner_id'] ?? 0);
 
     $contact_name = '';
     if ($contact_id > 0) {
@@ -190,7 +193,7 @@ function crm_workflow_run(int $id, array $input): array {
             'type'        => $st['type'],
             'title'       => $title,
             'contact_id'  => $contact_id,
-            'list_id'     => $st['list_id'] ?: $list_id,
+            'owner_id'    => $st['owner_id'] ?: $owner_id,
             'description' => 'Utworzone przepływem „' . $wf['name'] . '".',
         ], $uid);
 

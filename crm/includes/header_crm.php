@@ -71,6 +71,18 @@ try {
     )['c'] ?? 0);
 } catch (\Throwable $e) {}
 
+// Moje otwarte zadania CRM z terminem na dziś albo minionym — plakietka przy
+// pozycji „Zadania CRM". Zadanie bez terminu nie jest zaległe, więc nie miga.
+$_crm_tasks_mine = 0;
+try {
+    $_crm_tasks_mine = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_tasks
+          WHERE status='open' AND owner_id=?
+            AND due_date IS NOT NULL AND date(due_date) <= date('now','localtime')",
+        [(int)(current_user()['id'] ?? 0)]
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+
 // Otwarte znaleziska bota sprzątającego — plakietka przy „Porządku”. Liczymy
 // tylko poważne: „kontakty bez opiekuna” nie ma migać w nawigacji codziennie.
 $_crm_janitor_open = 0;
@@ -678,6 +690,11 @@ window.openCommModal = function(contactId, channel, opts) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/activities.php">
           <i class="bi bi-list-check me-2"></i>Działania
           <?php if (!empty($_crm_acts_due)): ?><span class="badge bg-danger ms-1"><?= (int)$_crm_acts_due ?></span><?php endif; ?>
+        </a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tasks.php">
+          <i class="bi bi-check2-square me-2"></i>Zadania CRM
+          <?php /* Zadania CRM ≠ moduł Zadań: przypomnienia przy kartotece, bez obszarów i tablicy */ ?>
+          <?php if (!empty($_crm_tasks_mine)): ?><span class="badge bg-primary ms-1"><?= (int)$_crm_tasks_mine ?></span><?php endif; ?>
         </a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/calendar.php"><i class="bi bi-calendar3-fill me-2"></i>Kalendarz</a></li>
         <li><hr class="dropdown-divider"></li>

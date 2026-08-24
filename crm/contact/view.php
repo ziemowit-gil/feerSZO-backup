@@ -2060,6 +2060,72 @@ $case_status_cfg = [
       <div class="tab-pane fade show active" id="cv-tab-activity" role="tabpanel"
            aria-labelledby="cv-tab-activity-btn" tabindex="0">
 
+        <?php /* Zadania CRM przy kartotece — przypomnienia „oddzwonić", „wysłać
+                 ofertę". To NIE są zadania modułu Zadań: nie mają obszaru ani
+                 tablicy, mają osobę i termin. Zob. includes/crm_tasks.php. */ ?>
+        <?php require_once dirname(dirname(__DIR__)) . '/includes/crm_tasks.php';
+              $cv_tasks = crm_tasks_for_contact($id); ?>
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-check2-square cv-shead__icon" style="color:var(--crm-primary)" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Zadania</h2>
+            <div class="cv-shead__aside">
+              <?php if ($cv_tasks): ?><span class="cv-count"><?= count($cv_tasks) ?></span><?php endif; ?>
+              <?php if ($crm_can_write): ?>
+              <button type="button" class="btn btn-sm btn-crm-outline"
+                      data-bs-toggle="modal" data-bs-target="#crmTaskModal">
+                <i class="bi bi-person-up me-1" aria-hidden="true"></i>Zleć zadanie
+              </button>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <?php if (!$cv_tasks): ?>
+          <p class="cv-meta mb-0">Brak zadań przy tej kartotece.</p>
+          <?php else: ?>
+          <div class="list-group list-group-flush">
+            <?php foreach ($cv_tasks as $t):
+              $done = ($t['status'] ?? '') === 'done';
+              [$due_txt, $late] = crm_task_due_label($t['due_date'] ?? null); ?>
+            <div class="list-group-item px-0 d-flex align-items-center gap-2">
+              <?php if ($crm_can_write): ?>
+              <form method="post" action="<?= APP_URL ?>/crm/tasks.php" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_op" value="<?= $done ? 'undone' : 'done' ?>">
+                <input type="hidden" name="task_id" value="<?= (int)$t['id'] ?>">
+                <input type="hidden" name="back" value="<?= h($_SERVER['REQUEST_URI'] ?? '') ?>">
+                <button class="btn btn-link p-0 border-0" style="line-height:1"
+                        title="<?= $done ? 'Cofnij odhaczenie' : 'Odhacz zadanie' ?>"
+                        aria-label="<?= $done ? 'Cofnij odhaczenie' : 'Odhacz' ?>: <?= h($t['title']) ?>">
+                  <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+                </button>
+              </form>
+              <?php else: ?>
+              <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+              <?php endif; ?>
+
+              <span style="font-size:.86rem<?= $done ? ';text-decoration:line-through;color:#9CA3AF' : '' ?>">
+                <?= h($t['title']) ?>
+              </span>
+              <?php if (!empty($t['case_id'])): ?>
+              <a class="cv-meta" href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$t['case_id'] ?>"
+                 title="Zadanie przy sprawie"><i class="bi bi-briefcase" aria-hidden="true"></i></a>
+              <?php endif; ?>
+
+              <span class="cv-meta ms-auto d-flex gap-2">
+                <?php if (!empty($t['owner_name'])): ?>
+                <span title="Kto ma to zrobić"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($t['owner_name']) ?></span>
+                <?php endif; ?>
+                <?php if ($due_txt !== ''): ?>
+                <span class="<?= $late ? 'text-danger fw-semibold' : '' ?>"><?= h($due_txt) ?></span>
+                <?php endif; ?>
+              </span>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+        </div></div>
+
         <div class="cv-panel" id="activities-section"><div class="cv-panel__body">
           <div class="cv-shead">
             <i class="bi bi-lightning-charge-fill cv-shead__icon" style="color:#B45309" aria-hidden="true"></i>
@@ -2135,6 +2201,13 @@ $case_status_cfg = [
       <?php include dirname(__DIR__) . '/includes/cv/tab_engage.php'; ?>
     </div><!-- /tab-content -->
 </div><!-- /cv-single -->
+
+<?php /* Okno „Zleć zadanie" — wspólne dla kartoteki, sprawy i ekranu zadań */ ?>
+<?php if ($crm_can_write):
+        $tm_contact_id = $id;
+        $tm_title_hint = 'np. Oddzwonić w sprawie oferty';
+        include dirname(__DIR__) . '/includes/task_modal.php';
+      endif; ?>
 
 <!-- ══ MODALS: Planowane działania ═══════════════════════════════════════════ -->
 <?php if ($crm_can_write): ?>
