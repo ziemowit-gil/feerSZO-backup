@@ -31,3 +31,4 @@ config.local.php
 docker/.env.prod
 docker/.env.cloudflare
 debug_*.php
+crm/triage.sqlite
