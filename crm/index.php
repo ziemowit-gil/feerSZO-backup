@@ -38,6 +38,7 @@ $filters = [
     // Wyszukiwanie zaawansowane
     'q_all'        => trim($_GET['q_all']        ?? ''),
     'source'       => trim($_GET['source']       ?? ''),
+    'owner'        => trim($_GET['owner']        ?? ''),
     'branza'       => trim($_GET['branza']       ?? ''),
     'powiat'       => trim($_GET['powiat']       ?? ''),
     'gmina'        => trim($_GET['gmina']        ?? ''),
@@ -65,6 +66,11 @@ $all_tags   = db_all("SELECT tag, COUNT(*) AS cnt FROM crm_tags
                       WHERE crm_contacts.crm_active=1
                       GROUP BY tag ORDER BY cnt DESC LIMIT 30");
 $all_groups = CrmManager::getGroups();
+// Kandydaci na opiekuna kontaktu — do filtra i akcji masowej.
+$crm_owner_users = db_all(
+    "SELECT id, CASE WHEN first_name<>'' AND last_name<>'' THEN first_name||' '||last_name ELSE name END AS n
+       FROM users WHERE is_active=1 ORDER BY n"
+);
 
 $crm_actions = [];
 try {
@@ -700,6 +706,21 @@ include __DIR__ . '/includes/header_crm.php';
       </label>
       <?php endif; ?>
 
+      <?php if ($crm_owner_users): ?>
+      <label class="crm-adv-field">
+        <span>Opiekun</span>
+        <select name="owner" class="form-select form-select-sm">
+          <option value="">Dowolny</option>
+          <option value="none" <?= $filters['owner'] === 'none' ? 'selected' : '' ?>>— nieprzypisane —</option>
+          <?php foreach ($crm_owner_users as $ou): ?>
+          <option value="<?= (int)$ou['id'] ?>" <?= (string)$filters['owner'] === (string)$ou['id'] ? 'selected' : '' ?>>
+            <?= h($ou['n']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php endif; ?>
+
       <label class="crm-adv-field">
         <span>Powiat</span>
         <input type="text" name="powiat" value="<?= h($filters['powiat']) ?>"
@@ -920,6 +941,23 @@ include __DIR__ . '/includes/header_crm.php';
     </ul>
   </div>
 
+  <?php if ($crm_owner_users): ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+      <i class="bi bi-person-badge me-1" aria-hidden="true"></i>Opiekun
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark" style="max-height:260px;overflow-y:auto">
+      <li><a class="dropdown-item" href="#" onclick="Bulk.do('set_owner',0);return false">
+        <i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Zdejmij opiekuna</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <?php foreach ($crm_owner_users as $ou): ?>
+      <li><a class="dropdown-item" href="#" onclick="Bulk.do('set_owner',<?= (int)$ou['id'] ?>);return false"><?= h($ou['n']) ?></a></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
   <div class="d-flex gap-1">
     <input type="text" id="bulk-tag-inp" placeholder="Tag…"
            class="form-control form-control-sm"
@@ -1044,6 +1082,7 @@ const Bulk = (function () {
     if (res.ok) {
       const msgs = {
         set_status:   `Zmieniono status dla ${res.affected} kontaktów.`,
+        set_owner:    `Ustawiono opiekuna dla ${res.affected} kontaktów.`,
         add_tag:      `Dodano tag do ${res.affected} kontaktów.`,
         remove_tag:   `Usunięto tag z ${res.affected} kontaktów.`,
         add_to_group: `Dodano ${res.affected} kontaktów do grupy.`,

@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'stanowisko'    => trim($_POST['stanowisko'] ?? '') ?: null,
         'organizacja'   => trim($_POST['organizacja'] ?? '') ?: null,
         'notatka'       => trim($_POST['notatka'] ?? '') ?: null,
+        'owner_id'      => (int)($_POST['owner_id'] ?? 0) ?: null,
     ];
 
     // Walidacja
@@ -96,6 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cur_type = (string)($row['type'] ?? 'osoba');
 if (!isset(CRM_CONTACT_TYPES[$cur_type])) $cur_type = 'osoba';
 $cur_key  = crm_field_applies_key($cur_type);
+
+// Kandydaci na opiekuna — ci, którzy w ogóle pracują w CRM.
+$_crm_owner_users = db_all(
+    "SELECT id, CASE WHEN first_name<>'' AND last_name<>'' THEN first_name||' '||last_name ELSE name END AS n
+       FROM users WHERE is_active=1 ORDER BY n"
+);
 
 // Mapa typ → zestaw pól, żeby skrypt formularza nie musiał znać CRM_CONTACT_TYPES.
 $_type_keys = [];
@@ -428,6 +435,21 @@ include __DIR__ . '/../includes/header_crm.php';
         </select>
         <div class="form-text mt-1" style="font-size:.77rem">
           Status określa etap cyklu życia kontaktu.
+        </div>
+
+        <?php /* Opiekun to KTO prowadzi relację — co innego niż autor wpisu
+                 (created_by) i co innego niż dostęp przez grupy. */ ?>
+        <label class="form-label mt-3" for="owner_id">Opiekun kontaktu</label>
+        <select name="owner_id" id="owner_id" class="form-select" aria-label="Opiekun kontaktu">
+          <option value="">— nieprzypisany —</option>
+          <?php foreach ($_crm_owner_users as $ou): ?>
+          <option value="<?= (int)$ou['id'] ?>" <?= (int)($row['owner_id'] ?? 0) === (int)$ou['id'] ? 'selected' : '' ?>>
+            <?= h($ou['n']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text mt-1" style="font-size:.77rem">
+          Kto prowadzi ten kontakt. Nie wpływa na dostęp — ten wynika z grup.
         </div>
       </div>
     </div>

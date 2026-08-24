@@ -204,7 +204,7 @@ function crm_attach_contact_to_org(int $org_id, int $contact_id, array $opts = [
 
     // 3. Wygaszenie kartoteki źródłowej + czytelny ślad po obu stronach.
     $when = date('Y-m-d H:i');
-    $who  = (string)(current_user()['full_name'] ?? current_user()['username'] ?? 'system');
+    $who  = crm_user_display(current_user());
     CrmManager::addNote($org_id, sprintf(
         'Przypięto osobę kontaktową „%s” z kartoteki #%d (%s). Przeniesiono: %s. %s, %s.',
         $src['imie_nazwisko'], $contact_id, $src['email'] ?: 'brak e-maila',
@@ -272,7 +272,7 @@ function crm_merge_contacts(int $keep_id, int $drop_id): array
     $moved = crm_relink_contact_rows($drop_id, $keep_id);
 
     $uid  = (int)(current_user()['id'] ?? 0);
-    $who  = (string)(current_user()['full_name'] ?? current_user()['username'] ?? 'system');
+    $who  = crm_user_display(current_user());
     $when = date('Y-m-d H:i');
 
     CrmManager::addNote($keep_id, sprintf(

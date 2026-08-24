@@ -2,7 +2,7 @@
 /**
  * crm/api/bulk.php — Operacje masowe na kontaktach CRM.
  * POST JSON: { action, ids[], ...params }
- * actions: set_status, add_tag, remove_tag, add_to_group, convert_type, delete
+ * actions: set_status, set_owner, add_tag, remove_tag, add_to_group, convert_type, delete
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -44,6 +44,19 @@ try {
             if ($c['status'] !== $status) {
                 crm_automation_fire('contact_status_changed', (int)$c['id'], ['from_status' => $c['status'], 'to_status' => $status]);
             }
+        }
+
+    } elseif ($action === 'set_owner') {
+        // Wartość 0 / puste = zdejmij opiekuna. Zapis idzie przez updateContact(),
+        // żeby zmiana trafiła do historii zmian kartoteki.
+        $owner = (int)($body['value'] ?? 0) ?: null;
+        if ($owner !== null && !db_one("SELECT id FROM users WHERE id=? AND is_active=1", [$owner])) {
+            echo json_encode(['ok'=>false,'error'=>'Nie ma takiego użytkownika.']); exit;
+        }
+        foreach ($ids as $cid) {
+            if (!db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$cid])) continue;
+            CrmManager::updateContact((int)$cid, ['owner_id' => $owner]);
+            $affected++;
         }
 
     } elseif ($action === 'add_tag') {

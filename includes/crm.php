@@ -1387,6 +1387,14 @@ const CRM_AUDIT_SKIP = ['avatar_initials', 'updated_at', 'created_at', 'synced_a
 /** Pola, których wartości nie zapisujemy wprost — audyt ma pokazać FAKT zmiany. */
 const CRM_AUDIT_MASKED = ['pesel'];
 
+/** Nazwa użytkownika do pokazania w historii/notatkach — imię i nazwisko, inaczej login. */
+function crm_user_display(?array $u): string {
+    if (!$u) return 'system';
+    $full = trim((string)($u['first_name'] ?? '') . ' ' . (string)($u['last_name'] ?? ''));
+    if ($full !== '') return $full;
+    return (string)($u['name'] ?? $u['email'] ?? 'system');
+}
+
 /** Czytelne nazwy pól w historii zmian. */
 function crm_audit_field_label(string $field): string {
     static $map = [
@@ -1434,8 +1442,10 @@ function crm_audit_format(string $field, ?string $value): string {
         return str_repeat('•', max(0, strlen($value) - 3)) . substr($value, -3);
     }
     if ($field === 'owner_id') {
-        $u = db_one("SELECT full_name, username FROM users WHERE id=?", [(int)$value]);
-        return $u ? (string)($u['full_name'] ?: $u['username']) : ('#' . $value);
+        $u = db_one("SELECT name, first_name, last_name FROM users WHERE id=?", [(int)$value]);
+        if (!$u) return '#' . $value;
+        $full = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+        return $full !== '' ? $full : (string)($u['name'] ?? ('#' . $value));
     }
     if ($field === 'type')            return CRM_CONTACT_TYPES[$value]['label'] ?? $value;
     if ($field === 'swiadczy_uslugi') return $value ? 'tak' : 'nie';
@@ -1457,7 +1467,7 @@ function crm_audit_contact_changes(int $contact_id, array $data): void {
 
     $u    = function_exists('current_user') ? current_user() : null;
     $uid  = $u ? (int)($u['id'] ?? 0) : 0;
-    $name = $u ? (string)($u['full_name'] ?? $u['username'] ?? '') : 'proces automatyczny';
+    $name = $u ? crm_user_display($u) : 'proces automatyczny';
 
     foreach ($data as $field => $new) {
         if (in_array($field, CRM_AUDIT_SKIP, true)) continue;
@@ -1681,6 +1691,15 @@ class CrmManager
         if (!empty($filters['source'])) {
             $where[]  = "c.source = ?";
             $params[] = $filters['source'];
+        }
+        // Opiekun: konkretny użytkownik albo „nieprzypisane" (owner=0 w filtrze).
+        if (isset($filters['owner']) && $filters['owner'] !== '') {
+            if ((string)$filters['owner'] === 'none') {
+                $where[] = "(c.owner_id IS NULL OR c.owner_id = 0)";
+            } else {
+                $where[]  = "c.owner_id = ?";
+                $params[] = (int)$filters['owner'];
+            }
         }
         if (!empty($filters['branza'])) {
             $where[]  = "c.branza LIKE ?";

@@ -2129,7 +2129,11 @@ $case_status_cfg = [
         <tbody>
           <tr><td class="cv-muted pe-2">ID</td><td>#<?= $id ?></td></tr>
           <tr><td class="cv-muted pe-2">Typ</td>
-              <td><?= $contact['type'] === 'organizacja' ? 'Organizacja' : 'Osoba' ?></td></tr>
+              <td><?= h(CRM_CONTACT_TYPES[$contact['type']]['label'] ?? $contact['type']) ?></td></tr>
+          <tr><td class="cv-muted pe-2">Opiekun</td>
+              <td><?= !empty($contact['owner_id'])
+                      ? h(crm_audit_format('owner_id', (string)$contact['owner_id']))
+                      : '<span class="cv-muted">nieprzypisany</span>' ?></td></tr>
           <tr><td class="cv-muted pe-2">Źródło</td><td><?= h(ucfirst($contact['source'] ?? '')) ?></td></tr>
           <tr><td class="cv-muted pe-2">Dodano</td><td><?= date_pl($contact['created_at']) ?></td></tr>
           <tr><td class="cv-muted pe-2">Zmieniono</td><td><?= date_pl($contact['updated_at']) ?></td></tr>
@@ -2143,6 +2147,42 @@ $case_status_cfg = [
         </tbody>
       </table>
     </div></div>
+
+    <!-- Historia zmian -->
+    <?php $_audit = crm_audit_history($id, 60); ?>
+    <?php if ($_audit): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-clock-history cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Historia zmian</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($_audit) ?></span></div>
+      </div>
+      <?php /* Zwinięta domyślnie — to materiał do sprawdzenia „kto zmienił e-mail”,
+               a nie coś, co ma zajmować ekran przy każdym wejściu w kartotekę. */ ?>
+      <details>
+        <summary class="cv-meta" style="cursor:pointer">Pokaż <?= count($_audit) ?> ostatnich zmian</summary>
+        <table class="table table-sm table-borderless mb-0 mt-2" style="font-size:.8rem">
+          <caption class="visually-hidden">Historia zmian kartoteki</caption>
+          <tbody>
+          <?php foreach ($_audit as $a): ?>
+            <tr>
+              <td class="cv-muted pe-2 text-nowrap" style="width:8.5rem"><?= date_pl($a['created_at']) ?></td>
+              <td>
+                <span class="fw-semibold"><?= h(crm_audit_field_label($a['field'])) ?></span>
+                <div class="cv-muted" style="font-size:.76rem">
+                  <span style="text-decoration:line-through"><?= h(crm_audit_format($a['field'], $a['old_value'])) ?></span>
+                  <i class="bi bi-arrow-right mx-1" aria-hidden="true"></i>
+                  <?= h(crm_audit_format($a['field'], $a['new_value'])) ?>
+                </div>
+              </td>
+              <td class="cv-muted text-end" style="width:9rem"><?= h($a['user_name'] ?: '—') ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </details>
+    </div></div>
+    <?php endif; ?>
 
     <!-- Strefa zagrożenia -->
     <?php if ($crm_can_delete): ?>
