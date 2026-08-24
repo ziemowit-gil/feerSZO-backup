@@ -299,6 +299,21 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-tbtn--cta:hover { background:#0165B8; border-color:#0165B8; color:#fff }
 .ib-tbtn--on { border-color:var(--crm-primary); color:var(--crm-primary) }
 
+/* ── Asystent AI ─────────────────────────────────────────────────────────── */
+.ib-assist { margin:.6rem 1.15rem 0; border:1px solid #E9D5FF; border-radius:10px;
+  background:linear-gradient(180deg,#FAF5FF,#fff); overflow:hidden }
+.ib-assist-head { display:flex; align-items:center; gap:.45rem; padding:.5rem .8rem;
+  border-bottom:1px solid #F3E8FF; font-size:.85rem; color:#6B21A8 }
+.ib-assist-note { font-size:.73rem; color:#9CA3AF; font-weight:400 }
+.ib-assist-body { padding:.7rem .8rem }
+.ib-assist-row  { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; margin-bottom:.5rem }
+.ib-assist-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.15rem .55rem;
+  border-radius:2rem; font-size:.74rem; font-weight:700 }
+.ib-assist-draft { border:1px solid #E5E7EB; border-radius:8px; background:#fff;
+  padding:.6rem .7rem; font-size:.86rem; white-space:pre-wrap; line-height:1.5 }
+.ib-assist-lbl { font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  color:#9CA3AF; margin:.6rem 0 .25rem }
+
 /* ── Filtry w rozwijanym panelu ─────────────────────────────────────────── */
 .ib-filter { position:relative; margin-left:auto }
 .ib-filter > summary { list-style:none; user-select:none }
@@ -829,6 +844,13 @@ include __DIR__ . '/includes/header_crm.php';
         </button>
         <?php endif; ?>
 
+        <?php /* Asystent NIE odpowiada za nas — czyta wiadomość, kwalifikuje ją
+                 i przygotowuje PROPOZYCJĘ, którą trzeba przeczytać i poprawić. */ ?>
+        <button type="button" class="ib-act" id="ibAssistBtn" data-msg="<?= (int)$msg['id'] ?>"
+                title="Kwalifikacja zgłoszenia i propozycja odpowiedzi — do przeczytania przed wysłaniem">
+          <i class="bi bi-stars" style="color:#7C3AED" aria-hidden="true"></i>Asystent AI
+        </button>
+
         <?php if ($msg['inbox_status'] === 'active'): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="archive">
           <button class="ib-act" title="Sprawa zamknięta — wiadomość przejdzie do widoku „Załatwione”">
@@ -890,6 +912,19 @@ include __DIR__ . '/includes/header_crm.php';
             <?php endforeach; ?>
           </select>
         </form>
+      </div>
+      <?php endif; ?>
+
+      <?php if ($can_write): ?>
+      <!-- Panel asystenta — pusty do czasu kliknięcia, żeby nie zajmował miejsca -->
+      <div class="ib-assist" id="ibAssist" hidden>
+        <div class="ib-assist-head">
+          <i class="bi bi-stars" aria-hidden="true"></i>
+          <strong>Asystent AI</strong>
+          <span class="ib-assist-note">propozycja do przeczytania i poprawienia — nic nie zostało wysłane</span>
+          <button type="button" class="btn-close btn-sm ms-auto" id="ibAssistClose" aria-label="Zamknij"></button>
+        </div>
+        <div id="ibAssistBody"></div>
       </div>
       <?php endif; ?>
 
@@ -1323,6 +1358,121 @@ function ibBulkInit() {
 }
 ibBulkInit();
 document.addEventListener('ib:list-refreshed', ibBulkInit);
+
+/* ── Asystent AI ────────────────────────────────────────────────────────────
+   Wynik jest PROPOZYCJĄ. „Użyj tej odpowiedzi" otwiera kompozytor z wklejoną
+   treścią — świadomie nie wysyła, bo w imieniu organizacji nie wychodzi nic,
+   czego nikt nie przeczytał. */
+(function () {
+  var btn = document.getElementById('ibAssistBtn');
+  if (!btn) return;
+  var box  = document.getElementById('ibAssist');
+  var body = document.getElementById('ibAssistBody');
+  var close= document.getElementById('ibAssistClose');
+  var CSRF = <?= json_encode(csrf_token()) ?>;
+  var CONTACT = <?= (int)($msg['contact_id'] ?? 0) ?>;
+  var cache = null;
+
+  if (close) close.addEventListener('click', function () { box.hidden = true; });
+
+  function esc(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function render(d) {
+    if (!d.ok) {
+      body.innerHTML = '<div class="ib-assist-body"><div class="alert alert-warning py-2 mb-0 small">'
+                     + esc(d.error || 'Asystent niedostępny.') + '</div></div>';
+      return;
+    }
+    var ic = d.intents || {};
+    var html = '<div class="ib-assist-body">';
+
+    html += '<div class="ib-assist-row">'
+          + '<span class="ib-assist-chip" style="background:' + esc(ic.color || '#6B7280') + '18;color:'
+          + esc(ic.color || '#6B7280') + '"><i class="bi ' + esc(ic.icon || 'bi-chat-dots') + '"></i>'
+          + esc(ic.label || d.intent) + '</span>';
+    if (d.escalate) {
+      html += '<span class="ib-assist-chip" style="background:#FEF2F2;color:#B42318">'
+            + '<i class="bi bi-person-raised-hand"></i>do człowieka</span>';
+    }
+    if (d.sensitive) {
+      html += '<span class="ib-assist-chip" style="background:#FEF3C7;color:#92400E">'
+            + '<i class="bi bi-shield-exclamation"></i>dane wrażliwe w treści</span>';
+    }
+    html += '</div>';
+
+    if (d.summary) html += '<div style="font-size:.85rem">' + esc(d.summary) + '</div>';
+    if (d.escalate && d.escalate_reason) {
+      html += '<div class="text-danger mt-1" style="font-size:.79rem">' + esc(d.escalate_reason) + '</div>';
+    }
+
+    if (d.missing && d.missing.length) {
+      html += '<div class="ib-assist-lbl">Brakuje, żeby załatwić sprawę</div><ul class="mb-0 ps-3" style="font-size:.82rem">';
+      d.missing.forEach(function (m) { html += '<li>' + esc(m) + '</li>'; });
+      html += '</ul>';
+    }
+
+    if (d.reply) {
+      html += '<div class="ib-assist-lbl">Propozycja odpowiedzi</div>'
+            + '<div class="ib-assist-draft" id="ibAssistDraft">' + esc(d.reply) + '</div>'
+            + '<div class="d-flex flex-wrap gap-1 mt-2">';
+      if (CONTACT) {
+        html += '<button type="button" class="ib-act" id="ibAssistUse">'
+              + '<i class="bi bi-reply-fill" aria-hidden="true"></i>Użyj tej odpowiedzi</button>';
+      }
+      html += '<button type="button" class="ib-act" id="ibAssistCopy">'
+            + '<i class="bi bi-clipboard" aria-hidden="true"></i>Kopiuj</button></div>';
+    }
+
+    html += '</div>';
+    body.innerHTML = html;
+
+    var use = document.getElementById('ibAssistUse');
+    if (use) use.addEventListener('click', function () {
+      // Kompozytor ładuje się asynchronicznie — wklejamy, gdy edytor już jest.
+      openCommModal(CONTACT, 'email');
+      var tries = 0;
+      var timer = setInterval(function () {
+        var subj = document.getElementById('cm-subject');
+        if (subj && window.CM) {
+          clearInterval(timer);
+          if (!subj.value) subj.value = 'Re: ' + <?= json_encode((string)($msg['subject'] ?? '')) ?>;
+          var plain = document.getElementById('cm-plain');
+          if (plain) { CM.setMode('plain'); plain.value = d.reply; CM.updateChar(); }
+        } else if (++tries > 40) { clearInterval(timer); }
+      }, 150);
+    });
+
+    var copy = document.getElementById('ibAssistCopy');
+    if (copy) copy.addEventListener('click', function () {
+      navigator.clipboard && navigator.clipboard.writeText(d.reply);
+      copy.innerHTML = '<i class="bi bi-check-lg"></i>Skopiowane';
+    });
+  }
+
+  btn.addEventListener('click', function () {
+    box.hidden = false;
+    if (cache) { render(cache); return; }   // druga analiza tej samej wiadomości nic nie wnosi
+
+    body.innerHTML = '<div class="ib-assist-body text-muted small">'
+                   + '<span class="spinner-border spinner-border-sm me-2"></span>Czytam wiadomość…</div>';
+
+    fetch('<?= APP_URL ?>/crm/api/inbox_assistant.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ _csrf: CSRF, id: parseInt(btn.dataset.msg, 10) }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { cache = d; render(d); })
+    .catch(function () {
+      body.innerHTML = '<div class="ib-assist-body"><div class="alert alert-danger py-2 mb-0 small">'
+                     + 'Błąd połączenia z asystentem.</div></div>';
+    });
+  });
+})();
 </script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
