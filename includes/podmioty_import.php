@@ -215,7 +215,7 @@ function podmiot_preview(array $rows): array {
  */
 function podmiot_import_commit(array $preview, array $opt = []): array {
     $uid    = (int)(current_user()['id'] ?? 0);
-    $status = (string)($opt['status'] ?? 'nowy');
+    $status = (string)($opt['status'] ?? '') ?: crm_status_default();
     $owner  = (int)($opt['owner_id'] ?? 0);
     $group  = (int)($opt['group_id'] ?? 0);
     $upd_ok = !empty($opt['update_existing']);

@@ -1274,6 +1274,7 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
       $ASAI_WIDGET_BOTTOM = (function_exists('can_edit') && can_edit()) ? '7.5rem' : '1.5rem';
       require_once __DIR__ . '/asystent_widget.php'; ?>
 <?php require_once __DIR__ . '/quick_actions_widget.php'; ?>
+<?php require_once __DIR__ . '/search_hotkey.php'; ?>
 <?php require_once __DIR__ . '/welcome_notice.php'; ?>
 <?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
 

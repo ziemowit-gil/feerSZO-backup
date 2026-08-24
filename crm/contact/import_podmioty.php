@@ -148,10 +148,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <div class="mb-2">
           <label class="form-label small fw-semibold" for="status">Status nowych kartotek</label>
           <select class="form-select form-select-sm" id="status" name="status">
-            <option value="nowy">nowy</option>
-            <option value="aktywny">aktywny</option>
-            <option value="potencjalny">potencjalny</option>
+            <?php foreach (crm_statuses() as $sk => $sv): ?>
+            <option value="<?= h($sk) ?>"><?= h($sv['label']) ?></option>
+            <?php endforeach; ?>
           </select>
+          <div class="form-text" style="font-size:.72rem">Lista pochodzi z katalogu statusów CRM.</div>
         </div>
 
         <div class="mb-2">
@@ -203,7 +204,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <form method="post">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
   <input type="hidden" name="_op" value="commit">
-  <input type="hidden" name="status" value="<?= h($_POST['status'] ?? 'nowy') ?>">
+  <input type="hidden" name="status" value="<?= h($_POST['status'] ?? crm_status_default()) ?>">
   <input type="hidden" name="owner_id" value="<?= (int)($_POST['owner_id'] ?? 0) ?>">
   <input type="hidden" name="group_id" value="<?= (int)($_POST['group_id'] ?? 0) ?>">
   <?php if (!empty($_POST['update_existing'])): ?>

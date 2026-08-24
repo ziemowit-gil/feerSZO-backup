@@ -590,6 +590,7 @@ body {
 <?php $ASAI_WIDGET_SCOPE = 'zadania';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>
 
 <!-- ══ Offcanvas — nawigacja ════════════════════════════════════════════════ -->
 <div class="offcanvas offcanvas-start tsk-offcanvas" tabindex="-1" id="tskNav"

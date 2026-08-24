@@ -209,7 +209,7 @@ function _crm_table_html(
                     <?= h($sc['label']) ?>
                   </button>
                   <ul class="dropdown-menu shadow-sm" style="font-size:.83rem">
-                    <?php foreach (crm_statuses() as $sk => $sv): ?>
+                    <?php foreach (crm_statuses_with((string)$row['status']) as $sk => $sv): ?>
                     <li>
                       <form method="post" class="d-inline" data-ajax-action="quick_status">
                         <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
@@ -217,8 +217,10 @@ function _crm_table_html(
                         <input type="hidden" name="contact_id" value="<?= (int)$row['id'] ?>">
                         <input type="hidden" name="new_status" value="<?= h($sk) ?>">
                         <button type="submit"
-                                class="dropdown-item <?= $row['status'] === $sk ? 'fw-bold text-success' : '' ?>">
+                                class="dropdown-item <?= $row['status'] === $sk ? 'fw-bold text-success' : '' ?>"
+                                <?= !empty($sv['orphan']) ? 'title="Status spoza katalogu — ustawiony wcześniej albo przez import"' : '' ?>>
                           <?= h($sv['label']) ?>
+                          <?= !empty($sv['orphan']) ? ' <span class="text-muted" style="font-size:.7rem">(spoza katalogu)</span>' : '' ?>
                           <?= $row['status'] === $sk ? '<i class="bi bi-check2 ms-1" aria-hidden="true"></i>' : '' ?>
                         </button>
                       </form>

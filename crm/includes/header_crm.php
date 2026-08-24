@@ -846,3 +846,4 @@ if ($_flash):
 <?php endif; ?>
 
 <?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>

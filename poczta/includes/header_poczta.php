@@ -169,6 +169,7 @@ body { margin:0; background:var(--pc-bg); color:var(--pc-text);
 <?php $ASAI_WIDGET_SCOPE = 'poczta';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>
 
 <!-- Sidebar -->
 <nav id="pc-sidebar" class="pc-sidebar" aria-label="Nawigacja modułu Poczty">

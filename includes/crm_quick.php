@@ -53,7 +53,7 @@ function crm_quick_create(array $in, int $uid): array {
                 }
                 $id = db_insert('crm_contacts', [
                     'type'            => 'osoba',
-                    'status'          => 'nowy',
+                    'status'          => crm_status_default(),
                     'imie_nazwisko'   => mb_substr($title, 0, 200),
                     'email'           => $email ?: null,
                     'avatar_initials' => CrmManager::makeInitials($title),

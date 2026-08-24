@@ -76,6 +76,31 @@ function crm_statuses(): array {
     return $cache;
 }
 
+/**
+ * Domyślny status nowej kartoteki — PIERWSZY z katalogu, a nie zaszyte „nowy".
+ * Katalog statusów jest edytowalny (crm_statuses), więc wpisywanie na sztywno
+ * wartości spoza katalogu tworzyło kartoteki ze statusem, którego nie da się
+ * potem wybrać z listy.
+ */
+function crm_status_default(): string {
+    $all = crm_statuses();
+    return (string)(array_key_first($all) ?? 'nowy');
+}
+
+/**
+ * Katalog statusów rozszerzony o status, który dana kartoteka MA teraz.
+ * Bez tego rekord ze starym (albo usuniętym z katalogu) statusem pokazywał menu
+ * bez własnej pozycji — jak na zrzucie z jedną opcją do wyboru.
+ */
+function crm_statuses_with(string $current): array {
+    $all = crm_statuses();
+    $current = trim($current);
+    if ($current !== '' && !isset($all[$current])) {
+        $all = [$current => ['label' => $current, 'color' => '#939393', 'orphan' => true]] + $all;
+    }
+    return $all;
+}
+
 const CRM_CHANNELS = [
     'email'   => ['label' => 'E-mail',    'icon' => 'bi-envelope-fill'],
     'sms'     => ['label' => 'SMS',       'icon' => 'bi-phone-fill'],
