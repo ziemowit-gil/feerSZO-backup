@@ -237,6 +237,18 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-act--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
 .ib-act--danger { color:#B91C1C }
 .ib-act--danger:hover { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B }
+/* Żadnych pól „jak z przeglądarki" — selecty i inputy w panelu wiadomości
+   (przypisanie, formularze w oknach) mają ten sam język co przyciski. */
+.ib-bar .ib-field { height:30px }
+.ib-pane .form-select, .ib-pane .form-control, .ib-pane .ib-field,
+.modal .ib-dbody .form-select, .modal .ib-dbody .form-control {
+  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
+  background-color:#fff; color:#111827; padding:0 .6rem; box-shadow:none }
+.ib-pane .form-select:focus, .ib-pane .form-control:focus, .ib-pane .ib-field:focus,
+.modal .ib-dbody .form-select:focus, .modal .ib-dbody .form-control:focus {
+  border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
+.modal .ib-dbody .input-group > .form-select { border-top-right-radius:0; border-bottom-right-radius:0 }
+.modal .ib-dbody .input-group > .btn { border-radius:0 8px 8px 0 }
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
@@ -348,6 +360,14 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-check { flex-shrink:0; margin:.75rem .15rem .75rem .55rem; width:.9rem; height:.9rem; cursor:pointer;
   opacity:.4; transition:opacity .12s }
 .ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
+
+/* ── Pasek „przyszło coś nowego" ────────────────────────────────────────── */
+.ib-new { display:none; align-items:center; gap:.45rem; width:100%; margin-bottom:.5rem;
+  padding:.4rem .7rem; border-radius:10px; font-size:.78rem; font-weight:600;
+  background:var(--crm-primary-bg); color:var(--crm-primary); border:1px solid #BFDBFE;
+  cursor:pointer; text-align:left }
+.ib-new.is-on { display:flex }
+.ib-new:hover { background:#DCEBFA }
 
 /* ── Numer wiadomości ───────────────────────────────────────────────────── */
 /* Na liście numer nie walczy o miejsce z tematem: w rogu siedzi sama ikonka,
@@ -530,6 +550,11 @@ include __DIR__ . '/includes/header_crm.php';
   </details>
   <?php endif; ?>
 
+  <button type="button" class="ib-tbtn" id="ibSoundBtn" aria-pressed="false"
+          title="Sygnał dźwiękowy przy nowej wiadomości">
+    <i class="bi bi-bell" id="ibSoundIco" aria-hidden="true"></i><span id="ibSoundTxt">Sygnał</span>
+  </button>
+
   <?php $filters_on = ($search !== '' || $mbox_f > 0); ?>
   <?php /* Filtry domyślnie schowane — pasek widoków ma zostać czysty. <details>
            zamiast JS-a: otwiera się z klawiatury i działa bez skryptu, a gdy filtr
@@ -585,6 +610,12 @@ include __DIR__ . '/includes/header_crm.php';
       są porzucane automatycznie. Zostają tutaj — w Poczcie i EZD bez zmian.
     </div>
     <?php endif; ?>
+    <button type="button" class="ib-new" id="ibNewBar" hidden>
+      <i class="bi bi-arrow-down-circle-fill" aria-hidden="true"></i>
+      <span id="ibNewTxt">Nowe wiadomości</span>
+      <span class="ms-auto text-decoration-underline">pokaż</span>
+    </button>
+
     <?php if ($can_write && $inbox['rows']): ?>
     <!-- Masowe porzucanie: zaznaczenie działa na tym, co widać w bieżącym widoku. -->
     <form method="post" id="ibBulkForm">
@@ -611,6 +642,7 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
     </form>
     <?php endif; ?>
+    <div id="ibListWrap">
     <div class="ib-list" role="list" aria-label="Wiadomości">
       <?php if (!$inbox['rows']): ?>
       <div class="text-center text-muted d-flex flex-column justify-content-center" style="min-height:22rem;padding:1.15rem">
@@ -689,6 +721,7 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
     </div>
     <?php endif; ?>
+    </div><!-- /#ibListWrap -->
   </div>
 
   <!-- ══ WIADOMOŚĆ ═══════════════════════════════════════════════════════ -->
@@ -1094,6 +1127,131 @@ include __DIR__ . '/includes/header_crm.php';
 <?php endif; ?>
 
 <script>
+/* ── Dynamiczne odświeżanie + sygnał przy nowej wiadomości ──────────────────
+   Odpytujemy lekki endpoint (crm/api/inbox_poll.php); pełny HTML listy
+   dociągamy dopiero, gdy faktycznie coś przyszło. Otwarta wiadomość zostaje
+   nietknięta — podmieniamy wyłącznie lewą kolumnę i liczniki widoków. */
+(function () {
+  var wrap = document.getElementById('ibListWrap');
+  if (!wrap) return;
+
+  var POLL_MS = 30000;
+  var API  = <?= json_encode(rtrim(APP_URL, '/') . '/crm/api/inbox_poll.php') ?>;
+  var PARAMS = <?= json_encode(['view' => $view, 'mailbox_id' => $mbox_f ?: '', 'q' => $search]) ?>;
+
+  var bar    = document.getElementById('ibNewBar');
+  var barTxt = document.getElementById('ibNewTxt');
+  var lastId = <?= (int)max(array_merge([0], array_column($inbox['rows'], 'id'))) ?>;
+  var busy   = false;
+
+  /* Sygnał dźwiękowy — Web Audio, bez pliku na serwerze. Domyślnie włączony,
+     stan pamiętany w przeglądarce. Przeglądarki blokują dźwięk przed pierwszym
+     kliknięciem na stronie, więc AudioContext tworzymy leniwie. */
+  var soundOn = localStorage.getItem('crmInboxSound') !== '0';
+  var actx = null;
+
+  function ding() {
+    if (!soundOn) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      [880, 1175].forEach(function (freq, i) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        var t = actx.currentTime + i * 0.13;
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t); o.stop(t + 0.24);
+      });
+    } catch (e) {}
+  }
+
+  var sBtn = document.getElementById('ibSoundBtn');
+  function paintSound() {
+    if (!sBtn) return;
+    sBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    sBtn.classList.toggle('ib-tbtn--on', soundOn);
+    document.getElementById('ibSoundIco').className = soundOn ? 'bi bi-bell-fill' : 'bi bi-bell-slash';
+    document.getElementById('ibSoundTxt').textContent = soundOn ? 'Sygnał' : 'Cisza';
+    sBtn.title = soundOn
+      ? 'Sygnał dźwiękowy przy nowej wiadomości jest włączony — kliknij, aby wyciszyć'
+      : 'Sygnał dźwiękowy jest wyciszony — kliknij, aby włączyć';
+  }
+  if (sBtn) {
+    sBtn.addEventListener('click', function () {
+      soundOn = !soundOn;
+      localStorage.setItem('crmInboxSound', soundOn ? '1' : '0');
+      paintSound();
+      if (soundOn) ding();               // od razu słychać, co się włączyło
+    });
+    paintSound();
+  }
+
+  /** Podmienia listę świeżym HTML-em tej samej strony. */
+  function refreshList(then) {
+    if (busy) return;
+    busy = true;
+    fetch(window.location.href, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var doc  = new DOMParser().parseFromString(html, 'text/html');
+        var fresh = doc.getElementById('ibListWrap');
+        if (fresh) wrap.innerHTML = fresh.innerHTML;
+
+        // liczniki widoków w pasku
+        var oldPills = document.querySelectorAll('.ib-views .ib-pill .ib-cnt');
+        var newPills = doc.querySelectorAll('.ib-views .ib-pill .ib-cnt');
+        if (oldPills.length === newPills.length) {
+          oldPills.forEach(function (el, i) {
+            el.textContent = newPills[i].textContent;
+            el.setAttribute('style', newPills[i].getAttribute('style') || '');
+          });
+        }
+        busy = false;
+        document.dispatchEvent(new CustomEvent('ib:list-refreshed'));
+        if (typeof then === 'function') then();
+      })
+      .catch(function () { busy = false; });
+  }
+
+  function poll() {
+    var qs = Object.keys(PARAMS)
+        .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(PARAMS[k] || ''); })
+        .join('&');
+    fetch(API + '?' + qs, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok || !d.max_id) return;
+        if (lastId && d.max_id > lastId) {
+          lastId = d.max_id;
+          ding();
+          if (document.querySelector('.ib-check:checked')) {
+            // Ktoś zaznacza wiadomości — nie wyrywamy mu listy spod kursora
+            barTxt.textContent = 'Przyszły nowe wiadomości';
+            bar.hidden = false; bar.classList.add('is-on');
+          } else {
+            refreshList();
+          }
+        } else if (!lastId) {
+          lastId = d.max_id;
+        }
+      })
+      .catch(function () {});
+  }
+
+  if (bar) bar.addEventListener('click', function () {
+    bar.hidden = true; bar.classList.remove('is-on');
+    refreshList();
+  });
+
+  // Nie odpytujemy w tle nieaktywnej karty; po powrocie sprawdzamy od razu.
+  var timer = setInterval(function () { if (!document.hidden) poll(); }, POLL_MS);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+  window.addEventListener('beforeunload', function () { clearInterval(timer); });
+})();
+
 // Rozwijane panele paska (skrzynka, filtry): jednocześnie otwarty tylko jeden,
 // kursor w wyszukiwarce po otwarciu, Esc i klik obok zamykają.
 (function () {
@@ -1118,7 +1276,8 @@ include __DIR__ . '/includes/header_crm.php';
 })();
 
 // Masowe porzucanie — checkboxy są poza <form> (form="ibBulkForm"), więc liczymy je sami.
-(function () {
+// Lista bywa podmieniana przez odświeżanie w tle, dlatego init jest wywoływalny ponownie.
+function ibBulkInit() {
   var bar = document.getElementById('ibBulkBar');
   if (!bar) return;
   var all   = document.getElementById('ibCheckAll');
@@ -1139,13 +1298,19 @@ include __DIR__ . '/includes/header_crm.php';
     all.indeterminate = n > 0 && n < boxes.length;
   }
 
-  all.addEventListener('change', function () {
-    boxes.forEach(function (b) { b.checked = all.checked; });
-    refresh();
-  });
+  // „Zaznacz widoczne" żyje poza podmienianym fragmentem — podpinamy je raz
+  if (!all.dataset.bound) {
+    all.dataset.bound = '1';
+    all.addEventListener('change', function () {
+      document.querySelectorAll('.ib-check').forEach(function (b) { b.checked = all.checked; });
+      refresh();
+    });
+  }
   boxes.forEach(function (b) { b.addEventListener('change', refresh); });
   refresh();
-})();
+}
+ibBulkInit();
+document.addEventListener('ib:list-refreshed', ibBulkInit);
 </script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
