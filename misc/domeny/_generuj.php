@@ -72,10 +72,13 @@ function ikona(string $key): string
          . ($paths[$key] ?? $paths['link']) . '</svg>';
 }
 
-/** Kafel tła — ten sam kształt co w app_bg_tile(), tu w wersji na jasną kanwę. */
-$tile = app_bg_tile('#000', '.035');
+/* Kafle tła — ten sam kształt co w app_bg_tile(). Ciemny motyw MUSI dostać własny
+   kafel: czarna geometria na ciemnej kanwie jest niewidoczna, więc strona traciła
+   tło dokładnie tam, gdzie miała je mieć. */
+$tile      = app_bg_tile('#000', '.035');
+$tile_dark = app_bg_tile('#fff', '.028');
 
-$szablon = static function (string $domena, array $d) use ($tile): string {
+$szablon = static function (string $domena, array $d) use ($tile, $tile_dark): string {
     $sek      = (int)$d['redirect'];
     $przekier = $sek > 0;
     $tytul    = $domena . ' — domena techniczna ' . ORGANIZACJA;
@@ -185,7 +188,7 @@ p{font-size:.92rem;line-height:1.7;color:#475569;margin:0 0 1.25rem}
 :focus-visible{outline:3px solid #2563EB;outline-offset:3px;border-radius:6px}
 @media (prefers-color-scheme:dark){
   body{background-color:#0F172A;color:#E2E8F0;
-    background-image:{$tile},repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 3px,transparent 3px 26px)}
+    background-image:{$tile_dark},repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 3px,transparent 3px 26px)}
   .karta{background:#1E293B;border-color:#334155;box-shadow:0 10px 40px rgba(0,0,0,.35)}
   h1{color:#F1F5F9}
   p,.stopka a{color:#94A3B8}
