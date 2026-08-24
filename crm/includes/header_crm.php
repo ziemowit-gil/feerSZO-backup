@@ -71,6 +71,15 @@ try {
     )['c'] ?? 0);
 } catch (\Throwable $e) {}
 
+// Otwarte znaleziska bota sprzątającego — plakietka przy „Porządku”. Liczymy
+// tylko poważne: „kontakty bez opiekuna” nie ma migać w nawigacji codziennie.
+$_crm_janitor_open = 0;
+try {
+    $_crm_janitor_open = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_janitor_findings WHERE status='open' AND severity='high'"
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+
 // Liczniki modułu Oferty (badge w pasku) — cicho, gdy modułu jeszcze nie migrowano
 $_crm_offers_pending = 0;
 $_crm_offers_noconf  = 0;
@@ -492,21 +501,96 @@ window.openCommModal = function(contactId, channel) {
 <nav class="crm-navbar" role="navigation" aria-label="Nawigacja CRM">
 
   <?php
-  // Aktywność kategorii (gdy którakolwiek pozycja podrzędna jest aktywna)
-  $_act_kontakty = (str_contains($_uri,'/crm/index') || str_contains($_uri,'/crm/groups') || str_contains($_uri,'/crm/group/') || str_contains($_uri,'/crm/tags')) ? ' active' : '';
-  $_act_komun    = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send') || str_contains($_uri,'/crm/templates') || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
+  /*
+   * Menu ułożone WEDŁUG OBSZARÓW, nie według kolejności powstawania modułów.
+   *
+   * Wcześniej w pasku stało dziesięć pozycji najwyższego poziomu wymieszanych
+   * kontekstowo: „Skrzynka" (praca bieżąca) sąsiadowała z „Fakturami" (rozliczenia)
+   * i „Kontaktami" (dane), a narzędzia utrzymaniowe — analiza kartotek, duplikaty,
+   * domeny — siedziały w rozwijanym menu „Kontakty" obok Grup i Tagów, czyli
+   * pomiędzy codzienną nawigacją. Pasek nie mieścił się na ekranie i trzeba go
+   * było przewijać w poziomie.
+   *
+   * Teraz siedem pozycji, każda to jeden obszar pracy:
+   *   Pulpit · Skrzynka · Praca · Relacje · Komunikacja · Finanse · Porządek
+   *
+   * Skrzynka została osobnym odnośnikiem mimo że pasuje do „Pracy" — to
+   * najczęściej otwierany ekran w module i ma żywy licznik nieprzeczytanych.
+   * Schowanie go o jedno kliknięcie głębiej kosztowałoby więcej, niż zyskuje
+   * porządek w pasku.
+   */
+  $_g_praca  = (str_contains($_uri,'/crm/activities') || str_contains($_uri,'/crm/cases')
+                || str_contains($_uri,'/crm/calendar')) ? ' active' : '';
+  $_g_relacje= (str_contains($_uri,'/crm/index') || str_contains($_uri,'/crm/groups')
+                || str_contains($_uri,'/crm/group/') || str_contains($_uri,'/crm/tags')
+                || str_contains($_uri,'/crm/contact/')) ? ' active' : '';
+  $_g_komun  = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send')
+                || str_contains($_uri,'/crm/templates') || str_contains($_uri,'/crm/campaign')
+                || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
+  $_g_finanse= (str_contains($_uri,'/crm/offers') || str_contains($_uri,'/crm/invoices')
+                || str_contains($_uri,'/crm/donations')) ? ' active' : '';
+  $_g_porzad = (str_contains($_uri,'/crm/janitor') || str_contains($_uri,'/crm/triage')
+                || str_contains($_uri,'/crm/settings')) ? ' active' : '';
+
+  // Licznik spraw zalegających — tylko własne, żeby nie straszyć liczbą z całej
+  // organizacji. Próg z CRM_CASE_STALE_DAYS, nie wpisany na sztywno: inaczej
+  // licznik rozjeżdża się z listą po każdej zmianie progu.
+  $_stale_n = 0;
+  try {
+      $_stale_n = (int)(db_one(
+          "SELECT COUNT(*) AS c FROM crm_cases
+            WHERE status NOT IN ('closed','cancelled') AND created_by = ?
+              AND COALESCE(stale_ack_at, updated_at, created_at)
+                  < datetime('now', '-' || ? || ' days')",
+          [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
+      )['c'] ?? 0);
+  } catch (\Throwable $e) {}
+
+  // Plakietka „Pracy" sumuje to, co WYMAGA REAKCJI — działania po terminie
+  // i sprawy bez ruchu. Suma, bo w zwiniętej kategorii i tak nie widać, skąd
+  // pochodzi liczba; chodzi o sygnał „zajrzyj tu", nie o statystykę.
+  $_g_praca_n = (int)($_crm_acts_due ?? 0) + $_stale_n;
   ?>
   <div class="crm-navbar-scroll">
 
     <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-navlink<?= _crm_nav_active('/crm/dashboard') ?>"<?= _crm_nav_active('/crm/dashboard') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+      <i class="bi bi-grid-1x2-fill"></i><span>Pulpit</span>
     </a>
 
-    <!-- Kategoria: Kontakty -->
+    <a href="<?= APP_URL ?>/crm/inbox.php" class="crm-navlink<?= str_contains($_uri,'/crm/inbox') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/inbox') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-inbox-fill"></i><span>Skrzynka</span>
+      <?php if (!empty($_crm_inbox_unread)): ?><span class="crm-nav-badge"><?= $_crm_inbox_unread > 99 ? '99+' : (int)$_crm_inbox_unread ?></span><?php endif; ?>
+    </a>
+
+    <!-- ── PRACA: co mam do zrobienia ──────────────────────────────────── -->
     <div class="dropdown">
       <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_act_kontakty ?>">
-        <i class="bi bi-people-fill"></i><span>Kontakty</span>
+         class="crm-navlink dropdown-toggle<?= $_g_praca ?>">
+        <i class="bi bi-check2-square"></i><span>Praca</span>
+        <?php if ($_g_praca_n): ?><span class="crm-nav-badge" title="Działania po terminie i sprawy bez ruchu"><?= $_g_praca_n > 99 ? '99+' : $_g_praca_n ?></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><h6 class="dropdown-header">Moja kolejka</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/activities.php">
+          <i class="bi bi-list-check me-2"></i>Działania
+          <?php if (!empty($_crm_acts_due)): ?><span class="badge bg-danger ms-1"><?= (int)$_crm_acts_due ?></span><?php endif; ?>
+        </a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/calendar.php"><i class="bi bi-calendar3-fill me-2"></i>Kalendarz</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Sprawy</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/index.php"><i class="bi bi-briefcase-fill me-2"></i>Rejestr spraw</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/stale.php">
+          <i class="bi bi-clock-history me-2"></i>Do zamknięcia
+          <?php if ($_stale_n): ?><span class="badge bg-warning text-dark ms-1"><?= $_stale_n ?></span><?php endif; ?>
+        </a></li>
+      </ul>
+    </div>
+
+    <!-- ── RELACJE: kto jest w bazie ───────────────────────────────────── -->
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= $_g_relacje ?>">
+        <i class="bi bi-people-fill"></i><span>Relacje</span>
         <?php if ($_crm_total): ?><span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu">
@@ -514,27 +598,32 @@ window.openCommModal = function(contactId, channel) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/groups.php"><i class="bi bi-collection-fill me-2"></i>Grupy</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tags.php"><i class="bi bi-tags-fill me-2"></i>Tagi</a></li>
         <?php if ($_crm_can_write): ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/analyze.php"><i class="bi bi-funnel me-2"></i>Analiza kartotek z poczty</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/domains.php"><i class="bi bi-diagram-3 me-2"></i>Kartoteki wg domen</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/merge.php"><i class="bi bi-intersect me-2"></i>Duplikaty kartotek</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/triage.php"><i class="bi bi-robot me-2"></i>Segregacja AI</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Dodawanie</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/quick_add.php"><i class="bi bi-lightning-fill me-2"></i>Nowy kontakt — szybko</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_person.php"><i class="bi bi-person-plus me-2"></i>Nowa osoba fizyczna</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php"><i class="bi bi-building-add me-2"></i>Nowa firma / organizacja</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/import.php"><i class="bi bi-file-earmark-arrow-up me-2"></i>Import CSV</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/mobilna/"><i class="bi bi-telephone-outbound-fill me-2"></i>Szybkie dzwonienie <span class="text-body-secondary small">(mobile)</span></a></li>
       </ul>
     </div>
 
-    <!-- Kategoria: Komunikacja -->
+    <!-- ── KOMUNIKACJA: co wychodzi na zewnątrz ────────────────────────── -->
     <div class="dropdown">
       <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_act_komun ?>">
+         class="crm-navlink dropdown-toggle<?= $_g_komun ?>">
         <i class="bi bi-send-fill"></i><span>Komunikacja</span>
       </a>
       <ul class="dropdown-menu">
+        <li><h6 class="dropdown-header">Wysyłka</h6></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/communicate.php"><i class="bi bi-send-fill me-2"></i>Wyślij wiadomość</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mass_send.php"><i class="bi bi-megaphone-fill me-2"></i>Wysyłka masowa</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/campaign/index.php"><i class="bi bi-graph-up-arrow me-2"></i>Kampanie mailowe</a></li>
         <?php if ($_crm_can_write): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Przygotowanie</h6></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/templates.php"><i class="bi bi-file-earmark-text-fill me-2"></i>Szablony wiadomości</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>
         <?php endif; ?>
@@ -545,94 +634,69 @@ window.openCommModal = function(contactId, channel) {
       </ul>
     </div>
 
-    <a href="<?= APP_URL ?>/crm/inbox.php" class="crm-navlink<?= str_contains($_uri,'/crm/inbox') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/inbox') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-inbox-fill"></i><span>Skrzynka</span>
-      <?php if (!empty($_crm_inbox_unread)): ?><span class="crm-nav-badge"><?= $_crm_inbox_unread > 99 ? '99+' : (int)$_crm_inbox_unread ?></span><?php endif; ?>
-    </a>
-
-    <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= str_contains($_uri,'/crm/calendar.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/calendar.php') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/crm/activities.php" class="crm-navlink<?= str_contains($_uri,'/crm/activities.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/activities.php') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-list-check"></i><span>Działania</span>
-      <?php if (!empty($_crm_acts_due)): ?><span class="crm-nav-badge"><?= $_crm_acts_due > 99 ? '99+' : (int)$_crm_acts_due ?></span><?php endif; ?>
-    </a>
-
-    <!-- Kategoria: Oferty (działalność odpłatna) -->
+    <!-- ── FINANSE: oferty, faktury, darowizny ─────────────────────────── -->
     <div class="dropdown">
       <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= (str_contains($_uri,'/crm/offers') ? ' active' : '') ?>">
-        <i class="bi bi-file-earmark-ruled-fill"></i><span>Oferty</span>
+         class="crm-navlink dropdown-toggle<?= $_g_finanse ?>">
+        <i class="bi bi-cash-coin"></i><span>Finanse</span>
         <?php if (!empty($_crm_offers_pending)): ?><span class="crm-nav-badge"><?= (int)$_crm_offers_pending ?></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu">
+        <li><h6 class="dropdown-header">Oferty — działalność odpłatna</h6></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/index.php"><i class="bi bi-file-earmark-ruled-fill me-2"></i>Rejestr ofert</a></li>
         <?php if ($_crm_can_write): ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa oferta</a></li>
         <?php endif; ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/catalog.php"><i class="bi bi-list-columns me-2"></i>Katalog usług odpłatnych</a></li>
         <?php if (!empty($_crm_offers_noconf)): ?>
-        <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item text-warning-emphasis" href="<?= APP_URL ?>/crm/offers/index.php?noconf=1">
           <i class="bi bi-exclamation-triangle-fill me-2"></i>Bez potwierdzenia (<?= (int)$_crm_offers_noconf ?>)</a></li>
         <?php endif; ?>
-      </ul>
-    </div>
 
-    <?php if (module_enabled('donations_enabled')): ?>
-    <a href="<?= APP_URL ?>/crm/donations/index.php"
-       class="crm-navlink<?= _crm_nav_active('/crm/donations') ?>">
-      <i class="bi bi-gift"></i><span>Darowizny</span>
-    </a>
-    <?php endif; ?>
-
-    <?php if (module_enabled('invoices_enabled')): ?>
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= _crm_nav_active('/crm/invoices') ?>">
-        <i class="bi bi-receipt"></i><span>Faktury</span>
-      </a>
-      <ul class="dropdown-menu">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/index.php"><i class="bi bi-list-ul me-2"></i>Rejestr faktur</a></li>
+        <?php if (module_enabled('invoices_enabled')): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Faktury</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/index.php"><i class="bi bi-receipt me-2"></i>Rejestr faktur</a></li>
         <?php if ($_crm_can_write): ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/generate.php"><i class="bi bi-layer-forward me-2"></i>Generuj zbiorczo</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa faktura</a></li>
         <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if (module_enabled('donations_enabled')): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Darowizny</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/donations/index.php"><i class="bi bi-gift me-2"></i>Rejestr darowizn</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+
+    <!-- ── PORZĄDEK: utrzymanie danych, nie codzienna nawigacja ────────── -->
+    <?php if ($_crm_can_write): ?>
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= $_g_porzad ?>">
+        <i class="bi bi-tools"></i><span>Porządek</span>
+        <?php if (!empty($_crm_janitor_open)): ?><span class="crm-nav-badge" title="Znaleziska bota czekające na decyzję"><?= $_crm_janitor_open > 99 ? '99+' : (int)$_crm_janitor_open ?></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><h6 class="dropdown-header">Higiena kartoteki</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/janitor.php">
+          <i class="bi bi-stars me-2"></i>Bot sprzątający
+          <?php if (!empty($_crm_janitor_open)): ?><span class="badge bg-warning text-dark ms-1"><?= (int)$_crm_janitor_open ?></span><?php endif; ?>
+        </a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/merge.php"><i class="bi bi-intersect me-2"></i>Duplikaty kartotek</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/domains.php"><i class="bi bi-diagram-3 me-2"></i>Kartoteki wg domen</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="dropdown-header">Napływ z poczty</h6></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/analyze.php"><i class="bi bi-funnel me-2"></i>Analiza kartotek z poczty</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/triage.php"><i class="bi bi-robot me-2"></i>Segregacja AI</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/settings/index.php"><i class="bi bi-sliders me-2"></i>Ustawienia CRM</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/export.php"><i class="bi bi-download me-2"></i>Eksport danych</a></li>
       </ul>
     </div>
     <?php endif; ?>
-
-    <?php
-      // Licznik spraw zalegających — pokazujemy tylko własne, żeby nie straszyć
-      // liczbą z całej organizacji. Cicho, gdy kolumna jeszcze nie migrowana.
-      $_stale_n = 0;
-      try {
-          // Próg z jednego miejsca (CRM_CASE_STALE_DAYS) — wpisany na sztywno
-          // rozjechałby licznik z listą i banerem po każdej zmianie progu.
-          $_stale_n = (int)(db_one(
-              "SELECT COUNT(*) AS c FROM crm_cases
-                WHERE status NOT IN ('closed','cancelled') AND created_by = ?
-                  AND COALESCE(stale_ack_at, updated_at, created_at)
-                      < datetime('now', '-' || ? || ' days')",
-              [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
-          )['c'] ?? 0);
-      } catch (\Throwable $e) {}
-    ?>
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= _crm_nav_active('/crm/cases') ?>">
-        <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
-        <?php if ($_stale_n): ?><span class="crm-nav-badge" title="Sprawy bez ruchu ponad 30 dni"><?= $_stale_n ?></span><?php endif; ?>
-      </a>
-      <ul class="dropdown-menu">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/index.php"><i class="bi bi-briefcase-fill me-2"></i>Rejestr spraw</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/stale.php">
-          <i class="bi bi-clock-history me-2"></i>Do zamknięcia
-          <?php if ($_stale_n): ?><span class="badge bg-warning text-dark ms-1"><?= $_stale_n ?></span><?php endif; ?>
-        </a></li>
-      </ul>
-    </div>
 
   </div>
 
