@@ -21,6 +21,19 @@ require_once dirname(__DIR__) . '/includes/crm_offers.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+
+/* Bramka wejścia do modułu. Dotąd sprawdzenie uprawnień do CRM robił ekran
+   logowania CRM — po przejściu na wyłączne logowanie przez Microsoft 365 nie ma
+   już tam czego sprawdzać, a zalogowany użytkownik bez uprawnień trafiał wprost
+   na pulpit modułu.
+
+   Odsyłamy na stronę główną SYSTEMU, nie na crm/dashboard.php: crm_require()
+   przekierowuje właśnie tutaj, więc użycie go w tym pliku zapętliłoby przeglądarkę. */
+if (!crm_can('contacts', 'read')) {
+    flash_set('error', 'Twoje konto nie ma dostępu do modułu CRM.');
+    header('Location: ' . APP_URL . '/index.php');
+    exit;
+}
 crm_migrate();
 crm_offers_migrate();
 
