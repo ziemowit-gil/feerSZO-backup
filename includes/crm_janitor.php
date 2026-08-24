@@ -434,3 +434,125 @@ function crm_janitor_close(int $id, string $status, ?int $uid): bool
         return true;
     } catch (\Throwable $e) { return false; }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AKCJE MASOWE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Katalog akcji masowych na znaleziskach.
+ *
+ * `confirm` = akcja zmienia dane i nie cofa jej jedno kliknięcie, więc
+ * interfejs musi o nią dopytać. `rules` ogranicza akcję do znalezisk, dla
+ * których ma sens — „scal duplikaty" na „kontaktach bez opiekuna" byłoby
+ * bezsensowne, a przy zaznaczeniu „wszystkie" wręcz groźne.
+ */
+function crm_janitor_bulk_actions(): array
+{
+    return [
+        'dismiss' => [
+            'label' => 'Odrzuć zaznaczone', 'icon' => 'bi-x-lg', 'confirm' => false,
+            'desc'  => 'Zgłoszenia znikają z listy i nie wracają przy kolejnym przebiegu.',
+            'rules' => [],
+        ],
+        'done' => [
+            'label' => 'Oznacz jako załatwione', 'icon' => 'bi-check-lg', 'confirm' => false,
+            'desc'  => 'Dla spraw obsłużonych poza tą listą.',
+            'rules' => [],
+        ],
+        'merge' => [
+            'label' => 'Scal duplikaty', 'icon' => 'bi-intersect', 'confirm' => true,
+            'desc'  => 'Zachowuje kartotekę STARSZĄ (niższe ID) i przenosi na nią historię młodszej.',
+            'rules' => ['duplicates'],
+        ],
+        'delete_empty' => [
+            'label' => 'Usuń puste kartoteki', 'icon' => 'bi-trash', 'confirm' => true,
+            'desc'  => 'Usunięcie miękkie — kartoteki znikają z list, dane zostają w bazie.',
+            'rules' => ['empty_contact'],
+        ],
+    ];
+}
+
+/**
+ * Wykonuje akcję masową na wskazanych znaleziskach.
+ *
+ * Każde znalezisko obsługiwane osobno i w try — jedna kartoteka, której nie da
+ * się scalić (bo ktoś ją w międzyczasie usunął), nie może przerwać operacji na
+ * pozostałych czterdziestu. Wynik mówi WPROST, ile się nie udało i dlaczego,
+ * zamiast raportować sukces na podstawie liczby kliknięć.
+ *
+ * @return array{done:int,failed:int,errors:string[]}
+ */
+function crm_janitor_bulk(string $action, array $ids, ?int $uid): array
+{
+    crm_janitor_migrate();
+
+    $actions = crm_janitor_bulk_actions();
+    if (!isset($actions[$action])) {
+        return ['done' => 0, 'failed' => 0, 'errors' => ['Nieznana akcja: ' . $action]];
+    }
+
+    $ids = array_values(array_filter(array_map('intval', $ids)));
+    if (!$ids) return ['done' => 0, 'failed' => 0, 'errors' => ['Nie zaznaczono żadnego zgłoszenia.']];
+
+    $allowed = $actions[$action]['rules'];
+    $done = 0; $failed = 0; $errors = [];
+
+    if (in_array($action, ['merge', 'delete_empty'], true)) {
+        require_once __DIR__ . '/crm_merge.php';
+    }
+
+    foreach ($ids as $fid) {
+        $f = db_one("SELECT * FROM crm_janitor_findings WHERE id=? AND status='open'", [$fid]);
+        if (!$f) { $failed++; continue; }
+
+        // Akcja niepasująca do reguły jest pomijana po cichu — użytkownik mógł
+        // zaznaczyć „wszystkie" i wybrać akcję sensowną tylko dla części.
+        if ($allowed && !in_array($f['rule'], $allowed, true)) continue;
+
+        $payload = json_decode((string)$f['payload'], true) ?: [];
+
+        try {
+            switch ($action) {
+                case 'dismiss':
+                case 'done':
+                    crm_janitor_close($fid, $action === 'done' ? 'done' : 'dismissed', $uid);
+                    $done++;
+                    break;
+
+                case 'merge':
+                    $pair = array_values(array_map('intval', (array)($payload['ids'] ?? [])));
+                    if (count($pair) < 2) { $failed++; $errors[] = 'Zgłoszenie bez pary kartotek.'; break; }
+                    // Grupa może mieć więcej niż dwie kartoteki — scalamy parami,
+                    // od najstarszej, bo to ona zwykle ma najwięcej historii.
+                    sort($pair);
+                    $keep = array_shift($pair);
+                    $ok = true;
+                    foreach ($pair as $drop) {
+                        $r = crm_merge_contacts($keep, $drop);
+                        if (empty($r['ok'])) { $ok = false; $errors[] = (string)($r['error'] ?? 'Nie udało się scalić.'); }
+                    }
+                    if ($ok) { crm_janitor_close($fid, 'done', $uid); $done++; }
+                    else     { $failed++; }
+                    break;
+
+                case 'delete_empty':
+                    $cid = (int)($payload['id'] ?? $f['contact_id'] ?? 0);
+                    if (!$cid) { $failed++; break; }
+                    $c = db_one("SELECT imie_nazwisko FROM crm_contacts WHERE id=? AND crm_active=1", [$cid]);
+                    if (!$c) { crm_janitor_close($fid, 'done', $uid); $done++; break; }
+                    CrmManager::addNote($cid, 'Kartoteka usunięta przez bota sprzątającego: brak danych '
+                        . 'kontaktowych i historii. ' . date('Y-m-d H:i') . '.', $uid);
+                    CrmManager::deleteContact($cid);
+                    crm_janitor_close($fid, 'done', $uid);
+                    $done++;
+                    break;
+            }
+        } catch (\Throwable $e) {
+            $failed++;
+            $errors[] = $e->getMessage();
+        }
+    }
+
+    return ['done' => $done, 'failed' => $failed, 'errors' => array_values(array_unique($errors))];
+}

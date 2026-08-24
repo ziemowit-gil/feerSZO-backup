@@ -70,6 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($op === 'done' || $op === 'dismiss') {
         crm_janitor_close((int)($_POST['id'] ?? 0), $op === 'done' ? 'done' : 'dismissed', $uid);
         flash_set('success', $op === 'done' ? 'Oznaczone jako załatwione.' : 'Odrzucone — nie wróci.');
+    } elseif ($op === 'bulk') {
+        $res = crm_janitor_bulk((string)($_POST['action'] ?? ''), (array)($_POST['pick'] ?? []), $uid);
+        // Komunikat mówi wprost, ile się NIE udało — raportowanie samego sukcesu
+        // na podstawie liczby kliknięć ukrywałoby, że część kartotek już nie
+        // istnieje albo nie dała się scalić.
+        $msg = sprintf('Wykonano: %d.', $res['done']);
+        if ($res['failed']) $msg .= sprintf(' Nie udało się: %d.', $res['failed']);
+        if ($res['errors'])  $msg .= ' ' . implode(' ', array_slice($res['errors'], 0, 3));
+        flash_set($res['failed'] && !$res['done'] ? 'danger' : ($res['failed'] ? 'warning' : 'success'), $msg);
+
     } elseif ($op === 'dismiss_rule') {
         // Hurtowe odrzucenie całej kategorii: przydatne, gdy ktoś świadomie
         // godzi się na stan rzeczy (np. kontakty bez opiekuna w małym zespole).
@@ -216,6 +226,41 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <!-- Lista znalezisk -->
+  <form method="post" id="jnBulkForm">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="_op" value="bulk">
+
+  <?php if ($findings): ?>
+  <?php /* Pasek akcji masowych. Wyszarzony do czasu zaznaczenia czegokolwiek —
+           przycisk „scal duplikaty" gotowy do kliknięcia przy pustym
+           zaznaczeniu to zaproszenie do wypadku. */ ?>
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-2 p-2 rounded"
+       id="jnBulkBar" style="background:#F9FAFB;border:1px solid #E5E7EB">
+    <div class="form-check m-0">
+      <input class="form-check-input" type="checkbox" id="jnAll">
+      <label class="form-check-label small fw-semibold" for="jnAll">Zaznacz widoczne</label>
+    </div>
+    <span class="text-muted small" id="jnCount">0 zaznaczonych</span>
+    <span class="vr d-none d-sm-block"></span>
+    <?php foreach (crm_janitor_bulk_actions() as $ak => $av): ?>
+    <button type="submit" name="action" value="<?= h($ak) ?>"
+            class="btn btn-sm <?= !empty($av['confirm']) ? 'btn-outline-danger' : 'btn-crm-outline' ?> jn-bulk-act"
+            disabled
+            title="<?= h($av['desc']) ?><?= $av['rules'] ? ' Dotyczy tylko: ' . implode(', ', array_map(fn($r) => $RULES[$r]['label'] ?? $r, $av['rules'])) . '.' : '' ?>"
+            <?php if (!empty($av['confirm'])): ?>
+            data-confirm="<?= h($av['label']) ?> — operacji nie cofa jedno kliknięcie. Kontynuować?"
+            <?php endif; ?>>
+      <i class="bi <?= h($av['icon']) ?> me-1" aria-hidden="true"></i><?= h($av['label']) ?>
+    </button>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+  </form>
+
+  <?php /* UWAGA: formularz masowy jest ZAMKNIĘTY powyżej. Każdy wiersz ma
+           własne formularze („załatwione", „odrzuć"), a formularz zagnieżdżony
+           w formularzu jest przez przeglądarkę wyrzucany — działałby wtedy
+           tylko jeden z nich. Checkboxy wiążemy z paskiem atrybutem `form`. */ ?>
   <div class="card border-0 shadow-sm">
     <?php if (!$findings): ?>
     <div class="card-body text-center text-muted py-5">
@@ -237,7 +282,12 @@ include __DIR__ . '/includes/header_crm.php';
       };
     ?>
     <div class="jn-row">
-      <span class="jn-sev" style="background:<?= $high ? '#DC2626' : '#9CA3AF' ?>" aria-hidden="true"></span>
+      <span class="d-flex align-items-start gap-2">
+        <input type="checkbox" class="form-check-input jn-pick mt-1" form="jnBulkForm"
+               name="pick[]" value="<?= (int)$f['id'] ?>"
+               aria-label="Zaznacz: <?= h($f['title']) ?>">
+        <span class="jn-sev" style="background:<?= $high ? '#DC2626' : '#9CA3AF' ?>" aria-hidden="true"></span>
+      </span>
       <div style="min-width:0">
         <div class="jn-title">
           <span class="jn-tag"><?= h($cfg['label'] ?? $f['rule']) ?></span>
@@ -282,6 +332,42 @@ include __DIR__ . '/includes/header_crm.php';
     <span class="text-muted small ms-1">Gdy świadomie godzisz się na ten stan rzeczy.</span>
   </form>
   <?php endif; ?>
+
+  <script>
+  (function () {
+      var form = document.getElementById('jnBulkForm');
+      if (!form) return;
+      var all   = document.getElementById('jnAll');
+      var count = document.getElementById('jnCount');
+      var acts  = document.querySelectorAll('.jn-bulk-act');
+
+      function picks() { return document.querySelectorAll('.jn-pick:checked'); }
+      function refresh() {
+          var n = picks().length;
+          count.textContent = n + (n === 1 ? ' zaznaczone' : ' zaznaczonych');
+          acts.forEach(function (b) { b.disabled = n === 0; });
+          var boxes = document.querySelectorAll('.jn-pick');
+          all.checked = n > 0 && n === boxes.length;
+          all.indeterminate = n > 0 && n < boxes.length;
+      }
+
+      all.addEventListener('change', function () {
+          document.querySelectorAll('.jn-pick').forEach(function (b) { b.checked = all.checked; });
+          refresh();
+      });
+      document.querySelectorAll('.jn-pick').forEach(function (b) { b.addEventListener('change', refresh); });
+
+      // Potwierdzenie tylko przy akcjach, których nie cofa jedno kliknięcie.
+      acts.forEach(function (b) {
+          b.addEventListener('click', function (e) {
+              if (b.dataset.confirm && !confirm(b.dataset.confirm + '\n\nZaznaczonych: ' + picks().length))
+                  e.preventDefault();
+          });
+      });
+
+      refresh();
+  })();
+  </script>
 
 <?php elseif ($tab === 'reguly'): ?>
 
