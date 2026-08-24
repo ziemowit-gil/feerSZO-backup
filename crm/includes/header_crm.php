@@ -709,6 +709,7 @@ window.openCommModal = function(contactId, channel, opts) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php"><i class="bi bi-building-add me-2"></i>Nowa firma / organizacja</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/import.php"><i class="bi bi-file-earmark-arrow-up me-2"></i>Import CSV</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/import_podmioty.php"><i class="bi bi-building-add me-2"></i>Import podmiotów (NIP/REGON)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/orphans.php"><i class="bi bi-question-diamond me-2"></i>Kartoteki bez pochodzenia</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/mobilna/"><i class="bi bi-telephone-outbound-fill me-2"></i>Szybkie dzwonienie <span class="text-body-secondary small">(mobile)</span></a></li>
