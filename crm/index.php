@@ -1106,10 +1106,26 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <?php if ($crm_can_delete): ?>
-  <button class="btn btn-sm btn-outline-danger" aria-label="Usuń zaznaczone kontakty"
-          onclick="Bulk.do('delete',null)">
-    <i class="bi bi-trash3" aria-hidden="true"></i>
-  </button>
+  <?php /* Usuwanie masowe wymaga POWODU — tak samo jak usunięcie pojedynczej
+           kartoteki. Przy „SPAM" nadawcy trafiają do filtra, więc auto-kartoteka
+           nie odtworzy ich przy najbliższym skanowaniu poczty. */ ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-danger dropdown-toggle" data-bs-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false" aria-label="Usuń zaznaczone kontakty">
+      <i class="bi bi-trash3" aria-hidden="true"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" style="max-width:22rem">
+      <li><h6 class="dropdown-header">Usuń zaznaczone — powód</h6></li>
+      <?php foreach (CRM_DELETE_REASONS as $rk => $rl): if ($rk === 'inny') continue; ?>
+      <li><a class="dropdown-item text-wrap" href="#" onclick="Bulk.del('<?= h($rk) ?>');return false"
+             style="font-size:.82rem"><?= h($rl) ?></a></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><span class="dropdown-item-text text-body-secondary" style="font-size:.72rem">
+        Usunięcie miękkie — dane zostają w bazie, powód zapisuje się w kartotece.
+      </span></li>
+    </ul>
+  </div>
   <?php endif; ?>
 
   <button class="btn btn-sm btn-link text-light p-0 ms-1"
@@ -1191,6 +1207,43 @@ const Bulk = (function () {
     }
   }
 
+  /* Usuwanie z powodem. Przy SPAM-ie dopytujemy o ZAKRES blokady — sam adres
+     czy cała domena — bo to różnica między odcięciem jednego nadawcy
+     a odcięciem całej firmy, z którą ktoś inny może współpracować. */
+  Bulk.del = async function (reason) {
+    const ids = getChecked();
+    if (!ids.length) return;
+
+    const labels = <?= json_encode(CRM_DELETE_REASONS, JSON_UNESCAPED_UNICODE) ?>;
+    let scope = 'email';
+
+    if (reason === 'spam') {
+      scope = confirm(
+        'Usunąć ' + ids.length + ' kontaktów jako SPAM?\n\n' +
+        'OK — zablokuj CAŁE DOMENY nadawców (odetnie też inne osoby z tych domen)\n' +
+        'Anuluj — zablokuj tylko konkretne adresy'
+      ) ? 'domain' : 'email';
+    } else if (!confirm('Usunąć ' + ids.length + ' kontaktów?\n\nPowód: ' + (labels[reason] || reason))) {
+      return;
+    }
+
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', ids, value: reason, block_scope: scope, _csrf: CSRF }),
+    }).then(r => r.json());
+
+    if (res.ok) {
+      const url = new URL(location.href);
+      url.searchParams.set('_bulk_ok',
+        'Usunięto ' + res.affected + ' kontaktów.' +
+        (res.blocked ? ' Nadawców dodanych do filtra: ' + res.blocked + '.' : ''));
+      location.replace(url.toString());
+    } else {
+      alert('Błąd: ' + (res.error || 'Nieznany błąd'));
+    }
+  }
+
   // Flash po bulk action
   const bp = new URLSearchParams(location.search).get('_bulk_ok');
   if (bp) {
@@ -1205,7 +1258,7 @@ const Bulk = (function () {
     history.replaceState({}, '', clean.toString());
   }
 
-  return { update, toggleAll, clear, do: doAction };
+  return { update, toggleAll, clear, do: doAction, del: delWithReason };
 })();
 </script>
 

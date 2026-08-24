@@ -57,8 +57,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$can_delete) {
             flash_set('error', 'Brak uprawnień do usuwania kartotek.');
         } else {
-            foreach ($ids as $cid) { CrmManager::deleteContact($cid); $n++; }
-            flash_set($n ? 'success' : 'info', $n ? "Usunięto kartotek: {$n} (miękko — dane zostają w bazie)." : 'Nie zaznaczono nikogo.');
+            // Analizator wskazuje ŚMIECI z auto-kartoteki, więc powód jest znany
+            // z góry: SPAM. Dzięki temu nadawcy trafiają do filtra i nie wracają
+            // przy najbliższym skanowaniu poczty — bez tego usuwanie tutaj było
+            // pracą syzyfową.
+            $scope   = ($_POST['block_scope'] ?? 'email') === 'domain' ? 'domain' : 'email';
+            $blocked = [];
+            foreach ($ids as $cid) {
+                $r = crm_delete_contact_reason((int)$cid, 'spam', 'Wskazane przez analizator kartotek.', $scope);
+                if (!empty($r['ok'])) { $n++; if (!empty($r['blocked'])) $blocked[] = $r['blocked']; }
+            }
+            $nb = count(array_unique($blocked));
+            flash_set($n ? 'success' : 'info', $n
+                ? "Usunięto kartotek: {$n} (miękko — dane zostają w bazie)."
+                  . ($nb ? " Nadawców dodanych do filtra: {$nb}." : '')
+                : 'Nie zaznaczono nikogo.');
         }
 
     } elseif ($op === 'block') {

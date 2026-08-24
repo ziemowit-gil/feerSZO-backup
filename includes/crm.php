@@ -1388,6 +1388,64 @@ const CRM_AUDIT_SKIP = ['avatar_initials', 'updated_at', 'created_at', 'synced_a
 const CRM_AUDIT_MASKED = ['pesel'];
 
 /**
+ * Usuwa kartotekę z podaniem powodu — wspólne dla kartoteki i akcji masowych.
+ *
+ * Powstało, bo usuwanie z powodem istniało WYŁĄCZNIE w Strefie zagrożenia
+ * pojedynczej kartoteki, a masowe usuwanie z listy i z analizatora robiło goły
+ * `crm_active=0`: bez powodu, bez notatki, bez wpisu w historii — i bez
+ * zablokowania nadawcy. Przy powodzie SPAM to ostatnie jest kluczowe:
+ * auto-kartoteka zakłada ten sam rekord przy najbliższym skanowaniu poczty,
+ * więc masowe kasowanie spamu bez blokady jest pracą syzyfową.
+ *
+ * @param string $block_scope 'email' | 'domain' — zakres blokady przy SPAM-ie
+ * @return array{ok:bool,error:?string,blocked:?string}
+ */
+function crm_delete_contact_reason(int $id, string $reason_key, string $note = '', string $block_scope = 'email'): array
+{
+    if (!isset(CRM_DELETE_REASONS[$reason_key])) {
+        return ['ok' => false, 'error' => 'Nieznany powód usunięcia.', 'blocked' => null];
+    }
+    $contact = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [$id]);
+    if (!$contact) return ['ok' => false, 'error' => 'Kartoteka nie istnieje albo już usunięta.', 'blocked' => null];
+
+    $label = CRM_DELETE_REASONS[$reason_key];
+    $note  = trim($note);
+    $u     = function_exists('current_user') ? current_user() : null;
+    $uid   = (int)($u['id'] ?? 0) ?: null;
+    $who   = crm_user_display($u);
+
+    // Ślad w dwóch miejscach: notatka (widoczna w kartotece) i historia zmian
+    // (której nie da się skasować z poziomu interfejsu).
+    CrmManager::addNote($id, sprintf(
+        'Kartoteka usunięta. Powód: %s.%s %s, %s.',
+        $label, $note !== '' ? ' ' . $note : '', $who, date('Y-m-d H:i')
+    ), $uid);
+    try {
+        db_insert('crm_contact_audit', [
+            'contact_id' => $id,
+            'field'      => 'crm_active',
+            'old_value'  => '1',
+            'new_value'  => '0 — ' . $label . ($note !== '' ? ' (' . $note . ')' : ''),
+            'user_id'    => $uid,
+            'user_name'  => $who,
+        ]);
+    } catch (\Throwable $e) {}
+
+    $blocked = null;
+    if ($reason_key === 'spam' && !empty($contact['email'])) {
+        require_once __DIR__ . '/crm_contact_analyzer.php';
+        $what = $block_scope === 'domain'
+            ? '@' . crm_email_domain((string)$contact['email'])
+            : (string)$contact['email'];
+        $err = crm_sender_block_add($what, 'SPAM — usunięto kartotekę #' . $id, $uid);
+        if (!$err) $blocked = $what;
+    }
+
+    CrmManager::deleteContact($id);
+    return ['ok' => true, 'error' => null, 'blocked' => $blocked];
+}
+
+/**
  * Powody usunięcia kartoteki.
  *
  * Usunięcie jest miękkie (crm_active=0), więc powód nie jest formalnością —

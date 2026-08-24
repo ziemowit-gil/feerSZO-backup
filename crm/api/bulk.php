@@ -164,9 +164,33 @@ try {
 
     } elseif ($action === 'delete') {
         if (!can_delete('crm') && !is_admin()) { echo json_encode(['ok'=>false,'error'=>'Brak uprawnień do usuwania.']); exit; }
-        $st = db()->prepare("UPDATE crm_contacts SET crm_active=0,updated_at=datetime('now') WHERE id IN ($ph)");
-        $st->execute($ids);
-        $affected = $st->rowCount();
+
+        // Powód jest OBOWIĄZKOWY także masowo. Wcześniej masowe usuwanie robiło
+        // goły crm_active=0: bez powodu, bez notatki, bez wpisu w historii —
+        // i bez zablokowania nadawcy, więc auto-kartoteka odtwarzała skasowany
+        // spam przy najbliższym skanowaniu poczty.
+        $reason = trim((string)($body['value'] ?? ''));
+        if (!isset(CRM_DELETE_REASONS[$reason])) {
+            echo json_encode(['ok'=>false,'error'=>'Wskaż powód usunięcia.']); exit;
+        }
+        $scope   = ($body['block_scope'] ?? 'email') === 'domain' ? 'domain' : 'email';
+        $note    = trim((string)($body['note'] ?? ''));
+        $blocked = [];
+
+        foreach ($ids as $cid) {
+            $r = crm_delete_contact_reason((int)$cid, $reason, $note, $scope);
+            if (!empty($r['ok'])) {
+                $affected++;
+                if (!empty($r['blocked'])) $blocked[] = $r['blocked'];
+            }
+        }
+
+        echo json_encode([
+            'ok'       => true,
+            'affected' => $affected,
+            'action'   => $action,
+            'blocked'  => count(array_unique($blocked)),
+        ]); exit;
 
     } else {
         echo json_encode(['ok'=>false,'error'=>"Nieznana akcja: {$action}"]); exit;
