@@ -408,6 +408,21 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
           </div>
 
+          <!-- Masowo: wszyscy o wybranym statusie (np. cała baza darczyńców) -->
+          <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <label class="form-label mb-0" for="comm-status-add" style="font-size:.76rem">Dodaj wszystkich ze statusem</label>
+            <select id="comm-status-add" class="form-select form-select-sm" style="max-width:210px">
+              <option value="">— wybierz status —</option>
+              <?php foreach (crm_statuses() as $sk => $sv): ?>
+              <option value="<?= h($sk) ?>"><?= h($sv['label']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="comm-status-btn">
+              <i class="bi bi-people me-1"></i>Dodaj
+            </button>
+            <span id="comm-status-info" class="text-muted" style="font-size:.75rem"></span>
+          </div>
+
           <!-- Wybrani odbiorcy jako chips + hidden inputs -->
           <div id="comm-chips" class="d-flex flex-wrap gap-1 mb-1"></div>
 
@@ -1512,7 +1527,45 @@ const CommRecip = (function () {
   }
 
   function getSelected() { return [...selected.values()]; }
-  return { add, remove, selectAll, getSelected };
+
+  /* Masowe dodanie wszystkich kontaktów o danym statusie — do wysyłek typu
+     „wszyscy darczyńcy". Limit po stronie API (500), żeby nie zawiesić okna. */
+  function addByStatus(status, done) {
+    if (!status) return;
+    fetch(`<?= APP_URL ?>/crm/api/contacts_search.php?status=${encodeURIComponent(status)}&limit=500`)
+      .then(r => r.json())
+      .then(rows => {
+        const before = selected.size;
+        (rows || []).forEach(c => add(c.id, c.name, c.to_email || c.email || '',
+                                      c.to_telefon || c.telefon || '', c.organizacja || ''));
+        if (typeof done === 'function') done(rows ? rows.length : 0, selected.size - before);
+      })
+      .catch(() => { if (typeof done === 'function') done(-1, 0); });
+  }
+
+  return { add, remove, selectAll, getSelected, addByStatus };
+})();
+
+// Przycisk „Dodaj wszystkich ze statusem"
+(function () {
+  var btn = document.getElementById('comm-status-btn');
+  var sel = document.getElementById('comm-status-add');
+  var info = document.getElementById('comm-status-info');
+  if (!btn || !sel) return;
+
+  btn.addEventListener('click', function () {
+    var st = sel.value;
+    if (!st) { info.textContent = 'Najpierw wybierz status.'; return; }
+    btn.disabled = true;
+    info.textContent = 'Pobieram…';
+    CommRecip.addByStatus(st, function (found, added) {
+      btn.disabled = false;
+      if (found < 0) { info.textContent = 'Nie udało się pobrać kontaktów.'; return; }
+      info.textContent = found === 0
+        ? 'Brak kontaktów o tym statusie.'
+        : 'Znaleziono ' + found + ', dodano nowych: ' + added + '.';
+    });
+  });
 })();
 </script>
 <?php endif; ?>

@@ -1775,6 +1775,11 @@ $case_status_cfg = [
 ];
 ?>
 
+<?php /* Umowy dostają własną zakładkę — dotąd były schowane w „Dane i powiązania”,
+         a przy kliencie to jedna z pierwszych rzeczy, o które ktoś pyta. */
+  $_contracts = crm_contact_contracts($contact);
+  $_can_link  = !empty($contact['pesel']) || !empty($contact['nip']) || !empty($contact['person_id']);
+?>
 <div class="cv-single">
 
     <ul class="nav cv-tabs cv-tabs--sticky mb-3" id="cvTabs" role="tablist">
@@ -1801,6 +1806,16 @@ $case_status_cfg = [
           <span class="cv-count"><?= count($contact_offers) ?></span>
         </button>
       </li>
+      <?php if ($_contracts || $_can_link): ?>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-contracts-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-contracts" type="button" role="tab"
+                aria-controls="cv-tab-contracts" aria-selected="false">
+          <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowy
+          <?php if ($_contracts): ?><span class="cv-count"><?= count($_contracts) ?></span><?php endif; ?>
+        </button>
+      </li>
+      <?php endif; ?>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="cv-tab-notes-btn" data-bs-toggle="tab"
                 data-bs-target="#cv-tab-notes" type="button" role="tab"
@@ -1855,6 +1870,23 @@ $case_status_cfg = [
       </div>
 
       <!-- ZAKŁADKA: Notatki -->
+      <!-- ZAKŁADKA: Umowy (odczyt; powiązanie przez person_id/PESEL albo NIP) -->
+      <?php if ($_contracts || $_can_link): ?>
+      <div class="tab-pane fade" id="cv-tab-contracts" role="tabpanel"
+           aria-labelledby="cv-tab-contracts-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-file-earmark-text cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Umowy i zlecenia</h2>
+            <?php if ($_contracts): ?>
+            <div class="cv-shead__aside"><span class="cv-count"><?= count($_contracts) ?></span></div>
+            <?php endif; ?>
+          </div>
+          <?= _cv_contracts_html($contact, $_contracts) ?>
+        </div></div>
+      </div>
+      <?php endif; ?>
+
       <div class="tab-pane fade" id="cv-tab-notes" role="tabpanel"
            aria-labelledby="cv-tab-notes-btn" tabindex="0">
         <div class="cv-panel"><div class="cv-panel__body">
@@ -2081,23 +2113,7 @@ $case_status_cfg = [
     </div></div>
     <?php endif; ?>
 
-    <!-- Umowy i zlecenia (odczyt; powiązanie przez person_id/PESEL albo NIP) -->
-    <?php
-      $_contracts = crm_contact_contracts($contact);
-      $_can_link  = !empty($contact['pesel']) || !empty($contact['nip']) || !empty($contact['person_id']);
-    ?>
-    <?php if ($_contracts || $_can_link): ?>
-    <div class="cv-panel"><div class="cv-panel__body">
-      <div class="cv-shead">
-        <i class="bi bi-file-earmark-text cv-shead__icon" aria-hidden="true"></i>
-        <h2 class="cv-shead__title">Umowy i zlecenia</h2>
-        <?php if ($_contracts): ?>
-        <div class="cv-shead__aside"><span class="cv-count"><?= count($_contracts) ?></span></div>
-        <?php endif; ?>
-      </div>
-      <?= _cv_contracts_html($contact, $_contracts) ?>
-    </div></div>
-    <?php endif; ?>
+    <?php /* Umowy mają teraz własną zakładkę (#cv-tab-contracts) */ ?>
 
     <!-- Darowizny -->
     <?php if (module_enabled('donations_enabled')): ?>
