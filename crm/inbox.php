@@ -195,22 +195,25 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-list { background:#fff; border:1px solid #E5E7EB; border-radius:12px; overflow:hidden }
 .ib-day { padding:.35rem .85rem; background:#F9FAFB; border-bottom:1px solid #F1F2F4;
   font-size:.68rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9CA3AF }
-.ib-item { display:flex; gap:.65rem; padding:.7rem .85rem; border-bottom:1px solid #F3F4F6;
-  text-decoration:none; color:#111827; align-items:flex-start }
-.ib-item:last-child { border-bottom:none }
+/* Wiersz listy: dwie linie zamiast kafla z awatarem — więcej wiadomości na ekran,
+   temat i początek treści w jednej linii, stan czytania jako kropka. */
+.ib-item { display:flex; flex-direction:column; gap:.1rem; padding:.5rem .75rem;
+  text-decoration:none; color:#111827; min-width:0 }
 .ib-item:hover { background:#FAFBFC }
 .ib-item.active { background:#F2F7FF; box-shadow:inset 3px 0 0 var(--crm-primary) }
-.ib-av { width:34px; height:34px; flex-shrink:0; border-radius:50%; background:#E8EDF4; color:#3B4A5A;
-  display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700 }
-.ib-item.unread .ib-av { background:var(--crm-primary); color:#fff }
-.ib-mid { min-width:0; flex:1 }
-.ib-top { display:flex; align-items:baseline; gap:.5rem }
-.ib-subj { font-size:.87rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+.ib-l1 { display:flex; align-items:center; gap:.4rem; min-width:0 }
+.ib-l2 { display:flex; align-items:baseline; gap:.4rem; min-width:0 }
+.ib-udot { width:7px; height:7px; border-radius:50%; background:transparent; flex-shrink:0 }
+.ib-item.unread .ib-udot { background:var(--crm-primary) }
+.ib-who { font-size:.78rem; color:#4B5563; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+.ib-item.unread .ib-who { color:#111827; font-weight:600 }
+.ib-clip { font-size:.72rem; color:#9CA3AF; flex-shrink:0 }
+.ib-time { font-size:.7rem; color:#9CA3AF; white-space:nowrap; flex-shrink:0 }
+.ib-subj { font-size:.84rem; color:#111827; white-space:nowrap; flex-shrink:0; max-width:60%;
+  overflow:hidden; text-overflow:ellipsis }
 .ib-item.unread .ib-subj { font-weight:700 }
-.ib-time { font-size:.7rem; color:#9CA3AF; white-space:nowrap }
-.ib-who { font-size:.78rem; color:#4B5563; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.ib-snip { font-size:.76rem; color:#9CA3AF; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.ib-tags { display:flex; gap:.3rem; margin-top:.15rem; flex-wrap:wrap }
+.ib-snip { font-size:.76rem; color:#9CA3AF; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+.ib-tags { display:flex; gap:.3rem; margin-top:.2rem; flex-wrap:wrap }
 .ib-tag { font-size:.66rem; font-weight:700; letter-spacing:.03em; padding:.05rem .4rem; border-radius:3px }
 
 /* ── Panel wiadomości ──────────────────────────────────────────────────── */
@@ -221,8 +224,19 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.25rem .6rem; border-radius:2rem;
   background:#F3F4F6; font-size:.78rem; color:#374151; text-decoration:none }
 .ib-chip:hover { background:#E9EDF3; color:#111827 }
-.ib-bar { display:flex; gap:.4rem; flex-wrap:wrap; padding:.55rem 1.15rem; background:#FAFBFC;
-  border-top:1px solid #F1F2F4; border-bottom:1px solid #F1F2F4 }
+.ib-bar { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; padding:.5rem 1.15rem;
+  background:#FAFBFC; border-top:1px solid #F1F2F4; border-bottom:1px solid #F1F2F4 }
+.ib-bar form { margin:0 }
+/* Ten sam język co pasek narzędzi nad listą: 30 px wysokości, 8 px promienia. */
+.ib-act { height:30px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
+  padding:0 .65rem; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#374151;
+  font-size:.78rem; font-weight:500; cursor:pointer; transition:background .12s, border-color .12s, color .12s }
+.ib-act:hover { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
+.ib-act:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
+.ib-act--primary { border-color:var(--crm-primary); background:var(--crm-primary-bg); color:var(--crm-primary) }
+.ib-act--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
+.ib-act--danger { color:#B91C1C }
+.ib-act--danger:hover { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B }
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
@@ -331,8 +345,8 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-row:last-child { border-bottom:none }
 .ib-row .ib-item { flex:1; min-width:0; border-bottom:none }
 .ib-row.is-checked { background:#FAFAFA }
-.ib-check { flex-shrink:0; margin:.95rem .15rem .95rem .65rem; width:.9rem; height:.9rem; cursor:pointer;
-  opacity:.45; transition:opacity .12s }
+.ib-check { flex-shrink:0; margin:.75rem .15rem .75rem .55rem; width:.9rem; height:.9rem; cursor:pointer;
+  opacity:.4; transition:opacity .12s }
 .ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
 
 /* ── Numer wiadomości ───────────────────────────────────────────────────── */
@@ -344,7 +358,7 @@ include __DIR__ . '/includes/header_crm.php';
   color:#C3C8D0; background:transparent; border-radius:4px; padding:.05rem .25rem; pointer-events:none;
   transition:color .12s, background .12s }
 .ib-id-no { max-width:0; overflow:hidden; white-space:nowrap; opacity:0; transition:max-width .16s, opacity .12s }
-.ib-item .ib-snip { padding-right:1.8rem }   /* miejsce na ikonkę numeru */
+.ib-item .ib-l2 { padding-right:1.8rem }   /* miejsce na ikonkę numeru */
 .ib-item:hover .ib-id, .ib-item:focus-visible .ib-id, .ib-item.active .ib-id { color:#6B7280; background:#F3F4F6 }
 .ib-item:hover .ib-id-no, .ib-item:focus-visible .ib-id-no, .ib-item.active .ib-id-no { max-width:6rem; opacity:1 }
 .ib-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:700;
@@ -629,29 +643,31 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endif; ?>
       <a role="listitem" class="ib-item<?= $act ? ' active' : '' ?><?= $unread ? ' unread' : '' ?>"
          href="?<?= $qs(['msg' => (int)$r['id']]) ?>" aria-current="<?= $act ? 'true' : 'false' ?>">
-        <span class="ib-av" aria-hidden="true"><?= h(CrmManager::makeInitials($who)) ?></span>
-        <span class="ib-mid">
-          <span class="ib-top">
-            <span class="ib-subj"><?= h($r['subject'] ?: '(bez tematu)') ?></span>
-            <?php if ((int)$r['has_attachments']): ?><i class="bi bi-paperclip text-muted" aria-label="Załącznik"></i><?php endif; ?>
-            <span class="ib-time"><?= h(date('H:i', strtotime((string)$r['sent_at']))) ?></span>
-          </span>
-          <span class="ib-who d-block"><?= h($who) ?></span>
-          <span class="ib-snip d-block"><?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$r['body'])), 0, 90)) ?></span>
-          <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $unread): ?>
-          <span class="ib-tags">
-            <?php if ($unread): ?><span class="ib-tag" style="background:var(--crm-primary-bg);color:var(--crm-primary)">nowa</span><?php endif; ?>
-            <?php if (!empty($r['assigned_name'])): ?>
-            <span class="ib-tag" style="background:#EEF2FF;color:#4338CA"><?= h($r['assigned_name']) ?></span>
-            <?php endif; ?>
-            <?php if ($r['inbox_status'] === 'archived'): ?>
-            <span class="ib-tag" style="background:#EFF7ED;color:#2E844A">załatwione</span>
-            <?php elseif ($r['inbox_status'] === 'spam'): ?>
-            <span class="ib-tag" style="background:#FEF2F2;color:#DC2626">spam</span>
-            <?php endif; ?>
-          </span>
+        <span class="ib-l1">
+          <span class="ib-udot" aria-hidden="true" title="<?= $unread ? 'Nieprzeczytana' : '' ?>"></span>
+          <span class="ib-who"><?= h($who) ?></span>
+          <?php if ((int)$r['has_attachments']): ?>
+          <i class="bi bi-paperclip ib-clip" title="Wiadomość ma załącznik" aria-label="Załącznik"></i>
+          <?php endif; ?>
+          <span class="ib-time"><?= h(date('H:i', strtotime((string)$r['sent_at']))) ?></span>
+        </span>
+        <span class="ib-l2">
+          <span class="ib-subj"><?= h($r['subject'] ?: '(bez tematu)') ?></span>
+          <span class="ib-snip"><?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$r['body'])), 0, 120)) ?></span>
+        </span>
+        <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active'): ?>
+        <span class="ib-tags">
+          <?php if (!empty($r['assigned_name'])): ?>
+          <span class="ib-tag" style="background:#EEF2FF;color:#4338CA"
+                title="Prowadzi: <?= h($r['assigned_name']) ?>"><?= h($r['assigned_name']) ?></span>
+          <?php endif; ?>
+          <?php if ($r['inbox_status'] === 'archived'): ?>
+          <span class="ib-tag" style="background:#EFF7ED;color:#2E844A" title="Sprawa załatwiona">załatwione</span>
+          <?php elseif ($r['inbox_status'] === 'spam'): ?>
+          <span class="ib-tag" style="background:#FEF2F2;color:#DC2626" title="Oznaczone jako spam">spam</span>
           <?php endif; ?>
         </span>
+        <?php endif; ?>
         <?php if ($no !== ''): ?>
         <span class="ib-id" title="Numer wiadomości <?= h($no) ?>">
           <i class="bi bi-upc" aria-hidden="true"></i><span class="ib-id-no">#<?= h($no) ?></span>
@@ -751,67 +767,76 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
 
       <?php if ($can_write): ?>
+      <?php /* Pasek akcji: każdy przycisk ma widoczną etykietę i podpowiedź mówiącą,
+               co się STANIE po kliknięciu — same ikonki (koperta, przekreślone kółko)
+               nie mówiły nic. Styl wspólny z paskiem narzędzi nad listą. */ ?>
       <div class="ib-bar">
         <?php if ((int)($msg['assigned_to'] ?? 0) !== $uid): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="assign_me">
-          <button class="btn btn-crm-primary btn-sm"><i class="bi bi-person-check me-1"></i>Wezmę to</button></form>
+          <button class="ib-act ib-act--primary" title="Przypisz tę wiadomość do siebie — trafi do widoku „Przypisane mi”">
+            <i class="bi bi-person-check" aria-hidden="true"></i>Wezmę to</button></form>
         <?php endif; ?>
+
         <?php if (!empty($msg['contact_id'])): ?>
-        <button class="btn btn-crm-outline btn-sm" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email')">
-          <i class="bi bi-reply me-1"></i>Odpowiedz
+        <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email')"
+                title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu">
+          <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
         </button>
         <?php endif; ?>
+
         <?php if ($msg['inbox_status'] === 'active'): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="archive">
-          <button class="btn btn-crm-outline btn-sm"><i class="bi bi-check2-all me-1"></i>Załatwione</button></form>
+          <button class="ib-act" title="Sprawa zamknięta — wiadomość przejdzie do widoku „Załatwione”">
+            <i class="bi bi-check2-all" aria-hidden="true"></i>Załatwione</button></form>
         <?php else: ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="restore">
-          <button class="btn btn-crm-outline btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć</button></form>
+          <button class="ib-act" title="Wróć do obsługi — wiadomość znów pojawi się wśród aktywnych">
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>Przywróć do obsługi</button></form>
         <?php endif; ?>
+
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unread">
-          <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako nieprzeczytane"><i class="bi bi-envelope"></i></button></form>
+          <button class="ib-act" title="Cofnij odczytanie — wiadomość wróci do widoku „Nowe” jako nieprzeczytana">
+            <i class="bi bi-envelope" aria-hidden="true"></i>Oznacz jako nieprzeczytaną</button></form>
+
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="spam">
-          <button class="btn btn-crm-ghost btn-sm" title="Oznacz jako spam"><i class="bi bi-slash-circle"></i></button></form>
+          <button class="ib-act" title="Przenieś do widoku „Spam” — zniknie z listy roboczej">
+            <i class="bi bi-slash-circle" aria-hidden="true"></i>Spam</button></form>
 
         <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unhide">
-          <button class="btn btn-crm-outline btn-sm" title="Wiadomość wróci do widoków Skrzynki CRM">
-            <i class="bi bi-eye me-1"></i>Pokazuj w CRM Inbox</button></form>
+          <button class="ib-act" title="Cofnij porzucenie — wiadomość wróci do widoków Skrzynki CRM">
+            <i class="bi bi-eye" aria-hidden="true"></i>Przywróć do skrzynki</button></form>
         <?php else: ?>
-          <?php if (empty($msg['assigned_to'])): ?>
-          <!-- „Porzuć" — dla wiadomości bez opiekuna: nikt jej nie prowadzi i nie
-               będzie. Nie kasujemy nic z poczty, chowamy tylko ze Skrzynki CRM. -->
-          <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
-            <button class="btn btn-crm-ghost btn-sm text-danger" title="Nikt tego nie poprowadzi — schowaj ze Skrzynki CRM">
-              <i class="bi bi-hand-thumbs-down me-1"></i>Porzuć</button></form>
-          <?php endif; ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
-          <button class="btn btn-crm-ghost btn-sm"
-                  title="Wiadomość zniknie z widoków Skrzynki CRM — zostanie w widoku Ukryte, w Poczcie i EZD bez zmian">
-            <i class="bi bi-eye-slash me-1"></i>Nie pokazuj więcej w CRM Inbox</button></form>
+          <button class="ib-act ib-act--danger"
+                  title="<?= empty($msg['assigned_to'])
+                      ? 'Nikt tego nie poprowadzi — wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)'
+                      : 'Wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)' ?>">
+            <i class="bi bi-eye-slash" aria-hidden="true"></i>Porzuć</button></form>
         <?php endif; ?>
+
         <?php if ($can_write): ?>
-        <!-- Skróty do trzech głównych akcji. Formularze zostają niżej, bo wymagają
-             pól, ale przy długiej wiadomości były poza ekranem — a to one są
-             powodem, dla którego ktoś tu wchodzi. Klik rozwija i przewija do
-             właściwej szuflady. -->
+        <!-- Trzy główne ścieżki obsługi. Formularze żyją w oknach, bo wymagają pól. -->
         <span class="ib-sep" aria-hidden="true"></span>
-        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdCase"
-                title="Załóż sprawę CRM z tej wiadomości">
-          <i class="bi bi-briefcase-fill me-1" style="color:#1D4ED8" aria-hidden="true"></i>Sprawa
+        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdCase"
+                title="Załóż sprawę CRM z tej wiadomości — do prowadzenia tematu handlowego">
+          <i class="bi bi-briefcase-fill" style="color:#1D4ED8" aria-hidden="true"></i>Załóż sprawę CRM
         </button>
-        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdEzd"
-                title="Przekaż wiadomość do EZD">
-          <i class="bi bi-folder-symlink-fill me-1" style="color:#0F766E" aria-hidden="true"></i>EZD
+        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdEzd"
+                title="Zarejestruj w EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
+          <i class="bi bi-folder-symlink-fill" style="color:#0F766E" aria-hidden="true"></i>Przekaż do EZD
         </button>
-        <button type="button" class="btn btn-crm-outline btn-sm" data-bs-toggle="modal" data-bs-target="#mdFwd"
-                title="Przekaż wiadomość e-mailem">
-          <i class="bi bi-forward-fill me-1" style="color:#B45309" aria-hidden="true"></i>Przekaż
+        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdFwd"
+                title="Wyślij tę wiadomość dalej e-mailem — z cytatem oryginału i notatką">
+          <i class="bi bi-forward-fill" style="color:#B45309" aria-hidden="true"></i>Przekaż e-mailem
         </button>
         <?php endif; ?>
+
         <form method="post" class="ms-auto"><?= $hidden ?><input type="hidden" name="_op" value="assign">
-          <select name="user_id" class="form-select form-select-sm" style="max-width:200px"
-                  aria-label="Przypisz osobę" onchange="this.form.submit()">
+          <select name="user_id" class="ib-field" style="max-width:210px"
+                  aria-label="Przypisz wiadomość innej osobie"
+                  title="Wskaż osobę, która poprowadzi tę wiadomość"
+                  onchange="this.form.submit()">
             <option value="">— przypisz osobę —</option>
             <?php foreach ($users as $u): ?>
             <option value="<?= (int)$u['id'] ?>" <?= (int)($msg['assigned_to'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>

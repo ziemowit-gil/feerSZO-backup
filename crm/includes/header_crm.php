@@ -254,7 +254,9 @@ body {
 .crm-content {
   flex: 1;
   padding: 1.5rem;
-  max-width: 1440px;
+  /* Bez sztywnego limitu szerokości — moduły CRM (skrzynka, listy, kartoteka)
+     mają wykorzystać cały ekran, a nie zostawiać pasy pustki po bokach. */
+  max-width: none;
   width: 100%;
 }
 .crm-footer {
