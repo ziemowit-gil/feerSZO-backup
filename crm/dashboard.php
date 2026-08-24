@@ -163,6 +163,35 @@ function crm_dash_tile(string $href, string $icon, string $color, string $bg,
 include __DIR__ . '/includes/header_crm.php';
 ?>
 
+<style>
+/* ══ Wyszukiwarka pulpitu ═══════════════════════════════════════════════════
+   Jedno pole zamiast wędrówki po sekcjach: kontakty, sprawy, oferty i poczta
+   odpowiadają naraz. Klawisz „/" ustawia w nim kursor (includes/search_hotkey.php). */
+.cs-wrap { position:relative; margin-bottom:1rem }
+.cs-box { position:relative }
+.cs-box i.cs-ico { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:#9CA3AF }
+.cs-input {
+  width:100%; height:48px; padding:0 1rem 0 2.6rem; font-size:.95rem; color:#111827;
+  border:1px solid #E5E7EB; border-radius:12px; background:#fff;
+}
+.cs-input:focus { border-color:var(--crm-primary); box-shadow:0 0 0 4px rgba(1,118,211,.12); outline:none }
+.cs-kbd { position:absolute; right:.8rem; top:50%; transform:translateY(-50%); font-size:.7rem;
+  color:#9CA3AF; background:#F3F4F6; border:1px solid #E5E7EB; border-radius:5px; padding:.05rem .35rem }
+.cs-drop { position:absolute; z-index:1050; top:calc(100% + 6px); left:0; right:0; background:#fff;
+  border:1px solid #E5E7EB; border-radius:12px; box-shadow:0 14px 40px rgba(16,24,40,.14);
+  max-height:60vh; overflow-y:auto; display:none; padding:.35rem }
+.cs-drop.is-open { display:block }
+.cs-grp { font-size:.66rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:#9CA3AF; padding:.5rem .7rem .25rem; display:flex; align-items:center; gap:.35rem }
+.cs-item { display:block; padding:.4rem .7rem; border-radius:8px; text-decoration:none; color:#111827 }
+.cs-item:hover, .cs-item.is-on { background:#EFF6FF; color:#1D4ED8 }
+.cs-item .cs-t { font-size:.87rem; font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.cs-item .cs-s { font-size:.75rem; color:#9CA3AF; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.cs-item .cs-flag { font-size:.66rem; font-weight:700; color:#B91C1C; background:#FEF2F2;
+  border-radius:2rem; padding:0 .4rem; margin-left:.35rem }
+.cs-empty { padding:1rem; text-align:center; color:#9CA3AF; font-size:.85rem }
+</style>
+
 <!-- ══ NAGŁÓWEK ══════════════════════════════════════════════════════════════ -->
 <div class="crm-page-header mb-3">
   <div>
@@ -198,6 +227,92 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <?php endif; ?>
 </div>
+
+<!-- ══ WYSZUKIWARKA ═════════════════════════════════════════════════════════ -->
+<div class="cs-wrap">
+  <div class="cs-box">
+    <i class="bi bi-search cs-ico" aria-hidden="true"></i>
+    <label class="visually-hidden" for="crmSearch">Szukaj w CRM</label>
+    <input type="search" id="crmSearch" class="cs-input" data-search-input autocomplete="off"
+           role="combobox" aria-expanded="false" aria-controls="crmSearchDrop"
+           placeholder="Szukaj w CRM — kontakt, sprawa, oferta, wiadomość, NIP, numer…">
+    <span class="cs-kbd" aria-hidden="true">/</span>
+  </div>
+  <div class="cs-drop" id="crmSearchDrop" role="listbox" aria-label="Wyniki wyszukiwania"></div>
+</div>
+
+<script>
+/* Wyszukiwarka pulpitu — jedno zapytanie do crm/api/search.php, wyniki grupowane
+   po sekcjach. Strzałki i Enter działają bez myszy. */
+(function () {
+  var inp  = document.getElementById('crmSearch');
+  var drop = document.getElementById('crmSearchDrop');
+  if (!inp || !drop) return;
+
+  var timer = null, flat = [], active = -1;
+
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function close() { drop.classList.remove('is-open'); inp.setAttribute('aria-expanded','false'); active = -1; }
+
+  function paint(groups, q) {
+    flat = [];
+    if (!groups.length) {
+      drop.innerHTML = '<div class="cs-empty">Nic nie pasuje do „' + esc(q) + '"</div>';
+      drop.classList.add('is-open');
+      return;
+    }
+    var html = '';
+    groups.forEach(function (g) {
+      html += '<div class="cs-grp"><i class="bi ' + esc(g.icon) + '"></i>' + esc(g.label) + '</div>';
+      g.items.forEach(function (it) {
+        var i = flat.length;
+        flat.push(it);
+        html += '<a class="cs-item" data-i="' + i + '" href="' + esc(it.url) + '" role="option">'
+              + '<span class="cs-t">' + esc(it.title)
+              + (it.flag ? '<span class="cs-flag">' + esc(it.flag) + '</span>' : '') + '</span>'
+              + (it.sub ? '<span class="cs-s">' + esc(it.sub) + '</span>' : '')
+              + '</a>';
+      });
+    });
+    drop.innerHTML = html;
+    drop.classList.add('is-open');
+    inp.setAttribute('aria-expanded', 'true');
+  }
+
+  function mark() {
+    drop.querySelectorAll('.cs-item').forEach(function (el, i) {
+      el.classList.toggle('is-on', i === active);
+      if (i === active) el.scrollIntoView({block: 'nearest'});
+    });
+  }
+
+  inp.addEventListener('input', function () {
+    var q = this.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { close(); return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/crm/api/search.php?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { active = -1; paint((d && d.groups) || [], q); })
+        .catch(close);
+    }, 220);
+  });
+
+  inp.addEventListener('keydown', function (e) {
+    if (!drop.classList.contains('is-open')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, flat.length - 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); mark(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); window.location.href = flat[active].url; }
+    else if (e.key === 'Escape') { close(); }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#crmSearchDrop') && e.target !== inp) close();
+  });
+})();
+</script>
 
 <!-- ══ WYMAGA REAKCJI ════════════════════════════════════════════════════════ -->
 <h2 class="crm-sect-hd"><i class="bi bi-hand-index-thumb" aria-hidden="true"></i>Wymaga reakcji</h2>
