@@ -184,18 +184,24 @@ function crm_mailbox_inbox(array $f = []): array {
 
     $uid    = (int)(current_user()['id'] ?? 0);
     $view   = isset(CRM_MAILBOX_VIEWS[$f['view'] ?? '']) ? (string)$f['view'] : 'new';
-    $params = [];
-    $where  = [_crm_mailbox_view_sql($view, $uid, $params)];
+
+    // Warunki „strukturalne" — te, które opisują ZAKRES widoku, a nie zawężenie
+    // wyszukiwarką. Grupowanie w wątki potrzebuje ich po raz drugi, w podzapytaniu
+    // wybierającym reprezentanta wątku, dlatego trzymane są osobno.
+    $struct_params = [];
+    $struct = [_crm_mailbox_view_sql($view, $uid, $struct_params)];
 
     // „Nie pokazuj więcej w CRM Inbox" — poza widokiem „Ukryte" te wiadomości znikają
-    if ($view !== 'hidden') $where[] = 'COALESCE(c.crm_hidden,0)=0';
+    if ($view !== 'hidden') $struct[] = 'COALESCE(c.crm_hidden,0)=0';
 
     // Widok obejmuje wyłącznie skrzynki, do których użytkownik ma dostęp
-    $where[] = poczta_scope_sql('c.mailbox_id');
+    $struct[] = poczta_scope_sql('c.mailbox_id');
     if (!empty($f['mailbox_id'])) {
         if (!poczta_can_access((int)$f['mailbox_id'], 'read')) return ['rows' => [], 'total' => 0, 'page' => 1, 'per_page' => 25];
-        $where[] = 'c.mailbox_id=?'; $params[] = (int)$f['mailbox_id'];
+        $struct[] = 'c.mailbox_id=?'; $struct_params[] = (int)$f['mailbox_id'];
     }
+    $where  = $struct;
+    $params = $struct_params;
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
     if (!empty($f['q'])) {
@@ -204,6 +210,23 @@ function crm_mailbox_inbox(array $f = []): array {
                  . ' OR c.msg_no LIKE ?)';
         array_push($params, $q, $q, $q, $q, $q);
     }
+    // ── Grupowanie w wątki ──────────────────────────────────────────────────
+    // Odpowiedź na odpowiedź to dotąd był osobny wiersz na liście; przy dłuższej
+    // wymianie jedna sprawa zajmowała pół ekranu. Zwijamy wątek do NAJNOWSZEJ
+    // wiadomości, resztę pokazujemy jako licznik.
+    //
+    // Przy aktywnej wyszukiwarce grupowanie jest wyłączone: reprezentantem wątku
+    // bywa wtedy wiadomość bez szukanej frazy, więc wynik wyglądałby na pomyłkę.
+    $grouped = !empty($f['group_threads']) && empty($f['q']);
+    if ($grouped) {
+        $sub = str_replace('c.', 'c2.', implode(' AND ', $struct));
+        $where[] = "(c.thread_key IS NULL OR c.thread_key='' OR c.id = ("
+                 . "SELECT c2.id FROM crm_communications c2"
+                 . " WHERE c2.thread_key = c.thread_key AND {$sub}"
+                 . " ORDER BY c2.sent_at DESC, c2.id DESC LIMIT 1))";
+        foreach ($struct_params as $sp) $params[] = $sp;
+    }
+
     $where_sql = 'WHERE ' . implode(' AND ', $where);
 
     $per  = max(5, min(100, (int)($f['per_page'] ?? 25)));
@@ -220,7 +243,10 @@ function crm_mailbox_inbox(array $f = []): array {
                 c.assigned_to, c.has_attachments, c.from_name, c.from_email, c.thread_key, c.mailbox_id,
                 c.msg_no, COALESCE(c.crm_hidden,0) AS crm_hidden, c.direction, c.status,
                 ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.email AS contact_email,
-                u.name AS assigned_name, m.mailbox AS mailbox_name
+                u.name AS assigned_name, m.mailbox AS mailbox_name,
+                CASE WHEN c.thread_key IS NULL OR c.thread_key='' THEN 1 ELSE (
+                     SELECT COUNT(*) FROM crm_communications c3 WHERE c3.thread_key = c.thread_key
+                ) END AS thread_count
          FROM crm_communications c
          LEFT JOIN crm_contacts ct       ON ct.id = c.contact_id
          LEFT JOIN users u               ON u.id  = c.assigned_to
@@ -236,7 +262,27 @@ function crm_mailbox_inbox(array $f = []): array {
         if ($fixed !== null) $rows[$i]['body'] = $fixed;
     }
 
-    return ['rows' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $per];
+    return ['rows' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $per,
+            'grouped' => $grouped];
+}
+
+/**
+ * Wiadomości wątku poza jego reprezentantem — do rozwinięcia zwiniętego wiersza.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function crm_mailbox_thread_rest(string $thread_key, int $except_id, int $limit = 25): array {
+    if ($thread_key === '') return [];
+    try {
+        return db_all(
+            "SELECT c.id, c.subject, c.sent_at, c.is_read, c.direction, c.msg_no,
+                    c.from_name, c.from_email
+               FROM crm_communications c
+              WHERE c.thread_key = ? AND c.id <> ? AND " . poczta_scope_sql('c.mailbox_id') . "
+           ORDER BY c.sent_at DESC, c.id DESC LIMIT ?",
+            [$thread_key, $except_id, $limit]
+        );
+    } catch (\Throwable $e) { return []; }
 }
 
 /** Liczniki do zakładek widoków. */

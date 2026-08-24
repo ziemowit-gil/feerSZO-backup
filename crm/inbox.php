@@ -20,6 +20,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
 require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';
+require_once dirname(__DIR__) . '/includes/crm_sender.php';   // user_pref() — zapamiętany wybór widoku
 require_once dirname(__DIR__) . '/includes/nozbe.php';
 require_once dirname(__DIR__) . '/includes/crm_case_extras.php';
 require_once dirname(__DIR__) . '/includes/crm_perms.php';
@@ -167,7 +168,13 @@ $search = trim((string)($_GET['q'] ?? ''));
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $sel_id = (int)($_GET['msg'] ?? 0);
 
-$inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'q' => $search, 'page' => $page, 'per_page' => 20]);
+// Grupowanie w wątki — wybór zapamiętany, bo to preferencja pracy, a nie filtr
+// jednej wizyty. ?threads=0/1 przestawia, brak parametru czyta ostatni wybór.
+if (isset($_GET['threads'])) user_pref_set('crm_inbox_threads', $_GET['threads'] === '1' ? '1' : '0');
+$threads = user_pref('crm_inbox_threads', '1') === '1';
+
+$inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'q' => $search,
+                             'page' => $page, 'per_page' => 20, 'group_threads' => $threads]);
 $counts = crm_mailbox_counts();
 $boxes  = crm_mailbox_list(false);
 $users  = [];
@@ -643,6 +650,15 @@ include __DIR__ . '/includes/header_crm.php';
   </details>
   <?php endif; ?>
 
+  <?php $tg_on = $inbox['grouped'] ?? false; ?>
+  <a class="ib-tbtn<?= $tg_on ? ' ib-tbtn--on' : '' ?>" href="?<?= $qs(['threads' => $threads ? '0' : '1', 'msg' => null, 'page' => null]) ?>"
+     aria-pressed="<?= $tg_on ? 'true' : 'false' ?>"
+     title="<?= $search !== ''
+        ? 'Przy aktywnym wyszukiwaniu wątki są rozwijane — inaczej wynik pokazywałby wiadomość bez szukanej frazy'
+        : 'Zwiń odpowiedzi w jeden wiersz wątku' ?>">
+    <i class="bi bi-<?= $threads ? 'list-nested' : 'list' ?>" aria-hidden="true"></i>Wątki
+  </a>
+
   <button type="button" class="ib-tbtn" id="ibSoundBtn" aria-pressed="false"
           title="Sygnał dźwiękowy przy nowej wiadomości">
     <i class="bi bi-bell" id="ibSoundIco" aria-hidden="true"></i><span id="ibSoundTxt">Sygnał</span>
@@ -806,6 +822,26 @@ include __DIR__ . '/includes/header_crm.php';
         <?php endif; ?>
       </a>
       </div>
+      <?php // Zwinięty wątek: reszta wymiany pod jednym rozwinięciem, bez ładowania strony
+            $tc = (int)($r['thread_count'] ?? 1);
+            if (($inbox['grouped'] ?? false) && $tc > 1 && !empty($r['thread_key'])): ?>
+      <details class="ib-thread">
+        <summary title="Pozostałe wiadomości tego wątku">
+          <i class="bi bi-arrow-return-right" aria-hidden="true"></i>
+          <?= $tc - 1 ?> <?= $tc - 1 === 1 ? 'wcześniejsza wiadomość' : ($tc - 1 < 5 ? 'wcześniejsze wiadomości' : 'wcześniejszych wiadomości') ?>
+          w wątku
+        </summary>
+        <?php foreach (crm_mailbox_thread_rest((string)$r['thread_key'], (int)$r['id']) as $tr): ?>
+        <a class="ib-thread-item<?= (int)$tr['id'] === $sel_id ? ' active' : '' ?>"
+           href="?<?= $qs(['msg' => (int)$tr['id']]) ?>">
+          <i class="bi bi-<?= $tr['direction'] === 'out' ? 'reply' : 'envelope' ?>" aria-hidden="true"></i>
+          <span class="ib-thread-who"><?= h($tr['direction'] === 'out' ? 'my' : ($tr['from_name'] ?: $tr['from_email'] ?: '—')) ?></span>
+          <span class="ib-thread-subj"><?= h($tr['subject'] ?: '(bez tematu)') ?></span>
+          <span class="ib-thread-date"><?= h(date('j.m H:i', strtotime((string)$tr['sent_at']))) ?></span>
+        </a>
+        <?php endforeach; ?>
+      </details>
+      <?php endif; ?>
       <?php endforeach; endif; ?>
     </div>
 

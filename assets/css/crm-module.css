@@ -820,3 +820,26 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
 }
 .card .table-striped > tbody > tr:nth-of-type(odd) > * { background: transparent; }
 .card .table-hover > tbody > tr:hover > * { background: #FAFBFC; }
+
+/* ── Zwinięty wątek na liście skrzynki ────────────────────────────────── */
+.ib-thread { margin: 0 0 .15rem 2.1rem; }
+.ib-thread > summary {
+  list-style: none; cursor: pointer;
+  font-size: .74rem; color: var(--crm-text-light);
+  padding: .15rem .4rem; border-radius: 5px;
+  display: flex; align-items: center; gap: .3rem;
+}
+.ib-thread > summary::-webkit-details-marker { display: none; }
+.ib-thread > summary:hover { background: #F3F4F6; color: var(--crm-text); }
+.ib-thread[open] > summary { color: var(--crm-primary); }
+.ib-thread-item {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .22rem .45rem; border-radius: 5px;
+  font-size: .76rem; color: var(--crm-text-muted); text-decoration: none;
+  border-left: 2px solid var(--crm-border); margin-left: .35rem;
+}
+.ib-thread-item:hover  { background: #F3F4F6; color: var(--crm-text); }
+.ib-thread-item.active { background: var(--crm-primary-bg); border-left-color: var(--crm-primary); }
+.ib-thread-who  { font-weight: 600; white-space: nowrap; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
+.ib-thread-subj { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ib-thread-date { color: var(--crm-text-light); white-space: nowrap; font-size: .72rem; }
