@@ -327,6 +327,7 @@ include __DIR__ . '/includes/header_crm.php';
   border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
 .modal .ib-dbody .input-group > .form-select { border-top-right-radius:0; border-bottom-right-radius:0 }
 .modal .ib-dbody .input-group > .btn { border-radius:0 8px 8px 0 }
+.ib-att-cloud { font-size:.72rem; color:#6B7280; margin-left:.15rem }
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
@@ -1285,21 +1286,33 @@ include __DIR__ . '/includes/header_crm.php';
           $size = (int)($a['size_bytes'] ?? 0);
           $human= $size >= 1048576 ? round($size / 1048576, 1) . ' MB'
                 : ($size >= 1024   ? round($size / 1024) . ' kB' : ($size ?: '') . ($size ? ' B' : ''));
-          $url  = !empty($a['stored_path']) ? APP_URL . '/uploads/' . ltrim((string)$a['stored_path'], '/') : '';
+          /* Wszystkie załączniki idą przez crm/api/attachment.php: sprawdza dostęp
+             do skrzynki, a plików, których nie ma na dysku, dociąga ze skrzynki
+             na żądanie. Wcześniej „niepobrany" oznaczał, że pliku nie da się
+             otworzyć — a to najczęściej dokładnie ten, po który ktoś wchodzi
+             (podpisana umowa, skan wniosku). */
+          $url    = APP_URL . '/crm/api/attachment.php?id=' . (int)$a['id'];
+          $onsrv  = !empty($a['stored_path']);
+          $remote = !$onsrv && !empty($a['graph_attachment_id']);
         ?>
-          <?php if ($url): ?>
+          <?php if ($onsrv || $remote): ?>
           <button type="button" class="ib-att" data-att-url="<?= h($url) ?>"
                   data-att-kind="<?= h($kind) ?>" data-att-name="<?= h((string)$a['original_name']) ?>"
-                  title="Pokaż podgląd — <?= h((string)$a['original_name']) ?>">
+                  title="<?= $onsrv
+                      ? 'Pokaż podgląd — ' . h((string)$a['original_name'])
+                      : 'Plik jest w skrzynce pocztowej — kliknij, aby go pobrać i otworzyć' ?>">
             <i class="bi <?= h($ib_att_icon[$kind]) ?>" style="color:<?= h($ib_att_color[$kind]) ?>" aria-hidden="true"></i>
             <span class="ib-att-name"><?= h((string)$a['original_name']) ?></span>
             <?php if ($human): ?><span class="ib-att-size"><?= h($human) ?></span><?php endif; ?>
+            <?php if ($remote): ?>
+            <i class="bi bi-cloud-arrow-down ib-att-cloud" title="Zostanie pobrany ze skrzynki przy pierwszym otwarciu" aria-hidden="true"></i>
+            <?php endif; ?>
           </button>
           <?php else: ?>
-          <span class="ib-att ib-att--missing" title="Plik nie został pobrany na serwer — jest tylko w skrzynce pocztowej">
+          <span class="ib-att ib-att--missing" title="Wiadomość nie ma zapisanego odnośnika do pliku — otwórz ją w programie pocztowym">
             <i class="bi bi-paperclip" aria-hidden="true"></i>
             <span class="ib-att-name"><?= h((string)$a['original_name']) ?></span>
-            <span class="ib-att-size">niepobrany</span>
+            <span class="ib-att-size">niedostępny</span>
           </span>
           <?php endif; ?>
         <?php endforeach; ?>
@@ -1769,18 +1782,39 @@ document.addEventListener('ib:list-refreshed', ibBulkInit);
 
   function show(url, kind, name) {
     title.textContent = name;
-    dl.href   = url;
-    dl.setAttribute('download', name);
+    // Pobieranie osobnym parametrem: przeglądarki ignorują atrybut download przy
+    // odpowiedzi z Content-Disposition: inline, więc o rodzaju decyduje serwer
+    dl.href   = url + '&dl=1';
+    dl.removeAttribute('download');
     open.href = url;
 
-    if (kind === 'image') {
-      body.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(name) + '" '
-                     + 'style="max-width:100%;max-height:72vh;display:block;margin:0 auto">';
-    } else if (kind === 'pdf') {
-      body.innerHTML = '<iframe src="' + esc(url) + '" title="' + esc(name) + '" '
-                     + 'style="width:100%;height:72vh;border:0"></iframe>';
+    // Plik może dopiero lecieć ze skrzynki — bez tego komunikatu okno stoi puste
+    // i wygląda na zawieszone
+    body.innerHTML = '<div class="text-center text-muted py-5">'
+                   + '<div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>'
+                   + '<div class="mt-2 small">Wczytuję załącznik…</div></div>';
+
+    if (kind === 'image' || kind === 'pdf') {
+      // Element doklejamy schowany i odsłaniamy dopiero po wczytaniu — inaczej
+      // przy dociąganiu ze skrzynki przez kilka sekund widać białą ramkę
+      var node = document.createElement(kind === 'image' ? 'img' : 'iframe');
+      node.style.cssText = kind === 'image'
+        ? 'max-width:100%;max-height:72vh;display:none;margin:0 auto'
+        : 'width:100%;height:72vh;border:0;display:none';
+      if (kind === 'image') { node.alt = name; } else { node.title = name; }
+      node.addEventListener('load', function () {
+        var sp = body.querySelector('.att-wait');
+        if (sp) sp.remove();
+        node.style.display = kind === 'image' ? 'block' : 'block';
+      });
+      node.addEventListener('error', function () {
+        body.innerHTML = '<div class="alert alert-warning mb-0">Nie udało się wczytać załącznika. '
+                       + 'Spróbuj go pobrać.</div>';
+      });
+      body.firstElementChild.className += ' att-wait';
+      node.src = url;
+      body.appendChild(node);
     } else if (kind === 'text') {
-      body.innerHTML = '<div class="text-muted small">Wczytuję…</div>';
       fetch(url, { credentials: 'same-origin' })
         .then(function (r) { return r.text(); })
         .then(function (t) {

@@ -47,7 +47,8 @@ $from   = trim((string)($m['from_name'] ?? '')) ?: (string)($m['from_email'] ?? 
 // Załączniki — jeśli wiadomość pochodzi ze skanowanej skrzynki.
 $att = [];
 try {
-    $att = db_all("SELECT original_name, size_bytes FROM poczta_attachments WHERE communication_id=? ORDER BY id", [$id]);
+    $att = db_all("SELECT id, original_name, size_bytes, stored_path, graph_attachment_id
+                     FROM poczta_attachments WHERE communication_id=? ORDER BY id", [$id]);
 } catch (\Throwable $e) {}
 
 $fmt = static function (int $b): string {
@@ -104,9 +105,21 @@ $fmt = static function (int $b): string {
 <div class="mt-2">
   <div class="text-muted mb-1" style="font-size:.76rem">Załączniki (<?= count($att) ?>)</div>
   <?php foreach ($att as $a): ?>
+  <?php /* Otwieramy przez crm/api/attachment.php — sprawdza dostęp do skrzynki
+           i dociąga plik ze skrzynki, gdy nie ma go na dysku. Sama nazwa bez
+           odnośnika mówiła tylko tyle, że coś przyszło. */
+        $has = !empty($a['stored_path']) || !empty($a['graph_attachment_id']); ?>
   <div class="d-flex align-items-center gap-2" style="font-size:.82rem">
     <i class="bi bi-paperclip text-muted" aria-hidden="true"></i>
+    <?php if ($has): ?>
+    <a class="text-truncate flex-grow-1" target="_blank" rel="noopener"
+       href="<?= APP_URL ?>/crm/api/attachment.php?id=<?= (int)$a['id'] ?>"
+       title="Otwórz załącznik: <?= h((string)$a['original_name']) ?>"><?= h((string)$a['original_name']) ?></a>
+    <a class="text-muted" title="Pobierz"
+       href="<?= APP_URL ?>/crm/api/attachment.php?id=<?= (int)$a['id'] ?>&amp;dl=1"><i class="bi bi-download"></i></a>
+    <?php else: ?>
     <span class="text-truncate flex-grow-1"><?= h((string)$a['original_name']) ?></span>
+    <?php endif; ?>
     <?php if (!empty($a['size_bytes'])): ?>
     <span class="text-muted" style="font-size:.74rem"><?= h($fmt((int)$a['size_bytes'])) ?></span>
     <?php endif; ?>
