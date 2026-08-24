@@ -83,182 +83,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        crm_migrate();
-        $data['type']          = 'osoba';
-        $data['status']        = $form['default_status'];
-        $data['source']        = 'webform:' . $form['slug'];
-        $data['crm_active']    = 1;
-        $data['created_at']    = date('Y-m-d H:i:s');
-        $data['updated_at']    = date('Y-m-d H:i:s');
-
-        // Utwórz kontakt
-        $contact_id = crm_insert('crm_contacts', array_filter($data, fn($v) => $v !== null));
-        require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
-        crm_automation_fire('contact_created', $contact_id);
-
-        // Dodaj do grupy
-        if ($form['group_id'] && $contact_id) {
-            try {
-                crm_insert('crm_group_members', ['group_id'=>(int)$form['group_id'],'contact_id'=>$contact_id,'added_at'=>date('Y-m-d H:i:s')]);
-            } catch (\Throwable $e) {}
-        }
-
-        // Zgody: zapis do rejestru (crm_consents) dla zgód mających przypisany cel.
-        //
-        // Wcześniej zgoda z formularza lądowała TYLKO jako tag `zgoda:cN`, gdzie N
-        // to pozycja checkboxa w formularzu. Po edycji formularza (usunięcie albo
-        // przestawienie zgody) te same tagi zaczynały znaczyć coś innego, a treści
-        // klauzuli, daty ani sposobu pozyskania nie było gdzie odczytać. Rejestr
-        // zapisuje cel, moment, źródło, IP i kopię klauzuli — czyli to, czym
-        // faktycznie da się wykazać zgodę.
-        //
-        // Zgoda bez przypisanego celu nadal zostaje tagiem — formularze, których
-        // nikt jeszcze nie zmapował na katalog celów, działają jak dotąd.
-        require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
-        $consent_by_id = [];
-        foreach ($consents_config as $con) $consent_by_id[(string)$con['id']] = $con;
-
-        foreach ($granted_consents as $cid) {
-            $con = $consent_by_id[(string)$cid] ?? null;
-            $pid = (int)($con['purpose_id'] ?? 0);
-            if ($pid > 0) {
-                try {
-                    crm_consent_record($contact_id, $pid, true, [
-                        'source'        => 'formularz',
-                        'source_detail' => 'Formularz: ' . $form['title'],
-                        'klauzula'      => (string)($con['text'] ?? ''),
-                        'ip'            => $_SERVER['REMOTE_ADDR'] ?? null,
-                    ]);
-                } catch (\Throwable $e) {}
-            } else {
-                try {
-                    crm_insert('crm_tags', ['contact_id'=>$contact_id,'tag'=>'zgoda:'.$cid,'created_at'=>date('Y-m-d H:i:s')]);
-                } catch (\Throwable $e) {}
-            }
-        }
-
-        // Zapisz wartości pól niestandardowych
-        if ($custom_values && $contact_id) {
-            CrmManager::saveFieldValues($contact_id, $custom_values);
-        }
-
-        // Inkrementuj licznik
-        db()->prepare("UPDATE crm_web_forms SET submissions=submissions+1 WHERE id=?")->execute([$form['id']]);
-
-        // Powiadom admina
-        if ($form['notify_email'] && filter_var($form['notify_email'], FILTER_VALIDATE_EMAIL)) {
-            require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
-            $contact_url = APP_URL . '/crm/contact/view.php?id=' . $contact_id;
-            $body = "<p>Nowe zgłoszenie przez formularz <strong>" . h($form['title']) . "</strong>:</p>"
-              . "<table style='border-collapse:collapse;font-size:.9rem'>"
-              . implode('', array_map(fn($k,$v) => $v ? "<tr><td style='padding:3px 12px 3px 0;color:#555'>{$k}:</td><td><strong>".h($v)."</strong></td></tr>" : '', array_keys($data), $data))
-              . "</table><p><a href='{$contact_url}'>Otwórz w CRM →</a></p>";
-            approval_send_email($form['notify_email'], 'Nowe zgłoszenie: ' . $form['title'], $body, 'crm_webform', (int)$form['id']);
-        }
-
-        // ── Automatyzacje ─────────────────────────────────────────────────────
-        run_form_automations($automations, $contact_id, $data, $form);
-
-        $success = true;
-    }
-}
-
-/**
- * Wykonaj automatyzacje formularza po pomyślnym zapisie kontaktu.
- */
-function run_form_automations(array $autos, int $contact_id, array $data, array $form): void {
-    if (!$autos) return;
-    require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
-
-    $contact = crm_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
-
-    foreach ($autos as $auto) {
-        if (empty($auto['enabled'])) continue;
-        $type = $auto['type'] ?? '';
-        $cfg  = $auto['config'] ?? [];
-
-        try {
-            switch ($type) {
-
-                case 'send_email':
-                    // Email do zgłaszającego
-                    $to = $data['email'] ?? ($contact['email'] ?? '');
-                    if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) break;
-                    $subject = CrmManager::renderTemplate($cfg['subject'] ?? 'Twoje zgłoszenie', $contact);
-                    $body_raw = $cfg['body'] ?? '';
-                    $body_html = nl2br(htmlspecialchars(CrmManager::renderTemplate($body_raw, $contact)));
-                    approval_send_email($to, $subject, '<html><body style="font-family:sans-serif">' . $body_html . '</body></html>', 'crm_webform', (int)$form['id']);
-                    break;
-
-                case 'send_notification':
-                    $to = $cfg['email'] ?? '';
-                    if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) break;
-                    $subject = CrmManager::renderTemplate($cfg['subject'] ?? 'Nowe zgłoszenie', $contact);
-                    $rows_html = '';
-                    foreach ($data as $k => $v) {
-                        if ($v) $rows_html .= "<tr><td style='padding:3px 12px 3px 0;color:#555'>{$k}:</td><td><strong>" . htmlspecialchars((string)$v) . "</strong></td></tr>";
-                    }
-                    $body = "<p>Nowe zgłoszenie przez formularz <strong>" . htmlspecialchars($form['title']) . "</strong>:</p><table>{$rows_html}</table>";
-                    approval_send_email($to, $subject, $body, 'crm_webform', (int)$form['id']);
-                    break;
-
-                case 'add_tag':
-                    $tags = array_filter(array_map('trim', explode(',', $cfg['tags'] ?? '')));
-                    foreach ($tags as $tag) {
-                        try { CrmManager::addTag($contact_id, $tag); } catch (\Throwable $e) {}
-                    }
-                    break;
-
-                case 'set_status':
-                    $status = trim($cfg['status'] ?? '');
-                    if ($status && array_key_exists($status, crm_statuses()) && $status !== ($contact['status'] ?? null)) {
-                        $from_status = $contact['status'] ?? null;
-                        crm_db()->prepare("UPDATE crm_contacts SET status=? WHERE id=?")->execute([$status, $contact_id]);
-                        require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
-                        crm_automation_fire('contact_status_changed', $contact_id, ['from_status' => $from_status, 'to_status' => $status]);
-                    }
-                    break;
-
-                case 'nozbe_task':
-                    require_once dirname(dirname(__DIR__)) . '/includes/nozbe.php';
-                    if (nozbe_setting('nozbe_enabled') !== '1') break;
-                    $nz = NozbeAPI::from_settings();
-                    if (!$nz->is_configured()) break;
-                    $task_name  = CrmManager::renderTemplate($cfg['task_name'] ?? 'Zgłoszenie: {imie_nazwisko}', $contact);
-                    $project_id = $cfg['project_id'] ?: nozbe_setting('nozbe_default_project_id');
-                    $due_days   = max(0, (int)($cfg['due_days'] ?? 1));
-                    $due_date   = $due_days ? date('Y-m-d', strtotime("+{$due_days} days")) : null;
-                    $desc       = "Formularz: {$form['title']}\nKontakt: {$contact['imie_nazwisko']}\nE-mail: {$contact['email']}";
-                    if ($project_id) $nz->create_task($task_name, $project_id, $desc, $due_date);
-                    break;
-
-                case 'webhook':
-                    $url = trim($cfg['url'] ?? '');
-                    if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) break;
-                    $payload = json_encode([
-                        'form_id'    => (int)$form['id'],
-                        'form_slug'  => $form['slug'],
-                        'contact_id' => $contact_id,
-                        'data'       => $data,
-                        'timestamp'  => date('c'),
-                    ]);
-                    $headers = ['Content-Type: application/json'];
-                    if (!empty($cfg['secret'])) {
-                        $sig = hash_hmac('sha256', $payload, $cfg['secret']);
-                        $headers[] = 'X-Form-Secret: ' . $sig;
-                    }
-                    $ctx = stream_context_create(['http'=>[
-                        'method'  => 'POST',
-                        'header'  => implode("\r\n", $headers),
-                        'content' => $payload,
-                        'timeout' => 5,
-                        'ignore_errors' => true,
-                    ]]);
-                    @file_get_contents($url, false, $ctx);
-                    break;
-            }
-        } catch (\Throwable $e) {
-            error_log("[form_automation:{$type}] {$e->getMessage()}");
+        // Cała obsługa zgłoszenia siedzi teraz w includes/crm_form_intake.php,
+        // bo dokładnie tą samą ścieżką musi przejść zgłoszenie z zewnętrznego
+        // CMS-a (api/v1/forms.php). Dwie kopie tej logiki rozjechałyby się przy
+        // pierwszej zmianie w którejkolwiek.
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_form_intake.php';
+        $res = crm_form_intake($form, $data, [
+            'custom'   => $custom_values,
+            'consents' => $granted_consents,
+            'ip'       => $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+        if (empty($res['ok'])) {
+            $errors['_form'] = $res['error'] ?: 'Nie udało się zapisać zgłoszenia.';
+        } else {
+            $success = true;
         }
     }
 }
