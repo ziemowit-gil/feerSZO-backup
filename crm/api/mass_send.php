@@ -84,6 +84,21 @@ function collect_recipients(array $body): array {
 function filter_by_consent(array $ids, array $body, string $channel): array
 {
     $dropped = ['opt_out' => 0, 'no_consent' => 0];
+
+    // Wiadomość członkowska: podstawą jest relacja z organizacją (członkostwo,
+    // umowa, wolontariat), a nie zgoda marketingowa — filtr celu wtedy nie działa.
+    // Sprzeciw wobec wysyłek (opt-out) NADAL respektujemy: dotyczy każdej poczty
+    // masowej, niezależnie od podstawy.
+    if (!empty($body['members_basis'])) {
+        if ($channel === 'email' && $ids) {
+            $ph   = implode(',', array_fill(0, count($ids), '?'));
+            $rows = db_all("SELECT id FROM crm_contacts WHERE id IN ($ph) AND COALESCE(email_opt_out,0)=0", $ids);
+            $keep = array_map('intval', array_column($rows, 'id'));
+            $dropped['opt_out'] = count($ids) - count($keep);
+            $ids = $keep;
+        }
+        return [$ids, $dropped];
+    }
     if (!$ids) return [$ids, $dropped];
 
     $purpose_id = (int)($body['purpose_id'] ?? 0);
@@ -234,6 +249,10 @@ if ($action === 'start') {
             // opieraliśmy się tego dnia.
             'purpose_id'      => (int)($body['purpose_id'] ?? 0),
             'ignore_opt_out'  => !empty($body['ignore_opt_out']),
+            // Deklaracja „to wiadomość członkowska" jest podstawą prawną wysyłki —
+            // zapisujemy ją razem z wysyłką, żeby po latach było wiadomo, na czym
+            // opierał się nadawca, a nie tylko że coś poszło.
+            'members_basis'   => !empty($body['members_basis']),
         ]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);

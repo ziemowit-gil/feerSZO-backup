@@ -264,6 +264,19 @@ include __DIR__ . '/includes/header_crm.php';
         Wybierz cel, jeśli wysyłasz treść marketingową — odbiorcami będą tylko kontakty
         z aktualną zgodą na ten cel.
       </div>
+      <?php /* Wiadomość do członków/wolontariuszy organizacji nie opiera się na zgodzie
+               marketingowej, tylko na łączącej nas relacji (członkostwo, umowa,
+               współpraca). Zaznaczenie tego pola zdejmuje wymóg wskazania celu zgody,
+               ale zostaje w logu wysyłki — bo to deklaracja podstawy prawnej. */ ?>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" id="ms_members" onchange="MS.membersChanged()">
+        <label class="form-check-label small" for="ms_members">
+          <strong>Wiadomość do członków organizacji</strong>
+          <span class="text-muted">— komunikacja członkowska/wewnętrzna: podstawą jest relacja
+          (członkostwo, umowa, wolontariat), nie zgoda marketingowa. Nie musisz wtedy wskazywać celu zgody.</span>
+        </label>
+      </div>
+
       <div class="form-check mt-2" id="ms_ignore_optout_row">
         <input class="form-check-input" type="checkbox" id="ms_ignore_optout" onchange="MS.preview()">
         <label class="form-check-label small" for="ms_ignore_optout">
@@ -924,6 +937,25 @@ const MS = (function() {
   // Cel wysyłki wpływa na dwie rzeczy: kto jest odbiorcą (filtr zgód po stronie
   // API) i czy pole „uwzględnij wypisanych" ma sens — przy zadeklarowanym celu
   // marketingowym nie ma, bo podstawą jest wtedy zgoda, nie brak sprzeciwu.
+  /* Wiadomość członkowska: cel zgody przestaje być potrzebny (i mylący), więc
+     wracamy do „komunikatu operacyjnego" i blokujemy wybór celu. */
+  function membersChanged() {
+    const on   = document.getElementById('ms_members').checked;
+    const sel  = document.getElementById('ms_purpose');
+    const hint = document.getElementById('ms_purpose_hint');
+    if (on) {
+      sel.value = '0';
+      sel.disabled = true;
+      hint.innerHTML = '<span class="text-success">Podstawą jest relacja z organizacją '
+                     + '(członkostwo, umowa, wolontariat) — zgoda marketingowa nie jest wymagana. '
+                     + 'Deklaracja zapisze się w logu wysyłki.</span>';
+    } else {
+      sel.disabled = false;
+    }
+    purposeChanged();
+    preview();
+  }
+
   function purposeChanged() {
     const sel  = document.getElementById('ms_purpose');
     const opt  = sel.options[sel.selectedIndex];
@@ -952,7 +984,8 @@ const MS = (function() {
   function purposePayload() {
     return {
       purpose_id:     parseInt(document.getElementById('ms_purpose')?.value, 10) || 0,
-      ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked
+      ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked,
+      members_basis:  !!document.getElementById('ms_members')?.checked
     };
   }
 
@@ -1198,7 +1231,7 @@ recipientRow(c)
   return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
-           preview, send, insertVar, loadTemplate, purposeChanged,
+           preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,
            wizNext, wizBack, wizGo };
 })();
 </script>
