@@ -654,6 +654,13 @@ function crm_migrate(): void {
         // Opiekun kontaktu — KTO prowadzi relację. To co innego niż created_by
         // (kto wpisał) i niż dostęp przez grupy (kto może zobaczyć).
         "ALTER TABLE crm_contacts ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        // Kontakt krytyczny operacyjnie — bank, dostawca internetu, hosting, prąd.
+        // To NIE jest status: status opisuje etap relacji (nowy → aktywny → partner),
+        // a krytyczność jest prostopadła — bank bywa jednocześnie „aktywny" i taki,
+        // bez którego staje organizacja. Dlatego osobna flaga, a nie kolejna pozycja
+        // w katalogu statusów, gdzie wykluczałaby tamte wartości.
+        "ALTER TABLE crm_contacts ADD COLUMN is_critical INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE crm_contacts ADD COLUMN critical_note TEXT",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
@@ -1861,6 +1868,10 @@ class CrmManager
                 $params[] = (int)$filters['uslugi'];
             }
         }
+        // Kontakty krytyczne operacyjnie — bank, dostawca łącza, hosting
+        if (!empty($filters['critical'])) {
+            $where[] = "COALESCE(c.is_critical,0) = 1";
+        }
         if (!empty($filters['tag'])) {
             $where[]  = "EXISTS (SELECT 1 FROM crm_tags t WHERE t.contact_id=c.id AND t.tag=?)";
             $params[] = $filters['tag'];
@@ -1972,6 +1983,8 @@ class CrmManager
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             // kategoria „świadczy usługi na rzecz FEER"
             'swiadczy_uslugi',
+            // krytyczność operacyjna (bank, dostawca łącza, hosting)
+            'is_critical', 'critical_note',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         // Reguła „usługi tylko dla partnera" obowiązuje też tu — createContact()
@@ -2015,6 +2028,8 @@ class CrmManager
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             // kategoria „świadczy usługi na rzecz FEER"
             'swiadczy_uslugi',
+            // krytyczność operacyjna (bank, dostawca łącza, hosting)
+            'is_critical', 'critical_note',
             // opiekun relacji
             'owner_id',
         ];
@@ -2023,7 +2038,10 @@ class CrmManager
         // Uprawnienia per pole (crm_field_perms): pole zamknięte dla roli nie może
         // wejść do zapisu, choćby ktoś podłożył je w formularzu. Jedno wejście do
         // edycji = jedno miejsce, w którym trzeba tego pilnować.
-        if (function_exists('crm_field_can_edit')) {
+        // Filtr per pole dotyczy CZŁOWIEKA przy klawiaturze. W CLI (cron, import,
+        // synchronizacja) nie ma zalogowanego użytkownika — tam pominięcie tego
+        // warunku jest konieczne, inaczej agenty przestałyby cokolwiek zapisywać.
+        if (function_exists('crm_field_can_edit') && function_exists('current_user') && current_user()) {
             foreach (array_keys($data) as $f) {
                 if (in_array($f, ['avatar_initials', 'source', 'person_id'], true)) continue;
                 if (!crm_field_can_edit($f)) unset($data[$f]);

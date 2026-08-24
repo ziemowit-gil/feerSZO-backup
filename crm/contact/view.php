@@ -1332,6 +1332,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         if ($p && (int)$p['contact_id'] === $id) CrmManager::setPrimaryContactPerson($id, $pid);
         $affected_section = 'persons';
     }
+    // Kontakt krytyczny operacyjnie — bank, dostawca łącza, hosting, prąd.
+    // Osobna flaga obok statusu: status mówi, na jakim etapie jest relacja,
+    // ta flaga mówi, co się stanie, gdy tego kontaktu zabraknie.
+    if ($action === 'toggle_critical') {
+        CrmManager::updateContact($id, [
+            'is_critical'   => !empty($_POST['on']) ? 1 : 0,
+            'critical_note' => !empty($_POST['on']) ? trim((string)($_POST['critical_note'] ?? '')) : null,
+        ]);
+        flash_set('success', !empty($_POST['on'])
+            ? 'Kontakt oznaczony jako krytyczny operacyjnie.'
+            : 'Zdjęto oznaczenie krytyczności.');
+        header('Location: view.php?id=' . $id); exit;
+    }
+
     if ($action === 'toggle_services') {
         // setProvidesServices() sam odrzuca włączenie dla nie-partnera;
         // wyłączenie przechodzi zawsze (porządki po zmianie statusu).
@@ -1688,6 +1702,14 @@ include __DIR__ . '/../includes/header_crm.php';
     <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'sms')">
       <i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Wyślij SMS
     </button>
+    <?php if ($crm_can_write): ?>
+    <button type="button" class="btn btn-sm <?= !empty($contact['is_critical']) ? 'btn-outline-danger' : 'btn-outline-secondary' ?>"
+            data-bs-toggle="modal" data-bs-target="#criticalModal"
+            title="Oznacz kontakt, bez którego staje część działalności — bank, dostawca internetu, hosting">
+      <i class="bi bi-exclamation-octagon<?= !empty($contact['is_critical']) ? '-fill' : '' ?> me-1" aria-hidden="true"></i>
+      <?= !empty($contact['is_critical']) ? 'Krytyczny operacyjnie' : 'Oznacz jako krytyczny' ?>
+    </button>
+    <?php endif; ?>
     <?php if ($crm_can_write && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
     <button type="button" class="btn btn-sm btn-outline-secondary"
             data-bs-toggle="modal" data-bs-target="#assignPersonModal"
@@ -1762,6 +1784,12 @@ include __DIR__ . '/../includes/header_crm.php';
        title="<?= h($_qb_chip[2]) ?>"<?= $_qb_chip[3] !== '' ? ' style="' . h($_qb_chip[3]) . '"' : '' ?>>
       <i class="bi <?= h($_qb_chip[0]) ?>" aria-hidden="true"></i><span><?= h($_qb_chip[1]) ?></span>
     </a>
+    <?php if (!empty($contact['is_critical'])): ?>
+    <span class="cv-chip" style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA"
+          title="<?= h($contact['critical_note'] ?: 'Kontakt krytyczny operacyjnie — bez niego staje część działalności') ?>">
+      <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>krytyczny operacyjnie
+    </span>
+    <?php endif; ?>
     <span class="ms-auto cv-meta">
       Dodano: <?= date_pl($contact['created_at']) ?>
       <?php if (($contact['source'] ?? '') !== 'manual'): ?>· Źródło: <?= h($contact['source'] ?? '') ?><?php endif; ?>
@@ -3091,6 +3119,55 @@ const ActivityUI = (function () {
   });
 })();
 </script>
+<?php endif; ?>
+
+<?php if ($crm_can_write): ?>
+<!-- ══ Krytyczność operacyjna ═════════════════════════════════════════════ -->
+<div class="modal fade" id="criticalModal" tabindex="-1" aria-labelledby="criticalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="toggle_critical">
+        <div class="modal-header py-2">
+          <h2 class="modal-title h6 fw-bold" id="criticalTitle">
+            <i class="bi bi-exclamation-octagon-fill me-2 text-danger" aria-hidden="true"></i>Kontakt krytyczny operacyjnie
+          </h2>
+          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">
+            Oznaczenie dla kontaktów, bez których staje część działalności: bank, dostawca internetu,
+            hosting, operator telefonii, dostawca prądu, firma księgowa. To <strong>nie jest status</strong>
+            — status opisuje etap relacji, a ta flaga mówi, co się stanie, gdy kontaktu zabraknie.
+            Oba działają obok siebie.
+          </p>
+
+          <div class="mb-2">
+            <label class="form-label small fw-semibold" for="critNote">Co od niego zależy</label>
+            <textarea class="form-control form-control-sm" id="critNote" name="critical_note" rows="3"
+                      placeholder="np. rachunek główny fundacji i karty płatnicze; awaria blokuje wypłaty"><?= h($contact['critical_note'] ?? '') ?></textarea>
+            <div class="form-text" style="font-size:.74rem">
+              Widoczne w podpowiedzi przy plakietce — żeby dyżurny wiedział, czym to grozi,
+              bez szukania po dokumentach.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <?php if (!empty($contact['is_critical'])): ?>
+          <button type="submit" name="on" value="0" class="btn btn-outline-secondary btn-sm me-auto">
+            Zdejmij oznaczenie
+          </button>
+          <?php endif; ?>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" name="on" value="1" class="btn btn-danger btn-sm">
+            <i class="bi bi-check-lg me-1"></i><?= !empty($contact['is_critical']) ? 'Zapisz' : 'Oznacz jako krytyczny' ?>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <?php endif; ?>
 
 <div class="modal fade" id="convertTypeModal" tabindex="-1"

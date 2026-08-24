@@ -50,6 +50,8 @@ $filters = [
     'has_email'    => !empty($_GET['has_email'])  ? '1' : '',
     'has_phone'    => !empty($_GET['has_phone'])  ? '1' : '',
     'uslugi'       => trim($_GET['uslugi']       ?? ''),
+    // Kontakty krytyczne operacyjnie (bank, dostawca łącza, hosting)
+    'critical'     => !empty($_GET['critical']) ? 1 : 0,
 ];
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 25;
@@ -186,6 +188,11 @@ function _crm_table_html(
                        class="crm-name-link">
                       <?= h($row['imie_nazwisko']) ?>
                     </a>
+                    <?php if (!empty($row['is_critical'])): ?>
+                    <i class="bi bi-exclamation-octagon-fill" style="color:#B91C1C;font-size:.78rem"
+                       title="Kontakt krytyczny operacyjnie<?= !empty($row['critical_note']) ? ' — ' . h($row['critical_note']) : '' ?>"
+                       aria-label="Kontakt krytyczny operacyjnie"></i>
+                    <?php endif; ?>
                     <?php if ($row['email']): ?>
                     <div class="crm-name-sub">
                       <i class="bi bi-envelope" aria-hidden="true"></i>
@@ -678,6 +685,17 @@ include __DIR__ . '/includes/header_crm.php';
         <span>Branża</span>
         <input type="text" name="branza" value="<?= h($filters['branza']) ?>"
                class="form-control form-control-sm" autocomplete="off">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Krytyczność</span>
+        <span class="d-flex align-items-center gap-2" style="height:31px">
+          <input type="checkbox" class="form-check-input mt-0" name="critical" id="fltCritical" value="1"
+                 <?= !empty($filters['critical']) ? 'checked' : '' ?>>
+          <label class="mb-0" for="fltCritical" style="font-size:.8rem;cursor:pointer">
+            tylko krytyczne operacyjnie
+          </label>
+        </span>
       </label>
 
       <?php $_svc_filter_types = crm_service_types(false); ?>
