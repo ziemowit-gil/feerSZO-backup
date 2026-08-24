@@ -575,7 +575,8 @@ include __DIR__ . '/includes/header_crm.php';
 <div class="ib-toolbar">
   <div class="ib-views">
   <?php foreach (CRM_MAILBOX_VIEWS as $vk => $vv): $n = (int)($counts[$vk] ?? 0);
-        if ($vk === 'hidden' && !$n && $view !== 'hidden') continue;   // pusty widok „Ukryte" nie zajmuje miejsca ?>
+        // Puste widoki pomocnicze („Ukryte", „Kopie robocze") nie zajmują miejsca w pasku
+        if (in_array($vk, ['hidden', 'drafts'], true) && !$n && $view !== $vk) continue; ?>
   <a href="?<?= $qs(['view' => $vk, 'msg' => null, 'page' => null]) ?>" class="ib-pill"
      style="background:<?= $view === $vk ? 'var(--crm-primary-bg)' : '#F3F4F6' ?>;
             color:<?= $view === $vk ? 'var(--crm-primary)' : '#374151' ?>;
@@ -739,7 +740,12 @@ include __DIR__ . '/includes/header_crm.php';
         $day = $day_label((string)$r['sent_at']);
         if ($day !== $last_day) { $last_day = $day; echo '<div class="ib-day">' . h($day) . '</div>'; }
         $act    = (int)$r['id'] === $sel_id;
-        $who    = (string)($r['from_name'] ?: $r['from_email'] ?: $r['contact_name'] ?: '—');
+        // W widokach wychodzących liczy się ADRESAT, nie nadawca — inaczej wszystkie
+        // wiersze pokazywałyby naszą własną skrzynkę.
+        $outgoing = in_array($view, ['sent', 'drafts'], true);
+        $who = $outgoing
+            ? 'Do: ' . (string)($r['contact_name'] ?: $r['from_email'] ?: '—')
+            : (string)($r['from_name'] ?: $r['from_email'] ?: $r['contact_name'] ?: '—');
         $unread = !(int)$r['is_read'];
         $no     = crm_msg_no((int)$r['id'], $r['msg_no'] ?? null);
       ?>
@@ -839,8 +845,14 @@ include __DIR__ . '/includes/header_crm.php';
         <div class="ib-h1-no">WIADOMOŚĆ NR <span class="ib-no">#<?= h($msg_no) ?></span></div>
         <?php endif; ?>
         <h1 class="ib-h1"><?= h($msg['subject'] ?: '(bez tematu)') ?></h1>
+        <?php $msg_out = ($msg['direction'] ?? 'in') === 'out'; ?>
         <div class="ib-meta">
+          <?php if ($msg_out): ?>
+          <span class="text-muted">Do:</span>
+          <strong><?= h($msg['contact_name'] ?: ($msg['from_email'] ?: '—')) ?></strong>
+          <?php else: ?>
           <strong><?= h($msg['from_name'] ?: ($msg['from_email'] ?: '—')) ?></strong>
+          <?php endif; ?>
           <?php if (!empty($msg['from_email']) && $msg['from_name']): ?>
           &lt;<?= h($msg['from_email']) ?>&gt;
           <?php endif; ?>
@@ -884,7 +896,7 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       </div>
 
-      <?php if ($can_write): ?>
+      <?php if ($can_write && ($msg['direction'] ?? 'in') === 'in'): ?>
       <?php /* Pasek akcji: każdy przycisk ma widoczną etykietę i podpowiedź mówiącą,
                co się STANIE po kliknięciu — same ikonki (koperta, przekreślone kółko)
                nie mówiły nic. Styl wspólny z paskiem narzędzi nad listą. */ ?>
@@ -1062,6 +1074,23 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endif; ?>
         <?php endforeach; ?>
         </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if (($msg['direction'] ?? 'in') === 'out'): ?>
+      <div class="ib-bar" style="font-size:.8rem;color:#6B7280">
+        <i class="bi bi-<?= $view === 'drafts' ? 'file-earmark-text' : 'send' ?>" aria-hidden="true"></i>
+        <?php if ($view === 'drafts' || ($msg['status'] ?? '') === 'zaplanowana'): ?>
+        Kopia robocza — wiadomość zapisana w historii, ale <strong>niewysłana</strong>.
+        Żeby ją wysłać, otwórz kompozytor przy kontakcie i wklej treść.
+        <?php else: ?>
+        Wiadomość wychodząca · status: <strong><?= h($msg['status'] ?? '—') ?></strong>
+        <?php endif; ?>
+        <?php if (!empty($msg['contact_id'])): ?>
+        <a class="ib-act ms-auto" href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$msg['contact_id'] ?>">
+          <i class="bi bi-person" aria-hidden="true"></i>Kartoteka kontaktu
+        </a>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 

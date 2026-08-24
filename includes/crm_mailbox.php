@@ -141,6 +141,8 @@ const CRM_MAILBOX_VIEWS = [
     'archived'   => ['label' => 'Załatwione',      'icon' => 'bi-archive-fill'],
     'spam'       => ['label' => 'Spam',            'icon' => 'bi-slash-circle'],
     'hidden'     => ['label' => 'Ukryte',          'icon' => 'bi-eye-slash'],
+    'sent'       => ['label' => 'Wysłane',         'icon' => 'bi-send'],
+    'drafts'     => ['label' => 'Kopie robocze',   'icon' => 'bi-file-earmark-text'],
 ];
 
 /** Warunek SQL dla widoku (bez prefiksu WHERE). */
@@ -159,6 +161,13 @@ function _crm_mailbox_view_sql(string $view, int $uid, array &$params): string {
             return "c.direction='in' AND c.inbox_status='spam'";
         case 'hidden':
             return "c.direction='in' AND c.crm_hidden=1";
+        // Wychodzące: wysłane (poszły albo czekają w kolejce) i „kopie robocze",
+        // czyli wiadomości zapisane w historii BEZ wysyłki (odznaczone „wyślij teraz").
+        case 'sent':
+            return "c.direction='out' AND c.channel='email'"
+                 . " AND (c.status LIKE 'wys%' OR c.status IN ('w kolejce','zsynchronizowana'))";
+        case 'drafts':
+            return "c.direction='out' AND c.channel='email' AND c.status='zaplanowana'";
         default:
             return "c.direction='in' AND c.inbox_status IN ('active','archived')";
     }
@@ -209,7 +218,7 @@ function crm_mailbox_inbox(array $f = []): array {
     $rows = db_all(
         "SELECT c.id, c.contact_id, c.subject, c.body, c.sent_at, c.is_read, c.inbox_status,
                 c.assigned_to, c.has_attachments, c.from_name, c.from_email, c.thread_key, c.mailbox_id,
-                c.msg_no, COALESCE(c.crm_hidden,0) AS crm_hidden,
+                c.msg_no, COALESCE(c.crm_hidden,0) AS crm_hidden, c.direction, c.status,
                 ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.email AS contact_email,
                 u.name AS assigned_name, m.mailbox AS mailbox_name
          FROM crm_communications c
