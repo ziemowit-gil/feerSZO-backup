@@ -179,6 +179,79 @@ function _crm_mailbox_view_sql(string $view, int $uid, array &$params): string {
  * @param array $f view, mailbox_id, assigned_to, contact_id, q, page, per_page
  * @return array{rows:array,total:int,page:int,per_page:int}
  */
+/**
+ * Warunki opisujące ZAKRES widoku: sam widok, ukrycie w CRM, dostęp do skrzynek
+ * i ewentualny wybór jednej skrzynki. Bez zawężeń wyszukiwarką.
+ *
+ * Wydzielone, bo korzystają z nich trzy rzeczy naraz: lista, podzapytanie
+ * wybierające reprezentanta wątku i masowe oznaczanie jako przeczytane. Każda
+ * kopia tych warunków oznaczałaby, że „wszystko" znaczy gdzieś indziej co innego.
+ *
+ * @param array $params wypełniane parametrami zapytania (przez referencję)
+ * @return string[]|null null, gdy użytkownik nie ma dostępu do wskazanej skrzynki
+ */
+function _crm_mailbox_scope_where(string $view, int $uid, array $f, array &$params): ?array {
+    $out = [_crm_mailbox_view_sql($view, $uid, $params)];
+
+    // „Nie pokazuj więcej w CRM Inbox" — poza widokiem „Ukryte" te wiadomości znikają
+    if ($view !== 'hidden') $out[] = 'COALESCE(c.crm_hidden,0)=0';
+
+    // Widok obejmuje wyłącznie skrzynki, do których użytkownik ma dostęp
+    $out[] = poczta_scope_sql('c.mailbox_id');
+    if (!empty($f['mailbox_id'])) {
+        if (!poczta_can_access((int)$f['mailbox_id'], 'read')) return null;
+        $out[] = 'c.mailbox_id=?'; $params[] = (int)$f['mailbox_id'];
+    }
+    return $out;
+}
+
+/**
+ * Oznacza jako przeczytane WSZYSTKIE nieprzeczytane wiadomości bieżącego zakresu.
+ *
+ * Zakres to widok plus wybrana skrzynka — dokładnie to, co użytkownik ma przed
+ * oczami. Wyszukiwarka celowo NIE zawęża: „odczytaj wszystko" ma znaczyć to samo
+ * niezależnie od tego, co akurat wpisano w pole szukania, a odczytanie połowy
+ * skrzynki przez przypadkowo aktywny filtr byłoby trudne do zauważenia.
+ *
+ * @return int liczba oznaczonych wiadomości
+ */
+function crm_mailbox_mark_all_read(array $f = []): int {
+    if (!crm_mailbox_ready()) return 0;
+
+    $uid    = (int)(current_user()['id'] ?? 0);
+    $view   = isset(CRM_MAILBOX_VIEWS[$f['view'] ?? '']) ? (string)$f['view'] : 'new';
+    $params = [];
+    $where  = _crm_mailbox_scope_where($view, $uid, $f, $params);
+    if ($where === null) return 0;
+    $where[] = 'c.is_read=0';
+
+    // UPDATE nie zna aliasu `c`, a warunki są pisane z aliasem — stąd zawężenie
+    // podzapytaniem zamiast przepisywania warunków po raz drugi bez aliasu.
+    try {
+        $st = db()->prepare(
+            "UPDATE crm_communications SET is_read=1, updated_at=datetime('now')
+              WHERE id IN (SELECT c.id FROM crm_communications c WHERE " . implode(' AND ', $where) . ")"
+        );
+        $st->execute($params);
+        return (int)$st->rowCount();
+    } catch (\Throwable $e) { return 0; }
+}
+
+/** Ile wiadomości w bieżącym zakresie czeka na odczytanie. */
+function crm_mailbox_unread_in_scope(array $f = []): int {
+    if (!crm_mailbox_ready()) return 0;
+    $uid    = (int)(current_user()['id'] ?? 0);
+    $view   = isset(CRM_MAILBOX_VIEWS[$f['view'] ?? '']) ? (string)$f['view'] : 'new';
+    $params = [];
+    $where  = _crm_mailbox_scope_where($view, $uid, $f, $params);
+    if ($where === null) return 0;
+    $where[] = 'c.is_read=0';
+    try {
+        return (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications c WHERE "
+            . implode(' AND ', $where), $params)['n'] ?? 0);
+    } catch (\Throwable $e) { return 0; }
+}
+
 function crm_mailbox_inbox(array $f = []): array {
     if (!crm_mailbox_ready()) return ['rows' => [], 'total' => 0, 'page' => 1, 'per_page' => 25];
 
@@ -189,17 +262,8 @@ function crm_mailbox_inbox(array $f = []): array {
     // wyszukiwarką. Grupowanie w wątki potrzebuje ich po raz drugi, w podzapytaniu
     // wybierającym reprezentanta wątku, dlatego trzymane są osobno.
     $struct_params = [];
-    $struct = [_crm_mailbox_view_sql($view, $uid, $struct_params)];
-
-    // „Nie pokazuj więcej w CRM Inbox" — poza widokiem „Ukryte" te wiadomości znikają
-    if ($view !== 'hidden') $struct[] = 'COALESCE(c.crm_hidden,0)=0';
-
-    // Widok obejmuje wyłącznie skrzynki, do których użytkownik ma dostęp
-    $struct[] = poczta_scope_sql('c.mailbox_id');
-    if (!empty($f['mailbox_id'])) {
-        if (!poczta_can_access((int)$f['mailbox_id'], 'read')) return ['rows' => [], 'total' => 0, 'page' => 1, 'per_page' => 25];
-        $struct[] = 'c.mailbox_id=?'; $struct_params[] = (int)$f['mailbox_id'];
-    }
+    $struct = _crm_mailbox_scope_where($view, $uid, $f, $struct_params);
+    if ($struct === null) return ['rows' => [], 'total' => 0, 'page' => 1, 'per_page' => 25];
     $where  = $struct;
     $params = $struct_params;
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }

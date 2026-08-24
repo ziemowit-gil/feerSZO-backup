@@ -85,6 +85,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
 
+            case 'mark_all_read':
+                $n = crm_mailbox_mark_all_read([
+                    'view'       => $_POST['view'] ?? null,
+                    'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                ]);
+                flash_set($n ? 'success' : 'info', $n
+                    ? 'Oznaczono jako przeczytane: ' . $n . ' wiad.'
+                    : 'W tym widoku nie ma nieprzeczytanych wiadomości.');
+                $back = 'inbox.php?' . http_build_query(array_filter([
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                    'q'    => $_POST['q'] ?? null,
+                ]));
+                break;
+
+            case 'bulk_read':
+                $ids = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
+                $n = 0;
+                // crm_mailbox_mark_read() nic nie zwraca — liczymy wywołania, nie wynik
+                foreach ($ids as $bid) { if ($bid > 0) { crm_mailbox_mark_read($bid, true); $n++; } }
+                flash_set($n ? 'success' : 'warning', $n
+                    ? 'Oznaczono jako przeczytane: ' . $n . ' wiad.'
+                    : 'Nie zaznaczono żadnej wiadomości.');
+                $back = 'inbox.php?' . http_build_query(array_filter([
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                    'q'    => $_POST['q'] ?? null,
+                ]));
+                break;
+
             case 'bulk_hide':
             case 'bulk_unhide':
                 $ids  = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
@@ -691,6 +719,28 @@ include __DIR__ . '/includes/header_crm.php';
   </a>
   <?php endif; ?>
 
+  <?php /* Odczytanie skrzynki po powrocie z urlopu wymagało otwarcia każdej
+           wiadomości z osobna. Zakres to bieżący widok i wybrana skrzynka —
+           dokładnie to, co widać; wyszukiwarka celowo go nie zawęża. */ ?>
+  <?php $unread_scope = $can_write ? crm_mailbox_unread_in_scope(['view' => $view, 'mailbox_id' => $mbox_f]) : 0; ?>
+  <?php if ($unread_scope > 0):
+        $mb_name = '';
+        foreach ($boxes as $b) { if ((int)$b['id'] === $mbox_f) { $mb_name = (string)$b['mailbox']; break; } }
+        $scope_txt = 'w widoku „' . (CRM_MAILBOX_VIEWS[$view]['label'] ?? $view) . '"'
+                   . ($mb_name !== '' ? ', skrzynka ' . $mb_name : ''); ?>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_op" value="mark_all_read">
+    <input type="hidden" name="view" value="<?= h($view) ?>">
+    <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
+    <button class="ib-tbtn" title="Oznacz jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?> (<?= (int)$unread_scope ?>)"
+            onclick="return confirm('Oznaczyć jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?>? Dotyczy <?= (int)$unread_scope ?> wiad.')">
+      <i class="bi bi-envelope-open" aria-hidden="true"></i>Odczytaj wszystko
+      <span class="ib-cnt" style="background:#EEF2FF;color:#4338CA"><?= (int)$unread_scope ?></span>
+    </button>
+  </form>
+  <?php endif; ?>
+
   <button type="button" class="ib-tbtn" id="ibSoundBtn" aria-pressed="false"
           title="Sygnał dźwiękowy przy nowej wiadomości">
     <i class="bi bi-bell" id="ibSoundIco" aria-hidden="true"></i><span id="ibSoundTxt">Sygnał</span>
@@ -772,6 +822,12 @@ include __DIR__ . '/includes/header_crm.php';
           <span>Zaznacz widoczne (<?= count($inbox['rows']) ?>)</span>
         </label>
         <span id="ibBulkInfo" hidden>· <span class="ib-bulk-n" id="ibBulkN">0</span> zazn.</span>
+        <?php /* Zaznaczone można też po prostu odczytać — bez otwierania każdej
+                 z osobna. Formularz jest jeden, więc operację wybiera pole _op. */ ?>
+        <button class="ib-bulk-act" id="ibBulkReadBtn" disabled
+                title="Oznacz zaznaczone wiadomości jako przeczytane">
+          <i class="bi bi-envelope-open" aria-hidden="true"></i>Oznacz przeczytane
+        </button>
         <button class="ib-bulk-act" id="ibBulkBtn" disabled
                 <?= $bulk_view ? '' : 'onclick="return confirm(\'Porzucić zaznaczone wiadomości? Znikną ze Skrzynki CRM — zostaną w widoku Ukryte, w Poczcie i EZD bez zmian.\')"' ?>>
           <?php if ($bulk_view): ?>
@@ -1652,6 +1708,8 @@ function ibBulkInit() {
   if (!bar) return;
   var all   = document.getElementById('ibCheckAll');
   var btn   = document.getElementById('ibBulkBtn');
+  var rdBtn = document.getElementById('ibBulkReadBtn');
+  var opFld = document.getElementById('ibBulkOp');
   var out   = document.getElementById('ibBulkN');
   var boxes = Array.prototype.slice.call(document.querySelectorAll('.ib-check'));
 
@@ -1662,6 +1720,7 @@ function ibBulkInit() {
     out.textContent = n;
     info.hidden = n === 0;
     btn.disabled = n === 0;
+    if (rdBtn) rdBtn.disabled = n === 0;
     bar.classList.toggle('is-armed', n > 0);
     boxes.forEach(function (b) { b.closest('.ib-row').classList.toggle('is-checked', b.checked); });
     all.checked = n > 0 && n === boxes.length;
@@ -1677,6 +1736,19 @@ function ibBulkInit() {
     });
   }
   boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+
+  // Jeden formularz, dwie operacje — przycisk ustawia _op tuż przed wysłaniem,
+  // inaczej „Oznacz przeczytane" wysyłałoby porzucenie zaznaczonych.
+  if (rdBtn && !rdBtn.dataset.bound) {
+    rdBtn.dataset.bound = '1';
+    rdBtn.addEventListener('click', function () { if (opFld) opFld.value = 'bulk_read'; });
+  }
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (opFld) opFld.value = <?= $view === 'hidden' ? "'bulk_unhide'" : "'bulk_hide'" ?>;
+    });
+  }
   refresh();
 }
 ibBulkInit();
