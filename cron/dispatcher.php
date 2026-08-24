@@ -189,6 +189,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'crm_cases_due' => [
+        'file'     => __DIR__ . '/crm_cases_due.php',
+        'interval' => 86400,        // raz dziennie — terminy spraw i naruszenia SLA
+        'schedule' => [7, 9],       // między 7:00 a 9:00
+    ],
     'crm_inbox_autoabandon' => [
         'file'     => __DIR__ . '/crm_inbox_autoabandon.php',
         'interval' => 86400,        // raz dziennie — porzuca wiadomości bez akcji starsze niż 3 mies.

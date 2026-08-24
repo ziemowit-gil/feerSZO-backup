@@ -725,6 +725,7 @@ window.openCommModal = function(contactId, channel) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/templates.php"><i class="bi bi-file-earmark-text-fill me-2"></i>Szablony wiadomości</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/workflows.php"><i class="bi bi-diagram-3 me-2"></i>Przepływy (szablony akcji)</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/templates.php"><i class="bi bi-journal-text me-2"></i>Szablony spraw</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/types.php"><i class="bi bi-tags me-2"></i>Typy spraw i SLA</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>
         <?php endif; ?>
         <?php if (crm_setting('roundcube_url')): ?>

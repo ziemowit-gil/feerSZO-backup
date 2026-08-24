@@ -68,8 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         } else {
             $now  = date('Y-m-d H:i:s');
             $from = $case['status'];
-            db()->prepare("UPDATE crm_cases SET status='closed', updated_at=?, closed_at=? WHERE id=?")
-                ->execute([$now, $now, $id]);
+            crm_case_set_status($id, 'closed',
+                (string)($_POST['close_reason'] ?? '') ?: 'zalatwiona');
 
             $note = trim((string)($_POST['close_note'] ?? ''));
             if ($note !== '') {
@@ -83,39 +83,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 } catch (\Throwable $e) { /* notatka nie może zablokować zamknięcia */ }
             }
 
-            try {
-                require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
-                crm_automation_fire('case_status_changed', (int)$case['contact_id'], [
-                    'case_id' => $id, 'from_status' => $from, 'to_status' => 'closed',
-                ]);
-            } catch (\Throwable $e) {}
-
             flash_set('success', 'Sprawa zamknięta.');
         }
         header('Location: view.php?id=' . $id); exit;
     }
 
-    // Zmiana statusu
+    // Zmiana statusu — zawsze przez crm_case_set_status(), żeby historia nie kłamała
     if ($action === 'set_status') {
         $ns = $_POST['status'] ?? '';
         if (array_key_exists($ns, $status_cfg) && $ns !== $case['status']) {
-            $from_status = $case['status'];
-            db()->prepare(
-                "UPDATE crm_cases SET status=?, updated_at=?, closed_at=? WHERE id=?"
-            )->execute([
-                $ns, date('Y-m-d H:i:s'),
-                in_array($ns, ['closed','cancelled']) ? date('Y-m-d H:i:s') : null,
-                $id,
-            ]);
-            if ($case['contact_id']) {
-                require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
-                crm_automation_fire('case_status_changed', (int)$case['contact_id'], [
-                    'case_id' => $id, 'from_status' => $from_status, 'to_status' => $ns,
-                ]);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            if (in_array($ns, ['closed', 'cancelled'], true) && $reason === '') {
+                flash_set('warning', 'Przy zamykaniu sprawy podaj powód — bez tego nie da się policzyć skuteczności.');
+                header('Location: view.php?id=' . $id . '#status'); exit;
             }
-            flash_set('success', 'Status zmieniony na: ' . $status_cfg[$ns]['label']);
+            $r = crm_case_set_status($id, $ns, $reason);
+            flash_set(!empty($r['ok']) ? 'success' : 'danger', !empty($r['ok'])
+                ? 'Status zmieniony na: ' . $status_cfg[$ns]['label']
+                : ($r['error'] ?? 'Nie udało się zmienić statusu.'));
         }
         header('Location: view.php?id=' . $id . '#status'); exit;
+    }
+
+    // Metadane prowadzenia sprawy: typ, opiekun, termin
+    if ($action === 'set_meta') {
+        try {
+            db()->prepare("UPDATE crm_cases SET type_id=?, owner_id=?, due_date=?, updated_at=? WHERE id=?")
+                ->execute([
+                    (int)($_POST['type_id'] ?? 0) ?: null,
+                    (int)($_POST['owner_id'] ?? 0) ?: null,
+                    trim((string)($_POST['due_date'] ?? '')) ?: null,
+                    date('Y-m-d H:i:s'), $id,
+                ]);
+            flash_set('success', 'Zapisano prowadzenie sprawy.');
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Nie udało się zapisać.');
+        }
+        header('Location: view.php?id=' . $id); exit;
+    }
+
+    // Zadanie do sprawy — realne zadanie w module Zadań, z linkiem w obie strony
+    if ($action === 'add_task') {
+        $t = trim((string)($_POST['task_title'] ?? ''));
+        if ($t === '') {
+            flash_set('warning', 'Wpisz, co jest do zrobienia.');
+        } else {
+            $r = crm_case_add_task($id, $t, (int)($_POST['task_list'] ?? 0), trim((string)($_POST['task_due'] ?? '')));
+            flash_set(!empty($r['ok']) ? 'success' : 'danger',
+                !empty($r['ok']) ? 'Zadanie dodane do sprawy.' : ($r['error'] ?: 'Nie udało się dodać zadania.'));
+        }
+        header('Location: view.php?id=' . $id . '#tasks'); exit;
     }
 
     // Edycja tytułu/opisu
@@ -556,8 +573,16 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <form method="post" style="margin-top:.8rem;padding:.8rem .9rem;background:#EFF7ED;border-radius:8px;border-left:3px solid #2E844A">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="quick_close">
+        <label for="closeReason" style="font-size:.82rem;font-weight:600;display:block;margin-bottom:.3rem">
+          Powód zamknięcia
+        </label>
+        <select name="close_reason" id="closeReason" class="form-select form-select-sm mb-2" style="font-size:.86rem">
+          <?php foreach (crm_case_close_reasons() as $rk => $rl): ?>
+          <option value="<?= h($rk) ?>"><?= h($rl) ?></option>
+          <?php endforeach; ?>
+        </select>
         <label for="closeNote" style="font-size:.82rem;font-weight:600;display:block;margin-bottom:.3rem">
-          Zamknięcie sprawy — notatka domykająca (opcjonalnie)
+          Notatka domykająca (opcjonalnie)
         </label>
         <textarea name="close_note" id="closeNote" rows="2" maxlength="1000"
                   class="form-control form-control-sm mb-2" style="font-size:.86rem"
@@ -569,7 +594,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <button type="button" class="btn btn-sm btn-link text-muted" style="font-size:.82rem"
                   data-bs-toggle="collapse" data-bs-target="#collapseQuickClose">Anuluj</button>
           <span class="text-muted" style="font-size:.78rem">
-            Status zmieni się na „Zamknięta", data zamknięcia zapisze się automatycznie.
+            Status zmieni się na „Zamknięta"; powód i data trafią do historii sprawy.
           </span>
         </div>
       </form>
@@ -636,7 +661,27 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <i class="bi bi-envelope" aria-hidden="true"></i>Pisma <span class="cv-count"><?= count($letters) ?></span>
       </button>
     </li>
-    <?php $case_msgs = crm_case_messages((int)$case['id']); ?>
+    <?php
+      $case_msgs  = crm_case_messages((int)$case['id']);
+      $case_tasks = crm_case_tasks((int)$case['id']);
+      $case_hist  = crm_case_status_history((int)$case['id']);
+    ?>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="case-tab-tasks-btn" data-bs-toggle="tab"
+              data-bs-target="#tasks" type="button" role="tab"
+              aria-controls="tasks" aria-selected="false">
+        <i class="bi bi-check2-square" aria-hidden="true"></i>Zadania
+        <?php if ($case_tasks): ?><span class="cv-count"><?= count($case_tasks) ?></span><?php endif; ?>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="case-tab-hist-btn" data-bs-toggle="tab"
+              data-bs-target="#history" type="button" role="tab"
+              aria-controls="history" aria-selected="false">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>Historia
+        <?php if ($case_hist): ?><span class="cv-count"><?= count($case_hist) ?></span><?php endif; ?>
+      </button>
+    </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="case-tab-mail-btn" data-bs-toggle="tab"
               data-bs-target="#mail" type="button" role="tab"
@@ -844,6 +889,112 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 
   <!-- ── PLIKI ───────────────────────────────────────────────────────────── -->
+  <!-- ZAKŁADKA: Zadania sprawy (realne zadania z modułu Zadań) -->
+  <div class="tab-pane fade" id="tasks" role="tabpanel" aria-labelledby="case-tab-tasks-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-check2-square cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Zadania</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($case_tasks) ?></span></div>
+      </div>
+
+      <?php if ($can_write): ?>
+      <?php require_once dirname(dirname(__DIR__)) . '/includes/crm_quick.php';
+            $task_lists = crm_quick_task_lists((int)(current_user()['id'] ?? 0)); ?>
+      <form method="post" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="add_task">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold mb-1" for="tTitle">Co jest do zrobienia</label>
+          <input class="form-control form-control-sm" id="tTitle" name="task_title" required
+                 placeholder="np. Przygotować odpowiedź na skargę">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1" for="tDue">Termin</label>
+          <input type="date" class="form-control form-control-sm" id="tDue" name="task_due">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1" for="tList">Lista</label>
+          <select class="form-select form-select-sm" id="tList" name="task_list">
+            <option value="0">— domyślna —</option>
+            <?php foreach ($task_lists as $tl): ?>
+            <option value="<?= (int)$tl['list_id'] ?>"><?= h($tl['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-1">
+          <button class="btn btn-crm-primary btn-sm w-100"><i class="bi bi-plus-lg"></i></button>
+        </div>
+      </form>
+      <?php endif; ?>
+
+      <?php if (!$case_tasks): ?>
+      <p class="text-muted small mb-0">
+        Brak zadań. Zadania sprawy to realne zadania z modułu Zadań — mają termin, przypomnienia
+        i widać je na tablicy, w przeciwieństwie do kroków wpisanych w opis.
+      </p>
+      <?php else: ?>
+      <div class="list-group list-group-flush">
+        <?php foreach ($case_tasks as $t): $done = !empty($t['completed_at']); ?>
+        <a class="list-group-item list-group-item-action px-0 d-flex align-items-center gap-2"
+           href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$t['id'] ?>">
+          <i class="bi <?= $done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>" aria-hidden="true"></i>
+          <span style="font-size:.87rem<?= $done ? ';text-decoration:line-through;color:#9CA3AF' : '' ?>">
+            <?= h($t['title']) ?>
+          </span>
+          <span class="text-muted ms-auto" style="font-size:.74rem">
+            <?= $t['list_name'] ? h($t['list_name']) : '' ?>
+            <?php if (!empty($t['due_date'])): ?>
+              · <?= h(date('d.m.Y', strtotime((string)$t['due_date']))) ?>
+            <?php endif; ?>
+          </span>
+        </a>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+    </div></div>
+  </div>
+
+  <!-- ZAKŁADKA: Historia zmian statusu -->
+  <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="case-tab-hist-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-clock-history cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Historia statusów</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($case_hist) ?></span></div>
+      </div>
+
+      <?php if (!$case_hist): ?>
+      <p class="text-muted small mb-0">
+        Brak wpisów — historia zapisuje się od momentu wdrożenia tej funkcji.
+        Sprawa założona wcześniej pokaże zmiany dopiero od następnej.
+      </p>
+      <?php else: ?>
+      <?php $reasons = crm_case_close_reasons(); ?>
+      <div class="list-group list-group-flush">
+        <?php foreach ($case_hist as $hrow): ?>
+        <div class="list-group-item px-0" style="font-size:.85rem">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="text-muted"><?= h($status_cfg[$hrow['from_status']]['label'] ?? ($hrow['from_status'] ?: '—')) ?></span>
+            <i class="bi bi-arrow-right text-muted" aria-hidden="true"></i>
+            <strong><?= h($status_cfg[$hrow['to_status']]['label'] ?? $hrow['to_status']) ?></strong>
+            <span class="text-muted ms-auto" style="font-size:.76rem">
+              <?= h(date('d.m.Y H:i', strtotime((string)$hrow['created_at']))) ?>
+              · <?= h($hrow['user_name'] ?: 'system') ?>
+            </span>
+          </div>
+          <?php if (!empty($hrow['reason'])): ?>
+          <div class="text-muted" style="font-size:.78rem">
+            Powód: <?= h($reasons[$hrow['reason']] ?? $hrow['reason']) ?>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+    </div></div>
+  </div>
+
   <!-- ZAKŁADKA: Wiadomości dopięte do sprawy -->
   <div class="tab-pane fade" id="mail" role="tabpanel" aria-labelledby="case-tab-mail-btn" tabindex="0">
     <div class="cv-panel"><div class="cv-panel__body">
@@ -1498,6 +1649,14 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <form method="post" class="d-flex flex-column gap-2">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="set_status">
+        <?php /* Zamknięcie i anulowanie wymagają powodu — inaczej z historii nie
+                 wyczytasz, czy sprawa się udała, czy odpadła. */ ?>
+        <select name="reason" class="form-select form-select-sm" aria-label="Powód (przy zamknięciu lub anulowaniu)">
+          <option value="">— powód (wymagany przy zamknięciu) —</option>
+          <?php foreach (crm_case_close_reasons() as $rk => $rl): ?>
+          <option value="<?= h($rk) ?>"><?= h($rl) ?></option>
+          <?php endforeach; ?>
+        </select>
         <?php foreach ($status_cfg as $sv=>$sd): ?>
         <button type="submit" name="status" value="<?= $sv ?>"
                 class="btn btn-sm text-start d-flex align-items-center gap-2 <?= $case['status']===$sv?'fw-bold':'' ?>"
@@ -1548,6 +1707,103 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
     </div>
   </div>
+
+  <!-- Prowadzenie sprawy: kto, do kiedy, jaki typ i jak z SLA -->
+  <?php
+    $case_types_all = crm_case_types();
+    $case_users_all = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
+    $case_type_cur  = crm_case_type((int)($case['type_id'] ?? 0));
+    $sla            = crm_case_sla($case);
+    $due_ts         = !empty($case['due_date']) ? strtotime((string)$case['due_date']) : 0;
+    $due_left       = $due_ts ? (int)floor(($due_ts - time()) / 86400) : null;
+    $sla_style = static fn(string $st): string => match ($st) {
+        'breach' => 'color:#B91C1C;font-weight:700',
+        'soon'   => 'color:#B45309;font-weight:600',
+        'met'    => 'color:#2E844A;font-weight:600',
+        default  => 'color:#2E844A',
+    };
+  ?>
+  <div class="cv-panel" id="prowadzenie"><div class="cv-panel__body">
+    <div class="cv-shead">
+      <i class="bi bi-person-workspace cv-shead__icon" aria-hidden="true"></i>
+      <h2 class="cv-shead__title">Prowadzenie sprawy</h2>
+    </div>
+
+    <?php if ($sla['has']): ?>
+    <div class="mb-2" style="font-size:.82rem">
+      <?php if ($sla['response']): $r = $sla['response']; ?>
+      <div class="d-flex justify-content-between">
+        <span class="text-muted">SLA — pierwsza odpowiedź</span>
+        <span style="<?= $sla_style($r['state']) ?>">
+          <?= $r['met_at']
+              ? ($r['state'] === 'met' ? 'dotrzymane' : 'przekroczone') . ' · ' . h(date('d.m.Y H:i', strtotime($r['met_at'])))
+              : ($r['left_h'] < 0 ? 'po terminie o ' . abs($r['left_h']) . ' h' : 'zostało ' . $r['left_h'] . ' h') ?>
+        </span>
+      </div>
+      <?php endif; ?>
+      <?php if ($sla['close']): $c2 = $sla['close']; ?>
+      <div class="d-flex justify-content-between">
+        <span class="text-muted">SLA — zamknięcie</span>
+        <span style="<?= $sla_style($c2['state']) ?>">
+          <?= $c2['met_at']
+              ? ($c2['state'] === 'met' ? 'dotrzymane' : 'przekroczone')
+              : ($c2['left_h'] < 0 ? 'po terminie' : 'zostało ' . (int)round($c2['left_h'] / 24) . ' dni') ?>
+        </span>
+      </div>
+      <?php endif; ?>
+      <div class="text-muted" style="font-size:.72rem">Liczone od wpływu sprawy, wg typu „<?= h($case_type_cur['name'] ?? '') ?>".</div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($can_write): ?>
+    <form method="post" class="row g-2">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="set_meta">
+      <?php if ($case_types_all): ?>
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-1" for="mtype">Typ</label>
+        <select name="type_id" id="mtype" class="form-select form-select-sm">
+          <option value="">— bez typu —</option>
+          <?php foreach ($case_types_all as $ct): ?>
+          <option value="<?= (int)$ct['id'] ?>" <?= (int)($case['type_id'] ?? 0) === (int)$ct['id'] ? 'selected' : '' ?>>
+            <?= h($ct['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-1" for="mowner">Prowadzi</label>
+        <select name="owner_id" id="mowner" class="form-select form-select-sm">
+          <option value="">— nieprzypisana —</option>
+          <?php foreach ($case_users_all as $u): ?>
+          <option value="<?= (int)$u['id'] ?>" <?= (int)($case['owner_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+            <?= h($u['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-1" for="mdue">Termin</label>
+        <input type="date" name="due_date" id="mdue" class="form-control form-control-sm"
+               value="<?= h($case['due_date'] ?? '') ?>">
+        <?php if ($due_left !== null && !in_array($case['status'], ['closed','cancelled'], true)): ?>
+        <div style="font-size:.74rem;<?= $due_left < 0 ? 'color:#B91C1C;font-weight:600' : ($due_left <= 2 ? 'color:#B45309' : 'color:#9CA3AF') ?>">
+          <?= $due_left < 0 ? 'Po terminie o ' . abs($due_left) . ' dni' : ($due_left === 0 ? 'Termin dziś' : 'Zostało ' . $due_left . ' dni') ?>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-crm-outline btn-sm w-100"><i class="bi bi-check-lg me-1"></i>Zapisz prowadzenie</button>
+      </div>
+    </form>
+    <?php else: ?>
+    <div style="font-size:.84rem">
+      Prowadzi: <strong><?= h(db_one("SELECT name FROM users WHERE id=?", [(int)($case['owner_id'] ?? 0)])['name'] ?? '—') ?></strong><br>
+      Termin: <strong><?= $case['due_date'] ? h(date('d.m.Y', strtotime((string)$case['due_date']))) : '—' ?></strong>
+    </div>
+    <?php endif; ?>
+  </div></div>
 
   <!-- Współdzielenie -->
   <?php if ($can_manage_shares || $shares): ?>

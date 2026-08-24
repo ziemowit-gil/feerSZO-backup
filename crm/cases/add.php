@@ -27,7 +27,9 @@ $prefill_contact = $contact_id
     : null;
 
 // Szablon sprawy — wypełnia formularz; użytkownik może wszystko poprawić przed zapisem
-$case_tpls = crm_case_templates();
+$case_tpls  = crm_case_templates();
+$case_types = crm_case_types();
+$case_users = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 $tpl_id    = (int)($_GET['tpl'] ?? 0);
 $prefill   = ['title' => '', 'description' => '', 'priority' => 'medium'];
 if ($tpl_id > 0 && ($tpl = crm_case_template($tpl_id))) {
@@ -53,6 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'description' => $desc ?: null,
             'status'      => $status,
             'priority'    => $priority,
+            'type_id'     => (int)($_POST['type_id'] ?? 0) ?: null,
+            'owner_id'    => (int)($_POST['owner_id'] ?? 0) ?: ((int)(current_user()['id'] ?? 0) ?: null),
+            'due_date'    => trim((string)($_POST['due_date'] ?? '')) ?: null,
             'created_by'  => (int)(current_user()['id'] ?? 0),
             'created_at'  => date('Y-m-d H:i:s'),
             'updated_at'  => date('Y-m-d H:i:s'),
@@ -170,6 +175,45 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <div class="col-lg-4">
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
+      <?php if ($case_types): ?>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="type_id">Typ sprawy</label>
+        <select class="form-select" id="type_id" name="type_id">
+          <option value="">— bez typu —</option>
+          <?php foreach ($case_types as $ct): ?>
+          <option value="<?= (int)$ct['id'] ?>" <?= (int)($_POST['type_id'] ?? 0) === (int)$ct['id'] ? 'selected' : '' ?>>
+            <?= h($ct['name']) ?><?= (int)$ct['sla_response_h'] || (int)$ct['sla_close_d']
+                ? ' (SLA: ' . ((int)$ct['sla_response_h'] ? (int)$ct['sla_response_h'] . ' h odp.' : '')
+                  . ((int)$ct['sla_response_h'] && (int)$ct['sla_close_d'] ? ', ' : '')
+                  . ((int)$ct['sla_close_d'] ? (int)$ct['sla_close_d'] . ' dni' : '') . ')'
+                : '' ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text" style="font-size:.74rem">Typ wyznacza SLA i pozwala liczyć sprawy w podziale na rodzaje.</div>
+      </div>
+      <?php endif; ?>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="owner_id">Prowadzi sprawę</label>
+        <select class="form-select" id="owner_id" name="owner_id">
+          <?php $me = (int)(current_user()['id'] ?? 0); ?>
+          <option value="">— nieprzypisana —</option>
+          <?php foreach ($case_users as $u): ?>
+          <option value="<?= (int)$u['id'] ?>" <?= (int)($_POST['owner_id'] ?? $me) === (int)$u['id'] ? 'selected' : '' ?>>
+            <?= h($u['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="due_date">Termin</label>
+        <input type="date" class="form-control" id="due_date" name="due_date"
+               value="<?= h($_POST['due_date'] ?? '') ?>">
+        <div class="form-text" style="font-size:.74rem">Na 2 dni przed terminem prowadzący dostanie e-mail.</div>
+      </div>
+
       <div class="mb-3">
         <label class="form-label fw-semibold">Status</label>
         <?php foreach (['open'=>'Otwarta','in_progress'=>'W toku'] as $sv=>$sl): ?>
