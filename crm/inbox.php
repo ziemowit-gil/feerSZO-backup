@@ -309,23 +309,22 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-stripe { flex-shrink:0; width:4px; align-self:stretch; border:none; padding:0; display:block;
   cursor:pointer; transition:width .12s }
 .ib-stripe:hover, .ib-stripe:focus-visible { width:7px; outline:none }
-/* Selektor skrzynek — jeden segmentowany pasek zamiast luźnych plakietek,
-   które łamały się na dwa wiersze. Przy wielu skrzynkach przewija się w poziomie. */
-.ib-mbox { display:flex; align-items:center; gap:2px; padding:3px; margin-bottom:.5rem;
-  background:#F3F4F6; border-radius:10px; overflow-x:auto; scrollbar-width:thin }
-.ib-mbox::-webkit-scrollbar { height:4px }
-.ib-mbox::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:2px }
-.ib-mbox-opt { --c:#9CA3AF; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
-  padding:.28rem .6rem; border-radius:8px; font-size:.75rem; color:#6B7280; text-decoration:none;
-  transition:background .12s, color .12s, box-shadow .12s }
-.ib-mbox-opt:hover { color:#111827; background:rgba(255,255,255,.6) }
+/* Skrzynka jako rozwijana lista w pasku narzędzi — pasek zakładek przy kilku
+   adresach zajmował cały wiersz i pokazywał poziomy suwak. */
+.ib-mboxsel { margin-left:auto }
+.ib-mboxsel ~ .ib-filter { margin-left:0 }
+.ib-mboxsel > summary .ib-mbox-name { max-width:11rem }
+.ib-mbox-list { padding:.35rem; gap:1px; width:min(300px, 90vw) }
+.ib-mbox-opt { --c:#9CA3AF; display:flex; align-items:center; gap:.45rem;
+  padding:.35rem .5rem; border-radius:7px; font-size:.78rem; color:#374151; text-decoration:none;
+  transition:background .12s, color .12s }
+.ib-mbox-opt:hover { background:#F3F4F6; color:#111827 }
 .ib-mbox-opt:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
-.ib-mbox-opt.is-on { background:#fff; color:#111827; font-weight:600;
-  box-shadow:0 1px 2px rgba(16,24,40,.10), inset 0 -2px 0 var(--c) }
-.ib-mbox-name { max-width:13rem; overflow:hidden; text-overflow:ellipsis }
+.ib-mbox-opt.is-on { background:#F9FAFB; color:#111827; font-weight:600; box-shadow:inset 2px 0 0 var(--c) }
+.ib-mbox-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .ib-mbox-n { font-size:.68rem; font-weight:700; color:#6B7280; background:#E5E7EB;
-  border-radius:2rem; padding:0 .3rem; min-width:1.15rem; text-align:center }
-.ib-mbox-opt.is-on .ib-mbox-n { color:#fff; background:var(--c) }
+  border-radius:2rem; padding:0 .35rem; min-width:1.3rem; text-align:center; flex-shrink:0 }
+.ib-mbox-opt.is-on .ib-mbox-n, .ib-tbtn--on .ib-mbox-n { color:#fff; background:var(--c, var(--crm-primary)) }
 .ib-mbox-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; background:var(--c) }
 
 .ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6 }
@@ -477,6 +476,46 @@ include __DIR__ . '/includes/header_crm.php';
   <?php endforeach; ?>
   </div>
 
+  <?php if (count($boxes) > 1):
+        $mbox_counts = crm_mailbox_counts_by_mailbox($view);
+        $mbox_cur    = null;
+        foreach ($boxes as $b) { if ((int)$b['id'] === $mbox_f) { $mbox_cur = $b; break; } } ?>
+  <?php /* Skrzynka jako rozwijana lista, a nie pasek zakładek — przy kilku
+           adresach pasek zjadał cały wiersz i pokazywał poziomy suwak. */ ?>
+  <details class="ib-filter ib-mboxsel">
+    <summary class="ib-tbtn<?= $mbox_cur ? ' ib-tbtn--on' : '' ?>" role="button"
+             aria-label="Skrzynka, na którą wpłynęła wiadomość"
+             style="--c:<?= h($mbox_cur ? crm_mailbox_color($mbox_f) : '#6B7280') ?>">
+      <?php if ($mbox_cur): ?>
+      <span class="ib-mbox-dot" aria-hidden="true"></span>
+      <span class="ib-mbox-name"><?= h($mbox_cur['mailbox']) ?></span>
+      <?php else: ?>
+      <i class="bi bi-collection" aria-hidden="true"></i>Wszystkie skrzynki
+      <?php endif; ?>
+      <span class="ib-mbox-n"><?= $mbox_cur ? (int)($mbox_counts[$mbox_f] ?? 0) : array_sum($mbox_counts) ?></span>
+      <i class="bi bi-chevron-down" style="font-size:.68rem" aria-hidden="true"></i>
+    </summary>
+    <div class="ib-filter-panel ib-mbox-list">
+      <a class="ib-mbox-opt<?= $mbox_f ? '' : ' is-on' ?>" style="--c:#6B7280"
+         href="?<?= $qs(['mailbox_id' => null, 'msg' => null, 'page' => null]) ?>"
+         <?= $mbox_f ? '' : 'aria-current="true"' ?>>
+        <i class="bi bi-collection" aria-hidden="true"></i>
+        <span class="ib-mbox-name">Wszystkie skrzynki</span>
+        <span class="ib-mbox-n"><?= array_sum($mbox_counts) ?></span>
+      </a>
+      <?php foreach ($boxes as $b): $bid = (int)$b['id']; $on = $mbox_f === $bid; ?>
+      <a class="ib-mbox-opt<?= $on ? ' is-on' : '' ?>" style="--c:<?= h(crm_mailbox_color($bid)) ?>"
+         href="?<?= $qs(['mailbox_id' => $bid, 'msg' => null, 'page' => null]) ?>"
+         title="<?= h($b['mailbox']) ?>" <?= $on ? 'aria-current="true"' : '' ?>>
+        <span class="ib-mbox-dot" aria-hidden="true"></span>
+        <span class="ib-mbox-name"><?= h($b['mailbox']) ?></span>
+        <span class="ib-mbox-n"><?= (int)($mbox_counts[$bid] ?? 0) ?></span>
+      </a>
+      <?php endforeach; ?>
+    </div>
+  </details>
+  <?php endif; ?>
+
   <?php $filters_on = ($search !== '' || $mbox_f > 0); ?>
   <?php /* Filtry domyślnie schowane — pasek widoków ma zostać czysty. <details>
            zamiast JS-a: otwiera się z klawiatury i działa bez skryptu, a gdy filtr
@@ -532,29 +571,6 @@ include __DIR__ . '/includes/header_crm.php';
       są porzucane automatycznie. Zostają tutaj — w Poczcie i EZD bez zmian.
     </div>
     <?php endif; ?>
-    <?php if (count($boxes) > 1): ?>
-    <!-- Legenda skrzynek = filtr. Ten sam kolor ma pasek przy każdej wiadomości,
-         więc widać z listy, na którą skrzynkę wpłynęła. -->
-    <?php $mbox_counts = crm_mailbox_counts_by_mailbox($view); ?>
-    <div class="ib-mbox" role="group" aria-label="Filtr: skrzynka, na którą wpłynęła wiadomość">
-      <a class="ib-mbox-opt<?= $mbox_f ? '' : ' is-on' ?>" style="--c:#6B7280"
-         href="?<?= $qs(['mailbox_id' => null, 'msg' => null, 'page' => null]) ?>"
-         <?= $mbox_f ? '' : 'aria-current="true"' ?>>
-        <i class="bi bi-collection" aria-hidden="true"></i>wszystkie
-        <span class="ib-mbox-n"><?= array_sum($mbox_counts) ?></span>
-      </a>
-      <?php foreach ($boxes as $b): $bid = (int)$b['id']; $on = $mbox_f === $bid; ?>
-      <a class="ib-mbox-opt<?= $on ? ' is-on' : '' ?>" style="--c:<?= h(crm_mailbox_color($bid)) ?>"
-         href="?<?= $qs(['mailbox_id' => $bid, 'msg' => null, 'page' => null]) ?>"
-         title="<?= h($b['mailbox']) ?> — pokaż tylko tę skrzynkę" <?= $on ? 'aria-current="true"' : '' ?>>
-        <span class="ib-mbox-dot" aria-hidden="true"></span>
-        <span class="ib-mbox-name"><?= h($b['mailbox']) ?></span>
-        <span class="ib-mbox-n"><?= (int)($mbox_counts[$bid] ?? 0) ?></span>
-      </a>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
     <?php if ($can_write && $inbox['rows']): ?>
     <!-- Masowe porzucanie: zaznaczenie działa na tym, co widać w bieżącym widoku. -->
     <form method="post" id="ibBulkForm">
@@ -1053,20 +1069,26 @@ include __DIR__ . '/includes/header_crm.php';
 <?php endif; ?>
 
 <script>
-// Panel filtrów: kursor w wyszukiwarce po otwarciu, Esc i klik obok zamykają.
+// Rozwijane panele paska (skrzynka, filtry): jednocześnie otwarty tylko jeden,
+// kursor w wyszukiwarce po otwarciu, Esc i klik obok zamykają.
 (function () {
-  var d = document.querySelector('.ib-filter');
-  if (!d) return;
-  d.addEventListener('toggle', function () {
-    if (!d.open) return;
-    var f = d.querySelector('input[name=q]');
-    if (f) f.focus();
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.ib-filter'));
+  if (!panels.length) return;
+
+  panels.forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      if (!d.open) return;
+      panels.forEach(function (o) { if (o !== d) o.open = false; });
+      var f = d.querySelector('input[name=q]');
+      if (f) f.focus();
+    });
+    d.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { d.open = false; d.querySelector('summary').focus(); }
+    });
   });
+
   document.addEventListener('click', function (e) {
-    if (d.open && !d.contains(e.target)) d.open = false;
-  });
-  d.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { d.open = false; d.querySelector('summary').focus(); }
+    panels.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
   });
 })();
 
