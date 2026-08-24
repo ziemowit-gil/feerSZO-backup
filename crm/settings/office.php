@@ -248,7 +248,8 @@ require_once __DIR__ . '/_nav.php';
                  do których ktoś wszedł i kliknął — czyli nie tam, gdzie się sprawdza,
                  czy coś do kogoś w ogóle poszło. */ ?>
         Agent obchodzi kartoteki po kolei: najpierw nigdy niepobierane, potem najdawniej
-        odświeżane. Po 25 kartotek na godzinę, żeby nie wpaść w limity Microsoftu.
+        odświeżane. Co 10 minut po 25 kartotek — czyli do 150 na godzinę; limit na przebieg
+        zostaje, bo każda kartoteka to wywołanie Graph API.
         Przycisk w kartotece zostaje — przyspiesza pojedynczy przypadek.
       </div>
     </div>

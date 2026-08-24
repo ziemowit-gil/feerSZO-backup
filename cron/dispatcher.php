@@ -186,7 +186,7 @@ $AGENTS = [
     ],
     'crm_office_mail' => [
         'file'     => __DIR__ . '/crm_office_mail.php',
-        'interval' => 3600,         // co godzinę — dociąga korespondencję do kartotek
+        'interval' => 600,          // co 10 minut — dociąga korespondencję do kartotek
         'schedule' => [6, 22],
         'args'     => '--limit=25',
     ],

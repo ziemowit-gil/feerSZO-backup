@@ -404,8 +404,8 @@ if (!isset($contact)) { http_response_code(400); exit; }
                  żeby było to widać, zamiast pozwalać klikać „na wszelki wypadek". */ ?>
         <?php if (!empty($office_st['auto_mail'])): ?>
         <br><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
-        Dociąga się automatycznie co <?= (int)$office_st['auto_mail_hours'] ?> godz. —
-        przycisk odświeża od razu.
+        Dociąga się automatycznie — agent sprawdza co 10 minut, do tej kartoteki wraca
+        co <?= (int)$office_st['auto_mail_hours'] ?> godz. Przycisk odświeża od razu.
         <?php endif; ?>
         <?php if (!empty($office_st['auto_push'])): ?>
         <br><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>

@@ -9,8 +9,9 @@
  * do której jeszcze nikt nie wchodził.
  *
  * Automat obchodzi kartoteki po kolei: najpierw te, których nigdy nie pobierano,
- * potem najdawniej odświeżane. Limit na przebieg jest twardy, bo każda kartoteka
- * to wywołanie Graph API.
+ * potem najdawniej odświeżane. Chodzi co 10 minut po 25 kartotek (do 150 na godzinę);
+ * limit na przebieg jest twardy, bo każda kartoteka to wywołanie Graph API i przy
+ * tysiącu kontaktów nieograniczony przebieg wpadłby w limity Microsoftu.
  *
  * Włącza się w Ustawieniach CRM → Microsoft 365 (crm_office_auto_mail).
  *
