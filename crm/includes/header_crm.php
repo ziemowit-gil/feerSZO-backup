@@ -162,16 +162,21 @@ body {
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: .9rem; flex-shrink: 0;
 }
+.crm-topbar-brand-txt { min-width: 0; }
 .crm-topbar-brand-org {
   font-size: .64rem; color: #9CA3AF; font-weight: 400;
   line-height: 1; letter-spacing: 0;
+  max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Breadcrumb w topbarze */
+/* Tytuł strony bierze całe wolne miejsce; to prawa strona ma się kurczyć,
+   nie on — wcześniej „Skrzynka CRM" zwijała się do „CR…". */
 .crm-topbar-breadcrumb {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0 1.25rem;
-  font-size: .83rem;
+  font-size: .9rem;
   color: #6B7280;
   display: flex; align-items: center; gap: .4rem;
   overflow: hidden;
@@ -183,9 +188,18 @@ body {
 
 /* User area w topbarze */
 .crm-topbar-user {
-  display: flex; align-items: center; gap: .75rem;
-  padding-left: 1rem;
+  display: flex; align-items: center; gap: .4rem;
+  padding-left: .75rem;
+  flex-shrink: 0;
 }
+/* Okrągły przycisk ikonowy (menu „⋯") — spójny z awatarem */
+.crm-topbar-icon {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid #E5E7EB;
+  background: #fff; color: #6B7280; display: inline-flex; align-items: center; justify-content: center;
+  font-size: .95rem; cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+}
+.crm-topbar-icon:hover { background: #F3F4F6; color: #111827; border-color: #D1D5DB; }
+.crm-topbar-icon:focus-visible { outline: 2px solid var(--crm-primary); outline-offset: 1px; }
 .crm-topbar-avatar {
   width: 32px; height: 32px;
   border-radius: 50%;
@@ -196,24 +210,8 @@ body {
   cursor: pointer;
   border: 2px solid #E5E7EB;
 }
-.crm-topbar-username { font-size: .83rem; font-weight: 500; color: #374151; }
-
-/* Powrót do systemu głównego */
-.crm-topbar-sys-link {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .78rem; color: #9CA3AF;
-  text-decoration: none; padding: .25rem .6rem;
-  border: 1px solid #E5E7EB; border-radius: 6px;
-  transition: all .12s;
-  white-space: nowrap;
-}
-.crm-topbar-sys-link:hover,
-.crm-topbar-sys-link.active { color: var(--crm-primary); border-color: var(--crm-primary); background: var(--crm-primary-bg); }
-.crm-topbar-sys-link i { font-size: .9rem; }
-/* Wyloguj — zawsze widoczne, także na telefonie (patrz RESPONSIVE niżej) */
-.crm-topbar-logout { color: #B42318; border-color: #FECDCA; }
-.crm-topbar-logout:hover,
-.crm-topbar-logout:focus-visible { color: #fff; background: #B42318; border-color: #B42318; }
+/* Nazwa użytkownika i wylogowanie żyją w menu awatara — pasek pokazuje samą
+   inicjałową plakietkę, bo to ona jest celem kliknięcia. */
 
 /* ══ TOP NAVBAR (poziome menu — pod topbarem) ════════════════════════ */
 .crm-navbar {
@@ -293,32 +291,35 @@ body {
 }
 
 /* ══ SZYBKIE AKCJE (makra) ═══════════════════════════════════════════ */
-.crm-macros { display:flex; align-items:center; gap:.25rem; margin-right:.35rem }
+.crm-macros { display:flex; align-items:center; gap:.25rem }
+/* Pasek jest BIAŁY — makra muszą być ciemne. Wcześniej biały tekst na białym tle
+   sprawiał, że przypięte przyciski wyglądały, jakby ich nie było. */
 .crm-macro {
-  display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .6rem;
-  border-radius:8px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.12);
-  color:#fff; font-size:.78rem; font-weight:500; text-decoration:none; white-space:nowrap;
-  cursor:pointer; transition:background .12s, border-color .12s;
+  display:inline-flex; align-items:center; gap:.35rem; height:32px; padding:0 .6rem;
+  border-radius:8px; border:1px solid #E5E7EB; background:#fff;
+  color:#374151; font-size:.78rem; font-weight:500; text-decoration:none; white-space:nowrap;
+  cursor:pointer; transition:background .12s, border-color .12s, color .12s;
 }
-.crm-macro:hover { background:rgba(255,255,255,.22); border-color:rgba(255,255,255,.6); color:#fff }
-.crm-macro:focus-visible { outline:2px solid #fff; outline-offset:1px }
-.crm-macro i { font-size:.85rem }
-/* W pasku (ciemne tło) ikony kolorowe gasną — wymuszamy biel, kolor zostaje w menu */
-.crm-macro i[style] { color:#fff !important }
-.crm-macro--new { background:rgba(255,255,255,.9); color:var(--crm-primary); border-color:transparent; font-weight:600 }
-.crm-macro--new:hover { background:#fff; color:var(--crm-primary) }
-.crm-macro--new i[style] { color:var(--crm-primary) !important }
-@media (max-width: 991px) { .crm-macros .crm-macro:not(.crm-macro--new) { display:none } }
+.crm-macro:hover { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
+.crm-macro:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
+.crm-macro i { font-size:.9rem }
+.crm-macro-txt { display:none }
+@media (min-width: 1200px) { .crm-macro-txt { display:inline } }
+.crm-macro--new {
+  background:var(--crm-primary); color:#fff; border-color:var(--crm-primary); font-weight:600;
+}
+.crm-macro--new:hover { background:var(--crm-primary-dark, #0165B8); color:#fff; border-color:transparent }
+.crm-macro--new i { color:#fff !important }
+@media (max-width: 767px) { .crm-macros .crm-macro:not(.crm-macro--new) { display:none } }
 
 /* ══ TRYB PEŁNOEKRANOWY ══════════════════════════════════════════════ */
 body.crm-fullscreen .crm-content { max-width: 100%; }
 
 /* ══ RESPONSIVE ══════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .crm-topbar-brand { border-right: none; }
-  .crm-topbar-username { display: none; }
-  .crm-topbar-sys-link { display: none; }
-  .crm-topbar-sys-link.crm-topbar-logout { display: inline-flex; }  /* wylogowanie zostaje pod ręką */
+  .crm-topbar-brand { border-right: none; padding: 0 .75rem; }
+  .crm-topbar-brand-org { display: none; }
+  .crm-topbar-breadcrumb { padding: 0 .6rem; font-size: .84rem; }
   #mod-sw { display: none; }
   .crm-content { padding: 1rem .75rem; }
   /* Na telefonie skróć przyciski akcji do samych ikon */
@@ -432,55 +433,27 @@ window.openCommModal = function(contactId, channel) {
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <header class="crm-topbar" role="banner">
 
-  <!-- Brand (lewa część topbara) -->
-  <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-topbar-brand" aria-label="CRM — dashboard">
+  <!-- Marka -->
+  <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-topbar-brand" aria-label="CRM — pulpit">
     <div class="crm-topbar-brand-icon" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></div>
-    <div>
+    <div class="crm-topbar-brand-txt">
       <div>CRM</div>
       <?php if ($_org_name): ?>
-      <div class="crm-topbar-brand-org" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="<?= h($_org_name) ?>"><?= h($_org_name) ?></div>
+      <div class="crm-topbar-brand-org" title="<?= h($_org_name) ?>"><?= h($_org_name) ?></div>
       <?php endif; ?>
     </div>
   </a>
 
-  <!-- Breadcrumb / tytuł strony -->
+  <!-- Tytuł strony: dostaje całe wolne miejsce, bo to on mówi, gdzie jesteś -->
   <div class="crm-topbar-breadcrumb">
-    <span class="d-none d-sm-inline">
-      <a href="<?= APP_URL ?>/crm/dashboard.php"><i class="bi bi-diagram-2-fill" style="color:var(--crm-primary)"></i></a>
-      <span class="sep mx-1">/</span>
-    </span>
-    <span class="crm-topbar-page"><?= h($_crm_title) ?></span>
+    <span class="crm-topbar-page" title="<?= h($_crm_title) ?>"><?= h($_crm_title) ?></span>
   </div>
 
-  <!-- Prawa część: link do systemu + user -->
+  <!-- Prawa strona: szybkie akcje → przełącznik modułów → konto.
+       Rzadziej używane linki (Outlook, ustawienia, zgłoszenie błędu) siedzą
+       w menu „⋯", żeby pasek nie zjadał tytułu strony. -->
   <div class="crm-topbar-user">
-    <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
-    <button type="button"
-            data-bs-toggle="modal" data-bs-target="#bugReportModal"
-            title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd"
-            style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.4);
-                   border-radius:6px;padding:.18rem .5rem;font-size:.78rem;
-                   color:rgba(255,255,255,.9);cursor:pointer;line-height:1.5;
-                   transition:all .12s;white-space:nowrap;flex-shrink:0;
-                   display:inline-flex;align-items:center;gap:.3rem">
-      <i class="bi bi-bug-fill" style="font-size:.85rem"></i>
-      <span class="d-none d-sm-inline">Zgłoś błąd</span>
-    </button>
-    <?php endif; ?>
-    <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
-    <a href="<?= APP_URL ?>/crm/calendar_settings.php"
-       class="crm-topbar-sys-link<?= _crm_nav_active('/crm/calendar_settings') ? ' active' : '' ?>"
-       title="Synchronizuj swój kalendarz Outlook">
-      <i class="bi bi-microsoft"></i><span class="d-none d-lg-inline">Outlook</span>
-    </a>
-    <?php endif; ?>
-    <?php if (is_admin()): ?>
-    <a href="<?= APP_URL ?>/crm/settings/"
-       class="crm-topbar-sys-link<?= _crm_nav_active('/crm/settings') ? ' active' : '' ?>"
-       title="Ustawienia CRM">
-      <i class="bi bi-gear-fill"></i><span class="d-none d-lg-inline">Ustawienia</span>
-    </a>
-    <?php endif; ?>
+
     <?php /* Szybkie akcje: przypięte makra + menu „Nowe". Zestaw przypiętych
              wybiera sobie KAŻDY UŻYTKOWNIK (includes/crm_macros.php). */
       require_once dirname(dirname(__DIR__)) . '/includes/crm_macros.php';
@@ -493,23 +466,23 @@ window.openCommModal = function(contactId, channel) {
       <?php if ($m['kind'] === 'link'): ?>
       <a class="crm-macro" href="<?= APP_URL . h($m['href']) ?>" title="<?= h($m['title']) ?>">
         <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>" aria-hidden="true"></i>
-        <span class="d-none d-xl-inline"><?= h($m['label']) ?></span>
+        <span class="crm-macro-txt"><?= h($m['label']) ?></span>
       </a>
       <?php else: ?>
       <button type="button" class="crm-macro" title="<?= h($m['title']) ?>"
               data-quick-open="<?= h($m['type']) ?>">
         <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>" aria-hidden="true"></i>
-        <span class="d-none d-xl-inline"><?= h($m['label']) ?></span>
+        <span class="crm-macro-txt"><?= h($m['label']) ?></span>
       </button>
       <?php endif; ?>
       <?php endforeach; ?>
 
       <div class="dropdown">
         <button type="button" class="crm-macro crm-macro--new" data-bs-toggle="dropdown"
-                aria-expanded="false" title="Szybko dodaj kontakt, notatkę, sprawę albo zadanie">
-          <i class="bi bi-plus-lg" aria-hidden="true"></i><span class="d-none d-lg-inline">Nowe</span>
+                aria-expanded="false" title="Szybko dodaj kontakt, notatkę, sprawę albo zadanie (Alt+N)">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i><span class="d-none d-md-inline">Nowe</span>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:250px;font-size:.85rem">
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:260px;font-size:.85rem">
           <?php foreach ($_macro_cat as $m): ?>
           <li>
             <?php if ($m['kind'] === 'link'): ?>
@@ -525,7 +498,20 @@ window.openCommModal = function(contactId, channel) {
             <?php endif; ?>
           </li>
           <?php endforeach; ?>
+          <li>
+            <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                    title="Uruchom szablon akcji — kilka wpisów jednym kliknięciem"
+                    data-quick-open="workflow">
+              <i class="bi bi-diagram-3" style="color:#0F766E"></i>Uruchom przepływ
+            </button>
+          </li>
           <li><hr class="dropdown-divider my-1"></li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 text-muted"
+               href="<?= APP_URL ?>/crm/workflows.php">
+              <i class="bi bi-diagram-3"></i>Przepływy (szablony akcji)
+            </a>
+          </li>
           <li>
             <button type="button" class="dropdown-item d-flex align-items-center gap-2 text-muted"
                     title="Wybierz, które akcje mają być przyciskami w pasku"
@@ -538,19 +524,57 @@ window.openCommModal = function(contactId, channel) {
     </div>
     <?php endif; ?>
 
+    <!-- Menu „⋯" — narzędzia, po które sięga się rzadziej -->
+    <div class="dropdown">
+      <button type="button" class="crm-topbar-icon" data-bs-toggle="dropdown" aria-expanded="false"
+              aria-label="Więcej narzędzi" title="Więcej: Outlook, ustawienia CRM, zgłoszenie błędu">
+        <i class="bi bi-three-dots" aria-hidden="true"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:240px;font-size:.85rem">
+        <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
+        <li>
+          <a class="dropdown-item d-flex align-items-center gap-2<?= _crm_nav_active('/crm/calendar_settings') ? ' active' : '' ?>"
+             href="<?= APP_URL ?>/crm/calendar_settings.php" title="Synchronizuj swój kalendarz Outlook">
+            <i class="bi bi-microsoft text-primary"></i>Kalendarz Outlook
+          </a>
+        </li>
+        <?php endif; ?>
+        <?php if (is_admin()): ?>
+        <li>
+          <a class="dropdown-item d-flex align-items-center gap-2<?= _crm_nav_active('/crm/settings') ? ' active' : '' ?>"
+             href="<?= APP_URL ?>/crm/settings/" title="Ustawienia modułu CRM">
+            <i class="bi bi-gear-fill text-secondary"></i>Ustawienia CRM
+          </a>
+        </li>
+        <?php endif; ?>
+        <li>
+          <a class="dropdown-item d-flex align-items-center gap-2" href="<?= APP_URL ?>/index.php">
+            <i class="bi bi-house text-secondary"></i>System główny
+          </a>
+        </li>
+        <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
+          <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                  data-bs-toggle="modal" data-bs-target="#bugReportModal"
+                  title="Zgłoś błąd na tej stronie">
+            <i class="bi bi-bug-fill text-danger"></i>Zgłoś błąd
+          </button>
+        </li>
+        <?php endif; ?>
+      </ul>
+    </div>
+
     <?php $msw_active='crm'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
     <div class="dropdown">
-      <button type="button"
-              class="crm-topbar-avatar"
-              data-bs-toggle="dropdown"
-              aria-haspopup="true"
-              aria-expanded="false"
-              aria-label="Menu użytkownika">
+      <button type="button" class="crm-topbar-avatar" data-bs-toggle="dropdown"
+              aria-haspopup="true" aria-expanded="false"
+              aria-label="Menu konta: <?= h($_cu_name) ?>" title="<?= h($_cu_name) ?>">
         <?= h($_cu_initials) ?>
       </button>
-      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:200px;font-size:.84rem">
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:220px;font-size:.84rem">
         <li class="px-3 py-2 border-bottom">
           <div class="fw-semibold" style="font-size:.85rem"><?= h($_cu_name) ?></div>
           <div class="text-muted" style="font-size:.75rem"><?= h($_cu['email'] ?? '') ?></div>
@@ -561,11 +585,6 @@ window.openCommModal = function(contactId, channel) {
         <li><a class="dropdown-item text-danger" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Wyloguj się</a></li>
       </ul>
     </div>
-    <span class="crm-topbar-username d-none d-md-inline"><?= h(explode(' ', $_cu_name)[0]) ?></span>
-    <a href="<?= APP_URL ?>/auth/logout.php" class="crm-topbar-sys-link crm-topbar-logout"
-       title="Wyloguj się z systemu">
-      <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span class="d-none d-lg-inline">Wyloguj</span>
-    </a>
     <?php endif; ?>
   </div>
 
