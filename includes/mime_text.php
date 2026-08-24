@@ -129,3 +129,78 @@ function crm_mail_html_to_text(string $html): string {
     $t = preg_replace("/\n{3,}/", "\n\n", (string)$t) ?? $t;
     return trim((string)$t);
 }
+
+/**
+ * Czy tekst jest w rzeczywistości HTML-em.
+ *
+ * Wiadomości pisane w CRM (edytor bogatego tekstu) i część wiadomości z Graph API
+ * zapisują się z tagami w kolumnie `body`, nie w `body_html`. Podgląd escapował
+ * taki tekst i użytkownik oglądał `<p>Dzień dobry,</p>` zamiast akapitu.
+ *
+ * Sprawdzamy obecność typowych znaczników treści, a nie samego znaku „<": zdanie
+ * „warunek: x < y" nie może zostać uznane za HTML i stracić escapowania.
+ */
+function crm_mail_looks_html(?string $s): bool
+{
+    $s = (string)$s;
+    if ($s === '' || !str_contains($s, '<')) return false;
+    return (bool)preg_match(
+        '~<\s*(p|br|div|span|a|ul|ol|li|table|tr|td|h[1-6]|strong|b|em|i|u|blockquote|img|pre|hr)\b[^>]*>~i',
+        $s
+    );
+}
+
+/**
+ * Czyści HTML wiadomości do pokazania w podglądzie.
+ *
+ * Zostawiamy formatowanie (to treść od nadawcy, ma wyglądać jak wysłana),
+ * wycinamy wszystko wykonywalne: skrypty, ramki, formularze, handlery zdarzeń
+ * i adresy `javascript:`. Jedno miejsce zamiast kopii w każdym podglądzie —
+ * poprawka bezpieczeństwa zrobiona w trzech miejscach to poprawka zrobiona
+ * w dwóch i zapomniana w trzecim.
+ */
+function crm_mail_safe_html(?string $html): string
+{
+    $s = (string)$html;
+    if ($s === '') return '';
+    $s = preg_replace('#<(script|style|iframe|object|embed|form)\b[^>]*>.*?</\1>#is', '', $s);
+    $s = preg_replace('#<(script|style|iframe|object|embed|form|link|meta|base)\b[^>]*/?>#is', '', $s);
+    $s = preg_replace('#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $s);
+    $s = preg_replace('#(href|src)\s*=\s*("|\')\s*javascript:[^"\']*\2#i', '$1="#"', $s);
+    return (string)$s;
+}
+
+/**
+ * Gotowa treść wiadomości do wyświetlenia: HTML albo escapowany tekst.
+ *
+ * Kolejność: `body_html` → `body`, jeśli wygląda na HTML → zwykły tekst
+ * z zachowaniem łamania wierszy.
+ */
+function crm_mail_display_body(array $row): string
+{
+    $html = trim((string)($row['body_html'] ?? ''));
+    if ($html !== '') return crm_mail_safe_html($html);
+
+    $body = (string)($row['body'] ?? '');
+    if (crm_mail_looks_html($body)) return crm_mail_safe_html($body);
+
+    if (trim($body) === '') return '';
+    return nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
+}
+
+/**
+ * Treść wiadomości jako czysty tekst — do podglądów na liście i wycinków.
+ *
+ * Podgląd na liście pokazywał „<p>Dzień dobry,</p><p>W ramach…" zamiast zdania,
+ * bo obcinał ciąg razem ze znacznikami.
+ */
+function crm_mail_body_snippet(array $row, int $len = 120): string
+{
+    $body = (string)($row['body'] ?? '');
+    if (trim($body) === '') $body = (string)($row['body_html'] ?? '');
+    if (crm_mail_looks_html($body)) {
+        $body = crm_mail_html_to_text($body);
+    }
+    $body = trim(preg_replace('/\s+/u', ' ', $body) ?? '');
+    return mb_strimwidth($body, 0, $len, '…');
+}

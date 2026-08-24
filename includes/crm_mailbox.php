@@ -740,8 +740,9 @@ function crm_mailbox_forward(int $comm_id, string $to, string $note = ''): array
     $m = crm_mailbox_message($comm_id);
     if (!$m) { $out['error'] = 'Wiadomość nie istnieje.'; return $out; }
 
-    $orig = (string)($m['body_html'] ?? '');
-    if ($orig === '') $orig = nl2br(h((string)($m['body'] ?? '')));
+    // Ta sama zasada co w podglądzie: HTML bywa w kolumnie `body`. Bez tego
+    // przekazana dalej wiadomość szła ze znacznikami widocznymi jako tekst.
+    $orig = crm_mail_display_body($m);
 
     $head = '<p><strong>Wiadomość przekazana z systemu SZO</strong></p>';
     if ($note !== '') $head .= '<p>' . nl2br(h($note)) . '</p>';

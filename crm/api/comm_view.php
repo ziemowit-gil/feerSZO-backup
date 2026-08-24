@@ -16,6 +16,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/mime_text.php';   // crm_mail_display_body()
 
 require_login();
 
@@ -93,24 +94,10 @@ $fmt = static function (int $b): string {
   <?php endif; ?>
 </dl>
 
-<?php
-  // Treść z zewnątrz — zostawiamy formatowanie, wycinamy wykonywalne elementy.
-  $html = trim((string)($m['body_html'] ?? ''));
-  if ($html !== '') {
-      $html = preg_replace('#<(script|style|iframe|object|embed|form)\b[^>]*>.*?</\1>#is', '', $html);
-      $html = preg_replace('#<(script|style|iframe|object|embed|form|link|meta)\b[^>]*/?>#is', '', $html);
-      $html = preg_replace('#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $html);
-      $html = preg_replace('#(href|src)\s*=\s*("|\')\s*javascript:[^"\']*\2#i', '$1="#"', $html);
-  }
-?>
+<?php // Jedno miejsce na rozpoznanie i oczyszczenie treści — zob. includes/mime_text.php
+      $html = crm_mail_display_body($m); ?>
 <div class="border rounded p-3 bg-light" style="font-size:.88rem;line-height:1.6;overflow-wrap:anywhere;max-height:55vh;overflow-y:auto">
-  <?php if ($html !== ''): ?>
-    <?= $html ?>
-  <?php elseif (trim((string)($m['body'] ?? '')) !== ''): ?>
-    <?= nl2br(h((string)$m['body'])) ?>
-  <?php else: ?>
-    <span class="text-muted">Wiadomość bez treści.</span>
-  <?php endif; ?>
+  <?= $html !== '' ? $html : '<span class="text-muted">Wiadomość bez treści.</span>' ?>
 </div>
 
 <?php if ($att): ?>

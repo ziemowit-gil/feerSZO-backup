@@ -888,7 +888,7 @@ include __DIR__ . '/includes/header_crm.php';
         </span>
         <span class="ib-l2">
           <span class="ib-subj"><?= h($r['subject'] ?: '(bez tematu)') ?></span>
-          <span class="ib-snip"><?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$r['body'])), 0, 120)) ?></span>
+          <span class="ib-snip"><?= h(crm_mail_body_snippet($r, 120)) ?></span>
         </span>
         <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active'): ?>
         <span class="ib-tags">
@@ -1325,17 +1325,12 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endif; ?>
 
       <div class="ib-body">
-        <?php if (!empty($msg['body_html'])):
-          // Treść z zewnątrz — zostawiamy formatowanie, wycinamy wykonywalne elementy.
-          $html = (string)$msg['body_html'];
-          $html = preg_replace('#<(script|style|iframe|object|embed|form)\b[^>]*>.*?</\1>#is', '', $html);
-          $html = preg_replace('#<(script|style|iframe|object|embed|form|link|meta)\b[^>]*/?>#is', '', $html);
-          $html = preg_replace('#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $html);
-          $html = preg_replace('#(href|src)\s*=\s*("|\')\s*javascript:[^"\']*\2#i', '$1="#"', $html);
-          echo $html;
-        else: ?>
-          <?= nl2br(h((string)$msg['body'])) ?>
-        <?php endif; ?>
+        <?php /* Treść bywa HTML-em także wtedy, gdy siedzi w kolumnie `body` —
+                 tak zapisują się wiadomości pisane w CRM i część z Graph API.
+                 crm_mail_display_body() rozpoznaje to i czyści; wcześniej podgląd
+                 escapował taki tekst i pokazywał „<p>Dzień dobry,</p>". */ ?>
+        <?php $__body = crm_mail_display_body($msg); ?>
+        <?= $__body !== '' ? $__body : '<span class="text-muted">Wiadomość bez treści.</span>' ?>
       </div>
 
       <?php if ($can_write): ?>

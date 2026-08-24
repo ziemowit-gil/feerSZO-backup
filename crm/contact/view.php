@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_domains.php';   // crm_email_domain() w strefie usuwania
+require_once dirname(dirname(__DIR__)) . '/includes/mime_text.php';    // crm_mail_body_snippet()
 require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_beneficiary.php';
 if (module_enabled('donations_enabled')) require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
@@ -1241,8 +1242,10 @@ function _cv_communications_html(array $contact, int $id): string {
               <?php endif; ?>
             </div>
             <div class="text-muted" style="font-size:.78rem;margin-top:2px">
-              <?= h(mb_substr(strip_tags($comm['body']), 0, 120)) ?>
-              <?= mb_strlen($comm['body'] ?? '') > 120 ? '…' : '' ?>
+              <?php /* strip_tags samo nie wystarczy: „<p>a</p><p>b</p>" sklejało się
+                       w „ab", a encje zostawały jako &amp;. crm_mail_body_snippet()
+                       zamienia znaczniki na odstępy i dekoduje encje. */ ?>
+              <?= h(crm_mail_body_snippet($comm, 120)) ?>
             </div>
             <div class="crm-note-meta">
               <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($comm['sender_name'] ?? '—') ?>
