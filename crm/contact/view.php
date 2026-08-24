@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_domains.php';   // crm_email_domain() w strefie usuwania
 require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_beneficiary.php';
 if (module_enabled('donations_enabled')) require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
@@ -1178,6 +1179,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 
     $affected_section = null;
 
+    // Usunięcie kartoteki. Przycisk w „Strefie zagrożenia" wysyłał _action=delete,
+    // którego NIC nie obsługiwało — klikanie go nie robiło zupełnie nic.
+    if (($action === 'delete_contact' || $action === 'delete') && $crm_can_delete) {
+        $reason_key  = (string)($_POST['delete_reason'] ?? '');
+        $reason_note = trim((string)($_POST['delete_note'] ?? ''));
+
+        if (!isset(CRM_DELETE_REASONS[$reason_key])) {
+            flash_set('error', 'Wybierz powód usunięcia kartoteki.');
+            header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id); exit;
+        }
+        if ($reason_key === 'inny' && $reason_note === '') {
+            flash_set('error', 'Przy powodzie „Inny” trzeba go opisać.');
+            header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id); exit;
+        }
+
+        $label = CRM_DELETE_REASONS[$reason_key];
+        $who   = crm_user_display(current_user());
+
+        // Ślad zostaje w dwóch miejscach: notatka (widoczna) i historia zmian
+        // (nieusuwalna z poziomu interfejsu).
+        CrmManager::addNote($id, sprintf(
+            'Kartoteka usunięta. Powód: %s.%s %s, %s.',
+            $label, $reason_note !== '' ? ' ' . $reason_note : '', $who, date('Y-m-d H:i')
+        ), $user_id ?: null);
+        try {
+            db_insert('crm_contact_audit', [
+                'contact_id' => $id,
+                'field'      => 'crm_active',
+                'old_value'  => '1',
+                'new_value'  => '0 — ' . $label . ($reason_note !== '' ? ' (' . $reason_note . ')' : ''),
+                'user_id'    => $user_id ?: null,
+                'user_name'  => $who,
+            ]);
+        } catch (\Throwable $e) {}
+
+        // SPAM bez zablokowania nadawcy jest bez sensu: przy najbliższym skanowaniu
+        // poczty auto-kartoteka założy ten sam rekord od nowa.
+        $blocked = '';
+        if ($reason_key === 'spam' && !empty($_POST['block_sender']) && !empty($contact['email'])) {
+            require_once dirname(dirname(__DIR__)) . '/includes/crm_contact_analyzer.php';
+            $what = ($_POST['block_scope'] ?? 'email') === 'domain'
+                ? '@' . crm_email_domain((string)$contact['email'])
+                : (string)$contact['email'];
+            $err  = crm_sender_block_add($what, 'SPAM — usunięto kartotekę #' . $id, $user_id ?: null);
+            $blocked = $err ? ' (filtr nadawcy: ' . $err . ')' : ' Nadawca ' . $what . ' trafił do filtra.';
+        }
+
+        CrmManager::deleteContact($id);
+        flash_set('success', 'Kartoteka usunięta. Powód: ' . $label . '.' . $blocked);
+        header('Location: ' . APP_URL . '/crm/index.php'); exit;
+    }
+
     if ($action === 'add_note') {
         $body   = trim($_POST['note_body'] ?? '');
         $pinned = !empty($_POST['note_pinned']);
@@ -2193,16 +2246,51 @@ $case_status_cfg = [
       </div>
       <form method="post">
         <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action"    value="delete">
+        <input type="hidden" name="_action"    value="delete_contact">
         <input type="hidden" name="contact_id" value="<?= $id ?>">
+
+        <label class="form-label small fw-semibold mb-1" for="cv_del_reason">
+          Powód usunięcia <span class="text-danger" aria-hidden="true">*</span>
+        </label>
+        <select name="delete_reason" id="cv_del_reason" class="form-select form-select-sm mb-2" required>
+          <option value="">— wybierz powód —</option>
+          <?php foreach (CRM_DELETE_REASONS as $rk => $rl): ?>
+          <option value="<?= h($rk) ?>"><?= h($rl) ?></option>
+          <?php endforeach; ?>
+        </select>
+
+        <label class="visually-hidden" for="cv_del_note">Uzasadnienie</label>
+        <textarea name="delete_note" id="cv_del_note" rows="2"
+                  class="form-control form-control-sm mb-2"
+                  placeholder="Uzasadnienie (wymagane przy powodzie „Inny”)"></textarea>
+
+        <?php if (!empty($contact['email'])): ?>
+        <div id="cv_del_spam" class="mb-2" hidden>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="cv_del_block" name="block_sender" value="1" checked>
+            <label class="form-check-label small" for="cv_del_block">
+              Dodaj nadawcę do filtra
+              <span class="d-block cv-meta">Bez tego auto-kartoteka założy ten rekord ponownie po najbliższym skanowaniu poczty.</span>
+            </label>
+          </div>
+          <select name="block_scope" class="form-select form-select-sm mt-1" aria-label="Zakres filtra">
+            <option value="email">tylko ten adres — <?= h($contact['email']) ?></option>
+            <option value="domain">cała domena — @<?= h(crm_email_domain((string)$contact['email'])) ?></option>
+          </select>
+        </div>
+        <?php endif; ?>
+
         <button class="btn btn-outline-danger btn-sm w-100" type="submit"
                 data-contact-name="<?= h($contact['imie_nazwisko']) ?>"
                 id="cv-delete-btn"
-                aria-label="Usuń kontakt <?= h($contact['imie_nazwisko']) ?>">
-          <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń kontakt
+                aria-label="Usuń rekord <?= h($contact['imie_nazwisko']) ?>">
+          <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń rekord
         </button>
       </form>
-      <p class="cv-meta mt-2 mb-0">Soft-delete — dane nie zostaną trwale skasowane.</p>
+      <p class="cv-meta mt-2 mb-0">
+        Usunięcie miękkie — dane zostają w bazie, kartoteka znika z list. Powód zapisuje się
+        w notatkach i w historii zmian.
+      </p>
     </div></div>
     <?php endif; ?>
 
@@ -2662,10 +2750,17 @@ details[open] #done-chevron { transform:rotate(90deg) }
 
   /* Przycisk usunięcia kontaktu — confirm */
   var delBtn = document.getElementById('cv-delete-btn');
+  var delSel = document.getElementById('cv_del_reason');
+  var delSpam= document.getElementById('cv_del_spam');
+  if (delSel && delSpam) {
+    delSel.addEventListener('change', function () { delSpam.hidden = delSel.value !== 'spam'; });
+  }
   if (delBtn) {
     delBtn.addEventListener('click', function (e) {
       var name = delBtn.dataset.contactName || 'kontakt';
-      if (!confirm('Usunąć kontakt ' + name + '?')) e.preventDefault();
+      if (delSel && !delSel.value) return;          // walidację robi `required`
+      var why  = delSel ? delSel.options[delSel.selectedIndex].text : '';
+      if (!confirm('Usunąć rekord ' + name + '?\n\nPowód: ' + why)) e.preventDefault();
     });
   }
 

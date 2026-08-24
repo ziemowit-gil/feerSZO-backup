@@ -19,13 +19,11 @@
 
 declare(strict_types=1);
 
-/** Domeny poczty darmowej — adres w nich NIE świadczy o kontakcie firmowym. */
-const CRM_FREE_MAIL_DOMAINS = [
-    'gmail.com', 'googlemail.com', 'wp.pl', 'o2.pl', 'onet.pl', 'onet.eu', 'interia.pl',
-    'interia.eu', 'op.pl', 'poczta.onet.pl', 'gazeta.pl', 'tlen.pl', 'vp.pl', 'go2.pl',
-    'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'yahoo.pl', 'icloud.com',
-    'me.com', 'proton.me', 'protonmail.com', 'gmx.com', 'aol.com', 'zoho.com',
-];
+// Lista domen darmowej poczty i wyciąganie domeny z adresu mieszkają w
+// crm_domains.php — dwie kopie tej wiedzy rozjeżdżają się przy pierwszej
+// dopisanej domenie, a `crm_email_domain()` istniało tu i tam pod tą samą nazwą
+// (załadowanie obu plików = błąd krytyczny „Cannot redeclare”).
+require_once __DIR__ . '/crm_domains.php';
 
 /** Wzorce lokalnej części adresu, które oznaczają nadawcę automatycznego. */
 const CRM_ROBOT_LOCALPARTS = [
@@ -106,18 +104,10 @@ function crm_sender_block_add(string $raw, string $reason = '', ?int $uid = null
 
 // ── Ocena kontaktów ──────────────────────────────────────────────────────────
 
-/** Domena adresu (bez „@"), albo '' gdy brak. */
-function crm_email_domain(?string $email): string
-{
-    $e = strtolower(trim((string)$email));
-    if ($e === '' || !str_contains($e, '@')) return '';
-    return substr(strrchr($e, '@') ?: '', 1);
-}
-
-/** Czy domena jest darmową pocztą. */
+/** Czy domena jest darmową pocztą. Alias na wspólną listę z crm_domains.php. */
 function crm_is_free_mail(string $domain): bool
 {
-    return $domain !== '' && in_array($domain, CRM_FREE_MAIL_DOMAINS, true);
+    return $domain !== '' && crm_domain_is_public($domain);
 }
 
 /** Czy lokalna część adresu wskazuje na nadawcę automatycznego. */

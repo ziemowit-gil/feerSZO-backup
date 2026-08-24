@@ -1387,6 +1387,24 @@ const CRM_AUDIT_SKIP = ['avatar_initials', 'updated_at', 'created_at', 'synced_a
 /** Pola, których wartości nie zapisujemy wprost — audyt ma pokazać FAKT zmiany. */
 const CRM_AUDIT_MASKED = ['pesel'];
 
+/**
+ * Powody usunięcia kartoteki.
+ *
+ * Usunięcie jest miękkie (crm_active=0), więc powód nie jest formalnością —
+ * to jedyna informacja, po której da się później odróżnić rekord skasowany
+ * omyłkowo od świadomie odrzuconego. „SPAM" osobno, bo pociąga za sobą
+ * konkretną decyzję: zablokowanie nadawcy, żeby kartoteka nie wróciła przy
+ * następnym skanowaniu poczty.
+ */
+const CRM_DELETE_REASONS = [
+    'spam'        => 'SPAM — tylko rozsyła reklamy. Nie jest kontaktem potrzebnym do działań statutowych',
+    'duplikat'    => 'Duplikat innej kartoteki',
+    'blad'        => 'Wpis błędny albo testowy',
+    'rodo'        => 'Żądanie usunięcia danych (RODO)',
+    'nieaktualny' => 'Kontakt nieaktualny — brak współpracy',
+    'inny'        => 'Inny powód (opisz)',
+];
+
 /** Nazwa użytkownika do pokazania w historii/notatkach — imię i nazwisko, inaczej login. */
 function crm_user_display(?array $u): string {
     if (!$u) return 'system';
@@ -1430,6 +1448,7 @@ function crm_audit_field_label(string $field): string {
         'gmina'            => 'Gmina',
         'person_id'        => 'Powiązanie z osobą w systemie',
         'source'           => 'Źródło',
+        'crm_active'       => 'Usunięcie kartoteki',
     ];
     return $map[$field] ?? $field;
 }
