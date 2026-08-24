@@ -911,6 +911,97 @@ include __DIR__ . '/includes/header_crm.php';
 })();
 </script>
 
+<!-- ══ ROZDZIAŁ OPIEKUNÓW ════════════════════════════════════════════════════
+     Okno poza paskiem masowym i poza jakimkolwiek formularzem — modal wewnątrz
+     formularza albo w nieaktywnej zakładce nie otwiera się poprawnie. -->
+<?php if ($crm_can_write && $crm_owner_users): ?>
+<div class="modal fade" id="crmOwnerSplitModal" tabindex="-1" aria-labelledby="crmOwnerSplitLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title" id="crmOwnerSplitLbl" style="font-size:1rem">
+          <i class="bi bi-diagram-2 me-2" style="color:var(--crm-primary)" aria-hidden="true"></i>
+          Rozdziel zaznaczone kontakty
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Kontakty trafią do wskazanych osób z <strong>wyrównaniem obciążenia</strong>: pod uwagę brana
+          jest liczba kontaktów, które każda z nich prowadzi już teraz, więc kolejny kontakt dostaje
+          osoba najmniej obłożona. Dzielenie po równo pogłębiałoby istniejące dysproporcje.
+        </p>
+
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="form-label small fw-semibold mb-0">Kto ma dostać kontakty</span>
+          <button type="button" class="btn btn-sm btn-link p-0" id="ownerSplitAll" style="font-size:.78rem">zaznacz wszystkich</button>
+        </div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:8px;padding:.5rem">
+          <?php
+            // Obecne obciążenie — żeby wybierając ludzi, było widać, kto ile już ma.
+            $_owner_load = [];
+            try {
+                foreach (db_all("SELECT owner_id, COUNT(*) AS n FROM crm_contacts
+                                  WHERE crm_active=1 AND owner_id IS NOT NULL GROUP BY owner_id") as $_r) {
+                    $_owner_load[(int)$_r['owner_id']] = (int)$_r['n'];
+                }
+            } catch (\Throwable $e) {}
+          ?>
+          <?php foreach ($crm_owner_users as $ou): $oid = (int)$ou['id']; ?>
+          <div class="form-check d-flex align-items-center gap-2">
+            <input class="form-check-input owner-split-pick" type="checkbox" value="<?= $oid ?>" id="osp<?= $oid ?>">
+            <label class="form-check-label flex-grow-1" for="osp<?= $oid ?>" style="font-size:.86rem">
+              <?= h($ou['n']) ?>
+            </label>
+            <span class="badge bg-light text-muted border" style="font-size:.7rem"
+                  title="Kontakty prowadzone obecnie"><?= (int)($_owner_load[$oid] ?? 0) ?></span>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div id="ownerSplitWarn" class="alert alert-warning py-2 small mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-crm-primary btn-sm" id="ownerSplitGo">
+          <i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Rozdziel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modalEl = document.getElementById('crmOwnerSplitModal');
+  if (!modalEl) return;
+  var go   = document.getElementById('ownerSplitGo');
+  var all  = document.getElementById('ownerSplitAll');
+  var warn = document.getElementById('ownerSplitWarn');
+
+  all.addEventListener('click', function () {
+    var boxes = document.querySelectorAll('.owner-split-pick');
+    var none  = !document.querySelector('.owner-split-pick:checked');
+    boxes.forEach(function (b) { b.checked = none; });
+    all.textContent = none ? 'odznacz wszystkich' : 'zaznacz wszystkich';
+  });
+
+  go.addEventListener('click', function () {
+    var picked = Array.prototype.map.call(
+      document.querySelectorAll('.owner-split-pick:checked'), function (b) { return parseInt(b.value, 10); });
+
+    if (!picked.length) {
+      warn.textContent = 'Zaznacz przynajmniej jedną osobę.';
+      warn.classList.remove('d-none');
+      return;
+    }
+    warn.classList.add('d-none');
+    bootstrap.Modal.getInstance(modalEl).hide();
+    Bulk.do('set_owner_split', picked);
+  });
+})();
+</script>
+<?php endif; ?>
+
 <!-- ══ BULK ACTIONS ══════════════════════════════════════════════════════════ -->
 <div id="bulk-bar"
      style="display:none;position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
@@ -948,6 +1039,8 @@ include __DIR__ . '/includes/header_crm.php';
       <i class="bi bi-person-badge me-1" aria-hidden="true"></i>Opiekun
     </button>
     <ul class="dropdown-menu dropdown-menu-dark" style="max-height:260px;overflow-y:auto">
+      <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#crmOwnerSplitModal">
+        <i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Rozdziel równomiernie…</a></li>
       <li><a class="dropdown-item" href="#" onclick="Bulk.do('set_owner',0);return false">
         <i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Zdejmij opiekuna</a></li>
       <li><hr class="dropdown-divider"></li>
@@ -1083,6 +1176,7 @@ const Bulk = (function () {
       const msgs = {
         set_status:   `Zmieniono status dla ${res.affected} kontaktów.`,
         set_owner:    `Ustawiono opiekuna dla ${res.affected} kontaktów.`,
+        set_owner_split: `Rozdzielono ${res.affected} kontaktów.`,
         add_tag:      `Dodano tag do ${res.affected} kontaktów.`,
         remove_tag:   `Usunięto tag z ${res.affected} kontaktów.`,
         add_to_group: `Dodano ${res.affected} kontaktów do grupy.`,

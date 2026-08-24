@@ -2,7 +2,7 @@
 /**
  * crm/api/bulk.php — Operacje masowe na kontaktach CRM.
  * POST JSON: { action, ids[], ...params }
- * actions: set_status, set_owner, add_tag, remove_tag, add_to_group, convert_type, delete
+ * actions: set_status, set_owner, set_owner_split, add_tag, remove_tag, add_to_group, convert_type, delete
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -58,6 +58,47 @@ try {
             CrmManager::updateContact((int)$cid, ['owner_id' => $owner]);
             $affected++;
         }
+
+    } elseif ($action === 'set_owner_split') {
+        // Rozdział zaznaczenia między KILKU opiekunów.
+        //
+        // Nie round-robin po kolei, tylko wyrównywanie OBCIĄŻENIA: bierzemy pod
+        // uwagę, ile kontaktów każda z tych osób prowadzi już teraz, i każdy
+        // kolejny kontakt trafia do najmniej obciążonej. Zwykłe dzielenie po
+        // równo pogłębiałoby istniejące dysproporcje — kto miał 200 kontaktów,
+        // dostawał tyle samo nowych co ktoś, kto nie miał żadnego.
+        $owners = array_values(array_unique(array_filter(array_map('intval', (array)($body['value'] ?? [])))));
+        if (!$owners) { echo json_encode(['ok'=>false,'error'=>'Wskaż przynajmniej jedną osobę.']); exit; }
+
+        $valid = db_all("SELECT id FROM users WHERE is_active=1 AND id IN (" . implode(',', array_fill(0, count($owners), '?')) . ")", $owners);
+        $owners = array_map(fn($u) => (int)$u['id'], $valid);
+        if (!$owners) { echo json_encode(['ok'=>false,'error'=>'Żaden ze wskazanych użytkowników nie jest aktywny.']); exit; }
+
+        // Obciążenie startowe — bez kontaktów z bieżącego zaznaczenia, bo te
+        // dopiero mają zostać rozdzielone.
+        $load = array_fill_keys($owners, 0);
+        foreach (db_all(
+            "SELECT owner_id, COUNT(*) AS n FROM crm_contacts
+              WHERE crm_active=1 AND owner_id IS NOT NULL AND id NOT IN ($ph)
+              GROUP BY owner_id", $ids) as $r) {
+            $oid = (int)$r['owner_id'];
+            if (isset($load[$oid])) $load[$oid] = (int)$r['n'];
+        }
+
+        $split = [];
+        foreach ($ids as $cid) {
+            if (!db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$cid])) continue;
+            // Najmniej obciążony; przy remisie pierwszy z listy — stabilnie,
+            // żeby wynik nie zależał od kolejności zwróconej przez bazę.
+            asort($load);
+            $target = (int)array_key_first($load);
+            CrmManager::updateContact((int)$cid, ['owner_id' => $target]);
+            $load[$target]++;
+            $split[$target] = ($split[$target] ?? 0) + 1;
+            $affected++;
+        }
+
+        echo json_encode(['ok'=>true, 'affected'=>$affected, 'action'=>$action, 'split'=>$split]); exit;
 
     } elseif ($action === 'add_tag') {
         $tag = trim($body['value'] ?? '');
