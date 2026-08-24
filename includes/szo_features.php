@@ -298,7 +298,7 @@ function szo_features(): array {
             'id' => 'crm_kontakt', 'title' => 'CRM — kontakty, sprawy, oferty',
             'path' => '/crm/', 'module' => 'crm_enabled', 'roles' => 'editor',
             'kw' => 'crm kontakt beneficjent osoba kontaktowa sprawa oferta darowizna zgody segmenty ika kartoteka',
-            'desc' => 'Kartoteka kontaktów i spraw CRM: osoby kontaktowe, usługi na rzecz organizacji, oferty (warianty A/B/C), zgody per cel przetwarzania, beneficjenci programów, załączniki i skrzynka CRM.',
+            'desc' => 'Kartoteka kontaktów i spraw CRM: osoby kontaktowe, usługi na rzecz organizacji, oferty (warianty A/B/C), zgody per cel przetwarzania, beneficjenci działań, załączniki i skrzynka CRM.',
             'steps' => ['Menu → CRM → Kontakty', 'Znajdź kontakt lub dodaj nowy', 'Prowadź sprawę i notatki na karcie kontaktu', 'Zgody i wysyłki filtrowane są po celu przetwarzania'],
         ],
         [

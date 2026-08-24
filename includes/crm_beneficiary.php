@@ -1,6 +1,6 @@
 <?php
 /**
- * includes/crm_beneficiary.php — beneficjenci programów w kartotece CRM.
+ * includes/crm_beneficiary.php — beneficjenci działań w kartotece CRM.
  *
  * Osoba, z którą korespondujemy w CRM, bywa jednocześnie uczestnikiem naszych
  * działań: kursantem Dydaktyki 3 (k30_clients + zapisy TI), osobą korzystającą
@@ -101,7 +101,7 @@ function _crm_benef_name_key(?string $v): string
 }
 
 /**
- * Streszczenie udziału beneficjenta w programach — wyłącznie dane nieskromne:
+ * Streszczenie udziału beneficjenta w działaniach — wyłącznie dane nieskromne:
  * grupy, godziny, liczniki. Bez opisu problemu, sprzętu i uwag.
  */
 function crm_beneficiary_summary(int $client_id): ?array

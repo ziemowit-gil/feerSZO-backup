@@ -680,7 +680,7 @@ function _cv_consents_html(array $contact, int $id, bool $can_w): string {
 }
 
 /**
- * Beneficjent programów — udział w działaniach prowadzonych w Dydaktyce 3.
+ * Beneficjent działań — udział w działaniach prowadzonych w Dydaktyce 3.
  *
  * Panel jest widoczny tylko dla osób z dostępem do modułu (crm_beneficiary_can_view())
  * i pokazuje wyłącznie fakt udziału: grupy, godziny, liczniki. Dane wrażliwe
@@ -2131,7 +2131,7 @@ $case_status_cfg = [
     </div></div>
     <?php endif; ?>
 
-    <!-- Beneficjent programów (tylko dla osób z dostępem do Dydaktyki 3) -->
+    <!-- Beneficjent działań (tylko dla osób z dostępem do Dydaktyki 3) -->
     <?php
       $_show_benef = crm_beneficiary_can_view()
                   && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like']);
@@ -2141,7 +2141,7 @@ $case_status_cfg = [
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-mortarboard cv-shead__icon" aria-hidden="true"></i>
-        <h2 class="cv-shead__title">Beneficjent programów</h2>
+        <h2 class="cv-shead__title">Beneficjent działań</h2>
         <div class="cv-shead__aside">
           <?php if ($_benef['linked']): ?>
           <span class="cv-count"><?= count($_benef['linked']) ?></span>

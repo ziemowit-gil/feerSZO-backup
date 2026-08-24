@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$all_contacts = db_all("SELECT id, imie_nazwisko, type FROM crm_contacts WHERE crm_active=1 ORDER BY imie_nazwisko");
+// Kontakty pobiera wyszukiwarka (crm/api/contacts_search.php), nie ładujemy całej bazy
 
 include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
@@ -119,15 +119,34 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <a href="add.php" class="ms-auto text-muted small"><i class="bi bi-x"></i> Zmień</a>
       </div>
       <?php else: ?>
-      <label class="form-label fw-semibold">Kontakt <span class="text-danger">*</span></label>
-      <select name="contact_id" class="form-select" required>
-        <option value="">— wybierz kontakt —</option>
-        <?php foreach ($all_contacts as $c): ?>
-        <option value="<?= (int)$c['id'] ?>" <?= (($_POST['contact_id']??0)==$c['id'])?'selected':'' ?>>
-          <?= h($c['imie_nazwisko']) ?> <?= $c['type']==='organizacja'?'[org]':'' ?>
-        </option>
-        <?php endforeach; ?>
-      </select>
+      <?php /* Wyszukiwarka zamiast listy wszystkich kontaktów: przy kilku tysiącach
+               kartotek select ważył pół megabajta i i tak nikt nie scrollował. */ ?>
+      <label class="form-label fw-semibold" for="ccSearch">Kontakt <span class="text-danger">*</span></label>
+      <div class="position-relative">
+        <input type="text" id="ccSearch" class="form-control" autocomplete="off"
+               placeholder="Wpisz nazwisko, e-mail albo organizację…"
+               aria-describedby="ccHint" aria-expanded="false" aria-autocomplete="list" role="combobox">
+        <input type="hidden" name="contact_id" id="ccId" value="<?= (int)($_POST['contact_id'] ?? 0) ?>" required>
+        <div id="ccDrop" class="list-group shadow-sm"
+             style="display:none;position:absolute;z-index:1050;width:100%;max-height:260px;overflow-y:auto;top:calc(100% + 4px)"></div>
+      </div>
+      <?php
+        $cc_prev = (int)($_POST['contact_id'] ?? 0)
+            ? db_one("SELECT imie_nazwisko, organizacja FROM crm_contacts WHERE id=?", [(int)$_POST['contact_id']])
+            : null;
+      ?>
+      <div id="ccPicked" class="mt-2" style="display:<?= $cc_prev ? '' : 'none' ?>">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-inline-flex align-items-center gap-2"
+              style="font-size:.85rem;padding:.4rem .6rem">
+          <i class="bi bi-person-fill" aria-hidden="true"></i>
+          <span id="ccPickedName"><?= $cc_prev ? h($cc_prev['imie_nazwisko'] . ($cc_prev['organizacja'] ? ' · ' . $cc_prev['organizacja'] : '')) : '' ?></span>
+          <button type="button" class="btn-close btn-sm" id="ccClear" aria-label="Wyczyść wybór"></button>
+        </span>
+      </div>
+      <div class="form-text" id="ccHint" style="font-size:.74rem">
+        Nie ma takiego kontaktu? <a href="<?= APP_URL ?>/crm/contact/quick_add.php">Dodaj kartotekę</a>
+        albo użyj szybkiej akcji (Alt+N).
+      </div>
       <?php endif; ?>
     </div>
   </div>
@@ -251,5 +270,83 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </form>
 
 <style>.step-label{margin-bottom:.75rem}</style>
+
+<script>
+/* Wyszukiwarka kontaktu — ten sam endpoint co w module Komunikacji. */
+(function () {
+  var inp   = document.getElementById('ccSearch');
+  var hid   = document.getElementById('ccId');
+  var drop  = document.getElementById('ccDrop');
+  var box   = document.getElementById('ccPicked');
+  var nameE = document.getElementById('ccPickedName');
+  var clr   = document.getElementById('ccClear');
+  if (!inp || !hid) return;
+
+  var timer = null, active = -1, rows = [];
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function close() { drop.style.display = 'none'; inp.setAttribute('aria-expanded', 'false'); active = -1; }
+
+  function pick(r) {
+    hid.value = r.id;
+    nameE.textContent = r.name + (r.organizacja ? ' · ' + r.organizacja : '');
+    box.style.display = '';
+    inp.value = '';
+    inp.placeholder = 'Zmień kontakt — zacznij pisać…';
+    close();
+  }
+
+  function render() {
+    if (!rows.length) {
+      drop.innerHTML = '<div class="list-group-item text-muted small">Brak pasujących kontaktów</div>';
+    } else {
+      drop.innerHTML = rows.map(function (r, i) {
+        return '<button type="button" class="list-group-item list-group-item-action py-1' +
+               (i === active ? ' active' : '') + '" data-i="' + i + '">' +
+               '<span style="font-size:.86rem">' + esc(r.name) + '</span>' +
+               (r.organizacja ? '<span class="text-muted ms-1" style="font-size:.76rem">' + esc(r.organizacja) + '</span>' : '') +
+               (r.email ? '<span class="text-muted d-block" style="font-size:.74rem">' + esc(r.email) + '</span>' : '') +
+               '</button>';
+      }).join('');
+      drop.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function () { pick(rows[Number(this.dataset.i)]); });
+      });
+    }
+    drop.style.display = '';
+    inp.setAttribute('aria-expanded', 'true');
+  }
+
+  inp.addEventListener('input', function () {
+    var q = this.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { close(); return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/crm/api/contacts_search.php?q=' + encodeURIComponent(q) + '&limit=12')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { rows = d || []; active = -1; render(); })
+        .catch(close);
+    }, 220);
+  });
+
+  inp.addEventListener('keydown', function (e) {
+    if (drop.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, rows.length - 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(rows[active]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#ccDrop') && e.target !== inp) close();
+  });
+
+  if (clr) clr.addEventListener('click', function () {
+    hid.value = ''; box.style.display = 'none'; inp.value = ''; inp.focus();
+  });
+
+})();
+</script>
 
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>
