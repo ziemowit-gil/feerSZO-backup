@@ -290,6 +290,51 @@ if (!isset($contact)) { http_response_code(400); exit; }
     </div></div>
     <?php endif; ?>
 
+    <?php /* Stan retencji przy kartotece: czy jest oznaczona do przeglądu, czy
+             wyłączona, czy już zanonimizowana. Bez tego decyzja o wyłączeniu
+             zapadałaby wyłącznie na ekranie ustawień, w oderwaniu od kartoteki. */ ?>
+    <?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/crm_retention.php';
+          crm_retention_migrate();
+          $cv_ret = db_one("SELECT anonymized_at, retention_flagged_at, COALESCE(retention_hold,0) AS hold
+                              FROM crm_contacts WHERE id=?", [$id]) ?: []; ?>
+    <?php if (!empty($cv_ret['anonymized_at']) || !empty($cv_ret['retention_flagged_at']) || !empty($cv_ret['hold'])): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-shield-check cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Retencja danych</h2>
+      </div>
+      <?php if (!empty($cv_ret['anonymized_at'])): ?>
+      <p class="cv-meta mb-0">
+        <i class="bi bi-eraser me-1" aria-hidden="true"></i>
+        Dane osobowe usunięte <?= h(date('d.m.Y', strtotime((string)$cv_ret['anonymized_at']))) ?>.
+        Kartoteka została w bazie jako ślad, że obowiązek wykonano.
+      </p>
+      <?php else: ?>
+      <p class="cv-meta">
+        <?php if (!empty($cv_ret['hold'])): ?>
+        <i class="bi bi-lock me-1" aria-hidden="true"></i>
+        Kartoteka jest <strong>wyłączona z retencji</strong> — reguły jej nie ruszą.
+        <?php else: ?>
+        <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
+        Oznaczona do przeglądu <?= h(date('d.m.Y', strtotime((string)$cv_ret['retention_flagged_at']))) ?>
+        — spełnia regułę retencji. Nic się nie dzieje automatycznie.
+        <?php endif; ?>
+      </p>
+      <?php if ($crm_can_write): ?>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="ret_hold">
+        <input type="hidden" name="on" value="<?= empty($cv_ret['hold']) ? '1' : '0' ?>">
+        <button class="btn btn-sm btn-crm-outline">
+          <i class="bi bi-<?= empty($cv_ret['hold']) ? 'lock' : 'unlock' ?> me-1" aria-hidden="true"></i>
+          <?= empty($cv_ret['hold']) ? 'Wyłącz z retencji' : 'Cofnij wyłączenie' ?>
+        </button>
+      </form>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div></div>
+    <?php endif; ?>
+
     <!-- Strefa zagrożenia -->
     <?php if ($crm_can_delete): ?>
     <div class="cv-panel cv-panel--danger"><div class="cv-panel__body">

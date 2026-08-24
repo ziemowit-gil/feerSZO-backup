@@ -1277,6 +1277,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 
     $affected_section = null;
 
+    // Wyłączenie kartoteki z retencji — dla przypadków, o których system nie wie
+    if ($action === 'ret_hold') {
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_retention.php';
+        crm_retention_set_hold($id, !empty($_POST['on']));
+        flash_set('success', !empty($_POST['on'])
+            ? 'Kartoteka wyłączona z retencji — reguły jej nie ruszą.'
+            : 'Wyłączenie z retencji cofnięte.');
+        header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id . '#cv-tab-data'); exit;
+    }
+
     // ── Powiązania między kartotekami ────────────────────────────────────────
     if ($action === 'rel_add' || $action === 'rel_del') {
         require_once dirname(dirname(__DIR__)) . '/includes/crm_relations.php';

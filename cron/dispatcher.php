@@ -213,6 +213,11 @@ $AGENTS = [
         'schedule' => [4, 6],
         'args'     => '--apply',
     ],
+    'crm_retention' => [
+        'file'     => __DIR__ . '/crm_retention.php',
+        'interval' => 604800,       // raz w tygodniu — przegląd retencji danych osobowych
+        'schedule' => [5, 7],       // agent tylko OZNACZA, anonimizuje człowiek
+    ],
     'crm_email_kinds' => [
         'file'     => __DIR__ . '/crm_email_kinds.php',
         'interval' => 86400,        // raz dziennie — nowe adresy z importów i skrzynki
