@@ -1214,16 +1214,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             ]);
         } catch (\Throwable $e) {}
 
-        // SPAM bez zablokowania nadawcy jest bez sensu: przy najbliższym skanowaniu
-        // poczty auto-kartoteka założy ten sam rekord od nowa.
+        // SPAM ZAWSZE blokuje nadawcę — to nie jest opcja do rozważenia. Bez wpisu
+        // w filtrze auto-kartoteka założy ten sam rekord przy najbliższym
+        // skanowaniu poczty i usuwanie staje się syzyfowe. Wyborem operatora
+        // jest tylko ZAKRES: sam adres czy cała domena.
         $blocked = '';
-        if ($reason_key === 'spam' && !empty($_POST['block_sender']) && !empty($contact['email'])) {
+        if ($reason_key === 'spam' && !empty($contact['email'])) {
             require_once dirname(dirname(__DIR__)) . '/includes/crm_contact_analyzer.php';
             $what = ($_POST['block_scope'] ?? 'email') === 'domain'
                 ? '@' . crm_email_domain((string)$contact['email'])
                 : (string)$contact['email'];
             $err  = crm_sender_block_add($what, 'SPAM — usunięto kartotekę #' . $id, $user_id ?: null);
-            $blocked = $err ? ' (filtr nadawcy: ' . $err . ')' : ' Nadawca ' . $what . ' trafił do filtra.';
+            $blocked = $err
+                ? ' UWAGA: nadawcy nie udało się zablokować (' . $err . ').'
+                : ' Nadawca ' . $what . ' nie trafi już do CRM.';
         }
 
         CrmManager::deleteContact($id);
@@ -2266,14 +2270,13 @@ $case_status_cfg = [
 
         <?php if (!empty($contact['email'])): ?>
         <div id="cv_del_spam" class="mb-2" hidden>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="cv_del_block" name="block_sender" value="1" checked>
-            <label class="form-check-label small" for="cv_del_block">
-              Dodaj nadawcę do filtra
-              <span class="d-block cv-meta">Bez tego auto-kartoteka założy ten rekord ponownie po najbliższym skanowaniu poczty.</span>
-            </label>
+          <div class="alert alert-warning py-2 px-2 mb-1" style="font-size:.78rem">
+            <i class="bi bi-shield-slash-fill me-1" aria-hidden="true"></i>
+            Nadawca trafi do filtra i <strong>nie wróci już do CRM</strong> — auto-kartoteka
+            przestanie go zakładać przy skanowaniu poczty.
           </div>
-          <select name="block_scope" class="form-select form-select-sm mt-1" aria-label="Zakres filtra">
+          <label class="form-label small mb-1" for="cv_del_scope">Zakres blokady</label>
+          <select name="block_scope" id="cv_del_scope" class="form-select form-select-sm" aria-label="Zakres blokady nadawcy">
             <option value="email">tylko ten adres — <?= h($contact['email']) ?></option>
             <option value="domain">cała domena — @<?= h(crm_email_domain((string)$contact['email'])) ?></option>
           </select>
