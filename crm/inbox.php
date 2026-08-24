@@ -302,6 +302,27 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
 .ib-body img { max-width:100%; height:auto }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
+/* ── Pasek akcji wiadomości: pięć kontrolek zamiast czternastu ────────────
+   Pasek nie ma się już łamać na kolejne wiersze, więc jest jednorzędowy
+   z poziomym przewijaniem na wąskim ekranie — treść wiadomości zostaje
+   tam, gdzie była. */
+.ib-bar--msg { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin }
+.ib-bar--msg::-webkit-scrollbar { height:4px }
+.ib-bar--msg::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:2px }
+/* Przycisk dzielony: „Odpowiedz" plus strzałka do szablonów i asystenta */
+.ib-split { display:inline-flex }
+.ib-split > .ib-act { border-top-right-radius:0; border-bottom-right-radius:0 }
+.ib-split .dropdown > .ib-act--caret {
+  border-top-left-radius:0; border-bottom-left-radius:0; border-left:none; padding:0 .4rem }
+.ib-act-caret { font-size:.62rem; opacity:.6; margin-left:.1rem }
+.ib-act[aria-expanded="true"] { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
+/* Menu akcji — pozycje w jednym rytmie z przyciskami paska */
+.ib-menu { min-width:250px; font-size:.82rem; padding:.25rem; border-color:#E5E7EB }
+.ib-menu .dropdown-item { border-radius:6px; padding:.35rem .55rem; display:flex; align-items:center }
+.ib-menu .dropdown-item:active { background:var(--crm-primary-bg); color:var(--crm-primary) }
+.ib-menu .dropdown-header { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; padding:.3rem .55rem }
+.ib-menu form { margin:0 }
+.ib-menu .form-label { font-size:.7rem; font-weight:600; color:#6B7280 }
 /* Formularze akcji przeniesione do modali — z dawnych szuflad zostaje tylko
    wypełnienie treści, używane w oknach. */
 .ib-dbody { padding:.2rem 0 0 }
@@ -956,7 +977,13 @@ include __DIR__ . '/includes/header_crm.php';
       <?php /* Pasek akcji: każdy przycisk ma widoczną etykietę i podpowiedź mówiącą,
                co się STANIE po kliknięciu — same ikonki (koperta, przekreślone kółko)
                nie mówiły nic. Styl wspólny z paskiem narzędzi nad listą. */ ?>
-      <div class="ib-bar">
+      <?php /* Pasek akcji miał czternaście przycisków w jednym rzędzie i łamał się
+               na dwa–trzy wiersze, spychając treść wiadomości poniżej ekranu. Teraz
+               widoczne są tylko czynności, od których zaczyna się obsługa; reszta
+               siedzi w dwóch rozwijanych grupach: „Przekaż" (dokąd wiadomość ma
+               pójść dalej) i „Więcej" (porządkowanie skrzynki). Etykiety i
+               podpowiedzi zostały bez zmian — mówią, co się STANIE po kliknięciu. */ ?>
+      <div class="ib-bar ib-bar--msg">
         <?php if ((int)($msg['assigned_to'] ?? 0) !== $uid): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="assign_me">
           <button class="ib-act ib-act--primary" title="Przypisz tę wiadomość do siebie — trafi do widoku „Przypisane mi”">
@@ -969,44 +996,55 @@ include __DIR__ . '/includes/header_crm.php';
           $reply_subject = (string)($msg['subject'] ?: '(bez tematu)');
           if (!preg_match('/^\s*re:/i', $reply_subject)) $reply_subject = 'Re: ' . $reply_subject;
         ?>
-        <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{subject:<?= json_encode($reply_subject) ?>})"
-                title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu">
-          <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
-        </button>
-
-        <?php if ($reply_tpls): ?>
-        <div class="dropdown">
-          <button type="button" class="ib-act" data-bs-toggle="dropdown" aria-expanded="false"
-                  title="Odpowiedz gotowym szablonem — treść wypełni się sama, zostaje poprawić i wysłać">
-            <i class="bi bi-lightning-charge" style="color:#B45309" aria-hidden="true"></i>Odpowiedz szablonem
+        <?php /* Odpowiedź jako przycisk dzielony: klik = pusty formularz, strzałka =
+                 szablony i asystent. Trzy osobne przyciski na to samo zajmowały pół paska. */ ?>
+        <div class="ib-split">
+          <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{subject:<?= json_encode($reply_subject) ?>})"
+                  title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu">
+            <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
           </button>
-          <ul class="dropdown-menu shadow-sm" style="min-width:260px;font-size:.85rem">
-            <?php foreach ($reply_tpls as $t): ?>
-            <li>
-              <button type="button" class="dropdown-item text-truncate"
-                      title="<?= h($t['subject'] ?: $t['name']) ?>"
-                      onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{tpl:<?= (int)$t['id'] ?>,subject:<?= json_encode($reply_subject) ?>})">
-                <i class="bi bi-file-earmark-text me-2 text-muted"></i><?= h($t['name']) ?>
-              </button>
-            </li>
-            <?php endforeach; ?>
-            <li><hr class="dropdown-divider my-1"></li>
-            <li>
-              <a class="dropdown-item text-muted" href="<?= APP_URL ?>/crm/templates.php">
-                <i class="bi bi-gear me-2"></i>Zarządzaj szablonami
-              </a>
-            </li>
-          </ul>
+          <div class="dropdown">
+            <button type="button" class="ib-act ib-act--caret" data-bs-toggle="dropdown" data-ib-dd aria-expanded="false"
+                    aria-label="Więcej sposobów odpowiedzi: szablony i asystent AI">
+              <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </button>
+            <ul class="dropdown-menu shadow-sm ib-menu">
+              <?php if ($reply_tpls): ?>
+              <li><h6 class="dropdown-header">Odpowiedz szablonem</h6></li>
+              <?php foreach ($reply_tpls as $t): ?>
+              <li>
+                <button type="button" class="dropdown-item text-truncate"
+                        title="<?= h($t['subject'] ?: $t['name']) ?>"
+                        onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{tpl:<?= (int)$t['id'] ?>,subject:<?= json_encode($reply_subject) ?>})">
+                  <i class="bi bi-file-earmark-text me-2 text-muted"></i><?= h($t['name']) ?>
+                </button>
+              </li>
+              <?php endforeach; ?>
+              <li><hr class="dropdown-divider my-1"></li>
+              <li>
+                <a class="dropdown-item text-muted" href="<?= APP_URL ?>/crm/templates.php">
+                  <i class="bi bi-gear me-2"></i>Zarządzaj szablonami
+                </a>
+              </li>
+              <li><hr class="dropdown-divider my-1"></li>
+              <?php endif; ?>
+              <?php /* Asystent NIE odpowiada za nas — czyta wiadomość, kwalifikuje ją
+                       i przygotowuje PROPOZYCJĘ, którą trzeba przeczytać i poprawić. */ ?>
+              <li>
+                <button type="button" class="dropdown-item" id="ibAssistBtn" data-msg="<?= (int)$msg['id'] ?>"
+                        title="Kwalifikacja zgłoszenia i propozycja odpowiedzi — do przeczytania przed wysłaniem">
+                  <i class="bi bi-stars me-2" style="color:#7C3AED" aria-hidden="true"></i>Asystent AI
+                </button>
+              </li>
+            </ul>
+          </div>
         </div>
-        <?php endif; ?>
-        <?php endif; ?>
-
-        <?php /* Asystent NIE odpowiada za nas — czyta wiadomość, kwalifikuje ją
-                 i przygotowuje PROPOZYCJĘ, którą trzeba przeczytać i poprawić. */ ?>
+        <?php else: ?>
         <button type="button" class="ib-act" id="ibAssistBtn" data-msg="<?= (int)$msg['id'] ?>"
                 title="Kwalifikacja zgłoszenia i propozycja odpowiedzi — do przeczytania przed wysłaniem">
           <i class="bi bi-stars" style="color:#7C3AED" aria-hidden="true"></i>Asystent AI
         </button>
+        <?php endif; ?>
 
         <?php if ($msg['inbox_status'] === 'active'): ?>
         <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="archive">
@@ -1018,77 +1056,126 @@ include __DIR__ . '/includes/header_crm.php';
             <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>Przywróć do obsługi</button></form>
         <?php endif; ?>
 
-        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unread">
-          <button class="ib-act" title="Cofnij odczytanie — wiadomość wróci do widoku „Nowe” jako nieprzeczytana">
-            <i class="bi bi-envelope" aria-hidden="true"></i>Oznacz jako nieprzeczytaną</button></form>
-
-        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="spam">
-          <button class="ib-act" title="Przenieś do widoku „Spam” — zniknie z listy roboczej">
-            <i class="bi bi-slash-circle" aria-hidden="true"></i>Spam</button></form>
-
-        <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
-        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unhide">
-          <button class="ib-act" title="Cofnij porzucenie — wiadomość wróci do widoków Skrzynki CRM">
-            <i class="bi bi-eye" aria-hidden="true"></i>Przywróć do skrzynki</button></form>
-        <?php else: ?>
-        <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
-          <button class="ib-act ib-act--danger"
-                  title="<?= empty($msg['assigned_to'])
-                      ? 'Nikt tego nie poprowadzi — wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)'
-                      : 'Wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)' ?>">
-            <i class="bi bi-eye-slash" aria-hidden="true"></i>Porzuć</button></form>
-        <?php endif; ?>
-
         <?php if ($can_write): ?>
-        <!-- Trzy główne ścieżki obsługi. Formularze żyją w oknach, bo wymagają pól. -->
         <span class="ib-sep" aria-hidden="true"></span>
-        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdCase"
-                title="Załóż sprawę CRM z tej wiadomości — do prowadzenia tematu handlowego">
-          <i class="bi bi-briefcase-fill" style="color:#1D4ED8" aria-hidden="true"></i>Załóż sprawę CRM
-        </button>
-        <?php if (!empty($msg['contact_id'])):
-                $case_list = crm_cases_for_contact((int)$msg['contact_id']);
-                $cur_case  = (int)($msg['case_id'] ?? 0); ?>
-        <?php if ($case_list): ?>
-        <form method="post" class="d-inline-flex align-items-center gap-1"><?= $hidden ?>
-          <input type="hidden" name="_op" value="attach_case">
-          <select name="case_id" class="ib-field" style="max-width:220px" onchange="this.form.submit()"
-                  aria-label="Dopnij wiadomość do sprawy"
-                  title="Dopnij tę wiadomość do sprawy — korespondencja będzie widoczna przy sprawie">
-            <option value="0">— dopnij do sprawy —</option>
-            <?php foreach ($case_list as $cs): ?>
-            <option value="<?= (int)$cs['id'] ?>" <?= $cur_case === (int)$cs['id'] ? 'selected' : '' ?>>
-              <?= h(mb_strimwidth((string)$cs['title'], 0, 40, '…')) ?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-        </form>
+
+        <?php /* Dokąd wiadomość ma pójść dalej. Formularze z polami żyją w oknach. */ ?>
+        <div class="dropdown">
+          <button type="button" class="ib-act" data-bs-toggle="dropdown" data-ib-dd aria-expanded="false"
+                  title="Skieruj tę wiadomość dalej: sprawa CRM, EZD, e-mail, zadanie">
+            <i class="bi bi-signpost-split" aria-hidden="true"></i>Przekaż
+            <i class="bi bi-chevron-down ib-act-caret" aria-hidden="true"></i>
+          </button>
+          <ul class="dropdown-menu shadow-sm ib-menu">
+            <li>
+              <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdCase"
+                      title="Załóż sprawę CRM z tej wiadomości — do prowadzenia tematu handlowego">
+                <i class="bi bi-briefcase-fill me-2" style="color:#1D4ED8" aria-hidden="true"></i>Załóż sprawę CRM
+              </button>
+            </li>
+            <?php if (!empty($msg['contact_id'])):
+                    $case_list = crm_cases_for_contact((int)$msg['contact_id']);
+                    $cur_case  = (int)($msg['case_id'] ?? 0);
+                    if ($case_list): ?>
+            <li>
+              <?php /* Wybór sprawy zostaje w menu — klik w listę nie może go zamykać,
+                       bo wybór jeszcze nie jest zrobiony. */ ?>
+              <form method="post" class="px-3 py-1" onclick="event.stopPropagation()"><?= $hidden ?>
+                <input type="hidden" name="_op" value="attach_case">
+                <label class="form-label small mb-1" for="ibAttachCase">Dopnij do sprawy</label>
+                <select name="case_id" id="ibAttachCase" class="ib-field w-100" onchange="this.form.submit()"
+                        title="Dopnij tę wiadomość do sprawy — korespondencja będzie widoczna przy sprawie">
+                  <option value="0">— wybierz sprawę —</option>
+                  <?php foreach ($case_list as $cs): ?>
+                  <option value="<?= (int)$cs['id'] ?>" <?= $cur_case === (int)$cs['id'] ? 'selected' : '' ?>>
+                    <?= h(mb_strimwidth((string)$cs['title'], 0, 40, '…')) ?>
+                  </option>
+                  <?php endforeach; ?>
+                </select>
+              </form>
+            </li>
+            <?php endif; endif; ?>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdEzd"
+                      title="Zarejestruj w EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
+                <i class="bi bi-folder-symlink-fill me-2" style="color:#0F766E" aria-hidden="true"></i>Przekaż do EZD
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdFwd"
+                      title="Wyślij tę wiadomość dalej e-mailem — z cytatem oryginału i notatką">
+                <i class="bi bi-forward-fill me-2" style="color:#B45309" aria-hidden="true"></i>Przekaż e-mailem
+              </button>
+            </li>
+            <?php if (nozbe_configured()): $nz_link = nozbe_link_for('crm_message', (int)$msg['id']); ?>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <?php if ($nz_link): ?>
+              <a class="dropdown-item" href="<?= h($nz_link['url']) ?>" target="_blank" rel="noopener"
+                 title="Zadanie z tej wiadomości powstało już w Nozbe — otwórz je">
+                <i class="bi bi-check2-square me-2" style="color:#2E844A" aria-hidden="true"></i>Otwórz w Nozbe
+              </a>
+              <?php else: ?>
+              <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="nozbe">
+                <button class="dropdown-item" title="Utwórz w Nozbe zadanie „odpowiedz na tę wiadomość” — z linkiem do niej i treścią w komentarzu">
+                  <i class="bi bi-check2-square me-2" style="color:#2E844A" aria-hidden="true"></i>Do Nozbe
+                </button>
+              </form>
+              <?php endif; ?>
+            </li>
+            <?php endif; ?>
+          </ul>
+        </div>
         <?php endif; ?>
-        <?php endif; ?>
-        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdEzd"
-                title="Zarejestruj w EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
-          <i class="bi bi-folder-symlink-fill" style="color:#0F766E" aria-hidden="true"></i>Przekaż do EZD
-        </button>
-        <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdFwd"
-                title="Wyślij tę wiadomość dalej e-mailem — z cytatem oryginału i notatką">
-          <i class="bi bi-forward-fill" style="color:#B45309" aria-hidden="true"></i>Przekaż e-mailem
-        </button>
-        <?php if (nozbe_configured()): $nz_link = nozbe_link_for('crm_message', (int)$msg['id']); ?>
-          <?php if ($nz_link): ?>
-          <a class="ib-act" href="<?= h($nz_link['url']) ?>" target="_blank" rel="noopener"
-             title="Zadanie z tej wiadomości powstało już w Nozbe — otwórz je">
-            <i class="bi bi-check2-square" style="color:#2E844A" aria-hidden="true"></i>Otwórz w Nozbe
-          </a>
-          <?php else: ?>
-          <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="nozbe">
-            <button class="ib-act" title="Utwórz w Nozbe zadanie „odpowiedz na tę wiadomość” — z linkiem do niej i treścią w komentarzu">
-              <i class="bi bi-check2-square" style="color:#2E844A" aria-hidden="true"></i>Do Nozbe</button></form>
-          <?php endif; ?>
-        <?php endif; ?>
-        <?php endif; ?>
+
+        <?php /* Porządkowanie skrzynki — czynności rzadsze niż odpowiedź, ale
+                 potrzebne; „Porzuć" na końcu i wyróżnione, bo jest najbardziej
+                 nieodwracalne z tej grupy (choć i tak odwracalne). */ ?>
+        <div class="dropdown">
+          <button type="button" class="ib-act" data-bs-toggle="dropdown" data-ib-dd aria-expanded="false"
+                  aria-label="Więcej działań na wiadomości" title="Oznaczenia i porządkowanie skrzynki">
+            <i class="bi bi-three-dots" aria-hidden="true"></i>Więcej
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm ib-menu">
+            <li>
+              <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unread">
+                <button class="dropdown-item" title="Cofnij odczytanie — wiadomość wróci do widoku „Nowe” jako nieprzeczytana">
+                  <i class="bi bi-envelope me-2" aria-hidden="true"></i>Oznacz jako nieprzeczytaną
+                </button>
+              </form>
+            </li>
+            <li>
+              <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="spam">
+                <button class="dropdown-item" title="Przenieś do widoku „Spam” — zniknie z listy roboczej">
+                  <i class="bi bi-slash-circle me-2" aria-hidden="true"></i>Spam
+                </button>
+              </form>
+            </li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <?php if ((int)($msg['crm_hidden'] ?? 0) === 1): ?>
+              <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="unhide">
+                <button class="dropdown-item" title="Cofnij porzucenie — wiadomość wróci do widoków Skrzynki CRM">
+                  <i class="bi bi-eye me-2" aria-hidden="true"></i>Przywróć do skrzynki
+                </button>
+              </form>
+              <?php else: ?>
+              <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="hide">
+                <button class="dropdown-item text-danger"
+                        title="<?= empty($msg['assigned_to'])
+                            ? 'Nikt tego nie poprowadzi — wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)'
+                            : 'Wiadomość zniknie ze Skrzynki CRM (zostanie w widoku Ukryte; Poczta i EZD bez zmian)' ?>">
+                  <i class="bi bi-eye-slash me-2" aria-hidden="true"></i>Porzuć
+                </button>
+              </form>
+              <?php endif; ?>
+            </li>
+          </ul>
+        </div>
 
         <form method="post" class="ms-auto"><?= $hidden ?><input type="hidden" name="_op" value="assign">
-          <select name="user_id" class="ib-field" style="max-width:210px"
+          <select name="user_id" class="ib-field" style="max-width:190px"
                   aria-label="Przypisz wiadomość innej osobie"
                   title="Wskaż osobę, która poprowadzi tę wiadomość"
                   onchange="this.form.submit()">
@@ -1662,6 +1749,15 @@ document.addEventListener('ib:list-refreshed', ibBulkInit);
    treścią — świadomie nie wysyła, bo w imieniu organizacji nie wychodzi nic,
    czego nikt nie przeczytał. */
 (function () {
+  // Pasek akcji przewija się w poziomie (overflow-x), a menu w takim kontenerze
+  // jest przycinane. Popper ze strategią 'fixed' wyprowadza je poza pasek —
+  // ten sam zabieg co w pasku kategorii nagłówka CRM.
+  if (typeof bootstrap !== 'undefined') document.querySelectorAll('[data-ib-dd]').forEach(function (el) {
+    bootstrap.Dropdown.getOrCreateInstance(el, {
+      popperConfig: function (cfg) { return Object.assign({}, cfg, { strategy: 'fixed' }); }
+    });
+  });
+
   var btn = document.getElementById('ibAssistBtn');
   if (!btn) return;
   var box  = document.getElementById('ibAssist');
