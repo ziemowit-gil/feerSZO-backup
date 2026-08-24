@@ -264,6 +264,10 @@ function crm_merge_contacts(int $keep_id, int $drop_id): array
         if (in_array($col, $skip, true))          continue;
         if ($val === null || $val === '')          continue;
         $cur = $keep[$col] ?? null;
+        // Równe wartości to nie „uzupełnienie" — inaczej każda flaga 0/0 lądowała
+        // na liście zmienionych pól i zaśmiecała notatkę po scaleniu.
+        if ((string)$cur === (string)$val)          continue;
+        // Zero i „0" traktujemy jak pustkę: flaga nieustawiona nie jest decyzją.
         if ($cur !== null && $cur !== '' && $cur !== 0 && $cur !== '0') continue;
         $fill[$col] = $val;
     }
@@ -292,4 +296,92 @@ function crm_merge_contacts(int $keep_id, int $drop_id): array
         ->execute([date('Y-m-d H:i:s'), $drop_id]);
 
     return ['ok' => true, 'moved' => $moved, 'filled' => array_keys($fill)];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WYKRYWANIE DUPLIKATÓW
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Telefon do porównania: same cyfry, ostatnie 9 (numer krajowy bez prefiksu). */
+function crm_norm_phone(?string $phone): string
+{
+    $d = preg_replace('~\D~', '', (string)$phone) ?? '';
+    return strlen($d) >= 9 ? substr($d, -9) : '';
+}
+
+/**
+ * Nazwa do porównania: małe litery, bez znaków diakrytycznych, bez form
+ * prawnych i cudzysłowów.
+ *
+ * „FUNDACJA EDUKACJI EMPATII ROZWOJU „FEER”” i „Fundacja Edukacji Empatii
+ * Rozwoju FEER” to ten sam podmiot — bez tej normalizacji nigdy by się nie
+ * spotkały.
+ */
+function crm_norm_name(?string $name): string
+{
+    $n = mb_strtolower(trim((string)$name));
+    $n = strtr($n, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z']);
+    $n = preg_replace('~[„”"\'`.,()\[\]]~u', ' ', $n) ?? $n;
+    $n = preg_replace('~\b(sp\s*z\s*o\s*o|spolka|z\s*o\s*o|s\s*a|sp\s*j|fundacja|stowarzyszenie)\b~u', ' ', $n) ?? $n;
+    $n = preg_replace('~\s+~u', ' ', $n) ?? $n;
+    return trim($n);
+}
+
+/**
+ * Grupy prawdopodobnych duplikatów.
+ *
+ * Kolejność sygnałów odpowiada ich pewności: identyczny NIP to praktycznie
+ * dowód, identyczny e-mail bardzo mocna poszlaka, sama zbieżność nazwy —
+ * najsłabsza (dwóch Janów Kowalskich to nie duplikat). Dlatego wynik pokazuje
+ * POWÓD, a scalenie zawsze potwierdza człowiek.
+ *
+ * @return array<int,array{key:string,reason:string,strength:string,contacts:array}>
+ */
+function crm_find_duplicates(int $limit_contacts = 5000): array
+{
+    crm_migrate();
+    $rows = db_all(
+        "SELECT id, type, status, imie_nazwisko, email, telefon, nip, organizacja, owner_id, created_at
+           FROM crm_contacts WHERE crm_active=1 ORDER BY id LIMIT ?",
+        [$limit_contacts]
+    );
+
+    $buckets = [];   // klucz => [powód, siła, [id,...]]
+    $add = function (string $key, string $reason, string $strength, array $row) use (&$buckets) {
+        $buckets[$key]['reason']     = $reason;
+        $buckets[$key]['strength']   = $strength;
+        $buckets[$key]['contacts'][] = $row;
+    };
+
+    foreach ($rows as $r) {
+        $nip = preg_replace('~\D~', '', (string)($r['nip'] ?? '')) ?? '';
+        if (strlen($nip) === 10) $add('nip:' . $nip, 'ten sam NIP', 'pewne', $r);
+
+        $mail = mb_strtolower(trim((string)($r['email'] ?? '')));
+        if ($mail !== '' && str_contains($mail, '@')) $add('mail:' . $mail, 'ten sam e-mail', 'mocne', $r);
+
+        $tel = crm_norm_phone($r['telefon'] ?? '');
+        if ($tel !== '') $add('tel:' . $tel, 'ten sam telefon', 'mocne', $r);
+
+        $name = crm_norm_name($r['imie_nazwisko'] ?? '');
+        if ($name !== '' && mb_strlen($name) >= 5) $add('name:' . $name, 'ta sama nazwa', 'słabe', $r);
+    }
+
+    // Grupa to dopiero co najmniej dwie kartoteki.
+    $out = [];
+    foreach ($buckets as $key => $b) {
+        if (count($b['contacts']) < 2) continue;
+        $out[] = [
+            'key'      => $key,
+            'reason'   => $b['reason'],
+            'strength' => $b['strength'],
+            'contacts' => $b['contacts'],
+        ];
+    }
+
+    // Pewne najpierw, w obrębie siły — większe grupy wyżej.
+    $rank = ['pewne' => 0, 'mocne' => 1, 'słabe' => 2];
+    usort($out, fn($a, $b) => [$rank[$a['strength']], -count($a['contacts'])]
+                          <=> [$rank[$b['strength']], -count($b['contacts'])]);
+    return $out;
 }

@@ -516,6 +516,7 @@ window.openCommModal = function(contactId, channel) {
         <?php if ($_crm_can_write): ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/analyze.php"><i class="bi bi-funnel me-2"></i>Analiza kartotek z poczty</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/domains.php"><i class="bi bi-diagram-3 me-2"></i>Kartoteki wg domen</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/merge.php"><i class="bi bi-intersect me-2"></i>Duplikaty kartotek</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/mobilna/"><i class="bi bi-telephone-outbound-fill me-2"></i>Szybkie dzwonienie <span class="text-body-secondary small">(mobile)</span></a></li>
