@@ -25,6 +25,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_merge.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('contacts', 'delete');
 
 $can_write = is_admin() || can_write('crm');
 if (!$can_write) {

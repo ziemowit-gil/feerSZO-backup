@@ -20,6 +20,7 @@ header('X-Frame-Options: SAMEORIGIN');
 if (!current_user()) { http_response_code(401); exit; }
 if (!can_write('crm') && !is_admin()) { http_response_code(403); exit; }
 crm_migrate();
+crm_require('inbox', 'write');
 
 // ── POST — wyślij wiadomość ────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

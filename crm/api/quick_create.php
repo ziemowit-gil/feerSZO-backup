@@ -23,6 +23,9 @@ if (!current_user()) {
     http_response_code(401);
     qc_out(['ok' => false, 'error' => 'Wymagane logowanie.']);
 }
+
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require_json('contacts', 'write');
 $uid = (int)(current_user()['id'] ?? 0);
 
 if (($_GET['a'] ?? '') === 'task_lists') {

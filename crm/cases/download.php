@@ -11,6 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('cases', 'read');
 
 $fid  = (int)($_GET['id'] ?? 0);
 $file = db_one("SELECT * FROM crm_case_files WHERE id=?", [$fid]);

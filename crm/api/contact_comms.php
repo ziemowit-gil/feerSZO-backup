@@ -12,6 +12,8 @@ require_once dirname(__DIR__) . '/../includes/crm.php';
 header('Content-Type: application/json; charset=utf-8');
 
 require_login();
+
+crm_require_json('inbox', 'read');
 if (!can_read('crm')) {
     echo json_encode(['ok' => false, 'msg' => 'Brak dostępu.']);
     exit;

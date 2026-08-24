@@ -21,6 +21,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('cases', 'read');
 
 $uid       = (int)(current_user()['id'] ?? 0);
 $can_write = is_admin() || can_write('crm');

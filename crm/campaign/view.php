@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('campaigns', 'read');
 
 $id = (int)($_GET['id'] ?? 0);
 $campaign = $id ? db_one("SELECT * FROM crm_campaigns WHERE id=?", [$id]) : null;

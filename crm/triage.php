@@ -69,10 +69,8 @@ if (is_file($__cfg)) {
     require_once dirname(__DIR__) . '/includes/auth.php';
     require_once dirname(__DIR__) . '/includes/functions.php';
     require_login();
-    if (!(is_admin() || can_write('crm'))) {
-        http_response_code(403);
-        exit('Brak uprawnień do segregacji kontaktów.');
-    }
+    require_once dirname(__DIR__) . '/includes/crm_perms.php';
+    crm_require('inbox', 'read');
     $TRIAGE_EMBEDDED = true;
     $pdo = db();
 } else {

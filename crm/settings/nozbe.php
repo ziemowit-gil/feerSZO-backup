@@ -10,6 +10,7 @@ require_login();
 require_module_enabled('crm_enabled', 'CRM');
 if (!is_admin()) { flash_set('danger','Tylko administrator.'); header('Location: '.APP_URL.'/crm/dashboard.php'); exit; }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Integracja Nozbe';
 

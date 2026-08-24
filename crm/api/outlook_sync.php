@@ -150,6 +150,7 @@ try {
                 echo json_encode(['ok'=>false,'message'=>'Wymagane logowanie.']);
                 break;
             }
+
             crm_migrate();
             $cu_id = (int)current_user()['id'];
             $data  = $sync->sync_user_calendar($cu_id);

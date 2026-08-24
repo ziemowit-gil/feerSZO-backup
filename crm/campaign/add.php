@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('campaigns', 'write');
 
 $can_write = can_write('crm') || is_admin();
 if (!$can_write) { flash_set('error', 'Brak uprawnień.'); header('Location: ' . APP_URL . '/crm/campaign/index.php'); exit; }

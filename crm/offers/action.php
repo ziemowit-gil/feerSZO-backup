@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('offers', 'write');
 crm_offers_migrate();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit; }

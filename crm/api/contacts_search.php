@@ -12,6 +12,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if (!current_user()) { http_response_code(401); echo json_encode([]); exit; }
+
+crm_require_json('contacts', 'read');
 if (!can_write('crm') && !is_admin()) { http_response_code(403); echo json_encode([]); exit; }
 
 $q      = trim($_GET['q'] ?? '');

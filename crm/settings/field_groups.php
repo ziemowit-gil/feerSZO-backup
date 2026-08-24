@@ -9,6 +9,7 @@ require_login();
 require_module_enabled('crm_enabled', 'CRM');
 if (!can_write('crm_ustawienia') && !is_admin()) { flash_set('danger','Brak uprawnień do ustawień CRM.'); header('Location: '.APP_URL.'/crm/dashboard.php'); exit; }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Grupy pól';
 

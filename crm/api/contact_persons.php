@@ -24,6 +24,8 @@ if (!current_user()) {
     exit;
 }
 
+crm_require_json('contacts', 'read');
+
 $channel = ($_GET['channel'] ?? 'email') === 'sms' ? 'sms' : 'email';
 $ids = array_values(array_unique(array_filter(array_map('intval',
     explode(',', (string)($_GET['ids'] ?? ''))))));

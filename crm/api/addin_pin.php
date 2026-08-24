@@ -24,7 +24,7 @@ auth_start();
 header('Content-Type: application/json; charset=utf-8');
 
 // ── Autoryzacja: sesja (zapis) LUB token API ────────────────────────────────────
-$auth_ok = (current_user() && (can_write('crm') || is_admin()));
+$auth_ok = (current_user() && crm_can('contacts', 'write'));
 if (!$auth_ok) {
     $bearer = '';
     $hdr = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');

@@ -20,6 +20,9 @@ if (!current_user()) {
     echo json_encode(['ok' => false, 'error' => 'Wymagane logowanie.']);
     exit;
 }
+
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require_json('contacts', 'write');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'error' => 'Tylko POST.']);

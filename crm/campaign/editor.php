@@ -26,6 +26,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_campaign.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('campaigns', 'write');
 
 $can_write = can_write('crm') || is_admin();
 if (!$can_write) { http_response_code(403); exit('Brak uprawnień.'); }

@@ -13,6 +13,7 @@ if (!can_write('crm_ustawienia') && !is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Pola systemowe';
 $all_roles  = crm_all_roles();

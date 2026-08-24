@@ -22,6 +22,7 @@ if (!can_write('crm') && !is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('contacts', 'write');
 
 // Wygeneruj token CSRF możliwie wcześnie — gwarancja, że jest w sesji
 // zanim formularz zostanie wyrenderowany (i zanim padnie jakikolwiek redirect).

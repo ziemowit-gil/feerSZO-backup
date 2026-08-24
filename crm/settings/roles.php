@@ -14,6 +14,7 @@ if (!can_write('crm_ustawienia') && !is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 _permissions_init();
 
 $PAGE_TITLE = 'CRM — Role użytkowników';

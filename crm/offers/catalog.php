@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('offers', 'read');
 crm_offers_migrate();
 
 $PAGE_TITLE = 'Katalog usług odpłatnych';

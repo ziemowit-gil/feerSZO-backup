@@ -18,6 +18,7 @@ if (!can_write('crm') && !is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('contacts', 'write');
 
 $edit_id = (int)($_GET['id'] ?? 0);
 $is_edit = $edit_id > 0;

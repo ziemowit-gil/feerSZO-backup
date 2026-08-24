@@ -26,6 +26,7 @@ if (!can_write('crm_ustawienia') && !is_admin()) {
     header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Lista wykluczeń';
 

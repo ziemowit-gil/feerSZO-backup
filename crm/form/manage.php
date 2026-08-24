@@ -14,6 +14,7 @@ if (!is_admin() && !can_write('crm')) {
     flash_set('danger','Brak uprawnień.'); header('Location: '.APP_URL.'/crm/dashboard.php'); exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Formularze webowe';
 

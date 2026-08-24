@@ -18,6 +18,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 
 require_login();
+
+crm_require_json('inbox', 'read');
 require_module_enabled('crm_enabled', 'Moduł CRM');
 if (!can_read('crm') && !is_admin()) { http_response_code(403); exit('Brak uprawnień.'); }
 

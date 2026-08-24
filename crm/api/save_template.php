@@ -11,6 +11,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 
 require_login();
+
+crm_require_json('inbox', 'write');
 require_module_enabled('crm_enabled', 'Moduł CRM');
 if (!can_write('crm') && !is_admin()) {
     flash_set('danger', 'Brak uprawnień.');

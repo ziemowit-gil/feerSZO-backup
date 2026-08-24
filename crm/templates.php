@@ -16,6 +16,7 @@ require_once dirname(__DIR__) . '/includes/crm_attachments.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('settings', 'write');
 
 $crm_can_write  = can_write('crm') || is_admin();
 $crm_can_delete = can_delete('crm') || is_admin();

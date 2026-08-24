@@ -21,6 +21,7 @@ require_once dirname(__DIR__) . '/includes/crm_janitor.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('contacts', 'write');
 crm_janitor_migrate();
 
 $can_write = is_admin() || can_write('crm');

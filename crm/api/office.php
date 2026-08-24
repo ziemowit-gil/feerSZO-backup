@@ -20,6 +20,8 @@ function office_ok(mixed $d = null): never { echo json_encode(['ok' => true, 'da
 function office_err(string $m, int $c = 400): never { http_response_code($c); echo json_encode(['ok' => false, 'error' => $m], JSON_UNESCAPED_UNICODE); exit; }
 
 if (!current_user()) office_err('Wymagane logowanie.', 401);
+
+crm_require_json('inbox', 'read');
 if (!can_write('crm') && !is_admin()) office_err('Brak uprawnień.', 403);
 crm_office_migrate();
 

@@ -13,6 +13,7 @@ if (!can_write('crm_ustawienia') && !is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('settings', 'read');
 
 $PAGE_TITLE = 'CRM — Ustawienia';
 

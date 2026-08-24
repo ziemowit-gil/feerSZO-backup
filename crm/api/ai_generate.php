@@ -18,6 +18,9 @@ if (!current_user()) {
     exit;
 }
 
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require_json('inbox', 'read');
+
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 // CSRF

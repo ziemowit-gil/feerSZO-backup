@@ -16,13 +16,16 @@ require_once dirname(__DIR__) . '/includes/crm.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 
-$crm_can_write    = can_write('crm') || is_admin();
-$crm_can_delete   = can_delete('crm') || is_admin();
+// Uprawnienia z reguł per rola (includes/crm_perms.php). Rola bez zapisanych
+// reguł dostaje dotychczasowe can_write/can_delete('crm') — patrz crm_can().
+$crm_can_write    = crm_can('contacts', 'write');
+$crm_can_delete   = crm_can('contacts', 'delete');
 $crm_can_export   = can_read('crm_eksport') || is_admin();
 $crm_can_import   = can_write('crm_import') || is_admin();
 $crm_can_mailing  = can_write('crm_mailing') || is_admin();
 
 crm_migrate();
+crm_require('contacts', 'read');
 
 $PAGE_TITLE = 'CRM — Kontakty';
 
@@ -162,7 +165,10 @@ function _crm_table_html(
           </thead>
           <tbody>
             <?php foreach ($rows as $row):
-              $initials = $row['avatar_initials'] ?: CrmManager::makeInitials($row['imie_nazwisko']);
+              // Lista musi ukrywać to samo, co kartoteka — inaczej pole zablokowane
+              // dla roli i tak wyciekało w kolumnie albo w tytule wiersza.
+              $row      = crm_mask_contact($row);
+              $initials = $row['avatar_initials'] ?: CrmManager::makeInitials((string)$row['imie_nazwisko']);
               $tags     = $row['tags_csv'] ? array_filter(explode(',', $row['tags_csv'])) : [];
               $sc       = crm_statuses()[$row['status']] ?? ['label' => $row['status'], 'color' => '#939393'];
               $ct_meta  = CRM_CONTACT_TYPES[$row['type']] ?? CRM_CONTACT_TYPES['osoba'];
@@ -499,6 +505,13 @@ include __DIR__ . '/includes/header_crm.php';
         'powiat' => 'Powiat', 'gmina' => 'Gmina', 'tags' => 'Tagi', 'notatka' => 'Notatka',
         'source' => 'Źródło', 'last_comm' => 'Ostatni kontakt', 'created' => 'Dodano',
     ];
+    // Nie proponuj do eksportu kolumn, których rola nie widzi w kartotece —
+    // export.php i tak je odsieje, ale zaznaczony checkbox obiecywałby dane.
+    $crm_export_cols = array_filter(
+        $crm_export_cols,
+        static fn($ck) => crm_field_can_view($ck),
+        ARRAY_FILTER_USE_KEY
+    );
     ?>
     <div class="modal fade" id="crmExportModal" tabindex="-1" aria-labelledby="crmExportModalLbl" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">

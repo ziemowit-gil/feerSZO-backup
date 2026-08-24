@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ksef.php';
 
 require_login();
 require_module_enabled('invoices_enabled', 'Moduł Faktury');
+crm_require('invoices', 'read');
 invoices_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);

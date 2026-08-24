@@ -22,7 +22,7 @@ function je(string $msg, int $code = 400): never {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') je('Metoda niedozwolona', 405);
 if (!current_user()) je('Brak sesji', 401);
-if (!can_write('crm') && !is_admin()) je('Brak uprawnień', 403);
+if (!crm_can('cases', 'write')) je('Brak uprawnień do spraw', 403);
 
 // CSRF
 auth_start();

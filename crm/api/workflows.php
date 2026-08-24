@@ -21,6 +21,9 @@ if (!current_user()) {
     wf_out(['ok' => false, 'error' => 'Wymagane logowanie.']);
 }
 
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require_json('contacts', 'write');
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $types = crm_quick_types();
     $items = [];

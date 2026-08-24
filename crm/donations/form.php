@@ -17,6 +17,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
 require_login();
 require_module_enabled('donations_enabled', 'Moduł Darowizny');
 crm_migrate();
+crm_require('donations', 'write');
 donations_migrate();
 
 if (!is_admin() && !can_write('crm')) {

@@ -27,6 +27,9 @@ if (!current_user()) {
     http_response_code(401);
     att_out(['ok' => false, 'error' => 'Wymagane logowanie.']);
 }
+
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require_json('inbox', 'write');
 if (!can_write('crm') && !is_admin()) {
     http_response_code(403);
     att_out(['ok' => false, 'error' => 'Brak uprawnień.']);

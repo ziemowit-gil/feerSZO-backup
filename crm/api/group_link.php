@@ -13,6 +13,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 
 header('Content-Type: application/json; charset=utf-8');
 if (!current_user()) { http_response_code(401); echo json_encode(['ok'=>false,'error'=>'Brak sesji']); exit; }
+
+crm_require_json('contacts', 'write');
 if (!can_write('crm') && !is_admin()) { http_response_code(403); echo json_encode(['ok'=>false,'error'=>'Brak uprawnień']); exit; }
 crm_migrate();
 

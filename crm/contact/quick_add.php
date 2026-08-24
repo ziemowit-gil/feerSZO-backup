@@ -17,6 +17,7 @@ if (!can_write('crm') && !is_admin()) {
     flash_set('danger','Brak uprawnień.'); header('Location: '.APP_URL.'/crm/dashboard.php'); exit;
 }
 crm_migrate();
+crm_require('contacts', 'write');
 
 $PAGE_TITLE = 'Szybkie dodawanie kontaktu';
 

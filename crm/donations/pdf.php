@@ -14,10 +14,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/donation_pdf.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('donations_enabled', 'Moduł Darowizny');
-if (!can_read('crm') && !is_admin()) { http_response_code(403); exit('Brak uprawnień.'); }
+crm_require('donations', 'read');
 
 $uid        = (int)(current_user()['id'] ?? 0);
 $donation_id = (int)($_GET['id'] ?? 0);

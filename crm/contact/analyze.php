@@ -23,6 +23,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_contact_analyzer.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('contacts', 'read');
 crm_sender_blocklist_migrate();
 
 $can_write  = is_admin() || can_write('crm');

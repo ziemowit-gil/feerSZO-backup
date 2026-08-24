@@ -24,6 +24,8 @@ if (!current_user()) {
     echo json_encode(['ok' => false, 'error' => 'Wymagane logowanie.']);
     exit;
 }
+
+crm_require_json('inbox', 'read');
 if (!can_read('crm') && !can_write('crm') && !is_admin()) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Brak uprawnień.']);

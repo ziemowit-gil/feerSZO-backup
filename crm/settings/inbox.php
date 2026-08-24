@@ -21,6 +21,7 @@ if (!is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 
 $PAGE_TITLE = 'CRM — Śledzenie skrzynki';
 $BASE_URL   = APP_URL . '/crm/settings/inbox.php';

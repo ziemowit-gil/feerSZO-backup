@@ -50,6 +50,8 @@ function event_set_participants(int $event_id, array $ids, int $by): void {
 }
 
 if (!current_user()) api_err('Wymagane logowanie.', 401);
+
+crm_require_json('contacts', 'read');
 require_module_or_die: ;
 try { require_module_enabled('crm_enabled', 'CRM'); }
 catch (\Throwable $e) { api_err('Moduł CRM wyłączony.', 403); }

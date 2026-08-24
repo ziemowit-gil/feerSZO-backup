@@ -164,6 +164,25 @@ function crm_require(string $area, string $op = 'read'): void {
     exit;
 }
 
+/**
+ * Strażnik dla endpointów JSON.
+ *
+ * crm_require() robi przekierowanie na pulpit — w wywołaniu XHR kończy się to
+ * stroną HTML w miejscu, gdzie front oczekuje JSON-a, więc błąd wygląda jak
+ * awaria, a nie jak brak uprawnień. Tu odpowiadamy 403 i czytelnym komunikatem.
+ */
+function crm_require_json(string $area, string $op = 'read'): void {
+    if (crm_can($area, $op)) return;
+    $label = crm_perm_areas()[$area]['label'] ?? $area;
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok'    => false,
+        'error' => 'Twoja rola nie ma w CRM dostępu do sekcji: ' . $label . '.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ── Uprawnienia do pól kartoteki ───────────────────────────────────────────
 
 /** Mapa pole => ['view'=>bool,'edit'=>bool] dla roli. */

@@ -19,7 +19,7 @@ auth_start();
 header('Content-Type: application/json; charset=utf-8');
 
 // ── Autoryzacja: sesja LUB token API (identycznie jak outlook_sync.php) ─────────
-$auth_ok = (current_user() && (can_read('crm') || is_admin()));
+$auth_ok = (current_user() && crm_can('contacts', 'read'));
 if (!$auth_ok) {
     $bearer = '';
     $hdr = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');

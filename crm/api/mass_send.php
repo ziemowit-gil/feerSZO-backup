@@ -20,6 +20,8 @@ function api_ok(mixed $d = null): never { echo json_encode(['ok'=>true,'data'=>$
 function api_err(string $m, int $c=400): never { http_response_code($c); echo json_encode(['ok'=>false,'error'=>$m],JSON_UNESCAPED_UNICODE); exit; }
 
 if (!current_user()) api_err('Wymagane logowanie.',401);
+
+crm_require_json('campaigns', 'write');
 if (!can_write('crm') && !is_admin()) api_err('Brak uprawnień.',403);
 crm_migrate();
 

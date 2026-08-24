@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('settings', 'write');
 if (!can_write('crm_ustawienia') && !is_admin()) {
     flash_set('danger', 'Brak uprawnień do ustawień CRM.');
     header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;

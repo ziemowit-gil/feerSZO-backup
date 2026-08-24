@@ -22,6 +22,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
 
 require_login();
 require_module_enabled('invoices_enabled', 'Moduł Faktury');
+crm_require('invoices', 'write');
 invoices_migrate();
 
 if (!is_admin() && !can_write('crm')) {

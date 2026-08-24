@@ -18,6 +18,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('settings', 'write');
 require_role('admin');   // konfiguracją uprawnień zarządza wyłącznie administrator
 
 $PAGE_TITLE = 'Uprawnienia CRM';

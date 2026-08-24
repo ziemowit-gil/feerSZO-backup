@@ -23,6 +23,7 @@ if (!is_admin()) {
     exit;
 }
 crm_migrate();
+crm_require('settings', 'write');
 cpc_migrate();
 
 $PAGE_TITLE = 'CRM — Wymaganie IKA';

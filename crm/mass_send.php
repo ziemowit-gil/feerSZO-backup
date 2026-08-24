@@ -15,6 +15,7 @@ if (!can_write('crm_mailing') && !is_admin()) {
     header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;
 }
 crm_migrate();
+crm_require('campaigns', 'write');
 
 $PAGE_TITLE = 'Wysyłka masowa';
 

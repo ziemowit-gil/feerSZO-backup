@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
+crm_require('settings', 'write');
 
 // ── Migracja kolumn podpisu ───────────────────────────────────────────────────
 foreach ([
