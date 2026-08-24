@@ -93,8 +93,18 @@ if ($contact_id && !$contact) {
 
 try {
     require_once dirname(__DIR__) . '/includes/sms.php';
-    $sms_available = sms_is_enabled();
-} catch (\Throwable $e) { $sms_available = false; }
+    // SMS ma sens tylko wtedy, gdy jest gdzie go wysłać. Kanał proponowany przy
+    // kontakcie bez numeru albo z numerem stacjonarnym kończył się wysyłką,
+    // która nie dochodzi (a bywa naliczana) — i wnioskiem, że „SMS-y nie działają".
+    $sms_available = sms_is_enabled()
+        && $contact !== null && sms_is_mobile($contact['telefon'] ?? '');
+    $sms_why = '';
+    if (sms_is_enabled() && !$sms_available && $contact !== null) {
+        $sms_why = trim((string)($contact['telefon'] ?? '')) === ''
+            ? 'kontakt nie ma numeru telefonu'
+            : 'numer ' . sms_format_phone($contact['telefon']) . ' nie jest komórkowy';
+    }
+} catch (\Throwable $e) { $sms_available = false; $sms_why = ''; }
 
 $m365_ok = _mail_m365_configured();
 $smtp_ok = (bool)_mail_setting('smtp_host');
@@ -177,6 +187,10 @@ $csrf      = csrf_token();
       <option value="email"    <?= $channel === 'email'    ? 'selected' : '' ?>>E-mail</option>
       <?php if ($sms_available): ?>
       <option value="sms"      <?= $channel === 'sms'      ? 'selected' : '' ?>>SMS</option>
+      <?php elseif (!empty($sms_why)): ?>
+      <?php /* Pozycja zostaje, ale wyłączona — zniknięcie kanału bez słowa
+               wygląda jak awaria, a tak widać, czego brakuje. */ ?>
+      <option value="sms" disabled>SMS — <?= h($sms_why) ?></option>
       <?php endif; ?>
       <option value="telefon"  <?= $channel === 'telefon'  ? 'selected' : '' ?>>Telefon (zaloguj)</option>
       <option value="osobisty">Spotkanie</option>

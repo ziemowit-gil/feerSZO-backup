@@ -373,3 +373,43 @@ function _sms_send_httprequest(string $phone, string $message): void {
         throw new RuntimeException("HTTP SMS: serwer zwrócił HTTP {$code}. Odpowiedź: {$preview}");
     }
 }
+
+/**
+ * Czy numer jest komórkowy (polska numeracja).
+ *
+ * SMS na numer stacjonarny nie dojdzie — operator go odrzuci albo, co gorsza,
+ * przyjmie i naliczy. Dlatego kanał SMS ma być proponowany tylko tam, gdzie
+ * jest szansa, że wiadomość dotrze.
+ *
+ * Zasada: po odrzuceniu prefiksu kraju zostaje dziewięć cyfr, a dwie pierwsze
+ * należą do zakresów przydzielonych sieciom komórkowym (UKE). Numery zagraniczne
+ * (inny prefiks niż 48) przepuszczamy — nie znamy ich planów numeracji, a blokada
+ * byłaby gorsza od wysłania: cudzoziemiec z komórką jest częstszy niż pomyłka.
+ */
+function sms_is_mobile(?string $phone): bool
+{
+    $d = preg_replace('/\D/', '', (string)$phone) ?? '';
+    if ($d === '') return false;
+
+    // Numer międzynarodowy spoza Polski — nie oceniamy
+    if (strlen($d) > 11 || (strlen($d) === 11 && !str_starts_with($d, '48'))) return true;
+
+    if (str_starts_with($d, '48') && strlen($d) === 11) $d = substr($d, 2);
+    if (strlen($d) !== 9) return false;
+
+    // Prefiksy komórkowe wg planu numeracji UKE. Lista zamknięta, bo zakresy
+    // przeplatają się ze strefami stacjonarnymi: 57 to komórka, ale 58 to Gdańsk,
+    // 60 komórka, a 61 Poznań — reguła „od 50 do 79" wysyłałaby SMS-y na telefony
+    // stacjonarne całego Pomorza i Wielkopolski.
+    return in_array(substr($d, 0, 2),
+        ['45', '50', '51', '53', '57', '60', '66', '69', '72', '73', '78', '79', '88'], true);
+}
+
+/** Numer w formacie do pokazania: 501 234 567. */
+function sms_format_phone(?string $phone): string
+{
+    $d = preg_replace('/\D/', '', (string)$phone) ?? '';
+    if (str_starts_with($d, '48') && strlen($d) === 11) $d = substr($d, 2);
+    if (strlen($d) !== 9) return trim((string)$phone);
+    return substr($d, 0, 3) . ' ' . substr($d, 3, 3) . ' ' . substr($d, 6, 3);
+}

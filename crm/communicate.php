@@ -138,10 +138,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // < 10 odbiorców → natychmiast; >= 10 → kolejka CRON
         $immediate = count($recipient_ids) < 10;
         $user_id = (int)(current_user()['id'] ?? 0);
+        $skipped_sms = [];   // odbiorcy bez numeru komórkowego przy kanale SMS
+
         foreach ($recipient_ids as $cid) {
             if (!crm_can_access_contact($cid)) continue;
             $contact = db_one("SELECT * FROM crm_contacts WHERE id=?", [$cid]);
             if (!$contact) continue;
+
+            // SMS na numer stacjonarny nie dochodzi (a bywa naliczany), a wpis
+            // w historii sugerowałby, że wiadomość poszła. Pomijamy i mówimy o tym.
+            if ($channel === 'sms' && function_exists('sms_is_mobile')
+                && !sms_is_mobile($contact['telefon'] ?? '')) {
+                $skipped_sms[] = (string)$contact['imie_nazwisko'];
+                continue;
+            }
             $rendered_body    = CrmManager::renderTemplate($body, $contact);
             $rendered_subject = CrmManager::renderTemplate($subject, $contact);
 
@@ -182,6 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Zakolejkowano {$sent_count} wiadomości — zostaną wysłane przez harmonogram (CRON).";
         } else {
             $msg = "Wiadomość " . ($do_send ? 'wysłana' : 'zalogowana') . " do {$sent_count} odbiorców.";
+        }
+        if ($skipped_sms) {
+            $msg .= ' Pominięto ' . count($skipped_sms) . ' bez numeru komórkowego: '
+                  . implode(', ', array_slice($skipped_sms, 0, 5))
+                  . (count($skipped_sms) > 5 ? ' i ' . (count($skipped_sms) - 5) . ' więcej' : '') . '.';
         }
         // ── Nozbe follow-up task ────────────────────────────────────────────
         if (!empty($_POST['nozbe_task']) && nozbe_setting('nozbe_enabled') === '1') {
@@ -474,6 +489,13 @@ include __DIR__ . '/includes/header_crm.php';
               <option value="telefon"  <?= $preselect_channel === 'telefon'  ? 'selected' : '' ?>>Telefon (zaloguj)</option>
               <option value="osobisty" <?= $preselect_channel === 'osobisty' ? 'selected' : '' ?>>Spotkanie osobiste</option>
             </select>
+            <?php /* SMS idzie wyłącznie na komórki — stacjonarny numer to wysyłka,
+                     która nie dojdzie, a bywa naliczona. Odbiorcy bez komórki są
+                     pomijani, więc uprzedzamy o tym przed kliknięciem „Wyślij". */ ?>
+            <div class="form-text text-warning d-none" id="smsMobileHint" role="status">
+              <i class="bi bi-phone-vibrate me-1" aria-hidden="true"></i>
+              Odbiorcy bez numeru komórkowego zostaną pominięci.
+            </div>
           </div>
           <div class="col-sm-8">
             <label class="form-label" for="template_select">Użyj szablonu</label>
@@ -950,7 +972,16 @@ include __DIR__ . '/includes/header_crm.php';
       // Pokaż/ukryj załączniki
       var attSec = document.getElementById('attachments-section');
       if (attSec) attSec.style.display = (channelSel.value === 'email') ? '' : 'none';
+
+      // Uprzedzenie o pomijaniu numerów niekomórkowych
+      var hint = document.getElementById('smsMobileHint');
+      if (hint) hint.classList.toggle('d-none', channelSel.value !== 'sms');
     });
+    // Stan początkowy — kanał bywa wskazany adresem (?channel=sms)
+    if (channelSel.value === 'sms') {
+      var h0 = document.getElementById('smsMobileHint');
+      if (h0) h0.classList.remove('d-none');
+    }
   }
 
   // ── Wstaw zmienną ─────────────────────────────────────────────────────────
