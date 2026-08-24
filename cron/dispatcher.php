@@ -189,6 +189,12 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'crm_volunteers_expired' => [
+        'file'     => __DIR__ . '/crm_volunteers_expired.php',
+        'interval' => 604800,       // raz w tygodniu — porządkuje grupę wolontariuszy
+        'schedule' => [4, 6],
+        'args'     => '--apply',
+    ],
     'crm_cases_due' => [
         'file'     => __DIR__ . '/crm_cases_due.php',
         'interval' => 86400,        // raz dziennie — terminy spraw i naruszenia SLA
@@ -247,6 +253,11 @@ foreach ($AGENTS as $name => $cfg) {
 
     $php  = PHP_BINARY ?: 'php';
     $cmd  = escapeshellarg($php) . ' ' . escapeshellarg($agent_file);
+    // Argumenty agenta (np. --apply dla skryptów z trybem podglądu) — każdy osobno
+    // przez escapeshellarg, żeby wpis w rejestrze nie mógł doklejać poleceń powłoki.
+    foreach (preg_split('/\s+/', trim((string)($cfg['args'] ?? ''))) as $arg) {
+        if ($arg !== '') $cmd .= ' ' . escapeshellarg($arg);
+    }
     $log  = defined('LOG_PATH') ? LOG_PATH . '/cron_' . $name . '.log' : '/dev/null';
 
     // Uruchom asynchronicznie — nie blokuj dyspozytora
