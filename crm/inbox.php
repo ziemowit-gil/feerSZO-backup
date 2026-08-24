@@ -299,6 +299,19 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-tbtn--cta:hover { background:#0165B8; border-color:#0165B8; color:#fff }
 .ib-tbtn--on { border-color:var(--crm-primary); color:var(--crm-primary) }
 
+/* ── Załączniki ──────────────────────────────────────────────────────────── */
+.ib-atts { display:flex; flex-wrap:wrap; gap:.4rem }
+.ib-att { display:inline-flex; align-items:center; gap:.4rem; max-width:100%;
+  padding:.3rem .6rem; border:1px solid #E5E7EB; border-radius:8px; background:#fff;
+  font-size:.8rem; color:#111827; cursor:pointer; text-align:left;
+  transition:background .12s, border-color .12s }
+.ib-att:hover { background:#F9FAFB; border-color:#D1D5DB }
+.ib-att:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
+.ib-att--missing { cursor:default; color:#9CA3AF; background:#F9FAFB }
+.ib-att--missing:hover { background:#F9FAFB; border-color:#E5E7EB }
+.ib-att-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:22rem }
+.ib-att-size { font-size:.72rem; color:#9CA3AF; white-space:nowrap }
+
 /* ── Asystent AI ─────────────────────────────────────────────────────────── */
 .ib-assist { margin:.6rem 1.15rem 0; border:1px solid #E9D5FF; border-radius:10px;
   background:linear-gradient(180deg,#FAF5FF,#fff); overflow:hidden }
@@ -929,19 +942,50 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endif; ?>
 
       <?php if (!empty($msg['attachments'])): ?>
+      <?php
+        /* Ikona i sposób podglądu wynikają z typu MIME, a gdy go brak — z
+           rozszerzenia. Poczta bywa niechlujna: część serwerów wysyła
+           application/octet-stream dla wszystkiego, więc oparcie się wyłącznie
+           na MIME kończyło się „nie da się pokazać" na zwykłym PDF-ie. */
+        $ib_att_kind = function (array $a): string {
+            $mime = strtolower((string)($a['mime_type'] ?? ''));
+            $ext  = strtolower(pathinfo((string)($a['original_name'] ?? ''), PATHINFO_EXTENSION));
+            if (str_starts_with($mime, 'image/') || in_array($ext, ['jpg','jpeg','png','gif','webp','bmp','svg'], true)) return 'image';
+            if ($mime === 'application/pdf' || $ext === 'pdf')                                                            return 'pdf';
+            if (str_starts_with($mime, 'text/') || in_array($ext, ['txt','csv','log','md','json','xml'], true))           return 'text';
+            return 'other';
+        };
+        $ib_att_icon = ['image' => 'bi-file-earmark-image', 'pdf' => 'bi-file-earmark-pdf',
+                        'text'  => 'bi-file-earmark-text',  'other' => 'bi-file-earmark'];
+        $ib_att_color= ['image' => '#7C3AED', 'pdf' => '#B42318', 'text' => '#0F766E', 'other' => '#6B7280'];
+      ?>
       <div class="ib-ctx" style="border-top:none">
-        <div class="ib-lbl">Załączniki</div>
-        <?php foreach ($msg['attachments'] as $a): ?>
-          <?php if (!empty($a['stored_path'])): ?>
-          <a href="<?= h(upload_link($a['stored_path'])) ?>" target="_blank" class="me-2">
-            <i class="bi bi-paperclip"></i> <?= h($a['original_name']) ?>
-          </a>
+        <div class="ib-lbl">Załączniki (<?= count($msg['attachments']) ?>)</div>
+        <div class="ib-atts">
+        <?php foreach ($msg['attachments'] as $a):
+          $kind = $ib_att_kind($a);
+          $size = (int)($a['size_bytes'] ?? 0);
+          $human= $size >= 1048576 ? round($size / 1048576, 1) . ' MB'
+                : ($size >= 1024   ? round($size / 1024) . ' kB' : ($size ?: '') . ($size ? ' B' : ''));
+          $url  = !empty($a['stored_path']) ? APP_URL . '/uploads/' . ltrim((string)$a['stored_path'], '/') : '';
+        ?>
+          <?php if ($url): ?>
+          <button type="button" class="ib-att" data-att-url="<?= h($url) ?>"
+                  data-att-kind="<?= h($kind) ?>" data-att-name="<?= h((string)$a['original_name']) ?>"
+                  title="Pokaż podgląd — <?= h((string)$a['original_name']) ?>">
+            <i class="bi <?= h($ib_att_icon[$kind]) ?>" style="color:<?= h($ib_att_color[$kind]) ?>" aria-hidden="true"></i>
+            <span class="ib-att-name"><?= h((string)$a['original_name']) ?></span>
+            <?php if ($human): ?><span class="ib-att-size"><?= h($human) ?></span><?php endif; ?>
+          </button>
           <?php else: ?>
-          <span class="text-muted me-2" title="Plik nie został pobrany na serwer">
-            <i class="bi bi-paperclip"></i> <?= h($a['original_name']) ?>
+          <span class="ib-att ib-att--missing" title="Plik nie został pobrany na serwer — jest tylko w skrzynce pocztowej">
+            <i class="bi bi-paperclip" aria-hidden="true"></i>
+            <span class="ib-att-name"><?= h((string)$a['original_name']) ?></span>
+            <span class="ib-att-size">niepobrany</span>
           </span>
           <?php endif; ?>
         <?php endforeach; ?>
+        </div>
       </div>
       <?php endif; ?>
 
@@ -1359,6 +1403,68 @@ function ibBulkInit() {
 ibBulkInit();
 document.addEventListener('ib:list-refreshed', ibBulkInit);
 
+/* ── Podgląd załączników ────────────────────────────────────────────────────
+   Obraz i PDF pokazujemy na miejscu, tekst wczytujemy i wypisujemy jako tekst
+   (nie jako HTML — załącznik z poczty to treść z zewnątrz i nie ma prawa
+   niczego wykonać). Reszta dostaje uczciwe „tego nie pokażemy" i pobieranie,
+   zamiast pustej ramki, po której nie wiadomo, czy to błąd, czy pusty plik. */
+(function () {
+  var modalEl = document.getElementById('ibAttModal');
+  if (!modalEl) return;
+  var body  = document.getElementById('ibAttBody');
+  var title = document.getElementById('ibAttTitle');
+  var dl    = document.getElementById('ibAttDownload');
+  var open  = document.getElementById('ibAttOpen');
+
+  function esc(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function show(url, kind, name) {
+    title.textContent = name;
+    dl.href   = url;
+    dl.setAttribute('download', name);
+    open.href = url;
+
+    if (kind === 'image') {
+      body.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(name) + '" '
+                     + 'style="max-width:100%;max-height:72vh;display:block;margin:0 auto">';
+    } else if (kind === 'pdf') {
+      body.innerHTML = '<iframe src="' + esc(url) + '" title="' + esc(name) + '" '
+                     + 'style="width:100%;height:72vh;border:0"></iframe>';
+    } else if (kind === 'text') {
+      body.innerHTML = '<div class="text-muted small">Wczytuję…</div>';
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          body.innerHTML = '<pre style="max-height:72vh;overflow:auto;white-space:pre-wrap;'
+                         + 'font-size:.82rem;margin:0">' + esc(t.slice(0, 200000)) + '</pre>';
+        })
+        .catch(function () {
+          body.innerHTML = '<div class="alert alert-warning mb-0">Nie udało się wczytać pliku.</div>';
+        });
+    } else {
+      body.innerHTML = '<div class="text-center text-muted py-5">'
+                     + '<i class="bi bi-file-earmark" style="font-size:2rem" aria-hidden="true"></i>'
+                     + '<div class="mt-2">Tego typu pliku nie pokażemy w przeglądarce.</div>'
+                     + '<div class="small">Pobierz go albo otwórz w nowej karcie.</div></div>';
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  // Delegacja: lista wiadomości bywa podmieniana bez przeładowania strony.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.ib-att[data-att-url]');
+    if (!btn) return;
+    show(btn.dataset.attUrl, btn.dataset.attKind, btn.dataset.attName || 'załącznik');
+  });
+
+  // Zwolnij ramkę po zamknięciu — inaczej PDF zostaje wczytany w tle.
+  modalEl.addEventListener('hidden.bs.modal', function () { body.innerHTML = ''; });
+})();
+
 /* ── Asystent AI ────────────────────────────────────────────────────────────
    Wynik jest PROPOZYCJĄ. „Użyj tej odpowiedzi" otwiera kompozytor z wklejoną
    treścią — świadomie nie wysyła, bo w imieniu organizacji nie wychodzi nic,
@@ -1474,5 +1580,27 @@ document.addEventListener('ib:list-refreshed', ibBulkInit);
   });
 })();
 </script>
+
+<!-- ══ PODGLĄD ZAŁĄCZNIKA ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="ibAttModal" tabindex="-1" aria-labelledby="ibAttTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title text-truncate" id="ibAttTitle" style="font-size:.95rem"></h5>
+        <div class="ms-auto d-flex gap-1 align-items-center">
+          <a href="#" id="ibAttOpen" target="_blank" rel="noopener"
+             class="btn btn-sm btn-outline-secondary" title="Otwórz w nowej karcie">
+            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+          </a>
+          <a href="#" id="ibAttDownload" class="btn btn-sm btn-outline-secondary" title="Pobierz plik">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </a>
+          <button type="button" class="btn-close ms-1" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+      </div>
+      <div class="modal-body" id="ibAttBody" style="background:#F9FAFB"></div>
+    </div>
+  </div>
+</div>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
