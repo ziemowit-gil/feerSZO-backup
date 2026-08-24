@@ -583,6 +583,31 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <div class="text-muted small">Logowanie: <?= h($panel_login) ?> · dostęp bezterminowy w okresie obowiązywania umowy</div>
       </div>
     </div>
+    <!-- CRM -->
+    <?php if (module_enabled('crm_enabled') && (can_read('crm') || can_write('crm') || is_admin())): ?>
+    <?php
+      // CRM ma własny host (crm.feer.org.pl) — jeśli jest skonfigurowany, prowadzimy tam,
+      // bo tam użytkownik ma osobny ekran logowania i skróconą nawigację.
+      $crm_host = trim((string)(db_one("SELECT value FROM settings WHERE key_='crm_public_url'")['value'] ?? ''));
+      $crm_link = $crm_host !== '' ? rtrim($crm_host, '/') . '/crm/dashboard.php' : APP_URL . '/crm/dashboard.php';
+      $crm_rw   = can_write('crm') || is_admin();
+    ?>
+    <div class="tz-svc">
+      <span class="tz-svc__ico" style="background:#eef6fd"><i class="bi bi-diagram-2-fill" style="color:#0176D3" aria-hidden="true"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">CRM
+          <span class="tz-badge tz-badge--ok ms-1"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+            <?= $crm_rw ? 'Pełny dostęp' : 'Tylko odczyt' ?></span>
+        </div>
+        <div class="text-muted small">
+          Kontakty, sprawy, oferty i korespondencja organizacji.
+          Logowanie: <?= h($panel_login) ?><?= $crm_host !== '' ? ' · ' . h(parse_url($crm_host, PHP_URL_HOST) ?: $crm_host) : '' ?>
+        </div>
+      </div>
+      <a href="<?= h($crm_link) ?>" class="tz-btn--ghost tz-btn btn-sm">Otwórz</a>
+    </div>
+    <?php endif; ?>
+
     <!-- Wirtualne biurko EZD -->
     <?php if (module_enabled('ezd_enabled') && (can_read('ezd') || is_admin())): ?>
     <div class="tz-svc">

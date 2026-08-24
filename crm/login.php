@@ -1,125 +1,151 @@
 <?php
 /**
- * crm/login.php — CRM standalone login.
+ * crm/login.php — logowanie do CRM (crm.feer.org.pl).
  *
- * Używa tej samej bazy użytkowników co system główny,
- * ale renderuje bez header.php i sidebara.
- * Po zalogowaniu → crm/dashboard.php (wybór modułu).
+ * Osobny, brandowany ekran, ale TEN SAM silnik uwierzytelniania co /auth/login.php:
+ * ochrona przed atakiem słownikowym (brute_*), polityka „konto służbowe tylko przez
+ * Microsoft 365", 2FA (/auth/2fa.php), bramka WebAuthn i wymuszona zmiana hasła.
+ * Wcześniej ten ekran robił własne `password_verify` z pominięciem tych mechanizmów —
+ * czyli logowanie do CRM było słabiej chronione niż do reszty systemu.
+ *
+ * Warstwa CRM-owa zostaje: sprawdzenie uprawnień do modułu, bramka IKA dla kont
+ * „tylko CRM" i powrót na host aliasu (crm.feer.org.pl), a nie na szo.feer.org.pl.
+ *
+ * WCAG: etykiety powiązane z polami, komunikat błędu jako role="alert",
+ * widoczny fokus, obsługa klawiaturą, kontrast tekstu na tle marki.
  */
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/auth_security.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';   // domena organizacji
+require_once dirname(__DIR__) . '/includes/approval.php';   // log_auth_action()
 
 auth_start();
 
-// Alias crm.feer.org.pl/crm.ngosystem.pl → zostań na tym hoście (APP_URL jest
-// stałe i wskazuje szo.feer.org.pl, więc bez tego użytkownik wylądowałby na
-// głównej domenie zamiast w CRM).
+// Alias crm.feer.org.pl → zostajemy na tym hoście; APP_URL wskazuje szo.feer.org.pl,
+// więc bez tego użytkownik po zalogowaniu wylądowałby na innej domenie.
 $crm_base = crm_alias_base_url() ?? APP_URL;
+$redirect = $crm_base . '/crm/dashboard.php';
 
-// Już zalogowany → dashboard
-if (current_user()) {
-    header('Location: ' . $crm_base . '/crm/dashboard.php');
-    exit;
-}
+if (current_user()) { header('Location: ' . $redirect); exit; }
 
-$_b = branding_load();
+$_b       = branding_load();
 $org_name = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : 'System');
 
-// Microsoft 365 login — dostępny jeśli skonfigurowany
-$ms_crm_available = ms_login_available();
-$ms_crm_url       = $ms_crm_available
-    ? ms_auth_url($crm_base . '/crm/dashboard.php')
-    : '';
-
-// Dodatkowe moduły dla CRM-only (do wyświetlenia)
-$crm_modules_raw = '';
-try {
-    $r = db_one("SELECT value FROM settings WHERE key_='crm_extra_modules'");
-    $crm_modules_raw = $r['value'] ?? '';
-} catch (\Throwable $e) {}
-$crm_module_labels = [
-    'actions'   => 'Działania',
-    'grants'    => 'Granty',
-    'persons'   => 'Osoby',
-    'reports'   => 'Raporty',
-    'directory' => 'Katalog osób',
-];
-$crm_extra = array_filter(array_map('trim', explode(',', $crm_modules_raw)));
-$crm_scope_label = 'CRM' . ($crm_extra
-    ? ' + ' . implode(', ', array_map(fn($m) => $crm_module_labels[$m] ?? $m, $crm_extra))
-    : '');
-
-// URL powrotu po zalogowaniu
-$redirect = $crm_base . '/crm/dashboard.php';
+$org_domain   = crm_trusted_domains()[0] ?? 'feer.org.pl';
+$ms_available = ms_login_available();
+$ms_url       = $ms_available ? ms_auth_url($redirect) : '';
 
 $error = '';
 
-// ── POST ─────────────────────────────────────────────────────────────────────
+/** Czy rola użytkownika daje wstęp do CRM (role systemowe + własne z flagą crm_only). */
+function _crm_login_role_ok(array $user): bool {
+    if (in_array($user['role'], ['admin', 'editor', 'viewer', 'crm_user'], true)) return true;
+    try {
+        $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
+        return !empty($r['crm_only']);
+    } catch (\Throwable $e) { return false; }
+}
+
+/** Konto „tylko CRM" — takie przechodzi przez bramkę IKA. */
+function _crm_login_is_crm_only(array $user): bool {
+    if ($user['role'] === 'crm_user') return true;
+    try {
+        $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
+        return !empty($r['crm_only']);
+    } catch (\Throwable $e) { return false; }
+}
+
+// ── POST: logowanie hasłem ─────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $session_csrf = $_SESSION['csrf'] ?? '';
-    $post_csrf    = $_POST['_csrf']   ?? '';
-    $csrf_ok      = $session_csrf !== '' && hash_equals($session_csrf, $post_csrf);
-    if (!$csrf_ok) {
-        // Wygeneruj świeży token — kolejne przesłanie formularza zadziała
-        unset($_SESSION['csrf']);
-        csrf_token();
+    if ($session_csrf === '' || !hash_equals($session_csrf, (string)($_POST['_csrf'] ?? ''))) {
+        unset($_SESSION['csrf']); csrf_token();
         $error = 'Token sesji wygasł. Spróbuj ponownie.';
     } else {
         $email = trim($_POST['email'] ?? '');
-        $pass  = $_POST['password'] ?? '';
+        $pass  = (string)($_POST['password'] ?? '');
 
-        $user = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
-        if ($user && $user['password'] && password_verify($pass, $user['password'])) {
-            // Sprawdź uprawnienia CRM
-            $allowed_roles = ['admin', 'editor', 'viewer', 'crm_user'];
-            $role_ok = in_array($user['role'], $allowed_roles, true);
-            // Sprawdź też role z flagą crm_only (własne role)
-            if (!$role_ok) {
-                try {
-                    $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
-                    $role_ok = !empty($r['crm_only']);
-                } catch (\Throwable $e) {}
-            }
-            if (!$role_ok) {
-                $error = 'Twoje konto nie ma uprawnień do modułu CRM.';
-            } else {
-                // Sprawdź czy crm_only i czy ma kod IKA
-                $is_crm_only_user = ($user['role'] === 'crm_user');
-                if (!$is_crm_only_user) {
-                    try {
-                        $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
-                        $is_crm_only_user = !empty($r['crm_only']);
-                    } catch (\Throwable $e) {}
-                }
-
-                // Nadpisanie per-user: crm_ika_required=0 zwalnia z IKA nawet dla crm_only
-                $crm_ika_flag = isset($user['crm_ika_required']) && $user['crm_ika_required'] !== null
-                    ? (int)$user['crm_ika_required'] : null;
-                $ika_exempt   = ($crm_ika_flag === 0);
-                $ika_forced   = ($crm_ika_flag === 1);
-
-                // Wymuś IKA dla crm_only — musi mieć ustawiony kod (chyba że admin zwolnił)
-                if (!$ika_exempt && ($is_crm_only_user || $ika_forced) && empty($user['cpc_code'])) {
-                    $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem systemu.';
-                } else {
-                    login_user($user);
-                    crm_migrate();
-                    // Przekieruj przez IKA jeśli kod ustawiony i nie jest zwolniony
-                    if (!$ika_exempt && !empty($user['cpc_code'])) {
-                        header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($redirect));
-                    } else {
-                        header('Location: ' . $redirect);
-                    }
-                    exit;
-                }
-            }
+        $blocked_sec = brute_check($email);
+        if ($blocked_sec !== null) {
+            $mins  = (int)ceil($blocked_sec / 60);
+            $error = "Konto tymczasowo zablokowane po zbyt wielu nieudanych próbach. Spróbuj ponownie za {$mins} min.";
+            authlog_write(null, 'login_blocked', $email, 'Zablokowany dostęp (CRM) z IP: ' . ($_SERVER['REMOTE_ADDR'] ?? ''));
         } else {
-            $error = 'Nieprawidłowy adres e-mail lub hasło.';
+            $user = db_one("SELECT * FROM users WHERE email=? AND (is_active=1 OR email='serwis@local')", [$email]);
+
+            if ($user && account_is_office_only($user) && empty($user['allow_local_fallback'])) {
+                authlog_write((int)$user['id'], 'login_blocked_office', $user['email'],
+                    'Konto służbowe — wymagane logowanie przez Microsoft 365 (CRM)');
+                $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 — użyj przycisku wyżej.';
+
+            } elseif ($user && $user['password'] && password_verify($pass, $user['password'])) {
+                brute_clear($email);
+
+                if (!_crm_login_role_ok($user)) {
+                    authlog_write((int)$user['id'], 'login_denied', $user['email'], 'Brak uprawnień do CRM');
+                    $error = 'Twoje konto nie ma uprawnień do modułu CRM.';
+                } else {
+                    // Konto „tylko CRM" bez kodu IKA nie wejdzie — chyba że admin je zwolnił
+                    $ika_flag   = isset($user['crm_ika_required']) && $user['crm_ika_required'] !== null
+                                  ? (int)$user['crm_ika_required'] : null;
+                    $ika_exempt = ($ika_flag === 0);
+                    $ika_forced = ($ika_flag === 1);
+                    $crm_only   = _crm_login_is_crm_only($user);
+
+                    if (!$ika_exempt && ($crm_only || $ika_forced) && empty($user['cpc_code'])) {
+                        $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. '
+                               . 'Skontaktuj się z administratorem systemu.';
+                    } else {
+                        $after_login = (!$ika_exempt && !empty($user['cpc_code']))
+                            ? APP_URL . '/contracts/ika_gate.php?to=' . urlencode($redirect)
+                            : $redirect;
+
+                        // 2FA — wspólny ekran, ten sam co przy logowaniu systemowym
+                        if (!empty($user['twofa_method'])) {
+                            $_SESSION['2fa_uid']      = $user['id'];
+                            $_SESSION['2fa_method']   = $user['twofa_method'];
+                            $_SESSION['2fa_phone']    = $user['twofa_phone'] ?? '';
+                            $_SESSION['2fa_attempts'] = 0;
+                            if ($user['twofa_method'] === 'sms' && !empty($user['twofa_phone'])) {
+                                try {
+                                    require_once dirname(__DIR__) . '/includes/sms.php';
+                                    $otp = sms_generate_otp($user['twofa_phone'], $user['id']);
+                                    sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '');
+                                    $_SESSION['2fa_sms_sent'] = true;
+                                } catch (\Throwable $e) {}
+                            }
+                            header('Location: ' . APP_URL . '/auth/2fa.php?redirect=' . urlencode($after_login));
+                            exit;
+                        }
+
+                        log_auth_action((int)$user['id'], 'login', 'Logowanie CRM: ' . $user['email']);
+                        authlog_write((int)$user['id'], 'login', $user['email'], 'Logowanie lokalne (CRM)');
+
+                        // Klucz sprzętowy dla ról z podwyższonym ryzykiem
+                        require_once dirname(__DIR__) . '/includes/webauthn.php';
+                        if (webauthn_login_gate($user, $after_login)) exit;
+
+                        login_user($user);
+                        crm_migrate();
+
+                        if (auth_must_change_password($user)) {
+                            flash_set('warning', 'Administrator zresetował Twoje hasło. Ustaw nowe przed kontynuowaniem.');
+                            header('Location: ' . APP_URL . '/panel/password.php?force=1'); exit;
+                        }
+                        header('Location: ' . $after_login); exit;
+                    }
+                }
+            } else {
+                brute_record_fail($email);
+                authlog_write(null, 'login_fail', $email, 'Nieudana próba logowania (CRM)');
+                $error = 'Nieprawidłowy adres e-mail lub hasło.';
+            }
         }
     }
 }
@@ -128,316 +154,167 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Logowanie CRM — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Logowanie do CRM — <?= h($org_name) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
 <style>
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; padding: 0; }
-
-.login-split { display: flex; min-height: 100vh; }
-
-/* ── Lewa — CRM green ────────────────────────────────────── */
-.login-left {
-  width: 360px; flex-shrink: 0;
-  /* gradient z branding.php via CSS vars */
-  display: flex; flex-direction: column; justify-content: space-between;
-  padding: 3rem 2.5rem;
-  position: relative; overflow: hidden;
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #F6F7F9; color: #111827;
+  display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;
 }
-.login-left::before {
-  content: ''; position: absolute;
-  width: 320px; height: 320px; border-radius: 50%;
-  border: 55px solid rgba(255,255,255,.04);
-  bottom: -80px; right: -90px; pointer-events: none;
-}
-.login-left::after {
-  content: ''; position: absolute;
-  width: 180px; height: 180px; border-radius: 50%;
-  border: 35px solid rgba(255,255,255,.05);
-  top: -50px; left: -55px; pointer-events: none;
-}
-.left-content { position: relative; }
-.brand-icon-wrap {
-  width: 52px; height: 52px; border-radius: 13px;
-  background: rgba(255,255,255,.15);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.6rem; color: #fff; margin-bottom: 1.25rem;
-}
-.brand-label  { font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: .4rem; }
-.brand-name   { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,.6); line-height: 1.3; margin-bottom: 2rem; }
-.brand-name span { color: #91DB8B; }
 
-.crm-info-box {
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.13);
-  border-radius: 12px; padding: 1.1rem 1.25rem;
+/* Jedna karta na spokojnym tle — bez wielkiego panelu marketingowego z lewej */
+.cl-card { width: 100%; max-width: 420px; }
+.cl-brand { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.4rem; }
+.cl-brand-icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  background: var(--c, #2E844A); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
 }
-.crm-info-box-label {
-  font-size: .68rem; font-weight: 600; letter-spacing: .07em;
-  text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: .55rem;
+.cl-brand-name { font-size: 1.05rem; font-weight: 800; letter-spacing: .2px; }
+.cl-brand-org  { font-size: .78rem; color: #6B7280; }
+
+.cl-box { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 1.5rem; }
+.cl-h1  { font-size: 1.15rem; font-weight: 700; margin: 0 0 .25rem; }
+.cl-sub { font-size: .84rem; color: #6B7280; margin: 0 0 1.15rem; }
+
+.cl-err {
+  display: flex; gap: .5rem; align-items: flex-start;
+  background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B;
+  border-radius: 10px; padding: .6rem .75rem; font-size: .82rem; margin-bottom: 1rem;
 }
-.crm-info-box ul {
-  margin: 0; padding: 0; list-style: none;
+
+.cl-ms {
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  width: 100%; height: 44px; border-radius: 10px; border: 1px solid #E5E7EB;
+  background: #fff; color: #111827; font-size: .9rem; font-weight: 600;
+  text-decoration: none; cursor: pointer; transition: background .12s, border-color .12s;
 }
-.crm-info-box ul li {
-  font-size: .79rem; color: rgba(255,255,255,.65);
-  line-height: 1.6; display: flex; align-items: center; gap: .5rem;
+.cl-ms:hover { background: #F3F4F6; border-color: #D1D5DB; }
+.cl-ms img { width: 18px; height: 18px; }
+
+.cl-or { display: flex; align-items: center; gap: .75rem; margin: 1.1rem 0; }
+.cl-or::before, .cl-or::after { content: ''; flex: 1; height: 1px; background: #E5E7EB; }
+.cl-or span { font-size: .73rem; color: #9CA3AF; white-space: nowrap; }
+
+.cl-lbl { display: block; font-size: .78rem; font-weight: 600; color: #374151; margin-bottom: .3rem; }
+.cl-in {
+  width: 100%; height: 42px; padding: 0 .8rem; font-size: .9rem; color: #111827;
+  border: 1px solid #E5E7EB; border-radius: 10px; background: #fff;
 }
-.crm-info-box ul li::before { content: '✓'; color: #91DB8B; font-weight: 700; }
-
-.org-box {
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09);
-  border-radius: 10px; padding: .8rem 1.1rem; margin-top: 1rem;
+.cl-in:focus { border-color: var(--c, #2E844A); box-shadow: 0 0 0 3px rgba(46,132,74,.14); outline: none; }
+.cl-row { margin-bottom: .9rem; position: relative; }
+.cl-hint { font-size: .74rem; color: #9CA3AF; margin-top: .3rem; line-height: 1.45; }
+.cl-eye {
+  position: absolute; right: .4rem; top: 26px; height: 34px; width: 34px;
+  border: 0; background: transparent; color: #9CA3AF; cursor: pointer; border-radius: 8px;
 }
-.org-box-label { font-size: .65rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: .2rem; }
-.org-box-name  { font-size: .9rem; font-weight: 700; color: rgba(255,255,255,.8); }
+.cl-eye:hover { color: #374151; background: #F3F4F6; }
 
-.left-footer { position: relative; color: rgba(255,255,255,.28); font-size: .72rem; }
-.left-footer a { color: rgba(255,255,255,.45); text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; }
-.left-footer a:hover { color: rgba(255,255,255,.75); }
-
-/* ── Prawa ───────────────────────────────────────────────── */
-.login-right {
-  flex: 1; background: #f3f3f3;
-  display: flex; align-items: center; justify-content: center;
-  padding: 2.5rem 2rem; overflow-y: auto;
+.cl-btn {
+  width: 100%; height: 44px; border: 0; border-radius: 10px;
+  background: var(--c, #2E844A); color: #fff; font-size: .92rem; font-weight: 700; cursor: pointer;
 }
-.login-box { width: 100%; max-width: 380px; }
+.cl-btn:hover { filter: brightness(1.06); }
+.cl-btn:focus-visible, .cl-ms:focus-visible, .cl-in:focus-visible { outline: 3px solid var(--c, #2E844A); outline-offset: 2px; }
 
-.org-header-mobile { display: none; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid #e2e8f0; }
-.org-header-mobile .sys-label { font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; margin-bottom: .2rem; }
-.org-header-mobile .org-name-big { font-size: 1.05rem; font-weight: 700; color: #1e293b; }
-
-.form-heading { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin-bottom: .2rem; }
-.form-sub     { font-size: .84rem; color: #64748b; margin-bottom: 1.25rem; }
-
-/* ── Przewodnik: dwie ścieżki logowania ──────────────────── */
-.login-paths { border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 1.4rem; overflow: hidden; background: #fff; }
-.login-path  { display: flex; align-items: flex-start; gap: .7rem; padding: .8rem .95rem; }
-.login-path + .login-path { border-top: 1px solid #eef2f7; }
-.login-path-badge { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .95rem; background: var(--c-ring, #eef7ee); color: var(--c, #2f7d32); }
-.login-path-badge.alt { background: #f1f5f9; color: #475569; }
-.login-path-title { font-size: .84rem; font-weight: 700; color: #0f172a; line-height: 1.3; }
-.login-path-desc  { font-size: .77rem; color: #64748b; line-height: 1.55; margin-top: .1rem; }
-.login-path-desc strong { color: #334155; font-weight: 700; }
-
-.form-label   { font-size: .81rem; font-weight: 600; color: #374151; margin-bottom: .3rem; }
-.form-control { border-color: #d1d5db; border-radius: .5rem; font-size: .94rem; padding: .6rem .85rem; transition: border-color .15s, box-shadow .15s; }
-.form-control:focus { border-color: var(--c); box-shadow: 0 0 0 3px var(--c-ring); }
-
-.btn-crm-login {
-  background: var(--c); color: var(--c-text); border: none; border-radius: .5rem;
-  padding: .72rem 1.25rem; font-size: .94rem; font-weight: 600; width: 100%;
-  transition: background .15s, box-shadow .15s;
-}
-.btn-crm-login:hover { background: var(--c-dark); box-shadow: 0 2px 8px var(--c-ring); }
-
-.btn-ms-login {
-  display: flex; align-items: center; justify-content: center; gap: .65rem;
-  width: 100%; padding: .68rem 1.25rem; border-radius: .5rem;
-  background: #fff; color: #3c4043; font-size: .9rem; font-weight: 600;
-  border: 1.5px solid #dadce0; text-decoration: none;
-  transition: background .15s, box-shadow .15s;
-}
-.btn-ms-login:hover { background: #f8f9fa; box-shadow: 0 1px 6px rgba(60,64,67,.2); color: #3c4043; }
-.btn-ms-login:focus { outline: 3px solid #2563eb; outline-offset: 2px; }
-
-.pass-wrap { position: relative; }
-.pass-toggle { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 0; color: #9ca3af; cursor: pointer; font-size: 1rem; }
-.pass-toggle:hover { color: #374151; }
-
-.system-login-link {
-  text-align: center; margin-top: 1.25rem; font-size: .8rem;
-}
-.system-login-link a { color: #64748b; text-decoration: none; }
-.system-login-link a:hover { color: var(--c); }
-
-@media (max-width: 680px) {
-  .login-split { flex-direction: column; }
-  .login-left  { width: 100%; padding: 1.1rem 1.25rem; flex-direction: row; align-items: center; gap: .75rem; min-height: auto; }
-  .login-left::before, .login-left::after { display: none; }
-  .left-content { display: flex; align-items: center; gap: .75rem; flex: 1; }
-  .brand-icon-wrap { width: 36px; height: 36px; border-radius: 9px; font-size: 1.1rem; margin-bottom: 0; }
-  .brand-label, .brand-name, .crm-info-box, .org-box, .left-footer { display: none; }
-  .org-header-mobile { display: block; }
-  .login-right { padding: 1.5rem 1.2rem; align-items: flex-start; }
-}
+.cl-foot { margin-top: 1rem; font-size: .78rem; color: #9CA3AF; display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
+.cl-foot a { color: #6B7280; text-decoration: none; }
+.cl-foot a:hover { color: #111827; text-decoration: underline; }
+.cl-note { margin-top: 1.1rem; font-size: .75rem; color: #9CA3AF; line-height: 1.55; }
 </style>
 </head>
 <body>
-<div class="login-split">
+<main class="cl-card">
 
-  <!-- Lewa — CRM panel -->
-  <div class="login-left">
-    <div class="left-content">
-      <?php if ($_b['logo_url']): ?>
-      <div class="brand-icon-wrap" aria-hidden="true" style="background:rgba(255,255,255,.15);width:auto;max-width:160px;height:auto;min-height:52px;border-radius:12px;padding:.4rem;display:flex;align-items:center;margin-bottom:1.25rem">
-        <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" style="max-height:44px;max-width:148px;object-fit:contain;filter:brightness(0) invert(1)">
-      </div>
-      <?php else: ?>
-      <div class="brand-icon-wrap" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></div>
-      <?php endif; ?>
-      <div class="brand-label">Platforma NGO</div>
-      <div class="brand-name">System <span>CRM</span><br>Zarządzania Kontaktami</div>
-
-      <div class="crm-info-box">
-        <div class="crm-info-box-label"><i class="bi bi-grid-fill me-1"></i>Twój dostęp</div>
-        <ul>
-          <li><i class="bi bi-diagram-2-fill me-1"></i>CRM — kontakty, grupy, komunikacja</li>
-          <?php foreach ($crm_extra as $m): ?>
-          <li><i class="bi bi-check-circle me-1"></i><?= h($crm_module_labels[$m] ?? $m) ?></li>
-          <?php endforeach; ?>
-          <?php if (!$crm_extra): ?>
-          <li><i class="bi bi-info-circle me-1" style="opacity:.6"></i><span style="opacity:.75">tylko moduł CRM</span></li>
-          <?php endif; ?>
-        </ul>
-        <?php if ($crm_extra): ?>
-        <div style="font-size:.72rem;margin-top:.5rem;opacity:.7">
-          Skonfigurowane przez administratora systemu
-        </div>
-        <?php endif; ?>
-      </div>
-
-      <div class="org-box">
-        <div class="org-box-label">Organizacja</div>
-        <div class="org-box-name"><?= h($org_name) ?></div>
-      </div>
-    </div>
-
-    <div class="left-footer">
-      <?php if (!defined('CRM_STANDALONE') || !CRM_STANDALONE): ?>
-      <a href="<?= APP_URL ?>/auth/login.php">
-        <i class="bi bi-arrow-left-circle"></i> Logowanie systemowe
-      </a>
-      <?php endif; ?>
-      <div style="margin-top:.4rem">&copy; <?= date('Y') ?> · Rejestr Umów NGO</div>
+  <div class="cl-brand">
+    <div class="cl-brand-icon" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></div>
+    <div>
+      <div class="cl-brand-name">CRM</div>
+      <div class="cl-brand-org"><?= h($org_name) ?></div>
     </div>
   </div>
 
-  <!-- Prawa — formularz -->
-  <div class="login-right">
-  <div class="login-box">
-
-    <div class="org-header-mobile">
-      <div class="sys-label">CRM · Platforma NGO</div>
-      <div class="org-name-big"><?= h($org_name) ?></div>
-    </div>
-
-    <div class="form-heading">Logowanie do CRM</div>
-    <div class="form-sub">Wybierz sposób logowania do panelu CRM.</div>
-
-    <!-- Przewodnik: która ścieżka logowania dla kogo -->
-    <div class="login-paths" role="note" aria-label="Jak się zalogować">
-      <div class="login-path">
-        <span class="login-path-badge" aria-hidden="true"><i class="bi <?= $ms_crm_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
-        <div>
-          <div class="login-path-title">Masz konto @feer.org.pl</div>
-          <div class="login-path-desc">
-            <?php if ($ms_crm_available): ?>
-            Zaloguj się przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem. Administracja zawsze kontem <strong>@feer.org.pl</strong>.
-            <?php else: ?>
-            Zaloguj się e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem.
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-      <div class="login-path">
-        <span class="login-path-badge alt" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
-        <div>
-          <div class="login-path-title">Nie masz konta @feer.org.pl</div>
-          <div class="login-path-desc">
-            Zaloguj się lokalnie swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i ustawionym hasłem.
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="cl-box">
+    <h1 class="cl-h1">Zaloguj się</h1>
+    <p class="cl-sub">Kontakty, sprawy, oferty i korespondencja organizacji.</p>
 
     <?php if ($error): ?>
-    <div class="alert alert-danger d-flex align-items-center gap-2 py-2 mb-3"
-         style="border-radius:.5rem;font-size:.84rem" role="alert">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+    <div class="cl-err" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
       <span><?= h($error) ?></span>
     </div>
     <?php endif; ?>
 
-    <?php if ($ms_crm_available): ?>
-    <!-- ── Microsoft 365 — główna metoda ── -->
-    <a href="<?= h($ms_crm_url) ?>"
-       class="btn-ms-login"
-       aria-label="Zaloguj się kontem Microsoft 365 swojej organizacji">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" style="flex-shrink:0">
-        <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
-        <path fill="#f35325" d="M1 1h10v10H1z"/>
-        <path fill="#81bc06" d="M12 1h10v10H12z"/>
-        <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-        <path fill="#ffba08" d="M12 12h10v10H12z"/>
-      </svg>
-      <span>Zaloguj przez Microsoft 365</span>
+    <?php if ($ms_available): ?>
+    <a class="cl-ms" href="<?= h($ms_url) ?>">
+      <i class="bi bi-microsoft" aria-hidden="true"></i>Zaloguj przez Microsoft 365
     </a>
-
-    <!-- Separator — fallback dla adminów -->
-    <div style="display:flex;align-items:center;gap:.75rem;margin:1.5rem 0">
-      <div style="flex:1;height:1px;background:#E5E7EB"></div>
-      <span style="font-size:.72rem;color:#9CA3AF;white-space:nowrap">lub e-mailem i hasłem</span>
-      <div style="flex:1;height:1px;background:#E5E7EB"></div>
-    </div>
+    <p class="cl-hint" style="text-align:center;margin-top:.5rem">
+      Konta służbowe <strong>@<?= h($org_domain) ?></strong> logują się wyłącznie tą drogą.
+    </p>
+    <div class="cl-or"><span>albo e-mailem i hasłem</span></div>
     <?php endif; ?>
 
-    <!-- ── Email + hasło — fallback / admini ── -->
-    <details <?= $ms_crm_available ? '' : 'open' ?> style="border:1px solid #E5E7EB;border-radius:.5rem">
-      <summary style="padding:.65rem 1rem;cursor:pointer;font-size:.84rem;font-weight:600;color:#374151;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between">
-        <span><i class="bi bi-envelope me-2" style="color:#6B7280"></i>Logowanie e-mail + hasło</span>
-        <i class="bi bi-chevron-down" style="color:#9CA3AF;font-size:.75rem"></i>
-      </summary>
-      <div style="padding:.75rem 1rem 1rem;border-top:1px solid #F3F4F6">
-        <form method="post" autocomplete="on" novalidate>
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <div class="mb-3">
-            <label class="form-label" for="email">Adres e-mail</label>
-            <input type="email" name="email" id="email"
-                   class="form-control"
-                   value="<?= h($_POST['email'] ?? '') ?>"
-                   placeholder="nazwa@domena.pl"
-                   autocomplete="email"
-                   aria-describedby="crm-email-hint"
-                   <?= !$ms_crm_available ? 'autofocus' : '' ?> required>
-            <div id="crm-email-hint" style="font-size:.75rem;color:#94a3b8;margin-top:.3rem;line-height:1.45">
-              E-mail służbowy <strong>@feer.org.pl</strong> albo prywatny e-mail podany do WiadomościFEER.
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="password">Hasło</label>
-            <div class="pass-wrap">
-              <input type="password" name="password" id="password"
-                     class="form-control"
-                     autocomplete="current-password" required>
-              <button type="button" class="pass-toggle" tabindex="-1"
-                      onclick="var i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className=i.type==='password'?'bi bi-eye':'bi bi-eye-slash';"
-                      aria-label="Pokaż/ukryj hasło">
-                <i class="bi bi-eye"></i>
-              </button>
-            </div>
-          </div>
-          <button type="submit" class="btn-crm-login" style="font-size:.88rem;padding:.6rem 1rem">
-            <i class="bi bi-box-arrow-in-right me-1"></i>Zaloguj
-          </button>
-        </form>
+    <form method="post" autocomplete="on" novalidate>
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+      <div class="cl-row">
+        <label class="cl-lbl" for="email">Adres e-mail</label>
+        <input type="email" class="cl-in" name="email" id="email" required
+               autocomplete="email" placeholder="nazwa@domena.pl"
+               value="<?= h($_POST['email'] ?? '') ?>"
+               aria-describedby="emailHint" <?= $ms_available ? '' : 'autofocus' ?>>
+        <div class="cl-hint" id="emailHint">
+          Adres prywatny podany przy współpracy z fundacją albo konto z hasłem awaryjnym.
+        </div>
       </div>
-    </details>
 
-    <?php if (!defined('CRM_STANDALONE') || !CRM_STANDALONE): ?>
-    <div class="system-login-link">
-      <a href="<?= APP_URL ?>/auth/login.php">
-        <i class="bi bi-arrow-left me-1"></i>Wróć do logowania systemowego
-      </a>
+      <div class="cl-row">
+        <label class="cl-lbl" for="password">Hasło</label>
+        <input type="password" class="cl-in" name="password" id="password" required
+               autocomplete="current-password" style="padding-right:2.6rem">
+        <button type="button" class="cl-eye" id="eyeBtn" aria-label="Pokaż hasło">
+          <i class="bi bi-eye" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <button type="submit" class="cl-btn">
+        <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj
+      </button>
+    </form>
+
+    <div class="cl-foot">
+      <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-key me-1" aria-hidden="true"></i>Nie pamiętam hasła</a>
+      <a href="<?= APP_URL ?>/tozsamosc/index.php"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Moja tożsamość</a>
+      <?php if (!CRM_STANDALONE): ?>
+      <a href="<?= APP_URL ?>/auth/login.php"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Logowanie systemowe</a>
+      <?php endif; ?>
     </div>
-    <?php endif; ?>
-
-  </div>
   </div>
 
-</div><!-- /login-split -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <p class="cl-note">
+    Logowanie chronione tak samo jak w całym systemie: blokada po serii nieudanych prób,
+    drugi składnik (2FA) i klucz sprzętowy dla ról administracyjnych.
+  </p>
+
+</main>
+
+<script>
+// Podgląd hasła — bez inline onclick, żeby CSP nie musiała go dopuszczać
+(function () {
+  var b = document.getElementById('eyeBtn'), i = document.getElementById('password');
+  if (!b || !i) return;
+  b.addEventListener('click', function () {
+    var show = i.type === 'password';
+    i.type = show ? 'text' : 'password';
+    b.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    b.setAttribute('aria-label', show ? 'Ukryj hasło' : 'Pokaż hasło');
+  });
+})();
+</script>
 </body>
 </html>
