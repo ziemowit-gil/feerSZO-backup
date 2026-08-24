@@ -165,7 +165,7 @@ header('X-Robots-Tag: noindex, nofollow');
         <div class="brand-mark"><i class="bi bi-robot"></i></div>
       <?php endif; ?>
       <div>
-        <h1>Asystent AI — procedury i dokumentacja</h1>
+        <h1>Asystent AI — wiedza i obsługa systemu</h1>
         <div class="sub"><?= htmlspecialchars($org_name, ENT_QUOTES) ?></div>
       </div>
       <span class="pill"><span class="dot"></span>Online</span>
@@ -177,13 +177,17 @@ header('X-Robots-Tag: noindex, nofollow');
           <div class="av"><i class="bi bi-robot"></i></div>
           <div class="bubble">
             Cześć! 👋 Jestem asystentem wiedzy <strong><?= htmlspecialchars($org_name, ENT_QUOTES) ?></strong>.
-            Zapytaj mnie o procedurę, dokument, uchwałę albo „jak coś załatwić" — przeszukam wewnętrzną
-            bazę wiedzy i odpowiem, wskazując źródła.
+            Zapytaj mnie o procedurę, dokument, uchwałę, komunikat albo o to, <strong>gdzie coś
+            zrobić w systemie</strong> — przeszukam wewnętrzną bazę wiedzy i odpowiem, wskazując źródła.
             <div class="suggest" id="suggest">
               <span class="chip">Jak rozliczyć zwrot kosztów wolontariusza?</span>
-              <span class="chip">Procedura onboardingu nowej osoby</span>
+              <span class="chip">Gdzie wpisuje się godziny wolontariatu?</span>
               <span class="chip">Jakie dokumenty przy rozwiązaniu umowy?</span>
               <span class="chip">Zasady ochrony danych (RODO)</span>
+            </div>
+            <div style="margin-top:.7rem;font-size:.78rem;color:var(--muted)">
+              <i class="bi bi-info-circle"></i> Ten link działa bez logowania, więc nie mam dostępu
+              do kont ani danych osobowych — o status własnej sprawy zapytaj po zalogowaniu do systemu.
             </div>
           </div>
         </div>
@@ -248,9 +252,11 @@ header('X-Robots-Tag: noindex, nofollow');
       if(!trace||!trace.length) return;
       const b=document.createElement('div'); b.className='steps';
       let h='<div style="font-weight:600;margin-bottom:.2rem"><i class="bi bi-diagram-3 me-1"></i>Kroki asystenta</div>';
+      const ICONS={otworz:'bi-file-earmark-text',funkcje:'bi-grid-3x3-gap',moje:'bi-person-badge',szukaj:'bi-search'};
+      const VERBS={otworz:'Otworzył',funkcje:'Sprawdził funkcje systemu',moje:'Sprawdził dane konta',szukaj:'Szukał'};
       trace.forEach(t=>{
-        const ic=t.tool==='otworz'?'bi-file-earmark-text':'bi-search';
-        const v =t.tool==='otworz'?'Otworzył':'Szukał';
+        const ic=ICONS[t.tool]||'bi-search';
+        const v =VERBS[t.tool]||t.tool;
         h+='<div class="st"><i class="bi '+ic+'"></i><span>'+esc(v)+': „'+esc(t.input)+'" — '+esc(t.summary)+'</span></div>';
       });
       b.innerHTML=h; c.appendChild(b);

@@ -127,6 +127,8 @@ if (module_enabled('terminations_enabled')) $_pv_formal[] = ['href'=>APP_URL.'/p
 
 /* ── Narzędzia codzienne (kafelki zakładki 2) ────────────────────────────── */
 $_pv_daily = [];
+if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled())
+    $_pv_daily[] = ['href'=>APP_URL.'/panel/asystent.php','icon'=>'bi-stars','label'=>'Asystent AI','sub'=>'zapytaj o cokolwiek'];
 $_pv_daily[] = ['href'=>APP_URL.'/panel/messages.php','icon'=>'bi-chat-left-text','label'=>'Wiadomości','sub'=>$msg_unread ? "$msg_unread nowych" : 'napisz do nas','badge'=>$msg_unread];
 $_pv_daily[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','sub'=>$_hd_my_open ? "$_hd_my_open otwartych" : 'zgłoś problem','badge'=>$_hd_my_open];
 if (is_file($ROOT.'/panel/calendar.php')) $_pv_daily[] = ['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury'];
