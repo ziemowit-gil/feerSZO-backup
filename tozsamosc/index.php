@@ -396,36 +396,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $initials = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 if (preg_match('/\s(\S)/u', $user['name'] ?? '', $m2)) $initials .= mb_strtoupper($m2[1]);
 
-// ── Routing sekcja — moduły dostępne dla użytkownika ─────────────────────────
-$_tz_entries = portal_entry_points();
-if (!$_tz_entries) {
-    $_tz_entries = [
-        ['label'=>'Portal SZO','desc'=>'Moduły zarządcze','icon'=>'bi-grid-3x3-gap-fill',
-         'grad'=>'','color'=>'#1d4ed8','url'=>APP_URL.'/portal.php','primary'=>true],
-    ];
-    if (function_exists('user_has_volunteer_panel') && user_has_volunteer_panel()) {
-        $_e = module_entry_volunteer_panel();
-        $_e['color'] = '#db2777';
-        $_tz_entries[] = $_e;
-    }
-    if (module_enabled('ezd_enabled') && (can_read('ezd') || is_admin())) {
-        $_ez = module_entry('ezd');
-        if ($_ez) $_tz_entries[] = $_ez;
-    }
-}
-// dodaj kolor flat do wpisów z portal_entry_points (mają grad zamiast color)
-$_tz_color_map = ['panel'=>'#db2777','crm'=>'#16a34a','ezd'=>'#0D9488','karty30'=>'#c2410c',
-                  'strategy'=>'#7c3aed','szkolenia'=>'#7c3aed','directory'=>'#4f46e5'];
-foreach ($_tz_entries as &$_e) {
-    if (empty($_e['color'])) {
-        $_e['color'] = $_tz_color_map[$_e['key'] ?? ''] ?? '#1d4ed8';
-    }
-}
-unset($_e);
-if ($has_m365) {
-    $_tz_entries[] = ['label'=>'Microsoft 365','desc'=>'Outlook, Teams, SharePoint','icon'=>'bi-grid',
-         'color'=>'#0078d4','url'=>'https://office.com','primary'=>false,'ext'=>true];
-}
+/* Panel tożsamości nie rozdziela już ruchu po modułach: baner o wdrożeniu iAM
+   i rząd skrótów (Portal SZO, Wirtualne biurko, Microsoft 365) zostały stąd
+   zdjęte. Rozjazd między modułami ma jedno miejsce — launcher w nagłówku
+   i portal.php; powtórzony tutaj mnożył drogi do tego samego i spychał
+   właściwą treść panelu poniżej krawędzi ekranu. */
 
 $PAGE_TITLE = 'Tożsamość';
 $TZ_ACTIVE  = 'konto';
@@ -467,44 +442,6 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
   <ul class="mb-0 mt-1"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
 </div>
 <?php endif; ?>
-</div>
-
-<!-- ══ Info: wdrożenie iAM ═══════════════════════════════════════════════════ -->
-<div class="tz-card" style="border-left:4px solid #1E6DFF;background:#eef4ff" role="note" aria-label="Informacja o wdrożeniu iAM">
-  <div class="tz-card__bd d-flex flex-wrap align-items-start gap-3 py-3">
-    <i class="bi bi-megaphone-fill fs-4 flex-shrink-0 mt-1" style="color:#1E6DFF" aria-hidden="true"></i>
-    <div class="flex-grow-1" style="min-width:220px">
-      <div class="fw-bold mb-1" style="color:#1e3a8a">Wdrażamy nowy system Zarządzania Tożsamością i Dostępami (iAM)</div>
-      <div class="small" style="color:#1e3a8a;line-height:1.7">
-        Ten panel to centrum tożsamości — loginy, hasła i MFA — zarządzane w jednym miejscu.
-        <strong>Zadania i komunikaty</strong> znajdziesz w <a href="<?= APP_URL ?>/tasks" class="fw-semibold" style="color:#1E6DFF">panelu zadań (/tasks)</a>,
-        a <strong>panel wolontariusza</strong> dostępny jest
-        <a href="<?= APP_URL ?>/panel/" class="fw-semibold" style="color:#db2777">tutaj (/panel/)</a>.
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ══ Routing: przejdź do modułu ═══════════════════════════════════════════ -->
-<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.15rem" role="list" aria-label="Przejdź do modułu">
-  <?php foreach ($_tz_entries as $_te): ?>
-  <a href="<?= h($_te['url']) ?>"
-     <?= !empty($_te['ext']) ? 'target="_blank" rel="noopener"' : '' ?>
-     role="listitem"
-     style="display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;
-            border-radius:10px;padding:.55rem .95rem;
-            border:1.5px solid #e5e7eb;background:#fff;color:#111827;
-            font-size:.87rem;font-weight:600;transition:border-color .13s,box-shadow .13s"
-     onmouseover="this.style.borderColor='<?= h($_te['color'] ?? '#1d4ed8') ?>';this.style.boxShadow='0 0 0 3px <?= h($_te['color'] ?? '#1d4ed8') ?>22'"
-     onmouseout="this.style.borderColor='#e5e7eb';this.style.boxShadow='none'"
-     aria-label="Przejdź do: <?= h($_te['label']) ?>">
-    <i class="bi <?= h($_te['icon']) ?>" style="color:<?= h($_te['color'] ?? '#1d4ed8') ?>;font-size:1rem" aria-hidden="true"></i>
-    <?= h($_te['label']) ?>
-    <?php if (!empty($_te['ext'])): ?>
-    <i class="bi bi-box-arrow-up-right" style="font-size:.7rem;color:#9ca3af" aria-hidden="true"></i>
-    <?php endif; ?>
-  </a>
-  <?php endforeach; ?>
 </div>
 
 <nav class="tz-subnav" aria-label="Sekcje tożsamości">
