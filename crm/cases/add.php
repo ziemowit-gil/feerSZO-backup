@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -24,6 +25,14 @@ $errors       = [];
 $prefill_contact = $contact_id
     ? db_one("SELECT id, imie_nazwisko, type FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id])
     : null;
+
+// Szablon sprawy — wypełnia formularz; użytkownik może wszystko poprawić przed zapisem
+$case_tpls = crm_case_templates();
+$tpl_id    = (int)($_GET['tpl'] ?? 0);
+$prefill   = ['title' => '', 'description' => '', 'priority' => 'medium'];
+if ($tpl_id > 0 && ($tpl = crm_case_template($tpl_id))) {
+    $prefill = crm_case_template_apply($tpl, (string)($contact['imie_nazwisko'] ?? ''));
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -124,15 +133,33 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <div class="step-label d-flex align-items-center gap-2 mb-3" style="font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#6B7280;padding-bottom:.4rem;border-bottom:1px solid #F3F4F6">
         <i class="bi bi-briefcase" style="color:#0176D3"></i> Sprawa
       </div>
+
+      <?php if ($case_tpls): ?>
+      <!-- Szablon wypełnia pola; wszystko dalej można poprawić przed zapisem -->
+      <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+        <label class="form-label fw-semibold mb-0" for="tplPick" style="font-size:.8rem">Szablon sprawy</label>
+        <select id="tplPick" class="form-select form-select-sm" style="max-width:280px"
+                onchange="var u=new URL(window.location.href); if(this.value){u.searchParams.set('tpl',this.value);}else{u.searchParams.delete('tpl');} window.location.href=u.toString();">
+          <option value="">— bez szablonu —</option>
+          <?php foreach ($case_tpls as $t): ?>
+          <option value="<?= (int)$t['id'] ?>" <?= $tpl_id === (int)$t['id'] ? 'selected' : '' ?>><?= h($t['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <a href="<?= APP_URL ?>/crm/cases/templates.php" class="text-muted" style="font-size:.75rem">
+          <i class="bi bi-gear me-1"></i>Zarządzaj szablonami
+        </a>
+      </div>
+      <?php endif; ?>
+
       <div class="mb-3">
         <label class="form-label fw-semibold">Tytuł sprawy <span class="text-danger">*</span></label>
-        <input name="title" class="form-control" value="<?= h($_POST['title']??'') ?>"
+        <input name="title" class="form-control" value="<?= h($_POST['title'] ?? $prefill['title']) ?>"
                placeholder="np. Wniosek o zaświadczenie, Reklamacja faktury…" required autofocus>
       </div>
       <div>
         <label class="form-label fw-semibold">Opis / szczegóły</label>
-        <textarea name="description" class="form-control" rows="5"
-                  placeholder="Opisz sprawę — co trzeba zrobić, jaki jest cel, jakie kroki…"><?= h($_POST['description']??'') ?></textarea>
+        <textarea name="description" class="form-control" rows="7"
+                  placeholder="Opisz sprawę — co trzeba zrobić, jaki jest cel, jakie kroki…"><?= h($_POST['description'] ?? $prefill['description']) ?></textarea>
       </div>
     </div>
   </div>
@@ -158,7 +185,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <?php foreach (['low'=>['Niski','#6B7280'],'medium'=>['Średni','#D97706'],'high'=>['Wysoki','#DC2626']] as $pv=>[$pl,$pc]): ?>
         <div class="form-check">
           <input class="form-check-input" type="radio" name="priority" value="<?= $pv ?>"
-                 id="p_<?= $pv ?>" <?= (($_POST['priority']??'medium')===$pv)?'checked':'' ?>>
+                 id="p_<?= $pv ?>" <?= (($_POST['priority'] ?? $prefill['priority'])===$pv)?'checked':'' ?>>
           <label class="form-check-label d-flex align-items-center gap-2" for="p_<?= $pv ?>">
             <span style="width:8px;height:8px;border-radius:50%;background:<?= $pc ?>;display:inline-block;flex-shrink:0"></span>
             <?= $pl ?>

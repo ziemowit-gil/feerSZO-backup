@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 
 require_login();
@@ -635,6 +636,15 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <i class="bi bi-envelope" aria-hidden="true"></i>Pisma <span class="cv-count"><?= count($letters) ?></span>
       </button>
     </li>
+    <?php $case_msgs = crm_case_messages((int)$case['id']); ?>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="case-tab-mail-btn" data-bs-toggle="tab"
+              data-bs-target="#mail" type="button" role="tab"
+              aria-controls="mail" aria-selected="false">
+        <i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości
+        <?php if ($case_msgs): ?><span class="cv-count"><?= count($case_msgs) ?></span><?php endif; ?>
+      </button>
+    </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="case-tab-files-btn" data-bs-toggle="tab"
               data-bs-target="#files" type="button" role="tab"
@@ -834,6 +844,50 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 
   <!-- ── PLIKI ───────────────────────────────────────────────────────────── -->
+  <!-- ZAKŁADKA: Wiadomości dopięte do sprawy -->
+  <div class="tab-pane fade" id="mail" role="tabpanel" aria-labelledby="case-tab-mail-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-envelope cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Korespondencja sprawy</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($case_msgs) ?></span></div>
+      </div>
+
+      <?php if (!$case_msgs): ?>
+      <p class="text-muted small mb-0">
+        Nic tu jeszcze nie ma. Wiadomość dopina się do sprawy w Skrzynce CRM — otwórz ją
+        i wybierz sprawę z listy „dopnij do sprawy". Treść zostaje w skrzynce, tutaj pojawia się skrót.
+      </p>
+      <?php else: ?>
+      <div class="list-group list-group-flush">
+        <?php foreach ($case_msgs as $m): ?>
+        <a class="list-group-item list-group-item-action px-0"
+           href="<?= APP_URL ?>/crm/inbox.php?view=all&msg=<?= (int)$m['id'] ?>">
+          <div class="d-flex align-items-baseline gap-2">
+            <i class="bi bi-<?= $m['direction'] === 'in' ? 'arrow-down-left text-primary' : 'arrow-up-right text-success' ?>"
+               aria-hidden="true"></i>
+            <span class="fw-semibold" style="font-size:.86rem"><?= h($m['subject'] ?: '(bez tematu)') ?></span>
+            <?php if ((int)$m['has_attachments']): ?>
+            <i class="bi bi-paperclip text-muted" title="Załącznik" aria-hidden="true"></i>
+            <?php endif; ?>
+            <span class="text-muted ms-auto" style="font-size:.74rem">
+              <?= h(date('d.m.Y H:i', strtotime((string)$m['sent_at']))) ?>
+            </span>
+          </div>
+          <div class="text-muted" style="font-size:.76rem">
+            <?= h($m['from_name'] ?: $m['from_email']) ?>
+            <?php if (!empty($m['msg_no'])): ?> · #<?= h($m['msg_no']) ?><?php endif; ?>
+          </div>
+          <div class="text-muted" style="font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$m['body'])), 0, 140)) ?>
+          </div>
+        </a>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+    </div></div>
+  </div>
+
   <div class="tab-pane fade" id="files" role="tabpanel" aria-labelledby="case-tab-files-btn" tabindex="0">
     <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">

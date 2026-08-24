@@ -21,6 +21,7 @@ require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
 require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';
 require_once dirname(__DIR__) . '/includes/nozbe.php';
+require_once dirname(__DIR__) . '/includes/crm_case_extras.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -59,6 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               ]));
                               break;
             case 'unhide':    crm_mailbox_set_hidden($mid, false); flash_set('success', 'Wiadomość wróciła do Skrzynki CRM.'); break;
+
+            case 'attach_case':
+                $r = crm_case_attach_message($mid, (int)($_POST['case_id'] ?? 0));
+                flash_set(!empty($r['ok']) ? 'success' : 'danger', !empty($r['ok'])
+                    ? (!empty($r['detached'])
+                        ? 'Wiadomość odpięta od sprawy.'
+                        : 'Wiadomość dopięta do sprawy „' . ($r['case']['title'] ?? '') . '".')
+                    : ($r['error'] ?: 'Nie udało się dopiąć wiadomości.'));
+                break;
 
             case 'nozbe':
                 if (!nozbe_configured()) { flash_set('warning', 'Integracja z Nozbe nie jest skonfigurowana.'); break; }
@@ -937,6 +947,25 @@ include __DIR__ . '/includes/header_crm.php';
                 title="Załóż sprawę CRM z tej wiadomości — do prowadzenia tematu handlowego">
           <i class="bi bi-briefcase-fill" style="color:#1D4ED8" aria-hidden="true"></i>Załóż sprawę CRM
         </button>
+        <?php if (!empty($msg['contact_id'])):
+                $case_list = crm_cases_for_contact((int)$msg['contact_id']);
+                $cur_case  = (int)($msg['case_id'] ?? 0); ?>
+        <?php if ($case_list): ?>
+        <form method="post" class="d-inline-flex align-items-center gap-1"><?= $hidden ?>
+          <input type="hidden" name="_op" value="attach_case">
+          <select name="case_id" class="ib-field" style="max-width:220px" onchange="this.form.submit()"
+                  aria-label="Dopnij wiadomość do sprawy"
+                  title="Dopnij tę wiadomość do sprawy — korespondencja będzie widoczna przy sprawie">
+            <option value="0">— dopnij do sprawy —</option>
+            <?php foreach ($case_list as $cs): ?>
+            <option value="<?= (int)$cs['id'] ?>" <?= $cur_case === (int)$cs['id'] ? 'selected' : '' ?>>
+              <?= h(mb_strimwidth((string)$cs['title'], 0, 40, '…')) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </form>
+        <?php endif; ?>
+        <?php endif; ?>
         <button type="button" class="ib-act" data-bs-toggle="modal" data-bs-target="#mdEzd"
                 title="Zarejestruj w EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
           <i class="bi bi-folder-symlink-fill" style="color:#0F766E" aria-hidden="true"></i>Przekaż do EZD
