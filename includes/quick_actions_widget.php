@@ -147,6 +147,18 @@ select.qaw-in { height: 34px; }
 
     <button type="button" class="qaw-btn" id="qaw-save">Zapisz i otwórz</button>
 
+    <!-- Przepływ: jedno zdanie → komplet wpisów wg szablonu -->
+    <div id="qaw-wf-box" hidden>
+      <div class="qaw-row">
+        <label class="qaw-lbl" for="qaw-wf">Przepływ</label>
+        <select class="qaw-in" id="qaw-wf"></select>
+        <div class="qaw-hint" id="qaw-wf-desc"></div>
+      </div>
+      <div class="qaw-hint" id="qaw-wf-steps" style="margin-bottom:.6rem"></div>
+      <button type="button" class="qaw-btn" id="qaw-wf-run">Uruchom przepływ</button>
+      <div class="qaw-hint" id="qaw-wf-result" style="margin-top:.5rem"></div>
+    </div>
+
     <?php
       $qa_links = array_filter($_qa_catalog, static fn($m) => $m['kind'] === 'link');
       if ($qa_links):
@@ -182,6 +194,8 @@ select.qaw-in { height: 34px; }
   <div class="qaw-foot">
     <span class="qaw-kbd">Alt</span>+<span class="qaw-kbd">N</span>
     <button type="button" id="qaw-cfg-toggle">⚙ Dostosuj przyciski</button>
+    <a href="<?= APP_URL ?>/crm/workflows.php" style="margin-left:auto;color:#6B7280;font-size:.73rem"
+       title="Twórz i edytuj szablony akcji">Przepływy →</a>
   </div>
 </div>
 
@@ -192,11 +206,13 @@ select.qaw-in { height: 34px; }
   var CSRF = <?= json_encode(csrf_token()) ?>;
 
   var TYPES = {
-    contact: {label: 'Kontakt', field: 'Imię i nazwisko / nazwa', contact: false, email: true,  list: false},
-    note:    {label: 'Notatka', field: 'Treść notatki',           contact: true,  email: false, list: false},
-    'case':  {label: 'Sprawa',  field: 'Tytuł sprawy',            contact: true,  email: false, list: false},
-    task:    {label: 'Zadanie', field: 'Co jest do zrobienia',    contact: false, email: false, list: true}
+    contact:  {label: 'Kontakt',  field: 'Imię i nazwisko / nazwa', contact: false, email: true,  list: false},
+    note:     {label: 'Notatka',  field: 'Treść notatki',           contact: true,  email: false, list: false},
+    'case':   {label: 'Sprawa',   field: 'Tytuł sprawy',            contact: true,  email: false, list: false},
+    task:     {label: 'Zadanie',  field: 'Co jest do zrobienia',    contact: false, email: false, list: true},
+    workflow: {label: 'Przepływ', field: 'Czego dotyczy',           contact: true,  email: false, list: false}
   };
+  var WF = {items: [], loaded: false};
 
   var fab   = document.getElementById('qaw-fab');
   var panel = document.getElementById('qaw-panel');
@@ -231,6 +247,15 @@ select.qaw-in { height: 34px; }
     el('qaw-email-row').hidden   = !c.email;
     el('qaw-contact-row').hidden = !c.contact;
     el('qaw-list-row').hidden    = !c.list;
+
+    var isWf = cur === 'workflow';
+    el('qaw-wf-box').hidden = !isWf;
+    el('qaw-save').hidden   = isWf;
+    if (isWf) {
+      loadWorkflows();
+      el('qaw-picked').textContent = '';
+      el('qaw-wf-result').textContent = '';
+    }
     if (c.list && !listsLoaded) loadLists();
     el('qaw-title-in').focus();
   }
@@ -273,6 +298,68 @@ select.qaw-in { height: 34px; }
         })
         .catch(function () {});
     }, 250);
+  });
+
+  function paintWorkflow() {
+    var sel = el('qaw-wf');
+    var wf  = WF.items.filter(function (w) { return String(w.id) === sel.value; })[0];
+    el('qaw-wf-desc').textContent  = wf && wf.description ? wf.description : '';
+    el('qaw-wf-steps').innerHTML   = wf
+      ? wf.steps.map(function (s) {
+          return '<span style="white-space:nowrap">' + s.label + ': ' +
+                 String(s.title).replace(/</g, '&lt;') + '</span>';
+        }).join(' <span style="color:#cbd5e1">→</span> ')
+      : '';
+    // Kroki „notatka/sprawa" bez kroku „kontakt" wymagają wskazania kartoteki
+    el('qaw-contact-row').hidden = !(wf && wf.needs_contact);
+  }
+
+  function loadWorkflows() {
+    if (WF.loaded) { paintWorkflow(); return; }
+    fetch(BASE + '/crm/api/workflows.php?a=list')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        WF.loaded = true;
+        WF.items  = d.items || [];
+        el('qaw-wf').innerHTML = WF.items.length
+          ? WF.items.map(function (w) {
+              return '<option value="' + w.id + '">' + String(w.name).replace(/</g, '&lt;') +
+                     (w.shared ? ' (wspólny)' : '') + '</option>';
+            }).join('')
+          : '<option value="">— nie masz jeszcze przepływów —</option>';
+        paintWorkflow();
+      })
+      .catch(function () { WF.loaded = true; });
+  }
+
+  el('qaw-wf').addEventListener('change', paintWorkflow);
+
+  el('qaw-wf-run').addEventListener('click', function () {
+    var btn = this, id = parseInt(el('qaw-wf').value || '0', 10);
+    var subject = el('qaw-title-in').value.trim();
+    if (!id)      { err('Najpierw wybierz przepływ (albo utwórz go w CRM → Przepływy).'); return; }
+    if (!subject) { err('Wpisz, czego dotyczy przepływ.'); return; }
+    err('');
+
+    btn.disabled = true; btn.textContent = 'Wykonuję…';
+    fetch(BASE + '/crm/api/workflows.php', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({_csrf: CSRF, id: id, subject: subject, contact_id: contactId})
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false; btn.textContent = 'Uruchom przepływ';
+        el('qaw-wf-result').innerHTML = (d.results || []).map(function (r) {
+          return (r.ok ? '✓ ' : '✗ ') + r.label + ': ' + String(r.title).replace(/</g, '&lt;') +
+                 (r.ok ? '' : ' — ' + String(r.error).replace(/</g, '&lt;'));
+        }).join('<br>');
+        if (!d.ok) { err(d.error || 'Przepływ się nie wykonał.'); return; }
+        if (d.url) setTimeout(function () { window.location.href = d.url; }, 900);
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = 'Uruchom przepływ';
+        err('Błąd połączenia.');
+      });
   });
 
   function save() {
