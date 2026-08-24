@@ -22,10 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'save') {
         org_setting_set('nozbe_enabled',    isset($_POST['nozbe_enabled']) ? '1' : '0');
-        org_setting_set('nozbe_project_id', trim($_POST['nozbe_project_id'] ?? ''));
+        org_setting_set('nozbe_default_project_id', trim($_POST['nozbe_default_project_id'] ?? ''));
         // Puste pole tokenu = „zostaw jak było" — inaczej zapis ustawień kasowałby klucz
-        $key = trim($_POST['nozbe_api_key'] ?? '');
-        if ($key !== '' && strpos($key, '•') === false) org_setting_set('nozbe_api_key', $key);
+        $key = trim($_POST['nozbe_api_token'] ?? '');
+        if ($key !== '' && strpos($key, '•') === false) org_setting_set('nozbe_api_token', $key);
         flash_set('success', 'Ustawienia Nozbe zostały zapisane.');
         header('Location: ' . APP_URL . '/admin/nozbe_settings.php');
         exit;
@@ -54,9 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$api_key  = nozbe_setting('nozbe_api_key');
+$api_key  = nozbe_setting('nozbe_api_token');
 $projects = nozbe_projects();
-$cur_proj = nozbe_setting('nozbe_project_id');
+$cur_proj = nozbe_setting('nozbe_default_project_id');
 
 try {
     $links = db_all("SELECT l.*, u.name AS user_name FROM nozbe_links l
@@ -76,6 +76,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="container py-3" style="max-width:900px">
 
   <h1 class="h4 fw-bold mb-1"><i class="bi bi-check2-square me-2 text-success"></i>Nozbe</h1>
+  <p class="text-muted small mb-1">Ten sam token i projekt ustawia też ekran <a href="<?= APP_URL ?>/crm/settings/nozbe.php">CRM → Ustawienia → Nozbe</a> — to jedna konfiguracja, nie dwie.</p>
   <p class="text-muted small mb-3">
     Wysyłanie rzeczy do zrobienia z SZO do Nozbe: zadania, wiadomości ze Skrzynki CRM i sprawy.
     Kierunek jest jednostronny — Nozbe nie odsyła statusów, więc zamknięcie zadania w Nozbe
@@ -104,8 +105,8 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-semibold small" for="nozbe_api_key">Token API</label>
-          <input type="text" class="form-control form-control-sm" id="nozbe_api_key" name="nozbe_api_key"
+          <label class="form-label fw-semibold small" for="nozbe_api_token">Token API</label>
+          <input type="text" class="form-control form-control-sm" id="nozbe_api_token" name="nozbe_api_token"
                  autocomplete="off" placeholder="<?= $api_key ? '•••••••• (zapisany — zostaw puste, aby nie zmieniać)' : 'wklej token z Nozbe' ?>">
           <div class="form-text">
             Nozbe → Ustawienia → API tokens → <em>Add new token</em>. Token globalny widzi wszystkie przestrzenie;
@@ -114,9 +115,9 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-semibold small" for="nozbe_project_id">Domyślny projekt</label>
+          <label class="form-label fw-semibold small" for="nozbe_default_project_id">Domyślny projekt</label>
           <?php if ($projects): ?>
-          <select class="form-select form-select-sm" id="nozbe_project_id" name="nozbe_project_id">
+          <select class="form-select form-select-sm" id="nozbe_default_project_id" name="nozbe_default_project_id">
             <option value="">— skrzynka Nozbe (bez projektu) —</option>
             <?php foreach ($projects as $p): ?>
             <option value="<?= h($p['id']) ?>" <?= $cur_proj === $p['id'] ? 'selected' : '' ?>><?= h($p['name']) ?></option>
@@ -124,7 +125,7 @@ include dirname(__DIR__) . '/includes/header.php';
           </select>
           <div class="form-text">Lista pobiera się przy teście połączenia.</div>
           <?php else: ?>
-          <input type="text" class="form-control form-control-sm" id="nozbe_project_id" name="nozbe_project_id"
+          <input type="text" class="form-control form-control-sm" id="nozbe_default_project_id" name="nozbe_default_project_id"
                  value="<?= h($cur_proj) ?>" placeholder="identyfikator projektu (opcjonalnie)">
           <div class="form-text">Uruchom test połączenia, żeby pobrać listę projektów do wyboru.</div>
           <?php endif; ?>

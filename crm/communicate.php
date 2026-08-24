@@ -145,6 +145,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rendered_body    = CrmManager::renderTemplate($body, $contact);
             $rendered_subject = CrmManager::renderTemplate($subject, $contact);
 
+            // Podmiot z kilkoma osobami kontaktowymi: nadawca mógł wskazać, do której
+            // ma pójść wiadomość. Bez wskazania decyduje resolver (domyślny adresat
+            // → osoba główna → adres podmiotu).
+            $person_pick = (int)($_POST['person_ids'][$cid] ?? 0) ?: null;
+
             CrmManager::sendAndLog(
                 $cid,
                 $channel,
@@ -153,15 +158,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tpl_name,
                 $do_send && $immediate,
                 $channel === 'email' ? $attachments : [],
-                $from_email
+                $from_email,
+                $person_pick
             );
-            if ($do_send && !$immediate && $channel === 'email' && !empty($contact['email'])) {
-                // Wysyłka wsadowa — dodaj do kolejki bez natychmiastowego procesu
-                $is_html   = strip_tags($rendered_body) !== $rendered_body;
-                $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
-                $crm_footer = trim(org_setting('crm_email_footer') ?? '');
-                if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
-                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid, '', false, $attachments, $from_email);
+            if ($do_send && !$immediate && $channel === 'email') {
+                // Wysyłka wsadowa szła dotąd na adres PODMIOTU, przez co ignorowała
+                // i wskazaną osobę kontaktową, i domyślnego adresata. Adresata
+                // wyznacza ten sam resolver co przy wysyłce natychmiastowej.
+                $to = crm_contact_recipient($cid, $person_pick, $contact);
+                if (!empty($to['email'])) {
+                    $is_html   = strip_tags($rendered_body) !== $rendered_body;
+                    $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
+                    $crm_footer = trim(org_setting('crm_email_footer') ?? '');
+                    if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
+                    mail_queue_add($to['email'], $to['name'] ?: ($contact['imie_nazwisko'] ?? ''),
+                        $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body,
+                        'crm', $cid, '', false, $attachments, $from_email);
+                }
             }
             $sent_count++;
         }
@@ -427,6 +440,9 @@ include __DIR__ . '/includes/header_crm.php';
 
           <!-- Wybrani odbiorcy jako chips + hidden inputs -->
           <div id="comm-chips" class="d-flex flex-wrap gap-1 mb-1"></div>
+
+          <!-- Wybór osoby kontaktowej dla podmiotów, które mają ich kilka -->
+          <div id="comm-persons" class="mt-2"></div>
 
           <!-- Licznik -->
           <div class="text-muted" id="comm-count" style="font-size:.75rem"></div>
@@ -1501,6 +1517,7 @@ const CommRecip = (function () {
 
   function render() {
     renderChips();
+    refreshPersons();
 
     // Hidden inputs — tylko kontakty pasujące do kanału
     const ch = getChannel();
@@ -1526,6 +1543,40 @@ const CommRecip = (function () {
     dropdown.querySelectorAll('.comm-di:not(.disabled)').forEach(el => {
       add(parseInt(el.dataset.id), el.dataset.name, el.dataset.email, el.dataset.telefon, el.dataset.org);
     });
+  }
+
+  /* Podmiot z kilkoma osobami kontaktowymi wymaga decyzji: do kogo właściwie
+     piszemy. Domyślnie zaznaczamy to, co wybrałby resolver, ale pokazujemy wybór,
+     bo „poszło do złej osoby" wychodzi zwykle za późno. */
+  function refreshPersons() {
+    const box = document.getElementById('comm-persons');
+    if (!box) return;
+    const ids = [...selected.keys()];
+    if (!ids.length) { box.innerHTML = ''; return; }
+
+    fetch(`<?= APP_URL ?>/crm/api/contact_persons.php?channel=${encodeURIComponent(getChannel())}&ids=${ids.join(',')}`)
+      .then(r => r.json())
+      .then(d => {
+        const entries = Object.entries((d && d.contacts) || {});
+        if (!entries.length) { box.innerHTML = ''; return; }
+
+        box.innerHTML =
+          '<div class="border rounded p-2" style="background:#FBFCFD">'
+          + '<div class="fw-semibold mb-1" style="font-size:.78rem">'
+          + '<i class="bi bi-person-lines-fill me-1"></i>Do której osoby wysłać?'
+          + '<span class="text-muted fw-normal"> — te podmioty mają kilka osób kontaktowych</span></div>'
+          + entries.map(([cid, c]) =>
+              `<div class="d-flex align-items-center gap-2 py-1" style="font-size:.8rem">
+                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+                 <select name="person_ids[${cid}]" class="form-select form-select-sm" style="max-width:270px;font-size:.76rem">
+                   <option value="0">Domyślnie${c.fallback ? ' — ' + esc(c.fallback) : ''}</option>
+                   ${c.persons.map(p => `<option value="${p.id}"${p.id === c.current ? ' selected' : ''}>`
+                       + `${esc(p.name)}${p.role ? ' · ' + esc(p.role) : ''} — ${esc(p.address)}</option>`).join('')}
+                 </select>
+               </div>`).join('')
+          + '</div>';
+      })
+      .catch(() => { box.innerHTML = ''; });
   }
 
   function getSelected() { return [...selected.values()]; }
