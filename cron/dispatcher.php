@@ -207,6 +207,11 @@ $AGENTS = [
         'schedule' => [4, 6],
         'args'     => '--apply',
     ],
+    'crm_consents_expiring' => [
+        'file'     => __DIR__ . '/crm_consents_expiring.php',
+        'interval' => 604800,       // raz w tygodniu — zgody z ograniczoną ważnością
+        'schedule' => [6, 8],
+    ],
     'crm_cases_due' => [
         'file'     => __DIR__ . '/crm_cases_due.php',
         'interval' => 86400,        // raz dziennie — terminy spraw i naruszenia SLA

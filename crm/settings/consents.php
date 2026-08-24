@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $klauzula = trim($_POST['klauzula'] ?? '');
         $channel  = array_key_exists($_POST['channel'] ?? '', CRM_CONSENT_CHANNELS) ? $_POST['channel'] : 'email';
         $sort     = (int)($_POST['sort_order'] ?? 0);
+        $valid_m  = max(0, min(240, (int)($_POST['valid_months'] ?? 0)));
 
         // Kod służy do wskazywania celu z formularzy i kodu — stąd wąski zestaw znaków.
         if ($kod === '' && $nazwa !== '') {
@@ -49,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($id) {
                 crm_db()->prepare(
-                    "UPDATE crm_consent_purposes SET kod=?, nazwa=?, klauzula=?, channel=?, sort_order=?, is_active=? WHERE id=?"
-                )->execute([$kod, $nazwa, $klauzula ?: null, $channel, $sort, isset($_POST['is_active']) ? 1 : 0, $id]);
+                    "UPDATE crm_consent_purposes SET kod=?, nazwa=?, klauzula=?, channel=?, sort_order=?, valid_months=?, is_active=? WHERE id=?"
+                )->execute([$kod, $nazwa, $klauzula ?: null, $channel, $sort, $valid_m, isset($_POST['is_active']) ? 1 : 0, $id]);
                 flash_set('success', 'Cel zgody zaktualizowany.');
             } else {
                 crm_insert('crm_consent_purposes', [
@@ -60,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'channel'    => $channel,
                     'is_active'  => 1,
                     'sort_order' => $sort,
+                    'valid_months' => $valid_m,
                     'created_by' => $uid,
                     'created_at' => date('Y-m-d H:i:s'),
                 ]);
@@ -147,13 +149,14 @@ require_once __DIR__ . '/_nav.php';
           <th>Kod</th>
           <th>Kanał</th>
           <th>Ze zgodą</th>
+          <th>Ważność</th>
           <th>Stan</th>
           <th><span class="visually-hidden">Akcje</span></th>
         </tr>
       </thead>
       <tbody>
         <?php if (!$purposes): ?>
-        <tr><td colspan="6" class="text-muted small py-3">Katalog jest pusty — dodaj pierwszy cel.</td></tr>
+        <tr><td colspan="7" class="text-muted small py-3">Katalog jest pusty — dodaj pierwszy cel.</td></tr>
         <?php endif; ?>
         <?php foreach ($purposes as $p): $cnt = (int)($counts[(int)$p['id']] ?? 0); $used = crm_consent_purpose_usage((int)$p['id']); ?>
         <tr>
@@ -165,6 +168,10 @@ require_once __DIR__ . '/_nav.php';
           </td>
           <td><code class="small"><?= h($p['kod']) ?></code></td>
           <td class="small"><?= h(CRM_CONSENT_CHANNELS[$p['channel']] ?? $p['channel']) ?></td>
+          <td class="small">
+            <?php $vm = (int)($p['valid_months'] ?? 0); ?>
+            <?= $vm > 0 ? h($vm) . ' mies.' : '<span class="text-muted">bezterminowo</span>' ?>
+          </td>
           <td><span class="badge bg-light text-dark border"><?= $cnt ?></span></td>
           <td>
             <?php if ($p['is_active']): ?>
@@ -216,13 +223,19 @@ require_once __DIR__ . '/_nav.php';
                value="<?= h($edit_row['kod'] ?? '') ?>" placeholder="wyliczy się z nazwy">
         <div class="form-text" style="font-size:.72rem">Do wskazywania celu w formularzach.</div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label small mb-1" for="cp_channel">Kanał</label>
         <select name="channel" id="cp_channel" class="form-select form-select-sm">
           <?php foreach (CRM_CONSENT_CHANNELS as $ck => $cl): ?>
           <option value="<?= h($ck) ?>" <?= (($edit_row['channel'] ?? 'email') === $ck) ? 'selected' : '' ?>><?= h($cl) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="cp_valid">Ważność (mies.)</label>
+        <input type="number" name="valid_months" id="cp_valid" class="form-control form-control-sm"
+               min="0" max="240" value="<?= (int)($edit_row['valid_months'] ?? 0) ?>">
+        <div class="form-text" style="font-size:.72rem">0 = bezterminowo. Po tym czasie zgoda przestaje uprawniać do wysyłki.</div>
       </div>
       <div class="col-md-1">
         <label class="form-label small mb-1" for="cp_sort">Kolejność</label>

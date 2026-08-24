@@ -649,7 +649,8 @@ function _cv_consents_html(array $contact, int $id, bool $can_w): string {
         <?php foreach ($purposes as $p):
           $pid   = (int)$p['id'];
           $st    = $states[$pid] ?? null;
-          [$lbl, $cls, $ico] = crm_consent_state_label($st);
+          [$lbl, $cls, $ico] = crm_consent_state_label($st, $p);
+          $cons_exp = crm_consent_expires_at($st, $p);
           $form_id = 'cv_cons_form_' . $pid;
         ?>
         <li class="py-2" style="border-bottom:1px solid var(--crm-border)">
@@ -663,6 +664,13 @@ function _cv_consents_html(array $contact, int $id, bool $can_w): string {
                   · <?= h(date('d.m.Y', strtotime((string)$st['event_at']))) ?>
                   · <?= h(crm_consent_source_label($st['source'])) ?>
                   <?php if (!empty($st['source_detail'])): ?> · <?= h($st['source_detail']) ?><?php endif; ?>
+                  <?php if ($cons_exp): ?>
+                  · <span class="<?= strtotime($cons_exp) < time() ? 'text-danger fw-semibold' : '' ?>"
+                          title="Ważność zgody: <?= (int)$p['valid_months'] ?> mies. od udzielenia">
+                      <?= strtotime($cons_exp) < time() ? 'wygasła' : 'ważna do' ?>
+                      <?= h(date('d.m.Y', strtotime($cons_exp))) ?>
+                    </span>
+                  <?php endif; ?>
                 <?php endif; ?>
                 <?php if (($p['channel'] ?? '') !== 'email'): ?>
                   · <?= h(CRM_CONSENT_CHANNELS[$p['channel']] ?? $p['channel']) ?>

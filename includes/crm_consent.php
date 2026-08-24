@@ -108,6 +108,11 @@ function crm_consent_migrate(): void
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_consents_state   ON crm_consents(contact_id, purpose_id, id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_consents_purpose ON crm_consents(purpose_id, granted)");
 
+    // Ważność zgody. 0 = bezterminowa, czyli dotychczasowe zachowanie — zgoda raz
+    // udzielona obowiązuje aż do wycofania. Wartość dodatnia mówi, po ilu miesiącach
+    // zgodę trzeba odnowić; po tym czasie przestaje uprawniać do wysyłki.
+    try { $pdo->exec("ALTER TABLE crm_consent_purposes ADD COLUMN valid_months INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
     // Cel wysyłki kampanii — bez niego kampania działa jak dotąd (patrz niżej).
     try { $pdo->exec("ALTER TABLE crm_campaigns ADD COLUMN purpose_id INTEGER REFERENCES crm_consent_purposes(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
 
@@ -230,12 +235,78 @@ function crm_consent_history(int $contact_id, ?int $purpose_id = null, int $limi
     return crm_all($sql, $params);
 }
 
+/**
+ * Kiedy zgoda przestaje obowiązywać. NULL = bezterminowa albo brak zgody.
+ *
+ * Liczone od zdarzenia udzielenia (event_at), nie od wpisu do bazy — zgoda
+ * zebrana na papierze pół roku temu jest o pół roku starsza niż jej import.
+ */
+function crm_consent_expires_at(?array $state, ?array $purpose): ?string
+{
+    if ($state === null || (int)$state['granted'] !== 1) return null;
+    $months = (int)($purpose['valid_months'] ?? 0);
+    if ($months <= 0) return null;
+    $from = strtotime((string)($state['event_at'] ?: $state['created_at']));
+    if (!$from) return null;
+    return date('Y-m-d H:i:s', strtotime('+' . $months . ' months', $from));
+}
+
+/** Czy zgoda wygasła (ważność celu minęła). */
+function crm_consent_is_expired(?array $state, ?array $purpose): bool
+{
+    $exp = crm_consent_expires_at($state, $purpose);
+    return $exp !== null && strtotime($exp) < time();
+}
+
+/**
+ * Zgody wygasłe albo wygasające w najbliższych $days dniach.
+ *
+ * Zwraca po jednym wierszu na parę kontakt+cel, z danymi kontaktu i opiekuna —
+ * cron robi z tego zestawienie do odnowienia.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function crm_consent_expiring(int $days = 30): array
+{
+    crm_consent_migrate();
+    $out = [];
+    foreach (crm_consent_purposes(false) as $p) {
+        $months = (int)($p['valid_months'] ?? 0);
+        if ($months <= 0) continue;                 // bezterminowa — nie ma czego pilnować
+
+        // Najnowsze zdarzenie na parę kontakt+cel, tylko udzielenia
+        $rows = crm_all(
+            "SELECT c.contact_id, c.event_at, c.created_at
+               FROM crm_consents c
+              WHERE c.purpose_id = ? AND c.granted = 1
+                AND c.id = (SELECT MAX(x.id) FROM crm_consents x
+                             WHERE x.contact_id = c.contact_id AND x.purpose_id = c.purpose_id)",
+            [(int)$p['id']]
+        );
+        $limit = time() + $days * 86400;
+        foreach ($rows as $r) {
+            $exp = crm_consent_expires_at(['granted' => 1, 'event_at' => $r['event_at'],
+                                           'created_at' => $r['created_at']], $p);
+            if ($exp === null || strtotime($exp) > $limit) continue;
+            $out[] = [
+                'contact_id' => (int)$r['contact_id'],
+                'purpose_id' => (int)$p['id'],
+                'purpose'    => (string)$p['nazwa'],
+                'expires_at' => $exp,
+                'expired'    => strtotime($exp) < time(),
+            ];
+        }
+    }
+    usort($out, static fn($a, $b) => strcmp((string)$a['expires_at'], (string)$b['expires_at']));
+    return $out;
+}
+
 /** @return array<int> ID kontaktów z aktualnie udzieloną zgodą na dany cel. */
 function crm_consent_granted_ids(int $purpose_id): array
 {
     crm_consent_migrate();
     $rows = crm_all(
-        "SELECT c.contact_id
+        "SELECT c.contact_id, c.event_at, c.created_at
            FROM crm_consents c
           WHERE c.purpose_id = ?
             AND c.granted = 1
@@ -243,7 +314,18 @@ function crm_consent_granted_ids(int $purpose_id): array
                          WHERE x.contact_id = c.contact_id AND x.purpose_id = c.purpose_id)",
         [$purpose_id]
     );
-    return array_map(fn($r) => (int)$r['contact_id'], $rows);
+
+    // Zgoda z ograniczoną ważnością po terminie nie uprawnia do wysyłki. Filtrujemy
+    // TU, a nie dopiero w interfejsie — inaczej wygasła zgoda dalej przepuszczałaby
+    // kampanię, a to jest dokładnie ten błąd, przed którym ma chronić termin.
+    $purpose = crm_one("SELECT * FROM crm_consent_purposes WHERE id = ?", [$purpose_id]);
+    $out = [];
+    foreach ($rows as $r) {
+        if (crm_consent_is_expired(['granted' => 1, 'event_at' => $r['event_at'],
+                                    'created_at' => $r['created_at']], $purpose)) continue;
+        $out[] = (int)$r['contact_id'];
+    }
+    return $out;
 }
 
 /**
@@ -261,7 +343,8 @@ function crm_consent_filter(array $contact_ids, int $purpose_id): array
 function crm_consent_has(int $contact_id, int $purpose_id): bool
 {
     $st = crm_consent_state($contact_id, $purpose_id);
-    return $st !== null && (int)$st['granted'] === 1;
+    if ($st === null || (int)$st['granted'] !== 1) return false;
+    return !crm_consent_is_expired($st, crm_one("SELECT * FROM crm_consent_purposes WHERE id = ?", [$purpose_id]));
 }
 
 /** @return array<int,int> Liczba kontaktów ze zgodą, kluczowana purpose_id. */
@@ -283,11 +366,14 @@ function crm_consent_purpose_usage(int $purpose_id): int
 }
 
 /** Etykieta stanu do interfejsu: [tekst, klasa CSS, ikona]. */
-function crm_consent_state_label(?array $state): array
+function crm_consent_state_label(?array $state, ?array $purpose = null): array
 {
-    if ($state === null)               return ['Brak zapisu',   'secondary', 'bi-dash-circle'];
-    if ((int)$state['granted'] === 1)  return ['Zgoda udzielona','success',  'bi-check-circle-fill'];
-    return ['Zgoda wycofana', 'danger', 'bi-x-circle-fill'];
+    if ($state === null)              return ['Brak zapisu',    'secondary', 'bi-dash-circle'];
+    if ((int)$state['granted'] !== 1) return ['Zgoda wycofana', 'danger',    'bi-x-circle-fill'];
+    if ($purpose !== null && crm_consent_is_expired($state, $purpose)) {
+        return ['Zgoda wygasła', 'warning', 'bi-hourglass-bottom'];
+    }
+    return ['Zgoda udzielona', 'success', 'bi-check-circle-fill'];
 }
 
 /** Czytelna nazwa sposobu pozyskania. */
