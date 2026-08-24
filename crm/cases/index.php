@@ -23,6 +23,12 @@ $status_f  = $_GET['status']       ?? '';
 $priority_f= $_GET['priority']     ?? '';
 $contact_f = (int)($_GET['contact_id'] ?? 0);
 $shared_f  = !empty($_GET['shared']);
+// Filtry prowadzenia: „moje", „bez opiekuna", „po terminie", typ sprawy.
+// Bez nich opiekun (owner_id) był kolumną, na którą nikt nie mógł spojrzeć.
+$mine_f    = !empty($_GET['mine']);
+$noowner_f = !empty($_GET['noowner']);
+$overdue_f = !empty($_GET['overdue']);
+$type_f    = (int)($_GET['type_id'] ?? 0);
 $page      = max(1, (int)($_GET['page'] ?? 1));
 $per       = 25;
 
@@ -48,6 +54,22 @@ if ($contact_f) {
     $where .= " AND c.contact_id=?";
     $params[] = $contact_f;
 }
+if ($mine_f) {
+    $where .= " AND c.owner_id=?";
+    $params[] = $uid;
+}
+if ($noowner_f) {
+    $where .= " AND (c.owner_id IS NULL OR c.owner_id=0)";
+}
+if ($overdue_f) {
+    // Po terminie = tylko sprawy w toku; zamkniętej nikt już nie „spóźni"
+    $where .= " AND c.due_date IS NOT NULL AND c.due_date <> '' AND date(c.due_date) < date('now')"
+            . " AND c.status IN ('open','in_progress')";
+}
+if ($type_f) {
+    $where .= " AND c.type_id=?";
+    $params[] = $type_f;
+}
 
 $total = (int)(db_one(
     "SELECT COUNT(*) AS n FROM crm_cases c
@@ -57,15 +79,33 @@ $total = (int)(db_one(
 
 $offset = ($page - 1) * $per;
 $rows   = db_all(
-    "SELECT c.*, ct.imie_nazwisko AS contact_name, ct.type AS contact_type,
+    "SELECT c.*, ct.imie_nazwisko AS contact_name, ct.type AS contact_type, u.name AS owner_name,
             (SELECT COUNT(*) FROM crm_case_notes n WHERE n.case_id=c.id) AS notes_count,
             (SELECT COUNT(*) FROM crm_case_files f WHERE f.case_id=c.id) AS files_count,
             (SELECT COUNT(*) FROM crm_case_shares s WHERE s.case_id=c.id) AS shares_count
      FROM crm_cases c
      LEFT JOIN crm_contacts ct ON ct.id=c.contact_id
+     LEFT JOIN users u         ON u.id=c.owner_id
      WHERE $where ORDER BY c.updated_at DESC LIMIT $per OFFSET $offset",
     $params
 );
+
+// Liczniki filtrów prowadzenia — pokazujemy je na pigułkach, żeby było widać,
+// czy w ogóle jest co filtrować.
+$cnt_mine = $cnt_noowner = $cnt_overdue = 0;
+try {
+    $cnt_mine = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
+                               WHERE owner_id=? AND status IN ('open','in_progress')", [$uid])['n'] ?? 0);
+    $cnt_noowner = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
+                                  WHERE (owner_id IS NULL OR owner_id=0) AND status IN ('open','in_progress')")['n'] ?? 0);
+    $cnt_overdue = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
+                                  WHERE due_date IS NOT NULL AND due_date <> ''
+                                    AND date(due_date) < date('now')
+                                    AND status IN ('open','in_progress')")['n'] ?? 0);
+} catch (\Throwable $e) {}
+
+require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
+$case_types_list = crm_case_types();
 
 // Statystyki
 $stats = [];
@@ -112,6 +152,53 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <i class="bi bi-plus-lg me-1"></i>Nowa sprawa
     </a>
   </div>
+  <?php endif; ?>
+</div>
+
+<!-- Filtry prowadzenia: kto prowadzi i co się pali -->
+<?php
+  $base_qs = static function (array $over = []) use ($search, $status_f, $priority_f, $contact_f, $shared_f, $mine_f, $noowner_f, $overdue_f, $type_f): string {
+      return http_build_query(array_filter(array_merge([
+          'q' => $search ?: null, 'status' => $status_f ?: null, 'priority' => $priority_f ?: null,
+          'contact_id' => $contact_f ?: null, 'shared' => $shared_f ? 1 : null,
+          'mine' => $mine_f ? 1 : null, 'noowner' => $noowner_f ? 1 : null,
+          'overdue' => $overdue_f ? 1 : null, 'type_id' => $type_f ?: null,
+      ], $over), static fn($v) => $v !== null && $v !== ''));
+  };
+?>
+<div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+  <a href="?<?= $base_qs(['mine' => $mine_f ? null : 1]) ?>" class="wol-stat-pill <?= $mine_f ? 'selected' : '' ?>"
+     style="background:<?= $mine_f ? '#EEF4FF' : '#F9FAFB' ?>;color:#1D4ED8;border-color:<?= $mine_f ? '#1D4ED8' : 'transparent' ?>"
+     title="Sprawy, które prowadzisz (otwarte i w toku)">
+    <i class="bi bi-person-check me-1"></i>Moje sprawy <strong><?= $cnt_mine ?></strong>
+  </a>
+  <a href="?<?= $base_qs(['noowner' => $noowner_f ? null : 1]) ?>" class="wol-stat-pill <?= $noowner_f ? 'selected' : '' ?>"
+     style="background:<?= $noowner_f ? '#FFF7ED' : '#F9FAFB' ?>;color:#B45309;border-color:<?= $noowner_f ? '#B45309' : 'transparent' ?>"
+     title="Sprawy bez przypisanego prowadzącego — nikt ich nie pilnuje">
+    <i class="bi bi-person-dash me-1"></i>Bez opiekuna <strong><?= $cnt_noowner ?></strong>
+  </a>
+  <a href="?<?= $base_qs(['overdue' => $overdue_f ? null : 1]) ?>" class="wol-stat-pill <?= $overdue_f ? 'selected' : '' ?>"
+     style="background:<?= $overdue_f ? '#FEF2F2' : '#F9FAFB' ?>;color:#B91C1C;border-color:<?= $overdue_f ? '#B91C1C' : 'transparent' ?>"
+     title="Termin minął, a sprawa dalej otwarta">
+    <i class="bi bi-alarm me-1"></i>Po terminie <strong><?= $cnt_overdue ?></strong>
+  </a>
+
+  <?php if ($case_types_list): ?>
+  <form method="get" class="d-inline-flex align-items-center gap-1 ms-auto">
+    <?php foreach (['q'=>$search,'status'=>$status_f,'priority'=>$priority_f,'contact_id'=>$contact_f,
+                    'shared'=>$shared_f?1:'','mine'=>$mine_f?1:'','noowner'=>$noowner_f?1:'','overdue'=>$overdue_f?1:''] as $k => $v):
+          if ($v === '' || $v === 0) continue; ?>
+    <input type="hidden" name="<?= h($k) ?>" value="<?= h((string)$v) ?>">
+    <?php endforeach; ?>
+    <label class="text-muted small mb-0" for="type_id">Typ:</label>
+    <select name="type_id" id="type_id" class="form-select form-select-sm" style="max-width:190px"
+            onchange="this.form.submit()">
+      <option value="">wszystkie</option>
+      <?php foreach ($case_types_list as $ct): ?>
+      <option value="<?= (int)$ct['id'] ?>" <?= $type_f === (int)$ct['id'] ? 'selected' : '' ?>><?= h($ct['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </form>
   <?php endif; ?>
 </div>
 
@@ -208,6 +295,17 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <?php if ($r['shares_count']): ?>
         <span class="ms-2" style="color:#4338CA"><i class="bi bi-people-fill me-1" aria-hidden="true"></i><?= $r['shares_count'] ?></span>
         <?php endif; ?>
+        <?php if (!empty($r['owner_name'])): ?>
+        <span class="ms-2" title="Prowadzi sprawę"><i class="bi bi-person-check me-1" aria-hidden="true"></i><?= h($r['owner_name']) ?></span>
+        <?php endif; ?>
+        <?php if (!empty($r['due_date']) && in_array($r['status'], ['open','in_progress'], true)):
+              $dl = (int)floor((strtotime((string)$r['due_date']) - time()) / 86400); ?>
+        <span class="ms-2" style="<?= $dl < 0 ? 'color:#B91C1C;font-weight:600' : ($dl <= 2 ? 'color:#B45309' : '') ?>"
+              title="Termin sprawy">
+          <i class="bi bi-alarm me-1" aria-hidden="true"></i>
+          <?= $dl < 0 ? 'po terminie o ' . abs($dl) . ' dni' : ($dl === 0 ? 'termin dziś' : 'za ' . $dl . ' dni') ?>
+        </span>
+        <?php endif; ?>
       </div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-shrink-0" aria-hidden="true">
@@ -229,7 +327,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <div class="d-flex gap-1">
       <?php
       $pages = ceil($total / $per);
-      $base  = '?' . http_build_query(array_filter(['q'=>$search,'status'=>$status_f,'priority'=>$priority_f,'contact_id'=>$contact_f?:null,'shared'=>$shared_f?1:null]));
+      $base  = '?' . $base_qs();
       for ($p = 1; $p <= $pages; $p++):
       ?>
       <a href="<?= $base ?>&page=<?= $p ?>" class="btn btn-sm <?= $p===$page?'btn-primary':'btn-outline-secondary' ?>"><?= $p ?></a>
