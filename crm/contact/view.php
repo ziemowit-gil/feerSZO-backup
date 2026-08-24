@@ -1473,7 +1473,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 // ── GET: fragment sekcji ──────────────────────────────────────────────────────
 if (isset($_GET['_section'])) {
     $sec     = $_GET['_section'];
-    $contact = CrmManager::getContact($id);
+    // Pola zamknięte dla roli nie mogą wyciec przez fragment ładowany AJAX-em
+    $contact = crm_mask_contact((array)CrmManager::getContact($id));
     if (!$contact) { header('Content-Type: application/json'); echo json_encode(['ok'=>false]); exit; }
 
     $all_contacts  = db_all("SELECT id, imie_nazwisko, organizacja FROM crm_contacts WHERE crm_active=1 AND id != ? ORDER BY imie_nazwisko", [$id]);
@@ -1503,7 +1504,7 @@ if (isset($_GET['_section'])) {
 }
 
 // ── Załaduj dane do pełnej strony ─────────────────────────────────────────────
-$contact = CrmManager::getContact($id);
+$contact = crm_mask_contact((array)CrmManager::getContact($id));  // podgląd wg uprawnień per pole
 
 $contact_actions   = CrmManager::getContactActions($id);
 $linked_action_ids = array_column($contact_actions, 'id');

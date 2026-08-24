@@ -11,9 +11,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/invoices.php';
 
 require_login();
+crm_require('invoices', 'read');
 require_module_enabled('invoices_enabled', 'Moduł Faktury');
 invoices_migrate();
 

@@ -10,6 +10,10 @@
  * Wymaga: db.php, auth.php, functions.php
  */
 
+// Uprawnienia per rola (obszary + pola) — ładowane tu, żeby każde wejście do CRM
+// miało je pod ręką; bez skonfigurowanych reguł nic nie zmieniają.
+require_once __DIR__ . '/crm_perms.php';
+
 // ── Typy kontaktów ────────────────────────────────────────────────────────────
 const CRM_CONTACT_TYPES = [
     'osoba'       => ['label' => 'Osoba fizyczna', 'short' => 'Osoba',      'icon' => 'bi-person-fill', 'color' => '#0176D3', 'org_like' => false],
@@ -2015,6 +2019,18 @@ class CrmManager
             'owner_id',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
+
+        // Uprawnienia per pole (crm_field_perms): pole zamknięte dla roli nie może
+        // wejść do zapisu, choćby ktoś podłożył je w formularzu. Jedno wejście do
+        // edycji = jedno miejsce, w którym trzeba tego pilnować.
+        if (function_exists('crm_field_can_edit')) {
+            foreach (array_keys($data) as $f) {
+                if (in_array($f, ['avatar_initials', 'source', 'person_id'], true)) continue;
+                if (!crm_field_can_edit($f)) unset($data[$f]);
+            }
+            if (!$data) return;
+        }
+
         // Jak w createContact(). Aktualizacja nie musi zawierać statusu —
         // wtedy rozstrzyga status już zapisany w bazie.
         if (!empty($data['swiadczy_uslugi'])) {

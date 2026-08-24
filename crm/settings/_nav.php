@@ -81,6 +81,9 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   <a href="<?= APP_URL ?>/crm/settings/roles.php" class="csn-link<?= $_sn_a('settings/roles') ?>">
     <i class="bi bi-people-fill"></i> Role CRM
   </a>
+  <a href="<?= APP_URL ?>/crm/settings/permissions.php" class="csn-link<?= $_sn_a('settings/permissions') ?>">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia (role, pola)
+  </a>
   <a href="<?= APP_URL ?>/crm/settings/statuses.php" class="csn-link<?= $_sn_a('settings/statuses') ?>">
     <i class="bi bi-bookmark-fill"></i> Statusy
   </a>

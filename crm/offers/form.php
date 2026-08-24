@@ -16,9 +16,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('offers', 'write');
 if (!crm_offer_can_write()) {
     flash_set('danger', 'Brak uprawnień do tworzenia ofert.');
     header('Location: ' . APP_URL . '/crm/offers/index.php'); exit;

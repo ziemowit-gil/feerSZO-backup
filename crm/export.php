@@ -10,9 +10,11 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'CRM');
+crm_require('export', 'read');
 if (!can_read('crm_eksport') && !is_admin()) {
     http_response_code(403); die('Brak uprawnień do eksportu kontaktów.');
 }
@@ -75,8 +77,17 @@ $requested = (array)($_GET['cols'] ?? []);
 $requested = array_values(array_filter($requested, fn($c) => isset($COLUMNS[$c])));
 $selected  = $requested ?: array_keys($COLUMNS);
 
+// Pola zamknięte dla roli nie mogą wyjść bocznymi drzwiami przez eksport —
+// odsiewamy je z listy kolumn, zanim ktokolwiek zobaczy plik.
+$selected = array_values(array_filter($selected, static fn($c) => crm_field_can_view($c)));
+if (!$selected) {
+    http_response_code(403);
+    die('Twoja rola nie ma podglądu żadnego z wybranych pól.');
+}
+
 $headers   = array_map(fn($c) => $COLUMNS[$c][0], $selected);
 $build_row = function (array $r) use ($COLUMNS, $selected) {
+    $r   = crm_mask_contact($r);
     $out = [];
     foreach ($selected as $c) {
         $out[] = ($COLUMNS[$c][1])($r);

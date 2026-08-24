@@ -14,10 +14,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/podmioty_import.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('import', 'write');
 crm_migrate();
 
 if (!can_write('crm_import') && !can_write('crm') && !is_admin()) {

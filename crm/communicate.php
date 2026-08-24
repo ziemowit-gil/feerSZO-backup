@@ -15,6 +15,8 @@ require_once dirname(__DIR__) . '/includes/nozbe.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+require_once dirname(__DIR__) . '/includes/crm_perms.php';
+crm_require('inbox', 'write');
 if (!can_write('crm_mailing') && !is_admin()) {
     flash_set('danger', 'Brak uprawnień do wysyłania wiadomości.');
     header('Location: ' . APP_URL . '/crm/index.php');

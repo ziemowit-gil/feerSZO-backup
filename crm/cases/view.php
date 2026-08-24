@@ -12,6 +12,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require('cases', 'read');
 crm_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);

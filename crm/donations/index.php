@@ -11,9 +11,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
 
 require_login();
+crm_require('donations', 'read');
 require_module_enabled('donations_enabled', 'Moduł Darowizny');
 crm_migrate();
 donations_migrate();

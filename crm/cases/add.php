@@ -11,6 +11,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
+crm_require('cases', 'write');
 if (!can_write('crm') && !is_admin()) {
     flash_set('danger', 'Brak uprawnień.');
     header('Location: ' . APP_URL . '/crm/cases/index.php'); exit;

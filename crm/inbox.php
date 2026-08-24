@@ -22,9 +22,11 @@ require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
 require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';
 require_once dirname(__DIR__) . '/includes/nozbe.php';
 require_once dirname(__DIR__) . '/includes/crm_case_extras.php';
+require_once dirname(__DIR__) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('inbox', 'read');
 crm_migrate();
 
 $PAGE_TITLE = 'Skrzynka CRM';

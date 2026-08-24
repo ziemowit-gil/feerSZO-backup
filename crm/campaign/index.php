@@ -8,9 +8,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_campaign.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_perms.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
+crm_require('campaigns', 'read');
 crm_migrate();
 
 $can_write = can_write('crm') || is_admin();
