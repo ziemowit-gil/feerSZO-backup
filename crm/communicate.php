@@ -66,6 +66,7 @@ try {
 
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/crm_attachments.php';
+require_once dirname(__DIR__) . '/includes/crm_sender.php';
 $m365_mail_configured = _mail_m365_configured();
 $mail_channel = $m365_mail_configured ? 'Microsoft 365' : (
     _mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()'
@@ -75,6 +76,10 @@ $_cu_now        = current_user();
 $can_send_as_me = $m365_mail_configured && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
 $my_ms_email    = $can_send_as_me ? trim($_cu_now['email']) : '';
 $sys_from_email = _mail_setting('m365_send_from_email');
+// Konta, z których wolno wysyłać: systemowe, własna skrzynka M365 i skrzynki
+// współdzielone z modułu Poczta (wg ACL). Wybór da się zapamiętać.
+$sender_accounts = crm_sender_accounts($_cu_now);
+$sender_default  = crm_sender_default($sender_accounts);
 
 // ── POST: wyślij wiadomość ────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -86,14 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tpl_name  = trim($_POST['template_name'] ?? '');
     $do_send   = !empty($_POST['do_send']);
 
-    // Nadawca: konto systemowe (domyślnie) albo skrzynka M365 zalogowanego użytkownika
-    $send_as    = ($_POST['send_as'] ?? 'system') === 'me' ? 'me' : 'system';
-    $from_email = '';
-    if ($channel === 'email' && $send_as === 'me') {
-        $cu = current_user();
-        if (!empty($cu['microsoft_id']) && !empty($cu['email']) && _mail_m365_configured()) {
-            $from_email = trim($cu['email']);
-        }
+    // Nadawca: system / własna skrzynka M365 / skrzynka współdzielona (mbox:ID)
+    $send_as    = (string)($_POST['send_as'] ?? 'system');
+    $from_email = $channel === 'email' ? crm_sender_email($send_as, $_cu_now) : '';
+    if (!empty($_POST['send_as_remember'])) {
+        user_pref_set('crm_send_as', $send_as);
     }
 
     // Obsługa załączników (tylko dla e-mail).
@@ -209,7 +211,7 @@ include __DIR__ . '/includes/header_crm.php';
   </ol>
 </nav>
 
-<div class="crm-object-header shadow-sm mb-3">
+<div class="crm-object-header comm-head mb-3">
   <div class="crm-object-icon" aria-hidden="true"
        <?php if ($preselect_group): ?>style="background:<?= h($preselect_group['color']) ?>"<?php endif; ?>>
     <i class="bi <?= $preselect_group ? h($preselect_group['icon']) : 'bi-send-fill' ?>"></i>
@@ -248,22 +250,69 @@ include __DIR__ . '/includes/header_crm.php';
 <?php endif; ?>
 
 <style>
-/* Lekka przebudowa — kroki formularza komunikacji */
-.comm-step { display:flex; align-items:center; gap:.6rem; margin-bottom:.9rem; }
+/* ══ Widok wysyłki — układ „clear" ═══════════════════════════════════════
+   Mniej ramek, mniej koloru, jedna miara odstępów. Kolor zostaje tam, gdzie
+   niesie znaczenie: przycisk wysyłki i ostrzeżenia. Reszta ma nie krzyczeć. */
+.comm-card {
+  border: 1px solid #E5E7EB !important;
+  border-radius: 12px;
+  box-shadow: none !important;
+  background: #fff;
+}
+.comm-card > .card-body { padding: 1.15rem 1.25rem; }
+.comm-card--quiet { background: #FBFCFD; }
+
+/* Nagłówek sekcji: numer jako cichy licznik, nie kolorowe kółko */
+.comm-step { display: flex; align-items: baseline; gap: .55rem; margin-bottom: 1rem;
+  padding-bottom: .7rem; border-bottom: 1px solid #F1F2F4; }
 .comm-step__num {
-  width:27px; height:27px; border-radius:50%;
-  background:var(--crm-primary); color:#fff;
-  font-weight:700; font-size:.84rem; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
+  width: auto; height: auto; border-radius: 0; background: none;
+  color: #C3C8D0; font-weight: 700; font-size: .8rem; font-variant-numeric: tabular-nums;
+  flex-shrink: 0; display: inline; letter-spacing: .05em;
 }
-.comm-step__t { font-size:.98rem; font-weight:700; color:var(--crm-text); line-height:1.15; }
-.comm-step__h { font-size:.77rem; color:#5E6470; margin-top:.05rem; }
+.comm-step__num::after { content: '.'; }
+.comm-step__t { font-size: .92rem; font-weight: 700; color: #111827; line-height: 1.2; }
+.comm-step__h { font-size: .76rem; color: #9CA3AF; margin-top: .1rem; }
+
+/* Pola: jedna wysokość i jeden promień w całym formularzu */
+#communicateForm .form-control,
+#communicateForm .form-select {
+  min-height: 36px; font-size: .86rem; color: #111827;
+  border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: none;
+}
+#communicateForm textarea.form-control { min-height: 120px; }
+#communicateForm .form-control:focus,
+#communicateForm .form-select:focus {
+  border-color: var(--crm-primary); box-shadow: 0 0 0 3px rgba(1,118,211,.12);
+}
+#communicateForm .form-label { font-size: .76rem; font-weight: 600; color: #374151; margin-bottom: .3rem; }
+#communicateForm .input-group-text { background: #fff; border-color: #E5E7EB; border-radius: 8px 0 0 8px; color: #9CA3AF; }
+#communicateForm .input-group > .form-control { border-radius: 0 8px 8px 0; }
+
+/* Pasek wysyłki: biały, oddzielony linią — kolor zostaje na przycisku */
 .comm-send-bar {
-  display:flex; flex-wrap:wrap; align-items:center; gap:.75rem 1rem;
-  background:var(--crm-primary-bg); border:1px solid var(--crm-primary-light);
-  border-radius:10px; padding:.85rem 1rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem;
+  background: #fff; border: 0; border-top: 1px solid #F1F2F4;
+  border-radius: 0; padding: .9rem 0 0;
 }
-.comm-send-bar .btn-send { font-size:1rem; padding:.6rem 1.5rem; }
+.comm-send-bar .form-check-label { font-size: .82rem; color: #4B5563; }
+.comm-send-bar .btn-send { font-size: .9rem; font-weight: 600; padding: .55rem 1.4rem; border-radius: 9px; }
+
+/* Plakietki stanu kanałów — ciche, jednakowej wagi */
+.comm-flags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .75rem; }
+.comm-flags .badge {
+  font-weight: 500; font-size: .73rem !important; border-radius: 2rem; padding: .25rem .6rem;
+}
+
+/* Boczna kolumna */
+.comm-side .crm-section-title { font-size: .7rem; letter-spacing: .08em; color: #9CA3AF; margin-bottom: .6rem; }
+.comm-tpl-row { display: flex; align-items: center; gap: .5rem; padding: .35rem 0; border-bottom: 1px solid #F3F4F6; }
+.comm-tpl-row:last-child { border-bottom: none; }
+.comm-vars td { padding: .12rem .35rem; }
+.comm-vars .font-monospace { color: #0F766E !important; font-size: .74rem; }
+
+/* Nagłówek obiektu — lżejszy, bez cienia */
+.crm-object-header.comm-head { box-shadow: none !important; border: 1px solid #E5E7EB; border-radius: 12px; }
 </style>
 
 <div class="row g-3">
@@ -274,7 +323,7 @@ include __DIR__ . '/includes/header_crm.php';
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
     <!-- Odbiorcy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card comm-card mb-3">
       <div class="card-body">
         <div class="comm-step">
           <span class="comm-step__num" aria-hidden="true">1</span>
@@ -371,7 +420,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <!-- Kanał + szablon -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card comm-card mb-3">
       <div class="card-body">
         <div class="comm-step">
           <span class="comm-step__num" aria-hidden="true">2</span>
@@ -410,15 +459,23 @@ include __DIR__ . '/includes/header_crm.php';
           </div>
         </div>
 
-        <?php if ($can_send_as_me): ?>
+        <?php if (count($sender_accounts) > 1): ?>
         <div id="senderRow" class="mb-1" style="display:<?= $preselect_channel === 'email' ? '' : 'none' ?>">
           <label class="form-label" for="send_as"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Konto nadawcy (e-mail)</label>
           <select name="send_as" id="send_as" class="form-select" aria-describedby="senderHelp">
-            <option value="system">Konto systemowe<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
-            <option value="me">Moje konto Microsoft — <?= h($my_ms_email) ?></option>
+            <?php foreach ($sender_accounts as $acc): ?>
+            <option value="<?= h($acc['key']) ?>" data-hint="<?= h($acc['hint']) ?>"
+                    <?= $acc['key'] === $sender_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
+            <?php endforeach; ?>
           </select>
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" name="send_as_remember" id="send_as_remember" value="1">
+            <label class="form-check-label" for="send_as_remember" style="font-size:.76rem">
+              Zapamiętaj jako moje domyślne konto wysyłki
+            </label>
+          </div>
           <div id="senderHelp" class="form-text" style="font-size:.74rem">
-            Wybierając swoje konto, wiadomość wyjdzie z Twojej skrzynki Microsoft 365 i zostanie zapisana w „Elementach wysłanych".
+            <?= h($sender_accounts[0]['hint']) ?>
           </div>
         </div>
         <?php endif; ?>
@@ -428,7 +485,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <!-- Treść wiadomości -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card comm-card mb-3">
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between" style="text-transform:none;letter-spacing:0;border:0;padding:0">
           <div class="comm-step mb-0">
@@ -505,7 +562,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <!-- Opcje wysyłki -->
-    <div class="card border-0 shadow-sm">
+    <div class="card comm-card">
       <div class="card-body">
 
         <!-- Załączniki (tylko e-mail) -->
@@ -525,7 +582,7 @@ include __DIR__ . '/includes/header_crm.php';
             <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Wyślij wiadomość
           </button>
         </div>
-        <div class="d-flex flex-wrap gap-2 mt-2">
+        <div class="comm-flags">
           <?php if ($m365_mail_configured): ?>
           <div class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:.75rem">
             <i class="bi bi-microsoft me-1"></i>E-mail przez Microsoft 365 (<?= h(_mail_setting('m365_send_from_email')) ?>)
@@ -552,7 +609,7 @@ include __DIR__ . '/includes/header_crm.php';
 
     <?php if (nozbe_setting('nozbe_enabled') === '1' && nozbe_setting('nozbe_api_token')): ?>
     <!-- Nozbe follow-up -->
-    <div class="card border-0 shadow-sm">
+    <div class="card comm-card">
       <div class="card-body py-2">
         <div class="form-check mb-2">
           <input type="checkbox" class="form-check-input" name="nozbe_task" id="nozbeTaskChk"
@@ -603,10 +660,10 @@ include __DIR__ . '/includes/header_crm.php';
   </div><!-- /col-8 -->
 
   <!-- Prawa: szablony + pomoc -->
-  <div class="col-lg-4">
+  <div class="col-lg-4 comm-side">
 
     <!-- Szablony istniejące -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card comm-card mb-3">
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           Szablony
@@ -625,7 +682,7 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
         <?php if ($templates): ?>
           <?php foreach ($templates as $tpl): ?>
-          <div class="d-flex align-items-center gap-2 py-1 border-bottom" style="font-size:.82rem">
+          <div class="comm-tpl-row" style="font-size:.82rem">
             <span class="badge bg-light text-dark border" style="font-size:.65rem"><?= strtoupper(h($tpl['channel'])) ?></span>
             <button type="button"
                     class="btn btn-link p-0 text-start crm-name-link"
@@ -647,10 +704,10 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <!-- Pomoc z zmiennymi -->
-    <div class="card border-0 shadow-sm" style="background:var(--crm-primary-bg);border-color:var(--crm-primary-light)!important">
+    <div class="card comm-card comm-card--quiet">
       <div class="card-body" style="font-size:.8rem">
         <div class="crm-section-title">Zmienne szablonu</div>
-        <table class="table table-sm table-borderless mb-0" style="font-size:.78rem">
+        <table class="table table-sm table-borderless mb-0 comm-vars" style="font-size:.78rem">
           <tbody>
             <tr><td colspan="2" class="text-uppercase fw-bold" style="font-size:.66rem;letter-spacing:.05em;color:#5E6470">Odbiorca</td></tr>
             <tr><td class="font-monospace text-success">{imie}</td><td>Imię (pierwsze słowo)</td></tr>
@@ -1124,6 +1181,18 @@ include __DIR__ . '/includes/header_crm.php';
     function refreshAttachSec() {
       if (!attSec || !channelEl) return;
       attSec.style.display = channelEl.value === 'email' ? '' : 'none';
+    }
+
+    // Podpowiedź pod wyborem konta mówi, co się stanie z wysyłką
+    var sendAs = document.getElementById('send_as');
+    var sendHelp = document.getElementById('senderHelp');
+    if (sendAs && sendHelp) {
+      var paintHint = function () {
+        var o = sendAs.options[sendAs.selectedIndex];
+        sendHelp.textContent = (o && o.dataset.hint) || '';
+      };
+      sendAs.addEventListener('change', paintHint);
+      paintHint();
     }
     if (channelEl) channelEl.addEventListener('change', refreshAttachSec);
     refreshAttachSec();

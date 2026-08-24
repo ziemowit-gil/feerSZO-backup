@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/crm_attachments.php';
+require_once dirname(__DIR__) . '/includes/crm_sender.php';
 
 header('X-Frame-Options: SAMEORIGIN');
 
@@ -59,7 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ? crm_att_resolve((array)($data['attachments'] ?? []))
         : [];
 
-    CrmManager::sendAndLog($contact_id, $channel, $rendered_body, $rendered_subject, $tpl_name, $do_send, $attachments);
+    // Konto nadawcy: wybór z okna albo zapamiętane domyślne użytkownika
+    $send_as    = (string)($data['send_as'] ?? crm_sender_default());
+    $from_email = $channel === 'email' ? crm_sender_email($send_as) : '';
+    if (!empty($data['send_as_remember'])) user_pref_set('crm_send_as', $send_as);
+
+    CrmManager::sendAndLog($contact_id, $channel, $rendered_body, $rendered_subject, $tpl_name, $do_send,
+                           $attachments, $from_email);
 
     $verb = $do_send ? 'Wysłano' : 'Zalogowano';
     echo json_encode(['ok' => true, 'message' => "{$verb} wiadomość do " . h($contact['imie_nazwisko']) . "."]);
@@ -225,6 +232,19 @@ $csrf      = csrf_token();
 <div class="d-flex justify-content-between mt-1 mb-3">
   <span id="cm-char" class="text-muted" style="font-size:.72rem"></span>
 </div>
+
+<?php $cm_accounts = crm_sender_accounts(); $cm_default = crm_sender_default($cm_accounts); ?>
+<?php if (count($cm_accounts) > 1): ?>
+<!-- Konto nadawcy (tylko e-mail) -->
+<div id="cm-sender-row" class="mb-2" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
+  <label class="form-label small fw-semibold" for="cm-send-as">Konto nadawcy</label>
+  <select id="cm-send-as" class="form-select form-select-sm">
+    <?php foreach ($cm_accounts as $acc): ?>
+    <option value="<?= h($acc['key']) ?>" <?= $acc['key'] === $cm_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
+    <?php endforeach; ?>
+  </select>
+</div>
+<?php endif; ?>
 
 <!-- Załączniki (tylko e-mail) -->
 <div id="cm-att-row" class="mb-3" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
@@ -527,6 +547,8 @@ CM.onChannelChange = function(ch) {
     if (subjRow) subjRow.style.display = ch === 'email' ? '' : 'none';
     var attRow = document.getElementById('cm-att-row');
     if (attRow) attRow.style.display = ch === 'email' ? '' : 'none';
+    var sndRow = document.getElementById('cm-sender-row');
+    if (sndRow) sndRow.style.display = ch === 'email' ? '' : 'none';
     if (ch === 'sms') CM.setMode('plain');
 };
 
@@ -606,6 +628,7 @@ CM.send = function() {
             template_name: (document.getElementById('cm-tpl')?.options[document.getElementById('cm-tpl').selectedIndex]?.dataset.name || ''),
             do_send:       document.getElementById('cm-do-send')?.checked,
             attachments:   (window.CrmAtt ? window.CrmAtt.tokens() : []),
+            send_as:       (document.getElementById('cm-send-as')?.value || ''),
         }),
     })
     .then(r => r.json())
