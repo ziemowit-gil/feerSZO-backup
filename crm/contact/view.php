@@ -1953,31 +1953,42 @@ include __DIR__ . '/../includes/header_crm.php';
       $_last_comm = db_one("SELECT sent_at, direction FROM crm_communications WHERE contact_id=? ORDER BY sent_at DESC LIMIT 1", [(int)$id]);
   } catch (\Throwable $e) {}
   ?>
+  <?php
+  /* Pasek faktów pokazuje TYLKO to, co niesie informację. „0 ofert w toku"
+     i „0 zł wygranych ofert" zajmowały dwa z pięciu miejsc przy kartotece,
+     która ofert nigdy nie miała — a zero w tym miejscu nie mówi nic poza tym,
+     że sekcja istnieje. Zera odpadają; ostatni kontakt zostaje zawsze, bo jego
+     brak („—") jest sam w sobie odpowiedzią na pytanie „czy z tym kimś
+     rozmawialiśmy". */
+  $_facts = [];
+  if ($_open_cases > 0) {
+      $_facts[] = [(string)(int)$_open_cases, 'sprawy otwarte', ''];
+  }
+  if ((int)($offers_summary['open'] ?? 0) > 0) {
+      $_facts[] = [(string)(int)$offers_summary['open'], 'oferty w toku', ''];
+  }
+  if ((float)($offers_summary['won_value'] ?? 0) > 0) {
+      $_facts[] = [
+          number_format((float)$offers_summary['won_value'], 0, ',', ' ') . ' zł',
+          'wygrane oferty', '',
+      ];
+  }
+  $_facts[] = [
+      $_last_comm ? date_pl($_last_comm['sent_at']) : '—',
+      'ostatni kontakt' . ($_last_comm ? ($_last_comm['direction'] === 'in' ? ' (od klienta)' : ' (od nas)') : ''),
+      '',
+  ];
+  if (count($contact['notes']) > 0) {
+      $_facts[] = [(string)count($contact['notes']), 'notatki', ''];
+  }
+  ?>
   <div class="cv-facts">
-    <div class="cv-fact">
-      <span class="cv-fact__v"><?= (int)$_open_cases ?></span>
-      <span class="cv-fact__l">sprawy otwarte</span>
+    <?php foreach ($_facts as [$_fv, $_fl, $_ft]): ?>
+    <div class="cv-fact"<?= $_ft ? ' title="' . h($_ft) . '"' : '' ?>>
+      <span class="cv-fact__v"><?= h($_fv) ?></span>
+      <span class="cv-fact__l"><?= h($_fl) ?></span>
     </div>
-    <div class="cv-fact">
-      <span class="cv-fact__v"><?= (int)($offers_summary['open'] ?? 0) ?></span>
-      <span class="cv-fact__l">oferty w toku</span>
-    </div>
-    <div class="cv-fact">
-      <span class="cv-fact__v"><?= h(number_format((float)($offers_summary['won_value'] ?? 0), 0, ',', ' ')) ?> zł</span>
-      <span class="cv-fact__l">wygrane oferty</span>
-    </div>
-    <div class="cv-fact">
-      <span class="cv-fact__v">
-        <?= $_last_comm ? h(date_pl($_last_comm['sent_at'])) : '—' ?>
-      </span>
-      <span class="cv-fact__l">
-        ostatni kontakt<?= $_last_comm ? ($_last_comm['direction'] === 'in' ? ' (od klienta)' : ' (od nas)') : '' ?>
-      </span>
-    </div>
-    <div class="cv-fact">
-      <span class="cv-fact__v"><?= count($contact['notes']) ?></span>
-      <span class="cv-fact__l">notatki</span>
-    </div>
+    <?php endforeach; ?>
   </div>
 </div>
 
