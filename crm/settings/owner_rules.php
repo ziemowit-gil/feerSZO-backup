@@ -79,6 +79,12 @@ $owners = crm_owner_candidates();
 $rr_now  = array_map(static fn($u) => (int)$u['id'], crm_owner_roundrobin_users());
 $types   = crm_owner_match_types();
 
+// Działania (projekty) do reguły „per działanie" — wybór z listy zamiast wpisywania ID
+$actions_list = [];
+try {
+    $actions_list = db_all("SELECT id, nazwa, typ, status FROM actions ORDER BY data_od DESC, nazwa LIMIT 200");
+} catch (\Throwable $e) {}
+
 $no_owner = 0;
 try {
     $no_owner = (int)(db_one("SELECT COUNT(*) AS n FROM crm_contacts
@@ -255,6 +261,22 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <input class="form-control form-control-sm" id="mv" name="match_value" maxlength="120"
                  value="<?= h($edit['match_value'] ?? '') ?>" placeholder="np. import_rejestr">
           <div class="ow-hint">Puste tylko dla warunków „Każda kartoteka" i „Krytyczny operacyjnie".</div>
+
+          <?php if ($actions_list): ?>
+          <!-- Przy regule „per działanie" wartością jest ID projektu — wybór z listy
+               jest mniej podatny na pomyłkę niż przepisywanie numeru. -->
+          <div id="mvActionRow" class="mt-2" hidden>
+            <label class="form-label small fw-semibold" for="mvAction">Wybierz działanie</label>
+            <select class="form-select form-select-sm" id="mvAction">
+              <option value="">— wskaż projekt —</option>
+              <?php foreach ($actions_list as $a): ?>
+              <option value="<?= (int)$a['id'] ?>" <?= (string)($edit['match_value'] ?? '') === (string)$a['id'] ? 'selected' : '' ?>>
+                <?= h($a['nazwa']) ?><?= $a['typ'] ? ' · ' . h($a['typ']) : '' ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
         </div>
 
         <div class="mb-2">
@@ -300,5 +322,30 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <?php endif; ?>
   </div>
 </div>
+
+<script>
+/* Warunek „per działanie" korzysta z listy projektów; wybór wpisuje ID do pola
+   wartości, żeby zapis szedł tą samą ścieżką co pozostałe reguły. */
+(function () {
+  var mt  = document.getElementById('mt');
+  var mv  = document.getElementById('mv');
+  var row = document.getElementById('mvActionRow');
+  var sel = document.getElementById('mvAction');
+  if (!mt || !mv) return;
+
+  function sync() {
+    var isAction = mt.value === 'action';
+    if (row) row.hidden = !isAction;
+    var noValue = (mt.value === 'any' || mt.value === 'critical');
+    mv.disabled = noValue;
+    mv.placeholder = noValue ? 'ten warunek nie potrzebuje wartości'
+                   : (isAction ? 'ID działania — wybierz z listy niżej' : 'np. import_rejestr');
+    if (noValue) mv.value = '';
+  }
+  mt.addEventListener('change', sync);
+  if (sel) sel.addEventListener('change', function () { if (this.value) mv.value = this.value; });
+  sync();
+})();
+</script>
 
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>

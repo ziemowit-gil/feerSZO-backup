@@ -50,6 +50,8 @@ function crm_owner_match_types(): array {
         'group'       => ['label' => 'Grupa',             'hint' => 'ID grupy CRM'],
         'tag'         => ['label' => 'Tag',               'hint' => 'dokładna nazwa tagu'],
         'wojewodztwo' => ['label' => 'Województwo',       'hint' => 'np. małopolskie'],
+        'action'      => ['label' => 'Działanie (projekt)', 'hint' => 'ID działania z modułu Działań — łapie kontakty do niego przypisane'],
+        'action_type' => ['label' => 'Typ działania',      'hint' => 'np. szkolenie, konferencja — wszystkie działania tego typu'],
         'critical'    => ['label' => 'Krytyczny operacyjnie', 'hint' => 'bez wartości — łapie oznaczone kontakty'],
         'any'         => ['label' => 'Każda kartoteka',   'hint' => 'reguła zbiorcza — ustaw jej najniższy priorytet'],
     ];
@@ -139,14 +141,38 @@ function crm_owner_match(array $contact, ?array $rules = null): ?array {
                         [$cid, $val]);
                 } catch (\Throwable $e) { $hit = false; }
                 break;
+            // Powiązanie z konkretnym działaniem (projektem) — najczęstszy podział
+            // pracy w organizacji: „uczestników tego projektu prowadzi jego koordynator".
+            case 'action':
+                try {
+                    $hit = (bool)db_one("SELECT 1 FROM crm_action_links WHERE contact_id=? AND action_id=?",
+                        [$cid, (int)$val]);
+                } catch (\Throwable $e) { $hit = false; }
+                break;
+            case 'action_type':
+                try {
+                    $hit = (bool)db_one(
+                        "SELECT 1 FROM crm_action_links cal JOIN actions a ON a.id = cal.action_id
+                          WHERE cal.contact_id=? AND LOWER(a.typ)=LOWER(?) LIMIT 1", [$cid, $val]);
+                } catch (\Throwable $e) { $hit = false; }
+                break;
         }
 
         if ($hit) {
+            // Przy działaniu pokazujemy nazwę, nie ID — notatka „reguła — Działanie: 17"
+            // za pół roku nikomu nic nie powie.
+            $show = $val;
+            if ((string)$r['match_type'] === 'action' && $val !== '') {
+                try {
+                    $a = db_one("SELECT nazwa FROM actions WHERE id=?", [(int)$val]);
+                    if ($a) $show = (string)$a['nazwa'];
+                } catch (\Throwable $e) {}
+            }
             return [
                 'owner_id' => (int)$r['owner_id'],
                 'rule_id'  => (int)$r['id'],
                 'label'    => ($types[$r['match_type']]['label'] ?? $r['match_type'])
-                              . ($val !== '' ? ': ' . $val : ''),
+                              . ($show !== '' ? ': ' . $show : ''),
             ];
         }
     }

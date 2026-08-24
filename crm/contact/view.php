@@ -1997,6 +1997,20 @@ $case_status_cfg = [
           <span class="cv-count"><?= count($contact_offers) ?></span>
         </button>
       </li>
+      <?php /* Osoby kontaktowe to przy firmie druga najczęściej otwierana rzecz po
+               aktywności — schowane w „Dane i powiązania" wymagały dwóch kliknięć. */ ?>
+      <?php if (!empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-persons-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-persons" type="button" role="tab"
+                aria-controls="cv-tab-persons" aria-selected="false">
+          <i class="bi bi-people-fill" aria-hidden="true"></i>Osoby kontaktowe
+          <?php if (!empty($contact['persons'])): ?>
+          <span class="cv-count"><?= count($contact['persons']) ?></span>
+          <?php endif; ?>
+        </button>
+      </li>
+      <?php endif; ?>
       <?php if ($_contracts || $_can_link): ?>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="cv-tab-contracts-btn" data-bs-toggle="tab"
@@ -2061,6 +2075,21 @@ $case_status_cfg = [
       </div>
 
       <!-- ZAKŁADKA: Notatki -->
+      <!-- ZAKŁADKA: Osoby kontaktowe (tylko organizacje, firmy, partnerzy) -->
+      <?php if (!empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+      <div class="tab-pane fade" id="cv-tab-persons" role="tabpanel"
+           aria-labelledby="cv-tab-persons-btn" tabindex="0">
+        <div class="cv-panel" id="persons"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Osoby kontaktowe</h2>
+            <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['persons'] ?? []) ?></span></div>
+          </div>
+          <?= _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+        </div></div>
+      </div>
+      <?php endif; ?>
+
       <!-- ZAKŁADKA: Umowy (odczyt; powiązanie przez person_id/PESEL albo NIP) -->
       <?php if ($_contracts || $_can_link): ?>
       <div class="tab-pane fade" id="cv-tab-contracts" role="tabpanel"
@@ -2294,14 +2323,7 @@ $case_status_cfg = [
       <?= _cv_consents_html($contact, $id, $crm_can_write) ?>
     </div></div>
 
-    <div class="cv-panel" id="persons"><div class="cv-panel__body">
-      <div class="cv-shead">
-        <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
-        <h2 class="cv-shead__title">Osoby kontaktowe</h2>
-        <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['persons'] ?? []) ?></span></div>
-      </div>
-      <?= _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
-    </div></div>
+    <?php /* Osoby kontaktowe mają własną zakładkę (#cv-tab-persons) */ ?>
     <?php endif; ?>
 
     <?php
