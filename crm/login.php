@@ -11,6 +11,12 @@
  * Warstwa CRM-owa zostaje: sprawdzenie uprawnień do modułu, bramka IKA dla kont
  * „tylko CRM" i powrót na host aliasu (crm.feer.org.pl), a nie na szo.feer.org.pl.
  *
+ * WYGLĄD: ta sama powłoka co logowanie do systemu (includes/auth_screen.php) —
+ * pasek dostępności (rozmiar tekstu, wysoki kontrast), tło marki z geometrią,
+ * biała karta i te same kontrolki. Wcześniej ekran miał własny arkusz stylów
+ * i wyglądał jak inna aplikacja, choć uwierzytelnia dokładnie tak samo; każda
+ * poprawka wyglądu albo dostępności trzeba było robić dwa razy.
+ *
  * WCAG: etykiety powiązane z polami, komunikat błędu jako role="alert",
  * widoczny fokus, obsługa klawiaturą, kontrast tekstu na tle marki.
  */
@@ -149,172 +155,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Logowanie do CRM — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
-<style>
-*, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
-body {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #F6F7F9; color: #111827;
-  display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;
-}
 
-/* Jedna karta na spokojnym tle — bez wielkiego panelu marketingowego z lewej */
-.cl-card { width: 100%; max-width: 420px; }
-.cl-brand { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.4rem; }
-.cl-brand-icon {
-  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
-  background: var(--c, #2E844A); color: #fff;
-  display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
-}
-.cl-brand-name { font-size: 1.05rem; font-weight: 800; letter-spacing: .2px; }
-.cl-brand-org  { font-size: .78rem; color: #6B7280; }
-
-.cl-box { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 1.5rem; }
-.cl-h1  { font-size: 1.15rem; font-weight: 700; margin: 0 0 .25rem; }
-.cl-sub { font-size: .84rem; color: #6B7280; margin: 0 0 1.15rem; }
-
-.cl-err {
-  display: flex; gap: .5rem; align-items: flex-start;
-  background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B;
-  border-radius: 10px; padding: .6rem .75rem; font-size: .82rem; margin-bottom: 1rem;
-}
-
-.cl-ms {
-  display: flex; align-items: center; justify-content: center; gap: .5rem;
-  width: 100%; height: 44px; border-radius: 10px; border: 1px solid #E5E7EB;
-  background: #fff; color: #111827; font-size: .9rem; font-weight: 600;
-  text-decoration: none; cursor: pointer; transition: background .12s, border-color .12s;
-}
-.cl-ms:hover { background: #F3F4F6; border-color: #D1D5DB; }
-.cl-ms img { width: 18px; height: 18px; }
-
-.cl-or { display: flex; align-items: center; gap: .75rem; margin: 1.1rem 0; }
-.cl-or::before, .cl-or::after { content: ''; flex: 1; height: 1px; background: #E5E7EB; }
-.cl-or span { font-size: .73rem; color: #9CA3AF; white-space: nowrap; }
-
-.cl-lbl { display: block; font-size: .78rem; font-weight: 600; color: #374151; margin-bottom: .3rem; }
-.cl-in {
-  width: 100%; height: 42px; padding: 0 .8rem; font-size: .9rem; color: #111827;
-  border: 1px solid #E5E7EB; border-radius: 10px; background: #fff;
-}
-.cl-in:focus { border-color: var(--c, #2E844A); box-shadow: 0 0 0 3px rgba(46,132,74,.14); outline: none; }
-.cl-row { margin-bottom: .9rem; position: relative; }
-.cl-hint { font-size: .74rem; color: #9CA3AF; margin-top: .3rem; line-height: 1.45; }
-.cl-eye {
-  position: absolute; right: .4rem; top: 26px; height: 34px; width: 34px;
-  border: 0; background: transparent; color: #9CA3AF; cursor: pointer; border-radius: 8px;
-}
-.cl-eye:hover { color: #374151; background: #F3F4F6; }
-
-.cl-btn {
-  width: 100%; height: 44px; border: 0; border-radius: 10px;
-  background: var(--c, #2E844A); color: #fff; font-size: .92rem; font-weight: 700; cursor: pointer;
-}
-.cl-btn:hover { filter: brightness(1.06); }
-.cl-btn:focus-visible, .cl-ms:focus-visible, .cl-in:focus-visible { outline: 3px solid var(--c, #2E844A); outline-offset: 2px; }
-
-.cl-foot { margin-top: 1rem; font-size: .78rem; color: #9CA3AF; display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
-.cl-foot a { color: #6B7280; text-decoration: none; }
-.cl-foot a:hover { color: #111827; text-decoration: underline; }
-.cl-note { margin-top: 1.1rem; font-size: .75rem; color: #9CA3AF; line-height: 1.55; }
-</style>
-</head>
-<body>
-<main class="cl-card">
-
-  <div class="cl-brand">
-    <div class="cl-brand-icon" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></div>
-    <div>
-      <div class="cl-brand-name">CRM</div>
-      <div class="cl-brand-org"><?= h($org_name) ?></div>
-    </div>
-  </div>
-
-  <div class="cl-box">
-    <h1 class="cl-h1">Zaloguj się</h1>
-    <p class="cl-sub">Kontakty, sprawy, oferty i korespondencja organizacji.</p>
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
+auth_screen_head([
+    'title'     => 'Logowanie do CRM',
+    'tab'       => '',            // CRM nie ma rejestracji — zakładki byłyby ślepą uliczką
+    'bootstrap' => true,
+    'main_id'   => 'crm-login-main',
+]);
+?>
 
     <?php if ($error): ?>
-    <div class="cl-err" role="alert">
-      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+    <div class="l-alert l-alert-danger" role="alert">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
       <span><?= h($error) ?></span>
     </div>
     <?php endif; ?>
 
+    <h1 class="ks-h1">CRM <?= h($org_name) ?></h1>
+    <p class="ks-lead">Kontakty, sprawy, oferty i korespondencja organizacji.</p>
+
     <?php if ($ms_available): ?>
-    <a class="cl-ms" href="<?= h($ms_url) ?>">
-      <i class="bi bi-microsoft" aria-hidden="true"></i>Zaloguj przez Microsoft 365
+    <a href="<?= h($ms_url) ?>" class="ks-btn ks-btn--ghost"
+       aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
+        <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
+        <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+      </svg>
+      Zaloguj przez Microsoft 365
     </a>
-    <p class="cl-hint" style="text-align:center;margin-top:.5rem">
+    <p class="ks-hint">
       Konta służbowe <strong>@<?= h($org_domain) ?></strong> logują się wyłącznie tą drogą.
     </p>
-    <div class="cl-or"><span>albo e-mailem i hasłem</span></div>
+    <div class="ks-or"><span>lub e-mailem i hasłem</span></div>
     <?php endif; ?>
 
-    <form method="post" autocomplete="on" novalidate>
+    <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-      <div class="cl-row">
-        <label class="cl-lbl" for="email">Adres e-mail</label>
-        <input type="email" class="cl-in" name="email" id="email" required
-               autocomplete="email" placeholder="nazwa@domena.pl"
+      <div class="ks-field">
+        <label for="f-email">Adres e-mail</label>
+        <input type="email" name="email" id="f-email" class="form-control"
+               autocomplete="email" inputmode="email" required
                value="<?= h($_POST['email'] ?? '') ?>"
-               aria-describedby="emailHint" <?= $ms_available ? '' : 'autofocus' ?>>
-        <div class="cl-hint" id="emailHint">
+               aria-describedby="emailHint"
+               <?= $ms_available ? '' : 'autofocus' ?>
+               <?= $error ? 'aria-invalid="true"' : '' ?>>
+        <p class="ks-fieldhint" id="emailHint">
           Adres prywatny podany przy współpracy z fundacją albo konto z hasłem awaryjnym.
+        </p>
+      </div>
+
+      <div class="ks-field">
+        <label for="f-pass">Hasło</label>
+        <div class="pass-wrap">
+          <input type="password" name="password" id="f-pass" class="form-control"
+                 autocomplete="current-password" required
+                 <?= $error ? 'aria-invalid="true"' : '' ?>>
+          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
+                  onclick="togglePass('f-pass', this)">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+          </button>
         </div>
+        <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-forgot">Nie pamiętasz hasła?</a>
       </div>
 
-      <div class="cl-row">
-        <label class="cl-lbl" for="password">Hasło</label>
-        <input type="password" class="cl-in" name="password" id="password" required
-               autocomplete="current-password" style="padding-right:2.6rem">
-        <button type="button" class="cl-eye" id="eyeBtn" aria-label="Pokaż hasło">
-          <i class="bi bi-eye" aria-hidden="true"></i>
-        </button>
-      </div>
-
-      <button type="submit" class="cl-btn">
-        <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj
-      </button>
+      <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
     </form>
 
-    <div class="cl-foot">
-      <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-key me-1" aria-hidden="true"></i>Nie pamiętam hasła</a>
-      <a href="<?= APP_URL ?>/tozsamosc/index.php"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Moja tożsamość</a>
-      <?php if (!CRM_STANDALONE): ?>
-      <a href="<?= APP_URL ?>/auth/login.php"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Logowanie systemowe</a>
-      <?php endif; ?>
-    </div>
-  </div>
+    <hr class="ks-sep">
 
-  <p class="cl-note">
-    Logowanie chronione tak samo jak w całym systemie: blokada po serii nieudanych prób,
-    drugi składnik (2FA) i klucz sprzętowy dla ról administracyjnych.
-  </p>
+    <p class="ks-hint">
+      Logowanie chronione tak samo jak w całym systemie: blokada po serii nieudanych prób,
+      drugi składnik (2FA) i klucz sprzętowy dla ról administracyjnych.
+    </p>
 
-</main>
-
-<script>
-// Podgląd hasła — bez inline onclick, żeby CSP nie musiała go dopuszczać
-(function () {
-  var b = document.getElementById('eyeBtn'), i = document.getElementById('password');
-  if (!b || !i) return;
-  b.addEventListener('click', function () {
-    var show = i.type === 'password';
-    i.type = show ? 'text' : 'password';
-    b.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-    b.setAttribute('aria-label', show ? 'Ukryj hasło' : 'Pokaż hasło');
-  });
-})();
-</script>
-</body>
-</html>
+<?php
+// Odnośniki pod kartą — te same, które ekran miał w stopce, w powłoce systemowej
+$_crm_links = [
+    ['url' => APP_URL . '/tozsamosc/index.php', 'label' => 'Moja tożsamość', 'icon' => 'bi-person-vcard'],
+    ['url' => APP_URL . '/user/verify_reset.php', 'label' => 'Odzyskaj dostęp', 'icon' => 'bi-key'],
+];
+if (!CRM_STANDALONE) {
+    $_crm_links[] = ['url' => APP_URL . '/auth/login.php', 'label' => 'Logowanie systemowe', 'icon' => 'bi-box-arrow-in-right'];
+}
+auth_screen_foot(['links' => $_crm_links]);
