@@ -63,9 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$edit_id = (int)($_GET['edit'] ?? 0);
-$edit    = $edit_id ? crm_workflow($edit_id) : null;
-if ($edit && !crm_workflow_can_edit($edit)) { $edit = null; $edit_id = 0; }
+// ?edit=new (nowy) albo ?edit=<id> (istniejący). Rzutowanie 'new' na int dawało 0
+// i formularz w ogóle się nie renderował — przycisk „Nowy przepływ" wyglądał na martwy.
+$edit_param = trim((string)($_GET['edit'] ?? ''));
+$edit_id    = ctype_digit($edit_param) ? (int)$edit_param : 0;
+$edit       = $edit_id ? crm_workflow($edit_id) : null;
+if ($edit && !crm_workflow_can_edit($edit)) { $edit = null; $edit_id = 0; $edit_param = ''; }
+$show_form  = $edit_param !== '' && ($edit_id === 0 || $edit !== null);
 $edit_steps = $edit ? crm_workflow_steps($edit) : [];
 
 $rows = crm_workflows_for($uid, false);
@@ -88,7 +92,8 @@ include __DIR__ . '/includes/header_crm.php';
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h1 class="h5 fw-bold mb-0"><i class="bi bi-diagram-3 me-2" style="color:#0176D3"></i>Przepływy</h1>
   <span class="text-muted small">szablony akcji — jedno kliknięcie zamiast pięciu formularzy</span>
-  <a class="btn btn-crm-primary btn-sm ms-auto" href="?edit=new"><i class="bi bi-plus-lg me-1"></i>Nowy przepływ</a>
+  <a class="btn btn-crm-primary btn-sm ms-auto" href="<?= APP_URL ?>/crm/workflows.php?edit=new">
+    <i class="bi bi-plus-lg me-1"></i>Nowy przepływ</a>
 </div>
 
 <div class="row g-3">
@@ -148,7 +153,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <div class="col-lg-5">
-    <?php if ($edit_id): ?>
+    <?php if ($show_form): ?>
     <div class="wf-card">
       <h2 class="h6 fw-bold mb-2"><?= $edit ? 'Edycja przepływu' : 'Nowy przepływ' ?></h2>
       <form method="post" id="wfForm">
@@ -169,7 +174,7 @@ include __DIR__ . '/includes/header_crm.php';
 
         <div class="mb-1 d-flex align-items-center">
           <span class="form-label small fw-semibold mb-0">Kroki</span>
-          <button type="button" class="btn btn-link btn-sm ms-auto p-0" onclick="wfAddStep()">
+          <button type="button" class="btn btn-link btn-sm ms-auto p-0" id="wfAddBtn">
             <i class="bi bi-plus-lg"></i> dodaj krok
           </button>
         </div>
@@ -248,8 +253,19 @@ function wfAddStep(step) {
 
 (function () {
   if (!document.getElementById('wfSteps')) return;
+  var add = document.getElementById('wfAddBtn');
+  if (add) add.addEventListener('click', function () { wfAddStep(); });
+
   if (WF_INIT.length) WF_INIT.forEach(function (s) { wfAddStep(s); });
   else { wfAddStep({type: 'contact', title: '{tytul}'}); wfAddStep({type: 'task', title: 'Zadzwonić do {kontakt}'}); }
+
+  // Bez kroku nie ma czego zapisywać — mówimy to od razu, a nie dopiero po POST
+  document.getElementById('wfForm').addEventListener('submit', function (e) {
+    if (!document.querySelectorAll('#wfSteps .wf-row').length) {
+      e.preventDefault();
+      alert('Dodaj przynajmniej jeden krok — przepływ bez kroków nic nie zrobi.');
+    }
+  });
 })();
 </script>
 
