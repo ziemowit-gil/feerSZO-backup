@@ -292,6 +292,24 @@ body {
   margin-left: 0;
 }
 
+/* ══ SZYBKIE AKCJE (makra) ═══════════════════════════════════════════ */
+.crm-macros { display:flex; align-items:center; gap:.25rem; margin-right:.35rem }
+.crm-macro {
+  display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .6rem;
+  border-radius:8px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.12);
+  color:#fff; font-size:.78rem; font-weight:500; text-decoration:none; white-space:nowrap;
+  cursor:pointer; transition:background .12s, border-color .12s;
+}
+.crm-macro:hover { background:rgba(255,255,255,.22); border-color:rgba(255,255,255,.6); color:#fff }
+.crm-macro:focus-visible { outline:2px solid #fff; outline-offset:1px }
+.crm-macro i { font-size:.85rem }
+/* W pasku (ciemne tło) ikony kolorowe gasną — wymuszamy biel, kolor zostaje w menu */
+.crm-macro i[style] { color:#fff !important }
+.crm-macro--new { background:rgba(255,255,255,.9); color:var(--crm-primary); border-color:transparent; font-weight:600 }
+.crm-macro--new:hover { background:#fff; color:var(--crm-primary) }
+.crm-macro--new i[style] { color:var(--crm-primary) !important }
+@media (max-width: 991px) { .crm-macros .crm-macro:not(.crm-macro--new) { display:none } }
+
 /* ══ TRYB PEŁNOEKRANOWY ══════════════════════════════════════════════ */
 body.crm-fullscreen .crm-content { max-width: 100%; }
 
@@ -463,6 +481,63 @@ window.openCommModal = function(contactId, channel) {
       <i class="bi bi-gear-fill"></i><span class="d-none d-lg-inline">Ustawienia</span>
     </a>
     <?php endif; ?>
+    <?php /* Szybkie akcje: przypięte makra + menu „Nowe". Zestaw przypiętych
+             wybiera sobie KAŻDY UŻYTKOWNIK (includes/crm_macros.php). */
+      require_once dirname(dirname(__DIR__)) . '/includes/crm_macros.php';
+      $_macro_cat    = crm_macros_catalog();
+      $_macro_pinned = crm_macros_user();
+    ?>
+    <?php if ($_cu && $_macro_cat): ?>
+    <div class="crm-macros">
+      <?php foreach ($_macro_pinned as $mk): $m = $_macro_cat[$mk]; ?>
+      <?php if ($m['kind'] === 'link'): ?>
+      <a class="crm-macro" href="<?= APP_URL . h($m['href']) ?>" title="<?= h($m['title']) ?>">
+        <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>" aria-hidden="true"></i>
+        <span class="d-none d-xl-inline"><?= h($m['label']) ?></span>
+      </a>
+      <?php else: ?>
+      <button type="button" class="crm-macro" title="<?= h($m['title']) ?>"
+              onclick="CrmQuick.open('<?= h($m['type']) ?>')">
+        <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>" aria-hidden="true"></i>
+        <span class="d-none d-xl-inline"><?= h($m['label']) ?></span>
+      </button>
+      <?php endif; ?>
+      <?php endforeach; ?>
+
+      <div class="dropdown">
+        <button type="button" class="crm-macro crm-macro--new" data-bs-toggle="dropdown"
+                aria-expanded="false" title="Szybko dodaj kontakt, notatkę, sprawę albo zadanie">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i><span class="d-none d-lg-inline">Nowe</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:250px;font-size:.85rem">
+          <?php foreach ($_macro_cat as $m): ?>
+          <li>
+            <?php if ($m['kind'] === 'link'): ?>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="<?= APP_URL . h($m['href']) ?>"
+               title="<?= h($m['title']) ?>">
+              <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>"></i><?= h($m['label']) ?>
+            </a>
+            <?php else: ?>
+            <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                    title="<?= h($m['title']) ?>" onclick="CrmQuick.open('<?= h($m['type']) ?>')">
+              <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>"></i><?= h($m['label']) ?>
+            </button>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+          <li><hr class="dropdown-divider my-1"></li>
+          <li>
+            <button type="button" class="dropdown-item d-flex align-items-center gap-2 text-muted"
+                    data-bs-toggle="modal" data-bs-target="#crmMacroModal"
+                    title="Wybierz, które akcje mają być przyciskami w pasku">
+              <i class="bi bi-sliders"></i>Dostosuj przyciski…
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php $msw_active='crm'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
@@ -495,6 +570,263 @@ window.openCommModal = function(contactId, channel) {
   </div>
 
 </header>
+
+<?php if ($_cu && !empty($_macro_cat)): ?>
+<!-- ══ Szybkie tworzenie ═══════════════════════════════════════════════════ -->
+<div class="modal fade" id="crmQuickModal" tabindex="-1" aria-labelledby="crmQuickTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 fw-bold" id="crmQuickTitle">Szybkie dodawanie</h2>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <div class="btn-group btn-group-sm w-100 mb-3" role="group" aria-label="Rodzaj wpisu" id="crmQuickTabs"></div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-semibold" for="crmQuickTitleInput" id="crmQuickLabel">Nazwa</label>
+          <input type="text" class="form-control form-control-sm" id="crmQuickTitleInput" autocomplete="off">
+        </div>
+
+        <div class="mb-2 d-none" id="crmQuickEmailRow">
+          <label class="form-label small fw-semibold" for="crmQuickEmail">E-mail (opcjonalnie)</label>
+          <input type="email" class="form-control form-control-sm" id="crmQuickEmail" autocomplete="off">
+        </div>
+
+        <div class="mb-2 d-none" id="crmQuickContactRow">
+          <label class="form-label small fw-semibold" for="crmQuickContact">Kontakt</label>
+          <input type="text" class="form-control form-control-sm" id="crmQuickContact"
+                 placeholder="Zacznij pisać nazwę kontaktu…" autocomplete="off">
+          <div id="crmQuickContactHits" class="list-group mt-1" style="max-height:170px;overflow-y:auto"></div>
+          <div class="form-text" id="crmQuickContactPicked"></div>
+        </div>
+
+        <div class="mb-2 d-none" id="crmQuickListRow">
+          <label class="form-label small fw-semibold" for="crmQuickList">Lista zadań</label>
+          <select class="form-select form-select-sm" id="crmQuickList"></select>
+        </div>
+
+        <div class="alert alert-danger py-1 px-2 small d-none" id="crmQuickErr" role="alert"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-crm-primary btn-sm" id="crmQuickSave">
+          <i class="bi bi-check-lg me-1"></i>Zapisz i otwórz
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Dostosowanie przycisków (per użytkownik) ════════════════════════════ -->
+<div class="modal fade" id="crmMacroModal" tabindex="-1" aria-labelledby="crmMacroTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 fw-bold" id="crmMacroTitle">Twoje przyciski szybkich akcji</h2>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">
+          Zaznaczone akcje siedzą w pasku jako przyciski. Reszta zostaje w menu „Nowe" —
+          nic nie znika, zmienia się tylko to, co masz pod ręką. Ustawienie jest Twoje,
+          nie wpływa na innych.
+        </p>
+        <?php foreach ($_macro_cat as $m): ?>
+        <div class="form-check">
+          <input class="form-check-input crm-macro-pick" type="checkbox" value="<?= h($m['key']) ?>"
+                 id="mac_<?= h($m['key']) ?>" <?= in_array($m['key'], $_macro_pinned, true) ? 'checked' : '' ?>>
+          <label class="form-check-label d-flex align-items-center gap-2" for="mac_<?= h($m['key']) ?>">
+            <i class="bi <?= h($m['icon']) ?>" style="color:<?= h($m['color']) ?>"></i>
+            <span><?= h($m['label']) ?>
+              <span class="text-muted d-block" style="font-size:.75rem"><?= h($m['title']) ?></span>
+            </span>
+          </label>
+        </div>
+        <?php endforeach; ?>
+        <div class="alert alert-danger py-1 px-2 small d-none mt-2" id="crmMacroErr" role="alert"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-crm-primary btn-sm" id="crmMacroSave">
+          <i class="bi bi-check-lg me-1"></i>Zapisz
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Szybkie dodawanie: jedno okno dla kontaktu, notatki, sprawy i zadania.
+   Zakładamy minimum — resztę użytkownik uzupełni na karcie, którą otwieramy. */
+window.CrmQuick = (function () {
+  var BASE  = <?= json_encode(rtrim(APP_URL, '/')) ?>;
+  var CSRF  = <?= json_encode(csrf_token()) ?>;
+  var TYPES = {
+    contact: {label: 'Kontakt', field: 'Imię i nazwisko / nazwa', contact: false, email: true,  list: false},
+    note:    {label: 'Notatka', field: 'Treść notatki',           contact: true,  email: false, list: false},
+    'case':  {label: 'Sprawa',  field: 'Tytuł sprawy',            contact: true,  email: false, list: false},
+    task:    {label: 'Zadanie', field: 'Co jest do zrobienia',    contact: false, email: false, list: true}
+  };
+  var cur = 'contact', contactId = 0, listsLoaded = false, modal = null;
+
+  function el(id) { return document.getElementById(id); }
+  function err(msg) {
+    var e = el('crmQuickErr');
+    if (!msg) { e.classList.add('d-none'); e.textContent = ''; return; }
+    e.textContent = msg; e.classList.remove('d-none');
+  }
+
+  function paintTabs() {
+    el('crmQuickTabs').innerHTML = Object.keys(TYPES).map(function (k) {
+      return '<button type="button" class="btn btn-outline-secondary' + (k === cur ? ' active' : '') +
+             '" data-t="' + k + '">' + TYPES[k].label + '</button>';
+    }).join('');
+    el('crmQuickTabs').querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () { setType(this.dataset.t); });
+    });
+  }
+
+  function setType(t) {
+    cur = TYPES[t] ? t : 'contact';
+    var c = TYPES[cur];
+    paintTabs();
+    err('');
+    el('crmQuickLabel').textContent = c.field;
+    el('crmQuickTitleInput').placeholder = c.field + '…';
+    el('crmQuickEmailRow').classList.toggle('d-none', !c.email);
+    el('crmQuickContactRow').classList.toggle('d-none', !c.contact);
+    el('crmQuickListRow').classList.toggle('d-none', !c.list);
+    if (c.list && !listsLoaded) loadLists();
+    el('crmQuickTitleInput').focus();
+  }
+
+  function loadLists() {
+    fetch(BASE + '/crm/api/quick_create.php?a=task_lists')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        listsLoaded = true;
+        el('crmQuickList').innerHTML = (d.items || []).map(function (i) {
+          return '<option value="' + i.list_id + '">' + i.label.replace(/</g, '&lt;') + '</option>';
+        }).join('') || '<option value="">— brak list zadań —</option>';
+      })
+      .catch(function () { listsLoaded = true; });
+  }
+
+  /* Kontakt wybieramy z podpowiedzi — notatka i sprawa muszą wisieć przy kartotece */
+  var tmr = null;
+  function bindContact() {
+    var input = el('crmQuickContact'), hits = el('crmQuickContactHits');
+    input.addEventListener('input', function () {
+      contactId = 0; el('crmQuickContactPicked').textContent = '';
+      var q = this.value.trim();
+      clearTimeout(tmr);
+      if (q.length < 2) { hits.innerHTML = ''; return; }
+      tmr = setTimeout(function () {
+        fetch(BASE + '/crm/api/contacts_search.php?q=' + encodeURIComponent(q) + '&limit=8')
+          .then(function (r) { return r.json(); })
+          .then(function (rows) {
+            hits.innerHTML = (rows || []).map(function (c) {
+              return '<button type="button" class="list-group-item list-group-item-action py-1" ' +
+                     'data-id="' + c.id + '" data-name="' + String(c.name).replace(/"/g, '&quot;') + '">' +
+                     String(c.name).replace(/</g, '&lt;') +
+                     (c.email ? ' <span class="text-muted small">' + String(c.email).replace(/</g, '&lt;') + '</span>' : '') +
+                     '</button>';
+            }).join('');
+            hits.querySelectorAll('button').forEach(function (b) {
+              b.addEventListener('click', function () {
+                contactId = parseInt(this.dataset.id, 10);
+                input.value = this.dataset.name;
+                hits.innerHTML = '';
+                el('crmQuickContactPicked').textContent = 'Wybrano: ' + this.dataset.name;
+              });
+            });
+          })
+          .catch(function () {});
+      }, 250);
+    });
+  }
+
+  function save() {
+    var btn = el('crmQuickSave');
+    var payload = {
+      _csrf: CSRF, type: cur,
+      title: el('crmQuickTitleInput').value.trim(),
+      email: el('crmQuickEmail').value.trim(),
+      contact_id: contactId,
+      list_id: parseInt(el('crmQuickList').value || '0', 10)
+    };
+    if (!payload.title) { err('Wpisz treść — bez tego nie ma czego zapisać.'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zapisuję…';
+    fetch(BASE + '/crm/api/quick_create.php', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Zapisz i otwórz';
+        if (d.ok) { window.location.href = d.url; return; }
+        err(d.error || 'Nie udało się zapisać.');
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Zapisz i otwórz';
+        err('Błąd połączenia.');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    bindContact();
+    el('crmQuickSave').addEventListener('click', save);
+    el('crmQuickTitleInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+    });
+
+    // Zapis wyboru przypiętych przycisków
+    var ms = el('crmMacroSave');
+    if (ms) ms.addEventListener('click', function () {
+      var keys = Array.prototype.slice.call(document.querySelectorAll('.crm-macro-pick:checked'))
+                      .map(function (c) { return c.value; });
+      ms.disabled = true;
+      fetch(BASE + '/crm/api/macros.php', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({_csrf: CSRF, keys: keys})
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          ms.disabled = false;
+          if (d.ok) { window.location.reload(); return; }
+          var e = el('crmMacroErr');
+          e.textContent = d.error || 'Nie udało się zapisać.'; e.classList.remove('d-none');
+        })
+        .catch(function () {
+          ms.disabled = false;
+          var e = el('crmMacroErr');
+          e.textContent = 'Błąd połączenia.'; e.classList.remove('d-none');
+        });
+    });
+  });
+
+  return {
+    open: function (type) {
+      modal = modal || new bootstrap.Modal(document.getElementById('crmQuickModal'));
+      el('crmQuickTitleInput').value = '';
+      el('crmQuickEmail').value = '';
+      el('crmQuickContact').value = '';
+      el('crmQuickContactHits').innerHTML = '';
+      el('crmQuickContactPicked').textContent = '';
+      contactId = 0;
+      setType(type);
+      modal.show();
+      setTimeout(function () { el('crmQuickTitleInput').focus(); }, 200);
+    }
+  };
+})();
+</script>
+<?php endif; ?>
+
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 <?php $ASAI_WIDGET_SCOPE = 'crm';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
