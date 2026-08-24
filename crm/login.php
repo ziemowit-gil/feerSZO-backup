@@ -53,6 +53,49 @@ $ms_url       = $ms_available ? ms_auth_url($redirect) : '';
 
 $error = (string)($_GET['e'] ?? '');   // komunikat z powrotu z /auth/ms365.php
 
+/* Rozjazd dla kogoś, kto tu zabłądził.
+   crm.feer.org.pl łatwo trafić z wyszukiwarki, ze starego odnośnika albo przez
+   pomyłkę z adresem strony fundacji. Taka osoba widziała dotąd wyłącznie przycisk
+   logowania, którego nie ma jak użyć — czyli ślepy zaułek. Poniżej są miejsca,
+   w które najczęściej zmierzała naprawdę; adresy budujemy na APP_URL, bo z aliasu
+   crm.* pozostałe moduły nie są dostępne. */
+$_public_site = 'https://feer.org.pl';
+$_lost_links  = [
+    [
+        'url'   => $_public_site,
+        'icon'  => 'bi-globe2',
+        'label' => 'Strona Fundacji FEER',
+        'desc'  => 'Informacje o działalności, kontakt, aktualności',
+    ],
+    [
+        'url'   => APP_URL . '/panel/index.php',
+        'icon'  => 'bi-person-heart',
+        'label' => 'Panel wolontariusza i współpracownika',
+        'desc'  => 'Umowy, zadania, godziny, zaświadczenia',
+    ],
+    [
+        'url'   => APP_URL . '/karty30/ti/kursant/index.php',
+        'icon'  => 'bi-mortarboard',
+        'label' => 'Panel kursanta',
+        'desc'  => 'Zajęcia, materiały, oceny i rozliczenia',
+    ],
+    [
+        'url'   => APP_URL . '/karty30/ti/dydaktyk/login.php',
+        'icon'  => 'bi-easel2',
+        'label' => 'Panel prowadzącego',
+        'desc'  => 'Lekcje, obecności, dziennik ocen',
+    ],
+];
+try {
+    require_once dirname(__DIR__) . '/includes/webmail_clients.php';
+    $_lost_links[] = [
+        'url'   => webmail_chooser_url(),
+        'icon'  => 'bi-envelope',
+        'label' => 'Poczta',
+        'desc'  => 'Skrzynka w domenie ' . $org_domain,
+    ];
+} catch (\Throwable $e) {}
+
 /* Logowanie hasłem zostało z tego ekranu USUNIĘTE (nie schowane): formularz, który
    tylko nie jest wyświetlany, nadal przyjmuje POST i bywa znajdowany. Cała ścieżka
    `password_verify`, bramka IKA i 2FA żyją w torze systemowym — tu nie ma czego
@@ -75,7 +118,13 @@ auth_screen_head([
     <?php endif; ?>
 
     <h1 class="ks-h1">CRM <?= h($org_name) ?></h1>
-    <p class="ks-lead">Kontakty, sprawy, oferty i korespondencja organizacji.</p>
+    <?php /* Pierwsze zdanie musi odpowiedzieć „gdzie ja jestem", bo część osób
+             trafia tu przypadkiem. Dopiero drugie mówi, dla kogo to narzędzie. */ ?>
+    <p class="ks-lead">
+      Wewnętrzne narzędzie zespołu Fundacji: kontakty, sprawy, oferty i korespondencja.
+      <br><span class="crm-lead-note">Dostęp mają wyłącznie osoby z kontem służbowym
+      w domenie <strong>@<?= h($org_domain) ?></strong>.</span>
+    </p>
 
     <?php if ($ms_available): ?>
     <a href="<?= h($ms_url) ?>" class="ks-btn ks-btn--primary"
@@ -86,21 +135,13 @@ auth_screen_head([
       </svg>
       Zaloguj przez Microsoft 365
     </a>
+    <?php /* Jeden akapit zamiast dwóch: strona obsługuje teraz dwie osoby naraz —
+             tę z kontem i tę zabłąkaną. Dłuższy wykład o politykach Entra ID odsuwał
+             rozjazd poniżej krawędzi ekranu, a osobie z kontem nie mówił nic nowego. */ ?>
     <p class="ks-hint">
-      To jedyna droga do CRM — modułu nie da się otworzyć e-mailem i hasłem.
-      Dostęp, zmiana hasła i drugi składnik są po stronie konta
-      <strong>@<?= h($org_domain) ?></strong>.
-    </p>
-
-    <hr class="ks-sep">
-
-    <p class="ks-hint">
-      <?php /* Dlaczego akurat tu bez hasła: CRM trzyma dane osobowe kontaktów, zgody
-               i korespondencję. Konto lokalne omijałoby polityki Entra ID, w tym
-               odcięcie dostępu w dniu zakończenia współpracy. */ ?>
-      CRM trzyma dane osobowe, zgody i korespondencję, dlatego dostęp jest pod kontrolą
-      Microsoft 365: wieloskładnikowe logowanie, polityki organizacji i natychmiastowe
-      odcięcie konta po zakończeniu współpracy.
+      To jedyna droga do CRM — hasłem się tu nie wejdzie. Logowanie, jego drugi składnik
+      i odebranie dostępu dzieją się po stronie konta <strong>@<?= h($org_domain) ?></strong>,
+      bo moduł trzyma dane osobowe, zgody i korespondencję.
     </p>
 
     <?php else: ?>
@@ -123,6 +164,56 @@ auth_screen_head([
       <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Logowanie systemowe
     </a>
     <?php endif; ?>
+
+    <hr class="ks-sep">
+
+    <?php /* Rozjazd. Świadomie POD przyciskiem logowania i wizualnie spokojniejszy:
+             osoba z kontem ma tu nie zgubić swojej ścieżki, a zabłąkana ma znaleźć
+             swoją bez pytania kogokolwiek. */ ?>
+    <h2 class="crm-lost-h">Szukasz czegoś innego?</h2>
+    <p class="crm-lost-sub">
+      Ten adres to narzędzie do pracy zespołu. Jeśli trafiłeś tu z wyszukiwarki
+      albo starego odnośnika, prawdopodobnie chodziło o jedno z tych miejsc:
+    </p>
+    <ul class="crm-lost">
+      <?php foreach ($_lost_links as $l): ?>
+      <li>
+        <a href="<?= h($l['url']) ?>">
+          <i class="bi <?= h($l['icon']) ?>" aria-hidden="true"></i>
+          <span>
+            <strong><?= h($l['label']) ?></strong>
+            <span class="crm-lost-desc"><?= h($l['desc']) ?></span>
+          </span>
+          <i class="bi bi-chevron-right crm-lost-arr" aria-hidden="true"></i>
+        </a>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+
+    <p class="ks-hint">
+      Nie wiesz, dokąd Ci się spieszy? Napisz na
+      <a href="mailto:biuro@<?= h($org_domain) ?>">biuro@<?= h($org_domain) ?></a> —
+      wskażemy właściwe miejsce.
+    </p>
+
+<style>
+/* Rozjazd „to nie tutaj" — utrzymany w języku powłoki logowania (ks-*), ale
+   celowo cichszy od przycisku logowania: to podpowiedź, nie główna akcja. */
+.crm-lead-note{display:inline-block;margin-top:.35rem;font-size:.85rem;color:var(--ks-muted)}
+.crm-lost-h{font-size:1rem;font-weight:700;text-align:center;margin:0 0 .35rem;color:var(--ks-ink)}
+.crm-lost-sub{text-align:center;font-size:.85rem;color:var(--ks-muted);line-height:1.55;margin:0 0 1.1rem}
+.crm-lost{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.crm-lost a{
+  display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border:1px solid var(--ks-line);
+  border-radius:10px;text-decoration:none;color:var(--ks-ink);background:#fff;transition:border-color .12s,background .12s;
+}
+.crm-lost a:hover,.crm-lost a:focus{border-color:var(--ks);background:#fafafa}
+.crm-lost i:first-child{font-size:1.05rem;color:var(--ks);flex-shrink:0}
+.crm-lost strong{display:block;font-size:.9rem;font-weight:600;line-height:1.3}
+.crm-lost-desc{display:block;font-size:.78rem;color:var(--ks-muted);line-height:1.4}
+.crm-lost-arr{margin-left:auto;font-size:.8rem;color:var(--ks-muted)}
+html[data-theme="hc"] .crm-lost a{border:2px solid #000}
+</style>
 
 <?php
 // Odnośniki pod kartą — te same, które ekran miał w stopce, w powłoce systemowej
