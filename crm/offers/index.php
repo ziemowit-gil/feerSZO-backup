@@ -160,7 +160,7 @@ $qs = static function (array $over = []) use ($search, $status_f, $owner_f, $con
 </div>
 
 <!-- Filtry -->
-<form method="get" class="card border-0 shadow-sm mb-3"><div class="card-body py-2">
+<form method="get" class="card mb-3"><div class="card-body py-2">
   <?php if ($status_f !== ''): ?><input type="hidden" name="status" value="<?= h($status_f) ?>"><?php endif; ?>
   <?php if ($mine): ?><input type="hidden" name="mine" value="1"><?php endif; ?>
   <div class="row g-2 align-items-center">
@@ -196,7 +196,7 @@ $qs = static function (array $over = []) use ($search, $status_f, $owner_f, $con
 </div></form>
 
 <!-- Lista -->
-<div class="card shadow-sm">
+<div class="card">
 <?php if (!$rows): ?>
   <div class="text-center py-5">
     <i class="bi bi-file-earmark-ruled display-4 text-secondary opacity-25 d-block mb-3"></i>

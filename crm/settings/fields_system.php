@@ -89,7 +89,7 @@ require_once __DIR__ . '/_nav.php';
   <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
   <?php foreach ($grouped as $group_label => $fields): ?>
-  <div class="card border-0 shadow-sm mb-4">
+  <div class="card mb-4">
     <div class="card-header bg-white fw-semibold small d-flex align-items-center gap-2">
       <i class="bi bi-folder2-open text-primary" aria-hidden="true"></i>
       <?= h($group_label) ?>

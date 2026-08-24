@@ -766,3 +766,57 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
 .crm-footer-ver { color: var(--crm-primary-dark); font-family: monospace; font-size: .74rem; text-decoration: none; font-weight: 600; }
 .crm-footer-ver:hover { text-decoration: underline; }
 @media (max-width: 600px) { .crm-footer-name { display: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WARSTWA „CLEAR" — ujednolicenie ekranów sprzed przebudowy
+   ─────────────────────────────────────────────────────────────────────────
+   Skrzynka, wysyłka i lista grup dostały spokojny styl: włos ramki zamiast
+   cienia, jednakowa wysokość pól, mniej powietrza. Ekrany nietknięte od
+   czerwca (grupy, tagi, import, ustawienia) nadal używały bootstrapowych
+   `card shadow-sm` i po wejściu z nowego ekranu wyglądały jak inny system.
+
+   Arkusz ładuje tylko powłoka CRM, więc reguły nie wyciekają poza moduł.
+   Ekrany po przebudowie mają własne klasy (.crm-list-card, .cv-*) i te
+   reguły ich nie dotyczą.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.card {
+  border: 1px solid var(--crm-border) !important;
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+.card + .card { margin-top: .75rem; }
+.card-header {
+  background: #FAFBFC;
+  border-bottom: 1px solid var(--crm-border);
+  padding: .55rem .9rem;
+  font-weight: 600;
+  font-size: .88rem;
+}
+.card-body   { padding: .9rem 1rem; }
+.card-footer { background: #FAFBFC; border-top: 1px solid var(--crm-border); padding: .55rem .9rem; }
+
+/* Cień bywał wołany bezpośrednio na kontenerach spoza .card */
+.shadow-sm, .shadow { box-shadow: none !important; }
+
+/* Jednakowa wysokość kontrolek — mieszanka form-control i form-control-sm
+   w jednym rzędzie była najbardziej rzucającym się w oczy zgrzytem */
+.card .form-control, .card .form-select,
+.card .input-group-text, .card .btn:not(.btn-lg) {
+  font-size: .875rem;
+  min-height: 34px;
+}
+.card .form-label { font-size: .8rem; font-weight: 600; color: var(--crm-text-muted); margin-bottom: .2rem; }
+.card .form-text  { font-size: .76rem; }
+
+/* Tabele wewnątrz kart — bez pasków zebry, z włosem między wierszami */
+.card .table > :not(caption) > * > * { padding: .45rem .6rem; font-size: .86rem; }
+.card .table > thead > tr > th {
+  background: #FAFBFC;
+  font-size: .72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--crm-text-light);
+  border-bottom: 1px solid var(--crm-border);
+}
+.card .table-striped > tbody > tr:nth-of-type(odd) > * { background: transparent; }
+.card .table-hover > tbody > tr:hover > * { background: #FAFBFC; }

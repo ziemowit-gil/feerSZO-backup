@@ -147,7 +147,7 @@ include __DIR__ . '/includes/header_crm.php';
   <?php /* Wynik dry-run. Świadomie nad zakładkami — to odpowiedź na kliknięcie,
            które użytkownik przed chwilą wykonał, więc ma być pierwszą rzeczą,
            jaką widzi po powrocie. */ ?>
-  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #0176D3 !important">
+  <div class="card mb-3" style="border-left:4px solid #0176D3 !important">
     <div class="card-body">
       <div class="d-flex align-items-center gap-2 mb-2">
         <i class="bi bi-eye-fill" style="color:#0176D3" aria-hidden="true"></i>
@@ -262,7 +262,7 @@ include __DIR__ . '/includes/header_crm.php';
            własne formularze („załatwione", „odrzuć"), a formularz zagnieżdżony
            w formularzu jest przez przeglądarkę wyrzucany — działałby wtedy
            tylko jeden z nich. Checkboxy wiążemy z paskiem atrybutem `form`. */ ?>
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <?php if (!$findings): ?>
     <div class="card-body text-center text-muted py-5">
       <i class="bi bi-check2-circle d-block mb-2" style="font-size:1.6rem;color:#2E844A" aria-hidden="true"></i>
@@ -381,7 +381,7 @@ include __DIR__ . '/includes/header_crm.php';
         'auto'    => ['Poprawiane automatycznie', 'Bot zmienia dane sam. Wyłącznie kosmetyka — nic z tego nie zmienia znaczenia rekordu, a każda poprawka jest widoczna w historii zmian kartoteki.', '#2E844A'],
         'propose' => ['Zgłaszane do decyzji',     'Bot tylko znajduje i opisuje. Zmiana wymaga kliknięcia człowieka, bo albo zmienia sens rekordu, albo nie cofa jej jedno kliknięcie.', '#0176D3'],
     ] as $mode => [$title, $desc, $color]): ?>
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-1">
           <span style="width:8px;height:8px;border-radius:50%;background:<?= $color ?>" aria-hidden="true"></span>
@@ -418,7 +418,7 @@ include __DIR__ . '/includes/header_crm.php';
 <?php else: ?>
 
   <!-- ══ HISTORIA ════════════════════════════════════════════════════════ -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
         <caption class="visually-hidden">Historia przebiegów bota</caption>

@@ -66,20 +66,20 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <!-- Podsumowanie -->
   <div class="row g-2 mb-3">
     <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100"><div class="card-body py-2">
+      <div class="card h-100"><div class="card-body py-2">
         <div class="text-muted" style="font-size:.75rem">Wartość brutto</div>
         <div class="fw-bold"><?= number_format($stats['gross'], 2, ',', ' ') ?> zł</div>
       </div></div>
     </div>
     <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100"><div class="card-body py-2">
+      <div class="card h-100"><div class="card-body py-2">
         <div class="text-muted" style="font-size:.75rem">Nieopłacone</div>
         <div class="fw-bold text-warning-emphasis"><?= number_format($stats['unpaid'], 2, ',', ' ') ?> zł</div>
       </div></div>
     </div>
     <?php foreach (['szkic', 'zaplacona'] as $st): ?>
     <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100"><div class="card-body py-2">
+      <div class="card h-100"><div class="card-body py-2">
         <div class="text-muted" style="font-size:.75rem"><?= h(INVOICE_STATUSES[$st]['label']) ?></div>
         <div class="fw-bold"><?= (int)($stats['by_status'][$st]['count'] ?? 0) ?></div>
       </div></div>
@@ -88,7 +88,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 
   <!-- Filtry -->
-  <form method="get" class="card border-0 shadow-sm mb-3">
+  <form method="get" class="card mb-3">
     <div class="card-body py-2">
       <div class="row g-2 align-items-end">
         <div class="col-md-4">
@@ -132,7 +132,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </form>
 
   <!-- Lista -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <caption class="visually-hidden">Rejestr faktur</caption>

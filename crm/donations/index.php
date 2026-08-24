@@ -70,7 +70,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       ['W tym rzeczowe',        $m($stats['total_rzeczowa']) . ' zł',     'bi-box-seam',     '#D97706'],
     ] as [$lbl, $val, $ico, $col]): ?>
     <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100">
+      <div class="card h-100">
         <div class="card-body py-2 px-3">
           <div class="text-muted" style="font-size:.72rem"><i class="bi <?= $ico ?> me-1" style="color:<?= $col ?>"></i><?= h($lbl) ?></div>
           <div class="fw-bold" style="font-size:1.05rem"><?= h($val) ?></div>
@@ -92,7 +92,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
   <?php endif; ?>
 
-  <form method="get" class="card border-0 shadow-sm mb-3">
+  <form method="get" class="card mb-3">
     <div class="card-body py-2 row g-2 align-items-end">
       <div class="col-auto">
         <label class="form-label small mb-1" for="dn_year">Rok</label>
@@ -132,7 +132,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
   </form>
 
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm mb-0 align-middle">
         <thead class="table-light">

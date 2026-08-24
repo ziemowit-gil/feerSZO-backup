@@ -186,7 +186,7 @@ include __DIR__ . '/../includes/header_crm.php';
 <div class="col-lg-8 d-flex flex-column gap-3">
 
   <!-- 1. Dane osoby -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-person-vcard text-primary"></i>Dane osoby</div>
 
@@ -237,7 +237,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 2. Dane kontaktowe -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-telephone text-primary"></i>Dane kontaktowe</div>
 
@@ -263,7 +263,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 3. Profil zawodowy / online -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-briefcase text-primary"></i>Profil</div>
 
@@ -301,7 +301,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 4. Notatka wstępna -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-sticky text-primary"></i>Notatka wstępna</div>
       <textarea name="notatka" id="notatka" class="form-control" rows="3"
@@ -310,7 +310,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 5. Dane formalne — zwinięte domyślnie, potrzebne do umów -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <button type="button" class="formal-toggle" onclick="toggleFormal()"
               id="formalToggleBtn" aria-expanded="<?= $has_formal ? 'true' : 'false' ?>">
@@ -364,7 +364,7 @@ include __DIR__ . '/../includes/header_crm.php';
 <div class="col-lg-4 d-flex flex-column gap-3">
 
   <!-- Status -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label">Status w CRM</div>
       <div class="d-flex flex-column gap-2" role="radiogroup">
@@ -382,7 +382,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Źródło kontaktu -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-signpost-split text-primary"></i>Skąd trafia?</div>
       <div class="source-grid">
@@ -400,7 +400,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Lokalizacja (tylko województwo — powiat/gmina w Danych formalnych) -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-geo-alt" style="color:#059669"></i>Lokalizacja</div>
       <?php $woj_list = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie']; ?>
@@ -415,7 +415,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Podgląd awatara -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body text-center py-3">
       <div id="avatarPreview"
            style="width:64px;height:64px;border-radius:50%;background:#2563eb;color:#fff;
@@ -431,7 +431,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Przyciski -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body d-flex flex-column gap-2">
       <button type="submit" class="btn-main-submit">
         <i class="bi bi-person-check-fill me-2"></i><?= $is_edit ? 'Zapisz zmiany' : 'Utwórz kontakt' ?>

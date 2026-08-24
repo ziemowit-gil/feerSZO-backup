@@ -128,7 +128,7 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ── Lewa: chmura tagów ──────────────────────────────────── -->
   <div class="col-lg-4">
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Chmura tagów</div>
         <div class="d-flex flex-wrap gap-2 mb-1" role="list" aria-label="Lista wszystkich tagów">
@@ -149,7 +149,7 @@ include __DIR__ . '/includes/header_crm.php';
 
     <!-- Panel scalania -->
     <?php if ($crm_can_write && count($tags) >= 2): ?>
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="card-body">
         <div class="crm-section-title">Scal tagi</div>
         <p class="text-muted small mb-3">

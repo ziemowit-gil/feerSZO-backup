@@ -137,7 +137,7 @@ require_once __DIR__ . '/_nav.php';
 
 <?= flash_get() ?>
 
-<div class="card border-0 shadow-sm mb-4">
+<div class="card mb-4">
   <div class="table-responsive">
     <table class="table mb-0 align-middle">
       <thead class="table-light">
@@ -178,7 +178,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<div id="add-form" class="card border-0 shadow-sm mb-4 <?= $edit_row ? '' : 'd-none' ?>">
+<div id="add-form" class="card mb-4 <?= $edit_row ? '' : 'd-none' ?>">
   <div class="card-header bg-white py-2 fw-semibold"><?= $edit_row ? 'Edytuj regułę' : 'Nowa reguła' ?></div>
   <div class="card-body">
     <form method="post" class="row g-3">
@@ -279,7 +279,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="card">
   <div class="card-header bg-white py-2 fw-semibold">Ostatnie uruchomienia</div>
   <div class="table-responsive">
     <table class="table table-sm mb-0 align-middle">

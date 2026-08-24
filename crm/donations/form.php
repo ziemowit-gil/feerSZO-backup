@@ -118,7 +118,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
   <?php endif; ?>
 
-  <form method="post" class="card border-0 shadow-sm">
+  <form method="post" class="card">
     <?= csrf_field() ?>
     <div class="card-body row g-3">
 

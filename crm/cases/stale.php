@@ -102,7 +102,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="scope" value="<?= h($scope) ?>">
 
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <caption class="visually-hidden">Sprawy bez aktywności</caption>
@@ -153,7 +153,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <?php if ($can_write): ?>
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card mt-3">
       <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
         <button type="submit" name="_op" value="close" class="btn btn-sm btn-success"
                 onclick="return this.form.querySelectorAll('.pick:checked').length ? confirm('Zamknąć zaznaczone sprawy?') : (alert('Zaznacz co najmniej jedną sprawę.'), false)">

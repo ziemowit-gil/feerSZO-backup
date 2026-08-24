@@ -90,7 +90,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 <?php endif; ?>
 
-<div class="card border-0 shadow-sm mb-4" style="max-width:640px">
+<div class="card mb-4" style="max-width:640px">
   <div class="card-header bg-white py-2 fw-semibold">Konfiguracja</div>
   <div class="card-body">
     <form method="post">
@@ -151,7 +151,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <!-- Co umożliwia integracja -->
-<div class="card border-0 shadow-sm" style="max-width:640px">
+<div class="card" style="max-width:640px">
   <div class="card-header bg-white py-2 fw-semibold small text-muted">Co umożliwia integracja</div>
   <ul class="list-group list-group-flush small">
     <li class="list-group-item py-2">

@@ -181,7 +181,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- Lewa: główne dane -->
   <div class="col-lg-8">
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="card-body">
         <div class="crm-section-title">Dane podstawowe</div>
 
@@ -286,7 +286,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
     <!-- Dane firmowe (NIP/KRS) — tylko podmioty -->
     <?php if ($_sfe['nip']['vis'] || $_sfe['krs']['vis']): ?>
-    <div class="card border-0 shadow-sm mt-3" data-crm-only="organizacja"<?= $cur_key === 'organizacja' ? '' : ' hidden' ?>>
+    <div class="card mt-3" data-crm-only="organizacja"<?= $cur_key === 'organizacja' ? '' : ' hidden' ?>>
       <div class="card-body">
         <div class="crm-section-title">Dane rejestrowe (opcjonalnie)</div>
         <div class="row g-3">
@@ -329,7 +329,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
     <!-- Notatka wstępna -->
     <?php if ($_sfe['notatka']['vis']): ?>
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card mt-3">
       <div class="card-body">
         <div class="crm-section-title">Notatka</div>
         <label class="form-label visually-hidden" for="notatka">Notatka</label>
@@ -353,7 +353,7 @@ include __DIR__ . '/../includes/header_crm.php';
   ?>
   <!-- Dodatkowe pola -->
   <div class="col-12" id="cf-section">
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="card-body">
         <div class="crm-section-title">Dodatkowe informacje</div>
         <div class="row g-3">
@@ -423,7 +423,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- Prawa: status + akcje -->
   <div class="col-lg-4">
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Status i widoczność</div>
         <label class="form-label" for="status">Status kontaktu</label>
@@ -455,7 +455,7 @@ include __DIR__ . '/../includes/header_crm.php';
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="card-body">
         <div class="d-grid gap-2">
           <button type="submit" class="btn btn-crm-primary">

@@ -128,7 +128,7 @@ require_once __DIR__ . '/_nav.php';
   wyłącz ją, aby zniknęła z list wyboru, zachowując historię.
 </div>
 
-<div class="card border-0 shadow-sm mb-4">
+<div class="card mb-4">
   <div class="card-header bg-white py-2 small fw-semibold text-muted">
     Przeciągnij wiersze, aby zmienić kolejność na listach wyboru. Zmiany zapisują się automatycznie.
   </div>
@@ -187,7 +187,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<div id="add-form" class="card border-0 shadow-sm mb-3 <?= $edit_row ? '' : 'd-none' ?>">
+<div id="add-form" class="card mb-3 <?= $edit_row ? '' : 'd-none' ?>">
   <div class="card-header bg-white py-2 fw-semibold"><?= $edit_row ? 'Edytuj rodzaj usługi' : 'Nowy rodzaj usługi' ?></div>
   <div class="card-body">
     <form method="post" class="row g-3 align-items-end">

@@ -215,21 +215,17 @@ include __DIR__ . '/../includes/header_crm.php';
 ?>
 
 <style>
-.group-view-header {
-  border-radius: 10px;
-  padding: 1.25rem 1.5rem;
-  color: #fff;
-  margin-bottom: 1.5rem;
-  display: flex; align-items: center; gap: 1rem;
-}
+/* Nagłówek był kolorowym gradientem na całą szerokość — po wejściu ze zwartej
+   listy grup wyglądał jak inny system. Zostaje ta sama porcja informacji, ale
+   we wspólnym wzorcu crm-page-header; kolor grupy niesie już tylko ikona. */
 .group-view-icon {
-  width: 52px; height: 52px; border-radius: 12px;
-  background: rgba(255,255,255,.22); border: 2px solid rgba(255,255,255,.4);
+  width: 38px; height: 38px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.6rem; flex-shrink: 0;
+  font-size: 1.15rem; color: #fff; flex-shrink: 0;
 }
-.member-row-actions { opacity: 0; transition: opacity .15s; }
-tr:hover .member-row-actions { opacity: 1; }
+/* Akcje w wierszu widoczne zawsze — ukryte do najechania nie mówiły, że są */
+.member-row-actions { opacity: .5; transition: opacity .12s }
+tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
 </style>
 
 <!-- Breadcrumb -->
@@ -242,34 +238,30 @@ tr:hover .member-row-actions { opacity: 1; }
 </nav>
 
 <!-- Header grupy -->
-<div class="group-view-header shadow-sm"
-     style="background:linear-gradient(135deg, <?= h($group['color']) ?> 0%, <?= h($group['color']) ?>cc 100%)">
-  <div class="group-view-icon" aria-hidden="true">
-    <i class="bi <?= h($group['icon']) ?>"></i>
-  </div>
-  <div class="flex-grow-1">
-    <h1 style="font-size:1.3rem;font-weight:700;margin:0 0 .2rem"><?= h($group['name']) ?></h1>
-    <?php if ($group['description']): ?>
-    <div style="font-size:.84rem;opacity:.85"><?= h($group['description']) ?></div>
-    <?php endif; ?>
-    <div style="font-size:.8rem;opacity:.7;margin-top:.3rem">
-      <i class="bi bi-people-fill me-1"></i>
-      <?= count($group['members']) ?> <?= count($group['members']) === 1 ? 'kontakt' : (count($group['members']) < 5 ? 'kontakty' : 'kontaktów') ?>
+<div class="crm-page-header mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <div class="group-view-icon" style="background:<?= h($group['color']) ?>" aria-hidden="true">
+      <i class="bi <?= h($group['icon']) ?>"></i>
+    </div>
+    <div>
+      <h1 class="crm-page-title"><?= h($group['name']) ?></h1>
+      <div class="crm-page-subtitle">
+        <?= count($group['members']) ?> <?= count($group['members']) === 1 ? 'kontakt' : (count($group['members']) < 5 ? 'kontakty' : 'kontaktów') ?>
+        <?php if ($group['description']): ?> · <?= h($group['description']) ?><?php endif; ?>
+      </div>
     </div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="crm-page-actions">
     <?php if ($group['members']): ?>
-    <a href="<?= APP_URL ?>/crm/mass_send.php?group_id=<?= $id ?>"
-       class="btn btn-sm btn-light opacity-90">
-      <i class="bi bi-megaphone-fill me-1"></i>Wysyłka masowa
+    <a href="<?= APP_URL ?>/crm/mass_send.php?group_id=<?= $id ?>" class="btn btn-crm-primary btn-sm">
+      <i class="bi bi-megaphone me-1"></i>Wysyłka masowa
     </a>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/crm/index.php?group=<?= $id ?>"
-       class="btn btn-sm btn-light opacity-75">
+    <a href="<?= APP_URL ?>/crm/index.php?group=<?= $id ?>" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-funnel me-1"></i>Filtruj kontakty
     </a>
     <?php if ($crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/groups.php" class="btn btn-sm btn-light opacity-60">
+    <a href="<?= APP_URL ?>/crm/groups.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-pencil me-1"></i>Edytuj
     </a>
     <?php endif; ?>
@@ -277,7 +269,7 @@ tr:hover .member-row-actions { opacity: 1; }
     <form method="post" class="d-inline">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sync_volunteers">
-      <button type="submit" class="btn btn-sm btn-light opacity-80"
+      <button type="submit" class="btn btn-crm-outline btn-sm"
               title="Synchronizuj przynależność do grup wg aktualnych umów wolontariackich"
               onclick="return confirm('Zsynchronizować przynależność wolontariuszy?')">
         <i class="bi bi-arrow-repeat me-1"></i>Sync
@@ -449,7 +441,7 @@ tr:hover .member-row-actions { opacity: 1; }
 
     <!-- Dodaj pojedynczy kontakt -->
     <?php if ($crm_can_write && $not_in_group): ?>
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Dodaj kontakt</div>
         <form method="post" aria-label="Dodaj pojedynczy kontakt do grupy">
@@ -477,7 +469,7 @@ tr:hover .member-row-actions { opacity: 1; }
       </div>
     </div>
     <?php elseif ($crm_can_write && !$not_in_group): ?>
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body text-center py-4">
         <i class="bi bi-check-circle-fill text-success" style="font-size:1.5rem"></i>
         <div class="mt-2 small text-muted">Wszyscy aktywni kontakty są w tej grupie.</div>
@@ -487,7 +479,7 @@ tr:hover .member-row-actions { opacity: 1; }
 
     <!-- Dodaj wielu naraz (bulk) -->
     <?php if ($crm_can_write && count($not_in_group) > 1): ?>
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Dodaj wielu naraz</div>
         <form method="post">
@@ -528,7 +520,7 @@ tr:hover .member-row-actions { opacity: 1; }
 
     <?php if ($is_vol_group && $crm_can_write): ?>
     <!-- Import wolontariuszy wg kryteriów umowy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title"><i class="bi bi-download me-1"></i>Importuj z umów</div>
         <p class="text-muted mb-2" style="font-size:.78rem">
@@ -566,7 +558,7 @@ tr:hover .member-row-actions { opacity: 1; }
     <?php endif; ?>
 
     <!-- Nadrzędna / podgrupy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           <span><i class="bi bi-diagram-3 me-1"></i>Hierarchia grup</span>
@@ -636,7 +628,7 @@ tr:hover .member-row-actions { opacity: 1; }
     </div>
 
     <!-- Tagi grupy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title"><i class="bi bi-tags me-1"></i>Tagi grupy</div>
         <div class="d-flex flex-wrap gap-1 mb-2" id="groupTagsList">
@@ -664,7 +656,7 @@ tr:hover .member-row-actions { opacity: 1; }
     </div>
 
     <!-- Połączone grupy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           <span><i class="bi bi-link-45deg me-1"></i>Połączone grupy</span>
@@ -703,7 +695,7 @@ tr:hover .member-row-actions { opacity: 1; }
     </div>
 
     <!-- Statystyki grupy -->
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="card-body">
         <div class="crm-section-title">Statystyki</div>
         <?php
@@ -733,7 +725,7 @@ tr:hover .member-row-actions { opacity: 1; }
 
     <?php if (is_admin()): ?>
     <!-- Dostęp użytkowników do grupy -->
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card mt-3">
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           <span><i class="bi bi-person-lock me-1"></i>Dostęp do grupy</span>

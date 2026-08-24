@@ -105,7 +105,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <div class="col-lg-8">
 
   <!-- Kontakt -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="step-label d-flex align-items-center gap-2 mb-3" style="font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#6B7280;padding-bottom:.4rem;border-bottom:1px solid #F3F4F6">
         <i class="bi bi-person-fill" style="color:#0176D3"></i> Kontakt
@@ -154,7 +154,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 
   <!-- Tytuł i opis -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="step-label d-flex align-items-center gap-2 mb-3" style="font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#6B7280;padding-bottom:.4rem;border-bottom:1px solid #F3F4F6">
         <i class="bi bi-briefcase" style="color:#0176D3"></i> Sprawa
@@ -194,7 +194,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <!-- Prawa: status, priorytet, akcje -->
 <div class="col-lg-4">
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <?php if ($case_types): ?>
       <div class="mb-3">

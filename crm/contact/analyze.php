@@ -150,7 +150,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <?php if ($tab !== 'filter'): $rows = $tab === 'company' ? $res['company'] : $res['junk']; ?>
   <form method="post">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <caption class="visually-hidden">Wyniki analizy</caption>
@@ -203,7 +203,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <?php if ($rows): ?>
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card mt-3">
       <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
         <?php if ($tab === 'company'): ?>
         <button type="submit" name="_op" value="promote" class="btn btn-sm btn-crm-primary"
@@ -234,7 +234,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <?php else: ?>
   <div class="row g-3">
     <div class="col-lg-7">
-      <div class="card border-0 shadow-sm">
+      <div class="card">
         <div class="card-header fw-semibold py-2">Odfiltrowani nadawcy</div>
         <div class="table-responsive">
           <table class="table table-sm mb-0 align-middle">
@@ -266,7 +266,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
     </div>
     <div class="col-lg-5">
-      <div class="card border-0 shadow-sm">
+      <div class="card">
         <div class="card-header fw-semibold py-2">Dodaj filtr</div>
         <div class="card-body">
           <form method="post">

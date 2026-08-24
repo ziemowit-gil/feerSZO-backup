@@ -114,7 +114,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <div class="row g-3">
 <div class="col-lg-8">
 
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="mb-3">
         <label class="form-label fw-semibold">Nazwa kampanii <span class="text-danger">*</span></label>
@@ -139,7 +139,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="mb-3 fw-semibold">Cel wysyłki i zgoda</div>
       <label class="form-label small mb-1" for="camp_purpose">Cel, na który odbiorca wyraził zgodę</label>
@@ -196,7 +196,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </div>
 
 <div class="col-lg-4">
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="mb-3 fw-semibold">Wysyłka</div>
       <div class="form-check mb-2">

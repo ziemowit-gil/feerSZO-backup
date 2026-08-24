@@ -171,7 +171,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- ── KROK 1: Dane kontaktu ───────────────────────────────── -->
   <div class="qw-step active" id="step-1">
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
 
         <!-- Typ: osoba / org -->
@@ -246,7 +246,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- ── KROK 2: Lokalizacja ─────────────────────────────────── -->
   <div class="qw-step" id="step-2">
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title mb-3">Terytorium</div>
         <div class="row g-3">
@@ -298,7 +298,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- ── KROK 3: Powiązania ──────────────────────────────────── -->
   <div class="qw-step" id="step-3">
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
 
         <!-- Działania -->

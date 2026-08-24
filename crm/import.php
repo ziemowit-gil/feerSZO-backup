@@ -239,8 +239,8 @@ include __DIR__ . '/includes/header_crm.php';
     <a href="<?= APP_URL ?>/crm/index.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Powrót do kontaktów
     </a>
-    <h1 class="h5 mb-0 ms-2">
-      <i class="bi bi-file-earmark-arrow-up me-1 text-primary" aria-hidden="true"></i>
+    <h1 class="crm-object-title ms-2">
+      <i class="bi bi-file-earmark-arrow-up me-1" style="color:var(--crm-primary)" aria-hidden="true"></i>
       Import kontaktów CSV
     </h1>
   </div>
@@ -255,7 +255,7 @@ include __DIR__ . '/includes/header_crm.php';
 
   <?php if (empty($headers)): ?>
   <!-- ═══ KROK 1: Upload ═══════════════════════════════════════════════════════ -->
-  <div class="card shadow-sm">
+  <div class="card">
     <div class="card-header">
       <i class="bi bi-upload me-1" aria-hidden="true"></i>Prześlij plik CSV
     </div>
@@ -321,7 +321,7 @@ include __DIR__ . '/includes/header_crm.php';
     <input type="hidden" name="do_import"  value="1">
 
     <!-- Mapowanie kolumn -->
-    <div class="card shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header">
         <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Mapowanie kolumn
       </div>
@@ -360,7 +360,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <!-- Podgląd danych -->
-    <div class="card shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header">
         <i class="bi bi-eye me-1" aria-hidden="true"></i>
         Podgląd pierwszych <?= count($preview) ?> wierszy

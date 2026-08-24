@@ -154,7 +154,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
     <!-- Nabywca -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header fw-semibold py-2">Nabywca</div>
       <div class="card-body">
         <div class="position-relative mb-3">
@@ -198,7 +198,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <!-- Dokument -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header fw-semibold py-2">Dokument</div>
       <div class="card-body">
         <div class="row g-2">
@@ -250,7 +250,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <!-- Pozycje -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header fw-semibold py-2">Pozycje</div>
       <div class="card-body">
         <div class="table-responsive">

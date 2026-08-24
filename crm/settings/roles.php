@@ -192,7 +192,7 @@ require_once __DIR__ . '/_nav.php';
 <?php if ($show_new || $edit_row):
   $f = $edit_row ?? ['display_name'=>'','description'=>'','sort_order'=>10,'crm_write'=>1,'crm_delete'=>0,'sub_eksport'=>0,'sub_import'=>0,'sub_mailing'=>1,'sub_ustawienia'=>0];
 ?>
-<div class="card border-0 shadow-sm mb-4" style="max-width:580px">
+<div class="card mb-4" style="max-width:580px">
   <div class="card-header fw-semibold">
     <?= $edit_row ? 'Edytuj rolę: <em>' . h($f['display_name']) . '</em>' : 'Nowa rola CRM' ?>
   </div>
@@ -296,7 +296,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 <?php endif; ?>
 
-<div class="card border-0 shadow-sm" style="max-width:860px">
+<div class="card" style="max-width:860px">
   <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-list-ul me-1"></i>Zdefiniowane role CRM
     <span class="badge bg-secondary ms-1"><?= count($crm_roles) ?></span>

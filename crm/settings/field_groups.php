@@ -100,7 +100,7 @@ require_once __DIR__ . '/_nav.php';
 
 <?= flash_get() ?>
 
-<div class="card border-0 shadow-sm mb-4">
+<div class="card mb-4">
   <div class="card-header bg-white py-2 small fw-semibold text-muted">
     Grupy służą jako sekcje w formularzu kontaktu. Każde pole niestandardowe można przypisać do grupy.
   </div>
@@ -182,7 +182,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <!-- Formularz -->
-<div id="add-form" class="card border-0 shadow-sm mb-3 <?= $edit ? '' : 'd-none' ?>">
+<div id="add-form" class="card mb-3 <?= $edit ? '' : 'd-none' ?>">
   <div class="card-header bg-white py-2 fw-semibold"><?= $edit ? 'Edytuj grupę' : 'Nowa grupa pól' ?></div>
   <div class="card-body">
     <form method="post" class="row g-3 align-items-end">

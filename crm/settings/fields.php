@@ -165,7 +165,7 @@ require_once __DIR__ . '/_nav.php';
   $f_visible_roles = json_decode($f['visible_roles'] ?? '', true) ?: [];
   $f_edit_roles    = json_decode($f['edit_roles']    ?? '', true) ?: [];
 ?>
-<div class="card border-0 shadow-sm mb-4" style="max-width:640px">
+<div class="card mb-4" style="max-width:640px">
   <div class="card-header fw-semibold">
     <?= $edit_def ? 'Edytuj pole: <em>' . h($f['label']) . '</em>' : 'Nowe pole' ?>
   </div>
@@ -301,7 +301,7 @@ document.getElementById('f_type').addEventListener('change', function() {
 </script>
 <?php endif; ?>
 
-<div class="card border-0 shadow-sm" style="max-width:860px">
+<div class="card" style="max-width:860px">
   <div class="card-header fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-list-ul me-1"></i>Zdefiniowane pola
     <span class="badge bg-secondary ms-1"><?= count($defs) ?></span>

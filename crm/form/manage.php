@@ -317,7 +317,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
 <!-- Lista formularzy -->
 <?php if ($forms): ?>
-<div class="card border-0 shadow-sm mb-4">
+<div class="card mb-4">
   <div class="table-responsive">
     <table class="table mb-0 align-middle">
       <thead class="table-light">
@@ -374,7 +374,7 @@ include __DIR__ . '/../includes/header_crm.php';
 ?>
 <div class="row g-4">
 <div class="col-lg-7">
-<div class="card border-0 shadow-sm">
+<div class="card">
   <div class="card-header bg-white py-2 fw-semibold d-flex align-items-center gap-2">
     <?= $edit ? '<i class="bi bi-pencil me-1"></i>Edytuj: '.h($edit['title']) : '<i class="bi bi-plus-lg me-1"></i>Nowy formularz' ?>
     <?php if ($edit): ?>

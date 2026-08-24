@@ -86,7 +86,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
   <form method="post">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <caption class="visually-hidden">Porównanie dwóch kartotek</caption>
@@ -170,7 +170,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     duplikat). Nic nie dzieje się samo.
   </p>
 
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <caption class="visually-hidden">Grupy prawdopodobnych duplikatów</caption>

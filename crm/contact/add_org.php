@@ -286,7 +286,7 @@ include __DIR__ . '/../includes/header_crm.php';
 <input type="hidden" name="contact_type" value="<?= h($contact_type) ?>">
 
 <!-- ══ SZYBKI IMPORT — przycisk otwierający kreator (CEIDG / KRS) ═════════════ -->
-<div class="card border-0 shadow-sm mb-3 of-importer">
+<div class="card mb-3 of-importer">
   <div class="card-body d-flex flex-wrap align-items-center gap-3">
     <div class="of-type-ico" style="width:42px;height:42px;font-size:1.3rem" aria-hidden="true">
       <i class="bi bi-stars"></i>
@@ -312,7 +312,7 @@ include __DIR__ . '/../includes/header_crm.php';
 <div class="col-lg-8">
 
   <!-- 1. Dane rejestrowe -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-building" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
@@ -388,7 +388,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 2. Numery identyfikacyjne -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-fingerprint" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
@@ -436,7 +436,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 3. Dane kontaktowe -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-telephone" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
@@ -477,7 +477,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 4. Osoba kontaktowa -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-person-badge" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
@@ -587,7 +587,7 @@ include __DIR__ . '/../includes/header_crm.php';
     $_svc_status = $row['status'] ?? 'prospect';
     $_svc_open   = crm_services_allowed($_svc_status);
   ?>
-  <div class="card border-0 shadow-sm mb-3" id="svc_card" data-svc-status="<?= h(CRM_SERVICES_STATUS) ?>">
+  <div class="card mb-3" id="svc_card" data-svc-status="<?= h(CRM_SERVICES_STATUS) ?>">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-tools" style="color:#0F766E" aria-hidden="true"></i>
@@ -635,7 +635,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 5b. Terytorium -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-map" style="color:#059669" aria-hidden="true"></i>
@@ -669,7 +669,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- 5. Notatka -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <div class="sec-label">
         <i class="bi bi-sticky" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
@@ -688,7 +688,7 @@ include __DIR__ . '/../includes/header_crm.php';
 <div class="col-lg-4">
 
   <!-- Status -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body">
       <div class="sec-label">Status w CRM</div>
       <div class="d-flex flex-column gap-2" role="radiogroup" aria-label="Wybierz status kontaktu">
@@ -709,7 +709,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Podgląd awatara -->
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card mb-3">
     <div class="card-body text-center">
       <div class="sec-label" style="justify-content:center">Podgląd awatara</div>
       <div id="avatarPreview"
@@ -730,7 +730,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <!-- Przycisk wyślij -->
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="card-body">
       <button type="submit" class="btn-main-submit"
               aria-label="<?= $is_edit ? 'Zapisz zmiany w firmie' : 'Utwórz kontakt firmy lub organizacji' ?>">

@@ -182,7 +182,7 @@ include __DIR__ . '/includes/header_crm.php';
     <?php endforeach; ?>
   </div>
 
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <?php if (!$rows): ?>
     <div class="card-body text-center text-muted py-5"><?= h($views[$view]['empty']) ?></div>
     <?php else: foreach ($rows as $r):

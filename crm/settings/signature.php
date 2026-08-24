@@ -174,7 +174,7 @@ require_once __DIR__ . '/_nav.php';
 <input type="hidden" name="crm_email_signature" id="crm_email_signature_hidden">
 
 <!-- ── Dane nadawcy ────────────────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-3">
+<div class="card mb-3">
   <div class="card-header fw-semibold bg-transparent border-bottom">
     <i class="bi bi-person-badge me-1 text-primary"></i> Dane nadawcy
   </div>
@@ -229,7 +229,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <!-- ── Podpis e-mail ──────────────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-3">
+<div class="card mb-3">
   <div class="card-header fw-semibold bg-transparent border-bottom">
     <i class="bi bi-envelope-at me-1 text-primary"></i> Podpis e-mail
     <span class="text-muted fw-normal small ms-2">— dołączany po treści każdej wiadomości e-mail wysyłanej przez Ciebie</span>
@@ -302,7 +302,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <!-- ── Podpis SMS ─────────────────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
+<div class="card mb-4">
   <div class="card-header fw-semibold bg-transparent border-bottom">
     <i class="bi bi-chat-text me-1 text-primary"></i> Podpis SMS
     <span class="text-muted fw-normal small ms-2">— dołączany na końcu każdego SMS-a</span>

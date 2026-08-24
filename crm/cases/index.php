@@ -257,7 +257,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </form>
 
 <!-- Lista spraw -->
-<div class="card shadow-sm">
+<div class="card">
   <?php if (!$rows): ?>
   <div class="text-center py-5">
     <i class="bi bi-briefcase display-4 text-secondary opacity-25 d-block mb-3"></i>

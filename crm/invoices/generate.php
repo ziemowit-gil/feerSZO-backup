@@ -163,7 +163,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ul>
 
   <?php if ($src === 'ti'): ?>
-  <form method="get" class="card border-0 shadow-sm mb-3">
+  <form method="get" class="card mb-3">
     <input type="hidden" name="src" value="ti">
     <div class="card-body py-2">
       <div class="row g-2 align-items-end">
@@ -211,7 +211,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <input type="hidden" name="year"  value="<?= (int)$year ?>">
     <input type="hidden" name="group" value="<?= (int)$group ?>">
 
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <caption class="visually-hidden">Pozycje do zafakturowania</caption>
@@ -297,7 +297,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <?php if ($rows): ?>
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card mt-3">
       <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="issueNow" name="issue" value="1">

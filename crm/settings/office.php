@@ -96,7 +96,7 @@ require_once __DIR__ . '/_nav.php';
 
 <div class="row g-3 mb-3">
   <div class="col-md-6">
-    <div class="card shadow-sm h-100">
+    <div class="card h-100">
       <div class="card-header py-2 fw-semibold" style="font-size:.9rem">
         <i class="bi bi-arrow-down-left-circle me-1"></i>Outlook → CRM (istniejące)
       </div>
@@ -116,7 +116,7 @@ require_once __DIR__ . '/_nav.php';
     </div>
   </div>
   <div class="col-md-6">
-    <div class="card shadow-sm h-100">
+    <div class="card h-100">
       <div class="card-header py-2 fw-semibold" style="font-size:.9rem">
         <i class="bi bi-arrow-up-right-circle me-1"></i>CRM → Outlook (ta strona)
       </div>
@@ -171,7 +171,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<form method="post" class="card shadow-sm mb-3">
+<form method="post" class="card mb-3">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 <input type="hidden" name="_action" value="save">
 <div class="card-header py-2 fw-semibold" style="font-size:.9rem"><i class="bi bi-sliders me-1"></i>Ustawienia</div>
@@ -235,7 +235,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 </form>
 
-<form method="post" class="card shadow-sm mb-4"
+<form method="post" class="card mb-4"
       onsubmit="return confirm('Zapisać do książki adresowej Outlooka wszystkie kontakty, które jeszcze tam nie trafiły lub zmieniły się od ostatniego zapisu?')">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
   <input type="hidden" name="_action" value="push_all">
@@ -255,7 +255,7 @@ require_once __DIR__ . '/_nav.php';
 </form>
 
 <?php if ($errors_list): ?>
-<div class="card shadow-sm mb-4">
+<div class="card mb-4">
   <div class="card-header py-2 fw-semibold text-danger" style="font-size:.9rem">
     <i class="bi bi-exclamation-triangle me-1"></i>Ostatnie błędy zapisu
   </div>

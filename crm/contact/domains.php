@@ -133,7 +133,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ul>
 
   <?php if ($tab === 'domeny'): $list = crm_domain_overview(false, 2); ?>
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <caption class="visually-hidden">Domeny występujące w kartotece kontaktów</caption>
@@ -179,7 +179,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     adresu e-mail. WWW jest pewniejsze: skrzynka podmiotu bywa na cudzym serwerze,
     strona prawie zawsze stoi we własnej domenie.
   </p>
-  <div class="card border-0 shadow-sm">
+  <div class="card">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <caption class="visually-hidden">Podmioty z rozpoznaną domeną</caption>
@@ -256,7 +256,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <input type="hidden" name="domain" value="<?= h($domain) ?>">
 
     <!-- Podmiot docelowy -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Podmiot docelowy</div>
 
@@ -290,7 +290,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <!-- Co zrobić z historią -->
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-body">
         <div class="crm-section-title">Co się stanie</div>
         <div class="form-check">
@@ -311,7 +311,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <!-- Kandydaci -->
-    <div class="card border-0 shadow-sm">
+    <div class="card">
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <caption class="visually-hidden">Osoby z adresem w domenie <?= h($domain) ?></caption>

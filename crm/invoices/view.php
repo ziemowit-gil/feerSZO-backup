@@ -149,7 +149,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <div class="row g-3">
     <!-- Nabywca + daty -->
     <div class="col-lg-7">
-      <div class="card border-0 shadow-sm mb-3">
+      <div class="card mb-3">
         <div class="card-header fw-semibold py-2">Nabywca</div>
         <div class="card-body py-2">
           <div class="fw-semibold">
@@ -175,7 +175,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
 
       <!-- Pozycje -->
-      <div class="card border-0 shadow-sm">
+      <div class="card">
         <div class="card-header fw-semibold py-2">Pozycje</div>
         <div class="table-responsive">
           <table class="table table-sm mb-0 align-middle">
@@ -228,7 +228,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <!-- Podgląd dokumentu w module — bez otwierania nowej karty.
            Ramka doładowuje się DOPIERO po rozwinięciu: render PDF jest kosztowny,
            a większość wejść na kartę faktury go nie potrzebuje. -->
-      <div class="card border-0 shadow-sm mt-3">
+      <div class="card mt-3">
         <details id="invPreview">
           <summary class="card-header fw-semibold py-2" style="cursor:pointer;list-style:none">
             <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Podgląd dokumentu
@@ -258,7 +258,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
     <!-- Metryka + akcje -->
     <div class="col-lg-5">
-      <div class="card border-0 shadow-sm mb-3">
+      <div class="card mb-3">
         <div class="card-header fw-semibold py-2">Dokument</div>
         <div class="card-body py-2">
           <dl class="row mb-0 small">
@@ -289,7 +289,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
 
       <?php if ($can_write): ?>
-      <div class="card border-0 shadow-sm">
+      <div class="card">
         <div class="card-header fw-semibold py-2">Akcje</div>
         <div class="card-body py-2 d-grid gap-2">
           <?php if ($is_draft): ?>

@@ -604,7 +604,7 @@ const Cal = (function() {
       PL_MONTHS[_date.getMonth()].substring(0,3) + ' ' + _date.getFullYear();
     renderMiniCal(_date.getFullYear(), _date.getMonth());
 
-    let html = '<div class="card border-0 shadow-sm" style="border-radius:10px;overflow:hidden">';
+    let html = '<div class="card" style="border-radius:10px;overflow:hidden">';
     const cursor = new Date(start);
     for (let i = 0; i < 7; i++) {
       const iso    = toISO(cursor);
@@ -667,7 +667,7 @@ const Cal = (function() {
     document.getElementById('miniCalTitle').textContent = PL_MONTHS[mo].substring(0,3) + ' ' + yr;
     renderMiniCal(yr, mo);
 
-    let html = '<div class="card border-0 shadow-sm" style="border-radius:10px;padding:1rem">';
+    let html = '<div class="card" style="border-radius:10px;padding:1rem">';
     let hasAny = false;
 
     for (let d = 1; d <= days; d++) {

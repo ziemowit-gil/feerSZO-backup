@@ -76,7 +76,7 @@ require_once __DIR__ . '/_nav.php';
 <form method="post">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
   <div class="card-header py-2 fw-semibold" style="font-size:.9rem">
     <i class="bi bi-patch-check me-1"></i>Potwierdzanie ofert
   </div>
@@ -98,7 +98,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
   <div class="card-header py-2 fw-semibold" style="font-size:.9rem"><i class="bi bi-percent me-1"></i>Rabaty</div>
   <div class="card-body">
     <div class="row g-3">
@@ -143,7 +143,7 @@ require_once __DIR__ . '/_nav.php';
   </div>
 </div>
 
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
   <div class="card-header py-2 fw-semibold" style="font-size:.9rem"><i class="bi bi-sliders me-1"></i>Dokument i cykl życia</div>
   <div class="card-body">
     <div class="row g-3">

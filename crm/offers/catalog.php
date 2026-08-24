@@ -127,7 +127,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <div class="row g-3">
 <div class="col-lg-<?= $can_edit ? '7' : '12' ?>">
-  <div class="card shadow-sm">
+  <div class="card">
     <div class="table-responsive">
     <table class="table table-sm mb-0" style="font-size:.85rem">
       <thead style="background:#F9FAFB"><tr>
@@ -174,7 +174,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <?php if ($can_edit): ?>
 <div class="col-lg-5">
-  <form method="post" class="card shadow-sm">
+  <form method="post" class="card">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="a" value="save">
     <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><?php endif; ?>

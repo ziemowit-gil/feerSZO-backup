@@ -155,7 +155,7 @@ include __DIR__ . '/includes/header_crm.php';
       <?= csrf_field() ?>
       <input type="hidden" name="_action" value="save">
 
-      <div class="card shadow-sm mb-3">
+      <div class="card mb-3">
         <div class="card-header fw-semibold d-flex gap-2 align-items-center">
           <i class="bi bi-microsoft text-primary"></i>
           Twoje konto M365
@@ -170,7 +170,7 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       </div>
 
-      <div class="card shadow-sm mb-3">
+      <div class="card mb-3">
         <div class="card-header fw-semibold d-flex gap-2 align-items-center">
           <i class="bi bi-calendar3 text-success"></i>
           Wybór kalendarza
@@ -225,7 +225,7 @@ include __DIR__ . '/includes/header_crm.php';
 
     <!-- Reset delta -->
     <?php if ($pref): ?>
-    <div class="card shadow-sm border-0 bg-light">
+    <div class="card bg-light">
       <div class="card-body py-2 d-flex align-items-center gap-3">
         <form method="post" class="mb-0">
           <?= csrf_field() ?>
@@ -245,7 +245,7 @@ include __DIR__ . '/includes/header_crm.php';
   <div class="col-lg-5">
 
     <!-- Status sync -->
-    <div class="card shadow-sm mb-3">
+    <div class="card mb-3">
       <div class="card-header fw-semibold d-flex gap-2 align-items-center">
         <i class="bi bi-activity text-success"></i>Status synchronizacji
       </div>
@@ -289,7 +289,7 @@ include __DIR__ . '/includes/header_crm.php';
 
     <!-- Najbliższe zsynchronizowane eventy -->
     <?php if ($recent_events): ?>
-    <div class="card shadow-sm">
+    <div class="card">
       <div class="card-header fw-semibold d-flex gap-2 align-items-center">
         <i class="bi bi-calendar-event text-primary"></i>Ostatnio zsynchronizowane
       </div>
