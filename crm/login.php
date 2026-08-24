@@ -33,6 +33,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/org_case.php';   // odmiana nazwy organizacji
 require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';   // domena organizacji
 
 auth_start();
@@ -117,7 +118,9 @@ auth_screen_head([
     </div>
     <?php endif; ?>
 
-    <h1 class="ks-h1">CRM <?= h($org_name) ?></h1>
+    <?php /* Nazwa modułu + organizacja W DOPEŁNIACZU — „CRM Fundacji…", nie
+             „CRM Fundacja…". Wspólny wzorzec wszystkich ekranów logowania. */ ?>
+    <h1 class="ks-h1"><?= h(org_login_title('CRM')) ?></h1>
     <?php /* Pierwsze zdanie musi odpowiedzieć „gdzie ja jestem", bo część osób
              trafia tu przypadkiem. Dopiero drugie mówi, dla kogo to narzędzie. */ ?>
     <p class="ks-lead">

@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/org_case.php';   // odmiana nazwy organizacji
 
 karty30_migrate();
 
@@ -46,120 +47,111 @@ $KP_BODY_CLASS = 'kp-login-split-page';
 include __DIR__ . '/kursant/_layout_head.php';
 ?>
 <style>
-/* ── Reset pełnoekranowy ─────────────────────────────────────────────── */
-html, body.kp-login-split-page {
-  height: 100%;
-  margin: 0;
-  padding: 0 !important;
-}
+/* ══ Układ logowania TI — ten sam język co logowanie do SZO i do CRM ══════
+   Był to ekran dzielony: 62% szerokości zajmowało zdjęcie, formularz stał
+   z prawej. Wyglądał inaczej niż pozostałe wejścia do systemu, a na laptopie
+   zakładki i pola lądowały w wąskiej kolumnie przy krawędzi.
+
+   Teraz jedna karta na środku, na tle marki z geometrią — jak w CRM i w SZO.
+   Zdjęcie zostaje, ale jako TŁO całej strony, nie jako połowa ekranu. */
+
+html, body.kp-login-split-page { min-height: 100%; margin: 0; padding: 0 !important; }
+
 body.kp-login-split-page {
-  background: #fff;
+  background: #07111e url('assets/login-bg.webp') center / cover no-repeat fixed;
+}
+/* Przyciemnienie: zdjęcie ma nieść nastrój, nie konkurować z treścią karty */
+body.kp-login-split-page::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: linear-gradient(155deg, rgba(4,10,26,.86) 0%, rgba(4,10,26,.72) 55%, rgba(4,10,26,.88) 100%);
 }
 
-/* ── Wrapper: dwie kolumny ────────────────────────────────────────────── */
 .kp-split-wrap {
-  display: flex;
-  min-height: 100vh;
-  width: 100%;
+  position: relative; z-index: 1;
+  min-height: 100vh; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 2rem 1rem 3rem;
 }
 
-/* ── Lewa kolumna — zdjęcie ──────────────────────────────────────────── */
+/* ── Marka nad kartą (dawna lewa kolumna) ──────────────────────────────── */
 .kp-split-left {
-  flex: 0 0 62%;
-  position: relative;
-  overflow: hidden;
-  background: #07111e url('assets/login-bg.webp') center / cover no-repeat;
+  flex: 0 0 auto; background: none; overflow: visible;
+  width: 100%; max-width: 560px; margin-bottom: 1.5rem;
 }
-.kp-split-left::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(155deg,
-    rgba(4,10,26,.80) 0%,
-    rgba(4,10,26,.55) 55%,
-    rgba(4,10,26,.70) 100%);
-  pointer-events: none;
-}
+.kp-split-left::after { content: none; }
 .kp-split-left-inner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 2.5rem 3rem;
-  color: #fff;
+  display: flex; flex-direction: column; align-items: center; gap: .6rem;
+  height: auto; padding: 0; color: #fff; text-align: center;
 }
 .kp-split-brand-icon {
-  width: 52px; height: 52px;
-  border-radius: .9rem;
-  background: rgba(255,255,255,.18);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.35rem;
-  flex-shrink: 0;
+  width: 54px; height: 54px; border-radius: 1rem;
+  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.24);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; flex-shrink: 0;
 }
-.kp-split-tagline {
-  margin: auto 0 0;
-  opacity: .45;
-  font-size: .78rem;
-  line-height: 1.5;
-}
+.kp-split-left-inner .d-flex { flex-direction: column; align-items: center; gap: .6rem !important; }
+.kp-split-tagline { margin: 0; opacity: .6; font-size: .8rem; line-height: 1.5; }
 
-/* ── Prawa kolumna — formularz ──────────────────────────────────────── */
+/* ── Karta z formularzem (dawna prawa kolumna) ─────────────────────────── */
 .kp-split-right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  background: #fff;
-  padding: 3rem 3.5rem 2rem;
-  min-width: 340px;
-  max-width: 520px;
+  width: 100%; max-width: 560px;
+  background: #fff; border-radius: 18px;
+  padding: 2.25rem 2rem 1.75rem;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
 }
+@media (min-width: 576px) { .kp-split-right { padding: 2.5rem 2.75rem 2rem; } }
+
 .kp-split-right .kp-org-name {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #111;
-  margin-bottom: 2.5rem;
+  font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: #6b7280; text-align: center; margin: 0 0 .35rem;
 }
 .kp-split-right .kp-login-heading {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #222;
-  margin-bottom: 1.25rem;
+  font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; text-align: center;
+  color: #111827; margin: 0 0 1.5rem;
 }
 .kp-split-right .kp-auth-footer {
-  font-size: .75rem;
-  color: #9ca3af;
-  margin-top: auto;
-  padding-top: 2rem;
+  margin: 1.5rem 0 0; text-align: center; font-size: .76rem; color: #9ca3af;
 }
 
-/* ── Zakładki ─────────────────────────────────────────────────────────── */
 .kp-split-right .nav-tabs { border-bottom-color: #e5e7eb; margin-bottom: 1.25rem; }
 .kp-split-right .nav-tabs .nav-link { color: #6b7280; border-color: transparent; }
 .kp-split-right .nav-tabs .nav-link:hover { color: #111; }
 .kp-split-right .nav-tabs .nav-link.active {
-  color: #1d4ed8;
-  font-weight: 700;
-  border-color: transparent transparent #1d4ed8;
-  background: transparent;
+  color: var(--kp-primary, #2563eb); border-color: #e5e7eb #e5e7eb #fff; font-weight: 600;
 }
-
-/* ── Przycisk logowania ─────────────────────────────────────────────── */
 .kp-split-right .btn-primary {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  font-weight: 600;
+  background: var(--kp-primary, #2563eb); border-color: var(--kp-primary, #2563eb);
 }
 .kp-split-right .btn-primary:hover { background: #1e40af; border-color: #1e40af; }
 
-/* ── Mobile ──────────────────────────────────────────────────────────── */
-@media (max-width: 767px) {
-  .kp-split-wrap { flex-direction: column; }
-  .kp-split-left { flex: 0 0 200px; min-height: 200px; }
-  .kp-split-right { padding: 2rem 1.5rem; max-width: 100%; }
+/* ── Informacja o zmianie wyglądu ──────────────────────────────────────── */
+.kp-change {
+  display: flex; gap: .6rem; align-items: flex-start;
+  background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF;
+  border-radius: 10px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55;
+  margin-bottom: 1.25rem;
+}
+.kp-change i { font-size: 1rem; flex-shrink: 0; margin-top: .1rem }
+
+/* ── Rozjazd „to nie tutaj" ────────────────────────────────────────────── */
+.kp-lost { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e5e7eb; }
+.kp-lost-h { font-size: .95rem; font-weight: 700; text-align: center; color: #111827; margin: 0 0 .3rem; }
+.kp-lost-sub { text-align: center; font-size: .8rem; color: #6b7280; line-height: 1.55; margin: 0 0 .9rem; }
+.kp-lost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.kp-lost a {
+  display: flex; align-items: center; gap: .65rem; padding: .55rem .75rem;
+  border: 1px solid #e5e7eb; border-radius: 10px; text-decoration: none; color: #111827;
+  transition: border-color .12s, background .12s;
+}
+.kp-lost a:hover, .kp-lost a:focus { border-color: var(--kp-primary, #2563eb); background: #f9fafb; }
+.kp-lost a > i:first-child { color: var(--kp-primary, #2563eb); font-size: 1rem; flex-shrink: 0; }
+.kp-lost strong { display: block; font-size: .86rem; font-weight: 600; line-height: 1.3; }
+.kp-lost span.d { display: block; font-size: .75rem; color: #6b7280; line-height: 1.4; }
+.kp-lost .arr { margin-left: auto; font-size: .78rem; color: #9ca3af; }
+
+@media (max-width: 575px) {
+  .kp-split-right { padding: 1.75rem 1.25rem 1.5rem; }
+  .kp-split-wrap { padding: 1.25rem .75rem 2rem; }
 }
 </style>
 
@@ -168,7 +160,9 @@ body.kp-login-split-page {
   <!-- ══════════════════════════════════════════════════════════════════ -->
   <!-- LEWA KOLUMNA — zdjęcie + branding                                 -->
   <!-- ══════════════════════════════════════════════════════════════════ -->
-  <div class="kp-split-left" aria-hidden="true">
+  <?php /* Marka nad kartą. Wcześniej blok był aria-hidden, bo dublował treść
+           formularza po prawej; teraz niesie nazwę panelu i jest czytany. */ ?>
+  <div class="kp-split-left">
     <div class="kp-split-left-inner">
 
       <!-- Logo + nazwa panelu -->
@@ -192,10 +186,30 @@ body.kp-login-split-page {
   <!-- ══════════════════════════════════════════════════════════════════ -->
   <div class="kp-split-right">
 
-    <!-- Nazwa organizacji (jak "Uniwersytet Jagielloński" w UJ) -->
-    <h1 class="kp-org-name"><?= h($KP_ORG) ?></h1>
+    <?php /* Ekran przedstawia się nazwą modułu i organizacji W DOPEŁNIACZU:
+             „Panel kursanta Fundacji…", nie „Panel kursanta Fundacja…".
+             Nazwa organizacji jest ustawieniem, więc odmienia ją org_case.php.
+             Podtytuł zmienia się razem z zakładką (skrypt na dole strony). */ ?>
+    <h1 class="kp-org-name" id="kp-module-title">
+      <?= h(org_login_title($tab === 'dydaktyk' ? 'Panel prowadzącego'
+          : ($tab === 'rodzic' ? 'Panel rodzica' : ($tab === 'up' ? 'Dostęp upoważnionego' : 'Panel kursanta')))) ?>
+    </h1>
 
     <h2 class="kp-login-heading">Zaloguj</h2>
+
+    <?php /* Wygląd ekranu się zmienił, a sposób logowania NIE. Bez tego zdania
+             część osób uzna, że trafiła nie tam, gdzie zwykle, i zacznie szukać
+             „starej strony" albo dzwonić do prowadzącego. Komunikat mówi też
+             wprost, że login i hasło zostają te same — to jedyne pytanie, które
+             taka zmiana naprawdę rodzi. */ ?>
+    <div class="kp-change" role="status">
+      <i class="bi bi-stars" aria-hidden="true"></i>
+      <span>
+        <strong>Nowy wygląd logowania.</strong>
+        To ta sama strona i to samo konto — <strong>login i hasło bez zmian</strong>.
+        Zmienił się tylko wygląd, żeby wejście do panelu wyglądało jak reszta systemu.
+      </span>
+    </div>
 
     <!-- Błąd -->
     <?php if ($error): ?>
@@ -507,6 +521,40 @@ body.kp-login-split-page {
 
     </div><!-- /.tab-content -->
 
+    <?php /* Rozjazd dla kogoś, kto tu zabłądził — ten sam pomysł co na ekranie
+             logowania do CRM. Panel TI dzieli adres z resztą systemu, więc trafia
+             tu też ktoś szukający zupełnie innego miejsca. */ ?>
+    <div class="kp-lost">
+      <h2 class="kp-lost-h">Szukasz czegoś innego?</h2>
+      <p class="kp-lost-sub">Ten ekran prowadzi do zajęć TI. Inne miejsca:</p>
+      <ul>
+        <li>
+          <a href="https://feer.org.pl">
+            <i class="bi bi-globe2" aria-hidden="true"></i>
+            <span><strong>Strona Fundacji FEER</strong>
+              <span class="d">Informacje o działalności, kontakt, zapisy</span></span>
+            <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+          </a>
+        </li>
+        <li>
+          <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">
+            <i class="bi bi-person-heart" aria-hidden="true"></i>
+            <span><strong>Panel wolontariusza i współpracownika</strong>
+              <span class="d">Umowy, zadania, godziny, zaświadczenia</span></span>
+            <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+          </a>
+        </li>
+        <li>
+          <a href="<?= h(rtrim(APP_URL, '/')) ?>/auth/login.php">
+            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+            <span><strong>Logowanie do systemu</strong>
+              <span class="d">Dla zespołu Fundacji — konto służbowe</span></span>
+            <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+          </a>
+        </li>
+      </ul>
+    </div>
+
     <p class="kp-auth-footer">
       © <?= date('Y') ?> <?= h($KP_ORG) ?>
     </p>
@@ -524,12 +572,18 @@ body.kp-login-split-page {
     rodzic:   { icon:'bi-people-fill',  title:'Panel rodzica / opiekuna' },
     up:       { icon:'bi-person-check', title:'Dostęp upoważnionego' },
   };
+  // Nazwa organizacji w dopełniaczu przychodzi z serwera (includes/org_case.php) —
+  // po stronie przeglądarki tylko doklejamy ją do nazwy modułu.
+  var ORG_GEN = <?= json_encode(org_name_genitive(), JSON_UNESCAPED_UNICODE) ?>;
+
   function applyHero(tab) {
     var c = CFG[tab] || CFG.kursant;
     var ic = document.getElementById('hero-icon');
     var tl = document.getElementById('hero-title');
+    var mt = document.getElementById('kp-module-title');
     if (ic) ic.className = 'bi ' + c.icon;
     if (tl) tl.textContent = c.title;
+    if (mt) mt.textContent = ORG_GEN ? c.title + ' ' + ORG_GEN : c.title;
   }
   applyHero('<?= $tab ?>');
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(btn){
