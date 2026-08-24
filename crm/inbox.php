@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
+require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -153,6 +154,16 @@ if ($msg && !(int)$msg['is_read'] && $can_write) {
     crm_mailbox_mark_read($sel_id, true);   // otwarcie = przeczytanie
     $msg['is_read'] = 1;
 }
+
+// Autoryzacja nadawców dla całej listy naraz (domena organizacji + adresy z umów)
+$trust_map = crm_sender_trust_bulk(array_merge(
+    array_column($inbox['rows'], 'from_email'),
+    [$msg['from_email'] ?? '']
+));
+$trust_of  = static function (?string $email) use ($trust_map): array {
+    $e = strtolower(trim((string)$email));
+    return $trust_map[$e] ?? ['level' => '', 'label' => '', 'title' => '', 'contract' => null];
+};
 
 $ezd_on     = crm_mailbox_ezd_available();
 $ezd_sprawy = $msg ? crm_mailbox_ezd_sprawy('', 30) : [];
@@ -391,6 +402,15 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-check { flex-shrink:0; margin:.75rem .15rem .75rem .55rem; width:.9rem; height:.9rem; cursor:pointer;
   opacity:.4; transition:opacity .12s }
 .ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
+
+/* ── Autoryzowany nadawca ───────────────────────────────────────────────── */
+/* Podpowiedź dla człowieka, nie zabezpieczenie — From da się podrobić. */
+.ib-trust { display:inline-flex; align-items:center; gap:.25rem; flex-shrink:0; font-size:.72rem; line-height:1 }
+.ib-trust--int { color:#2E844A }
+.ib-trust--doc { color:#1D4ED8 }
+.ib-trust--lg { padding:.25rem .6rem; border-radius:2rem; font-size:.75rem; font-weight:600 }
+.ib-trust--lg.ib-trust--int { background:#EFF7ED; border:1px solid #CDE8C6 }
+.ib-trust--lg.ib-trust--doc { background:#EFF6FF; border:1px solid #BFDBFE }
 
 /* ── Pasek „przyszło coś nowego" ────────────────────────────────────────── */
 .ib-new { display:none; align-items:center; gap:.45rem; width:100%; margin-bottom:.5rem;
@@ -718,6 +738,7 @@ include __DIR__ . '/includes/header_crm.php';
         <span class="ib-l1">
           <span class="ib-udot" aria-hidden="true" title="<?= $unread ? 'Nieprzeczytana' : '' ?>"></span>
           <span class="ib-who"><?= h($who) ?></span>
+          <?= crm_sender_trust_badge($trust_of($r['from_email'] ?? ''), 'sm') ?>
           <?php if ((int)$r['has_attachments']): ?>
           <i class="bi bi-paperclip ib-clip" title="Wiadomość ma załącznik" aria-label="Załącznik"></i>
           <?php endif; ?>
@@ -826,6 +847,7 @@ include __DIR__ . '/includes/header_crm.php';
             <i class="bi bi-folder-symlink"></i>w EZD
           </a>
           <?php endif; ?>
+          <?= crm_sender_trust_badge($trust_of($msg['from_email'] ?? ''), 'md') ?>
           <?php if ($msg['inbox_status'] !== 'active'): ?>
           <span class="ib-chip"><?= $msg['inbox_status'] === 'archived' ? 'załatwione' : h($msg['inbox_status']) ?></span>
           <?php endif; ?>
