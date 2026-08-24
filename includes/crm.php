@@ -622,10 +622,30 @@ function crm_migrate(): void {
         "ALTER TABLE crm_contacts ADD COLUMN email_opt_out_at DATETIME",
         // Kategoria „świadczy usługi na rzecz FEER" — rodzaje usług w crm_contact_services
         "ALTER TABLE crm_contacts ADD COLUMN swiadczy_uslugi INTEGER NOT NULL DEFAULT 0",
+        // Opiekun kontaktu — KTO prowadzi relację. To co innego niż created_by
+        // (kto wpisał) i niż dostęp przez grupy (kto może zobaczyć).
+        "ALTER TABLE crm_contacts ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
+
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_contacts_owner ON crm_contacts(owner_id)");
+
+    // Historia zmian kartoteki — jeden wiersz na zmienione pole. Zapisywana
+    // centralnie w CrmManager::updateContact(), bo to jedyne wejście do edycji
+    // kontaktu (formularz, import, synchronizacja, akcje masowe).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_audit (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id  INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+        field       TEXT    NOT NULL,
+        old_value   TEXT,
+        new_value   TEXT,
+        user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        user_name   TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_audit_contact ON crm_contact_audit(contact_id, created_at)");
 
     // Tagi
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_tags (
@@ -1357,6 +1377,115 @@ function crm_post_custom_fields(string $contact_type): array {
     return $out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HISTORIA ZMIAN KARTOTEKI
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Pola pomijane w audycie — wyliczane albo techniczne, tylko zaszumiałyby log. */
+const CRM_AUDIT_SKIP = ['avatar_initials', 'updated_at', 'created_at', 'synced_at', 'adres'];
+
+/** Pola, których wartości nie zapisujemy wprost — audyt ma pokazać FAKT zmiany. */
+const CRM_AUDIT_MASKED = ['pesel'];
+
+/** Czytelne nazwy pól w historii zmian. */
+function crm_audit_field_label(string $field): string {
+    static $map = [
+        'type'             => 'Typ kontaktu',
+        'status'           => 'Status',
+        'imie_nazwisko'    => 'Nazwa / imię i nazwisko',
+        'imie'             => 'Imię',
+        'nazwisko'         => 'Nazwisko',
+        'email'            => 'E-mail',
+        'telefon'          => 'Telefon',
+        'pesel'            => 'PESEL',
+        'data_urodzenia'   => 'Data urodzenia',
+        'nip'              => 'NIP',
+        'krs'              => 'KRS',
+        'regon'            => 'REGON',
+        'branza'           => 'Branża',
+        'strona_www'       => 'Strona WWW',
+        'forma_prawna'     => 'Forma prawna',
+        'osoba_kontaktowa' => 'Osoba kontaktowa',
+        'stanowisko'       => 'Stanowisko',
+        'organizacja'      => 'Firma / organizacja',
+        'notatka'          => 'Notatka',
+        'owner_id'         => 'Opiekun',
+        'swiadczy_uslugi'  => 'Świadczy usługi na rzecz FEER',
+        'addr_street'      => 'Ulica',
+        'addr_house'       => 'Nr domu',
+        'addr_flat'        => 'Nr lokalu',
+        'addr_postal'      => 'Kod pocztowy',
+        'addr_city'        => 'Miejscowość',
+        'addr_country'     => 'Kraj',
+        'wojewodztwo'      => 'Województwo',
+        'powiat'           => 'Powiat',
+        'gmina'            => 'Gmina',
+        'person_id'        => 'Powiązanie z osobą w systemie',
+        'source'           => 'Źródło',
+    ];
+    return $map[$field] ?? $field;
+}
+
+/** Wartość pola w postaci nadającej się do pokazania w historii. */
+function crm_audit_format(string $field, ?string $value): string {
+    $value = (string)$value;
+    if ($value === '') return '—';
+    if (in_array($field, CRM_AUDIT_MASKED, true)) {
+        return str_repeat('•', max(0, strlen($value) - 3)) . substr($value, -3);
+    }
+    if ($field === 'owner_id') {
+        $u = db_one("SELECT full_name, username FROM users WHERE id=?", [(int)$value]);
+        return $u ? (string)($u['full_name'] ?: $u['username']) : ('#' . $value);
+    }
+    if ($field === 'type')            return CRM_CONTACT_TYPES[$value]['label'] ?? $value;
+    if ($field === 'swiadczy_uslugi') return $value ? 'tak' : 'nie';
+    return mb_strlen($value) > 300 ? mb_substr($value, 0, 300) . '…' : $value;
+}
+
+/**
+ * Zapisuje różnice między stanem kontaktu w bazie a danymi, które właśnie
+ * lecą do zapisu. Wołane WYŁĄCZNIE z CrmManager::updateContact() — dzięki temu
+ * jeden punkt obejmuje formularz, import, akcje masowe i synchronizację.
+ *
+ * Zmiany bez zalogowanego użytkownika (cron, sync Outlook) podpisujemy nazwą
+ * procesu, żeby dało się je odróżnić od pracy ręcznej.
+ */
+function crm_audit_contact_changes(int $contact_id, array $data): void {
+    if (!$data) return;
+    $before = db_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
+    if (!$before) return;
+
+    $u    = function_exists('current_user') ? current_user() : null;
+    $uid  = $u ? (int)($u['id'] ?? 0) : 0;
+    $name = $u ? (string)($u['full_name'] ?? $u['username'] ?? '') : 'proces automatyczny';
+
+    foreach ($data as $field => $new) {
+        if (in_array($field, CRM_AUDIT_SKIP, true)) continue;
+        if (!array_key_exists($field, $before))     continue;
+        $old = $before[$field];
+        if ((string)$old === (string)$new) continue;
+        if (($old === null || $old === '') && ($new === null || $new === '')) continue;
+        try {
+            db_insert('crm_contact_audit', [
+                'contact_id' => $contact_id,
+                'field'      => (string)$field,
+                'old_value'  => $old === null ? null : (string)$old,
+                'new_value'  => $new === null ? null : (string)$new,
+                'user_id'    => $uid ?: null,
+                'user_name'  => $name,
+            ]);
+        } catch (\Throwable $e) { /* audyt nie może wywrócić zapisu kontaktu */ }
+    }
+}
+
+/** Ostatnie wpisy historii zmian kontaktu. */
+function crm_audit_history(int $contact_id, int $limit = 100): array {
+    return db_all(
+        "SELECT * FROM crm_contact_audit WHERE contact_id=? ORDER BY created_at DESC, id DESC LIMIT ?",
+        [$contact_id, $limit]
+    );
+}
+
 /**
  * Sprawdza czy bieżący użytkownik może WIDZIEĆ pole (visible_roles).
  * Puste visible_roles = wszyscy mają dostęp.
@@ -1706,7 +1835,7 @@ class CrmManager
         $allowed = [
             'type','status','imie_nazwisko','email','telefon','adres',
             'nip','krs','stanowisko','organizacja','notatka',
-            'avatar_initials','person_id','source','created_by',
+            'avatar_initials','person_id','source','created_by','owner_id',
             'created_at','updated_at',
             // pola osób fizycznych
             'imie','nazwisko','pesel','data_urodzenia',
@@ -1761,6 +1890,8 @@ class CrmManager
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             // kategoria „świadczy usługi na rzecz FEER"
             'swiadczy_uslugi',
+            // opiekun relacji
+            'owner_id',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         // Jak w createContact(). Aktualizacja nie musi zawierać statusu —
@@ -1770,6 +1901,7 @@ class CrmManager
             if (!crm_services_allowed((string)$st)) $data['swiadczy_uslugi'] = 0;
         }
         $data = crm_strip_null_notnull($data, 'crm_contacts');
+        crm_audit_contact_changes($id, $data);   // porównanie ze stanem sprzed zapisu
         db_update('crm_contacts', $data, $id);
     }
 
