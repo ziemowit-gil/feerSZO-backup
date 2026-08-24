@@ -21,8 +21,6 @@ require_module_enabled('crm_enabled', 'Moduł CRM');
 $crm_can_write    = crm_can('contacts', 'write');
 $crm_can_delete   = crm_can('contacts', 'delete');
 $crm_can_export   = can_read('crm_eksport') || is_admin();
-$crm_can_import   = can_write('crm_import') || is_admin();
-$crm_can_mailing  = can_write('crm_mailing') || is_admin();
 
 crm_migrate();
 crm_require('contacts', 'read');
@@ -449,28 +447,11 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
   <div class="crm-object-actions">
-    <?php if ($crm_can_write): ?>
-    <?php /* Etykiety mówią, CO powstanie („Nowy kontakt”), a dopisek — jak długa jest
-             droga. „Szybkie +” i „Pełny” same z siebie nie mówiły o kontakcie. */ ?>
-    <a href="<?= APP_URL ?>/crm/contact/quick_add.php" class="btn btn-crm-primary btn-sm"
-       title="Krótki formularz — imię i nazwisko, e-mail, telefon; resztę uzupełnisz później">
-      <i class="bi bi-lightning-fill me-1" aria-hidden="true"></i>Nowy kontakt — szybko
-    </a>
-    <a href="<?= APP_URL ?>/crm/contact/add.php" class="btn btn-crm-outline btn-sm"
-       title="Pełna kartoteka — adres, dane organizacji, zgody, tagi">
-      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Nowy kontakt
-    </a>
-    <?php endif; ?>
-    <?php if ($crm_can_import): ?>
-    <a href="<?= APP_URL ?>/crm/import.php" class="btn btn-crm-outline btn-sm">
-      <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Importuj CSV
-    </a>
-    <?php endif; ?>
-    <?php if ($crm_can_mailing): ?>
-    <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
-      <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
-    </a>
-    <?php endif; ?>
+    <?php /* Dodawanie kontaktu, import i wysyłka mają swoje przyciski w pasku
+             nad stroną — obecnym na KAŻDYM ekranie CRM. Powtórzone tutaj dawały
+             dwa rzędy przycisków jeden pod drugim, z których połowa prowadziła
+             w to samo miejsce. Zostaje eksport, bo jako jedyny zależy od tego,
+             co widać: bierze bieżące filtry listy. */ ?>
     <?php if ($crm_can_export): ?>
     <?php $export_q = http_build_query(array_filter($filters)); ?>
     <div class="dropdown">
