@@ -294,6 +294,9 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-tbtn[disabled] { opacity:.5; cursor:not-allowed }
 .ib-tbtn--primary { border-color:var(--crm-primary); color:var(--crm-primary); background:var(--crm-primary-bg) }
 .ib-tbtn--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
+/* Wariant wypełniony — jedyna akcja tworząca coś nowego, ma wygrywać z „Sprawdź teraz”. */
+.ib-tbtn--cta { border-color:var(--crm-primary); background:var(--crm-primary); color:#fff; font-weight:600 }
+.ib-tbtn--cta:hover { background:#0165B8; border-color:#0165B8; color:#fff }
 .ib-tbtn--on { border-color:var(--crm-primary); color:var(--crm-primary) }
 
 /* ── Filtry w rozwijanym panelu ─────────────────────────────────────────── */
@@ -419,6 +422,15 @@ include __DIR__ . '/includes/header_crm.php';
     </span>
   </div>
   <div class="ib-header-actions">
+    <?php if ($can_write): ?>
+    <?php /* Skrzynka miała tylko „Odpowiedz” przy wybranym mailu — nie dało się
+             zacząć rozmowy. Kompozytor jest ten sam (crm/compose_modal.php),
+             tylko otwierany bez kontaktu: odbiorcę wybiera się w oknie. */ ?>
+    <button type="button" class="ib-tbtn ib-tbtn--cta" onclick="openCommModal(0,'email')"
+            title="Napisz nową wiadomość do kontaktu z CRM — wyśle się z CRM i zapisze w historii kontaktu">
+      <i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz
+    </button>
+    <?php endif; ?>
     <?php if (is_admin()): ?>
     <form method="post" class="d-flex gap-1 align-items-center">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

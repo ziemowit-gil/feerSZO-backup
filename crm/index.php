@@ -429,11 +429,15 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <div class="crm-object-actions">
     <?php if ($crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/contact/quick_add.php" class="btn btn-crm-primary btn-sm">
-      <i class="bi bi-lightning-fill me-1" aria-hidden="true"></i>Szybkie +
+    <?php /* Etykiety mówią, CO powstanie („Nowy kontakt”), a dopisek — jak długa jest
+             droga. „Szybkie +” i „Pełny” same z siebie nie mówiły o kontakcie. */ ?>
+    <a href="<?= APP_URL ?>/crm/contact/quick_add.php" class="btn btn-crm-primary btn-sm"
+       title="Krótki formularz — imię i nazwisko, e-mail, telefon; resztę uzupełnisz później">
+      <i class="bi bi-lightning-fill me-1" aria-hidden="true"></i>Nowy kontakt — szybko
     </a>
-    <a href="<?= APP_URL ?>/crm/contact/add.php" class="btn btn-crm-outline btn-sm">
-      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Pełny
+    <a href="<?= APP_URL ?>/crm/contact/add.php" class="btn btn-crm-outline btn-sm"
+       title="Pełna kartoteka — adres, dane organizacji, zgody, tagi">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Nowy kontakt
     </a>
     <?php endif; ?>
     <?php if ($crm_can_import): ?>

@@ -335,8 +335,10 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 /**
  * openCommModal(contactId, channel) — otwiera modalny composer wiadomości.
  * Można wywołać z dowolnego miejsca w CRM.
+ * contactId = 0 (lub brak) → kompozytor od zera: odbiorcę wybiera się w oknie.
  */
 window.openCommModal = function(contactId, channel) {
+    contactId = parseInt(contactId, 10) || 0;
     channel = channel || 'email';
     var modalEl = document.getElementById('crmComposeModal');
     var modal   = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -347,7 +349,7 @@ window.openCommModal = function(contactId, channel) {
     // Reset
     body.innerHTML  = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"></div><div class="mt-2 small">Ładowanie…</div></div>';
     foot.innerHTML  = '<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>';
-    title.textContent = 'Wyślij wiadomość';
+    title.textContent = contactId ? 'Wyślij wiadomość' : 'Nowa wiadomość';
 
     modal.show();
 

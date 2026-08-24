@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Walidacja
     $errors = [];
-    if (!$contact_id)               $errors[] = 'Brak kontaktu.';
+    if (!$contact_id)               $errors[] = 'Wybierz odbiorcę wiadomości.';
     if (!$body)                     $errors[] = 'Treść nie może być pusta.';
     if ($channel === 'email' && !$subject) $errors[] = 'Temat jest wymagany dla e-maila.';
     if ($contact_id && !crm_can_access_contact($contact_id)) $errors[] = 'Brak dostępu do kontaktu.';
@@ -126,7 +126,34 @@ $csrf      = csrf_token();
     </div>
   </div>
   <?php else: ?>
-  <div class="alert alert-warning py-2 small">Brak kontaktu — otwórz modal z widoku kontaktu.</div>
+  <?php /* Kompozytor otwarty bez kontaktu (przycisk „Napisz” w Skrzynce CRM).
+           Odbiorcą jest zawsze kontakt z kartoteki — wiadomość ma się zapisać
+           w jego historii, więc nie ma pola na dowolny adres. */ ?>
+  <div id="cm-to-search">
+  <label class="form-label small fw-semibold" for="cm-to-q">Do <span class="text-danger">*</span></label>
+  <div class="position-relative">
+    <input type="text" id="cm-to-q" class="form-control form-control-sm" autocomplete="off"
+           placeholder="Wpisz nazwisko, e-mail, organizację lub telefon…"
+           role="combobox" aria-expanded="false" aria-controls="cm-to-list" aria-autocomplete="list">
+    <div id="cm-to-list" class="list-group shadow-sm position-absolute w-100 d-none"
+         role="listbox" aria-label="Podpowiedzi kontaktów"
+         style="z-index:5;max-height:230px;overflow-y:auto;font-size:.82rem"></div>
+  </div>
+  <div class="form-text" style="font-size:.72rem">
+    Wiadomość zapisze się w historii wybranego kontaktu.
+    <a href="<?= APP_URL ?>/crm/contact/quick_add.php" target="_blank" rel="noopener">Nie ma go jeszcze w CRM?</a>
+  </div>
+  </div>
+  <div id="cm-to-chosen" class="d-none align-items-center gap-2 px-3 py-2 rounded"
+       style="background:#eff6ff;border:1px solid #bfdbfe">
+    <div class="crm-avatar sm" id="cm-to-ini"></div>
+    <div class="flex-grow-1" style="min-width:0">
+      <div class="fw-semibold small" id="cm-to-name"></div>
+      <div class="text-muted" style="font-size:.73rem" id="cm-to-meta"></div>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="cm-to-clear"
+            style="font-size:.72rem;padding:.1rem .45rem">Zmień</button>
+  </div>
   <?php endif; ?>
 </div>
 
@@ -302,6 +329,8 @@ $csrf      = csrf_token();
 
 var CSRF       = <?= json_encode($csrf) ?>;
 var BASE       = <?= json_encode(rtrim(APP_URL,'/')) ?>;
+// Odbiorca może zostać wybrany dopiero w oknie (kompozytor otwarty bez kontaktu),
+// więc to zmienna, a nie stała.
 var CONTACT_ID = <?= (int)$contact_id ?>;
 
 var _quill = null;
@@ -368,6 +397,129 @@ CM.init = function() {
 
     CM.onChannelChange(<?= json_encode($channel) ?>);
     CM.updateChar();
+
+    if (!CONTACT_ID) CM.initPicker();
+    CM.syncSubmit();
+};
+
+/* ── Wybór odbiorcy — tylko gdy modal otwarto bez kontaktu ────────────── */
+CM.syncSubmit = function() {
+    var btn = document.getElementById('cm-submit-btn');
+    if (!btn) return;
+    btn.disabled = !CONTACT_ID;
+    btn.title = CONTACT_ID ? '' : 'Najpierw wybierz odbiorcę';
+};
+
+CM.initPicker = function() {
+    var q = document.getElementById('cm-to-q');
+    if (!q) return;
+    var list   = document.getElementById('cm-to-list');
+    var search = document.getElementById('cm-to-search');
+    var chosen = document.getElementById('cm-to-chosen');
+    var timer = null, rows = [], cursor = -1;
+
+    function esc(t) {
+        return String(t == null ? '' : t)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function initials(name) {
+        var p = String(name || '').trim().split(/\s+/);
+        return ((p[0] || '')[0] || '?').toUpperCase() + ((p[1] || '')[0] || '').toUpperCase();
+    }
+    function close() {
+        list.classList.add('d-none'); list.innerHTML = '';
+        rows = []; cursor = -1; q.setAttribute('aria-expanded','false');
+    }
+    function mark() {
+        Array.prototype.forEach.call(list.children, function(el, i) {
+            el.classList.toggle('active', i === cursor);
+            if (i === cursor && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+        });
+    }
+    function render(data) {
+        rows = data; cursor = -1;
+        if (!data.length) {
+            list.innerHTML = '<div class="list-group-item py-2 text-muted small">Brak kontaktów pasujących do wpisanego tekstu.</div>';
+        } else {
+            list.innerHTML = data.map(function(r, i) {
+                var addr = r.to_email || r.email || '';
+                var sub  = [addr, r.organizacja, r.to_name ? 'adres osoby: ' + r.to_name : '']
+                             .filter(Boolean).join(' · ');
+                return '<button type="button" class="list-group-item list-group-item-action py-1 px-2 text-start" '
+                     + 'role="option" data-i="' + i + '">'
+                     + '<span class="fw-semibold">' + esc(r.name) + '</span>'
+                     + (sub ? '<br><span class="text-muted" style="font-size:.74rem">' + esc(sub) + '</span>' : '')
+                     + (addr ? '' : '<br><span class="text-danger" style="font-size:.74rem">brak adresu e-mail</span>')
+                     + '</button>';
+            }).join('');
+        }
+        list.classList.remove('d-none'); q.setAttribute('aria-expanded','true');
+    }
+    function choose(r) {
+        CONTACT_ID = r.id;
+        document.getElementById('cm-to-ini').textContent  = initials(r.name);
+        document.getElementById('cm-to-name').textContent = r.name;
+        var addr = r.to_email || r.email || '';
+        var meta = [addr || 'brak adresu e-mail', r.to_telefon || r.telefon, r.organizacja]
+                     .filter(Boolean).join(' · ');
+        document.getElementById('cm-to-meta').textContent = meta;
+        close();
+        search.classList.add('d-none');
+        chosen.classList.remove('d-none'); chosen.classList.add('d-flex');
+        CM.syncSubmit();
+        var subj = document.getElementById('cm-subject');
+        if (subj && document.getElementById('cm-channel').value === 'email') subj.focus();
+    }
+
+    q.addEventListener('input', function() {
+        var v = q.value.trim();
+        clearTimeout(timer);
+        if (v.length < 2) { close(); return; }
+        timer = setTimeout(function() {
+            fetch(BASE + '/crm/api/contacts_search.php?limit=8&q=' + encodeURIComponent(v),
+                  { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(d) { if (q.value.trim() === v) render(d || []); })
+                .catch(close);
+        }, 200);
+    });
+
+    q.addEventListener('keydown', function(e) {
+        if (list.classList.contains('d-none') || !rows.length) return;
+        if (e.key === 'ArrowDown')      { e.preventDefault(); cursor = Math.min(cursor + 1, rows.length - 1); mark(); }
+        else if (e.key === 'ArrowUp')   { e.preventDefault(); cursor = Math.max(cursor - 1, 0); mark(); }
+        else if (e.key === 'Enter')     { if (cursor >= 0) { e.preventDefault(); choose(rows[cursor]); } }
+        else if (e.key === 'Escape')    { close(); }
+    });
+
+    list.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-i]');
+        if (btn) choose(rows[+btn.dataset.i]);
+    });
+
+    // Zamykanie kliknięciem obok — rejestrowane RAZ na dokument. Skrypt modala
+    // wykonuje się przy każdym otwarciu, więc zwykły addEventListener mnożyłby
+    // uchwyty do nieistniejących już elementów.
+    if (!window.__cmPickerOutside) {
+        window.__cmPickerOutside = true;
+        document.addEventListener('click', function(e) {
+            var l = document.getElementById('cm-to-list'), i = document.getElementById('cm-to-q');
+            if (!l || !i || l.classList.contains('d-none')) return;
+            if (!l.contains(e.target) && e.target !== i) {
+                l.classList.add('d-none'); l.innerHTML = ''; i.setAttribute('aria-expanded','false');
+            }
+        });
+    }
+
+    document.getElementById('cm-to-clear').addEventListener('click', function() {
+        CONTACT_ID = 0;
+        chosen.classList.add('d-none'); chosen.classList.remove('d-flex');
+        search.classList.remove('d-none');
+        q.value = ''; q.focus();
+        CM.syncSubmit();
+    });
+
+    q.focus();
 };
 
 CM.onChannelChange = function(ch) {
@@ -432,6 +584,13 @@ CM.send = function() {
 
     var body = _mode === 'rich' && _quill ? _quill.root.innerHTML : document.getElementById('cm-plain').value;
     var ch   = document.getElementById('cm-channel').value;
+
+    if (!CONTACT_ID) {
+        err.textContent = 'Wybierz odbiorcę wiadomości.';
+        err.classList.remove('d-none');
+        document.getElementById('cm-to-q')?.focus();
+        return;
+    }
 
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Wysyłam…'; }
 
