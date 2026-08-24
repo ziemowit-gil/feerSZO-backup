@@ -190,6 +190,13 @@ $trust_of  = static function (?string $email) use ($trust_map): array {
     return $trust_map[$e] ?? ['level' => '', 'label' => '', 'title' => '', 'contract' => null];
 };
 
+// Szablony odpowiedzi — do przycisków „Odpowiedz szablonem" w pasku wiadomości.
+$reply_tpls = [];
+try {
+    $reply_tpls = db_all("SELECT id, name, subject FROM crm_templates
+                           WHERE is_active=1 AND channel='email' ORDER BY name LIMIT 12");
+} catch (\Throwable $e) {}
+
 $ezd_on     = crm_mailbox_ezd_available();
 $ezd_sprawy = $msg ? crm_mailbox_ezd_sprawy('', 30) : [];
 $ezd_teczki = $msg ? crm_mailbox_ezd_teczki() : [];
@@ -910,10 +917,41 @@ include __DIR__ . '/includes/header_crm.php';
         <?php endif; ?>
 
         <?php if (!empty($msg['contact_id'])): ?>
-        <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email')"
+        <?php
+          // „Re: temat" — bez mnożenia prefiksów przy odpowiedzi na odpowiedź
+          $reply_subject = (string)($msg['subject'] ?: '(bez tematu)');
+          if (!preg_match('/^\s*re:/i', $reply_subject)) $reply_subject = 'Re: ' . $reply_subject;
+        ?>
+        <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{subject:<?= json_encode($reply_subject) ?>})"
                 title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu">
           <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
         </button>
+
+        <?php if ($reply_tpls): ?>
+        <div class="dropdown">
+          <button type="button" class="ib-act" data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Odpowiedz gotowym szablonem — treść wypełni się sama, zostaje poprawić i wysłać">
+            <i class="bi bi-lightning-charge" style="color:#B45309" aria-hidden="true"></i>Odpowiedz szablonem
+          </button>
+          <ul class="dropdown-menu shadow-sm" style="min-width:260px;font-size:.85rem">
+            <?php foreach ($reply_tpls as $t): ?>
+            <li>
+              <button type="button" class="dropdown-item text-truncate"
+                      title="<?= h($t['subject'] ?: $t['name']) ?>"
+                      onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{tpl:<?= (int)$t['id'] ?>,subject:<?= json_encode($reply_subject) ?>})">
+                <i class="bi bi-file-earmark-text me-2 text-muted"></i><?= h($t['name']) ?>
+              </button>
+            </li>
+            <?php endforeach; ?>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <a class="dropdown-item text-muted" href="<?= APP_URL ?>/crm/templates.php">
+                <i class="bi bi-gear me-2"></i>Zarządzaj szablonami
+              </a>
+            </li>
+          </ul>
+        </div>
+        <?php endif; ?>
         <?php endif; ?>
 
         <?php /* Asystent NIE odpowiada za nas — czyta wiadomość, kwalifikuje ją

@@ -76,6 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── GET — zwróć fragment HTML ──────────────────────────────────────────────
 $contact_id = (int)($_GET['contact_id'] ?? 0);
 $channel    = in_array($_GET['channel'] ?? '', ['email','sms'], true) ? $_GET['channel'] : 'email';
+// Kompozytor można otworzyć z gotową odpowiedzią: ?tpl=<id szablonu>&subject=Re:…
+// Wtedy treść i temat są już wpisane, a użytkownik tylko poprawia i wysyła.
+$pre_tpl_id  = (int)($_GET['tpl'] ?? 0);
+$pre_subject = trim((string)($_GET['subject'] ?? ''));
 
 $contact = $contact_id
     ? db_one("SELECT id, imie_nazwisko, email, telefon FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id])
@@ -197,7 +201,8 @@ $csrf      = csrf_token();
 <!-- Temat -->
 <div id="cm-subject-row" class="mb-2" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
   <label class="form-label small fw-semibold" for="cm-subject">Temat</label>
-  <input type="text" id="cm-subject" class="form-control form-control-sm" placeholder="Temat e-maila…">
+  <input type="text" id="cm-subject" class="form-control form-control-sm" placeholder="Temat e-maila…"
+         value="<?= h($pre_subject) ?>">
 </div>
 
 <!-- Zmienne -->
@@ -416,6 +421,21 @@ CM.init = function() {
     });
 
     CM.onChannelChange(<?= json_encode($channel) ?>);
+
+    // Szablon wskazany przy otwarciu (odpowiedź jednym kliknięciem ze Skrzynki)
+    var preTpl = <?= (int)$pre_tpl_id ?>;
+    if (preTpl && tplSel) {
+        tplSel.value = String(preTpl);
+        var preSubject = <?= json_encode($pre_subject) ?>;
+        tplSel.dispatchEvent(new Event('change'));
+        // Temat z wątku ma pierwszeństwo nad tematem szablonu — odpowiadamy
+        // na konkretną wiadomość, więc „Re: …" jest właściwsze.
+        if (preSubject) {
+            var subj = document.getElementById('cm-subject');
+            if (subj) subj.value = preSubject;
+        }
+    }
+
     CM.updateChar();
 
     if (!CONTACT_ID) CM.initPicker();

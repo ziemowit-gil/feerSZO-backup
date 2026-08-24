@@ -379,9 +379,12 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
  * Można wywołać z dowolnego miejsca w CRM.
  * contactId = 0 (lub brak) → kompozytor od zera: odbiorcę wybiera się w oknie.
  */
-window.openCommModal = function(contactId, channel) {
+window.openCommModal = function(contactId, channel, opts) {
     contactId = parseInt(contactId, 10) || 0;
     channel = channel || 'email';
+    // opts: {tpl: <id szablonu>, subject: 'Re: …'} — pozwala otworzyć kompozytor
+    // od razu z wybraną odpowiedzią zamiast klikać szablon w oknie.
+    opts = opts || {};
     var modalEl = document.getElementById('crmComposeModal');
     var modal   = bootstrap.Modal.getOrCreateInstance(modalEl);
     var body    = document.getElementById('crmComposeModalBody');
@@ -415,7 +418,11 @@ window.openCommModal = function(contactId, channel) {
         if (_pending_html !== null) _inject(_pending_html);
     });
 
-    fetch('<?= APP_URL ?>/crm/compose_modal.php?contact_id=' + encodeURIComponent(contactId) + '&channel=' + encodeURIComponent(channel))
+    var _url = '<?= APP_URL ?>/crm/compose_modal.php?contact_id=' + encodeURIComponent(contactId)
+             + '&channel=' + encodeURIComponent(channel)
+             + (opts.tpl ? '&tpl=' + encodeURIComponent(opts.tpl) : '')
+             + (opts.subject ? '&subject=' + encodeURIComponent(opts.subject) : '');
+    fetch(_url)
         .then(function(r) { return r.text(); })
         .then(function(html) {
             if (_modal_shown) {
