@@ -97,16 +97,39 @@ function crm_janitor_rules(): array
 }
 
 /** Czy reguła jest włączona (domyślnie tak). Wyłączanie: settings crm_janitor_off. */
-function crm_janitor_rule_enabled(string $rule): bool
+function crm_janitor_rule_enabled(string $rule, bool $refresh = false): bool
 {
     static $off = null;
-    if ($off === null) {
+    if ($off === null || $refresh) {
         $raw = '';
         try { $raw = (string)(db_one("SELECT value FROM settings WHERE key_='crm_janitor_off'")['value'] ?? ''); }
         catch (\Throwable $e) {}
         $off = array_filter(array_map('trim', explode(',', $raw)));
     }
     return !in_array($rule, $off, true);
+}
+
+/**
+ * Zapisuje, które reguły są WŁĄCZONE. Przechowujemy listę wyłączonych, nie
+ * włączonych — dzięki temu reguła dopisana w kolejnej wersji działa od razu
+ * u wszystkich, zamiast czekać, aż ktoś ją sobie zaznaczy.
+ */
+function crm_janitor_set_enabled(array $enabled_rules): void
+{
+    $off = [];
+    foreach (array_keys(crm_janitor_rules()) as $rule) {
+        if (!in_array($rule, $enabled_rules, true)) $off[] = $rule;
+    }
+    org_setting_set('crm_janitor_off', implode(',', $off));
+    crm_janitor_rule_enabled('', true);   // odśwież pamięć podręczną w tym żądaniu
+}
+
+/** Ostatnie przebiegi bota. */
+function crm_janitor_runs(int $limit = 20): array
+{
+    crm_janitor_migrate();
+    try { return db_all("SELECT * FROM crm_janitor_runs ORDER BY id DESC LIMIT ?", [$limit]); }
+    catch (\Throwable $e) { return []; }
 }
 
 function crm_janitor_migrate(): void

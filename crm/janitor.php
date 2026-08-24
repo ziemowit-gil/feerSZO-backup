@@ -31,12 +31,32 @@ if (!$can_write) {
 
 $RULES = crm_janitor_rules();
 $rule  = isset($_GET['rule'], $RULES[$_GET['rule']]) ? (string)$_GET['rule'] : '';
+$tab   = in_array($_GET['tab'] ?? '', ['reguly', 'historia'], true) ? (string)$_GET['tab'] : 'znaleziska';
+
+/** Podgląd dry-run trzymamy w sesji: po zapisie robimy przekierowanie (PRG),
+    a wynik ma przetrwać do wyświetlenia i zniknąć po jednym pokazaniu. */
+$preview = $_SESSION['crm_janitor_preview'] ?? null;
+unset($_SESSION['crm_janitor_preview']);
 
 // ── POST ───────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op  = (string)($_POST['_op'] ?? '');
     $uid = (int)(current_user()['id'] ?? 0) ?: null;
+
+    if ($op === 'preview') {
+        // Nic nie zapisuje — pokazuje, co BY się stało. To jedyny sposób,
+        // żeby przed pierwszym uruchomieniem na żywej bazie zobaczyć zakres.
+        $r = crm_janitor_run(true);
+        $_SESSION['crm_janitor_preview'] = $r;
+        header('Location: ?' . http_build_query(array_filter(['tab' => $tab, 'rule' => $rule]))); exit;
+    }
+
+    if ($op === 'save_rules') {
+        crm_janitor_set_enabled(array_map('strval', (array)($_POST['rules'] ?? [])));
+        flash_set('success', 'Zapisano, które reguły są włączone.');
+        header('Location: ?tab=reguly'); exit;
+    }
 
     if ($op === 'run') {
         // Uruchomienie ręczne — bot i tak chodzi z cronu, ale po większym
@@ -58,12 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (crm_janitor_open($r, 500) as $f) { crm_janitor_close((int)$f['id'], 'dismissed', $uid); $n++; }
         flash_set('success', "Odrzucono zgłoszeń: {$n}.");
     }
-    header('Location: ?' . http_build_query(array_filter(['rule' => $rule]))); exit;
+    header('Location: ?' . http_build_query(array_filter(['tab' => $tab, 'rule' => $rule]))); exit;
 }
 
 $counts   = crm_janitor_counts();
 $findings = crm_janitor_open($rule, 300);
-$last_run = db_one("SELECT * FROM crm_janitor_runs ORDER BY id DESC LIMIT 1");
+$runs     = crm_janitor_runs(20);
+$last_run = $runs[0] ?? null;
 
 $PAGE_TITLE = 'Bot sprzątający';
 include __DIR__ . '/includes/header_crm.php';
@@ -87,10 +108,16 @@ include __DIR__ . '/includes/header_crm.php';
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <a href="<?= APP_URL ?>/crm/dashboard.php" class="btn btn-sm btn-crm-ghost" aria-label="Wróć do dashboardu"><i class="bi bi-arrow-left"></i></a>
     <h1 class="h5 mb-0 me-auto"><i class="bi bi-stars me-2"></i>Bot sprzątający</h1>
-    <form method="post" class="m-0">
+    <form method="post" class="m-0 d-flex gap-1">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="_op" value="run">
-      <button class="btn btn-sm btn-crm-primary"><i class="bi bi-play-fill me-1"></i>Przejdź bazę teraz</button>
+      <button name="_op" value="preview" class="btn btn-sm btn-crm-outline"
+              title="Przejdź bazę i pokaż, co BY się zmieniło — bez zapisu">
+        <i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd
+      </button>
+      <button name="_op" value="run" class="btn btn-sm btn-crm-primary"
+              onclick="return confirm('Bot poprawi kosmetykę w kartotece i zgłosi resztę do decyzji. Kontynuować?')">
+        <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Przejdź bazę teraz
+      </button>
     </form>
   </div>
 
@@ -104,6 +131,66 @@ include __DIR__ . '/includes/header_crm.php';
     naprawił <?= (int)$last_run['fixed'] ?>, zgłosił <?= (int)$last_run['found'] ?>.
     <?php endif; ?>
   </p>
+
+  <?php if ($preview): ?>
+  <?php /* Wynik dry-run. Świadomie nad zakładkami — to odpowiedź na kliknięcie,
+           które użytkownik przed chwilą wykonał, więc ma być pierwszą rzeczą,
+           jaką widzi po powrocie. */ ?>
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #0176D3 !important">
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-eye-fill" style="color:#0176D3" aria-hidden="true"></i>
+        <strong style="font-size:.9rem">Podgląd — nic nie zostało zapisane</strong>
+      </div>
+      <p class="mb-2" style="font-size:.85rem">
+        Bot poprawiłby <strong><?= (int)$preview['fixed'] ?></strong>
+        <?= $preview['fixed'] === 1 ? 'drobiazg' : 'drobiazgów' ?>
+        i zgłosił <strong><?= (int)$preview['found'] ?></strong>
+        <?= $preview['found'] === 1 ? 'sprawę' : 'spraw' ?> do decyzji.
+      </p>
+      <?php if (!empty($preview['per_rule'])): ?>
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        <?php foreach ($preview['per_rule'] as $rk => $n): ?>
+        <span class="badge bg-light text-dark border"><?= h($RULES[$rk]['label'] ?? $rk) ?>: <?= (int)$n ?></span>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($preview['samples'])): ?>
+      <details>
+        <summary class="text-muted" style="font-size:.8rem;cursor:pointer">Przykłady poprawek, które by poszły</summary>
+        <table class="table table-sm mt-2 mb-0" style="font-size:.78rem">
+          <caption class="visually-hidden">Przykładowe poprawki kosmetyczne</caption>
+          <thead class="table-light"><tr>
+            <th scope="col">Kartoteka</th><th scope="col">Pole</th><th scope="col">Przed</th><th scope="col">Po</th>
+          </tr></thead>
+          <tbody>
+          <?php foreach ($preview['samples'] as $sm): foreach ($sm['fix'] as $field => $ba): ?>
+            <tr>
+              <td><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$sm['id'] ?>" target="_blank" rel="noopener"><?= h($sm['name']) ?></a></td>
+              <td class="text-muted"><?= h(crm_audit_field_label($field)) ?></td>
+              <td><code style="font-size:.72rem">„<?= h($ba[0]) ?>”</code></td>
+              <td><code style="font-size:.72rem">„<?= h($ba[1]) ?>”</code></td>
+            </tr>
+          <?php endforeach; endforeach; ?>
+          </tbody>
+        </table>
+      </details>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><a class="nav-link<?= $tab === 'znaleziska' ? ' active' : '' ?>" href="?">
+      <i class="bi bi-inboxes me-1" aria-hidden="true"></i>Do decyzji
+      <span class="badge bg-secondary ms-1"><?= (int)($counts['ALL'] ?? 0) ?></span></a></li>
+    <li class="nav-item"><a class="nav-link<?= $tab === 'reguly' ? ' active' : '' ?>" href="?tab=reguly">
+      <i class="bi bi-sliders me-1" aria-hidden="true"></i>Reguły</a></li>
+    <li class="nav-item"><a class="nav-link<?= $tab === 'historia' ? ' active' : '' ?>" href="?tab=historia">
+      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia przebiegów</a></li>
+  </ul>
+
+<?php if ($tab === 'znaleziska'): ?>
 
   <!-- Filtry -->
   <div class="d-flex flex-wrap gap-1 mb-3">
@@ -196,28 +283,95 @@ include __DIR__ . '/includes/header_crm.php';
   </form>
   <?php endif; ?>
 
-  <!-- Co bot poprawia sam -->
-  <div class="card border-0 shadow-sm mt-3">
-    <div class="card-body">
-      <div class="crm-section-title">Poprawiane automatycznie</div>
-      <div class="row g-2">
-        <?php foreach ($RULES as $rk => $rv): if (($rv['mode'] ?? '') !== 'auto') continue;
+<?php elseif ($tab === 'reguly'): ?>
+
+  <!-- ══ REGUŁY ══════════════════════════════════════════════════════════ -->
+  <form method="post">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_op" value="save_rules">
+
+    <?php foreach ([
+        'auto'    => ['Poprawiane automatycznie', 'Bot zmienia dane sam. Wyłącznie kosmetyka — nic z tego nie zmienia znaczenia rekordu, a każda poprawka jest widoczna w historii zmian kartoteki.', '#2E844A'],
+        'propose' => ['Zgłaszane do decyzji',     'Bot tylko znajduje i opisuje. Zmiana wymaga kliknięcia człowieka, bo albo zmienia sens rekordu, albo nie cofa jej jedno kliknięcie.', '#0176D3'],
+    ] as $mode => [$title, $desc, $color]): ?>
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span style="width:8px;height:8px;border-radius:50%;background:<?= $color ?>" aria-hidden="true"></span>
+          <div class="crm-section-title mb-0"><?= h($title) ?></div>
+        </div>
+        <p class="text-muted mb-3" style="font-size:.79rem;max-width:76ch"><?= h($desc) ?></p>
+
+        <?php foreach ($RULES as $rk => $rv): if (($rv['mode'] ?? '') !== $mode) continue;
               $on = crm_janitor_rule_enabled($rk); ?>
-        <div class="col-sm-6 d-flex gap-2 align-items-start">
-          <i class="bi <?= $on ? 'bi-check-circle-fill text-success' : 'bi-slash-circle text-muted' ?> mt-1" aria-hidden="true"></i>
-          <div>
-            <div class="fw-semibold" style="font-size:.83rem"><?= h($rv['label']) ?></div>
-            <div class="text-muted" style="font-size:.75rem"><?= h($rv['desc']) ?></div>
-          </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="rules[]" value="<?= h($rk) ?>"
+                 id="rule_<?= h($rk) ?>" <?= $on ? 'checked' : '' ?>>
+          <label class="form-check-label" for="rule_<?= h($rk) ?>">
+            <span class="fw-semibold" style="font-size:.86rem"><?= h($rv['label']) ?></span>
+            <?php if (($rv['severity'] ?? '') === 'high'): ?>
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size:.65rem">ważne</span>
+            <?php endif; ?>
+            <span class="d-block text-muted" style="font-size:.76rem"><?= h($rv['desc']) ?></span>
+          </label>
         </div>
         <?php endforeach; ?>
       </div>
-      <p class="text-muted mb-0 mt-2" style="font-size:.75rem">
-        Regułę wyłącza się wpisem w ustawieniach <code>crm_janitor_off</code>
-        (klucze po przecinku). Wyłączona reguła przestaje ruszać dane, ale bot chodzi dalej.
-      </p>
+    </div>
+    <?php endforeach; ?>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <button class="btn btn-crm-primary btn-sm"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz reguły</button>
+      <span class="text-muted small">
+        Wyłączona reguła przestaje ruszać dane i przestaje zgłaszać — bot chodzi dalej, tylko ją pomija.
+      </span>
+    </div>
+  </form>
+
+<?php else: ?>
+
+  <!-- ══ HISTORIA ════════════════════════════════════════════════════════ -->
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Historia przebiegów bota</caption>
+        <thead class="table-light">
+          <tr>
+            <th scope="col" style="width:12rem">Kiedy</th>
+            <th scope="col" class="text-end" style="width:8rem">Poprawek</th>
+            <th scope="col" class="text-end" style="width:8rem">Zgłoszeń</th>
+            <th scope="col">Co zadziałało</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php if (!$runs): ?>
+          <tr><td colspan="4" class="text-center text-muted py-4">
+            Bot jeszcze nie przechodził bazy. Uruchom go przyciskiem u góry albo poczekaj na nocny przebieg.
+          </td></tr>
+        <?php else: foreach ($runs as $r): $sum = json_decode((string)$r['summary'], true) ?: []; ?>
+          <tr>
+            <td class="text-muted small"><?= h(date_pl($r['started_at'])) ?></td>
+            <td class="text-end"><?= (int)$r['fixed'] ?: '<span class="text-muted">—</span>' ?></td>
+            <td class="text-end"><?= (int)$r['found'] ?: '<span class="text-muted">—</span>' ?></td>
+            <td>
+              <?php if (!$sum): ?><span class="text-muted small">nic do zrobienia</span>
+              <?php else: foreach ($sum as $rk => $n): ?>
+              <span class="badge bg-light text-dark border me-1 mb-1"><?= h($RULES[$rk]['label'] ?? $rk) ?>: <?= (int)$n ?></span>
+              <?php endforeach; endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; endif; ?>
+        </tbody>
+      </table>
     </div>
   </div>
+  <p class="text-muted small mt-2">
+    Bot chodzi z crona co dobę między 2:00 a 4:00 (agent <code>crm_janitor</code> w dispatcherze).
+    Co dokładnie zmienił w konkretnej kartotece, widać w jej historii zmian — podpisuje się jako
+    „proces automatyczny”.
+  </p>
+
+<?php endif; ?>
 
 </div>
 
