@@ -1467,7 +1467,12 @@ $contract_import_data = (($contact['type'] ?? '') === 'osoba')
     ? CrmManager::getContractDataForContact($contact)
     : [];
 
-$_custom_field_defs   = array_filter(CrmManager::getFieldDefs($contact['type'] ?? ''), 'crm_field_visible');
+// Pola dodatkowe filtrujemy przez crm_field_applies_key(): typ „kontrahent”
+// i „partner” to podmioty, więc mają dostać pola organizacji.
+$_custom_field_defs   = array_filter(
+    CrmManager::getFieldDefs(crm_field_applies_key($contact['type'] ?? 'osoba')),
+    'crm_field_visible'
+);
 $_custom_field_values = CrmManager::getFieldValues($id);
 
 // Widoczność pól systemowych dla bieżącego użytkownika

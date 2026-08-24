@@ -73,13 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user_id = (int)(current_user()['id'] ?? 0);
         if ($is_edit) {
             CrmManager::updateContact($edit_id, $data);
-            CrmManager::saveFieldValues($edit_id, (array)($_POST['custom_fields'] ?? []));
+            CrmManager::saveFieldValues($edit_id, crm_post_custom_fields($data['type']));
             flash_set('success', 'Kontakt zaktualizowany pomyślnie.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $edit_id);
         } else {
             $data['created_by'] = $user_id;
             $new_id = CrmManager::createContact($data);
-            CrmManager::saveFieldValues($new_id, (array)($_POST['custom_fields'] ?? []));
+            CrmManager::saveFieldValues($new_id, crm_post_custom_fields($data['type']));
             flash_set('success', 'Kontakt dodany pomyślnie.');
             header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $new_id);
         }
@@ -90,7 +90,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $row = array_merge($row, $_POST);
 }
 
-// Definicje pól dodatkowych — filtruj per widoczność i edytowalność
+// Typ kontaktu, pod który renderujemy formularz: z POST-a po błędzie walidacji,
+// z bazy w edycji, „osoba” dla nowego. $cur_key sprowadza cztery typy do dwóch
+// zestawów pól (podmioty dzielą pola organizacji).
+$cur_type = (string)($row['type'] ?? 'osoba');
+if (!isset(CRM_CONTACT_TYPES[$cur_type])) $cur_type = 'osoba';
+$cur_key  = crm_field_applies_key($cur_type);
+
+// Mapa typ → zestaw pól, żeby skrypt formularza nie musiał znać CRM_CONTACT_TYPES.
+$_type_keys = [];
+foreach (CRM_CONTACT_TYPES as $_tk => $_tv) $_type_keys[$_tk] = crm_field_applies_key($_tk);
+
+// Definicje pól dodatkowych — WSZYSTKIE (oba typy), bo formularz przełącza je
+// na żywo przy zmianie typu kontaktu. Filtr po typie robi JS + zapis niżej.
 $_field_defs_all = CrmManager::getFieldDefs();
 $_field_defs     = array_filter($_field_defs_all, 'crm_field_visible');
 $_field_values   = $is_edit ? CrmManager::getFieldValues($edit_id) : [];
@@ -168,21 +180,29 @@ include __DIR__ . '/../includes/header_crm.php';
         <div class="row g-3">
           <div class="col-sm-8">
             <label class="form-label fw-semibold" for="imie_nazwisko">
-              Imię i nazwisko / Nazwa firmy <span class="text-danger" aria-hidden="true">*</span>
+              <span data-crm-label="osoba"<?= $cur_key === 'osoba' ? '' : ' hidden' ?>>Imię i nazwisko</span>
+              <span data-crm-label="organizacja"<?= $cur_key === 'organizacja' ? '' : ' hidden' ?>>Nazwa podmiotu</span>
+              <span class="text-danger" aria-hidden="true">*</span>
             </label>
             <input type="text" name="imie_nazwisko" id="imie_nazwisko"
                    class="form-control"
                    value="<?= h($row['imie_nazwisko'] ?? '') ?>"
                    required
                    aria-required="true"
-                   placeholder="np. Jan Kowalski lub Fundacja XYZ">
+                   data-ph-osoba="np. Jan Kowalski"
+                   data-ph-organizacja="np. Fundacja Edukacji XYZ"
+                   placeholder="<?= $cur_key === 'organizacja' ? 'np. Fundacja Edukacji XYZ' : 'np. Jan Kowalski' ?>">
           </div>
           <div class="col-sm-4">
             <label class="form-label fw-semibold" for="type">Typ kontaktu</label>
+            <?php /* Wszystkie typy ze słownika. Wcześniej były tylko dwa, więc edycja
+                     kontrahenta albo partnera po cichu przestawiała go na „osobę”. */ ?>
             <select name="type" id="type" class="form-select" aria-label="Typ kontaktu">
-              <option value="osoba"       <?= ($row['type'] ?? 'osoba') === 'osoba'       ? 'selected' : '' ?>>Osoba</option>
-              <option value="organizacja" <?= ($row['type'] ?? '') === 'organizacja' ? 'selected' : '' ?>>Organizacja</option>
+              <?php foreach (CRM_CONTACT_TYPES as $tk => $tv): ?>
+              <option value="<?= h($tk) ?>" <?= $cur_type === $tk ? 'selected' : '' ?>><?= h($tv['label']) ?></option>
+              <?php endforeach; ?>
             </select>
+            <div class="form-text" style="font-size:.77rem">Przełącza pola widoczne w formularzu.</div>
           </div>
         </div>
 
@@ -232,7 +252,9 @@ include __DIR__ . '/../includes/header_crm.php';
           </div>
           <?php endif; ?>
           <?php if ($_sfe['organizacja']['vis']): ?>
-          <div class="col-sm-6">
+          <?php /* Dla podmiotu nazwa organizacji jest w polu głównym — to pole to
+                   PRACODAWCA osoby, więc przy typie organizacji nie ma sensu. */ ?>
+          <div class="col-sm-6" data-crm-only="osoba"<?= $cur_key === 'osoba' ? '' : ' hidden' ?>>
             <label class="form-label" for="organizacja">
               Firma / Organizacja
               <?php if (!$_sfe['organizacja']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
@@ -254,9 +276,9 @@ include __DIR__ . '/../includes/header_crm.php';
       </div>
     </div>
 
-    <!-- Dane firmowe (NIP/KRS) -->
+    <!-- Dane firmowe (NIP/KRS) — tylko podmioty -->
     <?php if ($_sfe['nip']['vis'] || $_sfe['krs']['vis']): ?>
-    <div class="card border-0 shadow-sm mt-3">
+    <div class="card border-0 shadow-sm mt-3" data-crm-only="organizacja"<?= $cur_key === 'organizacja' ? '' : ' hidden' ?>>
       <div class="card-body">
         <div class="crm-section-title">Dane rejestrowe (opcjonalnie)</div>
         <div class="row g-3">
@@ -315,15 +337,14 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 
   <?php
-  // Filtruj pola wg typu kontaktu (używamy wartości z formularza jeśli błąd, inaczej z bazy)
-  $cur_type = $row['type'] ?? 'osoba';
-  $visible_defs = array_filter($_field_defs, fn($d) =>
-      $d['applies_to'] === 'both' || $d['applies_to'] === $cur_type
-  );
+  // Renderujemy definicje OBU typów. Te nietrafione w bieżący typ idą z atrybutem
+  // hidden i wyłączonymi polami — przełącznik typu odsłania je bez przeładowania,
+  // a zapis i tak filtruje po stronie serwera (crm_post_custom_fields).
+  $visible_defs = $_field_defs;
   if ($visible_defs):
   ?>
   <!-- Dodatkowe pola -->
-  <div class="col-12">
+  <div class="col-12" id="cf-section">
     <div class="card border-0 shadow-sm">
       <div class="card-body">
         <div class="crm-section-title">Dodatkowe informacje</div>
@@ -340,7 +361,11 @@ include __DIR__ . '/../includes/header_crm.php';
             $ro    = $can_edit ? '' : ' readonly disabled';
             $ro_cls= $can_edit ? '' : ' bg-light text-muted';
           ?>
-          <div class="<?= $col ?>" data-applies="<?= h($fd['applies_to']) ?>">
+          <?php
+            $f_on  = crm_field_applies_to_type($fd, $cur_type);
+            $f_off = $f_on ? '' : ' disabled';   // ukryte pole nie ma trafiać do POST-a
+          ?>
+          <div class="<?= $col ?>" data-crm-only="<?= h($fd['applies_to']) ?>"<?= $f_on ? '' : ' hidden' ?>>
             <label class="form-label" for="cf_<?= $fid ?>">
               <?= h($fd['label']) ?>
               <?php if (!$can_edit): ?>
@@ -350,11 +375,11 @@ include __DIR__ . '/../includes/header_crm.php';
               <?php endif; ?>
             </label>
             <?php if ($fd['field_type'] === 'textarea'): ?>
-              <textarea class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" rows="3"<?= $ro ?>><?= h($fval) ?></textarea>
+              <textarea class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" rows="3"<?= $ro ?><?= $f_off ?>><?= h($fval) ?></textarea>
             <?php elseif ($fd['field_type'] === 'select'):
               $opts = json_decode($fd['options'], true) ?: [];
             ?>
-              <select class="form-select<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>"<?= $can_edit ? '' : ' disabled' ?>>
+              <select class="form-select<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>"<?= $can_edit ? '' : ' disabled' ?><?= $f_off ?>>
                 <option value="">— wybierz —</option>
                 <?php foreach ($opts as $opt): ?>
                 <option value="<?= h($opt) ?>" <?= $fval === $opt ? 'selected' : '' ?>><?= h($opt) ?></option>
@@ -362,20 +387,23 @@ include __DIR__ . '/../includes/header_crm.php';
               </select>
             <?php elseif ($fd['field_type'] === 'checkbox'): ?>
               <div class="form-check mt-1">
+                <?php /* Ukryty bliźniak — bez niego odznaczenie pola nigdy nie
+                         docierałoby do zapisu (przeglądarka nie wysyła pustych checkboxów). */ ?>
+                <input type="hidden" name="<?= $fname ?>" value=""<?= $can_edit ? '' : ' disabled' ?><?= $f_off ?>>
                 <input class="form-check-input" type="checkbox" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="1"
-                       <?= $fval ? 'checked' : '' ?><?= $can_edit ? '' : ' disabled' ?>>
+                       <?= $fval ? 'checked' : '' ?><?= $can_edit ? '' : ' disabled' ?><?= $f_off ?>>
                 <label class="form-check-label" for="cf_<?= $fid ?>">Tak</label>
               </div>
             <?php elseif ($fd['field_type'] === 'date'): ?>
-              <input type="date" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
+              <input type="date" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?><?= $f_off ?>>
             <?php elseif ($fd['field_type'] === 'number'): ?>
-              <input type="number" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
+              <input type="number" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?><?= $f_off ?>>
             <?php elseif ($fd['field_type'] === 'url'): ?>
-              <input type="url" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>" placeholder="https://"<?= $ro ?>>
+              <input type="url" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>" placeholder="https://"<?= $ro ?><?= $f_off ?>>
             <?php elseif ($fd['field_type'] === 'email'): ?>
-              <input type="email" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
+              <input type="email" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?><?= $f_off ?>>
             <?php else: ?>
-              <input type="text" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
+              <input type="text" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?><?= $f_off ?>>
             <?php endif; ?>
           </div>
           <?php endforeach; ?>
@@ -422,5 +450,62 @@ include __DIR__ . '/../includes/header_crm.php';
 
 </div><!-- /row -->
 </form>
+
+<style>
+/* Bootstrap ustawia .card { display:flex }, co bije domyślne [hidden] przeglądarki.
+   Bez tej reguły karta „Dane rejestrowe” nie chowałaby się przy typie „osoba”. */
+[data-crm-only][hidden], [data-crm-label][hidden], #cf-section[hidden] { display:none !important }
+</style>
+<script>
+/**
+ * Pola zależne od typu kontaktu.
+ *
+ * Formularz zawiera pola OBU zestawów; przełącznik „Typ kontaktu” odsłania
+ * właściwy bez przeładowania strony. Ukryte pola są dodatkowo `disabled`, żeby
+ * nie trafiały do POST-a — dzięki temu przestawienie typu nie kasuje wartości
+ * drugiego zestawu (serwer ich po prostu nie dostaje i zostawia w bazie).
+ */
+(function() {
+    'use strict';
+    var sel = document.getElementById('type');
+    if (!sel) return;
+    var KEYS = <?= json_encode($_type_keys, JSON_UNESCAPED_UNICODE) ?>;
+
+    function apply() {
+        var key = KEYS[sel.value] || 'osoba';
+
+        document.querySelectorAll('[data-crm-only]').forEach(function(el) {
+            var on = el.dataset.crmOnly === 'both' || el.dataset.crmOnly === key;
+            el.hidden = !on;
+            el.querySelectorAll('input, select, textarea').forEach(function(f) {
+                // Pole zablokowane uprawnieniami jest już `disabled`, więc nie dostanie
+                // znacznika typeOff i nie zostanie odblokowane przy powrocie typu.
+                if (!on && !f.disabled) { f.dataset.typeOff = '1'; f.disabled = true; }
+                else if (on && f.dataset.typeOff === '1') { delete f.dataset.typeOff; f.disabled = false; }
+            });
+        });
+
+        document.querySelectorAll('[data-crm-label]').forEach(function(el) {
+            el.hidden = el.dataset.crmLabel !== key;
+        });
+
+        var name = document.getElementById('imie_nazwisko');
+        if (name && name.dataset['ph' + key.charAt(0).toUpperCase() + key.slice(1)]) {
+            name.placeholder = name.dataset['ph' + key.charAt(0).toUpperCase() + key.slice(1)];
+        }
+
+        // Sekcja pól dodatkowych znika, gdy dla tego typu nie ma czego pokazać.
+        var sec = document.getElementById('cf-section');
+        if (sec) {
+            var any = Array.prototype.some.call(
+                sec.querySelectorAll('[data-crm-only]'), function(el) { return !el.hidden; });
+            sec.hidden = !any;
+        }
+    }
+
+    sel.addEventListener('change', apply);
+    apply();
+})();
+</script>
 
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

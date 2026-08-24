@@ -1316,6 +1316,48 @@ function crm_all_roles(): array {
 }
 
 /**
+ * Klucz filtrowania pól dodatkowych dla danego typu kontaktu.
+ *
+ * `crm_contact_field_defs.applies_to` zna tylko 'both' | 'osoba' | 'organizacja',
+ * a typów kontaktu jest cztery. Kontrahent i partner to również PODMIOTY, więc
+ * dziedziczą pola organizacji — bez tego mapowania pola firmowe znikały każdemu,
+ * kto nie był dosłownie typu „organizacja”.
+ */
+function crm_field_applies_key(string $contact_type): string {
+    return !empty(CRM_CONTACT_TYPES[$contact_type]['org_like']) ? 'organizacja' : 'osoba';
+}
+
+/**
+ * Czy definicja pola dotyczy podanego typu kontaktu?
+ */
+function crm_field_applies_to_type(array $fd, string $contact_type): bool {
+    $a = $fd['applies_to'] ?? 'both';
+    return $a === 'both' || $a === crm_field_applies_key($contact_type);
+}
+
+/**
+ * Pola dodatkowe z $_POST przefiltrowane pod typ kontaktu.
+ *
+ * Formularz renderuje definicje OBU typów (przełączane w locie), więc do zapisu
+ * biorą się tylko te, które pasują do typu zapisywanego kontaktu i które
+ * bieżący użytkownik może edytować. Wartości pól drugiego typu zostają w bazie
+ * nietknięte — zmiana typu ma je ukryć, a nie skasować.
+ */
+function crm_post_custom_fields(string $contact_type): array {
+    $posted = (array)($_POST['custom_fields'] ?? []);
+    if (!$posted) return [];
+    $out = [];
+    foreach (CrmManager::getFieldDefs() as $fd) {
+        $fid = (int)$fd['id'];
+        if (!array_key_exists($fid, $posted))                 continue;
+        if (!crm_field_applies_to_type($fd, $contact_type))   continue;
+        if (!crm_field_editable($fd))                         continue;
+        $out[$fid] = (string)$posted[$fid];
+    }
+    return $out;
+}
+
+/**
  * Sprawdza czy bieżący użytkownik może WIDZIEĆ pole (visible_roles).
  * Puste visible_roles = wszyscy mają dostęp.
  * Jeśli pole ma group_id — sprawdza też widoczność grupy.
