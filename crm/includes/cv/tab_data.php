@@ -346,6 +346,169 @@ if (!isset($contact)) { http_response_code(400); exit; }
     </div></div>
     <?php endif; ?>
 
+    <!-- ── Powiązane kartoteki ───────────────────────────────────────────── -->
+    <?php /* Powiązanie łączy DWIE pełne kartoteki (osoba ↔ organizacja, podmiot ↔
+             podmiot). Nie mylić z osobami kontaktowymi: tam osoba nie ma własnej
+             kartoteki, jest danymi przy podmiocie. Zob. includes/crm_relations.php. */ ?>
+    <?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/crm_relations.php';
+          $cv_rels  = crm_relations_for($id);
+          $cv_rtypes = crm_relation_types(); ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-diagram-3-fill cv-shead__icon" style="color:#7C3AED" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Powiązane kartoteki</h2>
+        <div class="cv-shead__aside">
+          <?php if ($cv_rels): ?><span class="cv-count"><?= count($cv_rels) ?></span><?php endif; ?>
+        </div>
+      </div>
+
+      <?php if (!$cv_rels): ?>
+      <p class="cv-meta mb-2">
+        Brak powiązań. Tu zapisuje się, kto z kim i jak jest związany: członek zarządu,
+        pracownik, opiekun prawny, oddział, partner — obie strony widzą to u siebie.
+      </p>
+      <?php else: ?>
+      <ul class="list-unstyled mb-2">
+        <?php foreach ($cv_rels as $rel): ?>
+        <li class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid var(--crm-border)">
+          <i class="bi <?= h($rel['icon']) ?> text-muted" aria-hidden="true"></i>
+          <div class="flex-grow-1 overflow-hidden">
+            <div style="font-size:.83rem">
+              <span class="text-muted"><?= h($rel['label']) ?>:</span>
+              <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$rel['other_id'] ?>"
+                 class="fw-semibold"><?= h($rel['other_name']) ?></a>
+            </div>
+            <?php if ($rel['notes']): ?>
+            <div class="cv-meta"><?= h($rel['notes']) ?></div>
+            <?php endif; ?>
+          </div>
+          <?php if ($crm_can_write): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć to powiązanie?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="rel_del">
+            <input type="hidden" name="rel_id" value="<?= (int)$rel['id'] ?>">
+            <button class="btn btn-link p-0 border-0 text-muted" style="line-height:1"
+                    title="Usuń powiązanie" aria-label="Usuń powiązanie z <?= h($rel['other_name']) ?>">
+              <i class="bi bi-x-lg" style="font-size:.75rem" aria-hidden="true"></i>
+            </button>
+          </form>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+
+      <?php if ($crm_can_write): ?>
+      <form method="post" class="cv-rel-form" id="cvRelForm">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="rel_add">
+        <input type="hidden" name="rel_other" id="cvRelOther" value="">
+        <div class="row g-2">
+          <div class="col-12 position-relative">
+            <label class="form-label small fw-semibold mb-1" for="cvRelSearch">Powiąż z kartoteką</label>
+            <input type="text" class="form-control form-control-sm" id="cvRelSearch" autocomplete="off"
+                   placeholder="Zacznij pisać nazwę albo e-mail…" role="combobox"
+                   aria-expanded="false" aria-controls="cvRelHits" aria-autocomplete="list">
+            <div class="cv-rel-hits" id="cvRelHits" role="listbox" aria-label="Wyniki wyszukiwania" hidden></div>
+          </div>
+          <div class="col-7">
+            <label class="form-label small fw-semibold mb-1" for="cvRelType">Kim jest ta kartoteka</label>
+            <select name="rel_type" id="cvRelType" class="form-select form-select-sm">
+              <?php foreach ($cv_rtypes as $rk => $rv): ?>
+              <?php /* Etykieta „od A": wybieramy rolę TEJ kartoteki wobec wskazanej */ ?>
+              <option value="<?= h($rk) ?>"><?= h($rv['a']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-5 d-flex align-items-end">
+            <button class="btn btn-crm-primary btn-sm w-100" id="cvRelBtn" disabled>
+              <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Powiąż
+            </button>
+          </div>
+        </div>
+        <div class="form-text" style="font-size:.72rem">
+          Kierunek ma znaczenie: wybierasz, kim jest <strong>ta</strong> kartoteka wobec wskazanej.
+          Druga strona zobaczy powiązanie odwrotnie („ma w zarządzie", „zatrudnia").
+        </div>
+      </form>
+
+      <script>
+      /* Wyszukiwarka kartoteki do powiązania — ten sam endpoint co w wysyłce.
+         Bez wybrania z listy przycisk zostaje nieaktywny: powiązanie potrzebuje
+         identyfikatora, a nie wpisanego tekstu, który może pasować do wielu osób. */
+      (function () {
+        var box = document.getElementById('cvRelForm');
+        if (!box || box.dataset.bound) return;
+        box.dataset.bound = '1';
+
+        var inp = document.getElementById('cvRelSearch');
+        var hid = document.getElementById('cvRelOther');
+        var hits = document.getElementById('cvRelHits');
+        var btn = document.getElementById('cvRelBtn');
+        var ME = <?= (int)$id ?>;
+        var tmr = null, shown = [], cur = -1;
+
+        function close() { hits.hidden = true; cur = -1; inp.setAttribute('aria-expanded', 'false'); }
+
+        function paint() {
+          if (!shown.length) {
+            hits.innerHTML = '<div class="cv-rel-none">Nic nie znaleziono.</div>';
+          } else {
+            hits.innerHTML = shown.map(function (c, i) {
+              return '<button type="button" class="cv-rel-hit" role="option" data-i="' + i + '">' +
+                     String(c.name).replace(/</g, '&lt;') +
+                     (c.organizacja ? '<small>' + String(c.organizacja).replace(/</g, '&lt;') + '</small>' : '') +
+                     '</button>';
+            }).join('');
+          }
+          hits.hidden = false;
+          inp.setAttribute('aria-expanded', 'true');
+        }
+
+        function search(q) {
+          fetch('<?= APP_URL ?>/crm/api/contacts_search.php?limit=8&q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              shown = (Array.isArray(d) ? d : (d.items || [])).filter(function (c) { return Number(c.id) !== ME; });
+              paint();
+            })
+            .catch(function () { close(); });
+        }
+
+        inp.addEventListener('input', function () {
+          hid.value = ''; btn.disabled = true;
+          var q = inp.value.trim();
+          clearTimeout(tmr);
+          if (q.length < 2) { close(); return; }
+          tmr = setTimeout(function () { search(q); }, 200);
+        });
+
+        hits.addEventListener('click', function (e) {
+          var b = e.target.closest('.cv-rel-hit');
+          if (!b) return;
+          var c = shown[parseInt(b.dataset.i, 10)];
+          if (!c) return;
+          inp.value = c.name; hid.value = c.id; btn.disabled = false; close();
+        });
+
+        inp.addEventListener('keydown', function (e) {
+          if (hits.hidden) return;
+          var items = hits.querySelectorAll('.cv-rel-hit');
+          if (e.key === 'ArrowDown') { e.preventDefault(); cur = Math.min(cur + 1, items.length - 1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); cur = Math.max(cur - 1, 0); }
+          else if (e.key === 'Enter' && cur > -1) { e.preventDefault(); items[cur].click(); return; }
+          else if (e.key === 'Escape') { close(); return; }
+          items.forEach(function (b, i) { b.classList.toggle('is-on', i === cur); });
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('#cvRelForm')) close();
+        });
+      })();
+      </script>
+      <?php endif; ?>
+    </div></div>
+
     <!-- ── Microsoft 365 ─────────────────────────────────────────────────── -->
     <?php if ($crm_can_write && $office_st['graph_configured']): ?>
     <div class="cv-panel"><div class="cv-panel__body">

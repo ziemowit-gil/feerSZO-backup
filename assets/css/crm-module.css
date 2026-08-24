@@ -851,3 +851,17 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
   font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
   margin-left: .35rem; padding: .05rem .3rem; border-radius: 3px; background: #F3F4F6;
 }
+
+/* ── Wyszukiwarka kartoteki do powiązania ─────────────────────────────── */
+.cv-rel-hits {
+  position: absolute; left: .5rem; right: .5rem; top: 100%; z-index: 20;
+  background: #fff; border: 1px solid var(--crm-border); border-radius: 8px;
+  margin-top: 2px; max-height: 200px; overflow-y: auto; box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+.cv-rel-hit {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  padding: .35rem .6rem; font-size: .83rem; color: var(--crm-text); cursor: pointer;
+}
+.cv-rel-hit:hover, .cv-rel-hit.is-on { background: var(--crm-primary-bg); color: var(--crm-primary); }
+.cv-rel-hit small { display: block; font-size: .72rem; color: var(--crm-text-light); }
+.cv-rel-none { padding: .4rem .6rem; font-size: .78rem; color: var(--crm-text-light); }

@@ -1277,6 +1277,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 
     $affected_section = null;
 
+    // ── Powiązania między kartotekami ────────────────────────────────────────
+    if ($action === 'rel_add' || $action === 'rel_del') {
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_relations.php';
+        if ($action === 'rel_add') {
+            $r = crm_relation_add($id, (int)($_POST['rel_other'] ?? 0),
+                                  (string)($_POST['rel_type'] ?? 'powiazany'),
+                                  (string)($_POST['rel_notes'] ?? ''));
+            flash_set($r['ok'] ? 'success' : 'error',
+                $r['ok'] ? 'Powiązanie dodane.' : $r['error']);
+        } else {
+            crm_relation_delete((int)($_POST['rel_id'] ?? 0));
+            flash_set('success', 'Powiązanie usunięte.');
+        }
+        header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id . '#cv-tab-data'); exit;
+    }
+
     // Usunięcie kartoteki. Przycisk w „Strefie zagrożenia" wysyłał _action=delete,
     // którego NIC nie obsługiwało — klikanie go nie robiło zupełnie nic.
     if (($action === 'delete_contact' || $action === 'delete') && $crm_can_delete) {
