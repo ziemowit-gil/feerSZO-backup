@@ -89,13 +89,40 @@ include __DIR__ . '/includes/header_crm.php';
 ?>
 
 <style>
-.ms-section { background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.04) }
-.ms-section-title { font-size:.9rem;font-weight:700;color:#181818;padding-bottom:.5rem;border-bottom:1px solid #F3F4F6;margin-bottom:.85rem }
+.ms-varlbl { font-size:.74rem;color:#9CA3AF }
+.ms-var { font-size:.7rem;font-family:ui-monospace,Menlo,monospace;line-height:1.6;
+  padding:.05rem .35rem;margin:0 .15rem .2rem 0;border:1px solid #E5E7EB;border-radius:5px;
+  background:#F9FAFB;color:#374151;cursor:pointer }
+.ms-var:hover { background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8 }
+.ms-summary { display:grid;grid-template-columns:auto 1fr;gap:.3rem 1rem;margin:0 0 1.1rem;
+  font-size:.86rem;padding:.9rem 0;border-top:1px solid #F1F2F4;border-bottom:1px solid #F1F2F4 }
+.ms-summary dt { color:#9CA3AF;font-weight:500 }
+.ms-summary dd { margin:0;font-weight:700;color:#111827;text-align:right }
+
+/* ══ Układ „clear" ═══════════════════════════════════════════════════════
+   Kreator miał trzy warstwy oznaczania kroku naraz (stepper, kolorowe kółko,
+   pasek postępu) i cień pod każdą kartą. Zostaje jedna: stepper u góry. */
+.ms-section { background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:1.35rem 1.5rem;
+  margin-bottom:1rem;box-shadow:none }
+.ms-section-title { font-size:.82rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:#6B7280;padding-bottom:.5rem;border-bottom:1px solid #F3F4F6;margin-bottom:.9rem }
+
+/* Pola: jedna wysokość i promień w całym kreatorze */
+.ms-wizard .form-control, .ms-wizard .form-select {
+  min-height:38px;font-size:.88rem;border:1px solid #E5E7EB;border-radius:9px;box-shadow:none }
+.ms-wizard .form-control:focus, .ms-wizard .form-select:focus {
+  border-color:var(--crm-primary);box-shadow:0 0 0 3px rgba(1,118,211,.12) }
+.ms-wizard .form-label { font-size:.78rem;font-weight:600;color:#374151;margin-bottom:.3rem }
+.ms-wizard .form-text { font-size:.75rem;color:#9CA3AF }
+.ms-wizard textarea.form-control { min-height:150px }
 /* Krok formularza (numer + tytuł + podpowiedź) */
-.ms-step { display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; padding-bottom:.6rem; border-bottom:1px solid #F3F4F6 }
-.ms-step__num { width:28px;height:28px;border-radius:50%;background:var(--crm-primary);color:#fff;font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0 }
-.ms-step__t { font-size:1rem;font-weight:700;color:#181818;line-height:1.15 }
-.ms-step__h { font-size:.77rem;color:#5E6470;margin-top:.05rem }
+.ms-step { display:flex; align-items:baseline; gap:.5rem; margin-bottom:1.1rem; padding-bottom:.7rem;
+  border-bottom:1px solid #F1F2F4 }
+.ms-step__num { width:auto;height:auto;border-radius:0;background:none;color:#C3C8D0;font-weight:700;
+  font-size:.82rem;display:inline;flex-shrink:0;font-variant-numeric:tabular-nums }
+.ms-step__num::after { content:'.' }
+.ms-step__t { font-size:.95rem;font-weight:700;color:#111827;line-height:1.2 }
+.ms-step__h { font-size:.77rem;color:#9CA3AF;margin-top:.1rem }
 .ms-step__main { flex:1;min-width:0 }
 .group-pill { display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .75rem;border-radius:2rem;border:1.5px solid #E5E7EB;cursor:pointer;font-size:.78rem;font-weight:500;color:#374151;background:#fff;transition:all .12s;margin:.15rem }
 .group-pill:hover { border-color:#9CA3AF }
@@ -142,7 +169,9 @@ include __DIR__ . '/includes/header_crm.php';
   background:#fff; border:1px solid #E5E7EB; font-size:.82rem; color:#5E6470; cursor:pointer; flex:1; min-width:120px; }
 .ms-stepper-item .ms-stepper-num { width:22px;height:22px;border-radius:50%;background:#E5E7EB;color:#5E6470;
   font-weight:700;font-size:.76rem;display:flex;align-items:center;justify-content:center;flex-shrink:0 }
-.ms-stepper-item.active { border-color:var(--crm-primary); background:var(--crm-primary-bg); color:var(--crm-primary-dark); font-weight:600 }
+.ms-stepper-item { background:#fff }
+.ms-stepper-item.active { border-color:var(--crm-primary); background:#fff; color:var(--crm-primary-dark); font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--crm-primary) }
 .ms-stepper-item.active .ms-stepper-num { background:var(--crm-primary); color:#fff }
 .ms-stepper-item.done .ms-stepper-num { background:var(--crm-primary); color:#fff }
 .ms-stepper-item.done { color:var(--crm-primary-dark); }
@@ -151,8 +180,8 @@ include __DIR__ . '/includes/header_crm.php';
 .wiz-pane.wiz-active { display:block }
 .ms-wiznav { display:flex; align-items:center; gap:.6rem; margin:.25rem 0 1rem }
 .ms-wiznav-spacer { flex:1 }
-.ms-wizard, .ms-stepper, .crm-page-header { max-width:820px; margin-left:auto; margin-right:auto }
-.ms-wizard ~ .ms-section { max-width:820px; margin-left:auto; margin-right:auto }
+.ms-wizard, .ms-stepper, .crm-page-header { max-width:960px; margin-left:auto; margin-right:auto }
+.ms-wizard ~ .ms-section { max-width:960px; margin-left:auto; margin-right:auto }
 /* Grupy — kompaktowa lista zamiast dużych kafli */
 .ms-group-list { border:1px solid var(--crm-border); border-radius:9px; max-height:230px; overflow-y:auto; }
 .ms-group-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .7rem; cursor:pointer;
@@ -468,17 +497,15 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <div class="mb-2">
-      <span class="cv-muted" style="font-size:.74rem">Odbiorca: </span>
+      <span class="ms-varlbl">Odbiorca:</span>
       <?php foreach (['{imie}','{imie_nazwisko}','{email}','{organizacja}','{data}'] as $v): ?>
-      <button type="button" class="btn btn-outline-secondary py-0 px-1 me-1"
-              style="font-size:.68rem;font-family:monospace;line-height:1.6"
-              onclick="MS.insertVar('<?= $v ?>')"><?= h($v) ?></button>
+      <button type="button" class="ms-var" onclick="MS.insertVar('<?= $v ?>')"
+              title="Wstaw <?= h($v) ?> w treści"><?= h($v) ?></button>
       <?php endforeach; ?>
-      <span class="cv-muted ms-2" style="font-size:.74rem">Nadawca: </span>
+      <span class="ms-varlbl ms-2">Nadawca:</span>
       <?php foreach (['{nadawca_imie_nazwisko}','{nadawca_email}','{nadawca_telefon}'] as $v): ?>
-      <button type="button" class="btn btn-outline-secondary py-0 px-1 me-1"
-              style="font-size:.68rem;font-family:monospace;line-height:1.6"
-              onclick="MS.insertVar('<?= $v ?>')"><?= h($v) ?></button>
+      <button type="button" class="ms-var" onclick="MS.insertVar('<?= $v ?>')"
+              title="Wstaw <?= h($v) ?> w treści"><?= h($v) ?></button>
       <?php endforeach; ?>
     </div>
 
@@ -504,16 +531,10 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
     </div>
 
-    <div class="mb-3 p-3 rounded" style="background:#F9FAFB;border:1px solid #E5E7EB">
-      <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
-        <span class="text-muted">Odbiorcy</span>
-        <strong id="sendCount">0</strong>
-      </div>
-      <div class="d-flex justify-content-between" style="font-size:.82rem">
-        <span class="text-muted">Kanał</span>
-        <strong id="sendChannel">E-mail</strong>
-      </div>
-    </div>
+    <dl class="ms-summary">
+      <dt>Odbiorcy</dt><dd id="sendCount">0</dd>
+      <dt>Kanał</dt><dd id="sendChannel">E-mail</dd>
+    </dl>
 
     <!-- Pasek postępu -->
     <div id="progressSection" style="display:none" class="mb-3">
