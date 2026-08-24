@@ -95,6 +95,23 @@ function crm_office_auto_push(): bool {
     return crm_office_push_enabled() && crm_setting('crm_office_auto_push') === '1';
 }
 
+/**
+ * Czy korespondencja ma się dociągać sama.
+ *
+ * Przycisk „Pobierz maile z Outlooka" wymagał wejścia w kartotekę i kliknięcia —
+ * czyli historia komunikacji była pełna tylko tam, gdzie ktoś akurat zajrzał.
+ * Automat obchodzi kartoteki po kolei w tle.
+ */
+function crm_office_auto_mail(): bool {
+    return crm_setting('crm_office_auto_mail') === '1';
+}
+
+/** Co ile godzin wracać do tej samej kartoteki. Domyślnie doba. */
+function crm_office_auto_mail_hours(): int {
+    $h = (int)crm_setting('crm_office_auto_mail_hours');
+    return $h > 0 ? min(720, max(1, $h)) : 24;
+}
+
 function crm_office_mail_days(): int {
     return max(1, (int)(crm_setting('crm_office_mail_days') ?: 365));
 }
@@ -137,6 +154,8 @@ function crm_office_status(): array {
         'mailbox'          => crm_office_mailbox(),
         'push_enabled'     => crm_office_push_enabled(),
         'auto_push'        => crm_office_auto_push(),
+        'auto_mail'        => crm_office_auto_mail(),
+        'auto_mail_hours'  => crm_office_auto_mail_hours(),
         'folder_name'      => crm_setting('crm_office_folder_name'),
         'mail_days'        => crm_office_mail_days(),
         'inbound_sync'     => class_exists('OutlookSync') && OutlookSync::integration_enabled(),
@@ -342,6 +361,52 @@ function crm_office_push_pending(int $limit = 100): array {
 // ─────────────────────────────────────────────────────────────────────────────
 // KORESPONDENCJA KONTAKTU → KARTOTEKA
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Dociąga korespondencję dla kartotek, które jej dawno nie miały.
+ *
+ * Kolejność: najpierw nigdy niepobierane, potem najdawniej pobierane. Dzięki temu
+ * pierwsze przebiegi nadrabiają zaległości całej bazy, a potem automat krąży
+ * równomiernie, zamiast odświeżać w kółko te same kartoteki.
+ *
+ * Limit na przebieg jest twardy, bo każde zapytanie to wywołanie Graph API —
+ * przy tysiącu kontaktów nieograniczony przebieg wpadłby w limity Microsoftu.
+ *
+ * @return array{done:int, logged:int, failed:int, errors:string[]}
+ */
+function crm_office_pull_pending(int $limit = 25, ?int $hours = null): array {
+    crm_office_migrate();
+    $res = ['done' => 0, 'logged' => 0, 'failed' => 0, 'errors' => []];
+
+    $hours = $hours ?? crm_office_auto_mail_hours();
+    $limit = max(1, min(500, $limit));
+
+    $rows = crm_all(
+        "SELECT id FROM crm_contacts
+          WHERE crm_active = 1
+            AND email IS NOT NULL AND email <> ''
+            AND (office_mail_pulled_at IS NULL
+                 OR office_mail_pulled_at < datetime('now', '-{$hours} hours'))
+       ORDER BY office_mail_pulled_at IS NOT NULL, office_mail_pulled_at, id
+          LIMIT {$limit}"
+    );
+
+    foreach ($rows as $r) {
+        $one = crm_office_pull_contact_mail((int)$r['id']);
+        if (!empty($one['ok'])) {
+            $res['done']++;
+            $res['logged'] += (int)($one['logged'] ?? 0);
+        } else {
+            $res['failed']++;
+            if (count($res['errors']) < 5) $res['errors'][] = '#' . $r['id'] . ': ' . ($one['error'] ?? '');
+            // Błąd uprawnień albo konfiguracji dotyczy wszystkich kartotek naraz —
+            // dalsze próby tylko mnożą nieudane wywołania Graph API
+            if (str_contains((string)($one['error'] ?? ''), 'Mail.Read')
+                || str_contains((string)($one['error'] ?? ''), 'nie jest skonfigurowany')) break;
+        }
+    }
+    return $res;
+}
 
 /**
  * Pobiera z Outlooka korespondencję z adresem kontaktu (w obie strony) i dopisuje

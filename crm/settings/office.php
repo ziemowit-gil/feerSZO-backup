@@ -35,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'save') {
         crm_setting_save('crm_office_push_enabled', !empty($_POST['push_enabled']) ? '1' : '0');
         crm_setting_save('crm_office_auto_push',    !empty($_POST['auto_push']) ? '1' : '0');
+        crm_setting_save('crm_office_auto_mail',    !empty($_POST['auto_mail']) ? '1' : '0');
+        crm_setting_save('crm_office_auto_mail_hours', (string)max(1, min(720, (int)($_POST['auto_mail_hours'] ?? 24))));
         crm_setting_save('crm_office_mailbox',      trim((string)($_POST['mailbox'] ?? '')));
         crm_setting_save('crm_office_mail_days',    (string)max(1, (int)($_POST['mail_days'] ?? 365)));
         crm_setting_save('crm_office_mail_max',     (string)max(1, min(200, (int)($_POST['mail_max'] ?? 50))));
@@ -226,6 +228,28 @@ require_once __DIR__ . '/_nav.php';
         <input class="form-check-input" type="checkbox" role="switch" name="auto_push" value="1" id="ap"
                <?= crm_setting('crm_office_auto_push') === '1' ? 'checked' : '' ?>>
         <label class="form-check-label" for="ap">Zapisuj automatycznie każdy nowy kontakt</label>
+      </div>
+      <hr class="my-2">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" name="auto_mail" value="1" id="am"
+               <?= crm_setting('crm_office_auto_mail') === '1' ? 'checked' : '' ?>>
+        <label class="form-check-label" for="am">Dociągaj korespondencję do kartotek automatycznie</label>
+      </div>
+      <div class="d-flex align-items-center gap-2 mt-1 ms-4">
+        <label class="form-label mb-0 small text-muted" for="amh">Wracaj do kartoteki co</label>
+        <div class="input-group input-group-sm" style="max-width:120px">
+          <input type="number" name="auto_mail_hours" id="amh" class="form-control"
+                 min="1" max="720" value="<?= (int)(crm_setting('crm_office_auto_mail_hours') ?: 24) ?>">
+          <span class="input-group-text">godz.</span>
+        </div>
+      </div>
+      <div class="form-text ms-4" style="font-size:.75rem">
+        <?php /* Bez automatu historia komunikacji była pełna tylko w kartotekach,
+                 do których ktoś wszedł i kliknął — czyli nie tam, gdzie się sprawdza,
+                 czy coś do kogoś w ogóle poszło. */ ?>
+        Agent obchodzi kartoteki po kolei: najpierw nigdy niepobierane, potem najdawniej
+        odświeżane. Po 25 kartotek na godzinę, żeby nie wpaść w limity Microsoftu.
+        Przycisk w kartotece zostaje — przyspiesza pojedynczy przypadek.
       </div>
     </div>
   </div>

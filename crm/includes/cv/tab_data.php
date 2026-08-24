@@ -400,6 +400,17 @@ if (!isset($contact)) { http_response_code(400); exit; }
       <div class="cv-meta mt-2" id="mo-status" aria-live="polite">
         Korespondencja z ostatnich <?= (int)$office_st['mail_days'] ?> dni ze skrzynki
         <?= h($office_st['mailbox'] ?: '—') ?>.
+        <?php /* Gdy automat działa, przycisk jest tylko przyspieszeniem — warto,
+                 żeby było to widać, zamiast pozwalać klikać „na wszelki wypadek". */ ?>
+        <?php if (!empty($office_st['auto_mail'])): ?>
+        <br><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+        Dociąga się automatycznie co <?= (int)$office_st['auto_mail_hours'] ?> godz. —
+        przycisk odświeża od razu.
+        <?php endif; ?>
+        <?php if (!empty($office_st['auto_push'])): ?>
+        <br><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+        Zmiany w kartotece trafiają do książki adresowej same.
+        <?php endif; ?>
       </div>
     </div></div>
     <script>

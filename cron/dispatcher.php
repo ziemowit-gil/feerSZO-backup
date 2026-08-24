@@ -184,6 +184,12 @@ $AGENTS = [
         'interval' => 1800,         // co 30 min — dosyła kontakty do książki adresowej Outlooka
         'schedule' => [6, 22],
     ],
+    'crm_office_mail' => [
+        'file'     => __DIR__ . '/crm_office_mail.php',
+        'interval' => 3600,         // co godzinę — dociąga korespondencję do kartotek
+        'schedule' => [6, 22],
+        'args'     => '--limit=25',
+    ],
     'crm_offers' => [
         'file'     => __DIR__ . '/crm_offers_agent.php',
         'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń
