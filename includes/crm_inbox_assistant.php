@@ -188,12 +188,16 @@ function crm_inbox_assist(array $msg): array
           . "Treść:\n" . mb_substr($body, 0, 8000) . "\n\n"
           . "Kontekst z CRM:\n" . ($ctx ?: 'brak');
 
+    // BEZ `temperature`. Modele z rodziny Opus 4.7/4.8 i Sonnet 5 odrzucają
+    // parametry próbkowania błędem 400 — a to właśnie Opus jest w Ustawieniach AI
+    // opisany jako zalecany, więc wysyłanie temperatury zabijało tu asystenta
+    // przy każdej wiadomości. Format odpowiedzi pilnuje prompt, nie temperatura.
+    $model   = crm_assist_model();
     $payload = json_encode([
-        'model'       => crm_assist_model(),
-        'max_tokens'  => 1200,
-        'temperature' => 0.2,
-        'system'      => crm_assist_system_prompt(),
-        'messages'    => [['role' => 'user', 'content' => $user]],
+        'model'      => $model,
+        'max_tokens' => 1200,
+        'system'     => crm_assist_system_prompt(),
+        'messages'   => [['role' => 'user', 'content' => $user]],
     ], JSON_UNESCAPED_UNICODE);
 
     $ctxOpt = stream_context_create(['http' => [
@@ -212,11 +216,32 @@ function crm_inbox_assist(array $msg): array
     $resp = @file_get_contents('https://api.anthropic.com/v1/messages', false, $ctxOpt);
     if ($resp === false) return $fail('Brak połączenia z Anthropic API.');
 
-    $data = json_decode($resp, true) ?? [];
-    if (!empty($data['error'])) return $fail('Anthropic: ' . ($data['error']['message'] ?? 'błąd API'));
+    // Kod HTTP z nagłówków odpowiedzi — komunikat „nie działa" bez statusu
+    // i bez nazwy modelu nie mówi nic ani użytkownikowi, ani administratorowi.
+    $status = 0;
+    foreach ($http_response_header ?? [] as $h) {
+        if (preg_match('~^HTTP/\S+\s+(\d{3})~', $h, $m)) $status = (int)$m[1];
+    }
 
-    $text = (string)($data['content'][0]['text'] ?? '');
-    if ($text === '') return $fail('Model nie zwrócił treści.');
+    $data = json_decode($resp, true) ?? [];
+    if (!empty($data['error'])) {
+        return $fail('Anthropic (' . ($status ?: '?') . ', model ' . $model . '): '
+                   . ($data['error']['message'] ?? 'błąd API'));
+    }
+    if ($status >= 400) return $fail('Anthropic zwrócił błąd ' . $status . ' dla modelu ' . $model . '.');
+
+    if (($data['stop_reason'] ?? '') === 'refusal') {
+        return $fail('Model odmówił analizy tej wiadomości — obsłuż ją ręcznie.');
+    }
+
+    // Treść składamy ze WSZYSTKICH bloków tekstowych. Modele z myśleniem
+    // włączonym domyślnie zwracają na pierwszej pozycji blok `thinking`,
+    // więc sięganie po content[0]['text'] dawało puste „Model nie zwrócił treści".
+    $text = '';
+    foreach ((array)($data['content'] ?? []) as $block) {
+        if (($block['type'] ?? '') === 'text') $text .= (string)($block['text'] ?? '');
+    }
+    if (trim($text) === '') return $fail('Model nie zwrócił treści (model ' . $model . ').');
 
     $p = crm_assist_json($text);
     if (!is_array($p)) return $fail('Odpowiedź modelu nie była poprawnym JSON-em.');

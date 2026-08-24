@@ -396,16 +396,23 @@ function triage_classify(array $msg, array $gov_reasons, bool $embedded): array
             'x-api-key: ' . $key,
             'anthropic-version: 2023-06-01',
         ], json_encode([
-            'model'       => $model,
-            'max_tokens'  => 400,
-            'temperature' => 0,
-            'system'      => triage_system_prompt(),
-            'messages'    => [['role' => 'user', 'content' => $user]],
+            // Bez `temperature` — modele Opus 4.7/4.8 i Sonnet 5 odrzucają parametry
+            // próbkowania błędem 400, a temperatura 0 i tak nigdy nie gwarantowała
+            // powtarzalnego wyniku. Formatu pilnuje prompt i triage_extract_json().
+            'model'      => $model,
+            'max_tokens' => 400,
+            'system'     => triage_system_prompt(),
+            'messages'   => [['role' => 'user', 'content' => $user]],
         ], JSON_UNESCAPED_UNICODE));
         if ($err) return $fail($err);
         $data = json_decode($resp, true) ?? [];
         if (!empty($data['error'])) return $fail('Anthropic: ' . ($data['error']['message'] ?? 'błąd API'));
-        $text = $data['content'][0]['text'] ?? '';
+        // Wszystkie bloki tekstowe — przy modelu z myśleniem content[0] to `thinking`.
+        $text = '';
+        foreach ((array)($data['content'] ?? []) as $block) {
+            if (($block['type'] ?? '') === 'text') $text .= (string)($block['text'] ?? '');
+        }
+        $text = trim($text);
     }
 
     if ($text === '') return $fail('Model nie zwrócił treści.');

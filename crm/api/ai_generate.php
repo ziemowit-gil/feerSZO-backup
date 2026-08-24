@@ -106,9 +106,20 @@ if (!empty($data['error'])) {
     exit;
 }
 
-$generated = $data['content'][0]['text'] ?? '';
-if (!$generated) {
-    echo json_encode(['ok' => false, 'error' => 'API nie zwróciło treści. Spróbuj ponownie.']);
+if (($data['stop_reason'] ?? '') === 'refusal') {
+    echo json_encode(['ok' => false, 'error' => 'Model odmówił napisania tej treści — zmień polecenie.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Treść ze WSZYSTKICH bloków tekstowych: modele z myśleniem włączonym domyślnie
+// stawiają na pierwszej pozycji blok `thinking`, więc content[0]['text'] bywa puste.
+$generated = '';
+foreach ((array)($data['content'] ?? []) as $block) {
+    if (($block['type'] ?? '') === 'text') $generated .= (string)($block['text'] ?? '');
+}
+$generated = trim($generated);
+if ($generated === '') {
+    echo json_encode(['ok' => false, 'error' => 'API nie zwróciło treści (model ' . $ai_model . '). Spróbuj ponownie.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
