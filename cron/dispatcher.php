@@ -189,6 +189,12 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie — wygaszanie ofert, follow-up, brak potwierdzeń
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'crm_assign_owners' => [
+        'file'     => __DIR__ . '/crm_assign_owners.php',
+        'interval' => 86400,        // raz dziennie — opiekunowie dla nowych kartotek
+        'schedule' => [5, 7],
+        'args'     => '--apply',
+    ],
     'crm_sync_partners' => [
         'file'     => __DIR__ . '/crm_sync_partners.php',
         'interval' => 86400,        // raz dziennie — grupa „Współpracownicy" wg typów umów
