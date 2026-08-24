@@ -259,6 +259,21 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
               <span class="cv-chip" style="background:var(--crm-accent-bg);color:var(--crm-accent)"
                     title="Domyślny adresat — na ten adres idzie korespondencja i wysyłka masowa">adresat</span>
               <?php endif; ?>
+              <?php /* Dwa różne byty w jednej liście: osoba MAJĄCA własną kartotekę
+                       (powiązanie, dane w jednym miejscu) i osoba wpisana tylko tutaj
+                       (dane żyją przy podmiocie). Bez oznaczenia nikt tego nie odróżni. */ ?>
+              <?php if (!empty($p['linked_contact_id'])): ?>
+              <a class="cv-chip" style="background:#EFF6FF;color:#1D4ED8;text-decoration:none"
+                 href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$p['linked_contact_id'] ?>"
+                 title="Ma własną kartotekę — kliknij, aby ją otworzyć. Dane trzymamy w jednym miejscu.">
+                <i class="bi bi-link-45deg" aria-hidden="true"></i>z kartoteki
+              </a>
+              <?php else: ?>
+              <span class="cv-chip" style="background:#F3F4F6;color:#6B7280"
+                    title="Dane wpisane tylko przy tym podmiocie — bez osobnej kartoteki w CRM">
+                <i class="bi bi-pencil" aria-hidden="true"></i>wpisana ręcznie
+              </span>
+              <?php endif; ?>
             </div>
             <?php if (!empty($p['stanowisko'])): ?>
             <div class="crm-name-sub"><?= h($p['stanowisko']) ?></div>
@@ -319,9 +334,80 @@ function _cv_persons_html(array $contact, int $id, bool $can_w, bool $can_d): st
       <?php endif; ?>
 
       <?php if ($can_w): ?>
+      <?php /* Najpierw droga „z kartoteki": jeśli osoba już jest w CRM, nie ma
+               powodu przepisywać jej danych — powiązanie utrzymuje jedno źródło. */ ?>
+      <details class="mt-1">
+        <summary style="cursor:pointer;font-size:.8rem;color:var(--crm-primary)">
+          <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Dodaj z kartoteki CRM
+        </summary>
+        <form method="post" class="mt-2 border-top pt-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="link_person">
+          <input type="hidden" name="person_contact_id" id="lpTarget_<?= $id ?>" value="">
+          <div class="position-relative mb-2">
+            <label class="visually-hidden" for="lpSearch_<?= $id ?>">Szukaj osoby w CRM</label>
+            <input type="text" class="form-control form-control-sm" id="lpSearch_<?= $id ?>"
+                   placeholder="Szukaj osoby w kartotece CRM…" autocomplete="off">
+            <div id="lpDrop_<?= $id ?>" class="list-group shadow-sm"
+                 style="display:none;position:absolute;z-index:1050;width:100%;max-height:200px;overflow-y:auto"></div>
+            <div class="cv-meta" id="lpPicked_<?= $id ?>"></div>
+          </div>
+          <input type="text" name="person_role" maxlength="120"
+                 class="form-control form-control-sm mb-2" placeholder="Stanowisko / rola (opcjonalnie)">
+          <button class="btn btn-sm btn-crm-outline w-100" type="submit" id="lpSave_<?= $id ?>" disabled>
+            <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Powiąż jako osobę kontaktową
+          </button>
+        </form>
+        <script>
+        (function () {
+          var inp = document.getElementById('lpSearch_<?= $id ?>');
+          if (!inp || inp.dataset.bound) return;
+          inp.dataset.bound = '1';
+          var drop = document.getElementById('lpDrop_<?= $id ?>');
+          var hid  = document.getElementById('lpTarget_<?= $id ?>');
+          var pick = document.getElementById('lpPicked_<?= $id ?>');
+          var save = document.getElementById('lpSave_<?= $id ?>');
+          var t = null;
+          function esc(x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+          inp.addEventListener('input', function () {
+            hid.value = ''; pick.textContent = ''; save.disabled = true;
+            var q = this.value.trim();
+            clearTimeout(t);
+            if (q.length < 2) { drop.style.display = 'none'; return; }
+            t = setTimeout(function () {
+              fetch('<?= APP_URL ?>/crm/api/contacts_search.php?q=' + encodeURIComponent(q) + '&limit=8&exclude=<?= (int)$id ?>')
+                .then(function (r) { return r.json(); })
+                .then(function (rows) {
+                  drop.innerHTML = (rows || []).map(function (c) {
+                    return '<button type="button" class="list-group-item list-group-item-action py-1" ' +
+                           'data-id="' + c.id + '" data-name="' + esc(c.name) + '">' + esc(c.name) +
+                           (c.email ? ' <span class="text-muted small">' + esc(c.email) + '</span>' : '') + '</button>';
+                  }).join('') || '<div class="list-group-item text-muted small">Brak wyników</div>';
+                  drop.style.display = '';
+                  drop.querySelectorAll('button').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                      hid.value = this.dataset.id;
+                      pick.textContent = 'Wybrano: ' + this.dataset.name;
+                      inp.value = this.dataset.name;
+                      drop.style.display = 'none';
+                      save.disabled = false;
+                    });
+                  });
+                })
+                .catch(function () { drop.style.display = 'none'; });
+            }, 220);
+          });
+          document.addEventListener('click', function (e) {
+            if (!e.target.closest('#lpDrop_<?= $id ?>') && e.target !== inp) drop.style.display = 'none';
+          });
+        })();
+        </script>
+      </details>
+
       <details class="mt-1"<?= $persons ? '' : ' open' ?>>
         <summary style="cursor:pointer;font-size:.8rem;color:var(--crm-primary)">
-          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dodaj osobę kontaktową
+          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dodaj osobę spoza kartoteki
         </summary>
         <form method="post" class="mt-2 border-top pt-2" data-ajax-section="persons">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
@@ -1309,6 +1395,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         header('Location: view.php?id=' . $id); exit;
     }
 
+    // Odwrotność „Przypisz jako osobę kontaktową": tu jesteśmy przy PODMIOCIE
+    // i wskazujemy osobę, która już ma kartotekę w CRM.
+    if ($action === 'link_person') {
+        $src = (int)($_POST['person_contact_id'] ?? 0);
+        if ($src <= 0 || $src === $id) {
+            flash_set('warning', 'Wskaż osobę z kartoteki CRM.');
+        } elseif (!crm_can_access_contact($src)) {
+            flash_set('danger', 'Brak dostępu do wskazanej kartoteki.');
+        } else {
+            $dup = null;
+            try {
+                $dup = crm_one("SELECT id FROM crm_contact_persons WHERE contact_id=? AND linked_contact_id=?",
+                    [$id, $src]);
+            } catch (\Throwable $e) {}
+
+            if ($dup) {
+                flash_set('info', 'Ta osoba jest już osobą kontaktową tego podmiotu.');
+            } else {
+                $src_c = CrmManager::getContact($src);
+                $pid = $src_c ? CrmManager::addContactPerson($id, [
+                    'imie_nazwisko'     => (string)$src_c['imie_nazwisko'],
+                    'stanowisko'        => trim((string)($_POST['person_role'] ?? '')) ?: (string)($src_c['stanowisko'] ?? ''),
+                    'email'             => (string)($src_c['email'] ?? ''),
+                    'telefon'           => (string)($src_c['telefon'] ?? ''),
+                    'linked_contact_id' => $src,
+                ], $user_id) : 0;
+                flash_set($pid ? 'success' : 'danger', $pid
+                    ? 'Powiązano osobę z kartoteki jako osobę kontaktową.'
+                    : 'Nie udało się powiązać osoby.');
+            }
+        }
+        header('Location: view.php?id=' . $id . '#persons'); exit;
+    }
+
     if ($action === 'delete_person' && $crm_can_delete) {
         $pid = (int)($_POST['person_id'] ?? 0);
         $p   = $pid ? CrmManager::getContactPerson($pid) : null;
@@ -2174,13 +2294,61 @@ $case_status_cfg = [
       <?= _cv_consents_html($contact, $id, $crm_can_write) ?>
     </div></div>
 
-    <div class="cv-panel"><div class="cv-panel__body">
+    <div class="cv-panel" id="persons"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
         <h2 class="cv-shead__title">Osoby kontaktowe</h2>
         <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['persons'] ?? []) ?></span></div>
       </div>
       <?= _cv_persons_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    </div></div>
+    <?php endif; ?>
+
+    <?php
+      /* Widok odwrotny: gdzie TA osoba jest osobą kontaktową. Bez tego z karty
+         osoby nie dało się zobaczyć, przy jakich podmiotach figuruje — a to
+         najczęstsze pytanie przy telefonie „dzwoni pani X, z ramienia kogo?". */
+      $_as_person = [];
+      try {
+          $_as_person = crm_all(
+              "SELECT p.id, p.stanowisko, p.is_primary, c.id AS org_id, c.imie_nazwisko AS org_name, c.type AS org_type
+                 FROM crm_contact_persons p
+                 JOIN crm_contacts c ON c.id = p.contact_id AND c.crm_active = 1
+                WHERE p.linked_contact_id = ?
+             ORDER BY c.imie_nazwisko", [$id]
+          );
+      } catch (\Throwable $e) {}
+    ?>
+    <?php if ($_as_person): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-diagram-2 cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Jest osobą kontaktową przy</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($_as_person) ?></span></div>
+      </div>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($_as_person as $ap): ?>
+        <li class="crm-relation-item align-items-center">
+          <div class="crm-avatar sm" aria-hidden="true" style="background:var(--crm-navy)">
+            <?= h(CrmManager::makeInitials($ap['org_name'])) ?>
+          </div>
+          <div class="flex-grow-1">
+            <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$ap['org_id'] ?>"
+               style="font-size:.83rem;font-weight:600;text-decoration:none"><?= h($ap['org_name']) ?></a>
+            <?php if (!empty($ap['is_primary'])): ?>
+            <span class="cv-chip" title="Osoba główna tego podmiotu">główna</span>
+            <?php endif; ?>
+            <?php if (!empty($ap['stanowisko'])): ?>
+            <div class="crm-name-sub"><?= h($ap['stanowisko']) ?></div>
+            <?php endif; ?>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <p class="cv-meta mt-2 mb-0">
+        Kartoteka tej osoby jest jedna — przy podmiotach figuruje jako powiązanie,
+        więc zmiana e-maila czy telefonu tutaj nie wymaga poprawiania tamtych wpisów.
+      </p>
     </div></div>
     <?php endif; ?>
 
