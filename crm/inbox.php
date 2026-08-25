@@ -8,7 +8,8 @@
  *
  * Wiadomość można obsłużyć na trzy sposoby, bez wychodzenia z ekranu:
  *   • w CRM        — odpowiedź, sprawa CRM, oferta,
- *   • w EZD        — dopięcie do koszulki albo założenie nowej (rejestr pism),
+ *   • w dzienniku EZD — rejestracja: wpis do dziennika podawczego i sygnatura,
+ *                       przy istniejącej koszulce albo w nowo założonej,
  *   • przekazaniem — e-mail do osoby/skrzynki z cytatem i notatką.
  *
  * Układ master-detail, bez modali — działa z klawiatury i czytnikiem ekranu.
@@ -155,11 +156,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (int)($_POST['teczka_id'] ?? 0) ?: null
                 );
                 if (!empty($r['ok'])) {
-                    flash_set('success', 'Wiadomość przekazana do EZD' . ($r['znak'] ? ' — ' . $r['znak'] : '') . '.'
+                    flash_set('success', 'Wiadomość zarejestrowana w dzienniku EZD' . ($r['znak'] ? ' — ' . $r['znak'] : '') . '.'
                         . (!empty($r['notified']) ? ' Nadawca dostał e-mail o zarejestrowaniu sprawy.' : ''));
                     header('Location: ' . ($r['url'] ?: $back)); exit;
                 }
-                flash_set('danger', $r['error'] ?: 'Nie udało się przekazać do EZD.');
+                flash_set('danger', $r['error'] ?: 'Nie udało się zarejestrować w dzienniku EZD.');
                 break;
 
             case 'forward':
@@ -438,7 +439,7 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-filter-panel .ib-field { width:100% }
 @media (max-width:575px) { .ib-filter { margin-left:0; width:100% } .ib-filter-panel { right:auto; left:0 } }
 
-/* ── Okno „Przekaż do EZD" ─────────────────────────────────────────────── */
+/* ── Okno „Zarejestruj w dzienniku" (EZD) ──────────────────────────────── */
 .ib-ezd-subject { padding:.1rem 0 .7rem; border-bottom:1px solid #F1F2F4; margin-bottom:.8rem }
 .ib-ezd-h2 { font-size:1.15rem; font-weight:700; line-height:1.35; margin:.15rem 0 .25rem; color:#111827;
   overflow-wrap:anywhere }
@@ -553,8 +554,8 @@ include __DIR__ . '/includes/header_crm.php';
     <i class="bi bi-inbox-fill" style="color:#0176D3" aria-hidden="true"></i>
     <span>Skrzynka CRM</span>
     <span class="ib-help" tabindex="0" role="note"
-          aria-label="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, przekaż do EZD albo dalej e-mailem"
-          title="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, przekaż do EZD albo dalej e-mailem">
+          aria-label="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, zarejestruj w dzienniku EZD albo przekaż e-mailem"
+          title="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, zarejestruj w dzienniku EZD albo przekaż e-mailem">
       <i class="bi bi-question-circle" aria-hidden="true"></i>
     </span>
   </div>
@@ -1119,7 +1120,7 @@ include __DIR__ . '/includes/header_crm.php';
         <?php /* Dokąd wiadomość ma pójść dalej. Formularze z polami żyją w oknach. */ ?>
         <div class="dropdown">
           <button type="button" class="ib-act" data-bs-toggle="dropdown" data-ib-dd aria-expanded="false"
-                  title="Skieruj tę wiadomość dalej: sprawa CRM, EZD, e-mail, zadanie">
+                  title="Skieruj tę wiadomość dalej: sprawa CRM, dziennik EZD, e-mail, zadanie">
             <i class="bi bi-signpost-split" aria-hidden="true"></i>Przekaż
             <i class="bi bi-chevron-down ib-act-caret" aria-hidden="true"></i>
           </button>
@@ -1155,8 +1156,8 @@ include __DIR__ . '/includes/header_crm.php';
             <li><hr class="dropdown-divider my-1"></li>
             <li>
               <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdEzd"
-                      title="Zarejestruj w EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
-                <i class="bi bi-folder-symlink-fill me-2" style="color:#0F766E" aria-hidden="true"></i>Przekaż do EZD
+                      title="Wpis w dzienniku podawczym EZD — dla korespondencji formalnej (pismo z urzędu, wniosek o umowę)">
+                <i class="bi bi-journal-arrow-down me-2" style="color:#0F766E" aria-hidden="true"></i>Zarejestruj w dzienniku
               </button>
             </li>
             <li>
@@ -1391,11 +1392,14 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       <?php $mdl_case = ob_get_clean(); ob_start(); ?>
         <div class="ib-dbody">
-          <?php /* EZD to rejestr korespondencji formalnej, nie archiwum wszystkiego —
-                   dlatego zanim ktoś kliknie „Dopnij", pokazujemy czego dotyczy decyzja
-                   (pełny temat) i po co w ogóle jest EZD. */ ?>
+          <?php /* Nazwa mówi, co się NAPRAWDĘ dzieje: wiadomość dostaje wpis
+                   w dzienniku podawczym EZD (rejestr pism) i sygnaturę. „Przekaż do EZD"
+                   sugerowało przeniesienie wiadomości gdzie indziej — a ona zostaje
+                   w skrzynce, dochodzi jej tylko rejestracja.
+                   Zanim ktoś kliknie, pokazujemy czego dotyczy decyzja (pełny temat)
+                   i po co w ogóle jest dziennik. */ ?>
           <div class="ib-ezd-subject">
-            <div class="ib-lbl">Wiadomość przekazywana do EZD</div>
+            <div class="ib-lbl">Wiadomość do zarejestrowania w dzienniku</div>
             <h2 class="ib-ezd-h2"><?= h($msg['subject'] ?: '(bez tematu)') ?></h2>
             <div class="text-muted" style="font-size:.8rem">
               <?= h($msg['from_name'] ?: ($msg['from_email'] ?: '—')) ?>
@@ -1407,19 +1411,20 @@ include __DIR__ . '/includes/header_crm.php';
           <div class="ib-ezd-note">
             <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
             <div>
-              <strong>EZD prowadzi obieg korespondencji formalnej</strong> — takiej, która wszczyna
-              albo dokumentuje sprawę urzędową: pismo z urzędu wzywające do działania, wniosek
-              beneficjenta o umowę, wezwanie, skarga, decyzja. Taka wiadomość dostaje znak sprawy
-              i trafia do rejestru pism.
+              <strong>Dziennik podawczy EZD rejestruje korespondencję formalną</strong> — taką, która
+              wszczyna albo dokumentuje sprawę urzędową: pismo z urzędu wzywające do działania,
+              wniosek beneficjenta o umowę, wezwanie, skarga, decyzja. Rejestracja nadaje
+              wiadomości sygnaturę i wpisuje ją do rejestru pism; sama wiadomość zostaje
+              w skrzynce.
               <div class="mt-1">
                 Zwykłe zapytanie handlowe, ustalenia z klientem czy korespondencja robocza
-                <strong>nie idą do EZD</strong> — zostają w CRM (sprawa CRM albo oferta).
+                <strong>nie trafiają do dziennika</strong> — zostają w CRM (sprawa CRM albo oferta).
               </div>
             </div>
           </div>
           <?php if (!$ezd_on): ?>
             <div class="text-muted" style="font-size:.85rem">
-              Moduł EZD jest wyłączony albo nie masz w nim uprawnień do zapisu — przekazanie niedostępne.
+              Moduł EZD jest wyłączony albo nie masz w nim uprawnień do zapisu — rejestracja niedostępna.
             </div>
           <?php else: ?>
             <div class="row g-3">
@@ -1438,7 +1443,8 @@ include __DIR__ . '/includes/header_crm.php';
                     <button class="btn btn-crm-outline"><i class="bi bi-link-45deg"></i> Dopnij</button>
                   </div>
                   <div class="form-text" style="font-size:.72rem">
-                    Powstanie pismo w rejestrze EZD, wiadomość trafi do „załatwionych".
+                    Wiadomość dostanie wpis w dzienniku i sygnaturę przy tej koszulce,
+                    a w skrzynce trafi do „załatwionych".
                   </div>
                 </form>
               </div>
@@ -1521,7 +1527,7 @@ include __DIR__ . '/includes/header_crm.php';
      pozycjonuje je względem rodzica i okno potrafi zostać przycięte. */
   $mdls = [
       'mdCase' => ['Załóż sprawę CRM',  'bi-briefcase-fill',       '#1D4ED8', $mdl_case ?? ''],
-      'mdEzd'  => ['Przekaż do EZD',    'bi-folder-symlink-fill',  '#0F766E', $mdl_ezd  ?? ''],
+      'mdEzd'  => ['Zarejestruj w dzienniku (EZD)', 'bi-journal-arrow-down', '#0F766E', $mdl_ezd ?? ''],
       'mdFwd'  => ['Przekaż e-mailem',  'bi-forward-fill',         '#B45309', $mdl_fwd  ?? ''],
   ];
 ?>

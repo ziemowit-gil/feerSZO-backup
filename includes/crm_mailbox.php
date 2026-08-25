@@ -633,7 +633,7 @@ function crm_mailbox_create_case(int $id, array $opts = []): array {
 // PRZEKAZANIE WIADOMOŚCI DALEJ
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Czy da się przekazać wiadomość do EZD (moduł włączony, uprawnienia, tabele). */
+/** Czy da się zarejestrować wiadomość w dzienniku EZD (moduł, uprawnienia, tabele). */
 function crm_mailbox_ezd_available(): bool {
     static $ok = null;
     if ($ok !== null) return $ok;
@@ -679,9 +679,15 @@ function crm_mailbox_ezd_sprawy(string $q = '', int $limit = 30): array {
 }
 
 /**
- * Przekazuje wiadomość do EZD: dopina do wskazanej koszulki albo zakłada nową
- * w wybranym segregatorze. Rejestr pism i numeracja po stronie EzdMailService,
- * żeby Skrzynka CRM i Poczta EZD nie rozjechały się w formacie znaku sprawy.
+ * Rejestruje wiadomość w dzienniku podawczym EZD: tworzy pismo (ezd_pisma)
+ * z sygnaturą przy wskazanej koszulce albo w nowo założonej.
+ *
+ * To NIE jest przeniesienie wiadomości — zostaje ona w skrzynce CRM i w Poczcie;
+ * dochodzi jej wpis w rejestrze. Nazwa „przekazanie do EZD" sugerowała inaczej
+ * i stąd zmiana słownictwa w interfejsie.
+ *
+ * Rejestr pism i numeracja po stronie EzdMailService, żeby Skrzynka CRM
+ * i Poczta EZD nie rozjechały się w formacie znaku sprawy.
  *
  * @return array{ok:bool, error:string, url:string, znak:string}
  */
