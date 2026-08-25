@@ -188,11 +188,9 @@ auth_screen_head([
       <?php endforeach; ?>
     </ul>
 
-    <p class="ks-hint">
-      Nie wiesz, dokąd Ci się spieszy? Napisz na
-      <a href="mailto:biuro@<?= h($org_domain) ?>">biuro@<?= h($org_domain) ?></a> —
-      wskażemy właściwe miejsce.
-    </p>
+    <?php /* Bez adresu e-mail w tym miejscu: biuro@ w tej domenie nie istnieje,
+             a odsyłanie pod nieistniejący adres jest gorsze niż nieodesłanie
+             nigdzie. Kontakt jest na stronie fundacji, pierwszej na liście. */ ?>
 
 <style>
 /* Rozjazd „to nie tutaj" — utrzymany w języku powłoki logowania (ks-*), ale

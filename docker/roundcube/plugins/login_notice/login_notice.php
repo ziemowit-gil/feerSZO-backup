@@ -26,33 +26,7 @@ class login_notice extends rcube_plugin
     public function init(): void
     {
         $this->add_hook('template_container', [$this, 'add_notice']);
-        $this->add_hook('template_container', [$this, 'add_title']);
         $this->add_hook('loginform_content', [$this, 'hide_password_form']);
-    }
-
-    /**
-     * Nagłówek nad formularzem: „Poczta <organizacja>".
-     *
-     * Pozostałe wejścia do systemu (SZO, CRM, panel TI) przedstawiają się nazwą
-     * modułu i organizacji. Roundcube pokazywał samo logo, więc po wejściu na
-     * rc.feer.org.pl nie było wiadomo, czyja to poczta — ma to znaczenie, bo
-     * ekran logowania jest tym, na co patrzy się przed podaniem hasła.
-     *
-     * Nazwę organizacji bierzemy z tej samej odpowiedzi API co komunikat
-     * (api/internal/rc_login_notice.php); gdy jej nie ma, zostaje sama „Poczta".
-     */
-    public function add_title(array $args): array
-    {
-        if (($args['name'] ?? null) !== 'loginfooter') {
-            return $args;
-        }
-
-        $org = trim((string)($this->notice_data()['org'] ?? ''));
-        $args['content'] = '<h1 class="feer-login-title">Poczta</h1>'
-            . ($org !== '' ? '<p class="feer-login-sub">' . rcube::Q($org) . '</p>' : '')
-            . $args['content'];
-
-        return $args;
     }
 
     /**
@@ -86,46 +60,25 @@ class login_notice extends rcube_plugin
 
     private function notice_html(): string
     {
-        return (string)($this->notice_data()['html'] ?? $this->fallback_html());
-    }
-
-    /**
-     * Cała odpowiedź API (html + nazwa organizacji), z jednym wspólnym cache.
-     *
-     * Dwa hooki na tej samej stronie (komunikat i nagłówek) pytały niezależnie,
-     * co przy pustym cache dawało dwa wywołania po sieci przy jednym wejściu
-     * na stronę logowania.
-     *
-     * @return array{html:string,org:string}
-     */
-    private function notice_data(): array
-    {
-        static $memo = null;
-        if ($memo !== null) return $memo;
-
         $rcmail = rcmail::get_instance();
         $cache  = $rcmail->get_cache_shared('login_notice');
-        $cached = $cache ? $cache->get('data') : null;
+        $cached = $cache ? $cache->get('html') : null;
 
         if (is_array($cached) && ($cached['expires'] ?? 0) > time()) {
-            return $memo = ['html' => (string)$cached['html'], 'org' => (string)($cached['org'] ?? '')];
+            return $cached['html'];
         }
 
-        $fetched = $this->fetch_from_app();
-        $data = [
-            'html' => $fetched['html'] ?? $this->fallback_html(),
-            'org'  => $fetched['org']  ?? '',
-        ];
+        $html = $this->fetch_from_app() ?? $this->fallback_html();
 
         if ($cache) {
-            $cache->set('data', $data + ['expires' => time() + self::CACHE_TTL]);
+            $cache->set('html', ['html' => $html, 'expires' => time() + self::CACHE_TTL]);
         }
 
-        return $memo = $data;
+        return $html;
     }
 
-    /** @return ?array{html:string,org:string} Dane z API, albo null gdy nieosiągalne. */
-    private function fetch_from_app(): ?array
+    /** @return ?string Treść z api/internal/rc_login_notice.php, albo null gdy nieosiągalne. */
+    private function fetch_from_app(): ?string
     {
         $app_key = getenv('APP_KEY');
         if (!$app_key) {
@@ -141,8 +94,7 @@ class login_notice extends rcube_plugin
         $resp = @file_get_contents(self::APP_INTERNAL_URL, false, $ctx);
         $data = json_decode($resp ?: '{}', true) ?? [];
 
-        if (empty($data['html'])) return null;
-        return ['html' => (string)$data['html'], 'org' => (string)($data['org'] ?? '')];
+        return !empty($data['html']) ? $data['html'] : null;
     }
 
     /** Krótki tekst zapasowy, gdy główna aplikacja jest nieosiągalna. */

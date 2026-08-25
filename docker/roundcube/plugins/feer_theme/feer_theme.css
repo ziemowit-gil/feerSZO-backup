@@ -483,23 +483,6 @@ body.task-login #login-form img.logo {
   display: block;
 }
 
-/* Nazwa usługi nad formularzem — ekran ma się przedstawiać jak pozostałe
-   wejścia: „Poczta <organizacja>". Tekst wstrzykuje plugin login_notice. */
-body.task-login .feer-login-title {
-  text-align: center;
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
-  color: var(--feer-text);
-  margin: 0 0 .35rem;
-}
-body.task-login .feer-login-sub {
-  text-align: center;
-  font-size: .85rem;
-  color: #64748b;
-  line-height: 1.55;
-  margin: 0 0 1.5rem;
-}
 
 /* Komunikat z admin/poczta_settings.php (plugin login_notice wstrzykuje go
    do kontenera loginfooter jako .alert-info) */
