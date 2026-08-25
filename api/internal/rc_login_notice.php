@@ -14,6 +14,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/poczta.php';
+require_once dirname(__DIR__, 2) . '/includes/org_case.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -29,4 +30,11 @@ if ($html === '') {
     $html = poczta_rc_login_notice_default();
 }
 
-echo json_encode(['html' => $html]);
+/* Nazwa organizacji W DOPEŁNIACZU — ekran logowania poczty przedstawia się tak
+   samo jak pozostałe wejścia: „Poczta Fundacji …". Kontener Roundcube nie ma
+   dostępu do ustawień aplikacji, więc dostaje gotowy tekst tą samą drogą co
+   komunikat. */
+echo json_encode([
+    'html' => $html,
+    'org'  => org_name_genitive(),
+], JSON_UNESCAPED_UNICODE);

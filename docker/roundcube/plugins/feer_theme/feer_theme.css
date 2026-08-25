@@ -428,24 +428,49 @@ input[type="checkbox"]:checked, input[type="radio"]:checked {
    10. Strona logowania (współpracuje z pluginem login_notice)
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* TŁO: ta sama kanwa co wszystkie wejścia do systemu — logowanie do SZO, do CRM,
+   panel TI i strony domen technicznych. Wzór pochodzi z includes/app_bg.php
+   (app_bg_tile), przepisany tu jako data-URI, bo kontener Roundcube nie ma
+   dostępu do plików aplikacji. Sam gradient wyglądał jak inna aplikacja.
+
+   Przy zmianie geometrii w app_bg.php podmienić TAKŻE tutaj — to jedyna kopia
+   poza aplikacją i nic jej automatycznie nie zaktualizuje. */
 body.task-login,
 body.task-login #layout,
 body.task-login #layout-content,
 body.task-login #layout-content .content {
-  background: linear-gradient(160deg, var(--feer-navy) 0%, var(--feer-navy-dark) 55%, #0b1220 100%) !important;
+  background-color: var(--feer-navy-dark) !important;
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='420'%20viewBox='0%200%20420%20420'%3E%3Cg%20fill='%23fff'%20fill-opacity='.05'%3E%3Crect%20x='24'%20y='40'%20width='120'%20height='120'%20rx='8'/%3E%3Ccircle%20cx='330'%20cy='96'%20r='58'/%3E%3Crect%20x='210'%20y='250'%20width='150'%20height='150'%20rx='8'/%3E%3Cpath%20d='M0%20210l70-70v46l-24%2024zm52%20132l96-96v46l-50%2050z'/%3E%3Cpath%20d='M300%200l60%2060-24%2024-60-60z'/%3E%3C/g%3E%3C/svg%3E"),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.02) 0 3px, transparent 3px 26px),
+    linear-gradient(160deg, var(--feer-navy) 0%, var(--feer-navy-dark) 55%, #0b1220 100%) !important;
+  background-size: 420px 420px, auto, auto !important;
+  background-attachment: fixed !important;
+  background-position: center top !important;
 }
 
 body.task-login #layout-menu, body.task-login .header { display: none !important; }
+
+/* Karta na środku ekranu, nie przyklejona do góry — jak w pozostałych
+   ekranach logowania. Elastic ustawia własne wyrównanie, stąd !important. */
+body.task-login #layout-content .content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  padding: 2rem 1rem !important;
+}
 
 body.task-login #login-form,
 body.task-login .formcontainer > .box-inner,
 body.task-login #login-form .box-inner {
   background: var(--feer-panel) !important;
   border: 0 !important;
-  border-radius: var(--feer-radius-lg) !important;
-  box-shadow: var(--feer-shadow-lg) !important;
-  padding: 2rem 1.75rem !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .35) !important;
+  padding: 2.25rem 2rem !important;
   max-width: 30rem;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -456,6 +481,24 @@ body.task-login #login-form img.logo {
   width: auto;
   margin: 0 auto 1.1rem;
   display: block;
+}
+
+/* Nazwa usługi nad formularzem — ekran ma się przedstawiać jak pozostałe
+   wejścia: „Poczta <organizacja>". Tekst wstrzykuje plugin login_notice. */
+body.task-login .feer-login-title {
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--feer-text);
+  margin: 0 0 .35rem;
+}
+body.task-login .feer-login-sub {
+  text-align: center;
+  font-size: .85rem;
+  color: #64748b;
+  line-height: 1.55;
+  margin: 0 0 1.5rem;
 }
 
 /* Komunikat z admin/poczta_settings.php (plugin login_notice wstrzykuje go
