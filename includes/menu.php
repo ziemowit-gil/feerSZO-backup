@@ -24,6 +24,18 @@
  *   ['label','path','icon','badge'=>int,'active'=>bool,'kw'=>'…','danger'=>bool]
  *
  * Ścieżki (`path`) są względne wobec APP_URL — konsumenci dokładają prefiks.
+ *
+ * ZASADA PODZIAŁU (od 25.08.2026): moduł z WŁASNĄ nawigacją ma w pasku SZO
+ * DOKŁADNIE JEDNO wejście — do swojego pulpitu. Jego wnętrze opisuje jego własne
+ * menu, a nie to. Powtórzone listy rozjeżdżały się kolejnością i zawartością,
+ * więc uczyły, że „to samo bywa gdzie indziej".
+ *
+ * Dotyczy: CRM, Wirtualne biurko (EZD), Zadania, Poczta, Katalog, Strategia,
+ * Wydarzenia, Panel wolontariusza, Tożsamość, TI (karty30).
+ *
+ * Pozycje zdjęte z paska NIE znikają z systemu: trafiają do klucza `search`
+ * węzła i są dalej wyszukiwalne w palecie Ctrl+K. Dodając nową pozycję do
+ * modułu, dopisuj ją TAM, nie w pasku.
  */
 
 if (!function_exists('current_user')) require_once __DIR__ . '/auth.php';
@@ -170,50 +182,65 @@ function _menu_ezd_items(): array {
 }
 
 // ── Widok wolontariusza / użytkownika (viewer) ───────────────────────────────
+/**
+ * Pasek SZO dla wolontariusza.
+ *
+ * PODZIAŁ: panel wolontariusza ma własną, pełną nawigację (panel/includes/
+ * header_panel.php — dwadzieścia kilka pozycji). Powtarzanie jej tutaj dawało
+ * dwa menu do tego samego, w innej kolejności i z innym zestawem — a pasek SZO
+ * widać i tak tylko POZA panelem (Zasady organizacji, Komunikaty, Katalog).
+ *
+ * Zostaje więc: wejście do panelu + to, co leży poza nim. Wnętrze panelu
+ * pozostaje wyszukiwalne w Ctrl+K (klucz `search`).
+ */
 function _menu_viewer(): array {
-    $items = [];
-    $items[] = _mi('Moja umowa','/panel/index.php','bi-person-circle',['match'=>'/panel/index','kw'=>'panel umowa']);
+    $items = [
+        _mi('Mój panel','/panel/index.php','bi-person-circle',
+            ['match'=>'/panel/','kw'=>'panel umowa profil godziny zaświadczenia pisma wiadomości']),
+    ];
 
     $unread_rules = 0;
     try { require_once __DIR__ . '/org_rules.php'; org_rules_migrate();
         $unread_rules = count(org_rules_unread((int)(current_user()['id'] ?? 0))); } catch (\Throwable $e) {}
     if (panel_visible('zasady'))
         $items[] = _mi('Zasady organizacji','/org_intro/index.php','bi-building-heart',['match'=>'/org_intro/','badge'=>$unread_rules,'kw'=>'zasady regulamin']);
-
-    if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled())
-        $items[] = _mi('Asystent AI','/panel/asystent.php','bi-stars',['match'=>'/panel/asystent','kw'=>'asystent ai pomoc pytanie jak gdzie procedura moje sprawy']);
-
-    $items[] = _mi('Mój profil','/panel/profile_edit.php','bi-person-badge',['match'=>'/panel/profile_edit']);
     if (panel_visible('komunikaty'))
         $items[] = _mi('Komunikaty','/komunikaty/index.php','bi-megaphone',['match'=>'/komunikaty/']);
     if (panel_visible('katalog'))
         $items[] = _mi('Książka telefoniczna','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty']);
 
+    $account = [
+        _mi('System Tożsamości','/tozsamosc/index.php','bi-person-vcard-fill',['match'=>'/tozsamosc/','kw'=>'tożsamość konto dostępy hasło']),
+    ];
+
+    // ── Wnętrze panelu: niewidoczne w pasku, wyszukiwalne w palecie ──────────
     $pnl_unread = 0;
     if (!empty($_SESSION['panel_contract'])) {
         try { $pnl_unread = msg_unread_thread('contract', (int)$_SESSION['panel_contract']['id'], 'user'); } catch (\Throwable $e) {}
     }
-    if (module_enabled('messages_enabled') && panel_visible('wiadomosci'))
-        $items[] = _mi('Wiadomości','/panel/messages.php','bi-chat-left-text',['match'=>'/panel/messages','badge'=>$pnl_unread]);
-    if (module_enabled('letters_enabled') && panel_visible('pisma'))
-        $items[] = _mi('Moje pisma','/panel/letters.php','bi-archive',['match'=>'/panel/letters','kw'=>'pisma']);
-    if (panel_visible('wnioski'))
-        $items[] = _mi('Wyślij pismo / wniosek','/panel/apply.php','bi-send',['match'=>'/panel/apply','kw'=>'wniosek pismo']);
-    if (module_enabled('certificates_enabled') && panel_visible('zaswiadczenia'))
-        $items[] = _mi('Zaświadczenia','/panel/certificates.php','bi-award',['match'=>'/panel/certificates']);
-    if (module_enabled('terminations_enabled') && panel_visible('rozwiazanie'))
-        $items[] = _mi('Rozwiązanie umowy','/panel/terminations.php','bi-file-earmark-x',['match'=>'/panel/terminations']);
-    if (module_enabled('timesheets_enabled') && panel_visible('godziny'))
-        $items[] = _mi('Ewidencja godzin','/panel/timesheets.php','bi-clock-history',['match'=>'/panel/timesheets','kw'=>'godziny czas']);
-    if (module_enabled('moodle_enabled') && panel_visible('kursy'))
-        $items[] = _mi('Moje kursy','/panel/moodle.php','bi-mortarboard',['match'=>'/panel/moodle','kw'=>'kursy szkolenia moodle']);
 
-    $account = [
-        _mi('System Tożsamości','/tozsamosc/index.php','bi-person-vcard-fill',['match'=>'/tozsamosc/','kw'=>'tożsamość konto dostępy hasło']),
-        _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']),
-        _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']),
-        _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']),
+    $search = [
+        _mi('Mój profil','/panel/profile_edit.php','bi-person-badge',['match'=>'/panel/profile_edit']),
     ];
+    if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled())
+        $search[] = _mi('Asystent AI','/panel/asystent.php','bi-stars',['match'=>'/panel/asystent','kw'=>'asystent ai pomoc pytanie jak gdzie procedura moje sprawy']);
+    if (module_enabled('messages_enabled') && panel_visible('wiadomosci'))
+        $search[] = _mi('Wiadomości','/panel/messages.php','bi-chat-left-text',['match'=>'/panel/messages','badge'=>$pnl_unread]);
+    if (module_enabled('letters_enabled') && panel_visible('pisma'))
+        $search[] = _mi('Moje pisma','/panel/letters.php','bi-archive',['match'=>'/panel/letters','kw'=>'pisma']);
+    if (panel_visible('wnioski'))
+        $search[] = _mi('Wyślij pismo / wniosek','/panel/apply.php','bi-send',['match'=>'/panel/apply','kw'=>'wniosek pismo']);
+    if (module_enabled('certificates_enabled') && panel_visible('zaswiadczenia'))
+        $search[] = _mi('Zaświadczenia','/panel/certificates.php','bi-award',['match'=>'/panel/certificates']);
+    if (module_enabled('terminations_enabled') && panel_visible('rozwiazanie'))
+        $search[] = _mi('Rozwiązanie umowy','/panel/terminations.php','bi-file-earmark-x',['match'=>'/panel/terminations']);
+    if (module_enabled('timesheets_enabled') && panel_visible('godziny'))
+        $search[] = _mi('Ewidencja godzin','/panel/timesheets.php','bi-clock-history',['match'=>'/panel/timesheets','kw'=>'godziny czas']);
+    if (module_enabled('moodle_enabled') && panel_visible('kursy'))
+        $search[] = _mi('Moje kursy','/panel/moodle.php','bi-mortarboard',['match'=>'/panel/moodle','kw'=>'kursy szkolenia moodle']);
+    $search[] = _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']);
+    $search[] = _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']);
+    $search[] = _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']);
 
     $badge = $unread_rules + $pnl_unread;
     return [[
@@ -223,6 +250,7 @@ function _menu_viewer(): array {
             ['label'=>null,'items'=>$items],
             ['label'=>'Konto','items'=>$account],
         ],
+        'search'=>$search,
     ]];
 }
 
@@ -285,10 +313,13 @@ function _menu_editor(): array {
     $fin = [];
     if (menu_visible('grants'))
         $fin[] = _mi('Granty','/grants/index.php','bi-cash-coin',['match'=>'/grants/','kw'=>'grant dotacja']);
-    if (menu_visible('actions'))
-        $fin[] = _mi('Działania','/strategy/actions/index.php','bi-calendar-event',['match'=>'/strategy/actions/','kw'=>'działania projekt']);
+    /* Strategia i Działania to jeden moduł z własnym paskiem — dwie pozycje obok
+       siebie w menu SZO sugerowały dwa osobne miejsca. */
+    $fin_search = [];
     if (can_read('umowy') || is_admin())
-        $fin[] = _mi('Strategia','/strategy/index.php','bi-bullseye',['match'=>'/strategy/index','kw'=>'strategia cele']);
+        $fin[] = _mi('Strategia','/strategy/index.php','bi-bullseye',['match'=>'/strategy/','kw'=>'strategia cele działania projekty']);
+    if (menu_visible('actions'))
+        $fin_search[] = _mi('Działania','/strategy/actions/index.php','bi-calendar-event',['match'=>'/strategy/actions/','kw'=>'działania projekt']);
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
     if ($cnt['has_kdok']) {
         $fin[] = _mi('EOD Dok. Księgowych','/ksiegowosc/index.php','bi-file-earmark-check',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty']);
@@ -299,6 +330,7 @@ function _menu_editor(): array {
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);
     $nodes[] = [
+        'search'=>$fin_search,
         'id'=>'finanse','label'=>'Finanse','icon'=>'bi-cash-coin','badge'=>$cnt['zwr']+$cnt['res']+$cnt['ship'],
         'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/resources/')||_menu_hit('/admin/shipments'),
         'groups'=>[['label'=>null,'items'=>$fin]],
@@ -306,15 +338,19 @@ function _menu_editor(): array {
 
     // ══ LUDZIE ═════════════════════════════════════════════════════════════════
     $ludzie = [ _mi('Osoby','/persons/index.php','bi-people',['match'=>'/persons/','kw'=>'osoby rejestr']) ];
+    /* CRM prowadzi własny pasek z siedmioma kategoriami — Faktury i Darowizny są
+       tam w „Finansach". Tu zostaje samo wejście do modułu; obie sekcje pozostają
+       w Ctrl+K (klucz `search` na węźle „Ludzie"). */
+    $ludzie_search = [];
     if (module_enabled('crm_enabled') && can_read('crm')) {
-        $ludzie[] = _mi('CRM','/crm/dashboard.php','bi-diagram-2',['match'=>'/crm/','kw'=>'crm kontakt klient']);
+        $ludzie[] = _mi('CRM','/crm/dashboard.php','bi-diagram-2',['match'=>'/crm/','kw'=>'crm kontakt klient kontakty sprawy oferty']);
         $ludzie[] = _mi('Szybkie dzwonienie','/mobilna/','bi-telephone-outbound',['match'=>'/mobilna/','kw'=>'dzwon telefon mobilna dialer numer']);
     }
     if (module_enabled('invoices_enabled') && can_read('crm'))
-        $ludzie[] = _mi('Faktury','/crm/invoices/index.php','bi-receipt',['match'=>'/crm/invoices/','kw'=>'faktura faktury vat fakturownia ksef rachunek']);
+        $ludzie_search[] = _mi('Faktury','/crm/invoices/index.php','bi-receipt',['match'=>'/crm/invoices/','kw'=>'faktura faktury vat fakturownia ksef rachunek']);
     if (module_enabled('donations_enabled') && can_read('crm'))
-        $ludzie[] = _mi('Darowizny','/crm/donations/index.php','bi-gift',['match'=>'/crm/donations/','kw'=>'darowizna darowizny darczynca pit odliczenie potwierdzenie']);
-    $ludzie[] = _mi('Katalog osób','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty']);
+        $ludzie_search[] = _mi('Darowizny','/crm/donations/index.php','bi-gift',['match'=>'/crm/donations/','kw'=>'darowizna darowizny darczynca pit odliczenie potwierdzenie']);
+    $ludzie[] = _mi('Katalog osób','/directory/','bi-person-lines-fill',['match'=>'/directory/','kw'=>'katalog telefon kontakty książka telefoniczna']);
     if (module_enabled('org_enabled'))
         $ludzie[] = _mi('Struktura org.','/org/index.php','bi-diagram-3',['match'=>'/org/','kw'=>'struktura organizacja schemat']);
     if (module_enabled('byli_enabled'))
@@ -323,16 +359,20 @@ function _menu_editor(): array {
         'id'=>'ludzie','label'=>'Ludzie','icon'=>'bi-people',
         'active'=>_menu_hit('/persons/')||_menu_hit('/crm/')||_menu_hit('/mobilna/')||_menu_hit('/directory/')||_menu_hit('/org/')||_menu_hit('/byli/'),
         'groups'=>[['label'=>null,'items'=>$ludzie]],
+        'search'=>$ludzie_search,
     ];
 
     // ══ BIURO (obsługa + kancelaria + formularze) ══════════════════════════════
     $obs_g = [];
     if (module_enabled('obiegi_enabled'))
         $obs_g[] = _mi('Obiegi','/obiegi/index.php','bi-diagram-2',['match'=>'/obiegi/','badge'=>$cnt['obieg'],'kw'=>'obiegi bpm procesy']);
-    if (module_enabled('tasks_enabled'))
-        $obs_g[] = _mi('Zadania','/tasks/dashboard.php','bi-kanban',['match'=>'/tasks/','kw'=>'zadania tablica kanban']);
-    if (module_enabled('tasks_enabled'))
-        $obs_g[] = _mi('Pliki','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe workspace koszulki sharepoint']);
+    /* Moduł Zadań ma własny pasek z obszarami i zakładką „Pliki" — druga pozycja
+       w menu SZO prowadziła do zakładki, którą i tak widać po wejściu. */
+    $biuro_search = [];
+    if (module_enabled('tasks_enabled')) {
+        $obs_g[] = _mi('Zadania','/tasks/dashboard.php','bi-kanban',['match'=>'/tasks/','kw'=>'zadania tablica kanban obszary listy']);
+        $biuro_search[] = _mi('Pliki','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe workspace koszulki sharepoint']);
+    }
     if (module_enabled('helpdesk_enabled')) {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);
         if ($cnt['alias_op'])
@@ -379,6 +419,7 @@ function _menu_editor(): array {
             ['label'=>'Kancelaria i rejestry','items'=>$kanc],
             ['label'=>'Formularze zewnętrzne','items'=>$forms],
         ],
+        'search'=>$biuro_search,
     ];
 
     // ══ IT ═════════════════════════════════════════════════════════════════════
@@ -404,11 +445,17 @@ function _menu_editor(): array {
     ];
 
     // ══ WIRTUALNE BIURKO (EZD) ═════════════════════════════════════════════════
+    /* EZD ma własną, pełną nawigację (ezd/index.php i pasek modułu). Powtarzanie
+       jej wnętrza w pasku SZO dawało dwa menu do tego samego i różniło się od
+       tamtego kolejnością — czyli uczyło, że „to samo jest gdzie indziej".
+       Zostaje jedno wejście; pozycje modułu żyją dalej w Ctrl+K (klucz `search`). */
     if (module_enabled('ezd_enabled') && (can_read('ezd') || can_write('ezd'))) {
         $nodes[] = [
             'id'=>'ezd','label'=>'Wirtualne biurko','icon'=>'bi-building-gear','ezd'=>true,
+            'path'=>'/ezd/index.php','match'=>'/ezd/',
             'active'=>_menu_hit('/ezd/'),
-            'groups'=>[['label'=>null,'items'=>_menu_ezd_items()]],
+            'kw'=>'ezd biurko kancelaria koszulki dziennik podawczy jrwa',
+            'search'=>_menu_ezd_items(),
         ];
     }
 
@@ -465,10 +512,24 @@ function menu_build(): array {
 /**
  * Spłaszcza drzewo do indeksu wyszukiwania palety poleceń.
  * Zwraca listę: ['label','sub','path','icon','badge','danger','kw'].
+ *
+ * Węzeł może mieć klucz `search` — pozycje NIEwidoczne w pasku, ale wyszukiwalne.
+ * Tak trafiają tu wnętrza modułów, które mają własną nawigację: pasek SZO
+ * pokazuje jedno wejście do modułu, a Ctrl+K nadal prowadzi wprost do „Dziennika
+ * podawczego" czy „Faktur". Bez tego podział menu odebrałby ludziom skrót,
+ * z którego korzystają codziennie.
  */
 function menu_search_index(array $tree): array {
     $out = [];
     foreach ($tree as $node) {
+        // pozycje ukryte w pasku, ale wyszukiwalne
+        foreach (($node['search'] ?? []) as $it) {
+            $out[] = [
+                'label'=>$it['label'],'sub'=>$node['label'],'path'=>$it['path'],
+                'icon'=>$it['icon'],'badge'=>(int)($it['badge'] ?? 0),'danger'=>false,
+                'kw'=>trim($node['label'] . ' ' . ($it['kw'] ?? '')),
+            ];
+        }
         // zakładka-link
         if (!empty($node['path']) && empty($node['groups'])) {
             $out[] = [
