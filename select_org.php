@@ -43,7 +43,7 @@ function org_color(string $name): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Wybierz organizację — System Zarządzania Organizacją i Wolontariatem</title>
+<title>Wybierz organizację — System Wspomagania Zarządzania Organizacją i Wolontariatem</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -269,7 +269,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
         <i class="bi bi-building-heart"></i>
       </div>
       <div class="brand-system">Platforma NGO</div>
-      <div class="brand-name">System Zarządzania<br><span>Organizacją i Wolontariatem</span></div>
+      <div class="brand-name">System Wspomagania Zarządzania<br><span>Organizacją i Wolontariatem</span></div>
 
       <ul class="brand-features">
         <li><i class="bi bi-file-earmark-text"></i> Rejestr umów wszystkich typów</li>
@@ -286,7 +286,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
         <i class="bi bi-box-arrow-in-right"></i> Logowanie bezpośrednie (FEER)
       </a><br>
       <?php endif; ?>
-      &copy; <?= date('Y') ?> &nbsp;·&nbsp; System Zarządzania Organizacją
+      &copy; <?= date('Y') ?> &nbsp;·&nbsp; System Wspomagania Zarządzania Organizacją
     </div>
   </div>
 

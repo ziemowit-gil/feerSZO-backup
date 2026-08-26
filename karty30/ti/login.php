@@ -408,7 +408,7 @@ body.kp-login-split-page::before {
 
           <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-            Użyj danych logowania do Systemu Zarządzania Organizacją.
+            Użyj danych logowania do Systemu Wspomagania Zarządzania Organizacją.
           </p>
         </div><!-- /#dydPwCollapse -->
 

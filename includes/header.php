@@ -440,7 +440,7 @@ if ($_user) {
     <?php endif; ?>
     <span>
       <span class="nb-brand-name"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
-      <span class="nb-brand-sub">System Zarządzania Organizacją</span>
+      <span class="nb-brand-sub">System Wspomagania Zarządzania Organizacją</span>
     </span>
   </a>
 

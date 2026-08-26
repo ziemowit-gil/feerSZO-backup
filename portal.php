@@ -111,7 +111,7 @@ $_icons = ['wolontariat'=>'bi-heart','zlecenie'=>'bi-person-lines-fill','dzielo'
 // nieklikalny, z plakietką „Brak dostępu".
 $modules = [
     [
-        'title'  => 'System Zarządzania',
+        'title'  => 'System Wspomagania Zarządzania',
         'desc'   => 'Umowy, granty, działania, korespondencja, raporty',
         'icon'   => 'bi-building-fill',
         'grad'   => 'linear-gradient(135deg,#1E3A5F,#1D6EF9)',

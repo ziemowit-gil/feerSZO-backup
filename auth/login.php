@@ -285,7 +285,7 @@ $_login_welcome_is_custom = ($_login_welcome !== '');
 $_url_dyd = APP_URL . '/karty30/ti/dydaktyk/login.php';
 
 // Nazwa systemu na ekranie powitania (spójna z nagłówkiem SZO)
-$_sys_name = 'Systemie Zarządzania Organizacją';
+$_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([

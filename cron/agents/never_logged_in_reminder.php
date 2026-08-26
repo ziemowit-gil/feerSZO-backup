@@ -98,7 +98,7 @@ foreach ($users as $u) {
     $body_html = <<<HTML
 <html><body style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:#c2410c;padding:18px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">Fundacja FEER &mdash; System Zarządzania Organizacją (SZO)</h2>
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">Fundacja FEER &mdash; System Wspomagania Zarządzania Organizacją (SZO)</h2>
 </div>
 <div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
   <p>{$greeting}</p>

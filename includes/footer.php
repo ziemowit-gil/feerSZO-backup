@@ -20,7 +20,7 @@ $_ezd_view = str_contains($_SERVER['REQUEST_URI'] ?? '', '/ezd/');
   </div><!-- /content -->
 
   <footer class="border-top text-muted small bg-white d-flex justify-content-between align-items-center<?= $_ezd_view ? ' ezd-footer' : ' py-2 px-4' ?>">
-    <span>System Zarządzania Organizacją</span>
+    <span>System Wspomagania Zarządzania Organizacją</span>
     <span class="footer-meta d-flex align-items-center gap-3">
       <?php
         $_w5 = preg_split('/\s+/', trim(ORG_NAME));
