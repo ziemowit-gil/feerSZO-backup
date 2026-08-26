@@ -10,6 +10,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -593,6 +594,14 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php elseif ($ptab === 'frekwencja'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
   <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_frekwencja_view.php'; ?>
+
+<?php elseif ($ptab === 'oceny' && ($_dz_off = ti_blackout_active('dziennik'))): ?>
+  <div class="kp-card p-4 text-center">
+    <div class="mb-3" style="font-size:3rem;line-height:1;color:#f59e0b" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
+    <h2 class="h5 fw-bold mb-2">Dziennik ocen jest chwilowo niedostępny</h2>
+    <p class="mb-2"><?= h(ti_blackout_message($_dz_off)) ?></p>
+    <p class="text-body-secondary small mb-0">Przerwa obowiązuje <?= h(ti_blackout_range_text($_dz_off)) ?>.</p>
+  </div>
 
 <?php elseif ($ptab === 'oceny'):
     $pg = k30_ti_client_grades((int)$parent['client_id']);

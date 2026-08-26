@@ -17,6 +17,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 
 const DYD_SESSION_KEY = 'k30_ti_dyd';
 const DYD_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzyma cichy token „zapamiętaj mnie" (patrz niżej)
@@ -165,19 +166,33 @@ function dyd_courses(int $uid): array {
     return dyd_is_staff() ? k30_ti_courses(false) : k30_ti_instructor_courses($uid, false);
 }
 
-/** Czy panel dydaktyka jest włączony (domyślnie tak). */
+/**
+ * Czy panel dydaktyka jest włączony (domyślnie tak).
+ * Dwa niezależne mechanizmy: ręczny przełącznik oraz zaplanowane okno
+ * wyłączenia ([[includes/ti_blackout.php]]), które działa samo po datach.
+ */
 function dyd_panel_is_enabled(): bool {
     $v = org_setting('dyd_panel_enabled');
-    return $v === '' || $v === '1';
+    if ($v !== '' && $v !== '1') return false;              // wyłączony ręcznie
+    return ti_blackout_active('dydaktyk') === null;          // albo trwa okno przerwy
 }
 
-/** Komunikat wyświetlany gdy panel wyłączony. */
+/** Komunikat wyświetlany gdy panel wyłączony (okno przerwy ma pierwszeństwo). */
 function dyd_panel_message(): string {
+    $win = ti_blackout_active('dydaktyk');
+    if ($win) return ti_blackout_message($win);
     $m = org_setting('dyd_panel_message');
     return $m !== '' ? $m : 'Panel dydaktyka jest tymczasowo niedostępny. Zapraszamy ponownie wkrótce.';
 }
 
-/** Planowany czas wznowienia (ciąg z DB) lub ''. */
+/** Planowany czas wznowienia — dla okna przerwy to jego koniec. */
 function dyd_panel_resume(): string {
+    $win = ti_blackout_active('dydaktyk');
+    if ($win) return (string)$win['ends_at'];
     return org_setting('dyd_panel_resume');
+}
+
+/** Aktywne okno wyłączenia dziennika ocen (albo null) — bramka zakładki „Oceny". */
+function dyd_dziennik_blackout(): ?array {
+    return ti_blackout_active('dziennik');
 }

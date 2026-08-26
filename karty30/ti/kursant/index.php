@@ -22,6 +22,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/push.php';
 require_once __DIR__ . '/auth.php';
 
@@ -2913,6 +2914,14 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
+
+<?php elseif ($tab === 'oceny' && ($_dz_off = ti_blackout_active('dziennik'))): ?>
+  <div class="kp-card p-4 text-center">
+    <div class="mb-3" style="font-size:3rem;line-height:1;color:#f59e0b" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
+    <h2 class="h5 fw-bold mb-2">Dziennik ocen jest chwilowo niedostępny</h2>
+    <p class="mb-2"><?= h(ti_blackout_message($_dz_off)) ?></p>
+    <p class="text-body-secondary small mb-0">Przerwa obowiązuje <?= h(ti_blackout_range_text($_dz_off)) ?>. Pozostałe zakładki działają normalnie.</p>
+  </div>
 
 <?php elseif ($tab === 'oceny'):
   // Dane do wykresu — sortuj wg daty, pomiń oceny bez wartości liczbowej

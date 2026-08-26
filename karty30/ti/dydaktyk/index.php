@@ -67,6 +67,9 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
     exit;
 }
 
+// Okno wyłączenia dziennika ocen — staff/admin prowadzą prace, więc ich nie dotyczy
+$dziennik_off = empty($me['is_staff']) ? dyd_dziennik_blackout() : null;
+
 $courses   = dyd_courses($uid);
 // Dla admina/staff: zestaw ID kursów gdzie sam jest prowadzącym lub co-prowadzącym
 $my_course_ids_set = dyd_is_staff()
@@ -976,6 +979,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── OCENY (e-dziennik) ──────────────────────────────────────────────────────
+    // Dziennik wyłączony na czas okna prac — żadnego wpisu ani zmiany oceny
+    if ($dziennik_off && in_array($op, ['grade_save', 'grade_delete', 'grade_toggle_course', 'hw_grade'], true)) {
+        flash_set('danger', 'Dziennik ocen jest wyłączony ' . ti_blackout_range_text($dziennik_off) . '. ' . ti_blackout_message($dziennik_off));
+        header('Location: ' . dyd_back($course_id, 'pulpit')); exit;
+    }
+
     if ($op === 'grade_save') {
         $gid        = (int)($_POST['grade_id'] ?? 0);
         $client_id  = (int)($_POST['client_id'] ?? 0);
@@ -2627,7 +2636,21 @@ if ($cur_course && dyd_is_staff()) {
 
     <?php /* ═══════════════════════ OCENY (e-dziennik) ═══════════════════════ */ ?>
     <?php if ($tab === 'oceny'): ?>
+    <?php if ($dziennik_off): ?>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+          <div class="mb-3" style="font-size:3rem;line-height:1;color:#f59e0b" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
+          <h2 class="h5 fw-bold mb-2">Dziennik ocen jest chwilowo wyłączony</h2>
+          <p class="mb-2"><?= h(ti_blackout_message($dziennik_off)) ?></p>
+          <p class="text-body-secondary small mb-0">
+            Wyłączenie obowiązuje <?= h(ti_blackout_range_text($dziennik_off)) ?>.
+            W tym czasie nie można wystawiać ani zmieniać ocen — pozostałe zakładki działają normalnie.
+          </p>
+        </div>
+      </div>
+    <?php else: ?>
     <?php include __DIR__ . '/_tab_oceny.php'; ?>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ ROZLICZENIA (staff/admin) ═══════════════════════ */ ?>

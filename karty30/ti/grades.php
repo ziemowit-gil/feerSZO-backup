@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_blackout.php';
 
 k30_require_access();
 karty30_migrate();
@@ -137,6 +138,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+<?= ti_blackout_banner_html('dziennik') ?>
 
 <form method="get" class="card border-0 shadow-sm mb-4">
   <div class="card-body d-flex align-items-end gap-2 flex-wrap">
