@@ -2634,6 +2634,10 @@ if ($cur_course && dyd_is_staff()) {
 
   <div class="mt-auto"></div>
   <div class="dyd-sb-sep"></div>
+  <a class="dyd-sb-link" href="index.php?tab=<?= h(urlencode($tab)) ?><?= $cur_course ? '&course=' . (int)$cur_course : '' ?>&ui=<?= $DYD_UI === 'usos' ? 'classic' : 'usos' ?>"
+     title="<?= $DYD_UI === 'usos' ? 'Wróć do widoku klasycznego' : 'Przełącz na gęsty, tabelaryczny widok USOS' ?>">
+    <i class="bi bi-<?= $DYD_UI === 'usos' ? 'columns-gap' : 'table' ?>" aria-hidden="true"></i>Widok: <?= $DYD_UI === 'usos' ? 'USOS' : 'klasyczny' ?>
+  </a>
   <button type="button" onclick="window.dydShowFlashPref && window.dydShowFlashPref()"
           class="dyd-sb-link w-100 text-start" style="background:none;border:none;opacity:.55;font-size:.78rem">
     <i class="bi bi-bell" aria-hidden="true"></i>Powiadomienia

@@ -212,12 +212,15 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 <?php if ($KP_TOPBAR): ?>
 <header>
   <nav class="navbar bg-body-tertiary border-bottom" aria-label="Pasek użytkownika">
-    <div class="container-fluid">
+    <?php /* flex-wrap: przy wielu elementach po prawej (np. przełącznik grup +
+             badge kierownika + przełącznik widoku) pasek ma się ZAWIJAĆ, a nie
+             wypychać ostatnich przycisków poza ekran. */ ?>
+    <div class="container-fluid flex-wrap gap-2">
       <span class="navbar-brand kp-brand d-flex align-items-center gap-2 mb-0 fw-bold">
         <i class="bi bi-<?= h($KP_TOPBAR['icon'] ?? 'pc-display') ?>" aria-hidden="true"></i>
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
-      <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-3">
         <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
