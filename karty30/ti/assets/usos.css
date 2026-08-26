@@ -64,11 +64,22 @@ body.dyd-usos .usos-crumbs {
 }
 body.dyd-usos .usos-crumbs a { color: var(--usos-link); }
 
+/* Menu boczne jest position:fixed, więc paski muszą zaczynać się TAM, gdzie
+   zaczyna się treść — inaczej menu nachodzi na ich lewą część. Marginesy
+   powtarzają regułę .dyd-content z index.php (220px, 0 przy zwiniętym menu,
+   0 poniżej 768px, gdzie menu jest wysuwane). */
+@media (min-width: 768px) {
+  body.dyd-usos .usos-sections,
+  body.dyd-usos .usos-crumbs { margin-left: 220px; transition: margin-left .22s ease; }
+  body.dyd-usos.dyd-sb-hidden .usos-sections,
+  body.dyd-usos.dyd-sb-hidden .usos-crumbs { margin-left: 0; }
+}
+
 /* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
 body.dyd-usos .dyd-sidebar {
   background: var(--usos-menu-bg) !important;
   border-right: 1px solid var(--usos-bar-border) !important;
-  width: 214px; padding: 0 0 1rem;
+  padding: 0 0 1rem;   /* szerokość zostaje 220px — tyle wynosi margines treści */
 }
 body.dyd-usos .dyd-sb-link {
   color: var(--usos-link) !important;
@@ -91,6 +102,18 @@ body.dyd-usos .dyd-sb-section {
 body.dyd-usos .dyd-sb-sep { display: none; }
 body.dyd-usos .dyd-sb-collapse-btn { display: none !important; }
 body.dyd-usos .dyd-sb-link .badge { border-radius: 2px !important; font-weight: 700; }
+
+/* Elementy menu pomalowane na biało pod CIEMNE menu klasyczne — w jasnym menu
+   USOS byłyby białe na białym. Kolory wpisane w atrybucie style, więc !important. */
+body.dyd-usos .dyd-sb-coursebtn {
+  background: #fff !important;
+  color: var(--usos-navy) !important;
+  border: 1px solid var(--usos-bar-border) !important;
+  border-radius: 2px !important;
+}
+body.dyd-usos .dyd-sb-coursebtn .text-body-secondary { color: #45516b !important; }
+body.dyd-usos .dyd-sb-coursename { color: var(--usos-navy) !important; font-weight: 700; }
+body.dyd-usos .dyd-sidebar .dropdown-menu { border-radius: 2px; }
 
 /* ── Obszar treści ────────────────────────────────────────────────────────── */
 body.dyd-usos .dyd-wrap { padding: .75rem 1rem 2rem !important; max-width: none; }
@@ -203,5 +226,6 @@ body.dyd-usos .usos-week .usos-slot {
 @media print {
   body.dyd-usos header, body.dyd-usos .dyd-sidebar, body.dyd-usos .usos-sections,
   body.dyd-usos #dydSbToggle, body.dyd-usos .usos-noprint { display: none !important; }
-  body.dyd-usos .dyd-content { margin-left: 0 !important; }
+  body.dyd-usos .dyd-content,
+  body.dyd-usos .usos-crumbs { margin-left: 0 !important; }
 }

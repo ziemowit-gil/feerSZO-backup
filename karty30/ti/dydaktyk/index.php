@@ -2469,7 +2469,7 @@ if ($cur_course && dyd_is_staff()) {
   <?php if (count($courses) > 1): ?>
   <div class="px-2 mb-1">
     <div class="dropdown">
-      <button class="btn btn-sm w-100 text-start d-flex align-items-center gap-1 py-1 px-2"
+      <button class="btn btn-sm w-100 text-start d-flex align-items-center gap-1 py-1 px-2 dyd-sb-coursebtn"
               style="background:rgba(255,255,255,.1);color:#fff;font-size:.78rem;border:1px solid rgba(255,255,255,.18);border-radius:5px;min-width:0"
               type="button" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-people-fill flex-shrink-0" style="font-size:.8rem" aria-hidden="true"></i>
@@ -2494,7 +2494,7 @@ if ($cur_course && dyd_is_staff()) {
     </div>
   </div>
   <?php else: ?>
-  <div class="px-3 mb-1" style="font-size:.74rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($course['name']) ?></div>
+  <div class="px-3 mb-1 dyd-sb-coursename" style="font-size:.74rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($course['name']) ?></div>
   <?php endif; ?>
 
   <?php foreach ($_sb_ctabs as $_ct_key => [$_ct_ico, $_ct_lbl, $_ct_n, $_ct_v]): ?>

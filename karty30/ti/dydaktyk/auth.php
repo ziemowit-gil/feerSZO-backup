@@ -229,8 +229,9 @@ function dyd_pref_set(int $uid, string $key, string $value): void {
 }
 
 /**
- * Wybrany widok panelu: 'usos' albo 'classic' (domyślny).
- * ?ui=usos|classic przestawia i zapamiętuje.
+ * Wybrany widok panelu: 'usos' (DOMYŚLNY) albo 'classic'.
+ * ?ui=usos|classic przestawia i zapamiętuje. Kto wcześniej wybrał widok
+ * klasyczny, ten go zachowuje — domyślna jest tylko wartość przy braku wyboru.
  */
 function dyd_ui(int $uid): string {
     $v = (string)($_GET['ui'] ?? '');
@@ -238,5 +239,5 @@ function dyd_ui(int $uid): string {
         dyd_pref_set($uid, 'dyd_ui', $v);
         return $v;
     }
-    return dyd_pref($uid, 'dyd_ui', 'classic') === 'usos' ? 'usos' : 'classic';
+    return dyd_pref($uid, 'dyd_ui', 'usos') === 'classic' ? 'classic' : 'usos';
 }
