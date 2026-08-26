@@ -487,6 +487,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
+        // Zajętość konta Zoom (jeden host = jedno spotkanie naraz) — twarda blokada
+        $zc = ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $sid);
+        if (!$zc['ok']) { flash_set('danger', $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
+
         if ($sid && dyd_owns_session($uid, $sid)) {
             $st      = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
             $mat_url = trim($_POST['material_url'] ?? '');
@@ -500,7 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
                 db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
             }
-            flash_set('success', 'Lekcja zaktualizowana.');
+            flash_set('success', 'Lekcja zaktualizowana.' . $zw);
         } else {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id'       => $course_id, 'lesson_date' => $date,
@@ -516,7 +521,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try { db_insert('k30_ti_attendance', ['session_id'=>$sid, 'client_id'=>(int)$e['client_id'], 'attended'=>0]); }
                 catch (\Throwable $ex) {}
             }
-            $msg = 'Lekcja dodana.';
+            $msg = 'Lekcja dodana.' . $zw;
             if (isset($_POST['notify']) && !$spr) {
                 $cn = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
                 $when = $date . ($tf !== '' ? ' o ' . $tf : '');
@@ -586,10 +591,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Cała seria ma ten sam dzień tygodnia i godziny — sprawdzamy raz
         $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        // Zajętość konta Zoom — sprawdzana per termin (różne dni, ten sam host)
+        $ser_dates = [];
+        for ($i = 0; $i < $count; $i++) {
+            $ser_dates[] = date('Y-m-d', strtotime($date . ' +' . ($i * $every) . ' weeks'));
+        }
+        $zs = ti_zoom_dates_check($course_id, $ser_lm, $ser_dates, $tf, $tt);
+        if (!$zs['ok']) {
+            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Seria nie została utworzona.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
         $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
         $created = 0;
-        for ($i = 0; $i < $count; $i++) {
-            $d = date('Y-m-d', strtotime($date . ' +' . ($i * $every) . ' weeks'));
+        foreach ($ser_dates as $d) {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
@@ -602,7 +617,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $created++;
         }
-        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.).");
+        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.)." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
@@ -621,6 +636,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 '.$tt) - strtotime('1970-01-01 '.$tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        // Terminy reguły — potrzebne przed zapisem, żeby sprawdzić zajętość Zoom
+        $rule_dates = [];
+        $d = $date_from;
+        while ($d <= $date_to && count($rule_dates) < 104) {
+            $rule_dates[] = $d;
+            $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
+        }
+        // Zajęcia stałe nie mają wybranej metody — Zoom obciążają, gdy kurs ma stały link
+        $zs = ti_zoom_dates_check($course_id, '', $rule_dates, $tf, $tt);
+        if (!$zs['ok']) {
+            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Zajęcia stałe nie zostały dodane.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
         $rule_id = db_insert('k30_ti_series', [
             'course_id'      => $course_id,
             'time_from'      => $tf,
@@ -633,9 +662,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'     => date('Y-m-d H:i:s'),
         ]);
         $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
-        $d = $date_from;
         $created = 0;
-        while ($d <= $date_to && $created < 104) {
+        foreach ($rule_dates as $d) {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
@@ -645,10 +673,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
                 catch (\Throwable $ex) {}
             }
-            $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
             $created++;
         }
-        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji (co {$every} tyg.).");
+        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji (co {$every} tyg.)." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
@@ -844,6 +871,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($date === '') { flash_set('danger', 'Podaj nowy termin lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
             if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            // Zajętość konta Zoom w nowym terminie — twarda blokada
+            $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_method'] ?? '');
+            $zc  = ti_zoom_slot_check($course_id, $_lm, $date, $tf, $tt, $sid);
+            if (!$zc['ok']) { flash_set('danger', $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
             if ($old !== null && isset($_POST['notify'])) {
                 k30_ti_reschedule_notify_parties($sid, $old, isset($_POST['notify_sms']));
@@ -864,6 +895,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($accept) {
                 $av = ti_instructor_available_at(ti_course_instructor_id($course_id), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
                 if (!$av['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+                $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [(int)$req['session_id']])['lesson_method'] ?? '');
+                $zc  = ti_zoom_slot_check($course_id, $_lm, (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$req['session_id']);
+                if (!$zc['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             }
             k30_ti_reschedule_decide($rid, $accept, (string)($me['name'] ?? ''), trim($_POST['note'] ?? ''));
             flash_set('success', $accept

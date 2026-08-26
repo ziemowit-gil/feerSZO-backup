@@ -5863,6 +5863,171 @@ function ti_course_instructor_id(int $course_id): int {
     return (int)(db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course_id])['instructor_id'] ?? 0);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ZAJĘTOŚĆ KONTA ZOOM vs TERMINY LEKCJI
+//  Wszystkie spotkania SZO powstają na JEDNYM koncie hosta (ustawienie
+//  zoom_user_id), a jeden host nie prowadzi dwóch spotkań jednocześnie —
+//  nakładające się lekcje zdalne są więc niewykonalne technicznie.
+//  Sprawdzamy dwa źródła zajętości:
+//   1) lekcje w SZO korzystające z Zooma (k30_ti_sessions) — bo stałe linki
+//      kursów to spotkania typu 3 (bez terminu) i API ich nie zna,
+//   2) spotkania z ustalonym terminem na koncie hosta z API Zoom — łapie
+//      także spotkania utworzone poza SZO (ZoomAPI::busy_slots()).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Czy lekcja odbywa się przez Zoom (a więc obciąża konto hosta).
+ * Brak wybranej metody = lekcja dziedziczy stały link Zoom kursu, jeśli kurs go ma.
+ */
+function ti_lesson_uses_zoom(int $course_id, string $lesson_method, ?string $course_zoom_meeting_id = null): bool {
+    if ($lesson_method === 'zdalna_zoom') return true;
+    if ($lesson_method !== '')            return false;   // stacjonarna / zdalna_inne
+    if ($course_zoom_meeting_id === null) {
+        if (!$course_id) return false;
+        try {
+            $course_zoom_meeting_id = (string)(
+                db_one("SELECT zoom_meeting_id FROM k30_ti_courses WHERE id=?", [$course_id])['zoom_meeting_id'] ?? ''
+            );
+        } catch (\Throwable $e) { return false; }
+    }
+    return trim((string)$course_zoom_meeting_id) !== '';
+}
+
+/**
+ * Zajętość konta hosta z API Zoom — cache w obrębie requestu (seria lekcji
+ * odpytuje Zoom raz, nie 52 razy). $refresh=true wymusza ponowne odpytanie,
+ * np. po utworzeniu lub usunięciu spotkania w tym samym żądaniu.
+ *
+ * @return array{ok:bool, slots:array, error:string}
+ */
+function ti_zoom_api_busy(bool $refresh = false): array {
+    static $cache = null;
+    if ($refresh)            $cache = null;
+    if ($cache !== null)     return $cache;
+
+    require_once __DIR__ . '/zoom.php';
+    if (!zoom_enabled()) {
+        return $cache = ['ok' => false, 'slots' => [], 'error' => 'Integracja Zoom nie jest skonfigurowana.'];
+    }
+    try {
+        $api = new ZoomAPI();
+        return $cache = ['ok' => true, 'slots' => $api->busy_slots(), 'error' => ''];
+    } catch (\Throwable $e) {
+        try { (new ZoomAPI())->log('busy_check', '', 'error', $e->getMessage()); } catch (\Throwable $e2) {}
+        return $cache = ['ok' => false, 'slots' => [], 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Czy termin lekcji zmieści się w zajętości konta Zoom.
+ *
+ * @param int    $skip_session_id  Lekcja edytowana (nie koliduje sama ze sobą).
+ * @return array{ok:bool, checked:bool, api_ok:bool, reason:string, warning:string}
+ *   ok=false      → termin zajęty (blokada),
+ *   checked=false → nie było czego sprawdzać (Zoom wyłączony, lekcja nie przez
+ *                   Zoom albo lekcja bez godzin — okna czasowego nie da się wyznaczyć),
+ *   api_ok=false  → API Zoom nie odpowiedziało; sprawdzono tylko lekcje z SZO (warning).
+ */
+function ti_zoom_slot_check(
+    int    $course_id,
+    string $lesson_method,
+    string $date,
+    string $time_from,
+    string $time_to,
+    int    $skip_session_id = 0
+): array {
+    $res = ['ok' => true, 'checked' => false, 'api_ok' => true, 'reason' => '', 'warning' => ''];
+
+    require_once __DIR__ . '/zoom.php';
+    if (!zoom_enabled())                                         return $res;
+    if (!ti_lesson_uses_zoom($course_id, $lesson_method))        return $res;
+
+    $date = trim($date); $tf = trim($time_from); $tt = trim($time_to);
+    if ($date === '' || $tf === '' || $tt === '')                return $res;
+    if (ti_hm2min($tt) <= ti_hm2min($tf))                        return $res;
+    $res['checked'] = true;
+
+    // ── 1) Lekcje SZO na tym samym koncie hosta ────────────────────────────────
+    try {
+        $rows = db_all(
+            "SELECT s.id, s.course_id, s.time_from, s.time_to, s.lesson_method,
+                    c.name AS course_name, c.zoom_meeting_id
+               FROM k30_ti_sessions s
+               JOIN k30_ti_courses  c ON c.id = s.course_id
+              WHERE s.lesson_date = ?
+                AND s.status NOT IN ('cancelled','draft')
+                AND s.time_from != '' AND s.time_to != ''
+                AND s.time_from < ? AND s.time_to > ?"
+            . ($skip_session_id ? " AND s.id != ?" : ''),
+            $skip_session_id ? [$date, $tt, $tf, $skip_session_id] : [$date, $tt, $tf]
+        );
+    } catch (\Throwable $e) { $rows = []; }
+
+    foreach ($rows as $r) {
+        if (!ti_lesson_uses_zoom(
+            (int)$r['course_id'], (string)($r['lesson_method'] ?? ''), (string)($r['zoom_meeting_id'] ?? '')
+        )) continue;
+        $res['ok']     = false;
+        $res['reason'] = 'Konto Zoom jest w tym czasie zajęte — lekcja kursu „' . (string)$r['course_name'] . '" '
+            . substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5)
+            . ' (' . date('d.m.Y', strtotime($date)) . '). Jeden host Zoom nie prowadzi dwóch spotkań jednocześnie.';
+        return $res;
+    }
+
+    // ── 2) Spotkania z terminem na koncie hosta (API Zoom, także spoza SZO) ────
+    $api = ti_zoom_api_busy();
+    if (!$api['ok']) {
+        $res['api_ok']  = false;
+        $res['warning'] = 'Nie udało się sprawdzić zajętości w API Zoom (' . $api['error']
+            . ') — weryfikacja objęła tylko lekcje zaplanowane w SZO.';
+        return $res;
+    }
+    $win_from = strtotime($date . ' ' . $tf);
+    $win_to   = strtotime($date . ' ' . $tt);
+    foreach ($api['slots'] as $s) {
+        $sf = strtotime((string)($s['start'] ?? ''));
+        $st = strtotime((string)($s['end']   ?? ''));
+        if (!$sf || !$st) continue;
+        if ($sf < $win_to && $st > $win_from) {
+            $res['ok']     = false;
+            $res['reason'] = 'Konto Zoom jest w tym czasie zajęte spotkaniem „' . (string)$s['topic'] . '" ('
+                . date('d.m.Y H:i', $sf) . '–' . date('H:i', $st) . ') zaplanowanym w Zoomie.';
+            return $res;
+        }
+    }
+    return $res;
+}
+
+/**
+ * Zajętość Zoom dla wielu dat o tych samych godzinach (seria / zajęcia stałe).
+ *
+ * @param string[] $dates
+ * @return array{ok:bool, checked:bool, api_ok:bool, conflicts:array<int,array{date:string,reason:string}>, warning:string}
+ */
+function ti_zoom_dates_check(int $course_id, string $lesson_method, array $dates, string $time_from, string $time_to): array {
+    $out = ['ok' => true, 'checked' => false, 'api_ok' => true, 'conflicts' => [], 'warning' => ''];
+    foreach ($dates as $d) {
+        $d = trim((string)$d);
+        if ($d === '') continue;
+        $c = ti_zoom_slot_check($course_id, $lesson_method, $d, $time_from, $time_to);
+        if ($c['checked'])  $out['checked'] = true;
+        if (!$c['api_ok']) { $out['api_ok'] = false; $out['warning'] = $c['warning']; }
+        if (!$c['ok'])     { $out['ok'] = false; $out['conflicts'][] = ['date' => $d, 'reason' => $c['reason']]; }
+    }
+    return $out;
+}
+
+/** Komunikat o kolizjach Zoom w serii terminów: pierwsze trzy daty + licznik. */
+function ti_zoom_conflicts_msg(array $conflicts): string {
+    $n = count($conflicts);
+    if (!$n) return '';
+    $dates = array_map(fn($c) => date('d.m.Y', strtotime((string)$c['date'])), array_slice($conflicts, 0, 3));
+    return 'Kolizja z zajętością konta Zoom w ' . $n . ' ' . ($n === 1 ? 'terminie' : 'terminach') . ': '
+        . implode(', ', $dates) . ($n > 3 ? ' (+' . ($n - 3) . ')' : '') . '. '
+        . (string)($conflicts[0]['reason'] ?? '');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  OCENY — włączanie/wyłączanie per kurs i per osoba (e-dziennik)
 // ═══════════════════════════════════════════════════════════════════════════

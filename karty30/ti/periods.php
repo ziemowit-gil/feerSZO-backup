@@ -29,11 +29,17 @@ function ti_periods_build_plan(array $src, array $dst, array $course_ids, bool $
             "SELECT id FROM k30_ti_sessions WHERE course_id=? AND lesson_date=? AND time_from=? AND (id!=?)",
             [(int)$s['course_id'], $new_date, (string)$s['time_from'], (int)$s['id']]
         );
+        // Zajętość konta Zoom w nowym terminie (jeden host = jedno spotkanie naraz)
+        $zc = ti_zoom_slot_check(
+            (int)$s['course_id'], (string)($s['lesson_method'] ?? ''),
+            $new_date, (string)$s['time_from'], (string)$s['time_to'], (int)$s['id']
+        );
         $plan[] = [
             'src'          => $s,
             'new_date'     => $new_date,
             'in_dst_range' => ($new_date >= $dst['date_from'] && $new_date <= $dst['date_to']),
             'duplicate'    => (bool)$dup,
+            'zoom_busy'    => $zc['ok'] ? '' : $zc['reason'],
         ];
     }
     return $plan;
@@ -95,11 +101,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             if (!$plan) {
                 $form_err[] = 'W okresie źródłowym nie ma lekcji dla wybranych kursów.';
             } elseif ($op === 'apply') {
-                $copied = 0; $moved = 0;
+                $copied = 0; $moved = 0; $zoom_skipped = 0;
                 db()->beginTransaction();
                 try {
                     foreach ($plan as $p) {
                         $s = $p['src'];
+                        // Kolizja z zajętością konta Zoom — lekcji nie da się odbyć,
+                        // więc jej nie tworzymy/nie przenosimy (stan sprawdzany na świeżo,
+                        // bo wcześniejsze przeniesienia w tej pętli zmieniają zajętość).
+                        $zc = ti_zoom_slot_check(
+                            (int)$s['course_id'], (string)($s['lesson_method'] ?? ''),
+                            $p['new_date'], (string)$s['time_from'], (string)$s['time_to'], (int)$s['id']
+                        );
+                        if (!$zc['ok']) { $zoom_skipped++; continue; }
                         if ($mode === 'move') {
                             db()->prepare("UPDATE k30_ti_sessions SET lesson_date=?, updated_at=datetime('now') WHERE id=?")
                                 ->execute([$p['new_date'], (int)$s['id']]);
@@ -137,9 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                     header('Location: periods.php'); exit;
                 }
                 $dn = $dst['name'];
-                flash_set('success', $mode === 'move'
+                $zmsg = $zoom_skipped
+                    ? " Pominięto {$zoom_skipped} lekcji — konto Zoom jest w tych terminach zajęte."
+                    : '';
+                flash_set($zoom_skipped ? 'warning' : 'success', ($mode === 'move'
                     ? "Przeniesiono {$moved} lekcji do okresu „{$dn}”."
-                    : "Skopiowano {$copied} lekcji do okresu „{$dn}”."
+                    : "Skopiowano {$copied} lekcji do okresu „{$dn}”.") . $zmsg
                 );
                 header('Location: periods.php'); exit;
             } else {
@@ -302,7 +319,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
       <?= $preview['mode'] === 'move' ? 'przeniesienie' : 'skopiowanie' ?>
       <?= count($preview['plan']) ?> lekcji z „<?= h($preview['src']['name']) ?>" do „<?= h($preview['dst']['name']) ?>"
       (przesunięcie o <?= (int)$offset_days ?> dni)</h2>
-    <?php $dups = array_filter($preview['plan'], fn($p)=>$p['duplicate']); $outside = array_filter($preview['plan'], fn($p)=>!$p['in_dst_range']); ?>
+    <?php $dups = array_filter($preview['plan'], fn($p)=>$p['duplicate']); $outside = array_filter($preview['plan'], fn($p)=>!$p['in_dst_range']); $zbusy = array_filter($preview['plan'], fn($p)=>!empty($p['zoom_busy'])); ?>
+    <?php if ($zbusy): ?><div class="alert alert-danger py-2 small mb-2"><i class="bi bi-camera-video-off me-1"></i><?= count($zbusy) ?> lekcji trafia na termin, w którym konto Zoom jest już zajęte — te lekcje zostaną pominięte (jeden host Zoom nie prowadzi dwóch spotkań jednocześnie).</div><?php endif; ?>
     <?php if ($dups): ?><div class="alert alert-warning py-2 small mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Uwaga: <?= count($dups) ?> lekcji trafi na termin, gdzie już istnieje lekcja tego kursu o tej samej godzinie.</div><?php endif; ?>
     <?php if ($outside): ?><div class="alert alert-info py-2 small mb-2"><i class="bi bi-info-circle me-1"></i><?= count($outside) ?> lekcji wypada poza zakresem dat okresu docelowego (offset liczony od dat „od" obu okresów).</div><?php endif; ?>
     <div class="table-responsive" style="max-height:340px;overflow:auto">
@@ -318,7 +336,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
             <td class="text-nowrap fw-semibold"><?= h(date('d.m.Y', strtotime($p['new_date']))) ?> <span class="text-body-secondary small"><?= h(['Nd','Pn','Wt','Śr','Cz','Pt','Sb'][date('w', strtotime($p['new_date']))]) ?></span></td>
             <td class="small">
               <?php if ($p['duplicate']): ?><span class="badge text-bg-warning">duplikat</span> <?php endif; ?>
-              <?php if (!$p['in_dst_range']): ?><span class="badge text-bg-info">poza okresem</span><?php endif; ?>
+              <?php if (!$p['in_dst_range']): ?><span class="badge text-bg-info">poza okresem</span> <?php endif; ?>
+              <?php if (!empty($p['zoom_busy'])): ?><span class="badge text-bg-danger" title="<?= h($p['zoom_busy']) ?>">Zoom zajęty — pominięte</span><?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>

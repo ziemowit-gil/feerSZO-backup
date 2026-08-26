@@ -209,6 +209,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('warning', $av['reason'] . ' Aby dodać mimo to, zaznacz „Dodaj poza dostępnością".');
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
+        // Zajętość konta Zoom — twarda blokada, bez nadpisania: jeden host Zoom
+        // nie prowadzi dwóch spotkań jednocześnie (ograniczenie techniczne, nie organizacyjne).
+        $zc = ti_zoom_slot_check((int)$id, '', $sess_data['lesson_date'], $tf, $tt);
+        if (!$zc['ok']) {
+            flash_set('danger', $zc['reason']);
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
+        $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
         $sid = db_insert('k30_ti_sessions', $sess_data);
         // Wstępnie utwórz obecność dla wszystkich aktywnych uczestników
         $enrolled = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$id]);
@@ -221,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $when = $sess_data['lesson_date'] . ($tf !== '' ? ' o ' . $tf : '');
         $sms_sent = ti_lesson_sms_notify((int)$id,
             'Nowe zajecia: ' . ($course_row['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
-        flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
+        flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : '') . $zw);
         header('Location: lesson.php?id='.$sid); exit;
     }
 
@@ -238,6 +246,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $av = ti_instructor_available_at(ti_course_instructor_id((int)$src['course_id']), $new_date, (string)$src['time_from'], (string)$src['time_to']);
         if (!$av['ok'] && empty($_POST['ignore_availability'])) {
             flash_set('warning', $av['reason'] . ' Aby sklonować mimo to, zaznacz „Klonuj poza dostępnością".');
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
+        // Zajętość konta Zoom w nowym terminie — twarda blokada
+        $zc = ti_zoom_slot_check((int)$src['course_id'], (string)($src['lesson_method'] ?? ''), $new_date, (string)$src['time_from'], (string)$src['time_to']);
+        if (!$zc['ok']) {
+            flash_set('danger', $zc['reason']);
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
         $new_id = db_insert('k30_ti_sessions', [

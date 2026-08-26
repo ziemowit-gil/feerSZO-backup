@@ -108,6 +108,50 @@ $edit_id  = (int)($_GET['edit'] ?? 0);
 $edit_m   = $edit_id ? db_one("SELECT * FROM k30_ti_meetings WHERE id=?", [$edit_id]) : null;
 $show_form = isset($_GET['new']) || $edit_m;
 
+// Zajętość konta hosta Zoom na najbliższe 14 dni — to na tej podstawie
+// blokowane jest ustawianie zajęć zdalnych (jeden host = jedno spotkanie naraz).
+$zoom_busy_days = 14;
+$zoom_busy_rows = [];
+$zoom_busy_err  = '';
+if (zoom_enabled()) {
+    $_zd_from = date('Y-m-d');
+    $_zd_to   = date('Y-m-d', strtotime('+' . $zoom_busy_days . ' days'));
+    foreach (db_all(
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.lesson_method, s.course_id,
+                c.name AS course_name, c.zoom_meeting_id
+           FROM k30_ti_sessions s
+           JOIN k30_ti_courses  c ON c.id = s.course_id
+          WHERE s.lesson_date BETWEEN ? AND ?
+            AND s.status NOT IN ('cancelled','draft')
+            AND s.time_from != '' AND s.time_to != ''
+          ORDER BY s.lesson_date, s.time_from",
+        [$_zd_from, $_zd_to]
+    ) as $_s) {
+        if (!ti_lesson_uses_zoom((int)$_s['course_id'], (string)($_s['lesson_method'] ?? ''), (string)($_s['zoom_meeting_id'] ?? ''))) continue;
+        $zoom_busy_rows[] = [
+            'src'   => 'szo',
+            'start' => $_s['lesson_date'] . ' ' . $_s['time_from'],
+            'end'   => $_s['lesson_date'] . ' ' . $_s['time_to'],
+            'title' => 'Lekcja: ' . (string)$_s['course_name'],
+        ];
+    }
+    $_za = ti_zoom_api_busy();
+    if ($_za['ok']) {
+        foreach ($_za['slots'] as $_sl) {
+            if (substr((string)$_sl['start'], 0, 10) < $_zd_from || substr((string)$_sl['start'], 0, 10) > $_zd_to) continue;
+            $zoom_busy_rows[] = [
+                'src'   => 'zoom',
+                'start' => (string)$_sl['start'],
+                'end'   => (string)$_sl['end'],
+                'title' => (string)$_sl['topic'],
+            ];
+        }
+    } else {
+        $zoom_busy_err = $_za['error'];
+    }
+    usort($zoom_busy_rows, fn($a, $b) => strcmp($a['start'], $b['start']));
+}
+
 $ms_set = fn($k) => org_setting($k);
 $plat_badge = ['zoom' => ['primary','Zoom'], 'teams' => ['info','MS Teams'], 'other' => ['secondary','Link']];
 
@@ -204,6 +248,53 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="form-text mt-2">Wymaga aplikacji „Server-to-Server OAuth" w Zoom Marketplace z zakresami: <code>meeting:write:admin</code>, <code>meeting:read:admin</code>, <code>user:read:admin</code>. Zapis automatycznie weryfikuje połączenie.</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Zajętość konta Zoom -->
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <span><i class="bi bi-calendar2-week me-1"></i>Zajętość konta Zoom — najbliższe <?= (int)$zoom_busy_days ?> dni</span>
+    <span class="badge bg-secondary ms-2"><?= count($zoom_busy_rows) ?></span>
+  </div>
+  <div class="card-body">
+    <p class="small text-body-secondary mb-3">
+      Jeden host Zoom nie prowadzi dwóch spotkań jednocześnie, więc terminy z tej listy
+      blokują ustawianie nakładających się zajęć zdalnych (panel prowadzącego, dodawanie
+      i klonowanie lekcji, serie, zajęcia stałe, kopiowanie okresów, planner).
+      Stałe linki kursów to spotkania cykliczne <em>bez</em> ustalonego terminu (typ 3),
+      dlatego API Zoom nie zna ich godzin — zajętość lekcji SZO liczona jest z bazy.
+    </p>
+    <?php if (!zoom_enabled()): ?>
+      <div class="alert alert-secondary py-2 small mb-0">Integracja Zoom jest wyłączona — sprawdzanie zajętości nie działa.</div>
+    <?php else: ?>
+      <?php if ($zoom_busy_err !== ''): ?>
+        <div class="alert alert-warning py-2 small" role="alert">
+          <i class="bi bi-exclamation-triangle me-1"></i>API Zoom nie odpowiedziało (<?= h($zoom_busy_err) ?>).
+          Zajętość spotkań utworzonych poza SZO jest w tej chwili nieznana — blokada opiera się tylko na lekcjach z SZO.
+        </div>
+      <?php endif; ?>
+      <?php if (!$zoom_busy_rows): ?>
+        <div class="text-muted small">Brak zajętych terminów w tym okresie.</div>
+      <?php else: ?>
+        <div class="table-responsive" style="max-height:320px;overflow:auto">
+          <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Termin</th><th>Godziny</th><th>Źródło</th><th>Opis</th></tr></thead>
+            <tbody>
+            <?php foreach ($zoom_busy_rows as $zr): ?>
+              <tr>
+                <td class="text-nowrap"><?= h(date('d.m.Y', strtotime($zr['start']))) ?>
+                  <span class="text-body-secondary small"><?= h(['Nd','Pn','Wt','Śr','Cz','Pt','Sb'][date('w', strtotime($zr['start']))]) ?></span></td>
+                <td class="text-nowrap"><?= h(date('H:i', strtotime($zr['start']))) ?>–<?= h(date('H:i', strtotime($zr['end']))) ?></td>
+                <td><span class="badge <?= $zr['src'] === 'szo' ? 'text-bg-primary' : 'text-bg-dark' ?>"><?= $zr['src'] === 'szo' ? 'lekcja SZO' : 'Zoom' ?></span></td>
+                <td class="small"><?= h($zr['title']) ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
   </div>
 </div>
 

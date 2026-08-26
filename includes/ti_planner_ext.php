@@ -548,6 +548,19 @@ function pl_check_conflicts(array $p): array {
         }
     }
 
+    // HARD: konto Zoom zajęte — jeden host Zoom nie prowadzi dwóch spotkań naraz
+    if ($course && function_exists('ti_zoom_slot_check')) {
+        $zc = ti_zoom_slot_check(
+            (int)$course, (string)($p['lesson_method'] ?? ''),
+            (string)$date, (string)$from, (string)$to, (int)$skip_id
+        );
+        if (!$zc['ok']) {
+            $hard[] = ['code' => 'CONFLICT_ZOOM', 'msg' => $zc['reason']];
+        } elseif ($zc['checked'] && !$zc['api_ok']) {
+            $soft[] = ['code' => 'ZOOM_API_UNAVAILABLE', 'msg' => $zc['warning']];
+        }
+    }
+
     // SOFT: długość bloku przekracza limit ergonomii
     if (isset(PL_BREAK_RULES[$block])) {
         $from_ts = strtotime($date . ' ' . $from);

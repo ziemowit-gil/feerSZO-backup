@@ -305,6 +305,99 @@ class ZoomAPI {
         return $out;
     }
 
+
+    /**
+     * Zajętość konta hosta: spotkania Zoom z ustalonym terminem.
+     * Zwraca [['meeting_id','topic','start','end']] — czas LOKALNY (Y-m-d H:i:s).
+     *
+     * OGRANICZENIE API ZOOM: spotkania cykliczne bez stałego terminu (typ 3 —
+     * takie tworzy create_meeting() dla kursów i kursantów) nie mają w Zoomie
+     * żadnych godzin, więc nie występują w tym wykazie. Zajętość wynikającą
+     * z lekcji zaplanowanych w SZO liczy ti_zoom_slot_check() z k30_ti_sessions;
+     * ta metoda odpowiada za spotkania z terminem, w tym utworzone poza SZO.
+     *
+     * Zwraca tylko spotkania nieprzedawnione i przyszłe (type=scheduled) —
+     * dla terminów wstecz Zoom nie udostępnia tej listy.
+     */
+    public function busy_slots(int $max_pages = 5): array {
+        $out = [];  $next = '';  $page = 0;
+        do {
+            $path = '/users/' . rawurlencode($this->userId) . '/meetings?type=scheduled&page_size=300'
+                  . ($next !== '' ? '&next_page_token=' . rawurlencode($next) : '');
+            $data = $this->get($path);
+            foreach ($data['meetings'] ?? [] as $m) {
+                $type = (int)($m['type'] ?? 2);
+                if ($type === 3) continue;                    // bez stałego terminu — brak godzin
+                if ($type === 8) {                            // cykliczne ze stałym terminem
+                    foreach ($this->occurrence_slots($m) as $s) $out[] = $s;
+                    continue;
+                }
+                $s = $this->slot_from(
+                    (string)($m['start_time'] ?? ''), (int)($m['duration'] ?? 0),
+                    (string)($m['topic'] ?? ''),      (string)($m['id'] ?? '')
+                );
+                if ($s) $out[] = $s;
+            }
+            $next = (string)($data['next_page_token'] ?? '');
+            $page++;
+        } while ($next !== '' && $page < $max_pages);
+        return $out;
+    }
+
+    /**
+     * Wystąpienia spotkania cyklicznego ze stałym terminem (typ 8).
+     * Lista spotkań zwraca tylko najbliższe wystąpienie — pełny wykaz jest
+     * w szczegółach spotkania (pole occurrences). Gdy szczegóły są niedostępne,
+     * bierzemy najbliższe wystąpienie z listy (lepsze niż nic).
+     */
+    private function occurrence_slots(array $m): array {
+        $id       = (string)($m['id'] ?? '');
+        $fallback = $this->slot_from(
+            (string)($m['start_time'] ?? ''), (int)($m['duration'] ?? 0),
+            (string)($m['topic'] ?? ''),      $id
+        );
+        if ($id === '') return $fallback ? [$fallback] : [];
+
+        try {
+            $d = $this->get('/meetings/' . rawurlencode($id));
+        } catch (\Throwable $e) {
+            return $fallback ? [$fallback] : [];
+        }
+        $topic = (string)($d['topic'] ?? $m['topic'] ?? '');
+        $out   = [];
+        foreach ($d['occurrences'] ?? [] as $o) {
+            if (($o['status'] ?? 'available') === 'deleted') continue;
+            $s = $this->slot_from(
+                (string)($o['start_time'] ?? ''),
+                (int)($o['duration'] ?? $d['duration'] ?? 0),
+                $topic, $id
+            );
+            if ($s) $out[] = $s;
+        }
+        if (!$out && $fallback) $out[] = $fallback;
+        return $out;
+    }
+
+    /** Slot z pary (start UTC, czas trwania) na czas lokalny; null gdy brak startu. */
+    private function slot_from(string $start_utc, int $duration_min, string $topic, string $meeting_id): ?array {
+        if (trim($start_utc) === '') return null;
+        if ($duration_min <= 0) $duration_min = 60;
+        try {
+            $dt = new \DateTime($start_utc, new \DateTimeZone('UTC'));
+            $dt->setTimezone(new \DateTimeZone(date_default_timezone_get() ?: 'Europe/Warsaw'));
+        } catch (\Throwable $e) {
+            return null;
+        }
+        $start = $dt->format('Y-m-d H:i:s');
+        $dt->modify('+' . $duration_min . ' minutes');
+        return [
+            'meeting_id' => $meeting_id,
+            'topic'      => $topic !== '' ? $topic : 'Spotkanie Zoom',
+            'start'      => $start,
+            'end'        => $dt->format('Y-m-d H:i:s'),
+        ];
+    }
+
     /** Test połączenia — zwraca ['ok'=>bool, 'msg'=>string]. */
     public function test_connection(): array {
         try {
