@@ -276,6 +276,18 @@ function ti_protocol_unlock(int $protocol_id, ?int $by, string $by_name, string 
     $reason = trim($reason);
     if ($reason === '') throw new \RuntimeException('Podaj powód odblokowania protokołu.');
 
+    // Protokół z zamkniętego okresu jest domknięty razem z nim — najpierw okres
+    if (!empty($prot['period_id'])) {
+        require_once __DIR__ . '/ti_periods.php';
+        $per = ti_period_get((int)$prot['period_id']);
+        if ($per && ti_period_is_closed($per)) {
+            throw new \RuntimeException(
+                'Okres „' . (string)$per['name'] . '" jest zamknięty — aby poprawić protokół, '
+                . 'administrator musi najpierw otworzyć okres ponownie.'
+            );
+        }
+    }
+
     db()->prepare(
         "UPDATE k30_ti_protocols
             SET status='open', unlocked_by=?, unlocked_name=?, unlocked_at=datetime('now'),

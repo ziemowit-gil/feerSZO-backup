@@ -78,6 +78,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             }
             header('Location: periods.php'); exit;
         }
+    } elseif ($op === 'close_period') {
+        $id = (int)($_POST['id'] ?? 0);
+        try {
+            ti_period_close($id, $uid, (string)(current_user()['name'] ?? ''), (string)($_POST['close_note'] ?? ''));
+            flash_set('success', 'Okres zamknięty — zajęć w nim nie można już dodawać ani przesuwać.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: periods.php?ready=' . $id . '#zamykanie'); exit;
+
+    } elseif ($op === 'reopen_period') {
+        if (!is_admin()) { http_response_code(403); die('Okres może otworzyć ponownie tylko administrator.'); }
+        $id = (int)($_POST['id'] ?? 0);
+        try {
+            ti_period_reopen($id, $uid, (string)(current_user()['name'] ?? ''), (string)($_POST['reason'] ?? ''));
+            flash_set('success', 'Okres otwarty ponownie — powód zapisany.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: periods.php?ready=' . $id . '#zamykanie'); exit;
+
     } elseif ($op === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id) db()->prepare("DELETE FROM k30_ti_periods WHERE id=?")->execute([$id]);
@@ -95,6 +116,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 
         if (!$src || !$dst)      $form_err[] = 'Wybierz okres źródłowy i docelowy.';
         elseif ($src_id === $dst_id) $form_err[] = 'Okres źródłowy i docelowy muszą być różne.';
+
+        // Zamknięty okres jest rozliczony protokołami — nic do niego ani z niego
+        if ($dst && ti_period_is_closed($dst)) {
+            $form_err[] = 'Okres docelowy „' . $dst['name'] . '" jest zamknięty — nie można do niego kopiować ani przenosić zajęć.';
+        }
+        if ($mode === 'move' && $src && ti_period_is_closed($src)) {
+            $form_err[] = 'Okres źródłowy „' . $src['name'] . '" jest zamknięty — zajęć z niego nie można przenosić.';
+        }
 
         if (!$form_err) {
             $plan = ti_periods_build_plan($src, $dst, $course_ids, $skip_off);
@@ -171,6 +200,11 @@ $periods = ti_periods_all();
 $courses = k30_ti_courses(false); // wszystkie nieusunięte kursy
 $current_vac = ti_current_vacation();
 
+// Gotowość okresu do zamknięcia (wybór z listy przez ?ready=)
+$ready_id     = (int)($_GET['ready'] ?? 0);
+$ready_period = $ready_id ? ti_period_get($ready_id) : null;
+$readiness    = $ready_period ? ti_period_close_readiness($ready_id) : ['ready'=>false,'courses'=>[],'missing'=>0];
+
 $PAGE_TITLE = 'Okresy nauczania TI';
 require_once dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -211,7 +245,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Nazwa</th><th>Typ</th><th>Od</th><th>Do</th><th class="text-center">Dni</th><th>Uwagi</th><?php if ($can_write): ?><th class="text-end">Akcje</th><?php endif; ?></tr>
+        <tr><th>Nazwa</th><th>Typ</th><th>Od</th><th>Do</th><th class="text-center">Dni</th><th>Stan</th><th>Uwagi</th><?php if ($can_write): ?><th class="text-end">Akcje</th><?php endif; ?></tr>
       </thead>
       <tbody>
       <?php foreach ($periods as $p):
@@ -224,6 +258,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
         <td class="text-nowrap"><?= h(date('d.m.Y', strtotime($p['date_from']))) ?></td>
         <td class="text-nowrap"><?= h(date('d.m.Y', strtotime($p['date_to']))) ?></td>
         <td class="text-center"><?= ti_period_days($p) ?></td>
+        <td class="text-nowrap small">
+          <?php if (ti_period_is_closed($p)): ?>
+            <span class="badge text-bg-dark" title="Zamknięty: <?= h($p['closed_name'] ?: '') ?>, <?= h(date('d.m.Y H:i', strtotime((string)$p['closed_at']))) ?>">zamknięty</span>
+          <?php else: ?>
+            <a href="?ready=<?= (int)$p['id'] ?>#zamykanie" class="text-decoration-none"><span class="badge text-bg-light border text-dark">otwarty</span></a>
+          <?php endif; ?>
+        </td>
         <td class="text-body-secondary small"><?= $p['note'] !== '' ? h($p['note']) : '—' ?></td>
         <?php if ($can_write): ?>
         <td class="text-end text-nowrap">
@@ -245,6 +286,124 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="card-body text-body-secondary"><i class="bi bi-info-circle me-1"></i>Brak zdefiniowanych okresów. <?php if ($can_write): ?>Kliknij „Dodaj okres".<?php endif; ?></div>
   <?php endif; ?>
 </div>
+
+<!-- ── Zamykanie okresu (wymaga zatwierdzonych protokołów) ───────────────────── -->
+<?php if ($can_write): ?>
+<div class="card border-0 shadow-sm mb-4" id="zamykanie">
+  <div class="card-header fw-semibold bg-body-tertiary"><i class="bi bi-lock me-1"></i>Zamykanie okresu</div>
+  <div class="card-body">
+    <p class="small text-body-secondary">
+      Okres można zamknąć dopiero wtedy, gdy <strong>każdy kurs, który miał w nim zajęcia,
+      ma zatwierdzony protokół ocen</strong> (panel dydaktyka → Protokoły). Zamknięty okres
+      jest rozliczony: nie da się w nim dodawać ani przesuwać zajęć, a protokołów nie można
+      odblokować, dopóki administrator nie otworzy okresu ponownie.
+    </p>
+
+    <form method="get" class="d-flex align-items-end gap-2 flex-wrap mb-3">
+      <div>
+        <label class="form-label fw-semibold mb-1" for="ready-period">Okres</label>
+        <select class="form-select form-select-sm" id="ready-period" name="ready" onchange="this.form.submit()" style="min-width:280px">
+          <option value="">— wybierz okres —</option>
+          <?php foreach ($periods as $p): ?>
+          <option value="<?= (int)$p['id'] ?>" <?= $ready_id === (int)$p['id'] ? 'selected' : '' ?>>
+            <?= h($p['name']) ?> (<?= h(date('d.m.Y', strtotime($p['date_from']))) ?>–<?= h(date('d.m.Y', strtotime($p['date_to']))) ?>)<?= !empty($p['closed_at']) ? ' — zamknięty' : '' ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <noscript><button class="btn btn-sm btn-primary">Sprawdź</button></noscript>
+    </form>
+
+    <?php if ($ready_period): ?>
+      <?php $closed = ti_period_is_closed($ready_period); ?>
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <span class="fw-semibold"><?= h($ready_period['name']) ?></span>
+        <?php if ($closed): ?>
+          <span class="badge text-bg-dark">zamknięty</span>
+          <span class="small text-body-secondary">
+            <?= h($ready_period['closed_name'] ?: '—') ?>,
+            <?= h(date('d.m.Y H:i', strtotime((string)$ready_period['closed_at']))) ?>
+            <?= trim((string)$ready_period['close_note']) !== '' ? '— ' . h($ready_period['close_note']) : '' ?>
+          </span>
+        <?php elseif ($readiness['ready']): ?>
+          <span class="badge text-bg-success">gotowy do zamknięcia</span>
+        <?php else: ?>
+          <span class="badge text-bg-warning">brakuje protokołów: <?= (int)$readiness['missing'] ?></span>
+        <?php endif; ?>
+      </div>
+
+      <?php if (!empty($ready_period['reopened_at'])): ?>
+      <div class="small text-body-secondary mb-2">
+        <i class="bi bi-unlock me-1"></i>Otwarty ponownie: <?= h($ready_period['reopened_name'] ?: '—') ?>,
+        <?= h(date('d.m.Y H:i', strtotime((string)$ready_period['reopened_at']))) ?> — powód: <?= h($ready_period['reopen_reason']) ?>.
+      </div>
+      <?php endif; ?>
+
+      <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle mb-0">
+          <caption class="visually-hidden">Kursy z zajęciami w okresie i stan ich protokołów ocen</caption>
+          <thead class="table-light"><tr>
+            <th scope="col">Kurs</th><th scope="col" class="text-center">Zajęć w okresie</th><th scope="col">Protokół</th>
+          </tr></thead>
+          <tbody>
+            <?php if (!$readiness['courses']): ?>
+            <tr><td colspan="3" class="text-center text-muted py-3">W tym okresie żaden kurs nie ma zajęć — nie ma czego rozliczać.</td></tr>
+            <?php endif; ?>
+            <?php foreach ($readiness['courses'] as $rc): ?>
+            <tr>
+              <td><a href="course.php?id=<?= (int)$rc['course_id'] ?>"><?= h($rc['name']) ?></a></td>
+              <td class="text-center"><?= (int)$rc['sessions'] ?></td>
+              <td>
+                <?php if ($rc['status'] === 'approved'): ?>
+                  <span class="badge text-bg-success">zatwierdzony</span>
+                <?php elseif ($rc['status'] === 'open'): ?>
+                  <span class="badge text-bg-warning">otwarty — do zatwierdzenia</span>
+                <?php else: ?>
+                  <span class="badge text-bg-danger">brak protokołu</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <?php if (!$closed): ?>
+      <form method="post" class="d-flex align-items-end gap-2 flex-wrap"
+            onsubmit="return confirm('Zamknąć okres „<?= h(addslashes($ready_period['name'])) ?>”? W zamkniętym okresie nie można dodawać ani przesuwać zajęć.')">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op" value="close_period">
+        <input type="hidden" name="id" value="<?= (int)$ready_period['id'] ?>">
+        <div class="flex-grow-1">
+          <label class="form-label mb-1" for="close-note">Notatka do zamknięcia <span class="text-body-secondary">(opcjonalnie)</span></label>
+          <input type="text" class="form-control form-control-sm" id="close-note" name="close_note" maxlength="255" placeholder="np. rok rozliczony, protokoły podpisane">
+        </div>
+        <button class="btn btn-sm btn-primary" <?= $readiness['ready'] ? '' : 'disabled aria-disabled="true"' ?>>
+          <i class="bi bi-lock me-1"></i>Zamknij okres
+        </button>
+      </form>
+      <?php if (!$readiness['ready']): ?>
+      <div class="form-text">Przycisk odblokuje się, gdy wszystkie kursy z tego okresu będą miały zatwierdzone protokoły.</div>
+      <?php endif; ?>
+      <?php elseif (is_admin()): ?>
+      <form method="post" class="d-flex align-items-end gap-2 flex-wrap"
+            onsubmit="return confirm('Otworzyć okres ponownie? Powód zostanie zapisany.')">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op" value="reopen_period">
+        <input type="hidden" name="id" value="<?= (int)$ready_period['id'] ?>">
+        <div class="flex-grow-1">
+          <label class="form-label mb-1" for="reopen-reason">Powód ponownego otwarcia <span class="text-danger" aria-hidden="true">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="reopen-reason" name="reason" required maxlength="255" placeholder="np. korekta protokołu grupy INF-1">
+        </div>
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-unlock me-1"></i>Otwórz okres ponownie</button>
+      </form>
+      <?php else: ?>
+      <div class="small text-body-secondary">Okres zamknięty — otworzyć ponownie może tylko administrator.</div>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Kopiowanie / przenoszenie zajęć ───────────────────────────────────────── -->
 <?php if ($can_write): ?>

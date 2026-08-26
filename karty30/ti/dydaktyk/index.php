@@ -497,6 +497,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
+        // Zamknięty okres nauczania — rozliczony protokołami, nic już w nim nie ruszamy
+        if ($_pc = ti_period_closed_for_date($date)) {
+            flash_set('danger', ti_period_closed_msg($_pc));
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+
         // Zajętość konta Zoom (jeden host = jedno spotkanie naraz) — twarda blokada
         $zc = ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $sid);
         if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
@@ -606,6 +612,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         for ($i = 0; $i < $count; $i++) {
             $ser_dates[] = date('Y-m-d', strtotime($date . ' +' . ($i * $every) . ' weeks'));
         }
+        foreach ($ser_dates as $_d) {
+            if ($_pc = ti_period_closed_for_date($_d)) {
+                flash_set('danger', ti_period_closed_msg($_pc) . ' Seria nie została utworzona.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+        }
         $zs = ti_zoom_dates_check($course_id, $ser_lm, $ser_dates, $tf, $tt);
         if (!$zs['ok']) {
             flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Seria nie została utworzona.' . ZOOM_BUSY_HINT);
@@ -652,6 +664,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         while ($d <= $date_to && count($rule_dates) < 104) {
             $rule_dates[] = $d;
             $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
+        }
+        foreach ($rule_dates as $_d) {
+            if ($_pc = ti_period_closed_for_date($_d)) {
+                flash_set('danger', ti_period_closed_msg($_pc) . ' Zajęcia stałe nie zostały dodane.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
         }
         // Zajęcia stałe nie mają wybranej metody — Zoom obciążają, gdy kurs ma stały link
         $zs = ti_zoom_dates_check($course_id, '', $rule_dates, $tf, $tt);
@@ -881,6 +899,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($date === '') { flash_set('danger', 'Podaj nowy termin lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
             if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            if ($_pc = ti_period_closed_for_date($date)) {
+                flash_set('danger', ti_period_closed_msg($_pc));
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
             // Zajętość konta Zoom w nowym terminie — twarda blokada
             $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_method'] ?? '');
             $zc  = ti_zoom_slot_check($course_id, $_lm, $date, $tf, $tt, $sid);
@@ -905,6 +927,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($accept) {
                 $av = ti_instructor_available_at(ti_course_instructor_id($course_id), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
                 if (!$av['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+                if ($_pc = ti_period_closed_for_date((string)$req['proposed_date'])) {
+                    flash_set('danger', 'Nie można zaakceptować: ' . ti_period_closed_msg($_pc));
+                    header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+                }
                 $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [(int)$req['session_id']])['lesson_method'] ?? '');
                 $zc  = ti_zoom_slot_check($course_id, $_lm, (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$req['session_id']);
                 if (!$zc['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }

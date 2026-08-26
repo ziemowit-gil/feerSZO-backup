@@ -209,6 +209,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('warning', $av['reason'] . ' Aby dodać mimo to, zaznacz „Dodaj poza dostępnością".');
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
+        // Zamknięty okres nauczania — rozliczony protokołami ocen
+        require_once dirname(dirname(__DIR__)) . '/includes/ti_periods.php';
+        if ($_pc = ti_period_closed_for_date($sess_data['lesson_date'])) {
+            flash_set('danger', ti_period_closed_msg($_pc));
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
+
         // Zajętość konta Zoom — twarda blokada, bez nadpisania: jeden host Zoom
         // nie prowadzi dwóch spotkań jednocześnie (ograniczenie techniczne, nie organizacyjne).
         $zc = ti_zoom_slot_check((int)$id, '', $sess_data['lesson_date'], $tf, $tt);
@@ -246,6 +253,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $av = ti_instructor_available_at(ti_course_instructor_id((int)$src['course_id']), $new_date, (string)$src['time_from'], (string)$src['time_to']);
         if (!$av['ok'] && empty($_POST['ignore_availability'])) {
             flash_set('warning', $av['reason'] . ' Aby sklonować mimo to, zaznacz „Klonuj poza dostępnością".');
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
+        require_once dirname(dirname(__DIR__)) . '/includes/ti_periods.php';
+        if ($_pc = ti_period_closed_for_date($new_date)) {
+            flash_set('danger', ti_period_closed_msg($_pc));
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
         // Zajętość konta Zoom w nowym terminie — twarda blokada
