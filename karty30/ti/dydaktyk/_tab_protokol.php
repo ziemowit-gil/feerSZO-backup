@@ -26,6 +26,12 @@ $pr_entries = $pr ? ti_protocol_entries((int)$pr['id']) : [];
 $pr_avgs    = $pr ? ti_protocol_diary_averages($cur_course) : [];
 $pr_stats   = $pr ? ti_protocol_stats((int)$pr['id'], $cur_course) : ['total'=>0,'filled'=>0,'pct'=>0];
 $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
+$pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
+
+// Pusty protokół wolno zatwierdzić — wydruk dostaje wtedy adnotację o braku ocen
+$pr_confirm = $pr_empty
+    ? 'W protokole nie ma ani jednej oceny. Zatwierdzić go jako PUSTY? Wydruk będzie zawierał adnotację, że nie wystawiono żadnej oceny. Po zatwierdzeniu zmiana wymaga pracownika D3 lub administratora.'
+    : 'Zatwierdzić protokół? Po zatwierdzeniu nie będzie można zmieniać ocen — odblokowanie wymaga pracownika D3 lub administratora.';
 ?>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
@@ -105,6 +111,16 @@ $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
         </a>
       </div>
 
+      <?php if ($pr_empty): ?>
+      <div class="card-body border-bottom py-2 small">
+        <i class="bi bi-exclamation-square me-1" aria-hidden="true"></i>
+        <?= h(ti_protocol_empty_note($pr_stats)) ?>
+        <?php if (!$pr_locked): ?>
+        <span class="text-body-secondary">Taki protokół można zatwierdzić — na wydruku znajdzie się ta adnotacja.</span>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
       <?php if ($pr_locked): ?>
       <div class="card-body border-bottom py-2 small">
         <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>
@@ -178,9 +194,9 @@ $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
           <button class="btn btn-primary btn-sm" name="_op" value="protocol_save">
             <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz protokół
           </button>
-          <button class="btn btn-success btn-sm" name="_op" value="protocol_approve"
-                  onclick="return confirm('Zatwierdzić protokół? Po zatwierdzeniu nie będzie można zmieniać ocen — odblokowanie wymaga pracownika D3 lub administratora.')">
-            <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Zatwierdź protokół
+          <button class="btn <?= $pr_empty ? 'btn-outline-success' : 'btn-success' ?> btn-sm" name="_op" value="protocol_approve"
+                  onclick="return confirm('<?= h(addslashes($pr_confirm)) ?>')">
+            <i class="bi bi-check2-square me-1" aria-hidden="true"></i><?= $pr_empty ? 'Zatwierdź pusty protokół' : 'Zatwierdź protokół' ?>
           </button>
           <span class="form-text mb-0">
             Dozwolone wpisy: <strong>1–6</strong> (można z „+" lub „-"), albo

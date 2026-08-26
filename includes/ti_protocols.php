@@ -244,7 +244,13 @@ function ti_protocol_save_entries(int $protocol_id, array $values, array $notes 
 
 /**
  * Zatwierdza protokół (ślad: kto, kiedy) i zamyka go do edycji.
- * @throws RuntimeException gdy brak ocen albo protokół już zatwierdzony.
+ *
+ * Protokół BEZ OCEN też można zatwierdzić — bywa, że w okresie nikomu oceny nie
+ * postawiono (kurs bez oceniania, same zajęcia praktyczne, brak uczestników),
+ * a okres i tak trzeba rozliczyć. Taki protokół jest wystawiony jako pusty:
+ * wydruk zawiera adnotację, że nie wystawiono żadnej oceny (patrz ti_protocol_pdf).
+ *
+ * @throws RuntimeException gdy protokół nie istnieje albo jest już zatwierdzony.
  */
 function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void {
     ti_protocols_migrate();
@@ -252,10 +258,6 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
     if (ti_protocol_is_locked($prot)) throw new \RuntimeException('Protokół jest już zatwierdzony.');
 
-    $st = ti_protocol_stats($protocol_id, (int)$prot['course_id']);
-    if ($st['filled'] === 0) {
-        throw new \RuntimeException('Nie można zatwierdzić pustego protokołu — wpisz oceny.');
-    }
     db()->prepare(
         "UPDATE k30_ti_protocols
             SET status='approved', approved_by=?, approved_name=?, approved_at=datetime('now'),
@@ -316,6 +318,19 @@ function ti_protocol_stats(int $protocol_id, int $course_id): array {
     ];
 }
 
+/** Czy w protokole nie ma ani jednej oceny (protokół pusty). */
+function ti_protocol_is_empty(array $stats): bool {
+    return (int)$stats['filled'] === 0;
+}
+
+/** Adnotacja na wydruk pustego protokołu. */
+function ti_protocol_empty_note(array $stats): string {
+    return $stats['total'] === 0
+        ? 'ADNOTACJA: W okresie objętym protokołem do zajęć nie był zapisany żaden uczestnik — protokół pozostaje pusty.'
+        : 'ADNOTACJA: W okresie objętym protokołem nie wystawiono żadnej oceny. Protokół zostaje wystawiony jako pusty dla '
+          . $stats['total'] . ' ' . ($stats['total'] === 1 ? 'uczestnika' : 'uczestników') . '.';
+}
+
 /** Krótki opis wypełnienia, np. „częściowo wypełniony (3 z 8)". */
 function ti_protocol_fill_text(array $stats): string {
     if ($stats['total'] === 0)                 return 'brak uczestników';
@@ -341,6 +356,67 @@ function ti_protocol_diary_averages(int $course_id): array {
     return $out;
 }
 
+/**
+ * Treść protokołu jako HTML do wydruku (wydzielona z ti_protocol_pdf, żeby dało
+ * się ją sprawdzić bez generowania PDF — wzorzec jak ti_syllabus_print_html).
+ * Protokół bez ocen dostaje wyraźną adnotację o braku ocen.
+ */
+function ti_protocol_print_html(array $prot): string {
+    $course_id = (int)$prot['course_id'];
+    $parts     = ti_protocol_participants($course_id);
+    $entries   = ti_protocol_entries((int)$prot['id']);
+    $avgs      = ti_protocol_diary_averages($course_id);
+    $stats     = ti_protocol_stats((int)$prot['id'], $course_id);
+    $h         = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+    $rows = '';
+    $i = 0;
+    foreach ($parts as $p) {
+        $cid = (int)$p['client_id'];
+        $e   = $entries[$cid] ?? null;
+        $i++;
+        $rows .= '<tr>'
+            . '<td>' . $i . '.</td>'
+            . '<td>' . $h($p['name']) . '</td>'
+            . '<td class="c">' . $h(($e['value_text'] ?? '') !== '' ? $e['value_text'] : '—') . '</td>'
+            . '<td class="c">' . (isset($avgs[$cid]) ? number_format($avgs[$cid], 2, ',', '') : '—') . '</td>'
+            . '<td>' . $h($e['note'] ?? '') . '</td>'
+            . '</tr>';
+    }
+
+    $empty_note = ti_protocol_is_empty($stats)
+        ? '<p class="empty-note">' . $h(ti_protocol_empty_note($stats)) . '</p>'
+        : '';
+
+    $trace = ti_protocol_is_locked($prot)
+        ? 'Zatwierdził: ' . $h($prot['approved_name'] ?: '—')
+          . ', ' . $h($prot['approved_at'] ? date('d.m.Y H:i', strtotime((string)$prot['approved_at'])) : '—')
+        : 'Protokół niezatwierdzony — wydruk roboczy.';
+    if (!empty($prot['unlocked_at'])) {
+        $trace .= '<br>Odblokowany: ' . $h($prot['unlocked_name'] ?: '—') . ', '
+            . $h(date('d.m.Y H:i', strtotime((string)$prot['unlocked_at'])))
+            . ' — powód: ' . $h($prot['unlock_reason']);
+    }
+
+    return '<h1>Protokół ocen</h1>'
+        . '<table class="head"><tbody>'
+        . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
+        . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
+        . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?: 'nie wskazano') . '</td></tr>'
+        . '<tr><th>Stan</th><td>' . $h(ti_protocol_status_label((string)$prot['status']))
+            . ' — ' . $h(ti_protocol_fill_text($stats))
+            . (ti_protocol_is_empty($stats) ? ' — <strong>brak ocen</strong>' : '') . '</td></tr>'
+        . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
+        . '</tbody></table>'
+        . '<table class="items"><thead><tr>'
+        . '<th style="width:6%">#</th><th>Uczestnik</th><th style="width:14%">Ocena końcowa</th>'
+        . '<th style="width:14%">Średnia z dziennika</th><th style="width:26%">Uwagi</th>'
+        . '</tr></thead><tbody>' . ($rows ?: '<tr><td colspan="5">Brak uczestników.</td></tr>') . '</tbody></table>'
+        . $empty_note
+        . '<p class="trace">' . $trace . '</p>'
+        . '<p class="sign">.............................................<br>podpis prowadzącego</p>';
+}
+
 /** Protokół jako bajty PDF (mPDF, dejavuserif) albo null przy błędzie. */
 function ti_protocol_pdf(array $prot): ?string {
     try {
@@ -348,54 +424,6 @@ function ti_protocol_pdf(array $prot): ?string {
 
         $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
         if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
-
-        $course_id = (int)$prot['course_id'];
-        $parts     = ti_protocol_participants($course_id);
-        $entries   = ti_protocol_entries((int)$prot['id']);
-        $avgs      = ti_protocol_diary_averages($course_id);
-        $stats     = ti_protocol_stats((int)$prot['id'], $course_id);
-        $h         = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-
-        $rows = '';
-        $i = 0;
-        foreach ($parts as $p) {
-            $cid = (int)$p['client_id'];
-            $e   = $entries[$cid] ?? null;
-            $i++;
-            $rows .= '<tr>'
-                . '<td>' . $i . '.</td>'
-                . '<td>' . $h($p['name']) . '</td>'
-                . '<td class="c">' . $h($e['value_text'] ?? '—') . '</td>'
-                . '<td class="c">' . (isset($avgs[$cid]) ? number_format($avgs[$cid], 2, ',', '') : '—') . '</td>'
-                . '<td>' . $h($e['note'] ?? '') . '</td>'
-                . '</tr>';
-        }
-
-        $trace = ti_protocol_is_locked($prot)
-            ? 'Zatwierdził: ' . $h($prot['approved_name'] ?: '—')
-              . ', ' . $h($prot['approved_at'] ? date('d.m.Y H:i', strtotime((string)$prot['approved_at'])) : '—')
-            : 'Protokół niezatwierdzony — wydruk roboczy.';
-        if (!empty($prot['unlocked_at'])) {
-            $trace .= '<br>Odblokowany: ' . $h($prot['unlocked_name'] ?: '—') . ', '
-                . $h(date('d.m.Y H:i', strtotime((string)$prot['unlocked_at'])))
-                . ' — powód: ' . $h($prot['unlock_reason']);
-        }
-
-        $html = '<h1>Protokół ocen</h1>'
-            . '<table class="head"><tbody>'
-            . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
-            . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
-            . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?: 'nie wskazano') . '</td></tr>'
-            . '<tr><th>Stan</th><td>' . $h(ti_protocol_status_label((string)$prot['status']))
-                . ' — ' . $h(ti_protocol_fill_text($stats)) . '</td></tr>'
-            . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
-            . '</tbody></table>'
-            . '<table class="items"><thead><tr>'
-            . '<th style="width:6%">#</th><th>Uczestnik</th><th style="width:14%">Ocena końcowa</th>'
-            . '<th style="width:14%">Średnia z dziennika</th><th style="width:26%">Uwagi</th>'
-            . '</tr></thead><tbody>' . ($rows ?: '<tr><td colspan="5">Brak uczestników.</td></tr>') . '</tbody></table>'
-            . '<p class="trace">' . $trace . '</p>'
-            . '<p class="sign">.............................................<br>podpis prowadzącego</p>';
 
         $mpdf = new \Mpdf\Mpdf([
             'mode' => 'utf-8', 'format' => 'A4',
@@ -414,11 +442,13 @@ function ti_protocol_pdf(array $prot): ?string {
              table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
              table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:9.5pt; }
              td.c { text-align:center; }
+             p.empty-note { margin-top:5mm; padding:2.5mm 3mm; border:.3mm solid #333;
+                            background:#f2f2f2; font-size:9.5pt; font-weight:bold; }
              p.trace { margin-top:5mm; font-size:9pt; color:#333; }
              p.sign { margin-top:14mm; font-size:9pt; text-align:right; }',
             \Mpdf\HTMLParserMode::HEADER_CSS
         );
-        $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
+        $mpdf->WriteHTML(ti_protocol_print_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;
