@@ -255,6 +255,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="homework.php"><i class="bi bi-journal-check me-2"></i>Zadania domowe</a></li>
       <li><a class="dropdown-item" href="grades.php"><i class="bi bi-table me-2"></i>Dziennik ocen</a></li>
       <li><a class="dropdown-item" href="curriculum.php"><i class="bi bi-list-check me-2"></i>Plan nauczania</a></li>
+      <li><a class="dropdown-item" href="syllabi.php"><i class="bi bi-journal-text me-2"></i>Sylabusy przedmiotów</a></li>
       <li><a class="dropdown-item" href="tests.php"><i class="bi bi-card-checklist me-2"></i>Testy i quizy</a></li>
     </ul>
   </div>

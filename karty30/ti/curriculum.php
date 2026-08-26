@@ -12,9 +12,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_syllabus.php';
 
 k30_require_access();
 karty30_migrate();
+ti_syllabus_migrate();
 
 $can_write  = can_write('karty30') || is_admin();
 $can_delete = is_admin();
@@ -67,6 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: curriculum.php?course='.$cid.'#item-'.$iid); exit;
     }
 
+    if ($op === 'copy_from_syllabus') {
+        $syl = $cid ? ti_course_syllabus($cid) : null;
+        if (!$syl) {
+            flash_set('warning', 'Ten kurs nie ma sylabusa — przypisz go w „Sylabusy przedmiotów".');
+        } else {
+            $r = ti_syllabus_copy_to_curriculum((int)$syl['id'], $cid, current_user()['id'] ?? null);
+            $msg = 'Z sylabusa „' . $syl['title'] . '" dodano ' . $r['added'] . ' ' . ($r['added'] === 1 ? 'punkt' : 'punktów') . ' planu.';
+            if ($r['skipped']) $msg .= ' Pominięto ' . $r['skipped'] . ' już przeniesionych.';
+            flash_set($r['added'] ? 'success' : 'info', $msg);
+        }
+        header('Location: curriculum.php?course='.$cid); exit;
+    }
+
     if ($op === 'import_csv') {
         if (!$cid || !k30_ti_course_get($cid)) { flash_set('danger','Wybierz kurs.'); header('Location: curriculum.php'); exit; }
         $raw = '';
@@ -114,6 +129,10 @@ foreach ($items as $it) {
 }
 $cov_pct = $n_active > 0 ? (int)round($n_covered * 100 / $n_active) : 0;
 
+// Sylabus przedmiotu (wzorzec), z którego plan może pobrać punkty programu
+$syllabus     = $course ? ti_course_syllabus($course_id) : null;
+$syl_coverage = $syllabus ? ti_syllabus_coverage((int)$syllabus['id'], $course_id) : null;
+
 // Edycja pozycji
 $edit_id  = (int)($_GET['edit'] ?? 0);
 $edit_row = $edit_id ? k30_ti_curriculum_get($edit_id) : null;
@@ -134,7 +153,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h4 class="mb-0 fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Plan nauczania</h4>
-  <a href="grades.php" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
+  <a href="syllabi.php" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-journal-text me-1"></i>Sylabusy</a>
+  <a href="grades.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
   <a href="materials.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-collection-play me-1"></i>Materiały</a>
 </div>
 
@@ -180,6 +200,49 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php if (!$course): ?>
 <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Wybierz kurs, aby zarządzać planem nauczania.</div>
 <?php else: ?>
+
+<!-- Sylabus przedmiotu: wzorzec, którego realizacją jest ten plan -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body py-3">
+    <?php if (!$syllabus): ?>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="text-body-secondary small">
+          <i class="bi bi-journal-text me-1" aria-hidden="true"></i>
+          Ten kurs nie ma sylabusa przedmiotu — plan prowadzisz ręcznie.
+        </span>
+        <a href="syllabi.php" class="btn btn-outline-primary btn-sm ms-auto">Sylabusy przedmiotów</a>
+      </div>
+    <?php else: $sst = TI_SYLLABUS_STATUSES[$syllabus['status']] ?? ['label'=>$syllabus['status'],'badge'=>'secondary']; ?>
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <span class="fw-semibold"><i class="bi bi-journal-text text-primary me-1" aria-hidden="true"></i>Sylabus:
+          <a href="syllabi.php?id=<?= (int)$syllabus['id'] ?>" class="text-decoration-none"><?= h($syllabus['title']) ?></a>
+        </span>
+        <span class="badge bg-light text-dark border">v<?= h($syllabus['version']) ?></span>
+        <span class="badge text-bg-<?= h($sst['badge']) ?>"><?= h($sst['label']) ?></span>
+        <?php if (!empty($syllabus['inherited'])): ?>
+          <span class="badge bg-info-subtle text-info-emphasis border" title="Kurs nie ma własnego przypisania — dziedziczy obowiązujący sylabus przedmiotu">dziedziczony po przedmiocie</span>
+        <?php endif; ?>
+        <?php if ($syl_coverage && $syl_coverage['total'] > 0): ?>
+          <span class="badge <?= $syl_coverage['pct'] >= 100 ? 'text-bg-success' : 'text-bg-warning' ?>">
+            w planie <?= (int)$syl_coverage['covered'] ?> z <?= (int)$syl_coverage['total'] ?> punktów sylabusa
+          </span>
+        <?php endif; ?>
+        <?php if ($can_write && $syl_coverage && $syl_coverage['covered'] < $syl_coverage['total']): ?>
+        <form method="post" class="ms-auto">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="copy_from_syllabus">
+          <input type="hidden" name="course_id" value="<?= $course_id ?>">
+          <button class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-down me-1" aria-hidden="true"></i>Pobierz brakujące punkty z sylabusa</button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <div class="small text-body-secondary mb-0">
+        Sylabus to wzorzec przedmiotu (program, wymagania, kryteria oceniania);
+        ten plan jest jego realizacją w kursie i on łączy punkty z lekcjami.
+      </div>
+    <?php endif; ?>
+  </div>
+</div>
 
 <div class="row g-4">
   <!-- LISTA pozycji planu (master) -->
@@ -227,6 +290,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td>
                 <span class="fw-semibold"><?= h($it['title']) ?></span>
                 <?php if (!$it['is_active']): ?><span class="badge bg-secondary ms-1">ukryta</span><?php endif; ?>
+                <?php if (!empty($it['syllabus_item_id'])): ?><span class="badge bg-primary-subtle text-primary-emphasis border ms-1" title="Punkt pochodzi z sylabusa przedmiotu">z sylabusa</span><?php endif; ?>
                 <?php if (trim((string)$it['description']) !== ''): ?>
                   <div class="small text-muted"><?= nl2br(h(mb_strimwidth($it['description'],0,160,'…','UTF-8'))) ?></div>
                 <?php endif; ?>
