@@ -196,3 +196,47 @@ function dyd_panel_resume(): string {
 function dyd_dziennik_blackout(): ?array {
     return ti_blackout_active('dziennik');
 }
+
+// ── Widok panelu: klasyczny / USOS ───────────────────────────────────────────
+// Wybór jest per użytkownik i przeżywa wylogowanie, dlatego trzyma się w
+// user_prefs (ta sama tabela co inne preferencje), a nie w sesji panelu.
+// current_user() w panelu dydaktyka bywa puste (osobna sesja), więc user_id
+// przekazujemy zawsze wprost.
+
+/** Preferencja panelu dydaktyka (user_prefs; tabela zakładana leniwie). */
+function dyd_pref(int $uid, string $key, string $default = ''): string {
+    if ($uid <= 0) return $default;
+    try {
+        $r = db_one("SELECT value FROM user_prefs WHERE user_id=? AND pref_key=?", [$uid, $key]);
+        return $r ? (string)$r['value'] : $default;
+    } catch (\Throwable $e) { return $default; }
+}
+
+/** Zapis preferencji panelu dydaktyka. */
+function dyd_pref_set(int $uid, string $key, string $value): void {
+    if ($uid <= 0) return;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS user_prefs (
+            user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            pref_key TEXT    NOT NULL,
+            value    TEXT    NOT NULL DEFAULT '',
+            PRIMARY KEY (user_id, pref_key)
+        )");
+        db()->prepare("INSERT INTO user_prefs (user_id, pref_key, value) VALUES (?,?,?)
+                       ON CONFLICT(user_id, pref_key) DO UPDATE SET value=excluded.value")
+            ->execute([$uid, $key, $value]);
+    } catch (\Throwable $e) { error_log('[dyd_pref_set] ' . $e->getMessage()); }
+}
+
+/**
+ * Wybrany widok panelu: 'usos' albo 'classic' (domyślny).
+ * ?ui=usos|classic przestawia i zapamiętuje.
+ */
+function dyd_ui(int $uid): string {
+    $v = (string)($_GET['ui'] ?? '');
+    if ($v === 'usos' || $v === 'classic') {
+        dyd_pref_set($uid, 'dyd_ui', $v);
+        return $v;
+    }
+    return dyd_pref($uid, 'dyd_ui', 'classic') === 'usos' ? 'usos' : 'classic';
+}

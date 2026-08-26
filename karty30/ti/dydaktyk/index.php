@@ -16,6 +16,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
@@ -66,6 +67,9 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
     include dirname(__DIR__) . '/kursant/_layout_foot.php';
     exit;
 }
+
+// Widok panelu: klasyczny albo USOS (skórka — inny chrome i typografia, ta sama treść)
+$DYD_UI = dyd_ui($uid);
 
 // Podpowiedź dopisywana do komunikatów o kolizji z zajętością Zoom
 const ZOOM_BUSY_HINT = ' Wolne terminy i wyjaśnienie pokazuje zakładka „Zajętość Zoom” w menu Planowanie.';
@@ -124,7 +128,7 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
@@ -979,6 +983,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($res['errors'])) $msg .= ' Błędów: ' . count($res['errors']) . '.';
         flash_set(!empty($res['errors']) ? 'warning' : 'success', $msg);
         header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+
+    // ── PROTOKOŁY OCEN ──────────────────────────────────────────────────────────
+    if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock'], true)) {
+        dyd_token_check();
+        $back = dyd_back($course_id, 'protokol');
+        if ($dziennik_off) {
+            flash_set('danger', 'Dziennik ocen jest wyłączony ' . ti_blackout_range_text($dziennik_off) . ' — protokoły też.');
+            header('Location: ' . $back); exit;
+        }
+        $pid   = (int)($_POST['protocol_id'] ?? 0);
+        $prot  = $pid ? ti_protocol_get($pid) : null;
+        if ($prot && (int)$prot['course_id'] !== $course_id) { http_response_code(403); exit('Protokół z innego kursu.'); }
+        $me_name = (string)($me['name'] ?? '');
+
+        try {
+            if ($op === 'protocol_create') {
+                $new = ti_protocol_ensure($course_id, (int)($_POST['period_id'] ?? 0), $uid);
+                flash_set('success', 'Protokół otwarty — wpisz oceny końcowe.');
+                header('Location: ' . $back . '&protocol=' . $new); exit;
+            }
+            if (!$prot) { flash_set('danger', 'Protokół nie istnieje.'); header('Location: ' . $back); exit; }
+
+            if ($op === 'protocol_save') {
+                $r = ti_protocol_save_entries(
+                    $pid,
+                    (array)($_POST['grade'] ?? []),
+                    (array)($_POST['note'] ?? []),
+                    $uid
+                );
+                $msg = 'Protokół zapisany: ' . $r['saved'] . ' wpisów'
+                     . ($r['cleared'] ? ', wyczyszczono ' . $r['cleared'] : '') . '.';
+                if ($r['errors']) $msg .= ' Pominięto: ' . implode(' ', array_slice($r['errors'], 0, 3));
+                flash_set($r['errors'] ? 'warning' : 'success', $msg);
+            } elseif ($op === 'protocol_approve') {
+                ti_protocol_approve($pid, $uid, $me_name);
+                flash_set('success', 'Protokół zatwierdzony — ocen nie można już zmieniać.');
+            } elseif ($op === 'protocol_unlock') {
+                if (!dyd_is_staff()) { http_response_code(403); exit('Odblokować protokół może pracownik D3 lub administrator.'); }
+                ti_protocol_unlock($pid, $uid, $me_name, (string)($_POST['reason'] ?? ''));
+                flash_set('success', 'Protokół odblokowany — powód zapisany w śladzie.');
+            }
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: ' . $back . '&protocol=' . $pid); exit;
     }
 
     // ── OCENY (e-dziennik) ──────────────────────────────────────────────────────
@@ -2053,12 +2103,23 @@ $_dyd_staff_badge = dyd_is_staff()
       . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Uprawnienia kierownika</span>'
     : '';
 
+// Przełącznik widoku (klasyczny ⇄ USOS) — zapamiętywany per użytkownik
+$_dyd_ui_switch = '<a href="index.php?tab=' . h(urlencode($tab))
+    . ($cur_course ? '&amp;course=' . (int)$cur_course : '')
+    . '&amp;ui=' . ($DYD_UI === 'usos' ? 'classic' : 'usos')
+    . '" class="btn btn-outline-secondary btn-sm" title="'
+    . ($DYD_UI === 'usos' ? 'Wróć do widoku klasycznego' : 'Przełącz na gęsty, tabelaryczny widok USOS')
+    . '"><i class="bi bi-' . ($DYD_UI === 'usos' ? 'columns-gap' : 'table') . ' me-1" aria-hidden="true"></i>Widok: '
+    . ($DYD_UI === 'usos' ? 'USOS' : 'klasyczny') . '</a>';
+
+if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos');
+
 $KP_TOPBAR = [
     'brand'         => 'Panel dydaktyka',
     'icon'          => 'easel2',
     'user'          => $me['name'] ?? '',
     'logout'        => 'logout.php',
-    'notifications' => $_dyd_course_switcher . $_dyd_staff_badge,
+    'notifications' => $_dyd_course_switcher . $_dyd_staff_badge . $_dyd_ui_switch,
 ];
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
@@ -2317,7 +2378,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <!-- ── Sidebar dydaktyka ── -->
 <?php
-$tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia'], true);
+$tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia','uczestnicy','plan','protokol'], true);
 $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy','billing','kursy'], true);
 
 // Liczniki podzakładek kursu
@@ -2340,6 +2401,9 @@ if ($cur_course && dyd_is_staff()) {
 // [icon, label, count, badge-variant]
 $_sb_ctabs = $cur_course ? [
     'lekcje'       => ['calendar-week',   'Lekcje',        count($sessions ?? []), ''],
+    'uczestnicy'   => ['people',          'Uczestnicy',    0, ''],
+    'plan'         => ['calendar3',       'Plan zajęć',    0, ''],
+    'protokol'     => ['card-checklist',  'Protokoły',     0, ''],
     'zadania'      => ['journal-check',   'Zadania',       count($homeworks ?? []),''],
     'materialy'    => ['collection-play', 'Materiały',     count($materials ?? []),''],
     'nieobecnosci' => ['person-x',        'Nieobecności',  $_sb_absent,   $_sb_absent  ? 'danger' : ''],
@@ -2351,6 +2415,15 @@ if ($cur_course && dyd_is_staff()) {
     $_sb_ctabs['rozliczenia'] = ['receipt','Rozliczenia', $_sb_roz_debt, $_sb_roz_debt ? 'danger' : ''];
 }
 ?>
+<?php if ($DYD_UI === 'usos'):
+  // Arkusz skórki linkowany PO bloku <style> panelu — inaczej bazowe reguły
+  // .dyd-wrap wygrywałyby przy równej specyficzności (patrz komentarz w usos.css).
+  $_usos_css = __DIR__ . '/../assets/usos.css';
+?>
+<link rel="stylesheet" href="../assets/usos.css?v=<?= is_file($_usos_css) ? (int)filemtime($_usos_css) : 1 ?>">
+<?php include __DIR__ . '/_usos_bar.php'; ?>
+<?php endif; ?>
+
 <div class="dyd-sb-overlay" id="dydSbOverlay"></div>
 <nav class="dyd-sidebar" id="dydSidebar" aria-label="Menu dydaktyka">
   <button class="dyd-sb-collapse-btn" id="dydSbCollapse" title="Zwiń panel" type="button" aria-label="Zwiń panel boczny">
@@ -2639,6 +2712,32 @@ if ($cur_course && dyd_is_staff()) {
     <?php /* ═══════════════════════ PROGRAM ZAJĘĆ ═══════════════════════ */ ?>
     <?php if ($tab === 'program'): ?>
     <?php include __DIR__ . '/_tab_program.php'; ?>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ UCZESTNICY (kartoteka grupy) ═══════════════════════ */ ?>
+    <?php if ($tab === 'uczestnicy'): ?>
+    <?php include __DIR__ . '/_tab_uczestnicy.php'; ?>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ PLAN ZAJĘĆ ═══════════════════════ */ ?>
+    <?php if ($tab === 'plan'): ?>
+    <?php include __DIR__ . '/_tab_plan.php'; ?>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ PROTOKOŁY OCEN ═══════════════════════ */ ?>
+    <?php if ($tab === 'protokol'): ?>
+    <?php if ($dziennik_off): ?>
+      <div class="card">
+        <div class="card-body text-center py-5">
+          <div class="mb-3" style="font-size:3rem;line-height:1;color:#f59e0b" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
+          <h2 class="h5 fw-bold mb-2">Protokoły są chwilowo niedostępne</h2>
+          <p class="mb-2"><?= h(ti_blackout_message($dziennik_off)) ?></p>
+          <p class="text-body-secondary small mb-0">Wyłączenie dziennika obejmuje także protokoły ocen i obowiązuje <?= h(ti_blackout_range_text($dziennik_off)) ?>.</p>
+        </div>
+      </div>
+    <?php else: ?>
+    <?php include __DIR__ . '/_tab_protokol.php'; ?>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ OCENY (e-dziennik) ═══════════════════════ */ ?>
