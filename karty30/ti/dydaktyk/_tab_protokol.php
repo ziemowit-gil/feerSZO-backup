@@ -47,10 +47,10 @@ $pr_confirm = $pr_empty
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
           <caption class="visually-hidden">Protokoły ocen kursu <?= h($course['name']) ?> ze stanem zatwierdzenia</caption>
-          <thead><tr><th scope="col">Okres</th><th scope="col">Stan</th></tr></thead>
+          <thead><tr><th scope="col">Okres</th><th scope="col">Stan</th><th scope="col" class="text-end usos-noprint">Wydruk</th></tr></thead>
           <tbody>
             <?php if (!$pr_list): ?>
-            <tr><td colspan="2" class="text-center text-muted py-3">Brak protokołów — otwórz pierwszy poniżej.</td></tr>
+            <tr><td colspan="3" class="text-center text-muted py-3">Brak protokołów — otwórz pierwszy poniżej.</td></tr>
             <?php endif; ?>
             <?php foreach ($pr_list as $row):
               $st  = TI_PROTOCOL_STATUSES[$row['status']] ?? ['label'=>$row['status'],'badge'=>'secondary'];
@@ -65,6 +65,12 @@ $pr_confirm = $pr_empty
                 <div class="text-body-secondary"><?= h(ti_protocol_fill_text($rst)) ?></div>
               </td>
               <td class="small text-nowrap"><span class="badge text-bg-<?= h($st['badge']) ?>"><?= h($st['label']) ?></span></td>
+              <td class="text-end text-nowrap usos-noprint">
+                <a href="protokol_pdf.php?id=<?= (int)$row['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                   title="Pobierz protokół w PDF" aria-label="Pobierz PDF protokołu: <?= h($row['period_name'] ?: 'bez okresu') ?>">
+                  <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+                </a>
+              </td>
             </tr>
             <?php endforeach; ?>
           </tbody>
