@@ -67,6 +67,9 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
     exit;
 }
 
+// Podpowiedź dopisywana do komunikatów o kolizji z zajętością Zoom
+const ZOOM_BUSY_HINT = ' Wolne terminy i wyjaśnienie pokazuje zakładka „Zajętość Zoom” w menu Planowanie.';
+
 // Okno wyłączenia dziennika ocen — staff/admin prowadzą prace, więc ich nie dotyczy
 $dziennik_off = empty($me['is_staff']) ? dyd_dziennik_blackout() : null;
 
@@ -121,7 +124,7 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
@@ -492,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Zajętość konta Zoom (jeden host = jedno spotkanie naraz) — twarda blokada
         $zc = ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $sid);
-        if (!$zc['ok']) { flash_set('danger', $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
 
         if ($sid && dyd_owns_session($uid, $sid)) {
@@ -601,7 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $zs = ti_zoom_dates_check($course_id, $ser_lm, $ser_dates, $tf, $tt);
         if (!$zs['ok']) {
-            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Seria nie została utworzona.');
+            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Seria nie została utworzona.' . ZOOM_BUSY_HINT);
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
@@ -649,7 +652,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Zajęcia stałe nie mają wybranej metody — Zoom obciążają, gdy kurs ma stały link
         $zs = ti_zoom_dates_check($course_id, '', $rule_dates, $tf, $tt);
         if (!$zs['ok']) {
-            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Zajęcia stałe nie zostały dodane.');
+            flash_set('danger', ti_zoom_conflicts_msg($zs['conflicts']) . ' Zajęcia stałe nie zostały dodane.' . ZOOM_BUSY_HINT);
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
@@ -877,7 +880,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Zajętość konta Zoom w nowym terminie — twarda blokada
             $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_method'] ?? '');
             $zc  = ti_zoom_slot_check($course_id, $_lm, $date, $tf, $tt, $sid);
-            if (!$zc['ok']) { flash_set('danger', $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
             if ($old !== null && isset($_POST['notify'])) {
                 k30_ti_reschedule_notify_parties($sid, $old, isset($_POST['notify_sms']));
@@ -900,7 +903,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$av['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
                 $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [(int)$req['session_id']])['lesson_method'] ?? '');
                 $zc  = ti_zoom_slot_check($course_id, $_lm, (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$req['session_id']);
-                if (!$zc['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $zc['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+                if (!$zc['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             }
             k30_ti_reschedule_decide($rid, $accept, (string)($me['name'] ?? ''), trim($_POST['note'] ?? ''));
             flash_set('success', $accept
@@ -2435,6 +2438,10 @@ if ($cur_course && dyd_is_staff()) {
     <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($my_avail) ?></span>
     <?php endif; ?>
   </a>
+  <a class="dyd-sb-link <?= $tab==='zoom'?'active':'' ?>" href="index.php?tab=zoom"
+     <?= $tab==='zoom'?'aria-current="page"':'' ?>>
+    <i class="bi bi-camera-video" aria-hidden="true"></i>Zajętość Zoom
+  </a>
   <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
      <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
     <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
@@ -2663,6 +2670,9 @@ if ($cur_course && dyd_is_staff()) {
     <?php /* ═══════════════════════ DOSTĘPNOŚĆ ═══════════════════════ */ ?>
     <?php if ($tab === 'dostepnosc'): ?>
     <?php include __DIR__ . '/_tab_dostepnosc.php'; ?>
+
+    <?php elseif ($tab === 'zoom'): ?>
+    <?php include __DIR__ . '/_tab_zoom.php'; ?>
     <?php endif; ?>
 
     <?php if ($tab === 'testy'): ?>

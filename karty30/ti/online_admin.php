@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_online.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_zoom_calendar.php';
 
 k30_require_access();
 karty30_migrate();
@@ -110,46 +111,16 @@ $show_form = isset($_GET['new']) || $edit_m;
 
 // Zajętość konta hosta Zoom na najbliższe 14 dni — to na tej podstawie
 // blokowane jest ustawianie zajęć zdalnych (jeden host = jedno spotkanie naraz).
+// Pełny kalendarz miesięczny: karty30/ti/zoom_calendar.php.
 $zoom_busy_days = 14;
 $zoom_busy_rows = [];
 $zoom_busy_err  = '';
 if (zoom_enabled()) {
-    $_zd_from = date('Y-m-d');
-    $_zd_to   = date('Y-m-d', strtotime('+' . $zoom_busy_days . ' days'));
-    foreach (db_all(
-        "SELECT s.lesson_date, s.time_from, s.time_to, s.lesson_method, s.course_id,
-                c.name AS course_name, c.zoom_meeting_id
-           FROM k30_ti_sessions s
-           JOIN k30_ti_courses  c ON c.id = s.course_id
-          WHERE s.lesson_date BETWEEN ? AND ?
-            AND s.status NOT IN ('cancelled','draft')
-            AND s.time_from != '' AND s.time_to != ''
-          ORDER BY s.lesson_date, s.time_from",
-        [$_zd_from, $_zd_to]
-    ) as $_s) {
-        if (!ti_lesson_uses_zoom((int)$_s['course_id'], (string)($_s['lesson_method'] ?? ''), (string)($_s['zoom_meeting_id'] ?? ''))) continue;
-        $zoom_busy_rows[] = [
-            'src'   => 'szo',
-            'start' => $_s['lesson_date'] . ' ' . $_s['time_from'],
-            'end'   => $_s['lesson_date'] . ' ' . $_s['time_to'],
-            'title' => 'Lekcja: ' . (string)$_s['course_name'],
-        ];
+    $_zb = ti_zoom_busy_range(date('Y-m-d'), date('Y-m-d', strtotime('+' . $zoom_busy_days . ' days')));
+    foreach ($_zb['days'] as $_slots) {
+        foreach ($_slots as $_s) $zoom_busy_rows[] = $_s;
     }
-    $_za = ti_zoom_api_busy();
-    if ($_za['ok']) {
-        foreach ($_za['slots'] as $_sl) {
-            if (substr((string)$_sl['start'], 0, 10) < $_zd_from || substr((string)$_sl['start'], 0, 10) > $_zd_to) continue;
-            $zoom_busy_rows[] = [
-                'src'   => 'zoom',
-                'start' => (string)$_sl['start'],
-                'end'   => (string)$_sl['end'],
-                'title' => (string)$_sl['topic'],
-            ];
-        }
-    } else {
-        $zoom_busy_err = $_za['error'];
-    }
-    usort($zoom_busy_rows, fn($a, $b) => strcmp($a['start'], $b['start']));
+    if (!$_zb['ok']) $zoom_busy_err = $_zb['error'];
 }
 
 $ms_set = fn($k) => org_setting($k);
@@ -256,6 +227,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="card-header fw-semibold d-flex align-items-center">
     <span><i class="bi bi-calendar2-week me-1"></i>Zajętość konta Zoom — najbliższe <?= (int)$zoom_busy_days ?> dni</span>
     <span class="badge bg-secondary ms-2"><?= count($zoom_busy_rows) ?></span>
+    <a href="zoom_calendar.php" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-calendar3 me-1"></i>Kalendarz miesięczny</a>
   </div>
   <div class="card-body">
     <p class="small text-body-secondary mb-3">
@@ -287,7 +259,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                   <span class="text-body-secondary small"><?= h(['Nd','Pn','Wt','Śr','Cz','Pt','Sb'][date('w', strtotime($zr['start']))]) ?></span></td>
                 <td class="text-nowrap"><?= h(date('H:i', strtotime($zr['start']))) ?>–<?= h(date('H:i', strtotime($zr['end']))) ?></td>
                 <td><span class="badge <?= $zr['src'] === 'szo' ? 'text-bg-primary' : 'text-bg-dark' ?>"><?= $zr['src'] === 'szo' ? 'lekcja SZO' : 'Zoom' ?></span></td>
-                <td class="small"><?= h($zr['title']) ?></td>
+                <td class="small"><?= h(ti_zoom_slot_label($zr)) ?></td>
               </tr>
             <?php endforeach; ?>
             </tbody>
