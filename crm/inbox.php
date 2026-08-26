@@ -1055,9 +1055,16 @@ include __DIR__ . '/includes/header_crm.php';
           if (!preg_match('/^\s*re:/i', $reply_subject)) $reply_subject = 'Re: ' . $reply_subject;
         ?>
         <?php /* Odpowiedź jako przycisk dzielony: klik = pusty formularz, strzałka =
-                 szablony i asystent. Trzy osobne przyciski na to samo zajmowały pół paska. */ ?>
+                 szablony i asystent. Trzy osobne przyciski na to samo zajmowały pół paska.
+
+                 Temat idzie przez data-atrybut, NIE przez onclick: json_encode()
+                 zwraca tekst w cudzysłowach, które kończyły atrybut onclick w miejscu
+                 pierwszego znaku " — przeglądarka widziała urwane wywołanie i przycisk
+                 „Odpowiedz" nie robił nic. Nasłuch jest jeden, poniżej. */ ?>
         <div class="ib-split">
-          <button class="ib-act" onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{subject:<?= json_encode($reply_subject) ?>})"
+          <button type="button" class="ib-act" data-reply
+                  data-contact="<?= (int)$msg['contact_id'] ?>"
+                  data-subject="<?= h($reply_subject) ?>"
                   title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu">
             <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
           </button>
@@ -1071,9 +1078,11 @@ include __DIR__ . '/includes/header_crm.php';
               <li><h6 class="dropdown-header">Odpowiedz szablonem</h6></li>
               <?php foreach ($reply_tpls as $t): ?>
               <li>
-                <button type="button" class="dropdown-item text-truncate"
-                        title="<?= h($t['subject'] ?: $t['name']) ?>"
-                        onclick="openCommModal(<?= (int)$msg['contact_id'] ?>,'email',{tpl:<?= (int)$t['id'] ?>,subject:<?= json_encode($reply_subject) ?>})">
+                <button type="button" class="dropdown-item text-truncate" data-reply
+                        data-contact="<?= (int)$msg['contact_id'] ?>"
+                        data-tpl="<?= (int)$t['id'] ?>"
+                        data-subject="<?= h($reply_subject) ?>"
+                        title="<?= h($t['subject'] ?: $t['name']) ?>">
                   <i class="bi bi-file-earmark-text me-2 text-muted"></i><?= h($t['name']) ?>
                 </button>
               </li>
@@ -1864,6 +1873,21 @@ document.addEventListener('ib:list-refreshed', ibBulkInit);
       popperConfig: function (cfg) { return Object.assign({}, cfg, { strategy: 'fixed' }); }
     });
   });
+
+  /* Odpowiedz / Odpowiedz szablonem — delegacja zamiast onclick z JSON-em.
+     Lista wiadomości bywa podmieniana bez przeładowania strony, więc nasłuch
+     wisi na dokumencie, a nie na samym przycisku. */
+  if (!document.body.dataset.ibReplyBound) {
+    document.body.dataset.ibReplyBound = '1';
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-reply]');
+      if (!b || typeof window.openCommModal !== 'function') return;
+      e.preventDefault();
+      var opts = { subject: b.dataset.subject || '' };
+      if (b.dataset.tpl) opts.tpl = parseInt(b.dataset.tpl, 10) || 0;
+      window.openCommModal(parseInt(b.dataset.contact, 10) || 0, 'email', opts);
+    });
+  }
 
   var btn = document.getElementById('ibAssistBtn');
   if (!btn) return;
