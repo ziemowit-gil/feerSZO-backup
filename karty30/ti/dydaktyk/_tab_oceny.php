@@ -33,6 +33,15 @@
   $mid_date  = count($all_dates) > 1 ? $all_dates[(int)(count($all_dates) / 2) - 1] : null;
 ?>
 
+<?php
+  // Kryteria oceniania z sylabusa — podręcznie, przy wystawianiu ocen bieżących
+  $syl_ref_kinds     = ['criterion'];
+  $syl_ref_collapsed = true;
+  $syl_ref_title     = 'Kryteria oceniania';
+  include __DIR__ . '/_syllabus_ref.php';
+  unset($syl_ref_kinds, $syl_ref_collapsed, $syl_ref_title);
+?>
+
 <style>
 /* ── Dydaktyka 3.0 — Synergia-inspired grade matrix ─────────── */
 .dyd30-bar { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; margin-bottom:.75rem; }

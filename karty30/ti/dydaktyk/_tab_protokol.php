@@ -65,6 +65,15 @@ $pr_confirm = $pr_empty
   </div>
 </div>
 
+<?php
+  // Kryteria oceniania przy wpisywaniu ocen — zwinięte, żeby nie zabierały miejsca
+  $syl_ref_kinds     = ['criterion', 'requirement'];
+  $syl_ref_collapsed = true;
+  $syl_ref_title     = 'Kryteria oceniania i wymagania';
+  include __DIR__ . '/_syllabus_ref.php';
+  unset($syl_ref_kinds, $syl_ref_collapsed, $syl_ref_title);
+?>
+
 <div class="row g-3">
   <!-- Lista protokołów -->
   <div class="col-lg-4">

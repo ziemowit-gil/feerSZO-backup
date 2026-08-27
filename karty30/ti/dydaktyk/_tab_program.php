@@ -126,6 +126,13 @@
     <?php endforeach; ?>
   </div>
 </div>
+<?php
+  // Wymagania i kryteria z sylabusa przedmiotu — do wglądu, prowadzi je administracja
+  $syl_ref_collapsed = false;
+  $syl_ref_title     = 'Wymagania i kryteria oceniania';
+  include __DIR__ . '/_syllabus_ref.php';
+?>
+
 <div class="card">
   <div class="card-header d-flex align-items-center flex-wrap gap-2">
     <span>Dodaj tematy formularzem</span>
