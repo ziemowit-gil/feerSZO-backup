@@ -236,7 +236,7 @@ FROM k30_pl_token_wallets");
 // Edycja puli
 $edit_pool_id = (int)($_GET['edit_pool'] ?? 0);
 $edit_pool    = $edit_pool_id ? pl_pool_get($edit_pool_id) : null;
-$pf = $edit_pool ?: ['id'=>0,'name'=>'','color'=>'#6366f1','description'=>'','period_key'=>'','valid_from'=>'','valid_to'=>'','default_grant'=>0,'is_active'=>1];
+$pf = $edit_pool ?: ['id'=>0,'name'=>'','color'=>'#6366f1','description'=>'','period_key'=>'','valid_from'=>'','valid_to'=>'','default_grant'=>0,'is_active'=>1,'kind'=>'normal'];
 
 /* ══════════════════════════════════════════════════════════════════════════
    HTML
@@ -336,6 +336,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <span class="d-inline-block me-2 rounded-circle" style="width:12px;height:12px;background:<?= h($p['color']) ?>;flex-shrink:0" aria-hidden="true"></span>
               <a href="zetony.php?tab=pule&amp;pool=<?= (int)$p['id'] ?>" class="fw-semibold text-decoration-none"><?= h($p['name']) ?></a>
               <?php if ($p['period_key']): ?><span class="badge bg-light text-dark border ms-1"><?= h($p['period_key']) ?></span><?php endif; ?>
+              <?php if (($p['kind'] ?? '') === 'zwr'): ?><span class="badge text-bg-info ms-1" title="Pula zwrotów niewykorzystanych żetonów">ZWR</span><?php endif; ?>
               <?php if ($p['description']): ?><div class="text-muted" style="font-size:.75rem"><?= h(mb_strimwidth($p['description'],0,80,'…','UTF-8')) ?></div><?php endif; ?>
               <?php if ($p['valid_from'] || $p['valid_to']): ?>
                 <div class="text-muted" style="font-size:.72rem">
@@ -644,9 +645,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <label class="form-label fw-semibold small" for="pname">Nazwa <span class="text-danger">*</span></label>
             <div class="input-group input-group-sm">
               <input type="text" class="form-control" id="pname" name="name" value="<?= h($pf['name']) ?>" required placeholder="np. Semestr Z 2026 K1-482">
-              <select class="form-select" id="pgen-kind" style="max-width:9.5rem" aria-label="Rodzaj naboru do nazwy">
+              <select class="form-select" id="pgen-kind" style="max-width:9.5rem" aria-label="Rodzaj puli do nazwy">
                 <option value="K">K — kontynuacja</option>
                 <option value="N">N — nowe osoby</option>
+                <option value="ZWR">ZWR — zwroty niewykorzystanych</option>
               </select>
               <div class="input-group-text">
                 <input class="form-check-input mt-0 me-1" type="checkbox" id="pgen-test" aria-label="Pula testowa — prefiks TEST w nazwie">
@@ -710,13 +712,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               var digits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
               var test   = document.getElementById('pgen-test')?.checked ? 'TEST ' : '';
               name.value = test + period.value + ' ' + kind.value + nextNr + '-' + digits;
+              // Rodzaj ZWR w nazwie = pula zwrotów — zsynchronizuj przełącznik rodzaju
+              var zwr = document.getElementById('pkind');
+              if (zwr) zwr.checked = (kind.value === 'ZWR');
               name.focus();
             });
           })();
           </script>
-          <div class="form-check form-switch mb-3">
+          <div class="form-check form-switch mb-1">
             <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="pactive" value="1" <?= !empty($pf['is_active'])?'checked':'' ?>>
             <label class="form-check-label small" for="pactive">Pula aktywna</label>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" name="kind" id="pkind" value="zwr"
+                   <?= ($pf['kind'] ?? 'normal') === 'zwr' ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="pkind">
+              Pula <strong>ZWR</strong> — zwroty niewykorzystanych
+            </label>
+            <div class="form-text mt-0">Zwroty żetonów z pul, które wygasły, trafiają automatycznie
+              do aktywnej puli ZWR (ma pierwszeństwo przed pulą zastępczą z ustawień).
+              Kursanci normalnie płacą żetonami ZWR za kolejne zapisy.</div>
           </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-sm btn-primary"><?= $edit_pool?'Zapisz':'Utwórz pulę' ?></button>

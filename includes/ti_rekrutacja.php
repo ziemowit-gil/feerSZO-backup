@@ -1154,9 +1154,18 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
 
         if ($refund > 0) {
             [$target_id, $tag] = rk_refund_target((int)$b['wallet_id']);
-            db_exec("UPDATE k30_pl_token_pool_wallets
-                        SET spent = MAX(0, spent - ?), updated_at = datetime('now')
-                      WHERE id = ?", [$refund, $target_id]);
+            if ($target_id === (int)$b['wallet_id']) {
+                // Zwrot do puli źródłowej: cofnięcie wydatku
+                db_exec("UPDATE k30_pl_token_pool_wallets
+                            SET spent = MAX(0, spent - ?), updated_at = datetime('now')
+                          WHERE id = ?", [$refund, $target_id]);
+            } else {
+                // Zwrot do INNEJ puli (ZWR/zastępcza): tam nic nie wydano —
+                // spent−= ucięłoby się do zera i żetony by przepadły; to przychód
+                db_exec("UPDATE k30_pl_token_pool_wallets
+                            SET granted = granted + ?, updated_at = datetime('now')
+                          WHERE id = ?", [$refund, $target_id]);
+            }
             db_exec("INSERT INTO k30_pl_token_pool_txns
                         (wallet_id, amount, direction, reason, ref_type, ref_id)
                      VALUES (?,?, 'credit', ?, 'rk_booking', ?)",

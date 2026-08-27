@@ -863,6 +863,9 @@ function pl_pool_save(array $d, ?int $id = null): int {
         'valid_to'      => $d['valid_to'] ?? null,
         'default_grant' => max(0, (int)($d['default_grant'] ?? 0)),
         'is_active'     => !empty($d['is_active']) ? 1 : 0,
+        // Rodzaj puli: 'zwr' = zbiera zwroty niewykorzystanych żetonów
+        // (kolumnę dokłada ti_rk_migrate — zetony.php woła ją przy starcie)
+        'kind'          => ($d['kind'] ?? '') === 'zwr' ? 'zwr' : 'normal',
     ];
     if ($id) {
         $sets = implode(',', array_map(fn($k) => "$k=?", array_keys($fields)));
