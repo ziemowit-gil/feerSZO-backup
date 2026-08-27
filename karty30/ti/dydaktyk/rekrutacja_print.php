@@ -7,6 +7,13 @@
  *                          kierownika drukuje wyłącznie własne terminy.
  * ?what=kalendarz        — kalendarz naborów: wszystkie tury z datami zapowiedzi,
  *                          startu i końca zapisów (tylko kierownik).
+ * ?what=plakat&round=X   — publiczny plakat tury (A4, do powieszenia): nabór
+ *                          od–do, okres zajęć, liczba miejsc, koszt w żetonach,
+ *                          prowadzący i instrukcja zapisu. Bez danych osobowych
+ *                          kursantów i bez tokenów.
+ * ?what=dostepnosci      — zestawienie okien dostępności wszystkich prowadzących
+ *                          (dzień, godziny, obowiązywanie, status) z rubrykami
+ *                          podpisu kierownika (tylko kierownik).
  *
  * Strona print-friendly: bez skórki panelu, przycisk drukowania ukrywany
  * w @media print.
@@ -25,8 +32,10 @@ $is_staff = dyd_is_staff();
 $org      = defined('ORG_NAME') ? ORG_NAME : 'SZO';
 
 $what = $_GET['what'] ?? 'siatka';
-if (!in_array($what, ['siatka','kalendarz'], true)) $what = 'siatka';
-if ($what === 'kalendarz' && !$is_staff) { http_response_code(403); die('Kalendarz naborów drukuje kierownik.'); }
+if (!in_array($what, ['siatka','kalendarz','plakat','dostepnosci'], true)) $what = 'siatka';
+if (in_array($what, ['kalendarz','dostepnosci'], true) && !$is_staff) {
+    http_response_code(403); die('Ten wydruk jest dostępny dla kierownika.');
+}
 
 $dow_names = [1=>'poniedziałek',2=>'wtorek',3=>'środa',4=>'czwartek',5=>'piątek',6=>'sobota',0=>'niedziela'];
 
@@ -64,6 +73,42 @@ if ($what === 'siatka') {
 
 /* ── Dane: kalendarz naborów ───────────────────────────────────────────────── */
 $rounds = $what === 'kalendarz' ? rk_rounds_list() : [];
+
+/* ── Dane: zestawienie dostępności do podpisu ──────────────────────────────── */
+$av_rows = [];
+if ($what === 'dostepnosci') {
+    $av_rows = db_all(
+        "SELECT a.*, u.name AS instructor_name
+           FROM k30_ti_instructor_availability a
+           JOIN users u ON u.id = a.instructor_id
+          WHERE a.is_active = 1 AND u.is_active = 1
+          ORDER BY u.name COLLATE NOCASE, (a.day_of_week + 6) % 7, a.time_from");
+}
+
+/* ── Dane: plakat publiczny ────────────────────────────────────────────────── */
+$pl = null;
+if ($what === 'plakat') {
+    $round_id = (int)($_GET['round'] ?? 0);
+    $round    = $round_id ? rk_round_get($round_id) : null;
+    if (!$round) { http_response_code(404); die('Nie znaleziono tury.'); }
+
+    $period = !empty($round['period_id'])
+        ? db_one("SELECT name, date_from, date_to FROM k30_ti_periods WHERE id=?", [(int)$round['period_id']])
+        : null;
+    $stats = db_one(
+        "SELECT COUNT(*) AS n_slots,
+                COALESCE(SUM(capacity),0)               AS seats_total,
+                COALESCE(SUM(capacity - seats_taken),0) AS seats_free,
+                MIN(token_cost) AS cost_min, MAX(token_cost) AS cost_max,
+                MIN(starts_at)  AS first_at, MAX(starts_at)  AS last_at
+           FROM k30_rk_slots
+          WHERE round_id = ? AND status = 'open'", [$round_id]);
+    $pl_instructors = db_all(
+        "SELECT DISTINCT u.name FROM k30_rk_slots s JOIN users u ON u.id = s.instructor_id
+          WHERE s.round_id = ? AND s.status = 'open' ORDER BY u.name COLLATE NOCASE", [$round_id]);
+    $pl = ['round' => $round, 'period' => $period, 'stats' => $stats,
+           'instructors' => array_column($pl_instructors, 'name')];
+}
 ?>
 <!DOCTYPE html>
 <html lang="pl" data-bs-theme="light">
@@ -71,7 +116,12 @@ $rounds = $what === 'kalendarz' ? rk_rounds_list() : [];
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title><?= $what === 'kalendarz' ? 'Kalendarz naborów' : 'Siatka godzin — ' . h($round['name']) ?> — <?= h($org) ?></title>
+<title><?= match ($what) {
+    'kalendarz'   => 'Kalendarz naborów',
+    'plakat'      => 'Zapisy na zajęcia — ' . h($pl['round']['name']),
+    'dostepnosci' => 'Dostępności prowadzących',
+    default       => 'Siatka godzin — ' . h($round['name']),
+} ?> — <?= h($org) ?></title>
 <style>
   * { box-sizing: border-box; }
   body { font: 13px/1.5 -apple-system, "Segoe UI", Arial, sans-serif; color: #1a1a1a; margin: 24px; background: #fff; }
@@ -158,6 +208,139 @@ $rounds = $what === 'kalendarz' ? rk_rounds_list() : [];
 <?php endforeach; ?>
 <?php endif; ?>
 
+<?php elseif ($what === 'dostepnosci'): ?>
+
+<h1>Dostępności prowadzących — zestawienie do zatwierdzenia</h1>
+<div class="meta"><?= h($org) ?> · okna tygodniowe z obowiązywaniem · wydruk: <?= date('d.m.Y H:i') ?></div>
+
+<?php if (!$av_rows): ?>
+<p class="muted">Brak aktywnych okien dostępności.</p>
+<?php else: ?>
+<table>
+  <thead>
+    <tr>
+      <th>Prowadzący</th>
+      <th>Dzień tygodnia</th>
+      <th>Godziny</th>
+      <th>Obowiązuje</th>
+      <th>Status</th>
+      <th style="width:120px">Podpis prowadzącego</th>
+    </tr>
+  </thead>
+  <tbody>
+    <?php $prev = ''; foreach ($av_rows as $w): ?>
+    <tr>
+      <td><?= $w['instructor_name'] !== $prev ? '<strong>' . h($w['instructor_name']) . '</strong>' : '' ?><?php $prev = $w['instructor_name']; ?></td>
+      <td><?= h($dow_names[(int)$w['day_of_week']] ?? (string)$w['day_of_week']) ?></td>
+      <td><strong><?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?></strong></td>
+      <td>
+        <?php if (!empty($w['valid_from']) && $w['valid_from'] === ($w['valid_to'] ?? '')): ?>
+          jednorazowo <?= h($w['valid_from']) ?>
+        <?php elseif (!empty($w['valid_from']) || !empty($w['valid_to'])): ?>
+          <?= $w['valid_from'] ? 'od ' . h($w['valid_from']) : '' ?><?= $w['valid_to'] ? ' do ' . h($w['valid_to']) : '' ?>
+        <?php else: ?>bezterminowo<?php endif; ?>
+        <?= !empty($w['notes']) ? '<br><span class="muted">' . h($w['notes']) . '</span>' : '' ?>
+      </td>
+      <td><?= ($w['status'] ?? 'approved') === 'approved' ? 'zatwierdzona' : '<strong>szkic</strong>' ?></td>
+      <td></td>
+    </tr>
+    <?php endforeach; ?>
+  </tbody>
+</table>
+<p class="muted" style="font-size:11.5px">
+  Szkice wymagają zatwierdzenia (panel kierownika › Dostępności prowadzących), zanim generator
+  utworzy z nich terminy zapisów. Okna z zakresem dat obowiązują tylko we wskazanym okresie.
+</p>
+<?php endif; ?>
+
+<?php elseif ($what === 'plakat'):
+    $r      = $pl['round'];
+    $st     = $pl['stats'];
+    $period = $pl['period'];
+    $z_from = $period['date_from'] ?? ($st['first_at'] ? substr((string)$st['first_at'], 0, 10) : '');
+    $z_to   = $period['date_to']   ?? ($st['last_at']  ? substr((string)$st['last_at'], 0, 10) : '');
+    $cost   = (int)($st['cost_min'] ?? 0) === (int)($st['cost_max'] ?? 0)
+        ? (string)(int)($st['cost_min'] ?? 0)
+        : (int)$st['cost_min'] . '–' . (int)$st['cost_max'];
+    $fmt_d  = fn(?string $d) => $d ? date('d.m.Y', strtotime($d)) : '…';
+?>
+<style>
+  /* Plakat A4 — duża typografia, oszczędny druk, jeden akcent */
+  .poster { max-width: 760px; margin: 0 auto; text-align: center; }
+  .poster .org { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: #666; }
+  .poster h1 { font-size: 44px; line-height: 1.15; margin: 10px 0 2px; }
+  .poster .round-name { font-size: 26px; color: #c2410c; font-weight: 700; margin: 0 0 4px; }
+  .poster .kind { display: inline-block; border: 2px solid #c2410c; color: #c2410c; border-radius: 999px;
+                  padding: 3px 16px; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; }
+  .poster .dates { font-size: 22px; margin: 22px 0 4px; }
+  .poster .dates strong { white-space: nowrap; }
+  .poster .grid { display: flex; gap: 14px; justify-content: center; margin: 26px 0; }
+  .poster .stat { border: 2px solid #1a1a1a; border-radius: 10px; padding: 14px 22px; min-width: 170px; }
+  .poster .stat .num { font-size: 42px; font-weight: 800; line-height: 1.1; }
+  .poster .stat .lbl { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #555; }
+  .poster .who { font-size: 16px; margin: 10px 0 22px; }
+  .poster .how { text-align: left; display: inline-block; border-top: 3px solid #c2410c; padding-top: 14px; margin-top: 6px; }
+  .poster .how h2 { font-size: 18px; margin: 0 0 8px; }
+  .poster .how ol { margin: 0; padding-left: 22px; font-size: 15.5px; line-height: 1.7; }
+  .poster .note { font-size: 13px; color: #555; margin-top: 22px; }
+  @media print { .poster h1 { font-size: 40px; } }
+</style>
+
+<div class="poster">
+  <div class="org"><?= h($org) ?></div>
+  <h1>Zapisy na zajęcia</h1>
+  <p class="round-name"><?= h($r['name']) ?></p>
+  <span class="kind">nabór <?= h(rk_audience_kind_label((string)($r['audience_kind'] ?? 'continuing'))) ?></span>
+
+  <p class="dates">
+    Zapisy: <strong><?= h(rk_fmt_dt((string)$r['opens_at'])) ?></strong>
+    – <strong><?= $r['closes_at'] ? h(rk_fmt_dt((string)$r['closes_at'])) : 'do wyczerpania miejsc' ?></strong>
+  </p>
+  <p class="dates" style="font-size:19px">
+    Zajęcia<?= $period ? ' (' . h($period['name']) . ')' : '' ?>:
+    <strong><?= h($fmt_d($z_from)) ?></strong> – <strong><?= h($fmt_d($z_to)) ?></strong>
+  </p>
+
+  <div class="grid">
+    <div class="stat">
+      <div class="num"><?= (int)$st['seats_free'] ?></div>
+      <div class="lbl">wolnych miejsc<br>(z <?= (int)$st['seats_total'] ?>)</div>
+    </div>
+    <div class="stat">
+      <div class="num"><?= h($cost) ?></div>
+      <div class="lbl"><?= (int)$st['cost_max'] === 1 && (int)$st['cost_min'] === 1 ? 'żeton' : 'żetonów' ?><br>za zajęcia</div>
+    </div>
+    <div class="stat">
+      <div class="num"><?= (int)$st['n_slots'] ?></div>
+      <div class="lbl">terminów<br>do wyboru</div>
+    </div>
+  </div>
+
+  <?php if ($pl['instructors']): ?>
+  <p class="who">Prowadzą: <strong><?= h(implode(', ', $pl['instructors'])) ?></strong></p>
+  <?php endif; ?>
+
+  <div class="how">
+    <h2>Jak się zapisać</h2>
+    <ol>
+      <li>Zaloguj się do panelu kursanta i wejdź w <strong>Nauka › Zapisy na zajęcia</strong> —
+          albo otwórz osobisty link z e-maila o starcie zapisów.</li>
+      <li>Wybierz prowadzącego, potem termin z jego kalendarza.</li>
+      <li>Kliknij <strong>„Rezerwuję”</strong> (pojedyncze zajęcia) albo
+          <strong>„Ustal zajęcia na cały okres”</strong> — ten sam dzień i godzina co tydzień.
+          Wybrana data to data pierwszych zajęć.</li>
+    </ol>
+  </div>
+
+  <p class="note">
+    Rezerwację opłacasz żetonami z puli przydzielonej przez ośrodek — dzięki nim każdy
+    zapisuje się tam, gdzie faktycznie będzie, a miejsca nie są blokowane „na zapas”.
+    Odpowiednio wczesna rezygnacja (do <?= (int)$r['refund_hours'] ?> godz. przed zajęciami)
+    zwraca żetony w całości.<?= (int)$r['max_per_client'] > 0 ? ' Limit rezerwacji na osobę: ' . (int)$r['max_per_client'] . '.' : '' ?>
+    <br>Stan na <?= date('d.m.Y H:i') ?>.
+  </p>
+</div>
+
 <?php else: /* kalendarz naborów */ ?>
 
 <h1>Kalendarz naborów</h1>
@@ -206,10 +389,12 @@ $rounds = $what === 'kalendarz' ? rk_rounds_list() : [];
 
 <?php endif; ?>
 
+<?php if ($what !== 'plakat'): /* plakat publiczny — bez rubryk podpisów */ ?>
 <div class="sign">
   <span>sporządził(a)</span>
   <span>zatwierdził(a) — kierownik</span>
 </div>
+<?php endif; ?>
 
 </body>
 </html>

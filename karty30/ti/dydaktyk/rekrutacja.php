@@ -909,6 +909,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-secondary" href="rekrutacja_print.php?what=siatka&round=<?= (int)$r['id'] ?>"
                  target="_blank" rel="noopener" title="Drukuj siatkę godzin"><i class="bi bi-printer"></i></a>
+              <a class="btn btn-sm btn-outline-secondary" href="rekrutacja_print.php?what=plakat&round=<?= (int)$r['id'] ?>"
+                 target="_blank" rel="noopener" title="Plakat do powieszenia (publiczny PDF: nabór, miejsca, żetony)"><i class="bi bi-megaphone"></i></a>
               <form method="post" class="d-inline"
                     onsubmit="return confirm('Sklonować turę „<?= h($r['name']) ?>” razem z przypisaniami prowadzących do grup? Kopia będzie robocza, bez dat i bez terminów.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -1435,4 +1437,5 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php endif; ?>
 
 </main>
+<?php $PRINT_TITLE = 'Zapisy na zajęcia'; include __DIR__ . '/_print_page.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>

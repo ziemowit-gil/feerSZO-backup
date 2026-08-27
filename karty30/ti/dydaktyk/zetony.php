@@ -990,4 +990,5 @@ document.getElementById('modalGrant')?.addEventListener('show.bs.modal', functio
 
 <?php endif; ?>
 </main>
+<?php $PRINT_TITLE = 'Żetony SZO'; include __DIR__ . '/_print_page.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>

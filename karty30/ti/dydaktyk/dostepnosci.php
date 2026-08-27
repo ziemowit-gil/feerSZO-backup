@@ -129,6 +129,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </p>
   </div>
   <div class="ms-auto d-flex gap-2">
+    <a href="rekrutacja_print.php?what=dostepnosci" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"
+       title="Zestawienie wszystkich okien z rubrykami podpisów (prowadzący + kierownik)">
+      <i class="bi bi-printer me-1"></i>Drukuj do podpisu</a>
     <a href="rekrutacja.php?tab=grupy" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-magic me-1"></i>Generator terminów</a>
     <a href="index.php?tab=grupy" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Panel</a>
@@ -323,4 +326,5 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php endif; ?>
 
 </main>
+<?php $PRINT_TITLE = 'Dostępności prowadzących'; include __DIR__ . '/_print_page.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
