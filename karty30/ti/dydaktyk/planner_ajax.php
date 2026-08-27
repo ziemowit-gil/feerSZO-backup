@@ -310,11 +310,25 @@ switch ($action) {
             [$course_id]
         );
 
+        // Te same bramki co w pozostałych ścieżkach dodawania zajęć — planner
+        // wstawiał wcześniej wprost do bazy, więc dawał się wsadzić w zamknięty
+        // okres albo na zajęte konto Zoom. Kolidujące bloki pomijamy z raportem,
+        // bo push jest operacją wsadową (jak kopiowanie okresów).
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
+        $skipped = ['closed' => 0, 'avail' => 0, 'zoom' => 0];
+        $reasons = [];
+
         $created = 0;
         foreach ($schedule['days'] as $day) {
             $dn  = (int)$day['day_number'];
             $dt  = trim($day_dates[(string)$dn] ?? $day_dates[$dn] ?? '');
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) continue;
+
+            if ($pc = ti_period_closed_for_date($dt)) {
+                $skipped['closed'] += count($day['block_order'] ?? []);
+                if (count($reasons) < 5) $reasons[] = date('d.m.Y', strtotime($dt)) . ': ' . ti_period_closed_msg($pc);
+                continue;
+            }
 
             $cursor = $start_min;
             foreach (($day['block_order'] ?? []) as $bid) {
@@ -325,6 +339,24 @@ switch ($action) {
                 $dur  = (int)$blk['duration_min'];
                 $from = sprintf('%02d:%02d', intdiv($cursor, 60), $cursor % 60);
                 $to   = sprintf('%02d:%02d', intdiv($cursor + $dur, 60), ($cursor + $dur) % 60);
+
+                $av = ti_instructor_available_at($instr_id, $dt, $from, $to);
+                if (!$av['ok']) {
+                    $skipped['avail']++;
+                    if (count($reasons) < 5) $reasons[] = date('d.m.Y', strtotime($dt)) . ' ' . $from . ': ' . $av['reason'];
+                    $cursor += $dur + (int)($blk['min_break_after'] ?? 0);
+                    if ($cursor <= 750 && $cursor + $dur > 750) $cursor = 810;
+                    continue;
+                }
+
+                $zc = ti_zoom_slot_check($course_id, '', $dt, $from, $to);
+                if (!$zc['ok']) {
+                    $skipped['zoom']++;
+                    if (count($reasons) < 5) $reasons[] = date('d.m.Y', strtotime($dt)) . ' ' . $from . ': ' . $zc['reason'];
+                    $cursor += $dur + (int)($blk['min_break_after'] ?? 0);
+                    if ($cursor <= 750 && $cursor + $dur > 750) $cursor = 810;
+                    continue;
+                }
 
                 db_exec(
                     "INSERT INTO k30_ti_sessions
@@ -348,7 +380,14 @@ switch ($action) {
             }
         }
 
-        planner_ok(['created' => $created], "Wrzucono {$created} zajęć jako Szkice do grupy.");
+        $msg = "Wrzucono {$created} zajęć jako Szkice do grupy.";
+        $parts = [];
+        if ($skipped['closed']) $parts[] = 'zamknięty okres: ' . $skipped['closed'];
+        if ($skipped['avail'])  $parts[] = 'poza dostępnością: ' . $skipped['avail'];
+        if ($skipped['zoom'])   $parts[] = 'zajęty Zoom: ' . $skipped['zoom'];
+        if ($parts) $msg .= ' Pominięto — ' . implode(', ', $parts) . '.';
+
+        planner_ok(['created' => $created, 'skipped' => $skipped, 'reasons' => $reasons], $msg);
     }
 
     /* ── Tygodniowy plan cykliczny ───────────────────────────────────────────── */
