@@ -903,17 +903,18 @@ Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.<
 </div>
 
 <div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin:18px 0">
-  <p style="margin:0 0 8px;font-weight:600">Na czym polega rejestracja żetonowa</p>
+  <p style="margin:0 0 8px;font-weight:600">Po co rejestracja żetonowa</p>
   <p style="margin:0 0 8px">
-    Żetony to wewnętrzne „bilety na zajęcia” — nie są pieniędzmi i służą wyłącznie zapisom.
-    Pulę żetonów na dany okres przydziela Państwu ośrodek. Każde zajęcia mają cenę w żetonach
-    (zależną od czasu trwania), a rezerwacja pobiera żetony od razu — dzięki temu miejsce jest
-    gwarantowane.
+    Miejsc w grupach jest mniej niż chętnych, a dotychczas zdarzało się, że jedna osoba
+    „na zapas” zajmowała miejsca w kilku grupach naraz i blokowała je innym. Żetony to
+    porządkują: każda rezerwacja kosztuje, więc zapisujecie się Państwo na jedną–dwie grupy,
+    w których faktycznie będziecie — a wolne miejsca zostają dla pozostałych.
   </p>
   <p style="margin:0">
-    Jeśli plany się zmienią, rezygnacja odpowiednio wcześnie zwraca żetony w całości i można
-    nimi opłacić inny termin. Aktualne saldo i historię żetonów widać w panelu kursanta
-    (zakładka <em>Zapisy na zajęcia</em>) oraz na stronie zapisów z linku.
+    Żetony nie są pieniędzmi — to „bilety na zajęcia” przydzielone przez ośrodek na dany
+    okres. Rezerwacja pobiera je od razu (miejsce jest wtedy gwarantowane), a odpowiednio
+    wczesna rezygnacja zwraca w całości — można nimi opłacić inny termin. Saldo i historię
+    widać w panelu kursanta (zakładka <em>Zapisy na zajęcia</em>) i na stronie z linku.
   </p>
 </div>
 

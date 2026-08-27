@@ -1511,7 +1511,22 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 ?>
 <?php if ($rk_banner): $rk_banner_open = $rk_banner['status'] === 'open' && strtotime((string)$rk_banner['opens_at']) <= time(); ?>
-<div class="alert <?= $rk_banner_open ? 'alert-primary' : 'alert-info' ?> d-flex align-items-start gap-3 flex-wrap" role="region"
+<style>
+  /* Banner rekrutacji: ma być nie do przeoczenia i nie do schowania przez motyw
+     (display z !important — motywy „ścian kafli” chowają sąsiadów startwalla).
+     „Wyskoczenie” to łagodny wjazd + moment podbicia cienia; przy
+     prefers-reduced-motion animacja znika całkowicie (WCAG 2.3.3), a fokus
+     nie jest kradziony (WCAG 3.2.1) — to region, nie dialog. */
+  .kp-rk-banner { display: flex !important; animation: kpRkBannerIn .45s ease-out; box-shadow: 0 .5rem 1rem rgba(0,0,0,.12); }
+  @keyframes kpRkBannerIn {
+    from { opacity: 0; transform: translateY(-.5rem); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kp-rk-banner { animation: none; }
+  }
+</style>
+<div class="alert <?= $rk_banner_open ? 'alert-primary' : 'alert-info' ?> kp-rk-banner align-items-start gap-3 flex-wrap" role="region"
      aria-label="Rejestracja żetonowa na zajęcia">
   <i class="bi bi-ticket-perforated fs-3 flex-shrink-0" aria-hidden="true"></i>
   <div class="flex-grow-1" style="min-width:16rem">
@@ -1524,11 +1539,12 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="small">
       <?= $rk_banner_open && $rk_banner['closes_at'] ? 'Zapisy trwają do ' . h(rk_fmt_dt((string)$rk_banner['closes_at'])) . '. ' : '' ?>
-      Wybierasz prowadzącego i termin z jego kalendarza, a rezerwację opłacasz <strong>żetonami</strong> —
-      „biletami na zajęcia” przydzielonymi Ci przez ośrodek (Twoje saldo: <strong><?= rk_client_available((int)$student['client_id']) ?></strong>).
-      Żetony schodzą przy rezerwacji i wracają w całości przy odpowiednio wczesnej rezygnacji.
-      Wybrana data to data pierwszych zajęć — możesz też jednym kliknięciem ustalić zajęcia
-      na cały okres (ten sam dzień i godzina co tydzień).
+      Wybierasz prowadzącego i termin z jego kalendarza, a rezerwację opłacasz <strong>żetonami</strong>
+      (Twoje saldo: <strong><?= rk_client_available((int)$student['client_id']) ?></strong>).
+      Żetony są po to, by każdy zapisał się na jedną–dwie grupy, w których faktycznie będzie —
+      zamiast blokować „na zapas” miejsca innym. Schodzą przy rezerwacji i wracają w całości
+      przy odpowiednio wczesnej rezygnacji. Wybrana data to data pierwszych zajęć — możesz też
+      jednym kliknięciem ustalić zajęcia na cały okres (ten sam dzień i godzina co tydzień).
     </div>
   </div>
   <?php if ($rk_banner_open): ?>

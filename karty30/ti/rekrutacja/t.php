@@ -213,12 +213,13 @@ function rk_t_page(string $org, string $title, string $body_html): void {
     <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Na czym polega rejestracja żetonowa?
   </summary>
   <div class="text-body-secondary mt-2 ps-3" style="max-width:46rem">
-    Żetony to wewnętrzne „bilety na zajęcia” — nie są pieniędzmi i służą wyłącznie zapisom.
-    Pulę żetonów na dany okres przydziela Ci ośrodek (saldo widzisz u góry). Każde zajęcia
-    mają cenę w żetonach zależną od czasu trwania; rezerwacja pobiera żetony od razu i tym
-    samym gwarantuje Ci miejsce. Rezygnacja odpowiednio wcześnie zwraca żetony w całości.
+    Miejsc w grupach jest mniej niż chętnych — żetony są po to, żeby nikt nie zajmował
+    „na zapas” miejsc w kilku grupach naraz i nie blokował ich innym. Każda rezerwacja
+    kosztuje żetony z Twojej puli (saldo u góry), więc zapisujesz się na jedną–dwie grupy,
+    w których faktycznie będziesz. Żetony nie są pieniędzmi; rezerwacja pobiera je od razu
+    i gwarantuje miejsce, a odpowiednio wczesna rezygnacja zwraca w całości.
     Wybrana data to data pierwszych zajęć — „Ustal zajęcia na cały okres” rezerwuje ten sam
-    dzień i godzinę co tydzień, do końca tury.
+    dzień i godzinę co tydzień, do końca okresu.
   </div>
 </details>
 
