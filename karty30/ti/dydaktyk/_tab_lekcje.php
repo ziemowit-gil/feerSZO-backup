@@ -115,22 +115,22 @@ if ($_sms_enabled && $cur_course) {
     'remote_material'   => 'praca prowadzącego — bez listy obecności, liczona do rozliczenia',
     'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
   ]; ?>
-  <div class="px-3 pt-2 pb-1 border-bottom">
-    <details>
-      <summary class="d-inline-flex align-items-center gap-1 text-body-secondary small py-1" style="cursor:pointer;list-style:none">
-        <i class="bi bi-info-circle" aria-hidden="true"></i> Objaśnienia statusów
-      </summary>
-      <div class="d-flex flex-wrap gap-2 py-2">
-        <?php foreach ($STATUS as $_sk => $_sv): if ($_sk === 'draft') continue; ?>
-        <span class="d-inline-flex align-items-center gap-1 small"
-              title="<?= h($_sdesc[$_sk] ?? '') ?>"
-              data-bs-toggle="tooltip">
-          <span class="rounded-circle flex-shrink-0" style="width:9px;height:9px;background:<?= h($_sv['color']) ?>;display:inline-block"></span>
-          <strong style="color:<?= h($_sv['color']) ?>"><?= h($_sv['label']) ?></strong>
-        </span>
-        <?php endforeach; ?>
-      </div>
-    </details>
+  <div class="px-3 pt-2 pb-2 border-bottom">
+    <div class="small fw-semibold mb-1">Co znaczą statusy</div>
+    <ul class="list-unstyled small mb-2">
+      <?php foreach ($STATUS as $_sk => $_sv): if ($_sk === 'draft') continue; ?>
+      <li class="d-flex align-items-start gap-2 py-1">
+        <span class="badge flex-shrink-0" style="background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44;min-width:7.5rem"><?= h($_sv['label']) ?></span>
+        <span class="text-body-secondary"><?= h($_sdesc[$_sk] ?? '') ?></span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <div class="small fw-semibold mb-1">Ikony formy zajęć (obok statusu)</div>
+    <ul class="list-unstyled small mb-0">
+      <li class="py-1"><i class="bi bi-geo-alt-fill me-2" style="color:#065F46" aria-hidden="true"></i>stacjonarne — na miejscu</li>
+      <li class="py-1"><i class="bi bi-camera-video-fill me-2" style="color:#1D4ED8" aria-hidden="true"></i>zdalne przez Zoom — obciąża konto Zoom (patrz „Zajętość Zoom")</li>
+      <li class="py-1"><i class="bi bi-display me-2" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej — Teams, telefon, własny link</li>
+    </ul>
   </div>
 
   <?php
@@ -214,18 +214,33 @@ if ($_sms_enabled && $cur_course) {
       <table class="table table-hover table-sm align-middle mb-0" aria-label="Lista lekcji — widok tabelaryczny">
         <thead class="table-light">
           <tr>
-            <th scope="col" style="width:90px">Data</th>
-            <th scope="col" style="width:86px">Godz.</th>
-            <th scope="col" style="width:106px">Status</th>
-            <th scope="col">Temat</th>
-            <th scope="col" class="text-center" style="width:58px">Obecn.</th>
-            <th scope="col" class="text-end"    style="width:114px">Akcje</th>
+            <th scope="col" style="width:92px">Data</th>
+            <th scope="col" style="width:96px">Godziny</th>
+            <th scope="col" style="width:150px">Status i forma</th>
+            <th scope="col">Temat zajęć</th>
+            <th scope="col" class="text-center" style="width:96px">Obecność<br><span class="fw-normal text-body-secondary" style="font-size:.66rem">obecni / wszyscy</span></th>
+            <th scope="col" class="text-end"    style="width:210px">Akcje</th>
           </tr>
         </thead>
         <tbody>
-        <?php foreach ($sessions as $s):
+        <?php
+        $_mon_names = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                       7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+        $_last_month = null;
+        foreach ($sessions as $s):
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
           $sdate   = strtotime($s['lesson_date']);
+          $_mkey   = date('Y-m', $sdate);
+          if ($_mkey !== $_last_month):
+            $_last_month = $_mkey;
+        ?>
+        <tr class="table-light">
+          <th colspan="6" scope="colgroup" class="fw-bold text-uppercase small py-1">
+            <?= h(($_mon_names[(int)date('n', $sdate)] ?? '') . ' ' . date('Y', $sdate)) ?>
+          </th>
+        </tr>
+        <?php endif; ?>
+        <?php
           $is_past = $s['lesson_date'] < $_today;
           $is_today= $s['lesson_date'] === $_today;
           $dow     = $_days_pl[(int)date('w', $sdate)];
@@ -269,35 +284,38 @@ if ($_sms_enabled && $cur_course) {
             <?php endif; ?>
           </td>
           <td>
-            <div class="d-flex justify-content-end align-items-center gap-1">
+            <div class="d-flex justify-content-end align-items-center flex-wrap gap-1">
               <?php if ($s['status'] !== 'remote_material'): ?>
               <button type="button" class="btn btn-sm btn-primary py-0 px-2"
-                      data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>" title="Obecność">
-                <i class="bi bi-people" aria-hidden="true"></i>
+                      data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"
+                      aria-label="Obecność: <?= h(date('d.m.Y', $sdate)) ?>">
+                <i class="bi bi-people me-1" aria-hidden="true"></i>Obecność
               </button>
               <?php endif; ?>
               <?php if ($s['status'] === 'remote_material' && $_mat_url): ?>
               <a href="<?= h($_mat_url) ?>" class="btn btn-sm btn-outline-info py-0 px-2"
-                 target="_blank" rel="noopener noreferrer" title="Materiał">
-                <i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i>
+                 target="_blank" rel="noopener noreferrer" aria-label="Materiał do pracy własnej (nowa karta)">
+                <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Materiał
               </a>
               <?php endif; ?>
               <?php if ($_meet_url && $s['status'] !== 'cancelled'): ?>
               <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-outline-primary py-0 px-2"
-                 target="_blank" rel="noopener noreferrer" title="Link do spotkania">
-                <i class="bi bi-camera-video-fill" aria-hidden="true"></i>
+                 target="_blank" rel="noopener noreferrer" aria-label="Otwórz spotkanie online (nowa karta)">
+                <i class="bi bi-camera-video-fill me-1" aria-hidden="true"></i>Spotkanie
               </a>
               <?php endif; ?>
               <?php if (($is_past || $is_today) && $s['status'] === 'planned'): ?>
               <button type="button" class="btn btn-sm btn-success py-0 px-2"
-                      onclick="wizOpenExt(<?= (int)$s['id'] ?>)" title="Uzupełnij">
-                <i class="bi bi-journal-text" aria-hidden="true"></i>
+                      onclick="wizOpenExt(<?= (int)$s['id'] ?>)"
+                      aria-label="Uzupełnij obecność i temat: <?= h(date('d.m.Y', $sdate)) ?>">
+                <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Uzupełnij
               </button>
               <?php endif; ?>
               <div class="dropdown">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                        data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej akcji">
-                  <i class="bi bi-three-dots-vertical"></i>
+                        data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="Więcej akcji dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
+                  Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
