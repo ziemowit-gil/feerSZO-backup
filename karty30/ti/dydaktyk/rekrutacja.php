@@ -152,17 +152,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rid  = (int)($_POST['round_id'] ?? 0);
         $iids = array_map('intval', (array)($_POST['instructor_ids'] ?? []));
         $cost = trim((string)($_POST['token_cost'] ?? ''));
-        $res  = rk_slots_generate(
-            $rid, $iids,
-            trim($_POST['date_from'] ?? ''), trim($_POST['date_to'] ?? ''),
-            (int)($_POST['duration_min'] ?? 60),
-            max(1, (int)($_POST['capacity'] ?? 1)),
-            $cost === '' ? null : max(0, (int)$cost),
-            in_array($_POST['mode'] ?? '', ['online','onsite','hybrid'], true) ? $_POST['mode'] : 'online'
-        );
-        flash_set($res['created'] ? 'success' : 'warning',
-            "Wygenerowano {$res['created']} terminów z okien dostępności"
-            . ($res['skipped'] ? " (pominięto {$res['skipped']}: duplikaty/urlopy)" : '') . '.');
+        try {
+            $res = rk_slots_generate(
+                $rid, $iids,
+                trim($_POST['date_from'] ?? ''), trim($_POST['date_to'] ?? ''),
+                (int)($_POST['duration_min'] ?? 60),
+                max(1, (int)($_POST['capacity'] ?? 1)),
+                $cost === '' ? null : max(0, (int)$cost),
+                in_array($_POST['mode'] ?? '', ['online','onsite','hybrid'], true) ? $_POST['mode'] : 'online'
+            );
+            // Komunikat mówi, co się naprawdę stało — „0 wygenerowano” bez powodu myli
+            $parts = [];
+            if ($res['leave'])      $parts[] = "{$res['leave']} przypadało na urlop";
+            if ($res['other'])      $parts[] = "{$res['other']} odrzuconych przy walidacji";
+            if ($res['no_windows']) $parts[] = "{$res['no_windows']} prowadzących bez zatwierdzonych okien dostępności";
+            $msg = $res['created']
+                ? "Wygenerowano {$res['created']} nowych terminów."
+                : 'Nie powstał żaden nowy termin.';
+            if ($parts) $msg .= ' ' . ucfirst(implode(', ', $parts)) . '.';
+            if (!$res['created'] && !$parts) {
+                $msg .= ' W wybranym zakresie dat nie ma dni pasujących do okien dostępności'
+                      . ' (sprawdź zakres i dni tygodnia okien).';
+            }
+            flash_set($res['created'] ? 'success' : 'warning', $msg);
+        } catch (RkException $e) {
+            if (str_starts_with($e->getMessage(), 'GENERATOR_EXISTING_SLOTS:')) {
+                $n = (int)substr($e->getMessage(), strlen('GENERATOR_EXISTING_SLOTS:'));
+                flash_set('danger',
+                    "Generowanie zablokowane: wybrani prowadzący mają już $n aktywnych terminów "
+                    . 'w tym zakresie dat (widać je w podglądzie grafiku poniżej). '
+                    . 'Usuń lub odwołaj istniejące terminy w module „Rekrutacja godzin”, '
+                    . 'zmień zakres dat albo odznacz tych prowadzących.');
+            } else {
+                flash_set('danger', rk_error_message($e->getMessage()));
+            }
+        }
+        // Wróć z otwartym podglądem grafiku pierwszego prowadzącego — terminy
+        // należą do prowadzących, więc w „Moich terminach” kierownika ich nie widać.
+        header('Location: rekrutacja.php?tab=grupy&round=' . $rid
+             . ($iids ? '&instr=' . (int)$iids[0] : '')); exit;
+    }
+
+    /* ── Porządki na godzinach tury (kierownik) ───────────────────────── */
+    if ($is_staff && $op === 'grp_slot_delete') {
+        $rid = (int)($_POST['round_id'] ?? 0);
+        try {
+            rk_slot_delete((int)($_POST['slot_id'] ?? 0));
+            flash_set('success', 'Godzina usunięta.');
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php?tab=grupy&round=' . $rid); exit;
+    }
+    if ($is_staff && $op === 'grp_slot_cancel') {
+        $rid = (int)($_POST['round_id'] ?? 0);
+        try {
+            $n = rk_slot_cancel((int)($_POST['slot_id'] ?? 0), $uid, 'odwołanie przez kierownika', true);
+            flash_set('success', "Godzina odwołana. Zwrócono żetony $n kursantom.");
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
         header('Location: rekrutacja.php?tab=grupy&round=' . $rid); exit;
     }
 
@@ -229,6 +278,11 @@ $grp_round = $grp_round_id ? rk_round_get($grp_round_id) : null;
 $grp_map   = $grp_round ? rk_group_map($grp_round_id) : [];
 // Prowadzący przypisani w turze (do generatora) — z mapy, a gdy pusto: wszyscy z kursami
 $grp_assigned = array_values(array_unique(array_merge([], ...array_values($grp_map ?: [[]]))));
+
+// Wygenerowane/istniejące godziny tury — widoczne od razu pod generatorem
+$grp_slots = ($is_staff && $tab === 'grupy' && $grp_round_id)
+    ? rk_slots_admin_list(['round_id' => $grp_round_id], 100)
+    : [];
 
 // Podgląd grafiku i dyspozycji wybranego prowadzącego (kierownik, tab=grupy)
 $peek_instr_id = ($is_staff && $tab === 'grupy') ? (int)($_GET['instr'] ?? 0) : 0;
@@ -834,6 +888,70 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <i class="bi bi-magic me-1"></i>Generuj terminy
           </button>
         </form>
+      </div>
+    </div>
+
+    <!-- Wygenerowane godziny w tej turze -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Godziny w tej turze
+          <span class="badge bg-secondary ms-1"><?= count($grp_slots) ?></span>
+        </h2>
+        <?php if (!$grp_slots): ?>
+        <div class="text-body-secondary small">Brak godzin — wygeneruj je z dostępności albo poczekaj, aż prowadzący wystawią własne.</div>
+        <?php else: ?>
+        <div class="table-responsive" style="max-height:340px;overflow-y:auto">
+          <table class="table table-sm align-middle mb-0">
+            <caption class="visually-hidden">Godziny wygenerowane w tej turze</caption>
+            <thead><tr>
+              <th scope="col">Termin</th><th scope="col">Prowadzący</th>
+              <th scope="col" class="text-end">Miejsca</th>
+              <th scope="col" class="text-end">Koszt</th><th scope="col">Status</th>
+              <th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th>
+            </tr></thead>
+            <tbody>
+              <?php foreach ($grp_slots as $gs): ?>
+              <tr class="<?= $gs['status'] === 'cancelled' ? 'opacity-50' : '' ?>">
+                <td><?= h(rk_fmt_dt((string)$gs['starts_at'])) ?><span class="text-body-secondary">–<?= h(substr((string)$gs['ends_at'], 11, 5)) ?></span></td>
+                <td><?= h($gs['instructor_name']) ?></td>
+                <td class="text-end"><?= (int)$gs['seats_taken'] ?>/<?= (int)$gs['capacity'] ?></td>
+                <td class="text-end"><?= (int)$gs['token_cost'] ?> żet.</td>
+                <td><span class="badge text-bg-<?= match ((string)$gs['status']) {
+                    'open' => 'success', 'draft' => 'secondary', 'locked' => 'warning',
+                    'cancelled' => 'danger', 'done' => 'primary', default => 'secondary' } ?>"><?= h($gs['status']) ?></span></td>
+                <td class="text-end text-nowrap">
+                  <?php if ((int)$gs['n_bookings_all'] === 0): ?>
+                  <form method="post" class="d-inline"
+                        onsubmit="return confirm('Usunąć godzinę <?= h(rk_fmt_dt((string)$gs['starts_at'])) ?> (<?= h($gs['instructor_name']) ?>)? Operacja nieodwracalna.')">
+                    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                    <input type="hidden" name="_op" value="grp_slot_delete">
+                    <input type="hidden" name="slot_id" value="<?= (int)$gs['id'] ?>">
+                    <input type="hidden" name="round_id" value="<?= (int)$grp_round['id'] ?>">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń godzinę (bez rezerwacji)">
+                      <i class="bi bi-trash" aria-hidden="true"></i></button>
+                  </form>
+                  <?php elseif (in_array($gs['status'], ['draft','open','locked'], true)): ?>
+                  <form method="post" class="d-inline"
+                        onsubmit="return confirm('Odwołać godzinę? Zapisani kursanci dostaną pełny zwrot żetonów.')">
+                    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                    <input type="hidden" name="_op" value="grp_slot_cancel">
+                    <input type="hidden" name="slot_id" value="<?= (int)$gs['id'] ?>">
+                    <input type="hidden" name="round_id" value="<?= (int)$grp_round['id'] ?>">
+                    <button class="btn btn-sm btn-outline-warning py-0 px-2" title="Odwołaj godzinę (zwrot żetonów)">
+                      <i class="bi bi-x-octagon" aria-hidden="true"></i></button>
+                  </form>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <div class="form-text mt-1">
+          Usuwanie i odwoływanie godzin: moduł
+          <a href="../rekrutacja_admin.php?round=<?= (int)$grp_round['id'] ?>" target="_blank" rel="noopener">Rekrutacja godzin</a>.
+        </div>
+        <?php endif; ?>
       </div>
     </div>
 

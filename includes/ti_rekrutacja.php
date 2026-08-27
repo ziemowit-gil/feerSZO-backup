@@ -1385,25 +1385,43 @@ function rk_parent_expire_stale(): int {
 /**
  * Tworzy otwarte sloty w zakresie dat z zatwierdzonych okien dostępności.
  * Okna cięte na odcinki $duration_min; koszt auto z rk_token_minutes, chyba że
- * podany. Duplikaty (ten sam start) i dni urlopu pomijane bez błędu.
- * Zwraca ['created' => n, 'skipped' => n].
+ * podany.
+ *
+ * BLOKADA: jeśli którykolwiek z wybranych prowadzących ma już żywe terminy
+ * w zadanym zakresie dat, generowanie NIE startuje (GENERATOR_EXISTING_SLOTS,
+ * z liczbą w treści wyjątku) — najpierw trzeba istniejące usunąć/odwołać
+ * albo zmienić zakres. Zapobiega to podwójnemu klikowi i mieszaniu siatek.
+ *
+ * Zwraca ['created','leave','other','no_windows','skipped'(suma)].
  */
 function rk_slots_generate(int $round_id, array $instructor_ids, string $date_from, string $date_to,
                            int $duration_min = 60, int $capacity = 1, ?int $token_cost = null,
                            string $mode = 'online'): array {
+    $out = ['created' => 0, 'exists' => 0, 'leave' => 0, 'other' => 0, 'no_windows' => 0, 'skipped' => 0];
     $instructor_ids = array_unique(array_filter(array_map('intval', $instructor_ids)));
     $duration_min   = max(15, min(480, $duration_min));
     $t_from = strtotime($date_from . ' 00:00:00');
     $t_to   = strtotime($date_to   . ' 00:00:00');
-    if (!$instructor_ids || !$t_from || !$t_to || $t_to < $t_from) return ['created' => 0, 'skipped' => 0];
+    if (!$instructor_ids || !$t_from || !$t_to || $t_to < $t_from) return $out;
     $t_to = min($t_to, strtotime('+120 days'));   // bezpiecznik zakresu
 
-    $created = 0; $skipped = 0;
+    // Pre-check blokujący: żywe terminy wybranych prowadzących w zakresie dat
+    $ph = implode(',', array_fill(0, count($instructor_ids), '?'));
+    $existing = db_one(
+        "SELECT COUNT(*) n FROM k30_rk_slots
+          WHERE instructor_id IN ($ph)
+            AND status IN ('draft','open','locked')
+            AND date(starts_at) BETWEEN ? AND ?",
+        [...$instructor_ids, date('Y-m-d', $t_from), date('Y-m-d', $t_to)]);
+    if ((int)($existing['n'] ?? 0) > 0) {
+        throw new RkException('GENERATOR_EXISTING_SLOTS:' . (int)$existing['n']);
+    }
+
     foreach ($instructor_ids as $iid) {
         $windows = db_all(
             "SELECT day_of_week, time_from, time_to FROM k30_ti_instructor_availability
               WHERE instructor_id=? AND is_active=1 AND status='approved'", [$iid]);
-        if (!$windows) continue;
+        if (!$windows) { $out['no_windows']++; continue; }
         $by_dow = [];
         foreach ($windows as $w) $by_dow[(int)$w['day_of_week']][] = $w;
 
@@ -1418,6 +1436,16 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
                     if ($s <= time()) { continue; }
                     $starts = date('Y-m-d H:i:s', $s);
                     $ends   = date('Y-m-d H:i:s', $s + $duration_min * 60);
+
+                    // Duplikat startu sprawdzany jawnie — unikat obejmuje WSZYSTKIE
+                    // żywe sloty prowadzącego (także z innych tur), więc wyjątek
+                    // z insertu nie mówi, czy to duplikat, czy inny błąd.
+                    $dup = db_one(
+                        "SELECT 1 FROM k30_rk_slots
+                          WHERE instructor_id=? AND starts_at=? AND status IN ('draft','open','locked')",
+                        [$iid, $starts]);
+                    if ($dup) { $out['exists']++; continue; }
+
                     try {
                         $sid = rk_slot_save([
                             'round_id'      => $round_id,
@@ -1429,14 +1457,16 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
                             'mode'          => $mode,
                         ]);
                         db_exec("UPDATE k30_rk_slots SET status='open' WHERE id=?", [$sid]);
-                        $created++;
-                    } catch (RkException) { $skipped++;        // urlop / walidacja
-                    } catch (\PDOException) { $skipped++; }    // duplikat startu
+                        $out['created']++;
+                    } catch (RkException $e) {
+                        $e->getMessage() === 'SLOT_ON_LEAVE' ? $out['leave']++ : $out['other']++;
+                    } catch (\PDOException) { $out['exists']++; }   // wyścig na unikacie
                 }
             }
         }
     }
-    return ['created' => $created, 'skipped' => $skipped];
+    $out['skipped'] = $out['exists'] + $out['leave'] + $out['other'];
+    return $out;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
