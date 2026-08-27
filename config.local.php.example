@@ -85,3 +85,12 @@
 //  ŚCIEŻKI
 // ══════════════════════════════════════════════════════════════════════════════
 // define('UPLOAD_DIR', '/var/www/feer/uploads/');
+
+// ── Equi Exams — silnik testów wiedzy i umiejętności (moduł TI) ──────────────
+// Silnik to osobna usługa w Javie (kontener `exam-engine` w docker-compose).
+// W Dockerze adres jest ustawiany zmienną środowiskową EXAM_ENGINE_URL i tych
+// wpisów nie trzeba ruszać. Poza Dockerem — gdy silnik odpalasz lokalnie
+// przez exam-engine/build.sh run — wskaż go tutaj:
+// define('EXAM_ENGINE_URL',   'http://127.0.0.1:8090');
+// Wspólny sekret wywołań; TA SAMA wartość musi trafić do kontenera silnika.
+// define('EXAM_ENGINE_TOKEN', 'wklej_tutaj_losowy_ciag_min_32_znakow');

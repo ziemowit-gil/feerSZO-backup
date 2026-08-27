@@ -19,6 +19,10 @@ import com.sun.net.httpserver.HttpServer;
 import pl.feer.exam.ExamGenerator;
 import pl.feer.exam.Grader;
 import pl.feer.exam.Json;
+import pl.feer.exam.authoring.ExamAuthoring;
+import pl.feer.exam.authoring.ExamStats;
+import pl.feer.exam.authoring.ManualGrading;
+import pl.feer.exam.authoring.QuestionAuthoring;
 import pl.feer.exam.model.Answer;
 import pl.feer.exam.model.GradingContext;
 import pl.feer.exam.model.Question;
@@ -31,10 +35,15 @@ import pl.feer.exam.sandbox.Sandbox;
  * Warstwa HTTP silnika egzaminów — wbudowany serwer z JDK, bez frameworka.
  *
  * Punkty wejścia:
- *   GET  /health              — stan silnika i lista dostępnych języków,
- *   POST /api/exam/generate   — złożenie wariantu testu dla podejścia,
- *   POST /api/exam/grade      — ocena kompletu odpowiedzi,
- *   POST /api/code/run        — uruchomienie kodu (podgląd w trybie treningowym).
+ *   GET  /health                  — stan silnika i lista dostępnych języków,
+ *   GET  /api/authoring/catalogue — słownik typów pytań, formuł i języków,
+ *   POST /api/authoring/question  — walidacja i budowa definicji pytania,
+ *   POST /api/authoring/exam      — walidacja i normalizacja ustawień egzaminu,
+ *   POST /api/exam/generate       — złożenie wariantu testu dla podejścia,
+ *   POST /api/exam/grade          — ocena kompletu odpowiedzi,
+ *   POST /api/exam/manual-grade   — przeliczenie po ocenie ręcznej prowadzącego,
+ *   POST /api/exam/stats          — statystyka zestawu i pytań,
+ *   POST /api/code/run            — uruchomienie kodu (podgląd w trybie treningowym).
  *
  * Uwierzytelnienie: nagłówek `X-Exam-Token` musi zgadzać się ze zmienną
  * środowiskową EXAM_ENGINE_TOKEN. Gdy zmiennej nie ma, silnik startuje
@@ -69,11 +78,16 @@ public final class ExamServer {
         server = HttpServer.create(new InetSocketAddress(port), 64);
         server.setExecutor(pool);
 
-        server.createContext("/health",            this::health);
-        server.createContext("/api/exam/generate", ex -> guarded(ex, this::generate));
-        server.createContext("/api/exam/grade",    ex -> guarded(ex, this::gradeAttempt));
-        server.createContext("/api/code/run",      ex -> guarded(ex, this::runCode));
-        server.createContext("/",                  ex -> send(ex, 404, Json.obj("error", "Nieznany zasób.")));
+        server.createContext("/health",                  this::health);
+        server.createContext("/api/authoring/catalogue", this::catalogue);
+        server.createContext("/api/authoring/question",  ex -> guarded(ex, QuestionAuthoring::build));
+        server.createContext("/api/authoring/exam",      ex -> guarded(ex, ExamAuthoring::normalize));
+        server.createContext("/api/exam/generate",       ex -> guarded(ex, this::generate));
+        server.createContext("/api/exam/grade",          ex -> guarded(ex, this::gradeAttempt));
+        server.createContext("/api/exam/manual-grade",   ex -> guarded(ex, ManualGrading::apply));
+        server.createContext("/api/exam/stats",          ex -> guarded(ex, ExamStats::compute));
+        server.createContext("/api/code/run",            ex -> guarded(ex, this::runCode));
+        server.createContext("/",                        ex -> send(ex, 404, Json.obj("error", "Nieznany zasób.")));
 
         server.start();
         System.out.println("[exam-engine] nasłuchuję na porcie " + port + ", wątków: " + workers);
@@ -104,6 +118,35 @@ public final class ExamServer {
             "java",      System.getProperty("java.version"),
             "authRequired", Boolean.valueOf(!token.isEmpty()),
             "languages", langs));
+    }
+
+    /**
+     * Słownik dla panelu prowadzącego: typy pytań, formuły testów, języki
+     * i tryby porównywania wyjścia. Jedno źródło etykiet i możliwości —
+     * interfejs PHP nie musi utrzymywać własnej listy typów.
+     */
+    private void catalogue(HttpExchange ex) throws IOException {
+        if (!authorized(ex)) { send(ex, 401, Json.obj("error", "Brak lub zły nagłówek X-Exam-Token.")); return; }
+        List<Object> langs = new ArrayList<Object>();
+        for (Object o : Language.describeAll()) {
+            Map<String, Object> m = Json.asMap(o);
+            m.put("available", Boolean.valueOf(sandbox.available(Language.byId(Json.str(m, "id", "")))));
+            langs.add(m);
+        }
+        send(ex, 200, Json.obj(
+            "questionTypes", QuestionAuthoring.catalogue(),
+            "modes",         ExamAuthoring.modes(),
+            "languages",     langs,
+            "matchModes",    Json.obj(
+                "trim",    "Pomijaj białe znaki na końcach linii (zalecane)",
+                "exact",   "Dosłownie, znak w znak",
+                "tokens",  "Ciąg tokenów rozdzielonych białymi znakami",
+                "numeric", "Jak tokeny, liczby z tolerancją",
+                "regex",   "Oczekiwane wyjście jest wyrażeniem regularnym"),
+            "negMarking",    Json.obj(
+                "partial",        "Cząstkowa z karą — (trafione − błędne) / poprawnych, nie mniej niż 0",
+                "none",           "Cząstkowa bez kary — trafione / poprawnych",
+                "all_or_nothing", "Wszystko albo nic — punkty tylko za komplet")));
     }
 
     private Map<String, Object> generate(Map<String, Object> body) {
