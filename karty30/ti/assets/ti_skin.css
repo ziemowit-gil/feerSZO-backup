@@ -327,3 +327,53 @@ body.kur-alt .kp-cal tbody tr:nth-child(odd) > * { background-color: transparent
 @media (max-width: 991.98px) {
   body.kur-alt main#main { padding-bottom: 1.5rem !important; }
 }
+
+/* ── Ekran logowania TI w wyglądzie alternatywnym ────────────────────────────
+   karty30/ti/login.php, gdy body ma klasę `ti-skin` (domyślnie dla zakładki
+   Prowadzący). Ten sam język co panele: bez fotografii i zaokrągleń, karta
+   z ramką, granatowe akcenty. Arkusz jest tam linkowany PO bloku <style> tej
+   strony, bo część reguł ma tę samą specyficzność.
+
+   Kontrast: #10335c/#eef2f6 = 9,0:1, #1c1c1c/#fff = 16,9:1, #45516b/#eef2f6 =
+   6,3:1, #fff/#10335c = 13,5:1 — wszystko powyżej AA. */
+body.ti-skin.kp-login-split-page {
+  background: #eef2f6 !important;              /* zdjęcie ustępuje spokojnemu tłu */
+  font-size: 13px;                             /* login czyta się raz — nie ściskamy go do 12,5 px */
+}
+body.ti-skin.kp-login-split-page::before { content: none !important; }
+
+/* Marka nad kartą: na jasnym tle biały napis byłby niewidoczny */
+body.ti-skin .kp-split-left-inner { color: var(--ti-navy); }
+body.ti-skin .kp-split-brand-icon {
+  background: var(--ti-navy); color: #fff;
+  border: 1px solid var(--ti-navy); border-radius: 2px;
+}
+body.ti-skin .kp-split-tagline { color: #45516b; opacity: 1; }
+
+/* Karta z formularzem: prostokątna, z ramką, bez cienia */
+body.ti-skin .kp-split-right {
+  background: #fff; border: 1px solid var(--ti-bar-border);
+  border-radius: 0; box-shadow: none;
+}
+body.ti-skin .kp-split-right .kp-org-name {
+  color: var(--ti-navy); border-bottom: 1px solid var(--ti-bar-border);
+  padding-bottom: .4rem; margin-bottom: .6rem;
+}
+body.ti-skin .kp-split-right .kp-login-heading {
+  color: var(--ti-navy); font-size: 1.2rem; font-weight: 700; letter-spacing: 0;
+  margin-bottom: 1rem;
+}
+body.ti-skin .kp-split-right .kp-auth-footer { color: #5b6b85; }
+
+/* Pola formularza w logowaniu zostają w wygodnym rozmiarze — skórka panelu
+   ściska je do .78rem, co na ekranie logowania czyta się gorzej niż w tabeli. */
+body.ti-skin .kp-split-right .form-control,
+body.ti-skin .kp-split-right .form-select {
+  font-size: .95rem; padding: .45rem .6rem;
+}
+body.ti-skin .kp-split-right .btn-lg { font-size: .95rem !important; padding: .5rem .9rem !important; }
+
+/* Komunikaty i „rozjazd" — kanciasto, bez zaokrągleń */
+body.ti-skin .kp-change,
+body.ti-skin .kp-lost a { border-radius: 0; }
+body.ti-skin .kp-lost-h { color: var(--ti-navy); }

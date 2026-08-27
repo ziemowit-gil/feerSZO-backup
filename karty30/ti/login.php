@@ -42,8 +42,20 @@ $office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
 $office_available = function_exists('ms_login_available') && ms_login_available();
 $dyd_pwd_open     = !$office_available || $ec > 0;
 
+// ── Wygląd ekranu: standardowy albo alternatywny ─────────────────────────────
+// Prowadzący pracuje w panelu w gęstym, tabelarycznym układzie, więc dla niego
+// alternatywny wygląd jest domyślny — wejście wygląda jak to, co zobaczy po
+// zalogowaniu. Kursant zostaje przy dotychczasowym ekranie (u niego ten układ
+// jest do wyboru już w panelu). Sesji tu jeszcze nie ma, więc jedyne, co
+// pamięta wybór, to adres: ?ui=alt / ?ui=std.
+$login_ui = (string)($_GET['ui'] ?? ($tab === 'dydaktyk' ? 'alt' : 'std'));
+$login_ui = $login_ui === 'alt' ? 'alt' : 'std';
+$login_ui_other = $login_ui === 'alt' ? 'std' : 'alt';
+$login_ui_url   = 'login.php?tab=' . rawurlencode($tab) . '&ui=' . $login_ui_other
+    . ($ec > 0 ? '&e=' . $ec : '');
+
 $KP_TITLE      = 'Logowanie — Panel Kursanta';
-$KP_BODY_CLASS = 'kp-login-split-page';
+$KP_BODY_CLASS = 'kp-login-split-page' . ($login_ui === 'alt' ? ' ti-skin' : '');
 include __DIR__ . '/kursant/_layout_head.php';
 ?>
 <style>
@@ -112,6 +124,10 @@ body.kp-login-split-page::before {
 .kp-split-right .kp-auth-footer {
   margin: 1.5rem 0 0; text-align: center; font-size: .76rem; color: #9ca3af;
 }
+/* Link w stopce musi być czytelny, a szarość stopki ma 2,6:1 — stąd własny
+   kolor (#1d4ed8 na białym = 7,5:1) i podkreślenie, żeby nie niósł samego koloru. */
+.kp-split-right .kp-auth-footer .kp-ui-switch { color: #1d4ed8; text-decoration: underline; }
+.kp-split-right .kp-auth-footer .kp-ui-switch:hover { color: #1e3a8a; }
 
 .kp-split-right .nav-tabs { border-bottom-color: #e5e7eb; margin-bottom: 1.25rem; }
 .kp-split-right .nav-tabs .nav-link { color: #6b7280; border-color: transparent; }
@@ -154,6 +170,12 @@ body.kp-login-split-page::before {
   .kp-split-wrap { padding: 1.25rem .75rem 2rem; }
 }
 </style>
+<?php if ($login_ui === 'alt'):
+  // Kolejność ma znaczenie: reguły powyżej mają tę samą specyficzność, więc
+  // arkusz skórki musi iść PO nich, żeby wygrał (tak samo jak w panelach).
+  $_skin_css = __DIR__ . '/assets/ti_skin.css'; ?>
+<link rel="stylesheet" href="assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
+<?php endif; ?>
 
 <main id="main" class="kp-split-wrap">
 
@@ -557,6 +579,11 @@ body.kp-login-split-page::before {
 
     <p class="kp-auth-footer">
       © <?= date('Y') ?> <?= h($KP_ORG) ?>
+      <span aria-hidden="true"> · </span>
+      <a href="<?= h($login_ui_url) ?>" class="kp-ui-switch">
+        <?= $login_ui === 'alt' ? 'Wygląd standardowy' : 'Wygląd alternatywny' ?>
+        <span class="visually-hidden"> — przeładuje ekran logowania w drugim układzie</span>
+      </a>
     </p>
 
   </div><!-- /.kp-split-right -->
