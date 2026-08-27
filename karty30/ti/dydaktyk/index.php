@@ -131,7 +131,7 @@ $tab = $_GET['tab'] ?? 'pulpit';
 // „Program zajęć" nazywa się teraz „Sylabus" — adres ?tab=sylabus prowadzi tam,
 // a stare linki i zakładki na ?tab=program nadal działają.
 if ($tab === 'sylabus') $tab = 'program';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
@@ -2513,7 +2513,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <!-- ── Sidebar dydaktyka ── -->
 <?php
-$tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','rozliczenia','uczestnicy','plan','protokol'], true);
+$tab_is_course    = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy','egzaminy','rozliczenia','uczestnicy','plan','protokol'], true);
 $tab_is_kierownik = in_array($tab, ['rozliczenia','wypłaty','praca_wlasna','grupy','billing','kursy'], true);
 
 // Liczniki podzakładek kursu
@@ -2526,6 +2526,9 @@ $_sb_absent = $cur_course && k30_ti_course_tracks_attendance($cur_course) ? (int
 $_sb_grades  = $cur_course ? (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0) : 0;
 $_sb_program = $cur_course ? count(k30_ti_curriculum_list($cur_course)) : 0;
 $_sb_testy   = $cur_course ? count(k30_ti_tests_list($cur_course)) : 0;
+// Equi Exams — liczba egzaminów kursu i podejść czekających na ocenę
+$_sb_egz     = $cur_course ? count(ti_exams_list($cur_course)) : 0;
+$_sb_egz_rev = $cur_course ? ti_exam_pending_review_count($cur_course) : 0;
 $_sb_roz_debt = 0;
 if ($cur_course && dyd_is_staff()) {
     $_sb_roz_debt = (int)(db_one(
@@ -2545,6 +2548,7 @@ $_sb_ctabs = $cur_course ? [
     'oceny'        => ['journal-bookmark','Oceny',         $_sb_grades,   ''],
     'program'      => ['list-check',      'Sylabus',       $_sb_program,  ''],   // dawniej „Program zajęć"
     'testy'        => ['card-checklist',  'Testy',         $_sb_testy,    ''],
+    'egzaminy'     => ['patch-question',  'Egzaminy',      $_sb_egz_rev ?: $_sb_egz, $_sb_egz_rev ? 'warning' : ''],
 ] : [];
 if ($cur_course && dyd_is_staff()) {
     $_sb_ctabs['rozliczenia'] = ['receipt','Rozliczenia', $_sb_roz_debt, $_sb_roz_debt ? 'danger' : ''];
@@ -2916,6 +2920,10 @@ if ($cur_course && dyd_is_staff()) {
 
     <?php elseif ($tab === 'zoom'): ?>
     <?php include __DIR__ . '/_tab_zoom.php'; ?>
+    <?php endif; ?>
+
+    <?php if ($tab === 'egzaminy'): ?>
+    <?php include __DIR__ . '/_tab_egzaminy.php'; ?>
     <?php endif; ?>
 
     <?php if ($tab === 'testy'): ?>

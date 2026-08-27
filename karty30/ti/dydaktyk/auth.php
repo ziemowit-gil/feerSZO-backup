@@ -18,6 +18,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
+// Equi Exams — moduł testów wiedzy i umiejętności (schemat samonaprawia się przy dołączeniu)
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php';
 
 const DYD_SESSION_KEY = 'k30_ti_dyd';
 const DYD_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzyma cichy token „zapamiętaj mnie" (patrz niżej)

@@ -74,28 +74,26 @@ const K30_TI_EXAM_TYPES = [
     ],
 ];
 
-/** Formuły testu — sterują limitem czasu, liczbą podejść i podpowiedziami. */
+/**
+ * Formuły testu — WYŁĄCZNIE etykiety do interfejsu.
+ * Wartości domyślne i reguły spójności formuł należą do silnika
+ * (pl.feer.exam.authoring.ExamAuthoring); tutaj świadomie ich nie powtarzamy.
+ */
 const K30_TI_EXAM_MODES = [
     'exam' => [
-        'label'    => 'Kolokwium / egzamin',
-        'hint'     => 'Ograniczony czasowo, jedno podejście, losowa kolejność pytań i wariantów, bez podpowiedzi.',
-        'icon'     => 'mortarboard',
-        'defaults' => ['time_limit_min' => 45, 'max_attempts' => 1, 'shuffle_questions' => 1,
-                       'shuffle_options' => 1, 'show_feedback' => 'never'],
+        'label' => 'Kolokwium / egzamin',
+        'hint'  => 'Ograniczony czasowo, jedno podejście, losowa kolejność pytań i wariantów, bez podpowiedzi.',
+        'icon'  => 'mortarboard',
     ],
     'quiz' => [
-        'label'    => 'Wejściówka / kartkówka',
-        'hint'     => 'Krótki zestaw 3–5 pytań z ostrym limitem czasu.',
-        'icon'     => 'lightning-charge',
-        'defaults' => ['time_limit_min' => 5, 'max_attempts' => 1, 'shuffle_questions' => 1,
-                       'shuffle_options' => 1, 'show_feedback' => 'after_submit'],
+        'label' => 'Wejściówka / kartkówka',
+        'hint'  => 'Krótki zestaw 3–5 pytań z ostrym limitem czasu.',
+        'icon'  => 'lightning-charge',
     ],
     'training' => [
-        'label'    => 'Tryb treningowy',
-        'hint'     => 'Bez limitu czasu; po każdej odpowiedzi wynik i wyjaśnienie, dowolna liczba podejść.',
-        'icon'     => 'arrow-repeat',
-        'defaults' => ['time_limit_min' => 0, 'max_attempts' => 0, 'shuffle_questions' => 0,
-                       'shuffle_options' => 0, 'show_feedback' => 'immediate'],
+        'label' => 'Tryb treningowy',
+        'hint'  => 'Bez limitu czasu; po każdej odpowiedzi wynik i wyjaśnienie, dowolna liczba podejść.',
+        'icon'  => 'arrow-repeat',
     ],
 ];
 
@@ -240,39 +238,64 @@ function ti_exams_list(int $course_id, bool $only_active = false): array {
     return db_all($sql, [$course_id]);
 }
 
-/** Zapis egzaminu. Puste pola liczbowe biorą wartości domyślne formuły. */
-function ti_exam_save(array $data, ?int $id = null, ?int $user_id = null): int {
-    $mode = isset(K30_TI_EXAM_MODES[$data['mode'] ?? '']) ? $data['mode'] : 'exam';
-    $def  = K30_TI_EXAM_MODES[$mode]['defaults'];
-
+/**
+ * Zapis egzaminu z wartości ZNORMALIZOWANYCH PRZEZ SILNIK.
+ *
+ * $norm to obiekt `exam` zwrócony przez POST /api/authoring/exam — o tym, co
+ * jest dozwoloną wartością którego pola, decyduje wyłącznie Java
+ * (pl.feer.exam.authoring.ExamAuthoring). Ta funkcja tylko przekłada klucze
+ * na kolumny; nie podejmuje żadnych decyzji o treści ustawień.
+ */
+function ti_exam_save(array $norm, int $course_id, ?int $id = null, ?int $user_id = null): int {
     $f = [
-        'course_id'         => (int)($data['course_id'] ?? 0),
-        'session_id'        => !empty($data['session_id']) ? (int)$data['session_id'] : null,
-        'title'             => trim((string)($data['title'] ?? '')),
-        'description'       => trim((string)($data['description'] ?? '')),
-        'mode'              => $mode,
-        'time_limit_min'    => max(0, (int)($data['time_limit_min']    ?? $def['time_limit_min'])),
-        'pass_pct'          => max(0, min(100, (int)($data['pass_pct'] ?? 0))),
-        'max_attempts'      => max(0, (int)($data['max_attempts']      ?? $def['max_attempts'])),
-        'shuffle_questions' => !empty($data['shuffle_questions']) ? 1 : 0,
-        'shuffle_options'   => !empty($data['shuffle_options'])   ? 1 : 0,
-        'fixed_draw'        => max(0, (int)($data['fixed_draw'] ?? 0)),
-        'bank_draw'         => max(0, (int)($data['bank_draw']  ?? 0)),
-        'show_feedback'     => in_array($data['show_feedback'] ?? '', ['never','after_submit','immediate'], true)
-                               ? $data['show_feedback'] : $def['show_feedback'],
-        'neg_marking'       => isset(K30_TI_EXAM_NEG[$data['neg_marking'] ?? '']) ? $data['neg_marking'] : 'partial',
-        'open_at'           => trim((string)($data['open_at']  ?? '')) ?: null,
-        'close_at'          => trim((string)($data['close_at'] ?? '')) ?: null,
-        'is_active'         => !empty($data['is_active'])  ? 1 : 0,
-        'sync_grade'        => !empty($data['sync_grade']) ? 1 : 0,
-        'grade_weight'      => max(1, (int)($data['grade_weight'] ?? 3)),
+        'course_id'         => $course_id,
+        'session_id'        => !empty($norm['sessionId']) ? (int)$norm['sessionId'] : null,
+        'title'             => (string)($norm['title'] ?? ''),
+        'description'       => (string)($norm['description'] ?? ''),
+        'mode'              => (string)($norm['mode'] ?? 'exam'),
+        'time_limit_min'    => (int)($norm['timeLimitMin'] ?? 0),
+        'pass_pct'          => (int)($norm['passPct'] ?? 0),
+        'max_attempts'      => (int)($norm['maxAttempts'] ?? 1),
+        'shuffle_questions' => !empty($norm['shuffleQuestions']) ? 1 : 0,
+        'shuffle_options'   => !empty($norm['shuffleOptions'])   ? 1 : 0,
+        'fixed_draw'        => (int)($norm['fixedDraw'] ?? 0),
+        'bank_draw'         => (int)($norm['bankDraw']  ?? 0),
+        'show_feedback'     => (string)($norm['showFeedback'] ?? 'never'),
+        'neg_marking'       => (string)($norm['negMarking']   ?? 'partial'),
+        'open_at'           => ($norm['openAt']  ?? '') !== '' ? (string)$norm['openAt']  : null,
+        'close_at'          => ($norm['closeAt'] ?? '') !== '' ? (string)$norm['closeAt'] : null,
+        'is_active'         => !empty($norm['isActive'])  ? 1 : 0,
+        'sync_grade'        => !empty($norm['syncGrade']) ? 1 : 0,
+        'grade_weight'      => (int)($norm['gradeWeight'] ?? 3),
         'updated_at'        => date('Y-m-d H:i:s'),
     ];
-
     if ($id) { db_update('k30_ti_exams', $f, $id); return $id; }
     $f['created_by'] = $user_id;
     $f['created_at'] = date('Y-m-d H:i:s');
     return db_insert('k30_ti_exams', $f);
+}
+
+/**
+ * Waliduje i zapisuje ustawienia egzaminu — cała ścieżka autorska prowadzącego.
+ *
+ * @param array       $form   surowe pola formularza (klucze jak w ExamAuthoring)
+ * @param array|null  $issues wyjściowo: ['errors'=>[…], 'warnings'=>[…]]
+ * @param string|null $error  wyjściowo: powód niedostępności silnika
+ * @return int|null           identyfikator egzaminu albo null gdy zapis nie doszedł do skutku
+ */
+function ti_exam_save_via_engine(int $course_id, ?int $exam_id, array $form,
+                                 ?int $user_id, ?array &$issues = null, ?string &$error = null): ?int {
+    $issues = ['errors' => [], 'warnings' => []];
+    if ($exam_id) $form['questionCount'] = count(ti_exam_questions($exam_id));
+
+    $res = ti_exam_engine_post('/api/authoring/exam', ['form' => $form], $error, 15);
+    if (!$res) return null;
+
+    $issues['errors']   = (array)($res['errors']   ?? []);
+    $issues['warnings'] = (array)($res['warnings'] ?? []);
+    if (empty($res['ok'])) return null;
+
+    return ti_exam_save((array)($res['exam'] ?? []), $course_id, $exam_id ?: null, $user_id);
 }
 
 function ti_exam_delete(int $id): void {
@@ -319,74 +342,85 @@ function ti_exam_config(array $question): array {
 }
 
 /**
- * Zapis pytania wraz z wariantami i przypadkami testowymi.
+ * Zapis pytania z definicji ZBUDOWANEJ PRZEZ SILNIK.
  *
- * @param array      $data    pola pytania + 'config' (tablica), 'options', 'cases'
- * @param int|null   $id      null = nowe pytanie
+ * $norm to obiekt `question` zwrócony przez POST /api/authoring/question.
+ * O tym, jak wygląda poprawne pytanie danego typu (jakie pola konfiguracji,
+ * jakie warianty, jakie przypadki testowe), decyduje wyłącznie Java
+ * (pl.feer.exam.authoring.QuestionAuthoring razem z modelami pytań).
+ * PHP wykonuje tylko zapis do bazy.
  */
-function ti_exam_question_save(array $data, ?int $id = null): int {
-    $type = isset(K30_TI_EXAM_TYPES[$data['type'] ?? '']) ? $data['type'] : 'single';
-    $meta = K30_TI_EXAM_TYPES[$type];
-
-    $cfg = is_array($data['config'] ?? null) ? $data['config'] : [];
+function ti_exam_question_save(array $norm, int $exam_id, ?int $id = null): int {
     $f = [
-        'type'        => $type,
-        'prompt'      => (string)($data['prompt'] ?? ''),
-        'points'      => max(0, (float)str_replace(',', '.', (string)($data['points'] ?? 1))),
-        'in_bank'     => !empty($data['in_bank']) ? 1 : 0,
-        'explanation' => (string)($data['explanation'] ?? ''),
-        'config'      => json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'type'        => (string)($norm['type'] ?? 'single'),
+        'prompt'      => (string)($norm['prompt'] ?? ''),
+        'points'      => (float)($norm['points'] ?? 1),
+        'in_bank'     => !empty($norm['inBank']) ? 1 : 0,
+        'explanation' => (string)($norm['explanation'] ?? ''),
+        'config'      => json_encode((array)($norm['config'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ];
 
     $pdo = db();
     if ($id) {
         db_update('k30_ti_exam_questions', $f, $id);
     } else {
-        $exam_id = (int)($data['exam_id'] ?? 0);
         $pos = (int)(db_one("SELECT COALESCE(MAX(position),0)+1 AS p FROM k30_ti_exam_questions WHERE exam_id=?", [$exam_id])['p'] ?? 1);
         $id  = db_insert('k30_ti_exam_questions', ['exam_id' => $exam_id, 'position' => $pos] + $f);
     }
 
-    // Warianty — nadpisujemy komplet; identyfikatory wariantów zmieniają się,
-    // dlatego edycja pytania z istniejącymi podejściami nie unieważnia ocen
-    // (odpowiedzi trzymają własną kopię wskazań w kolumnie payload).
+    // Warianty i przypadki nadpisujemy w całości. Identyfikatory wariantów się
+    // przy tym zmieniają, ale nie psuje to starszych podejść: każda odpowiedź
+    // trzyma własną kopię wskazań w kolumnie `payload`, a wynik w `result`.
     $pdo->prepare("DELETE FROM k30_ti_exam_options WHERE question_id=?")->execute([$id]);
-    if (!empty($meta['options'])) {
-        $pos = 0;
-        foreach ((array)($data['options'] ?? []) as $opt) {
-            $label = trim((string)($opt['label'] ?? ''));
-            if ($label === '') continue;
-            db_insert('k30_ti_exam_options', [
-                'question_id' => $id,
-                'position'    => $pos++,
-                'label'       => $label,
-                'is_correct'  => !empty($opt['is_correct']) ? 1 : 0,
-                'feedback'    => (string)($opt['feedback'] ?? ''),
-            ]);
-        }
+    $pos = 0;
+    foreach ((array)($norm['options'] ?? []) as $opt) {
+        db_insert('k30_ti_exam_options', [
+            'question_id' => $id,
+            'position'    => $pos++,
+            'label'       => (string)($opt['label'] ?? ''),
+            'is_correct'  => !empty($opt['correct']) ? 1 : 0,
+            'feedback'    => (string)($opt['feedback'] ?? ''),
+        ]);
     }
 
     $pdo->prepare("DELETE FROM k30_ti_exam_cases WHERE question_id=?")->execute([$id]);
-    if (!empty($meta['cases'])) {
-        $pos = 0;
-        foreach ((array)($data['cases'] ?? []) as $case) {
-            $expected = (string)($case['expected'] ?? '');
-            $stdin    = (string)($case['stdin'] ?? '');
-            if ($expected === '' && $stdin === '') continue;
-            db_insert('k30_ti_exam_cases', [
-                'question_id' => $id,
-                'position'    => $pos++,
-                'name'        => trim((string)($case['name'] ?? '')),
-                'stdin'       => $stdin,
-                'expected'    => $expected,
-                'match_mode'  => isset(K30_TI_EXAM_MATCH[$case['match_mode'] ?? '']) ? $case['match_mode'] : 'trim',
-                'weight'      => max(0.01, (float)str_replace(',', '.', (string)($case['weight'] ?? 1))),
-                'is_hidden'   => !empty($case['is_hidden']) ? 1 : 0,
-                'tolerance'   => max(0, (float)str_replace(',', '.', (string)($case['tolerance'] ?? 0.000001))),
-            ]);
-        }
+    $pos = 0;
+    foreach ((array)($norm['cases'] ?? []) as $case) {
+        db_insert('k30_ti_exam_cases', [
+            'question_id' => $id,
+            'position'    => $pos++,
+            'name'        => (string)($case['name'] ?? ''),
+            'stdin'       => (string)($case['stdin'] ?? ''),
+            'expected'    => (string)($case['expected'] ?? ''),
+            'match_mode'  => (string)($case['matchMode'] ?? 'trim'),
+            'weight'      => (float)($case['weight'] ?? 1),
+            'is_hidden'   => !empty($case['hidden']) ? 1 : 0,
+            'tolerance'   => (float)($case['tolerance'] ?? 0.000001),
+        ]);
     }
     return (int)$id;
+}
+
+/**
+ * Waliduje formularz pytania w silniku i zapisuje wynik.
+ *
+ * @param array       $req    ['type'=>…, 'prompt'=>…, 'points'=>…, 'inBank'=>…,
+ *                             'explanation'=>…, 'form'=>[…surowe pola…]]
+ * @param array|null  $issues wyjściowo: ['errors'=>[…], 'warnings'=>[…]]
+ * @param string|null $error  wyjściowo: powód niedostępności silnika
+ * @return int|null           identyfikator pytania albo null gdy nie zapisano
+ */
+function ti_exam_question_save_via_engine(int $exam_id, ?int $question_id, array $req,
+                                          ?array &$issues = null, ?string &$error = null): ?int {
+    $issues = ['errors' => [], 'warnings' => []];
+    $res = ti_exam_engine_post('/api/authoring/question', $req, $error, 20);
+    if (!$res) return null;
+
+    $issues['errors']   = (array)($res['errors']   ?? []);
+    $issues['warnings'] = (array)($res['warnings'] ?? []);
+    if (empty($res['ok'])) return null;
+
+    return ti_exam_question_save((array)($res['question'] ?? []), $exam_id, $question_id ?: null);
 }
 
 function ti_exam_question_delete(int $id): void {
@@ -737,6 +771,38 @@ function ti_exam_answer_payload(?array $row): array {
     return is_array($p) ? $p : [];
 }
 
+/**
+ * Przekłada surowe pola arkusza (`a[idPytania][...]`) na kanoniczny kształt
+ * odpowiedzi rozumiany przez silnik. To wyłącznie zmiana formatu — o tym, czy
+ * odpowiedź jest poprawna, decyduje Java.
+ */
+function ti_exam_payload_from_post($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+
+    if (isset($raw['optionIds'])) {
+        $out['optionIds'] = array_values(array_map('intval', (array)$raw['optionIds']));
+    }
+    if (isset($raw['statements']) && is_array($raw['statements'])) {
+        $st = [];
+        foreach ($raw['statements'] as $k => $v) {
+            if ($v === '' || $v === null) continue;      // twierdzenie pominięte
+            $st[(string)(int)$k] = ((string)$v === '1');
+        }
+        $out['statements'] = $st;
+    }
+    if (isset($raw['blanks']) && is_array($raw['blanks'])) {
+        $bl = [];
+        foreach ($raw['blanks'] as $k => $v) $bl[(string)$k] = (string)$v;
+        $out['blanks'] = $bl;
+    }
+    if (isset($raw['text']) && trim((string)$raw['text']) !== '') $out['text'] = (string)$raw['text'];
+    if (isset($raw['code']) && trim((string)$raw['code']) !== '') $out['code'] = (string)$raw['code'];
+    if (isset($raw['line']) && (string)$raw['line'] !== '')       $out['line'] = (int)$raw['line'];
+
+    return $out;
+}
+
 /** Zapis (autozapis) pojedynczej odpowiedzi w trwającym podejściu. */
 function ti_exam_answer_save(int $attempt_id, int $question_id, array $payload): void {
     $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -920,36 +986,80 @@ function ti_exam_recalc(int $attempt_id): void {
 /**
  * Ocena ręczna pytań otwartych i opisowych przez prowadzącego.
  *
- * @param array $points question_id => punkty
+ * Punkty wpisane w panelu jadą do silnika (POST /api/exam/manual-grade), który
+ * przycina je do zakresu pytania, rozstrzyga o poprawności, zdejmuje znacznik
+ * „do sprawdzenia” i przelicza sumę podejścia. PHP zapisuje to, co wróci —
+ * reguły oceniania nie mają drugiej implementacji.
+ *
+ * @param array $points question_id => punkty wpisane przez prowadzącego
  * @param array $notes  question_id => komentarz dla kursanta
+ * @return array{ok:bool, error:?string}
  */
-function ti_exam_grade_manual(int $attempt_id, array $points, array $notes = [], ?int $by = null): void {
+function ti_exam_grade_manual(int $attempt_id, array $points, array $notes = [], ?int $by = null): array {
     $att = ti_exam_attempt_get($attempt_id);
-    if (!$att) return;
+    if (!$att) return ['ok' => false, 'error' => 'Nie ma takiego podejścia.'];
+    $exam = ti_exam_get((int)$att['exam_id']);
+    if (!$exam) return ['ok' => false, 'error' => 'Nie ma takiego egzaminu.'];
+
+    $questions = ti_exam_attempt_questions($att);
+    $answers   = ti_exam_answers($attempt_id);
+
+    $qp = $ap = [];
+    foreach ($questions as $q) {
+        $qid  = (int)$q['id'];
+        $qp[] = ['id' => $qid, 'points' => (float)$q['points']];
+        $row  = $answers[$qid] ?? null;
+        $ap[] = [
+            'questionId'  => $qid,
+            'points'      => $row && $row['points_awarded'] !== null ? (float)$row['points_awarded'] : null,
+            'maxPoints'   => (float)$q['points'],
+            'needsReview' => $row ? ((int)$row['needs_review'] === 1) : true,
+        ];
+    }
+
+    $marks = $notes_out = [];
+    foreach ($points as $qid => $v) {
+        if (trim((string)$v) === '') continue;
+        $marks[(string)(int)$qid] = (string)$v;
+    }
+    foreach ($notes as $qid => $v) $notes_out[(string)(int)$qid] = (string)$v;
+
+    $err = null;
+    $res = ti_exam_engine_post('/api/exam/manual-grade', [
+        'passPct'   => (int)$exam['pass_pct'],
+        'questions' => $qp,
+        'answers'   => $ap,
+        'marks'     => $marks,
+        'notes'     => $notes_out,
+    ], $err, 20);
+    if (!$res) return ['ok' => false, 'error' => $err];
 
     $upd = db()->prepare(
         "UPDATE k30_ti_exam_answers
-         SET points_awarded=?, is_correct=?, needs_review=0, teacher_note=?
+         SET points_awarded=?, is_correct=?, needs_review=?, teacher_note=?
          WHERE attempt_id=? AND question_id=?");
-
-    foreach ($points as $qid => $raw) {
-        $qid = (int)$qid;
-        $q   = ti_exam_question_get($qid);
-        if (!$q) continue;
-        $maxp = (float)$q['points'];
-        $val  = (float)str_replace(',', '.', (string)$raw);
-        $val  = max(0.0, min($maxp, $val));
-        $note = trim((string)($notes[$qid] ?? ''));
-        // Pusty komentarz zastępujemy znacznikiem — po nim ti_exam_store_results
-        // poznaje, że punkty pochodzą od człowieka i nie wolno ich nadpisać.
-        if ($note === '') $note = 'Ocena prowadzącego';
-        $upd->execute([$val, ($maxp > 0 && $val >= $maxp - 1e-9) ? 1 : 0, $note, $attempt_id, $qid]);
+    foreach ((array)($res['answers'] ?? []) as $r) {
+        if (empty($r['changed'])) continue;   // nie ruszamy odpowiedzi, których prowadzący nie oceniał
+        $upd->execute([
+            $r['points'] === null ? null : (float)$r['points'],
+            !empty($r['correct']) ? 1 : 0,
+            !empty($r['needsReview']) ? 1 : 0,
+            (string)($r['note'] ?? ''),
+            $attempt_id, (int)$r['questionId'],
+        ]);
     }
 
-    db()->prepare("UPDATE k30_ti_exam_attempts SET graded_by=? WHERE id=?")->execute([$by, $attempt_id]);
-    ti_exam_recalc($attempt_id);
-    $att = ti_exam_attempt_get($attempt_id);
-    if ($att && $att['status'] === 'graded') ti_exam_sync_grade($attempt_id);
+    $a = (array)($res['attempt'] ?? []);
+    db()->prepare(
+        "UPDATE k30_ti_exam_attempts
+         SET score=?, max_score=?, needs_review=?, status=?, graded_by=?, graded_at=" .
+         (!empty($a['needsReview']) ? "NULL" : "?") . " WHERE id=?")
+        ->execute(!empty($a['needsReview'])
+            ? [(float)($a['score'] ?? 0), (float)($a['maxScore'] ?? 0), 1, 'submitted', $by, $attempt_id]
+            : [(float)($a['score'] ?? 0), (float)($a['maxScore'] ?? 0), 0, 'graded', $by, date('Y-m-d H:i:s'), $attempt_id]);
+
+    if (empty($a['needsReview'])) ti_exam_sync_grade($attempt_id);
+    return ['ok' => true, 'error' => null];
 }
 
 /**
@@ -972,8 +1082,25 @@ function ti_exam_check_single(array $exam, array $question, array $payload, ?str
 //  E-DZIENNIK
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Dokłada kolumnę `exam_attempt_id` do dziennika ocen.
+ *
+ * Ten jeden ALTER nie może iść razem z resztą schematu w ti_exams_schema.php:
+ * tabela k30_ti_grades powstaje w karty30_migrate(), które bywa wołane PÓŹNIEJ
+ * niż dołączenie tego pliku. Na świeżej bazie ALTER wtedy przepada po cichu,
+ * a wystawienie oceny wywracałoby się na „no such column".
+ */
+function ti_exam_grades_column_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try { db()->exec("ALTER TABLE k30_ti_grades ADD COLUMN exam_attempt_id INTEGER"); }
+    catch (\Throwable $e) { /* kolumna już jest — to normalny przypadek */ }
+}
+
 /** Zapis wyniku ocenionego podejścia do dziennika ocen (jeśli egzamin tak ma ustawione). */
 function ti_exam_sync_grade(int $attempt_id): void {
+    ti_exam_grades_column_heal();
     $att = ti_exam_attempt_get($attempt_id);
     if (!$att || $att['status'] !== 'graded') return;
     $exam = ti_exam_get((int)$att['exam_id']);
@@ -1025,37 +1152,92 @@ function ti_exam_pending_review_count(int $course_id): int {
 
 /**
  * Import pytań ze starszego modułu Testy (k30_ti_tests) do egzaminu.
- * Typ `open` przechodzi jako krótka odpowiedź z oceną prowadzącego.
+ * Każde pytanie przechodzi przez tę samą walidację co pytanie tworzone ręcznie,
+ * więc import nie może wprowadzić do zestawu pozycji, której silnik nie oceni.
+ * Typ `open` staje się krótką odpowiedzią z oceną prowadzącego.
  *
- * @return int liczba zaimportowanych pytań
+ * @return array{imported:int, skipped:int, error:?string}
  */
-function ti_exam_import_from_test(int $exam_id, int $test_id): int {
-    if (!function_exists('k30_ti_test_questions')) return 0;
-    $n = 0;
+function ti_exam_import_from_test(int $exam_id, int $test_id): array {
+    if (!function_exists('k30_ti_test_questions')) {
+        return ['imported' => 0, 'skipped' => 0, 'error' => 'Starszy moduł Testy jest niedostępny.'];
+    }
+    $imported = $skipped = 0;
     foreach (k30_ti_test_questions($test_id) as $q) {
         $type = match ((string)$q['type']) {
             'multi' => 'multi',
             'open'  => 'short_answer',
             default => 'single',
         };
-        $options = [];
-        if ($type !== 'short_answer') {
+        $form = [];
+        if ($type === 'short_answer') {
+            $form['manual'] = true;
+        } else {
+            $opts = [];
             foreach (k30_ti_test_options((int)$q['id']) as $o) {
-                $options[] = ['label' => (string)$o['label'], 'is_correct' => (int)$o['is_correct'] === 1];
+                $opts[] = ['label' => (string)$o['label'], 'correct' => (int)$o['is_correct'] === 1];
             }
+            $form['options'] = $opts;
         }
-        ti_exam_question_save([
-            'exam_id' => $exam_id,
+        $err = null;
+        $new = ti_exam_question_save_via_engine($exam_id, null, [
             'type'    => $type,
             'prompt'  => (string)$q['prompt'],
             'points'  => (float)$q['points'],
-            'in_bank' => (int)($q['in_bank'] ?? 0),
-            'config'  => $type === 'short_answer' ? ['manual' => true] : [],
-            'options' => $options,
-        ]);
-        $n++;
+            'inBank'  => (int)($q['in_bank'] ?? 0) === 1,
+            'form'    => $form,
+        ], $issues, $err);
+        if ($err !== null) return ['imported' => $imported, 'skipped' => $skipped, 'error' => $err];
+        if ($new === null) { $skipped++; continue; }
+        $imported++;
     }
-    return $n;
+    return ['imported' => $imported, 'skipped' => $skipped, 'error' => null];
+}
+
+/**
+ * Statystyka zestawu liczona przez silnik: łatwość i moc różnicująca pytań,
+ * rozkład wyników, odsetek zaliczeń. Zwraca null, gdy silnik nie odpowiada.
+ */
+function ti_exam_stats(int $exam_id, ?string &$error = null): ?array {
+    $exam = ti_exam_get($exam_id);
+    if (!$exam) { $error = 'Nie ma takiego egzaminu.'; return null; }
+
+    $questions = [];
+    foreach (ti_exam_questions($exam_id) as $q) {
+        $questions[] = [
+            'id'     => (int)$q['id'],
+            'prompt' => mb_strimwidth(trim(strip_tags((string)$q['prompt'])), 0, 120, '…'),
+            'type'   => (string)$q['type'],
+            'points' => (float)$q['points'],
+        ];
+    }
+
+    $attempts = [];
+    foreach (db_all("SELECT * FROM k30_ti_exam_attempts WHERE exam_id=?", [$exam_id]) as $a) {
+        $answers = [];
+        foreach (db_all("SELECT question_id, points_awarded FROM k30_ti_exam_answers WHERE attempt_id=?", [(int)$a['id']]) as $r) {
+            if ($r['points_awarded'] === null) continue;
+            $q = ti_exam_question_get((int)$r['question_id']);
+            $answers[] = [
+                'questionId' => (int)$r['question_id'],
+                'points'     => (float)$r['points_awarded'],
+                'maxPoints'  => (float)($q['points'] ?? 0),
+            ];
+        }
+        $attempts[] = [
+            'id'       => (int)$a['id'],
+            'score'    => (float)$a['score'],
+            'maxScore' => (float)$a['max_score'],
+            'status'   => (string)$a['status'],
+            'answers'  => $answers,
+        ];
+    }
+
+    return ti_exam_engine_post('/api/exam/stats', [
+        'passPct'   => (int)$exam['pass_pct'],
+        'questions' => $questions,
+        'attempts'  => $attempts,
+    ], $error, 30);
 }
 
 /** Procent wyniku podejścia (0 gdy brak punktacji maksymalnej). */

@@ -37,17 +37,31 @@ $assert_exam = function (int $eid) use ($my_cids): array {
     return $e;
 };
 
-/** Zamienia pole wielolinijkowe na listę niepustych wartości. */
-$lines = function ($raw): array {
-    $out = [];
-    foreach (preg_split('/\R/', (string)$raw) as $l) {
-        $l = trim($l);
-        if ($l !== '') $out[] = $l;
-    }
-    return $out;
-};
-
 // ═══════════════════════════════ OBSŁUGA POST ═══════════════════════════════
+//
+// Ta warstwa nie podejmuje decyzji merytorycznych. Zbiera pola formularza,
+// oddaje je silnikowi Java do walidacji i normalizacji, a wynik zapisuje.
+// Komunikaty błędów pochodzą z silnika — dzięki temu reguła „co jest poprawnym
+// pytaniem" istnieje w jednym miejscu.
+
+/** Zapamiętuje błędy walidacji z silnika, żeby pokazać je przy formularzu. */
+function exam_stash_issues(?array $issues, ?string $error): void {
+    if ($error !== null) {
+        flash_set('danger', 'Silnik Equi Exams nie odpowiada — nie zapisano zmian. ' . $error);
+        return;
+    }
+    $msgs = [];
+    foreach ((array)($issues['errors'] ?? []) as $e) $msgs[] = (string)($e['message'] ?? '');
+    flash_set('danger', $msgs ? implode(' ', $msgs) : 'Nie udało się zapisać — sprawdź wprowadzone dane.');
+}
+
+/** Ostrzeżenia z silnika (zapis się udał, ale coś warto poprawić). */
+function exam_flash_warnings(?array $issues): void {
+    $msgs = [];
+    foreach ((array)($issues['warnings'] ?? []) as $w) $msgs[] = (string)($w['message'] ?? '');
+    if ($msgs) flash_set('warning', implode(' ', $msgs));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = (string)($_POST['_op'] ?? '');
@@ -57,40 +71,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $assert_course($cid);
         $eid = (int)($_POST['exam_id'] ?? 0);
         if ($eid) $assert_exam($eid);
-        if (trim((string)($_POST['title'] ?? '')) === '') {
-            flash_set('danger', 'Podaj tytuł egzaminu.');
+
+        $form = [
+            'title'            => (string)($_POST['title'] ?? ''),
+            'description'      => (string)($_POST['description'] ?? ''),
+            'mode'             => (string)($_POST['mode'] ?? 'exam'),
+            'timeLimitMin'     => (string)($_POST['time_limit_min'] ?? ''),
+            'passPct'          => (string)($_POST['pass_pct'] ?? ''),
+            'maxAttempts'      => (string)($_POST['max_attempts'] ?? ''),
+            'shuffleQuestions' => isset($_POST['shuffle_questions']),
+            'shuffleOptions'   => isset($_POST['shuffle_options']),
+            'fixedDraw'        => (string)($_POST['fixed_draw'] ?? ''),
+            'bankDraw'         => (string)($_POST['bank_draw'] ?? ''),
+            'showFeedback'     => (string)($_POST['show_feedback'] ?? ''),
+            'negMarking'       => (string)($_POST['neg_marking'] ?? ''),
+            'openAt'           => trim((string)($_POST['open_at'] ?? '')),
+            'closeAt'          => trim((string)($_POST['close_at'] ?? '')),
+            'isActive'         => isset($_POST['is_active']),
+            'syncGrade'        => isset($_POST['sync_grade']),
+            'gradeWeight'      => (string)($_POST['grade_weight'] ?? ''),
+            'sessionId'        => (string)($_POST['session_id'] ?? ''),
+        ];
+
+        $issues = null; $err = null;
+        $saved  = ti_exam_save_via_engine($cid, $eid ?: null, $form, $uid, $issues, $err);
+        if ($saved === null) {
+            exam_stash_issues($issues, $err);
             header('Location: exam_build.php?' . ($eid ? 'exam_id=' . $eid : 'course_id=' . $cid)); exit;
         }
-        $new = ti_exam_save([
-            'course_id'         => $cid,
-            'session_id'        => $_POST['session_id']     ?? null,
-            'title'             => $_POST['title']           ?? '',
-            'description'       => $_POST['description']     ?? '',
-            'mode'              => $_POST['mode']            ?? 'exam',
-            'time_limit_min'    => $_POST['time_limit_min']  ?? 0,
-            'pass_pct'          => $_POST['pass_pct']        ?? 0,
-            'max_attempts'      => $_POST['max_attempts']    ?? 1,
-            'shuffle_questions' => isset($_POST['shuffle_questions']) ? 1 : 0,
-            'shuffle_options'   => isset($_POST['shuffle_options'])   ? 1 : 0,
-            'fixed_draw'        => $_POST['fixed_draw']      ?? 0,
-            'bank_draw'         => $_POST['bank_draw']       ?? 0,
-            'show_feedback'     => $_POST['show_feedback']   ?? 'never',
-            'neg_marking'       => $_POST['neg_marking']     ?? 'partial',
-            'open_at'           => $_POST['open_at']         ?? '',
-            'close_at'          => $_POST['close_at']        ?? '',
-            'is_active'         => isset($_POST['is_active'])  ? 1 : 0,
-            'sync_grade'        => isset($_POST['sync_grade']) ? 1 : 0,
-            'grade_weight'      => $_POST['grade_weight']    ?? 3,
-        ], $eid ?: null, $uid);
+        exam_flash_warnings($issues);
         flash_set('success', $eid ? 'Ustawienia egzaminu zapisane.' : 'Egzamin utworzony — dodaj pytania.');
-        header('Location: exam_build.php?exam_id=' . ($eid ?: $new)); exit;
+        header('Location: exam_build.php?exam_id=' . $saved); exit;
     }
 
     if ($op === 'toggle_active') {
         $e = $assert_exam((int)($_POST['exam_id'] ?? 0));
-        db()->prepare("UPDATE k30_ti_exams SET is_active=?, updated_at=? WHERE id=?")
-            ->execute([empty($e['is_active']) ? 1 : 0, date('Y-m-d H:i:s'), (int)$e['id']]);
-        flash_set('success', empty($e['is_active'])
+        // Także tu decyduje silnik: udostępnienie zestawu bez pytań jest błędem.
+        $form = [
+            'title'            => (string)$e['title'],
+            'description'      => (string)$e['description'],
+            'mode'             => (string)$e['mode'],
+            'timeLimitMin'     => (int)$e['time_limit_min'],
+            'passPct'          => (int)$e['pass_pct'],
+            'maxAttempts'      => (int)$e['max_attempts'],
+            'shuffleQuestions' => (int)$e['shuffle_questions'] === 1,
+            'shuffleOptions'   => (int)$e['shuffle_options'] === 1,
+            'fixedDraw'        => (int)$e['fixed_draw'],
+            'bankDraw'         => (int)$e['bank_draw'],
+            'showFeedback'     => (string)$e['show_feedback'],
+            'negMarking'       => (string)$e['neg_marking'],
+            'openAt'           => (string)($e['open_at'] ?? ''),
+            'closeAt'          => (string)($e['close_at'] ?? ''),
+            'isActive'         => empty($e['is_active']),
+            'syncGrade'        => (int)$e['sync_grade'] === 1,
+            'gradeWeight'      => (int)$e['grade_weight'],
+            'sessionId'        => (int)($e['session_id'] ?? 0),
+        ];
+        $issues = null; $err = null;
+        $saved  = ti_exam_save_via_engine((int)$e['course_id'], (int)$e['id'], $form, $uid, $issues, $err);
+        if ($saved === null) exam_stash_issues($issues, $err);
+        else flash_set('success', empty($e['is_active'])
             ? 'Egzamin udostępniony kursantom.' : 'Egzamin ukryty przed kursantami.');
         header('Location: exam_build.php?exam_id=' . (int)$e['id']); exit;
     }
@@ -109,8 +149,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$t || (int)$t['course_id'] !== (int)$e['course_id']) {
             flash_set('danger', 'Wybrany test nie należy do tego kursu.');
         } else {
-            $n = ti_exam_import_from_test((int)$e['id'], $tid);
-            flash_set('success', 'Zaimportowano pytań: ' . $n . '. Sprawdź punktację i kryteria pytań opisowych.');
+            $r = ti_exam_import_from_test((int)$e['id'], $tid);
+            if ($r['error'] !== null) {
+                flash_set('danger', 'Import przerwany: ' . $r['error']);
+            } else {
+                flash_set('success', 'Zaimportowano pytań: ' . $r['imported']
+                    . ($r['skipped'] ? '. Pominięto ' . $r['skipped'] . ' (silnik uznał je za niekompletne).' : '.')
+                    . ' Sprawdź punktację i kryteria pytań opisowych.');
+            }
         }
         header('Location: exam_build.php?exam_id=' . (int)$e['id']); exit;
     }
@@ -138,153 +184,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $e    = $assert_exam((int)($_POST['exam_id'] ?? 0));
         $qid  = (int)($_POST['question_id'] ?? 0);
         $type = (string)($_POST['type'] ?? 'single');
-        if (!isset(K30_TI_EXAM_TYPES[$type])) $type = 'single';
-        $back = 'exam_build.php?exam_id=' . (int)$e['id'] . ($qid ? '&q=' . $qid : '&new=' . $type);
+        $back = 'exam_build.php?exam_id=' . (int)$e['id'] . ($qid ? '&q=' . $qid : '&new=' . urlencode($type));
 
-        if (trim((string)($_POST['prompt'] ?? '')) === '') {
-            flash_set('danger', 'Treść polecenia jest wymagana.');
-            header('Location: ' . $back); exit;
-        }
-
-        // ── Konfiguracja zależna od typu ────────────────────────────────────
-        $cfg = [];
-        $normalization = [
-            'caseSensitive'  => isset($_POST['case_sensitive']),
-            'ignoreAccents'  => isset($_POST['ignore_accents']),
-            'collapseSpaces' => true,
-            'trim'           => true,
-        ];
-
-        if ($type === 'multi' || $type === 'truefalse') {
-            if (isset(K30_TI_EXAM_NEG[$_POST['q_neg_marking'] ?? ''])) {
-                $cfg['negMarking'] = (string)$_POST['q_neg_marking'];
-            }
-        }
-
-        if ($type === 'fill_blank' || $type === 'code_completion') {
-            $cfg = array_merge($cfg, $normalization);
-            $cfg['regex']        = isset($_POST['blank_regex']);
-            $cfg['allOrNothing'] = isset($_POST['all_or_nothing']);
-            $blanks = [];
-            foreach ((array)($_POST['blank_key'] ?? []) as $i => $key) {
-                $key    = trim((string)$key);
-                $accept = $lines($_POST['blank_accept'][$i] ?? '');
-                if ($key === '' || !$accept) continue;
-                $blanks[] = [
-                    'key'    => $key,
-                    'accept' => $accept,
-                    'hint'   => trim((string)($_POST['blank_hint'][$i] ?? '')),
-                    'points' => max(0.01, (float)str_replace(',', '.', (string)($_POST['blank_points'][$i] ?? 1))),
-                ];
-            }
-            $cfg['blanks'] = $blanks;
-            if ($type === 'code_completion') {
-                $cfg['language']     = (string)($_POST['language'] ?? 'python');
-                $cfg['template']     = (string)($_POST['template'] ?? '');
-                $cfg['runAfterFill'] = isset($_POST['run_after_fill']);
-            }
-        }
-
-        if ($type === 'short_answer') {
-            $cfg = array_merge($cfg, $normalization);
-            $cfg['manual']   = isset($_POST['manual_review']);
-            $cfg['minChars'] = max(0, (int)($_POST['min_chars'] ?? 0));
-            $crit = [];
-            foreach ((array)($_POST['crit_label'] ?? []) as $i => $label) {
-                $any = $lines($_POST['crit_any'][$i] ?? '');
-                if (!$any) continue;
-                $crit[] = [
-                    'label'    => trim((string)$label) !== '' ? trim((string)$label) : $any[0],
-                    'any'      => $any,
-                    'points'   => max(0.01, (float)str_replace(',', '.', (string)($_POST['crit_points'][$i] ?? 1))),
-                    'required' => !empty($_POST['crit_required'][$i]),
-                ];
-            }
-            $cfg['keywords'] = $crit;
-        }
-
-        if ($type === 'code_fix') {
-            $cfg['language']           = (string)($_POST['language'] ?? 'python');
-            $cfg['snippet']            = (string)($_POST['snippet'] ?? '');
-            $cfg['answerMode']         = ($_POST['answer_mode'] ?? 'line') === 'rewrite' ? 'rewrite' : 'line';
-            $cfg['requireExplanation'] = isset($_POST['require_explanation']);
-            $cfg['acceptLines']        = array_values(array_filter(array_map(
-                fn($v) => (int)trim($v),
-                explode(',', (string)($_POST['accept_lines'] ?? ''))
-            )));
-        }
-
-        if ($type === 'code_run' || ($type === 'code_fix' && ($cfg['answerMode'] ?? '') === 'rewrite')) {
-            $cfg['language']    = (string)($_POST['language'] ?? 'python');
-            $cfg['starter']     = (string)($_POST['starter'] ?? '');
-            $cfg['timeLimitMs'] = max(200, min(15000, (int)($_POST['time_limit_ms'] ?? 3000)));
-            $cfg['memoryMb']    = max(32,  min(512,   (int)($_POST['memory_mb'] ?? 128)));
-            $cfg['forbidden']   = $lines($_POST['forbidden'] ?? '');
-            $cfg['required']    = $lines($_POST['required_patterns'] ?? '');
-            $cfg['allOrNothing'] = isset($_POST['all_or_nothing']);
-        }
-
-        // ── Warianty ────────────────────────────────────────────────────────
+        // Repeatery formularza przekładamy jeden do jednego na listy obiektów.
+        // Rozbijanie pól wielolinijkowych, przycinanie liczb i cała walidacja
+        // dzieją się w silniku — tu nie ma żadnej reguły merytorycznej.
+        // Jednokrotny wybór przychodzi jako jedna grupa radiów (indeks wariantu),
+        // pozostałe typy jako niezależne pola wyboru.
+        $single_pick = (string)($_POST['opt_correct_single'] ?? '');
         $options = [];
         foreach ((array)($_POST['opt_label'] ?? []) as $i => $label) {
-            if (trim((string)$label) === '') continue;
             $options[] = [
-                'label'      => (string)$label,
-                'is_correct' => !empty($_POST['opt_correct'][$i]),
-                'feedback'   => (string)($_POST['opt_feedback'][$i] ?? ''),
+                'label'    => (string)$label,
+                'correct'  => $type === 'single'
+                                ? ($single_pick !== '' && (int)$single_pick === (int)$i)
+                                : !empty($_POST['opt_correct'][$i]),
+                'feedback' => (string)($_POST['opt_feedback'][$i] ?? ''),
             ];
         }
-
-        // ── Przypadki testowe ───────────────────────────────────────────────
         $cases = [];
         foreach ((array)($_POST['case_expected'] ?? []) as $i => $expected) {
-            $stdin = (string)($_POST['case_stdin'][$i] ?? '');
-            if (trim((string)$expected) === '' && trim($stdin) === '') continue;
             $cases[] = [
-                'name'       => (string)($_POST['case_name'][$i] ?? ''),
-                'stdin'      => $stdin,
-                'expected'   => (string)$expected,
-                'match_mode' => (string)($_POST['case_match'][$i] ?? 'trim'),
-                'weight'     => (string)($_POST['case_weight'][$i] ?? 1),
-                'is_hidden'  => !empty($_POST['case_hidden'][$i]),
-                'tolerance'  => (string)($_POST['case_tol'][$i] ?? '0.000001'),
+                'name'      => (string)($_POST['case_name'][$i] ?? ''),
+                'stdin'     => (string)($_POST['case_stdin'][$i] ?? ''),
+                'expected'  => (string)$expected,
+                'matchMode' => (string)($_POST['case_match'][$i] ?? 'trim'),
+                'weight'    => (string)($_POST['case_weight'][$i] ?? '1'),
+                'hidden'    => !empty($_POST['case_hidden'][$i]),
+                'tolerance' => (string)($_POST['case_tol'][$i] ?? '0.000001'),
+            ];
+        }
+        $blanks = [];
+        foreach ((array)($_POST['blank_key'] ?? []) as $i => $key) {
+            $blanks[] = [
+                'key'    => (string)$key,
+                'accept' => (string)($_POST['blank_accept'][$i] ?? ''),
+                'hint'   => (string)($_POST['blank_hint'][$i] ?? ''),
+                'points' => (string)($_POST['blank_points'][$i] ?? '1'),
+            ];
+        }
+        $criteria = [];
+        foreach ((array)($_POST['crit_label'] ?? []) as $i => $label) {
+            $criteria[] = [
+                'label'    => (string)$label,
+                'any'      => (string)($_POST['crit_any'][$i] ?? ''),
+                'points'   => (string)($_POST['crit_points'][$i] ?? '1'),
+                'required' => !empty($_POST['crit_required'][$i]),
             ];
         }
 
-        // ── Walidacja zależna od typu — chroni przed pytaniem bez klucza ─────
-        $meta = K30_TI_EXAM_TYPES[$type];
-        $err  = null;
-        if (!empty($meta['options'])) {
-            if (count($options) < 2) $err = 'Podaj co najmniej dwa warianty odpowiedzi.';
-            elseif (!array_filter(array_column($options, 'is_correct')) && $type !== 'truefalse') {
-                $err = 'Zaznacz przynajmniej jeden poprawny wariant.';
-            }
-        }
-        if ($type === 'fill_blank' && empty($cfg['blanks'])) $err = 'Zdefiniuj przynajmniej jedną lukę.';
-        if ($type === 'code_completion' && empty($cfg['blanks']) && empty($cfg['runAfterFill'])) {
-            $err = 'Zdefiniuj luki albo włącz sprawdzanie uruchomieniowe.';
-        }
-        if ($type === 'code_run' && !$cases) $err = 'Dodaj przynajmniej jeden przypadek testowy.';
-        if ($type === 'code_fix' && ($cfg['answerMode'] ?? '') === 'line' && empty($cfg['acceptLines'])) {
-            $err = 'Podaj numer linii zawierającej błąd.';
-        }
-        if ($type === 'code_fix' && ($cfg['answerMode'] ?? '') === 'rewrite' && !$cases) {
-            $err = 'W trybie przepisania kodu potrzebny jest choć jeden przypadek testowy.';
-        }
-        if ($err !== null) { flash_set('danger', $err); header('Location: ' . $back); exit; }
+        $form = [
+            'options'            => $options,
+            'cases'              => $cases,
+            'blanks'             => $blanks,
+            'criteria'           => $criteria,
+            'language'           => (string)($_POST['language'] ?? 'python'),
+            'snippet'            => (string)($_POST['snippet'] ?? ''),
+            'template'           => (string)($_POST['template'] ?? ''),
+            'starter'            => (string)($_POST['starter'] ?? ''),
+            'answerMode'         => (string)($_POST['answer_mode'] ?? 'line'),
+            'acceptLines'        => (string)($_POST['accept_lines'] ?? ''),
+            'requireExplanation' => isset($_POST['require_explanation']),
+            'runAfterFill'       => isset($_POST['run_after_fill']),
+            'timeLimitMs'        => (string)($_POST['time_limit_ms'] ?? '3000'),
+            'memoryMb'           => (string)($_POST['memory_mb'] ?? '128'),
+            'forbidden'          => (string)($_POST['forbidden'] ?? ''),
+            'required'           => (string)($_POST['required_patterns'] ?? ''),
+            'allOrNothing'       => isset($_POST['all_or_nothing']),
+            'negMarking'         => (string)($_POST['q_neg_marking'] ?? ''),
+            'caseSensitive'      => isset($_POST['case_sensitive']),
+            'ignoreAccents'      => isset($_POST['ignore_accents']),
+            'regex'              => isset($_POST['blank_regex']),
+            'manual'             => isset($_POST['manual_review']),
+            'minChars'           => (string)($_POST['min_chars'] ?? '0'),
+            'runLimits'          => true,
+        ];
 
-        $saved = ti_exam_question_save([
-            'exam_id'     => (int)$e['id'],
+        $issues = null; $err = null;
+        $saved  = ti_exam_question_save_via_engine((int)$e['id'], $qid ?: null, [
             'type'        => $type,
-            'prompt'      => (string)$_POST['prompt'],
-            'points'      => $_POST['points'] ?? 1,
-            'in_bank'     => isset($_POST['in_bank']) ? 1 : 0,
+            'prompt'      => (string)($_POST['prompt'] ?? ''),
+            'points'      => (string)($_POST['points'] ?? '1'),
+            'inBank'      => isset($_POST['in_bank']),
             'explanation' => (string)($_POST['explanation'] ?? ''),
-            'config'      => $cfg,
-            'options'     => $options,
-            'cases'       => $cases,
-        ], $qid ?: null);
+            'form'        => $form,
+        ], $issues, $err);
 
+        if ($saved === null) {
+            exam_stash_issues($issues, $err);
+            header('Location: ' . $back); exit;
+        }
+        exam_flash_warnings($issues);
         flash_set('success', $qid ? 'Pytanie zapisane.' : 'Pytanie dodane do zestawu.');
         header('Location: exam_build.php?exam_id=' . (int)$e['id'] . '&q=' . $saved); exit;
     }

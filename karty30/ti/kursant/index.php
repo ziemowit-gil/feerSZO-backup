@@ -23,6 +23,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.ph
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php'; // Equi Exams
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/push.php';
 require_once __DIR__ . '/auth.php';
 
@@ -873,7 +874,7 @@ include __DIR__ . '/_layout_head.php';
 
 <?php
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
-  $nauka_tabs     = ['lekcje','zadania','oceny','plan','testy'];
+  $nauka_tabs     = ['lekcje','zadania','oceny','plan','egzaminy','testy'];
   $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
   $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
@@ -913,8 +914,11 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
           <i class="bi bi-list-check me-2" aria-hidden="true"></i>Plan nauczania</a></li>
-        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='egzaminy'?'active':'' ?>" href="?tab=egzaminy" <?= $tab==='egzaminy'?'aria-current="page"':'' ?>>
           <i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Testy</a></li>
+        <?php /* Starszy moduł quizów — inna nazwa, żeby w menu nie było dwóch pozycji „Testy”. */ ?>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Testy (starsze)</a></li>
       </ul>
     </li>
 
@@ -1397,7 +1401,8 @@ document.addEventListener('DOMContentLoaded', function() {
     ['tab' => 'zadania',     'icon' => 'journal-check',    'label' => 'Dydaktyka / eLearning', 'badge' => $hw_pending_total],
     ['tab' => 'oceny',       'icon' => 'table',             'label' => 'Oceny'],
     ['tab' => 'plan',        'icon' => 'list-check',       'label' => 'Plan nauczania'],
-    ['tab' => 'testy',       'icon' => 'card-checklist',   'label' => 'Testy'],
+    ['tab' => 'egzaminy',    'icon' => 'card-checklist',   'label' => 'Testy'],
+    ['tab' => 'testy',       'icon' => 'clock-history',    'label' => 'Testy (starsze)'],
     ['tab' => 'komunikaty',  'icon' => 'megaphone',        'label' => 'Komunikaty',             'badge' => $notices_unread],
     ['tab' => 'wiadomosci',  'icon' => 'envelope',         'label' => 'Wiadomości',             'badge' => $msg_unread],
   ];
@@ -3920,6 +3925,92 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endforeach; ?>
   <?php endif; ?>
+
+<?php elseif ($tab === 'egzaminy'): ?>
+  <?php /* Equi Exams — u kursanta moduł nazywa się po prostu „Testy”. */ ?>
+  <h1 class="h5 fw-bold mb-3"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i>Testy</h1>
+  <?php if (($_GET['err'] ?? '') === 'unavailable'): ?>
+  <div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Wybrany test jest niedostępny albo został ukryty.
+  </div>
+  <?php endif; ?>
+  <?php
+    $any_exam = false;
+    foreach ($courses as $c):
+      $cid_e  = (int)$c['course_id'];
+      $elist  = ti_exams_list($cid_e, true);
+      if (!$elist) continue;
+      $any_exam = true;
+  ?>
+  <div class="card bg-body-tertiary border-0 shadow-sm mb-4">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-mortarboard me-2" aria-hidden="true"></i><?= h($c['course_name']) ?>
+    </div>
+    <ul class="list-group list-group-flush">
+      <?php foreach ($elist as $e):
+        $best   = ti_exam_best_attempt((int)$e['id'], (int)$student['client_id']);
+        $open   = ti_exam_open_attempt((int)$e['id'], (int)$student['client_id']);
+        $why    = null;
+        $can    = ti_exam_can_start($e, (int)$student['client_id'], $why);
+        $window = ti_exam_window_status($e);
+        $mode   = K30_TI_EXAM_MODES[(string)$e['mode']] ?? K30_TI_EXAM_MODES['exam'];
+      ?>
+      <li class="list-group-item bg-transparent d-flex align-items-center flex-wrap gap-2">
+        <div class="me-auto">
+          <span class="fw-semibold"><?= h((string)$e['title']) ?></span>
+          <?php if (trim((string)$e['description']) !== ''): ?>
+            <span class="d-block text-body-secondary small"><?= h((string)$e['description']) ?></span>
+          <?php endif; ?>
+          <span class="small text-body-secondary">
+            <i class="bi bi-<?= h((string)$mode['icon']) ?> me-1" aria-hidden="true"></i><?= h((string)$mode['label']) ?>
+            · <?= (int)$e['n_questions'] ?> pytań
+            <?php if ((int)$e['time_limit_min'] > 0): ?> · <?= (int)$e['time_limit_min'] ?> min<?php endif; ?>
+            <?php if ((int)$e['pass_pct'] > 0): ?> · próg <?= (int)$e['pass_pct'] ?>%<?php endif; ?>
+            <?php if ($window === 'upcoming' && !empty($e['open_at'])): ?>
+              · od <?= h(date('d.m.Y H:i', strtotime((string)$e['open_at']))) ?>
+            <?php elseif (!empty($e['close_at'])): ?>
+              · do <?= h(date('d.m.Y H:i', strtotime((string)$e['close_at']))) ?>
+            <?php endif; ?>
+          </span>
+        </div>
+
+        <?php if ($best):
+          $pct_e    = ti_exam_pct($best);
+          $passed_e = ti_exam_passed($e, $best);
+          if ((int)$best['needs_review'] === 1): ?>
+            <span class="badge text-bg-info">
+              <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na ocenę
+            </span>
+          <?php else: ?>
+            <span class="badge text-bg-<?= $passed_e ? 'success' : 'secondary' ?>">
+              <i class="bi bi-<?= $passed_e ? 'check-lg' : 'dash-lg' ?> me-1" aria-hidden="true"></i>Wynik: <?= $pct_e ?>%
+            </span>
+          <?php endif; ?>
+          <a class="btn btn-sm btn-outline-secondary" href="exam.php?attempt=<?= (int)$best['id'] ?>">
+            Szczegóły<span class="visually-hidden"> wyniku testu <?= h((string)$e['title']) ?></span>
+          </a>
+        <?php endif; ?>
+
+        <?php if ($open): ?>
+          <a class="btn btn-sm btn-primary" href="exam.php?exam=<?= (int)$e['id'] ?>&amp;solve=1">
+            <i class="bi bi-play-fill me-1" aria-hidden="true"></i>Kontynuuj
+          </a>
+        <?php elseif ($can): ?>
+          <a class="btn btn-sm btn-primary" href="exam.php?exam=<?= (int)$e['id'] ?>">
+            <i class="bi bi-<?= $best ? 'arrow-repeat' : 'pencil-square' ?> me-1" aria-hidden="true"></i><?= $best ? 'Rozwiąż ponownie' : 'Rozwiąż' ?>
+          </a>
+        <?php else: ?>
+          <span class="small text-body-secondary"><?= h((string)$why) ?></span>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endforeach; ?>
+  <?php if (!$any_exam): ?>
+    <div class="alert alert-secondary">Nie ma teraz udostępnionych testów.</div>
+  <?php endif; ?>
+  <?= equi_exams_footer_html() ?>
 
 <?php elseif ($tab === 'testy'): ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i>Testy</h1>
