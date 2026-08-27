@@ -14,6 +14,33 @@ Planowane rozmieszczenie: `includes/ext_materials.php`, `includes/ext_access.php
 
 ---
 
+## Stan wdrożenia (2026-08-27)
+
+Moduł jest zbudowany i działa. Rozmieszczenie:
+
+| Warstwa | Pliki |
+|---|---|
+| Schemat, magazyn, domena | `includes/ext_materials.php` |
+| Dostęp, granty, licencje, bilety, dziennik | `includes/ext_access.php` |
+| Znak wodny i strumień | `includes/ext_deliver.php` |
+| Interfejs | `karty30/ti/ext/` — `index` (katalog), `title`, `read`, `file`, `ticket`, `upload`, `admin`, `log` |
+| Agent | `cron/ext_agent.php` (wpis `ext_agent` w `cron/dispatcher.php`, co 2 min) |
+| API (tylko odczyt) | `api/v1/ext.php`, scope `ext:read` |
+
+Wejścia w nawigacji: panel kursanta (Dostępy + ściana kafli + pasek widoku
+alternatywnego), panel prowadzącego (menu boczne i pasek sekcji), moduł TI.
+Włącznik modułu i adres do ostrzeżeń o licencjach: `admin.php?tab=wydawcy`.
+
+**Czego nie ma:** importu paczek od wydawców (ONIX/MARC/CSV) — książki wgrywa
+pracownik, a tabele mają już `external_id` i `checksum` pod przyszły import.
+
+**Sprawdzone maszynowo:** decyzje dostępu (9 przypadków), wgranie z rozpoznaniem
+typu po zawartości i odrzuceniem pliku PHP, dedup po sha256, liczenie stron,
+bilet, stempel z dowodem różnicowym (dwa napisy → dwa różne pliki), cache
+stempla. **Nie oglądane w przeglądarce** — pierwszy przebieg interfejsu warto
+zrobić na środowisku testowym.
+---
+
 ## 0. Zasady nadrzędne
 
 **1. Plik chroniony nigdy nie leży pod adresem URL.** Nic nie trafia do `uploads/`

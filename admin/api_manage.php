@@ -31,6 +31,7 @@ const AM_API_PERMISSIONS = [
     'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
     'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
     'ezd:read'         => 'EZD Wirtualne biurko — odczyt (teczki, sprawy, pisma)',
+    'ext:read'         => 'Materiały zewnętrzne — odczyt katalogu i dziennika (bez treści plików)',
     // Osobne od crm:write — token dla zewnętrznego CMS-a ma móc TYLKO przyjmować
     // zgłoszenia z formularzy, a nie edytować i kasować kartotekę.
     'forms:read'       => 'Formularze — odczyt definicji (do mapowania w CMS)',
