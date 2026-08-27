@@ -80,6 +80,12 @@ switch ($action) {
         planner_ok([], 'Blok usunięty.');
     }
 
+    case 'block_clone': {
+        $new_id = szo_block_clone((int)($_POST['block_id'] ?? 0), $uid);
+        if (!$new_id) planner_err('Brak bloku.', 404);
+        planner_ok(['block' => szo_block_get($new_id)], 'Blok zduplikowany.');
+    }
+
     /* ── Harmonogramy ──────────────────────────────────────────────── */
 
     case 'schedule_create': {
@@ -99,6 +105,12 @@ switch ($action) {
         if (!is_array($days)) planner_err('Nieprawidłowy format danych.');
         if (!szo_schedule_save_days($sid, $uid, $days)) planner_err('Brak harmonogramu.', 404);
         planner_ok([], 'Zapisano.');
+    }
+
+    case 'schedule_clone': {
+        $new_id = szo_schedule_clone((int)($_POST['schedule_id'] ?? 0), $uid);
+        if (!$new_id) planner_err('Brak harmonogramu.', 404);
+        planner_ok(['schedule_id' => $new_id], 'Harmonogram zduplikowany (daty dni wyczyszczone).');
     }
 
     case 'schedule_delete': {

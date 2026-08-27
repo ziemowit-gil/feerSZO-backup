@@ -289,7 +289,11 @@ $cur_cid_for_planner = (int)($sel_schedule['course_id'] ?? ($courses[0]['id'] ??
     </a>
     <?php endforeach; ?>
     <?php if ($sel_schedule): ?>
-    <button class="btn btn-sm btn-outline-danger ms-2" id="szoBtnDelSchedule"
+    <button class="btn btn-sm btn-outline-secondary ms-2" id="szoBtnCloneSchedule"
+            title="Duplikuj harmonogram <?= h($sel_schedule['title']) ?> (dni i bloki; daty do ustawienia)">
+      <i class="bi bi-copy" aria-hidden="true"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-danger" id="szoBtnDelSchedule"
             title="Usuń harmonogram <?= h($sel_schedule['title']) ?>">
       <i class="bi bi-trash" aria-hidden="true"></i>
     </button>
@@ -596,7 +600,8 @@ function blockCard(blockId, source, dayNum) {
   const dots = '●'.repeat(b.difficulty) + '○'.repeat(5 - b.difficulty);
   const rmBtn = source === 'day'
     ? `<button class="szo-blk-rm" data-rm="1" data-day="${dayNum}" data-bid="${b.id}" tabindex="-1" aria-label="Usuń z dnia">✕</button>`
-    : `<button class="szo-blk-rm" data-edit="1" data-bid="${b.id}" tabindex="-1" aria-label="Edytuj blok" style="color:#60a5fa;background:rgba(37,99,235,.2)">✎</button>`;
+    : `<button class="szo-blk-rm" data-clone="1" data-bid="${b.id}" tabindex="-1" aria-label="Duplikuj blok" title="Duplikuj blok" style="right:1.9rem;color:#34d399;background:rgba(16,185,129,.15)">⧉</button>`
+    + `<button class="szo-blk-rm" data-edit="1" data-bid="${b.id}" tabindex="-1" aria-label="Edytuj blok" style="color:#60a5fa;background:rgba(37,99,235,.2)">✎</button>`;
   return `<div class="szo-blk" draggable="true"
     data-bid="${b.id}" data-src="${source}" ${source==='day' ? `data-day="${dayNum}"` : ''}
     data-cat="${b.category}" role="listitem" tabindex="0"
@@ -767,8 +772,27 @@ function attachGlobalDnD() {
     const editBtn = e.target.closest('[data-edit]');
     if (editBtn) {
       szoOpenBlockModal(+editBtn.dataset.bid);
+      return;
+    }
+    const cloneBtn = e.target.closest('[data-clone]');
+    if (cloneBtn) {
+      szoCloneBlock(+cloneBtn.dataset.bid);
     }
   });
+}
+
+/* ── Duplikowanie bloku w bibliotece ────────────────── */
+async function szoCloneBlock(bid) {
+  const fd = new FormData();
+  fd.append('action', 'block_clone');
+  fd.append('block_id', bid);
+  fd.append('_token', TOKEN);
+  const r = await fetch(AJAX, {method:'POST', body:fd, headers:{'X-CSRF-Token':TOKEN}});
+  const j = await r.json();
+  if (!j.ok) { alert('Błąd: ' + j.msg); return; }
+  ALL_BLOCKS[j.block.id] = j.block;
+  state.library.push(j.block.id);
+  renderLibrary();
 }
 
 /* ── Server-Side Solve (silnik Python) ──────────────── */
@@ -878,6 +902,23 @@ if (autoBtn) autoBtn.addEventListener('click', () => szoServerSolve('auto'));
 /* ── Przycisk MPP ───────────────────────────────────── */
 const mppBtn = document.getElementById('szoBtnMpp');
 if (mppBtn) mppBtn.addEventListener('click', () => szoServerSolve('mpp'));
+
+/* ── Duplikuj harmonogram ───────────────────────────── */
+const cloneSchedBtn = document.getElementById('szoBtnCloneSchedule');
+if (cloneSchedBtn) cloneSchedBtn.addEventListener('click', async () => {
+  if (!confirm('Zduplikować harmonogram razem z dniami i blokami? Daty dni w kopii będą do ustawienia.')) return;
+  const fd = new FormData();
+  fd.append('action', 'schedule_clone');
+  fd.append('schedule_id', SID);
+  fd.append('_token', TOKEN);
+  const r = await fetch(AJAX, {method:'POST', body:fd, headers:{'X-CSRF-Token':TOKEN}});
+  const j = await r.json();
+  if (!j.ok) { alert('Błąd: ' + j.msg); return; }
+  // Otwórz kopię — działa i w index.php?tab=planner, i na samodzielnym planner.php
+  const u = new URL(window.location.href);
+  u.searchParams.set('sid', j.schedule_id);
+  window.location.href = u.toString();
+});
 
 /* ── Usuń harmonogram ───────────────────────────────── */
 const delBtn = document.getElementById('szoBtnDelSchedule');

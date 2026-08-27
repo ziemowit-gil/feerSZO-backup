@@ -123,6 +123,21 @@ function szo_block_delete(int $id, int $instructor_id): void {
     db_exec("DELETE FROM k30_szo_blocks WHERE id=? AND instructor_id=?", [$id, $instructor_id]);
 }
 
+/** Duplikuje blok w bibliotece prowadzącego (szybkie warianty). */
+function szo_block_clone(int $id, int $instructor_id): ?int {
+    ti_planner_migrate();
+    $b = db_one("SELECT * FROM k30_szo_blocks WHERE id=? AND instructor_id=?", [$id, $instructor_id]);
+    if (!$b) return null;
+    db_exec(
+        "INSERT INTO k30_szo_blocks
+            (instructor_id, title, category, duration_min, difficulty, energy_impact,
+             min_break_after, resources, tags, locked, notes)
+         SELECT instructor_id, substr(title || ' (kopia)', 1, 200), category, duration_min,
+                difficulty, energy_impact, min_break_after, resources, tags, locked, notes
+           FROM k30_szo_blocks WHERE id=?", [$id]);
+    return (int)db()->lastInsertId();
+}
+
 /* ── HARMONOGRAMY ───────────────────────────────────────────────────── */
 
 function szo_schedules_list(int $instructor_id): array {
@@ -206,6 +221,28 @@ function szo_schedule_save_days(int $schedule_id, int $instructor_id, array $day
         [$schedule_id]
     );
     return true;
+}
+
+/**
+ * Duplikuje harmonogram razem z dniami i rozmieszczeniem bloków.
+ * Daty dni są czyszczone — kopia to szablon na nowy cykl/termin.
+ */
+function szo_schedule_clone(int $id, int $instructor_id): ?int {
+    ti_planner_migrate();
+    $s = db_one("SELECT * FROM k30_szo_schedules WHERE id=? AND instructor_id=?", [$id, $instructor_id]);
+    if (!$s) return null;
+    db_exec(
+        "INSERT INTO k30_szo_schedules (instructor_id, course_id, title, num_days, settings_json)
+         VALUES (?,?,?,?,?)",
+        [$instructor_id, $s['course_id'] ?: null,
+         mb_substr((string)$s['title'] . ' (kopia)', 0, 200),
+         (int)$s['num_days'], (string)$s['settings_json']]);
+    $new_id = (int)db()->lastInsertId();
+    db_exec(
+        "INSERT INTO k30_szo_schedule_days (schedule_id, day_number, phase, day_date, block_order)
+         SELECT ?, day_number, phase, NULL, block_order
+           FROM k30_szo_schedule_days WHERE schedule_id=?", [$new_id, $id]);
+    return $new_id;
 }
 
 function szo_schedule_delete(int $id, int $instructor_id): void {

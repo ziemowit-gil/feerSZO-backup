@@ -84,4 +84,5 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 </main>
 
+<?php $PRINT_TITLE = 'SZO Planner — harmonogram zajęć'; include __DIR__ . '/_print_page.php'; ?>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
