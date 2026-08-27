@@ -22,7 +22,7 @@ $_guide = [
         ['Zadania',       $_ct('zadania'),     'Zadania domowe: wystawianie, sprawdzanie oddanych prac i ocenianie.', ''],
         ['Materiały',     $_ct('materialy'),   'Materiały dla kursantów (eLearning): pliki i linki.', ''],
         ['Nieobecności',  $_ct('nieobecnosci'),'Usprawiedliwienia i prośby kursantów o odwołanie udziału do rozpatrzenia.', ''],
-        ['Program',       $_ct('program'),     'Plan nauczania kursu — punkty programu i powiązanie z zajęciami.', 'Wzorcem jest sylabus przedmiotu, prowadzony przez administrację.'],
+        ['Sylabus',       $_ct('program'),     'Tematy realizowane w tym kursie i ich powiązanie z zajęciami.', 'Dawniej „Program zajęć" — ta sama rzecz i te same dane, zmieniła się nazwa. Wzorzec przedmiotu prowadzi administracja.'],
         ['Testy',         $_ct('testy'),       'Testy i quizy: budowanie, udostępnianie, wyniki.', ''],
     ],
     'Planowanie' => [
@@ -110,7 +110,7 @@ if (dyd_is_staff()) {
   <div class="card-body">
     <ul class="small mb-0">
       <li><strong>Wybór wyglądu panelu</strong> — panel ma jeden układ; przełącznik widoku został wycofany.</li>
-      <li><strong>Sylabusy przedmiotów i okresy nauczania</strong> — prowadzi je administracja w module Zajęć TI. W panelu widzisz program kursu (zakładka Program) i protokoły za okresy.</li>
+      <li><strong>Sylabusy przedmiotów i okresy nauczania</strong> — prowadzi je administracja w module Zajęć TI. W panelu widzisz tematy tego kursu (zakładka Sylabus) i protokoły za okresy.</li>
       <li><strong>Zakładanie kont kursantom</strong> — po stronie administracji.</li>
     </ul>
     <p class="small text-body-secondary mb-0 mt-2">

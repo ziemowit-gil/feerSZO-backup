@@ -39,7 +39,7 @@ $_usos_sections['zajecia']['href'] = $cur_course
 $_usos_tab_labels = [
     'pulpit' => 'Pulpit', 'lekcje' => 'Zajęcia', 'uczestnicy' => 'Uczestnicy', 'plan' => 'Plan zajęć',
     'protokol' => 'Protokoły ocen', 'oceny' => 'Oceny', 'zadania' => 'Zadania', 'materialy' => 'Materiały',
-    'nieobecnosci' => 'Nieobecności', 'program' => 'Program', 'testy' => 'Testy',
+    'nieobecnosci' => 'Nieobecności', 'program' => 'Sylabus', 'testy' => 'Testy',
     'rozliczenia' => 'Rozliczenia grupy', 'frekwencja_grup' => 'Frekwencja grup', 'dostepnosc' => 'Dostępność',
     'zoom' => 'Zajętość Zoom', 'cykliczne' => 'Plan cykliczny', 'praca_wlasna' => 'Praca własna',
     'wiadomosci' => 'Wiadomości', 'komunikaty' => 'Komunikaty', 'komunikacja' => 'Komunikacja',

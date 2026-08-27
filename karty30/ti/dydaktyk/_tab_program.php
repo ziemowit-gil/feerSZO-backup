@@ -1,5 +1,15 @@
-<?php /* ═══════════════════════ TAB: PROGRAM ZAJĘĆ ═══════════════════════ */ ?>
+<?php /* ═══════════════════════ TAB: SYLABUS (dawniej „Program zajęć") ═══════════════════════ */ ?>
 <?php
+  /**
+   * Zakładka nazywa się teraz „Sylabus": to realizacja sylabusa przedmiotu
+   * w tym kursie. Wzorzec przedmiotu prowadzi administracja
+   * ([[project_ti_syllabus]]) — tutaj widać, czy kurs go ma, ile jego punktów
+   * jest już w planie, i można je dociągnąć jednym przyciskiem.
+   */
+  require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_syllabus.php';
+  $syl_course   = ti_course_syllabus($cur_course);
+  $syl_coverage = $syl_course ? ti_syllabus_coverage((int)$syl_course['id'], $cur_course) : null;
+
   $curr_items = k30_ti_curriculum_list($cur_course);
   $curr_total_min = array_sum(array_map(fn($r) => (int)$r['est_minutes'], $curr_items));
   $currFormHtml = function(?array $r, string $pfx) use ($cur_course) {
@@ -44,9 +54,43 @@
     </form>
   <?php };
 ?>
-<div class="card border-0 shadow-sm">
-  <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
-    <span class="fw-semibold"><i class="bi bi-list-check me-2"></i>Program zajęć (plan nauczania)</span>
+<div class="card">
+  <div class="card-header">Sylabus kursu — skąd się bierze</div>
+  <div class="card-body">
+    <p class="small mb-2">
+      Ta zakładka to <strong>sylabus tego kursu</strong>: lista tematów, które realizujesz z grupą.
+      Wcześniej nazywała się <strong>„Program zajęć"</strong> — to ta sama rzecz i te same dane,
+      zmieniła się tylko nazwa.
+    </p>
+    <?php if (!$syl_course): ?>
+    <p class="small text-body-secondary mb-0">
+      Przedmiot tego kursu nie ma jeszcze sylabusa wzorcowego prowadzonego przez administrację —
+      tematy prowadzisz tu samodzielnie.
+    </p>
+    <?php else: ?>
+    <div class="d-flex align-items-center gap-2 flex-wrap small">
+      <span>Sylabus przedmiotu: <strong><?= h($syl_course['title']) ?></strong></span>
+      <span class="badge text-bg-light border text-dark">wersja <?= h($syl_course['version']) ?></span>
+      <?php if (!empty($syl_course['inherited'])): ?>
+      <span class="badge text-bg-info" title="Kurs nie ma własnego przypisania — obowiązuje sylabus przedmiotu">dziedziczony po przedmiocie</span>
+      <?php endif; ?>
+      <?php if ($syl_coverage && $syl_coverage['total'] > 0): ?>
+      <span class="badge <?= $syl_coverage['covered'] >= $syl_coverage['total'] ? 'text-bg-success' : 'text-bg-warning' ?>">
+        w Twoim wykazie <?= (int)$syl_coverage['covered'] ?> z <?= (int)$syl_coverage['total'] ?> punktów wzorca
+      </span>
+      <?php endif; ?>
+    </div>
+    <p class="small text-body-secondary mb-0 mt-2">
+      Wzorzec przedmiotu prowadzi administracja; punkty poniżej to jego realizacja w tej grupie
+      i one łączą się z konkretnymi zajęciami.
+    </p>
+    <?php endif; ?>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2">
+    <span>Tematy w tym kursie</span>
     <span class="badge bg-secondary"><?= count($curr_items) ?> pozycji</span>
     <?php if ($curr_total_min > 0): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= round($curr_total_min/60,1) ?> h łącznie</span><?php endif; ?>
     <div class="ms-auto d-flex gap-2">

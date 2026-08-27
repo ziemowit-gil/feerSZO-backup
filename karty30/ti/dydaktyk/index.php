@@ -128,6 +128,9 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
+// „Program zajęć" nazywa się teraz „Sylabus" — adres ?tab=sylabus prowadzi tam,
+// a stare linki i zakładki na ?tab=program nadal działają.
+if ($tab === 'sylabus') $tab = 'program';
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
@@ -2499,7 +2502,7 @@ $_sb_ctabs = $cur_course ? [
     'materialy'    => ['collection-play', 'Materiały',     count($materials ?? []),''],
     'nieobecnosci' => ['person-x',        'Nieobecności',  $_sb_absent,   $_sb_absent  ? 'danger' : ''],
     'oceny'        => ['journal-bookmark','Oceny',         $_sb_grades,   ''],
-    'program'      => ['list-check',      'Program',       $_sb_program,  ''],
+    'program'      => ['list-check',      'Sylabus',       $_sb_program,  ''],   // dawniej „Program zajęć"
     'testy'        => ['card-checklist',  'Testy',         $_sb_testy,    ''],
 ] : [];
 if ($cur_course && dyd_is_staff()) {
