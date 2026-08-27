@@ -754,3 +754,326 @@ function ti_exam_answer_save(int $attempt_id, int $question_id, array $payload):
         ]);
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MARKA MODUŁU — „Equi Exams"
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jedno narzędzie, dwie nazwy w interfejsie:
+//   • prowadzący / administracja → „Egzaminy",
+//   • kursant / opiekun          → „Testy".
+// Nazwa własna narzędzia pojawia się w stopce obu paneli.
+
+const EQUI_EXAMS_NAME        = 'Equi Exams';
+const EQUI_EXAMS_STAFF_LABEL = 'Egzaminy';
+const EQUI_EXAMS_STUDENT_LABEL = 'Testy';
+const EQUI_EXAMS_AUTHOR      = 'Ziemowit Gil';
+
+/** Etykieta modułu zależna od odbiorcy: 'staff' albo 'student'. */
+function equi_exams_label(string $audience = 'staff'): string {
+    return $audience === 'student' ? EQUI_EXAMS_STUDENT_LABEL : EQUI_EXAMS_STAFF_LABEL;
+}
+
+/** Stopka „Powered by…". Zwraca gotowy HTML — treść jest stała, nic do ucieczki. */
+function equi_exams_footer_html(string $class = 'text-body-secondary small mt-4 pt-3 border-top'): string {
+    return '<p class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">'
+         . '<span class="fw-semibold">Powered by Equi Exam</span>'
+         . ' <span aria-hidden="true">|</span> Wykonanie: ' . EQUI_EXAMS_AUTHOR
+         . '</p>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ODDANIE I OCENA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Oddanie podejścia: komplet odpowiedzi jedzie do silnika Java, wraca punktacja.
+ *
+ * Silnik nie ma ścieżki awaryjnej po stronie PHP — świadomie. Gdyby PHP liczyło
+ * punkty „na wszelki wypadek", istniałyby dwie implementacje tej samej reguły
+ * i prędzej czy później rozjechałyby się wynikami. Zamiast tego podejście
+ * zostaje zapisane jako oddane, ze znacznikiem `engine_status='pending'`
+ * i `needs_review=1`; prowadzący widzi je na liście „do oceny" i może
+ * uruchomić ponowną ocenę jednym przyciskiem, gdy silnik wróci.
+ *
+ * @return array{ok:bool, error:?string, attempt:?array}
+ */
+function ti_exam_submit(int $attempt_id, bool $late_allowed = true): array {
+    $att = ti_exam_attempt_get($attempt_id);
+    if (!$att) return ['ok' => false, 'error' => 'Nie ma takiego podejścia.', 'attempt' => null];
+    if ($att['status'] !== 'in_progress') {
+        return ['ok' => true, 'error' => null, 'attempt' => $att];  // powtórny submit — nic nie psujemy
+    }
+
+    $late = false;
+    $dl   = trim((string)($att['deadline_at'] ?? ''));
+    if ($dl !== '' && time() > strtotime($dl) + 30) {   // 30 s marginesu na opóźnienie sieci
+        if (!$late_allowed) return ['ok' => false, 'error' => 'Czas na rozwiązanie testu minął.', 'attempt' => $att];
+        $late = true;
+    }
+
+    db()->prepare("UPDATE k30_ti_exam_attempts SET status='submitted', submitted_at=?, is_late=? WHERE id=?")
+        ->execute([date('Y-m-d H:i:s'), $late ? 1 : 0, $attempt_id]);
+
+    return ti_exam_regrade($attempt_id);
+}
+
+/**
+ * Wysyła (ponownie) podejście do oceny w silniku i zapisuje wynik.
+ * Wywoływane przy oddaniu testu oraz z panelu prowadzącego („Oceń ponownie").
+ */
+function ti_exam_regrade(int $attempt_id): array {
+    $att = ti_exam_attempt_get($attempt_id);
+    if (!$att) return ['ok' => false, 'error' => 'Nie ma takiego podejścia.', 'attempt' => null];
+    $exam = ti_exam_get((int)$att['exam_id']);
+    if (!$exam) return ['ok' => false, 'error' => 'Nie ma takiego egzaminu.', 'attempt' => $att];
+
+    $questions = ti_exam_attempt_questions($att);
+    $answers   = ti_exam_answers($attempt_id);
+
+    $qp = [];
+    $ap = [];
+    foreach ($questions as $q) {
+        $qp[] = ti_exam_question_payload($q, true);
+        $ap[(string)(int)$q['id']] = ti_exam_answer_payload($answers[(int)$q['id']] ?? null);
+    }
+
+    $err    = null;
+    $result = ti_exam_engine_post('/api/exam/grade', [
+        'mode'          => (string)$exam['mode'],
+        'negMarking'    => (string)$exam['neg_marking'],
+        'passPct'       => (int)$exam['pass_pct'],
+        'revealAnswers' => true,     // szczegóły zapisujemy w bazie; komu je pokazać, decyduje widok
+        'questions'     => $qp,
+        'answers'       => $ap,
+    ], $err, 120);
+
+    if (!$result) {
+        db()->prepare("UPDATE k30_ti_exam_attempts SET needs_review=1, engine_status='pending', engine_error=? WHERE id=?")
+            ->execute([(string)$err, $attempt_id]);
+        return ['ok' => false, 'error' => $err, 'attempt' => ti_exam_attempt_get($attempt_id)];
+    }
+
+    ti_exam_store_results($attempt_id, $result);
+    $att = ti_exam_attempt_get($attempt_id);
+    if ($att && $att['status'] === 'graded') ti_exam_sync_grade($attempt_id);
+    return ['ok' => true, 'error' => null, 'attempt' => $att];
+}
+
+/** Zapisuje odpowiedź silnika: punkty per pytanie + podsumowanie podejścia. */
+function ti_exam_store_results(int $attempt_id, array $result): void {
+    $pdo = db();
+    $upd = $pdo->prepare(
+        "UPDATE k30_ti_exam_answers
+         SET result=?, points_awarded=?, is_correct=?, needs_review=?, feedback=?
+         WHERE attempt_id=? AND question_id=?");
+
+    $needs_review = false;
+    foreach ((array)($result['results'] ?? []) as $r) {
+        $qid    = (int)($r['questionId'] ?? 0);
+        if (!$qid) continue;
+        $review = !empty($r['needsReview']);
+        $needs_review = $needs_review || $review;
+
+        // Pytanie ocenione ręcznie wcześniej zachowuje punkty prowadzącego —
+        // ponowna ocena automatem nie może kasować decyzji człowieka.
+        $prev = db_one("SELECT points_awarded, teacher_note FROM k30_ti_exam_answers WHERE attempt_id=? AND question_id=?", [$attempt_id, $qid]);
+        $manual_kept = $prev && $prev['points_awarded'] !== null && trim((string)($prev['teacher_note'] ?? '')) !== '';
+
+        $points = $manual_kept ? (float)$prev['points_awarded'] : ($review ? null : (float)($r['points'] ?? 0));
+        if ($manual_kept) $review = false;
+
+        $upd->execute([
+            json_encode($r, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $points,
+            !empty($r['correct']) ? 1 : 0,
+            $review ? 1 : 0,
+            (string)($r['feedback'] ?? ''),
+            $attempt_id, $qid,
+        ]);
+    }
+
+    $pdo->prepare("UPDATE k30_ti_exam_attempts SET max_score=?, engine_status='ok', engine_error=NULL WHERE id=?")
+        ->execute([(float)($result['maxScore'] ?? 0), $attempt_id]);
+
+    ti_exam_recalc($attempt_id);
+}
+
+/** Przelicza wynik podejścia z sumy punktów przy odpowiedziach. */
+function ti_exam_recalc(int $attempt_id): void {
+    $row = db_one(
+        "SELECT COALESCE(SUM(points_awarded),0) AS s,
+                SUM(CASE WHEN points_awarded IS NULL OR needs_review=1 THEN 1 ELSE 0 END) AS pending
+         FROM k30_ti_exam_answers WHERE attempt_id=?", [$attempt_id]);
+    $pending = (int)($row['pending'] ?? 0);
+    $score   = (float)($row['s'] ?? 0);
+
+    db()->prepare(
+        "UPDATE k30_ti_exam_attempts
+         SET score=?, needs_review=?, status=?, graded_at=" . ($pending ? "NULL" : "?") . "
+         WHERE id=?")
+        ->execute($pending
+            ? [$score, 1, 'submitted', $attempt_id]
+            : [$score, 0, 'graded', date('Y-m-d H:i:s'), $attempt_id]);
+}
+
+/**
+ * Ocena ręczna pytań otwartych i opisowych przez prowadzącego.
+ *
+ * @param array $points question_id => punkty
+ * @param array $notes  question_id => komentarz dla kursanta
+ */
+function ti_exam_grade_manual(int $attempt_id, array $points, array $notes = [], ?int $by = null): void {
+    $att = ti_exam_attempt_get($attempt_id);
+    if (!$att) return;
+
+    $upd = db()->prepare(
+        "UPDATE k30_ti_exam_answers
+         SET points_awarded=?, is_correct=?, needs_review=0, teacher_note=?
+         WHERE attempt_id=? AND question_id=?");
+
+    foreach ($points as $qid => $raw) {
+        $qid = (int)$qid;
+        $q   = ti_exam_question_get($qid);
+        if (!$q) continue;
+        $maxp = (float)$q['points'];
+        $val  = (float)str_replace(',', '.', (string)$raw);
+        $val  = max(0.0, min($maxp, $val));
+        $note = trim((string)($notes[$qid] ?? ''));
+        // Pusty komentarz zastępujemy znacznikiem — po nim ti_exam_store_results
+        // poznaje, że punkty pochodzą od człowieka i nie wolno ich nadpisać.
+        if ($note === '') $note = 'Ocena prowadzącego';
+        $upd->execute([$val, ($maxp > 0 && $val >= $maxp - 1e-9) ? 1 : 0, $note, $attempt_id, $qid]);
+    }
+
+    db()->prepare("UPDATE k30_ti_exam_attempts SET graded_by=? WHERE id=?")->execute([$by, $attempt_id]);
+    ti_exam_recalc($attempt_id);
+    $att = ti_exam_attempt_get($attempt_id);
+    if ($att && $att['status'] === 'graded') ti_exam_sync_grade($attempt_id);
+}
+
+/**
+ * Natychmiastowa weryfikacja jednej odpowiedzi — tryb treningowy.
+ * Zwraca wynik pojedynczego pytania albo null, gdy silnik nie odpowiada.
+ */
+function ti_exam_check_single(array $exam, array $question, array $payload, ?string &$error = null): ?array {
+    $res = ti_exam_engine_post('/api/exam/grade', [
+        'mode'          => 'training',
+        'negMarking'    => (string)$exam['neg_marking'],
+        'revealAnswers' => true,
+        'questions'     => [ti_exam_question_payload($question, true)],
+        'answers'       => [(string)(int)$question['id'] => $payload],
+    ], $error, 60);
+    if (!$res || empty($res['results'][0])) return null;
+    return $res['results'][0];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  E-DZIENNIK
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Zapis wyniku ocenionego podejścia do dziennika ocen (jeśli egzamin tak ma ustawione). */
+function ti_exam_sync_grade(int $attempt_id): void {
+    $att = ti_exam_attempt_get($attempt_id);
+    if (!$att || $att['status'] !== 'graded') return;
+    $exam = ti_exam_get((int)$att['exam_id']);
+    if (!$exam || empty($exam['sync_grade'])) return;
+    if (function_exists('k30_ti_grades_allowed')
+        && !k30_ti_grades_allowed((int)$exam['course_id'], (int)$att['client_id'])) return;
+
+    $max = (float)$att['max_score'];
+    if ($max <= 0) return;
+    $pct = 100 * (float)$att['score'] / $max;
+
+    // Skala szkolna z procentów — identyczna jak w starszym module Testy,
+    // żeby oceny z obu źródeł były porównywalne w jednym dzienniku.
+    $grade = $pct >= 90 ? '5' : ($pct >= 75 ? '4' : ($pct >= 60 ? '3' : ($pct >= 50 ? '2' : '1')));
+    $desc  = ti_exam_mode_label((string)$exam['mode']) . ': ' . (string)$exam['title']
+           . ' (' . round($pct) . '%)';
+
+    $existing = db_one("SELECT id FROM k30_ti_grades WHERE exam_attempt_id=?", [$attempt_id]);
+    if ($existing) {
+        db()->prepare("UPDATE k30_ti_grades SET value_text=?, value_num=?, description=?, graded_at=? WHERE id=?")
+            ->execute([$grade, (float)$grade, $desc, date('Y-m-d H:i:s'), (int)$existing['id']]);
+        return;
+    }
+    db_insert('k30_ti_grades', [
+        'course_id'       => (int)$exam['course_id'],
+        'client_id'       => (int)$att['client_id'],
+        'exam_attempt_id' => $attempt_id,
+        'category'        => 'sprawdzian',
+        'value_text'      => $grade,
+        'value_num'       => (float)$grade,
+        'weight'          => (int)($exam['grade_weight'] ?? 3),
+        'description'     => $desc,
+        'graded_by_text'  => EQUI_EXAMS_NAME,
+    ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  NARZĘDZIA POMOCNICZE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ile podejść w kursie czeka na ocenę prowadzącego. */
+function ti_exam_pending_review_count(int $course_id): int {
+    return (int)(db_one(
+        "SELECT COUNT(*) AS n FROM k30_ti_exam_attempts a
+         JOIN k30_ti_exams e ON e.id = a.exam_id
+         WHERE e.course_id=? AND a.needs_review=1 AND a.status='submitted'",
+        [$course_id])['n'] ?? 0);
+}
+
+/**
+ * Import pytań ze starszego modułu Testy (k30_ti_tests) do egzaminu.
+ * Typ `open` przechodzi jako krótka odpowiedź z oceną prowadzącego.
+ *
+ * @return int liczba zaimportowanych pytań
+ */
+function ti_exam_import_from_test(int $exam_id, int $test_id): int {
+    if (!function_exists('k30_ti_test_questions')) return 0;
+    $n = 0;
+    foreach (k30_ti_test_questions($test_id) as $q) {
+        $type = match ((string)$q['type']) {
+            'multi' => 'multi',
+            'open'  => 'short_answer',
+            default => 'single',
+        };
+        $options = [];
+        if ($type !== 'short_answer') {
+            foreach (k30_ti_test_options((int)$q['id']) as $o) {
+                $options[] = ['label' => (string)$o['label'], 'is_correct' => (int)$o['is_correct'] === 1];
+            }
+        }
+        ti_exam_question_save([
+            'exam_id' => $exam_id,
+            'type'    => $type,
+            'prompt'  => (string)$q['prompt'],
+            'points'  => (float)$q['points'],
+            'in_bank' => (int)($q['in_bank'] ?? 0),
+            'config'  => $type === 'short_answer' ? ['manual' => true] : [],
+            'options' => $options,
+        ]);
+        $n++;
+    }
+    return $n;
+}
+
+/** Procent wyniku podejścia (0 gdy brak punktacji maksymalnej). */
+function ti_exam_pct(array $attempt): int {
+    $max = (float)($attempt['max_score'] ?? 0);
+    if ($max <= 0) return 0;
+    return (int)round(100 * (float)$attempt['score'] / $max);
+}
+
+/** Czy podejście zaliczone wg progu egzaminu. */
+function ti_exam_passed(array $exam, array $attempt): bool {
+    $threshold = (int)($exam['pass_pct'] ?? 0);
+    return $threshold <= 0 || ti_exam_pct($attempt) >= $threshold;
+}
+
+/** Ile sekund zostało do końca podejścia (null = bez limitu). */
+function ti_exam_seconds_left(array $attempt): ?int {
+    $dl = trim((string)($attempt['deadline_at'] ?? ''));
+    if ($dl === '') return null;
+    return max(0, strtotime($dl) - time());
+}

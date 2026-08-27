@@ -36,6 +36,11 @@ if ($_sms_enabled && $cur_course) {
   <span><strong><?= $pending_cancel_total ?></strong> <?= $pending_cancel_total === 1 ? 'prośba' : 'prośby' ?> o odwołanie udziału czeka na Twoje potwierdzenie — przy odpowiednich lekcjach poniżej.</span>
 </div>
 <?php endif; ?>
+<?php
+  // Karta otwartej lekcji (?lesson=<id>) — potrzebuje $STATUS, $_days_pl, $uid, $cur_course
+  $_days_pl = $_days_pl ?? ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+  include __DIR__ . '/_lekcja_karta.php';
+?>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
@@ -253,7 +258,10 @@ if ($_sms_enabled && $cur_course) {
             style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
-            <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
+            <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>"
+               class="text-decoration-none" aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
+              <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
+            </a>
             <span class="text-body-secondary d-block" style="font-size:.72rem"><?= $dow ?><?php if ($is_today): ?> <span class="badge px-1 py-0" style="font-size:.52rem;background:#2563eb;color:#fff">dziś</span><?php endif; ?></span>
           </td>
           <td style="font-size:.82rem;white-space:nowrap">
@@ -285,6 +293,11 @@ if ($_sms_enabled && $cur_course) {
           </td>
           <td>
             <div class="d-flex justify-content-end align-items-center flex-wrap gap-1">
+              <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>"
+                 class="btn btn-sm btn-outline-secondary py-0 px-2"
+                 aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
+                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Wejdź
+              </a>
               <?php if ($s['status'] !== 'remote_material'): ?>
               <button type="button" class="btn btn-sm btn-primary py-0 px-2"
                       data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"
@@ -321,9 +334,14 @@ if ($_sms_enabled && $cur_course) {
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
-                  <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>">
-                    <i class="bi bi-arrow-right-circle me-2"></i>Szczegóły lekcji
+                  <li><a class="dropdown-item" href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Wejdź do lekcji
                   </a></li>
+                  <?php if (dyd_is_staff()): ?>
+                  <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" target="_blank" rel="noopener">
+                    <i class="bi bi-arrow-up-right-square me-2"></i>Szczegóły w module TI
+                  </a></li>
+                  <?php endif; ?>
                   <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
                   <li><hr class="dropdown-divider"></li>
                   <li><a class="dropdown-item" href="#"
