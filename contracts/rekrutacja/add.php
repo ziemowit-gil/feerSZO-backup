@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja_offers.php'; // klasa VolunteerModuleManager
 
 require_role('admin', 'editor');
 
