@@ -163,6 +163,16 @@ function ext_can_manage(?array $subject): bool
 }
 
 /**
+ * Administrator systemu. Osobno od ext_can_manage(), bo „pracownik z prawem
+ * zapisu" to nie to samo co administrator: prowadzenie katalogu może mieć
+ * sekretariat, a zdejmowanie wszystkich ograniczeń — nie.
+ */
+function ext_is_admin(?array $subject): bool
+{
+    return $subject !== null && ($subject['role'] ?? '') === 'admin';
+}
+
+/**
  * Klucze, na które może być wystawiony grant: konkretna osoba, jej rola,
  * grupy TI kursanta oraz „każdy zalogowany".
  */
@@ -304,6 +314,22 @@ function ext_decide(?array $subject, array $ctx, string $ability): array
 
     $title = $ctx['title'];
     $rules = ext_effective_rules($ctx['publisher'], $title, $ctx['edition'], $ctx['resource']);
+
+    // Administrator przechodzi wszystko: embargo, zakazy, brak licencji, limity.
+    // Musi móc sprawdzić każdy plik, który sam wgrał albo do którego dostał
+    // zgłoszenie — inaczej diagnoza „czemu kursantowi się nie otwiera" kończy się
+    // rozbieraniem uprawnień na częsci. Stempel zostaje: to ślad, nie ograniczenie,
+    // a wyciek z konta administracji ma być tak samo rozpoznawalny jak każdy inny.
+    if (ext_is_admin($subject)) {
+        return [
+            'ok'         => true,
+            'reason'     => 'admin',
+            'abilities'  => ['view', 'stream', 'download', 'print'],
+            'watermark'  => 'footer',
+            'ttl'        => (int)$rules['ticket_ttl'],
+            'license_id' => null,
+        ];
+    }
 
     if (!empty($title['embargo_until']) && $title['embargo_until'] > date('Y-m-d H:i:s')) {
         return $deny('embargo');

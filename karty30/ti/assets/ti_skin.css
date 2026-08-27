@@ -294,23 +294,39 @@ body.ti-skin .usos-week .usos-slot {
 body.kur-alt .container-xl { max-width: 100% !important; }
 body.kur-alt main#main { padding: .75rem 1rem 2rem !important; }
 
-/* Pasek użytkownika: w widoku klasycznym jest jasny (bg-body-tertiary), tu robi
-   się granatowy, więc napisy i przyciski z szarej palety trzeba rozjaśnić —
-   inaczej ciemny tekst siedzi na ciemnym tle. #fff/#10335c = 13,5:1,
-   rgba(255,255,255,.75) na tym samym tle nadal ponad 7:1. */
-body.kur-alt header .navbar .navbar-brand,
-body.kur-alt header .navbar .text-body-secondary { color: #fff !important; }
-body.kur-alt header .navbar .kp-brand i { color: #ffd863 !important; }
-body.kur-alt header .navbar .btn-outline-secondary {
+/* Pasek użytkownika: w widoku klasycznym jest jasny (bg-body-tertiary), w skórce
+   robi się granatowy — więc napisy i przyciski z szarej palety trzeba rozjaśnić,
+   inaczej ciemny tekst siedzi na ciemnym tle i paska po prostu nie widać.
+   Reguły stoją pod `body.ti-skin`, nie pod jednym panelem: ten sam granatowy
+   pasek mają wszystkie ekrany skórki — panel prowadzącego, widok alternatywny
+   kursanta i moduł Materiałów zewnętrznych.
+   Kontrast: #fff/#10335c = 13,5:1, #ffd863/#10335c = 9,7:1, obramowanie
+   rgba(255,255,255,.55) jest tylko ozdobą — stan niesie także tekst. */
+body.ti-skin header .navbar .navbar-brand,
+body.ti-skin header .navbar .text-body-secondary,
+body.ti-skin header .navbar .navbar-text { color: #fff !important; }
+body.ti-skin header .navbar .kp-brand i { color: #ffd863 !important; }
+body.ti-skin header .navbar .btn-outline-secondary,
+body.ti-skin header .navbar .btn-outline-primary,
+body.ti-skin header .navbar .btn-outline-dark {
   color: #fff; border-color: rgba(255,255,255,.55); background: transparent;
 }
-body.kur-alt header .navbar .btn-outline-secondary:hover,
-body.kur-alt header .navbar .btn-outline-secondary:focus {
+body.ti-skin header .navbar .btn-outline-secondary:hover,
+body.ti-skin header .navbar .btn-outline-secondary:focus,
+body.ti-skin header .navbar .btn-outline-primary:hover,
+body.ti-skin header .navbar .btn-outline-primary:focus,
+body.ti-skin header .navbar .btn-outline-dark:hover,
+body.ti-skin header .navbar .btn-outline-dark:focus {
   color: #10335c; background: #fff; border-color: #fff;
+}
+/* Plakietka licznika przy dzwonku: czerwień Bootstrapa na granacie ma 3,4:1 —
+   za mało na drobny tekst, więc rozjaśniamy tło i zostawiamy ciemny napis. */
+body.ti-skin header .navbar .badge.text-bg-danger {
+  background: #ffd6d6 !important; color: #8a1c1c !important;
 }
 
 /* Dzwonek powiadomień i przełącznik widoku w pasku — kanciasto, bez cieni */
-body.kur-alt header .navbar .dropdown-menu { border-radius: 2px; font-size: .8rem; }
+body.ti-skin header .navbar .dropdown-menu { border-radius: 2px; font-size: .8rem; }
 
 /* Kafle i ozdobniki treści kursanta: płasko, spójnie z resztą skórki */
 body.kur-alt .kp-dash-card:hover { box-shadow: none !important; }

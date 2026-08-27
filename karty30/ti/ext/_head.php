@@ -36,6 +36,14 @@ body.ext-mod .ext-drop { border:2px dashed var(--ti-bar-border); padding:1.5rem;
 body.ext-mod .ext-drop.over { background:#eef3f9; border-color:var(--ti-blue); }
 body.ext-mod .ext-tree-depth-1 { padding-left:1.2rem; }
 body.ext-mod .ext-tree-depth-2 { padding-left:2.4rem; }
+/* Plakietki w treści: jaskrawa paleta Bootstrapa gryzła się ze stonowaną
+   skórką, a żółte tło z białym tekstem miało 1,9:1. Te odcienie trzymają
+   ten sam język kolorystyczny i mają powyżej 7:1 — a stan i tak niesie SŁOWO,
+   nie sam kolor. */
+body.ext-mod .badge.text-bg-warning   { background:#fdf0d0 !important; color:#6b4a00 !important; }
+body.ext-mod .badge.text-bg-success   { background:#dcefdc !important; color:#14532d !important; }
+body.ext-mod .badge.text-bg-danger    { background:#ffd6d6 !important; color:#8a1c1c !important; }
+body.ext-mod .badge.text-bg-secondary { background:#e3e8ef !important; color:#33415c !important; }
 </style>
 
 <nav class="skin-sections" aria-label="Sekcje modułu">
