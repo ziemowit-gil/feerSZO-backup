@@ -22,14 +22,16 @@ $rk_instr_id = (int)($_GET['rk_instr'] ?? 0);
 $rk_round    = $rk_round_id ? rk_round_get($rk_round_id) : null;
 if ($rk_round && !in_array($rk_round['status'], ['open','scheduled'], true)) $rk_round = null;
 
-$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id']) : [];
-$rk_slots       = ($rk_round && $rk_instr_id)
-    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
-    : [];
+// Lista zawężona przypisaniami kierownika (prowadzący per grupa kursanta)
+$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id'], $rk_client_id) : [];
 $rk_instr_name = '';
 foreach ($rk_instructors as $ri) {
     if ((int)$ri['id'] === $rk_instr_id) { $rk_instr_name = (string)$ri['name']; break; }
 }
+// Terminy tylko prowadzącego z listy — adres spoza przypisań nie pokaże slotów
+$rk_slots = ($rk_round && $rk_instr_id && $rk_instr_name !== '')
+    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
+    : [];
 
 $rk_flash = $_SESSION['rk_flash'] ?? null;
 unset($_SESSION['rk_flash']);
@@ -46,6 +48,9 @@ $rk_mode_label = fn(string $m) => match ($m) {
   <h1 class="h5 fw-bold mb-0"><i class="bi bi-ticket-perforated text-primary me-1" aria-hidden="true"></i>Zapisy na zajęcia</h1>
   <span class="badge text-bg-primary fs-6 ms-auto" title="Suma dostępnych żetonów ze wszystkich ważnych pul">
     <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> <?= $rk_avail === 1 ? 'żeton' : ($rk_avail >= 2 && $rk_avail <= 4 ? 'żetony' : 'żetonów') ?>
+    <?php $rk_pln = rk_token_pln(); if ($rk_pln > 0): ?>
+    <span class="opacity-75">≈ <?= number_format($rk_avail * $rk_pln, 2, ',', ' ') ?> zł</span>
+    <?php endif; ?>
   </span>
 </div>
 
@@ -246,10 +251,12 @@ $rk_mode_label = fn(string $m) => match ($m) {
         $full_ref   = $hours_left >= (int)$b['refund_hours'];
         [$st_label, $st_class] = match ((string)$b['status']) {
             'confirmed'         => $future ? ['zarezerwowane', 'primary'] : ['odbyte?', 'secondary'],
+            'pending_parent'    => ['czeka na zgodę rodzica', 'warning'],
             'attended'          => ['odbyte', 'success'],
             'no_show'           => ['nieobecność', 'danger'],
             'cancelled_student' => ['zrezygnowano', 'secondary'],
             'cancelled_staff'   => ['odwołane przez ośrodek', 'warning'],
+            'cancelled_parent'  => ['niezatwierdzone przez rodzica', 'secondary'],
             default             => [(string)$b['status'], 'secondary'],
         };
       ?>
@@ -271,9 +278,9 @@ $rk_mode_label = fn(string $m) => match ($m) {
         </td>
         <td><span class="badge text-bg-<?= $st_class ?>"><?= h($st_label) ?></span></td>
         <td class="text-end">
-          <?php if ($b['status'] === 'confirmed' && $future): ?>
+          <?php if (in_array($b['status'], ['confirmed','pending_parent'], true) && $future): ?>
           <form method="post" class="d-inline"
-                onsubmit="return confirm('<?= $full_ref
+                onsubmit="return confirm('<?= ($full_ref || $b['status'] === 'pending_parent')
                     ? 'Zrezygnować z terminu? Żetony wrócą w całości.'
                     : 'Uwaga: termin jest bliżej niż ' . (int)$b['refund_hours'] . ' h — żetony mogą nie zostać zwrócone. Zrezygnować?' ?>')">
             <input type="hidden" name="_token" value="<?= h(student_token()) ?>">

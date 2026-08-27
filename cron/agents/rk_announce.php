@@ -45,4 +45,8 @@ db_exec("UPDATE k30_rk_rounds SET status='open'
 db_exec("UPDATE k30_rk_rounds SET status='closed'
           WHERE status='open' AND closes_at IS NOT NULL AND closes_at < datetime('now')");
 
+// 4. Rezerwacje małoletnich bez decyzji rodzica — wygaszenie z pełnym zwrotem
+$expired = rk_parent_expire_stale();
+if ($expired) echo date('Y-m-d H:i:s') . " wygaszono $expired rezerwacji bez zgody rodzica\n";
+
 echo date('Y-m-d H:i:s') . " rk_announce: gotowe\n";

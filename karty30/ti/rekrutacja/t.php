@@ -75,7 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
             $r = rk_book((int)($_POST['slot_id'] ?? 0), $client_id, 'token', $ctx['token_id'] ?: null);
-            $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
+            if (($r['status'] ?? '') === 'pending_parent') {
+                require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+                rk_parent_request_send((int)$r['booking_id']);
+                $_SESSION['rk_flash'] = ['ok', 'Miejsce wstępnie zarezerwowane. Rodzic/opiekun dostał e-mail '
+                    . 'z linkiem do zatwierdzenia (i SMS) — rezerwacja stanie się ostateczna po jego zgodzie.'];
+            } else {
+                $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
+            }
             $back = 't.php';
         } catch (RkException $e) {
             $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
@@ -109,14 +116,16 @@ $rk_instr_id = (int)($_GET['rk_instr'] ?? 0);
 $rk_round    = $rk_round_id ? rk_round_get($rk_round_id) : null;
 if ($rk_round && !in_array($rk_round['status'], ['open','scheduled'], true)) $rk_round = null;
 
-$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id']) : [];
-$rk_slots       = ($rk_round && $rk_instr_id)
-    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
-    : [];
+// Lista zawężona przypisaniami kierownika (prowadzący per grupa kursanta)
+$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id'], $client_id) : [];
 $rk_instr_name = '';
 foreach ($rk_instructors as $ri) {
     if ((int)$ri['id'] === $rk_instr_id) { $rk_instr_name = (string)$ri['name']; break; }
 }
+// Terminy tylko prowadzącego z listy — adres spoza przypisań nie pokaże slotów
+$rk_slots = ($rk_round && $rk_instr_id && $rk_instr_name !== '')
+    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
+    : [];
 
 $rk_flash = $_SESSION['rk_flash'] ?? null;
 unset($_SESSION['rk_flash']);
@@ -176,7 +185,8 @@ function rk_t_page(string $org, string $title, string $body_html): void {
     <div class="text-body-secondary small"><?= h($org) ?> · <?= h($client['name']) ?></div>
   </div>
   <span class="badge fs-6 ms-auto" style="background:#c2410c" title="Dostępne żetony">
-    <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> żet.
+    <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> żet.<?php
+    $rk_pln = rk_token_pln(); if ($rk_pln > 0): ?> <span class="opacity-75">≈ <?= number_format($rk_avail * $rk_pln, 2, ',', ' ') ?> zł</span><?php endif; ?>
   </span>
 </header>
 
@@ -319,10 +329,12 @@ function rk_t_page(string $org, string $title, string $body_html): void {
         $full_ref   = $hours_left >= (int)$b['refund_hours'];
         [$st_label, $st_class] = match ((string)$b['status']) {
             'confirmed'         => $future ? ['zarezerwowane', 'primary'] : ['w toku', 'secondary'],
+            'pending_parent'    => ['czeka na zgodę rodzica', 'warning'],
             'attended'          => ['odbyte', 'success'],
             'no_show'           => ['nieobecność', 'danger'],
             'cancelled_student' => ['zrezygnowano', 'secondary'],
             'cancelled_staff'   => ['odwołane przez ośrodek', 'warning'],
+            'cancelled_parent'  => ['niezatwierdzone przez rodzica', 'secondary'],
             default             => [(string)$b['status'], 'secondary'],
         };
       ?>
@@ -336,9 +348,9 @@ function rk_t_page(string $org, string $title, string $body_html): void {
             ? ' <span class="text-success" style="font-size:.78rem">(zwrot ' . (int)$b['tokens_refunded'] . ')</span>' : '' ?></td>
         <td><span class="badge text-bg-<?= $st_class ?>"><?= h($st_label) ?></span></td>
         <td class="text-end">
-          <?php if ($b['status'] === 'confirmed' && $future): ?>
+          <?php if (in_array($b['status'], ['confirmed','pending_parent'], true) && $future): ?>
           <form method="post" class="d-inline"
-                onsubmit="return confirm('<?= $full_ref
+                onsubmit="return confirm('<?= ($full_ref || $b['status'] === 'pending_parent')
                     ? 'Zrezygnować z terminu? Żetony wrócą w całości.'
                     : 'Uwaga: termin jest bliżej niż ' . (int)$b['refund_hours'] . ' h — żetony mogą nie zostać zwrócone. Zrezygnować?' ?>')">
             <input type="hidden" name="_token" value="<?= h(rk_session_csrf()) ?>">

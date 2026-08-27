@@ -913,6 +913,59 @@ HTML,
                 'link'       => ['label' => 'Osobisty link z tokenem',        'sample' => $base . '/karty30/ti/rekrutacja/t.php?t=a1b2c3d4e5f6.…'],
             ],
         ],
+
+        // — Rekrutacja TI: zatwierdzenie rezerwacji małoletniego przez rodzica —
+        'rk_parent_confirm' => [
+            'label'       => 'Rekrutacja TI — zatwierdzenie rodzica',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-shield-check',
+            'auto'        => true,
+            'description' => 'Prośba do rodzica/opiekuna o zatwierdzenie rezerwacji terminu przez małoletniego kursanta. Rodzic dostaje też SMS informacyjny. Bez decyzji rezerwacja wygasa z pełnym zwrotem żetonów.',
+            'subject'     => 'Prośba o zatwierdzenie rezerwacji — {{student}}',
+            'body'        => <<<'HTML'
+<p>{{guardian}},</p>
+
+<p>kursant <strong>{{student}}</strong> zapisał(a) się na zajęcia i prosimy Państwa
+o zatwierdzenie tej rezerwacji:</p>
+
+<table style="background:#f8f9fa;border-radius:8px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr><td style="padding:6px 14px;color:#6c757d;width:130px;font-size:.9em">Termin</td>
+      <td style="padding:6px 14px"><strong>{{when}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Prowadzący</td>
+      <td style="padding:6px 14px">{{instructor}}</td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Zajęcia</td>
+      <td style="padding:6px 14px">{{subject}}</td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Koszt</td>
+      <td style="padding:6px 14px">{{tokens}} żeton(y) z puli kursanta</td></tr>
+</table>
+
+<p>Rezerwacja stanie się ostateczna po Państwa zgodzie. Bez decyzji wygaśnie
+automatycznie po <strong>{{hours}} godzinach</strong> od zapisu, a żetony wrócą
+w całości na konto kursanta.</p>
+
+<div style="margin:24px 0;text-align:center">
+  <a href="{{link}}" style="background:#c2410c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zatwierdź lub odrzuć rezerwację &rarr;
+  </a>
+</div>
+
+<p style="font-size:.85em;color:#6c757d">
+  Link jest jednorazowy i przypisany do tej rezerwacji. Wiadomość wysłana automatycznie
+  przez system {{org}} — o wysyłce informujemy również SMS-em.
+</p>
+HTML,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',            'sample' => 'Dydaktyka TI'],
+                'guardian'   => ['label' => 'Imię i nazwisko opiekuna',     'sample' => 'Anna Kowalska'],
+                'student'    => ['label' => 'Imię i nazwisko kursanta',     'sample' => 'Jan Kowalski'],
+                'when'       => ['label' => 'Termin zajęć',                 'sample' => '05.10.2026 16:00–17:00'],
+                'instructor' => ['label' => 'Prowadzący',                   'sample' => 'Marek Nowak'],
+                'subject'    => ['label' => 'Temat/rodzaj zajęć',           'sample' => 'konsultacja projektowa'],
+                'tokens'     => ['label' => 'Koszt w żetonach',             'sample' => '1'],
+                'hours'      => ['label' => 'Godziny na decyzję',           'sample' => '48'],
+                'link'       => ['label' => 'Link zatwierdzenia (token)',   'sample' => $base . '/karty30/ti/rekrutacja/potwierdz.php?t=…'],
+            ],
+        ],
     ];
 
     return $reg;

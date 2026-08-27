@@ -148,7 +148,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
             $r = rk_book((int)($_POST['slot_id'] ?? 0), (int)$student['client_id'], 'panel');
-            $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
+            if (($r['status'] ?? '') === 'pending_parent') {
+                // Mail + SMS do rodzica poza transakcją rezerwacji
+                rk_parent_request_send((int)$r['booking_id']);
+                $_SESSION['rk_flash'] = ['ok', 'Miejsce wstępnie zarezerwowane. Wysłaliśmy rodzicowi/opiekunowi '
+                    . 'e-mail z linkiem do zatwierdzenia (i SMS) — rezerwacja stanie się ostateczna po jego zgodzie.'];
+            } else {
+                $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
+            }
             $back = 'index.php?tab=zapisy';
         } catch (RkException $e) {
             $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
