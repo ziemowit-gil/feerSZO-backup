@@ -93,10 +93,13 @@ function ti_rk_migrate(): void {
         cancelled_at    DATETIME,
         cancel_reason   TEXT    NOT NULL DEFAULT ''
     )");
-    // Klucz antywyścigowy: jeden kursant = jedno żywe miejsce na slocie
-    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rk_book_uniq
+    // Klucz antywyścigowy: jeden kursant = jedno żywe miejsce na slocie.
+    // v2 dodaje status pending_parent (rezerwacja małoletniego czekająca
+    // na zatwierdzenie rodzica też zajmuje miejsce).
+    $pdo->exec("DROP INDEX IF EXISTS idx_rk_book_uniq");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rk_book_uniq_v2
                 ON k30_rk_bookings(slot_id, client_id)
-                WHERE status IN ('confirmed','attended','no_show')");
+                WHERE status IN ('confirmed','pending_parent','attended','no_show')");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rk_book_client ON k30_rk_bookings(client_id, status)");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_access_tokens (
@@ -113,6 +116,11 @@ function ti_rk_migrate(): void {
         revoked_at   DATETIME,
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Token zatwierdzenia rodzica wskazuje konkretną rezerwację
+    $cols = array_column(db_all("PRAGMA table_info(k30_rk_access_tokens)"), 'name');
+    if ($cols && !in_array('booking_id', $cols, true)) {
+        try { $pdo->exec("ALTER TABLE k30_rk_access_tokens ADD COLUMN booking_id INTEGER"); } catch (\Throwable) {}
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_notifications (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,6 +131,17 @@ function ti_rk_migrate(): void {
         sent_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(round_id, client_id, kind)
     )");
+
+    // Prowadzący do wyboru per grupa (kurs) w turze — ustawia kierownik.
+    // Brak wpisów dla grup kursanta = kursant widzi wszystkich prowadzących.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_round_course_instructors (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        round_id      INTEGER NOT NULL REFERENCES k30_rk_rounds(id)   ON DELETE CASCADE,
+        course_id     INTEGER NOT NULL REFERENCES k30_ti_courses(id)  ON DELETE CASCADE,
+        instructor_id INTEGER NOT NULL REFERENCES users(id)           ON DELETE CASCADE,
+        UNIQUE(round_id, course_id, instructor_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rk_rci_round ON k30_rk_round_course_instructors(round_id, course_id)");
 
     // Rate-limit prób tokenu (zgadywanie linków)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_rate (
@@ -257,6 +276,84 @@ function rk_wallet_pick(int $client_id, int $forced_pool_id, int $cost, string $
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   USTAWIENIA MODUŁU — zależność godziny ↔ żetony ↔ złotówki, wszystko
+   edytowane przez kierownika (zakładka Ustawienia w rekrutacja.php).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Ustawienie modułu z org_settings (string; '' = brak). */
+function rk_setting(string $key, string $default = ''): string {
+    $v = function_exists('org_setting') ? org_setting($key) : '';
+    return $v !== '' ? $v : $default;
+}
+
+/** Ile minut zajęć odpowiada 1 żetonowi (0 = auto-wycena wyłączona). */
+function rk_token_minutes(): int {
+    return max(0, (int)rk_setting('rk_token_minutes', '60'));
+}
+
+/** Wartość 1 żetonu w złotych do podsumowań rozliczeniowych (0 = nie pokazuj). */
+function rk_token_pln(): float {
+    return max(0.0, (float)str_replace(',', '.', rk_setting('rk_token_pln', '0')));
+}
+
+/** Ile godzin rodzic ma na zatwierdzenie rezerwacji małoletniego. */
+function rk_parent_confirm_hours(): int {
+    return max(1, (int)rk_setting('rk_parent_confirm_hours', '48'));
+}
+
+/** Automatyczny koszt terminu z czasu trwania: ceil(minuty / minuty-na-żeton). */
+function rk_auto_cost(string $starts_at, string $ends_at): int {
+    $per = rk_token_minutes();
+    if ($per <= 0) return 1;
+    $min = (strtotime($ends_at) - strtotime($starts_at)) / 60;
+    return max(1, (int)ceil($min / $per));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PROWADZĄCY DO WYBORU PER GRUPA — przypisania kierownika w turze.
+   Reguła: jeśli którakolwiek grupa kursanta ma wpisy w turze, kursant widzi
+   wyłącznie prowadzących przypisanych jego grupom; brak wpisów = wszyscy.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Mapa przypisań tury: [course_id => [instructor_id, …]]. */
+function rk_group_map(int $round_id): array {
+    $map = [];
+    foreach (db_all("SELECT course_id, instructor_id FROM k30_rk_round_course_instructors
+                      WHERE round_id=? ORDER BY course_id", [$round_id]) as $r) {
+        $map[(int)$r['course_id']][] = (int)$r['instructor_id'];
+    }
+    return $map;
+}
+
+/** Ustawia prowadzących dla grupy w turze (pusta lista = zdjęcie ograniczenia). */
+function rk_group_set(int $round_id, int $course_id, array $instructor_ids): void {
+    rk_tx(function () use ($round_id, $course_id, $instructor_ids) {
+        db_exec("DELETE FROM k30_rk_round_course_instructors WHERE round_id=? AND course_id=?",
+                [$round_id, $course_id]);
+        foreach (array_unique(array_filter(array_map('intval', $instructor_ids))) as $iid) {
+            db_exec("INSERT OR IGNORE INTO k30_rk_round_course_instructors
+                        (round_id, course_id, instructor_id) VALUES (?,?,?)",
+                    [$round_id, $course_id, $iid]);
+        }
+    });
+}
+
+/**
+ * Prowadzący dozwoleni dla kursanta w turze.
+ * null = bez ograniczeń (żadna z jego grup nie ma przypisań).
+ */
+function rk_allowed_instructors(int $round_id, int $client_id): ?array {
+    $rows = db_all(
+        "SELECT DISTINCT gi.instructor_id
+           FROM k30_rk_round_course_instructors gi
+           JOIN k30_ti_enrollments e ON e.course_id = gi.course_id
+          WHERE gi.round_id = ? AND e.client_id = ? AND e.status = 'active'",
+        [$round_id, $client_id]);
+    if (!$rows) return null;
+    return array_map(fn($r) => (int)$r['instructor_id'], $rows);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    TURY
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -265,7 +362,7 @@ function rk_rounds_list(): array {
         "SELECT r.*, p.name AS pool_name,
                 (SELECT COUNT(*) FROM k30_rk_slots s WHERE s.round_id=r.id) AS n_slots,
                 (SELECT COUNT(*) FROM k30_rk_bookings b JOIN k30_rk_slots s ON s.id=b.slot_id
-                  WHERE s.round_id=r.id AND b.status='confirmed') AS n_bookings
+                  WHERE s.round_id=r.id AND b.status IN ('confirmed','pending_parent')) AS n_bookings
            FROM k30_rk_rounds r
            LEFT JOIN k30_pl_token_pools p ON p.id = r.pool_id
           ORDER BY r.opens_at DESC, r.id DESC", []
@@ -313,7 +410,7 @@ function rk_rounds_for_client(int $client_id): array {
                     AND s.starts_at > datetime('now')) AS n_free,
                 (SELECT COUNT(*) FROM k30_rk_bookings b JOIN k30_rk_slots s ON s.id=b.slot_id
                   WHERE s.round_id=r.id AND b.client_id=?
-                    AND b.status IN ('confirmed','attended','no_show')) AS n_mine
+                    AND b.status IN ('confirmed','pending_parent','attended','no_show')) AS n_mine
            FROM k30_rk_rounds r
            LEFT JOIN k30_pl_token_pools p ON p.id = r.pool_id
           WHERE r.status IN ('open','scheduled')
@@ -346,7 +443,10 @@ function rk_slot_save(array $d, ?int $id = null): int {
         'starts_at'     => $d['starts_at'] ?? '',
         'ends_at'       => $d['ends_at'] ?? '',
         'capacity'      => max(1, (int)($d['capacity'] ?? 1)),
-        'token_cost'    => max(0, (int)($d['token_cost'] ?? 1)),
+        // Puste pole kosztu = auto-wycena z czasu trwania (1 żeton = rk_token_minutes)
+        'token_cost'    => (($d['token_cost'] ?? '') === '' || $d['token_cost'] === 'auto')
+                              ? rk_auto_cost((string)($d['starts_at'] ?? ''), (string)($d['ends_at'] ?? ''))
+                              : max(0, (int)$d['token_cost']),
         'notes'         => substr($d['notes'] ?? '', 0, 500),
     ];
     if (!$fields['round_id'] || !$fields['instructor_id']) throw new RkException('SLOT_INVALID');
@@ -372,8 +472,22 @@ function rk_slot_save(array $d, ?int $id = null): int {
     return (int)db()->lastInsertId();
 }
 
-/** Prowadzący mający sloty w turze + licznik wolnych miejsc. */
-function rk_instructors_for_round(int $round_id): array {
+/**
+ * Prowadzący mający sloty w turze + licznik wolnych miejsc.
+ * $client_id > 0 zawęża listę do prowadzących dozwolonych dla grup kursanta
+ * (przypisania kierownika — rk_allowed_instructors).
+ */
+function rk_instructors_for_round(int $round_id, int $client_id = 0): array {
+    $extra  = '';
+    $params = [$round_id];
+    if ($client_id > 0) {
+        $allowed = rk_allowed_instructors($round_id, $client_id);
+        if ($allowed !== null) {
+            if (!$allowed) return [];
+            $extra  = ' AND u.id IN (' . implode(',', array_fill(0, count($allowed), '?')) . ')';
+            $params = array_merge($params, $allowed);
+        }
+    }
     return db_all(
         "SELECT u.id, u.name, u.email,
                 COUNT(s.id) AS slots_total,
@@ -384,10 +498,10 @@ function rk_instructors_for_round(int $round_id): array {
                 MIN(s.token_cost) AS min_cost
            FROM k30_rk_slots s
            JOIN users u ON u.id = s.instructor_id
-          WHERE s.round_id = ? AND s.status IN ('open','locked') AND u.is_active = 1
+          WHERE s.round_id = ? AND s.status IN ('open','locked') AND u.is_active = 1$extra
           GROUP BY u.id
           ORDER BY slots_free DESC, u.name COLLATE NOCASE",
-        [$round_id]
+        $params
     );
 }
 
@@ -454,13 +568,27 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
                                                      throw new RkException('ROUND_ENDED');
         if (strtotime((string)$slot['starts_at']) <= time()) throw new RkException('SLOT_IN_PAST');
 
+        /* 1a. Przypisania kierownika: prowadzący musi być dozwolony dla grup kursanta */
+        $allowed = rk_allowed_instructors((int)$slot['round_id'], $client_id);
+        if ($allowed !== null && !in_array((int)$slot['instructor_id'], $allowed, true)) {
+            throw new RkException('INSTRUCTOR_NOT_ALLOWED');
+        }
+
+        /* 1b. Małoletni: rezerwację musi zatwierdzić rodzic (mail + SMS po transakcji) */
+        $guardian = rk_guardian_for_client($client_id);
+        $pending  = false;
+        if ($guardian['is_minor']) {
+            if ($guardian['email'] === '') throw new RkException('GUARDIAN_MISSING');
+            $pending = true;
+        }
+
         /* 2. Limit rezerwacji w turze */
         if ((int)$slot['max_per_client'] > 0) {
             $n = (int)(db_one(
                 "SELECT COUNT(*) n FROM k30_rk_bookings b
                    JOIN k30_rk_slots s2 ON s2.id = b.slot_id
                   WHERE b.client_id = ? AND s2.round_id = ?
-                    AND b.status IN ('confirmed','attended','no_show')",
+                    AND b.status IN ('confirmed','pending_parent','attended','no_show')",
                 [$client_id, $slot['round_id']])['n'] ?? 0);
             if ($n >= (int)$slot['max_per_client']) throw new RkException('ROUND_LIMIT_REACHED');
         }
@@ -469,7 +597,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         $dup = db_one(
             "SELECT 1 FROM k30_rk_bookings
               WHERE slot_id = ? AND client_id = ?
-                AND status IN ('confirmed','attended','no_show')",
+                AND status IN ('confirmed','pending_parent','attended','no_show')",
             [$slot_id, $client_id]);
         if ($dup) throw new RkException('ALREADY_BOOKED');
 
@@ -477,7 +605,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         $clash = db_one(
             "SELECT 1 FROM k30_rk_bookings b
                JOIN k30_rk_slots s2 ON s2.id = b.slot_id
-              WHERE b.client_id = ? AND b.status = 'confirmed' AND s2.id != ?
+              WHERE b.client_id = ? AND b.status IN ('confirmed','pending_parent') AND s2.id != ?
                 AND s2.starts_at < ? AND s2.ends_at > ?",
             [$client_id, $slot_id, $slot['ends_at'], $slot['starts_at']]);
         if ($clash) throw new RkException('TIME_CLASH');
@@ -509,8 +637,9 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
             db_exec(
                 "INSERT INTO k30_rk_bookings
                     (slot_id, client_id, wallet_id, tokens_spent, status, source, access_token_id)
-                 VALUES (?,?,?,?, 'confirmed', ?, ?)",
-                [$slot_id, $client_id, $wallet['id'], $cost, $source, $token_id]);
+                 VALUES (?,?,?,?, ?, ?, ?)",
+                [$slot_id, $client_id, $wallet['id'], $cost,
+                 $pending ? 'pending_parent' : 'confirmed', $source, $token_id]);
         } catch (\PDOException) {
             throw new RkException('ALREADY_BOOKED');   // rollback cofa kroki 4 i 5
         }
@@ -525,11 +654,26 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
                 [$wallet['id'], $cost, $booking_id]);
         }
 
-        /* 8. Materializacja do dziennika TI */
-        rk_materialize_session($slot_id, $client_id);
+        /* 8. Materializacja do dziennika TI — dopiero po zatwierdzeniu rodzica,
+              gdy rezerwacja czeka (pending_parent nie siedzi w dzienniku) */
+        if (!$pending) rk_materialize_session($slot_id, $client_id);
 
-        return ['booking_id' => $booking_id, 'tokens_spent' => $cost];
+        return ['booking_id' => $booking_id, 'tokens_spent' => $cost,
+                'status'     => $pending ? 'pending_parent' : 'confirmed'];
     });
+}
+
+/** Opiekun małoletniego kursanta z konta k30_ti_student_accounts. */
+function rk_guardian_for_client(int $client_id): array {
+    $a = db_one(
+        "SELECT is_minor, guardian_name, guardian_email, guardian_phone
+           FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$client_id]);
+    return [
+        'is_minor' => !empty($a['is_minor']),
+        'name'     => trim((string)($a['guardian_name'] ?? '')),
+        'email'    => trim((string)($a['guardian_email'] ?? '')),
+        'phone'    => trim((string)($a['guardian_phone'] ?? '')),
+    ];
 }
 
 /** Portfel „techniczny” dla slotów darmowych (token_cost=0) — żeby FK trzymał. */
@@ -607,28 +751,35 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
               WHERE b.id = ?" . ($by === 'student' ? " AND b.client_id = ?" : ""),
             $by === 'student' ? [$booking_id, $client_id] : [$booking_id]);
 
-        if (!$b)                          throw new RkException('BOOKING_NOT_FOUND');
-        if ($b['status'] !== 'confirmed') throw new RkException('BOOKING_NOT_ACTIVE');
+        if (!$b) throw new RkException('BOOKING_NOT_FOUND');
+        if (!in_array($b['status'], ['confirmed','pending_parent'], true)) {
+            throw new RkException('BOOKING_NOT_ACTIVE');
+        }
 
         $paid  = (int)$b['tokens_spent'] - (int)$b['tokens_refunded'];
         $hours = (strtotime((string)$b['starts_at']) - time()) / 3600;
 
-        if ($by === 'staff') {
-            $refund = $paid;                                   // odwołanie po stronie ośrodka
-        } elseif ($hours >= (int)$b['refund_hours']) {
+        // Pełny zwrot: odwołanie ośrodka, decyzja/wygaśnięcie u rodzica,
+        // rezygnacja z rezerwacji jeszcze niezatwierdzonej, rezygnacja w oknie.
+        if ($by !== 'student' || $b['status'] === 'pending_parent' || $hours >= (int)$b['refund_hours']) {
             $refund = $paid;
         } else {
             $refund = (int)floor($paid * (int)$b['late_refund_pct'] / 100);
         }
+
+        $new_status = match ($by) {
+            'staff'  => 'cancelled_staff',
+            'parent' => 'cancelled_parent',
+            default  => 'cancelled_student',
+        };
 
         /* Zamknięcie rezerwacji — warunkowo: dwa kliki nie zwrócą dwa razy */
         $ok = rk_affect(
             "UPDATE k30_rk_bookings
                 SET status = ?, cancelled_at = datetime('now'),
                     tokens_refunded = tokens_refunded + ?, cancel_reason = ?
-              WHERE id = ? AND status = 'confirmed'",
-            [$by === 'staff' ? 'cancelled_staff' : 'cancelled_student', $refund,
-             substr($reason, 0, 300), $booking_id]);
+              WHERE id = ? AND status IN ('confirmed','pending_parent')",
+            [$new_status, $refund, substr($reason, 0, 300), $booking_id]);
         if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
 
         db_exec("UPDATE k30_rk_slots SET seats_taken = MAX(0, seats_taken - 1) WHERE id = ?",
@@ -694,7 +845,7 @@ function rk_slot_cancel(int $slot_id, int $instructor_id, string $reason = ''): 
 
         $n = 0;
         foreach (db_all("SELECT id, client_id FROM k30_rk_bookings
-                          WHERE slot_id=? AND status='confirmed'", [$slot_id]) as $b) {
+                          WHERE slot_id=? AND status IN ('confirmed','pending_parent')", [$slot_id]) as $b) {
             rk_cancel((int)$b['id'], (int)$b['client_id'], 'staff', $reason ?: 'odwołanie terminu');
             $n++;
         }
@@ -913,6 +1064,200 @@ function rk_round_announce(int $round_id, string $kind = 'open'): int {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ZATWIERDZENIE RODZICA — rezerwacja małoletniego czeka (pending_parent),
+   rodzic dostaje e-mail z linkiem (token) + SMS. Zatwierdza albo odrzuca;
+   po rk_parent_confirm_hours bez decyzji cron wygasza z pełnym zwrotem.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Token zatwierdzenia dla rodzica (scope parent_confirm, wskazuje rezerwację). */
+function rk_parent_token_issue(int $booking_id, int $client_id, int $days = 7): string {
+    $selector = bin2hex(random_bytes(6));
+    $secret   = bin2hex(random_bytes(24));
+    db_exec("INSERT INTO k30_rk_access_tokens
+                (selector, token_hash, client_id, booking_id, scope, expires_at)
+             VALUES (?,?,?,?, 'parent_confirm', ?)",
+        [$selector, hash('sha256', $secret), $client_id, $booking_id,
+         date('Y-m-d H:i:s', strtotime("+$days days"))]);
+    return $selector . '.' . $secret;
+}
+
+/**
+ * Wysyłka prośby o zatwierdzenie do rodzica (e-mail + SMS). Wołać PO
+ * zamknięciu transakcji rezerwacji. Idempotentna: drugi raz nic nie wysyła,
+ * jeśli rezerwacja ma już żywy token parent_confirm.
+ */
+function rk_parent_request_send(int $booking_id): bool {
+    if (!function_exists('mail_queue_add')) require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('email_tpl_render')) require_once __DIR__ . '/email_templates.php';
+
+    $b = db_one(
+        "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, s.mode,
+                u.name AS instructor_name, cl.name AS client_name
+           FROM k30_rk_bookings b
+           JOIN k30_rk_slots s ON s.id = b.slot_id
+           JOIN users u ON u.id = s.instructor_id
+           JOIN k30_clients cl ON cl.id = b.client_id
+          WHERE b.id = ? AND b.status = 'pending_parent'", [$booking_id]);
+    if (!$b) return false;
+
+    $g = rk_guardian_for_client((int)$b['client_id']);
+    if ($g['email'] === '') return false;
+
+    $has = db_one("SELECT 1 FROM k30_rk_access_tokens
+                    WHERE booking_id=? AND scope='parent_confirm'
+                      AND revoked_at IS NULL AND expires_at > datetime('now')", [$booking_id]);
+    if ($has) return true;   // prośba już wysłana
+
+    $tok  = rk_parent_token_issue($booking_id, (int)$b['client_id'],
+                                  max(2, (int)ceil(rk_parent_confirm_hours() / 24) + 1));
+    $link = rtrim(APP_URL, '/') . '/karty30/ti/rekrutacja/potwierdz.php?t=' . $tok;
+
+    $tpl = email_tpl_render('rk_parent_confirm', [
+        'guardian'   => $g['name'] !== '' ? $g['name'] : 'Szanowni Państwo',
+        'student'    => (string)$b['client_name'],
+        'when'       => rk_fmt_dt((string)$b['starts_at']) . '–' . substr((string)$b['ends_at'], 11, 5),
+        'instructor' => (string)$b['instructor_name'],
+        'subject'    => (string)($b['subject_label'] ?: 'konsultacja'),
+        'tokens'     => (string)(int)$b['tokens_spent'],
+        'hours'      => (string)rk_parent_confirm_hours(),
+        'link'       => $link,
+        'org'        => defined('ORG_NAME') ? ORG_NAME : '',
+    ]);
+    if ($tpl['enabled'] && $tpl['subject'] !== '') {
+        mail_queue_add($g['email'], $g['name'], $tpl['subject'], $tpl['html'],
+                       '', 'rk_parent_confirm', $booking_id);
+    }
+
+    // SMS informacyjny — decyzja i tak zapada w mailu
+    if ($g['phone'] !== '' && function_exists('sms_is_enabled') && sms_is_enabled()) {
+        try {
+            sms_send($g['phone'],
+                'Kursant ' . $b['client_name'] . ' zapisal sie na zajecia '
+                . date('d.m H:i', strtotime((string)$b['starts_at']))
+                . '. Prosimy zatwierdzic rezerwacje - link wyslalismy e-mailem na adres '
+                . $g['email'] . '. ' . (defined('ORG_NAME') ? ORG_NAME : ''));
+        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+    }
+    return true;
+}
+
+/** Token rodzica → rezerwacja z kontekstem (albo null). */
+function rk_parent_resolve(string $raw): ?array {
+    $t = rk_token_resolve($raw);
+    if (!$t || $t['scope'] !== 'parent_confirm' || empty($t['booking_id'])) return null;
+    $b = db_one(
+        "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, s.mode,
+                u.name AS instructor_name, cl.name AS client_name
+           FROM k30_rk_bookings b
+           JOIN k30_rk_slots s ON s.id = b.slot_id
+           JOIN users u ON u.id = s.instructor_id
+           JOIN k30_clients cl ON cl.id = b.client_id
+          WHERE b.id = ?", [(int)$t['booking_id']]);
+    return $b ? ['token' => $t, 'booking' => $b] : null;
+}
+
+/** Zatwierdzenie przez rodzica: pending_parent → confirmed + wpis do dziennika. */
+function rk_parent_confirm(int $booking_id): void {
+    rk_tx(function () use ($booking_id) {
+        $ok = rk_affect("UPDATE k30_rk_bookings SET status='confirmed'
+                          WHERE id=? AND status='pending_parent'", [$booking_id]);
+        if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
+        $b = db_one("SELECT slot_id, client_id FROM k30_rk_bookings WHERE id=?", [$booking_id]);
+        rk_materialize_session((int)$b['slot_id'], (int)$b['client_id']);
+        db_exec("UPDATE k30_rk_access_tokens SET revoked_at=datetime('now')
+                  WHERE booking_id=? AND scope='parent_confirm'", [$booking_id]);
+    });
+}
+
+/** Odrzucenie przez rodzica: pełny zwrot żetonów, miejsce wraca do puli. */
+function rk_parent_reject(int $booking_id, string $reason = ''): array {
+    $b = db_one("SELECT client_id FROM k30_rk_bookings WHERE id=?", [$booking_id]);
+    if (!$b) throw new RkException('BOOKING_NOT_FOUND');
+    $out = rk_cancel($booking_id, (int)$b['client_id'], 'parent', $reason ?: 'odrzucone przez rodzica');
+    db_exec("UPDATE k30_rk_access_tokens SET revoked_at=datetime('now')
+              WHERE booking_id=? AND scope='parent_confirm'", [$booking_id]);
+    return $out;
+}
+
+/** Wygaszenie rezerwacji bez decyzji rodzica (cron). Zwraca liczbę wygaszonych. */
+function rk_parent_expire_stale(): int {
+    $h = rk_parent_confirm_hours();
+    $n = 0;
+    foreach (db_all(
+        "SELECT id, client_id FROM k30_rk_bookings
+          WHERE status='pending_parent'
+            AND booked_at < datetime('now', ?)", ["-$h hours"]) as $b) {
+        try {
+            rk_cancel((int)$b['id'], (int)$b['client_id'], 'parent', 'brak zatwierdzenia w terminie');
+            $n++;
+        } catch (RkException) { /* wyścig z decyzją rodzica — pomijamy */ }
+    }
+    return $n;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GENERATOR SLOTÓW Z DOSTĘPNOŚCI — kierownik jednym ruchem wrzuca terminy
+   prowadzących na podstawie ich okien tygodniowych (k30_ti_instructor_availability).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Tworzy otwarte sloty w zakresie dat z zatwierdzonych okien dostępności.
+ * Okna cięte na odcinki $duration_min; koszt auto z rk_token_minutes, chyba że
+ * podany. Duplikaty (ten sam start) i dni urlopu pomijane bez błędu.
+ * Zwraca ['created' => n, 'skipped' => n].
+ */
+function rk_slots_generate(int $round_id, array $instructor_ids, string $date_from, string $date_to,
+                           int $duration_min = 60, int $capacity = 1, ?int $token_cost = null,
+                           string $mode = 'online'): array {
+    $instructor_ids = array_unique(array_filter(array_map('intval', $instructor_ids)));
+    $duration_min   = max(15, min(480, $duration_min));
+    $t_from = strtotime($date_from . ' 00:00:00');
+    $t_to   = strtotime($date_to   . ' 00:00:00');
+    if (!$instructor_ids || !$t_from || !$t_to || $t_to < $t_from) return ['created' => 0, 'skipped' => 0];
+    $t_to = min($t_to, strtotime('+120 days'));   // bezpiecznik zakresu
+
+    $created = 0; $skipped = 0;
+    foreach ($instructor_ids as $iid) {
+        $windows = db_all(
+            "SELECT day_of_week, time_from, time_to FROM k30_ti_instructor_availability
+              WHERE instructor_id=? AND is_active=1 AND status='approved'", [$iid]);
+        if (!$windows) continue;
+        $by_dow = [];
+        foreach ($windows as $w) $by_dow[(int)$w['day_of_week']][] = $w;
+
+        for ($day = $t_from; $day <= $t_to; $day += 86400) {
+            if ($day < strtotime('today')) continue;
+            $dow = (int)date('w', $day);
+            foreach ($by_dow[$dow] ?? [] as $w) {
+                $win_from = strtotime(date('Y-m-d ', $day) . $w['time_from']);
+                $win_to   = strtotime(date('Y-m-d ', $day) . $w['time_to']);
+                if (!$win_from || !$win_to) continue;
+                for ($s = $win_from; $s + $duration_min * 60 <= $win_to; $s += $duration_min * 60) {
+                    if ($s <= time()) { continue; }
+                    $starts = date('Y-m-d H:i:s', $s);
+                    $ends   = date('Y-m-d H:i:s', $s + $duration_min * 60);
+                    try {
+                        $sid = rk_slot_save([
+                            'round_id'      => $round_id,
+                            'instructor_id' => $iid,
+                            'starts_at'     => $starts,
+                            'ends_at'       => $ends,
+                            'capacity'      => $capacity,
+                            'token_cost'    => $token_cost !== null ? (string)$token_cost : '',
+                            'mode'          => $mode,
+                        ]);
+                        db_exec("UPDATE k30_rk_slots SET status='open' WHERE id=?", [$sid]);
+                        $created++;
+                    } catch (RkException) { $skipped++;        // urlop / walidacja
+                    } catch (\PDOException) { $skipped++; }    // duplikat startu
+                }
+            }
+        }
+    }
+    return ['created' => $created, 'skipped' => $skipped];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    POMOCNICZE
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -937,6 +1282,8 @@ function rk_error_message(string $code): string {
         'BOOKING_NOT_FOUND'   => 'Nie znaleziono rezerwacji.',
         'BOOKING_NOT_ACTIVE'  => 'Ta rezerwacja nie jest już aktywna.',
         'SLOT_ON_LEAVE'       => 'Prowadzący ma urlop w tym dniu — termin nie może powstać.',
+        'INSTRUCTOR_NOT_ALLOWED' => 'Ten prowadzący nie jest dostępny dla Twojej grupy w tej turze.',
+        'GUARDIAN_MISSING'    => 'Rezerwacja osoby małoletniej wymaga zatwierdzenia rodzica, a na koncie brak adresu e-mail opiekuna — skontaktuj się z sekretariatem.',
         'SLOT_INVALID_TIME'   => 'Nieprawidłowy zakres godzin terminu.',
         default               => 'Operacja nie powiodła się (' . $code . ').',
     };
