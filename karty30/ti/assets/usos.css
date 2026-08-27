@@ -74,6 +74,9 @@ body.dyd-usos .usos-crumbs a { color: var(--usos-link); }
   body.dyd-usos.dyd-sb-hidden .usos-sections,
   body.dyd-usos.dyd-sb-hidden .usos-crumbs { margin-left: 0; }
 }
+/* Ta sama szerokość co kolumna treści — krawędzie pasków i tabel w jednej linii */
+body.dyd-usos .usos-sections,
+body.dyd-usos .usos-crumbs { max-width: 1100px; }
 
 /* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
 body.dyd-usos .dyd-sidebar {
@@ -116,7 +119,14 @@ body.dyd-usos .dyd-sb-coursename { color: var(--usos-navy) !important; font-weig
 body.dyd-usos .dyd-sidebar .dropdown-menu { border-radius: 2px; }
 
 /* ── Obszar treści ────────────────────────────────────────────────────────── */
-body.dyd-usos .dyd-wrap { padding: .75rem 1rem 2rem !important; max-width: none; }
+/* Kolumna treści ma stałą, wąską szerokość (jak 1100 px w resztę systemu) i jest
+   wyrównana do lewej, przy menu — na szerokim monitorze rozciągnięte na 1900 px
+   tabele są nieczytelne. Marginesu lewego NIE ruszamy: .dyd-content trzyma na
+   nim odsunięcie od menu bocznego. */
+body.dyd-usos .dyd-wrap {
+  padding: .75rem 1rem 2rem !important;
+  max-width: 1100px;
+}
 body.dyd-usos h1, body.dyd-usos h2, body.dyd-usos h3,
 body.dyd-usos .h1, body.dyd-usos .h2, body.dyd-usos .h3,
 body.dyd-usos .h4, body.dyd-usos .h5, body.dyd-usos .h6 {
