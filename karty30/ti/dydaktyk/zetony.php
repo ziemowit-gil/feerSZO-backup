@@ -337,6 +337,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <a href="zetony.php?tab=pule&amp;pool=<?= (int)$p['id'] ?>" class="fw-semibold text-decoration-none"><?= h($p['name']) ?></a>
               <?php if ($p['period_key']): ?><span class="badge bg-light text-dark border ms-1"><?= h($p['period_key']) ?></span><?php endif; ?>
               <?php if (($p['kind'] ?? '') === 'zwr'): ?><span class="badge text-bg-info ms-1" title="Pula zwrotów niewykorzystanych żetonów">ZWR</span><?php endif; ?>
+              <?php if (($p['kind'] ?? '') === 'pfron'): ?><span class="badge text-bg-warning ms-1" title="Pula szkoleń finansowanych z PFRON">PFRON</span><?php endif; ?>
               <?php if ($p['description']): ?><div class="text-muted" style="font-size:.75rem"><?= h(mb_strimwidth($p['description'],0,80,'…','UTF-8')) ?></div><?php endif; ?>
               <?php if ($p['valid_from'] || $p['valid_to']): ?>
                 <div class="text-muted" style="font-size:.72rem">
@@ -649,6 +650,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <option value="K">K — kontynuacja</option>
                 <option value="N">N — nowe osoby</option>
                 <option value="ZWR">ZWR — zwroty niewykorzystanych</option>
+                <option value="PFRON">PFRON — szkolenia PFRON</option>
               </select>
               <div class="input-group-text">
                 <input class="form-check-input mt-0 me-1" type="checkbox" id="pgen-test" aria-label="Pula testowa — prefiks TEST w nazwie">
@@ -712,9 +714,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               var digits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
               var test   = document.getElementById('pgen-test')?.checked ? 'TEST ' : '';
               name.value = test + period.value + ' ' + kind.value + nextNr + '-' + digits;
-              // Rodzaj ZWR w nazwie = pula zwrotów — zsynchronizuj przełącznik rodzaju
-              var zwr = document.getElementById('pkind');
-              if (zwr) zwr.checked = (kind.value === 'ZWR');
+              // Rodzaj w nazwie synchronizuje rodzaj puli (ZWR/PFRON/zwykła)
+              var pk = document.getElementById('pkind');
+              if (pk) pk.value = kind.value === 'ZWR' ? 'zwr' : (kind.value === 'PFRON' ? 'pfron' : 'normal');
               name.focus();
             });
           })();
@@ -723,15 +725,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="pactive" value="1" <?= !empty($pf['is_active'])?'checked':'' ?>>
             <label class="form-check-label small" for="pactive">Pula aktywna</label>
           </div>
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" role="switch" name="kind" id="pkind" value="zwr"
-                   <?= ($pf['kind'] ?? 'normal') === 'zwr' ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pkind">
-              Pula <strong>ZWR</strong> — zwroty niewykorzystanych
-            </label>
-            <div class="form-text mt-0">Zwroty żetonów z pul, które wygasły, trafiają automatycznie
-              do aktywnej puli ZWR (ma pierwszeństwo przed pulą zastępczą z ustawień).
-              Kursanci normalnie płacą żetonami ZWR za kolejne zapisy.</div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small" for="pkind">Rodzaj puli</label>
+            <select class="form-select form-select-sm" id="pkind" name="kind">
+              <option value="normal" <?= ($pf['kind'] ?? 'normal') === 'normal' ? 'selected' : '' ?>>Zwykła</option>
+              <option value="zwr"    <?= ($pf['kind'] ?? '') === 'zwr' ? 'selected' : '' ?>>ZWR — zwroty niewykorzystanych</option>
+              <option value="pfron"  <?= ($pf['kind'] ?? '') === 'pfron' ? 'selected' : '' ?>>PFRON — szkolenia finansowane z PFRON</option>
+            </select>
+            <div class="form-text mt-1">
+              <strong>ZWR:</strong> zwroty żetonów z pul, które wygasły, trafiają tu automatycznie
+              (pierwszeństwo przed pulą zastępczą z ustawień).
+              <strong>PFRON:</strong> etykieta puli szkoleń finansowanych z PFRON — widoczna na
+              listach i u kursanta, do rozliczeń projektowych. Kursanci płacą żetonami
+              obu rodzajów tak samo jak zwykłymi.
+            </div>
           </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-sm btn-primary"><?= $edit_pool?'Zapisz':'Utwórz pulę' ?></button>

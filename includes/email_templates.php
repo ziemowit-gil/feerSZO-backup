@@ -879,7 +879,7 @@ Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.<
   <ol style="margin:0;padding-left:18px">
     <li>Otwórz swój osobisty link (przycisk poniżej) albo zaloguj się do panelu kursanta
         i wejdź w <em>Nauka &rsaquo; Zapisy na zajęcia</em>.</li>
-    <li>Wybierz prowadzącego, a następnie pasujący termin z jego kalendarza.</li>
+    <li>Wybierz rodzaj zajęć i prowadzącego, a następnie pasujący termin z jego kalendarza.</li>
     <li>Kliknij <strong>„Rezerwuję”</strong> (pojedyncze zajęcia) albo
         <strong>„Ustal zajęcia na cały okres”</strong> — wtedy ten sam dzień tygodnia
         i godzina zostaną zarezerwowane co tydzień, aż do końca tury.</li>
@@ -893,7 +893,7 @@ Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.<
 <div style="background:#fff1e7;border-left:3px solid #c2410c;border-radius:4px;padding:12px 16px;margin:18px 0">
   <p style="margin:0 0 8px;font-weight:600">Zasady obowiązujące od tego roku</p>
   <ol style="margin:0;padding-left:18px">
-    <li>Najpierw wybierasz <strong>prowadzącego</strong>, potem termin z jego kalendarza.</li>
+    <li>Najpierw wybierasz <strong>rodzaj zajęć</strong>, potem <strong>prowadzącego</strong> i termin z jego kalendarza.</li>
     <li>Terminy wystawiają sami prowadzący — lista rośnie w trakcie tury.</li>
     <li>Każda rezerwacja kosztuje <strong>żetony</strong>. Twoje aktualne saldo: <strong>{{balance}}</strong>.</li>
     <li>Limit rezerwacji w tej turze: <strong>{{limit}}</strong>.</li>

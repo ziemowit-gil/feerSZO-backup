@@ -76,7 +76,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <?php endif; ?>
 
 <p class="text-body-secondary small mb-2">
-  Od tego roku zapisujesz się wybierając najpierw <strong>przedmiot</strong>, potem
+  Od tego roku zapisujesz się wybierając najpierw <strong>rodzaj zajęć</strong>, potem
   <strong>prowadzącego</strong>, a na końcu termin z jego kalendarza. Każda rezerwacja kosztuje żetony z Twojej puli; rezygnacja odpowiednio
   wcześnie zwraca je w całości.
 </p>
@@ -106,7 +106,10 @@ $rk_mode_label = fn(string $m) => match ($m) {
     <div class="card h-100 border-0 shadow-sm" style="border-left:4px solid <?= h($p['color'] ?: '#6366f1') ?>!important">
       <div class="card-body py-2 px-3">
         <div class="d-flex align-items-baseline gap-2">
-          <span class="fw-semibold"><?= h($p['name']) ?></span>
+          <span class="fw-semibold"><?= h($p['name']) ?>
+            <?php if (($p['kind'] ?? '') === 'pfron'): ?><span class="badge text-bg-warning ms-1" style="font-size:.62rem" title="Szkolenia finansowane z PFRON">PFRON</span><?php endif; ?>
+            <?php if (($p['kind'] ?? '') === 'zwr'): ?><span class="badge text-bg-info ms-1" style="font-size:.62rem" title="Zwroty niewykorzystanych żetonów">ZWR</span><?php endif; ?>
+          </span>
           <span class="ms-auto fs-5 fw-bold <?= (int)$p['available'] > 0 ? 'text-success' : 'text-body-secondary' ?>"><?= (int)$p['available'] ?></span>
         </div>
         <div class="text-body-secondary" style="font-size:.78rem">
@@ -168,7 +171,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="index.php?tab=zapisy">Tury</a> &rsaquo; <strong><?= h($rk_round['name']) ?></strong>
 </nav>
-<p class="text-body-secondary small mb-2">Najpierw wybierz <strong>przedmiot</strong>, potem prowadzącego.</p>
+<p class="text-body-secondary small mb-2">Najpierw wybierz <strong>rodzaj zajęć</strong>, potem prowadzącego.</p>
 <div class="row g-2 mb-3">
   <?php foreach ($rk_courses as $rc): ?>
   <div class="col-12 col-sm-6 col-lg-4">
@@ -202,7 +205,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
 </nav>
 <?php if (!$rk_instructors): ?>
 <div class="text-body-secondary small mb-3">Żaden prowadzący nie wystawił jeszcze terminów
-  <?= $rk_course ? 'dla tego przedmiotu' : 'w tej turze' ?>.</div>
+  <?= $rk_course ? 'dla tego rodzaju zajęć' : 'w tej turze' ?>.</div>
 <?php else: ?>
 <div class="row g-2 mb-3">
   <?php foreach ($rk_instructors as $i): $free = (int)$i['slots_free']; ?>

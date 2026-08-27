@@ -240,7 +240,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
   <?php foreach ($rk_pools as $p): if ((int)$p['granted'] === 0) continue; ?>
   <span class="badge text-bg-light border" title="przyznane <?= (int)$p['granted'] ?>, wydane <?= (int)$p['spent'] ?>">
     <span style="color:<?= h($p['color'] ?: '#6366f1') ?>">●</span>
-    <?= h($p['name']) ?>: <strong><?= (int)$p['available'] ?></strong>
+    <?= h($p['name']) ?><?= ($p['kind'] ?? '') === 'pfron' ? ' <span class="badge text-bg-warning" style="font-size:.6rem">PFRON</span>' : '' ?><?= ($p['kind'] ?? '') === 'zwr' ? ' <span class="badge text-bg-info" style="font-size:.6rem">ZWR</span>' : '' ?>: <strong><?= (int)$p['available'] ?></strong>
   </span>
   <?php endforeach; ?>
 </div>
@@ -278,7 +278,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="t.php">Tury</a> &rsaquo; <strong><?= h($rk_round['name']) ?></strong>
 </nav>
-<h2 class="h6 fw-bold mb-2">Wybierz przedmiot</h2>
+<h2 class="h6 fw-bold mb-2">Wybierz rodzaj zajęć</h2>
 <div class="row g-2 mb-4">
   <?php foreach ($rk_courses as $rc): ?>
   <div class="col-12 col-sm-6">
