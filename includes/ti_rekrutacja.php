@@ -930,13 +930,17 @@ function rk_refund_target(int $wallet_id): array {
     return [$wallet_id, 'refund_expired_pool'];
 }
 
-/** Odwołanie całego slotu przez prowadzącego/kierownika — zwroty 100%. */
-function rk_slot_cancel(int $slot_id, int $instructor_id, string $reason = ''): int {
-    return rk_tx(function () use ($slot_id, $instructor_id, $reason) {
+/**
+ * Odwołanie całego slotu — zwroty 100%. Prowadzący odwołuje swoje terminy;
+ * administrator/kierownik z $any_instructor=true odwołuje dowolne.
+ */
+function rk_slot_cancel(int $slot_id, int $instructor_id, string $reason = '', bool $any_instructor = false): int {
+    return rk_tx(function () use ($slot_id, $instructor_id, $reason, $any_instructor) {
         $ok = rk_affect(
             "UPDATE k30_rk_slots SET status='cancelled'
-              WHERE id=? AND instructor_id=? AND status IN ('draft','open','locked')",
-            [$slot_id, $instructor_id]);
+              WHERE id=? AND status IN ('draft','open','locked')"
+            . ($any_instructor ? "" : " AND instructor_id=?"),
+            $any_instructor ? [$slot_id] : [$slot_id, $instructor_id]);
         if ($ok !== 1) throw new RkException('SLOT_NOT_FOUND');
 
         $n = 0;
@@ -955,6 +959,81 @@ function rk_slot_cancel(int $slot_id, int $instructor_id, string $reason = ''): 
             }
         }
         return $n;
+    });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WIDOK ADMINISTRACYJNY — rekrutacja godzin: lista, podgląd, usuwanie.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Godziny (sloty) do ekranu administracyjnego — z filtrami i licznikami. */
+function rk_slots_admin_list(array $f = [], int $limit = 500): array {
+    $where  = ['1=1']; $params = [];
+    if (!empty($f['round_id']))      { $where[] = 's.round_id = ?';      $params[] = (int)$f['round_id']; }
+    if (!empty($f['instructor_id'])) { $where[] = 's.instructor_id = ?'; $params[] = (int)$f['instructor_id']; }
+    if (!empty($f['course_id']))     { $where[] = 's.course_id = ?';     $params[] = (int)$f['course_id']; }
+    if (!empty($f['status']))        { $where[] = 's.status = ?';        $params[] = (string)$f['status']; }
+    if (!empty($f['date_from']))     { $where[] = 'date(s.starts_at) >= ?'; $params[] = (string)$f['date_from']; }
+    if (!empty($f['date_to']))       { $where[] = 'date(s.starts_at) <= ?'; $params[] = (string)$f['date_to']; }
+    if (!empty($f['only_free']))     { $where[] = "s.status='open' AND s.seats_taken < s.capacity AND s.starts_at > datetime('now')"; }
+    if (!empty($f['q'])) {
+        $where[]  = '(u.name LIKE ? OR s.subject_label LIKE ?)';
+        $params[] = '%' . $f['q'] . '%'; $params[] = '%' . $f['q'] . '%';
+    }
+    return db_all(
+        "SELECT s.*, u.name AS instructor_name, r.name AS round_name,
+                COALESCE(r.audience_kind,'continuing') AS audience_kind,
+                c.name AS course_name, rm.name AS room_name,
+                (s.capacity - s.seats_taken) AS seats_free,
+                (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id) AS n_bookings_all,
+                (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id
+                   AND b.status IN ('confirmed','pending_parent','attended','no_show')) AS n_bookings_live
+           FROM k30_rk_slots s
+           JOIN users u ON u.id = s.instructor_id
+           JOIN k30_rk_rounds r ON r.id = s.round_id
+           LEFT JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN k30_pl_rooms rm ON rm.id = s.room_id
+          WHERE " . implode(' AND ', $where) . "
+          ORDER BY s.starts_at DESC
+          LIMIT ?",
+        [...$params, $limit]
+    );
+}
+
+/** Rezerwacje slotu do podglądu administracyjnego. */
+function rk_slot_bookings(int $slot_id): array {
+    return db_all(
+        "SELECT b.*, cl.name AS client_name, cl.email AS client_email,
+                p.name AS pool_name
+           FROM k30_rk_bookings b
+           JOIN k30_clients cl ON cl.id = b.client_id
+           LEFT JOIN k30_pl_token_pool_wallets w ON w.id = b.wallet_id
+           LEFT JOIN k30_pl_token_pools p ON p.id = w.pool_id
+          WHERE b.slot_id = ?
+          ORDER BY b.booked_at",
+        [$slot_id]
+    );
+}
+
+/**
+ * Twarde usunięcie godziny — wyłącznie bez ŻADNYCH rezerwacji (także
+ * historycznych: anulowane zostają śladem księgowym, więc blokują usunięcie —
+ * wtedy jedyną drogą jest odwołanie). Sprząta pustą zmaterializowaną lekcję.
+ */
+function rk_slot_delete(int $slot_id): void {
+    rk_tx(function () use ($slot_id) {
+        $s = db_one("SELECT * FROM k30_rk_slots WHERE id=?", [$slot_id]);
+        if (!$s) throw new RkException('SLOT_NOT_FOUND');
+        $n = db_one("SELECT COUNT(*) n FROM k30_rk_bookings WHERE slot_id=?", [$slot_id]);
+        if ((int)($n['n'] ?? 0) > 0) throw new RkException('SLOT_HAS_BOOKINGS');
+
+        if (!empty($s['session_id'])) {
+            $att = db_one("SELECT COUNT(*) n FROM k30_ti_attendance WHERE session_id=?", [(int)$s['session_id']]);
+            if ((int)($att['n'] ?? 0) === 0) {
+                db_exec("DELETE FROM k30_ti_sessions WHERE id=?", [(int)$s['session_id']]);
+            }
+        }
+        db_exec("DELETE FROM k30_rk_slots WHERE id=?", [$slot_id]);
     });
 }
 
@@ -1386,6 +1465,7 @@ function rk_error_message(string $code): string {
         'BOOKING_NOT_ACTIVE'  => 'Ta rezerwacja nie jest już aktywna.',
         'SLOT_ON_LEAVE'       => 'Prowadzący ma urlop w tym dniu — termin nie może powstać.',
         'INSTRUCTOR_NOT_ALLOWED' => 'Ten prowadzący nie jest dostępny dla Twojej grupy w tej turze.',
+        'SLOT_HAS_BOOKINGS'   => 'Ta godzina ma rezerwacje (także historyczne) — można ją tylko odwołać, nie usunąć.',
         'ROUND_FOR_NEW'          => 'Ta tura jest przeznaczona dla nowych osób — jako kursant kontynuujący zapisz się w turze dla kontynuujących.',
         'ROUND_FOR_CONTINUING'   => 'Ta tura jest przeznaczona dla kursantów kontynuujących naukę.',
         'GUARDIAN_MISSING'    => 'Rezerwacja osoby małoletniej wymaga zatwierdzenia rodzica, a na koncie brak adresu e-mail opiekuna — skontaktuj się z sekretariatem.',

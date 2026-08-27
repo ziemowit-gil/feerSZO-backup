@@ -292,6 +292,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <i class="bi bi-calendar3 me-1"></i>Kalendarz
     </button>
     <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="rekrutacja_admin.php"><i class="bi bi-ticket-perforated me-2"></i>Rekrutacja godzin</a></li>
       <li><a class="dropdown-item" href="dydaktyk/okresy.php"><i class="bi bi-calendar-range me-2"></i>Okresy nauczania <span class="badge text-bg-light border text-dark ms-1">panel</span></a></li>
       <li><a class="dropdown-item" href="holidays.php"><i class="bi bi-calendar-x me-2"></i>Dni wolne i przerwy</a></li>
       <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy prowadzących</a></li>
