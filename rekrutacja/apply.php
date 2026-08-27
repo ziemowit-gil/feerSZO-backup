@@ -101,7 +101,7 @@ h1, h2, legend.f-legend { font-family: 'Montserrat', 'Ubuntu', sans-serif; }
 @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
 
 .hero-panel {
-  background: linear-gradient(160deg, var(--feer-blue) 0%, var(--feer-blue-dark) 100%);
+  background: var(--feer-blue);
   color: #fff;
   border-radius: var(--radius);
   padding: 2.25rem 2rem;
@@ -117,11 +117,11 @@ h1, h2, legend.f-legend { font-family: 'Montserrat', 'Ubuntu', sans-serif; }
   margin-bottom: .25rem;
 }
 .hero-panel h1 { font-size: 1.9rem; font-weight: 800; margin: 0 0 .75rem; line-height: 1.2; }
-.hero-panel p  { color: #e3ecff; margin: 0 0 1.25rem; }
+.hero-panel p  { color: #fff; margin: 0 0 1.25rem; }
 .hero-logo { max-height: 56px; max-width: 200px; margin-bottom: 1.25rem; background: #fff; border-radius: .6rem; padding: .4rem .7rem; }
 .hero-list { list-style: none; margin: 0; padding: 0; }
-.hero-list li { display: flex; gap: .6rem; align-items: flex-start; margin-bottom: .7rem; color: #eef4ff; }
-.hero-list li::before { content: '✓'; font-weight: 700; color: #9cc4ff; flex: 0 0 auto; }
+.hero-list li { display: flex; gap: .6rem; align-items: flex-start; margin-bottom: .7rem; color: #fff; }
+.hero-list li::before { content: '✓'; font-weight: 700; color: #bcd4ff; flex: 0 0 auto; }
 
 /* ── Karta formularza ──────────────────────────────────────────────────── */
 .card {
@@ -231,12 +231,14 @@ label.f-label { display: block; font-weight: 500; font-size: .92rem; margin-bott
         <img class="hero-logo" src="<?= h($brand['logo_url']) ?>" alt="Logo <?= h($org_name) ?>">
       <?php endif; ?>
       <span class="accent" aria-hidden="true">Dołącz do nas!</span>
-      <h1>Rekrutacja — wolontariat i praca</h1>
-      <p><?= h($org_name) ?> tworzą ludzie. Wypełnij formularz, dołącz CV — odezwiemy się z informacją o kolejnych krokach.</p>
+      <h1>Nabór do zespołu — wolontariat i praca</h1>
+      <p><?= h($org_name) ?> tworzą ludzie. Wolontariuszy rekrutujemy tak samo starannie jak pracowników — z CV,
+        rozmową i jasną informacją zwrotną. Wypełnij formularz, a odezwiemy się z kolejnymi krokami.</p>
       <ul class="hero-list">
         <li>Odpowiadamy na każde zgłoszenie</li>
+        <li>Jeden proces naboru — dla wolontariatu i etatu</li>
         <li>Rozmowę umawiamy w dogodnym dla Ciebie terminie</li>
-        <li>Twoje dane przetwarzamy wyłącznie na potrzeby rekrutacji</li>
+        <li>Twoje dane przetwarzamy wyłącznie na potrzeby naboru</li>
       </ul>
     </aside>
 
@@ -276,7 +278,7 @@ label.f-label { display: block; font-weight: 500; font-size: .92rem; margin-bott
               <input type="radio" name="type" value="wolontariat" <?= $old['type'] === 'wolontariat' ? 'checked' : '' ?>>
               <span class="box">
                 <strong>💚 Wolontariat</strong>
-                <small>Działaj z nami społecznie — na miarę swoich możliwości i czasu.</small>
+                <small>Nabór na stanowiska wolontariackie — z CV i rozmową, jak przy rekrutacji do pracy.</small>
               </span>
             </label>
             <label class="type-card">
