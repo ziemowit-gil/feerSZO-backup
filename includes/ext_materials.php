@@ -323,14 +323,14 @@ function ext_default_rules(): array
  */
 function ext_effective_rules(array $publisher, array $title, array $edition = [], array $resource = []): array
 {
-    $r = array_merge(ext_default_rules(), ext_json($publisher['default_rules'] ?? ''));
+    $r = array_merge(ext_default_rules(), ext_json_decode($publisher['default_rules'] ?? ''));
 
     $r['allow_download']   = (int)$r['allow_download']   & (int)($title['allow_download'] ?? 0);
     $r['allow_print']      = (int)$r['allow_print']      & (int)($title['allow_print'] ?? 0);
     $r['watermark_policy'] = ext_stricter_watermark($r['watermark_policy'], $title['watermark_policy'] ?? 'both');
 
     foreach ([$edition, $resource] as $lvl) {
-        $o = ext_json($lvl['rules'] ?? '');
+        $o = ext_json_decode($lvl['rules'] ?? '');
         if (isset($o['allow_download'])) $r['allow_download'] = (int)$r['allow_download'] & (int)$o['allow_download'];
         if (isset($o['allow_print']))    $r['allow_print']    = (int)$r['allow_print']    & (int)$o['allow_print'];
         if (isset($o['watermark_policy'])) {
@@ -352,8 +352,11 @@ function ext_stricter_watermark(string $a, string $b): string
     return ($rank[$b] ?? 3) > ($rank[$a] ?? 0) ? $b : $a;
 }
 
-/** json_decode, który nigdy nie wywraca strony na uszkodzonym wpisie. */
-function ext_json(?string $raw): array
+/**
+ * json_decode, który nigdy nie wywraca strony na uszkodzonym wpisie.
+ * Nazwa z przyrostkiem, bo ext_json() to odpowiedź HTTP w karty30/ti/ext/_boot.php.
+ */
+function ext_json_decode(?string $raw): array
 {
     if ($raw === null || trim($raw) === '') return [];
     $v = json_decode($raw, true);

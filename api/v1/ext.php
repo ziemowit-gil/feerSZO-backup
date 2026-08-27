@@ -108,7 +108,7 @@ case 'publishers':
     api_json(['data' => array_map(fn($p) => [
         'id' => (int)$p['id'], 'name' => $p['name'], 'contract_no' => $p['contract_no'],
         'contract_to' => $p['contract_to'], 'is_active' => (bool)$p['is_active'],
-        'default_rules' => ext_json($p['default_rules']),
+        'default_rules' => ext_json_decode($p['default_rules']),
     ], ext_publishers(false))]);
 
 case 'categories':

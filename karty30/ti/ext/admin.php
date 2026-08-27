@@ -175,7 +175,7 @@ include __DIR__ . '/_head.php';
     <caption class="visually-hidden">Wydawcy i domyślne reguły ich materiałów</caption>
     <thead><tr><th scope="col">Wydawca</th><th scope="col">Umowa</th><th scope="col">Domyślne reguły</th><th scope="col">Stan</th><th scope="col"></th></tr></thead>
     <tbody>
-      <?php foreach ($pubs as $p): $r = ext_json($p['default_rules']); ?>
+      <?php foreach ($pubs as $p): $r = ext_json_decode($p['default_rules']); ?>
       <tr>
         <th scope="row"><?= h($p['name']) ?></th>
         <td class="small"><?= h($p['contract_no']) ?><?php if ($p['contract_to']): ?><br><span class="text-body-secondary">do <?= h($p['contract_to']) ?></span><?php endif; ?></td>
@@ -215,7 +215,7 @@ include __DIR__ . '/_head.php';
       <label class="form-label" for="p-contact">Kontakt</label>
       <input class="form-control" id="p-contact" name="contact" value="<?= h($edit['contact'] ?? '') ?>">
     </div>
-    <?php $r = ext_json($edit['default_rules'] ?? ''); ?>
+    <?php $r = ext_json_decode($edit['default_rules'] ?? ''); ?>
     <div class="col-12 col-md-4">
       <label class="form-label" for="p-wm">Domyślny znak wodny</label>
       <select class="form-select" id="p-wm" name="watermark_policy">
