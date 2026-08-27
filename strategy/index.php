@@ -27,7 +27,10 @@ $is_admin = is_admin();
 // ── API AJAX ──────────────────────────────────────────────────────────────────
 if (($_GET['_ajax'] ?? '') === '1') {
     header('Content-Type: application/json; charset=utf-8');
-    $out = fn(array $d) => print(json_encode($d, JSON_UNESCAPED_UNICODE)) && exit;
+    $out = function (array $d): never {
+        echo json_encode($d, JSON_UNESCAPED_UNICODE);
+        exit;
+    };
 
     try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new RuntimeException('Tylko POST.');
