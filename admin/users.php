@@ -119,6 +119,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ADD from AD directory (Entra ID) — konto pracownika administracji.
+    // Dane (imię, e-mail) pobierane z Graph po ID — nie ufamy formularzowi.
+    // Rola: zawsze dostęp do CRM (per-konto) + jedna wybrana rola systemowa.
+    elseif ($action === 'add_from_ad') {
+        $ms_id = trim($_POST['microsoft_id'] ?? '');
+        $role  = $_POST['role'] ?? 'editor';
+        $me_id = (int)current_user()['id'];
+
+        if (!$ms_id || !preg_match('/^[0-9a-f\-]{30,}$/i', $ms_id)) {
+            flash_set('danger', 'Nieprawidłowy identyfikator konta w katalogu AD.');
+        } elseif (!in_array($role, $valid_roles, true)) {
+            flash_set('danger', 'Nieprawidłowa rola.');
+        } else {
+            require_once dirname(__DIR__) . '/includes/m365.php';
+            $ms = [];
+            try {
+                $g = new M365Graph();
+                if ($g->is_configured()) $ms = $g->get_user_by_id($ms_id);
+            } catch (\Throwable $e) {}
+
+            if (empty($ms['id'])) {
+                flash_set('danger', 'Nie udało się pobrać konta z katalogu AD (Microsoft 365).');
+            } else {
+                $ad_email = trim($ms['mail'] ?? '') ?: trim($ms['userPrincipalName'] ?? '');
+                $ad_name  = trim($ms['displayName'] ?? '') ?: $ad_email;
+                $existing = db_one(
+                    "SELECT id, name FROM users WHERE microsoft_id = ? OR (email != '' AND LOWER(email) = LOWER(?))",
+                    [$ms['id'], $ad_email]
+                );
+                if ($existing) {
+                    flash_set('warning', 'Konto dla ' . $ad_name . ' już istnieje w SZO (' . $existing['name'] . ').');
+                } elseif (!$ad_email) {
+                    flash_set('danger', 'Konto w katalogu AD nie ma adresu e-mail — nie można utworzyć konta SZO.');
+                } else {
+                    // Bez hasła lokalnego — konto @feer.org.pl loguje się wyłącznie przez M365
+                    db_insert('users', [
+                        'name'         => $ad_name,
+                        'email'        => $ad_email,
+                        'password'     => null,
+                        'role'         => $role,
+                        'is_active'    => 1,
+                        'microsoft_id' => $ms['id'],
+                        'created_at'   => date('Y-m-d H:i:s'),
+                    ]);
+                    $new_uid = (int)db()->lastInsertId();
+                    // Zawsze CRM: dostęp per-konto (odczyt + zapis), ponad rolę
+                    user_permission_set($new_uid, 'crm', true, true, false, $me_id);
+                    log_user_action($new_uid, $me_id, 'user_create',
+                        'Utworzono z katalogu AD: ' . $ad_name . ' (' . $ad_email . '), rola: ' . $role . ' + CRM (per-konto)');
+                    user_sync_push(['name' => $ad_name, 'email' => $ad_email, 'role' => $role, 'is_active' => 1]);
+                    flash_set('success', 'Utworzono konto SZO dla ' . $ad_name . ' — rola: '
+                        . ($db_roles_map[$role] ?? $role) . ' + dostęp do CRM.');
+                }
+            }
+        }
+        header('Location: ' . $SELF_URL);
+        exit;
+    }
+
     // CHANGE ROLE
     elseif ($action === 'change_role') {
         $uid  = intval($_POST['user_id'] ?? 0);
@@ -496,6 +555,9 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
     <a href="<?= APP_URL ?>/admin/user_sync.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-repeat"></i> Sync →testy
     </a>
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#adDirPanel">
+      <i class="bi bi-microsoft"></i> Z katalogu AD
+    </button>
     <button class="btn btn-primary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#addUserPanel">
       <i class="bi bi-person-plus"></i> Dodaj użytkownika
     </button>
@@ -940,6 +1002,50 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   </div>
 </div>
 
+<!-- Offcanvas: Add from AD directory (Entra ID) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="adDirPanel" style="width:460px">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title"><i class="bi bi-microsoft" style="color:#00a4ef"></i> Pracownik z katalogu AD</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="alert alert-info py-2 px-3 small d-flex gap-2 mb-3">
+      <i class="bi bi-info-circle flex-shrink-0 mt-1"></i>
+      <span>Konto SZO powstaje na podstawie konta w katalogu Microsoft 365 (Entra ID) —
+      <strong>bez hasła lokalnego</strong>, logowanie wyłącznie przez Microsoft 365.
+      Użytkownik otrzyma <strong>zawsze dostęp do CRM</strong> oraz wybraną poniżej rolę.</span>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Rola nadawana przy utworzeniu</label>
+      <select id="adDirRole" class="form-select">
+        <?php foreach ($db_roles as $r): ?>
+        <option value="<?= h($r['name']) ?>" <?= $r['name'] === 'editor' ? 'selected' : '' ?>>
+          <?= h($r['display_name']) ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text">Dostęp do CRM (odczyt + zapis) jest dodawany automatycznie, ponad rolę.</div>
+    </div>
+
+    <div class="mb-2">
+      <input type="search" id="adDirSearch" class="form-control" placeholder="Szukaj: imię, nazwisko, e-mail…" autocomplete="off">
+    </div>
+
+    <div id="adDirStatus" class="text-muted small py-3 text-center">
+      <span class="spinner-border spinner-border-sm me-1"></span> Ładowanie katalogu…
+    </div>
+    <div id="adDirList" class="list-group list-group-flush" style="display:none"></div>
+
+    <form method="post" id="adDirForm" action="<?= h($SELF_URL) ?>" class="d-none">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="add_from_ad">
+      <input type="hidden" name="microsoft_id" id="adDirMsId" value="">
+      <input type="hidden" name="role" id="adDirRoleHidden" value="">
+    </form>
+  </div>
+</div>
+
 <!-- Modal: Reset / Set password -->
 <div class="modal fade" id="passModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -1138,6 +1244,94 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
         }
     });
     <?php endif; ?>
+})();
+
+// ── Katalog AD (Entra ID) — tworzenie kont pracowników administracji ─────────
+(function () {
+    var panel  = document.getElementById('adDirPanel');
+    if (!panel) return;
+    var status = document.getElementById('adDirStatus');
+    var list   = document.getElementById('adDirList');
+    var search = document.getElementById('adDirSearch');
+    var roleEl = document.getElementById('adDirRole');
+    var form   = document.getElementById('adDirForm');
+    var msIdEl = document.getElementById('adDirMsId');
+    var roleHid = document.getElementById('adDirRoleHidden');
+
+    var _data = null, _loading = false;
+
+    function escH(s) {
+        return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function render() {
+        var q = (search.value || '').trim().toLowerCase();
+        var rows = (_data || []).filter(function (u) {
+            if (!q) return true;
+            return (u.name + ' ' + u.email + ' ' + u.upn).toLowerCase().indexOf(q) !== -1;
+        });
+        if (!rows.length) {
+            list.style.display = 'none';
+            status.style.display = '';
+            status.innerHTML = '<i class="bi bi-search"></i> Brak kont pasujących do kryteriów.';
+            return;
+        }
+        var html = rows.map(function (u) {
+            var right;
+            if (u.existing) {
+                right = '<span class="badge bg-secondary" title="Konto SZO: ' + escH(u.existing.name)
+                      + ' (rola: ' + escH(u.existing.role) + ')"><i class="bi bi-check2"></i> jest w SZO</span>';
+            } else {
+                right = '<button type="button" class="btn btn-sm btn-primary ad-dir-add" data-msid="'
+                      + escH(u.id) + '" data-name="' + escH(u.name) + '">'
+                      + '<i class="bi bi-person-plus"></i> Utwórz konto</button>';
+            }
+            return '<div class="list-group-item d-flex align-items-center justify-content-between gap-2 px-0">'
+                 + '<div class="flex-grow-1" style="min-width:0">'
+                 + '<div class="fw-semibold text-truncate">' + escH(u.name || u.email) + '</div>'
+                 + '<div class="small text-muted text-truncate">' + escH(u.email) + '</div>'
+                 + '</div>' + right + '</div>';
+        }).join('');
+        list.innerHTML = html;
+        status.style.display = 'none';
+        list.style.display = '';
+    }
+
+    function load() {
+        if (_data || _loading) return;
+        _loading = true;
+        fetch('<?= APP_URL ?>/admin/users_ajax.php?action=ad_directory', {credentials: 'same-origin'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                _loading = false;
+                if (!d.ok) {
+                    status.innerHTML = '<i class="bi bi-exclamation-triangle text-warning"></i> '
+                                     + escH(d.msg || 'Nie udało się pobrać katalogu AD.');
+                    return;
+                }
+                _data = d.users || [];
+                render();
+            })
+            .catch(function () {
+                _loading = false;
+                status.innerHTML = '<i class="bi bi-exclamation-triangle text-warning"></i> Błąd połączenia z katalogiem AD.';
+            });
+    }
+
+    panel.addEventListener('shown.bs.offcanvas', load);
+    search.addEventListener('input', function () { if (_data) render(); });
+
+    list.addEventListener('click', function (e) {
+        var btn = e.target.closest('.ad-dir-add');
+        if (!btn) return;
+        var roleLabel = roleEl.options[roleEl.selectedIndex].text.trim();
+        if (!confirm('Utworzyć konto SZO dla: ' + btn.dataset.name + '?\nRola: ' + roleLabel + ' + dostęp do CRM.')) return;
+        msIdEl.value  = btn.dataset.msid;
+        roleHid.value = roleEl.value;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        form.submit();
+    });
 })();
 
 // ── Auto-fill display name from first + last name ───────────────────────────
