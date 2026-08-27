@@ -468,7 +468,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'mark_all_notices') {
         ti_notices_mark_all_read_instructor($uid);
         flash_set('success', 'Wszystkie komunikaty oznaczone jako przeczytane.');
-        header('Location: index.php?tab=komunikaty'); exit;
+        // Po potwierdzeniu z pełnoekranowej bramki wracamy tam, gdzie użytkownik szedł
+        $_bt = trim((string)($_POST['back_tab'] ?? ''));
+        header('Location: index.php?tab=' . urlencode($_bt !== '' ? $_bt : 'komunikaty')); exit;
     }
 
     // Pozostałe operacje wymagają własności kursu.
@@ -2128,6 +2130,78 @@ $_dyd_staff_badge = dyd_is_staff()
     ? '<span class="badge ms-2 flex-shrink-0" style="background:#f59e0b;color:#1c1917;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz wszystkie grupy">'
       . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Uprawnienia kierownika</span>'
     : '';
+
+// ── Pełnoekranowe potwierdzenie nieprzeczytanych komunikatów ─────────────────
+// Komunikat placówki, którego prowadzący nie odczytał, zatrzymuje wejście do
+// panelu: pokazujemy go na całą stronę i wymagamy potwierdzenia. Wyjątkiem jest
+// sama zakładka „Komunikaty" (tam też się czyta) — inaczej nie dałoby się ich
+// przejrzeć pojedynczo.
+$_unread_notices = array_values(array_filter($dyd_notices, fn($n) => empty($n['is_read'])));
+if ($_unread_notices && $tab !== 'komunikaty' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $KP_TITLE  = 'Nowy komunikat';
+    $KP_TOPBAR = ['brand'=>'Panel dydaktyka','icon'=>'easel2','user'=>$me['name'] ?? '','logout'=>'logout.php'];
+    if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos');
+    include dirname(__DIR__) . '/kursant/_layout_head.php';
+    $_n_cnt = count($_unread_notices);
+    ?>
+<link rel="stylesheet" href="../assets/usos.css?v=<?= is_file(__DIR__ . '/../assets/usos.css') ? (int)filemtime(__DIR__ . '/../assets/usos.css') : 1 ?>">
+<main id="main" class="container py-4" style="max-width:820px">
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-megaphone-fill" aria-hidden="true"></i>
+      <span><?= $_n_cnt === 1 ? 'Nowy komunikat placówki' : 'Nowe komunikaty placówki' ?></span>
+      <span class="badge bg-secondary ms-1"><?= (int)$_n_cnt ?></span>
+    </div>
+    <div class="card-body">
+      <p class="small text-body-secondary mb-0">
+        <?= $_n_cnt === 1
+            ? 'Zanim przejdziesz do panelu, zapoznaj się z komunikatem.'
+            : 'Zanim przejdziesz do panelu, zapoznaj się z komunikatami.' ?>
+        Potwierdzenie oznacza <?= $_n_cnt === 1 ? 'go' : 'je' ?> jako przeczytane —
+        treść zostaje dostępna w zakładce „Komunikaty".
+      </p>
+    </div>
+  </div>
+
+  <?php foreach ($_unread_notices as $_n): ?>
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+      <?php if (!empty($_n['is_pinned'])): ?><i class="bi bi-pin-fill text-warning" title="Przypięty" aria-hidden="true"></i><?php endif; ?>
+      <span><?= h($_n['title']) ?></span>
+      <span class="ms-auto small fw-normal text-body-secondary">
+        <?= h(date('d.m.Y H:i', strtotime((string)$_n['created_at']))) ?><?= !empty($_n['author_name']) ? ' · ' . h($_n['author_name']) : '' ?>
+      </span>
+    </div>
+    <div class="card-body">
+      <?php if (trim((string)$_n['body']) !== ''): ?>
+      <div style="white-space:pre-wrap"><?= h($_n['body']) ?></div>
+      <?php else: ?>
+      <div class="text-body-secondary small">(komunikat bez treści)</div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
+
+  <form method="post" action="index.php">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="_op" value="mark_all_notices">
+    <input type="hidden" name="back_tab" value="<?= h($tab) ?>">
+    <?php if ($cur_course): ?><input type="hidden" name="course_id" value="<?= (int)$cur_course ?>"><?php endif; ?>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <button class="btn btn-primary">
+        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>
+        Potwierdzam przeczytanie<?= $_n_cnt > 1 ? ' wszystkich' : '' ?> i przechodzę do panelu
+      </button>
+      <a href="index.php?tab=komunikaty" class="btn btn-outline-secondary">Otwórz zakładkę Komunikaty</a>
+      <a href="logout.php" class="btn btn-link">Wyloguj</a>
+    </div>
+  </form>
+</main>
+    <?php
+    $KP_SKIP_TAB_MEMORY = true;
+    include dirname(__DIR__) . '/kursant/_layout_foot.php';
+    exit;
+}
 
 if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos');
 

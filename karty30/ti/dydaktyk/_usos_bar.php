@@ -11,11 +11,20 @@
 
 // Zakładka → sekcja paska
 $_usos_sections = [
-    'zajecia'    => ['label' => 'Moje zajęcia', 'tabs' => ['lekcje','uczestnicy','plan','protokol','oceny','zadania','materialy','nieobecnosci','program','testy','rozliczenia'], 'href' => null],
-    'planowanie' => ['label' => 'Planowanie',   'tabs' => ['frekwencja_grup','dostepnosc','zoom','cykliczne','praca_wlasna'], 'href' => 'index.php?tab=frekwencja_grup'],
-    'komunikacja'=> ['label' => 'Komunikacja',  'tabs' => ['wiadomosci','komunikaty','komunikacja'], 'href' => 'index.php?tab=wiadomosci'],
-    'sprawy'     => ['label' => 'Moje sprawy',  'tabs' => ['formalnosci','wypłaty','dysk'], 'href' => 'index.php?tab=formalnosci'],
+    'zajecia'    => ['label' => 'Moje zajęcia', 'tabs' => ['lekcje','uczestnicy','plan','protokol','oceny','zadania','materialy','nieobecnosci','program','testy'], 'href' => null],
+    'planowanie' => ['label' => 'Planowanie',   'tabs' => ['frekwencja_grup','dostepnosc','zoom','cykliczne'], 'href' => 'index.php?tab=frekwencja_grup'],
+    'komunikacja'=> ['label' => 'Komunikacja',  'tabs' => ['wiadomosci','komunikaty'], 'href' => 'index.php?tab=wiadomosci'],
+    'sprawy'     => ['label' => 'Moje sprawy',  'tabs' => ['formalnosci','dysk'], 'href' => 'index.php?tab=formalnosci'],
 ];
+// Kierownik to osobna sekcja — zakładki dostępne tylko pracownikom D3, te same,
+// które w menu bocznym stoją pod nagłówkiem KIEROWNIK.
+if (dyd_is_staff()) {
+    $_usos_sections['kierownik'] = [
+        'label' => 'Kierownik',
+        'tabs'  => ['grupy','billing','kursy','rozliczenia','wypłaty','praca_wlasna','komunikacja'],
+        'href'  => 'index.php?tab=grupy',
+    ];
+}
 $_usos_cur = 'start';
 foreach ($_usos_sections as $_k => $_s) {
     if (in_array($tab, $_s['tabs'], true)) { $_usos_cur = $_k; break; }
@@ -35,7 +44,7 @@ $_usos_tab_labels = [
     'zoom' => 'Zajętość Zoom', 'cykliczne' => 'Plan cykliczny', 'praca_wlasna' => 'Praca własna',
     'wiadomosci' => 'Wiadomości', 'komunikaty' => 'Komunikaty', 'komunikacja' => 'Komunikacja',
     'formalnosci' => 'Formalności', 'wypłaty' => 'Wypłaty', 'dysk' => 'Mój dysk',
-    'grupy' => 'Przegląd grup', 'billing' => 'Rozliczenia kursantów', 'kursy' => 'Kursy',
+    'grupy' => 'Przegląd grup', 'billing' => 'Rozliczenia kursantów', 'kursy' => 'Zarządzanie kursami',
 ];
 ?>
 <nav class="usos-sections" aria-label="Sekcje panelu">
@@ -49,7 +58,9 @@ $_usos_tab_labels = [
   <?php if ($_usos_cur !== 'start'): ?>
     &rsaquo; <a href="<?= h($_usos_sections[$_usos_cur]['href']) ?>"><?= h($_usos_sections[$_usos_cur]['label']) ?></a>
   <?php endif; ?>
-  <?php if ($_usos_cur === 'zajecia' && !empty($course['name'])): ?>
+  <?php if (in_array($_usos_cur, ['zajecia'], true) && !empty($course['name'])): ?>
+    &rsaquo; <?= h($course['name']) ?>
+  <?php elseif ($_usos_cur === 'kierownik' && $tab === 'rozliczenia' && !empty($course['name'])): ?>
     &rsaquo; <?= h($course['name']) ?>
   <?php endif; ?>
   <?php if (!empty($_usos_tab_labels[$tab]) && $tab !== 'pulpit'): ?>
