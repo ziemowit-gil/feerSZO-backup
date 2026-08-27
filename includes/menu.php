@@ -378,6 +378,9 @@ function _menu_editor(): array {
         if ($cnt['alias_op'])
             $obs_g[] = _mi('Aliasy e-mail','/admin/email_aliasy.php','bi-at',['match'=>'/admin/email_aliasy','badge'=>$cnt['alias'],'kw'=>'alias email']);
     }
+    if (module_enabled('rekrutacja_enabled')
+        && (is_admin() || !empty(current_user()['rekrutacja_operator'])))
+        $obs_g[] = _mi('Rekrutacja','/rekrutacja/index.php','bi-person-plus',['match'=>'/rekrutacja/','kw'=>'rekrutacja kandydaci cv wolontariusze pracownicy zgłoszenia']);
     if (module_enabled('messages_enabled'))
         $obs_g[] = _mi('Wiadomości','/admin/messages.php','bi-chat-dots',['match'=>'/admin/messages','badge'=>$cnt['msg'],'kw'=>'wiadomości czat','attr'=>'data-msg-sb-badge']);
     if (module_enabled('events_enabled'))
