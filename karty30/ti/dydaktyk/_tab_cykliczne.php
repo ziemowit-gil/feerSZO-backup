@@ -57,6 +57,10 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
 .wpl-col-hdr-fill.over{background:var(--bs-danger)}
 .wpl-col-hdr-stat{font-size:.67rem;color:var(--bs-secondary-color);margin-top:2px;font-family:var(--bs-font-monospace)}
 .wpl-col-body{padding:6px;min-height:120px;display:flex;flex-direction:column;gap:4px}
+.wpl-slot{cursor:grab}
+.wpl-slot.ui-draggable-dragging{cursor:grabbing;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.wpl-drop-hint{outline:1px dashed var(--bs-border-color);outline-offset:-3px}
+.wpl-drop-over{background:rgba(37,99,235,.10);outline:2px dashed #2563eb;outline-offset:-3px}
 .wpl-avail-badge{font-size:.63rem;padding:2px 5px;border-radius:3px;font-family:var(--bs-font-monospace)}
 .wpl-avail-app{background:rgba(16,185,129,.12);color:#065f46;border:1px solid rgba(16,185,129,.3)}
 .wpl-avail-dft{background:rgba(245,158,11,.12);color:#92400e;border:1px solid rgba(245,158,11,.3)}
@@ -107,6 +111,64 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
 
 <?= flash_html() ?>
 
+<!-- Generowanie lekcji z plannera godzin -->
+<div class="card mb-4" id="generowanie">
+  <div class="card-header fw-semibold"><i class="bi bi-magic me-2" aria-hidden="true"></i>Generuj lekcje z tego planu</div>
+  <div class="card-body">
+    <p class="small text-body-secondary">
+      Planner godzin opisuje wzorzec tygodnia. Tu zamieniasz go na konkretne lekcje w wybranym
+      zakresie dat. Pomijane są: dni wolne, zamknięte okresy, terminy poza Twoją dostępnością,
+      terminy z zajętym kontem Zoom oraz lekcje, które już istnieją — dlatego generowanie można
+      bezpiecznie powtórzyć.
+    </p>
+    <form id="wplGenForm" class="row g-2 align-items-end">
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label fw-semibold" for="wplGenFrom">Od</label>
+        <input type="date" class="form-control form-control-sm" id="wplGenFrom" name="date_from"
+               value="<?= h(date('Y-m-d')) ?>" required>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label fw-semibold" for="wplGenTo">Do</label>
+        <input type="date" class="form-control form-control-sm" id="wplGenTo" name="date_to"
+               value="<?= h(date('Y-m-d', strtotime('+3 months'))) ?>" required>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label fw-semibold" for="wplGenCourse">Grupa</label>
+        <select class="form-select form-select-sm" id="wplGenCourse" name="course_id">
+          <option value="0">— wszystkie moje sloty —</option>
+          <?php foreach ($all_courses as $c): ?>
+          <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label fw-semibold" for="wplGenStatus">Status lekcji</label>
+        <select class="form-select form-select-sm" id="wplGenStatus" name="status">
+          <option value="planned">Zaplanowana</option>
+          <option value="draft">Szkic</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="wplGenApproved" checked>
+          <label class="form-check-label small" for="wplGenApproved">tylko slajdy zatwierdzone</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="wplGenSkipOff" checked>
+          <label class="form-check-label small" for="wplGenSkipOff">pomijaj dni wolne i przerwy</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary btn-sm" id="wplGenBtn">Generuj lekcje</button>
+        <span class="form-text ms-2">Lekcje trafiają do zakładki „Zajęcia” wybranej grupy.</span>
+      </div>
+    </form>
+    <div id="wplGenResult" class="mt-3" style="display:none" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<div id="wplStatus" class="alert py-2 small" style="display:none" role="status" aria-live="polite"></div>
+
 <!-- Siatka tygodniowa -->
 <div class="wpl-grid mb-4" role="grid" aria-label="Tygodniowy plan zajęć">
 
@@ -119,7 +181,7 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
     $has_avail  = (bool)$wins;
     $dname = K30_TI_DAYS[$dow];
 ?>
-<div class="wpl-col<?= $has_avail ? '' : ' wpl-col-noavail' ?>" role="gridcell" aria-label="<?= h($dname) ?>">
+<div class="wpl-col<?= $has_avail ? '' : ' wpl-col-noavail' ?>" role="gridcell" aria-label="<?= h($dname) ?>" data-dow="<?= (int)$dow ?>">
   <div class="wpl-col-hdr">
     <div class="wpl-col-hdr-name"><?= h($dname) ?></div>
     <div class="wpl-col-hdr-bar"><div class="wpl-col-hdr-fill <?= $fill_class ?>" style="width:<?= $pct ?>%"></div></div>
@@ -128,7 +190,7 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
       <?php if ($used > $DAY_MAX): ?><span class="text-danger fw-bold"> !</span><?php endif ?>
     </div>
   </div>
-  <div class="wpl-col-body">
+  <div class="wpl-col-body" data-dow="<?= (int)$dow ?>">
     <!-- Okna dostępności -->
     <?php foreach ($wins as $w):
         $cls = $w['status'] === 'approved' ? 'wpl-avail-app' : 'wpl-avail-dft';
@@ -148,19 +210,21 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
         $st  = TI_WEEKLY_STATUS[$sl['status']] ?? TI_WEEKLY_STATUS['draft'];
         $dh  = round((int)$sl['duration_min'] / $DH_MIN, 1);
     ?>
-    <div class="wpl-slot" style="background:<?= h($col) ?>" aria-label="<?= h($sl['course_name']) ?>">
+    <div class="wpl-slot" style="background:<?= h($col) ?>" aria-label="<?= h($sl['course_name']) ?>"
+         data-slot-id="<?= (int)$sl['id'] ?>" data-course-id="<?= (int)$sl['course_id'] ?>"
+         data-from="<?= h(substr((string)$sl['time_from'], 0, 5)) ?>" data-dur="<?= (int)$sl['duration_min'] ?>"
+         data-status="<?= h((string)$sl['status']) ?>" data-notes="<?= h((string)($sl['notes'] ?? '')) ?>">
       <div class="wpl-slot-actions">
-        <button class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
-                title="<?= $sl['status']==='draft' ? 'Zatwierdź' : 'Cofnij do szkicu' ?>"
-                onclick="wplSetStatus(<?= (int)$sl['id'] ?>, '<?= $sl['status']==='draft'?'approved':'draft' ?>')">
+        <button type="button" class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
+                data-wpl-status="1" title="<?= $sl['status']==='draft' ? 'Zatwierdź' : 'Cofnij do szkicu' ?>">
           <i class="bi bi-<?= $sl['status']==='draft'?'check-circle':'arrow-counterclockwise' ?>"></i>
         </button>
-        <button class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
-                title="Edytuj slot" onclick="wplEdit(<?= (int)$sl['id'] ?>,<?= (int)$sl['course_id'] ?>,<?= $dow ?>,<?= json_encode(substr($sl['time_from'],0,5)) ?>,<?= (int)$sl['duration_min'] ?>,<?= json_encode($sl['notes']??'') ?>)">
+        <button type="button" class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
+                data-wpl-edit="1" title="Edytuj slot">
           <i class="bi bi-pencil"></i>
         </button>
-        <button class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
-                title="Usuń slot" onclick="wplDelete(<?= (int)$sl['id'] ?>)">
+        <button type="button" class="btn btn-sm p-0 text-white" style="width:18px;height:18px;font-size:9px;line-height:18px"
+                data-wpl-del="1" title="Usuń slot">
           <i class="bi bi-x-lg"></i>
         </button>
       </div>
@@ -176,7 +240,8 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
 
     <!-- Przycisk dodania -->
     <?php if ($has_avail): ?>
-    <button class="wpl-add-btn mt-1" onclick="wplAdd(<?= $dow ?>)">
+    <button type="button" class="wpl-add-btn mt-1" data-wpl-add="1" data-dow="<?= (int)$dow ?>"
+            aria-label="Dodaj slot: <?= h($dname) ?>">
       <i class="bi bi-plus" aria-hidden="true"></i>
     </button>
     <?php endif; ?>
@@ -203,8 +268,8 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
         <span style="width:10px;height:10px;border-radius:50%;background:<?= h($col) ?>;flex-shrink:0"></span>
         <span><?= h($uc['name']) ?></span>
         <span class="text-muted small"><?= $dur ?>min (<?= $dh ?>gh)</span>
-        <button class="btn btn-sm btn-link p-0 text-primary ms-1" style="font-size:.72rem"
-                onclick="wplAdd(null, <?= (int)$uc['id'] ?>)">
+        <button type="button" class="btn btn-sm btn-link p-0 text-primary ms-1" style="font-size:.72rem"
+                data-wpl-add="1" data-course-id="<?= (int)$uc['id'] ?>">
           <i class="bi bi-plus-circle" aria-hidden="true"></i>Przypisz
         </button>
       </div>
@@ -224,6 +289,7 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
   <span><span class="badge text-bg-success">Zatwierdzona</span> — slot zatwierdzony, trafia do planu</span>
   <span><span class="badge text-bg-warning text-dark">Szkic</span> — wstępny, nie trafia do harmonogramu kursanta</span>
   <span><i class="bi bi-slash-circle me-1"></i>Kratka tła = dzień bez dostępności</span>
+  <span><i class="bi bi-arrows-move me-1"></i>Slot przeciągasz myszą na inny dzień — zapis dzieje się od razu</span>
 </div>
 
 <!-- Modal: Dodaj / Edytuj slot -->
@@ -289,111 +355,243 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
   </div>
 </div>
 
+<!-- jQuery + jQuery UI: przeciąganie slotów między dniami. Ładowane tylko na tej
+     zakładce — reszta panelu jest bez jQuery i taka zostaje. -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery-ui-dist@1.13.3/jquery-ui.min.js"></script>
 <script>
-(function(){
-const AJAX  = <?= json_encode(rtrim(APP_URL,'/')  . '/karty30/ti/dydaktyk/planner_ajax.php') ?>;
-const TOKEN = <?= json_encode(dyd_token()) ?>;
-const DAY_USED = <?= json_encode($day_used) ?>;
-const DAY_MAX  = <?= $DAY_MAX ?>;
-const DH_MIN   = <?= $DH_MIN ?>;
-const DAY_NAMES = <?= json_encode(array_combine([1,2,3,4,5,6,0], array_map(fn($d)=>K30_TI_DAYS[$d], [1,2,3,4,5,6,0]))) ?>;
+jQuery(function ($) {
+  'use strict';
 
-let wplModal = null;
+  var AJAX      = <?= json_encode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/planner_ajax.php') ?>;
+  var TOKEN     = <?= json_encode(dyd_token()) ?>;
+  var DAY_MAX   = <?= (int)$DAY_MAX ?>;
+  var DH_MIN    = <?= (int)$DH_MIN ?>;
+  var DAY_NAMES = <?= json_encode(array_combine([1,2,3,4,5,6,0], array_map(fn($d) => K30_TI_DAYS[$d], [1,2,3,4,5,6,0]))) ?>;
 
-document.addEventListener('DOMContentLoaded', () => {
-  const el = document.getElementById('wplSlotModal');
-  if (el) wplModal = new bootstrap.Modal(el);
+  var $modal = $('#wplSlotModal');
+  var modal  = $modal.length ? new bootstrap.Modal($modal[0]) : null;
 
-  const durInput = document.getElementById('wplDuration');
-  const dowSel   = document.getElementById('wplDow');
-  if (durInput) {
-    durInput.addEventListener('input', updateDurDh);
-    dowSel.addEventListener('change', updateDayLoad);
-    document.getElementById('wplCourseId').addEventListener('change', () => {
-      const sel = document.getElementById('wplCourseId');
-      const dur = sel.selectedOptions[0]?.dataset.dur;
-      if (dur) { durInput.value = dur; updateDurDh(); }
+  /** Jedno miejsce na wywołania endpointu — wszystkie akcje plannera idą tędy. */
+  function api(action, data) {
+    return $.post(AJAX, $.extend({ action: action, _token: TOKEN }, data || []), null, 'json');
+  }
+
+  function say(msg, kind) {
+    var $box = $('#wplStatus');
+    if (!$box.length) { if (kind === 'err') { window.alert(msg); } return; }
+    $box.attr('class', 'alert alert-' + (kind === 'err' ? 'danger' : (kind === 'warn' ? 'warning' : 'success')) + ' py-2 small')
+        .text(msg).show();
+    if (kind !== 'err') { window.setTimeout(function () { $box.fadeOut(400); }, 6000); }
+  }
+
+  // ── Sumy dnia liczone z DOM, żeby po przeciągnięciu nie przeładowywać strony ──
+  function recalcDay(dow) {
+    var $body = $('.wpl-col-body[data-dow="' + dow + '"]');
+    var used  = 0;
+    $body.find('.wpl-slot').each(function () { used += parseInt($(this).data('dur'), 10) || 0; });
+    var $hdr  = $('.wpl-col[data-dow="' + dow + '"] .wpl-col-hdr');
+    var pct   = Math.min(100, Math.round(used / DAY_MAX * 100));
+    $hdr.find('.wpl-col-hdr-fill')
+        .css('width', pct + '%')
+        .removeClass('warn over')
+        .addClass(used > DAY_MAX ? 'over' : (used > DAY_MAX * 0.75 ? 'warn' : ''));
+    $hdr.find('.wpl-col-hdr-stat').html(used + '/' + DAY_MAX + ' min' + (used > DAY_MAX ? ' <span class="text-danger fw-bold">!</span>' : ''));
+    return used;
+  }
+
+  function recalcAll() { $('.wpl-col-body').each(function () { recalcDay($(this).data('dow')); }); }
+
+  // ── Przeciąganie slotów między dniami (jQuery UI) ───────────────────────────
+  function initDnD() {
+    $('.wpl-slot').draggable({
+      revert: 'invalid',
+      revertDuration: 150,
+      helper: 'clone',
+      opacity: 0.75,
+      zIndex: 1080,
+      cursor: 'grabbing',
+      start: function () { $('.wpl-col-body').addClass('wpl-drop-hint'); },
+      stop:  function () { $('.wpl-col-body').removeClass('wpl-drop-hint'); }
+    });
+
+    $('.wpl-col-body').droppable({
+      accept: '.wpl-slot',
+      hoverClass: 'wpl-drop-over',
+      drop: function (ev, ui) {
+        var $slot   = ui.draggable;
+        var $target = $(this);
+        var fromDow = parseInt($slot.closest('.wpl-col-body').data('dow'), 10);
+        var toDow   = parseInt($target.data('dow'), 10);
+        if (fromDow === toDow) { return; }
+
+        var payload = {
+          slot_id:      $slot.data('slot-id'),
+          course_id:    $slot.data('course-id'),
+          day_of_week:  toDow,
+          time_from:    $slot.data('from'),
+          duration_min: $slot.data('dur'),
+          status:       $slot.data('status'),
+          notes:        $slot.data('notes') || ''
+        };
+        // Przenosimy od razu, a przy odmowie serwera wracamy — użytkownik widzi skutek natychmiast
+        $slot.css({ top: 0, left: 0 }).appendTo($target);
+        recalcDay(fromDow); recalcDay(toDow);
+
+        api('weekly_slot_save', payload)
+          .done(function (j) {
+            if (j && j.ok) {
+              $slot.closest('.wpl-col-body').data('dow', toDow);
+              say(DAY_NAMES[toDow] + ': slot przeniesiony.', 'ok');
+            } else {
+              revert(j && j.msg);
+            }
+          })
+          .fail(function (xhr) {
+            var j = xhr.responseJSON;
+            revert(j && j.msg ? j.msg : 'Nie udało się przenieść slotu.');
+          });
+
+        function revert(msg) {
+          $slot.appendTo($('.wpl-col-body[data-dow="' + fromDow + '"]'));
+          recalcDay(fromDow); recalcDay(toDow);
+          say(msg || 'Serwer odrzucił zmianę.', 'err');
+        }
+      }
     });
   }
 
-  document.getElementById('wplSlotForm')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    fd.append('action', 'weekly_slot_save');
-    fd.append('_token', TOKEN);
-    const r = await fetch(AJAX, {method:'POST', body:fd});
-    const j = await r.json().catch(() => ({}));
-    if (j.ok) { location.reload(); } else { alert(j.msg || 'Błąd zapisu'); }
-  });
-});
-
-function updateDurDh() {
-  const dur = parseInt(document.getElementById('wplDuration').value) || 0;
-  const dh  = (dur / DH_MIN).toFixed(1);
-  document.getElementById('wplDurationDh').textContent = `${dh} godz. dydaktycznych`;
-  updateDayLoad();
-}
-
-function updateDayLoad() {
-  const dow  = parseInt(document.getElementById('wplDow').value);
-  const dur  = parseInt(document.getElementById('wplDuration').value) || 0;
-  const sid  = parseInt(document.getElementById('wplSlotId').value) || 0;
-  const used = DAY_USED[dow] || 0;
-  const total = used + (sid ? 0 : dur);  // jeśli edycja, nie dodawaj ponownie
-  const left  = DAY_MAX - used;
-  const el    = document.getElementById('wplDayLoad');
-  if (!el) return;
-  el.innerHTML = `${K30_TI_DAYS?.[dow] ?? ''}: zajęte <strong>${used}</strong>/${DAY_MAX} min
-    (zostało <strong>${left}</strong> min = ${(left/DH_MIN).toFixed(1)} gh)
-    ${total > DAY_MAX ? '<span class="text-danger fw-bold">— przekroczony limit!</span>' : ''}`;
-}
-
-window.wplAdd = function(dow, courseId) {
-  document.getElementById('wplSlotId').value = '';
-  document.getElementById('wplSlotModalLabel').textContent = 'Nowy slot zajęć';
-  if (dow !== null && dow !== undefined) document.getElementById('wplDow').value = dow;
-  if (courseId) {
-    document.getElementById('wplCourseId').value = courseId;
-    const sel = document.getElementById('wplCourseId');
-    const dur = sel.selectedOptions[0]?.dataset.dur;
-    if (dur) document.getElementById('wplDuration').value = dur;
+  // ── Formularz slotu (Bootstrap modal + jQuery) ───────────────────────────────
+  function durDh() {
+    var dur = parseInt($('#wplDuration').val(), 10) || 0;
+    $('#wplDurationDh').text((dur / DH_MIN).toFixed(1) + ' godz. dydaktycznych');
+    dayLoad();
   }
-  updateDurDh();
-  wplModal?.show();
-};
 
-window.wplEdit = function(id, courseId, dow, timeFrom, dur, notes) {
-  document.getElementById('wplSlotId').value = id;
-  document.getElementById('wplSlotModalLabel').textContent = 'Edytuj slot zajęć';
-  document.getElementById('wplCourseId').value = courseId;
-  document.getElementById('wplDow').value = dow;
-  document.getElementById('wplTimeFrom').value = timeFrom;
-  document.getElementById('wplDuration').value = dur;
-  document.getElementById('wplNotes').value = notes;
-  updateDurDh();
-  wplModal?.show();
-};
+  function dayLoad() {
+    var dow  = parseInt($('#wplDow').val(), 10);
+    var dur  = parseInt($('#wplDuration').val(), 10) || 0;
+    var sid  = parseInt($('#wplSlotId').val(), 10) || 0;
+    var used = recalcDay(dow);
+    var left = DAY_MAX - used;
+    var over = (used + (sid ? 0 : dur)) > DAY_MAX;
+    $('#wplDayLoad').html(
+      (DAY_NAMES[dow] || '') + ': zajęte <strong>' + used + '</strong>/' + DAY_MAX + ' min (zostało <strong>' +
+      left + '</strong> min = ' + (left / DH_MIN).toFixed(1) + ' gh)' +
+      (over ? ' <span class="text-danger fw-bold">— przekroczony limit!</span>' : '')
+    );
+  }
 
-window.wplDelete = async function(id) {
-  if (!confirm('Usunąć ten slot zajęć?')) return;
-  const fd = new FormData();
-  fd.append('action', 'weekly_slot_delete');
-  fd.append('_token', TOKEN);
-  fd.append('slot_id', id);
-  const r = await fetch(AJAX, {method:'POST', body:fd});
-  const j = await r.json().catch(() => ({}));
-  if (j.ok) location.reload(); else alert(j.msg || 'Błąd');
-};
+  $('#wplDuration').on('input', durDh);
+  $('#wplDow').on('change', dayLoad);
+  $('#wplCourseId').on('change', function () {
+    var dur = $(this).find('option:selected').data('dur');
+    if (dur) { $('#wplDuration').val(dur); durDh(); }
+  });
 
-window.wplSetStatus = async function(id, newStatus) {
-  const fd = new FormData();
-  fd.append('action', 'weekly_slot_status');
-  fd.append('_token', TOKEN);
-  fd.append('slot_id', id);
-  fd.append('status', newStatus);
-  const r = await fetch(AJAX, {method:'POST', body:fd});
-  const j = await r.json().catch(() => ({}));
-  if (j.ok) location.reload(); else alert(j.msg || 'Błąd');
-};
-})();
+  $('#wplSlotForm').on('submit', function (e) {
+    e.preventDefault();
+    var $btn = $('#wplSlotSubmit').prop('disabled', true);
+    api('weekly_slot_save', $(this).serializeArray().reduce(function (acc, f) { acc[f.name] = f.value; return acc; }, {}))
+      .done(function (j) {
+        if (j && j.ok) { window.location.reload(); }
+        else { say((j && j.msg) || 'Błąd zapisu.', 'err'); }
+      })
+      .fail(function (xhr) { say((xhr.responseJSON && xhr.responseJSON.msg) || 'Błąd zapisu.', 'err'); })
+      .always(function () { $btn.prop('disabled', false); });
+  });
+
+  // Otwieranie formularza — z przycisków w kolumnach i z listy nieprzypisanych kursów
+  $(document).on('click', '[data-wpl-add]', function () {
+    var dow = $(this).data('dow');
+    var cid = $(this).data('course-id');
+    $('#wplSlotId').val('');
+    $('#wplSlotModalLabel').text('Nowy slot zajęć');
+    if (dow !== undefined && dow !== null && dow !== '') { $('#wplDow').val(dow); }
+    if (cid) {
+      $('#wplCourseId').val(cid);
+      var dur = $('#wplCourseId').find('option:selected').data('dur');
+      if (dur) { $('#wplDuration').val(dur); }
+    }
+    durDh();
+    if (modal) { modal.show(); }
+  });
+
+  $(document).on('click', '[data-wpl-edit]', function () {
+    var $s = $(this).closest('.wpl-slot');
+    $('#wplSlotId').val($s.data('slot-id'));
+    $('#wplSlotModalLabel').text('Edytuj slot zajęć');
+    $('#wplCourseId').val($s.data('course-id'));
+    $('#wplDow').val($s.closest('.wpl-col-body').data('dow'));
+    $('#wplTimeFrom').val($s.data('from'));
+    $('#wplDuration').val($s.data('dur'));
+    $('#wplStatus').val($s.data('status'));
+    $('#wplNotes').val($s.data('notes') || '');
+    durDh();
+    if (modal) { modal.show(); }
+  });
+
+  $(document).on('click', '[data-wpl-del]', function () {
+    var $s = $(this).closest('.wpl-slot');
+    if (!window.confirm('Usunąć ten slot zajęć?')) { return; }
+    var dow = $s.closest('.wpl-col-body').data('dow');
+    api('weekly_slot_delete', { slot_id: $s.data('slot-id') })
+      .done(function (j) {
+        if (j && j.ok) { $s.fadeOut(150, function () { $s.remove(); recalcDay(dow); }); say('Slot usunięty.', 'ok'); }
+        else { say((j && j.msg) || 'Błąd.', 'err'); }
+      })
+      .fail(function () { say('Nie udało się usunąć slotu.', 'err'); });
+  });
+
+  $(document).on('click', '[data-wpl-status]', function () {
+    var $s  = $(this).closest('.wpl-slot');
+    var cur = $s.data('status');
+    var nxt = cur === 'draft' ? 'approved' : 'draft';
+    api('weekly_slot_status', { slot_id: $s.data('slot-id'), status: nxt })
+      .done(function (j) {
+        if (j && j.ok) {
+          $s.data('status', nxt);
+          $s.find('.wpl-slot-badge').text(nxt === 'approved' ? 'Zatwierdzona' : 'Szkic');
+          $(this).attr('title', nxt === 'draft' ? 'Zatwierdź' : 'Cofnij do szkicu')
+                 .find('i').attr('class', 'bi bi-' + (nxt === 'draft' ? 'check-circle' : 'arrow-counterclockwise'));
+          say('Status slotu: ' + (nxt === 'approved' ? 'zatwierdzona' : 'szkic') + '.', 'ok');
+        } else { say((j && j.msg) || 'Błąd.', 'err'); }
+      }.bind(this))
+      .fail(function () { say('Nie udało się zmienić statusu.', 'err'); });
+  });
+
+  // ── Generowanie lekcji z plannera godzin ────────────────────────────────────
+  $('#wplGenForm').on('submit', function (e) {
+    e.preventDefault();
+    var $btn  = $('#wplGenBtn');
+    var $out  = $('#wplGenResult');
+    var data  = $(this).serializeArray().reduce(function (acc, f) { acc[f.name] = f.value; return acc; }, {});
+    data.only_approved = $('#wplGenApproved').is(':checked') ? '1' : '0';
+    data.skip_off_days = $('#wplGenSkipOff').is(':checked') ? '1' : '0';
+
+    $btn.prop('disabled', true).text('Generuję…');
+    $out.hide();
+
+    api('weekly_generate', data)
+      .done(function (j) {
+        if (!j || !j.ok) { say((j && j.msg) || 'Nie udało się wygenerować lekcji.', 'err'); return; }
+        var html = '<div class="fw-semibold mb-1">' + j.msg + '</div>';
+        if (j.reasons && j.reasons.length) {
+          html += '<ul class="mb-0 small">' + j.reasons.map(function (r) {
+            return '<li>' + $('<div>').text(r).html() + '</li>';
+          }).join('') + '</ul>';
+        }
+        if (j.created > 0) {
+          html += '<div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="index.php?tab=lekcje">Zobacz zajęcia</a></div>';
+        }
+        $out.attr('class', 'alert alert-' + (j.created > 0 ? 'success' : 'warning') + ' py-2 small').html(html).show();
+      })
+      .fail(function (xhr) { say((xhr.responseJSON && xhr.responseJSON.msg) || 'Błąd generowania.', 'err'); })
+      .always(function () { $btn.prop('disabled', false).text('Generuj lekcje'); });
+  });
+
+  initDnD();
+  recalcAll();
+  durDh();
+});
 </script>
