@@ -354,6 +354,71 @@ function rk_allowed_instructors(int $round_id, int $client_id): ?array {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   OPERACJE KIEROWNIKA NA PORTFELACH — odebranie i przeniesienie żetonów.
+   Obie działają wyłącznie na saldzie DOSTĘPNYM (granted − spent − held):
+   żetonów zablokowanych rezerwacją nie da się ani odebrać, ani przenieść.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Odbiera kursantowi żetony z puli. $amount <= 0 = całe dostępne saldo.
+ * Zwraca liczbę faktycznie odebranych. INSUFFICIENT_TOKENS przy braku pokrycia.
+ */
+function rk_tokens_revoke(int $pool_id, int $client_id, int $amount, string $reason = '', ?int $by = null): int {
+    return rk_tx(function () use ($pool_id, $client_id, $amount, $reason, $by) {
+        $w = db_one("SELECT *, (granted - spent - held) AS available
+                       FROM k30_pl_token_pool_wallets WHERE pool_id=? AND client_id=?",
+                    [$pool_id, $client_id]);
+        if (!$w) throw new RkException('WALLET_NOT_FOUND');
+
+        $take = $amount <= 0 ? max(0, (int)$w['available']) : $amount;
+        if ($take <= 0) return 0;
+
+        $ok = rk_affect(
+            "UPDATE k30_pl_token_pool_wallets
+                SET granted = granted - ?, updated_at = datetime('now')
+              WHERE id = ? AND (granted - spent - held) >= CAST(? AS INTEGER)",
+            [$take, $w['id'], $take]);
+        if ($ok !== 1) throw new RkException('INSUFFICIENT_TOKENS');
+
+        db_exec("INSERT INTO k30_pl_token_pool_txns (wallet_id, amount, direction, reason, ref_type, created_by)
+                 VALUES (?,?, 'debit', ?, 'rk_admin', ?)",
+                [$w['id'], $take, $reason !== '' ? $reason : 'odebranie', $by]);
+        return $take;
+    });
+}
+
+/**
+ * Przenosi żetony kursanta między pulami. $amount <= 0 = całe dostępne saldo
+ * puli źródłowej. Zwraca liczbę przeniesionych.
+ */
+function rk_tokens_transfer(int $from_pool, int $to_pool, int $client_id, int $amount, ?int $by = null): int {
+    if ($from_pool === $to_pool) throw new RkException('TRANSFER_SAME_POOL');
+    if (!db_one("SELECT 1 FROM k30_pl_token_pools WHERE id=?", [$to_pool])) {
+        throw new RkException('POOL_NOT_FOUND');
+    }
+    return rk_tx(function () use ($from_pool, $to_pool, $client_id, $amount, $by) {
+        $from = db_one("SELECT p.name FROM k30_pl_token_pools p WHERE p.id=?", [$from_pool]);
+        $to   = db_one("SELECT p.name FROM k30_pl_token_pools p WHERE p.id=?", [$to_pool]);
+
+        $moved = rk_tokens_revoke($from_pool, $client_id, $amount,
+            'przeniesienie do: ' . (string)($to['name'] ?? ('#' . $to_pool)), $by);
+        if ($moved <= 0) return 0;
+
+        db_exec("INSERT OR IGNORE INTO k30_pl_token_pool_wallets (pool_id, client_id) VALUES (?,?)",
+                [$to_pool, $client_id]);
+        $tw = db_one("SELECT id FROM k30_pl_token_pool_wallets WHERE pool_id=? AND client_id=?",
+                [$to_pool, $client_id]);
+        db_exec("UPDATE k30_pl_token_pool_wallets
+                    SET granted = granted + ?, updated_at = datetime('now') WHERE id = ?",
+                [$moved, $tw['id']]);
+        db_exec("INSERT INTO k30_pl_token_pool_txns (wallet_id, amount, direction, reason, ref_type, created_by)
+                 VALUES (?,?, 'credit', ?, 'rk_admin', ?)",
+                [$tw['id'], $moved, 'przeniesienie z: ' . (string)($from['name'] ?? ('#' . $from_pool)), $by]);
+        return $moved;
+    });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    TURY
    ══════════════════════════════════════════════════════════════════════════ */
 

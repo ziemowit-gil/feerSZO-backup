@@ -14,9 +14,11 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_rekrutacja.php';
 
 karty30_migrate();
 ti_planner_ext_migrate();
+ti_rk_migrate();
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }   // ekran kierownika
@@ -105,6 +107,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', "Dodano $amount żetonów.");
         } else {
             flash_set('danger', 'Nieprawidłowe dane.');
+        }
+        header('Location: zetony.php?tab=pule&pool='.$pid); exit;
+    }
+
+    /* ── Odebranie żetonów (kasowanie z dostępnego salda) ─────────────── */
+    if ($op === 'pool_revoke') {
+        $pid    = (int)($_POST['pool_id']   ?? 0);
+        $cid    = (int)($_POST['client_id'] ?? 0);
+        $all    = !empty($_POST['revoke_all']);
+        $amount = $all ? 0 : (int)($_POST['amount'] ?? 0);
+        try {
+            if (!$pid || !$cid || (!$all && $amount <= 0)) throw new RkException('INVALID');
+            $n = rk_tokens_revoke($pid, $cid, $amount, trim($_POST['reason'] ?? ''), $uid);
+            flash_set($n ? 'success' : 'warning',
+                $n ? "Odebrano $n żetonów." : 'Brak dostępnych żetonów do odebrania (zablokowane rezerwacją nie podlegają).');
+        } catch (RkException $e) {
+            flash_set('danger', $e->getMessage() === 'INSUFFICIENT_TOKENS'
+                ? 'Za mało dostępnych żetonów — część jest wydana albo zablokowana rezerwacją.'
+                : 'Nieprawidłowe dane operacji.');
+        }
+        header('Location: zetony.php?tab=pule&pool='.$pid); exit;
+    }
+
+    /* ── Przeniesienie żetonów do innej puli ──────────────────────────── */
+    if ($op === 'pool_transfer') {
+        $pid    = (int)($_POST['pool_id']    ?? 0);
+        $to     = (int)($_POST['to_pool_id'] ?? 0);
+        $cid    = (int)($_POST['client_id']  ?? 0);
+        $all    = !empty($_POST['transfer_all']);
+        $amount = $all ? 0 : (int)($_POST['amount'] ?? 0);
+        try {
+            if (!$pid || !$to || !$cid || (!$all && $amount <= 0)) throw new RkException('INVALID');
+            $n = rk_tokens_transfer($pid, $to, $cid, $amount, $uid);
+            flash_set($n ? 'success' : 'warning',
+                $n ? "Przeniesiono $n żetonów." : 'Brak dostępnych żetonów do przeniesienia.');
+        } catch (RkException $e) {
+            flash_set('danger', match ($e->getMessage()) {
+                'TRANSFER_SAME_POOL'  => 'Pula docelowa musi być inna niż źródłowa.',
+                'INSUFFICIENT_TOKENS' => 'Za mało dostępnych żetonów — część jest wydana albo zablokowana rezerwacją.',
+                'POOL_NOT_FOUND'      => 'Nie znaleziono puli docelowej.',
+                default               => 'Nieprawidłowe dane operacji.',
+            });
         }
         header('Location: zetony.php?tab=pule&pool='.$pid); exit;
     }
@@ -389,6 +433,18 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                       data-cid="<?= (int)$pw['client_id'] ?>"
                       data-name="<?= h($pw['client_name']) ?>"
                       title="Doładuj"><i class="bi bi-plus-circle" aria-hidden="true"></i></button>
+              <button class="btn btn-sm btn-outline-primary py-0 px-2"
+                      data-bs-toggle="modal" data-bs-target="#modalTransfer"
+                      data-cid="<?= (int)$pw['client_id'] ?>"
+                      data-name="<?= h($pw['client_name']) ?>"
+                      data-avail="<?= (int)$pw['balance'] ?>"
+                      title="Przenieś do innej puli"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                      data-bs-toggle="modal" data-bs-target="#modalRevoke"
+                      data-cid="<?= (int)$pw['client_id'] ?>"
+                      data-name="<?= h($pw['client_name']) ?>"
+                      data-avail="<?= (int)$pw['balance'] ?>"
+                      title="Odbierz żetony"><i class="bi bi-dash-circle" aria-hidden="true"></i></button>
               <?php endif; ?>
             </td>
           </tr>
@@ -449,11 +505,98 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </form>
       </div>
     </div>
+    <!-- Modal: odebranie żetonów -->
+    <div class="modal fade" id="modalRevoke" tabindex="-1" aria-labelledby="mrvLabel" aria-hidden="true">
+      <div class="modal-dialog modal-sm">
+        <form method="post" action="zetony.php?tab=pule&amp;pool=<?= $sel_pool ?>"
+              onsubmit="return confirm('Odebrać żetony? Operacja zostanie zapisana w historii portfela.')">
+          <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op"       value="pool_revoke">
+          <input type="hidden" name="pool_id"   value="<?= $sel_pool ?>">
+          <input type="hidden" name="client_id" id="revokeClientId" value="">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="mrvLabel">Odbierz żetony</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2"><span id="revokeClientName"></span> — dostępne: <strong id="revokeAvail"></strong></p>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold" for="revokeAmount">Ile odebrać</label>
+                <input type="number" class="form-control" id="revokeAmount" name="amount" min="1" max="9999" value="1">
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="revokeAll" name="revoke_all" value="1"
+                       onchange="document.getElementById('revokeAmount').disabled = this.checked">
+                <label class="form-check-label small" for="revokeAll">Odbierz całe dostępne saldo</label>
+              </div>
+              <div class="mb-0">
+                <label class="form-label small fw-semibold" for="revokeReason">Powód</label>
+                <input type="text" class="form-control" id="revokeReason" name="reason" placeholder="np. korekta przydziału">
+              </div>
+              <p class="form-text mb-0">Żetony zablokowane rezerwacją nie podlegają odebraniu.</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+              <button type="submit" class="btn btn-sm btn-danger fw-semibold"><i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Odbierz</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: przeniesienie żetonów do innej puli -->
+    <div class="modal fade" id="modalTransfer" tabindex="-1" aria-labelledby="mtrLabel" aria-hidden="true">
+      <div class="modal-dialog modal-sm">
+        <form method="post" action="zetony.php?tab=pule&amp;pool=<?= $sel_pool ?>">
+          <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op"       value="pool_transfer">
+          <input type="hidden" name="pool_id"   value="<?= $sel_pool ?>">
+          <input type="hidden" name="client_id" id="transferClientId" value="">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="mtrLabel">Przenieś żetony</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2"><span id="transferClientName"></span> — dostępne: <strong id="transferAvail"></strong></p>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold" for="transferTo">Pula docelowa</label>
+                <select class="form-select" id="transferTo" name="to_pool_id" required>
+                  <?php foreach ($pools as $tp): if ((int)$tp['id'] === $sel_pool) continue; ?>
+                  <option value="<?= (int)$tp['id'] ?>"><?= h($tp['name']) ?><?= empty($tp['is_active']) ? ' (nieaktywna)' : '' ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold" for="transferAmount">Ile przenieść</label>
+                <input type="number" class="form-control" id="transferAmount" name="amount" min="1" max="9999" value="1">
+              </div>
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="transferAll" name="transfer_all" value="1"
+                       onchange="document.getElementById('transferAmount').disabled = this.checked">
+                <label class="form-check-label small" for="transferAll">Przenieś całe dostępne saldo</label>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+              <button type="submit" class="btn btn-sm btn-primary fw-semibold"><i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Przenieś</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script>
     document.getElementById('modalSingleGrant')?.addEventListener('show.bs.modal', function(e) {
       const btn = e.relatedTarget;
       this.querySelector('#singleClientId').value = btn.dataset.cid || '';
       this.querySelector('#singleClientName').textContent = btn.dataset.name || '';
+    });
+    ['Revoke', 'Transfer'].forEach(kind => {
+      document.getElementById('modal' + kind)?.addEventListener('show.bs.modal', function(e) {
+        const btn = e.relatedTarget, p = kind.toLowerCase();
+        this.querySelector('#' + p + 'ClientId').value = btn.dataset.cid || '';
+        this.querySelector('#' + p + 'ClientName').textContent = btn.dataset.name || '';
+        this.querySelector('#' + p + 'Avail').textContent = btn.dataset.avail || '0';
+        const amt = this.querySelector('#' + p + 'Amount');
+        amt.max = Math.max(1, parseInt(btn.dataset.avail || '1', 10));
+        amt.value = Math.min(parseInt(amt.value || '1', 10), amt.max);
+      });
     });
     </script>
     <?php endif; ?>
