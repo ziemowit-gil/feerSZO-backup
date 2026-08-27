@@ -142,6 +142,9 @@ function ti_rk_migrate(): void {
         foreach ([
             'auto_generate'     => 'INTEGER NOT NULL DEFAULT 0',
             'auto_horizon_days' => 'INTEGER NOT NULL DEFAULT 14',
+            // Jednostka horyzontu: days|months. Default 'days' zachowuje sens
+            // liczb w istniejących turach; nowe tury dostają 10 miesięcy.
+            'auto_horizon_unit' => "TEXT NOT NULL DEFAULT 'days'",
             'auto_duration_min' => 'INTEGER NOT NULL DEFAULT 60',
             'auto_capacity'     => 'INTEGER NOT NULL DEFAULT 1',
             'auto_mode'         => "TEXT NOT NULL DEFAULT 'online'",
@@ -474,7 +477,9 @@ function rk_round_save(array $d, ?int $id = null): int {
         'audience_json'   => $d['audience_json'] ?? '{}',
         'rules_html'      => $d['rules_html'] ?? '',
         'auto_generate'     => !empty($d['auto_generate']) ? 1 : 0,
-        'auto_horizon_days' => min(120, max(1, (int)($d['auto_horizon_days'] ?? 14))),
+        'auto_horizon_days' => min(365, max(1, (int)($d['auto_horizon_days'] ?? 10))),
+        'auto_horizon_unit' => in_array($d['auto_horizon_unit'] ?? '', ['days','months'], true)
+                                 ? $d['auto_horizon_unit'] : 'months',
         'auto_duration_min' => min(480, max(15, (int)($d['auto_duration_min'] ?? 60))),
         'auto_capacity'     => min(30, max(1, (int)($d['auto_capacity'] ?? 1))),
         'auto_mode'         => in_array($d['auto_mode'] ?? '', ['online','onsite','hybrid'], true)
@@ -1441,7 +1446,7 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
     $t_from = strtotime($date_from . ' 00:00:00');
     $t_to   = strtotime($date_to   . ' 00:00:00');
     if (!$instructor_ids || !$t_from || !$t_to || $t_to < $t_from) return $out;
-    $t_to = min($t_to, strtotime('+120 days'));   // bezpiecznik zakresu
+    $t_to = min($t_to, strtotime('+400 days'));   // bezpiecznik zakresu (mieści horyzont 12 mies.)
 
     $dry    = !empty($opts['dry_run']);
     $top_up = !empty($opts['top_up']);
@@ -1595,7 +1600,9 @@ function rk_auto_generate_rounds(): array {
             [(int)$r['id']]), 'iid');
         if (!$iids) { $res[(int)$r['id']] = 0; continue; }   // bez przypisań nie zgadujemy
 
-        $to = date('Y-m-d', strtotime('+' . max(1, (int)$r['auto_horizon_days']) . ' days'));
+        $n    = max(1, (int)$r['auto_horizon_days']);
+        $unit = ($r['auto_horizon_unit'] ?? 'days') === 'months' ? 'months' : 'days';
+        $to   = date('Y-m-d', strtotime("+$n $unit"));
         if (!empty($r['closes_at'])) $to = min($to, substr((string)$r['closes_at'], 0, 10));
 
         $g = rk_slots_generate(

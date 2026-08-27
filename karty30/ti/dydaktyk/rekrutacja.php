@@ -109,7 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'name'            => $_POST['name'] ?? '',
             'audience_kind'   => $_POST['audience_kind'] ?? 'continuing',
             'auto_generate'     => !empty($_POST['auto_generate']),
-            'auto_horizon_days' => (int)($_POST['auto_horizon_days'] ?? 14),
+            'auto_horizon_days' => (int)($_POST['auto_horizon_days'] ?? 10),
+            'auto_horizon_unit' => $_POST['auto_horizon_unit'] ?? 'months',
             'auto_duration_min' => (int)($_POST['auto_duration_min'] ?? 60),
             'auto_capacity'     => (int)($_POST['auto_capacity'] ?? 1),
             'auto_mode'         => $_POST['auto_mode'] ?? 'online',
@@ -306,7 +307,8 @@ $edit_round_id = (int)($_GET['edit_round'] ?? 0);
 $edit_round    = $edit_round_id ? rk_round_get($edit_round_id) : null;
 $rf = $edit_round ?: ['id'=>0,'name'=>'','audience_kind'=>'continuing','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
                      'max_per_client'=>0,'refund_hours'=>24,'late_refund_pct'=>0,'audience_json'=>'{}','rules_html'=>'',
-                     'auto_generate'=>0,'auto_horizon_days'=>14,'auto_duration_min'=>60,'auto_capacity'=>1,'auto_mode'=>'online'];
+                     'auto_generate'=>0,'auto_horizon_days'=>10,'auto_horizon_unit'=>'months',
+                     'auto_duration_min'=>60,'auto_capacity'=>1,'auto_mode'=>'online'];
 $rf_aud = json_decode((string)($rf['audience_json'] ?? '{}'), true) ?: [];
 
 // Przypisania grup + generator (kierownik, tab=grupy)
@@ -706,17 +708,25 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </div>
             </div>
             <div class="row g-2 mt-1">
-              <div class="col-3">
-                <label class="form-label small mb-1" for="rr-ah">Horyzont (dni)</label>
-                <input type="number" class="form-control form-control-sm rr-auto" id="rr-ah" name="auto_horizon_days"
-                       value="<?= (int)$rf['auto_horizon_days'] ?>" min="1" max="120" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+              <div class="col-4">
+                <label class="form-label small mb-1" for="rr-ah">Horyzont</label>
+                <div class="input-group input-group-sm">
+                  <input type="number" class="form-control rr-auto" id="rr-ah" name="auto_horizon_days"
+                         value="<?= (int)$rf['auto_horizon_days'] ?>" min="1" max="365"
+                         <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+                  <select class="form-select rr-auto" name="auto_horizon_unit" aria-label="Jednostka horyzontu"
+                          <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+                    <option value="months" <?= ($rf['auto_horizon_unit'] ?? 'months') === 'months' ? 'selected' : '' ?>>mies.</option>
+                    <option value="days" <?= ($rf['auto_horizon_unit'] ?? '') === 'days' ? 'selected' : '' ?>>dni</option>
+                  </select>
+                </div>
               </div>
               <div class="col-3">
                 <label class="form-label small mb-1" for="rr-ad">Długość (min)</label>
                 <input type="number" class="form-control form-control-sm rr-auto" id="rr-ad" name="auto_duration_min"
                        value="<?= (int)$rf['auto_duration_min'] ?>" min="15" max="480" step="15" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
               </div>
-              <div class="col-3">
+              <div class="col-2">
                 <label class="form-label small mb-1" for="rr-ac">Miejsca</label>
                 <input type="number" class="form-control form-control-sm rr-auto" id="rr-ac" name="auto_capacity"
                        value="<?= (int)$rf['auto_capacity'] ?>" min="1" max="30" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
