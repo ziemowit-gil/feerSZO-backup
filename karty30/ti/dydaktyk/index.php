@@ -1031,6 +1031,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'program')); exit;
     }
 
+    // Dodanie wielu tematów sylabusa jednym formularzem (bez pliku CSV)
+    if ($op === 'curr_bulk') {
+        $titles  = (array)($_POST['b_title']   ?? []);
+        $secs    = (array)($_POST['b_section'] ?? []);
+        $descs   = (array)($_POST['b_desc']    ?? []);
+        $mins    = (array)($_POST['b_min']     ?? []);
+        $added = 0;
+        foreach ($titles as $i => $t) {
+            $t = trim((string)$t);
+            if ($t === '') continue;                     // puste wiersze pomijamy
+            k30_ti_curriculum_save([
+                'course_id'   => $course_id,
+                'section'     => (string)($secs[$i]  ?? ''),
+                'title'       => $t,
+                'description' => (string)($descs[$i] ?? ''),
+                'est_minutes' => (int)($mins[$i] ?? 0),
+                'is_active'   => 1,
+            ], null, $uid);
+            $added++;
+        }
+        flash_set($added ? 'success' : 'warning', $added
+            ? 'Dodano tematów: ' . $added . '.'
+            : 'Nie dodano nic — wpisz przynajmniej jeden temat.');
+        header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+
     // ── PROTOKOŁY OCEN ──────────────────────────────────────────────────────────
     if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock'], true)) {
         dyd_token_check();

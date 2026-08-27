@@ -126,6 +126,106 @@
     <?php endforeach; ?>
   </div>
 </div>
+<div class="card">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2">
+    <span>Dodaj tematy formularzem</span>
+    <span class="ms-auto small fw-normal text-body-secondary">bez pliku — wpisujesz i zapisujesz</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-body-secondary">
+      Wypełnij tyle wierszy, ile potrzebujesz — puste zostaną pominięte. Wymagany jest tylko
+      <strong>temat</strong>. „Dział” grupuje tematy (np. <em>Podstawy obsługi</em>), „czas” to
+      szacowany czas realizacji w minutach.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="curr_bulk">
+      <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-2" id="currBulkTable">
+          <caption class="visually-hidden">Formularz dodawania wielu tematów sylabusa</caption>
+          <thead><tr>
+            <th scope="col" style="width:2.5rem">#</th>
+            <th scope="col" style="width:12rem">Dział</th>
+            <th scope="col">Temat <span class="text-danger" aria-hidden="true">*</span></th>
+            <th scope="col">Opis</th>
+            <th scope="col" style="width:6.5rem">Czas (min)</th>
+          </tr></thead>
+          <tbody>
+            <?php for ($i = 0; $i < 5; $i++): ?>
+            <tr>
+              <td class="small text-body-secondary"><?= $i + 1 ?></td>
+              <td>
+                <label class="visually-hidden" for="b_section_<?= $i ?>">Dział, wiersz <?= $i + 1 ?></label>
+                <input type="text" class="form-control form-control-sm" id="b_section_<?= $i ?>"
+                       name="b_section[<?= $i ?>]" list="currSections" maxlength="200"
+                       placeholder="<?= $i === 0 ? 'np. Podstawy obsługi' : '' ?>">
+              </td>
+              <td>
+                <label class="visually-hidden" for="b_title_<?= $i ?>">Temat, wiersz <?= $i + 1 ?></label>
+                <input type="text" class="form-control form-control-sm" id="b_title_<?= $i ?>"
+                       name="b_title[<?= $i ?>]" maxlength="300"
+                       placeholder="<?= $i === 0 ? 'np. Włączanie i logowanie' : '' ?>">
+              </td>
+              <td>
+                <label class="visually-hidden" for="b_desc_<?= $i ?>">Opis, wiersz <?= $i + 1 ?></label>
+                <input type="text" class="form-control form-control-sm" id="b_desc_<?= $i ?>"
+                       name="b_desc[<?= $i ?>]" maxlength="500"
+                       placeholder="<?= $i === 0 ? 'np. Uruchomienie komputera, logowanie' : '' ?>">
+              </td>
+              <td>
+                <label class="visually-hidden" for="b_min_<?= $i ?>">Czas w minutach, wiersz <?= $i + 1 ?></label>
+                <input type="number" class="form-control form-control-sm" id="b_min_<?= $i ?>"
+                       name="b_min[<?= $i ?>]" min="0" step="5" placeholder="<?= $i === 0 ? '45' : '' ?>">
+              </td>
+            </tr>
+            <?php endfor; ?>
+          </tbody>
+        </table>
+      </div>
+      <datalist id="currSections">
+        <?php foreach (array_values(array_unique(array_filter(array_map(fn($r) => (string)$r['section'], $curr_items)))) as $_s): ?>
+        <option value="<?= h($_s) ?>"></option>
+        <?php endforeach; ?>
+      </datalist>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj tematy</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="currBulkAddRow()">
+          <i class="bi bi-plus" aria-hidden="true"></i> Kolejny wiersz
+        </button>
+        <span class="form-text mb-0">Tematy dokładają się na koniec sylabusa; kolejność zmienisz strzałkami w wykazie.</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Kolejny wiersz formularza zbiorczego — klonujemy ostatni i czyścimy wartości.
+function currBulkAddRow() {
+  var tb = document.querySelector('#currBulkTable tbody');
+  if (!tb) return;
+  var last = tb.rows[tb.rows.length - 1];
+  var row  = last.cloneNode(true);
+  var n    = tb.rows.length;
+  row.cells[0].textContent = String(n + 1);
+  row.querySelectorAll('input').forEach(function (inp) {
+    var name = inp.getAttribute('name') || '';
+    inp.value = '';
+    inp.placeholder = '';
+    inp.setAttribute('name', name.replace(/\[\d+\]$/, '[' + n + ']'));
+    var id = inp.id ? inp.id.replace(/_\d+$/, '_' + n) : '';
+    if (id) {
+      var lab = row.querySelector('label[for="' + inp.id + '"]');
+      inp.id = id;
+      if (lab) { lab.setAttribute('for', id); lab.textContent = lab.textContent.replace(/\d+$/, String(n + 1)); }
+    }
+  });
+  tb.appendChild(row);
+  var first = row.querySelector('input');
+  if (first) first.focus();
+}
+</script>
+
 <div class="modal fade" id="currAdd" tabindex="-1" aria-labelledby="currAdd_t" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><?php $currFormHtml(null, 'currAdd'); ?></div></div>
 </div>
@@ -144,7 +244,19 @@
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
     <div class="modal-body">
-      <p class="text-body-secondary small">Kolumny (separator <code>;</code> lub <code>,</code>): <strong>dział; temat; opis; czas_min</strong>. Pierwszy wiersz może być nagłówkiem. Wymagany jest tylko temat.</p>
+      <p class="text-body-secondary small mb-2">Kolumny (separator <code>;</code> lub <code>,</code>): <strong>dział; temat; opis; czas_min</strong>. Pierwszy wiersz może być nagłówkiem. Wymagany jest tylko temat.</p>
+      <div class="mb-2">
+        <a href="syllabus_wzor.php" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz wzór CSV
+        </a>
+        <span class="form-text ms-1">Otwórz w arkuszu, wpisz swoje tematy, zapisz jako CSV i wgraj poniżej.</span>
+      </div>
+      <p class="small mb-1 fw-semibold">Przykład zawartości pliku</p>
+      <pre class="border rounded p-2 bg-body-tertiary small mb-3" style="white-space:pre-wrap">dział;temat;opis;czas_min
+Podstawy obsługi;Włączanie i logowanie;Uruchomienie komputera, logowanie do systemu;45
+Podstawy obsługi;Pulpit i okna;Ikony, menu Start, przełączanie okien;30
+Czytnik ekranu;Pierwsze uruchomienie NVDA;Skróty klawiszowe, odczyt ekranu;60
+Czytnik ekranu;Nawigacja po stronie internetowej;;90</pre>
       <div class="mb-3">
         <label class="form-label fw-semibold" for="curr_csv_file">Plik CSV z sylabusem</label>
         <input type="file" class="form-control" id="curr_csv_file" name="csv_file" accept=".csv,text/csv,text/plain">
