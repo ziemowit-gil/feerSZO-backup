@@ -66,7 +66,33 @@ Zasób `GET /health` pokazuje, które z nich są faktycznie dostępne w obrazie.
 
 ## Budowanie i uruchamianie
 
-### Razem z całym stosem (zalecane)
+Kod Javy kompiluje się **wewnątrz obrazu Dockera** (etap `javac` w `Dockerfile`).
+Na serwerze nie trzeba instalować JDK — wystarczy Docker.
+
+### Na serwerze produkcyjnym
+
+```bash
+cd /opt/feer-szo/docker && bash rebuild.sh
+```
+
+`rebuild.sh` synchronizuje repo z origin, buduje obrazy `app` i `exam-engine`
+(czyli kompiluje silnik), po czym podnosi cały stos. Po zmianie `Dockerfile`
+silnika dodaj `--no-cache`.
+
+Sam silnik, bez ruszania reszty stosu:
+
+```bash
+cd /opt/feer-szo/docker
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod \
+  build --pull exam-engine
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod \
+  up -d exam-engine
+```
+
+Uwaga: `docker/update.sh` **nie** przebudowuje obrazów — po zmianach w Javie
+zawsze potrzebny jest `rebuild.sh` albo `build exam-engine` powyżej.
+
+### Na maszynie deweloperskiej
 
 ```bash
 cd docker && docker compose up -d --build exam-engine
@@ -74,6 +100,16 @@ cd docker && docker compose up -d --build exam-engine
 
 Usługa `exam-engine` jest częścią `docker/docker-compose.yml`, a kontener aplikacji
 dostaje adres silnika zmienną `EXAM_ENGINE_URL` (domyślnie `http://exam-engine:8090`).
+
+### Sprawdzenie, czy się skompilował i wstał
+
+```bash
+docker compose logs --tail=20 exam-engine
+docker compose exec app curl -s http://exam-engine:8090/health
+```
+
+Błąd kompilacji zatrzymuje **budowanie obrazu** — zobaczysz go w wyjściu `build`,
+a nie w logach kontenera. Stary, działający obraz zostaje wtedy nietknięty.
 
 ### Lokalnie, bez Dockera
 
