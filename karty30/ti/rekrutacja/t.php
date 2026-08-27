@@ -193,7 +193,8 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <header class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <div>
     <h1 class="h4 fw-bold mb-0 rk-brand"><i class="bi bi-ticket-perforated me-2" aria-hidden="true"></i>Zapisy na zajęcia</h1>
-    <div class="text-body-secondary small"><?= h($org) ?> · <?= h($client['name']) ?></div>
+    <div class="text-body-secondary small"><?= h($org) ?> · <?= h($client['name']) ?>
+      <span class="badge text-bg-light border ms-1" title="Identyfikator kursanta">ID: <?= (int)$client['id'] ?></span></div>
   </div>
   <span class="badge fs-6 ms-auto" style="background:#c2410c" title="Dostępne żetony">
     <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> żet.<?php

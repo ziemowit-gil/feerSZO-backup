@@ -46,6 +46,9 @@ $rk_mode_label = fn(string $m) => match ($m) {
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h1 class="h5 fw-bold mb-0"><i class="bi bi-ticket-perforated text-primary me-1" aria-hidden="true"></i>Zapisy na zajęcia</h1>
+  <span class="badge text-bg-light border" title="Twój identyfikator kursanta — podaj go przy kontakcie z sekretariatem">
+    ID kursanta: <?= $rk_client_id ?>
+  </span>
   <span class="badge text-bg-primary fs-6 ms-auto" title="Suma dostępnych żetonów ze wszystkich ważnych pul">
     <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> <?= $rk_avail === 1 ? 'żeton' : ($rk_avail >= 2 && $rk_avail <= 4 ? 'żetony' : 'żetonów') ?>
     <?php $rk_pln = rk_token_pln(); if ($rk_pln > 0): ?>

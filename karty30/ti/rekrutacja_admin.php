@@ -284,7 +284,8 @@ include dirname(__DIR__) . '/includes/header_k30.php';
           <?php foreach ($view_bookings as $b): [$bl, $bc] = $booking_badge((string)$b['status']); ?>
           <tr>
             <td>
-              <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+              <div class="fw-semibold"><?= h($b['client_name']) ?>
+                <span class="badge text-bg-light border ms-1" title="ID kursanta">#<?= (int)$b['client_id'] ?></span></div>
               <?php if ($b['client_email']): ?><div class="text-body-secondary" style="font-size:.75rem"><?= h($b['client_email']) ?></div><?php endif; ?>
             </td>
             <td><span class="badge text-bg-<?= $bc ?>"><?= h($bl) ?></span>

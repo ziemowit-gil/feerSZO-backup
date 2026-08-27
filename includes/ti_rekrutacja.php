@@ -255,15 +255,19 @@ function rk_client_pools(int $client_id): array {
     );
 }
 
-/** Suma dostępnych żetonów kursanta (wszystkie ważne dziś pule). */
+/**
+ * Suma dostępnych żetonów kursanta. Płatność rozlicza się na DZIEŃ ZAJĘĆ
+ * (rk_wallet_pick), więc pula „od września” jest dostępna już dziś — dla
+ * przyszłych terminów. Wykluczamy tylko pule wygasłe (valid_to < dziś):
+ * te nie opłacą już żadnych przyszłych zajęć.
+ */
 function rk_client_available(int $client_id): int {
     $r = db_one(
         "SELECT COALESCE(SUM(w.granted - w.spent - w.held),0) AS avail
            FROM k30_pl_token_pool_wallets w
            JOIN k30_pl_token_pools p ON p.id = w.pool_id
           WHERE w.client_id = ? AND p.is_active = 1
-            AND (p.valid_from IS NULL OR p.valid_from <= date('now'))
-            AND (p.valid_to   IS NULL OR p.valid_to   >= date('now'))",
+            AND (p.valid_to IS NULL OR p.valid_to >= date('now'))",
         [$client_id]
     );
     return max(0, (int)($r['avail'] ?? 0));
@@ -550,6 +554,69 @@ function rk_round_clone(int $round_id, ?int $by = null): int {
                  SELECT ?, course_id, instructor_id FROM k30_rk_round_course_instructors WHERE round_id=?",
                 [$new_id, $round_id]);
         return $new_id;
+    });
+}
+
+/**
+ * Anuluje WSZYSTKIE żywe zapisy tury (confirmed + pending_parent) z pełnym
+ * zwrotem żetonów. Terminy zostają otwarte — to „wyczyszczenie zapisów”,
+ * nie odwołanie godzin. Zwraca liczbę anulowanych rezerwacji.
+ */
+function rk_round_cancel_bookings(int $round_id, string $reason = '', ?int $by = null): int {
+    return rk_tx(function () use ($round_id, $reason) {
+        $n = 0;
+        foreach (db_all(
+            "SELECT b.id, b.client_id FROM k30_rk_bookings b
+               JOIN k30_rk_slots s ON s.id = b.slot_id
+              WHERE s.round_id = ? AND b.status IN ('confirmed','pending_parent')",
+            [$round_id]) as $b) {
+            rk_cancel((int)$b['id'], (int)$b['client_id'], 'staff',
+                      $reason !== '' ? $reason : 'wyczyszczenie zapisów tury');
+            $n++;
+        }
+        return $n;
+    });
+}
+
+/**
+ * Twarde usunięcie tury. Blokują je wyłącznie ŻYWE rezerwacje
+ * (confirmed/pending_parent) — najpierw „usuń zapisy” (zwroty żetonów).
+ * Rezerwacje historyczne znikają razem z turą (CASCADE), ale księga pul
+ * (zwroty/wydatki) i dziennik odbytych lekcji zostają nietknięte —
+ * kasowane są tylko PUSTE zmaterializowane lekcje.
+ */
+function rk_round_delete(int $round_id): void {
+    rk_tx(function () use ($round_id) {
+        if (!rk_round_get($round_id)) throw new RkException('ROUND_NOT_FOUND');
+        $n = db_one(
+            "SELECT COUNT(*) n FROM k30_rk_bookings b
+               JOIN k30_rk_slots s ON s.id = b.slot_id
+              WHERE s.round_id = ? AND b.status IN ('confirmed','pending_parent')", [$round_id]);
+        if ((int)($n['n'] ?? 0) > 0) throw new RkException('ROUND_HAS_BOOKINGS');
+
+        foreach (db_all("SELECT id, session_id FROM k30_rk_slots
+                          WHERE round_id=? AND session_id IS NOT NULL", [$round_id]) as $s) {
+            $att = db_one("SELECT COUNT(*) n FROM k30_ti_attendance WHERE session_id=?", [(int)$s['session_id']]);
+            if ((int)($att['n'] ?? 0) === 0) {
+                // slots.session_id nie ma ON DELETE — najpierw odpiąć, potem kasować
+                db_exec("UPDATE k30_rk_slots SET session_id=NULL WHERE id=?", [(int)$s['id']]);
+                db_exec("DELETE FROM k30_ti_sessions WHERE id=?", [(int)$s['session_id']]);
+            }
+        }
+
+        // Kolejność ręczna zamiast CASCADE: bookings.access_token_id nie ma
+        // ON DELETE, więc kaskadowe kasowanie tokenów tury wywala FK, dopóki
+        // rezerwacje historyczne na nie wskazują.
+        db_exec("UPDATE k30_rk_bookings SET access_token_id = NULL
+                  WHERE slot_id IN (SELECT id FROM k30_rk_slots WHERE round_id=?)", [$round_id]);
+        db_exec("DELETE FROM k30_rk_access_tokens
+                  WHERE round_id = ?
+                     OR booking_id IN (SELECT b.id FROM k30_rk_bookings b
+                                        JOIN k30_rk_slots s ON s.id=b.slot_id
+                                       WHERE s.round_id=?)", [$round_id, $round_id]);
+        db_exec("DELETE FROM k30_rk_bookings
+                  WHERE slot_id IN (SELECT id FROM k30_rk_slots WHERE round_id=?)", [$round_id]);
+        db_exec("DELETE FROM k30_rk_rounds WHERE id=?", [$round_id]);
     });
 }
 
@@ -1197,6 +1264,8 @@ function rk_slot_delete(int $slot_id): void {
         if (!empty($s['session_id'])) {
             $att = db_one("SELECT COUNT(*) n FROM k30_ti_attendance WHERE session_id=?", [(int)$s['session_id']]);
             if ((int)($att['n'] ?? 0) === 0) {
+                // slots.session_id nie ma ON DELETE — najpierw odpiąć, potem kasować
+                db_exec("UPDATE k30_rk_slots SET session_id=NULL WHERE id=?", [$slot_id]);
                 db_exec("DELETE FROM k30_ti_sessions WHERE id=?", [(int)$s['session_id']]);
             }
         }
@@ -1377,32 +1446,9 @@ function rk_round_announce(int $round_id, string $kind = 'open'): int {
                     [$round_id, (int)$c['client_id'], $kind]);
         } catch (\PDOException) { continue; }
 
-        $days = 30;
-        if (!empty($r['closes_at'])) {
-            $days = max(7, (int)ceil((strtotime((string)$r['closes_at']) - time()) / 86400));
+        if (!rk_round_send_one($r, (int)$c['client_id'], (string)$c['email'], (string)$c['name'], $kind)) {
+            break;   // szablon wyłączony/brak = stop
         }
-        $link = rtrim(APP_URL, '/') . '/karty30/ti/rekrutacja/t.php?t='
-              . rk_token_issue((int)$c['client_id'], $round_id, $days);
-
-        $tpl = email_tpl_render('rk_round_open', [
-            'name'       => (string)$c['name'],
-            'round'      => (string)$r['name'],
-            'opens_at'   => rk_fmt_dt((string)$r['opens_at']),
-            'closes_at'  => $r['closes_at'] ? rk_fmt_dt((string)$r['closes_at']) : 'do wyczerpania miejsc',
-            'balance'    => (string)rk_client_available((int)$c['client_id']),
-            'limit'      => (int)$r['max_per_client'] ? (string)(int)$r['max_per_client'] : 'bez limitu',
-            'refund_h'   => (string)(int)$r['refund_hours'],
-            'rules_html' => (string)$r['rules_html'],
-            'link'       => $link,
-            'org'        => defined('ORG_NAME') ? ORG_NAME : '',
-        ]);
-        if (!$tpl['enabled'] || $tpl['subject'] === '') break;  // szablon wyłączony/brak = stop
-
-        $mail_id = mail_queue_add((string)$c['email'], (string)$c['name'],
-                                  $tpl['subject'], $tpl['html'], '', 'rk_round', $round_id);
-        db_exec("UPDATE k30_rk_notifications SET mail_id = ?
-                  WHERE round_id = ? AND client_id = ? AND kind = ?",
-                [$mail_id, $round_id, (int)$c['client_id'], $kind]);
         $sent++;
     }
 
@@ -1410,6 +1456,63 @@ function rk_round_announce(int $round_id, string $kind = 'open'): int {
         db_exec("UPDATE k30_rk_rounds SET announced_at = datetime('now') WHERE id = ?", [$round_id]);
     }
     return $sent;
+}
+
+/** Wysyłka zapowiedzi do JEDNEGO odbiorcy (osobisty link z tokenem). */
+function rk_round_send_one(array $r, int $client_id, string $email, string $name, string $kind = 'open'): bool {
+    if (!function_exists('mail_queue_add')) require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('email_tpl_render')) require_once __DIR__ . '/email_templates.php';
+
+    $round_id = (int)$r['id'];
+    $days = 30;
+    if (!empty($r['closes_at'])) {
+        $days = max(7, (int)ceil((strtotime((string)$r['closes_at']) - time()) / 86400));
+    }
+    $link = rtrim(APP_URL, '/') . '/karty30/ti/rekrutacja/t.php?t='
+          . rk_token_issue($client_id, $round_id, $days);
+
+    $tpl = email_tpl_render('rk_round_open', [
+        'name'       => $name,
+        'round'      => (string)$r['name'],
+        'opens_at'   => rk_fmt_dt((string)$r['opens_at']),
+        'closes_at'  => $r['closes_at'] ? rk_fmt_dt((string)$r['closes_at']) : 'do wyczerpania miejsc',
+        'balance'    => (string)rk_client_available($client_id),
+        'limit'      => (int)$r['max_per_client'] ? (string)(int)$r['max_per_client'] : 'bez limitu',
+        'refund_h'   => (string)(int)$r['refund_hours'],
+        'rules_html' => (string)$r['rules_html'],
+        'link'       => $link,
+        'org'        => defined('ORG_NAME') ? ORG_NAME : '',
+    ]);
+    if (!$tpl['enabled'] || $tpl['subject'] === '') return false;
+
+    $mail_id = mail_queue_add($email, $name, $tpl['subject'], $tpl['html'], '', 'rk_round', $round_id);
+    db_exec("UPDATE k30_rk_notifications SET mail_id = ?, sent_at = datetime('now')
+              WHERE round_id = ? AND client_id = ? AND kind = ?",
+            [$mail_id, $round_id, $client_id, $kind]);
+    return true;
+}
+
+/**
+ * PONOWNA wysyłka maila z osobistym linkiem do jednego kursanta — np. gdy
+ * wiadomość zaginęła. Zdejmowany jest znacznik idempotencji (mail poleci od
+ * nowa) i wystawiany świeży token; poprzednie linki działają do wygaśnięcia.
+ * Zwraca ['ok'=>bool, 'msg'=>string].
+ */
+function rk_round_resend(int $round_id, int $client_id): array {
+    $r = rk_round_get($round_id);
+    if (!$r) return ['ok' => false, 'msg' => 'Nie znaleziono tury.'];
+    $c = db_one("SELECT id, name, email FROM k30_clients WHERE id=?", [$client_id]);
+    if (!$c) return ['ok' => false, 'msg' => "Nie znaleziono kursanta o ID $client_id."];
+    if (trim((string)$c['email']) === '') return ['ok' => false, 'msg' => 'Kursant nie ma adresu e-mail.'];
+
+    db_exec("DELETE FROM k30_rk_notifications WHERE round_id=? AND client_id=? AND kind='open'",
+            [$round_id, $client_id]);
+    db_exec("INSERT INTO k30_rk_notifications (round_id, client_id, kind) VALUES (?,?, 'open')",
+            [$round_id, $client_id]);
+    if (!rk_round_send_one($r, $client_id, (string)$c['email'], (string)$c['name'], 'open')) {
+        return ['ok' => false, 'msg' => 'Szablon e-mail jest wyłączony — włącz go w Szablonach e-mail.'];
+    }
+    return ['ok' => true, 'msg' => 'Wysłano ponownie do: ' . $c['name'] . ' (' . $c['email'] . ').'];
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1761,13 +1864,24 @@ function rk_auto_generate_rounds(): array {
             [(int)$r['id']]), 'iid');
         if (!$iids) { $res[(int)$r['id']] = 0; continue; }   // bez przypisań nie zgadujemy
 
+        // Tura = okno NABORU; zajęcia odbywają się w OKRESIE nauczania.
+        // Terminy generujemy więc w zakresie okresu (period_id), przycięte
+        // horyzontem — koniec zapisów (closes_at) NIE ogranicza dat zajęć.
         $n    = max(1, (int)$r['auto_horizon_days']);
         $unit = ($r['auto_horizon_unit'] ?? 'days') === 'months' ? 'months' : 'days';
+        $from = date('Y-m-d');
         $to   = date('Y-m-d', strtotime("+$n $unit"));
-        if (!empty($r['closes_at'])) $to = min($to, substr((string)$r['closes_at'], 0, 10));
+        if (!empty($r['period_id'])) {
+            $per = db_one("SELECT date_from, date_to FROM k30_ti_periods WHERE id=?", [(int)$r['period_id']]);
+            if ($per) {
+                $from = max($from, (string)$per['date_from']);
+                if (!empty($per['date_to'])) $to = min($to, (string)$per['date_to']);
+            }
+        }
+        if ($to < $from) { $res[(int)$r['id']] = 0; continue; }   // okres już się skończył
 
         $g = rk_slots_generate(
-            (int)$r['id'], array_map('intval', $iids), date('Y-m-d'), $to,
+            (int)$r['id'], array_map('intval', $iids), $from, $to,
             (int)$r['auto_duration_min'], (int)$r['auto_capacity'], null,
             (string)$r['auto_mode'], ['top_up' => true]
         );
@@ -1804,6 +1918,8 @@ function rk_error_message(string $code): string {
         'INSTRUCTOR_NOT_ALLOWED' => 'Ten prowadzący nie jest dostępny dla Twojej grupy w tej turze.',
         'SLOT_HAS_BOOKINGS'   => 'Ta godzina ma rezerwacje (także historyczne) — można ją tylko odwołać, nie usunąć.',
         'SERIES_EMPTY'        => 'Brak wolnych terminów pasujących do tego dnia tygodnia i godziny.',
+        'ROUND_NOT_FOUND'     => 'Nie znaleziono tury.',
+        'ROUND_HAS_BOOKINGS'  => 'Ta tura ma aktywne zapisy — najpierw użyj „Usuń zapisy” (żetony wrócą do kursantów), potem usuń turę.',
         'SERIES_ALL_BOOKED'   => 'Masz już rezerwacje na wszystkie terminy tej serii.',
         'ROUND_FOR_NEW'          => 'Ta tura jest przeznaczona dla nowych osób — jako kursant kontynuujący zapisz się w turze dla kontynuujących.',
         'ROUND_FOR_CONTINUING'   => 'Ta tura jest przeznaczona dla kursantów kontynuujących naukę.',

@@ -418,7 +418,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?php foreach ($pool_wallets as $pw): ?>
           <tr>
             <td>
-              <div class="fw-semibold"><?= h($pw['client_name']) ?></div>
+              <div class="fw-semibold"><?= h($pw['client_name']) ?>
+                <span class="badge text-bg-light border ms-1" title="ID kursanta">#<?= (int)$pw['client_id'] ?></span></div>
               <?php if ($pw['client_email']): ?><div class="text-muted" style="font-size:.72rem"><?= h($pw['client_email']) ?></div><?php endif; ?>
             </td>
             <td class="text-end text-success"><?= (int)$pw['granted'] ?></td>

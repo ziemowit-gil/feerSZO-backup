@@ -107,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ], JSON_UNESCAPED_UNICODE);
         rk_round_save([
             'name'            => $_POST['name'] ?? '',
+            'period_id'       => (int)($_POST['period_id'] ?? 0),
             'audience_kind'   => $_POST['audience_kind'] ?? 'continuing',
             'auto_generate'     => !empty($_POST['auto_generate']),
             'auto_horizon_days' => (int)($_POST['auto_horizon_days'] ?? 10),
@@ -126,6 +127,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by'      => $uid,
         ], $rid);
         flash_set('success', $rid ? 'Tura zaktualizowana.' : 'Tura utworzona (robocza).');
+        header('Location: rekrutacja.php?tab=tury'); exit;
+    }
+
+    if ($is_staff && $op === 'round_cancel_bookings') {
+        $rid = (int)($_POST['round_id'] ?? 0);
+        try {
+            $n = rk_round_cancel_bookings($rid, 'wyczyszczenie zapisów tury', $uid);
+            flash_set($n ? 'success' : 'info',
+                $n ? "Usunięto zapisy: anulowano $n rezerwacji, żetony wróciły do kursantów. Terminy zostały otwarte."
+                   : 'Ta tura nie ma aktywnych zapisów.');
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php?tab=tury'); exit;
+    }
+
+    if ($is_staff && $op === 'round_delete') {
+        try {
+            rk_round_delete((int)($_POST['round_id'] ?? 0));
+            flash_set('success', 'Tura usunięta (razem z terminami i przypisaniami).');
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
         header('Location: rekrutacja.php?tab=tury'); exit;
     }
 
@@ -277,6 +301,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: rekrutacja.php?tab=ustawienia'); exit;
     }
 
+    if ($is_staff && $op === 'round_resend') {
+        $res = rk_round_resend((int)($_POST['round_id'] ?? 0), (int)($_POST['client_id'] ?? 0));
+        flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
+        header('Location: rekrutacja.php?tab=tury'); exit;
+    }
+
     if ($is_staff && $op === 'round_announce') {
         $rid = (int)($_POST['round_id'] ?? 0);
         $n   = $rid ? rk_round_announce($rid) : 0;
@@ -308,7 +338,8 @@ foreach (db_all(
     $slot_bookings[(int)$bb['slot_id']][] = $bb;
 }
 
-$pools = $is_staff ? pl_pools_list(true) : [];
+$pools   = $is_staff ? pl_pools_list(true) : [];
+$periods = $is_staff && function_exists('ti_periods_all') ? ti_periods_all() : [];
 $all_instructors = $is_staff ? db_all(
     "SELECT DISTINCT u.id, u.name FROM users u
       JOIN k30_ti_courses c ON c.instructor_id=u.id
@@ -317,7 +348,7 @@ $all_courses = $is_staff ? db_all("SELECT id, name FROM k30_ti_courses WHERE is_
 
 $edit_round_id = (int)($_GET['edit_round'] ?? 0);
 $edit_round    = $edit_round_id ? rk_round_get($edit_round_id) : null;
-$rf = $edit_round ?: ['id'=>0,'name'=>'','audience_kind'=>'continuing','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
+$rf = $edit_round ?: ['id'=>0,'name'=>'','period_id'=>0,'audience_kind'=>'continuing','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
                      'max_per_client'=>0,'refund_hours'=>24,'late_refund_pct'=>0,'audience_json'=>'{}','rules_html'=>'',
                      'auto_generate'=>0,'auto_horizon_days'=>10,'auto_horizon_unit'=>'months',
                      'auto_duration_min'=>60,'auto_capacity'=>1,'auto_mode'=>'online'];
@@ -330,6 +361,14 @@ if ($is_staff && $tab === 'grupy' && !$grp_round_id && $rounds_live) {
 }
 $grp_round = $grp_round_id ? rk_round_get($grp_round_id) : null;
 $grp_map   = $grp_round ? rk_group_map($grp_round_id) : [];
+// Tura = okno naboru; zajęcia żyją w OKRESIE — generator domyślnie tnie zakres okresu
+$grp_period = ($grp_round && !empty($grp_round['period_id']))
+    ? db_one("SELECT date_from, date_to FROM k30_ti_periods WHERE id=?", [(int)$grp_round['period_id']])
+    : null;
+$gen_from = max(date('Y-m-d'), (string)($grp_period['date_from'] ?? date('Y-m-d')));
+$gen_to   = (string)($grp_period['date_to'] ?? '')
+    ?: ($grp_round && $grp_round['closes_at'] ? substr((string)$grp_round['closes_at'], 0, 10)
+                                              : date('Y-m-d', strtotime('+14 days')));
 // Prowadzący przypisani w turze (do generatora) — z mapy, a gdy pusto: wszyscy z kursami
 $grp_assigned = array_values(array_unique(array_merge([], ...array_values($grp_map ?: [[]]))));
 
@@ -629,6 +668,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                    value="<?= h($rf['name']) ?>" required maxlength="160" placeholder="np. Konsultacje 2026/Q4">
           </div>
           <div>
+            <label class="form-label small mb-1" for="rr-period">Okres nauczania (klucz okresu)</label>
+            <select class="form-select form-select-sm" id="rr-period" name="period_id">
+              <option value="">— bez przypisania do okresu —</option>
+              <?php foreach ($periods as $p): ?>
+              <option value="<?= (int)$p['id'] ?>" <?= (int)($rf['period_id'] ?? 0) === (int)$p['id'] ? 'selected' : '' ?>>
+                <?= h($p['name']) ?> (<?= h($p['date_from']) ?> – <?= h($p['date_to']) ?>)
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Tura to czas, kiedy można zapisać się NA okres: zapisy trwają
+              w oknie „start–koniec zapisów”, a zajęcia (i generowane terminy) odbywają się
+              w zakresie wybranego okresu. Okresy definiuje się w „Okresach nauczania”.</div>
+          </div>
+          <div>
             <label class="form-label small mb-1" for="rr-kind">Rodzaj naboru</label>
             <select class="form-select form-select-sm" id="rr-kind" name="audience_kind">
               <option value="continuing" <?= ($rf['audience_kind'] ?? 'continuing') === 'continuing' ? 'selected' : '' ?>>Dla kontynuujących</option>
@@ -768,6 +821,36 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </div>
       </div>
     </div>
+
+    <!-- Ponowna wysyłka maila z linkiem -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Wyślij maila z linkiem jeszcze raz</h2>
+        <p class="text-body-secondary small mb-2">
+          Gdy kursantowi zaginęła zapowiedź — wysyła świeży, osobisty link do zapisów.
+          ID kursanta znajdziesz przy nazwisku w zapisach, żetonach i module „Rekrutacja godzin”.
+        </p>
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="round_resend">
+          <div class="col-sm-6">
+            <label class="form-label small mb-1" for="rs-round">Tura</label>
+            <select class="form-select form-select-sm" id="rs-round" name="round_id" required>
+              <?php foreach ($rounds_live as $rr): ?>
+              <option value="<?= (int)$rr['id'] ?>"><?= h($rr['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small mb-1" for="rs-cid">ID kursanta</label>
+            <input type="number" class="form-control form-control-sm" id="rs-cid" name="client_id" min="1" required>
+          </div>
+          <div class="col-sm-3">
+            <button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-envelope me-1"></i>Wyślij ponownie</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div class="col-12 col-lg-7">
@@ -858,6 +941,23 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <input type="hidden" name="_op" value="round_announce">
                 <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
                 <button class="btn btn-sm btn-outline-primary" title="Wyślij zapowiedź e-mail"><i class="bi bi-envelope"></i></button>
+              </form>
+              <?php endif; ?>
+              <?php if ((int)$r['n_bookings'] > 0): ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć WSZYSTKIE zapisy tury „<?= h($r['name']) ?>”? Rezerwacje (<?= (int)$r['n_bookings'] ?>) zostaną anulowane, żetony wrócą do kursantów w całości, terminy zostaną otwarte.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="round_cancel_bookings">
+                <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
+                <button class="btn btn-sm btn-outline-warning" title="Usuń zapisy (anuluj rezerwacje, zwróć żetony)"><i class="bi bi-person-x"></i></button>
+              </form>
+              <?php else: ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć turę „<?= h($r['name']) ?>” razem z terminami i przypisaniami? Operacja nieodwracalna.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="round_delete">
+                <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
+                <button class="btn btn-sm btn-outline-danger" title="Usuń turę (bez aktywnych zapisów)"><i class="bi bi-trash"></i></button>
               </form>
               <?php endif; ?>
             </td>
@@ -960,12 +1060,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <div class="col-6">
               <label class="form-label small mb-1" for="rg-from">Od dnia</label>
               <input type="date" class="form-control form-control-sm" id="rg-from" name="date_from"
-                     value="<?= h(max(date('Y-m-d'), substr((string)$grp_round['opens_at'], 0, 10))) ?>" required>
+                     value="<?= h($gen_from) ?>" required>
             </div>
             <div class="col-6">
               <label class="form-label small mb-1" for="rg-to">Do dnia</label>
               <input type="date" class="form-control form-control-sm" id="rg-to" name="date_to"
-                     value="<?= h($grp_round['closes_at'] ? substr((string)$grp_round['closes_at'], 0, 10) : date('Y-m-d', strtotime('+14 days'))) ?>" required>
+                     value="<?= h($gen_to) ?>" required>
+            </div>
+            <div class="col-12 form-text mt-0">
+              Tura to okno naboru — zajęcia odbywają się w <strong>okresie nauczania</strong>.
+              <?= $grp_period ? 'Daty podpowiedziane z okresu tury.' : 'Ta tura nie ma przypisanego okresu — ustaw go w edycji tury, a daty podpowiedzą się same.' ?>
             </div>
           </div>
           <div class="row g-2">

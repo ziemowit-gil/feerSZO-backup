@@ -1501,6 +1501,44 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php if ($tab === 'dane'):
+  // ── Banner rejestracji żetonowej — gdy trwa (lub jest ogłoszona) tura zapisów
+  // na zajęcia w następnym okresie, kursant widzi to od razu po zalogowaniu.
+  $rk_banner_rounds = rk_rounds_for_client((int)$student['client_id']);
+  $rk_banner = null;
+  foreach ($rk_banner_rounds as $_rb) {
+    if ($_rb['status'] === 'open' && strtotime((string)$_rb['opens_at']) <= time()) { $rk_banner = $_rb; break; }
+    $rk_banner ??= $_rb;   // najbliższa zaplanowana, gdy żadna nie jest otwarta
+  }
+?>
+<?php if ($rk_banner): $rk_banner_open = $rk_banner['status'] === 'open' && strtotime((string)$rk_banner['opens_at']) <= time(); ?>
+<div class="alert <?= $rk_banner_open ? 'alert-primary' : 'alert-info' ?> d-flex align-items-start gap-3 flex-wrap" role="region"
+     aria-label="Rejestracja żetonowa na zajęcia">
+  <i class="bi bi-ticket-perforated fs-3 flex-shrink-0" aria-hidden="true"></i>
+  <div class="flex-grow-1" style="min-width:16rem">
+    <div class="fw-bold">
+      <?php if ($rk_banner_open): ?>
+        Trwa rejestracja żetonowa na zajęcia w następnym okresie — <?= h($rk_banner['name']) ?>
+      <?php else: ?>
+        Rejestracja żetonowa na zajęcia (<?= h($rk_banner['name']) ?>) startuje <?= h(rk_fmt_dt((string)$rk_banner['opens_at'])) ?>
+      <?php endif; ?>
+    </div>
+    <div class="small">
+      <?= $rk_banner_open && $rk_banner['closes_at'] ? 'Zapisy trwają do ' . h(rk_fmt_dt((string)$rk_banner['closes_at'])) . '. ' : '' ?>
+      Wybierasz prowadzącego i termin z jego kalendarza, a rezerwację opłacasz <strong>żetonami</strong> —
+      „biletami na zajęcia” przydzielonymi Ci przez ośrodek (Twoje saldo: <strong><?= rk_client_available((int)$student['client_id']) ?></strong>).
+      Żetony schodzą przy rezerwacji i wracają w całości przy odpowiednio wczesnej rezygnacji.
+      Wybrana data to data pierwszych zajęć — możesz też jednym kliknięciem ustalić zajęcia
+      na cały okres (ten sam dzień i godzina co tydzień).
+    </div>
+  </div>
+  <?php if ($rk_banner_open): ?>
+  <a class="btn btn-sm btn-primary align-self-center" href="index.php?tab=zapisy">
+    Zapisz się <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+  </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+<?php
   // ── Launcher „Start" (motyw Metro) — ściana dużych kafli widoczna od razu po zalogowaniu.
   // Poza motywem Metro sekcja jest niewidoczna (kp-startwall ma display:none) — bez wpływu
   // na pozostałe schematy kolorów.
