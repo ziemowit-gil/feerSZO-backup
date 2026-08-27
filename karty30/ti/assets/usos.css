@@ -1,20 +1,26 @@
 /**
- * karty30/ti/assets/usos.css — skórka „USOS" panelu dydaktyka.
+ * karty30/ti/assets/usos.css — skórka „USOS” paneli TI (dydaktyk i kursant).
  *
- * Wczytywana tylko gdy panel działa w widoku USOS (body.dyd-usos) — wtedy
- * podmienia CHROME i typografię, nie treść: te same zakładki i te same dane,
- * podane gęsto i tabelarycznie, jak w USOSweb (wąskie tabele z siatką, paski
- * sekcji, menu-drzewo po lewej, okruszki nad treścią, niebieskie linki).
+ * Wczytywana tylko gdy panel działa w widoku USOS (body.usos) — wtedy podmienia
+ * CHROME i typografię, nie treść: te same zakładki i te same dane, podane gęsto
+ * i tabelarycznie, jak w USOSweb (wąskie tabele z siatką, paski sekcji, okruszki
+ * nad treścią, niebieskie linki).
  *
- * Uwaga na kolejność i specyficzność: bazowe reguły panelu siedzą w <style>
- * w index.php i część z nich ma !important, dlatego selektory tutaj są
- * poprzedzone `body.dyd-usos`, a plik jest linkowany PO tym bloku.
+ * Wspólne reguły stoją pod `body.usos`; `body.dyd-usos` i `body.kur-usos`
+ * dokładają tylko to, co dotyczy chrome'u jednego panelu (menu boczne dydaktyka,
+ * pasek użytkownika kursanta). W panelu dydaktyka widok USOS jest jedyny,
+ * w panelu kursanta — alternatywny (kursant włącza go sam).
+ *
+ * Uwaga na kolejność i specyficzność: bazowe reguły paneli siedzą w blokach
+ * <style> (index.php dydaktyka, kursant/_layout_head.php) i część z nich ma
+ * !important, dlatego selektory tutaj są poprzedzone klasą na <body>, a plik
+ * jest linkowany PO tych blokach.
  *
  * Kontrast sprawdzany pod WCAG AA: #10335c/#f7f8fa = 9,4:1, #0b4a8f/#fff = 7,0:1,
  * #1a4f8a/#dde6f0 = 6,1:1.
  */
 
-body.dyd-usos {
+body.usos {
   --usos-navy:#10335c;
   --usos-blue:#0b4a8f;
   --usos-link:#0b4a8f;
@@ -32,61 +38,61 @@ body.dyd-usos {
 }
 
 /* ── Pasek użytkownika (górny) ────────────────────────────────────────────── */
-body.dyd-usos header .navbar {
+body.usos header .navbar {
   background: var(--usos-navy) !important;
   border-bottom: 3px solid #c8a11a !important;
   min-height: 0; padding: .25rem .5rem;
   border-radius: 0 !important;
 }
-body.dyd-usos header .navbar-brand { font-size: .95rem !important; letter-spacing: .02em; }
-body.dyd-usos header .navbar .btn { border-radius: 2px !important; font-weight: 400; }
+body.usos header .navbar-brand { font-size: .95rem !important; letter-spacing: .02em; }
+body.usos header .navbar .btn { border-radius: 2px !important; font-weight: 400; }
 
 /* Pasek sekcji + okruszki (dokładany przez _usos_bar.php) */
-body.dyd-usos .usos-sections {
+body.usos .usos-sections {
   background: var(--usos-bar);
   border-bottom: 1px solid var(--usos-bar-border);
   padding: 0 .5rem;
   display: flex; flex-wrap: wrap; gap: .15rem;
 }
-body.dyd-usos .usos-sections a {
+body.usos .usos-sections a {
   display: inline-block; padding: .3rem .75rem;
   color: var(--usos-navy); text-decoration: none;
   font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em;
   border: 1px solid transparent; border-bottom: none;
 }
-body.dyd-usos .usos-sections a:hover { text-decoration: underline; }
-body.dyd-usos .usos-sections a[aria-current="page"] {
+body.usos .usos-sections a:hover { text-decoration: underline; }
+body.usos .usos-sections a[aria-current="page"] {
   background: #fff; border-color: var(--usos-bar-border); color: var(--usos-blue);
 }
-body.dyd-usos .usos-crumbs {
+body.usos .usos-crumbs {
   background: #fafbfc; border-bottom: 1px solid #e2e6ea;
   padding: .3rem .75rem; font-size: .76rem; color: #45516b;
 }
-body.dyd-usos .usos-crumbs a { color: var(--usos-link); }
+body.usos .usos-crumbs a { color: var(--usos-link); }
 
 /* Drugi rząd nawigacji: pozycje otwartej sekcji (dawna zawartość menu bocznego) */
-body.dyd-usos .usos-subnav {
+body.usos .usos-subnav {
   background: #fff;
   border-bottom: 1px solid var(--usos-bar-border);
   padding: .2rem .5rem;
   display: flex; flex-wrap: wrap; align-items: center; gap: .1rem;
 }
-body.dyd-usos .usos-subnav a,
-body.dyd-usos .usos-subnav .usos-subnav-btn {
+body.usos .usos-subnav a,
+body.usos .usos-subnav .usos-subnav-btn {
   display: inline-flex; align-items: center; gap: .3rem;
   padding: .22rem .6rem; font-size: .78rem;
   color: var(--usos-link); text-decoration: none;
   border: 1px solid transparent; border-radius: 2px;
   background: none;
 }
-body.dyd-usos .usos-subnav a:hover,
-body.dyd-usos .usos-subnav .usos-subnav-btn:hover { background: #eef3f9; text-decoration: underline; }
-body.dyd-usos .usos-subnav a.active {
+body.usos .usos-subnav a:hover,
+body.usos .usos-subnav .usos-subnav-btn:hover { background: #eef3f9; text-decoration: underline; }
+body.usos .usos-subnav a.active {
   background: var(--usos-bar); border-color: var(--usos-bar-border);
   color: var(--usos-navy); font-weight: 700;
 }
-body.dyd-usos .usos-subnav .badge { font-size: .6rem; }
-body.dyd-usos .usos-subnav .usos-subnav-btn { color: #45516b; }
+body.usos .usos-subnav .badge { font-size: .6rem; }
+body.usos .usos-subnav .usos-subnav-btn { color: #45516b; }
 
 /* Nawigacja przeniesiona do góry — menu boczne w tym widoku jest zbędne.
    Markup zostaje (używa go układ klasyczny), tu tylko go ukrywamy i oddajemy
@@ -97,9 +103,9 @@ body.dyd-usos .dyd-sb-overlay { display: none !important; }
 body.dyd-usos .dyd-content { margin-left: 0 !important; }
 
 /* Paski nawigacji też na pełną szerokość — krawędzie zgodne z kolumną treści */
-body.dyd-usos .usos-sections,
-body.dyd-usos .usos-subnav,
-body.dyd-usos .usos-crumbs { max-width: 100%; }
+body.usos .usos-sections,
+body.usos .usos-subnav,
+body.usos .usos-crumbs { max-width: 100%; }
 
 /* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
 body.dyd-usos .dyd-sidebar {
@@ -149,21 +155,21 @@ body.dyd-usos .dyd-wrap {
   padding: .75rem 1rem 2rem !important;
   max-width: 100%;
 }
-body.dyd-usos h1, body.dyd-usos h2, body.dyd-usos h3,
-body.dyd-usos .h1, body.dyd-usos .h2, body.dyd-usos .h3,
-body.dyd-usos .h4, body.dyd-usos .h5, body.dyd-usos .h6 {
+body.usos h1, body.usos h2, body.usos h3,
+body.usos .h1, body.usos .h2, body.usos .h3,
+body.usos .h4, body.usos .h5, body.usos .h6 {
   font-family: Verdana, Tahoma, Arial, sans-serif;
   color: var(--usos-navy); font-weight: 700;
 }
-body.dyd-usos h1, body.dyd-usos .h1 { font-size: 1.15rem; }
-body.dyd-usos h2, body.dyd-usos .h2 { font-size: 1.02rem; }
-body.dyd-usos .h5, body.dyd-usos .h6 { font-size: .92rem; }
-body.dyd-usos a { color: var(--usos-link); text-decoration: underline; }
-body.dyd-usos a.btn, body.dyd-usos a.nav-link, body.dyd-usos a.dropdown-item { text-decoration: none; }
+body.usos h1, body.usos .h1 { font-size: 1.15rem; }
+body.usos h2, body.usos .h2 { font-size: 1.02rem; }
+body.usos .h5, body.usos .h6 { font-size: .92rem; }
+body.usos a { color: var(--usos-link); text-decoration: underline; }
+body.usos a.btn, body.usos a.nav-link, body.usos a.dropdown-item { text-decoration: none; }
 
 /* Karty → ramki z paskiem tytułu */
 body.dyd-usos .dyd-wrap .card,
-body.dyd-usos .card {
+body.usos .card {
   border: 1px solid var(--usos-grid) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -171,7 +177,7 @@ body.dyd-usos .card {
   margin-bottom: .85rem;
 }
 body.dyd-usos .dyd-wrap .card-header,
-body.dyd-usos .card-header {
+body.usos .card-header {
   background: var(--usos-bar) !important;
   border-bottom: 1px solid var(--usos-bar-border) !important;
   border-radius: 0 !important;
@@ -180,85 +186,131 @@ body.dyd-usos .card-header {
   padding: .3rem .6rem !important;
   text-transform: none;
 }
-body.dyd-usos .card-body { padding: .6rem !important; }
-body.dyd-usos .card-footer { background: #fafbfc !important; border-radius: 0 !important; }
+body.usos .card-body { padding: .6rem !important; }
+body.usos .card-footer { background: #fafbfc !important; border-radius: 0 !important; }
 
 /* Tabele — siatka, zebra, ciasne wiersze */
 body.dyd-usos .dyd-wrap .table,
-body.dyd-usos .table {
+body.usos .table {
   font-size: .78rem !important;
   border-collapse: collapse;
   margin-bottom: .4rem;
 }
 body.dyd-usos .dyd-wrap .table > :not(caption) > * > *,
-body.dyd-usos .table > :not(caption) > * > * {
+body.usos .table > :not(caption) > * > * {
   border: 1px solid var(--usos-grid) !important;
   padding: .18rem .4rem !important;
   box-shadow: none !important;
 }
 body.dyd-usos .dyd-wrap .table thead th,
-body.dyd-usos .table thead th {
+body.usos .table thead th {
   background: var(--usos-bar) !important;
   color: var(--usos-navy) !important;
   font-weight: 700 !important; font-size: .74rem !important;
   text-transform: none !important; letter-spacing: 0 !important;
   vertical-align: bottom;
 }
-body.dyd-usos .table tbody tr:nth-child(odd) > * { background-color: var(--usos-zebra); }
-body.dyd-usos .table-hover tbody tr:hover > * { background-color: #e8eff7 !important; }
+body.usos .table tbody tr:nth-child(odd) > * { background-color: var(--usos-zebra); }
+body.usos .table-hover tbody tr:hover > * { background-color: #e8eff7 !important; }
 
 /* Przyciski i pola — kanciaste, małe */
-body.dyd-usos .btn {
+body.usos .btn {
   border-radius: 2px !important;
   font-family: Verdana, Tahoma, Arial, sans-serif;
   font-size: .76rem !important; font-weight: 400 !important;
   padding: .18rem .55rem !important;
   box-shadow: none !important;
 }
-body.dyd-usos .btn-primary { background: var(--usos-blue); border-color: #083a70; }
-body.dyd-usos .btn-primary:hover { background: #083a70; border-color: #062c55; }
-body.dyd-usos .btn-outline-secondary { color: #23405f; border-color: #8fa3ba; }
-body.dyd-usos .form-control, body.dyd-usos .form-select {
+body.usos .btn-primary { background: var(--usos-blue); border-color: #083a70; }
+body.usos .btn-primary:hover { background: #083a70; border-color: #062c55; }
+body.usos .btn-outline-secondary { color: #23405f; border-color: #8fa3ba; }
+body.usos .form-control, body.usos .form-select {
   border-radius: 2px !important; font-size: .78rem; padding: .15rem .35rem;
   border-color: #8fa3ba;
 }
-body.dyd-usos .form-label { font-size: .76rem; font-weight: 700; color: #26364d; margin-bottom: .1rem; }
-body.dyd-usos .form-text { font-size: .72rem; }
-body.dyd-usos .badge { border-radius: 2px !important; font-weight: 700; }
-body.dyd-usos .alert { border-radius: 0 !important; font-size: .8rem; padding: .45rem .6rem; }
-body.dyd-usos .nav-tabs { border-bottom: 1px solid var(--usos-bar-border); }
-body.dyd-usos .nav-tabs .nav-link {
+body.usos .form-label { font-size: .76rem; font-weight: 700; color: #26364d; margin-bottom: .1rem; }
+body.usos .form-text { font-size: .72rem; }
+body.usos .badge { border-radius: 2px !important; font-weight: 700; }
+body.usos .alert { border-radius: 0 !important; font-size: .8rem; padding: .45rem .6rem; }
+body.usos .nav-tabs { border-bottom: 1px solid var(--usos-bar-border); }
+body.usos .nav-tabs .nav-link {
   border-radius: 0 !important; font-size: .78rem; color: var(--usos-link) !important;
   padding: .25rem .6rem !important;
 }
-body.dyd-usos .nav-tabs .nav-link.active {
+body.usos .nav-tabs .nav-link.active {
   background: var(--usos-bar) !important; color: var(--usos-navy) !important;
   border: 1px solid var(--usos-bar-border) !important; border-bottom-color: var(--usos-bar) !important;
   font-weight: 700;
 }
-body.dyd-usos .progress { border-radius: 0 !important; height: .5rem !important; }
-body.dyd-usos .list-group-item { border-radius: 0 !important; font-size: .8rem; }
+body.usos .progress { border-radius: 0 !important; height: .5rem !important; }
+body.usos .list-group-item { border-radius: 0 !important; font-size: .8rem; }
 
 /* Ozdoby, które w USOS-owym widoku tylko przeszkadzają */
-body.dyd-usos .shadow, body.dyd-usos .shadow-sm, body.dyd-usos .shadow-lg { box-shadow: none !important; }
-body.dyd-usos .rounded, body.dyd-usos .rounded-3, body.dyd-usos .rounded-circle,
-body.dyd-usos .rounded-pill { border-radius: 2px !important; }
+body.usos .shadow, body.usos .shadow-sm, body.usos .shadow-lg { box-shadow: none !important; }
+body.usos .rounded, body.usos .rounded-3, body.usos .rounded-circle,
+body.usos .rounded-pill { border-radius: 2px !important; }
 
 /* Tabela protokołu / planu — nagłówki trzymają się góry przy przewijaniu */
-body.dyd-usos .usos-sticky thead th { position: sticky; top: 0; z-index: 2; }
+body.usos .usos-sticky thead th { position: sticky; top: 0; z-index: 2; }
 
 /* Siatka planu tygodniowego */
-body.dyd-usos .usos-week td { vertical-align: top; min-width: 6.5rem; }
-body.dyd-usos .usos-week .usos-slot {
+body.usos .usos-week td { vertical-align: top; min-width: 6.5rem; }
+body.usos .usos-week .usos-slot {
   display: block; border-left: 3px solid var(--usos-blue);
   background: #eef3f9; padding: .1rem .25rem; margin-bottom: .15rem; font-size: .72rem;
 }
 
 /* Druk: bez menu i pasków */
 @media print {
-  body.dyd-usos header, body.dyd-usos .dyd-sidebar, body.dyd-usos .usos-sections,
-  body.dyd-usos .usos-subnav, body.dyd-usos #dydSbToggle,
-  body.dyd-usos .usos-noprint { display: none !important; }
+  body.usos header, body.usos .usos-sections, body.usos .usos-subnav,
+  body.usos .usos-noprint,
+  body.dyd-usos .dyd-sidebar, body.dyd-usos #dydSbToggle { display: none !important; }
   body.dyd-usos .dyd-content,
-  body.dyd-usos .usos-crumbs { margin-left: 0 !important; }
+  body.usos .usos-crumbs { margin-left: 0 !important; }
+}
+
+/* ── Panel kursanta (widok alternatywny) ─────────────────────────────────────
+   Ten sam zabieg co u dydaktyka: nawigacja idzie do pasków na górze
+   (karty30/ti/kursant/_usos_bar.php), treść zakładek zostaje bez zmian.
+   Pasek zakładek i ściana kafli „Start” nie są tu ukrywane arkuszem — index.php
+   po prostu ich nie renderuje w tym widoku, żeby w drzewie dostępności nie
+   siedziały dwie nawigacje „Sekcje panelu”. */
+
+/* Treść na pełną szerokość okna — jak u dydaktyka; kontener Bootstrapa zwężał ją
+   do 1140 px, przez co gęste tabele USOS-a niepotrzebnie się łamały. */
+body.kur-usos .container-xl { max-width: 100% !important; }
+body.kur-usos main#main { padding: .75rem 1rem 2rem !important; }
+
+/* Pasek użytkownika: w widoku klasycznym jest jasny (bg-body-tertiary), tu robi
+   się granatowy, więc napisy i przyciski z szarej palety trzeba rozjaśnić —
+   inaczej ciemny tekst siedzi na ciemnym tle. #fff/#10335c = 13,5:1,
+   rgba(255,255,255,.75) na tym samym tle nadal ponad 7:1. */
+body.kur-usos header .navbar .navbar-brand,
+body.kur-usos header .navbar .text-body-secondary { color: #fff !important; }
+body.kur-usos header .navbar .kp-brand i { color: #ffd863 !important; }
+body.kur-usos header .navbar .btn-outline-secondary {
+  color: #fff; border-color: rgba(255,255,255,.55); background: transparent;
+}
+body.kur-usos header .navbar .btn-outline-secondary:hover,
+body.kur-usos header .navbar .btn-outline-secondary:focus {
+  color: #10335c; background: #fff; border-color: #fff;
+}
+
+/* Dzwonek powiadomień i przełącznik widoku w pasku — kanciasto, bez cieni */
+body.kur-usos header .navbar .dropdown-menu { border-radius: 2px; font-size: .8rem; }
+
+/* Kafle i ozdobniki treści kursanta: płasko, spójnie z resztą skórki */
+body.kur-usos .kp-dash-card:hover { box-shadow: none !important; }
+body.kur-usos .kp-progress,
+body.kur-usos .progress { border-radius: 0 !important; }
+body.kur-usos .kp-mini-cal { font-size: .74rem; }
+body.kur-usos .kp-cal-ev { border-radius: 0; font-size: .68rem; }
+/* Kalendarz miesiąca sam maluje dni z zajęciami i dzień dzisiejszy — zebra
+   z tabel USOS-a jest bardziej szczegółowa i gasiłaby te tła. */
+body.kur-usos .kp-cal tbody tr:nth-child(odd) > * { background-color: transparent; }
+
+/* Nawigacja dolna na telefonie (widok klasyczny) nie ma tu odpowiednika —
+   paski sekcji zawijają się i działają w każdej szerokości. */
+@media (max-width: 991.98px) {
+  body.kur-usos main#main { padding-bottom: 1.5rem !important; }
 }

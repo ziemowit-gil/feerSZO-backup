@@ -3,13 +3,15 @@
  * Wspólny nagłówek panelu kursanta/rodzica — Bootstrap 5.3 (dark) + WCAG 2.1 AA.
  * Zmienne wejściowe (opcjonalne):
  *   $KP_TITLE      — tytuł strony,
- *   $KP_TOPBAR     — ['brand'=>, 'icon'=>, 'user'=>, 'logout'=>] lub null (brak paska),
- *   $KP_BODY_CLASS — dodatkowe klasy <body>.
+ *   $KP_TOPBAR     — ['brand'=>, 'icon'=>, 'user'=>, 'logout'=>, 'extra'=>HTML] lub null (brak paska),
+ *   $KP_BODY_CLASS — dodatkowe klasy <body>,
+ *   $KP_EXTRA_CSS  — lista arkuszy dokładanych PO bloku <style> (skórki, np. USOS).
  */
 $KP_ORG        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $KP_TITLE      = $KP_TITLE      ?? 'Panel kursanta';
 $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
+$KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 ?><!DOCTYPE html>
 <html lang="pl" data-bs-theme="light">
 <head>
@@ -189,6 +191,11 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 /* ── Login tiles / logout-alternatives ─────────────────────────────────── */
 .kp-login-tiles { display:flex; flex-direction:column; gap:.5rem; }
 </style>
+<?php /* Skórki (np. USOS) linkujemy PO bloku <style> — inaczej bazowe reguły
+         panelu wygrywają przy równej specyficzności. */ ?>
+<?php foreach ($KP_EXTRA_CSS as $_css): ?>
+<link rel="stylesheet" href="<?= h($_css) ?>">
+<?php endforeach; ?>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>"<?php if (!empty($vapid_public_key ?? '')): ?> data-vapid-key="<?= h($vapid_public_key) ?>"<?php endif; ?>>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
@@ -222,6 +229,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
       </span>
       <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-3">
         <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
+        <?php if (!empty($KP_TOPBAR['extra'])): ?><?= $KP_TOPBAR['extra'] ?><?php endif; ?>
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
           <i class="bi bi-person-circle" aria-hidden="true"></i><?= h($KP_TOPBAR['user']) ?>

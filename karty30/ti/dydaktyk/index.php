@@ -2198,7 +2198,7 @@ $_unread_notices = array_values(array_filter($dyd_notices, fn($n) => empty($n['i
 if ($_unread_notices && $tab !== 'komunikaty' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     $KP_TITLE  = 'Nowy komunikat';
     $KP_TOPBAR = ['brand'=>'Panel dydaktyka','icon'=>'easel2','user'=>$me['name'] ?? '','logout'=>'logout.php'];
-    if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos');
+    if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos usos');
     include dirname(__DIR__) . '/kursant/_layout_head.php';
     $_n_cnt = count($_unread_notices);
     ?>
@@ -2261,7 +2261,7 @@ if ($_unread_notices && $tab !== 'komunikaty' && $_SERVER['REQUEST_METHOD'] !== 
     exit;
 }
 
-if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos');
+if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos usos');
 
 $KP_TOPBAR = [
     'brand'         => 'Panel dydaktyka',
