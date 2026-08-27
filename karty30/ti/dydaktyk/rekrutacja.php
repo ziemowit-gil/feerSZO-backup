@@ -53,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'starts_at'     => "$date $from:00",
                 'ends_at'       => "$date $to:00",
                 'capacity'      => (int)($_POST['capacity'] ?? 1),
-                'token_cost'    => (int)($_POST['token_cost'] ?? 1),
+                // '' = auto-wycena z czasu trwania (rk_slot_save → rk_auto_cost)
+                'token_cost'    => trim((string)($_POST['token_cost'] ?? '')),
             ]);
             if (!empty($_POST['open_now'])) {
                 db_exec("UPDATE k30_rk_slots SET status='open' WHERE id=? AND instructor_id=?", [$sid, $uid]);
@@ -331,7 +332,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?= $is_staff ? '<a href="rekrutacja.php?tab=tury">Utwórz turę</a>.' : 'Tury otwiera kierownik.' ?></div>
         <?php else: ?>
         <form method="post" class="d-flex flex-column gap-2">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="slot_add">
           <div>
             <label class="form-label small mb-1" for="rk-round">Tura</label>
@@ -460,7 +461,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <td class="text-end text-nowrap">
               <?php if (in_array($s['status'], ['draft','open'], true)): ?>
               <form method="post" class="d-inline">
-                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="slot_toggle">
                 <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
                 <button class="btn btn-sm btn-outline-<?= $s['status']==='open' ? 'secondary' : 'success' ?>"
@@ -470,7 +471,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </form>
               <form method="post" class="d-inline"
                     onsubmit="return confirm('Odwołać termin? Kursanci dostaną zwrot żetonów w całości.')">
-                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="slot_cancel">
                 <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Odwołaj termin"><i class="bi bi-x-lg"></i></button>
@@ -497,7 +498,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?= $edit_round ? 'Edycja tury: ' . h($rf['name']) : 'Nowa tura zapisów' ?>
         </h2>
         <form method="post" class="d-flex flex-column gap-2">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="round_save">
           <input type="hidden" name="round_id" value="<?= (int)$rf['id'] ?>">
           <div>
@@ -643,7 +644,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <a class="btn btn-sm btn-outline-secondary" href="rekrutacja.php?tab=tury&edit_round=<?= (int)$r['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></a>
               <?php if (in_array($r['status'], ['draft','closed'], true)): ?>
               <form method="post" class="d-inline">
-                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="round_status">
                 <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
                 <input type="hidden" name="to" value="open">
@@ -651,7 +652,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </form>
               <?php elseif ($r['status'] === 'open'): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Zamknąć zapisy w tej turze?')">
-                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="round_status">
                 <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
                 <input type="hidden" name="to" value="closed">
@@ -661,7 +662,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <?php if (in_array($r['status'], ['scheduled','open'], true)): ?>
               <form method="post" class="d-inline"
                     onsubmit="return confirm('Wysłać zapowiedź e-mail do odbiorców tury? Każdy dostanie osobisty link z tokenem. Wysyłka jest jednokrotna na odbiorcę.')">
-                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="round_announce">
                 <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
                 <button class="btn btn-sm btn-outline-primary" title="Wyślij zapowiedź e-mail"><i class="bi bi-envelope"></i></button>
@@ -706,7 +707,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           Grupa bez zaznaczeń = bez ograniczenia (kursanci widzą wszystkich).
         </p>
         <form method="post">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="groups_save">
           <input type="hidden" name="round_id" value="<?= (int)$grp_round['id'] ?>">
           <div class="table-responsive">
@@ -751,7 +752,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           można puszczać wielokrotnie.
         </p>
         <form method="post" class="d-flex flex-column gap-2">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="slots_generate">
           <input type="hidden" name="round_id" value="<?= (int)$grp_round['id'] ?>">
           <div>
@@ -882,7 +883,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           w podsumowaniach rozliczeniowych).
         </p>
         <form method="post" class="d-flex flex-column gap-3">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="settings_save">
           <div>
             <label class="form-label small mb-1" for="rs-min">1 żeton = ile minut zajęć</label>
