@@ -17,20 +17,32 @@ $rk_rounds   = rk_rounds_for_client($rk_client_id);
 $rk_bookings = rk_bookings_for_client($rk_client_id, 50);
 $rk_txns     = rk_client_txns($rk_client_id, 30);
 
-$rk_round_id = (int)($_GET['rk_round'] ?? 0);
-$rk_instr_id = (int)($_GET['rk_instr'] ?? 0);
-$rk_round    = $rk_round_id ? rk_round_get($rk_round_id) : null;
+$rk_round_id  = (int)($_GET['rk_round'] ?? 0);
+$rk_course_id = (int)($_GET['rk_course'] ?? 0);
+$rk_instr_id  = (int)($_GET['rk_instr'] ?? 0);
+$rk_round     = $rk_round_id ? rk_round_get($rk_round_id) : null;
 if ($rk_round && !in_array($rk_round['status'], ['open','scheduled'], true)) $rk_round = null;
 
-// Lista zawężona przypisaniami kierownika (prowadzący per grupa kursanta)
-$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id'], $rk_client_id) : [];
+// Krok „przedmiot”: kursant najpierw wybiera przedmiot (swoją grupę), potem
+// prowadzącego. Bez własnych grup (np. nowa osoba) krok jest pomijany.
+$rk_courses = $rk_round ? rk_courses_for_client_round((int)$rk_round['id'], $rk_client_id) : [];
+$rk_course  = null;
+foreach ($rk_courses as $rc) { if ((int)$rc['id'] === $rk_course_id) { $rk_course = $rc; break; } }
+if ($rk_course_id && !$rk_course) $rk_course_id = 0;   // przedmiot spoza listy — ignoruj
+$rk_need_course = $rk_courses && !$rk_course_id;
+
+// Lista zawężona przypisaniami kierownika (grupy kursanta + wybrany przedmiot)
+$rk_instructors = ($rk_round && !$rk_need_course)
+    ? rk_instructors_for_round((int)$rk_round['id'], $rk_client_id, $rk_course_id) : [];
 $rk_instr_name = '';
 foreach ($rk_instructors as $ri) {
     if ((int)$ri['id'] === $rk_instr_id) { $rk_instr_name = (string)$ri['name']; break; }
 }
-// Terminy tylko prowadzącego z listy — adres spoza przypisań nie pokaże slotów
+// Terminy tylko prowadzącego z listy — adres spoza przypisań nie pokaże slotów.
+// Wybrany przedmiot zawęża listę (konsultacje bez kursu też widoczne).
 $rk_slots = ($rk_round && $rk_instr_id && $rk_instr_name !== '')
-    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
+    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id,
+        ['only_free' => 1] + ($rk_course_id ? ['course_id' => $rk_course_id] : []))
     : [];
 
 $rk_flash = $_SESSION['rk_flash'] ?? null;
@@ -64,8 +76,8 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <?php endif; ?>
 
 <p class="text-body-secondary small mb-2">
-  Od tego roku zapisujesz się wybierając najpierw <strong>prowadzącego</strong>, a potem termin
-  z jego kalendarza. Każda rezerwacja kosztuje żetony z Twojej puli; rezygnacja odpowiednio
+  Od tego roku zapisujesz się wybierając najpierw <strong>przedmiot</strong>, potem
+  <strong>prowadzącego</strong>, a na końcu termin z jego kalendarza. Każda rezerwacja kosztuje żetony z Twojej puli; rezygnacja odpowiednio
   wcześnie zwraca je w całości.
 </p>
 <details class="small mb-3">
@@ -152,12 +164,45 @@ $rk_mode_label = fn(string $m) => match ($m) {
   <?php endforeach; ?>
 </div>
 
-<?php elseif (!$rk_instr_id): ?>
+<?php elseif ($rk_need_course): ?>
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="index.php?tab=zapisy">Tury</a> &rsaquo; <strong><?= h($rk_round['name']) ?></strong>
 </nav>
+<p class="text-body-secondary small mb-2">Najpierw wybierz <strong>przedmiot</strong>, potem prowadzącego.</p>
+<div class="row g-2 mb-3">
+  <?php foreach ($rk_courses as $rc): ?>
+  <div class="col-12 col-sm-6 col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body py-2 px-3">
+        <div class="fw-semibold"><i class="bi bi-journal-bookmark me-1 text-primary" aria-hidden="true"></i><?= h($rc['name']) ?></div>
+        <div class="text-body-secondary" style="font-size:.8rem">
+          <?= (int)$rc['n_assigned'] > 0
+              ? 'prowadzący do wyboru: ' . (int)$rc['n_assigned']
+              : 'wszyscy prowadzący z terminami' ?>
+        </div>
+        <a class="btn btn-sm btn-outline-primary mt-2"
+           href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= (int)$rc['id'] ?>">
+          Wybierz prowadzącego <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+</div>
+
+<?php elseif (!$rk_instr_id): ?>
+<nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
+  <a href="index.php?tab=zapisy">Tury</a> &rsaquo;
+  <?php if ($rk_course): ?>
+  <a href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>"><?= h($rk_round['name']) ?></a> &rsaquo;
+  <strong><?= h($rk_course['name']) ?></strong>
+  <?php else: ?>
+  <strong><?= h($rk_round['name']) ?></strong>
+  <?php endif; ?>
+</nav>
 <?php if (!$rk_instructors): ?>
-<div class="text-body-secondary small mb-3">Żaden prowadzący nie wystawił jeszcze terminów w tej turze.</div>
+<div class="text-body-secondary small mb-3">Żaden prowadzący nie wystawił jeszcze terminów
+  <?= $rk_course ? 'dla tego przedmiotu' : 'w tej turze' ?>.</div>
 <?php else: ?>
 <div class="row g-2 mb-3">
   <?php foreach ($rk_instructors as $i): $free = (int)$i['slots_free']; ?>
@@ -175,7 +220,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
         </div>
         <?php if ($free): ?>
         <a class="btn btn-sm btn-outline-primary mt-2"
-           href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>&rk_instr=<?= (int)$i['id'] ?>">
+           href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= $rk_course_id ?>&rk_instr=<?= (int)$i['id'] ?>">
           Zobacz terminy
         </a>
         <?php endif; ?>
@@ -190,6 +235,9 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="index.php?tab=zapisy">Tury</a> &rsaquo;
   <a href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>"><?= h($rk_round['name']) ?></a> &rsaquo;
+  <?php if ($rk_course): ?>
+  <a href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= $rk_course_id ?>"><?= h($rk_course['name']) ?></a> &rsaquo;
+  <?php endif; ?>
   <strong><?= h($rk_instr_name ?: 'Prowadzący') ?></strong>
 </nav>
 <?php if (!$rk_slots): ?>
@@ -233,6 +281,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
             <input type="hidden" name="_op" value="rk_book">
             <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_course" value="<?= (int)$rk_course_id ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-primary" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
               <i class="bi bi-check2 me-1" aria-hidden="true"></i>Rezerwuję
@@ -244,6 +293,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
             <input type="hidden" name="_op" value="rk_book_series">
             <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_course" value="<?= (int)$rk_course_id ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-outline-primary"
                     title="Ten dzień tygodnia i godzina co tydzień, na wszystkie terminy do końca tury">

@@ -5667,6 +5667,14 @@ function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, st
     $vf = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_from) ? $valid_from : null;
     $vt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_to)   ? $valid_to   : null;
     if ($vf && $vt && $vt < $vf) return false;
+    // Identyczne okno (dzień, godziny, obowiązywanie) nie dubluje się —
+    // duplikaty rozjeżdżały wydruki i podwajały sloty w generatorze
+    $dup = db_one(
+        "SELECT 1 FROM k30_ti_instructor_availability
+          WHERE instructor_id=? AND day_of_week=? AND time_from=? AND time_to=? AND is_active=1
+            AND COALESCE(valid_from,'') = COALESCE(?,'') AND COALESCE(valid_to,'') = COALESCE(?,'')",
+        [$instructor_id, $dow, $from, $to, $vf, $vt]);
+    if ($dup) return true;   // okno już istnieje — cicho OK, bez drugiego wiersza
     db_insert('k30_ti_instructor_availability', [
         'instructor_id' => $instructor_id, 'day_of_week' => $dow,
         'time_from' => $from, 'time_to' => $to, 'is_active' => 1, 'status' => $status,

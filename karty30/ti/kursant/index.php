@@ -147,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'rk_book' || $op === 'rk_book_series') {
         $back = 'index.php?tab=zapisy'
               . '&rk_round=' . (int)($_POST['rk_round'] ?? 0)
+              . '&rk_course=' . (int)($_POST['rk_course'] ?? 0)
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
             $r = $op === 'rk_book_series'

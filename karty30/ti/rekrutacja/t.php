@@ -72,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'rk_book' || $op === 'rk_book_series') {
         $back = 't.php?rk_round=' . (int)($_POST['rk_round'] ?? 0)
+              . '&rk_course=' . (int)($_POST['rk_course'] ?? 0)
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
             $r = $op === 'rk_book_series'
@@ -123,19 +124,30 @@ if (!$rk_round_id && $ctx['round_id']) {
     $r0 = rk_round_get($ctx['round_id']);
     if ($r0 && in_array($r0['status'], ['open','scheduled'], true)) $rk_round_id = (int)$r0['id'];
 }
+$rk_course_id = (int)($_GET['rk_course'] ?? 0);
 $rk_instr_id = (int)($_GET['rk_instr'] ?? 0);
 $rk_round    = $rk_round_id ? rk_round_get($rk_round_id) : null;
 if ($rk_round && !in_array($rk_round['status'], ['open','scheduled'], true)) $rk_round = null;
 
-// Lista zawężona przypisaniami kierownika (prowadzący per grupa kursanta)
-$rk_instructors = $rk_round ? rk_instructors_for_round((int)$rk_round['id'], $client_id) : [];
+// Krok „przedmiot”: najpierw przedmiot (grupa kursanta), potem prowadzący.
+// Bez własnych grup (nowa osoba) krok jest pomijany.
+$rk_courses = $rk_round ? rk_courses_for_client_round((int)$rk_round['id'], $client_id) : [];
+$rk_course  = null;
+foreach ($rk_courses as $rc) { if ((int)$rc['id'] === $rk_course_id) { $rk_course = $rc; break; } }
+if ($rk_course_id && !$rk_course) $rk_course_id = 0;
+$rk_need_course = $rk_courses && !$rk_course_id;
+
+// Lista zawężona przypisaniami kierownika (grupy kursanta + wybrany przedmiot)
+$rk_instructors = ($rk_round && !$rk_need_course)
+    ? rk_instructors_for_round((int)$rk_round['id'], $client_id, $rk_course_id) : [];
 $rk_instr_name = '';
 foreach ($rk_instructors as $ri) {
     if ((int)$ri['id'] === $rk_instr_id) { $rk_instr_name = (string)$ri['name']; break; }
 }
 // Terminy tylko prowadzącego z listy — adres spoza przypisań nie pokaże slotów
 $rk_slots = ($rk_round && $rk_instr_id && $rk_instr_name !== '')
-    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id, ['only_free' => 1])
+    ? rk_slots_for_instructor((int)$rk_round['id'], $rk_instr_id,
+        ['only_free' => 1] + ($rk_course_id ? ['course_id' => $rk_course_id] : []))
     : [];
 
 $rk_flash = $_SESSION['rk_flash'] ?? null;
@@ -262,9 +274,35 @@ function rk_t_page(string $org, string $title, string $body_html): void {
   <?php endforeach; ?>
 </div>
 
-<?php elseif (!$rk_instr_id): ?>
+<?php elseif ($rk_need_course): ?>
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="t.php">Tury</a> &rsaquo; <strong><?= h($rk_round['name']) ?></strong>
+</nav>
+<h2 class="h6 fw-bold mb-2">Wybierz przedmiot</h2>
+<div class="row g-2 mb-4">
+  <?php foreach ($rk_courses as $rc): ?>
+  <div class="col-12 col-sm-6">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body py-2 px-3">
+      <div class="fw-semibold"><i class="bi bi-journal-bookmark me-1 rk-brand" aria-hidden="true"></i><?= h($rc['name']) ?></div>
+      <div class="text-body-secondary" style="font-size:.8rem">
+        <?= (int)$rc['n_assigned'] > 0 ? 'prowadzący do wyboru: ' . (int)$rc['n_assigned'] : 'wszyscy prowadzący z terminami' ?>
+      </div>
+      <a class="btn btn-sm btn-rk mt-2" href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= (int)$rc['id'] ?>">
+        Wybierz prowadzącego <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
+    </div></div>
+  </div>
+  <?php endforeach; ?>
+</div>
+
+<?php elseif (!$rk_instr_id): ?>
+<nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
+  <a href="t.php">Tury</a> &rsaquo;
+  <?php if ($rk_course): ?>
+  <a href="t.php?rk_round=<?= (int)$rk_round['id'] ?>"><?= h($rk_round['name']) ?></a> &rsaquo;
+  <strong><?= h($rk_course['name']) ?></strong>
+  <?php else: ?>
+  <strong><?= h($rk_round['name']) ?></strong>
+  <?php endif; ?>
 </nav>
 <h2 class="h6 fw-bold mb-2">Wybierz prowadzącego</h2>
 <?php if (!$rk_instructors): ?>
@@ -279,7 +317,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
         <?= $free ? "wolne terminy: $free · najbliższy " . h(rk_fmt_dt((string)$i['next_free_at'])) : 'brak wolnych terminów' ?>
       </div>
       <?php if ($free): ?>
-      <a class="btn btn-sm btn-outline-secondary mt-2" href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_instr=<?= (int)$i['id'] ?>">Zobacz terminy</a>
+      <a class="btn btn-sm btn-outline-secondary mt-2" href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= $rk_course_id ?>&rk_instr=<?= (int)$i['id'] ?>">Zobacz terminy</a>
       <?php endif; ?>
     </div></div>
   </div>
@@ -291,6 +329,9 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <nav aria-label="Ścieżka zapisów" class="mb-2" style="font-size:.85rem">
   <a href="t.php">Tury</a> &rsaquo;
   <a href="t.php?rk_round=<?= (int)$rk_round['id'] ?>"><?= h($rk_round['name']) ?></a> &rsaquo;
+  <?php if ($rk_course): ?>
+  <a href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= $rk_course_id ?>"><?= h($rk_course['name']) ?></a> &rsaquo;
+  <?php endif; ?>
   <strong><?= h($rk_instr_name ?: 'Prowadzący') ?></strong>
 </nav>
 <h2 class="h6 fw-bold mb-2">Wolne terminy</h2>
@@ -328,6 +369,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
             <input type="hidden" name="_op" value="rk_book">
             <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_course" value="<?= (int)$rk_course_id ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-rk" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
               <i class="bi bi-check2 me-1" aria-hidden="true"></i>Rezerwuję
@@ -339,6 +381,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
             <input type="hidden" name="_op" value="rk_book_series">
             <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_course" value="<?= (int)$rk_course_id ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-outline-secondary"
                     title="Ten dzień tygodnia i godzina co tydzień, na wszystkie terminy do końca tury">

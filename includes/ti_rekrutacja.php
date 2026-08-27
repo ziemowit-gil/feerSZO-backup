@@ -748,11 +748,32 @@ function rk_slot_save(array $d, ?int $id = null): int {
 }
 
 /**
+ * Przedmioty (grupy) kursanta do kroku wyboru w turze — kursant najpierw
+ * wybiera przedmiot, potem prowadzącego. n_assigned = ilu prowadzących
+ * kierownik przypisał przedmiotowi w tej turze (0 = bez ograniczenia).
+ */
+function rk_courses_for_client_round(int $round_id, int $client_id): array {
+    return db_all(
+        "SELECT c.id, c.name,
+                (SELECT COUNT(DISTINCT rci.instructor_id)
+                   FROM k30_rk_round_course_instructors rci
+                  WHERE rci.round_id = ? AND rci.course_id = c.id) AS n_assigned
+           FROM k30_ti_enrollments e
+           JOIN k30_ti_courses c ON c.id = e.course_id
+          WHERE e.client_id = ? AND e.status = 'active' AND c.is_active = 1
+          ORDER BY c.name COLLATE NOCASE",
+        [$round_id, $client_id]
+    );
+}
+
+/**
  * Prowadzący mający sloty w turze + licznik wolnych miejsc.
  * $client_id > 0 zawęża listę do prowadzących dozwolonych dla grup kursanta
  * (przypisania kierownika — rk_allowed_instructors).
+ * $course_id > 0 zawęża do prowadzących przypisanych temu przedmiotowi
+ * w turze (przedmiot bez przypisań = bez zawężenia).
  */
-function rk_instructors_for_round(int $round_id, int $client_id = 0): array {
+function rk_instructors_for_round(int $round_id, int $client_id = 0, int $course_id = 0): array {
     $extra  = '';
     $params = [$round_id];
     if ($client_id > 0) {
@@ -761,6 +782,16 @@ function rk_instructors_for_round(int $round_id, int $client_id = 0): array {
             if (!$allowed) return [];
             $extra  = ' AND u.id IN (' . implode(',', array_fill(0, count($allowed), '?')) . ')';
             $params = array_merge($params, $allowed);
+        }
+    }
+    if ($course_id > 0) {
+        $has = db_one("SELECT 1 FROM k30_rk_round_course_instructors
+                        WHERE round_id=? AND course_id=? LIMIT 1", [$round_id, $course_id]);
+        if ($has) {
+            $extra   .= ' AND u.id IN (SELECT instructor_id FROM k30_rk_round_course_instructors
+                                        WHERE round_id=? AND course_id=?)';
+            $params[] = $round_id;
+            $params[] = $course_id;
         }
     }
     return db_all(
