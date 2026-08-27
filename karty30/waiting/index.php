@@ -18,7 +18,7 @@ $PAGE_TITLE = 'Lista oczekujących — D3';
 $sms_ok = false;
 try {
     require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
-    $sms_ok = sms_is_enabled();
+    $sms_ok = sms_channel_ready();
 } catch (\Throwable $e) {}
 
 // ── POST ─────────────────────────────────────────────────────────────────────

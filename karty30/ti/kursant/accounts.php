@@ -47,7 +47,7 @@ function _gen_student_pass(): string {
 function _student_send_login_sms(string $phone, string $login, string $pass): string {
     $phone = trim($phone);
     if ($phone === '') return ' (brak numeru telefonu — przekaż hasło ręcznie)';
-    if (!sms_is_enabled()) return ' (SMS wyłączony — przekaż hasło ręcznie)';
+    if (!sms_channel_ready()) return ' (SMS wyłączony — przekaż hasło ręcznie)';
     $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
     $msg = "{$org} - panel kursanta. Login: {$login}, haslo: {$pass}";
     try {
@@ -343,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Wyślij dane SMS-em na numer opiekuna (jeśli jest i SMS włączony)
         $gphone = trim($acc['guardian_phone'] ?? '');
         $sms = '';
-        if ($gphone !== '' && sms_is_enabled()) {
+        if ($gphone !== '' && sms_channel_ready()) {
             try {
                 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
                 sms_send($gphone, "{$org} - panel rodzica. Login: {$login}, haslo: {$pass}");
@@ -368,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['new_parent_creds'] = ['login' => $acc['parent_login'], 'password' => $pass, 'name' => $cl['name'] ?? ''];
         $gphone = trim($acc['guardian_phone'] ?? '');
         $sms = '';
-        if ($gphone !== '' && sms_is_enabled()) {
+        if ($gphone !== '' && sms_channel_ready()) {
             try {
                 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
                 sms_send($gphone, "{$org} - panel rodzica. Login: {$acc['parent_login']}, haslo: {$pass}");

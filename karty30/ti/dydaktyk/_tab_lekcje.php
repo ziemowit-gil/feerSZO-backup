@@ -2,7 +2,7 @@
 <?php
 // SMS plan tygodnia — podgląd
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
-$_sms_enabled = function_exists('sms_is_enabled') && sms_is_enabled();
+$_sms_enabled = function_exists('sms_channel_ready') && sms_channel_ready();
 $_sms_preview = '';
 $_sms_recip   = 0;
 if ($_sms_enabled && $cur_course) {

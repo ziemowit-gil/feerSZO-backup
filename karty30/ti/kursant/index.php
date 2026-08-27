@@ -470,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $which = ((string)($_POST['which'] ?? '')) === '3' ? 3 : 2;
         $phone = trim((string)($account["notify_phone{$which}"] ?? ''));
         if ($phone === '') { header('Location: index.php?tab=ustawienia&phones=err_missing'); exit; }
-        if (!sms_is_enabled()) { header('Location: index.php?tab=ustawienia&phones=err_sms_off'); exit; }
+        if (!sms_channel_ready()) { header('Location: index.php?tab=ustawienia&phones=err_sms_off'); exit; }
         $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         db_update('k30_ti_student_accounts', [
             "notify_phone{$which}_otp"         => $code,
@@ -816,7 +816,7 @@ $homework_lessons = array_values(array_filter($lessons, fn($l) =>
 // Powiadomienia SMS o zajęciach — zgoda beneficjenta (opt-in)
 $sms_pref       = (int)($account['notify_sms_lessons'] ?? 0);
 $sms_phone      = trim((string)($client['phone'] ?? ''));
-$sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
+$sms_global_on  = function_exists('sms_channel_ready') && sms_channel_ready();
 
 // Komunikaty placówki — licznik nieprzeczytanych
 $notices_unread = ti_notices_unread_count((int)$student['id']);

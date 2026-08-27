@@ -572,7 +572,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'sms_week_group') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
-        if (!sms_is_enabled()) {
+        if (!sms_channel_ready()) {
             flash_set('danger', 'SMS jest wyłączony. Skonfiguruj w Administracja → Ustawienia SMS.');
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
@@ -1391,7 +1391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $k_subject    = trim($_POST['subject'] ?? '');
         $k_body       = trim($_POST['body'] ?? '');
         $k_body_html  = trim($_POST['body_html'] ?? '');
-        $k_sms_on     = function_exists('sms_is_enabled') ? sms_is_enabled() : false;
+        $k_sms_on     = function_exists('sms_channel_ready') ? sms_channel_ready() : false;
         $errs = [];
         if (!$k_ch_email && !$k_ch_sms) $errs[] = 'Wybierz kanał: e-mail i/lub SMS.';
         if ($k_ch_sms && !$k_sms_on)    $errs[] = 'SMS jest wyłączony w ustawieniach systemu.';

@@ -1311,7 +1311,7 @@ function rk_parent_request_send(int $booking_id): bool {
     }
 
     // SMS informacyjny — decyzja i tak zapada w mailu
-    if ($g['phone'] !== '' && function_exists('sms_is_enabled') && sms_is_enabled()) {
+    if ($g['phone'] !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
         try {
             sms_send($g['phone'],
                 'Kursant ' . $b['client_name'] . ' zapisal sie na zajecia '
@@ -1387,16 +1387,26 @@ function rk_parent_expire_stale(): int {
  * Okna cięte na odcinki $duration_min; koszt auto z rk_token_minutes, chyba że
  * podany.
  *
- * BLOKADA: jeśli którykolwiek z wybranych prowadzących ma już żywe terminy
- * w zadanym zakresie dat, generowanie NIE startuje (GENERATOR_EXISTING_SLOTS,
- * z liczbą w treści wyjątku) — najpierw trzeba istniejące usunąć/odwołać
- * albo zmienić zakres. Zapobiega to podwójnemu klikowi i mieszaniu siatek.
+ * BLOKADY (wyjątki zamiast cichych liczników):
+ *   GENERATOR_EXISTING_SLOTS:<n>   — wybrani prowadzący mają już żywe terminy
+ *                                    w zakresie dat (usuń/odwołaj albo zmień zakres);
+ *   GENERATOR_AVAILABILITY:<json>  — któryś prowadzący nie ma ZATWIERDZONEJ
+ *                                    dostępności: 'missing' = brak jakichkolwiek
+ *                                    okien, 'unapproved' = okna robocze czekają
+ *                                    na zatwierdzenie.
+ *
+ * $opts:
+ *   ignore_availability => bool  — generuj bez okien dostępności (pomija też
+ *                                  blokadę GENERATOR_AVAILABILITY);
+ *   day_from / day_to   => 'HH:MM' — godziny dnia przy pomijaniu (dom. 09–17);
+ *   days                => [int]   — dni tygodnia przy pomijaniu, 0=Nd…6=Sb
+ *                                    (dom. pon–pt). Urlopy blokują ZAWSZE.
  *
  * Zwraca ['created','leave','other','no_windows','skipped'(suma)].
  */
 function rk_slots_generate(int $round_id, array $instructor_ids, string $date_from, string $date_to,
                            int $duration_min = 60, int $capacity = 1, ?int $token_cost = null,
-                           string $mode = 'online'): array {
+                           string $mode = 'online', array $opts = []): array {
     $out = ['created' => 0, 'exists' => 0, 'leave' => 0, 'other' => 0, 'no_windows' => 0, 'skipped' => 0];
     $instructor_ids = array_unique(array_filter(array_map('intval', $instructor_ids)));
     $duration_min   = max(15, min(480, $duration_min));
@@ -1417,13 +1427,46 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
         throw new RkException('GENERATOR_EXISTING_SLOTS:' . (int)$existing['n']);
     }
 
+    $ignore = !empty($opts['ignore_availability']);
+
+    // Pre-check dostępności: bez zatwierdzonych okien generowanie NIE startuje.
+    // Okna robocze (status != approved) raportujemy osobno — do zatwierdzenia.
+    if (!$ignore) {
+        $missing = []; $unapproved = [];
+        foreach ($instructor_ids as $iid) {
+            $appr = db_one("SELECT 1 FROM k30_ti_instructor_availability
+                             WHERE instructor_id=? AND is_active=1 AND status='approved' LIMIT 1", [$iid]);
+            if ($appr) continue;
+            $any  = db_one("SELECT 1 FROM k30_ti_instructor_availability
+                             WHERE instructor_id=? AND is_active=1 LIMIT 1", [$iid]);
+            $u    = db_one("SELECT name FROM users WHERE id=?", [$iid]);
+            $name = (string)($u['name'] ?? ('#' . $iid));
+            $any ? $unapproved[] = $name : $missing[] = $name;
+        }
+        if ($missing || $unapproved) {
+            throw new RkException('GENERATOR_AVAILABILITY:'
+                . json_encode(['missing' => $missing, 'unapproved' => $unapproved], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    // Godziny/dni syntetyczne przy pomijaniu dostępności
+    $syn_from = preg_match('/^\d{2}:\d{2}$/', (string)($opts['day_from'] ?? '')) ? $opts['day_from'] : '09:00';
+    $syn_to   = preg_match('/^\d{2}:\d{2}$/', (string)($opts['day_to']   ?? '')) ? $opts['day_to']   : '17:00';
+    $syn_days = array_values(array_intersect(array_map('intval', (array)($opts['days'] ?? [1,2,3,4,5])), [0,1,2,3,4,5,6]))
+                ?: [1,2,3,4,5];
+
     foreach ($instructor_ids as $iid) {
-        $windows = db_all(
-            "SELECT day_of_week, time_from, time_to FROM k30_ti_instructor_availability
-              WHERE instructor_id=? AND is_active=1 AND status='approved'", [$iid]);
-        if (!$windows) { $out['no_windows']++; continue; }
-        $by_dow = [];
-        foreach ($windows as $w) $by_dow[(int)$w['day_of_week']][] = $w;
+        if ($ignore) {
+            $by_dow = [];
+            foreach ($syn_days as $d) $by_dow[$d][] = ['time_from' => $syn_from, 'time_to' => $syn_to];
+        } else {
+            $windows = db_all(
+                "SELECT day_of_week, time_from, time_to FROM k30_ti_instructor_availability
+                  WHERE instructor_id=? AND is_active=1 AND status='approved'", [$iid]);
+            if (!$windows) { $out['no_windows']++; continue; }   // pas bezpieczeństwa po pre-checku
+            $by_dow = [];
+            foreach ($windows as $w) $by_dow[(int)$w['day_of_week']][] = $w;
+        }
 
         for ($day = $t_from; $day <= $t_to; $day += 86400) {
             if ($day < strtotime('today')) continue;

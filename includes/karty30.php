@@ -3147,7 +3147,7 @@ function ti_time_options(string $selected = '', string $from = '07:00', string $
  */
 function ti_lesson_sms_notify(int $courseId, string $message): int {
     require_once __DIR__ . '/sms.php';
-    if (!function_exists('sms_is_enabled') || !sms_is_enabled()) return 0;
+    if (!function_exists('sms_channel_ready') || !sms_channel_ready()) return 0;
     $rows = db_all(
         "SELECT cl.phone, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified,
                 a.is_minor, a.guardian_phone, a.notify_sms_lessons, a.parent_notify_lessons
@@ -4035,7 +4035,7 @@ function k30_ti_notify_dydaktyka(int $course_id, string $subject, string $bodyHt
         // SMS
         if (!empty($acc['notify_sms_dydaktyka'])) {
             if (!function_exists('sms_send')) @require_once __DIR__ . '/sms.php';
-            if (function_exists('sms_send') && function_exists('sms_is_enabled') && sms_is_enabled()) {
+            if (function_exists('sms_send') && function_exists('sms_channel_ready') && sms_channel_ready()) {
                 $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
                 foreach ($nums as $num) { try { sms_send($num, $smsText); } catch (\Throwable $e) {} }
             }
@@ -4951,7 +4951,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false, string $cha
     // ── SMS ──
     if ($phone !== '' && in_array($channels, ['all', 'sms'], true)) {
         require_once __DIR__ . '/sms.php';
-        if (function_exists('sms_is_enabled') && sms_is_enabled()) {
+        if (function_exists('sms_channel_ready') && sms_channel_ready()) {
             // bez polskich znaków — bramki SMS
             $msg = "{$org}: rozliczenie za {$period}{$course_label}: {$amount_s} zl."
                  . ($due_s !== '' ? " Termin platnosci: {$due_s}." : '')
@@ -5117,7 +5117,7 @@ function k30_waiting_change_status(int $id, string $status, ?int $schedule_id = 
 function k30_waiting_send_sms(int $id, string $message): bool {
     try {
         require_once __DIR__ . '/sms.php';
-        if (!sms_is_enabled()) return false;
+        if (!sms_channel_ready()) return false;
         $row = db_one(
             "SELECT w.*, cl.phone AS client_phone, cl.name AS client_name
              FROM k30_waiting_list w JOIN k30_clients cl ON cl.id=w.client_id WHERE w.id=?",
@@ -6302,7 +6302,7 @@ function k30_ti_notify_low_attendance(int $course_id, int $client_id, int $pct, 
 
     // SMS (opt-in lekcje + numery zweryfikowane; opiekun małoletniego)
     require_once __DIR__ . '/sms.php';
-    if (function_exists('sms_is_enabled') && sms_is_enabled()) {
+    if (function_exists('sms_channel_ready') && sms_channel_ready()) {
         $nums = k30_ti_sms_numbers($row);
         if ($isMinor) { $gp = trim((string)($row['guardian_phone'] ?? '')); if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp; }
         $msg = "Niska frekwencja: {$crs} — {$pct}% (prog {$threshold}%). Prosimy o regularna obecnosc.";

@@ -19,7 +19,7 @@ karty30_migrate();
 $can_write  = can_write('karty30') || is_admin();
 if (!$can_write) { http_response_code(403); die('Brak uprawnień do wysyłki.'); }
 $PAGE_TITLE = 'Komunikacja — TI';
-$sms_on     = function_exists('sms_is_enabled') ? sms_is_enabled() : false;
+$sms_on     = function_exists('sms_channel_ready') ? sms_channel_ready() : false;
 
 // ── Wejście (POST: podgląd lub wysyłka) ──────────────────────────────────────
 $mode      = in_array($_POST['mode'] ?? '', ['grupa','prowadzacy','dzien'], true) ? $_POST['mode'] : 'grupa';

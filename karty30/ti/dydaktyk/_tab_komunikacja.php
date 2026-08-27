@@ -1,5 +1,5 @@
 <?php /* ═══════════════════════ TAB: KOMUNIKACJA ═══════════════════════ */
-$_komm_sms_on      = function_exists('sms_is_enabled') ? sms_is_enabled() : false;
+$_komm_sms_on      = function_exists('sms_channel_ready') ? sms_channel_ready() : false;
 $_komm_instructors = k30_ti_instructors();
 
 // Dane podglądu przekazane z bloku POST (lub puste przy GET)

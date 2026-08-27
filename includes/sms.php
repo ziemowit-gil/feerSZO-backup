@@ -22,8 +22,27 @@ function sms_setting(string $key): string {
     return $cache[$key];
 }
 
+/**
+ * Przełącznik `sms_enabled` dotyczy LOGOWANIA SMS-em (zakładka „Kod SMS”
+ * na stronie logowania i 2FA) — tak opisuje go admin/sms_settings.php.
+ * Kanał WYSYŁKI powiadomień nie zależy od tego przełącznika: używaj
+ * sms_channel_ready() — kanał jest zawsze włączony, o ile aktywny dostawca
+ * ma kompletną konfigurację.
+ */
 function sms_is_enabled(): bool {
     return sms_setting('sms_enabled') === '1';
+}
+
+/** Kanał wysyłki SMS gotowy: konfiguracja aktywnego dostawcy jest kompletna. */
+function sms_channel_ready(): bool {
+    return match (sms_provider()) {
+        'twilio'      => sms_setting('sms_twilio_sid') !== ''
+                      && sms_setting('sms_twilio_token') !== ''
+                      && sms_setting('sms_twilio_from') !== '',
+        'httprequest' => sms_setting('sms_http_url') !== '',
+        default       => sms_setting('sms_api_token') !== ''
+                      || (sms_setting('sms_api_login') !== '' && sms_setting('sms_api_password') !== ''),
+    };
 }
 
 /** Aktywny dostawca: 'smsapi' (domyślnie), 'twilio' lub 'httprequest' */
