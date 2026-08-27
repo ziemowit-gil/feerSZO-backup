@@ -24,6 +24,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php'; // Equi Exams
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ext_access.php'; // Materiały zewnętrzne
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php'; // pule żetonów
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_rekrutacja.php';  // zapisy na zajęcia
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/push.php';
@@ -733,6 +734,16 @@ uasort($dyd_groups, function($a, $b) {
     if ($b['session_id'] === 0) return -1;
     return strcmp((string)$b['date'], (string)$a['date']); // lekcje od najnowszej
 });
+// Materiały zewnętrzne przypięte do lekcji — tylko gdy moduł jest włączony,
+// żeby wyłączony moduł nie kosztował panelu ani jednego zapytania.
+$ext_pins_by_session = [];
+try {
+    if (function_exists('ext_enabled') && ext_enabled()) {
+        ext_migrate();
+        $ext_pins_by_session = ext_pins_for_sessions(array_map(fn($g) => (int)$g['session_id'], $dyd_groups));
+    }
+} catch (\Throwable $e) { $ext_pins_by_session = []; }
+
 try { $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_courses_student = []; }
 
 // Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
@@ -2944,6 +2955,21 @@ document.addEventListener('DOMContentLoaded', function() {
           <?php foreach ($grp['materials'] as $m) { include __DIR__ . '/_dyd_material.php'; } ?>
         </div>
       </details>
+      <?php endif; ?>
+
+      <?php $_pins = $ext_pins_by_session[(int)$grp['session_id']] ?? []; if ($_pins): ?>
+      <?php /* Materiały zewnętrzne (książki wydawnictw) przypięte przez prowadzącego.
+               Otwierają się w module — tam działa kontrola licencji i znak wodny. */ ?>
+      <div class="text-body-secondary small fw-semibold mb-1"><i class="bi bi-book me-1" aria-hidden="true"></i>Materiały zewnętrzne</div>
+      <ul class="list-group mb-3">
+        <?php foreach ($_pins as $_p): ?>
+        <li class="list-group-item py-2">
+          <a href="../ext/title.php?id=<?= (int)$_p['title_id'] ?>"><?= h($_p['title_name']) ?></a>
+          <span class="text-body-secondary small">· <?= h($_p['res_name']) ?></span>
+          <?php if ($_p['note'] !== ''): ?><span class="d-block small"><?= h($_p['note']) ?></span><?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
       <?php endif; ?>
 
       <?php if ($grp['homeworks']): ?>

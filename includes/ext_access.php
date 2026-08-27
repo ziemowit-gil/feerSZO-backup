@@ -470,3 +470,103 @@ function ext_titles_visible(array $subject, array $f = [], int $limit = 60, int 
         $p
     );
 }
+
+// ── Przypięcie materiału do lekcji ───────────────────────────────────────────
+
+/**
+ * Przypina zasób do lekcji i — jeśli wolno — otwiera go uczestnikom grupy.
+ *
+ * Samo przypięcie jest tylko wskazaniem („to jest lektura do tych zajęć").
+ * Dostęp do treści to osobna sprawa, bo kosztuje licencję. Dlatego uprawnienie
+ * dla grupy zakłada się tylko wtedy, gdy nie oznacza to obejścia umowy:
+ *   • pracownik (kierownik, administracja) — zawsze może, to jego decyzja,
+ *   • prowadzący bez uprawnień D3 — tylko gdy materiał jest otwarty albo gdy
+ *     wydawca ma już ważną licencję; inaczej przypięcie zostaje bez dostępu,
+ *     a prowadzący dostaje wprost informację, czego brakuje.
+ *
+ * Zwraca ['ok'=>bool,'msg'=>string,'granted'=>bool].
+ */
+function ext_pin_add(array $subject, int $resource_id, int $session_id, string $note = '', bool $share = true): array
+{
+    $ctx = ext_resource_context($resource_id);
+    if (!$ctx) return ['ok' => false, 'msg' => 'Nie znaleziono materiału.', 'granted' => false];
+
+    $ses = db_one("SELECT id, course_id FROM k30_ti_sessions WHERE id = CAST(? AS INTEGER)", [$session_id]);
+    if (!$ses) return ['ok' => false, 'msg' => 'Nie znaleziono lekcji.', 'granted' => false];
+
+    // Prowadzący przypina do swoich zajęć; pracownik D3 do dowolnych
+    if (!ext_can_manage($subject)
+        && (!function_exists('dyd_owns_course')
+            || !dyd_owns_course((int)$subject['id'], (int)$ses['course_id']))) {
+        return ['ok' => false, 'msg' => 'Możesz przypinać materiały tylko do swoich zajęć.', 'granted' => false];
+    }
+
+    if (db_one("SELECT id FROM k30_ext_pins WHERE resource_id=CAST(? AS INTEGER) AND session_id=CAST(? AS INTEGER)",
+               [$resource_id, $session_id])) {
+        return ['ok' => false, 'msg' => 'Ten materiał jest już przypięty do tej lekcji.', 'granted' => false];
+    }
+
+    $grantId = null;
+    if ($share) {
+        $open    = in_array($ctx['title']['access_level'], ['public', 'registered'], true);
+        $licence = ext_license_for($subject, $ctx);
+        if (ext_can_manage($subject) || $open || $licence) {
+            // Uprawnienie dla grupy, nie dla osób — kursanci dochodzą i odchodzą,
+            // a zapis do kursu jest tym, co ma decydować o dostępie.
+            $grantId = db_insert('k30_ext_grants', [
+                'scope_type'   => 'resource',
+                'scope_id'     => $resource_id,
+                'subject_type' => 'course',
+                'subject_id'   => (int)$ses['course_id'],
+                'effect'       => 'allow',
+                'abilities'    => 'view,stream',   // pobieranie i druk zostają przy regułach wydawcy
+                'license_id'   => $licence['id'] ?? null,
+                'note'         => 'przypięcie do lekcji #' . $session_id,
+                'created_by'   => (int)$subject['id'],
+            ]);
+        }
+    }
+
+    db_insert('k30_ext_pins', [
+        'resource_id'  => $resource_id,
+        'session_id'   => $session_id,
+        'course_id'    => (int)$ses['course_id'],
+        'note'         => trim($note),
+        'grant_id'     => $grantId,
+        'created_type' => (string)$subject['type'],
+        'created_id'   => (int)$subject['id'],
+        'created_name' => (string)$subject['name'],
+    ]);
+
+    ext_log($subject, $ctx, 'pin', 'granted', $grantId ? 'ok' : 'pin_without_access');
+
+    return [
+        'ok'      => true,
+        'granted' => (bool)$grantId,
+        'msg'     => $grantId
+            ? 'Materiał przypięty — uczestnicy grupy mogą go czytać.'
+            : 'Materiał przypięty, ale bez dostępu dla grupy: tytuł wymaga licencji, '
+              . 'której nie ma. Poproś kierownika o uprawnienie albo o zakup dostępu.',
+    ];
+}
+
+/** Odpina materiał i cofa uprawnienie, które powstało razem z przypięciem. */
+function ext_pin_remove(array $subject, int $pin_id): bool
+{
+    $pin = db_one("SELECT * FROM k30_ext_pins WHERE id = CAST(? AS INTEGER)", [$pin_id]);
+    if (!$pin) return false;
+
+    if (!ext_can_manage($subject)
+        && (!function_exists('dyd_owns_course')
+            || !dyd_owns_course((int)$subject['id'], (int)$pin['course_id']))) {
+        return false;
+    }
+
+    // Uprawnienie zniknie razem z przypięciem tylko wtedy, gdy to ono je założyło —
+    // ręcznie nadanych uprawnień odpinanie nie rusza.
+    if ($pin['grant_id']) {
+        db_exec("DELETE FROM k30_ext_grants WHERE id = CAST(? AS INTEGER)", [(int)$pin['grant_id']]);
+    }
+    db_exec("DELETE FROM k30_ext_pins WHERE id = CAST(? AS INTEGER)", [$pin_id]);
+    return true;
+}

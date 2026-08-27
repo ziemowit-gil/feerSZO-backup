@@ -35,6 +35,40 @@ include __DIR__ . '/_head.php';
   przy każdej pozycji widać, co możesz z nią zrobić.
 </p>
 
+<?php
+// Kursant najczęściej szuka nie „czegoś w katalogu", tylko lektury do zajęć,
+// które właśnie miał — dlatego przypięcia stoją nad wyszukiwarką.
+$myPins = ($EXT_SUBJECT['type'] === 'student' && !empty($EXT_SUBJECT['client_id']))
+    ? ext_pins_for_client((int)$EXT_SUBJECT['client_id'], 10) : [];
+if ($myPins): ?>
+<section class="card mb-3" aria-labelledby="ext-pins-h">
+  <div class="card-header" id="ext-pins-h">Materiały do Twoich zajęć</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Materiały przypięte przez prowadzącego do Twoich lekcji</caption>
+        <thead><tr><th scope="col">Lekcja</th><th scope="col">Materiał</th><th scope="col">Notatka</th></tr></thead>
+        <tbody>
+          <?php foreach ($myPins as $pn): ?>
+          <tr>
+            <td class="small text-nowrap">
+              <time datetime="<?= h((string)$pn['lesson_date']) ?>"><?= h((string)$pn['lesson_date']) ?></time>
+              <span class="d-block text-body-secondary"><?= h($pn['course_name']) ?></span>
+            </td>
+            <th scope="row" class="fw-semibold">
+              <a href="title.php?id=<?= (int)$pn['title_id'] ?>"><?= h($pn['title_name']) ?></a>
+              <span class="fw-normal text-body-secondary d-block small"><?= h($pn['res_name']) ?></span>
+            </th>
+            <td class="small"><?= h($pn['note']) ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<?php endif; ?>
+
 <form method="get" class="row g-2 align-items-end mb-3">
   <div class="col-12 col-md-4">
     <label class="form-label" for="ext-q">Szukaj</label>

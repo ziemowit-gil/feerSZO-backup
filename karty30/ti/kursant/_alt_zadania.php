@@ -17,7 +17,8 @@
  * daty w <time datetime>; panel szczegółów ma tabindex="-1" i kotwicę, więc
  * klawiatura ląduje w treści, a nie na początku strony.
  *
- * Zmienne z index.php: $homeworks_student, $dyd_groups, $vlab_token.
+ * Zmienne z index.php: $homeworks_student, $dyd_groups, $vlab_token,
+ * $ext_pins_by_session (materiały zewnętrzne przypięte do lekcji).
  */
 
 $now = date('Y-m-d H:i:s');
@@ -162,6 +163,19 @@ if ($sel_row) {
         include __DIR__ . '/_dyd_homework.php';
         $dyd_hw_force_open = false;
       ?>
+
+      <?php $_pins = $ext_pins_by_session[(int)($h['session_id'] ?? 0)] ?? []; if ($_pins): ?>
+      <h3 class="h6 fw-bold mt-4 mb-2">Materiały zewnętrzne do tej lekcji</h3>
+      <ul class="list-group mb-2">
+        <?php foreach ($_pins as $_p): ?>
+        <li class="list-group-item py-2">
+          <a href="../ext/title.php?id=<?= (int)$_p['title_id'] ?>"><?= h($_p['title_name']) ?></a>
+          <span class="text-body-secondary small">· <?= h($_p['res_name']) ?></span>
+          <?php if ($_p['note'] !== ''): ?><span class="d-block small"><?= h($_p['note']) ?></span><?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
 
       <?php if ($sel_materials): ?>
       <h3 class="h6 fw-bold mt-4 mb-2">Materiały do tej lekcji</h3>

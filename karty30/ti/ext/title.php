@@ -128,6 +128,12 @@ include __DIR__ . '/_head.php';
               <?php else: ?>
                 <span class="ext-deny"><i class="bi bi-lock me-1" aria-hidden="true"></i><?= h(ext_reason_text($dv['reason'])) ?></span>
               <?php endif; ?>
+              <?php /* Przypinanie jest czynnością prowadzącego — kursant tu nic nie robi. */ ?>
+              <?php if ($EXT_SUBJECT['type'] === 'user' && $r['kind'] !== 'link'): ?>
+              <a href="pin.php?resource=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pin-angle me-1" aria-hidden="true"></i>Przypnij do lekcji
+              </a>
+              <?php endif; ?>
             </td>
           </tr>
           <?php endforeach; ?>

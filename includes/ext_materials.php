@@ -147,6 +147,23 @@ function ext_migrate(): void
         try { $pdo->exec($sql); } catch (\Throwable $e) { /* kolumna już jest */ }
     }
 
+    // Przypięcia materiałów do lekcji — materiał zewnętrzny bywa lekturą do
+    // konkretnych zajęć, a nie samodzielną pozycją katalogu.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ext_pins (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id  INTEGER NOT NULL REFERENCES k30_ext_resources(id) ON DELETE CASCADE,
+        session_id   INTEGER NOT NULL,
+        course_id    INTEGER NOT NULL DEFAULT 0,
+        note         TEXT    NOT NULL DEFAULT '',
+        grant_id     INTEGER,          -- uprawnienie założone razem z przypięciem
+        created_type TEXT    NOT NULL DEFAULT 'user',
+        created_id   INTEGER NOT NULL DEFAULT 0,
+        created_name TEXT    NOT NULL DEFAULT '',
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS ix_ext_pins_ses ON k30_ext_pins(session_id)");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_ext_pins ON k30_ext_pins(resource_id, session_id)");
+
     ext_access_migrate();   // granty, licencje, bilety, log — includes/ext_access.php
 
     // Kolejka stemplowania dużych plików — includes/ext_deliver.php
@@ -469,4 +486,67 @@ function ext_human_size(int $bytes): string
     if ($bytes >= 1048576)    return round($bytes / 1048576, 1) . ' MB';
     if ($bytes >= 1024)       return round($bytes / 1024) . ' kB';
     return $bytes . ' B';
+}
+
+// ── Przypięcia do lekcji ─────────────────────────────────────────────────────
+
+/** Materiały przypięte do lekcji (z danymi zasobu i tytułu). */
+function ext_pins_for_session(int $session_id): array
+{
+    if ($session_id <= 0) return [];
+    return db_all(
+        "SELECT pn.*, r.name AS res_name, r.mime, r.size_bytes, r.pages, r.kind, r.url,
+                t.id AS title_id, t.title AS title_name, t.authors, p.name AS publisher_name
+         FROM k30_ext_pins pn
+         JOIN k30_ext_resources r  ON r.id  = pn.resource_id AND r.is_active = 1
+         JOIN k30_ext_editions  e  ON e.id  = r.edition_id
+         JOIN k30_ext_titles    t  ON t.id  = e.title_id AND t.is_active = 1
+         JOIN k30_ext_publishers p ON p.id  = t.publisher_id
+         WHERE pn.session_id = CAST(? AS INTEGER)
+         ORDER BY pn.id",
+        [$session_id]
+    );
+}
+
+/** Przypięcia dla wielu lekcji naraz — do widoków, które i tak mają listę zajęć. */
+function ext_pins_for_sessions(array $session_ids): array
+{
+    $ids = array_values(array_filter(array_map('intval', $session_ids)));
+    if (!$ids) return [];
+    $ph   = implode(',', array_fill(0, count($ids), '?'));
+    $rows = db_all(
+        "SELECT pn.session_id, pn.note, pn.resource_id,
+                r.name AS res_name, r.kind, r.url, r.mime, r.size_bytes,
+                t.id AS title_id, t.title AS title_name
+         FROM k30_ext_pins pn
+         JOIN k30_ext_resources r ON r.id = pn.resource_id AND r.is_active = 1
+         JOIN k30_ext_editions  e ON e.id = r.edition_id
+         JOIN k30_ext_titles    t ON t.id = e.title_id AND t.is_active = 1
+         WHERE pn.session_id IN ($ph) ORDER BY pn.id",
+        $ids
+    );
+    $out = [];
+    foreach ($rows as $r) { $out[(int)$r['session_id']][] = $r; }
+    return $out;
+}
+
+/** Lekcje kursanta, do których coś przypięto (dla listy „do Twoich zajęć"). */
+function ext_pins_for_client(int $client_id, int $limit = 20): array
+{
+    if ($client_id <= 0) return [];
+    $limit = max(1, min(100, $limit));
+    return db_all(
+        "SELECT pn.*, s.lesson_date, s.topic, c.name AS course_name,
+                r.name AS res_name, t.id AS title_id, t.title AS title_name
+         FROM k30_ext_pins pn
+         JOIN k30_ti_sessions s   ON s.id = pn.session_id
+         JOIN k30_ti_courses  c   ON c.id = s.course_id
+         JOIN k30_ext_resources r ON r.id = pn.resource_id AND r.is_active = 1
+         JOIN k30_ext_editions  e ON e.id = r.edition_id
+         JOIN k30_ext_titles    t ON t.id = e.title_id AND t.is_active = 1
+         WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments
+                               WHERE client_id = CAST(? AS INTEGER) AND status='active')
+         ORDER BY s.lesson_date DESC LIMIT $limit",
+        [$client_id]
+    );
 }
