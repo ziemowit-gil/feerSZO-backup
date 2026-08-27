@@ -1,7 +1,12 @@
 <?php
 /**
  * karty30/ti/availability.php — Dostępność prowadzących w tygodniu (admin).
- * Administrator wybiera prowadzącego i zarządza jego oknami dostępności.
+ *
+ * Bez wybranego prowadzącego administrator widzi WSZYSTKIE dostępności naraz
+ * (macierz prowadzący × dni tygodnia) i swobodnie przełącza się między
+ * grupami — filtr zawęża macierz do prowadzących danej grupy: instruktora
+ * kursu oraz przypisanych grupie w turach zapisów (rekrutacja TI).
+ * Po wybraniu prowadzącego — dotychczasowy widok edycji jego okien.
  * Zajęcia można dodawać tylko w tych oknach (egzekwowane przy tworzeniu lekcji).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -9,13 +14,18 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_planner_ext.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_rekrutacja.php';
 
 k30_require_access();
 karty30_migrate();
+ti_planner_ext_migrate();
+ti_rk_migrate();
 if (!is_admin()) { http_response_code(403); die('Tylko administrator.'); }
 
 $PAGE_TITLE = 'Dostępność prowadzących — TI';
 $instructor_id = (int)($_GET['instructor'] ?? 0);
+$course_id     = (int)($_GET['course'] ?? 0);   // 0 = wszystkie grupy
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -41,10 +51,37 @@ $instructors = db_all(
         OR u.id IN (SELECT user_id FROM k30_ti_instructor_accounts)
      ORDER BY u.name COLLATE NOCASE"
 );
+
+// Grupy do przełącznika + zawężenie prowadzących do wybranej grupy:
+// instruktor kursu oraz przypisani grupie w turach zapisów.
+$courses = db_all("SELECT id, name FROM k30_ti_courses WHERE is_active=1 ORDER BY name COLLATE NOCASE");
+if ($course_id > 0) {
+    $ids = array_column(db_all(
+        "SELECT instructor_id AS iid FROM k30_ti_courses WHERE id=? AND instructor_id IS NOT NULL
+         UNION
+         SELECT DISTINCT instructor_id FROM k30_rk_round_course_instructors WHERE course_id=?",
+        [$course_id, $course_id]), 'iid');
+    $instructors = array_values(array_filter($instructors,
+        fn($i) => in_array((int)$i['id'], array_map('intval', $ids), true)));
+}
+
 $instructor = $instructor_id ? db_one("SELECT id, name, email FROM users WHERE id=?", [$instructor_id]) : null;
 $avail      = $instructor ? ti_instructor_availability($instructor_id) : [];
 $by_day = [];
 foreach ($avail as $w) { $by_day[(int)$w['day_of_week']][] = $w; }
+
+// Macierz wszystkich dostępności (widok bez wybranego prowadzącego)
+$matrix = [];   // [instructor_id][dow] => [okna]
+if (!$instructor && $instructors) {
+    $ph = implode(',', array_fill(0, count($instructors), '?'));
+    foreach (db_all(
+        "SELECT instructor_id, day_of_week, time_from, time_to, status
+           FROM k30_ti_instructor_availability
+          WHERE is_active=1 AND instructor_id IN ($ph)
+          ORDER BY time_from", array_map(fn($i) => (int)$i['id'], $instructors)) as $w) {
+        $matrix[(int)$w['instructor_id']][(int)$w['day_of_week']][] = $w;
+    }
+}
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -66,12 +103,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Zajęcia można dodawać tylko w godzinach dostępności prowadzącego. Gdy prowadzący nie ma żadnego okna — zajęcia bez ograniczeń. Administrator może wymusić dodanie poza dostępnością przy tworzeniu lekcji.
 </div>
 
+<!-- Przełącznik grup — swobodne przełączanie zawęża macierz do prowadzących grupy -->
+<nav class="d-flex gap-1 flex-wrap mb-3" aria-label="Filtr grup">
+  <a class="btn btn-sm <?= $course_id === 0 ? 'btn-primary' : 'btn-outline-secondary' ?>"
+     href="availability.php" <?= $course_id === 0 ? 'aria-current="page"' : '' ?>>Wszystkie grupy</a>
+  <?php foreach ($courses as $c): ?>
+  <a class="btn btn-sm <?= $course_id === (int)$c['id'] ? 'btn-primary' : 'btn-outline-secondary' ?>"
+     href="availability.php?course=<?= (int)$c['id'] ?>"
+     <?= $course_id === (int)$c['id'] ? 'aria-current="page"' : '' ?>><?= h($c['name']) ?></a>
+  <?php endforeach; ?>
+</nav>
+
 <form method="get" class="card border-0 shadow-sm mb-4">
+  <input type="hidden" name="course" value="<?= $course_id ?>">
   <div class="card-body d-flex align-items-end gap-2 flex-wrap">
     <div>
-      <label class="form-label fw-semibold mb-1" for="instr-select">Prowadzący</label>
+      <label class="form-label fw-semibold mb-1" for="instr-select">Prowadzący (edycja okien)</label>
       <select class="form-select" name="instructor" id="instr-select" onchange="this.form.submit()" style="min-width:280px">
-        <option value="">— wybierz prowadzącego —</option>
+        <option value="">— wszyscy: macierz dostępności —</option>
         <?php foreach ($instructors as $i): ?>
         <option value="<?= (int)$i['id'] ?>" <?= $instructor_id===(int)$i['id']?'selected':'' ?>><?= h($i['name'] ?: $i['email']) ?></option>
         <?php endforeach; ?>
@@ -82,8 +131,64 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </form>
 
 <?php if (!$instructor): ?>
-<div class="alert alert-secondary">Wybierz prowadzącego, aby zarządzać jego dostępnością.</div>
-<?php if (!$instructors): ?><p class="text-muted">Brak prowadzących — przypisz instruktora do kursu TI.</p><?php endif; ?>
+
+<?php if (!$instructors): ?>
+<div class="alert alert-secondary">Brak prowadzących<?= $course_id ? ' powiązanych z tą grupą' : '' ?> —
+  przypisz instruktora do kursu TI<?= $course_id ? ' albo dodaj przypisania w turach zapisów' : '' ?>.</div>
+<?php else: ?>
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold">
+    <i class="bi bi-grid-3x3 me-2" aria-hidden="true"></i>Dostępność — wszyscy prowadzący
+    <?php if ($course_id): $cn = array_values(array_filter($courses, fn($c) => (int)$c['id'] === $course_id)); ?>
+    <span class="badge text-bg-primary ms-2">grupa: <?= h($cn[0]['name'] ?? ('#' . $course_id)) ?></span>
+    <?php endif; ?>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Macierz dostępności prowadzących w tygodniu</caption>
+        <thead>
+          <tr>
+            <th scope="col" style="min-width:180px">Prowadzący</th>
+            <?php foreach ([1,2,3,4,5,6,0] as $dw): ?>
+            <th scope="col"><?= h(mb_substr(K30_TI_DAYS[$dw], 0, 3)) ?></th>
+            <?php endforeach; ?>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($instructors as $i): $rows = $matrix[(int)$i['id']] ?? []; ?>
+          <tr>
+            <th scope="row" class="fw-semibold">
+              <a href="availability.php?course=<?= $course_id ?>&instructor=<?= (int)$i['id'] ?>"
+                 title="Edytuj okna dostępności"><?= h($i['name'] ?: $i['email']) ?></a>
+              <?php if (!$rows): ?>
+              <div class="text-muted fw-normal" style="font-size:.75rem">bez ograniczeń</div>
+              <?php endif; ?>
+            </th>
+            <?php foreach ([1,2,3,4,5,6,0] as $dw): ?>
+            <td>
+              <?php foreach ($rows[$dw] ?? [] as $w): ?>
+              <span class="badge <?= ($w['status'] ?? 'approved') === 'approved' ? 'text-bg-primary' : 'text-bg-secondary' ?> d-block mb-1"
+                    <?= ($w['status'] ?? '') !== 'approved' ? 'title="oczekuje na zatwierdzenie"' : '' ?>>
+                <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?>
+              </span>
+              <?php endforeach; ?>
+            </td>
+            <?php endforeach; ?>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<p class="text-muted small mt-2">
+  Kliknięcie w nazwisko otwiera edycję okien. Szare odznaki czekają na zatwierdzenie.
+  Terminy zapisów generowane z dostępności ustawia kierownik w panelu dydaktyka
+  (Zapisy na zajęcia → Prowadzący dla grup).
+</p>
+<?php endif; ?>
+
 <?php else: ?>
 
 <div class="card border-0 shadow-sm">
