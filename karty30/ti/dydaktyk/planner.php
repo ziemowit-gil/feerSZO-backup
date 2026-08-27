@@ -30,12 +30,11 @@ $KP_TOPBAR = [
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <style>
-  .dyd-wrap { max-width:1100px; }
+  .dyd-wrap { max-width:100%; }
   .dyd-globalbar { background:var(--bs-body-bg); border-bottom:2px solid var(--bs-border-color); padding:.3rem 1rem; display:flex; align-items:center; gap:.25rem; flex-wrap:wrap; }
   .dyd-globalbar .dyd-gb-link { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:6px; font-size:.88rem; font-weight:600; color:var(--bs-body-color); text-decoration:none; border:1.5px solid transparent; transition:background .12s,color .12s; min-height:40px; }
   .dyd-globalbar .dyd-gb-link:hover { background:var(--bs-tertiary-bg); border-color:var(--bs-border-color); }
   .dyd-globalbar .dyd-gb-link.active { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; font-weight:700; }
-  .dyd-wrap { max-width:1100px; }
 </style>
 
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">

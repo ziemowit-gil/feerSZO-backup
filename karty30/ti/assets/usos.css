@@ -96,10 +96,10 @@ body.dyd-usos #dydSbToggle,
 body.dyd-usos .dyd-sb-overlay { display: none !important; }
 body.dyd-usos .dyd-content { margin-left: 0 !important; }
 
-/* Ta sama szerokość co kolumna treści — krawędzie pasków i tabel w jednej linii */
+/* Paski nawigacji też na pełną szerokość — krawędzie zgodne z kolumną treści */
 body.dyd-usos .usos-sections,
 body.dyd-usos .usos-subnav,
-body.dyd-usos .usos-crumbs { max-width: 1100px; }
+body.dyd-usos .usos-crumbs { max-width: 100%; }
 
 /* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
 body.dyd-usos .dyd-sidebar {
@@ -142,13 +142,12 @@ body.dyd-usos .dyd-sb-coursename { color: var(--usos-navy) !important; font-weig
 body.dyd-usos .dyd-sidebar .dropdown-menu { border-radius: 2px; }
 
 /* ── Obszar treści ────────────────────────────────────────────────────────── */
-/* Kolumna treści ma stałą, wąską szerokość (jak 1100 px w resztę systemu) i jest
-   wyrównana do lewej, przy menu — na szerokim monitorze rozciągnięte na 1900 px
-   tabele są nieczytelne. Marginesu lewego NIE ruszamy: .dyd-content trzyma na
-   nim odsunięcie od menu bocznego. */
+/* Treść na pełną szerokość okna (decyzja użytkownika — wcześniej było 1100 px).
+   Szerokie tabele czyta się dzięki temu bez przewijania w poziomie; każda z nich
+   siedzi we własnym .table-responsive, więc nic nie wypycha strony. */
 body.dyd-usos .dyd-wrap {
   padding: .75rem 1rem 2rem !important;
-  max-width: 1100px;
+  max-width: 100%;
 }
 body.dyd-usos h1, body.dyd-usos h2, body.dyd-usos h3,
 body.dyd-usos .h1, body.dyd-usos .h2, body.dyd-usos .h3,
