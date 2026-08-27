@@ -64,6 +64,21 @@ function ti_moodle_enabled(): bool {
     return moodle_setting('url') !== '' && moodle_setting('token') !== '';
 }
 
+/**
+ * Czy kursant obsługuje konta Microsoft 365 / Moodle SAM, ze swojego panelu.
+ *
+ * Wyłączone: zajęcia idą przez Zoom, materiały i zadania przez zakładkę
+ * „Dydaktyka / eLearning", a konta szkoleniowe zakłada administracja — kursant
+ * nie ma po co ich zakładać ani kasować z panelu. Wyłącznik jest tutaj, w jednym
+ * miejscu: pyta o niego zarówno zakładka „Szkolenia online", jak i endpoint
+ * ti_online_api.php, więc nie da się obejść interfejsu żądaniem wprost.
+ *
+ * Nie dotyczy administracji (karty30/ti/*) — tam provisioning działa jak dotąd.
+ */
+function ti_student_selfservice_enabled(): bool {
+    return false;
+}
+
 // ── Stan kursanta ─────────────────────────────────────────────────────────────
 
 /** Zwraca rekord konta kursanta wraz z danymi beneficjenta. */

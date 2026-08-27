@@ -1607,7 +1607,11 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
-    if (!empty($account['ms_upn']))         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
+    // Login konta Microsoft pomijamy — kursant nie zakłada go ani nie kasuje
+    // z panelu (ti_student_selfservice_enabled), więc nie pokazujemy adresu,
+    // przy którym nic nie może zrobić.
+    if (ti_student_selfservice_enabled() && !empty($account['ms_upn']))
+        $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
     if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
 
     $contact_phones = [];
@@ -4997,14 +5001,18 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php else: ?>
 
+  <?php if (!ti_student_selfservice_enabled()): ?>
   <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
     <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div>
-      <strong>Platforma Moodle została wyłączona.</strong>
-      Od 1 września zajęcia odbywają się przez <strong>Zoom</strong>.
-      Materiały i zadania dostępne są w zakładce <a href="?tab=zadania" class="alert-link">Dydaktyka / eLearning</a>.
+      <strong>Kont Microsoft 365 i platformy Moodle nie obsługujemy już w panelu.</strong>
+      Zajęcia odbywają się przez <strong>Zoom</strong>, a materiały i zadania znajdziesz
+      w zakładce <a href="?tab=zadania" class="alert-link">Dydaktyka / eLearning</a>.
+      Jeśli potrzebujesz konta szkoleniowego albo masz kłopot z logowaniem, napisz przez
+      <a href="?tab=problem" class="alert-link">Zgłoś problem</a>.
     </div>
   </div>
+  <?php endif; ?>
 
   <?php if (false && $moodle_courses_student): ?>
   <section class="card mb-4" aria-labelledby="mdl-heading">
@@ -5030,12 +5038,19 @@ document.addEventListener('DOMContentLoaded', function() {
   </section>
   <?php endif; ?>
 
-  <div id="online-root" data-token="<?= h($vlab_token) ?>">
+  <?php /* data-self decyduje, czy front rysuje karty kont MS/Moodle. Bramka jest
+           też po stronie ti_online_api.php — tutaj chodzi tylko o to, żeby nie
+           pokazywać przycisków, których i tak nie da się użyć. */ ?>
+  <div id="online-root" data-token="<?= h($vlab_token) ?>" data-self="<?= ti_student_selfservice_enabled() ? '1' : '0' ?>">
     <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
       <i class="bi bi-camera-video text-primary" aria-hidden="true"></i>Szkolenia online
     </h1>
     <p class="text-body-secondary small mb-3">
+      <?php if (ti_student_selfservice_enabled()): ?>
       Twoje konto szkoleniowe Microsoft&nbsp;365, dostęp do platformy e-learningowej oraz linki do nadchodzących szkoleń (Zoom / MS&nbsp;Teams).
+      <?php else: ?>
+      Linki do nadchodzących szkoleń Twoich grup (Zoom / MS&nbsp;Teams).
+      <?php endif; ?>
     </p>
     <div id="online-content" aria-live="polite">
       <div class="text-body-secondary py-4 text-center">Ładowanie…</div>
@@ -5047,6 +5062,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const root = document.getElementById('online-root');
     const box  = document.getElementById('online-content');
     const token = root.dataset.token;
+    const SELF  = root.dataset.self === '1';   // samoobsługa kont MS/Moodle
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
     async function api(action, params){
@@ -5161,7 +5177,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function render(d){
-      box.innerHTML = '<div class="row g-3">' + cardMS(d) + cardMoodle(d) + cardMeetings(d) + '</div>';
+      const accounts = SELF ? (cardMS(d) + cardMoodle(d)) : '';
+      box.innerHTML = '<div class="row g-3">' + accounts + cardMeetings(d) + '</div>';
     }
 
     async function reload(){ const d = await api('list'); if (d.ok) render(d); }

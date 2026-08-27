@@ -3,7 +3,9 @@
  * karty30/ti/kursant/ti_online_api.php — endpoint AJAX „nauki online" dla kursanta.
  * Akcje: list | ms_create | ms_delete | moodle_create.
  * Operacje modyfikujące wymagają tokenu CSRF kursanta i metody POST,
- * i działają WYŁĄCZNIE na koncie zalogowanego kursanta.
+ * i działają WYŁĄCZNIE na koncie zalogowanego kursanta — o ile
+ * ti_student_selfservice_enabled() na to pozwala (dziś nie pozwala;
+ * `list` zostaje, bo z niego żyje lista nadchodzących szkoleń).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
@@ -36,6 +38,13 @@ function ti_online_payload(int $sid): array {
 
 $modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create', 'moodle_password'], true);
 if ($modifying) {
+    // Zakładanie i kasowanie kont MS/Moodle z panelu kursanta jest wyłączone —
+    // bramka stoi tu, nie tylko w interfejsie, więc żądanie wprost też odpada.
+    if (!ti_student_selfservice_enabled()) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'msg' => 'Kontami Microsoft 365 i Moodle zajmuje się administracja — napisz przez „Zgłoś problem".']);
+        exit;
+    }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
     student_token_check();
 }
