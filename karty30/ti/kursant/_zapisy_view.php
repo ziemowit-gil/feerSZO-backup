@@ -340,6 +340,8 @@ $rk_mode_label = fn(string $m) => match ($m) {
         [$st_label, $st_class] = match ((string)$b['status']) {
             'confirmed'         => $future ? ['zarezerwowane', 'primary'] : ['odbyte?', 'secondary'],
             'pending_parent'    => ['czeka na zgodę rodzica', 'warning'],
+            'pending_instructor' => ['czeka na prowadzącego', 'warning'],
+            'pending_staff'     => ['czeka na kierownika', 'warning'],
             'attended'          => ['odbyte', 'success'],
             'no_show'           => ['nieobecność', 'danger'],
             'cancelled_student' => ['zrezygnowano', 'secondary'],
@@ -366,9 +368,9 @@ $rk_mode_label = fn(string $m) => match ($m) {
         </td>
         <td><span class="badge text-bg-<?= $st_class ?>"><?= h($st_label) ?></span></td>
         <td class="text-end">
-          <?php if (in_array($b['status'], ['confirmed','pending_parent'], true) && $future): ?>
+          <?php if (in_array($b['status'], array_merge(['confirmed'], RK_PENDING_STATUSES), true) && $future): ?>
           <form method="post" class="d-inline"
-                onsubmit="return confirm('<?= ($full_ref || $b['status'] === 'pending_parent')
+                onsubmit="return confirm('<?= ($full_ref || in_array($b['status'], RK_PENDING_STATUSES, true))
                     ? 'Zrezygnować z terminu? Żetony wrócą w całości.'
                     : 'Uwaga: termin jest bliżej niż ' . (int)$b['refund_hours'] . ' h — żetony mogą nie zostać zwrócone. Zrezygnować?' ?>')">
             <input type="hidden" name="_token" value="<?= h(student_token()) ?>">

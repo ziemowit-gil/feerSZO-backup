@@ -164,6 +164,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         : 'Miejsce wstępnie zarezerwowane. ')
                     . 'Wysłaliśmy rodzicowi/opiekunowi e-mail z linkiem do zatwierdzenia (i SMS) '
                     . '— rezerwacja stanie się ostateczna po jego zgodzie.'];
+            } elseif (($r['status'] ?? '') === 'pending_instructor') {
+                // Dwustopniowe zatwierdzanie: powiadom prowadzącego (mail+SMS)
+                $first_id = (int)($r['booking_id']
+                    ?? (rk_series_bookings((string)($r['series_key'] ?? ''), 'pending_instructor')[0]['id'] ?? 0));
+                if ($first_id) rk_approval_notify($first_id, 'instructor');
+                $_SESSION['rk_flash'] = ['ok', (isset($r['booked'])
+                        ? 'Seria ' . (int)$r['booked'] . ' terminów wstępnie zarezerwowana. '
+                        : 'Miejsce wstępnie zarezerwowane. ')
+                    . 'Wpis czeka na zatwierdzenie prowadzącego, a potem kierownika — '
+                    . 'damy znać, gdy rezerwacja stanie się ostateczna. Żetony: ' . (int)$r['tokens_spent'] . '.'];
             } elseif (isset($r['booked'])) {
                 $_SESSION['rk_flash'] = ['ok', 'Zarezerwowano serię: ' . (int)$r['booked']
                     . ' terminów (ten sam dzień i godzina do końca tury). Pobrane żetony: '

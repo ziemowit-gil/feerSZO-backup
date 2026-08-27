@@ -22,6 +22,20 @@ declare(strict_types=1);
 
 class RkException extends \RuntimeException {}
 
+/**
+ * Statusy „żywe” rezerwacji — zajmują miejsce na slocie i trzymają żetony.
+ * Łańcuch zatwierdzeń: pending_parent (małoletni) → pending_instructor
+ * (prowadzący) → pending_staff (kierownik) → confirmed. Wpis do dziennika
+ * (materializacja) następuje dopiero przy confirmed.
+ */
+const RK_LIVE_STATUSES = ['confirmed', 'pending_parent', 'pending_instructor', 'pending_staff', 'attended', 'no_show'];
+const RK_PENDING_STATUSES = ['pending_parent', 'pending_instructor', 'pending_staff'];
+
+/** Lista statusów do klauzuli IN (...) — zaufane stałe, nie dane wejściowe. */
+function rk_in(array $statuses): string {
+    return "'" . implode("','", $statuses) . "'";
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    MIGRACJA
    ══════════════════════════════════════════════════════════════════════════ */
@@ -106,9 +120,10 @@ function ti_rk_migrate(): void {
     // v2 dodaje status pending_parent (rezerwacja małoletniego czekająca
     // na zatwierdzenie rodzica też zajmuje miejsce).
     $pdo->exec("DROP INDEX IF EXISTS idx_rk_book_uniq");
-    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rk_book_uniq_v2
+    $pdo->exec("DROP INDEX IF EXISTS idx_rk_book_uniq_v2");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rk_book_uniq_v3
                 ON k30_rk_bookings(slot_id, client_id)
-                WHERE status IN ('confirmed','pending_parent','attended','no_show')");
+                WHERE status IN (" . rk_in(RK_LIVE_STATUSES) . ")");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rk_book_client ON k30_rk_bookings(client_id, status)");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_access_tokens (
@@ -351,6 +366,19 @@ function rk_parent_confirm_hours(): int {
     return max(1, (int)rk_setting('rk_parent_confirm_hours', '48'));
 }
 
+/**
+ * Dwustopniowe zatwierdzanie rezerwacji (prowadzący → kierownik) — domyślnie
+ * WŁĄCZONE; kierownik może wyłączyć w Ustawieniach (rk_approval_flow=0).
+ */
+function rk_approval_enabled(): bool {
+    return rk_setting('rk_approval_flow', '1') === '1';
+}
+
+/** Status po wejściu rezerwacji do łańcucha zatwierdzeń (po zgodzie rodzica). */
+function rk_initial_review_status(): string {
+    return rk_approval_enabled() ? 'pending_instructor' : 'confirmed';
+}
+
 /** Automatyczny koszt terminu z czasu trwania: ceil(minuty / minuty-na-żeton). */
 function rk_auto_cost(string $starts_at, string $ends_at): int {
     $per = rk_token_minutes();
@@ -477,7 +505,7 @@ function rk_rounds_list(): array {
         "SELECT r.*, p.name AS pool_name,
                 (SELECT COUNT(*) FROM k30_rk_slots s WHERE s.round_id=r.id) AS n_slots,
                 (SELECT COUNT(*) FROM k30_rk_bookings b JOIN k30_rk_slots s ON s.id=b.slot_id
-                  WHERE s.round_id=r.id AND b.status IN ('confirmed','pending_parent')) AS n_bookings
+                  WHERE s.round_id=r.id AND b.status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ")) AS n_bookings
            FROM k30_rk_rounds r
            LEFT JOIN k30_pl_token_pools p ON p.id = r.pool_id
           ORDER BY r.opens_at DESC, r.id DESC", []
@@ -605,7 +633,7 @@ function rk_round_cancel_bookings(int $round_id, string $reason = '', ?int $by =
         foreach (db_all(
             "SELECT b.id, b.client_id FROM k30_rk_bookings b
                JOIN k30_rk_slots s ON s.id = b.slot_id
-              WHERE s.round_id = ? AND b.status IN ('confirmed','pending_parent')",
+              WHERE s.round_id = ? AND b.status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ")",
             [$round_id]) as $b) {
             rk_cancel((int)$b['id'], (int)$b['client_id'], 'staff',
                       $reason !== '' ? $reason : 'wyczyszczenie zapisów tury');
@@ -628,7 +656,7 @@ function rk_round_delete(int $round_id): void {
         $n = db_one(
             "SELECT COUNT(*) n FROM k30_rk_bookings b
                JOIN k30_rk_slots s ON s.id = b.slot_id
-              WHERE s.round_id = ? AND b.status IN ('confirmed','pending_parent')", [$round_id]);
+              WHERE s.round_id = ? AND b.status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ")", [$round_id]);
         if ((int)($n['n'] ?? 0) > 0) throw new RkException('ROUND_HAS_BOOKINGS');
 
         foreach (db_all("SELECT id, session_id FROM k30_rk_slots
@@ -682,7 +710,7 @@ function rk_rounds_for_client(int $client_id): array {
                     AND s.starts_at > datetime('now')) AS n_free,
                 (SELECT COUNT(*) FROM k30_rk_bookings b JOIN k30_rk_slots s ON s.id=b.slot_id
                   WHERE s.round_id=r.id AND b.client_id=?
-                    AND b.status IN ('confirmed','pending_parent','attended','no_show')) AS n_mine
+                    AND b.status IN (" . rk_in(RK_LIVE_STATUSES) . ")) AS n_mine
            FROM k30_rk_rounds r
            LEFT JOIN k30_pl_token_pools p ON p.id = r.pool_id
           WHERE r.status IN ('open','scheduled')
@@ -901,7 +929,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
                 "SELECT COUNT(*) n FROM k30_rk_bookings b
                    JOIN k30_rk_slots s2 ON s2.id = b.slot_id
                   WHERE b.client_id = ? AND s2.round_id = ?
-                    AND b.status IN ('confirmed','pending_parent','attended','no_show')",
+                    AND b.status IN (" . rk_in(RK_LIVE_STATUSES) . ")",
                 [$client_id, $slot['round_id']])['n'] ?? 0);
             if ($n >= (int)$slot['max_per_client']) throw new RkException('ROUND_LIMIT_REACHED');
         }
@@ -910,7 +938,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         $dup = db_one(
             "SELECT 1 FROM k30_rk_bookings
               WHERE slot_id = ? AND client_id = ?
-                AND status IN ('confirmed','pending_parent','attended','no_show')",
+                AND status IN (" . rk_in(RK_LIVE_STATUSES) . ")",
             [$slot_id, $client_id]);
         if ($dup) throw new RkException('ALREADY_BOOKED');
 
@@ -918,7 +946,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         $clash = db_one(
             "SELECT 1 FROM k30_rk_bookings b
                JOIN k30_rk_slots s2 ON s2.id = b.slot_id
-              WHERE b.client_id = ? AND b.status IN ('confirmed','pending_parent') AND s2.id != ?
+              WHERE b.client_id = ? AND b.status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ") AND s2.id != ?
                 AND s2.starts_at < ? AND s2.ends_at > ?",
             [$client_id, $slot_id, $slot['ends_at'], $slot['starts_at']]);
         if ($clash) throw new RkException('TIME_CLASH');
@@ -952,7 +980,7 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
                     (slot_id, client_id, wallet_id, tokens_spent, status, source, access_token_id, series_key)
                  VALUES (?,?,?,?, ?, ?, ?, ?)",
                 [$slot_id, $client_id, $wallet['id'], $cost,
-                 $pending ? 'pending_parent' : 'confirmed', $source, $token_id, $series_key]);
+                 $pending ? 'pending_parent' : rk_initial_review_status(), $source, $token_id, $series_key]);
         } catch (\PDOException) {
             throw new RkException('ALREADY_BOOKED');   // rollback cofa kroki 4 i 5
         }
@@ -969,10 +997,10 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
 
         /* 8. Materializacja do dziennika TI — dopiero po zatwierdzeniu rodzica,
               gdy rezerwacja czeka (pending_parent nie siedzi w dzienniku) */
-        if (!$pending) rk_materialize_session($slot_id, $client_id);
+        $status = $pending ? 'pending_parent' : rk_initial_review_status();
+        if ($status === 'confirmed') rk_materialize_session($slot_id, $client_id);
 
-        return ['booking_id' => $booking_id, 'tokens_spent' => $cost,
-                'status'     => $pending ? 'pending_parent' : 'confirmed'];
+        return ['booking_id' => $booking_id, 'tokens_spent' => $cost, 'status' => $status];
     });
 }
 
@@ -1021,7 +1049,7 @@ function rk_book_series(int $pattern_slot_id, int $client_id, string $source = '
     // Sloty z już posiadaną żywą rezerwacją pomijamy (dokupienie reszty serii)
     $own = array_column(db_all(
         "SELECT slot_id FROM k30_rk_bookings
-          WHERE client_id = ? AND status IN ('confirmed','pending_parent','attended','no_show')
+          WHERE client_id = ? AND status IN (" . rk_in(RK_LIVE_STATUSES) . ")
             AND slot_id IN (" . implode(',', array_fill(0, count($slots), '?')) . ")",
         [$client_id, ...array_map(fn($s) => (int)$s['id'], $slots)]), 'slot_id');
     $todo = array_values(array_filter($slots, fn($s) => !in_array((int)$s['id'], array_map('intval', $own), true)));
@@ -1031,13 +1059,16 @@ function rk_book_series(int $pattern_slot_id, int $client_id, string $source = '
 
     return rk_tx(function () use ($todo, $client_id, $source, $token_id, $series_key, $own) {
         $booked = 0; $tokens = 0; $status = 'confirmed';
+        // Status zbiorczy serii = najwcześniejszy etap łańcucha zatwierdzeń
+        $rank = ['pending_parent' => 0, 'pending_instructor' => 1, 'pending_staff' => 2, 'confirmed' => 3];
         foreach ($todo as $s) {
             // Każdy wyjątek (SLOT_FULL z wyścigu, INSUFFICIENT_TOKENS, limit tury…)
             // wycofuje całą serię — rk_tx robi rollback na rethrow.
             $r = rk_book((int)$s['id'], $client_id, $source, $token_id, $series_key);
             $booked++;
             $tokens += (int)$r['tokens_spent'];
-            if (($r['status'] ?? '') === 'pending_parent') $status = 'pending_parent';
+            $st = (string)($r['status'] ?? 'confirmed');
+            if (($rank[$st] ?? 3) < ($rank[$status] ?? 3)) $status = $st;
         }
         return ['booked' => $booked, 'tokens_spent' => $tokens, 'status' => $status,
                 'series_key' => $series_key, 'skipped_own' => count($own)];
@@ -1150,7 +1181,7 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
             $by === 'student' ? [$booking_id, $client_id] : [$booking_id]);
 
         if (!$b) throw new RkException('BOOKING_NOT_FOUND');
-        if (!in_array($b['status'], ['confirmed','pending_parent'], true)) {
+        if (!in_array($b['status'], array_merge(['confirmed'], RK_PENDING_STATUSES), true)) {
             throw new RkException('BOOKING_NOT_ACTIVE');
         }
 
@@ -1159,7 +1190,7 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
 
         // Pełny zwrot: odwołanie ośrodka, decyzja/wygaśnięcie u rodzica,
         // rezygnacja z rezerwacji jeszcze niezatwierdzonej, rezygnacja w oknie.
-        if ($by !== 'student' || $b['status'] === 'pending_parent' || $hours >= (int)$b['refund_hours']) {
+        if ($by !== 'student' || in_array($b['status'], RK_PENDING_STATUSES, true) || $hours >= (int)$b['refund_hours']) {
             $refund = $paid;
         } else {
             $refund = (int)floor($paid * (int)$b['late_refund_pct'] / 100);
@@ -1176,7 +1207,7 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
             "UPDATE k30_rk_bookings
                 SET status = ?, cancelled_at = datetime('now'),
                     tokens_refunded = tokens_refunded + ?, cancel_reason = ?
-              WHERE id = ? AND status IN ('confirmed','pending_parent')",
+              WHERE id = ? AND status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ")",
             [$new_status, $refund, substr($reason, 0, 300), $booking_id]);
         if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
 
@@ -1268,7 +1299,7 @@ function rk_slot_cancel(int $slot_id, int $instructor_id, string $reason = '', b
 
         $n = 0;
         foreach (db_all("SELECT id, client_id FROM k30_rk_bookings
-                          WHERE slot_id=? AND status IN ('confirmed','pending_parent')", [$slot_id]) as $b) {
+                          WHERE slot_id=? AND status IN (" . rk_in(array_merge(['confirmed'], RK_PENDING_STATUSES)) . ")", [$slot_id]) as $b) {
             rk_cancel((int)$b['id'], (int)$b['client_id'], 'staff', $reason ?: 'odwołanie terminu');
             $n++;
         }
@@ -1310,7 +1341,7 @@ function rk_slots_admin_list(array $f = [], int $limit = 500): array {
                 (s.capacity - s.seats_taken) AS seats_free,
                 (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id) AS n_bookings_all,
                 (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id
-                   AND b.status IN ('confirmed','pending_parent','attended','no_show')) AS n_bookings_live
+                   AND b.status IN (" . rk_in(RK_LIVE_STATUSES) . ")) AS n_bookings_live
            FROM k30_rk_slots s
            JOIN users u ON u.id = s.instructor_id
            JOIN k30_rk_rounds r ON r.id = s.round_id
@@ -1716,17 +1747,145 @@ function rk_parent_resolve(string $raw): ?array {
     return $b ? ['token' => $t, 'booking' => $b] : null;
 }
 
-/** Zatwierdzenie przez rodzica: pending_parent → confirmed + wpis do dziennika. */
+/**
+ * Zatwierdzenie przez rodzica: pending_parent przechodzi do łańcucha
+ * zatwierdzeń kadry (pending_instructor) albo — przy wyłączonym łańcuchu —
+ * od razu do confirmed z wpisem do dziennika.
+ */
 function rk_parent_confirm(int $booking_id): void {
     rk_tx(function () use ($booking_id) {
-        $ok = rk_affect("UPDATE k30_rk_bookings SET status='confirmed'
-                          WHERE id=? AND status='pending_parent'", [$booking_id]);
+        $next = rk_initial_review_status();
+        $ok = rk_affect("UPDATE k30_rk_bookings SET status=?
+                          WHERE id=? AND status='pending_parent'", [$next, $booking_id]);
         if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
-        $b = db_one("SELECT slot_id, client_id FROM k30_rk_bookings WHERE id=?", [$booking_id]);
-        rk_materialize_session((int)$b['slot_id'], (int)$b['client_id']);
+        if ($next === 'confirmed') {
+            $b = db_one("SELECT slot_id, client_id FROM k30_rk_bookings WHERE id=?", [$booking_id]);
+            rk_materialize_session((int)$b['slot_id'], (int)$b['client_id']);
+        }
         db_exec("UPDATE k30_rk_access_tokens SET revoked_at=datetime('now')
                   WHERE booking_id=? AND scope='parent_confirm'", [$booking_id]);
     });
+}
+
+/**
+ * Zatwierdzenie przez PROWADZĄCEGO: pending_instructor → pending_staff
+ * (na koniec łańcucha kierownik). Prowadzący zatwierdza tylko własne terminy.
+ */
+function rk_instructor_confirm(int $booking_id, int $instructor_id): string {
+    return rk_tx(function () use ($booking_id, $instructor_id) {
+        $ok = rk_affect(
+            "UPDATE k30_rk_bookings SET status='pending_staff'
+              WHERE id=? AND status='pending_instructor'
+                AND slot_id IN (SELECT id FROM k30_rk_slots WHERE instructor_id=?)",
+            [$booking_id, $instructor_id]);
+        if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
+        return 'pending_staff';
+    });
+}
+
+/** Zatwierdzenie przez KIEROWNIKA: pending_staff → confirmed + dziennik. */
+function rk_staff_confirm(int $booking_id): string {
+    return rk_tx(function () use ($booking_id) {
+        $ok = rk_affect("UPDATE k30_rk_bookings SET status='confirmed'
+                          WHERE id=? AND status='pending_staff'", [$booking_id]);
+        if ($ok !== 1) throw new RkException('BOOKING_NOT_ACTIVE');
+        $b = db_one("SELECT slot_id, client_id FROM k30_rk_bookings WHERE id=?", [$booking_id]);
+        rk_materialize_session((int)$b['slot_id'], (int)$b['client_id']);
+        return 'confirmed';
+    });
+}
+
+/** Zatwierdzenie CAŁEJ serii na danym etapie. Zwraca liczbę zatwierdzonych. */
+function rk_series_confirm(string $series_key, string $stage, int $instructor_id = 0): int {
+    $n = 0;
+    $status = $stage === 'instructor' ? 'pending_instructor' : 'pending_staff';
+    foreach (rk_series_bookings($series_key, $status) as $b) {
+        try {
+            $stage === 'instructor'
+                ? rk_instructor_confirm((int)$b['id'], $instructor_id)
+                : rk_staff_confirm((int)$b['id']);
+            $n++;
+        } catch (RkException) {}
+    }
+    return $n;
+}
+
+/**
+ * Powiadomienie o wpisie na zajęcia czekającym na zatwierdzenie — edytowalny
+ * mail + SMS (z fallbackiem e-mail, gdy bramka SMS zawiedzie). Wołać PO
+ * transakcji. Dla serii wysyłana jest jedna wiadomość (z liczbą terminów).
+ * $stage: 'instructor' (adresat: prowadzący terminu) | 'staff' (adresaci
+ * z ustawień rk_staff_notify_email / rk_staff_notify_phone).
+ */
+function rk_approval_notify(int $booking_id, string $stage): bool {
+    if (!function_exists('mail_queue_add')) require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('email_tpl_render')) require_once __DIR__ . '/email_templates.php';
+    if (!function_exists('sms_channel_ready')) @require_once __DIR__ . '/sms.php';
+
+    $b = db_one(
+        "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, s.instructor_id,
+                u.name AS instructor_name, u.email AS instructor_email,
+                cl.name AS client_name, r.name AS round_name
+           FROM k30_rk_bookings b
+           JOIN k30_rk_slots s ON s.id = b.slot_id
+           JOIN users u ON u.id = s.instructor_id
+           JOIN k30_clients cl ON cl.id = b.client_id
+           JOIN k30_rk_rounds r ON r.id = s.round_id
+          WHERE b.id = ?", [$booking_id]);
+    if (!$b) return false;
+
+    $series     = (string)($b['series_key'] ?? '');
+    $series_cnt = $series !== '' ? count(rk_series_bookings($series,
+        $stage === 'instructor' ? 'pending_instructor' : 'pending_staff')) : 0;
+
+    if ($stage === 'instructor') {
+        $email = trim((string)$b['instructor_email']);
+        $phone = trim((string)(db_one("SELECT phone_number FROM users WHERE id=?",
+                    [(int)$b['instructor_id']])['phone_number'] ?? ''));
+        $to_name = (string)$b['instructor_name'];
+        $tpl_key = 'rk_pending_instructor';
+        $panel   = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/rekrutacja.php';
+    } else {
+        $email = trim(rk_setting('rk_staff_notify_email'));
+        $phone = trim(rk_setting('rk_staff_notify_phone'));
+        $to_name = 'Kierownik';
+        $tpl_key = 'rk_pending_staff';
+        $panel   = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/rekrutacja.php?tab=zapisy';
+    }
+
+    $when = rk_fmt_dt((string)$b['starts_at']) . '–' . substr((string)$b['ends_at'], 11, 5)
+          . ($series_cnt > 1 ? " (seria: $series_cnt terminów)" : '');
+
+    $sent = false;
+    if ($email !== '') {
+        $tpl = email_tpl_render($tpl_key, [
+            'name'       => $to_name,
+            'student'    => (string)$b['client_name'],
+            'when'       => $when,
+            'instructor' => (string)$b['instructor_name'],
+            'subject'    => (string)($b['subject_label'] ?: 'konsultacja'),
+            'round'      => (string)$b['round_name'],
+            'panel_url'  => $panel,
+            'org'        => defined('ORG_NAME') ? ORG_NAME : '',
+        ]);
+        if ($tpl['enabled'] && $tpl['subject'] !== '') {
+            mail_queue_add($email, $to_name, $tpl['subject'], $tpl['html'], '', 'rk_approval', $booking_id);
+            $sent = true;
+        }
+    }
+    if ($phone !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
+        $msg = 'Nowy wpis na zajecia: ' . $b['client_name'] . ', '
+             . date('d.m H:i', strtotime((string)$b['starts_at']))
+             . ($series_cnt > 1 ? " (seria x$series_cnt)" : '')
+             . '. Wymaga zatwierdzenia w panelu. ' . (defined('ORG_NAME') ? ORG_NAME : '');
+        try {
+            // Fallback: gdy bramka SMS zawiedzie, treść trafia e-mailem
+            function_exists('sms_send_with_fallback')
+                ? sms_send_with_fallback($phone, $msg, $email)
+                : sms_send($phone, $msg);
+        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+    }
+    return $sent;
 }
 
 /** Odrzucenie przez rodzica: pełny zwrot żetonów, miejsce wraca do puli. */

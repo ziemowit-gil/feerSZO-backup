@@ -1011,6 +1011,81 @@ HTML,
                 'link'       => ['label' => 'Link zatwierdzenia (token)',   'sample' => $base . '/karty30/ti/rekrutacja/potwierdz.php?t=…'],
             ],
         ],
+
+        // — Rekrutacja TI: wpis na zajęcia do zatwierdzenia (prowadzący) ————
+        'rk_pending_instructor' => [
+            'label'       => 'Rekrutacja TI — wpis do zatwierdzenia (prowadzący)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-person-check',
+            'auto'        => true,
+            'description' => 'Informacja dla prowadzącego o nowym wpisie na jego zajęcia, czekającym na zatwierdzenie (pierwszy stopień). Wysyłana z SMS-em (fallback e-mail).',
+            'subject'     => 'Wpis na zajęcia do zatwierdzenia — {{student}}, {{when}}',
+            'body'        => <<<'HTML'
+<p>Dzień dobry, <strong>{{name}}</strong>.</p>
+<p>Jest nowy wpis na Twoje zajęcia i czeka na Twoje zatwierdzenie:</p>
+<table style="background:#f8f9fa;border-radius:8px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr><td style="padding:6px 14px;color:#6c757d;width:130px;font-size:.9em">Kursant</td><td style="padding:6px 14px"><strong>{{student}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Termin</td><td style="padding:6px 14px"><strong>{{when}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Zajęcia</td><td style="padding:6px 14px">{{subject}}</td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Tura</td><td style="padding:6px 14px">{{round}}</td></tr>
+</table>
+<p>Po Twoim zatwierdzeniu wpis trafi jeszcze do kierownika. Do decyzji miejsce jest
+wstępnie zarezerwowane, a żetony kursanta pobrane.</p>
+<div style="margin:24px 0;text-align:center">
+  <a href="{{panel_url}}" style="background:#c2410c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zatwierdź w panelu &rarr;
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;word-break:break-all">Jeśli przycisk nie działa: <a href="{{panel_url}}">{{panel_url}}</a></p>
+HTML,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
+                'name'       => ['label' => 'Imię i nazwisko prowadzącego', 'sample' => 'Marek Nowak'],
+                'student'    => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
+                'when'       => ['label' => 'Termin (z liczbą serii)',  'sample' => '05.10.2026 16:00–17:00 (seria: 12 terminów)'],
+                'instructor' => ['label' => 'Prowadzący terminu',       'sample' => 'Marek Nowak'],
+                'subject'    => ['label' => 'Temat/rodzaj zajęć',       'sample' => 'konsultacja projektowa'],
+                'round'      => ['label' => 'Nazwa tury',               'sample' => 'Semestr Z 2026 K1-482'],
+                'panel_url'  => ['label' => 'Link do panelu zatwierdzeń', 'sample' => $base . '/karty30/ti/dydaktyk/rekrutacja.php'],
+            ],
+        ],
+
+        // — Rekrutacja TI: wpis na zajęcia do zatwierdzenia (kierownik) ————
+        'rk_pending_staff' => [
+            'label'       => 'Rekrutacja TI — wpis do zatwierdzenia (kierownik)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-person-gear',
+            'auto'        => true,
+            'description' => 'Informacja dla kierownika: prowadzący zatwierdził wpis na zajęcia, potrzebne zatwierdzenie końcowe. Adres i telefon kierownika ustawia się w Zapisach na zajęcia → Ustawienia.',
+            'subject'     => 'Wpis na zajęcia — zatwierdzenie końcowe: {{student}}, {{when}}',
+            'body'        => <<<'HTML'
+<p>Dzień dobry.</p>
+<p>Prowadzący <strong>{{instructor}}</strong> zatwierdził wpis na zajęcia —
+czeka on teraz na zatwierdzenie końcowe kierownika:</p>
+<table style="background:#f8f9fa;border-radius:8px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr><td style="padding:6px 14px;color:#6c757d;width:130px;font-size:.9em">Kursant</td><td style="padding:6px 14px"><strong>{{student}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Termin</td><td style="padding:6px 14px"><strong>{{when}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Zajęcia</td><td style="padding:6px 14px">{{subject}}</td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Tura</td><td style="padding:6px 14px">{{round}}</td></tr>
+</table>
+<div style="margin:24px 0;text-align:center">
+  <a href="{{panel_url}}" style="background:#c2410c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zatwierdź w panelu &rarr;
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;word-break:break-all">Jeśli przycisk nie działa: <a href="{{panel_url}}">{{panel_url}}</a></p>
+HTML,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
+                'name'       => ['label' => 'Adresat',                  'sample' => 'Kierownik'],
+                'student'    => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
+                'when'       => ['label' => 'Termin (z liczbą serii)',  'sample' => '05.10.2026 16:00–17:00'],
+                'instructor' => ['label' => 'Prowadzący terminu',       'sample' => 'Marek Nowak'],
+                'subject'    => ['label' => 'Temat/rodzaj zajęć',       'sample' => 'konsultacja projektowa'],
+                'round'      => ['label' => 'Nazwa tury',               'sample' => 'Semestr Z 2026 K1-482'],
+                'panel_url'  => ['label' => 'Link do panelu zatwierdzeń', 'sample' => $base . '/karty30/ti/dydaktyk/rekrutacja.php?tab=zapisy'],
+            ],
+        ],
     ];
 
     return $reg;

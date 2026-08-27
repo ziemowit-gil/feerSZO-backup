@@ -143,6 +143,8 @@ $slot_badge = fn(string $s) => match ($s) {
 $booking_badge = fn(string $s) => match ($s) {
     'confirmed'         => ['potwierdzona', 'primary'],
     'pending_parent'    => ['czeka na rodzica', 'warning'],
+    'pending_instructor' => ['czeka na prowadzącego', 'warning'],
+    'pending_staff'     => ['czeka na kierownika', 'warning'],
     'attended'          => ['obecność', 'success'],
     'no_show'           => ['nieobecność', 'danger'],
     'cancelled_student' => ['rezygnacja kursanta', 'secondary'],

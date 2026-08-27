@@ -94,6 +94,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: rekrutacja.php'); exit;
     }
 
+    /* ── Zatwierdzanie wpisów: prowadzący (1. stopień) ────────────────── */
+    if ($op === 'appr_instr' || $op === 'appr_instr_series') {
+        try {
+            if ($op === 'appr_instr_series') {
+                $sk = (string)($_POST['series_key'] ?? '');
+                $n  = rk_series_confirm($sk, 'instructor', $uid);
+                $first = rk_series_bookings($sk, 'pending_staff')[0] ?? null;
+                if ($first) rk_approval_notify((int)$first['id'], 'staff');
+                flash_set($n ? 'success' : 'warning',
+                    $n ? "Zatwierdzono serię ($n wpisów) — czeka teraz na kierownika." : 'Brak wpisów do zatwierdzenia.');
+            } else {
+                $bid = (int)($_POST['booking_id'] ?? 0);
+                rk_instructor_confirm($bid, $uid);
+                rk_approval_notify($bid, 'staff');
+                flash_set('success', 'Wpis zatwierdzony — czeka teraz na kierownika.');
+            }
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php'); exit;
+    }
+
+    /* ── Zatwierdzanie wpisów: kierownik (2. stopień, ostateczny) ─────── */
+    if ($is_staff && ($op === 'appr_staff' || $op === 'appr_staff_series')) {
+        try {
+            if ($op === 'appr_staff_series') {
+                $n = rk_series_confirm((string)($_POST['series_key'] ?? ''), 'staff');
+                flash_set($n ? 'success' : 'warning',
+                    $n ? "Zatwierdzono serię ($n wpisów) — rezerwacje są ostateczne." : 'Brak wpisów do zatwierdzenia.');
+            } else {
+                rk_staff_confirm((int)($_POST['booking_id'] ?? 0));
+                flash_set('success', 'Wpis zatwierdzony — rezerwacja jest ostateczna.');
+            }
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php?tab=zapisy'); exit;
+    }
+
+    /* ── Odrzucenie wpisu (dowolny etap; pełny zwrot żetonów) ─────────── */
+    if ($op === 'appr_reject') {
+        try {
+            $r = rk_cancel((int)($_POST['booking_id'] ?? 0), 0, 'staff',
+                           trim($_POST['reason'] ?? 'odrzucenie wpisu'));
+            flash_set('success', 'Wpis odrzucony. Zwrócone żetony: ' . (int)$r['refunded'] . '.');
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php' . ($is_staff && ($_POST['from'] ?? '') === 'zapisy' ? '?tab=zapisy' : '')); exit;
+    }
+
     /* ── Tury (kierownik) ────────────────────────────────────────────── */
     if ($is_staff && $op === 'round_save') {
         if (trim($_POST['name'] ?? '') === '') {
@@ -297,6 +348,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         org_setting_set('rk_token_pln',           str_replace(',', '.', trim($_POST['rk_token_pln'] ?? '0')));
         org_setting_set('rk_parent_confirm_hours',(string)max(1, (int)($_POST['rk_parent_confirm_hours'] ?? 48)));
         org_setting_set('rk_refund_fallback_pool',(string)max(0, (int)($_POST['rk_refund_fallback_pool'] ?? 0)));
+        org_setting_set('rk_approval_flow',       !empty($_POST['rk_approval_flow']) ? '1' : '0');
+        org_setting_set('rk_staff_notify_email',  trim($_POST['rk_staff_notify_email'] ?? ''));
+        org_setting_set('rk_staff_notify_phone',  trim($_POST['rk_staff_notify_phone'] ?? ''));
         flash_set('success', 'Ustawienia zapisane.');
         header('Location: rekrutacja.php?tab=ustawienia'); exit;
     }
@@ -325,6 +379,27 @@ $rounds_live = array_values(array_filter($rounds_all, fn($r) => in_array($r['sta
 $my_slots    = rk_slots_of_instructor($uid);
 $my_courses  = db_all("SELECT id, name FROM k30_ti_courses WHERE instructor_id=? AND is_active=1 ORDER BY name", [$uid]);
 $my_avail    = ti_instructor_availability($uid, 'approved');
+
+// Wpisy czekające na MOJE zatwierdzenie (1. stopień — prowadzący)
+$my_pending = db_all(
+    "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, cl.name AS client_name
+       FROM k30_rk_bookings b
+       JOIN k30_rk_slots s ON s.id = b.slot_id
+       JOIN k30_clients cl ON cl.id = b.client_id
+      WHERE s.instructor_id = ? AND b.status = 'pending_instructor'
+      ORDER BY s.starts_at", [$uid]);
+
+// Wpisy czekające na kierownika (2. stopień)
+$staff_pending = $is_staff ? db_all(
+    "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, u.name AS instructor_name,
+            cl.name AS client_name, r.name AS round_name
+       FROM k30_rk_bookings b
+       JOIN k30_rk_slots s ON s.id = b.slot_id
+       JOIN users u ON u.id = s.instructor_id
+       JOIN k30_clients cl ON cl.id = b.client_id
+       JOIN k30_rk_rounds r ON r.id = s.round_id
+      WHERE b.status = 'pending_staff'
+      ORDER BY s.starts_at", []) : [];
 
 // Rezerwacje na moich slotach (podgląd uczestników)
 $slot_bookings = [];
@@ -482,6 +557,62 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </ul>
 
 <?php if ($tab === 'terminy'): ?>
+
+<?php if ($my_pending): ?>
+<div class="card border-0 shadow-sm border-start border-warning border-3 mb-4">
+  <div class="card-body">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-person-check me-1 text-warning" aria-hidden="true"></i>
+      Wpisy na Twoje zajęcia do zatwierdzenia <span class="badge text-bg-warning ms-1"><?= count($my_pending) ?></span></h2>
+    <p class="text-body-secondary small mb-2">Po Twoim zatwierdzeniu wpis trafia do kierownika (zatwierdzenie końcowe).
+      Odrzucenie zwraca kursantowi żetony w całości.</p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Wpisy do zatwierdzenia</caption>
+        <thead><tr>
+          <th scope="col">Termin</th><th scope="col">Kursant</th>
+          <th scope="col" class="text-end">Żetony</th><th scope="col">Seria</th>
+          <th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th>
+        </tr></thead>
+        <tbody>
+          <?php foreach ($my_pending as $mp): $sk = (string)($mp['series_key'] ?? ''); ?>
+          <tr>
+            <td><strong><?= h(rk_fmt_dt((string)$mp['starts_at'])) ?></strong>–<?= h(substr((string)$mp['ends_at'],11,5)) ?>
+              <?= $mp['subject_label'] ? '<div class="text-body-secondary" style="font-size:.75rem">' . h($mp['subject_label']) . '</div>' : '' ?></td>
+            <td><?= h($mp['client_name']) ?> <span class="badge text-bg-light border">#<?= (int)$mp['client_id'] ?></span></td>
+            <td class="text-end"><?= (int)$mp['tokens_spent'] ?></td>
+            <td><?= $sk !== '' ? '<span class="badge text-bg-info" title="Rezerwacja cykliczna">seria</span>' : '—' ?></td>
+            <td class="text-end text-nowrap">
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_instr">
+                <input type="hidden" name="booking_id" value="<?= (int)$mp['id'] ?>">
+                <button class="btn btn-sm btn-success" title="Zatwierdź wpis"><i class="bi bi-check-lg"></i></button>
+              </form>
+              <?php if ($sk !== ''): ?>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_instr_series">
+                <input type="hidden" name="series_key" value="<?= h($sk) ?>">
+                <button class="btn btn-sm btn-outline-success" title="Zatwierdź całą serię">
+                  <i class="bi bi-check2-all"></i> serię</button>
+              </form>
+              <?php endif; ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Odrzucić wpis kursanta <?= h($mp['client_name']) ?>? Żetony wrócą w całości.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_reject">
+                <input type="hidden" name="booking_id" value="<?= (int)$mp['id'] ?>">
+                <button class="btn btn-sm btn-outline-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-4">
   <div class="col-12 col-lg-4">
@@ -1322,6 +1453,31 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               Rezerwacja małoletniego bez decyzji rodzica po tym czasie wygasa z pełnym zwrotem żetonów.
             </div>
           </div>
+          <div class="border rounded p-2 bg-body-tertiary">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rs-appr" name="rk_approval_flow" value="1"
+                     <?= rk_approval_enabled() ? 'checked' : '' ?>>
+              <label class="form-check-label small fw-semibold" for="rs-appr">
+                Dwustopniowe zatwierdzanie wpisów (prowadzący → kierownik)
+              </label>
+              <div class="form-text mt-0">Każda rejestracja na termin czeka najpierw na prowadzącego,
+                potem na kierownika — obaj dostają e-mail (edytowalny w szablonach) i SMS
+                (z fallbackiem e-mail). Do decyzji miejsce jest wstępnie zarezerwowane,
+                żetony pobrane; odrzucenie zwraca je w całości.</div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-7">
+                <label class="form-label small mb-1" for="rs-se">E-mail kierownika (powiadomienia)</label>
+                <input type="email" class="form-control form-control-sm" id="rs-se" name="rk_staff_notify_email"
+                       value="<?= h(rk_setting('rk_staff_notify_email')) ?>" placeholder="kierownik@feer.org.pl">
+              </div>
+              <div class="col-5">
+                <label class="form-label small mb-1" for="rs-sp">Telefon (SMS)</label>
+                <input type="tel" class="form-control form-control-sm" id="rs-sp" name="rk_staff_notify_phone"
+                       value="<?= h(rk_setting('rk_staff_notify_phone')) ?>" placeholder="+48…">
+              </div>
+            </div>
+          </div>
           <div>
             <label class="form-label small mb-1" for="rs-fb">Pula zastępcza zwrotów</label>
             <select class="form-select form-select-sm" id="rs-fb" name="rk_refund_fallback_pool">
@@ -1358,6 +1514,65 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 
 <?php elseif ($tab === 'zapisy'): ?>
+
+<?php if ($staff_pending): ?>
+<div class="card border-0 shadow-sm border-start border-warning border-3 mb-4">
+  <div class="card-body">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-person-gear me-1 text-warning" aria-hidden="true"></i>
+      Wpisy do zatwierdzenia końcowego <span class="badge text-bg-warning ms-1"><?= count($staff_pending) ?></span></h2>
+    <p class="text-body-secondary small mb-2">Prowadzący już zatwierdzili — Twoje zatwierdzenie czyni rezerwację ostateczną
+      (kursant trafia do dziennika). Odrzucenie zwraca żetony w całości.</p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Wpisy do zatwierdzenia końcowego</caption>
+        <thead><tr>
+          <th scope="col">Termin</th><th scope="col">Prowadzący</th><th scope="col">Kursant</th>
+          <th scope="col">Tura</th><th scope="col" class="text-end">Żetony</th><th scope="col">Seria</th>
+          <th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th>
+        </tr></thead>
+        <tbody>
+          <?php foreach ($staff_pending as $sp): $sk = (string)($sp['series_key'] ?? ''); ?>
+          <tr>
+            <td><strong><?= h(rk_fmt_dt((string)$sp['starts_at'])) ?></strong>–<?= h(substr((string)$sp['ends_at'],11,5)) ?>
+              <?= $sp['subject_label'] ? '<div class="text-body-secondary" style="font-size:.75rem">' . h($sp['subject_label']) . '</div>' : '' ?></td>
+            <td><?= h($sp['instructor_name']) ?></td>
+            <td><?= h($sp['client_name']) ?> <span class="badge text-bg-light border">#<?= (int)$sp['client_id'] ?></span></td>
+            <td class="text-body-secondary" style="font-size:.82rem"><?= h($sp['round_name']) ?></td>
+            <td class="text-end"><?= (int)$sp['tokens_spent'] ?></td>
+            <td><?= $sk !== '' ? '<span class="badge text-bg-info" title="Rezerwacja cykliczna">seria</span>' : '—' ?></td>
+            <td class="text-end text-nowrap">
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_staff">
+                <input type="hidden" name="booking_id" value="<?= (int)$sp['id'] ?>">
+                <button class="btn btn-sm btn-success" title="Zatwierdź ostatecznie"><i class="bi bi-check-lg"></i></button>
+              </form>
+              <?php if ($sk !== ''): ?>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_staff_series">
+                <input type="hidden" name="series_key" value="<?= h($sk) ?>">
+                <button class="btn btn-sm btn-outline-success" title="Zatwierdź całą serię">
+                  <i class="bi bi-check2-all"></i> serię</button>
+              </form>
+              <?php endif; ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Odrzucić wpis kursanta <?= h($sp['client_name']) ?>? Żetony wrócą w całości.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="appr_reject">
+                <input type="hidden" name="booking_id" value="<?= (int)$sp['id'] ?>">
+                <input type="hidden" name="from" value="zapisy">
+                <button class="btn btn-sm btn-outline-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <form method="get" class="d-flex gap-2 align-items-end mb-3 flex-wrap">
   <input type="hidden" name="tab" value="zapisy">
@@ -1424,7 +1639,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <td class="text-end"><?= (int)$b['tokens_spent'] ?><?= (int)$b['tokens_refunded'] > 0 ? ' <span class="text-success" style="font-size:.78rem">(−' . (int)$b['tokens_refunded'] . ')</span>' : '' ?></td>
         <td><span class="badge text-bg-<?= match ((string)$b['status']) {
             'confirmed' => 'primary', 'attended' => 'success', 'no_show' => 'danger',
-            'cancelled_staff' => 'warning', default => 'secondary' } ?>"><?= h($b['status']) ?></span></td>
+            'pending_instructor', 'pending_staff', 'pending_parent' => 'warning',
+            'cancelled_staff' => 'warning', default => 'secondary' } ?>"><?= h(match ((string)$b['status']) {
+            'pending_instructor' => 'czeka: prowadzący', 'pending_staff' => 'czeka: kierownik',
+            'pending_parent' => 'czeka: rodzic', default => (string)$b['status'] }) ?></span></td>
         <td class="text-body-secondary" style="font-size:.82rem"><?= h($b['source']) ?></td>
         <td class="text-body-secondary" style="font-size:.82rem"><?= h(rk_fmt_dt((string)$b['booked_at'])) ?></td>
       </tr>

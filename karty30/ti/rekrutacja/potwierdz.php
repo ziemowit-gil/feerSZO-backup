@@ -62,6 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $b['status'] === 'pending_parent') 
         if ($op === 'approve') {
             $series_cnt > 1 ? rk_parent_confirm_series($series_key) : rk_parent_confirm((int)$b['id']);
             $decided = 'approved';
+            // Dwustopniowe zatwierdzanie: wpis idzie teraz do prowadzącego
+            if (rk_approval_enabled()) {
+                $first = $series_cnt > 1
+                    ? (rk_series_bookings($series_key, 'pending_instructor')[0] ?? null)
+                    : ['id' => (int)$b['id']];
+                if ($first) rk_approval_notify((int)$first['id'], 'instructor');
+            }
         } elseif ($op === 'reject') {
             $series_cnt > 1
                 ? rk_parent_reject_series($series_key, trim($_POST['reason'] ?? ''))
@@ -134,8 +141,13 @@ function rk_p_page(string $org, string $title, string $body_html): void {
     <?php if ($decided === 'approved'): ?>
     <div class="alert alert-success" role="alert">
       <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
-      <strong>Rezerwacja zatwierdzona.</strong> Dziecko jest zapisane na zajęcia —
-      szczegóły widzi w swoim panelu kursanta.
+      <strong>Zgoda zapisana.</strong>
+      <?php if (rk_approval_enabled()): ?>
+      Wpis czeka jeszcze na zatwierdzenie prowadzącego i kierownika — po ich zgodzie
+      rezerwacja stanie się ostateczna. Stan widać w panelu kursanta.
+      <?php else: ?>
+      Dziecko jest zapisane na zajęcia — szczegóły widzi w swoim panelu kursanta.
+      <?php endif; ?>
     </div>
 
     <?php elseif ($decided === 'rejected'): ?>
