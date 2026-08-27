@@ -43,7 +43,7 @@ $_usos_tab_labels = [
     'rozliczenia' => 'Rozliczenia grupy', 'frekwencja_grup' => 'Frekwencja grup', 'dostepnosc' => 'Dostępność',
     'zoom' => 'Zajętość Zoom', 'cykliczne' => 'Plan cykliczny', 'praca_wlasna' => 'Praca własna',
     'wiadomosci' => 'Wiadomości', 'komunikaty' => 'Komunikaty', 'komunikacja' => 'Komunikacja',
-    'formalnosci' => 'Formalności', 'wypłaty' => 'Wypłaty', 'dysk' => 'Mój dysk',
+    'formalnosci' => 'Formalności', 'wypłaty' => 'Wypłaty', 'dysk' => 'Mój dysk', 'pomoc' => 'Gdzie co jest',
     'grupy' => 'Przegląd grup', 'billing' => 'Rozliczenia kursantów', 'kursy' => 'Zarządzanie kursami',
 ];
 ?>

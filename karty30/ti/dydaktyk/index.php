@@ -128,7 +128,7 @@ if (isset($_GET['course'])) {
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 $tab = $_GET['tab'] ?? 'pulpit';
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
 // Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
@@ -2707,6 +2707,10 @@ if ($cur_course && dyd_is_staff()) {
           class="dyd-sb-link w-100 text-start" style="background:none;border:none;opacity:.55;font-size:.78rem">
     <i class="bi bi-info-circle" aria-hidden="true"></i>Tour powitalny
   </button>
+  <a class="dyd-sb-link <?= $tab==='pomoc'?'active':'' ?>" href="index.php?tab=pomoc"
+     <?= $tab==='pomoc'?'aria-current="page"':'' ?>>
+    <i class="bi bi-compass" aria-hidden="true"></i>Gdzie co jest
+  </a>
   <a class="dyd-sb-link" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/index.php" style="opacity:.55;font-size:.78rem">
     <i class="bi bi-grid" aria-hidden="true"></i>Pełny moduł TI
   </a>
@@ -2856,6 +2860,11 @@ if ($cur_course && dyd_is_staff()) {
     <?php endif; ?>
 
   <?php endif; /* $course */ ?>
+
+    <?php /* ═══════════════════════ GDZIE CO JEST ═══════════════════════ */ ?>
+    <?php if ($tab === 'pomoc'): ?>
+    <?php include __DIR__ . '/_tab_pomoc.php'; ?>
+    <?php endif; ?>
 
     <?php /* ═══════════════════════ DOSTĘPNOŚĆ ═══════════════════════ */ ?>
     <?php if ($tab === 'dostepnosc'): ?>
