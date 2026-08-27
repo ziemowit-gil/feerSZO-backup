@@ -159,7 +159,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (int)($_POST['duration_min'] ?? 60),
                 max(1, (int)($_POST['capacity'] ?? 1)),
                 $cost === '' ? null : max(0, (int)$cost),
-                in_array($_POST['mode'] ?? '', ['online','onsite','hybrid'], true) ? $_POST['mode'] : 'online'
+                in_array($_POST['mode'] ?? '', ['online','onsite','hybrid'], true) ? $_POST['mode'] : 'online',
+                [
+                    'ignore_availability' => !empty($_POST['ignore_availability']),
+                    'day_from'            => trim($_POST['gen_day_from'] ?? ''),
+                    'day_to'              => trim($_POST['gen_day_to'] ?? ''),
+                    'days'                => (array)($_POST['gen_days'] ?? []),
+                ]
             );
             // Komunikat mówi, co się naprawdę stało — „0 wygenerowano” bez powodu myli
             $parts = [];
@@ -183,6 +189,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . 'w tym zakresie dat (widać je w podglądzie grafiku poniżej). '
                     . 'Usuń lub odwołaj istniejące terminy w module „Rekrutacja godzin”, '
                     . 'zmień zakres dat albo odznacz tych prowadzących.');
+            } elseif (str_starts_with($e->getMessage(), 'GENERATOR_AVAILABILITY:')) {
+                $av    = json_decode(substr($e->getMessage(), strlen('GENERATOR_AVAILABILITY:')), true) ?: [];
+                $parts = [];
+                if (!empty($av['missing'])) {
+                    $parts[] = 'bez zdefiniowanej dostępności: ' . implode(', ', $av['missing']);
+                }
+                if (!empty($av['unapproved'])) {
+                    $parts[] = 'z dostępnością roboczą (czeka na zatwierdzenie): '
+                             . implode(', ', $av['unapproved'])
+                             . ' — zatwierdź okna w zakładce Dostępność';
+                }
+                flash_set('danger',
+                    'Generowanie zablokowane — ' . implode('; ', $parts)
+                    . '. Uzupełnij/zatwierdź dostępność albo zaznacz „Pomiń dostępność”.');
             } else {
                 flash_set('danger', rk_error_message($e->getMessage()));
             }
@@ -883,8 +903,45 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <option value="hybrid">hybrydowo</option>
             </select>
           </div>
+
+          <div class="border rounded p-2 bg-body-tertiary">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rg-ignore" name="ignore_availability" value="1"
+                     onchange="document.querySelectorAll('.rg-syn').forEach(e => e.disabled = !this.checked)">
+              <label class="form-check-label small fw-semibold" for="rg-ignore">Pomiń dostępność</label>
+              <div class="form-text mt-0">Terminy powstaną w podanych godzinach i dniach,
+                bez oglądania się na okna dostępności. Urlopy nadal blokują.</div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-6">
+                <label class="form-label small mb-1" for="rg-syn-from">Godziny od</label>
+                <input type="time" class="form-control form-control-sm rg-syn" id="rg-syn-from"
+                       name="gen_day_from" value="09:00" disabled>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1" for="rg-syn-to">do</label>
+                <input type="time" class="form-control form-control-sm rg-syn" id="rg-syn-to"
+                       name="gen_day_to" value="17:00" disabled>
+              </div>
+            </div>
+            <fieldset class="mt-2">
+              <legend class="form-label small mb-1" style="font-size:.8rem">Dni tygodnia</legend>
+              <div class="d-flex gap-2 flex-wrap">
+                <?php foreach ([1=>'pn',2=>'wt',3=>'śr',4=>'czw',5=>'pt',6=>'sob',0=>'nd'] as $d => $lbl): ?>
+                <div class="form-check form-check-inline m-0">
+                  <input class="form-check-input rg-syn" type="checkbox" id="rg-d<?= $d ?>"
+                         name="gen_days[]" value="<?= $d ?>" <?= $d >= 1 && $d <= 5 ? 'checked' : '' ?> disabled>
+                  <label class="form-check-label small" for="rg-d<?= $d ?>"><?= $lbl ?></label>
+                </div>
+                <?php endforeach; ?>
+              </div>
+            </fieldset>
+          </div>
+
           <button class="btn btn-sm btn-primary"
-                  onclick="return confirm('Wygenerować otwarte terminy z okien dostępności wybranych prowadzących?')">
+                  onclick="return confirm(document.getElementById('rg-ignore').checked
+                      ? 'Wygenerować terminy Z POMINIĘCIEM dostępności (podane godziny i dni)?'
+                      : 'Wygenerować otwarte terminy z okien dostępności wybranych prowadzących?')">
             <i class="bi bi-magic me-1"></i>Generuj terminy
           </button>
         </form>
