@@ -2928,7 +2928,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <p class="text-body-secondary small mb-0">Przerwa obowiązuje <?= h(ti_blackout_range_text($_dz_off)) ?>. Pozostałe zakładki działają normalnie.</p>
   </div>
 
-<?php elseif ($tab === 'oceny'):
+<?php elseif ($tab === 'oceny'): ?>
+  <?php $_fg_client_id = (int)($student['client_id'] ?? 0); include __DIR__ . '/_final_grades.php'; ?>
+<?php
   // Dane do wykresu — sortuj wg daty, pomiń oceny bez wartości liczbowej
   $chart_datasets = [];
   $chart_colors   = ['#2563eb','#16a34a','#7c3aed','#d97706','#dc2626','#0891b2'];

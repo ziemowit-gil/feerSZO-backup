@@ -693,6 +693,33 @@ function ti_protocol_pdf(array $prot): ?string {
     }
 }
 
+/**
+ * Oceny końcowe kursanta z ZATWIERDZONYCH protokołów — dla panelu kursanta
+ * i opiekuna. Protokół w toku nie jest deklaracją, więc go nie pokazujemy:
+ * ocena pojawia się dopiero po zatwierdzeniu.
+ *
+ * @return array<int, array{course_name:string, period:string, value:string, note:string, approved_at:string, approved_name:string}>
+ */
+function ti_protocol_final_grades_for_client(int $client_id): array {
+    ti_protocols_migrate();
+    if (!$client_id) return [];
+    try {
+        return db_all(
+            "SELECT c.name AS course_name,
+                    COALESCE(per.name, '') AS period,
+                    e.value_text AS value, e.note,
+                    p.approved_at, p.approved_name
+               FROM k30_ti_protocol_entries e
+               JOIN k30_ti_protocols p   ON p.id = e.protocol_id
+               JOIN k30_ti_courses   c   ON c.id = p.course_id
+               LEFT JOIN k30_ti_periods per ON per.id = p.period_id
+              WHERE e.client_id = ? AND p.status = 'approved' AND e.value_text != ''
+              ORDER BY COALESCE(per.date_from, p.approved_at) DESC, c.name COLLATE NOCASE",
+            [$client_id]
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
 /** Nazwa pliku PDF protokołu. */
 function ti_protocol_pdf_filename(array $prot): string {
     $base = 'protokol-' . (string)($prot['course_name'] ?? 'zajecia') . '-' . (string)($prot['period_name'] ?? 'okres');

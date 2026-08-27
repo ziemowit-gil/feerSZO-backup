@@ -603,7 +603,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <p class="text-body-secondary small mb-0">Przerwa obowiązuje <?= h(ti_blackout_range_text($_dz_off)) ?>.</p>
   </div>
 
-<?php elseif ($ptab === 'oceny'):
+<?php elseif ($ptab === 'oceny'): ?>
+    <?php $_fg_client_id = (int)$parent['client_id']; include __DIR__ . '/_final_grades.php'; ?>
+<?php
     $pg = k30_ti_client_grades((int)$parent['client_id']);
     $pg_by_course = [];
     foreach ($pg as $g) { $pg_by_course[$g['course_name']][] = $g; }
