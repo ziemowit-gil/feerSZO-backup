@@ -5690,6 +5690,152 @@ function ti_weekly_plan_list(int $instructor_id): array {
     );
 }
 
+
+/**
+ * Generuje lekcje z tygodniowego plannera godzin w podanym zakresie dat.
+ *
+ * Planner godzin (k30_ti_weekly_plan) opisywał tylko wzorzec tygodnia i nie miał
+ * odbiorcy — slajdy nie stawały się nigdy lekcjami. Ta funkcja jest tym odbiorcą:
+ * dla każdego slotu przechodzi po datach zakresu wypadających w jego dniu
+ * tygodnia i zakłada lekcję, respektując te same reguły co pozostałe ścieżki
+ * dodawania zajęć:
+ *   • dni wolne i przerwy      → [[project_ti_periods]] ti_date_is_off(),
+ *   • zamknięty okres          → ti_period_closed_for_date(),
+ *   • dostępność prowadzącego  → ti_instructor_available_at(),
+ *   • zajętość konta Zoom      → ti_zoom_slot_check() ([[project_ti_zoom_busy]]),
+ *   • duplikat (ta sama grupa, data i godzina) → pomijany.
+ *
+ * @param array $opts only_approved (bool, domyślnie true), course_id (0 = wszystkie),
+ *                    skip_off_days (bool, domyślnie true), status ('planned'),
+ *                    limit (bezpiecznik, domyślnie 400 lekcji)
+ * @return array{created:int, skipped:array<string,int>, reasons:array<int,string>, slots:int}
+ */
+function ti_weekly_plan_generate(int $instructor_id, string $date_from, string $date_to, array $opts = []): array {
+    $only_approved = !array_key_exists('only_approved', $opts) || !empty($opts['only_approved']);
+    $course_id     = (int)($opts['course_id'] ?? 0);
+    $skip_off      = !array_key_exists('skip_off_days', $opts) || !empty($opts['skip_off_days']);
+    $status        = (string)($opts['status'] ?? 'planned');
+    if (!in_array($status, ['planned', 'draft'], true)) $status = 'planned';
+    $limit         = max(1, min(1000, (int)($opts['limit'] ?? 400)));
+
+    $out = [
+        'created' => 0,
+        'skipped' => ['exists' => 0, 'off' => 0, 'closed' => 0, 'avail' => 0, 'zoom' => 0, 'limit' => 0],
+        'reasons' => [],
+        'slots'   => 0,
+    ];
+    $from = trim($date_from); $to = trim($date_to);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $to < $from) {
+        throw new \RuntimeException('Podaj poprawny zakres dat (od ≤ do).');
+    }
+
+    $sql = "SELECT wp.*, c.name AS course_name
+              FROM k30_ti_weekly_plan wp
+              JOIN k30_ti_courses c ON c.id = wp.course_id
+             WHERE wp.instructor_id = ? AND c.status != 'cancelled'";
+    $params = [$instructor_id];
+    if ($only_approved) { $sql .= " AND wp.status = 'approved'"; }
+    if ($course_id)     { $sql .= " AND wp.course_id = ?"; $params[] = $course_id; }
+    $sql .= " ORDER BY wp.day_of_week, wp.time_from";
+    $slots = db_all($sql, $params);
+    $out['slots'] = count($slots);
+    if (!$slots) return $out;
+
+    // Slajdy pogrupowane po dniu tygodnia — po datach chodzimy raz
+    $by_dow = [];
+    foreach ($slots as $s) { $by_dow[(int)$s['day_of_week']][] = $s; }
+
+    require_once __DIR__ . '/ti_periods.php';
+
+    $enrollees = [];   // course_id => [client_id, ...] (raz na kurs)
+    $note      = 'Z plannera godzin';
+
+    for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+        $dow = (int)date('w', strtotime($d));
+        if (empty($by_dow[$dow])) continue;
+
+        if ($skip_off && ti_date_is_off($d)) {
+            $out['skipped']['off'] += count($by_dow[$dow]);
+            continue;
+        }
+        if ($pc = ti_period_closed_for_date($d)) {
+            $out['skipped']['closed'] += count($by_dow[$dow]);
+            if (count($out['reasons']) < 10) $out['reasons'][] = date('d.m.Y', strtotime($d)) . ': ' . ti_period_closed_msg($pc);
+            continue;
+        }
+
+        foreach ($by_dow[$dow] as $s) {
+            if ($out['created'] >= $limit) { $out['skipped']['limit']++; continue; }
+
+            $cid  = (int)$s['course_id'];
+            $tf   = substr((string)$s['time_from'], 0, 5);
+            $dur  = max(15, (int)$s['duration_min']);
+            $tt   = sprintf('%02d:%02d', intdiv(ti_hm2min($tf) + $dur, 60), (ti_hm2min($tf) + $dur) % 60);
+
+            // Duplikat: ta sama grupa, data i godzina rozpoczęcia
+            $dup = db_one(
+                "SELECT id FROM k30_ti_sessions WHERE course_id=? AND lesson_date=? AND time_from=?",
+                [$cid, $d, $tf]
+            );
+            if ($dup) { $out['skipped']['exists']++; continue; }
+
+            $av = ti_instructor_available_at(ti_course_instructor_id($cid), $d, $tf, $tt);
+            if (!$av['ok']) {
+                $out['skipped']['avail']++;
+                if (count($out['reasons']) < 10) $out['reasons'][] = date('d.m.Y', strtotime($d)) . ' ' . $tf . ': ' . $av['reason'];
+                continue;
+            }
+
+            $zc = ti_zoom_slot_check($cid, '', $d, $tf, $tt);
+            if (!$zc['ok']) {
+                $out['skipped']['zoom']++;
+                if (count($out['reasons']) < 10) $out['reasons'][] = date('d.m.Y', strtotime($d)) . ' ' . $tf . ': ' . $zc['reason'];
+                continue;
+            }
+
+            $sid = db_insert('k30_ti_sessions', [
+                'course_id'    => $cid,
+                'lesson_date'  => $d,
+                'time_from'    => $tf,
+                'time_to'      => $tt,
+                'duration_min' => $dur,
+                'status'       => $status,
+                'topic'        => trim((string)($s['notes'] ?? '')),
+                'notes'        => $note,
+                'created_by'   => $instructor_id,
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
+            if (!isset($enrollees[$cid])) {
+                $enrollees[$cid] = array_map(
+                    fn($r) => (int)$r['client_id'],
+                    db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid])
+                );
+            }
+            foreach ($enrollees[$cid] as $client_id) {
+                try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => $client_id, 'attended' => 0]); }
+                catch (\Throwable $e) {}
+            }
+            $out['created']++;
+        }
+    }
+    return $out;
+}
+
+/** Podsumowanie generowania jednym zdaniem — do komunikatu w panelu. */
+function ti_weekly_plan_generate_msg(array $r): string {
+    $msg = 'Utworzono lekcji: ' . (int)$r['created'] . '.';
+    $parts = [];
+    $labels = [
+        'exists' => 'już istniały', 'off' => 'dni wolne', 'closed' => 'zamknięty okres',
+        'avail'  => 'poza dostępnością', 'zoom' => 'zajęty Zoom', 'limit' => 'limit bezpieczeństwa',
+    ];
+    foreach ($labels as $k => $lbl) {
+        if (!empty($r['skipped'][$k])) $parts[] = $lbl . ': ' . (int)$r['skipped'][$k];
+    }
+    if ($parts) $msg .= ' Pominięto — ' . implode(', ', $parts) . '.';
+    return $msg;
+}
+
 function ti_weekly_plan_save(int $instructor_id, int $course_id, int $dow,
                               string $time_from, int $duration_min,
                               string $status = 'draft', string $notes = ''): int {

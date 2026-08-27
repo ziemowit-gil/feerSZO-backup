@@ -407,6 +407,37 @@ switch ($action) {
         planner_ok([], 'Status zmieniony.');
     }
 
+    /* Planner godzin → lekcje: jedyne miejsce, które zamienia wzorzec tygodnia
+       na wpisy w k30_ti_sessions (patrz ti_weekly_plan_generate). */
+    case 'weekly_generate': {
+        $from       = trim((string)($_POST['date_from'] ?? ''));
+        $to         = trim((string)($_POST['date_to']   ?? ''));
+        $course_id  = (int)($_POST['course_id'] ?? 0);
+        $only_appr  = ($_POST['only_approved'] ?? '1') !== '0';
+        $skip_off   = ($_POST['skip_off_days'] ?? '1') !== '0';
+        $status     = ($_POST['status'] ?? 'planned') === 'draft' ? 'draft' : 'planned';
+
+        if ($course_id && !db_one("SELECT id FROM k30_ti_courses WHERE id=? AND instructor_id=?", [$course_id, $uid])) {
+            planner_err('Kurs nie należy do Ciebie.', 403);
+        }
+        try {
+            $r = ti_weekly_plan_generate($uid, $from, $to, [
+                'only_approved' => $only_appr,
+                'course_id'     => $course_id,
+                'skip_off_days' => $skip_off,
+                'status'        => $status,
+            ]);
+        } catch (\Throwable $e) {
+            planner_err($e->getMessage());
+        }
+        if (!$r['slots']) {
+            planner_err($only_appr
+                ? 'Brak zatwierdzonych slotów w plannerze godzin — zatwierdź slajdy albo odznacz „tylko zatwierdzone”.'
+                : 'Planner godzin jest pusty — dodaj najpierw slajdy tygodnia.');
+        }
+        planner_ok($r, ti_weekly_plan_generate_msg($r));
+    }
+
     case 'avail_set_status': {
         $avail_id = (int)($_POST['avail_id'] ?? 0);
         $status   = in_array($_POST['status'] ?? '', ['draft','approved'], true)
