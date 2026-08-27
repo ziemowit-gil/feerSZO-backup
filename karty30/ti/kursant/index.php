@@ -2835,6 +2835,14 @@ document.addEventListener('DOMContentLoaded', function() {
   })();
   </script>
 
+<?php elseif ($tab === 'zadania' && $KUR_UI === 'alt'): ?>
+
+  <?php /* Widok alternatywny ma tę zakładkę zbudowaną inaczej: lista zadań
+           według pilności + szczegóły wybranego, zamiast ściany kart.
+           Osobny plik, bo ta gałąź i tak nie dzieli z klasyczną ani jednej
+           linijki znaczników. */ ?>
+  <?php include __DIR__ . '/_alt_zadania.php'; ?>
+
 <?php elseif ($tab === 'zadania'): ?>
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>

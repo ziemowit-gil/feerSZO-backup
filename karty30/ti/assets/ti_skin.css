@@ -322,6 +322,18 @@ body.kur-alt .kp-cal-ev { border-radius: 0; font-size: .68rem; }
    z tabel USOS-a jest bardziej szczegółowa i gasiłaby te tła. */
 body.kur-alt .kp-cal tbody tr:nth-child(odd) > * { background-color: transparent; }
 
+/* Lista zadań w zakładce „Dydaktyka / eLearning" (_alt_zadania.php).
+   Zaznaczenie NIE jest samym kolorem: belka po lewej, strzałka i pogrubienie
+   niosą je tak samo. Kontrast #10335c/#dde6f0 = 7,6:1. */
+body.kur-alt .alt-zad-list .list-group-item { border-color: var(--ti-grid); }
+body.kur-alt .alt-zad-item { color: var(--ti-link); border-left: 4px solid transparent; }
+body.kur-alt .alt-zad-item:hover { background: #eef3f9; }
+body.kur-alt .alt-zad-item-sel {
+  background: var(--ti-bar); color: var(--ti-navy);
+  border-left-color: #c8a11a;
+}
+body.kur-alt .alt-zad-item-sel .text-body-secondary { color: #33415c !important; }
+body.kur-alt .alt-zad-mark { width: .7rem; flex-shrink: 0; font-weight: 700; }
 /* Nawigacja dolna na telefonie (widok klasyczny) nie ma tu odpowiednika —
    paski sekcji zawijają się i działają w każdej szerokości. */
 @media (max-width: 991.98px) {

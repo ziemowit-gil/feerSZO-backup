@@ -1,12 +1,17 @@
 <?php
-/** Karta pojedynczego zadania domowego — oczekuje $h, $now, $vlab_token w zasięgu. */
+/**
+ * Karta pojedynczego zadania domowego — oczekuje $h, $now, $vlab_token w zasięgu.
+ * $dyd_hw_force_open = true wyłącza zwijanie oddanych zadań: w widoku
+ * alternatywnym karta jest jedyną treścią kolumny szczegółów, więc nie ma czego
+ * chować (na liście, gdzie kart jest kilkanaście, zwijanie zostaje).
+ */
 $done    = !empty($h['sub_id']);
 $graded  = ($h['sub_status'] ?? '') === 'graded';
 $overdue = $h['due_at'] && $h['due_at'] < $now && !$done;
 $hav     = k30_ti_avail_status($h['open_at'] ?? null, $h['close_at'] ?? null, $now);
 $hopen   = $hav['state'] === 'open';
 // Oddane zadania zwijamy, by nie zaśmiecały listy — pełną treść można rozwinąć (a11y: <details>).
-$collapsible = $done;
+$collapsible = $done && empty($dyd_hw_force_open);
 $cardCls = ($graded ? 'border-success' : ($overdue || $hav['state']==='closed' ? 'border-danger' : ''))
          . ($hav['state']==='upcoming' ? ' opacity-75' : '');
 
