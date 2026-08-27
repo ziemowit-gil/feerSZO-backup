@@ -283,6 +283,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <p class="text-body-secondary small mb-0">Terminy wystawiane przez prowadzących, rezerwowane przez kursantów za żetony</p>
   </div>
   <div class="ms-auto d-flex gap-2">
+    <?php if ($is_staff): ?>
+    <a href="rekrutacja_print.php?what=kalendarz" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-printer me-1"></i>Drukuj kalendarz naborów</a>
+    <?php endif; ?>
     <a href="index.php?tab=pulpit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Panel dydaktyka</a>
   </div>
 </div>
@@ -316,6 +320,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <li class="nav-item">
     <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="rekrutacja.php?tab=ustawienia">
       <i class="bi bi-sliders me-1" aria-hidden="true"></i>Ustawienia
+    </a>
+  </li>
+  <?php endif; ?>
+  <?php if ($rounds_live): ?>
+  <li class="nav-item ms-auto align-self-center">
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+       href="rekrutacja_print.php?what=siatka&round=<?= (int)$rounds_live[0]['id'] ?>"
+       title="Wydruk siatki godzin bieżącej tury<?= $is_staff ? '' : ' (Twoje terminy)' ?>">
+      <i class="bi bi-printer me-1" aria-hidden="true"></i>Siatka godzin
     </a>
   </li>
   <?php endif; ?>
@@ -655,6 +668,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             </td>
             <td><span class="badge text-bg-<?= $st_class ?>"><?= h($st_label) ?></span></td>
             <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-secondary" href="rekrutacja_print.php?what=siatka&round=<?= (int)$r['id'] ?>"
+                 target="_blank" rel="noopener" title="Drukuj siatkę godzin"><i class="bi bi-printer"></i></a>
               <a class="btn btn-sm btn-outline-secondary" href="rekrutacja.php?tab=tury&edit_round=<?= (int)$r['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></a>
               <?php if (in_array($r['status'], ['draft','closed'], true)): ?>
               <form method="post" class="d-inline">
