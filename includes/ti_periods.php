@@ -48,6 +48,11 @@ function ti_periods_migrate(): void {
         "ALTER TABLE k30_ti_periods ADD COLUMN reopened_by   INTEGER",
         "ALTER TABLE k30_ti_periods ADD COLUMN reopened_name TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_periods ADD COLUMN reopen_reason TEXT NOT NULL DEFAULT ''",
+        // Protokoły zajęć za okres — otwiera je administracja (domyślnie zamknięte)
+        "ALTER TABLE k30_ti_periods ADD COLUMN protocols_open        INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_periods ADD COLUMN protocols_opened_at   TEXT",
+        "ALTER TABLE k30_ti_periods ADD COLUMN protocols_opened_by   INTEGER",
+        "ALTER TABLE k30_ti_periods ADD COLUMN protocols_opened_name TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
         try { db()->exec($sql); } catch (\Throwable $e) {}
     }
@@ -296,4 +301,59 @@ function ti_period_closed_msg(array $period): string {
         . date('d.m.Y', strtotime((string)$period['date_to']))
         . ') — zajęć w nim nie można już dodawać ani przesuwać. '
         . 'Otworzyć okres ponownie może administrator.';
+}
+
+/**
+ * Czy administracja otworzyła protokoły za ten okres.
+ *
+ * Protokół zajęć powstaje dopiero wtedy, gdy okres jest do rozliczenia —
+ * o tym decyduje administracja, nie prowadzący. Domyślnie zamknięte:
+ * bez otwarcia panel prowadzącego nie pozwala założyć ani zmienić protokołu
+ * i mówi wprost, na co czeka.
+ */
+function ti_period_protocols_open(int $period_id): bool {
+    if (!$period_id) return false;          // protokół zawsze dotyczy okresu
+    ti_periods_migrate();
+    try {
+        $r = db_one("SELECT protocols_open FROM k30_ti_periods WHERE id=?", [$period_id]);
+    } catch (\Throwable $e) { return false; }
+    return $r !== null && (int)($r['protocols_open'] ?? 0) === 1;
+}
+
+/** Otwiera albo zamyka protokoły za okres (ślad: kto i kiedy). */
+function ti_period_protocols_set(int $period_id, bool $open, ?int $by, string $by_name): void {
+    ti_periods_migrate();
+    $per = ti_period_get($period_id);
+    if (!$per) throw new \RuntimeException('Okres nie istnieje.');
+    if ($open && ti_period_is_closed($per)) {
+        throw new \RuntimeException('Okres jest zamknięty — najpierw otwórz okres ponownie.');
+    }
+    db()->prepare(
+        "UPDATE k30_ti_periods
+            SET protocols_open=?, protocols_opened_at=datetime('now'), protocols_opened_by=?,
+                protocols_opened_name=?, updated_at=datetime('now')
+          WHERE id=?"
+    )->execute([$open ? 1 : 0, $by, $by_name, $period_id]);
+}
+
+/** Okresy, za które protokoły są otwarte (do wyboru w panelu prowadzącego). */
+function ti_periods_with_protocols_open(): array {
+    ti_periods_migrate();
+    try {
+        return db_all(
+            "SELECT * FROM k30_ti_periods
+              WHERE protocols_open=1 AND closed_at IS NULL
+              ORDER BY date_from DESC, id DESC"
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Komunikat dla prowadzącego, gdy protokoły za okres nie są otwarte. */
+function ti_period_protocols_closed_msg(?array $period = null): string {
+    if ($period) {
+        return 'Administracja nie otworzyła protokołów za okres „' . (string)$period['name'] . '”. '
+             . 'Do tego czasu protokołu za ten okres nie można zakładać ani zmieniać.';
+    }
+    return 'Administracja nie otworzyła jeszcze protokołów za żaden okres nauczania. '
+         . 'Protokół zajęć da się założyć dopiero po otwarciu okresu do rozliczenia.';
 }

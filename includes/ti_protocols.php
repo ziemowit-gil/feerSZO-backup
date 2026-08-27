@@ -94,6 +94,22 @@ function ti_protocol_status_label(string $status): string {
     return TI_PROTOCOL_STATUSES[$status]['label'] ?? $status;
 }
 
+/**
+ * Bramka: protokoły za okres muszą być otwarte przez administrację.
+ * Protokoły bez wskazanego okresu (z czasów, gdy było to możliwe) przepuszczamy,
+ * żeby dały się domknąć.
+ *
+ * @throws RuntimeException gdy administracja zamknęła protokoły za ten okres.
+ */
+function ti_protocol_require_period_open(array $prot): void {
+    $pid = (int)($prot['period_id'] ?? 0);
+    if (!$pid) return;
+    require_once __DIR__ . '/ti_periods.php';
+    if (!ti_period_protocols_open($pid)) {
+        throw new \RuntimeException(ti_period_protocols_closed_msg(ti_period_get($pid)));
+    }
+}
+
 /** Czy protokół jest zamknięty do edycji. */
 function ti_protocol_is_locked(array $protocol): bool {
     return (string)($protocol['status'] ?? 'open') === 'approved';
@@ -154,7 +170,17 @@ function ti_protocol_get(int $id): ?array {
  */
 function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, string $title = ''): int {
     ti_protocols_migrate();
+    require_once __DIR__ . '/ti_periods.php';
     if (!$course_id) throw new \RuntimeException('Brak kursu.');
+
+    // Protokół zajęć dotyczy zawsze okresu, a okres do rozliczenia otwiera
+    // administracja — bez tego prowadzący nie zakłada protokołu.
+    if (!$period_id) {
+        throw new \RuntimeException('Wskaż okres nauczania — protokół zajęć zawsze dotyczy okresu.');
+    }
+    if (!ti_period_protocols_open($period_id)) {
+        throw new \RuntimeException(ti_period_protocols_closed_msg(ti_period_get($period_id)));
+    }
 
     // CAST konieczny: PDO wiąże parametry jako TEKST, a COALESCE(...) jest
     // wyrażeniem bez affinity kolumny — bez rzutowania '1' != 1 i SQLite
@@ -218,6 +244,7 @@ function ti_protocol_save_entries(int $protocol_id, array $values, array $notes 
     if (ti_protocol_is_locked($prot)) {
         throw new \RuntimeException('Protokół jest zatwierdzony — ocen nie można już zmieniać.');
     }
+    ti_protocol_require_period_open($prot);
 
     $allowed = array_map(fn($p) => (int)$p['client_id'], ti_protocol_participants((int)$prot['course_id']));
     $existing = ti_protocol_entries($protocol_id);
@@ -276,6 +303,7 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
     if (ti_protocol_is_locked($prot)) throw new \RuntimeException('Protokół jest już zatwierdzony.');
+    ti_protocol_require_period_open($prot);
 
     db()->prepare(
         "UPDATE k30_ti_protocols

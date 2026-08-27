@@ -78,6 +78,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             }
             header('Location: periods.php'); exit;
         }
+    } elseif ($op === 'protocols_toggle') {
+        $id   = (int)($_POST['id'] ?? 0);
+        $open = !empty($_POST['open']);
+        try {
+            ti_period_protocols_set($id, $open, $uid, (string)(current_user()['name'] ?? ''));
+            flash_set('success', $open
+                ? 'Protokoły za ten okres otwarte — prowadzący mogą je zakładać i wypełniać.'
+                : 'Protokoły za ten okres zamknięte — prowadzący nie zmienią już wpisów.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: periods.php'); exit;
+
     } elseif ($op === 'close_period') {
         $id = (int)($_POST['id'] ?? 0);
         try {
@@ -245,7 +258,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Nazwa</th><th>Typ</th><th>Od</th><th>Do</th><th class="text-center">Dni</th><th>Stan</th><th>Uwagi</th><?php if ($can_write): ?><th class="text-end">Akcje</th><?php endif; ?></tr>
+        <tr><th>Nazwa</th><th>Typ</th><th>Od</th><th>Do</th><th class="text-center">Dni</th><th>Stan</th><th>Protokoły</th><th>Uwagi</th><?php if ($can_write): ?><th class="text-end">Akcje</th><?php endif; ?></tr>
       </thead>
       <tbody>
       <?php foreach ($periods as $p):
@@ -263,6 +276,28 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
             <span class="badge text-bg-dark" title="Zamknięty: <?= h($p['closed_name'] ?: '') ?>, <?= h(date('d.m.Y H:i', strtotime((string)$p['closed_at']))) ?>">zamknięty</span>
           <?php else: ?>
             <a href="?ready=<?= (int)$p['id'] ?>#zamykanie" class="text-decoration-none"><span class="badge text-bg-light border text-dark">otwarty</span></a>
+          <?php endif; ?>
+        </td>
+        <td class="text-nowrap small">
+          <?php $_po = !empty($p['protocols_open']); ?>
+          <?php if ($can_write): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op" value="protocols_toggle">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <input type="hidden" name="open" value="<?= $_po ? '' : '1' ?>">
+            <button class="btn btn-sm py-0 px-2 <?= $_po ? 'btn-success' : 'btn-outline-secondary' ?>"
+                    title="<?= $_po ? 'Protokoły otwarte — kliknij, aby zamknąć' : 'Protokoły zamknięte — kliknij, aby otworzyć' ?>">
+              <i class="bi bi-<?= $_po ? 'unlock' : 'lock' ?> me-1" aria-hidden="true"></i><?= $_po ? 'otwarte' : 'zamknięte' ?>
+            </button>
+          </form>
+          <?php else: ?>
+          <span class="badge <?= $_po ? 'text-bg-success' : 'text-bg-secondary' ?>"><?= $_po ? 'otwarte' : 'zamknięte' ?></span>
+          <?php endif; ?>
+          <?php if ($_po && !empty($p['protocols_opened_at'])): ?>
+          <div class="text-body-secondary" style="font-size:.72rem">
+            <?= h($p['protocols_opened_name'] ?: '—') ?>, <?= h(date('d.m.Y', strtotime((string)$p['protocols_opened_at']))) ?>
+          </div>
           <?php endif; ?>
         </td>
         <td class="text-body-secondary small"><?= $p['note'] !== '' ? h($p['note']) : '—' ?></td>
@@ -292,6 +327,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="card border-0 shadow-sm mb-4" id="zamykanie">
   <div class="card-header fw-semibold bg-body-tertiary"><i class="bi bi-lock me-1"></i>Zamykanie okresu</div>
   <div class="card-body">
+    <p class="small text-body-secondary">
+      Kolejność jest taka: najpierw <strong>otwierasz protokoły za okres</strong> (kolumna
+      „Protokoły” w tabeli powyżej) — dopiero wtedy prowadzący mogą je zakładać i wypełniać.
+      Gdy protokoły są gotowe, zamykasz okres; zamknięcie protokołów blokuje dalsze zmiany
+      wpisów, a podgląd i wydruk działają nadal.
+    </p>
     <p class="small text-body-secondary">
       Okres można zamknąć dopiero wtedy, gdy <strong>każdy kurs, który miał w nim zajęcia,
       ma zatwierdzony protokół zajęć za ten okres</strong> (panel dydaktyka → Protokoły). Zamknięty okres

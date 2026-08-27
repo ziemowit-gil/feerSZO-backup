@@ -16,8 +16,8 @@ $pr       = $pr_id ? ti_protocol_get($pr_id) : null;
 if ($pr && (int)$pr['course_id'] !== $cur_course) $pr = null;
 if (!$pr && $pr_list) $pr = ti_protocol_get((int)$pr_list[0]['id']);
 
-$pr_periods = ti_periods_all();
-// Okresy, dla których protokół jeszcze nie istnieje
+// Protokół da się założyć tylko za okres otwarty do rozliczenia przez administrację
+$pr_periods = ti_periods_with_protocols_open();
 $pr_used = array_map(fn($r) => (int)($r['period_id'] ?? 0), $pr_list);
 $pr_free = array_values(array_filter($pr_periods, fn($p) => !in_array((int)$p['id'], $pr_used, true)));
 
@@ -112,14 +112,23 @@ $pr_confirm = $pr_empty
         </table>
       </div>
       <div class="card-body usos-noprint">
+        <?php if (!$pr_periods): ?>
+        <div class="alert alert-info py-2 small mb-0" role="status">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+          <?= h(ti_period_protocols_closed_msg()) ?>
+        </div>
+        <?php elseif (!$pr_free): ?>
+        <div class="alert alert-secondary py-2 small mb-0" role="status">
+          Za każdy otwarty okres protokół już istnieje — wybierz go z listy powyżej.
+        </div>
+        <?php else: ?>
         <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
           <input type="hidden" name="_op" value="protocol_create">
           <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
           <div class="flex-grow-1">
             <label class="form-label" for="pr-period">Nowy protokół za okres</label>
-            <select class="form-select form-select-sm" id="pr-period" name="period_id">
-              <option value="0">— bez okresu —</option>
+            <select class="form-select form-select-sm" id="pr-period" name="period_id" required>
               <?php foreach ($pr_free as $p): ?>
               <option value="<?= (int)$p['id'] ?>">
                 <?= h($p['name']) ?> (<?= h(date('d.m.Y', strtotime($p['date_from']))) ?>–<?= h(date('d.m.Y', strtotime($p['date_to']))) ?>)
@@ -129,7 +138,11 @@ $pr_confirm = $pr_empty
           </div>
           <button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Otwórz protokół</button>
         </form>
-        <div class="form-text">Na kurs i okres przypada jeden protokół.</div>
+        <div class="form-text">
+          Na kurs i okres przypada jeden protokół. Lista zawiera tylko okresy otwarte
+          do rozliczenia przez administrację.
+        </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -151,6 +164,19 @@ $pr_confirm = $pr_empty
           <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
         </a>
       </div>
+
+      <?php
+        $pr_period_open = !$pr['period_id'] || ti_period_protocols_open((int)$pr['period_id']);
+      ?>
+      <?php if (!$pr_period_open): ?>
+      <div class="card-body border-bottom py-2 small">
+        <div class="alert alert-warning py-2 mb-0" role="status">
+          <i class="bi bi-lock me-1" aria-hidden="true"></i>
+          <?= h(ti_period_protocols_closed_msg(ti_period_get((int)$pr['period_id']))) ?>
+          Podgląd i wydruk działają normalnie.
+        </div>
+      </div>
+      <?php endif; ?>
 
       <?php if ($pr_empty): ?>
       <div class="card-body border-bottom py-2 small">
@@ -205,7 +231,7 @@ $pr_confirm = $pr_empty
                 <td class="small"><?= $i + 1 ?></td>
                 <td class="small fw-semibold"><?= h($p['name']) ?></td>
                 <td>
-                  <?php if ($pr_locked): ?>
+                  <?php if ($pr_locked || !$pr_period_open): ?>
                     <strong><?= h($e['value_text'] ?? '—') ?></strong>
                   <?php else: ?>
                     <label class="visually-hidden" for="g-<?= $cid ?>">Ocena końcowa: <?= h($p['name']) ?></label>
@@ -216,7 +242,7 @@ $pr_confirm = $pr_empty
                 </td>
                 <td class="small text-nowrap"><?= isset($pr_avgs[$cid]) ? number_format($pr_avgs[$cid], 2, ',', '') : '<span class="text-muted">—</span>' ?></td>
                 <td>
-                  <?php if ($pr_locked): ?>
+                  <?php if ($pr_locked || !$pr_period_open): ?>
                     <span class="small"><?= h($e['note'] ?? '') ?></span>
                   <?php else: ?>
                     <label class="visually-hidden" for="n-<?= $cid ?>">Uwagi: <?= h($p['name']) ?></label>
@@ -231,7 +257,7 @@ $pr_confirm = $pr_empty
         </div>
 
         <div class="card-body d-flex flex-wrap gap-2 align-items-center usos-noprint">
-          <?php if (!$pr_locked): ?>
+          <?php if (!$pr_locked && $pr_period_open): ?>
           <button class="btn btn-primary btn-sm" name="_op" value="protocol_save">
             <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz protokół
           </button>
@@ -243,8 +269,10 @@ $pr_confirm = $pr_empty
             Dozwolone wpisy: <strong>1–6</strong> (można z „+” lub „-”), albo
             <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny.
           </span>
-          <?php else: ?>
+          <?php elseif ($pr_locked): ?>
           <span class="form-text mb-0"><i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zamknięty do edycji.</span>
+          <?php else: ?>
+          <span class="form-text mb-0"><i class="bi bi-lock me-1" aria-hidden="true"></i>Protokoły za ten okres są zamknięte przez administrację.</span>
           <?php endif; ?>
         </div>
       </form>
