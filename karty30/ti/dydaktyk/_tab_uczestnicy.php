@@ -50,7 +50,7 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
   <span class="badge bg-secondary"><?= (int)$u_active ?> aktywnych z <?= count($u_parts) ?></span>
   <div class="ms-auto d-flex gap-2 usos-noprint">
     <a href="index.php?course=<?= (int)$cur_course ?>&tab=protokol" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-card-checklist me-1" aria-hidden="true"></i>Protokoły ocen
+      <i class="bi bi-card-checklist me-1" aria-hidden="true"></i>Protokoły
     </a>
     <a href="index.php?course=<?= (int)$cur_course ?>&tab=oceny" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i>E-dziennik

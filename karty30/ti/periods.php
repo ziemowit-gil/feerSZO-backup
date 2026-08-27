@@ -294,7 +294,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="card-body">
     <p class="small text-body-secondary">
       Okres można zamknąć dopiero wtedy, gdy <strong>każdy kurs, który miał w nim zajęcia,
-      ma zatwierdzony protokół ocen</strong> (panel dydaktyka → Protokoły). Zamknięty okres
+      ma zatwierdzony protokół zajęć za ten okres</strong> (panel dydaktyka → Protokoły). Zamknięty okres
       jest rozliczony: nie da się w nim dodawać ani przesuwać zajęć, a protokołów nie można
       odblokować, dopóki administrator nie otworzy okresu ponownie.
     </p>

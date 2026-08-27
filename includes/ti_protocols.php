@@ -1,9 +1,11 @@
 <?php
 /**
- * includes/ti_protocols.php — Protokoły ocen (widok USOS panelu dydaktyka).
+ * includes/ti_protocols.php — Protokoły zajęć kursu za okres (panel prowadzącego).
  *
- * Protokół = zestaw ocen KOŃCOWYCH uczestników kursu za dany okres nauczania,
- * wypełniany zbiorczo w jednej tabeli i zatwierdzany ze śladem (kto, kiedy).
+ * Protokół zamyka jeden kurs za jeden okres nauczania i obejmuje CAŁE rozliczenie
+ * zajęć, nie tylko oceny: oceny końcowe uczestników, ewidencję godzin prowadzącego,
+ * naliczenie wypłaty oraz dwa podpisy elektroniczne (prowadzący i za organizatora).
+ * Zatwierdzenie ocen zamyka wpisy ze śladem (kto, kiedy).
  * Po zatwierdzeniu prowadzący nie może już zmieniać ocen — odblokować może
  * pracownik D3 / administrator, z podaniem powodu (też zapisywanym).
  *
@@ -165,7 +167,9 @@ function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, str
 
     if ($title === '') {
         $per   = $period_id ? db_one("SELECT name FROM k30_ti_periods WHERE id=?", [$period_id]) : null;
-        $title = $per ? 'Protokół — ' . (string)$per['name'] : 'Protokół — bez okresu';
+        $title = $per
+            ? 'Protokół zajęć za okres: ' . (string)$per['name']
+            : 'Protokół zajęć bez wskazanego okresu';
     }
     return db_insert('k30_ti_protocols', [
         'course_id'  => $course_id,
@@ -672,7 +676,7 @@ function ti_protocol_print_html(array $prot): string {
             . ' — powód: ' . $h($prot['unlock_reason']);
     }
 
-    return '<h1>Protokół ocen</h1>'
+    return '<h1>Protokół zajęć kursu za okres</h1>'
         . '<table class="head"><tbody>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
         . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
@@ -707,7 +711,8 @@ function ti_protocol_pdf(array $prot): ?string {
             'margin_left' => 18, 'margin_right' => 16, 'margin_top' => 16, 'margin_bottom' => 16,
             'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp,
         ]);
-        $mpdf->SetTitle('Protokół ocen — ' . (string)($prot['course_name'] ?? ''));
+        $mpdf->SetTitle('Protokół zajęć kursu — ' . (string)($prot['course_name'] ?? '')
+            . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''));
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
         $mpdf->WriteHTML(
             'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }

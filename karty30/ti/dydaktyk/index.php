@@ -2888,7 +2888,7 @@ if ($cur_course && dyd_is_staff()) {
           <div class="mb-3" style="font-size:3rem;line-height:1;color:#f59e0b" aria-hidden="true"><i class="bi bi-cone-striped"></i></div>
           <h2 class="h5 fw-bold mb-2">Protokoły są chwilowo niedostępne</h2>
           <p class="mb-2"><?= h(ti_blackout_message($dziennik_off)) ?></p>
-          <p class="text-body-secondary small mb-0">Wyłączenie dziennika obejmuje także protokoły ocen i obowiązuje <?= h(ti_blackout_range_text($dziennik_off)) ?>.</p>
+          <p class="text-body-secondary small mb-0">Wyłączenie dziennika obejmuje także protokoły zajęć i obowiązuje <?= h(ti_blackout_range_text($dziennik_off)) ?>.</p>
         </div>
       </div>
     <?php else: ?>

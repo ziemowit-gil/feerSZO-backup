@@ -35,7 +35,7 @@ $pr_confirm = $pr_empty
 ?>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
-  <h1 class="h5 fw-bold mb-0"><i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Protokoły ocen — <?= h($course['name']) ?></h1>
+  <h1 class="h5 fw-bold mb-0"><i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Protokoły zajęć kursu — <?= h($course['name']) ?></h1>
   <span class="badge bg-secondary"><?= count($pr_list) ?></span>
 </div>
 
@@ -81,7 +81,7 @@ $pr_confirm = $pr_empty
       <div class="card-header">Protokoły kursu</div>
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
-          <caption class="visually-hidden">Protokoły ocen kursu <?= h($course['name']) ?> ze stanem zatwierdzenia</caption>
+          <caption class="visually-hidden">Protokoły zajęć kursu <?= h($course['name']) ?> za poszczególne okresy, ze stanem zatwierdzenia</caption>
           <thead><tr><th scope="col">Okres</th><th scope="col">Stan</th><th scope="col" class="text-end usos-noprint">Wydruk</th></tr></thead>
           <tbody>
             <?php if (!$pr_list): ?>

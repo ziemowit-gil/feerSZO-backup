@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/ti/dydaktyk/protokol_pdf.php — wydruk protokołu ocen do PDF.
+ * karty30/ti/dydaktyk/protokol_pdf.php — wydruk protokołu zajęć do PDF.
  * Parametr: ?id=<protocol_id>. Dostęp tylko do protokołu własnego kursu
  * (pracownik D3 / admin — do każdego).
  */

@@ -159,7 +159,7 @@ function ti_period_map_date(string $lesson_date, array $src, array $dst, bool $s
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  ZAMYKANIE OKRESU — warunkiem są zatwierdzone protokoły ocen
+//  ZAMYKANIE OKRESU — warunkiem są zatwierdzone protokoły zajęć kursów
 //  Zamknięty okres to koniec rozliczenia dydaktycznego: nie da się w nim
 //  ustawiać ani przesuwać zajęć, a protokołów nie można odblokować, dopóki
 //  okres nie zostanie otwarty ponownie (admin, z powodem).
@@ -240,7 +240,7 @@ function ti_period_close(int $period_id, ?int $by, string $by_name, string $note
         throw new \RuntimeException(
             'Nie można zamknąć okresu: ' . $r['missing'] . ' '
             . ($r['missing'] === 1 ? 'kurs nie ma' : 'kursów nie ma')
-            . ' zatwierdzonego protokołu ocen (' . implode(', ', array_slice($names, 0, 5))
+            . ' zatwierdzonego protokołu zajęć za ten okres (' . implode(', ', array_slice($names, 0, 5))
             . (count($names) > 5 ? ' i inne' : '') . ').'
         );
     }
