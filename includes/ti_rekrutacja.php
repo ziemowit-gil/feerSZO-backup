@@ -131,6 +131,13 @@ function ti_rk_migrate(): void {
         try { $pdo->exec("ALTER TABLE k30_rk_access_tokens ADD COLUMN booking_id INTEGER"); } catch (\Throwable) {}
     }
 
+    // Rodzaj puli: normal | zwr (ZWR = zbiera zwroty niewykorzystanych żetonów,
+    // np. z pul, które wygasły zanim kursant zdążył wykorzystać saldo)
+    $cols = array_column(db_all("PRAGMA table_info(k30_pl_token_pools)"), 'name');
+    if ($cols && !in_array('kind', $cols, true)) {
+        try { $pdo->exec("ALTER TABLE k30_pl_token_pools ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal'"); } catch (\Throwable) {}
+    }
+
     // Rezerwacja cykliczna (stały dzień+godzina na semestr): wspólny klucz serii
     $cols = array_column(db_all("PRAGMA table_info(k30_rk_bookings)"), 'name');
     if ($cols && !in_array('series_key', $cols, true)) {
@@ -554,6 +561,36 @@ function rk_round_clone(int $round_id, ?int $by = null): int {
                  SELECT ?, course_id, instructor_id FROM k30_rk_round_course_instructors WHERE round_id=?",
                 [$new_id, $round_id]);
         return $new_id;
+    });
+}
+
+/**
+ * Usuwa pulę żetonów. Blokady:
+ *   POOL_USED_BY_ROUND  — pula jest podpięta pod turę (odepnij ją w edycji tury);
+ *   POOL_HAS_BOOKINGS   — z portfeli puli opłacono rezerwacje (także historyczne)
+ *                         — księga musi zostać, pulę można tylko dezaktywować.
+ * Czysta pula znika razem z portfelami i historią przyznań (CASCADE);
+ * jeśli była pulą zastępczą zwrotów, ustawienie jest czyszczone.
+ */
+function rk_pool_delete(int $pool_id): void {
+    rk_tx(function () use ($pool_id) {
+        if (!db_one("SELECT 1 FROM k30_pl_token_pools WHERE id=?", [$pool_id])) {
+            throw new RkException('POOL_NOT_FOUND');
+        }
+        $r = db_one("SELECT COUNT(*) n FROM k30_rk_rounds WHERE pool_id=?", [$pool_id]);
+        if ((int)($r['n'] ?? 0) > 0) throw new RkException('POOL_USED_BY_ROUND');
+
+        $b = db_one(
+            "SELECT COUNT(*) n FROM k30_rk_bookings b
+               JOIN k30_pl_token_pool_wallets w ON w.id = b.wallet_id
+              WHERE w.pool_id = ?", [$pool_id]);
+        if ((int)($b['n'] ?? 0) > 0) throw new RkException('POOL_HAS_BOOKINGS');
+
+        db_exec("DELETE FROM k30_pl_token_pools WHERE id=?", [$pool_id]);
+        if (function_exists('org_setting') && function_exists('org_setting_set')
+            && (int)org_setting('rk_refund_fallback_pool') === $pool_id) {
+            org_setting_set('rk_refund_fallback_pool', '0');
+        }
     });
 }
 
@@ -1137,9 +1174,11 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
 }
 
 /**
- * Pula docelowa zwrotu. Wygasła pula = zwrot pozorny, więc kierujemy do puli
- * zastępczej (org_setting rk_refund_fallback_pool). Bez zastępczej — zwrot do
- * źródłowej z reason=refund_expired_pool, żeby kierownik to zobaczył na liście.
+ * Pula docelowa zwrotu. Wygasła pula = zwrot pozorny, więc zwrot kierujemy:
+ *   1) do aktywnej puli ZWR (kind='zwr' — „zwroty niewykorzystanych”),
+ *   2) inaczej do puli zastępczej z ustawień (rk_refund_fallback_pool),
+ *   3) inaczej do źródłowej z reason=refund_expired_pool — kierownik widzi
+ *      to na liście transakcji i decyduje ręcznie.
  */
 function rk_refund_target(int $wallet_id): array {
     $w = db_one(
@@ -1153,13 +1192,23 @@ function rk_refund_target(int $wallet_id): array {
         || ($w['valid_to'] && $w['valid_to'] < date('Y-m-d'));
     if (!$expired) return [$wallet_id, 'zwrot'];
 
-    $fb = (int)(function_exists('org_setting') ? org_setting('rk_refund_fallback_pool') : 0);
-    if ($fb > 0 && db_one("SELECT 1 FROM k30_pl_token_pools WHERE id=? AND is_active=1", [$fb])) {
+    $to_pool = 0; $tag = '';
+    $zwr = db_one("SELECT id FROM k30_pl_token_pools
+                    WHERE kind='zwr' AND is_active=1 ORDER BY id LIMIT 1");
+    if ($zwr) {
+        $to_pool = (int)$zwr['id']; $tag = 'zwrot_ZWR';
+    } else {
+        $fb = (int)(function_exists('org_setting') ? org_setting('rk_refund_fallback_pool') : 0);
+        if ($fb > 0 && db_one("SELECT 1 FROM k30_pl_token_pools WHERE id=? AND is_active=1", [$fb])) {
+            $to_pool = $fb; $tag = 'zwrot_pula_zastepcza';
+        }
+    }
+    if ($to_pool > 0) {
         db_exec("INSERT OR IGNORE INTO k30_pl_token_pool_wallets (pool_id, client_id) VALUES (?,?)",
-                [$fb, (int)$w['client_id']]);
+                [$to_pool, (int)$w['client_id']]);
         $t = db_one("SELECT id FROM k30_pl_token_pool_wallets WHERE pool_id=? AND client_id=?",
-                [$fb, (int)$w['client_id']]);
-        return [(int)$t['id'], 'zwrot_pula_zastepcza'];
+                [$to_pool, (int)$w['client_id']]);
+        return [(int)$t['id'], $tag];
     }
     return [$wallet_id, 'refund_expired_pool'];
 }
@@ -1919,6 +1968,9 @@ function rk_error_message(string $code): string {
         'SLOT_HAS_BOOKINGS'   => 'Ta godzina ma rezerwacje (także historyczne) — można ją tylko odwołać, nie usunąć.',
         'SERIES_EMPTY'        => 'Brak wolnych terminów pasujących do tego dnia tygodnia i godziny.',
         'ROUND_NOT_FOUND'     => 'Nie znaleziono tury.',
+        'POOL_NOT_FOUND'      => 'Nie znaleziono puli.',
+        'POOL_USED_BY_ROUND'  => 'Ta pula jest podpięta pod turę zapisów — najpierw odepnij ją w edycji tury (albo usuń turę).',
+        'POOL_HAS_BOOKINGS'   => 'Z tej puli opłacono rezerwacje (także historyczne) — księga musi zostać. Pulę można dezaktywować zamiast usuwać.',
         'ROUND_HAS_BOOKINGS'  => 'Ta tura ma aktywne zapisy — najpierw użyj „Usuń zapisy” (żetony wrócą do kursantów), potem usuń turę.',
         'SERIES_ALL_BOOKED'   => 'Masz już rezerwacje na wszystkie terminy tej serii.',
         'ROUND_FOR_NEW'          => 'Ta tura jest przeznaczona dla nowych osób — jako kursant kontynuujący zapisz się w turze dla kontynuujących.',

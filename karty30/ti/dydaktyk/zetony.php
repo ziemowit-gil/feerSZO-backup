@@ -59,7 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'pool_delete') {
         $pid = (int)($_POST['pool_id'] ?? 0);
-        if ($pid) { db_exec("DELETE FROM k30_pl_token_pools WHERE id=?", [$pid]); flash_set('success', 'Pula usunięta.'); }
+        try {
+            rk_pool_delete($pid);
+            flash_set('success', 'Pula usunięta (razem z portfelami i historią przyznań).');
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
         header('Location: zetony.php?tab=pule'); exit;
     }
 
@@ -361,14 +366,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                   <i class="bi bi-<?= !empty($p['is_active'])?'pause-fill':'play-fill' ?>" aria-hidden="true"></i>
                 </button>
               </form>
-              <?php if (!(int)$p['n_wallets']): ?>
-              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pulę?')">
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć pulę „<?= h($p['name']) ?>”?<?= (int)$p['n_wallets']
+                        ? ' Zniknie ' . (int)$p['n_wallets'] . ' portfeli z historią przyznań.' : '' ?> Pula podpięta pod turę albo z opłaconymi rezerwacjami zostanie zablokowana przed usunięciem.')">
                 <input type="hidden" name="_csrf"    value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op"      value="pool_delete">
                 <input type="hidden" name="pool_id"  value="<?= (int)$p['id'] ?>">
-                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń pulę"><i class="bi bi-trash" aria-hidden="true"></i></button>
               </form>
-              <?php endif; ?>
               <?php endif; ?>
             </td>
           </tr>
@@ -643,6 +648,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <option value="K">K — kontynuacja</option>
                 <option value="N">N — nowe osoby</option>
               </select>
+              <div class="input-group-text">
+                <input class="form-check-input mt-0 me-1" type="checkbox" id="pgen-test" aria-label="Pula testowa — prefiks TEST w nazwie">
+                <label class="small" for="pgen-test">TEST</label>
+              </div>
               <button type="button" class="btn btn-outline-secondary" id="pgen-btn"
                       title="Zbuduj nazwę: okres + K/N + numer kolejny puli + 3 losowe cyfry">
                 <i class="bi bi-magic" aria-hidden="true"></i> Generuj
@@ -699,7 +708,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 return;
               }
               var digits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-              name.value = period.value + ' ' + kind.value + nextNr + '-' + digits;
+              var test   = document.getElementById('pgen-test')?.checked ? 'TEST ' : '';
+              name.value = test + period.value + ' ' + kind.value + nextNr + '-' + digits;
               name.focus();
             });
           })();
