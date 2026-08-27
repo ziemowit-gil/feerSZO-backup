@@ -224,7 +224,6 @@ if ($what === 'plakat') {
       <th>Godziny</th>
       <th>Obowiązuje</th>
       <th>Status</th>
-      <th style="width:120px">Podpis prowadzącego</th>
     </tr>
   </thead>
   <tbody>
@@ -242,7 +241,6 @@ if ($what === 'plakat') {
         <?= !empty($w['notes']) ? '<br><span class="muted">' . h($w['notes']) . '</span>' : '' ?>
       </td>
       <td><?= ($w['status'] ?? 'approved') === 'approved' ? 'zatwierdzona' : '<strong>szkic</strong>' ?></td>
-      <td></td>
     </tr>
     <?php endforeach; ?>
   </tbody>

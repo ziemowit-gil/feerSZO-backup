@@ -130,7 +130,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
   <div class="ms-auto d-flex gap-2">
     <a href="rekrutacja_print.php?what=dostepnosci" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"
-       title="Zestawienie wszystkich okien z rubrykami podpisów (prowadzący + kierownik)">
+       title="Zestawienie wszystkich okien z rubrykami podpisu kierownika">
       <i class="bi bi-printer me-1"></i>Drukuj do podpisu</a>
     <a href="rekrutacja.php?tab=grupy" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-magic me-1"></i>Generator terminów</a>
