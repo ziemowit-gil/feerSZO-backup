@@ -71,12 +71,17 @@ function ti_protocols_migrate(): void {
                     ON k30_ti_protocol_entries(protocol_id, client_id)");
     } catch (\Throwable $e) {}
 
-    // Elektroniczne potwierdzenie ewidencji godzin i wypłaty przez prowadzącego
+    // Elektroniczne podpisy: prowadzącego (ewidencja godzin i wypłata)
+    // oraz za organizatora (kontrasygnata kierownika / pracownika D3)
     foreach ([
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_by   INTEGER",
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_name TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_at   TEXT",
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_ip   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_by     INTEGER",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_name   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_at     TEXT",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_ip     TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
         try { db()->exec($sql); } catch (\Throwable $e) {}
     }
@@ -340,12 +345,46 @@ function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, stri
     )->execute([$by, $by_name, substr($ip, 0, 64), $protocol_id]);
 }
 
-/** Wycofuje potwierdzenie ewidencji (wołane przy odblokowaniu protokołu). */
+/** Czy protokół jest podpisany za organizatora. */
+function ti_protocol_org_acked(array $prot): bool {
+    return !empty($prot['org_ack_at']);
+}
+
+/**
+ * Podpis za organizatora — elektroniczna kontrasygnata kierownika / pracownika D3
+ * (uprawnienie sprawdza wywołujący). Podpisujemy dokument gotowy, więc wymagany
+ * jest zatwierdzony protokół; brak potwierdzenia prowadzącego nie blokuje podpisu,
+ * ale panel pokazuje ten stan wprost, żeby nikt nie kontrasygnował w ciemno.
+ *
+ * @throws RuntimeException gdy protokół nie istnieje, nie jest zatwierdzony
+ *                          albo jest już podpisany.
+ */
+function ti_protocol_org_ack(int $protocol_id, ?int $by, string $by_name, string $ip = ''): void {
+    ti_protocols_migrate();
+    $prot = ti_protocol_get($protocol_id);
+    if (!$prot)                          throw new \RuntimeException('Protokół nie istnieje.');
+    if (!ti_protocol_is_locked($prot))   throw new \RuntimeException('Najpierw zatwierdź protokół — podpisuje się dokument zamknięty.');
+    if (ti_protocol_org_acked($prot))    throw new \RuntimeException('Protokół jest już podpisany za organizatora.');
+
+    $ip = trim($ip) !== '' ? trim($ip) : (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    db()->prepare(
+        "UPDATE k30_ti_protocols
+            SET org_ack_by=?, org_ack_name=?, org_ack_at=datetime('now'), org_ack_ip=?,
+                updated_at=datetime('now')
+          WHERE id=?"
+    )->execute([$by, $by_name, substr($ip, 0, 64), $protocol_id]);
+}
+
+/**
+ * Wycofuje oba podpisy (wołane przy odblokowaniu protokołu) — po korekcie danych
+ * ani ewidencja, ani kontrasygnata nie odpowiadają już stanowi dokumentu.
+ */
 function ti_protocol_hours_ack_clear(int $protocol_id): void {
     ti_protocols_migrate();
     db_exec(
         "UPDATE k30_ti_protocols
             SET hours_ack_by=NULL, hours_ack_name='', hours_ack_at=NULL, hours_ack_ip='',
+                org_ack_by=NULL,   org_ack_name='',   org_ack_at=NULL,   org_ack_ip='',
                 updated_at=datetime('now')
           WHERE id=?",
         [$protocol_id]
@@ -601,6 +640,13 @@ function ti_protocol_print_html(array $prot): string {
           . ($prot['hours_ack_ip'] !== '' ? '<br>IP ' . $h($prot['hours_ack_ip']) : '')
         : '.............................................<br>data i podpis prowadzącego';
 
+    $org_acked = ti_protocol_org_acked($prot);
+    $sign_org  = $org_acked
+        ? 'Podpisane elektronicznie za organizatora:<br><strong>' . $h($prot['org_ack_name'] ?: '—') . '</strong><br>'
+          . $h(date('d.m.Y H:i', strtotime((string)$prot['org_ack_at'])))
+          . ($prot['org_ack_ip'] !== '' ? '<br>IP ' . $h($prot['org_ack_ip']) : '')
+        : '.............................................<br>za organizatora';
+
     $statement = '<div class="stmt">'
         . '<p class="stmt-h">Oświadczenie prowadzącego</p>'
         . '<p>Potwierdzam, że ewidencja godzin oraz naliczenie wypłaty w tym protokole '
@@ -609,7 +655,7 @@ function ti_protocol_print_html(array $prot): string {
         . ($acked ? '' : '<p class="empty">Oświadczenie niepotwierdzone — wymaga podpisu prowadzącego.</p>')
         . '<table class="signs"><tbody><tr>'
         . '<td>' . $sign_instructor . '</td>'
-        . '<td>.............................................<br>za organizatora</td>'
+        . '<td>' . $sign_org . '</td>'
         . '</tr></tbody></table></div>';
 
     $empty_note = ti_protocol_is_empty($stats)
