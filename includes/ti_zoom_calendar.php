@@ -3,7 +3,7 @@
  * includes/ti_zoom_calendar.php — kalendarz zajętości konta Zoom.
  *
  * Wspólne źródło danych i widok dla administracji (karty30/ti/zoom_calendar.php)
- * oraz panelu dydaktyka (zakładka „Zajętość Zoom"). Zajętość liczona tak samo,
+ * oraz panelu dydaktyka (zakładka „Zajętość Zoom”). Zajętość liczona tak samo,
  * jak w bramce ustawiania zajęć (ti_zoom_slot_check) — dwa źródła:
  *   • lekcje SZO korzystające z Zooma (stałe linki kursów to spotkania typu 3,
  *     bez godzin w Zoomie, więc API ich nie zna),
@@ -87,7 +87,7 @@ function ti_zoom_slot_label(array $slot, ?array $visible_course_ids = null): str
     return $visible_course_ids === null ? $slot['title'] : 'Spotkanie Zoom';
 }
 
-/** Godziny slotu, np. „10:00–11:30". */
+/** Godziny slotu, np. „10:00–11:30”. */
 function ti_zoom_slot_hours(array $slot): string {
     $f = strtotime((string)$slot['start']);
     $t = strtotime((string)$slot['end']);
@@ -177,7 +177,7 @@ function ti_zoom_calendar_legend_html(): string {
 }
 
 /**
- * Wyjaśnienie „od czego to zależy" — dlaczego termin bywa zajęty i co z tym zrobić.
+ * Wyjaśnienie „od czego to zależy” — dlaczego termin bywa zajęty i co z tym zrobić.
  * Ten sam tekst dla administracji i dla prowadzącego.
  */
 function ti_zoom_explain_html(): string {
@@ -192,7 +192,7 @@ function ti_zoom_explain_html(): string {
       ustawić drugiej z nich.
     </p>
     <ul class="small mb-2">
-      <li><strong>Lekcja liczy się jako zdalna</strong>, gdy ma metodę „Zdalna — Zoom",
+      <li><strong>Lekcja liczy się jako zdalna</strong>, gdy ma metodę „Zdalna — Zoom”,
           albo gdy metody nie wybrano, a kurs ma stały link Zoom (lekcja dziedziczy ten link).</li>
       <li><strong>Zajętość z SZO</strong> to lekcje innych grup i kursantów o nakładających się godzinach
           (odwołane i szkice się nie liczą).</li>
@@ -203,7 +203,7 @@ function ti_zoom_explain_html(): string {
     </ul>
     <p class="small mb-0">
       <strong>Co zrobić przy kolizji:</strong> wybierz inne godziny (kalendarz obok pokazuje wolne dni),
-      przenieś lekcję na inny dzień albo ustaw metodę „Stacjonarna" lub „Zdalna — inne"
+      przenieś lekcję na inny dzień albo ustaw metodę „Stacjonarna” lub „Zdalna — inne”
       (wtedy konto Zoom nie jest angażowane).
     </p>
   </div>

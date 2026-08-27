@@ -37,7 +37,7 @@ $av_day_min = function (array $wins): int {
     foreach ($wins as $w) $m += max(0, ti_hm2min((string)$w['time_to']) - ti_hm2min((string)$w['time_from']));
     return $m;
 };
-/** Minuty → „6 h 30 min". */
+/** Minuty → „6 h 30 min”. */
 $av_hm = function (int $min): string {
     if ($min <= 0) return '—';
     $h = intdiv($min, 60); $m = $min % 60;
@@ -186,7 +186,7 @@ $av_hm = function (int $min): string {
     </form>
     <p class="form-text mb-0">
       Zajęcia można ustawiać tylko w godzinach dostępności. Bez zdefiniowanych okien nie ma ograniczeń.
-      W jednym dniu może być kilka okien; „Planowana (szkic)" to deklaracja wstępna, która nie zwalnia terminu.
+      W jednym dniu może być kilka okien; „Planowana (szkic)” to deklaracja wstępna, która nie zwalnia terminu.
     </p>
   </div>
 </div>

@@ -6,7 +6,7 @@
  * i kryteriów oceniania, przypisany do rodzaju zajęć (k30_ti_subject_types)
  * i do konkretnych kursów.
  *
- * Podział ról względem istniejącego „Planu nauczania" (k30_ti_curriculum):
+ * Podział ról względem istniejącego „Planu nauczania” (k30_ti_curriculum):
  *   sylabus         = WZORZEC przedmiotu (wersjonowany, wspólny dla kursów),
  *   plan nauczania  = REALIZACJA sylabusa w konkretnym kursie (pozycje planu
  *                     wskazują punkt sylabusa kolumną syllabus_item_id).
@@ -163,7 +163,7 @@ function ti_syllabus_delete(int $id): void {
 }
 
 /**
- * Nowa wersja sylabusa: kopia pozycji, status „Projekt", wersja +1
+ * Nowa wersja sylabusa: kopia pozycji, status „Projekt”, wersja +1
  * (albo z sufiksem, gdy wersja nie jest liczbą). Zwraca id nowego sylabusa.
  */
 function ti_syllabus_clone(int $id, ?int $by = null): int {

@@ -8,7 +8,7 @@
  * komunikatów, kolejność zmieniana przyciskami, a nie drag&drop.
  *
  * Sylabus jest WZORCEM przedmiotu; realizacją w kursie pozostaje Plan nauczania
- * (curriculum.php) — stąd akcja „Skopiuj program do planu kursu".
+ * (curriculum.php) — stąd akcja „Skopiuj program do planu kursu”.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';

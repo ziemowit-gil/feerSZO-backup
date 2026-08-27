@@ -5,7 +5,7 @@
  * Pozwala zaplanować okno czasowe, w którym wyłączony jest:
  *   • panel dydaktyka  (scope 'dydaktyk'),
  *   • dziennik ocen    (scope 'dziennik')  — dla prowadzących, kursantów i opiekunów,
- * z komentarzem wyjaśniającym, np. „Trwają przygotowania do nowego roku dydaktycznego".
+ * z komentarzem wyjaśniającym, np. „Trwają przygotowania do nowego roku dydaktycznego”.
  *
  * Okno działa samo: włącza się i wyłącza po datach, bez ręcznego przestawiania.
  * Istniejący ręczny przełącznik panelu (org_setting dyd_panel_enabled) zostaje
@@ -107,7 +107,7 @@ function ti_blackout_message(?array $win): string {
     return $m !== '' ? $m : TI_BLACKOUT_DEFAULT_MSG;
 }
 
-/** Zakres okna jako czytelny tekst, np. „od 1.07.2026, 8:00 do 31.08.2026, 23:59". */
+/** Zakres okna jako czytelny tekst, np. „od 1.07.2026, 8:00 do 31.08.2026, 23:59”. */
 function ti_blackout_range_text(array $win): string {
     $f = strtotime((string)$win['starts_at']);
     $t = strtotime((string)$win['ends_at']);

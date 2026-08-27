@@ -100,7 +100,7 @@ function ti_protocol_parse_value(string $raw): array {
     }
     return [
         'ok' => false, 'text' => '', 'num' => null,
-        'msg' => 'Niedozwolony wpis „' . $raw . '". Dozwolone: 1–6 (można z + lub -) albo '
+        'msg' => 'Niedozwolony wpis „' . $raw . '”. Dozwolone: 1–6 (można z + lub -) albo '
                . implode(', ', array_keys(TI_PROTOCOL_SPECIAL)) . '.',
     ];
 }
@@ -284,7 +284,7 @@ function ti_protocol_unlock(int $protocol_id, ?int $by, string $by_name, string 
         $per = ti_period_get((int)$prot['period_id']);
         if ($per && ti_period_is_closed($per)) {
             throw new \RuntimeException(
-                'Okres „' . (string)$per['name'] . '" jest zamknięty — aby poprawić protokół, '
+                'Okres „' . (string)$per['name'] . '” jest zamknięty — aby poprawić protokół, '
                 . 'administrator musi najpierw otworzyć okres ponownie.'
             );
         }
@@ -331,7 +331,7 @@ function ti_protocol_empty_note(array $stats): string {
           . $stats['total'] . ' ' . ($stats['total'] === 1 ? 'uczestnika' : 'uczestników') . '.';
 }
 
-/** Krótki opis wypełnienia, np. „częściowo wypełniony (3 z 8)". */
+/** Krótki opis wypełnienia, np. „częściowo wypełniony (3 z 8)”. */
 function ti_protocol_fill_text(array $stats): string {
     if ($stats['total'] === 0)                 return 'brak uczestników';
     if ($stats['filled'] === 0)                return 'pusty (0 z ' . $stats['total'] . ')';
@@ -359,7 +359,7 @@ function ti_protocol_diary_averages(int $course_id): array {
 /**
  * Ewidencja godzin prowadzącego i naliczenie wypłaty za okres protokołu.
  *
- * Liczy tak samo, jak zakładka „Wypłaty" i k30_ti_payouts_by_instructor():
+ * Liczy tak samo, jak zakładka „Wypłaty” i k30_ti_payouts_by_instructor():
  * stawka za zajęcia jest na kursie (lesson_payout_bb), liczą się zajęcia
  * odbyte (held / individual_change / remote_material), a praca własna
  * (self_prep_remote) i formy student/B2B są bezskładkowe.
@@ -434,14 +434,14 @@ function ti_protocol_hours_and_payout(array $prot): array {
     ];
 }
 
-/** Minuty → „12 h 30 min" (na wydruk ewidencji). */
+/** Minuty → „12 h 30 min” (na wydruk ewidencji). */
 function ti_protocol_hm(int $min): string {
     if ($min <= 0) return '0 h';
     $h = intdiv($min, 60); $m = $min % 60;
     return ($h ? $h . ' h' : '') . ($h && $m ? ' ' : '') . ($m ? $m . ' min' : '');
 }
 
-/** Kwota w formacie polskim, np. „1 234,50 zł". */
+/** Kwota w formacie polskim, np. „1 234,50 zł”. */
 function ti_protocol_money(float $v): string {
     return number_format($v, 2, ',', ' ') . ' zł';
 }

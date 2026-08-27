@@ -43,16 +43,16 @@ $pr_confirm = $pr_empty
   <div class="card-header">Jak wypełnić protokół — krok po kroku</div>
   <div class="card-body">
     <ol class="small mb-3">
-      <li class="mb-1"><strong>Otwórz protokół za okres</strong> — wybierz okres nauczania w formularzu obok i kliknij „Otwórz protokół". Na kurs i okres przypada jeden protokół.</li>
-      <li class="mb-1"><strong>Wpisz oceny końcowe</strong> — w tabeli, przy każdym uczestniku. Dozwolone wpisy: <strong>1–6</strong> (można z „+" lub „-"), albo <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny. Kolumna „Śr. z dziennika" to podpowiedź — nie wpisuje się sama.</li>
+      <li class="mb-1"><strong>Otwórz protokół za okres</strong> — wybierz okres nauczania w formularzu obok i kliknij „Otwórz protokół”. Na kurs i okres przypada jeden protokół.</li>
+      <li class="mb-1"><strong>Wpisz oceny końcowe</strong> — w tabeli, przy każdym uczestniku. Dozwolone wpisy: <strong>1–6</strong> (można z „+” lub „-”), albo <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny. Kolumna „Śr. z dziennika” to podpowiedź — nie wpisuje się sama.</li>
       <li class="mb-1"><strong>Zapisz protokół</strong> — możesz wracać i poprawiać do woli.</li>
       <li class="mb-1"><strong>Zatwierdź protokół</strong> — dopiero to jest deklaracja, że oceny są kompletne. Po zatwierdzeniu ocen nie da się zmienić; odblokowanie wymaga pracownika D3 lub administratora i zostaje w protokole ze śladem. Protokół bez ani jednej oceny też można zatwierdzić — wydruk dostanie wtedy adnotację o braku ocen.</li>
-      <li><strong>Wydrukuj i podpisz</strong> — przycisk „PDF" (przy protokole albo w kolumnie „Wydruk" na liście).</li>
+      <li><strong>Wydrukuj i podpisz</strong> — przycisk „PDF” (przy protokole albo w kolumnie „Wydruk” na liście).</li>
     </ol>
     <div class="small">
       <div class="fw-semibold mb-1">Co jest na wydruku i skąd się bierze</div>
       <ul class="mb-2">
-        <li><strong>Oceny końcowe</strong> — to, co wpiszesz w tej tabeli. Nie wchodzą do średniej ważonej e-dziennika: oceny bieżące zostają w zakładce „Oceny".</li>
+        <li><strong>Oceny końcowe</strong> — to, co wpiszesz w tej tabeli. Nie wchodzą do średniej ważonej e-dziennika: oceny bieżące zostają w zakładce „Oceny”.</li>
         <li><strong>Ewidencja godzin</strong> — zajęcia <em>odbyte</em> w okresie protokołu (odbyte, zmiana indywidualna, praca własna). Odwołane i szkice się nie liczą. Czas brany z godzin lekcji, z sumą za cały okres.</li>
         <li><strong>Naliczenie wypłaty</strong> — stawka za zajęcie ustawiona na kursie razy liczba zajęć z ewidencji, rozbita na brutto-brutto, ZUS, składki, PIT i netto. Praca własna liczy się bezskładkowo. Gdy kurs nie ma stawki, wydruk mówi wprost, że wypłaty się nie nalicza.</li>
         <li><strong>Oświadczenie</strong> — podpisując, potwierdzasz zgodność ewidencji godzin i naliczenia ze stanem faktycznym.</li>
@@ -231,7 +231,7 @@ $pr_confirm = $pr_empty
             <i class="bi bi-check2-square me-1" aria-hidden="true"></i><?= $pr_empty ? 'Zatwierdź pusty protokół' : 'Zatwierdź protokół' ?>
           </button>
           <span class="form-text mb-0">
-            Dozwolone wpisy: <strong>1–6</strong> (można z „+" lub „-"), albo
+            Dozwolone wpisy: <strong>1–6</strong> (można z „+” lub „-”), albo
             <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny.
           </span>
           <?php else: ?>
@@ -261,7 +261,7 @@ $pr_confirm = $pr_empty
 
     <p class="small text-body-secondary mt-2">
       Ocena z protokołu jest oceną <strong>końcową</strong> i nie wchodzi do średniej ważonej
-      e-dziennika — kolumna „Śr. z dziennika" pokazuje ją tylko pomocniczo.
+      e-dziennika — kolumna „Śr. z dziennika” pokazuje ją tylko pomocniczo.
       Zatwierdzony protokół jest warunkiem zamknięcia okresu nauczania.
     </p>
     <?php endif; ?>

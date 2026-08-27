@@ -1,10 +1,10 @@
 <?php
 /**
- * karty30/ti/dydaktyk/_tab_zoom.php — zakładka „Zajętość Zoom" w panelu dydaktyka.
+ * karty30/ti/dydaktyk/_tab_zoom.php — zakładka „Zajętość Zoom” w panelu dydaktyka.
  *
  * Pokazuje, dlaczego system nie pozwala ustawić niektórych terminów zajęć zdalnych,
  * i gdzie są wolne okna. Nazwy kursów widoczne tylko dla własnych grup — pozostała
- * zajętość jako „Inne zajęcia zdalne" (dla prowadzącego liczy się wolne/zajęte).
+ * zajętość jako „Inne zajęcia zdalne” (dla prowadzącego liczy się wolne/zajęte).
  *
  * Zmienne z index.php: $course_ids (własne kursy), $tab.
  */

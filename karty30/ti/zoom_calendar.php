@@ -4,7 +4,7 @@
  *
  * Pokazuje to, na czym opiera się blokada ustawiania zajęć zdalnych: lekcje SZO
  * korzystające z Zooma oraz spotkania z terminem na koncie hosta (API Zoom).
- * Ten sam widok w panelu dydaktyka: zakładka „Zajętość Zoom".
+ * Ten sam widok w panelu dydaktyka: zakładka „Zajętość Zoom”.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';

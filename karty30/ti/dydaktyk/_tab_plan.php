@@ -2,7 +2,7 @@
 <?php
 /**
  * Plan zajęć kursu: siatka tygodniowa (poniedziałek–niedziela) i lista terminów
- * miesiąca — odpowiednik „Planu zajęć" w USOSweb.
+ * miesiąca — odpowiednik „Planu zajęć” w USOSweb.
  *
  * Zmienne z index.php: $cur_course, $course.
  */

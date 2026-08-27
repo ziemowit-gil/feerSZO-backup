@@ -108,7 +108,7 @@ if (dyd_is_staff()) {
             $_it('',             'Pełny panel TI',        '../index.php',   0, 'secondary', true),
         ],
     ];
-    // „Rozliczenia" grupy stoi w sekcji Kierownik — nie dublujemy go w sekcji Kurs
+    // „Rozliczenia” grupy stoi w sekcji Kierownik — nie dublujemy go w sekcji Kurs
     $_usos_sections['kurs']['items'] = array_values(array_filter(
         $_usos_sections['kurs']['items'], fn($i) => $i['tab'] !== 'rozliczenia'
     ));
