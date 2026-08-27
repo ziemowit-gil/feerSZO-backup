@@ -60,11 +60,24 @@ $rk_mode_label = fn(string $m) => match ($m) {
 </div>
 <?php endif; ?>
 
-<p class="text-body-secondary small">
+<p class="text-body-secondary small mb-2">
   Od tego roku zapisujesz się wybierając najpierw <strong>prowadzącego</strong>, a potem termin
   z jego kalendarza. Każda rezerwacja kosztuje żetony z Twojej puli; rezygnacja odpowiednio
   wcześnie zwraca je w całości.
 </p>
+<details class="small mb-3">
+  <summary class="text-body-secondary" style="cursor:pointer">
+    <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Na czym polega rejestracja żetonowa?
+  </summary>
+  <div class="text-body-secondary mt-2 ps-3" style="max-width:46rem">
+    Żetony to wewnętrzne „bilety na zajęcia” — nie są pieniędzmi i służą wyłącznie zapisom.
+    Pulę żetonów na dany okres przydziela Ci ośrodek (saldo widzisz poniżej). Każde zajęcia
+    mają cenę w żetonach zależną od czasu trwania; rezerwacja pobiera żetony od razu i tym
+    samym gwarantuje Ci miejsce. Rezygnacja odpowiednio wcześnie zwraca żetony w całości —
+    możesz nimi opłacić inny termin. Gdy pula się wyczerpie, kolejne rezerwacje nie będą
+    możliwe do czasu doładowania przez ośrodek.
+  </div>
+</details>
 
 <!-- ── Saldo pul ─────────────────────────────────────────────────────────── -->
 <h2 class="h6 fw-bold mt-4 mb-2"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Moje pule żetonów</h2>
@@ -93,7 +106,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <?php endif; ?>
 
 <!-- ── Zapisy: tura → prowadzący → termin ────────────────────────────────── -->
-<h2 class="h6 fw-bold mt-4 mb-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Zapisy na terminy</h2>
+<h2 class="h6 fw-bold mt-4 mb-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Zapisy na zajęcia</h2>
 
 <?php if (!$rk_rounds): ?>
 <div class="text-body-secondary small mb-3">
@@ -179,6 +192,12 @@ $rk_mode_label = fn(string $m) => match ($m) {
 <div class="text-body-secondary small mb-3">Ten prowadzący nie ma teraz wolnych terminów.
   <a href="index.php?tab=zapisy&rk_round=<?= (int)$rk_round['id'] ?>">Wybierz innego prowadzącego</a>.</div>
 <?php else: ?>
+<div class="alert alert-light border py-2 small mb-2" role="note">
+  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+  <strong>„Rezerwuję”</strong> zapisuje na pojedyncze zajęcia.
+  <strong>„Ustal zajęcia na cały okres”</strong> rezerwuje ten sam dzień tygodnia i godzinę
+  co tydzień, do końca tury — <strong>wybrana data to data pierwszych zajęć</strong>.
+</div>
 <div class="table-responsive mb-3">
   <table class="table table-sm align-middle">
     <caption class="visually-hidden">Wolne terminy prowadzącego <?= h($rk_instr_name) ?></caption>

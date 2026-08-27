@@ -207,6 +207,20 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 </div>
 <?php endif; ?>
 
+<details class="small mb-3">
+  <summary class="text-body-secondary" style="cursor:pointer">
+    <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Na czym polega rejestracja żetonowa?
+  </summary>
+  <div class="text-body-secondary mt-2 ps-3" style="max-width:46rem">
+    Żetony to wewnętrzne „bilety na zajęcia” — nie są pieniędzmi i służą wyłącznie zapisom.
+    Pulę żetonów na dany okres przydziela Ci ośrodek (saldo widzisz u góry). Każde zajęcia
+    mają cenę w żetonach zależną od czasu trwania; rezerwacja pobiera żetony od razu i tym
+    samym gwarantuje Ci miejsce. Rezygnacja odpowiednio wcześnie zwraca żetony w całości.
+    Wybrana data to data pierwszych zajęć — „Ustal zajęcia na cały okres” rezerwuje ten sam
+    dzień i godzinę co tydzień, do końca tury.
+  </div>
+</details>
+
 <?php if ($rk_pools): ?>
 <div class="d-flex gap-2 flex-wrap mb-3">
   <?php foreach ($rk_pools as $p): if ((int)$p['granted'] === 0) continue; ?>
@@ -282,6 +296,12 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <div class="text-body-secondary small mb-4">Ten prowadzący nie ma teraz wolnych terminów.
   <a href="t.php?rk_round=<?= (int)$rk_round['id'] ?>">Wybierz innego</a>.</div>
 <?php else: ?>
+<div class="alert alert-light border py-2 small mb-2" role="note">
+  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+  <strong>„Rezerwuję”</strong> zapisuje na pojedyncze zajęcia.
+  <strong>„Ustal zajęcia na cały okres”</strong> rezerwuje ten sam dzień tygodnia i godzinę
+  co tydzień, do końca tury — <strong>wybrana data to data pierwszych zajęć</strong>.
+</div>
 <div class="table-responsive mb-4">
   <table class="table table-sm align-middle bg-body rounded shadow-sm">
     <caption class="visually-hidden">Wolne terminy prowadzącego</caption>

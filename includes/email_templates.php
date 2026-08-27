@@ -871,8 +871,24 @@ HTML;
             'body'        => <<<'HTML'
 <p>Dzień dobry, <strong>{{name}}</strong>.</p>
 
-<p>Ruszają zapisy na terminy zajęć w turze <strong>{{round}}</strong>.
+<p>Ruszają <strong>zapisy na zajęcia</strong> w turze <strong>{{round}}</strong>.
 Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.</p>
+
+<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin:18px 0">
+  <p style="margin:0 0 8px;font-weight:600">Jak zarezerwować zajęcia</p>
+  <ol style="margin:0;padding-left:18px">
+    <li>Otwórz swój osobisty link (przycisk poniżej) albo zaloguj się do panelu kursanta
+        i wejdź w <em>Nauka &rsaquo; Zapisy na zajęcia</em>.</li>
+    <li>Wybierz prowadzącego, a następnie pasujący termin z jego kalendarza.</li>
+    <li>Kliknij <strong>„Rezerwuję”</strong> (pojedyncze zajęcia) albo
+        <strong>„Ustal zajęcia na cały okres”</strong> — wtedy ten sam dzień tygodnia
+        i godzina zostaną zarezerwowane co tydzień, aż do końca tury.</li>
+  </ol>
+  <p style="margin:8px 0 0;font-size:.9em;color:#6c757d">
+    <strong>Ważne:</strong> data, którą Państwo wybiorą, to data <strong>pierwszych zajęć</strong> —
+    przy rezerwacji na cały okres kolejne zajęcia odbywają się co tydzień o tej samej porze.
+  </p>
+</div>
 
 <div style="background:#fff1e7;border-left:3px solid #c2410c;border-radius:4px;padding:12px 16px;margin:18px 0">
   <p style="margin:0 0 8px;font-weight:600">Zasady obowiązujące od tego roku</p>
@@ -884,6 +900,21 @@ Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.<
     <li>Rezygnacja najpóźniej <strong>{{refund_h}} godz.</strong> przed zajęciami zwraca żetony w całości.</li>
     <li>Decyduje kolejność zgłoszeń — miejsce jest Twoje z chwilą potwierdzenia rezerwacji.</li>
   </ol>
+</div>
+
+<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin:18px 0">
+  <p style="margin:0 0 8px;font-weight:600">Na czym polega rejestracja żetonowa</p>
+  <p style="margin:0 0 8px">
+    Żetony to wewnętrzne „bilety na zajęcia” — nie są pieniędzmi i służą wyłącznie zapisom.
+    Pulę żetonów na dany okres przydziela Państwu ośrodek. Każde zajęcia mają cenę w żetonach
+    (zależną od czasu trwania), a rezerwacja pobiera żetony od razu — dzięki temu miejsce jest
+    gwarantowane.
+  </p>
+  <p style="margin:0">
+    Jeśli plany się zmienią, rezygnacja odpowiednio wcześnie zwraca żetony w całości i można
+    nimi opłacić inny termin. Aktualne saldo i historię żetonów widać w panelu kursanta
+    (zakładka <em>Zapisy na zajęcia</em>) oraz na stronie zapisów z linku.
+  </p>
 </div>
 
 {{rules_html}}
