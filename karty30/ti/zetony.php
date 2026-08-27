@@ -169,7 +169,6 @@ $wallets  = db_all(
 $courses    = db_all("SELECT id, name FROM k30_ti_courses WHERE status!='cancelled' ORDER BY name", []);
 $tech_paths = db_all("SELECT id, name FROM k30_pl_tech_paths WHERE is_active=1 ORDER BY name", []);
 $users      = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name", []);
-$all_clients= db_all("SELECT id, name FROM k30_clients WHERE active=1 ORDER BY name", []);
 
 // Statystyki ogólne
 $stats = db_one("SELECT
