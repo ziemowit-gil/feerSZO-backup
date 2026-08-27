@@ -39,6 +39,32 @@ $pr_confirm = $pr_empty
   <span class="badge bg-secondary"><?= count($pr_list) ?></span>
 </div>
 
+<div class="card">
+  <div class="card-header">Jak wypełnić protokół — krok po kroku</div>
+  <div class="card-body">
+    <ol class="small mb-3">
+      <li class="mb-1"><strong>Otwórz protokół za okres</strong> — wybierz okres nauczania w formularzu obok i kliknij „Otwórz protokół". Na kurs i okres przypada jeden protokół.</li>
+      <li class="mb-1"><strong>Wpisz oceny końcowe</strong> — w tabeli, przy każdym uczestniku. Dozwolone wpisy: <strong>1–6</strong> (można z „+" lub „-"), albo <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny. Kolumna „Śr. z dziennika" to podpowiedź — nie wpisuje się sama.</li>
+      <li class="mb-1"><strong>Zapisz protokół</strong> — możesz wracać i poprawiać do woli.</li>
+      <li class="mb-1"><strong>Zatwierdź protokół</strong> — dopiero to jest deklaracja, że oceny są kompletne. Po zatwierdzeniu ocen nie da się zmienić; odblokowanie wymaga pracownika D3 lub administratora i zostaje w protokole ze śladem. Protokół bez ani jednej oceny też można zatwierdzić — wydruk dostanie wtedy adnotację o braku ocen.</li>
+      <li><strong>Wydrukuj i podpisz</strong> — przycisk „PDF" (przy protokole albo w kolumnie „Wydruk" na liście).</li>
+    </ol>
+    <div class="small">
+      <div class="fw-semibold mb-1">Co jest na wydruku i skąd się bierze</div>
+      <ul class="mb-2">
+        <li><strong>Oceny końcowe</strong> — to, co wpiszesz w tej tabeli. Nie wchodzą do średniej ważonej e-dziennika: oceny bieżące zostają w zakładce „Oceny".</li>
+        <li><strong>Ewidencja godzin</strong> — zajęcia <em>odbyte</em> w okresie protokołu (odbyte, zmiana indywidualna, praca własna). Odwołane i szkice się nie liczą. Czas brany z godzin lekcji, z sumą za cały okres.</li>
+        <li><strong>Naliczenie wypłaty</strong> — stawka za zajęcie ustawiona na kursie razy liczba zajęć z ewidencji, rozbita na brutto-brutto, ZUS, składki, PIT i netto. Praca własna liczy się bezskładkowo. Gdy kurs nie ma stawki, wydruk mówi wprost, że wypłaty się nie nalicza.</li>
+        <li><strong>Oświadczenie</strong> — podpisując, potwierdzasz zgodność ewidencji godzin i naliczenia ze stanem faktycznym.</li>
+      </ul>
+      <div class="text-body-secondary">
+        Zatwierdzony protokół każdej grupy, która miała zajęcia w okresie, jest warunkiem
+        <strong>zamknięcia okresu nauczania</strong> przez administrację.
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3">
   <!-- Lista protokołów -->
   <div class="col-lg-4">
