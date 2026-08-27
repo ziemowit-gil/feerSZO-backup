@@ -5,7 +5,7 @@
  *   $KP_TITLE      — tytuł strony,
  *   $KP_TOPBAR     — ['brand'=>, 'icon'=>, 'user'=>, 'logout'=>, 'extra'=>HTML] lub null (brak paska),
  *   $KP_BODY_CLASS — dodatkowe klasy <body>,
- *   $KP_EXTRA_CSS  — lista arkuszy dokładanych PO bloku <style> (skórki, np. USOS).
+ *   $KP_EXTRA_CSS  — lista arkuszy dokładanych PO bloku <style> (skórki panelu).
  */
 $KP_ORG        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $KP_TITLE      = $KP_TITLE      ?? 'Panel kursanta';
@@ -191,7 +191,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 /* ── Login tiles / logout-alternatives ─────────────────────────────────── */
 .kp-login-tiles { display:flex; flex-direction:column; gap:.5rem; }
 </style>
-<?php /* Skórki (np. USOS) linkujemy PO bloku <style> — inaczej bazowe reguły
+<?php /* Skórki panelu linkujemy PO bloku <style> — inaczej bazowe reguły
          panelu wygrywają przy równej specyficzności. */ ?>
 <?php foreach ($KP_EXTRA_CSS as $_css): ?>
 <link rel="stylesheet" href="<?= h($_css) ?>">

@@ -2198,11 +2198,11 @@ $_unread_notices = array_values(array_filter($dyd_notices, fn($n) => empty($n['i
 if ($_unread_notices && $tab !== 'komunikaty' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     $KP_TITLE  = 'Nowy komunikat';
     $KP_TOPBAR = ['brand'=>'Panel dydaktyka','icon'=>'easel2','user'=>$me['name'] ?? '','logout'=>'logout.php'];
-    if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos usos');
+    if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos ti-skin');
     include dirname(__DIR__) . '/kursant/_layout_head.php';
     $_n_cnt = count($_unread_notices);
     ?>
-<link rel="stylesheet" href="../assets/usos.css?v=<?= is_file(__DIR__ . '/../assets/usos.css') ? (int)filemtime(__DIR__ . '/../assets/usos.css') : 1 ?>">
+<link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file(__DIR__ . '/../assets/ti_skin.css') ? (int)filemtime(__DIR__ . '/../assets/ti_skin.css') : 1 ?>">
 <main id="main" class="container py-4" style="max-width:820px">
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center gap-2">
@@ -2261,7 +2261,7 @@ if ($_unread_notices && $tab !== 'komunikaty' && $_SERVER['REQUEST_METHOD'] !== 
     exit;
 }
 
-if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos usos');
+if ($DYD_UI === 'usos') $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' dyd-usos ti-skin');
 
 $KP_TOPBAR = [
     'brand'         => 'Panel dydaktyka',
@@ -2569,10 +2569,10 @@ if ($cur_course && dyd_is_staff()) {
 ?>
 <?php if ($DYD_UI === 'usos'):
   // Arkusz skórki linkowany PO bloku <style> panelu — inaczej bazowe reguły
-  // .dyd-wrap wygrywałyby przy równej specyficzności (patrz komentarz w usos.css).
-  $_usos_css = __DIR__ . '/../assets/usos.css';
+  // .dyd-wrap wygrywałyby przy równej specyficzności (patrz komentarz w ti_skin.css).
+  $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
-<link rel="stylesheet" href="../assets/usos.css?v=<?= is_file($_usos_css) ? (int)filemtime($_usos_css) : 1 ?>">
+<link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 <?php include __DIR__ . '/_usos_bar.php'; ?>
 <?php endif; ?>
 

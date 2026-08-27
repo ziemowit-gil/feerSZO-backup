@@ -129,13 +129,13 @@ foreach ($_cur_sec['items'] as $_i) {
     if ($_i['tab'] === $tab) { $_cur_label = $_i['label']; break; }
 }
 ?>
-<nav class="usos-sections" aria-label="Sekcje panelu">
+<nav class="skin-sections" aria-label="Sekcje panelu">
   <?php foreach ($_usos_sections as $_k => $_s): ?>
   <a href="<?= h($_s['href']) ?>" <?= $_usos_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a>
   <?php endforeach; ?>
 </nav>
 
-<nav class="usos-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
+<nav class="skin-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
   <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
   <a href="<?= h($_i['href']) ?>"<?= $_i['blank'] ? ' target="_blank" rel="noopener"' : '' ?>
      <?= $_act ? 'class="active" aria-current="page"' : '' ?>>
@@ -145,12 +145,12 @@ foreach ($_cur_sec['items'] as $_i) {
   </a>
   <?php endforeach; ?>
   <?php if ($_usos_cur === 'start'): ?>
-  <button type="button" class="usos-subnav-btn" onclick="window.dydShowFlashPref && window.dydShowFlashPref()">Powiadomienia</button>
-  <button type="button" class="usos-subnav-btn" onclick="window.dydStartTour && window.dydStartTour()">Tour powitalny</button>
+  <button type="button" class="skin-subnav-btn" onclick="window.dydShowFlashPref && window.dydShowFlashPref()">Powiadomienia</button>
+  <button type="button" class="skin-subnav-btn" onclick="window.dydStartTour && window.dydStartTour()">Tour powitalny</button>
   <?php endif; ?>
 </nav>
 
-<div class="usos-crumbs">
+<div class="skin-crumbs">
   <a href="index.php?tab=pulpit">Panel dydaktyka</a>
   <?php if ($_usos_cur !== 'start'): ?>
     &rsaquo; <a href="<?= h($_cur_sec['href']) ?>"><?= h($_cur_sec['label']) ?></a>

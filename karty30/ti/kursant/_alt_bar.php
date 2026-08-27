@@ -1,8 +1,9 @@
 <?php
 /**
- * karty30/ti/kursant/_usos_bar.php — nawigacja panelu kursanta w widoku USOS.
+ * karty30/ti/kursant/_alt_bar.php — nawigacja panelu kursanta w widoku
+ * alternatywnym.
  *
- * Odpowiednik paska dydaktyka (karty30/ti/dydaktyk/_usos_bar.php): cała
+ * Ten sam układ co pasek dydaktyka (karty30/ti/dydaktyk/_usos_bar.php): cała
  * nawigacja siedzi nad treścią w dwóch rzędach — pierwszy to sekcje (Mój panel,
  * Nauka, Komunikacja, Dostępy, Sprawy, Konto), drugi to pozycje sekcji
  * otwartej — a pod nimi okruszki. Zakładki i adresy są te same co w widoku
@@ -33,7 +34,7 @@ if (!$_minor) {
 }
 $_sprawy_items[] = $_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger');
 
-$_usos_sections = [
+$_alt_sections = [
     'start' => [
         'label' => 'Mój panel',
         'href'  => $_g('dane'),
@@ -89,40 +90,40 @@ $_usos_sections = [
 ];
 
 // Sekcja otwarta = ta, która zawiera bieżącą zakładkę
-$_usos_cur = 'start';
-foreach ($_usos_sections as $_k => $_s) {
+$_alt_cur = 'start';
+foreach ($_alt_sections as $_k => $_s) {
     foreach ($_s['items'] as $_i) {
-        if ($_i['tab'] !== '' && $_i['tab'] === $tab) { $_usos_cur = $_k; break 2; }
+        if ($_i['tab'] !== '' && $_i['tab'] === $tab) { $_alt_cur = $_k; break 2; }
     }
 }
 
-$_cur_sec   = $_usos_sections[$_usos_cur];
+$_cur_sec   = $_alt_sections[$_alt_cur];
 $_cur_label = '';
 foreach ($_cur_sec['items'] as $_i) {
     if ($_i['tab'] === $tab) { $_cur_label = $_i['label']; break; }
 }
 ?>
-<nav class="usos-sections" aria-label="Sekcje panelu">
-  <?php foreach ($_usos_sections as $_k => $_s): ?>
-  <a href="<?= h($_s['href']) ?>" <?= $_usos_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a>
+<nav class="skin-sections" aria-label="Sekcje panelu">
+  <?php foreach ($_alt_sections as $_k => $_s): ?>
+  <a href="<?= h($_s['href']) ?>" <?= $_alt_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a>
   <?php endforeach; ?>
 </nav>
 
-<nav class="usos-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
+<nav class="skin-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
   <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
   <a href="<?= h($_i['href']) ?>" <?= $_act ? 'class="active" aria-current="page"' : '' ?>>
     <?= h($_i['label']) ?>
     <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
   </a>
   <?php endforeach; ?>
-  <?php if ($_usos_cur === 'konto'): ?>
+  <?php if ($_alt_cur === 'konto'): ?>
   <a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a>
   <?php endif; ?>
 </nav>
 
-<div class="usos-crumbs">
+<div class="skin-crumbs">
   <a href="index.php?tab=dane">Panel kursanta</a>
-  <?php if ($_usos_cur !== 'start'): ?>
+  <?php if ($_alt_cur !== 'start'): ?>
     &rsaquo; <a href="<?= h($_cur_sec['href']) ?>"><?= h($_cur_sec['label']) ?></a>
   <?php endif; ?>
   <?php if ($_cur_label !== '' && $tab !== 'dane'): ?>

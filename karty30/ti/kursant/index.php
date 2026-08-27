@@ -38,7 +38,7 @@ helpdesk_migrate();
 try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN login_streak INTEGER NOT NULL DEFAULT 0"); } catch(\Exception $e){}
 try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN last_login_date TEXT"); } catch(\Exception $e){}
 try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN push_subscription TEXT"); } catch(\Exception $e){}
-// Wybór widoku panelu (klasyczny / alternatywny USOS) — trzymany przy koncie
+// Wybór widoku panelu (klasyczny / alternatywny) — trzymany przy koncie
 try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN ui_pref TEXT NOT NULL DEFAULT ''"); } catch(\Exception $e){}
 
 // Zakończenie podglądu administratora („zaloguj jako") — wróć do listy kont kursantów.
@@ -87,13 +87,13 @@ if (isset($_GET['grades_pdf'])) {
 $tab        = $_GET['tab'] ?? 'dane';
 $vlab_token = student_token();
 
-// ── Widok panelu: klasyczny (domyślny) albo alternatywny USOS ────────────────
+// ── Widok panelu: klasyczny (domyślny) albo alternatywny ─────────────────────
 // Wybór zostaje przy koncie kursanta (student_ui/student_ui_set), więc przeżywa
 // wylogowanie i zmianę urządzenia. Wyjątek: podgląd administratora — tam wybór
 // żyje tylko w sesji podglądu, żeby admin nie przestawiał widoku kursantowi.
 $kur_imp = student_impersonator() !== null;
 if (isset($_GET['ui'])) {
-    $_want = ($_GET['ui'] === 'usos') ? 'usos' : 'klasyczny';
+    $_want = ($_GET['ui'] === 'alt') ? 'alt' : 'klasyczny';
     if ($kur_imp) { student_start(); $_SESSION['k30_student_ui'] = $_want; }
     else          { student_ui_set((int)$student['id'], $_want); }
     header('Location: index.php?tab=' . rawurlencode($tab)); exit;
@@ -102,7 +102,7 @@ $KUR_UI = ($kur_imp && isset($_SESSION['k30_student_ui']))
     ? (string)$_SESSION['k30_student_ui']
     : student_ui((int)$student['id']);
 $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
-    . '&ui=' . ($KUR_UI === 'usos' ? 'klasyczny' : 'usos');
+    . '&ui=' . ($KUR_UI === 'alt' ? 'klasyczny' : 'alt');
 
 // Dane kursanta
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);
@@ -838,9 +838,9 @@ ob_start(); ?>
 // do klasycznego był tam, gdzie włączenie alternatywnego.
 ob_start(); ?>
 <a href="<?= h($ui_switch_url) ?>" class="btn btn-outline-secondary btn-sm"
-   title="<?= $KUR_UI === 'usos' ? 'Wróć do dotychczasowego wyglądu panelu' : 'Gęsty, tabelaryczny widok w stylu USOSweb' ?>">
-  <i class="bi bi-<?= $KUR_UI === 'usos' ? 'grid-1x2' : 'list-columns-reverse' ?> me-1" aria-hidden="true"></i>
-  <?= $KUR_UI === 'usos' ? 'Widok klasyczny' : 'Widok USOS' ?>
+   title="<?= $KUR_UI === 'alt' ? 'Wróć do dotychczasowego wyglądu panelu' : 'Gęsty, tabelaryczny układ — cała nawigacja widoczna wprost' ?>">
+  <i class="bi bi-<?= $KUR_UI === 'alt' ? 'grid-1x2' : 'list-columns-reverse' ?> me-1" aria-hidden="true"></i>
+  <?= $KUR_UI === 'alt' ? 'Widok klasyczny' : 'Widok alternatywny' ?>
 </a>
 <?php $kur_ui_switch = ob_get_clean();
 
@@ -858,10 +858,10 @@ $vapid_public_key = $_vapid['public'];
 $KP_BODY_CLASS = ($KP_BODY_CLASS ?? '');
 // Ekran wymuszonej zmiany hasła to wąska karta na środku — skórki tam nie
 // zakładamy, bo pełna szerokość treści rozjeżdża ten jeden formularz.
-if ($KUR_UI === 'usos' && empty($account['must_change_password'])) {
-    $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' kur-usos usos');
-    $_usos_css     = __DIR__ . '/../assets/usos.css';
-    $KP_EXTRA_CSS  = ['../assets/usos.css?v=' . (is_file($_usos_css) ? (int)filemtime($_usos_css) : 1)];
+if ($KUR_UI === 'alt' && empty($account['must_change_password'])) {
+    $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' kur-alt ti-skin');
+    $_skin_css     = __DIR__ . '/../assets/ti_skin.css';
+    $KP_EXTRA_CSS  = ['../assets/ti_skin.css?v=' . (is_file($_skin_css) ? (int)filemtime($_skin_css) : 1)];
 }
 include __DIR__ . '/_layout_head.php';
 ?>
@@ -925,10 +925,11 @@ include __DIR__ . '/_layout_head.php';
   $metro_i = 0;
   $mc = function () use (&$metro_i, $metro_tile_colors) { return $metro_tile_colors[$metro_i++ % count($metro_tile_colors)]; };
 ?>
-<?php /* Widok klasyczny: pasek zakładek z rozwijanymi grupami. W widoku USOS
-         zastępują go paski sekcji z _usos_bar.php, więc tego nie renderujemy
-         wcale — nie chcemy dwóch nawigacji „Sekcje panelu” w drzewie a11y. */ ?>
-<?php if ($KUR_UI !== 'usos'): ?>
+<?php /* Widok klasyczny: pasek zakładek z rozwijanymi grupami. W widoku
+         alternatywnym zastępują go paski sekcji z _alt_bar.php, więc tego nie
+         renderujemy wcale — nie chcemy dwóch nawigacji „Sekcje panelu”
+         w drzewie dostępności. */ ?>
+<?php if ($KUR_UI !== 'alt'): ?>
 <nav class="container-xl px-3 pt-3 <?= $tab === 'dane' ? 'kp-nav-startpage' : '' ?>" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
 
@@ -1046,7 +1047,7 @@ include __DIR__ . '/_layout_head.php';
 </nav>
 <?php endif; ?>
 
-<?php if ($KUR_UI === 'usos') include __DIR__ . '/_usos_bar.php'; ?>
+<?php if ($KUR_UI === 'alt') include __DIR__ . '/_alt_bar.php'; ?>
 
 <main id="main" class="container-xl px-3 py-4">
 
@@ -1464,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $kp_start_items[] = ['tab' => 'regulaminy',  'icon' => 'file-earmark-text', 'label' => 'Regulaminy', 'badge' => !empty($terms_pending) ? count($terms_pending) : 0];
   $kp_si = 0;
 ?>
-<?php if ($KUR_UI !== 'usos'): // w widoku USOS launcherem jest pasek sekcji ?>
+<?php if ($KUR_UI !== 'alt'): // w widoku alternatywnym launcherem jest pasek sekcji ?>
 <div class="kp-startwall">
   <div class="kp-metro-notice" role="note">
     <i class="bi bi-info-circle-fill fs-4 flex-shrink-0" aria-hidden="true"></i>

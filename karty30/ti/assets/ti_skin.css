@@ -1,0 +1,322 @@
+/**
+ * karty30/ti/assets/ti_skin.css — gęsta, tabelaryczna skórka paneli TI.
+ *
+ * Podmienia CHROME i typografię, nie treść: te same zakładki i te same dane,
+ * podane gęsto i tabelarycznie (wąskie tabele z siatką, paski sekcji, okruszki
+ * nad treścią, niebieskie linki).
+ *
+ * Ta sama skórka, dwie nazwy — bo to dwie różne decyzje:
+ *   • panel dydaktyka  — „widok USOS", jedyny wygląd panelu (body.dyd-usos),
+ *   • panel kursanta   — „widok alternatywny", wybierany przez kursanta
+ *                        (body.kur-alt); domyślnie zostaje widok klasyczny.
+ *
+ * Wspólne reguły stoją pod `body.ti-skin`; klasy panelowe dokładają tylko to,
+ * co dotyczy chrome'u jednego panelu (menu boczne dydaktyka, pasek użytkownika
+ * kursanta).
+ *
+ * Uwaga na kolejność i specyficzność: bazowe reguły paneli siedzą w blokach
+ * <style> (index.php dydaktyka, kursant/_layout_head.php) i część z nich ma
+ * !important, dlatego selektory tutaj są poprzedzone klasą na <body>, a plik
+ * jest linkowany PO tych blokach.
+ *
+ * Kontrast sprawdzany pod WCAG AA: #10335c/#f7f8fa = 9,4:1, #0b4a8f/#fff = 7,0:1,
+ * #1a4f8a/#dde6f0 = 6,1:1.
+ */
+
+body.ti-skin {
+  --ti-navy:#10335c;
+  --ti-blue:#0b4a8f;
+  --ti-link:#0b4a8f;
+  --ti-bar:#dde6f0;
+  --ti-bar-border:#a8bcd2;
+  --ti-grid:#b9c6d6;
+  --ti-zebra:#f4f7fa;
+  --ti-menu-bg:#f2f5f8;
+  --ti-text:#1c1c1c;
+
+  font-family: Verdana, Tahoma, "DejaVu Sans", Arial, sans-serif;
+  font-size: 12.5px;
+  color: var(--ti-text);
+  background: #fff;
+}
+
+/* ── Pasek użytkownika (górny) ────────────────────────────────────────────── */
+body.ti-skin header .navbar {
+  background: var(--ti-navy) !important;
+  border-bottom: 3px solid #c8a11a !important;
+  min-height: 0; padding: .25rem .5rem;
+  border-radius: 0 !important;
+}
+body.ti-skin header .navbar-brand { font-size: .95rem !important; letter-spacing: .02em; }
+body.ti-skin header .navbar .btn { border-radius: 2px !important; font-weight: 400; }
+
+/* Pasek sekcji + okruszki — dokłada je _usos_bar.php (dydaktyk)
+   albo _alt_bar.php (kursant) */
+body.ti-skin .skin-sections {
+  background: var(--ti-bar);
+  border-bottom: 1px solid var(--ti-bar-border);
+  padding: 0 .5rem;
+  display: flex; flex-wrap: wrap; gap: .15rem;
+}
+body.ti-skin .skin-sections a {
+  display: inline-block; padding: .3rem .75rem;
+  color: var(--ti-navy); text-decoration: none;
+  font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em;
+  border: 1px solid transparent; border-bottom: none;
+}
+body.ti-skin .skin-sections a:hover { text-decoration: underline; }
+body.ti-skin .skin-sections a[aria-current="page"] {
+  background: #fff; border-color: var(--ti-bar-border); color: var(--ti-blue);
+}
+body.ti-skin .skin-crumbs {
+  background: #fafbfc; border-bottom: 1px solid #e2e6ea;
+  padding: .3rem .75rem; font-size: .76rem; color: #45516b;
+}
+body.ti-skin .skin-crumbs a { color: var(--ti-link); }
+
+/* Drugi rząd nawigacji: pozycje otwartej sekcji (dawna zawartość menu bocznego) */
+body.ti-skin .skin-subnav {
+  background: #fff;
+  border-bottom: 1px solid var(--ti-bar-border);
+  padding: .2rem .5rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .1rem;
+}
+body.ti-skin .skin-subnav a,
+body.ti-skin .skin-subnav .skin-subnav-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .22rem .6rem; font-size: .78rem;
+  color: var(--ti-link); text-decoration: none;
+  border: 1px solid transparent; border-radius: 2px;
+  background: none;
+}
+body.ti-skin .skin-subnav a:hover,
+body.ti-skin .skin-subnav .skin-subnav-btn:hover { background: #eef3f9; text-decoration: underline; }
+body.ti-skin .skin-subnav a.active {
+  background: var(--ti-bar); border-color: var(--ti-bar-border);
+  color: var(--ti-navy); font-weight: 700;
+}
+body.ti-skin .skin-subnav .badge { font-size: .6rem; }
+body.ti-skin .skin-subnav .skin-subnav-btn { color: #45516b; }
+
+/* Nawigacja przeniesiona do góry — menu boczne w tym widoku jest zbędne.
+   Markup zostaje (używa go układ klasyczny), tu tylko go ukrywamy i oddajemy
+   treści całą szerokość. */
+body.dyd-usos .dyd-sidebar,
+body.dyd-usos #dydSbToggle,
+body.dyd-usos .dyd-sb-overlay { display: none !important; }
+body.dyd-usos .dyd-content { margin-left: 0 !important; }
+
+/* Paski nawigacji też na pełną szerokość — krawędzie zgodne z kolumną treści */
+body.ti-skin .skin-sections,
+body.ti-skin .skin-subnav,
+body.ti-skin .skin-crumbs { max-width: 100%; }
+
+/* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
+body.dyd-usos .dyd-sidebar {
+  background: var(--ti-menu-bg) !important;
+  border-right: 1px solid var(--ti-bar-border) !important;
+  padding: 0 0 1rem;   /* szerokość zostaje 220px — tyle wynosi margines treści */
+}
+body.dyd-usos .dyd-sb-link {
+  color: var(--ti-link) !important;
+  font-size: .78rem; padding: .22rem .6rem .22rem .9rem;
+  border-radius: 0 !important; border-bottom: 1px solid #e6ebf1;
+  text-decoration: none;
+}
+body.dyd-usos .dyd-sb-link:hover { background: #e4ebf3 !important; text-decoration: underline; }
+body.dyd-usos .dyd-sb-link.active {
+  background: #fff !important; color: var(--ti-navy) !important;
+  font-weight: 700; border-left: 4px solid #c8a11a; padding-left: calc(.9rem - 4px);
+}
+body.dyd-usos .dyd-sb-link i { color: #5b6b85 !important; font-size: .8rem; }
+body.dyd-usos .dyd-sb-section {
+  background: var(--ti-bar); color: var(--ti-navy);
+  font-weight: 700; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
+  padding: .28rem .6rem; border-top: 1px solid var(--ti-bar-border);
+  border-bottom: 1px solid var(--ti-bar-border);
+}
+body.dyd-usos .dyd-sb-sep { display: none; }
+body.dyd-usos .dyd-sb-collapse-btn { display: none !important; }
+body.dyd-usos .dyd-sb-link .badge { border-radius: 2px !important; font-weight: 700; }
+
+/* Elementy menu pomalowane na biało pod CIEMNE menu klasyczne — w jasnym menu
+   USOS byłyby białe na białym. Kolory wpisane w atrybucie style, więc !important. */
+body.dyd-usos .dyd-sb-coursebtn {
+  background: #fff !important;
+  color: var(--ti-navy) !important;
+  border: 1px solid var(--ti-bar-border) !important;
+  border-radius: 2px !important;
+}
+body.dyd-usos .dyd-sb-coursebtn .text-body-secondary { color: #45516b !important; }
+body.dyd-usos .dyd-sb-coursename { color: var(--ti-navy) !important; font-weight: 700; }
+body.dyd-usos .dyd-sidebar .dropdown-menu { border-radius: 2px; }
+
+/* ── Obszar treści ────────────────────────────────────────────────────────── */
+/* Treść na pełną szerokość okna (decyzja użytkownika — wcześniej było 1100 px).
+   Szerokie tabele czyta się dzięki temu bez przewijania w poziomie; każda z nich
+   siedzi we własnym .table-responsive, więc nic nie wypycha strony. */
+body.dyd-usos .dyd-wrap {
+  padding: .75rem 1rem 2rem !important;
+  max-width: 100%;
+}
+body.ti-skin h1, body.ti-skin h2, body.ti-skin h3,
+body.ti-skin .h1, body.ti-skin .h2, body.ti-skin .h3,
+body.ti-skin .h4, body.ti-skin .h5, body.ti-skin .h6 {
+  font-family: Verdana, Tahoma, Arial, sans-serif;
+  color: var(--ti-navy); font-weight: 700;
+}
+body.ti-skin h1, body.ti-skin .h1 { font-size: 1.15rem; }
+body.ti-skin h2, body.ti-skin .h2 { font-size: 1.02rem; }
+body.ti-skin .h5, body.ti-skin .h6 { font-size: .92rem; }
+body.ti-skin a { color: var(--ti-link); text-decoration: underline; }
+body.ti-skin a.btn, body.ti-skin a.nav-link, body.ti-skin a.dropdown-item { text-decoration: none; }
+
+/* Karty → ramki z paskiem tytułu */
+body.dyd-usos .dyd-wrap .card,
+body.ti-skin .card {
+  border: 1px solid var(--ti-grid) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fff;
+  margin-bottom: .85rem;
+}
+body.dyd-usos .dyd-wrap .card-header,
+body.ti-skin .card-header {
+  background: var(--ti-bar) !important;
+  border-bottom: 1px solid var(--ti-bar-border) !important;
+  border-radius: 0 !important;
+  color: var(--ti-navy) !important;
+  font-weight: 700; font-size: .82rem;
+  padding: .3rem .6rem !important;
+  text-transform: none;
+}
+body.ti-skin .card-body { padding: .6rem !important; }
+body.ti-skin .card-footer { background: #fafbfc !important; border-radius: 0 !important; }
+
+/* Tabele — siatka, zebra, ciasne wiersze */
+body.dyd-usos .dyd-wrap .table,
+body.ti-skin .table {
+  font-size: .78rem !important;
+  border-collapse: collapse;
+  margin-bottom: .4rem;
+}
+body.dyd-usos .dyd-wrap .table > :not(caption) > * > *,
+body.ti-skin .table > :not(caption) > * > * {
+  border: 1px solid var(--ti-grid) !important;
+  padding: .18rem .4rem !important;
+  box-shadow: none !important;
+}
+body.dyd-usos .dyd-wrap .table thead th,
+body.ti-skin .table thead th {
+  background: var(--ti-bar) !important;
+  color: var(--ti-navy) !important;
+  font-weight: 700 !important; font-size: .74rem !important;
+  text-transform: none !important; letter-spacing: 0 !important;
+  vertical-align: bottom;
+}
+body.ti-skin .table tbody tr:nth-child(odd) > * { background-color: var(--ti-zebra); }
+body.ti-skin .table-hover tbody tr:hover > * { background-color: #e8eff7 !important; }
+
+/* Przyciski i pola — kanciaste, małe */
+body.ti-skin .btn {
+  border-radius: 2px !important;
+  font-family: Verdana, Tahoma, Arial, sans-serif;
+  font-size: .76rem !important; font-weight: 400 !important;
+  padding: .18rem .55rem !important;
+  box-shadow: none !important;
+}
+body.ti-skin .btn-primary { background: var(--ti-blue); border-color: #083a70; }
+body.ti-skin .btn-primary:hover { background: #083a70; border-color: #062c55; }
+body.ti-skin .btn-outline-secondary { color: #23405f; border-color: #8fa3ba; }
+body.ti-skin .form-control, body.ti-skin .form-select {
+  border-radius: 2px !important; font-size: .78rem; padding: .15rem .35rem;
+  border-color: #8fa3ba;
+}
+body.ti-skin .form-label { font-size: .76rem; font-weight: 700; color: #26364d; margin-bottom: .1rem; }
+body.ti-skin .form-text { font-size: .72rem; }
+body.ti-skin .badge { border-radius: 2px !important; font-weight: 700; }
+body.ti-skin .alert { border-radius: 0 !important; font-size: .8rem; padding: .45rem .6rem; }
+body.ti-skin .nav-tabs { border-bottom: 1px solid var(--ti-bar-border); }
+body.ti-skin .nav-tabs .nav-link {
+  border-radius: 0 !important; font-size: .78rem; color: var(--ti-link) !important;
+  padding: .25rem .6rem !important;
+}
+body.ti-skin .nav-tabs .nav-link.active {
+  background: var(--ti-bar) !important; color: var(--ti-navy) !important;
+  border: 1px solid var(--ti-bar-border) !important; border-bottom-color: var(--ti-bar) !important;
+  font-weight: 700;
+}
+body.ti-skin .progress { border-radius: 0 !important; height: .5rem !important; }
+body.ti-skin .list-group-item { border-radius: 0 !important; font-size: .8rem; }
+
+/* Ozdoby, które w USOS-owym widoku tylko przeszkadzają */
+body.ti-skin .shadow, body.ti-skin .shadow-sm, body.ti-skin .shadow-lg { box-shadow: none !important; }
+body.ti-skin .rounded, body.ti-skin .rounded-3, body.ti-skin .rounded-circle,
+body.ti-skin .rounded-pill { border-radius: 2px !important; }
+
+/* Helpery treści zakładek dydaktyka (protokół, plan, karta lekcji). Nazwy
+   zostają przy dawnej skórce — w panelu kursanta nic ich nie używa. */
+/* Tabela protokołu / planu — nagłówki trzymają się góry przy przewijaniu */
+body.ti-skin .usos-sticky thead th { position: sticky; top: 0; z-index: 2; }
+
+/* Siatka planu tygodniowego */
+body.ti-skin .usos-week td { vertical-align: top; min-width: 6.5rem; }
+body.ti-skin .usos-week .usos-slot {
+  display: block; border-left: 3px solid var(--ti-blue);
+  background: #eef3f9; padding: .1rem .25rem; margin-bottom: .15rem; font-size: .72rem;
+}
+
+/* Druk: bez menu i pasków */
+@media print {
+  body.ti-skin header, body.ti-skin .skin-sections, body.ti-skin .skin-subnav,
+  body.ti-skin .usos-noprint,
+  body.dyd-usos .dyd-sidebar, body.dyd-usos #dydSbToggle { display: none !important; }
+  body.dyd-usos .dyd-content,
+  body.ti-skin .skin-crumbs { margin-left: 0 !important; }
+}
+
+/* ── Panel kursanta (widok alternatywny) ─────────────────────────────────────
+   Ten sam zabieg co u dydaktyka: nawigacja idzie do pasków na górze
+   (karty30/ti/kursant/_alt_bar.php), treść zakładek zostaje bez zmian.
+   Pasek zakładek i ściana kafli „Start” nie są tu ukrywane arkuszem — index.php
+   po prostu ich nie renderuje w tym widoku, żeby w drzewie dostępności nie
+   siedziały dwie nawigacje „Sekcje panelu”. */
+
+/* Treść na pełną szerokość okna — jak u dydaktyka; kontener Bootstrapa zwężał ją
+   do 1140 px, przez co gęste tabele USOS-a niepotrzebnie się łamały. */
+body.kur-alt .container-xl { max-width: 100% !important; }
+body.kur-alt main#main { padding: .75rem 1rem 2rem !important; }
+
+/* Pasek użytkownika: w widoku klasycznym jest jasny (bg-body-tertiary), tu robi
+   się granatowy, więc napisy i przyciski z szarej palety trzeba rozjaśnić —
+   inaczej ciemny tekst siedzi na ciemnym tle. #fff/#10335c = 13,5:1,
+   rgba(255,255,255,.75) na tym samym tle nadal ponad 7:1. */
+body.kur-alt header .navbar .navbar-brand,
+body.kur-alt header .navbar .text-body-secondary { color: #fff !important; }
+body.kur-alt header .navbar .kp-brand i { color: #ffd863 !important; }
+body.kur-alt header .navbar .btn-outline-secondary {
+  color: #fff; border-color: rgba(255,255,255,.55); background: transparent;
+}
+body.kur-alt header .navbar .btn-outline-secondary:hover,
+body.kur-alt header .navbar .btn-outline-secondary:focus {
+  color: #10335c; background: #fff; border-color: #fff;
+}
+
+/* Dzwonek powiadomień i przełącznik widoku w pasku — kanciasto, bez cieni */
+body.kur-alt header .navbar .dropdown-menu { border-radius: 2px; font-size: .8rem; }
+
+/* Kafle i ozdobniki treści kursanta: płasko, spójnie z resztą skórki */
+body.kur-alt .kp-dash-card:hover { box-shadow: none !important; }
+body.kur-alt .kp-progress,
+body.kur-alt .progress { border-radius: 0 !important; }
+body.kur-alt .kp-mini-cal { font-size: .74rem; }
+body.kur-alt .kp-cal-ev { border-radius: 0; font-size: .68rem; }
+/* Kalendarz miesiąca sam maluje dni z zajęciami i dzień dzisiejszy — zebra
+   z tabel USOS-a jest bardziej szczegółowa i gasiłaby te tła. */
+body.kur-alt .kp-cal tbody tr:nth-child(odd) > * { background-color: transparent; }
+
+/* Nawigacja dolna na telefonie (widok klasyczny) nie ma tu odpowiednika —
+   paski sekcji zawijają się i działają w każdej szerokości. */
+@media (max-width: 991.98px) {
+  body.kur-alt main#main { padding-bottom: 1.5rem !important; }
+}

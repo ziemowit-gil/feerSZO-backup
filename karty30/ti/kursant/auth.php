@@ -139,26 +139,26 @@ function student_token_check(): void {
     }
 }
 
-// ── Widok panelu kursanta: klasyczny / USOS ──────────────────────────────────
-// Widok USOS jest ALTERNATYWNY: domyślnie panel wygląda jak dotąd, kursant
-// włącza skórkę sam i wybór zostaje przy koncie (nie w przeglądarce — ma
-// przeżyć wylogowanie i zmianę urządzenia). Panel kursanta ma osobną sesję i
-// konto bez wpisu w `users`, więc preferencja nie mieści się w user_prefs (tam
-// siedzi wybór panelu dydaktyka) — idzie kolumną na koncie kursanta.
+// ── Widok panelu kursanta: klasyczny / alternatywny ──────────────────────────
+// Widok alternatywny (gęsty, tabelaryczny) jest do wyboru: domyślnie panel
+// wygląda jak dotąd, kursant włącza go sam i wybór zostaje przy koncie (nie
+// w przeglądarce — ma przeżyć wylogowanie i zmianę urządzenia). Panel kursanta
+// ma osobną sesję i konto bez wpisu w `users`, więc preferencja nie mieści się
+// w user_prefs (tam siedzi wybór panelu dydaktyka) — idzie kolumną na koncie.
 
-/** Widok panelu kursanta: 'usos' albo 'klasyczny' (domyślnie klasyczny). */
+/** Widok panelu kursanta: 'alt' albo 'klasyczny' (domyślnie klasyczny). */
 function student_ui(int $accountId): string {
     if ($accountId <= 0) return 'klasyczny';
     try {
         $r = db_one("SELECT ui_pref FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
     } catch (\Throwable $e) { return 'klasyczny'; }
-    return (($r['ui_pref'] ?? '') === 'usos') ? 'usos' : 'klasyczny';
+    return (($r['ui_pref'] ?? '') === 'alt') ? 'alt' : 'klasyczny';
 }
 
 /** Zapis wyboru widoku panelu kursanta. */
 function student_ui_set(int $accountId, string $ui): void {
     if ($accountId <= 0) return;
-    $ui = ($ui === 'usos') ? 'usos' : 'klasyczny';
+    $ui = ($ui === 'alt') ? 'alt' : 'klasyczny';
     try {
         db_exec("UPDATE k30_ti_student_accounts SET ui_pref=? WHERE id=?", [$ui, $accountId]);
     } catch (\Throwable $e) { error_log('[student_ui_set] ' . $e->getMessage()); }
