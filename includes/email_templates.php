@@ -939,6 +939,8 @@ o zatwierdzenie tej rezerwacji:</p>
       <td style="padding:6px 14px">{{tokens}} żeton(y) z puli kursanta</td></tr>
 </table>
 
+{{series_info}}
+
 <p>Rezerwacja stanie się ostateczna po Państwa zgodzie. Bez decyzji wygaśnie
 automatycznie po <strong>{{hours}} godzinach</strong> od zapisu, a żetony wrócą
 w całości na konto kursanta.</p>
@@ -963,6 +965,7 @@ HTML,
                 'subject'    => ['label' => 'Temat/rodzaj zajęć',           'sample' => 'konsultacja projektowa'],
                 'tokens'     => ['label' => 'Koszt w żetonach',             'sample' => '1'],
                 'hours'      => ['label' => 'Godziny na decyzję',           'sample' => '48'],
+                'series_info'=> ['label' => 'Blok informacji o serii (HTML, pusty dla pojedynczych)', 'sample' => ''],
                 'link'       => ['label' => 'Link zatwierdzenia (token)',   'sample' => $base . '/karty30/ti/rekrutacja/potwierdz.php?t=…'],
             ],
         ],

@@ -203,7 +203,7 @@ $rk_mode_label = fn(string $m) => match ($m) {
         <td><?= $s['subject_label'] ? h($s['subject_label']) : '<span class="text-body-secondary">konsultacja</span>' ?></td>
         <td class="text-end"><?= (int)$s['seats_free'] ?>/<?= (int)$s['capacity'] ?></td>
         <td class="text-end fw-semibold"><?= (int)$s['token_cost'] ?> żet.</td>
-        <td class="text-end">
+        <td class="text-end text-nowrap">
           <form method="post" class="d-inline"
                 onsubmit="return confirm('Zapisać się na termin <?= h(rk_fmt_dt((string)$s['starts_at'])) ?> (koszt: <?= (int)$s['token_cost'] ?> żet.)?')">
             <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
@@ -213,6 +213,18 @@ $rk_mode_label = fn(string $m) => match ($m) {
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-primary" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
               <i class="bi bi-check2 me-1" aria-hidden="true"></i>Rezerwuję
+            </button>
+          </form>
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Zarezerwować ten termin CO TYDZIEŃ (ten sam dzień i godzina) na wszystkie zajęcia do końca tury? Żetony zostaną pobrane za komplet — przy braku pokrycia nic nie zostanie zarezerwowane.')">
+            <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+            <input type="hidden" name="_op" value="rk_book_series">
+            <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
+            <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
+            <button class="btn btn-sm btn-outline-primary"
+                    title="Rezerwacja cykliczna: ten dzień tygodnia i godzina na cały okres tury">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Rezerwuj co tydzień</span>
             </button>
           </form>
         </td>

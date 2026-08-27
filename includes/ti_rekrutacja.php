@@ -131,6 +131,13 @@ function ti_rk_migrate(): void {
         try { $pdo->exec("ALTER TABLE k30_rk_access_tokens ADD COLUMN booking_id INTEGER"); } catch (\Throwable) {}
     }
 
+    // Rezerwacja cykliczna (stały dzień+godzina na semestr): wspólny klucz serii
+    $cols = array_column(db_all("PRAGMA table_info(k30_rk_bookings)"), 'name');
+    if ($cols && !in_array('series_key', $cols, true)) {
+        try { $pdo->exec("ALTER TABLE k30_rk_bookings ADD COLUMN series_key TEXT NOT NULL DEFAULT ''"); } catch (\Throwable) {}
+        try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rk_book_series ON k30_rk_bookings(series_key)"); } catch (\Throwable) {}
+    }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_notifications (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         round_id   INTEGER NOT NULL REFERENCES k30_rk_rounds(id) ON DELETE CASCADE,
@@ -507,6 +514,45 @@ function rk_round_save(array $d, ?int $id = null): int {
     return (int)db()->lastInsertId();
 }
 
+/**
+ * Klonuje turę: wszystkie ustawienia (zasady, pula, auto-generacja, odbiorcy)
+ * oraz przypisania prowadzących do grup. Kopia startuje jako ROBOCZA, bez dat
+ * (opens/closes/announce do ustawienia) i bez znacznika wysłanej zapowiedzi.
+ * Terminy (sloty) NIE są kopiowane — generuje je kierownik albo automat.
+ */
+function rk_round_clone(int $round_id, ?int $by = null): int {
+    $r = rk_round_get($round_id);
+    if (!$r) throw new RkException('ROUND_NOT_FOUND');
+
+    return rk_tx(function () use ($r, $round_id, $by) {
+        $new_id = rk_round_save([
+            'name'              => mb_substr((string)$r['name'] . ' (kopia)', 0, 160),
+            'audience_kind'     => (string)($r['audience_kind'] ?? 'continuing'),
+            'period_id'         => (int)($r['period_id'] ?? 0) ?: null,
+            'pool_id'           => (int)($r['pool_id'] ?? 0) ?: null,
+            'opens_at'          => '',            // daty ustawia kierownik w kopii
+            'closes_at'         => '',
+            'announce_at'       => '',
+            'max_per_client'    => (int)$r['max_per_client'],
+            'refund_hours'      => (int)$r['refund_hours'],
+            'late_refund_pct'   => (int)$r['late_refund_pct'],
+            'audience_json'     => (string)$r['audience_json'],
+            'rules_html'        => (string)$r['rules_html'],
+            'auto_generate'     => (int)($r['auto_generate'] ?? 0),
+            'auto_horizon_days' => (int)($r['auto_horizon_days'] ?? 10),
+            'auto_horizon_unit' => (string)($r['auto_horizon_unit'] ?? 'months'),
+            'auto_duration_min' => (int)($r['auto_duration_min'] ?? 60),
+            'auto_capacity'     => (int)($r['auto_capacity'] ?? 1),
+            'auto_mode'         => (string)($r['auto_mode'] ?? 'online'),
+            'created_by'        => $by,
+        ]);
+        db_exec("INSERT INTO k30_rk_round_course_instructors (round_id, course_id, instructor_id)
+                 SELECT ?, course_id, instructor_id FROM k30_rk_round_course_instructors WHERE round_id=?",
+                [$new_id, $round_id]);
+        return $new_id;
+    });
+}
+
 /** Czy kursant „kontynuuje” (ma aktywny zapis do jakiejkolwiek grupy). */
 function rk_client_is_continuing(int $client_id): bool {
     return (bool)db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND status='active' LIMIT 1",
@@ -675,8 +721,9 @@ function rk_slots_of_instructor(int $instructor_id, int $limit = 200): array {
    warunkowy + kontrola rowCount. Wyjątek cofa całość przez rk_tx().
    ══════════════════════════════════════════════════════════════════════════ */
 
-function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $token_id = null): array {
-    return rk_tx(function () use ($slot_id, $client_id, $source, $token_id) {
+function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $token_id = null,
+                 string $series_key = ''): array {
+    return rk_tx(function () use ($slot_id, $client_id, $source, $token_id, $series_key) {
 
         /* 1. Slot + tura — migawka wewnątrz transakcji */
         $slot = db_one(
@@ -767,10 +814,10 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         try {
             db_exec(
                 "INSERT INTO k30_rk_bookings
-                    (slot_id, client_id, wallet_id, tokens_spent, status, source, access_token_id)
-                 VALUES (?,?,?,?, ?, ?, ?)",
+                    (slot_id, client_id, wallet_id, tokens_spent, status, source, access_token_id, series_key)
+                 VALUES (?,?,?,?, ?, ?, ?, ?)",
                 [$slot_id, $client_id, $wallet['id'], $cost,
-                 $pending ? 'pending_parent' : 'confirmed', $source, $token_id]);
+                 $pending ? 'pending_parent' : 'confirmed', $source, $token_id, $series_key]);
         } catch (\PDOException) {
             throw new RkException('ALREADY_BOOKED');   // rollback cofa kroki 4 i 5
         }
@@ -805,6 +852,91 @@ function rk_guardian_for_client(int $client_id): array {
         'email'    => trim((string)($a['guardian_email'] ?? '')),
         'phone'    => trim((string)($a['guardian_phone'] ?? '')),
     ];
+}
+
+/**
+ * Rezerwacja cykliczna: stały dzień tygodnia + godzina u prowadzącego na cały
+ * okres tury (semestr). Slot wzorcowy wyznacza wzorzec; rezerwowane są WSZYSTKIE
+ * otwarte, przyszłe, wolne sloty tego prowadzącego w turze o tym samym dniu
+ * tygodnia i godzinie startu (od slotu wzorcowego w górę).
+ *
+ * Wszystko-albo-nic: brak żetonów, limit tury albo przegrany wyścig o miejsce
+ * wycofują CAŁĄ serię (kursant nie zostaje z dziurawym planem). Sloty, na które
+ * kursant jest już zapisany, są pomijane przed transakcją.
+ *
+ * Zwraca ['booked','tokens_spent','status','series_key','skipped_own'].
+ */
+function rk_book_series(int $pattern_slot_id, int $client_id, string $source = 'panel',
+                        ?int $token_id = null): array {
+    $p = db_one("SELECT * FROM k30_rk_slots WHERE id=?", [$pattern_slot_id]);
+    if (!$p) throw new RkException('SLOT_NOT_FOUND');
+
+    // %w w SQLite: 0=niedziela … 6=sobota — zgodnie z PHP date('w') i K30_TI_DAYS
+    $slots = db_all(
+        "SELECT id FROM k30_rk_slots
+          WHERE round_id = ? AND instructor_id = ? AND status = 'open'
+            AND starts_at >= ? AND starts_at > datetime('now')
+            AND strftime('%w', starts_at) = strftime('%w', ?)
+            AND time(starts_at) = time(?)
+          ORDER BY starts_at",
+        [(int)$p['round_id'], (int)$p['instructor_id'],
+         (string)$p['starts_at'], (string)$p['starts_at'], (string)$p['starts_at']]);
+    if (!$slots) throw new RkException('SERIES_EMPTY');
+
+    // Sloty z już posiadaną żywą rezerwacją pomijamy (dokupienie reszty serii)
+    $own = array_column(db_all(
+        "SELECT slot_id FROM k30_rk_bookings
+          WHERE client_id = ? AND status IN ('confirmed','pending_parent','attended','no_show')
+            AND slot_id IN (" . implode(',', array_fill(0, count($slots), '?')) . ")",
+        [$client_id, ...array_map(fn($s) => (int)$s['id'], $slots)]), 'slot_id');
+    $todo = array_values(array_filter($slots, fn($s) => !in_array((int)$s['id'], array_map('intval', $own), true)));
+    if (!$todo) throw new RkException('SERIES_ALL_BOOKED');
+
+    $series_key = 'sr_' . bin2hex(random_bytes(8));
+
+    return rk_tx(function () use ($todo, $client_id, $source, $token_id, $series_key, $own) {
+        $booked = 0; $tokens = 0; $status = 'confirmed';
+        foreach ($todo as $s) {
+            // Każdy wyjątek (SLOT_FULL z wyścigu, INSUFFICIENT_TOKENS, limit tury…)
+            // wycofuje całą serię — rk_tx robi rollback na rethrow.
+            $r = rk_book((int)$s['id'], $client_id, $source, $token_id, $series_key);
+            $booked++;
+            $tokens += (int)$r['tokens_spent'];
+            if (($r['status'] ?? '') === 'pending_parent') $status = 'pending_parent';
+        }
+        return ['booked' => $booked, 'tokens_spent' => $tokens, 'status' => $status,
+                'series_key' => $series_key, 'skipped_own' => count($own)];
+    });
+}
+
+/** Żywe rezerwacje serii (do zbiorczego zatwierdzenia rodzica i podsumowań). */
+function rk_series_bookings(string $series_key, string $status = ''): array {
+    if ($series_key === '') return [];
+    $where  = "b.series_key = ?";
+    $params = [$series_key];
+    if ($status !== '') { $where .= " AND b.status = ?"; $params[] = $status; }
+    return db_all(
+        "SELECT b.*, s.starts_at, s.ends_at FROM k30_rk_bookings b
+           JOIN k30_rk_slots s ON s.id = b.slot_id
+          WHERE $where ORDER BY s.starts_at", $params);
+}
+
+/** Zatwierdzenie przez rodzica CAŁEJ serii oczekujących rezerwacji. */
+function rk_parent_confirm_series(string $series_key): int {
+    $n = 0;
+    foreach (rk_series_bookings($series_key, 'pending_parent') as $b) {
+        try { rk_parent_confirm((int)$b['id']); $n++; } catch (RkException) {}
+    }
+    return $n;
+}
+
+/** Odrzucenie przez rodzica CAŁEJ serii — pełne zwroty. */
+function rk_parent_reject_series(string $series_key, string $reason = ''): int {
+    $n = 0;
+    foreach (rk_series_bookings($series_key, 'pending_parent') as $b) {
+        try { rk_parent_reject((int)$b['id'], $reason ?: 'odrzucona seria'); $n++; } catch (RkException) {}
+    }
+    return $n;
 }
 
 /** Portfel „techniczny” dla slotów darmowych (token_cost=0) — żeby FK trzymał. */
@@ -1320,23 +1452,42 @@ function rk_parent_request_send(int $booking_id): bool {
     $g = rk_guardian_for_client((int)$b['client_id']);
     if ($g['email'] === '') return false;
 
-    $has = db_one("SELECT 1 FROM k30_rk_access_tokens
-                    WHERE booking_id=? AND scope='parent_confirm'
-                      AND revoked_at IS NULL AND expires_at > datetime('now')", [$booking_id]);
+    // Seria: jedna prośba na całą serię (token pierwszej rezerwacji; strona
+    // potwierdzenia zatwierdza/odrzuca komplet). Idempotencja obejmuje serię.
+    $series     = (string)($b['series_key'] ?? '');
+    $series_cnt = $series !== '' ? count(rk_series_bookings($series, 'pending_parent')) : 0;
+
+    $has = $series !== ''
+        ? db_one("SELECT 1 FROM k30_rk_access_tokens t
+                   JOIN k30_rk_bookings bb ON bb.id = t.booking_id
+                  WHERE bb.series_key=? AND t.scope='parent_confirm'
+                    AND t.revoked_at IS NULL AND t.expires_at > datetime('now')", [$series])
+        : db_one("SELECT 1 FROM k30_rk_access_tokens
+                   WHERE booking_id=? AND scope='parent_confirm'
+                     AND revoked_at IS NULL AND expires_at > datetime('now')", [$booking_id]);
     if ($has) return true;   // prośba już wysłana
 
     $tok  = rk_parent_token_issue($booking_id, (int)$b['client_id'],
                                   max(2, (int)ceil(rk_parent_confirm_hours() / 24) + 1));
     $link = rtrim(APP_URL, '/') . '/karty30/ti/rekrutacja/potwierdz.php?t=' . $tok;
 
+    $series_tokens = $series !== ''
+        ? array_sum(array_map(fn($x) => (int)$x['tokens_spent'], rk_series_bookings($series, 'pending_parent')))
+        : (int)$b['tokens_spent'];
+
     $tpl = email_tpl_render('rk_parent_confirm', [
         'guardian'   => $g['name'] !== '' ? $g['name'] : 'Szanowni Państwo',
         'student'    => (string)$b['client_name'],
-        'when'       => rk_fmt_dt((string)$b['starts_at']) . '–' . substr((string)$b['ends_at'], 11, 5),
+        'when'       => rk_fmt_dt((string)$b['starts_at']) . '–' . substr((string)$b['ends_at'], 11, 5)
+                      . ($series_cnt > 1 ? ' (pierwsze zajęcia z serii)' : ''),
         'instructor' => (string)$b['instructor_name'],
         'subject'    => (string)($b['subject_label'] ?: 'konsultacja'),
-        'tokens'     => (string)(int)$b['tokens_spent'],
+        'tokens'     => (string)$series_tokens,
         'hours'      => (string)rk_parent_confirm_hours(),
+        'series_info'=> $series_cnt > 1
+            ? '<p><strong>Rezerwacja cykliczna:</strong> ten sam dzień tygodnia i godzina, łącznie '
+              . $series_cnt . ' terminów do końca tury. Decyzja obejmuje całą serię.</p>'
+            : '',
         'link'       => $link,
         'org'        => defined('ORG_NAME') ? ORG_NAME : '',
     ]);
@@ -1652,6 +1803,8 @@ function rk_error_message(string $code): string {
         'SLOT_ON_LEAVE'       => 'Prowadzący ma urlop w tym dniu — termin nie może powstać.',
         'INSTRUCTOR_NOT_ALLOWED' => 'Ten prowadzący nie jest dostępny dla Twojej grupy w tej turze.',
         'SLOT_HAS_BOOKINGS'   => 'Ta godzina ma rezerwacje (także historyczne) — można ją tylko odwołać, nie usunąć.',
+        'SERIES_EMPTY'        => 'Brak wolnych terminów pasujących do tego dnia tygodnia i godziny.',
+        'SERIES_ALL_BOOKED'   => 'Masz już rezerwacje na wszystkie terminy tej serii.',
         'ROUND_FOR_NEW'          => 'Ta tura jest przeznaczona dla nowych osób — jako kursant kontynuujący zapisz się w turze dla kontynuujących.',
         'ROUND_FOR_CONTINUING'   => 'Ta tura jest przeznaczona dla kursantów kontynuujących naukę.',
         'GUARDIAN_MISSING'    => 'Rezerwacja osoby małoletniej wymaga zatwierdzenia rodzica, a na koncie brak adresu e-mail opiekuna — skontaktuj się z sekretariatem.',

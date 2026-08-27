@@ -70,16 +70,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op   = $_POST['_op'] ?? '';
     $back = 't.php';
 
-    if ($op === 'rk_book') {
+    if ($op === 'rk_book' || $op === 'rk_book_series') {
         $back = 't.php?rk_round=' . (int)($_POST['rk_round'] ?? 0)
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
-            $r = rk_book((int)($_POST['slot_id'] ?? 0), $client_id, 'token', $ctx['token_id'] ?: null);
+            $r = $op === 'rk_book_series'
+                ? rk_book_series((int)($_POST['slot_id'] ?? 0), $client_id, 'token', $ctx['token_id'] ?: null)
+                : rk_book((int)($_POST['slot_id'] ?? 0), $client_id, 'token', $ctx['token_id'] ?: null);
             if (($r['status'] ?? '') === 'pending_parent') {
                 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
-                rk_parent_request_send((int)$r['booking_id']);
-                $_SESSION['rk_flash'] = ['ok', 'Miejsce wstępnie zarezerwowane. Rodzic/opiekun dostał e-mail '
-                    . 'z linkiem do zatwierdzenia (i SMS) — rezerwacja stanie się ostateczna po jego zgodzie.'];
+                $first_id = (int)($r['booking_id']
+                    ?? (rk_series_bookings((string)($r['series_key'] ?? ''), 'pending_parent')[0]['id'] ?? 0));
+                if ($first_id) rk_parent_request_send($first_id);
+                $_SESSION['rk_flash'] = ['ok', (isset($r['booked'])
+                        ? 'Seria ' . (int)$r['booked'] . ' terminów wstępnie zarezerwowana. '
+                        : 'Miejsce wstępnie zarezerwowane. ')
+                    . 'Rodzic/opiekun dostał e-mail z linkiem do zatwierdzenia (i SMS) '
+                    . '— rezerwacja stanie się ostateczna po jego zgodzie.'];
+            } elseif (isset($r['booked'])) {
+                $_SESSION['rk_flash'] = ['ok', 'Zarezerwowano serię: ' . (int)$r['booked']
+                    . ' terminów (ten sam dzień i godzina do końca tury). Pobrane żetony: '
+                    . (int)$r['tokens_spent'] . '.'];
             } else {
                 $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
             }
@@ -288,7 +299,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
         <td><?= $s['subject_label'] ? h($s['subject_label']) : '<span class="text-body-secondary">konsultacja</span>' ?></td>
         <td class="text-end"><?= (int)$s['seats_free'] ?>/<?= (int)$s['capacity'] ?></td>
         <td class="text-end fw-semibold"><?= (int)$s['token_cost'] ?> żet.</td>
-        <td class="text-end">
+        <td class="text-end text-nowrap">
           <form method="post" class="d-inline"
                 onsubmit="return confirm('Zapisać się na termin <?= h(rk_fmt_dt((string)$s['starts_at'])) ?> (koszt: <?= (int)$s['token_cost'] ?> żet.)?')">
             <input type="hidden" name="_token" value="<?= h(rk_session_csrf()) ?>">
@@ -298,6 +309,18 @@ function rk_t_page(string $org, string $title, string $body_html): void {
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-rk" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
               <i class="bi bi-check2 me-1" aria-hidden="true"></i>Rezerwuję
+            </button>
+          </form>
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Zarezerwować ten termin CO TYDZIEŃ (ten sam dzień i godzina) na wszystkie zajęcia do końca tury? Żetony zostaną pobrane za komplet — przy braku pokrycia nic nie zostanie zarezerwowane.')">
+            <input type="hidden" name="_token" value="<?= h(rk_session_csrf()) ?>">
+            <input type="hidden" name="_op" value="rk_book_series">
+            <input type="hidden" name="slot_id" value="<?= (int)$s['id'] ?>">
+            <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
+            <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
+            <button class="btn btn-sm btn-outline-secondary"
+                    title="Rezerwacja cykliczna: ten dzień tygodnia i godzina na cały okres tury">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Rezerwuj co tydzień</span>
             </button>
           </form>
         </td>

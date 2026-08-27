@@ -129,6 +129,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: rekrutacja.php?tab=tury'); exit;
     }
 
+    if ($is_staff && $op === 'round_clone') {
+        try {
+            $new_id = rk_round_clone((int)($_POST['round_id'] ?? 0), $uid);
+            flash_set('success', 'Tura sklonowana (razem z przypisaniami prowadzących do grup). '
+                . 'Kopia jest robocza — ustaw daty zapisów i otwórz ją.');
+            header('Location: rekrutacja.php?tab=tury&edit_round=' . $new_id); exit;
+        } catch (RkException $e) {
+            flash_set('danger', rk_error_message($e->getMessage()));
+        }
+        header('Location: rekrutacja.php?tab=tury'); exit;
+    }
+
     if ($is_staff && $op === 'round_status') {
         $rid = (int)($_POST['round_id'] ?? 0);
         $to  = $_POST['to'] ?? '';
@@ -814,6 +826,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-secondary" href="rekrutacja_print.php?what=siatka&round=<?= (int)$r['id'] ?>"
                  target="_blank" rel="noopener" title="Drukuj siatkę godzin"><i class="bi bi-printer"></i></a>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Sklonować turę „<?= h($r['name']) ?>” razem z przypisaniami prowadzących do grup? Kopia będzie robocza, bez dat i bez terminów.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="round_clone">
+                <input type="hidden" name="round_id" value="<?= (int)$r['id'] ?>">
+                <button class="btn btn-sm btn-outline-secondary" title="Klonuj turę (ustawienia + grupy)"><i class="bi bi-copy"></i></button>
+              </form>
               <a class="btn btn-sm btn-outline-secondary" href="rekrutacja.php?tab=tury&edit_round=<?= (int)$r['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></a>
               <?php if (in_array($r['status'], ['draft','closed'], true)): ?>
               <form method="post" class="d-inline">

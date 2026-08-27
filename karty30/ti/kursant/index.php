@@ -141,18 +141,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje'); exit;
     }
 
-    // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie)
-    if ($op === 'rk_book') {
+    // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie).
+    // rk_book_series = rezerwacja cykliczna: ten dzień tygodnia i godzina
+    // u prowadzącego na wszystkie terminy do końca tury (wszystko-albo-nic).
+    if ($op === 'rk_book' || $op === 'rk_book_series') {
         $back = 'index.php?tab=zapisy'
               . '&rk_round=' . (int)($_POST['rk_round'] ?? 0)
               . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
         try {
-            $r = rk_book((int)($_POST['slot_id'] ?? 0), (int)$student['client_id'], 'panel');
+            $r = $op === 'rk_book_series'
+                ? rk_book_series((int)($_POST['slot_id'] ?? 0), (int)$student['client_id'], 'panel')
+                : rk_book((int)($_POST['slot_id'] ?? 0), (int)$student['client_id'], 'panel');
             if (($r['status'] ?? '') === 'pending_parent') {
-                // Mail + SMS do rodzica poza transakcją rezerwacji
-                rk_parent_request_send((int)$r['booking_id']);
-                $_SESSION['rk_flash'] = ['ok', 'Miejsce wstępnie zarezerwowane. Wysłaliśmy rodzicowi/opiekunowi '
-                    . 'e-mail z linkiem do zatwierdzenia (i SMS) — rezerwacja stanie się ostateczna po jego zgodzie.'];
+                // Mail + SMS do rodzica poza transakcją rezerwacji.
+                // Dla serii: jedna prośba obejmująca komplet terminów.
+                $first_id = (int)($r['booking_id']
+                    ?? (rk_series_bookings((string)($r['series_key'] ?? ''), 'pending_parent')[0]['id'] ?? 0));
+                if ($first_id) rk_parent_request_send($first_id);
+                $_SESSION['rk_flash'] = ['ok', (isset($r['booked'])
+                        ? 'Seria ' . (int)$r['booked'] . ' terminów wstępnie zarezerwowana. '
+                        : 'Miejsce wstępnie zarezerwowane. ')
+                    . 'Wysłaliśmy rodzicowi/opiekunowi e-mail z linkiem do zatwierdzenia (i SMS) '
+                    . '— rezerwacja stanie się ostateczna po jego zgodzie.'];
+            } elseif (isset($r['booked'])) {
+                $_SESSION['rk_flash'] = ['ok', 'Zarezerwowano serię: ' . (int)$r['booked']
+                    . ' terminów (ten sam dzień i godzina do końca tury). Pobrane żetony: '
+                    . (int)$r['tokens_spent'] . '.'];
             } else {
                 $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
             }

@@ -49,15 +49,23 @@ if (!$ctx) {
 $b       = $ctx['booking'];
 $decided = null;
 
+// Seria (stały dzień+godzina na semestr): decyzja rodzica obejmuje komplet
+$series_key = (string)($b['series_key'] ?? '');
+$series     = $series_key !== '' ? rk_series_bookings($series_key, 'pending_parent') : [];
+$series_cnt = count($series);
+$series_sum = array_sum(array_map(fn($x) => (int)$x['tokens_spent'], $series));
+
 /* ── Decyzja rodzica ───────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $b['status'] === 'pending_parent') {
     $op = $_POST['_op'] ?? '';
     try {
         if ($op === 'approve') {
-            rk_parent_confirm((int)$b['id']);
+            $series_cnt > 1 ? rk_parent_confirm_series($series_key) : rk_parent_confirm((int)$b['id']);
             $decided = 'approved';
         } elseif ($op === 'reject') {
-            rk_parent_reject((int)$b['id'], trim($_POST['reason'] ?? ''));
+            $series_cnt > 1
+                ? rk_parent_reject_series($series_key, trim($_POST['reason'] ?? ''))
+                : rk_parent_reject((int)$b['id'], trim($_POST['reason'] ?? ''));
             $decided = 'rejected';
         }
     } catch (RkException $e) {
@@ -158,11 +166,22 @@ function rk_p_page(string $org, string $title, string $body_html): void {
       <dt class="col-sm-4 text-body-secondary">Forma</dt>
       <dd class="col-sm-8"><?= h($mode_label((string)$b['mode'])) ?><?= $b['subject_label'] ? ' · ' . h($b['subject_label']) : '' ?></dd>
       <dt class="col-sm-4 text-body-secondary">Koszt</dt>
-      <dd class="col-sm-8"><?= (int)$b['tokens_spent'] ?> żet.
-        <?php $pln = rk_token_pln(); if ($pln > 0): ?>
-        <span class="text-body-secondary">(≈ <?= number_format((int)$b['tokens_spent'] * $pln, 2, ',', ' ') ?> zł)</span>
+      <dd class="col-sm-8"><?= $series_cnt > 1 ? $series_sum : (int)$b['tokens_spent'] ?> żet.
+        <?php $pln = rk_token_pln(); $koszt = $series_cnt > 1 ? $series_sum : (int)$b['tokens_spent']; if ($pln > 0): ?>
+        <span class="text-body-secondary">(≈ <?= number_format($koszt * $pln, 2, ',', ' ') ?> zł)</span>
         <?php endif; ?></dd>
     </dl>
+
+    <?php if ($series_cnt > 1): ?>
+    <div class="alert alert-info py-2 mt-3 mb-0" role="alert">
+      <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+      <strong>Rezerwacja cykliczna:</strong> ten sam dzień tygodnia i godzina,
+      łącznie <?= $series_cnt ?> terminów do końca tury
+      (<?= h(rk_fmt_dt((string)$series[0]['starts_at'])) ?> –
+       <?= h(rk_fmt_dt((string)$series[$series_cnt-1]['starts_at'])) ?>).
+      Decyzja poniżej obejmuje całą serię.
+    </div>
+    <?php endif; ?>
 
     <?php if (!$decided && $b['status'] === 'pending_parent'): ?>
     <hr>
@@ -176,7 +195,7 @@ function rk_p_page(string $org, string $title, string $body_html): void {
         <input type="hidden" name="t" value="<?= h($raw) ?>">
         <input type="hidden" name="_op" value="approve">
         <button class="btn text-white" style="background:#2E6A4F">
-          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zatwierdzam rezerwację
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zatwierdzam <?= $series_cnt > 1 ? 'całą serię (' . $series_cnt . ')' : 'rezerwację' ?>
         </button>
       </form>
       <form method="post" class="d-inline"
