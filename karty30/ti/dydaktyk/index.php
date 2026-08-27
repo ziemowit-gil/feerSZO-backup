@@ -1007,8 +1007,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'program')); exit;
     }
     if ($op === 'curr_import') {
+        // Prowadzący może wgrać sylabus PLIKIEM (CSV) albo wkleić treść — plik ma
+        // pierwszeństwo, bo to jego jawny wybór.
         $raw = (string)($_POST['csv'] ?? '');
-        if (trim($raw) === '') { flash_set('danger', 'Wklej dane CSV do zaimportowania.'); header('Location: ' . dyd_back($course_id, 'program')); exit; }
+        if (!empty($_FILES['csv_file']['tmp_name']) && is_uploaded_file($_FILES['csv_file']['tmp_name'])) {
+            if ((int)($_FILES['csv_file']['size'] ?? 0) > 2 * 1024 * 1024) {
+                flash_set('danger', 'Plik jest za duży — sylabus w CSV nie powinien przekraczać 2 MB.');
+                header('Location: ' . dyd_back($course_id, 'program')); exit;
+            }
+            $raw = (string)file_get_contents($_FILES['csv_file']['tmp_name']);
+            // Arkusze zapisują CSV w Windows-1250 albo z BOM — normalizujemy do UTF-8
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
+            if (!mb_check_encoding($raw, 'UTF-8')) {
+                $conv = @iconv('WINDOWS-1250', 'UTF-8//TRANSLIT', $raw);
+                if ($conv !== false) $raw = $conv;
+            }
+        }
+        if (trim($raw) === '') { flash_set('danger', 'Wgraj plik CSV albo wklej dane do zaimportowania.'); header('Location: ' . dyd_back($course_id, 'program')); exit; }
         $res = k30_ti_curriculum_import_csv($course_id, $raw, $uid);
         $msg = 'Zaimportowano pozycji: ' . (int)($res['added'] ?? 0) . '.';
         if (!empty($res['errors'])) $msg .= ' Błędów: ' . count($res['errors']) . '.';

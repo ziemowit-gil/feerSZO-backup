@@ -1,7 +1,7 @@
-<?php /* ═══════════════════════ TAB: SYLABUS (dawniej „Program zajęć") ═══════════════════════ */ ?>
+<?php /* ═══════════════════════ TAB: SYLABUS (dawniej „Program zajęć”) ═══════════════════════ */ ?>
 <?php
   /**
-   * Zakładka nazywa się teraz „Sylabus": to realizacja sylabusa przedmiotu
+   * Zakładka nazywa się teraz „Sylabus”: to realizacja sylabusa przedmiotu
    * w tym kursie. Wzorzec przedmiotu prowadzi administracja
    * ([[project_ti_syllabus]]) — tutaj widać, czy kurs go ma, ile jego punktów
    * jest już w planie, i można je dociągnąć jednym przyciskiem.
@@ -59,13 +59,14 @@
   <div class="card-body">
     <p class="small mb-2">
       Ta zakładka to <strong>sylabus tego kursu</strong>: lista tematów, które realizujesz z grupą.
-      Wcześniej nazywała się <strong>„Program zajęć"</strong> — to ta sama rzecz i te same dane,
+      Wcześniej nazywała się <strong>„Program zajęć”</strong> — to ta sama rzecz i te same dane,
       zmieniła się tylko nazwa.
     </p>
     <?php if (!$syl_course): ?>
     <p class="small text-body-secondary mb-0">
       Przedmiot tego kursu nie ma jeszcze sylabusa wzorcowego prowadzonego przez administrację —
-      tematy prowadzisz tu samodzielnie.
+      tematy prowadzisz tu samodzielnie. Możesz je dodawać pojedynczo albo
+      <strong>wgrać cały sylabus plikiem CSV</strong> (przycisk niżej).
     </p>
     <?php else: ?>
     <div class="d-flex align-items-center gap-2 flex-wrap small">
@@ -94,7 +95,7 @@
     <span class="badge bg-secondary"><?= count($curr_items) ?> pozycji</span>
     <?php if ($curr_total_min > 0): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= round($curr_total_min/60,1) ?> h łącznie</span><?php endif; ?>
     <div class="ms-auto d-flex gap-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#currImport"><i class="bi bi-upload me-1"></i>Import CSV</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#currImport"><i class="bi bi-upload me-1"></i>Wgraj sylabus (CSV)</button>
       <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#currAdd"><i class="bi bi-plus-lg me-1"></i>Dodaj pozycję</button>
     </div>
   </div>
@@ -134,17 +135,24 @@
 </div>
 <?php endforeach; ?>
 <div class="modal fade" id="currImport" tabindex="-1" aria-labelledby="currImport_t" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="curr_import">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
     <div class="modal-header">
-      <h5 class="modal-title" id="currImport_t"><i class="bi bi-upload me-2"></i>Import planu z CSV</h5>
+      <h5 class="modal-title" id="currImport_t"><i class="bi bi-upload me-2"></i>Wgraj sylabus (CSV)</h5>
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
     <div class="modal-body">
       <p class="text-body-secondary small">Kolumny (separator <code>;</code> lub <code>,</code>): <strong>dział; temat; opis; czas_min</strong>. Pierwszy wiersz może być nagłówkiem. Wymagany jest tylko temat.</p>
-      <textarea class="form-control font-monospace" name="csv" rows="8" required placeholder="Podstawy;Uruchamianie komputera;Włączanie i logowanie;45&#10;Podstawy;Pulpit i okna;;30"></textarea>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="curr_csv_file">Plik CSV z sylabusem</label>
+        <input type="file" class="form-control" id="curr_csv_file" name="csv_file" accept=".csv,text/csv,text/plain">
+        <div class="form-text">Do 2 MB. Pliki z arkusza (Windows-1250, BOM) są przeliczane na UTF-8 automatycznie.</div>
+      </div>
+      <label class="form-label" for="curr_csv_text">… albo wklej treść</label>
+      <textarea class="form-control font-monospace" id="curr_csv_text" name="csv" rows="6" placeholder="Podstawy;Uruchamianie komputera;Włączanie i logowanie;45&#10;Podstawy;Pulpit i okna;;30"></textarea>
+      <div class="form-text">Wgrany plik ma pierwszeństwo nad wklejoną treścią. Import <strong>dokłada</strong> pozycje — nie usuwa istniejących.</div>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
