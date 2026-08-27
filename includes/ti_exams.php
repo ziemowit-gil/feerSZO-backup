@@ -177,7 +177,7 @@ function ti_exam_engine_post(string $path, array $payload, ?string &$error = nul
     $url  = ti_exam_engine_url() . $path;
     $resp = @file_get_contents($url, false, $ctx);
     if ($resp === false) {
-        $error = 'Silnik egzaminów jest nieosiągalny (' . $url . ').';
+        $error = 'Silnik egzaminów jest nieosiągalny (' . $url . '). ' . ti_exam_engine_hint();
         return null;
     }
     $status = 0;
@@ -193,12 +193,31 @@ function ti_exam_engine_post(string $path, array $payload, ?string &$error = nul
     return $data;
 }
 
+/**
+ * Podpowiedź, co zrobić, gdy silnik nie odpowiada. Sam komunikat „nieosiągalny”
+ * jest ślepą uliczką — najczęstsza przyczyna to niewystartowany albo
+ * nieprzebudowany kontener, a adres z nazwą usługi Dockera rozwiązuje się
+ * WYŁĄCZNIE wewnątrz sieci Dockera (poza nią trzeba wskazać własny URL).
+ */
+function ti_exam_engine_hint(): string {
+    $url  = ti_exam_engine_url();
+    $host = (string)(parse_url($url, PHP_URL_HOST) ?? '');
+    if ($host === 'exam-engine') {
+        return 'Adres wskazuje usługę Dockera, więc silnik musi działać w tej samej sieci. '
+             . 'Uruchom lub przebuduj kontener: docker/scripts/rebuild.sh '
+             . '(albo docker compose -f docker/docker-compose.yml up -d --build exam-engine), '
+             . 'a potem sprawdź logi: docker compose -f docker/docker-compose.yml logs -f exam-engine.';
+    }
+    return 'Sprawdź, czy usługa działa pod ' . $url . ' i czy zmienna EXAM_ENGINE_URL wskazuje właściwy adres '
+         . '(przy uruchomieniu bez Dockera zwykle http://127.0.0.1:8090).';
+}
+
 /** Stan silnika — używane w panelu prowadzącego i przy diagnostyce. */
 function ti_exam_engine_health(): array {
     $url = ti_exam_engine_url() . '/health';
     $ctx = stream_context_create(['http' => ['method' => 'GET', 'timeout' => 5, 'ignore_errors' => true]]);
     $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false) return ['ok' => false, 'error' => 'Silnik nie odpowiada pod ' . $url];
+    if ($raw === false) return ['ok' => false, 'error' => 'Silnik nie odpowiada pod ' . $url . '. ' . ti_exam_engine_hint()];
     $data = json_decode($raw, true);
     if (!is_array($data)) return ['ok' => false, 'error' => 'Nieczytelna odpowiedź silnika.'];
     $data['ok'] = (($data['status'] ?? '') === 'ok');

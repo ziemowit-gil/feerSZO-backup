@@ -40,7 +40,8 @@ if (!$_kurs_items) {   // brak wybranego kursu — same wejścia, bez liczników
     foreach ([
         'lekcje' => 'Zajęcia', 'uczestnicy' => 'Uczestnicy', 'plan' => 'Plan zajęć',
         'protokol' => 'Protokoły', 'zadania' => 'Zadania', 'materialy' => 'Materiały',
-        'nieobecnosci' => 'Nieobecności', 'oceny' => 'Oceny', 'program' => 'Sylabus', 'testy' => 'Testy',
+        'nieobecnosci' => 'Nieobecności', 'oceny' => 'Oceny', 'program' => 'Sylabus',
+        'egzaminy' => 'Testy i egzaminy', 'testy' => 'Testy (starsze)',
     ] as $_k => $_lbl) {
         $_kurs_items[] = $_it($_k, $_lbl, $_g($_k));
     }

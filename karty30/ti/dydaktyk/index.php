@@ -131,6 +131,13 @@ $tab = $_GET['tab'] ?? 'pulpit';
 // „Program zajęć" nazywa się teraz „Sylabus" — adres ?tab=sylabus prowadzi tam,
 // a stare linki i zakładki na ?tab=program nadal działają.
 if ($tab === 'sylabus') $tab = 'program';
+// Testy i egzaminy to jeden moduł: Equi Exams. Stare wejście „Testy" przekierowuje
+// na egzaminy, żeby nie było dwóch miejsc o tym samym zadaniu — archiwum starszych
+// quizów zostaje dostępne pod ?tab=testy&legacy=1 (link w zakładce Egzaminy).
+if ($tab === 'testy' && empty($_GET['legacy'])) {
+    header('Location: index.php?' . ($cur_course ? 'course=' . (int)$cur_course . '&' : '') . 'tab=egzaminy');
+    exit;
+}
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
@@ -2550,8 +2557,7 @@ $_sb_ctabs = $cur_course ? [
     'nieobecnosci' => ['person-x',        'Nieobecności',  $_sb_absent,   $_sb_absent  ? 'danger' : ''],
     'oceny'        => ['journal-bookmark','Oceny',         $_sb_grades,   ''],
     'program'      => ['list-check',      'Sylabus',       $_sb_program,  ''],   // dawniej „Program zajęć"
-    'testy'        => ['card-checklist',  'Testy',         $_sb_testy,    ''],
-    'egzaminy'     => ['patch-question',  'Egzaminy',      $_sb_egz_rev ?: $_sb_egz, $_sb_egz_rev ? 'warning' : ''],
+    'egzaminy'     => ['patch-question',  'Testy i egzaminy', $_sb_egz_rev ?: $_sb_egz, $_sb_egz_rev ? 'warning' : ''],
 ] : [];
 if ($cur_course && dyd_is_staff()) {
     $_sb_ctabs['rozliczenia'] = ['receipt','Rozliczenia', $_sb_roz_debt, $_sb_roz_debt ? 'danger' : ''];
