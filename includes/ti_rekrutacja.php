@@ -758,6 +758,48 @@ function rk_token_resolve(string $raw): ?array {
     return $row;
 }
 
+/**
+ * Sesja tokenowa strony t.php. Token przyjmowany RAZ, wymieniany na krótką
+ * sesję i zdejmowany z URL (303) — nie jeździ w Refererze ani w historii.
+ */
+function rk_session_start(): void {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_name('k30_rk');
+        session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
+        session_start();
+    }
+}
+
+function rk_session_open(array $token_row): void {
+    rk_session_start();
+    session_regenerate_id(true);
+    $_SESSION['rk_client_id'] = (int)$token_row['client_id'];
+    $_SESSION['rk_round_id']  = (int)($token_row['round_id'] ?? 0);
+    $_SESSION['rk_token_id']  = (int)$token_row['id'];
+    $_SESSION['rk_scope']     = (string)$token_row['scope'];
+    $_SESSION['rk_expires']   = time() + 3600;
+    $_SESSION['rk_csrf']      = bin2hex(random_bytes(16));
+}
+
+/** Kontekst sesji tokenowej albo null (brak/wygasła). */
+function rk_session_context(): ?array {
+    rk_session_start();
+    if (empty($_SESSION['rk_client_id']) || ($_SESSION['rk_expires'] ?? 0) < time()) return null;
+    $_SESSION['rk_expires'] = time() + 3600;   // aktywność odświeża sesję
+    return [
+        'client_id' => (int)$_SESSION['rk_client_id'],
+        'round_id'  => (int)($_SESSION['rk_round_id'] ?? 0),
+        'token_id'  => (int)($_SESSION['rk_token_id'] ?? 0),
+        'scope'     => (string)($_SESSION['rk_scope'] ?? 'booking'),
+    ];
+}
+
+function rk_session_csrf(): string {
+    rk_session_start();
+    if (empty($_SESSION['rk_csrf'])) $_SESSION['rk_csrf'] = bin2hex(random_bytes(16));
+    return $_SESSION['rk_csrf'];
+}
+
 /** Prosty rate-limit: 10 prób / 10 min na IP i kubełek. */
 function rk_rate_ok(string $bucket, string $ip, int $max = 10, int $window_min = 10): bool {
     $ip  = substr($ip ?: '?', 0, 45);
