@@ -478,7 +478,7 @@ function _menu_editor(): array {
             _mi('Magazyn plików / ownCloud','/admin/owncloud_settings.php','bi-cloud-arrow-up',['match'=>'/admin/owncloud_settings','kw'=>'owncloud magazyn']),
             _mi('API i webhooki','/admin/api_manage.php','bi-key',['match'=>'/admin/api_manage','kw'=>'api webhooki klucze']),
             _mi('SZO Planner','/admin/szo_settings.php','bi-calendar3-week',['match'=>'/admin/szo_settings','kw'=>'szo planner harmonogram czas pracy']),
-            _mi('Panel dydaktyka (TI)','/admin/ti_settings.php','bi-easel2',['match'=>'/admin/ti_settings','kw'=>'panel dydaktyka ti przerwa komunikat']),
+            _mi('Panel dydaktyka (TI)','/karty30/ti/dydaktyk/wylaczenia.php','bi-easel2',['match'=>'/karty30/ti/dydaktyk/wylaczenia','kw'=>'panel dydaktyka ti przerwa komunikat wyłączenia']),
             _mi('Wiad. od prowadzących','/admin/ti_admin_msgs.php','bi-envelope-exclamation',['match'=>'/admin/ti_admin_msgs','kw'=>'wiadomości prowadzący kierownictwo','badge'=>(function(){ if(!function_exists('ti_admin_msg_unread_count')){@require_once __DIR__.'/ti_messages.php';} return function_exists('ti_admin_msg_unread_count')?ti_admin_msg_unread_count():0; })()]),
         ];
         // aktywność (jak w header): /admin/ poza sekcjami przeniesionymi indziej

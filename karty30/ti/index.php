@@ -270,7 +270,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
       <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item" href="zetony.php"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO</a></li>
+      <li><a class="dropdown-item" href="dydaktyk/zetony.php"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO <span class="badge text-bg-light border text-dark ms-1">panel</span></a></li>
     </ul>
   </div>
 
@@ -291,7 +291,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <i class="bi bi-calendar3 me-1"></i>Kalendarz
     </button>
     <ul class="dropdown-menu">
-      <li><a class="dropdown-item" href="periods.php"><i class="bi bi-calendar-range me-2"></i>Okresy nauczania</a></li>
+      <li><a class="dropdown-item" href="dydaktyk/okresy.php"><i class="bi bi-calendar-range me-2"></i>Okresy nauczania <span class="badge text-bg-light border text-dark ms-1">panel</span></a></li>
       <li><a class="dropdown-item" href="holidays.php"><i class="bi bi-calendar-x me-2"></i>Dni wolne i przerwy</a></li>
       <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy prowadzących</a></li>
     </ul>

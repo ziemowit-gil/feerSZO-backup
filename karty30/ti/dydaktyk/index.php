@@ -2743,8 +2743,16 @@ if ($cur_course && dyd_is_staff()) {
      <?= $tab==='praca_wlasna'?'aria-current="page"':'' ?>>
     <i class="bi bi-person-workspace" aria-hidden="true"></i>Praca własna
   </a>
-  <a class="dyd-sb-link" href="../zetony.php" target="_blank" rel="noopener">
+  <?php /* Żetony, okresy i wyłączenia mieszkały w administracji; prowadzi je
+           kierownik, więc są tu — w panelu, bez otwierania nowej karty. */ ?>
+  <a class="dyd-sb-link" href="zetony.php">
     <i class="bi bi-coin text-warning" aria-hidden="true"></i>Żetony SZO
+  </a>
+  <a class="dyd-sb-link" href="okresy.php">
+    <i class="bi bi-calendar-range" aria-hidden="true"></i>Okresy nauczania
+  </a>
+  <a class="dyd-sb-link" href="wylaczenia.php">
+    <i class="bi bi-calendar-x" aria-hidden="true"></i>Wyłączenia panelu
   </a>
   <a class="dyd-sb-link" href="../raporty.php" target="_blank" rel="noopener">
     <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>Raporty i WUP
