@@ -107,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ], JSON_UNESCAPED_UNICODE);
         rk_round_save([
             'name'            => $_POST['name'] ?? '',
+            'audience_kind'   => $_POST['audience_kind'] ?? 'continuing',
             'pool_id'         => (int)($_POST['pool_id'] ?? 0),
             'opens_at'        => str_replace('T', ' ', trim($_POST['opens_at'] ?? '')),
             'closes_at'       => str_replace('T', ' ', trim($_POST['closes_at'] ?? '')),
@@ -215,7 +216,7 @@ $all_courses = $is_staff ? db_all("SELECT id, name FROM k30_ti_courses WHERE is_
 
 $edit_round_id = (int)($_GET['edit_round'] ?? 0);
 $edit_round    = $edit_round_id ? rk_round_get($edit_round_id) : null;
-$rf = $edit_round ?: ['id'=>0,'name'=>'','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
+$rf = $edit_round ?: ['id'=>0,'name'=>'','audience_kind'=>'continuing','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
                      'max_per_client'=>0,'refund_hours'=>24,'late_refund_pct'=>0,'audience_json'=>'{}','rules_html'=>''];
 $rf_aud = json_decode((string)($rf['audience_json'] ?? '{}'), true) ?: [];
 
@@ -507,6 +508,17 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                    value="<?= h($rf['name']) ?>" required maxlength="160" placeholder="np. Konsultacje 2026/Q4">
           </div>
           <div>
+            <label class="form-label small mb-1" for="rr-kind">Rodzaj naboru</label>
+            <select class="form-select form-select-sm" id="rr-kind" name="audience_kind">
+              <option value="continuing" <?= ($rf['audience_kind'] ?? 'continuing') === 'continuing' ? 'selected' : '' ?>>Dla kontynuujących</option>
+              <option value="new" <?= ($rf['audience_kind'] ?? '') === 'new' ? 'selected' : '' ?>>Dla nowych osób</option>
+            </select>
+            <div class="form-text">
+              Kontynuujący = aktywny zapis do grupy. Tura „dla nowych” jest widoczna
+              i dostępna tylko dla osób bez aktywnego zapisu (i odwrotnie) — także przy zapowiedziach.
+            </div>
+          </div>
+          <div>
             <label class="form-label small mb-1" for="rr-pool">Pula żetonów (z której schodzą opłaty)</label>
             <select class="form-select form-select-sm" id="rr-pool" name="pool_id">
               <option value="">— dowolna ważna pula kursanta —</option>
@@ -620,6 +632,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <tr>
             <td>
               <strong><?= h($r['name']) ?></strong>
+              <span class="badge <?= ($r['audience_kind'] ?? 'continuing') === 'new' ? 'text-bg-info' : 'text-bg-light border' ?> ms-1"
+                    style="font-size:.68rem"><?= h(rk_audience_kind_label((string)($r['audience_kind'] ?? 'continuing'))) ?></span>
               <?php if ($r['pool_name']): ?>
               <div class="text-body-secondary" style="font-size:.78rem">pula: <?= h($r['pool_name']) ?></div>
               <?php endif; ?>

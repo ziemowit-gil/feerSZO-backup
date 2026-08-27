@@ -132,6 +132,12 @@ function ti_rk_migrate(): void {
         UNIQUE(round_id, client_id, kind)
     )");
 
+    // Rodzaj naboru tury: continuing (dla kontynuujących) | new (dla nowych osób)
+    $cols = array_column(db_all("PRAGMA table_info(k30_rk_rounds)"), 'name');
+    if ($cols && !in_array('audience_kind', $cols, true)) {
+        try { $pdo->exec("ALTER TABLE k30_rk_rounds ADD COLUMN audience_kind TEXT NOT NULL DEFAULT 'continuing'"); } catch (\Throwable) {}
+    }
+
     // Prowadzący do wyboru per grupa (kurs) w turze — ustawia kierownik.
     // Brak wpisów dla grup kursanta = kursant widzi wszystkich prowadzących.
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_round_course_instructors (
@@ -446,6 +452,8 @@ function rk_round_save(array $d, ?int $id = null): int {
         'opens_at'        => ($d['opens_at'] ?? '') ?: date('Y-m-d H:i:s'),
         'closes_at'       => ($d['closes_at'] ?? '') ?: null,
         'announce_at'     => ($d['announce_at'] ?? '') ?: null,
+        'audience_kind'   => in_array($d['audience_kind'] ?? '', ['new','continuing'], true)
+                               ? $d['audience_kind'] : 'continuing',
         'max_per_client'  => max(0, (int)($d['max_per_client'] ?? 0)),
         'refund_hours'    => max(0, (int)($d['refund_hours'] ?? 24)),
         'late_refund_pct' => min(100, max(0, (int)($d['late_refund_pct'] ?? 0))),
@@ -465,9 +473,24 @@ function rk_round_save(array $d, ?int $id = null): int {
     return (int)db()->lastInsertId();
 }
 
-/** Tury widoczne dla kursanta: otwarte, albo zaplanowane z ogłoszonym startem. */
+/** Czy kursant „kontynuuje” (ma aktywny zapis do jakiejkolwiek grupy). */
+function rk_client_is_continuing(int $client_id): bool {
+    return (bool)db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND status='active' LIMIT 1",
+                        [$client_id]);
+}
+
+/** Etykieta rodzaju naboru. */
+function rk_audience_kind_label(string $kind): string {
+    return $kind === 'new' ? 'dla nowych osób' : 'dla kontynuujących';
+}
+
+/**
+ * Tury widoczne dla kursanta: otwarte, albo zaplanowane z ogłoszonym startem —
+ * zawężone rodzajem naboru (nowi widzą tury „new”, kontynuujący „continuing”).
+ */
 function rk_rounds_for_client(int $client_id): array {
-    return db_all(
+    $kind = rk_client_is_continuing($client_id) ? 'continuing' : 'new';
+    $rows = db_all(
         "SELECT r.*, p.name AS pool_name,
                 (SELECT COUNT(*) FROM k30_rk_slots s
                   WHERE s.round_id=r.id AND s.status='open'
@@ -479,9 +502,11 @@ function rk_rounds_for_client(int $client_id): array {
            FROM k30_rk_rounds r
            LEFT JOIN k30_pl_token_pools p ON p.id = r.pool_id
           WHERE r.status IN ('open','scheduled')
+            AND COALESCE(r.audience_kind, 'continuing') = ?
           ORDER BY r.status='open' DESC, r.opens_at ASC",
-        [$client_id]
+        [$client_id, $kind]
     );
+    return $rows;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -620,7 +645,8 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
 
         /* 1. Slot + tura — migawka wewnątrz transakcji */
         $slot = db_one(
-            "SELECT s.*, r.opens_at, r.closes_at, r.pool_id, r.max_per_client, r.status AS round_status
+            "SELECT s.*, r.opens_at, r.closes_at, r.pool_id, r.max_per_client, r.status AS round_status,
+                    COALESCE(r.audience_kind, 'continuing') AS audience_kind
                FROM k30_rk_slots s
                JOIN k30_rk_rounds r ON r.id = s.round_id
               WHERE s.id = ?", [$slot_id]);
@@ -632,6 +658,11 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
         if ($slot['closes_at'] && strtotime((string)$slot['closes_at']) < time())
                                                      throw new RkException('ROUND_ENDED');
         if (strtotime((string)$slot['starts_at']) <= time()) throw new RkException('SLOT_IN_PAST');
+
+        /* 1a′. Rodzaj naboru: tura dla nowych ≠ tura dla kontynuujących */
+        $continuing = rk_client_is_continuing($client_id);
+        if ($slot['audience_kind'] === 'new' && $continuing)       throw new RkException('ROUND_FOR_NEW');
+        if ($slot['audience_kind'] === 'continuing' && !$continuing) throw new RkException('ROUND_FOR_CONTINUING');
 
         /* 1a. Przypisania kierownika: prowadzący musi być dozwolony dla grup kursanta */
         $allowed = rk_allowed_instructors((int)$slot['round_id'], $client_id);
@@ -1064,6 +1095,13 @@ function rk_round_audience(int $round_id): array {
               WHERE w.pool_id = ? AND (w.granted - w.spent - w.held) > 0", [(int)$r['pool_id']]));
     }
 
+    // Rodzaj naboru zawęża odbiorców: „dla nowych” wyklucza kontynuujących i odwrotnie
+    $kind = (string)($r['audience_kind'] ?? 'continuing') ?: 'continuing';
+    $out  = array_values(array_filter($out, function ($c) use ($kind) {
+        $cont = rk_client_is_continuing((int)$c['client_id']);
+        return $kind === 'new' ? !$cont : $cont;
+    }));
+
     // Dedup po client_id i adresie (rodzeństwo z jednego adresu rodzica — jedna wiadomość)
     $seen = [];
     return array_values(array_filter($out, function ($c) use (&$seen) {
@@ -1348,6 +1386,8 @@ function rk_error_message(string $code): string {
         'BOOKING_NOT_ACTIVE'  => 'Ta rezerwacja nie jest już aktywna.',
         'SLOT_ON_LEAVE'       => 'Prowadzący ma urlop w tym dniu — termin nie może powstać.',
         'INSTRUCTOR_NOT_ALLOWED' => 'Ten prowadzący nie jest dostępny dla Twojej grupy w tej turze.',
+        'ROUND_FOR_NEW'          => 'Ta tura jest przeznaczona dla nowych osób — jako kursant kontynuujący zapisz się w turze dla kontynuujących.',
+        'ROUND_FOR_CONTINUING'   => 'Ta tura jest przeznaczona dla kursantów kontynuujących naukę.',
         'GUARDIAN_MISSING'    => 'Rezerwacja osoby małoletniej wymaga zatwierdzenia rodzica, a na koncie brak adresu e-mail opiekuna — skontaktuj się z sekretariatem.',
         'SLOT_INVALID_TIME'   => 'Nieprawidłowy zakres godzin terminu.',
         default               => 'Operacja nie powiodła się (' . $code . ').',
