@@ -620,12 +620,35 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <input type="hidden" name="_op"      value="pool_save">
           <input type="hidden" name="pool_id"  value="<?= (int)$pf['id'] ?>">
           <div class="mb-2">
-            <label class="form-label fw-semibold small" for="pname">Nazwa <span class="text-danger">*</span></label>
-            <input type="text" class="form-control form-control-sm" id="pname" name="name" value="<?= h($pf['name']) ?>" required placeholder="np. Lekcje ind. 2026/Q1">
+            <label class="form-label fw-semibold small" for="pperiod">Klucz okresu (wybór z listy)</label>
+            <?php $gen_periods = function_exists('ti_periods_all') ? ti_periods_all() : [];
+                  $pk_known = $pf['period_key'] === '' || in_array($pf['period_key'], array_column($gen_periods, 'name'), true); ?>
+            <select class="form-select form-select-sm" id="pperiod" name="period_key">
+              <option value="">— bez okresu —</option>
+              <?php foreach ($gen_periods as $gp): ?>
+              <option value="<?= h($gp['name']) ?>" data-from="<?= h($gp['date_from']) ?>" data-to="<?= h($gp['date_to']) ?>"
+                      <?= $pf['period_key'] === $gp['name'] ? 'selected' : '' ?>><?= h($gp['name']) ?> (<?= h($gp['date_from']) ?> – <?= h($gp['date_to']) ?>)</option>
+              <?php endforeach; ?>
+              <?php if (!$pk_known): ?>
+              <option value="<?= h($pf['period_key']) ?>" selected><?= h($pf['period_key']) ?> (klucz spoza listy okresów)</option>
+              <?php endif; ?>
+            </select>
+            <div class="form-text">Wybór okresu podpowiada daty ważności puli poniżej.</div>
           </div>
           <div class="mb-2">
-            <label class="form-label fw-semibold small" for="pperiod">Klucz okresu</label>
-            <input type="text" class="form-control form-control-sm" id="pperiod" name="period_key" value="<?= h($pf['period_key']) ?>" placeholder="np. 2026/Q1, 2025/2026">
+            <label class="form-label fw-semibold small" for="pname">Nazwa <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" id="pname" name="name" value="<?= h($pf['name']) ?>" required placeholder="np. Semestr Z 2026 K1-482">
+              <select class="form-select" id="pgen-kind" style="max-width:9.5rem" aria-label="Rodzaj naboru do nazwy">
+                <option value="K">K — kontynuacja</option>
+                <option value="N">N — nowe osoby</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary" id="pgen-btn"
+                      title="Zbuduj nazwę: okres + K/N + numer kolejny puli + 3 losowe cyfry">
+                <i class="bi bi-magic" aria-hidden="true"></i> Generuj
+              </button>
+            </div>
+            <div class="form-text">Generator: <em>okres</em> + K/N + nr kolejny puli + trzy losowe cyfry — wymaga wybranego klucza okresu.</div>
           </div>
           <div class="mb-2">
             <label class="form-label small" for="pdesc">Opis</label>
@@ -644,13 +667,43 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <div class="row g-2 mb-2">
             <div class="col-6">
               <label class="form-label small">Od</label>
-              <input type="date" class="form-control form-control-sm" name="valid_from" value="<?= h($pf['valid_from'] ?? '') ?>">
+              <input type="date" class="form-control form-control-sm" id="pvalid-from" name="valid_from" value="<?= h($pf['valid_from'] ?? '') ?>">
             </div>
             <div class="col-6">
               <label class="form-label small">Do</label>
-              <input type="date" class="form-control form-control-sm" name="valid_to" value="<?= h($pf['valid_to'] ?? '') ?>">
+              <input type="date" class="form-control form-control-sm" id="pvalid-to" name="valid_to" value="<?= h($pf['valid_to'] ?? '') ?>">
             </div>
           </div>
+          <script>
+          (function () {
+            var period = document.getElementById('pperiod');
+            var name   = document.getElementById('pname');
+            var kind   = document.getElementById('pgen-kind');
+            var btn    = document.getElementById('pgen-btn');
+            var nextNr = <?= count($pools) + 1 ?>;   // numer kolejny puli
+
+            // Wybór okresu podpowiada daty ważności (tylko gdy pola są puste,
+            // żeby nie nadpisywać ręcznych korekt przy edycji)
+            period?.addEventListener('change', function () {
+              var opt = this.selectedOptions[0];
+              var vf = document.getElementById('pvalid-from');
+              var vt = document.getElementById('pvalid-to');
+              if (opt && opt.dataset.from && !vf.value) vf.value = opt.dataset.from;
+              if (opt && opt.dataset.to   && !vt.value) vt.value = opt.dataset.to;
+            });
+
+            btn?.addEventListener('click', function () {
+              if (!period.value) {
+                period.focus();
+                alert('Najpierw wybierz klucz okresu — generator buduje nazwę z okresu.');
+                return;
+              }
+              var digits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+              name.value = period.value + ' ' + kind.value + nextNr + '-' + digits;
+              name.focus();
+            });
+          })();
+          </script>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="pactive" value="1" <?= !empty($pf['is_active'])?'checked':'' ?>>
             <label class="form-check-label small" for="pactive">Pula aktywna</label>

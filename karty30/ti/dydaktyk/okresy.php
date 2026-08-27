@@ -593,7 +593,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="modal-body">
           <div class="mb-2">
             <label class="form-label fw-semibold">Nazwa <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" name="name" id="pf_name" required placeholder="np. Rok szkolny 2025/2026, I kwartał 2026, Wakacje 2026">
+            <div class="input-group">
+              <input type="text" class="form-control" name="name" id="pf_name" required placeholder="np. Rok szkolny 2025/2026, I kwartał 2026, Wakacje 2026">
+              <button type="button" class="btn btn-outline-secondary" id="pf_name_gen"
+                      title="Dopisz do nazwy własnej numer 0–9 i trzy losowe litery (unikalny klucz okresu)">
+                <i class="bi bi-magic" aria-hidden="true"></i> Generuj
+              </button>
+            </div>
+            <div class="form-text">Generator: nazwa własna + nr 0–9 + trzy losowe litery, np. „Semestr Z 7-KQW”.</div>
+            <script>
+            document.getElementById('pf_name_gen')?.addEventListener('click', function () {
+              var f = document.getElementById('pf_name');
+              // Baza = nazwa własna bez wcześniej dogenerowanego sufiksu „N-XYZ”
+              var base = (f.value || '').replace(/\s\d-[A-Z]{3}$/, '').trim();
+              if (!base) { f.focus(); alert('Wpisz najpierw nazwę własną okresu — generator dokleja do niej numer i litery.'); return; }
+              var letters = '';
+              for (var i = 0; i < 3; i++) letters += 'ABCDEFGHJKLMNPRSTUWXYZ'.charAt(Math.floor(Math.random() * 22));
+              f.value = base + ' ' + Math.floor(Math.random() * 10) + '-' + letters;
+              f.focus();
+            });
+            </script>
           </div>
           <div class="mb-2">
             <label class="form-label fw-semibold">Typ</label>
