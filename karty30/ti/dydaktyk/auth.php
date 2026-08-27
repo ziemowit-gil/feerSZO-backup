@@ -229,15 +229,15 @@ function dyd_pref_set(int $uid, string $key, string $value): void {
 }
 
 /**
- * Wybrany widok panelu: 'usos' (DOMYŚLNY) albo 'classic'.
- * ?ui=usos|classic przestawia i zapamiętuje. Kto wcześniej wybrał widok
- * klasyczny, ten go zachowuje — domyślna jest tylko wartość przy braku wyboru.
+ * Widok panelu. Wybór szablonu został WYCOFANY — panel ma jeden wygląd (USOS),
+ * żeby prowadzący i kierownicy oglądali te same ekrany i żeby zgłoszenia
+ * dotyczyły jednego układu.
+ *
+ * Funkcja zostaje jako jedno miejsce decyzji: gdyby wybór miał wrócić, wystarczy
+ * przywrócić tu odczyt ?ui= i preferencji dyd_ui (dyd_pref/dyd_pref_set nadal
+ * działają), a w index.php dołożyć przełącznik. Zapisane wcześniej preferencje
+ * są ignorowane, nie kasujemy ich.
  */
 function dyd_ui(int $uid): string {
-    $v = (string)($_GET['ui'] ?? '');
-    if ($v === 'usos' || $v === 'classic') {
-        dyd_pref_set($uid, 'dyd_ui', $v);
-        return $v;
-    }
-    return dyd_pref($uid, 'dyd_ui', 'usos') === 'classic' ? 'classic' : 'usos';
+    return 'usos';
 }
