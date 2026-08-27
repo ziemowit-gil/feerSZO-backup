@@ -69,6 +69,7 @@ $_usos_sections = [
         'items' => [
             $_it('frekwencja_grup', 'Frekwencja grup', $_g('frekwencja_grup')),
             $_it('dostepnosc',      'Dostępność',      $_g('dostepnosc'), $_n_avail),
+            $_it('',                'Zapisy na zajęcia', 'rekrutacja.php'),
             $_it('zoom',            'Zajętość Zoom',   $_g('zoom')),
             $_it('cykliczne',       'Plan cykliczny',  $_g('cykliczne')),
             $_it('',                'Planner',         'planner.php'),
@@ -106,6 +107,7 @@ if (dyd_is_staff()) {
             $_it('praca_wlasna', 'Praca własna',          $_g('praca_wlasna')),
             $_it('komunikacja',  'Komunikacja',           $_g('komunikacja')),
             $_it('',             'Żetony SZO',            'zetony.php'),
+            $_it('',             'Zapisy — tury',         'rekrutacja.php?tab=tury'),
             $_it('',             'Okresy nauczania',      'okresy.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
             $_it('',             'Raporty i WUP',         '../raporty.php', 0, 'secondary', true),

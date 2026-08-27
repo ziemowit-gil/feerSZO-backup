@@ -22,6 +22,7 @@ $_kier_items = [
     ['Praca własna',          'index.php?tab=praca_wlasna'],
     ['Komunikacja',           'index.php?tab=komunikacja'],
     ['Żetony SZO',            'zetony.php'],
+    ['Zapisy na zajęcia',     'rekrutacja.php'],
     ['Okresy nauczania',      'okresy.php'],
     ['Wyłączenia panelu',     'wylaczenia.php'],
 ];
