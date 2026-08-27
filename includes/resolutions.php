@@ -1,9 +1,14 @@
 <?php
 /**
  * Moduł Uchwały i Zarządzenia — init DB + funkcje pomocnicze.
+ *
+ * Przedrostek `uchw_`, nie `res_`: ten drugi należy do modułu Zasobów
+ * (includes/resources.php), który ma własne res_get()/res_delete()/res_categories().
+ * Dopóki oba pliki nie trafiały do jednego żądania, nic się nie działo — ale
+ * pierwsza strona ładująca je razem dostałaby „Cannot redeclare function".
  */
 
-function _res_init(): void {
+function _uchw_init(): void {
     static $done = false;
     if ($done) return;
     $done = true;
@@ -41,8 +46,8 @@ function _res_init(): void {
 
 // ── Numeracja ─────────────────────────────────────────────────────────────────
 
-function res_next_number(string $type, int $year = 0): string {
-    _res_init();
+function uchw_next_number(string $type, int $year = 0): string {
+    _uchw_init();
     if (!$year) $year = (int)date('Y');
     $prefix = match($type) {
         'uchwala'     => 'U',
@@ -61,8 +66,8 @@ function res_next_number(string $type, int $year = 0): string {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-function res_get_all(array $filters = []): array {
-    _res_init();
+function uchw_get_all(array $filters = []): array {
+    _uchw_init();
     $where = []; $params = [];
 
     if (!empty($filters['type'])) {
@@ -93,8 +98,8 @@ function res_get_all(array $filters = []): array {
     return db_all($sql, $params);
 }
 
-function res_get(int $id): ?array {
-    _res_init();
+function uchw_get(int $id): ?array {
+    _uchw_init();
     return db_one(
         "SELECT r.*, u.name AS signer_name, cb.name AS creator_name
          FROM resolutions r
@@ -104,27 +109,27 @@ function res_get(int $id): ?array {
     );
 }
 
-function res_create(array $data, int $user_id): int {
-    _res_init();
+function uchw_create(array $data, int $user_id): int {
+    _uchw_init();
     $data['created_by'] = $user_id;
     $data['created_at'] = date('Y-m-d H:i:s');
     $data['updated_at'] = date('Y-m-d H:i:s');
     if (empty($data['number'])) {
-        $data['number'] = res_next_number($data['type'], (int)date('Y', strtotime($data['date'] ?? 'now')));
+        $data['number'] = uchw_next_number($data['type'], (int)date('Y', strtotime($data['date'] ?? 'now')));
     }
     return db_insert('resolutions', $data);
 }
 
-function res_update(int $id, array $data): void {
-    _res_init();
+function uchw_update(int $id, array $data): void {
+    _uchw_init();
     $data['updated_at'] = date('Y-m-d H:i:s');
     $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($data)));
     $data['id'] = $id;
     db()->prepare("UPDATE resolutions SET $set WHERE id=:id")->execute($data);
 }
 
-function res_delete(int $id): void {
-    _res_init();
+function uchw_delete(int $id): void {
+    _uchw_init();
     $row = db_one("SELECT attachment FROM resolutions WHERE id=?", [$id]);
     if ($row && $row['attachment']) {
         @unlink(dirname(__DIR__) . '/uploads/resolutions/' . $row['attachment']);
@@ -132,8 +137,8 @@ function res_delete(int $id): void {
     db()->prepare("DELETE FROM resolutions WHERE id=?")->execute([$id]);
 }
 
-function res_upload(int $id, string $field): ?string {
-    _res_init();
+function uchw_upload(int $id, string $field): ?string {
+    _uchw_init();
     $f = $_FILES[$field] ?? null;
     if (!$f || $f['error'] !== UPLOAD_ERR_OK) return null;
 
@@ -157,7 +162,7 @@ function res_upload(int $id, string $field): ?string {
 
 // ── Słowniki ──────────────────────────────────────────────────────────────────
 
-function res_type_label(string $t): array {
+function uchw_type_label(string $t): array {
     return match($t) {
         'uchwala'     => ['Uchwała',      'bi-hammer',          'primary'],
         'zarzadzenie' => ['Zarządzenie',  'bi-person-gear',     'warning'],
@@ -166,7 +171,7 @@ function res_type_label(string $t): array {
     };
 }
 
-function res_status_label(string $s): array {
+function uchw_status_label(string $s): array {
     return match($s) {
         'draft'    => ['Projekt',   'secondary'],
         'active'   => ['Aktywna',  'success'],
@@ -175,20 +180,20 @@ function res_status_label(string $s): array {
     };
 }
 
-function res_categories(): array {
-    _res_init();
+function uchw_categories(): array {
+    _uchw_init();
     $rows = db_all("SELECT DISTINCT category FROM resolutions WHERE category!='' ORDER BY category");
     return array_column($rows, 'category');
 }
 
-function res_years(): array {
-    _res_init();
+function uchw_years(): array {
+    _uchw_init();
     $rows = db_all("SELECT DISTINCT strftime('%Y', date) AS y FROM resolutions ORDER BY y DESC");
     return array_column($rows, 'y');
 }
 
-function res_stats(): array {
-    _res_init();
+function uchw_stats(): array {
+    _uchw_init();
     $rows = db_all("SELECT type, status, COUNT(*) AS c FROM resolutions GROUP BY type, status");
     $out = [];
     foreach ($rows as $r) {
@@ -197,6 +202,6 @@ function res_stats(): array {
     return $out;
 }
 
-function res_users_list(): array {
+function uchw_users_list(): array {
     return db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 }

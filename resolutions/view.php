@@ -10,13 +10,13 @@ require_login();
 require_module_enabled('resolutions_enabled', 'Moduł Uchwały i Zarządzenia');
 
 $id  = (int)($_GET['id'] ?? 0);
-$res = res_get($id);
+$res = uchw_get($id);
 if (!$res) { flash_set('error', 'Nie znaleziono.'); header('Location: ' . APP_URL . '/resolutions/index.php'); exit; }
 
 $PAGE_TITLE = $res['number'] ? $res['number'] . ' — ' . $res['title'] : $res['title'];
 $errors   = [];
-$users    = res_users_list();
-$cats     = res_categories();
+$users    = uchw_users_list();
+$cats     = uchw_categories();
 $can_edit = can_write('resolutions');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
@@ -24,14 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
     $action = $_POST['action'] ?? 'edit';
 
     if ($action === 'delete') {
-        res_delete($id);
-        log_system_action((int)current_user()['id'], 'res_delete', "Usunięto dokument #$id");
+        uchw_delete($id);
+        log_system_action((int)current_user()['id'], 'uchw_delete', "Usunięto dokument #$id");
         flash_set('success', 'Dokument usunięty.');
         header('Location: ' . APP_URL . '/resolutions/index.php'); exit;
     }
 
     if ($action === 'status') {
-        res_update($id, ['status' => $_POST['status'] ?? $res['status']]);
+        uchw_update($id, ['status' => $_POST['status'] ?? $res['status']]);
         flash_set('success', 'Status zaktualizowany.');
         header('Location: ' . APP_URL . '/resolutions/view.php?id=' . $id); exit;
     }
@@ -51,9 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
         if (!$data['title']) $errors[] = 'Tytuł jest wymagany.';
 
         if (!$errors) {
-            res_update($id, $data);
+            uchw_update($id, $data);
             if (!empty($_FILES['attachment']['tmp_name'])) {
-                $err = res_upload($id, 'attachment');
+                $err = uchw_upload($id, 'attachment');
                 if ($err) $errors[] = 'Plik: ' . $err;
             }
             if (!$errors) {
@@ -66,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
     }
 }
 
-[$tlabel, $ticon, $tcolor] = res_type_label($res['type']);
-[$slabel, $scolor]         = res_status_label($res['status']);
+[$tlabel, $ticon, $tcolor] = uchw_type_label($res['type']);
+[$slabel, $scolor]         = uchw_status_label($res['status']);
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>

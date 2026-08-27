@@ -18,10 +18,10 @@ $filters = [
     'q'        => trim($_GET['q']   ?? ''),
 ];
 
-$items      = res_get_all($filters);
-$stats      = res_stats();
-$categories = res_categories();
-$years      = res_years();
+$items      = uchw_get_all($filters);
+$stats      = uchw_stats();
+$categories = uchw_categories();
+$years      = uchw_years();
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -163,8 +163,8 @@ include dirname(__DIR__) . '/includes/header.php';
     </thead>
     <tbody>
     <?php foreach ($items as $res):
-      [$tlabel, $ticon, $tcolor] = res_type_label($res['type']);
-      [$slabel, $scolor]         = res_status_label($res['status']);
+      [$tlabel, $ticon, $tcolor] = uchw_type_label($res['type']);
+      [$slabel, $scolor]         = uchw_status_label($res['status']);
     ?>
     <tr class="cursor-pointer" onclick="location.href='<?= APP_URL ?>/resolutions/view.php?id=<?= $res['id'] ?>'">
       <td class="font-monospace" style="font-size:.78rem;white-space:nowrap"><?= h($res['number'] ?: '—') ?></td>

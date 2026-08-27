@@ -12,8 +12,8 @@ if (!can_write('resolutions')) { http_response_code(403); die('Brak uprawnień.'
 
 $PAGE_TITLE = 'Nowy dokument';
 $errors = [];
-$users  = res_users_list();
-$cats   = res_categories();
+$users  = uchw_users_list();
+$cats   = uchw_categories();
 
 $type = $_GET['type'] ?? 'uchwala';
 if (!in_array($type, ['uchwala','zarzadzenie','decyzja'])) $type = 'uchwala';
@@ -49,22 +49,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         $uid = (int)current_user()['id'];
-        $id  = res_create($row, $uid);
+        $id  = uchw_create($row, $uid);
 
         if (!empty($_FILES['attachment']['tmp_name'])) {
-            $err = res_upload($id, 'attachment');
+            $err = uchw_upload($id, 'attachment');
             if ($err) $errors[] = 'Plik: ' . $err;
         }
 
         if (!$errors) {
-            log_system_action($uid, 'res_create', "Dodano dokument #$id: " . $row['title']);
+            log_system_action($uid, 'uchw_create', "Dodano dokument #$id: " . $row['title']);
             flash_set('success', 'Dokument został dodany.');
             header('Location: ' . APP_URL . '/resolutions/view.php?id=' . $id); exit;
         }
     }
 }
 
-[$tlabel, $ticon, $tcolor] = res_type_label($row['type']);
+[$tlabel, $ticon, $tcolor] = uchw_type_label($row['type']);
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 

@@ -9,7 +9,7 @@ require_login();
 require_module_enabled('resolutions_enabled', 'Moduł Uchwały i Zarządzenia');
 
 $id  = (int)($_GET['id'] ?? 0);
-$res = res_get($id);
+$res = uchw_get($id);
 if (!$res || !$res['attachment']) { http_response_code(404); die('Nie znaleziono pliku.'); }
 
 $path = dirname(__DIR__) . '/uploads/resolutions/' . $res['attachment'];
