@@ -859,6 +859,60 @@ HTML;
                 'url'          => ['label' => 'Link do wątku wiadomości', 'sample' => $base . '/karty30/ti/messages.php?student=42'],
             ],
         ],
+
+        // — Rekrutacja TI: zapowiedź startu zapisów na terminy ————————————
+        'rk_round_open' => [
+            'label'       => 'Rekrutacja TI — start zapisów',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-ticket-perforated',
+            'auto'        => true,
+            'description' => 'Zapowiedź tury zapisów na terminy za żetony. Każdy kursant dostaje osobisty link z tokenem (strona zapisów bez logowania). Wysyłka z pola „zapowiedź” tury albo ręcznie z panelu kierownika.',
+            'subject'     => 'Zapisy na zajęcia — {{round}} — start {{opens_at}}',
+            'body'        => <<<'HTML'
+<p>Dzień dobry, <strong>{{name}}</strong>.</p>
+
+<p>Ruszają zapisy na terminy zajęć w turze <strong>{{round}}</strong>.
+Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.</p>
+
+<div style="background:#fff1e7;border-left:3px solid #c2410c;border-radius:4px;padding:12px 16px;margin:18px 0">
+  <p style="margin:0 0 8px;font-weight:600">Zasady obowiązujące od tego roku</p>
+  <ol style="margin:0;padding-left:18px">
+    <li>Najpierw wybierasz <strong>prowadzącego</strong>, potem termin z jego kalendarza.</li>
+    <li>Terminy wystawiają sami prowadzący — lista rośnie w trakcie tury.</li>
+    <li>Każda rezerwacja kosztuje <strong>żetony</strong>. Twoje aktualne saldo: <strong>{{balance}}</strong>.</li>
+    <li>Limit rezerwacji w tej turze: <strong>{{limit}}</strong>.</li>
+    <li>Rezygnacja najpóźniej <strong>{{refund_h}} godz.</strong> przed zajęciami zwraca żetony w całości.</li>
+    <li>Decyduje kolejność zgłoszeń — miejsce jest Twoje z chwilą potwierdzenia rezerwacji.</li>
+  </ol>
+</div>
+
+{{rules_html}}
+
+<div style="margin:24px 0;text-align:center">
+  <a href="{{link}}" style="background:#c2410c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Wybierz prowadzącego i termin &rarr;
+  </a>
+</div>
+
+<p style="font-size:.85em;color:#6c757d">
+  Powyższy link jest przypisany do Ciebie — nie przekazuj go dalej. Wygasa po zamknięciu tury.
+  Jeśli masz konto w panelu kursanta, zapisy znajdziesz również po zalogowaniu,
+  w zakładce „Nauka &rsaquo; Zapisy na zajęcia&rdquo;.
+</p>
+HTML,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',              'sample' => 'Dydaktyka TI'],
+                'name'       => ['label' => 'Imię i nazwisko kursanta',       'sample' => 'Jan Kowalski'],
+                'round'      => ['label' => 'Nazwa tury zapisów',             'sample' => 'Konsultacje 2026/Q4'],
+                'opens_at'   => ['label' => 'Start zapisów',                  'sample' => '01.10.2026 12:00'],
+                'closes_at'  => ['label' => 'Koniec zapisów',                 'sample' => '15.10.2026 23:59'],
+                'balance'    => ['label' => 'Saldo żetonów kursanta',         'sample' => '6'],
+                'limit'      => ['label' => 'Limit rezerwacji w turze',       'sample' => '2'],
+                'refund_h'   => ['label' => 'Okno pełnego zwrotu (godziny)',  'sample' => '24'],
+                'rules_html' => ['label' => 'Dodatkowe zasady tury (HTML)',   'sample' => ''],
+                'link'       => ['label' => 'Osobisty link z tokenem',        'sample' => $base . '/karty30/ti/rekrutacja/t.php?t=a1b2c3d4e5f6.…'],
+            ],
+        ],
     ];
 
     return $reg;
