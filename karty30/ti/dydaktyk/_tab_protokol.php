@@ -249,6 +249,46 @@ $pr_confirm = $pr_empty
         </div>
       </form>
 
+      <?php $pr_acked = ti_protocol_hours_acked($pr); $pr_hp = ti_protocol_hours_and_payout($pr); ?>
+      <div class="card-header border-top">Oświadczenie o zgodności ewidencji godzin i wypłaty</div>
+      <div class="card-body">
+        <p class="small mb-2">
+          Za okres protokołu wykazano <strong><?= (int)$pr_hp['lessons'] ?></strong>
+          <?= $pr_hp['lessons'] === 1 ? 'zajęcie' : 'zajęć' ?>
+          (<?= h(ti_protocol_hm((int)$pr_hp['total_min'])) ?>)<?php
+            if ($pr_hp['has_rate']): ?>, do wypłaty netto
+            <strong><?= h(ti_protocol_money((float)$pr_hp['payout']['netto'])) ?></strong><?php
+            endif; ?>.
+          Szczegóły są na wydruku PDF.
+        </p>
+        <?php if ($pr_acked): ?>
+        <div class="alert alert-success py-2 small mb-0" role="status">
+          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>
+          Potwierdzone elektronicznie: <strong><?= h($pr['hours_ack_name'] ?: '—') ?></strong>,
+          <?= h(date('d.m.Y H:i', strtotime((string)$pr['hours_ack_at']))) ?><?php
+            if (trim((string)$pr['hours_ack_ip']) !== ''): ?>, IP <?= h($pr['hours_ack_ip']) ?><?php endif; ?>.
+          Na wydruku zamiast miejsca na podpis widnieje ten ślad.
+        </div>
+        <?php else: ?>
+        <p class="small text-body-secondary">
+          Potwierdzam, że ewidencja godzin oraz naliczenie wypłaty są zgodne ze stanem faktycznym —
+          zajęcia w wykazanych terminach odbyły się w podanym wymiarze, a wykazane kwoty nie budzą
+          moich zastrzeżeń. Potwierdzenie zapisuje kto, kiedy i z jakiego adresu IP je złożył;
+          odblokowanie protokołu je unieważnia.
+        </p>
+        <form method="post" class="usos-noprint"
+              onsubmit="return confirm('Potwierdzić zgodność ewidencji godzin i naliczenia wypłaty?')">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="protocol_hours_ack">
+          <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
+          <input type="hidden" name="protocol_id" value="<?= (int)$pr['id'] ?>">
+          <button class="btn btn-sm btn-success">
+            <i class="bi bi-pen me-1" aria-hidden="true"></i>Potwierdzam zgodność
+          </button>
+        </form>
+        <?php endif; ?>
+      </div>
+
       <?php if ($pr_locked && dyd_is_staff()): ?>
       <div class="card-body border-top usos-noprint">
         <form method="post" class="d-flex flex-wrap gap-2 align-items-end"

@@ -1058,7 +1058,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── PROTOKOŁY OCEN ──────────────────────────────────────────────────────────
-    if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock'], true)) {
+    if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock', 'protocol_hours_ack'], true)) {
         dyd_token_check();
         $back = dyd_back($course_id, 'protokol');
         if ($dziennik_off) {
@@ -1092,6 +1092,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($op === 'protocol_approve') {
                 ti_protocol_approve($pid, $uid, $me_name);
                 flash_set('success', 'Protokół zatwierdzony — ocen nie można już zmieniać.');
+            } elseif ($op === 'protocol_hours_ack') {
+                ti_protocol_hours_ack($pid, $uid, $me_name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+                flash_set('success', 'Ewidencja godzin i naliczenie wypłaty potwierdzone — ślad zapisany w protokole.');
             } elseif ($op === 'protocol_unlock') {
                 if (!dyd_is_staff()) { http_response_code(403); exit('Odblokować protokół może pracownik D3 lub administrator.'); }
                 ti_protocol_unlock($pid, $uid, $me_name, (string)($_POST['reason'] ?? ''));

@@ -70,6 +70,16 @@ function ti_protocols_migrate(): void {
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_prot_entry
                     ON k30_ti_protocol_entries(protocol_id, client_id)");
     } catch (\Throwable $e) {}
+
+    // Elektroniczne potwierdzenie ewidencji godzin i wypłaty przez prowadzącego
+    foreach ([
+        "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_by   INTEGER",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_at   TEXT",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_ip   TEXT NOT NULL DEFAULT ''",
+    ] as $sql) {
+        try { db()->exec($sql); } catch (\Throwable $e) {}
+    }
 }
 
 /** Etykieta stanu protokołu. */
@@ -296,6 +306,50 @@ function ti_protocol_unlock(int $protocol_id, ?int $by, string $by_name, string 
                 unlock_reason=?, updated_at=datetime('now')
           WHERE id=?"
     )->execute([$by, $by_name, $reason, $protocol_id]);
+
+    // Otwarty protokół to zmienione dane — potwierdzenie ewidencji przestaje
+    // odpowiadać stanowi, więc trzeba je złożyć ponownie.
+    ti_protocol_hours_ack_clear($protocol_id);
+}
+
+/** Czy prowadzący potwierdził ewidencję godzin i naliczenie wypłaty. */
+function ti_protocol_hours_acked(array $prot): bool {
+    return !empty($prot['hours_ack_at']);
+}
+
+/**
+ * Potwierdzenie ewidencji godzin i naliczenia wypłaty przez prowadzącego —
+ * elektroniczny odpowiednik podpisu na wydruku. Zapisuje kto, kiedy i z jakiego
+ * adresu IP; potwierdzenie jest jednorazowe (do wycofania przez odblokowanie
+ * protokołu, tak samo jak zatwierdzenie ocen).
+ *
+ * @throws RuntimeException gdy protokół nie istnieje albo już potwierdzony.
+ */
+function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, string $ip = ''): void {
+    ti_protocols_migrate();
+    $prot = ti_protocol_get($protocol_id);
+    if (!$prot)                            throw new \RuntimeException('Protokół nie istnieje.');
+    if (ti_protocol_hours_acked($prot))    throw new \RuntimeException('Ewidencja godzin jest już potwierdzona.');
+
+    $ip = trim($ip) !== '' ? trim($ip) : (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    db()->prepare(
+        "UPDATE k30_ti_protocols
+            SET hours_ack_by=?, hours_ack_name=?, hours_ack_at=datetime('now'), hours_ack_ip=?,
+                updated_at=datetime('now')
+          WHERE id=?"
+    )->execute([$by, $by_name, substr($ip, 0, 64), $protocol_id]);
+}
+
+/** Wycofuje potwierdzenie ewidencji (wołane przy odblokowaniu protokołu). */
+function ti_protocol_hours_ack_clear(int $protocol_id): void {
+    ti_protocols_migrate();
+    db_exec(
+        "UPDATE k30_ti_protocols
+            SET hours_ack_by=NULL, hours_ack_name='', hours_ack_at=NULL, hours_ack_ip='',
+                updated_at=datetime('now')
+          WHERE id=?",
+        [$protocol_id]
+    );
 }
 
 /**
@@ -540,13 +594,21 @@ function ti_protocol_print_html(array $prot): string {
               . '. Praca własna prowadzącego liczona jest bezskładkowo.</p>';
     }
 
+    $acked = ti_protocol_hours_acked($prot);
+    $sign_instructor = $acked
+        ? 'Potwierdzone elektronicznie w panelu:<br><strong>' . $h($prot['hours_ack_name'] ?: '—') . '</strong><br>'
+          . $h(date('d.m.Y H:i', strtotime((string)$prot['hours_ack_at'])))
+          . ($prot['hours_ack_ip'] !== '' ? '<br>IP ' . $h($prot['hours_ack_ip']) : '')
+        : '.............................................<br>data i podpis prowadzącego';
+
     $statement = '<div class="stmt">'
         . '<p class="stmt-h">Oświadczenie prowadzącego</p>'
         . '<p>Potwierdzam, że ewidencja godzin oraz naliczenie wypłaty w tym protokole '
         . 'są zgodne ze stanem faktycznym — zajęcia w wykazanych terminach odbyły się '
         . 'w podanym wymiarze, a wykazane kwoty nie budzą moich zastrzeżeń.</p>'
+        . ($acked ? '' : '<p class="empty">Oświadczenie niepotwierdzone — wymaga podpisu prowadzącego.</p>')
         . '<table class="signs"><tbody><tr>'
-        . '<td>.............................................<br>data i podpis prowadzącego</td>'
+        . '<td>' . $sign_instructor . '</td>'
         . '<td>.............................................<br>za organizatora</td>'
         . '</tr></tbody></table></div>';
 
