@@ -1050,7 +1050,7 @@ include __DIR__ . '/_layout_head.php';
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='dysk'?'active':'' ?>" href="?tab=dysk" <?= $tab==='dysk'?'aria-current="page"':'' ?>>
           <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>Mój dysk</a></li>
         <?php /* Materiały zewnętrzne to osobny moduł (karty30/ti/ext), nie zakładka panelu. */ ?>
-        <li><a class="dropdown-item <?= $mc() ?>" href="../ext/index.php">
+        <li><a class="dropdown-item <?= $mc() ?>" href="../ext/index.php?as=student">
           <i class="bi bi-book me-2" aria-hidden="true"></i>Biblioteka materiałów</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
@@ -1508,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $kp_start_items[] = ['tab' => 'licencje',    'icon' => 'key',          'label' => 'Licencje',   'badge' => !empty($my_licenses) ? count($my_licenses) : 0];
   $kp_start_items[] = ['tab' => 'pfron',       'icon' => 'shield-lock',  'label' => 'PFRON (konsultacje)'];
   // Moduł materiałów zewnętrznych — kafel prowadzi poza panel, stąd pełny adres
-  $kp_start_items[] = ['tab' => '', 'icon' => 'book', 'label' => 'Biblioteka materiałów', 'href' => '../ext/index.php'];
+  $kp_start_items[] = ['tab' => '', 'icon' => 'book', 'label' => 'Biblioteka materiałów', 'href' => '../ext/index.php?as=student'];
   $kp_start_items[] = ['tab' => 'problem',     'icon' => 'life-preserver', 'label' => 'Pomoc'];
   $kp_start_items[] = ['tab' => 'aktywnosc',   'icon' => 'clock-history', 'label' => 'Aktywność'];
   $kp_start_items[] = ['tab' => 'ustawienia',  'icon' => 'gear',         'label' => 'Ustawienia'];

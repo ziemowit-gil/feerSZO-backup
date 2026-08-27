@@ -116,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'subject_id'   => (int)($_POST['subject_id'] ?? 0),
                 'effect'       => ($_POST['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',
                 'abilities'    => implode(',', $abilities),
-                'starts_at'    => ($_POST['starts_at'] ?? '') ?: null,
-                'ends_at'      => ($_POST['ends_at'] ?? '') ?: null,
+                'starts_at'    => ext_dt((string)($_POST['starts_at'] ?? '')),
+                'ends_at'      => ext_dt((string)($_POST['ends_at'] ?? '')),
                 'note'         => trim((string)($_POST['note'] ?? '')),
                 'created_by'   => $uid,
             ]);

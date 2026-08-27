@@ -29,7 +29,8 @@ $EXT_TAB   = 'katalog';
 include __DIR__ . '/_head.php';
 ?>
 
-<h1 class="h4 fw-bold mb-1"><i class="bi bi-book text-primary me-2" aria-hidden="true"></i>Materiały zewnętrzne</h1>
+<?php /* Nazwa modułu stoi w pasku u góry — nagłówek strony mówi, co to za ekran. */ ?>
+<h1 class="h4 fw-bold mb-1"><i class="bi bi-book text-primary me-2" aria-hidden="true"></i>Katalog</h1>
 <p class="text-body-secondary small mb-3">
   Książki, e-booki i dokumenty udostępnione przez wydawnictwa. Dostęp zależy od licencji —
   przy każdej pozycji widać, co możesz z nią zrobić.

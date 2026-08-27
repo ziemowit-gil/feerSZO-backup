@@ -74,7 +74,7 @@ $_alt_sections = [
             $_it('dysk',     'Mój dysk',           $_g('dysk')),
             $_it('licencje', 'Licencje',           $_g('licencje'), $_n_lic),
             $_it('pfron',    'PFRON (konsultacje)', $_g('pfron')),
-            $_it('',         'Biblioteka materiałów', '../ext/index.php'),
+            $_it('',         'Biblioteka materiałów', '../ext/index.php?as=student'),
         ],
     ],
     'sprawy' => [

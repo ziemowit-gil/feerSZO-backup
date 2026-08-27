@@ -9,6 +9,12 @@ $KP_TOPBAR = [
     'brand'  => 'Materiały zewnętrzne',
     'icon'   => 'book',
     'user'   => (string)($EXT_SUBJECT['name'] ?? ''),
+    // Wylogowanie musi trafić w TĘ sesję, w której użytkownik siedzi — moduł
+    // obsługuje trzy i każda ma własny adres (patrz ext_logout_url).
+    'logout' => ext_logout_url($EXT_LAYER ?? null),
+    // Powrót do panelu obok wylogowania, a nie w pasku sekcji: to nie jest sekcja modułu.
+    'extra'  => '<a href="' . h(ext_back_url($EXT_LAYER ?? null)) . '" class="btn btn-outline-secondary btn-sm">'
+              . '<i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do panelu</a>',
 ];
 $KP_BODY_CLASS = 'ti-skin ext-mod';
 // Stopka panelu kursanta przekierowuje na ostatnio oglądaną zakładkę, gdy
@@ -39,7 +45,6 @@ body.ext-mod .ext-tree-depth-2 { padding-left:2.4rem; }
   <a href="admin.php"    <?= ($EXT_TAB ?? '') === 'ustawienia' ? 'aria-current="page"' : '' ?>>Wydawcy i dostęp</a>
   <a href="log.php"      <?= ($EXT_TAB ?? '') === 'dziennik'   ? 'aria-current="page"' : '' ?>>Dziennik</a>
   <?php endif; ?>
-  <a href="<?= h(ext_back_url($EXT_SUBJECT ?? null)) ?>">← Wróć do panelu</a>
 </nav>
 
 <main id="main" class="dyd-wrap">

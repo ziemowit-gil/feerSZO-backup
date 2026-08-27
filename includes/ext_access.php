@@ -109,30 +109,53 @@ function ext_access_migrate(): void
 // ── Podmiot ──────────────────────────────────────────────────────────────────
 
 /**
- * Ujednolicony podmiot uprawnień z którejkolwiek z trzech sesji.
- * Kolejność ma znaczenie: panele sprawdzamy pierwsze, bo w nich sesja SZO
- * jest pusta, a nie odwrotnie.
+ * Podmiot z KONKRETNEJ warstwy sesji: 'dyd' | 'student' | 'szo'.
+ *
+ * Rozbite na warstwy, bo wołający musi móc powiedzieć, którą sesję otwiera.
+ * PHP utrzymuje w żądaniu jedną sesję, więc funkcja pytająca „po kolei" sama
+ * ją zajmuje — a wtedy druga próba trafia już na cudzą, otwartą sesję i zwraca
+ * pustkę (na tym wykładał się moduł, gdy w przeglądarce leżały dwa ciasteczka).
  */
-function ext_subject(): ?array
+function ext_subject_layer(string $kind): ?array
 {
-    if (function_exists('dyd_current') && ($d = dyd_current())) {
-        return ['type' => 'user', 'id' => (int)$d['user_id'], 'name' => (string)($d['name'] ?? ''),
-                'role' => (string)($d['role'] ?? ''), 'staff' => !empty($d['is_staff'])];
+    if ($kind === 'dyd' && function_exists('dyd_current')) {
+        $d = dyd_current();
+        return $d ? ['type' => 'user', 'id' => (int)$d['user_id'], 'name' => (string)($d['name'] ?? ''),
+                     'role' => (string)($d['role'] ?? ''), 'staff' => !empty($d['is_staff'])] : null;
     }
-    if (function_exists('student_current') && ($s = student_current())) {
+
+    if ($kind === 'student' && function_exists('student_current')) {
+        $s = student_current();
+        if (!$s) return null;
         $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [(int)($s['client_id'] ?? 0)]);
         return ['type' => 'student', 'id' => (int)$s['id'], 'name' => (string)($cl['name'] ?? ''),
                 'role' => '', 'staff' => false, 'client_id' => (int)($s['client_id'] ?? 0)];
     }
-    if (function_exists('current_user') && ($u = current_user())) {
+
+    if ($kind === 'szo' && function_exists('current_user')) {
+        $u = current_user();
+        if (!$u) return null;
         $staff = (function_exists('can_write') && can_write('karty30'))
               || (function_exists('is_admin') && is_admin());
         return ['type' => 'user', 'id' => (int)$u['id'], 'name' => (string)($u['name'] ?? ''),
                 'role' => (string)($u['role'] ?? ''), 'staff' => $staff];
     }
+
     return null;
 }
 
+/**
+ * Podmiot z którejkolwiek z trzech sesji — dla stron, które mają już otwartą
+ * sesję i nie wybierają jej same (np. panele wołające helpery modułu).
+ */
+function ext_subject(): ?array
+{
+    foreach (['dyd', 'student', 'szo'] as $kind) {
+        $s = ext_subject_layer($kind);
+        if ($s) return $s;
+    }
+    return null;
+}
 /** Czy podmiot może zarządzać modułem (wgrywać, nadawać dostęp). */
 function ext_can_manage(?array $subject): bool
 {

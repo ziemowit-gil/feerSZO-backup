@@ -482,6 +482,20 @@ function ext_resource_context(int $resource_id): ?array
             'title' => $title, 'publisher' => $publisher];
 }
 
+/**
+ * Data z pola datetime-local („2026-12-31T23:59") do postaci, w której SQLite
+ * porównuje ją z datetime('now'). Zostawienie litery „T" psuje warunki
+ * `ends_at >= datetime('now')` w obrębie tego samego dnia — uprawnienie
+ * wygasłoby albo działało o dobę za długo.
+ */
+function ext_dt(?string $v): ?string
+{
+    $v = trim((string)$v);
+    if ($v === '') return null;
+    $ts = strtotime(str_replace('T', ' ', $v));
+    return $ts ? date('Y-m-d H:i:s', $ts) : null;
+}
+
 /** Rozmiar po ludzku — do list i podsumowań. */
 function ext_human_size(int $bytes): string
 {
