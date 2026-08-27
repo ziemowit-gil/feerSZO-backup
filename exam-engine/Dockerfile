@@ -10,20 +10,35 @@
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /build
 COPY src ./src
+# `jar cfe` (krótka forma) zamiast długich opcji --file/--main-class: krótkie
+# przełączniki rozumie każda wersja narzędzia, długie bywają wybredne co do
+# tego, czy wartość podaje się po spacji, czy po znaku równości.
 RUN set -eux; \
     mkdir -p out; \
     find src -name '*.java' > sources.txt; \
     javac -encoding UTF-8 -Xlint:-options -d out @sources.txt; \
-    jar --create --file exam-engine.jar --main-class pl.feer.exam.Main -C out .
+    test -f out/pl/feer/exam/Main.class; \
+    jar cfe exam-engine.jar pl.feer.exam.Main -C out .
 
 FROM eclipse-temurin:21-jdk-jammy
 
-# Narzędzia języków dostępnych w zadaniach programistycznych.
+# Warstwa obowiązkowa: bez tego obraz nie ma sensu.
 # curl służy wyłącznie kontroli stanu kontenera (HEALTHCHECK).
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends \
-        python3 php-cli nodejs gcc g++ libc6-dev curl ca-certificates; \
+    apt-get install -y --no-install-recommends curl ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
+
+# Warstwa języków zadań programistycznych — świadomie „best effort”.
+# Gdyby któryś pakiet zniknął z repozytorium dystrybucji, nie chcemy wywrócić
+# całego obrazu: silnik wystartuje bez tego języka, a zasób /health pokaże go
+# jako niedostępny i prowadzący od razu to zobaczy w panelu.
+RUN set -eux; \
+    apt-get update; \
+    for pkg in python3 php-cli nodejs gcc g++ libc6-dev; do \
+        apt-get install -y --no-install-recommends "$pkg" \
+            || echo "[exam-engine] UWAGA: nie udało się zainstalować $pkg — język będzie niedostępny"; \
+    done; \
     rm -rf /var/lib/apt/lists/*
 
 # Konto bez uprawnień — kod kursanta dziedziczy je po procesie silnika.

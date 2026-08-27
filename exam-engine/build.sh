@@ -16,7 +16,7 @@ mkdir -p out
 find src -name '*.java' > sources.txt
 javac -encoding UTF-8 -Xlint:-options -d out @sources.txt
 rm -f sources.txt
-jar --create --file exam-engine.jar --main-class pl.feer.exam.Main -C out .
+jar cfe exam-engine.jar pl.feer.exam.Main -C out .
 echo "✔ exam-engine.jar gotowy"
 
 if [[ "${1:-}" == "run" ]]; then
