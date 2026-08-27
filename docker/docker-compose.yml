@@ -48,8 +48,12 @@ services:
       SMTP_USER:  ${SMTP_USER:-}
       SMTP_PASS:  ${SMTP_PASS:-}
       SMTP_TLS:   ${SMTP_TLS:-off}
+      # Silnik egzaminów TI (moduł Testy wiedzy i umiejętności)
+      EXAM_ENGINE_URL:   ${EXAM_ENGINE_URL:-http://exam-engine:8090}
+      EXAM_ENGINE_TOKEN: ${EXAM_ENGINE_TOKEN:-}
     networks:
       - feer
+      - exam
 
   # ── Strona błędu — zawsze żywa, serwuje error.html przy 502/503 ─────────
   error-pages:
@@ -72,7 +76,46 @@ services:
     networks:
       - feer
 
+  # ── Silnik egzaminów TI — Java (generowanie testów, ocenianie, piaskownica) ─
+  #
+  # Usługa stoi WYŁĄCZNIE w sieci `exam`, która jest wewnętrzna (internal: true).
+  # Dzięki temu kod uruchamiany w piaskownicy nie ma żadnego wyjścia na świat,
+  # a jedynym rozmówcą silnika jest kontener aplikacji.
+  exam-engine:
+    build:
+      context: ../exam-engine
+      dockerfile: Dockerfile
+    image: feer-exam-engine:latest
+    container_name: feer-exam-engine
+    restart: unless-stopped
+    environment:
+      EXAM_PORT:           "8090"
+      EXAM_ENGINE_TOKEN:   ${EXAM_ENGINE_TOKEN:-}
+      EXAM_MAX_TIMEOUT_MS: ${EXAM_MAX_TIMEOUT_MS:-15000}
+      EXAM_WORKERS:        ${EXAM_WORKERS:-8}
+    # System plików tylko do odczytu; kod kursanta pisze wyłącznie do /tmp.
+    # UWAGA: /tmp nie może być `noexec` — języki kompilowane (C/C++) uruchamiają
+    # stamtąd program wynikowy. Zamiast tego ograniczamy rozmiar, CPU, RAM i PID-y.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: ${EXAM_MEM_LIMIT:-1g}
+    cpus: ${EXAM_CPUS:-1.5}
+    networks:
+      - exam
+
 networks:
   feer:
     driver: bridge
     name: docker_feer
+
+  # Sieć bez trasy na zewnątrz — izoluje piaskownicę silnika egzaminów.
+  exam:
+    driver: bridge
+    internal: true
+    name: docker_feer_exam

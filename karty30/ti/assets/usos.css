@@ -64,18 +64,41 @@ body.dyd-usos .usos-crumbs {
 }
 body.dyd-usos .usos-crumbs a { color: var(--usos-link); }
 
-/* Menu boczne jest position:fixed, więc paski muszą zaczynać się TAM, gdzie
-   zaczyna się treść — inaczej menu nachodzi na ich lewą część. Marginesy
-   powtarzają regułę .dyd-content z index.php (220px, 0 przy zwiniętym menu,
-   0 poniżej 768px, gdzie menu jest wysuwane). */
-@media (min-width: 768px) {
-  body.dyd-usos .usos-sections,
-  body.dyd-usos .usos-crumbs { margin-left: 220px; transition: margin-left .22s ease; }
-  body.dyd-usos.dyd-sb-hidden .usos-sections,
-  body.dyd-usos.dyd-sb-hidden .usos-crumbs { margin-left: 0; }
+/* Drugi rząd nawigacji: pozycje otwartej sekcji (dawna zawartość menu bocznego) */
+body.dyd-usos .usos-subnav {
+  background: #fff;
+  border-bottom: 1px solid var(--usos-bar-border);
+  padding: .2rem .5rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .1rem;
 }
+body.dyd-usos .usos-subnav a,
+body.dyd-usos .usos-subnav .usos-subnav-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .22rem .6rem; font-size: .78rem;
+  color: var(--usos-link); text-decoration: none;
+  border: 1px solid transparent; border-radius: 2px;
+  background: none;
+}
+body.dyd-usos .usos-subnav a:hover,
+body.dyd-usos .usos-subnav .usos-subnav-btn:hover { background: #eef3f9; text-decoration: underline; }
+body.dyd-usos .usos-subnav a.active {
+  background: var(--usos-bar); border-color: var(--usos-bar-border);
+  color: var(--usos-navy); font-weight: 700;
+}
+body.dyd-usos .usos-subnav .badge { font-size: .6rem; }
+body.dyd-usos .usos-subnav .usos-subnav-btn { color: #45516b; }
+
+/* Nawigacja przeniesiona do góry — menu boczne w tym widoku jest zbędne.
+   Markup zostaje (używa go układ klasyczny), tu tylko go ukrywamy i oddajemy
+   treści całą szerokość. */
+body.dyd-usos .dyd-sidebar,
+body.dyd-usos #dydSbToggle,
+body.dyd-usos .dyd-sb-overlay { display: none !important; }
+body.dyd-usos .dyd-content { margin-left: 0 !important; }
+
 /* Ta sama szerokość co kolumna treści — krawędzie pasków i tabel w jednej linii */
 body.dyd-usos .usos-sections,
+body.dyd-usos .usos-subnav,
 body.dyd-usos .usos-crumbs { max-width: 1100px; }
 
 /* ── Menu-drzewo po lewej (ten sam markup, inny wygląd) ───────────────────── */
@@ -235,7 +258,8 @@ body.dyd-usos .usos-week .usos-slot {
 /* Druk: bez menu i pasków */
 @media print {
   body.dyd-usos header, body.dyd-usos .dyd-sidebar, body.dyd-usos .usos-sections,
-  body.dyd-usos #dydSbToggle, body.dyd-usos .usos-noprint { display: none !important; }
+  body.dyd-usos .usos-subnav, body.dyd-usos #dydSbToggle,
+  body.dyd-usos .usos-noprint { display: none !important; }
   body.dyd-usos .dyd-content,
   body.dyd-usos .usos-crumbs { margin-left: 0 !important; }
 }
