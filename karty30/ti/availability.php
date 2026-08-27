@@ -32,9 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op  = $_POST['_op'] ?? '';
     $iid = (int)($_POST['instructor_id'] ?? 0);
     if ($op === 'avail_add') {
-        if (!ti_avail_add($iid, (int)($_POST['day_of_week'] ?? -1), $_POST['time_from'] ?? '', $_POST['time_to'] ?? '')) {
-            flash_set('danger', 'Podaj poprawny dzień oraz godziny od–do (od < do).');
+        $dw = (int)($_POST['day_of_week'] ?? -1);
+        $vf = trim($_POST['valid_from'] ?? '');
+        $vt = trim($_POST['valid_to'] ?? '');
+        if ($vf !== '' && $vf === $vt && preg_match('/^\d{4}-\d{2}-\d{2}$/', $vf)) {
+            $dw = (int)date('w', strtotime($vf));   // jednorazowa: dzień z daty
+        }
+        if (!ti_avail_add($iid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '', 'approved', $vf, $vt)) {
+            flash_set('danger', 'Podaj poprawny dzień, godziny od–do (od < do) i zakres dat (od ≤ do).');
         } else { flash_set('success', 'Dodano okno dostępności.'); }
+        header('Location: availability.php?instructor=' . $iid); exit;
+    }
+
+    if ($op === 'avail_approve') {
+        ti_avail_set_status((int)($_POST['avail_id'] ?? 0), $iid, 'approved');
+        flash_set('success', 'Okno zatwierdzone.');
         header('Location: availability.php?instructor=' . $iid); exit;
     }
     if ($op === 'avail_delete') {
@@ -200,10 +212,30 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="border rounded p-2 h-100">
           <div class="fw-semibold mb-2"><i class="bi bi-calendar-day me-1 text-primary" aria-hidden="true"></i><?= h(K30_TI_DAYS[$dw]) ?></div>
           <?php if (!$wins): ?><div class="text-muted small mb-2">— niedostępny —</div><?php endif; ?>
-          <?php foreach ($wins as $w): ?>
-          <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="badge text-bg-primary"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
-            <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć to okno dostępności?')">
+          <?php foreach ($wins as $w): $w_draft = ($w['status'] ?? 'approved') === 'draft'; ?>
+          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <span class="badge text-bg-<?= $w_draft ? 'secondary' : 'primary' ?>"
+                  <?= $w_draft ? 'title="szkic — czeka na zatwierdzenie"' : '' ?>>
+              <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
+            <?php if (!empty($w['valid_from']) || !empty($w['valid_to'])): ?>
+            <span class="text-muted" style="font-size:.72rem">
+              <?= !empty($w['valid_from']) && $w['valid_from'] === ($w['valid_to'] ?? '')
+                  ? 'jednorazowo ' . h($w['valid_from'])
+                  : trim(($w['valid_from'] ? 'od ' . h($w['valid_from']) : '') . ($w['valid_to'] ? ' do ' . h($w['valid_to']) : '')) ?>
+            </span>
+            <?php endif; ?>
+            <?php if ($w_draft): ?>
+            <form method="post" class="ms-auto">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="avail_approve">
+              <input type="hidden" name="instructor_id" value="<?= $instructor_id ?>">
+              <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
+              <button class="btn btn-sm btn-outline-success py-0 px-2" title="Zatwierdź okno"
+                      aria-label="Zatwierdź okno <?= h(K30_TI_DAYS[$dw]) ?> <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?>">
+                <i class="bi bi-check-circle" aria-hidden="true"></i></button>
+            </form>
+            <?php endif; ?>
+            <form method="post" class="<?= $w_draft ? '' : 'ms-auto' ?>" onsubmit="return confirm('Usunąć to okno dostępności?')">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op" value="avail_delete">
               <input type="hidden" name="instructor_id" value="<?= $instructor_id ?>">
@@ -238,10 +270,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <label class="form-label fw-semibold" for="av_to">Do</label>
         <select class="form-select" id="av_to" name="time_to"><?= ti_time_options('13:00') ?></select>
       </div>
+      <div class="col-sm-3">
+        <label class="form-label fw-semibold" for="av_vf">Obowiązuje od</label>
+        <input type="date" class="form-control" id="av_vf" name="valid_from">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label fw-semibold" for="av_vt">do</label>
+        <input type="date" class="form-control" id="av_vt" name="valid_to">
+      </div>
       <div class="col-sm-2">
         <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
       </div>
     </form>
+    <p class="form-text mb-0 mt-2">
+      Puste daty = okno stałe. Różna dostępność w różnych tygodniach = osobne okna
+      z rozłącznymi zakresami dat; jednorazowa: od = do. Z zatwierdzonych okien
+      generator tworzy terminy zapisów.
+    </p>
   </div>
 </div>
 <?php endif; ?>

@@ -327,8 +327,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'avail_add') {
         $dw       = (int)($_POST['day_of_week'] ?? -1);
         $av_st    = in_array($_POST['status'] ?? '', ['draft','approved'], true) ? $_POST['status'] : 'approved';
-        if (!ti_avail_add($uid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '', $av_st)) {
-            flash_set('danger', 'Podaj poprawny dzień oraz godziny od–do (od < do).');
+        $vf       = trim($_POST['valid_from'] ?? '');
+        $vt       = trim($_POST['valid_to'] ?? '');
+        // Ważność jednego dnia = dostępność jednorazowa; dzień tygodnia musi
+        // zgadzać się z datą, więc wyliczamy go z niej — mniej pomyłek.
+        if ($vf !== '' && $vf === $vt && preg_match('/^\d{4}-\d{2}-\d{2}$/', $vf)) {
+            $dw = (int)date('w', strtotime($vf));
+        }
+        if (!ti_avail_add($uid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '', $av_st, $vf, $vt)) {
+            flash_set('danger', 'Podaj poprawny dzień, godziny od–do (od < do) i zakres dat (od ≤ do).');
         } else {
             flash_set('success', 'Dodano okno dostępności.');
         }

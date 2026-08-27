@@ -137,6 +137,20 @@ function ti_rk_migrate(): void {
     if ($cols && !in_array('audience_kind', $cols, true)) {
         try { $pdo->exec("ALTER TABLE k30_rk_rounds ADD COLUMN audience_kind TEXT NOT NULL DEFAULT 'continuing'"); } catch (\Throwable) {}
     }
+    // Automatyczne generowanie terminów z dostępności (cron, tryb dogenerowywania)
+    if ($cols) {
+        foreach ([
+            'auto_generate'     => 'INTEGER NOT NULL DEFAULT 0',
+            'auto_horizon_days' => 'INTEGER NOT NULL DEFAULT 14',
+            'auto_duration_min' => 'INTEGER NOT NULL DEFAULT 60',
+            'auto_capacity'     => 'INTEGER NOT NULL DEFAULT 1',
+            'auto_mode'         => "TEXT NOT NULL DEFAULT 'online'",
+        ] as $c => $def) {
+            if (!in_array($c, $cols, true)) {
+                try { $pdo->exec("ALTER TABLE k30_rk_rounds ADD COLUMN $c $def"); } catch (\Throwable) {}
+            }
+        }
+    }
 
     // Prowadzący do wyboru per grupa (kurs) w turze — ustawia kierownik.
     // Brak wpisów dla grup kursanta = kursant widzi wszystkich prowadzących.
@@ -459,6 +473,12 @@ function rk_round_save(array $d, ?int $id = null): int {
         'late_refund_pct' => min(100, max(0, (int)($d['late_refund_pct'] ?? 0))),
         'audience_json'   => $d['audience_json'] ?? '{}',
         'rules_html'      => $d['rules_html'] ?? '',
+        'auto_generate'     => !empty($d['auto_generate']) ? 1 : 0,
+        'auto_horizon_days' => min(120, max(1, (int)($d['auto_horizon_days'] ?? 14))),
+        'auto_duration_min' => min(480, max(15, (int)($d['auto_duration_min'] ?? 60))),
+        'auto_capacity'     => min(30, max(1, (int)($d['auto_capacity'] ?? 1))),
+        'auto_mode'         => in_array($d['auto_mode'] ?? '', ['online','onsite','hybrid'], true)
+                                 ? $d['auto_mode'] : 'online',
     ];
     if ($id) {
         $sets = implode(',', array_map(fn($k) => "$k=?", array_keys($fields)));
@@ -1401,13 +1421,21 @@ function rk_parent_expire_stale(): int {
  *   day_from / day_to   => 'HH:MM' — godziny dnia przy pomijaniu (dom. 09–17);
  *   days                => [int]   — dni tygodnia przy pomijaniu, 0=Nd…6=Sb
  *                                    (dom. pon–pt). Urlopy blokują ZAWSZE.
+ *   dry_run             => bool  — podgląd: pełny przebieg BEZ zapisu
+ *                                  (nic nie powstaje, liczniki jak przy zapisie);
+ *   top_up              => bool  — tryb dogenerowywania (auto/cron): bez blokad
+ *                                  EXISTING/AVAILABILITY — istniejące starty
+ *                                  i prowadzący bez okien są po prostu pomijani.
  *
- * Zwraca ['created','leave','other','no_windows','skipped'(suma)].
+ * Okna dostępności respektują ważność (valid_from/valid_to) per dzień.
+ * Zwraca ['created','exists','leave','other','no_windows','skipped'(suma),
+ *         'per_instructor' => [id => ['name','created']]].
  */
 function rk_slots_generate(int $round_id, array $instructor_ids, string $date_from, string $date_to,
                            int $duration_min = 60, int $capacity = 1, ?int $token_cost = null,
                            string $mode = 'online', array $opts = []): array {
-    $out = ['created' => 0, 'exists' => 0, 'leave' => 0, 'other' => 0, 'no_windows' => 0, 'skipped' => 0];
+    $out = ['created' => 0, 'exists' => 0, 'leave' => 0, 'other' => 0, 'no_windows' => 0,
+            'skipped' => 0, 'per_instructor' => []];
     $instructor_ids = array_unique(array_filter(array_map('intval', $instructor_ids)));
     $duration_min   = max(15, min(480, $duration_min));
     $t_from = strtotime($date_from . ' 00:00:00');
@@ -1415,23 +1443,30 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
     if (!$instructor_ids || !$t_from || !$t_to || $t_to < $t_from) return $out;
     $t_to = min($t_to, strtotime('+120 days'));   // bezpiecznik zakresu
 
-    // Pre-check blokujący: żywe terminy wybranych prowadzących w zakresie dat
-    $ph = implode(',', array_fill(0, count($instructor_ids), '?'));
-    $existing = db_one(
-        "SELECT COUNT(*) n FROM k30_rk_slots
-          WHERE instructor_id IN ($ph)
-            AND status IN ('draft','open','locked')
-            AND date(starts_at) BETWEEN ? AND ?",
-        [...$instructor_ids, date('Y-m-d', $t_from), date('Y-m-d', $t_to)]);
-    if ((int)($existing['n'] ?? 0) > 0) {
-        throw new RkException('GENERATOR_EXISTING_SLOTS:' . (int)$existing['n']);
+    $dry    = !empty($opts['dry_run']);
+    $top_up = !empty($opts['top_up']);
+
+    // Pre-check blokujący: żywe terminy wybranych prowadzących w zakresie dat.
+    // Tryb top_up (auto-dogenerowywanie) świadomie go pomija — dubluje starty
+    // wyłapuje kontrola per-slot.
+    if (!$top_up) {
+        $ph = implode(',', array_fill(0, count($instructor_ids), '?'));
+        $existing = db_one(
+            "SELECT COUNT(*) n FROM k30_rk_slots
+              WHERE instructor_id IN ($ph)
+                AND status IN ('draft','open','locked')
+                AND date(starts_at) BETWEEN ? AND ?",
+            [...$instructor_ids, date('Y-m-d', $t_from), date('Y-m-d', $t_to)]);
+        if (!$dry && (int)($existing['n'] ?? 0) > 0) {
+            throw new RkException('GENERATOR_EXISTING_SLOTS:' . (int)$existing['n']);
+        }
     }
 
     $ignore = !empty($opts['ignore_availability']);
 
     // Pre-check dostępności: bez zatwierdzonych okien generowanie NIE startuje.
     // Okna robocze (status != approved) raportujemy osobno — do zatwierdzenia.
-    if (!$ignore) {
+    if (!$ignore && !$top_up) {
         $missing = []; $unapproved = [];
         foreach ($instructor_ids as $iid) {
             $appr = db_one("SELECT 1 FROM k30_ti_instructor_availability
@@ -1456,24 +1491,48 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
                 ?: [1,2,3,4,5];
 
     foreach ($instructor_ids as $iid) {
+        $u = db_one("SELECT name FROM users WHERE id=?", [$iid]);
+        $out['per_instructor'][$iid] = ['name' => (string)($u['name'] ?? ('#' . $iid)), 'created' => 0];
+
         if ($ignore) {
             $by_dow = [];
-            foreach ($syn_days as $d) $by_dow[$d][] = ['time_from' => $syn_from, 'time_to' => $syn_to];
+            foreach ($syn_days as $d) $by_dow[$d][] = ['time_from' => $syn_from, 'time_to' => $syn_to,
+                                                       'valid_from' => null, 'valid_to' => null];
         } else {
             $windows = db_all(
-                "SELECT day_of_week, time_from, time_to FROM k30_ti_instructor_availability
+                "SELECT day_of_week, time_from, time_to, valid_from, valid_to
+                   FROM k30_ti_instructor_availability
                   WHERE instructor_id=? AND is_active=1 AND status='approved'", [$iid]);
             if (!$windows) { $out['no_windows']++; continue; }   // pas bezpieczeństwa po pre-checku
             $by_dow = [];
             foreach ($windows as $w) $by_dow[(int)$w['day_of_week']][] = $w;
         }
 
+        // Dni urlopu w zakresie — do symulacji w dry_run (zapis waliduje rk_slot_save)
+        $leave_days = [];
+        foreach (db_all("SELECT date_from, date_to FROM k30_ti_instructor_leaves
+                          WHERE instructor_id=? AND status='approved'
+                            AND date_from <= ? AND date_to >= ?",
+                        [$iid, date('Y-m-d', $t_to), date('Y-m-d', $t_from)]) as $lv) {
+            $leave_days[] = $lv;
+        }
+        $on_leave = function (string $date) use ($leave_days): bool {
+            foreach ($leave_days as $lv) {
+                if ($date >= $lv['date_from'] && $date <= $lv['date_to']) return true;
+            }
+            return false;
+        };
+
         for ($day = $t_from; $day <= $t_to; $day += 86400) {
             if ($day < strtotime('today')) continue;
-            $dow = (int)date('w', $day);
+            $dow  = (int)date('w', $day);
+            $date = date('Y-m-d', $day);
             foreach ($by_dow[$dow] ?? [] as $w) {
-                $win_from = strtotime(date('Y-m-d ', $day) . $w['time_from']);
-                $win_to   = strtotime(date('Y-m-d ', $day) . $w['time_to']);
+                // Ważność okna: okno „na czas tury” obowiązuje tylko w swoim zakresie
+                if (!empty($w['valid_from']) && $date < $w['valid_from']) continue;
+                if (!empty($w['valid_to'])   && $date > $w['valid_to'])   continue;
+                $win_from = strtotime($date . ' ' . $w['time_from']);
+                $win_to   = strtotime($date . ' ' . $w['time_to']);
                 if (!$win_from || !$win_to) continue;
                 for ($s = $win_from; $s + $duration_min * 60 <= $win_to; $s += $duration_min * 60) {
                     if ($s <= time()) { continue; }
@@ -1489,6 +1548,13 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
                         [$iid, $starts]);
                     if ($dup) { $out['exists']++; continue; }
 
+                    if ($dry) {   // podgląd: licz, nie zapisuj
+                        if ($on_leave($date)) { $out['leave']++; continue; }
+                        $out['created']++;
+                        $out['per_instructor'][$iid]['created']++;
+                        continue;
+                    }
+
                     try {
                         $sid = rk_slot_save([
                             'round_id'      => $round_id,
@@ -1501,6 +1567,7 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
                         ]);
                         db_exec("UPDATE k30_rk_slots SET status='open' WHERE id=?", [$sid]);
                         $out['created']++;
+                        $out['per_instructor'][$iid]['created']++;
                     } catch (RkException $e) {
                         $e->getMessage() === 'SLOT_ON_LEAVE' ? $out['leave']++ : $out['other']++;
                     } catch (\PDOException) { $out['exists']++; }   // wyścig na unikacie
@@ -1510,6 +1577,35 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
     }
     $out['skipped'] = $out['exists'] + $out['leave'] + $out['other'];
     return $out;
+}
+
+/**
+ * Automatyczne dogenerowywanie terminów z dostępności (cron).
+ * Dla każdej OTWARTEJ tury z auto_generate=1: prowadzący przypisani grupom
+ * w turze, horyzont kroczący auto_horizon_days (przycięty do closes_at),
+ * tryb top_up — istniejące starty pomijane, prowadzący bez zatwierdzonych
+ * okien pomijani. Koszt zawsze z auto-wyceny (rk_token_minutes).
+ * Zwraca [round_id => created].
+ */
+function rk_auto_generate_rounds(): array {
+    $res = [];
+    foreach (db_all("SELECT * FROM k30_rk_rounds WHERE status='open' AND auto_generate=1") as $r) {
+        $iids = array_column(db_all(
+            "SELECT DISTINCT instructor_id AS iid FROM k30_rk_round_course_instructors WHERE round_id=?",
+            [(int)$r['id']]), 'iid');
+        if (!$iids) { $res[(int)$r['id']] = 0; continue; }   // bez przypisań nie zgadujemy
+
+        $to = date('Y-m-d', strtotime('+' . max(1, (int)$r['auto_horizon_days']) . ' days'));
+        if (!empty($r['closes_at'])) $to = min($to, substr((string)$r['closes_at'], 0, 10));
+
+        $g = rk_slots_generate(
+            (int)$r['id'], array_map('intval', $iids), date('Y-m-d'), $to,
+            (int)$r['auto_duration_min'], (int)$r['auto_capacity'], null,
+            (string)$r['auto_mode'], ['top_up' => true]
+        );
+        $res[(int)$r['id']] = (int)$g['created'];
+    }
+    return $res;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

@@ -23,6 +23,7 @@ $_kier_items = [
     ['Komunikacja',           'index.php?tab=komunikacja'],
     ['Żetony SZO',            'zetony.php'],
     ['Zapisy na zajęcia',     'rekrutacja.php'],
+    ['Dostępności prowadzących', 'dostepnosci.php'],
     ['Okresy nauczania',      'okresy.php'],
     ['Wyłączenia panelu',     'wylaczenia.php'],
 ];

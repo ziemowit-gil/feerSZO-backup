@@ -49,4 +49,9 @@ db_exec("UPDATE k30_rk_rounds SET status='closed'
 $expired = rk_parent_expire_stale();
 if ($expired) echo date('Y-m-d H:i:s') . " wygaszono $expired rezerwacji bez zgody rodzica\n";
 
+// 5. Automatyczne dogenerowywanie terminów z dostępności (tury z auto_generate)
+foreach (rk_auto_generate_rounds() as $rid => $n) {
+    if ($n > 0) echo date('Y-m-d H:i:s') . " tura #$rid: auto-wygenerowano $n terminów z dostępności\n";
+}
+
 echo date('Y-m-d H:i:s') . " rk_announce: gotowe\n";

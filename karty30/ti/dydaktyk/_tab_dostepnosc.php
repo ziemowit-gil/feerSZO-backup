@@ -105,7 +105,18 @@ $av_hm = function (int $min): string {
                 <div class="text-body-secondary fw-normal small"><?= h($av_hm($dmin)) ?></div>
               </th>
               <?php endif; ?>
-              <td class="text-nowrap"><strong><?= h($hours) ?></strong></td>
+              <td class="text-nowrap"><strong><?= h($hours) ?></strong>
+                <?php if (!empty($w['valid_from']) || !empty($w['valid_to'])): ?>
+                <div class="text-body-secondary" style="font-size:.72rem">
+                  <?php if (!empty($w['valid_from']) && $w['valid_from'] === ($w['valid_to'] ?? '')): ?>
+                    jednorazowo <?= h($w['valid_from']) ?>
+                  <?php else: ?>
+                    <?= $w['valid_from'] ? 'od ' . h($w['valid_from']) : '' ?>
+                    <?= $w['valid_to'] ? ' do ' . h($w['valid_to']) : '' ?>
+                  <?php endif; ?>
+                </div>
+                <?php endif; ?>
+              </td>
               <td class="text-nowrap small text-body-secondary"><?= h($av_hm($wmin)) ?></td>
               <td><span class="badge text-bg-<?= h($av_cfg['color']) ?>"><?= h($av_cfg['label']) ?></span></td>
               <td class="text-end text-nowrap">
@@ -181,12 +192,24 @@ $av_hm = function (int $min): string {
         </select>
       </div>
       <div class="col-sm-6 col-lg-2">
+        <label class="form-label fw-semibold" for="av_vfrom">Obowiązuje od</label>
+        <input type="date" class="form-control" id="av_vfrom" name="valid_from">
+      </div>
+      <div class="col-sm-6 col-lg-2">
+        <label class="form-label fw-semibold" for="av_vto">do</label>
+        <input type="date" class="form-control" id="av_vto" name="valid_to">
+      </div>
+      <div class="col-sm-6 col-lg-2">
         <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
       </div>
     </form>
     <p class="form-text mb-0">
       Zajęcia można ustawiać tylko w godzinach dostępności. Bez zdefiniowanych okien nie ma ograniczeń.
       W jednym dniu może być kilka okien; „Planowana (szkic)” to deklaracja wstępna, która nie zwalnia terminu.
+      <strong>Obowiązuje od/do</strong> pozwala mieć różną dostępność w różnych tygodniach —
+      np. poniedziałki 10–12 tylko do końca września, a od października 14–16
+      (dwa okna z różnymi zakresami dat). Puste daty = okno stałe, bezterminowe.
+      Dostępność jednorazowa: ustaw „od” i „do” na ten sam dzień.
     </p>
   </div>
 </div>

@@ -108,6 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         rk_round_save([
             'name'            => $_POST['name'] ?? '',
             'audience_kind'   => $_POST['audience_kind'] ?? 'continuing',
+            'auto_generate'     => !empty($_POST['auto_generate']),
+            'auto_horizon_days' => (int)($_POST['auto_horizon_days'] ?? 14),
+            'auto_duration_min' => (int)($_POST['auto_duration_min'] ?? 60),
+            'auto_capacity'     => (int)($_POST['auto_capacity'] ?? 1),
+            'auto_mode'         => $_POST['auto_mode'] ?? 'online',
             'pool_id'         => (int)($_POST['pool_id'] ?? 0),
             'opens_at'        => str_replace('T', ' ', trim($_POST['opens_at'] ?? '')),
             'closes_at'       => str_replace('T', ' ', trim($_POST['closes_at'] ?? '')),
@@ -165,8 +170,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'day_from'            => trim($_POST['gen_day_from'] ?? ''),
                     'day_to'              => trim($_POST['gen_day_to'] ?? ''),
                     'days'                => (array)($_POST['gen_days'] ?? []),
+                    'dry_run'             => !empty($_POST['preview']),
                 ]
             );
+            if (!empty($_POST['preview'])) {
+                // Podgląd na sucho: rozbicie per prowadzący, nic nie zapisano
+                $per = array_filter($res['per_instructor'], fn($p) => $p['created'] > 0);
+                $lst = implode(', ', array_map(fn($p) => $p['name'] . ': ' . $p['created'], $per));
+                flash_set($res['created'] ? 'info' : 'warning',
+                    'Podgląd (nic nie zapisano): powstałoby ' . (int)$res['created'] . ' terminów'
+                    . ($lst ? " — $lst" : '')
+                    . ($res['exists'] ? "; {$res['exists']} startów już istnieje" : '')
+                    . ($res['leave'] ? "; {$res['leave']} przypada na urlop" : '')
+                    . ($res['no_windows'] ? "; {$res['no_windows']} prowadzących bez zatwierdzonych okien" : '') . '.');
+                header('Location: rekrutacja.php?tab=grupy&round=' . $rid
+                     . ($iids ? '&instr=' . (int)$iids[0] : '')); exit;
+            }
             // Komunikat mówi, co się naprawdę stało — „0 wygenerowano” bez powodu myli
             $parts = [];
             if ($res['leave'])      $parts[] = "{$res['leave']} przypadało na urlop";
@@ -286,7 +305,8 @@ $all_courses = $is_staff ? db_all("SELECT id, name FROM k30_ti_courses WHERE is_
 $edit_round_id = (int)($_GET['edit_round'] ?? 0);
 $edit_round    = $edit_round_id ? rk_round_get($edit_round_id) : null;
 $rf = $edit_round ?: ['id'=>0,'name'=>'','audience_kind'=>'continuing','pool_id'=>0,'opens_at'=>'','closes_at'=>'','announce_at'=>'',
-                     'max_per_client'=>0,'refund_hours'=>24,'late_refund_pct'=>0,'audience_json'=>'{}','rules_html'=>''];
+                     'max_per_client'=>0,'refund_hours'=>24,'late_refund_pct'=>0,'audience_json'=>'{}','rules_html'=>'',
+                     'auto_generate'=>0,'auto_horizon_days'=>14,'auto_duration_min'=>60,'auto_capacity'=>1,'auto_mode'=>'online'];
 $rf_aud = json_decode((string)($rf['audience_json'] ?? '{}'), true) ?: [];
 
 // Przypisania grup + generator (kierownik, tab=grupy)
@@ -671,6 +691,46 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <label class="form-label small mb-1" for="rr-rules">Dodatkowe zasady (HTML, trafia do maila)</label>
             <textarea class="form-control form-control-sm" id="rr-rules" name="rules_html" rows="3"><?= h($rf['rules_html']) ?></textarea>
           </div>
+
+          <div class="border rounded p-2 bg-body-tertiary">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rr-auto" name="auto_generate" value="1"
+                     <?= !empty($rf['auto_generate']) ? 'checked' : '' ?>
+                     onchange="document.querySelectorAll('.rr-auto').forEach(e => e.disabled = !this.checked)">
+              <label class="form-check-label small fw-semibold" for="rr-auto">Generuj terminy automatycznie z dostępności</label>
+              <div class="form-text mt-0">
+                Cron dogenerowuje terminy z zatwierdzonych okien
+                <a href="dostepnosci.php" target="_blank" rel="noopener">dostępności</a>
+                prowadzących przypisanych do grup — na kroczący horyzont dni.
+                Istniejące starty są pomijane, urlopy blokują.
+              </div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-3">
+                <label class="form-label small mb-1" for="rr-ah">Horyzont (dni)</label>
+                <input type="number" class="form-control form-control-sm rr-auto" id="rr-ah" name="auto_horizon_days"
+                       value="<?= (int)$rf['auto_horizon_days'] ?>" min="1" max="120" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+              </div>
+              <div class="col-3">
+                <label class="form-label small mb-1" for="rr-ad">Długość (min)</label>
+                <input type="number" class="form-control form-control-sm rr-auto" id="rr-ad" name="auto_duration_min"
+                       value="<?= (int)$rf['auto_duration_min'] ?>" min="15" max="480" step="15" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+              </div>
+              <div class="col-3">
+                <label class="form-label small mb-1" for="rr-ac">Miejsca</label>
+                <input type="number" class="form-control form-control-sm rr-auto" id="rr-ac" name="auto_capacity"
+                       value="<?= (int)$rf['auto_capacity'] ?>" min="1" max="30" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+              </div>
+              <div class="col-3">
+                <label class="form-label small mb-1" for="rr-am">Forma</label>
+                <select class="form-select form-select-sm rr-auto" id="rr-am" name="auto_mode" <?= empty($rf['auto_generate']) ? 'disabled' : '' ?>>
+                  <?php foreach (['online'=>'online','onsite'=>'stacjonarnie','hybrid'=>'hybrydowo'] as $mk => $mv): ?>
+                  <option value="<?= $mk ?>" <?= ($rf['auto_mode'] ?? 'online') === $mk ? 'selected' : '' ?>><?= $mv ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+          </div>
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-primary"><i class="bi bi-check-lg me-1"></i><?= $edit_round ? 'Zapisz zmiany' : 'Utwórz turę' ?></button>
             <?php if ($edit_round): ?>
@@ -938,12 +998,23 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             </fieldset>
           </div>
 
-          <button class="btn btn-sm btn-primary"
-                  onclick="return confirm(document.getElementById('rg-ignore').checked
-                      ? 'Wygenerować terminy Z POMINIĘCIEM dostępności (podane godziny i dni)?'
-                      : 'Wygenerować otwarte terminy z okien dostępności wybranych prowadzących?')">
-            <i class="bi bi-magic me-1"></i>Generuj terminy
-          </button>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" name="preview" value="1"
+                    title="Policz, ile terminów powstanie — bez zapisywania">
+              <i class="bi bi-eye me-1"></i>Podgląd
+            </button>
+            <button class="btn btn-sm btn-primary"
+                    onclick="return confirm(document.getElementById('rg-ignore').checked
+                        ? 'Wygenerować terminy Z POMINIĘCIEM dostępności (podane godziny i dni)?'
+                        : 'Wygenerować otwarte terminy z okien dostępności wybranych prowadzących?')">
+              <i class="bi bi-magic me-1"></i>Generuj terminy
+            </button>
+          </div>
+          <div class="form-text">
+            Okna dostępności zarządzasz w <a href="dostepnosci.php" target="_blank" rel="noopener">Dostępnościach prowadzących</a>
+            (zatwierdzanie szkiców, okna czasowe „na tury”). Tura może też
+            <strong>dogenerowywać terminy automatycznie</strong> — włącz to w jej ustawieniach.
+          </div>
         </form>
       </div>
     </div>

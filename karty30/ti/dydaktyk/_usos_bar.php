@@ -108,6 +108,7 @@ if (dyd_is_staff()) {
             $_it('komunikacja',  'Komunikacja',           $_g('komunikacja')),
             $_it('',             'Żetony SZO',            'zetony.php'),
             $_it('',             'Zapisy — tury',         'rekrutacja.php?tab=tury'),
+            $_it('',             'Dostępności prowadzących', 'dostepnosci.php'),
             $_it('',             'Okresy nauczania',      'okresy.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
             $_it('',             'Raporty i WUP',         '../raporty.php', 0, 'secondary', true),

@@ -1204,6 +1204,13 @@ HTML;
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_avail_instr ON k30_ti_instructor_availability(instructor_id, day_of_week)");
+    // Ważność okna (np. dostępność tylko na czas tury zapisów) + notatka.
+    // Puste daty = okno bezterminowe — zachowanie dotychczasowe.
+    foreach ([
+        "ALTER TABLE k30_ti_instructor_availability ADD COLUMN valid_from DATE",
+        "ALTER TABLE k30_ti_instructor_availability ADD COLUMN valid_to   DATE",
+        "ALTER TABLE k30_ti_instructor_availability ADD COLUMN notes      TEXT NOT NULL DEFAULT ''",
+    ] as $_q) { try { $pdo->exec($_q); } catch (\Throwable $e) {} }
 
     // ── Blokada wiadomości + archiwizacja ────────────────────────────────────
     try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN msg_blocked INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
@@ -5645,18 +5652,51 @@ function ti_instructor_availability(int $instructor_id, ?string $status = null):
     );
 }
 
-/** Dodaj okno dostępności. Zwraca false przy błędnych godzinach. */
-function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, string $status = 'approved'): bool {
+/**
+ * Dodaj okno dostępności. Zwraca false przy błędnych godzinach.
+ * $valid_from/$valid_to (YYYY-MM-DD, '' = bezterminowo) ograniczają
+ * obowiązywanie okna — np. dostępność tylko na czas tury zapisów.
+ */
+function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, string $status = 'approved',
+                      string $valid_from = '', string $valid_to = '', string $notes = ''): bool {
     $from = substr(trim($from), 0, 5);
     $to   = substr(trim($to), 0, 5);
     if (!$instructor_id || $dow < 0 || $dow > 6) return false;
     if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
     if (!array_key_exists($status, TI_AVAIL_STATUS)) $status = 'approved';
+    $vf = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_from) ? $valid_from : null;
+    $vt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_to)   ? $valid_to   : null;
+    if ($vf && $vt && $vt < $vf) return false;
     db_insert('k30_ti_instructor_availability', [
         'instructor_id' => $instructor_id, 'day_of_week' => $dow,
         'time_from' => $from, 'time_to' => $to, 'is_active' => 1, 'status' => $status,
+        'valid_from' => $vf, 'valid_to' => $vt, 'notes' => substr(trim($notes), 0, 200),
     ]);
     return true;
+}
+
+/** Zatwierdza wszystkie szkice okien prowadzącego. Zwraca liczbę zatwierdzonych. */
+function ti_avail_approve_all(int $instructor_id): int {
+    $st = db()->prepare("UPDATE k30_ti_instructor_availability
+                          SET status='approved' WHERE instructor_id=? AND status='draft' AND is_active=1");
+    $st->execute([$instructor_id]);
+    return $st->rowCount();
+}
+
+/**
+ * Zatwierdzone okna prowadzącego obowiązujące danego dnia (ważność + dzień
+ * tygodnia). Wspólna definicja dla generatora terminów i walidacji zajęć.
+ */
+function ti_avail_windows_for_day(int $instructor_id, string $date): array {
+    $dow = (int)date('w', strtotime($date));
+    return db_all(
+        "SELECT * FROM k30_ti_instructor_availability
+          WHERE instructor_id=? AND is_active=1 AND status='approved' AND day_of_week=?
+            AND (valid_from IS NULL OR valid_from <= ?)
+            AND (valid_to   IS NULL OR valid_to   >= ?)
+          ORDER BY time_from",
+        [$instructor_id, $dow, $date, $date]
+    );
 }
 
 function ti_avail_delete(int $id, int $instructor_id): void {
