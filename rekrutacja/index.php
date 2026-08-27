@@ -12,7 +12,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
 
 rekr_migrate();
-require_module_enabled('rekrutacja_enabled', 'Moduł rekrutacji');
+require_module_enabled('rekrutacja_enabled', 'Moduł naboru');
 rekr_require_operator();
 
 $statuses  = rekr_statuses();
@@ -124,12 +124,12 @@ if (isset($_GET['_ajax'])) {
 }
 
 // ── Pełna strona ──────────────────────────────────────────────────────────────
-$PAGE_TITLE = 'Rekrutacja';
+$PAGE_TITLE = 'Nabór';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="container-fluid py-3">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 mb-0"><i class="bi bi-person-plus-fill me-2" aria-hidden="true"></i>Rekrutacja — zgłoszenia</h1>
+    <h1 class="h4 mb-0"><i class="bi bi-person-plus-fill me-2" aria-hidden="true"></i>Nabór — zgłoszenia</h1>
     <div class="btn-group">
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/kalendarz.php"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Rozmowy</a>
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/apply.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny</a>

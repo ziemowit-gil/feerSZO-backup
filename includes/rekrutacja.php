@@ -255,7 +255,7 @@ function rekr_require_operator(): void {
     require_login();
     if (!rekr_is_operator()) {
         http_response_code(403);
-        die('Brak dostępu do modułu rekrutacji.');
+        die('Brak dostępu do modułu naboru.');
     }
 }
 
@@ -568,7 +568,7 @@ function rekr_crm_sync(array $app): void {
                 'email'         => $app['email'],
                 'telefon'       => $app['telefon'],
                 'source'        => 'rekrutacja',
-                'notatka'       => 'Kandydat z modułu rekrutacji (zgłoszenie #' . $app['id'] . ')',
+                'notatka'       => 'Kandydat z modułu naboru (zgłoszenie #' . $app['id'] . ')',
             ]);
         }
         db_exec("UPDATE rekr_applications SET crm_contact_id=? WHERE id=?", [$contact_id, (int)$app['id']]);
@@ -581,10 +581,10 @@ function rekr_crm_sync(array $app): void {
         $group_id = (int)($pos['crm_group_id'] ?? 0);
     }
     if (!$group_id) {
-        $gname = $app['type'] === 'etat' ? 'Rekrutacja — kandydaci (etat)' : 'Rekrutacja — potencjalni wolontariusze';
+        $gname = $app['type'] === 'etat' ? 'Nabór — kandydaci (etat)' : 'Nabór — potencjalni wolontariusze';
         $g = db_one("SELECT id FROM crm_groups WHERE name=?", [$gname]);
         $group_id = $g ? (int)$g['id']
-                       : db_insert('crm_groups', ['name' => $gname, 'description' => 'Grupa automatyczna modułu rekrutacji', 'auto_source' => 'rekrutacja']);
+                       : db_insert('crm_groups', ['name' => $gname, 'description' => 'Grupa automatyczna modułu naboru', 'auto_source' => 'rekrutacja']);
     }
     db_exec("INSERT OR IGNORE INTO crm_group_members (group_id, contact_id) VALUES (?,?)", [$group_id, $contact_id]);
 

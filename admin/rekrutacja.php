@@ -160,12 +160,12 @@ $users      = db_all("SELECT id, name, email, role, COALESCE(rekrutacja_operator
 $crm_groups = [];
 try { $crm_groups = db_all("SELECT id, name FROM crm_groups ORDER BY name"); } catch (\Throwable $e) {}
 
-$PAGE_TITLE = 'Rekrutacja — ustawienia';
+$PAGE_TITLE = 'Nabór — ustawienia';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="container py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0"><i class="bi bi-gear me-2" aria-hidden="true"></i>Rekrutacja — ustawienia</h1>
+    <h1 class="h4 mb-0"><i class="bi bi-gear me-2" aria-hidden="true"></i>Nabór — ustawienia</h1>
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/index.php">Do listy zgłoszeń</a>
   </div>
 

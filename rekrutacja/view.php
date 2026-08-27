@@ -11,7 +11,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
 
 rekr_migrate();
-require_module_enabled('rekrutacja_enabled', 'Moduł rekrutacji');
+require_module_enabled('rekrutacja_enabled', 'Moduł naboru');
 rekr_require_operator();
 
 $id  = (int)($_GET['id'] ?? 0);
@@ -133,13 +133,13 @@ foreach ($templates as $t) {
     $tpl_js[$t['id']] = ['name' => $t['name'], 'subject' => $s, 'body' => $b];
 }
 
-$PAGE_TITLE = 'Rekrutacja — ' . rekr_candidate_name($app);
+$PAGE_TITLE = 'Nabór — ' . rekr_candidate_name($app);
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="container-fluid py-3">
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb small">
-      <li class="breadcrumb-item"><a href="<?= h(APP_URL) ?>/rekrutacja/index.php">Rekrutacja</a></li>
+      <li class="breadcrumb-item"><a href="<?= h(APP_URL) ?>/rekrutacja/index.php">Nabór</a></li>
       <li class="breadcrumb-item active" aria-current="page"><?= h(rekr_candidate_name($app)) ?></li>
     </ol>
   </nav>

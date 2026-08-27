@@ -10,7 +10,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
 
 rekr_migrate();
-require_module_enabled('rekrutacja_enabled', 'Moduł rekrutacji');
+require_module_enabled('rekrutacja_enabled', 'Moduł naboru');
 rekr_require_operator();
 
 $days_ahead = 14;
@@ -29,7 +29,7 @@ $past = db_all(
 
 $dni = ['Mon'=>'poniedziałek','Tue'=>'wtorek','Wed'=>'środa','Thu'=>'czwartek','Fri'=>'piątek','Sat'=>'sobota','Sun'=>'niedziela'];
 
-$PAGE_TITLE = 'Rekrutacja — rozmowy';
+$PAGE_TITLE = 'Nabór — rozmowy';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="container py-3">

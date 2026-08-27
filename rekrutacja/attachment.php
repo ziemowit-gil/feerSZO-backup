@@ -11,7 +11,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
 
 rekr_migrate();
-require_module_enabled('rekrutacja_enabled', 'Moduł rekrutacji');
+require_module_enabled('rekrutacja_enabled', 'Moduł naboru');
 rekr_require_operator();
 
 $file_id = (int)($_GET['id'] ?? 0);
