@@ -124,7 +124,17 @@ function mail_queue_add(
     array  $headers      = []   // dodatkowe nagłówki, np. List-Unsubscribe
 ): int {
     if (!$body_text) {
-        $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
+        // Linki przed strip_tags: „tekst” → „tekst: URL”, inaczej adres z href
+        // znika i wersja tekstowa maila (klienci text/plain) zostaje bez linku.
+        $body_text = preg_replace_callback(
+            '~<a\b[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>~is',
+            function ($m) {
+                $label = trim(strip_tags($m[2]));
+                return $label !== '' && $label !== $m[1] ? "$label: $m[1]" : $m[1];
+            },
+            $body_html
+        );
+        $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_text));
         $body_text = preg_replace('/[ \t]+/', ' ', $body_text);
         $body_text = trim($body_text);
     }

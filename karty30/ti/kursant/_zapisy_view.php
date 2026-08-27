@@ -223,8 +223,8 @@ $rk_mode_label = fn(string $m) => match ($m) {
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
             <button class="btn btn-sm btn-outline-primary"
-                    title="Rezerwacja cykliczna: ten dzień tygodnia i godzina na cały okres tury">
-              <i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Rezerwuj co tydzień</span>
+                    title="Ten dzień tygodnia i godzina co tydzień, na wszystkie terminy do końca tury">
+              <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Ustal zajęcia na cały okres
             </button>
           </form>
         </td>

@@ -894,6 +894,11 @@ Rejestracja otwiera się <strong>{{opens_at}}</strong> i trwa do {{closes_at}}.<
   </a>
 </div>
 
+<p style="font-size:.8em;color:#6c757d;word-break:break-all">
+  Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki:<br>
+  <a href="{{link}}">{{link}}</a>
+</p>
+
 <p style="font-size:.85em;color:#6c757d">
   Powyższy link jest przypisany do Ciebie — nie przekazuj go dalej. Wygasa po zamknięciu tury.
   Jeśli masz konto w panelu kursanta, zapisy znajdziesz również po zalogowaniu,
@@ -950,6 +955,11 @@ w całości na konto kursanta.</p>
     Zatwierdź lub odrzuć rezerwację &rarr;
   </a>
 </div>
+
+<p style="font-size:.8em;color:#6c757d;word-break:break-all">
+  Jeśli przycisk nie działa, skopiuj ten adres do przeglądarki:<br>
+  <a href="{{link}}">{{link}}</a>
+</p>
 
 <p style="font-size:.85em;color:#6c757d">
   Link jest jednorazowy i przypisany do tej rezerwacji. Wiadomość wysłana automatycznie
