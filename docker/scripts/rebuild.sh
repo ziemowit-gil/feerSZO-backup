@@ -70,9 +70,13 @@ else
     warn "Pomijam sync z origin (--no-pull)"
 fi
 
-# ── 2. Przebuduj obraz app ─────────────────────────────────────────────────────
-section "2. Budowanie obrazu"
-BUILD_SERVICES="app"
+# ── 2. Przebuduj obrazy ────────────────────────────────────────────────────────
+# exam-engine buduje się razem z app: kod Javy silnika Equi Exams jest kompilowany
+# wewnątrz obrazu (etap `javac`), więc bez rebuildu zmiany w exam-engine/src
+# nie trafiłyby na serwer. Gdy katalog się nie zmienił, cache warstw sprawia,
+# że ten krok kosztuje ułamek sekundy.
+section "2. Budowanie obrazów"
+BUILD_SERVICES="app exam-engine"
 [[ $USE_NG      -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} ng-ui"
 [[ $USE_KURSANT -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} kursant-ui"
 if [[ $NO_CACHE -eq 1 ]]; then
