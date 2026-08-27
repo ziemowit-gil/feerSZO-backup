@@ -168,8 +168,12 @@ body.ti-skin .h4, body.ti-skin .h5, body.ti-skin .h6 {
 body.ti-skin h1, body.ti-skin .h1 { font-size: 1.15rem; }
 body.ti-skin h2, body.ti-skin .h2 { font-size: 1.02rem; }
 body.ti-skin .h5, body.ti-skin .h6 { font-size: .92rem; }
-body.ti-skin a { color: var(--ti-link); text-decoration: underline; }
-body.ti-skin a.btn, body.ti-skin a.nav-link, body.ti-skin a.dropdown-item { text-decoration: none; }
+/* Linki są niebieskie i podkreślone, ALE nie te udające przyciski: `a.btn`
+   bierze kolor z wariantu Bootstrapa (--bs-btn-color), więc pomalowanie go
+   kolorem linku dawało granatowy napis na granatowym tle — przycisk wyglądał
+   na pusty. Stąd `:not(.btn)`. */
+body.ti-skin a:not(.btn) { color: var(--ti-link); text-decoration: underline; }
+body.ti-skin a.nav-link, body.ti-skin a.dropdown-item { text-decoration: none; }
 
 /* Karty → ramki z paskiem tytułu */
 body.dyd-usos .dyd-wrap .card,
@@ -225,8 +229,11 @@ body.ti-skin .btn {
   padding: .18rem .55rem !important;
   box-shadow: none !important;
 }
-body.ti-skin .btn-primary { background: var(--ti-blue); border-color: #083a70; }
-body.ti-skin .btn-primary:hover { background: #083a70; border-color: #062c55; }
+/* Napis na granatowym przycisku zawsze biały (#fff/#0b4a8f = 7,0:1) — bez
+   tego wystarczy jedna reguła kolorująca tekst, żeby przycisk zrobił się pusty. */
+body.ti-skin .btn-primary { background: var(--ti-blue); border-color: #083a70; color: #fff; }
+body.ti-skin .btn-primary:hover,
+body.ti-skin .btn-primary:focus { background: #083a70; border-color: #062c55; color: #fff; }
 body.ti-skin .btn-outline-secondary { color: #23405f; border-color: #8fa3ba; }
 body.ti-skin .form-control, body.ti-skin .form-select {
   border-radius: 2px !important; font-size: .78rem; padding: .15rem .35rem;
