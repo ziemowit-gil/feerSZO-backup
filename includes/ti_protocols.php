@@ -357,6 +357,106 @@ function ti_protocol_diary_averages(int $course_id): array {
 }
 
 /**
+ * Ewidencja godzin prowadzącego i naliczenie wypłaty za okres protokołu.
+ *
+ * Liczy tak samo, jak zakładka „Wypłaty" i k30_ti_payouts_by_instructor():
+ * stawka za zajęcia jest na kursie (lesson_payout_bb), liczą się zajęcia
+ * odbyte (held / individual_change / remote_material), a praca własna
+ * (self_prep_remote) i formy student/B2B są bezskładkowe.
+ *
+ * @return array{from:string, to:string, rows:array, lessons:int, total_min:int,
+ *               bb:float, payout:array, instructor:string, form:string, has_rate:bool}
+ */
+function ti_protocol_hours_and_payout(array $prot): array {
+    $course_id = (int)$prot['course_id'];
+
+    // Zakres: okres protokołu, a bez okresu — całe życie kursu
+    $from = (string)($prot['date_from'] ?? '');
+    $to   = (string)($prot['date_to']   ?? '');
+    if ($from === '' || $to === '') {
+        $r    = db_one("SELECT MIN(lesson_date) AS f, MAX(lesson_date) AS t FROM k30_ti_sessions WHERE course_id=?", [$course_id]);
+        $from = (string)($r['f'] ?? date('Y-m-d'));
+        $to   = (string)($r['t'] ?? date('Y-m-d'));
+    }
+
+    $c = db_one(
+        "SELECT c.lesson_payout_bb, COALESCE(u.name,'') AS iname,
+                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form
+           FROM k30_ti_courses c
+           LEFT JOIN users u ON u.id = c.instructor_id
+          WHERE c.id=?",
+        [$course_id]
+    ) ?: [];
+    $bb          = (float)($c['lesson_payout_bb'] ?? 0);
+    $form        = (string)($c['payout_form'] ?? 'zlecenie');
+    $form_exempt = in_array($form, ['student', 'b2b'], true);
+
+    $sessions = db_all(
+        "SELECT * FROM k30_ti_sessions
+          WHERE course_id=? AND lesson_date BETWEEN ? AND ?
+            AND status IN ('held','individual_change','remote_material')
+          ORDER BY lesson_date, time_from",
+        [$course_id, $from, $to]
+    );
+
+    $rows = []; $total_min = 0; $acc = _k30_ti_payout_zero();
+    foreach ($sessions as $s) {
+        $min = (int)($s['duration_min'] ?? 0);
+        if ($min <= 0 && $s['time_from'] && $s['time_to']) {
+            $min = max(0, ti_hm2min((string)$s['time_to']) - ti_hm2min((string)$s['time_from']));
+        }
+        $total_min += $min;
+
+        $b = null;
+        if ($bb > 0) {
+            $b = k30_ti_payout_breakdown($bb, $form_exempt || !empty($s['self_prep_remote']));
+            _k30_ti_payout_accumulate($acc, $b);
+        }
+        $rows[] = [
+            'date'    => (string)$s['lesson_date'],
+            'from'    => substr((string)$s['time_from'], 0, 5),
+            'to'      => substr((string)$s['time_to'], 0, 5),
+            'min'     => $min,
+            'topic'   => (string)($s['topic'] ?? ''),
+            'status'  => (string)$s['status'],
+            'own'     => !empty($s['self_prep_remote']),
+            'bb'      => $b ? (float)$b['brutto_brutto'] : 0.0,
+            'netto'   => $b ? (float)$b['netto'] : 0.0,
+        ];
+    }
+
+    return [
+        'from' => $from, 'to' => $to, 'rows' => $rows,
+        'lessons' => count($rows), 'total_min' => $total_min,
+        'bb' => $bb, 'payout' => $acc,
+        'instructor' => (string)($c['iname'] ?? ''), 'form' => $form,
+        'has_rate' => $bb > 0,
+    ];
+}
+
+/** Minuty → „12 h 30 min" (na wydruk ewidencji). */
+function ti_protocol_hm(int $min): string {
+    if ($min <= 0) return '0 h';
+    $h = intdiv($min, 60); $m = $min % 60;
+    return ($h ? $h . ' h' : '') . ($h && $m ? ' ' : '') . ($m ? $m . ' min' : '');
+}
+
+/** Kwota w formacie polskim, np. „1 234,50 zł". */
+function ti_protocol_money(float $v): string {
+    return number_format($v, 2, ',', ' ') . ' zł';
+}
+
+/** Etykieta statusu zajęć na ewidencji. */
+function ti_protocol_status_lesson(string $status, bool $own): string {
+    if ($own) return 'praca własna';
+    return [
+        'held'              => 'odbyte',
+        'individual_change' => 'zmiana indywidualna',
+        'remote_material'   => 'praca własna',
+    ][$status] ?? $status;
+}
+
+/**
  * Treść protokołu jako HTML do wydruku (wydzielona z ti_protocol_pdf, żeby dało
  * się ją sprawdzić bez generowania PDF — wzorzec jak ti_syllabus_print_html).
  * Protokół bez ocen dostaje wyraźną adnotację o braku ocen.
@@ -384,6 +484,72 @@ function ti_protocol_print_html(array $prot): string {
             . '</tr>';
     }
 
+    // ── 2. Ewidencja godzin i 3. Wypłata ─────────────────────────────────────
+    $hp = ti_protocol_hours_and_payout($prot);
+
+    $ev = '<h2>2. Ewidencja godzin prowadzącego</h2>';
+    $ev .= '<p class="sub">Prowadzący: <strong>' . $h($hp['instructor'] !== '' ? $hp['instructor'] : '—')
+        . '</strong> · zakres: ' . $h(date('d.m.Y', strtotime($hp['from'])))
+        . '–' . $h(date('d.m.Y', strtotime($hp['to']))) . '</p>';
+    if (!$hp['rows']) {
+        $ev .= '<p class="empty">W tym zakresie nie ma zajęć odbytych — ewidencja jest pusta.</p>';
+    } else {
+        $ev .= '<table class="items"><thead><tr>'
+            . '<th style="width:6%">#</th><th style="width:14%">Data</th><th style="width:16%">Godziny</th>'
+            . '<th style="width:12%">Czas</th><th>Temat</th><th style="width:18%">Rodzaj</th>'
+            . ($hp['has_rate'] ? '<th style="width:16%">Wypłata brutto-brutto</th>' : '')
+            . '</tr></thead><tbody>';
+        $i = 0;
+        foreach ($hp['rows'] as $r) {
+            $i++;
+            $ev .= '<tr>'
+                . '<td>' . $i . '.</td>'
+                . '<td>' . $h(date('d.m.Y', strtotime($r['date']))) . '</td>'
+                . '<td>' . $h($r['from'] !== '' ? $r['from'] . '–' . $r['to'] : '—') . '</td>'
+                . '<td>' . $h(ti_protocol_hm((int)$r['min'])) . '</td>'
+                . '<td>' . $h($r['topic']) . '</td>'
+                . '<td>' . $h(ti_protocol_status_lesson((string)$r['status'], (bool)$r['own'])) . '</td>'
+                . ($hp['has_rate'] ? '<td class="r">' . $h(ti_protocol_money((float)$r['bb'])) . '</td>' : '')
+                . '</tr>';
+        }
+        $ev .= '<tr class="sum"><td colspan="3">Razem</td>'
+            . '<td>' . $h(ti_protocol_hm((int)$hp['total_min'])) . '</td>'
+            . '<td colspan="2">' . (int)$hp['lessons'] . ' ' . ($hp['lessons'] === 1 ? 'zajęcie' : 'zajęć') . '</td>'
+            . ($hp['has_rate'] ? '<td class="r">' . $h(ti_protocol_money((float)$hp['payout']['brutto_brutto'])) . '</td>' : '')
+            . '</tr>';
+        $ev .= '</tbody></table>';
+    }
+
+    $pay = '<h2>3. Naliczenie wypłaty</h2>';
+    if (!$hp['has_rate']) {
+        $pay .= '<p class="empty">Dla tych zajęć nie ustawiono stawki za zajęcie (lesson_payout_bb = 0), '
+              . 'więc wypłata nie jest naliczana. Ewidencja godzin powyżej pozostaje wiążąca.</p>';
+    } else {
+        $P = $hp['payout'];
+        $pay .= '<table class="head"><tbody>'
+            . '<tr><th>Stawka za zajęcie (brutto-brutto)</th><td>' . $h(ti_protocol_money((float)$hp['bb'])) . '</td></tr>'
+            . '<tr><th>Zajęcia rozliczone</th><td>' . (int)$P['lessons'] . '</td></tr>'
+            . '<tr><th>Suma brutto-brutto (koszt)</th><td>' . $h(ti_protocol_money((float)$P['brutto_brutto'])) . '</td></tr>'
+            . '<tr><th>ZUS pracodawcy</th><td>' . $h(ti_protocol_money((float)$P['zus_employer'])) . '</td></tr>'
+            . '<tr><th>Brutto (wynagrodzenie)</th><td>' . $h(ti_protocol_money((float)$P['brutto'])) . '</td></tr>'
+            . '<tr><th>Składki potrącone</th><td>' . $h(ti_protocol_money((float)$P['skladki'])) . '</td></tr>'
+            . '<tr><th>Zaliczka PIT</th><td>' . $h(ti_protocol_money((float)$P['pit'])) . '</td></tr>'
+            . '<tr><th>Do wypłaty netto</th><td><strong>' . $h(ti_protocol_money((float)$P['netto'])) . '</strong></td></tr>'
+            . '</tbody></table>';
+        $pay .= '<p class="sub">Forma rozliczenia: ' . $h($hp['form'])
+              . '. Praca własna prowadzącego liczona jest bezskładkowo.</p>';
+    }
+
+    $statement = '<div class="stmt">'
+        . '<p class="stmt-h">Oświadczenie prowadzącego</p>'
+        . '<p>Potwierdzam, że ewidencja godzin oraz naliczenie wypłaty w tym protokole '
+        . 'są zgodne ze stanem faktycznym — zajęcia w wykazanych terminach odbyły się '
+        . 'w podanym wymiarze, a wykazane kwoty nie budzą moich zastrzeżeń.</p>'
+        . '<table class="signs"><tbody><tr>'
+        . '<td>.............................................<br>data i podpis prowadzącego</td>'
+        . '<td>.............................................<br>za organizatora</td>'
+        . '</tr></tbody></table></div>';
+
     $empty_note = ti_protocol_is_empty($stats)
         ? '<p class="empty-note">' . $h(ti_protocol_empty_note($stats)) . '</p>'
         : '';
@@ -408,13 +574,16 @@ function ti_protocol_print_html(array $prot): string {
             . (ti_protocol_is_empty($stats) ? ' — <strong>brak ocen</strong>' : '') . '</td></tr>'
         . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
         . '</tbody></table>'
+        . '<h2>1. Oceny końcowe</h2>'
         . '<table class="items"><thead><tr>'
         . '<th style="width:6%">#</th><th>Uczestnik</th><th style="width:14%">Ocena końcowa</th>'
         . '<th style="width:14%">Średnia z dziennika</th><th style="width:26%">Uwagi</th>'
         . '</tr></thead><tbody>' . ($rows ?: '<tr><td colspan="5">Brak uczestników.</td></tr>') . '</tbody></table>'
         . $empty_note
+        . $ev
+        . $pay
         . '<p class="trace">' . $trace . '</p>'
-        . '<p class="sign">.............................................<br>podpis prowadzącego</p>';
+        . $statement;
 }
 
 /** Protokół jako bajty PDF (mPDF, dejavuserif) albo null przy błędzie. */
@@ -445,7 +614,14 @@ function ti_protocol_pdf(array $prot): ?string {
              p.empty-note { margin-top:5mm; padding:2.5mm 3mm; border:.3mm solid #333;
                             background:#f2f2f2; font-size:9.5pt; font-weight:bold; }
              p.trace { margin-top:5mm; font-size:9pt; color:#333; }
-             p.sign { margin-top:14mm; font-size:9pt; text-align:right; }',
+             h2 { font-size:11.5pt; margin:6mm 0 2mm; border-bottom:.3mm solid #999; padding-bottom:1mm; }
+             p.sub { font-size:9pt; color:#333; margin:0 0 2mm; }
+             td.r { text-align:right; }
+             tr.sum td { background:#f2f2f2; font-weight:bold; }
+             div.stmt { margin-top:6mm; border:.3mm solid #333; padding:3mm; }
+             p.stmt-h { font-weight:bold; margin:0 0 1.5mm; font-size:10pt; }
+             div.stmt p { font-size:9.5pt; margin:0 0 2mm; }
+             table.signs td { width:50%; padding-top:12mm; font-size:9pt; text-align:center; border:none; }',
             \Mpdf\HTMLParserMode::HEADER_CSS
         );
         $mpdf->WriteHTML(ti_protocol_print_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
