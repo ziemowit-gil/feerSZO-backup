@@ -31,6 +31,15 @@ function ti_rk_migrate(): void {
     if ($done) return;
     $done = true;
 
+    // Zależności modułu: k30_ti_periods (FK tury) i k30_ti_instructor_leaves
+    // (walidacja urlopów w rk_slot_save/rk_slots_for_instructor) żyją w OSOBNYCH
+    // migracjach — bez nich INSERT tury i generator wywalają „no such table”
+    // na tenancie, który nie odwiedził jeszcze modułów okresów/urlopów.
+    require_once __DIR__ . '/ti_periods.php';
+    require_once __DIR__ . '/ti_leaves.php';
+    ti_periods_migrate();
+    ti_leaves_migrate();
+
     $pdo = db();
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_rounds (
@@ -568,10 +577,11 @@ function rk_slot_save(array $d, ?int $id = null): int {
     if (!$fields['starts_at'] || !$fields['ends_at'] || $fields['ends_at'] <= $fields['starts_at']) {
         throw new RkException('SLOT_INVALID_TIME');
     }
-    // Urlop prowadzącego przykrywający termin — slot nie ma prawa powstać
+    // Urlop prowadzącego przykrywający termin — slot nie ma prawa powstać.
+    // UWAGA: tabela urlopów nie ma kolumny statusu — każdy wpis jest wiążący.
     $leave = db_one(
         "SELECT 1 FROM k30_ti_instructor_leaves
-          WHERE instructor_id=? AND status='approved'
+          WHERE instructor_id=?
             AND date(?) BETWEEN date_from AND date_to",
         [$fields['instructor_id'], $fields['starts_at']]);
     if ($leave) throw new RkException('SLOT_ON_LEAVE');
@@ -627,7 +637,7 @@ function rk_slots_for_instructor(int $round_id, int $instructor_id, array $f = [
     $params = [$round_id, $instructor_id];
 
     $where[] = "NOT EXISTS (SELECT 1 FROM k30_ti_instructor_leaves l
-                             WHERE l.instructor_id = s.instructor_id AND l.status='approved'
+                             WHERE l.instructor_id = s.instructor_id
                                AND date(s.starts_at) BETWEEN l.date_from AND l.date_to)";
 
     if (!empty($f['only_free']))   $where[] = "s.seats_taken < s.capacity";
@@ -1516,7 +1526,7 @@ function rk_slots_generate(int $round_id, array $instructor_ids, string $date_fr
         // Dni urlopu w zakresie — do symulacji w dry_run (zapis waliduje rk_slot_save)
         $leave_days = [];
         foreach (db_all("SELECT date_from, date_to FROM k30_ti_instructor_leaves
-                          WHERE instructor_id=? AND status='approved'
+                          WHERE instructor_id=?
                             AND date_from <= ? AND date_to >= ?",
                         [$iid, date('Y-m-d', $t_to), date('Y-m-d', $t_from)]) as $lv) {
             $leave_days[] = $lv;
