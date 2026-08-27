@@ -22,6 +22,10 @@ $AGENTS = [
         'file'     => __DIR__ . '/mail_queue.php',
         'interval' => 300,          // co 5 min
     ],
+    'ext_agent' => [
+        'file'     => __DIR__ . '/ext_agent.php',
+        'interval' => 120,          // co 2 min — kolejka stempli i sprzątanie
+    ],
     'tasks_reminder' => [
         'file'     => __DIR__ . '/tasks_due_reminder.php',
         'interval' => 86400,        // raz dziennie

@@ -2696,6 +2696,9 @@ if ($cur_course && dyd_is_staff()) {
   <div class="dyd-sb-sep"></div>
   <div class="dyd-sb-section">Zasoby</div>
 
+  <a class="dyd-sb-link" href="../ext/index.php">
+    <i class="bi bi-book" aria-hidden="true"></i>Biblioteka materiałów
+  </a>
   <a class="dyd-sb-link <?= $tab==='dysk'?'active':'' ?>" href="index.php?tab=dysk"
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk

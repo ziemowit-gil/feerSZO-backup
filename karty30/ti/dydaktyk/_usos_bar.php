@@ -87,6 +87,7 @@ $_usos_sections = [
         'href'  => $_g('dysk'),
         'items' => [
             $_it('dysk', 'Mój dysk',       $_g('dysk')),
+            $_it('',     'Biblioteka materiałów', '../ext/index.php'),
             $_it('',     'Pełny moduł TI', rtrim(APP_URL, '/') . '/karty30/ti/index.php', 0, 'secondary', true),
         ],
     ],

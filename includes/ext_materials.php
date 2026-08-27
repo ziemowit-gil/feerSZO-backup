@@ -148,6 +148,10 @@ function ext_migrate(): void
     }
 
     ext_access_migrate();   // granty, licencje, bilety, log — includes/ext_access.php
+
+    // Kolejka stemplowania dużych plików — includes/ext_deliver.php
+    require_once __DIR__ . '/ext_deliver.php';
+    ext_deliver_migrate();
 }
 
 // ── Magazyn plików ───────────────────────────────────────────────────────────

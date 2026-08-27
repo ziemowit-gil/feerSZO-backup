@@ -271,6 +271,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="dydaktyk/zetony.php"><i class="bi bi-coin me-2 text-warning"></i>Żetony SZO <span class="badge text-bg-light border text-dark ms-1">panel</span></a></li>
+      <li><a class="dropdown-item" href="ext/index.php"><i class="bi bi-book me-2 text-primary"></i>Materiały zewnętrzne</a></li>
     </ul>
   </div>
 

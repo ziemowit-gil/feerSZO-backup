@@ -24,6 +24,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php'; // Equi Exams
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php'; // pule żetonów
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_rekrutacja.php';  // zapisy na zajęcia
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/push.php';
 require_once __DIR__ . '/auth.php';
 
@@ -31,6 +33,8 @@ karty30_migrate();
 k30_ti_reschedule_migrate();
 k30_ti_notif_migrate();
 ti_notices_migrate();
+ti_planner_ext_migrate();
+ti_rk_migrate();
 pfron_migrate();
 helpdesk_migrate();
 
@@ -134,6 +138,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'cal_token_reset') {
         k30_ti_calendar_token_reset((int)$student['id']);
         header('Location: index.php?tab=lekcje'); exit;
+    }
+
+    // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie)
+    if ($op === 'rk_book') {
+        $back = 'index.php?tab=zapisy'
+              . '&rk_round=' . (int)($_POST['rk_round'] ?? 0)
+              . '&rk_instr=' . (int)($_POST['rk_instr'] ?? 0);
+        try {
+            $r = rk_book((int)($_POST['slot_id'] ?? 0), (int)$student['client_id'], 'panel');
+            $_SESSION['rk_flash'] = ['ok', 'Termin zarezerwowany. Pobrane żetony: ' . (int)$r['tokens_spent'] . '.'];
+            $back = 'index.php?tab=zapisy';
+        } catch (RkException $e) {
+            $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+        }
+        header('Location: ' . $back); exit;
+    }
+
+    // Zapisy na zajęcia: rezygnacja (zwrot wg reguł tury)
+    if ($op === 'rk_cancel') {
+        try {
+            $r = rk_cancel((int)($_POST['booking_id'] ?? 0), (int)$student['client_id'], 'student');
+            $_SESSION['rk_flash'] = ['ok', $r['refunded'] > 0
+                ? 'Rezygnacja przyjęta. Zwrócone żetony: ' . (int)$r['refunded'] . '.'
+                : 'Rezygnacja przyjęta. Żetony nie podlegały już zwrotowi.'];
+        } catch (RkException $e) {
+            $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+        }
+        header('Location: index.php?tab=zapisy'); exit;
     }
 
     // Akceptacja regulaminu TI — pomijamy regulaminy już podpisane (bieżąca wersja) i zakończone
@@ -911,7 +943,7 @@ include __DIR__ . '/_layout_head.php';
 
 <?php
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
-  $nauka_tabs     = ['lekcje','zadania','oceny','plan','egzaminy','testy'];
+  $nauka_tabs     = ['lekcje','zadania','zapisy','oceny','plan','egzaminy','testy'];
   $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
   $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
@@ -952,6 +984,8 @@ include __DIR__ . '/_layout_head.php';
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
           <i class="bi bi-journal-check me-2" aria-hidden="true"></i>Dydaktyka / eLearning
           <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?></span><?php endif; ?></a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='zapisy'?'active':'' ?>" href="?tab=zapisy" <?= $tab==='zapisy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-ticket-perforated me-2" aria-hidden="true"></i>Zapisy na zajęcia</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
           <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
@@ -1004,6 +1038,9 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='dysk'?'active':'' ?>" href="?tab=dysk" <?= $tab==='dysk'?'aria-current="page"':'' ?>>
           <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>Mój dysk</a></li>
+        <?php /* Materiały zewnętrzne to osobny moduł (karty30/ti/ext), nie zakładka panelu. */ ?>
+        <li><a class="dropdown-item <?= $mc() ?>" href="../ext/index.php">
+          <i class="bi bi-book me-2" aria-hidden="true"></i>Biblioteka materiałów</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
           <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?></a></li>
@@ -1459,6 +1496,8 @@ document.addEventListener('DOMContentLoaded', function() {
   $kp_start_items[] = ['tab' => 'vlab',        'icon' => 'code-square',  'label' => 'VLab'];
   $kp_start_items[] = ['tab' => 'licencje',    'icon' => 'key',          'label' => 'Licencje',   'badge' => !empty($my_licenses) ? count($my_licenses) : 0];
   $kp_start_items[] = ['tab' => 'pfron',       'icon' => 'shield-lock',  'label' => 'PFRON (konsultacje)'];
+  // Moduł materiałów zewnętrznych — kafel prowadzi poza panel, stąd pełny adres
+  $kp_start_items[] = ['tab' => '', 'icon' => 'book', 'label' => 'Biblioteka materiałów', 'href' => '../ext/index.php'];
   $kp_start_items[] = ['tab' => 'problem',     'icon' => 'life-preserver', 'label' => 'Pomoc'];
   $kp_start_items[] = ['tab' => 'aktywnosc',   'icon' => 'clock-history', 'label' => 'Aktywność'];
   $kp_start_items[] = ['tab' => 'ustawienia',  'icon' => 'gear',         'label' => 'Ustawienia'];
@@ -1482,7 +1521,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <nav class="kp-startwall-grid" aria-label="Szybki start">
     <?php foreach ($kp_start_items as $it): $kp_si++; ?>
-    <a class="kp-tile-lg kp-tile-<?= (($kp_si - 1) % 8) + 1 ?>" href="?tab=<?= h($it['tab']) ?>">
+    <a class="kp-tile-lg kp-tile-<?= (($kp_si - 1) % 8) + 1 ?>" href="<?= h($it['href'] ?? ("?tab=" . $it['tab'])) ?>">
       <i class="bi bi-<?= h($it['icon']) ?>" aria-hidden="true"></i>
       <span><?= h($it['label']) ?><?php if (!empty($it['badge'])): ?> <span class="badge text-bg-light text-dark"><?= (int)$it['badge'] ?><span class="visually-hidden"> nowych</span></span><?php endif; ?></span>
     </a>
@@ -5465,6 +5504,10 @@ $authp_list = db_all(
 <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<?php elseif ($tab === 'zapisy'): ?>
+
+<?php include __DIR__ . '/_zapisy_view.php'; ?>
 
 <?php endif; ?>
 
