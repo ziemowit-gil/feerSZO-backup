@@ -24,7 +24,7 @@ $dyd_name = (string)($me['name'] ?? '');
 $is_staff = dyd_is_staff();
 
 $tab = $_GET['tab'] ?? 'terminy';
-if (!in_array($tab, ['terminy','tury','grupy','zapisy','ustawienia'], true)) $tab = 'terminy';
+if (!in_array($tab, ['terminy','tury','grupy','zapisy','zestawienia','ustawienia'], true)) $tab = 'terminy';
 if (!$is_staff && $tab !== 'terminy') { header('Location: rekrutacja.php'); exit; }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -452,6 +452,63 @@ $grp_slots = ($is_staff && $tab === 'grupy' && $grp_round_id)
     ? rk_slots_admin_list(['round_id' => $grp_round_id], 100)
     : [];
 
+// Zestawienia (kierownik): filtr tury (0 = wszystkie)
+$zest_round_id = 0; $zest = null;
+if ($is_staff && $tab === 'zestawienia') {
+    $zest_round_id = (int)($_GET['round'] ?? 0);
+    $zw  = $zest_round_id ? 'AND s.round_id = ' . $zest_round_id : '';
+    $live = rk_in(RK_LIVE_STATUSES);
+    $zest = [
+        // Per prowadzący: terminy, obłożenie, godziny, żetony netto
+        'instructors' => db_all(
+            "SELECT u.name,
+                    COUNT(DISTINCT s.id) AS n_slots,
+                    SUM(CASE WHEN s.status='open' THEN s.capacity - s.seats_taken ELSE 0 END) AS seats_free,
+                    COALESCE(SUM(s.seats_taken),0) AS seats_taken,
+                    COALESCE(SUM(s.seats_taken * (strftime('%s',s.ends_at)-strftime('%s',s.starts_at))/60),0) AS min_booked,
+                    COALESCE((SELECT SUM(b.tokens_spent - b.tokens_refunded) FROM k30_rk_bookings b
+                       WHERE b.slot_id IN (SELECT id FROM k30_rk_slots s2 WHERE s2.instructor_id=u.id " . str_replace('s.', 's2.', $zw) . ")),0) AS tokens_net
+               FROM k30_rk_slots s JOIN users u ON u.id=s.instructor_id
+              WHERE s.status != 'cancelled' $zw
+              GROUP BY u.id ORDER BY u.name COLLATE NOCASE"),
+        // Per rodzaj zajęć (kurs): rezerwacje żywe, kursanci
+        'courses' => db_all(
+            "SELECT COALESCE(c.name, 'Konsultacje (bez grupy)') AS name,
+                    COUNT(b.id) AS n_bookings,
+                    COUNT(DISTINCT b.client_id) AS n_clients,
+                    COALESCE(SUM(b.tokens_spent - b.tokens_refunded),0) AS tokens_net
+               FROM k30_rk_bookings b
+               JOIN k30_rk_slots s ON s.id = b.slot_id
+               LEFT JOIN k30_ti_courses c ON c.id = s.course_id
+              WHERE b.status IN ($live) $zw
+              GROUP BY s.course_id ORDER BY name COLLATE NOCASE"),
+        // Per kursant: rezerwacje wg statusów, żetony
+        'clients' => db_all(
+            "SELECT cl.name, cl.id AS client_id,
+                    SUM(CASE WHEN b.status IN ($live) THEN 1 ELSE 0 END) AS n_live,
+                    SUM(CASE WHEN b.status = 'attended' THEN 1 ELSE 0 END) AS n_attended,
+                    SUM(CASE WHEN b.status LIKE 'cancelled%' THEN 1 ELSE 0 END) AS n_cancelled,
+                    COALESCE(SUM(b.tokens_spent - b.tokens_refunded),0) AS tokens_net
+               FROM k30_rk_bookings b
+               JOIN k30_rk_slots s ON s.id = b.slot_id
+               JOIN k30_clients cl ON cl.id = b.client_id
+              WHERE 1=1 $zw
+              GROUP BY cl.id ORDER BY cl.name COLLATE NOCASE"),
+        // Per pula: salda zbiorczo (niezależnie od tury)
+        'pools' => db_all(
+            "SELECT p.name, p.kind,
+                    COUNT(w.id) AS n_wallets,
+                    COALESCE(SUM(w.granted),0) AS granted,
+                    COALESCE(SUM(w.spent),0)   AS spent,
+                    COALESCE(SUM(w.held),0)    AS held,
+                    COALESCE(SUM(w.granted - w.spent - w.held),0) AS available
+               FROM k30_pl_token_pools p
+               LEFT JOIN k30_pl_token_pool_wallets w ON w.pool_id = p.id
+              WHERE p.is_active = 1
+              GROUP BY p.id ORDER BY p.name COLLATE NOCASE"),
+    ];
+}
+
 // Podgląd grafiku i dyspozycji wybranego prowadzącego (kierownik, tab=grupy)
 $peek_instr_id = ($is_staff && $tab === 'grupy') ? (int)($_GET['instr'] ?? 0) : 0;
 $peek_avail    = $peek_instr_id ? ti_instructor_availability($peek_instr_id, 'approved') : [];
@@ -537,6 +594,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <li class="nav-item">
     <a class="nav-link <?= $tab==='zapisy'?'active':'' ?>" href="rekrutacja.php?tab=zapisy">
       <i class="bi bi-people me-1" aria-hidden="true"></i>Zapisy kursantów
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link <?= $tab==='zestawienia'?'active':'' ?>" href="rekrutacja.php?tab=zestawienia">
+      <i class="bi bi-bar-chart me-1" aria-hidden="true"></i>Zestawienia
     </a>
   </li>
   <li class="nav-item">
@@ -1410,6 +1472,153 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
 </div>
 <?php endif; ?>
+
+<?php elseif ($tab === 'zestawienia'): ?>
+
+<form method="get" class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+  <input type="hidden" name="tab" value="zestawienia">
+  <div>
+    <label class="form-label small mb-1" for="zs-round">Tura</label>
+    <select class="form-select form-select-sm" id="zs-round" name="round" onchange="this.form.submit()">
+      <option value="">— wszystkie tury —</option>
+      <?php foreach ($rounds_all as $r): ?>
+      <option value="<?= (int)$r['id'] ?>" <?= $zest_round_id === (int)$r['id'] ? 'selected' : '' ?>><?= h($r['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="text-body-secondary small mb-1">Wydruk: przycisk „Drukuj stronę” w prawym dolnym rogu.</div>
+</form>
+
+<div class="row g-4">
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Prowadzący</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <caption class="visually-hidden">Zestawienie per prowadzący</caption>
+            <thead><tr>
+              <th scope="col">Prowadzący</th><th scope="col" class="text-end">Terminy</th>
+              <th scope="col" class="text-end">Zajęte</th><th scope="col" class="text-end">Wolne</th>
+              <th scope="col" class="text-end">Godziny*</th><th scope="col" class="text-end">Żetony netto</th>
+            </tr></thead>
+            <tbody>
+              <?php $sum = ['s'=>0,'t'=>0,'f'=>0,'m'=>0,'tk'=>0];
+              foreach ($zest['instructors'] as $z):
+                $sum['s'] += $z['n_slots']; $sum['t'] += $z['seats_taken']; $sum['f'] += $z['seats_free'];
+                $sum['m'] += $z['min_booked']; $sum['tk'] += $z['tokens_net']; ?>
+              <tr>
+                <td><?= h($z['name']) ?></td>
+                <td class="text-end"><?= (int)$z['n_slots'] ?></td>
+                <td class="text-end"><?= (int)$z['seats_taken'] ?></td>
+                <td class="text-end"><?= (int)$z['seats_free'] ?></td>
+                <td class="text-end"><?= number_format((int)$z['min_booked'] / 60, 1, ',', '') ?></td>
+                <td class="text-end fw-semibold"><?= (int)$z['tokens_net'] ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+            <tfoot><tr class="fw-bold">
+              <td>Razem</td><td class="text-end"><?= (int)$sum['s'] ?></td>
+              <td class="text-end"><?= (int)$sum['t'] ?></td><td class="text-end"><?= (int)$sum['f'] ?></td>
+              <td class="text-end"><?= number_format((int)$sum['m'] / 60, 1, ',', '') ?></td>
+              <td class="text-end"><?= (int)$sum['tk'] ?></td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <div class="form-text">* godziny zegarowe zarezerwowanych miejsc (miejscogodziny).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2"><i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i>Rodzaje zajęć</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <caption class="visually-hidden">Zestawienie per rodzaj zajęć</caption>
+            <thead><tr>
+              <th scope="col">Rodzaj zajęć</th><th scope="col" class="text-end">Rezerwacje</th>
+              <th scope="col" class="text-end">Kursanci</th><th scope="col" class="text-end">Żetony netto</th>
+            </tr></thead>
+            <tbody>
+              <?php foreach ($zest['courses'] as $z): ?>
+              <tr>
+                <td><?= h($z['name']) ?></td>
+                <td class="text-end"><?= (int)$z['n_bookings'] ?></td>
+                <td class="text-end"><?= (int)$z['n_clients'] ?></td>
+                <td class="text-end fw-semibold"><?= (int)$z['tokens_net'] ?></td>
+              </tr>
+              <?php endforeach; if (!$zest['courses']): ?>
+              <tr><td colspan="4" class="text-body-secondary small">Brak aktywnych rezerwacji.</td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Pule żetonów (wszystkie tury)</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <caption class="visually-hidden">Zestawienie pul żetonów</caption>
+            <thead><tr>
+              <th scope="col">Pula</th><th scope="col" class="text-end">Portfele</th>
+              <th scope="col" class="text-end">Przyznane</th><th scope="col" class="text-end">Wydane</th>
+              <th scope="col" class="text-end">Dostępne</th>
+            </tr></thead>
+            <tbody>
+              <?php foreach ($zest['pools'] as $z): ?>
+              <tr>
+                <td><?= h($z['name']) ?>
+                  <?= ($z['kind'] ?? '') === 'zwr' ? ' <span class="badge text-bg-info">ZWR</span>' : '' ?>
+                  <?= ($z['kind'] ?? '') === 'pfron' ? ' <span class="badge text-bg-warning">PFRON</span>' : '' ?></td>
+                <td class="text-end"><?= (int)$z['n_wallets'] ?></td>
+                <td class="text-end"><?= (int)$z['granted'] ?></td>
+                <td class="text-end"><?= (int)$z['spent'] ?></td>
+                <td class="text-end fw-semibold"><?= (int)$z['available'] ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2"><i class="bi bi-people me-1" aria-hidden="true"></i>Kursanci</h2>
+        <div class="table-responsive" style="max-height:420px;overflow-y:auto">
+          <table class="table table-sm align-middle mb-0">
+            <caption class="visually-hidden">Zestawienie per kursant</caption>
+            <thead><tr>
+              <th scope="col">Kursant</th><th scope="col" class="text-end">Aktywne</th>
+              <th scope="col" class="text-end">Odbyte</th><th scope="col" class="text-end">Anulowane</th>
+              <th scope="col" class="text-end">Żetony netto</th>
+            </tr></thead>
+            <tbody>
+              <?php foreach ($zest['clients'] as $z): ?>
+              <tr>
+                <td><?= h($z['name']) ?> <span class="badge text-bg-light border">#<?= (int)$z['client_id'] ?></span></td>
+                <td class="text-end"><?= (int)$z['n_live'] ?></td>
+                <td class="text-end"><?= (int)$z['n_attended'] ?></td>
+                <td class="text-end"><?= (int)$z['n_cancelled'] ?></td>
+                <td class="text-end fw-semibold"><?= (int)$z['tokens_net'] ?></td>
+              </tr>
+              <?php endforeach; if (!$zest['clients']): ?>
+              <tr><td colspan="5" class="text-body-secondary small">Brak rezerwacji.</td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php elseif ($tab === 'ustawienia'): ?>
 
