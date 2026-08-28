@@ -9,6 +9,8 @@ ti_payments_migrate();
 
 // Filtr: aktywne / wszystkie
 $gr_filter = in_array($_GET['f'] ?? 'active', ['active','all'], true) ? ($_GET['f'] ?? 'active') : 'active';
+// Widok: karty (domyślny) / tabela — przełącznik w pasku narzędzi
+$gr_view = ($_GET['v'] ?? 'karty') === 'tabela' ? 'tabela' : 'karty';
 
 $gr_all_courses = k30_ti_courses($gr_filter !== 'all');  // false = wszystkie; true = tylko aktywne
 
@@ -124,13 +126,23 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     <span class="badge bg-secondary ms-1" style="font-size:.72rem"><?= count($gr_all_courses) ?></span>
   </div>
   <div class="btn-group btn-group-sm" role="group" aria-label="Filtr grup">
-    <a href="index.php?tab=grupy&f=active"
+    <a href="index.php?tab=grupy&f=active&v=<?= $gr_view ?>"
        class="btn btn-<?= $gr_filter==='active'?'primary':'outline-secondary' ?>">
       Aktywne
     </a>
-    <a href="index.php?tab=grupy&f=all"
+    <a href="index.php?tab=grupy&f=all&v=<?= $gr_view ?>"
        class="btn btn-<?= $gr_filter==='all'?'primary':'outline-secondary' ?>">
       Wszystkie
+    </a>
+  </div>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Widok listy grup">
+    <a href="index.php?tab=grupy&f=<?= $gr_filter ?>&v=karty"
+       class="btn btn-<?= $gr_view==='karty'?'primary':'outline-secondary' ?>" title="Widok kart">
+      <i class="bi bi-grid-1x2 me-1" aria-hidden="true"></i>Karty
+    </a>
+    <a href="index.php?tab=grupy&f=<?= $gr_filter ?>&v=tabela"
+       class="btn btn-<?= $gr_view==='tabela'?'primary':'outline-secondary' ?>" title="Widok tabeli">
+      <i class="bi bi-table me-1" aria-hidden="true"></i>Tabela
     </a>
   </div>
   <a href="../index.php" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"
@@ -149,6 +161,89 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     Brak grup TI.
   </div>
 </div>
+<?php elseif ($gr_view === 'tabela'): ?>
+
+<?php /* ── Widok tabeli: wszystkie grupy w jednym, gęstym zestawieniu ── */ ?>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <caption class="visually-hidden">Przegląd grup TI: prowadzący, kursanci, niedopłaty i najbliższa lekcja</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Grupa</th>
+          <th scope="col">Rodzaj</th>
+          <th scope="col">Prowadzący</th>
+          <th scope="col" class="text-end">Kursanci</th>
+          <th scope="col" class="text-end">Niedopłaty</th>
+          <th scope="col">Najbliższa lekcja</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end">Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $gr_rows = array_merge(
+            array_map(fn($c) => $c + ['_active' => true],  array_values($gr_active)),
+            $gr_filter === 'all' ? array_map(fn($c) => $c + ['_active' => false], array_values($gr_inactive)) : []
+        );
+        foreach ($gr_rows as $c):
+          $cid  = (int)$c['id'];
+          $debt = $gr_debt_map[$cid] ?? 0;
+          $nl   = $gr_next_map[$cid] ?? null;
+        ?>
+        <tr<?= $c['_active'] ? '' : ' class="text-muted"' ?>>
+          <th scope="row" class="fw-semibold">
+            <?= h($c['name']) ?>
+            <?php if (!empty($c['group_code'])): ?>
+            <span class="dyd-gr-code text-body-secondary ms-1"><i class="bi bi-hash" aria-hidden="true"></i><?= h($c['group_code']) ?></span>
+            <?php endif; ?>
+            <?php if (($c['class_type'] ?? '') === 'individual'): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+                  title="Nauczanie indywidualne — to też grupa">NI</span>
+            <?php endif; ?>
+            <?php if (!empty($c['is_subgroup'])): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe">1I</span>
+            <?php endif; ?>
+            <?php if (!empty($c['is_oneoff'])): ?>
+            <span class="badge text-bg-info ms-1" style="font-size:.6rem">jednorazowy<?=
+              !empty($c['oneoff_date']) ? ' · ' . h(date('d.m.Y', strtotime((string)$c['oneoff_date']))) : '' ?></span>
+            <?php endif; ?>
+          </th>
+          <td class="small"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="small"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="text-end"><?= (int)$c['enrolled_count'] ?></td>
+          <td class="text-end">
+            <?php if ($debt > 0): ?>
+            <span class="dyd-bal-debt"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><?= $debt ?></span>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td class="small text-nowrap">
+            <?php if ($nl): ?>
+            <strong><?= date('d.m', strtotime($nl['lesson_date'])) ?></strong>
+            <?= $nl['time_from'] ? h(substr((string)$nl['time_from'], 0, 5)) : '' ?>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td>
+            <span class="badge text-bg-<?= $c['_active'] ? 'success' : 'secondary' ?>" style="font-size:.62rem">
+              <?= $c['_active'] ? 'aktywny' : 'nieaktywny' ?></span>
+          </td>
+          <td class="text-end text-nowrap">
+            <?php if ($debt > 0): ?>
+            <a href="index.php?course=<?= $cid ?>&tab=rozliczenia" class="btn btn-sm btn-danger py-0 px-2" title="Rozliczenia grupy">
+              <i class="bi bi-receipt" aria-hidden="true"></i><span class="visually-hidden">Rozliczenia grupy</span></a>
+            <?php endif; ?>
+            <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy grupy">
+              <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
+            <a href="../course.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
+              <i class="bi bi-arrow-right" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <?php else: ?>
 
 <?php /* ── Aktywne grupy ── */ ?>
