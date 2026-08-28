@@ -1152,16 +1152,85 @@ function rk_materialize_session(int $slot_id, int $client_id): int {
 
 /** Kurs-wydmuszka „Konsultacje — {prowadzący}” dla slotów bez kursu. */
 function rk_placeholder_course(int $instructor_id): int {
+    // Starsze grupy zakładane były jako „Konsultacje — …” — honorujemy obie nazwy
     $c = db_one(
         "SELECT id FROM k30_ti_courses
-          WHERE instructor_id=? AND name LIKE 'Konsultacje —%' LIMIT 1", [$instructor_id]);
+          WHERE instructor_id=? AND (name LIKE 'NI —%' OR name LIKE 'Konsultacje —%') LIMIT 1",
+        [$instructor_id]);
     if ($c) return (int)$c['id'];
     $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
-    db_exec("INSERT INTO k30_ti_courses (name, description, instructor_id, is_active)
-             VALUES (?,?,?,1)",
-            ['Konsultacje — ' . (string)($u['name'] ?? ('#'.$instructor_id)),
-             'Terminy indywidualne z modułu Rekrutacja TI.', $instructor_id]);
+    db_exec("INSERT INTO k30_ti_courses (name, description, instructor_id, is_active, class_type, group_code)
+             VALUES (?,?,?,1,'individual',?)",
+            ['NI — ' . (string)($u['name'] ?? ('#'.$instructor_id)),
+             'Nauczanie indywidualne — terminy z modułu Rekrutacja TI.', $instructor_id,
+             function_exists('k30_ti_generate_group_code') ? k30_ti_generate_group_code() : '']);
     return (int)db()->lastInsertId();
+}
+
+/**
+ * Zatwierdzenie grafiku tury przez kierownika: każda żywa, przyszła godzina
+ * tury dostaje lekcję w dzienniku TI (k30_ti_sessions, status 'planned').
+ * Kurs lekcji: course_id slotu → jedyna grupa prowadzącego w turze →
+ * grupa nauczania indywidualnego (rk_placeholder_course). Gdy prowadzący ma
+ * w turze KILKA grup, a slot nie wskazuje kursu, slot jest raportowany jako
+ * niejednoznaczny i pomijany (kurs trzeba wskazać w Rekrutacji godzin).
+ * Idempotentne: sloty z session_id liczone jako już powiązane; potwierdzone
+ * rezerwacje slotu trafiają od razu na listę obecności lekcji.
+ *
+ * @return array ['lessons','linked','ambiguous','past']
+ */
+function rk_grafik_approve(int $round_id, array $instructor_ids = [], int $created_by = 0): array {
+    $out = ['lessons' => 0, 'linked' => 0, 'ambiguous' => 0, 'past' => 0];
+
+    // Mapa prowadzący → grupy przypisane w turze (odwrócona rk_group_map)
+    $by_instr = [];
+    foreach (rk_group_map($round_id) as $cid => $iids) {
+        foreach ($iids as $iid) $by_instr[(int)$iid][] = (int)$cid;
+    }
+
+    $where = "round_id=? AND status IN ('draft','open','locked')";
+    $args  = [$round_id];
+    $instructor_ids = array_unique(array_filter(array_map('intval', $instructor_ids)));
+    if ($instructor_ids) {
+        $where .= ' AND instructor_id IN (' . implode(',', array_fill(0, count($instructor_ids), '?')) . ')';
+        $args   = [...$args, ...$instructor_ids];
+    }
+
+    foreach (db_all("SELECT * FROM k30_rk_slots WHERE $where ORDER BY starts_at", $args) as $s) {
+        if (!empty($s['session_id'])) { $out['linked']++; continue; }
+        if (strtotime((string)$s['starts_at']) <= time()) { $out['past']++; continue; }
+
+        $iid = (int)$s['instructor_id'];
+        $cid = (int)($s['course_id'] ?? 0);
+        if (!$cid) {
+            $courses = $by_instr[$iid] ?? [];
+            if (count($courses) === 1)    $cid = $courses[0];
+            elseif (count($courses) > 1)  { $out['ambiguous']++; continue; }
+            else                          $cid = rk_placeholder_course($iid);
+        }
+
+        rk_tx(function () use ($s, $cid, $created_by, &$out) {
+            db_exec(
+                "INSERT INTO k30_ti_sessions
+                    (course_id, lesson_date, time_from, time_to, duration_min, status, notes, created_by)
+                 VALUES (?,?,?,?,?, 'planned', ?, ?)",
+                [$cid, substr((string)$s['starts_at'],0,10), substr((string)$s['starts_at'],11,5),
+                 substr((string)$s['ends_at'],11,5),
+                 max(15, (int)round((strtotime((string)$s['ends_at']) - strtotime((string)$s['starts_at'])) / 60)),
+                 'Rekrutacja: zatwierdzony grafik, termin #' . (int)$s['id'],
+                 $created_by ?: (int)$s['instructor_id']]);
+            $session_id = (int)db()->lastInsertId();
+            db_exec("UPDATE k30_rk_slots SET session_id=?, course_id=? WHERE id=?",
+                    [$session_id, $cid, (int)$s['id']]);
+            foreach (db_all("SELECT client_id FROM k30_rk_bookings WHERE slot_id=? AND status='confirmed'",
+                            [(int)$s['id']]) as $b) {
+                db_exec("INSERT OR IGNORE INTO k30_ti_attendance (session_id, client_id, attended)
+                         VALUES (?,?,0)", [$session_id, (int)$b['client_id']]);
+            }
+            $out['lessons']++;
+        });
+    }
+    return $out;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

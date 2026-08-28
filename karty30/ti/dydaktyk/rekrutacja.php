@@ -320,6 +320,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              . ($iids ? '&instr=' . (int)$iids[0] : '')); exit;
     }
 
+    /* ── Zatwierdzenie grafiku tury → lekcje w dzienniku (kierownik) ──── */
+    if ($is_staff && $op === 'grafik_approve') {
+        $rid = (int)($_POST['round_id'] ?? 0);
+        if ($rid && rk_round_get($rid)) {
+            $res   = rk_grafik_approve($rid, [], $uid);
+            $parts = [];
+            if ($res['linked'])    $parts[] = "{$res['linked']} już miało lekcje";
+            if ($res['past'])      $parts[] = "{$res['past']} minionych pominięto";
+            if ($res['ambiguous']) $parts[] = "{$res['ambiguous']} bez jednoznacznej grupy (prowadzący ma kilka grup w turze — wskaż kurs godziny w module „Rekrutacja godzin”)";
+            $msg = $res['lessons']
+                ? "Grafik zatwierdzony: utworzono {$res['lessons']} lekcji w dzienniku."
+                : 'Nie powstała żadna nowa lekcja.';
+            if ($parts) $msg .= ' ' . ucfirst(implode('; ', $parts)) . '.';
+            flash_set($res['lessons'] ? 'success' : ($res['ambiguous'] ? 'warning' : 'info'), $msg);
+        }
+        header('Location: rekrutacja.php?tab=grupy&round=' . $rid); exit;
+    }
+
     /* ── Porządki na godzinach tury (kierownik) ───────────────────────── */
     if ($is_staff && $op === 'grp_slot_delete') {
         $rid = (int)($_POST['round_id'] ?? 0);
@@ -473,7 +491,7 @@ if ($is_staff && $tab === 'zestawienia') {
               GROUP BY u.id ORDER BY u.name COLLATE NOCASE"),
         // Per rodzaj zajęć (kurs): rezerwacje żywe, kursanci
         'courses' => db_all(
-            "SELECT COALESCE(c.name, 'Konsultacje (bez grupy)') AS name,
+            "SELECT COALESCE(c.name, 'Nauczanie indywidualne (bez grupy)') AS name,
                     COUNT(b.id) AS n_bookings,
                     COUNT(DISTINCT b.client_id) AS n_clients,
                     COALESCE(SUM(b.tokens_spent - b.tokens_refunded),0) AS tokens_net
@@ -1350,9 +1368,29 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <!-- Wygenerowane godziny w tej turze -->
     <div class="card border-0 shadow-sm mt-4">
       <div class="card-body">
-        <h2 class="h6 fw-bold mb-1"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Godziny w tej turze
-          <span class="badge bg-secondary ms-1"><?= count($grp_slots) ?></span>
-        </h2>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+          <h2 class="h6 fw-bold mb-0"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Godziny w tej turze
+            <span class="badge bg-secondary ms-1"><?= count($grp_slots) ?></span>
+          </h2>
+          <?php if ($grp_slots): $grp_no_lesson = count(array_filter($grp_slots, fn($gs) =>
+              empty($gs['session_id']) && in_array((string)$gs['status'], ['draft','open','locked'], true))); ?>
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Zatwierdzić grafik tury? Każda przyszła godzina bez lekcji dostanie lekcję w dzienniku TI (status: zaplanowana).')">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op" value="grafik_approve">
+            <input type="hidden" name="round_id" value="<?= (int)$grp_round['id'] ?>">
+            <button class="btn btn-sm btn-success" <?= $grp_no_lesson ? '' : 'disabled' ?>
+                    title="Utwórz lekcje w dzienniku TI dla godzin tej tury">
+              <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zatwierdź grafik
+              <?php if ($grp_no_lesson): ?><span class="badge text-bg-light ms-1"><?= $grp_no_lesson ?></span><?php endif; ?>
+            </button>
+          </form>
+          <?php endif; ?>
+        </div>
+        <?php if ($grp_slots): ?>
+        <div class="form-text mt-0 mb-2">Zatwierdzenie grafiku tworzy lekcje w dzienniku (grupy i nauczanie
+          indywidualne — NI). Późniejsze zapisy kursantów dopisują się do tych lekcji jako obecności.</div>
+        <?php endif; ?>
         <?php if (!$grp_slots): ?>
         <div class="text-body-secondary small">Brak godzin — wygeneruj je z dostępności albo poczekaj, aż prowadzący wystawią własne.</div>
         <?php else: ?>
@@ -1361,6 +1399,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <caption class="visually-hidden">Godziny wygenerowane w tej turze</caption>
             <thead><tr>
               <th scope="col">Termin</th><th scope="col">Prowadzący</th>
+              <th scope="col">Grupa / lekcja</th>
               <th scope="col" class="text-end">Miejsca</th>
               <th scope="col" class="text-end">Koszt</th><th scope="col">Status</th>
               <th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th>
@@ -1370,6 +1409,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <tr class="<?= $gs['status'] === 'cancelled' ? 'opacity-50' : '' ?>">
                 <td><?= h(rk_fmt_dt((string)$gs['starts_at'])) ?><span class="text-body-secondary">–<?= h(substr((string)$gs['ends_at'], 11, 5)) ?></span></td>
                 <td><?= h($gs['instructor_name']) ?></td>
+                <td class="small">
+                  <?= $gs['course_name'] ? h($gs['course_name']) : '<span class="text-body-secondary">—</span>' ?>
+                  <?php if (!empty($gs['session_id'])): ?>
+                  <i class="bi bi-journal-check text-success ms-1" title="Lekcja w dzienniku (#<?= (int)$gs['session_id'] ?>)"
+                     aria-label="Lekcja w dzienniku"></i>
+                  <?php endif; ?>
+                </td>
                 <td class="text-end"><?= (int)$gs['seats_taken'] ?>/<?= (int)$gs['capacity'] ?></td>
                 <td class="text-end"><?= (int)$gs['token_cost'] ?> żet.</td>
                 <td><span class="badge text-bg-<?= match ((string)$gs['status']) {
