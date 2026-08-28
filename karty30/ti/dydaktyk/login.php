@@ -27,6 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // POST — uwierzytelnianie hasłem
 $email    = trim($_POST['email']    ?? '');
 $password = $_POST['password'] ?? '';
+// back=alt → błędy wracają na samodzielną stronę logowania dydaktyka (logowanie.php)
+$back_alt = ($_POST['back'] ?? '') === 'alt';
 
 $data = dyd_authenticate($email, $password);
 if ($data) {
@@ -42,4 +44,5 @@ if ($data) {
 $u_row = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
 $ec = ($u_row && !empty($u_row['password']) && password_verify($password, $u_row['password'])) ? 4 : 1;
 
-header('Location: ../login.php?tab=dydaktyk&e=' . $ec . '&m=' . urlencode($email)); exit;
+header('Location: ' . ($back_alt ? 'logowanie.php?e=' : '../login.php?tab=dydaktyk&e=')
+    . $ec . '&m=' . urlencode($email)); exit;

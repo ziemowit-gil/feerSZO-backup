@@ -148,7 +148,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div>
     <strong>Dane logowania do panelu</strong> — zapisz i przekaż, hasło pokazujemy tylko raz:<br>
     e-mail: <code><?= h($zu_newpass['email']) ?></code> · hasło: <code><?= h($zu_newpass['pass']) ?></code><br>
-    <span class="small">Logowanie: strona logowania panelu dydaktyka (karty30/ti/dydaktyk/).</span>
+    <span class="small">Logowanie: <?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/dydaktyk/logowanie.php
+      (samodzielna strona tylko dla dydaktyków; działa też wspólna strona logowania).</span>
   </div>
 </div>
 <?php endif; ?>
