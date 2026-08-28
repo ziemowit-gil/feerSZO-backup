@@ -500,6 +500,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <option value="P">P — podst.</option>
               <option value="S">S — średni</option>
               <option value="Z">Z — zaaw.</option>
+              <option value="NI">NI — naucz. indyw.</option>
             </select>
           </div>
           <div class="col-sm-2">
@@ -528,8 +529,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                placeholder="np. 26SZ-INF-P1-742<?= date('y') ?>">
         <div class="form-text" id="name_hint">
           Schemat: <code>OKRES-RODZAJ-POZIOMnr-kod</code> (np. <code>26SZ-INF-P1-742<?= date('y') ?></code>),
-          z prefiksem TEST i sufiksem -PFRON. Bez wybranego okresu generator używa
-          starego formatu <code>Skrót.kod.Nazwisko</code>.
+          z prefiksem TEST i sufiksem -PFRON. Nauczanie indywidualne to też grupa —
+          poziom <code>NI</code> (np. <code>26SZ-INF-NI1-742<?= date('y') ?></code>).
+          Bez wybranego okresu generator używa starego formatu <code>Skrót.kod.Nazwisko</code>.
         </div>
       </div>
 
@@ -963,6 +965,7 @@ function tiAutoName() {
   var code = gc ? gc.value.trim() : '';
 
   // Nowy schemat: TEST OKRES-RODZAJ-POZIOMnr-kod-PFRON — gdy wybrano okres
+  // (poziom NI = nauczanie indywidualne — to też grupa)
   var period = document.getElementById('gen_period');
   if (period && period.value) {
     var lvl  = document.getElementById('gen_level')?.value || 'P';
@@ -974,10 +977,11 @@ function tiAutoName() {
     parts.push(lvl + nr);
     if (code) parts.push(code);
     out.value = test + parts.join('-') + pfr;
-    // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + numer grupy
+    // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + grupa / naucz. indywidualne
     var dn = document.getElementById('display_name_input');
     var full = (opt && opt.dataset.name) ? opt.dataset.name : '';
-    if (dn && full) dn.value = (test ? 'TEST ' : '') + full + ' — grupa ' + nr;
+    if (dn && full) dn.value = (test ? 'TEST ' : '') + full
+      + (lvl === 'NI' ? ' — nauczanie indywidualne' + (nr > 1 ? ' ' + nr : '') : ' — grupa ' + nr);
     return;
   }
 
@@ -1002,9 +1006,22 @@ function tiAutoName() {
   });
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
-  // Przełącznik typu zajęć
+  // Przełącznik typu zajęć — synchronizacja z poziomem NI w generatorze
   document.querySelectorAll('input[name="class_type"]').forEach(function(r) {
-    r.addEventListener('change', function() { tiUpdateHelperLabel(); tiAutoName(); });
+    r.addEventListener('change', function() {
+      var lv = document.getElementById('gen_level');
+      if (lv) {
+        if (this.value === 'individual' && this.checked) lv.value = 'NI';
+        else if (this.value === 'group' && this.checked && lv.value === 'NI') lv.value = 'P';
+      }
+      tiUpdateHelperLabel(); tiAutoName();
+    });
+  });
+  document.getElementById('gen_level')?.addEventListener('change', function () {
+    var ind = document.getElementById('ct_individual'), grp = document.getElementById('ct_group');
+    if (!ind || !grp) return;
+    (this.value === 'NI' ? ind : grp).checked = true;
+    tiUpdateHelperLabel();
   });
   tiUpdateHelperLabel();
 })();

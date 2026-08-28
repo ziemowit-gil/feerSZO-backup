@@ -175,6 +175,10 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
       <?php if (!empty($c['group_code'])): ?>
       <span class="dyd-gr-code"><i class="bi bi-hash me-1"></i><?= h($c['group_code']) ?></span>
       <?php endif; ?>
+      <?php if (($c['class_type']??'') === 'individual'): ?>
+      <span class="badge" style="font-size:.62rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+            title="Nauczanie indywidualne — to też grupa">NI</span>
+      <?php endif; ?>
       <?php if (!empty($c['is_subgroup'])): ?>
       <span class="badge" style="font-size:.62rem;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe">1I</span>
       <?php endif; ?>
