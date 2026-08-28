@@ -94,8 +94,11 @@ if ($instructors) {
 }
 
 $sel_instr = (int)($_GET['instr'] ?? 0);
-$sel       = null;
-foreach ($instructors as $i) { if ((int)$i['id'] === $sel_instr) { $sel = $i; break; } }
+// Prowadzący wprost z users — heurystyka listy (kursy/konta dydaktyka) nie może
+// „zgubić” edycji: kliknięty prowadzący ma się otworzyć zawsze, póki jest aktywny.
+$sel = $sel_instr
+    ? db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$sel_instr])
+    : null;
 $sel_windows = $sel ? ti_instructor_availability($sel_instr) : [];
 
 $dow_order = [1,2,3,4,5,6,0];
@@ -320,6 +323,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </div>
     </div>
   </div>
+</div>
+<?php elseif ($sel_instr): ?>
+<div class="alert alert-warning" id="edit" role="alert">
+  <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+  Nie można otworzyć edycji: prowadzący #<?= $sel_instr ?> nie istnieje albo jest nieaktywny.
 </div>
 <?php else: ?>
 <div class="text-body-secondary small">Kliknij prowadzącego w macierzy, aby edytować jego okna.</div>
