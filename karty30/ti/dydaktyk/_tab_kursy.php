@@ -12,24 +12,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
     dyd_token_check();
     $ku_op = $_POST['_op'] ?? '';
 
-    // Szybkie tworzenie kursu (minimalne pola)
+    // Tworzenie kursu — pełny zestaw pól jak w dawnym module admina (?new=1)
     if ($ku_op === 'create_course') {
         $name = trim($_POST['name'] ?? '');
         if ($name) {
+            $gc = trim($_POST['group_code'] ?? '');
             $data = [
-                'name'             => $name,
-                'display_name'     => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
-                'instructor_id'    => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
-                'is_active'        => 1,
-                'track_attendance' => 1,
-                'billing_model'    => 2,
-                'billing_amount'   => 0,
-                'lesson_payout_bb' => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
-                'class_type'       => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
+                'name'                => $name,
+                'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
+                'description'         => trim($_POST['description'] ?? ''),
+                'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
+                'location'            => trim($_POST['location'] ?? ''),
+                'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
+                'is_active'           => 1,
+                'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
+                'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
+                'is_online'           => isset($_POST['is_online']) ? 1 : 0,
+                'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
+                'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
+                'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1,2,3], true) ? (int)$_POST['billing_model'] : 2,
+                'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
+                'pay_account'         => trim($_POST['pay_account'] ?? ''),
+                'pay_title'           => trim($_POST['pay_title'] ?? ''),
+                'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
+                'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
+                'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
+                'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
                 // Sesja panelu dydaktyka: current_user() jest tu puste — tożsamość z dyd_require()
-                'created_by'       => $uid ?? null,
-                'created_at'       => date('Y-m-d H:i:s'),
-                'group_code'       => k30_ti_generate_group_code(),
+                'created_by'          => $uid ?? null,
+                'created_at'          => date('Y-m-d H:i:s'),
+                'group_code'          => preg_match('/^\d{5}$/', $gc) ? $gc : k30_ti_generate_group_code(),
             ];
             $new_id = db_insert('k30_ti_courses', $data);
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Zapisz uczestników (możesz przenieść ich z innej grupy) i uzupełnij szczegóły.'];
@@ -205,10 +217,11 @@ unset($_SESSION['dyd_flash']);
           </select>
         </div>
         <div class="col-3">
-          <select class="form-select form-select-sm" id="kug_subject" aria-label="Rodzaj zajęć do nazwy">
+          <?php /* Rodzaj zajęć: buduje nazwę (skrót) i zapisuje się na kursie (subject_type_id) */ ?>
+          <select class="form-select form-select-sm" id="kug_subject" name="subject_type_id" aria-label="Rodzaj zajęć">
             <option value="">— rodzaj —</option>
             <?php foreach ($ku_gen_subjects as $st): ?>
-            <option value="<?= h($st['abbreviation']) ?>" data-name="<?= h($st['name']) ?>"><?= h($st['abbreviation']) ?></option>
+            <option value="<?= (int)$st['id'] ?>" data-abbr="<?= h($st['abbreviation']) ?>" data-name="<?= h($st['name']) ?>"><?= h($st['abbreviation']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -249,7 +262,7 @@ unset($_SESSION['dyd_flash']);
         var per = document.getElementById('kug_period');
         if (!per.value) { per.focus(); alert('Wybierz okres — schemat nazwy zaczyna się od jego skrótu.'); return; }
         var parts = [per.value];
-        var subj = document.getElementById('kug_subject').value;
+        var subj = document.getElementById('kug_subject').selectedOptions[0]?.dataset.abbr || '';
         if (subj) parts.push(subj);
         parts.push(document.getElementById('kug_level').value
                  + Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10)));
@@ -288,6 +301,84 @@ unset($_SESSION['dyd_flash']);
       <label class="form-label small fw-semibold mb-1" for="ku_bb">Stawka wynagrodzenia BB <span class="text-body-secondary fw-normal">(zł/lekcja)</span></label>
       <input type="number" id="ku_bb" name="lesson_payout_bb" step="0.01" min="0"
              class="form-control form-control-sm" placeholder="0.00">
+    </div>
+
+    <div class="col-sm-4">
+      <label class="form-label small fw-semibold mb-1" for="ku_gc">Kod grupy</label>
+      <input type="text" id="ku_gc" name="group_code" class="form-control form-control-sm font-monospace"
+             maxlength="5" pattern="\d{5}" placeholder="np. 742<?= date('y') ?>"
+             aria-describedby="ku_gc_help">
+      <div class="form-text mt-0" id="ku_gc_help">3 cyfry + <?= date('y') ?>; puste = wygeneruje się sam.</div>
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label small fw-semibold mb-1" for="ku_bm">Model rozliczania</label>
+      <select id="ku_bm" name="billing_model" class="form-select form-select-sm"
+              onchange="document.getElementById('ku_bm_amount_wrap').style.display = this.value==='2' ? 'none' : ''">
+        <?php foreach ([1,2,3] as $bm_code): ?>
+        <option value="<?= $bm_code ?>" <?= $bm_code === 2 ? 'selected' : '' ?>><?= h(k30_ti_billing_model_label($bm_code)) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-sm-4" id="ku_bm_amount_wrap" style="display:none">
+      <label class="form-label small fw-semibold mb-1" for="ku_bm_amount">Kwota (zł)</label>
+      <input type="number" id="ku_bm_amount" name="billing_amount" step="0.01" min="0"
+             class="form-control form-control-sm" placeholder="0.00">
+      <div class="form-text mt-0">dla modelu miesięcznego/stałego</div>
+    </div>
+
+    <div class="col-sm-5">
+      <label class="form-label small fw-semibold mb-1" for="ku_pay_acc">Nr konta do wpłat <span class="text-body-secondary fw-normal">(domyślny)</span></label>
+      <input type="text" id="ku_pay_acc" name="pay_account" class="form-control form-control-sm font-monospace"
+             placeholder="PL00 0000 0000 0000 0000 0000 0000">
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label small fw-semibold mb-1" for="ku_pay_title">Tytuł wpłaty <span class="text-body-secondary fw-normal">(domyślny)</span></label>
+      <input type="text" id="ku_pay_title" name="pay_title" class="form-control form-control-sm"
+             placeholder="np. Opłata za zajęcia TI">
+    </div>
+    <div class="col-sm-3">
+      <label class="form-label small fw-semibold mb-1" for="ku_pay_due">Termin płatności <span class="text-body-secondary fw-normal">(dni)</span></label>
+      <input type="number" id="ku_pay_due" name="pay_due_days" min="0" max="365"
+             class="form-control form-control-sm" placeholder="<?= K30_TI_PAY_DUE_DAYS_DEFAULT ?>">
+    </div>
+
+    <div class="col-sm-6">
+      <label class="form-label small fw-semibold mb-1" for="ku_loc">Lokalizacja / sala</label>
+      <input type="text" id="ku_loc" name="location" class="form-control form-control-sm" placeholder="Sala A, piętro 2…">
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label small fw-semibold mb-1" for="ku_url">Stały link do zajęć online</label>
+      <input type="url" id="ku_url" name="default_meeting_url" class="form-control form-control-sm"
+             placeholder="https://… (Teams/Zoom/Meet)">
+    </div>
+
+    <div class="col-12">
+      <label class="form-label small fw-semibold mb-1" for="ku_desc">Opis</label>
+      <textarea id="ku_desc" name="description" class="form-control form-control-sm" rows="2"
+                placeholder="Czego dotyczą zajęcia…"></textarea>
+    </div>
+
+    <div class="col-12 d-flex flex-wrap gap-3 mt-1">
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="track_attendance" id="ku_att" checked>
+        <label class="form-check-label small" for="ku_att">Licz frekwencję</label>
+      </div>
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="is_subgroup" id="ku_sub">
+        <label class="form-check-label small" for="ku_sub">Podgrupa <span class="text-body-secondary">(lekcje zawsze 1I)</span></label>
+      </div>
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="is_online" id="ku_onl">
+        <label class="form-check-label small" for="ku_onl">Zajęcia online</label>
+      </div>
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="no_invoice" id="ku_noinv">
+        <label class="form-check-label small" for="ku_noinv">Bez fakturowania <span class="text-body-secondary">(np. dotacja)</span></label>
+      </div>
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="wup_exclude" id="ku_wup">
+        <label class="form-check-label small" for="ku_wup">Poza raportem WUP</label>
+      </div>
     </div>
 
     <div class="col-12 d-flex gap-2 mt-1">
