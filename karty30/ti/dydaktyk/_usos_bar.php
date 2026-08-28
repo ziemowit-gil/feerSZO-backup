@@ -101,7 +101,7 @@ if (dyd_is_staff()) {
         'items' => [
             $_it('grupy',        'Przegląd grup',         $_g('grupy')),
             $_it('rozliczenia',  'Rozliczenia grupy',     $_ct('rozliczenia'), (int)($_sb_roz_debt ?? 0), 'danger'),
-            $_it('billing',      'Rozliczenia kursantów', $_g('billing')),
+            $_it('',             'Rozliczenia kursantów', 'billing.php'),
             $_it('kursy',        'Zarządzanie kursami',   $_g('kursy')),
             $_it('wypłaty',      'Wypłaty prowadzących',  $_g('wypłaty')),
             $_it('praca_wlasna', 'Praca własna',          $_g('praca_wlasna')),

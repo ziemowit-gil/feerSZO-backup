@@ -17,7 +17,7 @@ $KIER_LABEL = $KIER_LABEL ?? '';
 /** [etykieta, adres, ikona bi-*] */
 $_kier_items = [
     ['Przegląd grup',             'index.php?tab=grupy',        'people'],
-    ['Rozliczenia kursantów',     'index.php?tab=billing',      'receipt'],
+    ['Rozliczenia kursantów',     'billing.php',                'receipt'],
     ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
     ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
     ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
