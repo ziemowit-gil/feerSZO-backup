@@ -14,6 +14,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
 
 $pw_cid = (int)$pw_client_id;
+// Partial działa w dwóch panelach: kursanta (domyślne adresy) i rodzica (nadpisywane)
+$pw_form_action     = $pw_form_action     ?? 'index.php?tab=portfel';
+$pw_rozliczenia_url = $pw_rozliczenia_url ?? '?tab=rozliczenia';
 
 $pw_flash = $_SESSION['wallet_flash'] ?? null;
 unset($_SESSION['wallet_flash']);
@@ -146,7 +149,7 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
   <span>Portfel działa jak przedpłata: wpłacasz dowolną kwotę, a opłaty za kolejne zajęcia są
   <strong>pobierane z niego automatycznie</strong> (od najstarszej należności). Jeśli na koncie jest
   zaległość, doładowanie najpierw ją pokryje. Szczegóły należności znajdziesz w zakładce
-  <a href="?tab=rozliczenia">Rozliczenia</a>.</span>
+  <a href="<?= h($pw_rozliczenia_url) ?>">Rozliczenia</a>.</span>
 </div>
 
 <?php if ($pw_pending): ?>
@@ -179,7 +182,7 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
       </div>
       <div class="card-body">
         <?php if ($pw_online): ?>
-        <form method="post" action="index.php?tab=portfel" class="vstack gap-3">
+        <form method="post" action="<?= h($pw_form_action) ?>" class="vstack gap-3">
           <input type="hidden" name="_op" value="wallet_topup">
           <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
           <div>

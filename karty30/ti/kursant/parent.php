@@ -70,6 +70,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     header('Location: parent.php?ptab=dostep'); exit;
 }
 
+// Portfel: doładowanie online przez opiekuna (Stripe/PayU). Wpłata OGÓLNA
+// (course_id=0) — alokacja FIFO sama pobiera z niej opłaty za kolejne zajęcia.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_topup') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+        $wl_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $wl_provider = (string)($_POST['provider'] ?? '');
+        $wl_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?ptab=portfel';
+        if ($wl_amount < 1 || $wl_amount > 20000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę doładowania od 1 do 20 000 zł.'];
+            header('Location: parent.php?ptab=portfel'); exit;
+        }
+        $wl_client = db_one("SELECT name, email FROM k30_clients WHERE id=?", [(int)$p['client_id']]) ?: [];
+        $wl_acc    = db_one("SELECT guardian_email FROM k30_ti_student_accounts WHERE id=?", [(int)$p['student_id']]);
+        $wl_email  = (string)(($wl_acc['guardian_email'] ?? '') ?: ($wl_client['email'] ?? ''));
+        $wl_desc   = 'Doładowanie portfela TI — ' . (string)($wl_client['name'] ?? '');
+        try {
+            if ($wl_provider === 'payu' && payu_enabled()) {
+                $wl = payu_create_order('k30_ti_wallet', (int)$p['client_id'], $wl_amount, $wl_desc,
+                                        $wl_back . '&wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $wl_email);
+                header('Location: ' . $wl['url']); exit;
+            }
+            if ($wl_provider === 'stripe' && stripe_enabled()) {
+                $wl = stripe_create_checkout('k30_ti_wallet', (int)$p['client_id'], $wl_amount, $wl_desc,
+                                             $wl_back . '&wpay=stripe', $wl_back . '&wcancel=1', $wl_email);
+                header('Location: ' . $wl['url']); exit;
+            }
+            $_SESSION['wallet_flash'] = ['err', 'Wybrana metoda płatności nie jest teraz dostępna.'];
+        } catch (\Throwable $e) {
+            $_SESSION['wallet_flash'] = ['err', 'Nie udało się rozpocząć płatności: ' . $e->getMessage()];
+        }
+    }
+    header('Location: parent.php?ptab=portfel'); exit;
+}
+
 // Wiadomosc od rodzica do prowadzacego
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_msg_send') {
     $p = parent_current();
@@ -213,7 +250,7 @@ if ($parent && isset($_GET['grades_pdf'])) {
 }
 
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','portfel','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
 $vlab_term_pending_parent = $parent ? !ti_term_accepted((int)$parent['client_id'], 'vlab') : false;
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
@@ -436,6 +473,11 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= $ptab==='portfel'?'active':'' ?>" href="?ptab=portfel" <?= $ptab==='portfel'?'aria-current="page"':'' ?>>
+          <i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Portfel
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='frekwencja'?'active':'' ?>" href="?ptab=frekwencja" <?= $ptab==='frekwencja'?'aria-current="page"':'' ?>>
           <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Frekwencja
         </a>
@@ -589,6 +631,13 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_client_id    = $parent['client_id'];
     $rv_show_lessons = false;
     include __DIR__ . '/_rozliczenia_view.php';
+?>
+
+<?php elseif ($ptab === 'portfel'):
+    $pw_client_id       = $parent['client_id'];
+    $pw_form_action     = 'parent.php?ptab=portfel';
+    $pw_rozliczenia_url = 'parent.php?ptab=rozliczenia';
+    include __DIR__ . '/_portfel_view.php';
 ?>
 
 <?php elseif ($ptab === 'frekwencja'): ?>
