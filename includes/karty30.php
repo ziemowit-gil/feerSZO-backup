@@ -2719,11 +2719,12 @@ function ti_panel_role_set(int $user_id, string $role, ?int $granted_by = null):
        ->execute([$user_id, $role, $granted_by]);
 }
 
-/** Wszystkie nadane role panelu (z danymi użytkowników). */
+/** Wszystkie nadane role panelu (z danymi użytkowników; u.role rozróżnia
+ *  konto panelu TI — dydaktyk_ti — od pełnego konta SZO: system hybrydowy). */
 function ti_panel_roles_all(): array {
     ti_panel_roles_migrate();
     return db_all(
-        "SELECT pr.*, u.name, u.email, u.is_active, g.name AS granted_by_name
+        "SELECT pr.*, u.name, u.email, u.is_active, u.role AS szo_role, g.name AS granted_by_name
          FROM k30_ti_panel_roles pr
          JOIN users u ON u.id = pr.user_id
          LEFT JOIN users g ON g.id = pr.granted_by

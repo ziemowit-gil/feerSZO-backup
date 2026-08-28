@@ -179,6 +179,15 @@ function _permissions_init(): void {
             ->execute([$sek_id, 'karty30', 1, 0, 0]);
     }
 
+    // Idempotentnie dodaj rolę dydaktyk_ti — konto panelu dydaktyka TI (system
+    // hybrydowy): tworzone i zarządzane WYŁĄCZNIE w panelu TI (Zespół i role),
+    // bez logowania do SZO i bez uprawnień modułowych. Wiersz users istnieje
+    // tylko dla FK (kursy/dostępności/wypłaty wskazują users.id).
+    if (!$pdo->query("SELECT COUNT(*) FROM roles WHERE name='dydaktyk_ti'")->fetchColumn()) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, sort_order)
+                    VALUES ('dydaktyk_ti','Dydaktyk TI (konto panelu)','Konto panelu dydaktyka TI — zarządzane w panelu TI (Zespół i role), bez dostępu do systemu SZO',1,7)");
+    }
+
     // Idempotentnie dodaj rolę crm_user jeśli nie istnieje (dla istniejących baz)
     $crm_user_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='crm_user'")->fetchColumn();
     if (!$crm_user_exists) {

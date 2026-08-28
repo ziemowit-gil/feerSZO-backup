@@ -76,7 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = db_one("SELECT * FROM users WHERE email=? AND (is_active=1 OR email='serwis@local')", [$email]);
             // Polityka „tylko Office" — z wyjątkiem kont, które ustawiły hasło awaryjne
             // przez /auth/convert_account.php (flaga allow_local_fallback).
-            if ($user && account_is_office_only($user) && empty($user['allow_local_fallback'])) {
+            if ($user && account_is_ti_panel_only($user)) {
+                authlog_write((int)$user['id'], 'login_blocked_ti_panel', $user['email'], 'Konto panelu dydaktyka TI — logowanie tylko w panelu TI');
+                $error = 'To konto działa wyłącznie w panelu dydaktyka TI — zaloguj się pod adresem karty30/ti/dydaktyk/.';
+                $active_tab = 'local';
+            } elseif ($user && account_is_office_only($user) && empty($user['allow_local_fallback'])) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'], 'Konto służbowe — wymagane logowanie przez Microsoft 365');
                 $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Zaloguj przez Microsoft 365”.';
                 $active_tab = 'local';
@@ -148,7 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sms_code   = trim($_POST['sms_code']  ?? '');
         $active_tab = 'sms';
         $user       = sms_verify_otp($sms_phone, $sms_code);
-        if ($user && account_is_office_only($user)) {
+        if ($user && account_is_ti_panel_only($user)) {
+            authlog_write((int)$user['id'], 'login_blocked_ti_panel', $user['email'] ?? '', 'Konto panelu dydaktyka TI — logowanie tylko w panelu TI');
+            $error = 'To konto działa wyłącznie w panelu dydaktyka TI — zaloguj się pod adresem karty30/ti/dydaktyk/.';
+            $active_tab = 'sms';
+        } elseif ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
             $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'sms';

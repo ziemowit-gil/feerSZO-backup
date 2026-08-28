@@ -379,6 +379,17 @@ function is_viewer(): bool {
  * Przyjmuje wiersz users (zalecane) lub sam e-mail (zgodność wstecz — rola dociągana
  * z bazy). Zob. [[project_login_office_only]].
  */
+/**
+ * Konto panelu dydaktyka TI (rola dydaktyk_ti) — tworzone i zarządzane WYŁĄCZNIE
+ * w panelu TI (Zespół i role). Wiersz w users istnieje tylko po to, żeby działały
+ * FK (kursy, dostępności, wypłaty → users.id); do systemu SZO się nie loguje.
+ * System hybrydowy: dydaktycy z pełnym kontem SZO logują się jak dotąd.
+ */
+function account_is_ti_panel_only($user): bool {
+    $role = is_array($user) ? (string)($user['role'] ?? '') : '';
+    return $role === 'dydaktyk_ti';
+}
+
 function account_is_office_only($user): bool {
     if (is_array($user)) {
         $email = strtolower(trim((string)($user['email'] ?? '')));
