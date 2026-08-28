@@ -137,7 +137,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
      title="Pełny panel zarządzania kursami">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
   </a>
-  <a href="../index.php?new=1" class="btn btn-primary btn-sm">
+  <a href="index.php?tab=kursy&amp;new_course=1" class="btn btn-primary btn-sm">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs
   </a>
 </div>

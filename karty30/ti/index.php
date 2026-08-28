@@ -4,6 +4,14 @@
  * Kurs = kontener z uczestnikami i stawkami. Lekcje zarządzają harmonogramem.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
+
+// Tworzenie grup przeniesione do panelu kierownika (wzorzec żetony/okresy/billing):
+// stary adres ?new=1 przekierowuje do formularza w panelu dydaktyka.
+if (isset($_GET['new'])) {
+    header('Location: ' . rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/index.php?tab=kursy&new_course=1', true, 302);
+    exit;
+}
+
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';

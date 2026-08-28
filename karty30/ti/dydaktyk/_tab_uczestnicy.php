@@ -6,6 +6,70 @@
  *
  * Zmienne z index.php: $cur_course, $course, $uid.
  */
+$u_staff = dyd_is_staff();
+
+// ── Przeniesienie kursanta do innej grupy (kierownik) ────────────────────────
+// Zapis w tej grupie zostaje zamknięty (historia frekwencji i rozliczeń bez zmian),
+// w grupie docelowej powstaje/odżywa zapis z przepisanym modelem rozliczania.
+// Puste obecności przyszłych lekcji starej grupy są usuwane, żeby kursant nie
+// wisiał na listach i w podstawie frekwencji po dacie przeniesienia.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') === 'move_student') {
+    dyd_token_check();
+    $mv_cid = (int)($_POST['client_id'] ?? 0);
+    $mv_to  = (int)($_POST['to_course'] ?? 0);
+    $mv_ok  = false; $mv_msg = '';
+    $mv_src = $mv_cid ? db_one("SELECT * FROM k30_ti_enrollments WHERE course_id=? AND client_id=? AND status='active'",
+                               [$cur_course, $mv_cid]) : null;
+    $mv_tc  = ($mv_to && $mv_to !== (int)$cur_course) ? k30_ti_course_get($mv_to) : null;
+    if (!$mv_src) {
+        $mv_msg = 'Ten kursant nie ma aktywnego zapisu w tej grupie.';
+    } elseif (!$mv_tc || empty($mv_tc['is_active'])) {
+        $mv_msg = 'Wybierz aktywną grupę docelową (inną niż bieżąca).';
+    } else {
+        db()->prepare("UPDATE k30_ti_enrollments SET status='inactive' WHERE course_id=? AND client_id=?")
+           ->execute([$cur_course, $mv_cid]);
+        $mv_ex = db_one("SELECT id FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [$mv_to, $mv_cid]);
+        if ($mv_ex) {
+            db()->prepare("UPDATE k30_ti_enrollments SET status='active', start_date=? WHERE id=?")
+               ->execute([date('Y-m-d'), (int)$mv_ex['id']]);
+        } else {
+            try {
+                db()->prepare(
+                    "INSERT INTO k30_ti_enrollments
+                       (course_id, client_id, hourly_rate, start_date, status,
+                        billing_model, billing_amount, pay_account, pay_title, pay_due_days)
+                     VALUES (?,?,?,?,'active',?,?,?,?,?)"
+                )->execute([$mv_to, $mv_cid, $mv_src['hourly_rate'] ?? 0, date('Y-m-d'),
+                            $mv_src['billing_model'] ?? null, $mv_src['billing_amount'] ?? 0,
+                            $mv_src['pay_account'] ?? '', $mv_src['pay_title'] ?? '', $mv_src['pay_due_days'] ?? null]);
+            } catch (\Throwable $e) {   // starszy schemat bez pól rozliczeniowych
+                db()->prepare("INSERT INTO k30_ti_enrollments (course_id, client_id, hourly_rate, start_date, status)
+                               VALUES (?,?,?,?,'active')")
+                   ->execute([$mv_to, $mv_cid, $mv_src['hourly_rate'] ?? 0, date('Y-m-d')]);
+            }
+        }
+        db()->prepare(
+            "DELETE FROM k30_ti_attendance
+             WHERE client_id=? AND attended=0 AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0
+               AND session_id IN (SELECT id FROM k30_ti_sessions WHERE course_id=? AND lesson_date > date('now'))"
+        )->execute([$mv_cid, $cur_course]);
+        $mv_ok = true;
+    }
+    $mv_who = $mv_cid ? (db_one("SELECT name FROM k30_clients WHERE id=?", [$mv_cid])['name'] ?? ('#'.$mv_cid)) : '';
+    $_SESSION['dyd_flash'] = $mv_ok
+        ? ['type'=>'success', 'msg'=>'Przeniesiono: ' . $mv_who . ' → ' . $mv_tc['name']
+            . '. Zapis w tej grupie zamknięty (historia zostaje), rozliczenia kolejnych zajęć pójdą już w nowej grupie.']
+        : ['type'=>'danger', 'msg'=>'Nie przeniesiono. ' . $mv_msg];
+    header('Location: index.php?course=' . (int)$cur_course . '&tab=uczestnicy'); exit;
+}
+
+// Grupy docelowe do przenoszenia (aktywne, bez bieżącej)
+$u_targets = $u_staff
+    ? array_values(array_filter(k30_ti_courses(true), fn($c) => (int)$c['id'] !== (int)$cur_course))
+    : [];
+$u_flash = $_SESSION['dyd_flash'] ?? null;
+unset($_SESSION['dyd_flash']);
+
 $u_parts = db_all(
     "SELECT e.client_id, e.status AS enroll_status, e.start_date, e.hourly_rate,
             cl.name, cl.email, cl.phone
@@ -58,6 +122,13 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
   </div>
 </div>
 
+<?php if ($u_flash): ?>
+<div class="alert alert-<?= $u_flash['type'] === 'success' ? 'success' : 'danger' ?> d-flex align-items-center gap-2" role="<?= $u_flash['type'] === 'success' ? 'status' : 'alert' ?>">
+  <i class="bi bi-<?= $u_flash['type'] === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill' ?>" aria-hidden="true"></i>
+  <span><?= h($u_flash['msg']) ?></span>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <div class="card-header">Lista uczestników grupy</div>
   <div class="table-responsive">
@@ -71,10 +142,11 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
         <th scope="col" class="text-nowrap">Frekwencja</th>
         <th scope="col" class="text-nowrap">Oceny</th>
         <th scope="col">Status</th>
+        <?php if ($u_staff): ?><th scope="col" class="usos-noprint">Przenieś do grupy</th><?php endif; ?>
       </tr></thead>
       <tbody>
         <?php if (!$u_parts): ?>
-        <tr><td colspan="7" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
+        <tr><td colspan="<?= $u_staff ? 8 : 7 ?>" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
         <?php endif; ?>
         <?php foreach ($u_parts as $i => $p):
           $cid  = (int)$p['client_id'];
@@ -119,6 +191,29 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
             <?php if ($inactive): ?><span class="badge text-bg-secondary">wypisany</span>
             <?php else: ?><span class="badge text-bg-success">aktywny</span><?php endif; ?>
           </td>
+          <?php if ($u_staff): ?>
+          <td class="text-nowrap usos-noprint">
+            <?php if (!$inactive && $u_targets): ?>
+            <form method="post" class="d-flex gap-1 align-items-center"
+                  onsubmit="return this.to_course.value !== '' && confirm('Przenieść uczestnika do wybranej grupy?\n\nZapis w tej grupie zostanie zamknięty (historia frekwencji i rozliczeń zostaje), a kolejne zajęcia i rozliczenia pójdą w nowej grupie.')">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="move_student">
+              <input type="hidden" name="client_id" value="<?= $cid ?>">
+              <label class="visually-hidden" for="mvTo<?= $cid ?>">Grupa docelowa dla <?= h($p['name']) ?></label>
+              <select name="to_course" id="mvTo<?= $cid ?>" class="form-select form-select-sm" style="max-width:190px" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($u_targets as $t): ?>
+                <option value="<?= (int)$t['id'] ?>"><?= h($t['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-primary" title="Przenieś do wybranej grupy">
+                <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Przenieś</span>
+              </button>
+            </form>
+            <?php elseif (!$inactive): ?><span class="text-muted small">brak innych grup</span>
+            <?php endif; ?>
+          </td>
+          <?php endif; ?>
         </tr>
         <?php endforeach; ?>
       </tbody>

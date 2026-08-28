@@ -26,13 +26,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'billing_amount'   => 0,
                 'lesson_payout_bb' => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
                 'class_type'       => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
-                'created_by'       => current_user()['id'] ?? null,
+                // Sesja panelu dydaktyka: current_user() jest tu puste — tożsamość z dyd_require()
+                'created_by'       => $uid ?? null,
                 'created_at'       => date('Y-m-d H:i:s'),
                 'group_code'       => k30_ti_generate_group_code(),
             ];
             $new_id = db_insert('k30_ti_courses', $data);
-            $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Uzupełnij szczegóły w ustawieniach kursu.'];
-            header('Location: ../course.php?id=' . $new_id);
+            $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Zapisz uczestników (możesz przenieść ich z innej grupy) i uzupełnij szczegóły.'];
+            header('Location: index.php?course=' . $new_id . '&tab=uczestnicy');
             exit;
         }
     }
