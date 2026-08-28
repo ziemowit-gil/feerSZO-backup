@@ -404,10 +404,8 @@ unset($_SESSION['dyd_flash']);
         <input class="form-check-input" type="checkbox" name="track_attendance" id="ku_att" checked>
         <label class="form-check-label small" for="ku_att">Licz frekwencję</label>
       </div>
-      <div class="form-check form-switch m-0">
-        <input class="form-check-input" type="checkbox" name="is_subgroup" id="ku_sub">
-        <label class="form-check-label small" for="ku_sub">Podgrupa <span class="text-body-secondary">(lekcje zawsze 1I)</span></label>
-      </div>
+      <?php /* Podgrupa to inna konstrukcja (wydzielenie z istniejącej grupy, lekcje 1I) —
+               ustawia się ją w pełnej edycji kursu, nie przy szybkim tworzeniu. */ ?>
       <div class="form-check form-switch m-0">
         <input class="form-check-input" type="checkbox" name="is_online" id="ku_onl">
         <label class="form-check-label small" for="ku_onl">Zajęcia online</label>
