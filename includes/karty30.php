@@ -1218,6 +1218,8 @@ HTML;
         "ALTER TABLE k30_ti_instructor_availability ADD COLUMN valid_from DATE",
         "ALTER TABLE k30_ti_instructor_availability ADD COLUMN valid_to   DATE",
         "ALTER TABLE k30_ti_instructor_availability ADD COLUMN notes      TEXT NOT NULL DEFAULT ''",
+        // Forma zajęć w oknie: online | stacjonarne | obie (domyślnie — jak dotychczas)
+        "ALTER TABLE k30_ti_instructor_availability ADD COLUMN mode       TEXT NOT NULL DEFAULT 'obie'",
     ] as $_q) { try { $pdo->exec($_q); } catch (\Throwable $e) {} }
 
     // ── Blokada wiadomości + archiwizacja ────────────────────────────────────
@@ -5757,6 +5759,14 @@ const TI_AVAIL_STATUS = [
     'draft'    => ['label' => 'Planowana (szkic)', 'color' => 'warning'],
 ];
 
+// Forma zajęć, na którą prowadzący jest dostępny w danym oknie.
+// 'obie' = bez ograniczenia (zachowanie sprzed wprowadzenia formy).
+const TI_AVAIL_MODES = [
+    'obie'        => 'Online i stacjonarnie',
+    'online'      => 'Online',
+    'stacjonarne' => 'Stacjonarnie',
+];
+
 const TI_WEEKLY_DH_MIN   = 45;   // 1 godzina dydaktyczna = 45 min
 const TI_WEEKLY_MAX_DH    = 4;    // maks. 4 godziny dydaktyczne dziennie
 const TI_WEEKLY_MAX_MIN   = TI_WEEKLY_DH_MIN * TI_WEEKLY_MAX_DH;  // = 180 min
@@ -5783,12 +5793,14 @@ function ti_instructor_availability(int $instructor_id, ?string $status = null):
  * obowiązywanie okna — np. dostępność tylko na czas tury zapisów.
  */
 function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, string $status = 'approved',
-                      string $valid_from = '', string $valid_to = '', string $notes = ''): bool {
+                      string $valid_from = '', string $valid_to = '', string $notes = '',
+                      string $mode = 'obie'): bool {
     $from = substr(trim($from), 0, 5);
     $to   = substr(trim($to), 0, 5);
     if (!$instructor_id || $dow < 0 || $dow > 6) return false;
     if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
     if (!array_key_exists($status, TI_AVAIL_STATUS)) $status = 'approved';
+    if (!array_key_exists($mode, TI_AVAIL_MODES))    $mode   = 'obie';
     $vf = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_from) ? $valid_from : null;
     $vt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_to)   ? $valid_to   : null;
     if ($vf && $vt && $vt < $vf) return false;
@@ -5804,6 +5816,7 @@ function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, st
         'instructor_id' => $instructor_id, 'day_of_week' => $dow,
         'time_from' => $from, 'time_to' => $to, 'is_active' => 1, 'status' => $status,
         'valid_from' => $vf, 'valid_to' => $vt, 'notes' => substr(trim($notes), 0, 200),
+        'mode' => $mode,
     ]);
     return true;
 }
@@ -5813,19 +5826,21 @@ function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, st
  * Zwraca false przy błędnych danych — walidacja jak w ti_avail_add.
  */
 function ti_avail_update(int $id, int $instructor_id, int $dow, string $from, string $to,
-                         string $valid_from = '', string $valid_to = '', string $notes = ''): bool {
+                         string $valid_from = '', string $valid_to = '', string $notes = '',
+                         string $mode = 'obie'): bool {
     $from = substr(trim($from), 0, 5);
     $to   = substr(trim($to), 0, 5);
     if (!$id || !$instructor_id || $dow < 0 || $dow > 6) return false;
     if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
+    if (!array_key_exists($mode, TI_AVAIL_MODES)) $mode = 'obie';
     $vf = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_from) ? $valid_from : null;
     $vt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_to)   ? $valid_to   : null;
     if ($vf && $vt && $vt < $vf) return false;
     db_exec(
         "UPDATE k30_ti_instructor_availability
-            SET day_of_week=?, time_from=?, time_to=?, valid_from=?, valid_to=?, notes=?
+            SET day_of_week=?, time_from=?, time_to=?, valid_from=?, valid_to=?, notes=?, mode=?
           WHERE id=? AND instructor_id=?",
-        [$dow, $from, $to, $vf, $vt, substr(trim($notes), 0, 200), $id, $instructor_id]
+        [$dow, $from, $to, $vf, $vt, substr(trim($notes), 0, 200), $mode, $id, $instructor_id]
     );
     return true;
 }

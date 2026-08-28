@@ -76,13 +76,23 @@ $rounds = $what === 'kalendarz' ? rk_rounds_list() : [];
 
 /* ── Dane: zestawienie dostępności do podpisu ──────────────────────────────── */
 $av_rows = [];
+// Rozpiska dostępności na wybraną formę zajęć: online / stacjonarne
+// (okna „obie" obowiązują w każdej formie, więc zawsze wchodzą do wydruku).
+$av_mode = in_array($_GET['mode'] ?? '', ['online', 'stacjonarne'], true) ? (string)$_GET['mode'] : '';
 if ($what === 'dostepnosci') {
+    $av_where = "a.is_active = 1 AND u.is_active = 1";
+    $av_par   = [];
+    if ($av_mode !== '') {
+        $av_where .= " AND COALESCE(NULLIF(a.mode,''),'obie') IN (?, 'obie')";
+        $av_par[] = $av_mode;
+    }
     $av_rows = db_all(
         "SELECT a.*, u.name AS instructor_name
            FROM k30_ti_instructor_availability a
            JOIN users u ON u.id = a.instructor_id
-          WHERE a.is_active = 1 AND u.is_active = 1
-          ORDER BY u.name COLLATE NOCASE, (a.day_of_week + 6) % 7, a.time_from");
+          WHERE $av_where
+          ORDER BY u.name COLLATE NOCASE, (a.day_of_week + 6) % 7, a.time_from",
+        $av_par);
 }
 
 /* ── Dane: plakat publiczny ────────────────────────────────────────────────── */
@@ -210,11 +220,14 @@ if ($what === 'plakat') {
 
 <?php elseif ($what === 'dostepnosci'): ?>
 
-<h1>Dostępności prowadzących — zestawienie do zatwierdzenia</h1>
-<div class="meta"><?= h($org) ?> · okna tygodniowe z obowiązywaniem · wydruk: <?= date('d.m.Y H:i') ?></div>
+<h1>Dostępności prowadzących — <?= $av_mode === 'stacjonarne' ? 'szkolenia stacjonarne'
+    : ($av_mode === 'online' ? 'szkolenia online' : 'zestawienie do zatwierdzenia') ?></h1>
+<div class="meta"><?= h($org) ?> · okna tygodniowe z obowiązywaniem<?=
+    $av_mode !== '' ? ' · forma: ' . ($av_mode === 'stacjonarne' ? 'stacjonarnie (w tym okna „obie")' : 'online (w tym okna „obie")') : '' ?>
+  · wydruk: <?= date('d.m.Y H:i') ?></div>
 
 <?php if (!$av_rows): ?>
-<p class="muted">Brak aktywnych okien dostępności.</p>
+<p class="muted">Brak aktywnych okien dostępności<?= $av_mode !== '' ? ' dla tej formy zajęć' : '' ?>.</p>
 <?php else: ?>
 <table>
   <thead>
@@ -222,16 +235,18 @@ if ($what === 'plakat') {
       <th>Prowadzący</th>
       <th>Dzień tygodnia</th>
       <th>Godziny</th>
+      <th>Forma</th>
       <th>Obowiązuje</th>
       <th>Status</th>
     </tr>
   </thead>
   <tbody>
-    <?php $prev = ''; foreach ($av_rows as $w): ?>
+    <?php $prev = ''; foreach ($av_rows as $w): $w_m = (string)($w['mode'] ?? 'obie'); ?>
     <tr>
       <td><?= $w['instructor_name'] !== $prev ? '<strong>' . h($w['instructor_name']) . '</strong>' : '' ?><?php $prev = $w['instructor_name']; ?></td>
       <td><?= h($dow_names[(int)$w['day_of_week']] ?? (string)$w['day_of_week']) ?></td>
       <td><strong><?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?></strong></td>
+      <td><?= h(TI_AVAIL_MODES[$w_m] ?? $w_m) ?></td>
       <td>
         <?php if (!empty($w['valid_from']) && $w['valid_from'] === ($w['valid_to'] ?? '')): ?>
           jednorazowo <?= h($w['valid_from']) ?>

@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!ti_avail_add($iid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '',
                           in_array($_POST['status'] ?? '', ['draft','approved'], true) ? $_POST['status'] : 'approved',
-                          $vf, $vt, trim($_POST['notes'] ?? ''))) {
+                          $vf, $vt, trim($_POST['notes'] ?? ''), (string)($_POST['mode'] ?? 'obie'))) {
             flash_set('danger', 'Podaj poprawny dzień, godziny od–do i zakres dat (od ≤ do).');
         } else {
             flash_set('success', 'Dodano okno dostępności.');
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!ti_avail_update((int)($_POST['avail_id'] ?? 0), $iid, $dw,
                              $_POST['time_from'] ?? '', $_POST['time_to'] ?? '',
-                             $vf, $vt, trim($_POST['notes'] ?? ''))) {
+                             $vf, $vt, trim($_POST['notes'] ?? ''), (string)($_POST['mode'] ?? 'obie'))) {
             flash_set('danger', 'Nie zapisano zmian: podaj poprawny dzień, godziny od–do i zakres dat (od ≤ do).');
         } else {
             flash_set('success', 'Okno zaktualizowane.');
@@ -150,9 +150,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </p>
   </div>
   <div class="ms-auto d-flex gap-2">
-    <a href="rekrutacja_print.php?what=dostepnosci" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"
-       title="Zestawienie wszystkich okien z rubrykami podpisu kierownika">
-      <i class="bi bi-printer me-1"></i>Drukuj do podpisu</a>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Rozpiska dostępności do druku">
+      <a href="rekrutacja_print.php?what=dostepnosci" target="_blank" rel="noopener" class="btn btn-outline-primary"
+         title="Zestawienie wszystkich okien z rubrykami podpisu kierownika">
+        <i class="bi bi-printer me-1"></i>Drukuj do podpisu</a>
+      <a href="rekrutacja_print.php?what=dostepnosci&mode=online" target="_blank" rel="noopener" class="btn btn-outline-primary"
+         title="Rozpiska dostępności na szkolenia online (okna online i „obie")">Online</a>
+      <a href="rekrutacja_print.php?what=dostepnosci&mode=stacjonarne" target="_blank" rel="noopener" class="btn btn-outline-primary"
+         title="Rozpiska dostępności na szkolenia stacjonarne (okna stacjonarne i „obie")">Stacjonarne</a>
+    </div>
     <a href="rekrutacja.php?tab=grupy" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-magic me-1"></i>Generator terminów</a>
     <a href="index.php?tab=grupy" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Panel</a>
@@ -186,11 +192,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?php foreach ($dow_order as $dw): ?>
           <td>
             <?php foreach ($rows[$dw] ?? [] as $w):
-              $temp = !empty($w['valid_from']) || !empty($w['valid_to']); ?>
+              $temp = !empty($w['valid_from']) || !empty($w['valid_to']);
+              $w_m  = (string)($w['mode'] ?? 'obie'); ?>
             <span class="badge <?= ($w['status'] ?? 'approved') === 'approved' ? 'text-bg-primary' : 'text-bg-secondary' ?> d-block mb-1"
                   title="<?= ($w['status'] ?? '') === 'draft' ? 'szkic — czeka na zatwierdzenie' : '' ?><?=
-                         $temp ? ' obowiązuje ' . ($w['valid_from'] ?: '…') . ' – ' . ($w['valid_to'] ?: '…') : '' ?>">
-              <?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?><?= $temp ? ' *' : '' ?>
+                         $temp ? ' obowiązuje ' . ($w['valid_from'] ?: '…') . ' – ' . ($w['valid_to'] ?: '…') : '' ?><?=
+                         $w_m === 'online' ? ' · tylko online' : ($w_m === 'stacjonarne' ? ' · tylko stacjonarnie' : '') ?>">
+              <?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?><?= $temp ? ' *' : '' ?><?=
+                $w_m === 'online' ? ' <i class="bi bi-laptop" aria-hidden="true"></i>'
+                : ($w_m === 'stacjonarne' ? ' <i class="bi bi-building" aria-hidden="true"></i>' : '') ?>
             </span>
             <?php endforeach; ?>
           </td>
@@ -244,7 +254,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 $is_draft = ($w['status'] ?? 'approved') === 'draft'; ?>
               <tr>
                 <td><?= h(K30_TI_DAYS[(int)$w['day_of_week']] ?? (string)$w['day_of_week']) ?></td>
-                <td class="fw-semibold"><?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?></td>
+                <td class="fw-semibold">
+                  <?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?>
+                  <?php $w_mode = (string)($w['mode'] ?? 'obie'); if ($w_mode === 'online'): ?>
+                  <span class="badge text-bg-info ms-1" style="font-size:.62rem" title="Tylko szkolenia online">online</span>
+                  <?php elseif ($w_mode === 'stacjonarne'): ?>
+                  <span class="badge ms-1" style="font-size:.62rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+                        title="Tylko szkolenia stacjonarne">stacjonarnie</span>
+                  <?php endif; ?>
+                </td>
                 <td class="small text-body-secondary">
                   <?php if (!empty($w['valid_from']) && $w['valid_from'] === ($w['valid_to'] ?? '')): ?>
                     jednorazowo <?= h($w['valid_from']) ?>
@@ -310,6 +328,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                       <label class="form-label small mb-1" for="we-vt-<?= (int)$w['id'] ?>">do</label>
                       <input type="date" class="form-control form-control-sm" id="we-vt-<?= (int)$w['id'] ?>" name="valid_to" value="<?= h((string)($w['valid_to'] ?? '')) ?>">
                     </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-md-<?= (int)$w['id'] ?>">Forma</label>
+                      <select class="form-select form-select-sm" id="we-md-<?= (int)$w['id'] ?>" name="mode">
+                        <?php foreach (TI_AVAIL_MODES as $mk => $ml): ?>
+                        <option value="<?= h($mk) ?>" <?= $mk === (string)($w['mode'] ?? 'obie') ? 'selected' : '' ?>><?= h($ml) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
                     <div class="col">
                       <label class="form-label small mb-1" for="we-nt-<?= (int)$w['id'] ?>">Notatka</label>
                       <input type="text" class="form-control form-control-sm" id="we-nt-<?= (int)$w['id'] ?>" name="notes" maxlength="200" value="<?= h((string)($w['notes'] ?? '')) ?>">
@@ -365,12 +391,22 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <input type="date" class="form-control form-control-sm" id="wn-vt" name="valid_to">
             </div>
           </div>
-          <div>
-            <label class="form-label small mb-1" for="wn-status">Status</label>
-            <select class="form-select form-select-sm" id="wn-status" name="status">
-              <option value="approved">Zatwierdzona</option>
-              <option value="draft">Szkic</option>
-            </select>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small mb-1" for="wn-mode">Forma zajęć</label>
+              <select class="form-select form-select-sm" id="wn-mode" name="mode">
+                <?php foreach (TI_AVAIL_MODES as $mk => $ml): ?>
+                <option value="<?= h($mk) ?>"><?= h($ml) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1" for="wn-status">Status</label>
+              <select class="form-select form-select-sm" id="wn-status" name="status">
+                <option value="approved">Zatwierdzona</option>
+                <option value="draft">Szkic</option>
+              </select>
+            </div>
           </div>
           <div>
             <label class="form-label small mb-1" for="wn-notes">Notatka (opcjonalnie)</label>
