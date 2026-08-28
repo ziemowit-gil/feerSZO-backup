@@ -126,6 +126,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
         exit;
     }
+
+    // Przenieś przyszłe zajęcia i/lub stały link do zajęć online do innej grupy —
+    // np. przy wygaszaniu grupy (plan_status=to_phase_out) na rzecz jej kontynuacji.
+    // Historia (odbyte lekcje, frekwencja) zostaje przy grupie źródłowej — sesje
+    // przenosimy tylko status='planned' i lesson_date >= dziś. Link jest PRZENOSZONY,
+    // nie kopiowany: grupa źródłowa traci go, żeby nie było dwóch grup z tym samym
+    // stałym linkiem/zoom_meeting_id naraz.
+    if ($ku_op === 'move_group_assets' && $ku_can_write) {
+        $mv_from_id  = (int)($_POST['from_course_id'] ?? 0);
+        $mv_to_id    = (int)($_POST['to_course_id'] ?? 0);
+        $mv_sessions = isset($_POST['move_sessions']);
+        $mv_link     = isset($_POST['move_link']);
+
+        $mv_from = $mv_from_id ? db_one("SELECT * FROM k30_ti_courses WHERE id=?", [$mv_from_id]) : null;
+        $mv_to   = $mv_to_id   ? db_one("SELECT * FROM k30_ti_courses WHERE id=?", [$mv_to_id])   : null;
+        $mv_to_ok = $mv_to && !empty($mv_to['is_active']) && ($mv_to['status'] ?? '') !== 'cancelled';
+
+        if (!$mv_from || !$mv_to_ok || $mv_from_id === $mv_to_id || (!$mv_sessions && !$mv_link)) {
+            $_SESSION['dyd_flash'] = ['type'=>'danger','msg'=>'Nie udało się przenieść — wybierz aktywną grupę docelową (inną niż źródłowa) i co najmniej jedną rzecz do przeniesienia.'];
+            header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+            exit;
+        }
+
+        $mv_parts = [];
+        if ($mv_sessions) {
+            $mv_stmt = db()->prepare(
+                "UPDATE k30_ti_sessions SET course_id=? WHERE course_id=? AND status='planned' AND lesson_date >= date('now')"
+            );
+            $mv_stmt->execute([$mv_to_id, $mv_from_id]);
+            $mv_n = $mv_stmt->rowCount();
+            $mv_parts[] = $mv_n . ' ' . ($mv_n === 1 ? 'zajęcia' : 'zajęć');
+        }
+        if ($mv_link) {
+            db()->prepare("UPDATE k30_ti_courses SET default_meeting_url=?, zoom_meeting_id=?, zoom_host_email=? WHERE id=?")
+                ->execute([$mv_from['default_meeting_url'] ?? '', $mv_from['zoom_meeting_id'] ?? '', $mv_from['zoom_host_email'] ?? '', $mv_to_id]);
+            db()->prepare("UPDATE k30_ti_courses SET default_meeting_url='', zoom_meeting_id='', zoom_host_email='' WHERE id=?")
+                ->execute([$mv_from_id]);
+            $mv_parts[] = 'stały link do zajęć online';
+        }
+
+        $mv_summary = implode(', ', $mv_parts);
+        ti_course_log($mv_from_id, 'transfer_out', 'Do „' . $mv_to['name'] . '": ' . $mv_summary . '.', $uid ?? 0, (string)($me['name'] ?? ''));
+        ti_course_log($mv_to_id,   'transfer_in',  'Z „' . $mv_from['name'] . '": ' . $mv_summary . '.', $uid ?? 0, (string)($me['name'] ?? ''));
+        $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Przeniesiono do grupy „' . $mv_to['name'] . '": ' . $mv_summary . '.'];
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+        exit;
+    }
 }
 
 // ── Dane ─────────────────────────────────────────────────────────────────────
@@ -521,6 +568,70 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php endif; ?>
 <?php endif; ?>
 
+<!-- Przenieś zajęcia/link do innej grupy — jeden wspólny modal, otwierany z karty/wiersza
+     źródłowej grupy przez dydKuMoveOpen(); wymaga co najmniej 2 aktywnych grup. -->
+<?php if ($ku_can_write && count($ku_active) > 1): ?>
+<div class="modal fade" id="kuMoveModal" tabindex="-1" aria-labelledby="kuMoveModalLbl" aria-hidden="true">
+ <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-content">
+   <div class="modal-header py-2">
+     <h2 class="modal-title h6 mb-0" id="kuMoveModalLbl">
+       <i class="bi bi-arrow-left-right me-2 text-info" aria-hidden="true"></i>Przenieś zajęcia / link do innej grupy
+     </h2>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+   </div>
+   <form method="post">
+   <div class="modal-body">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_op" value="move_group_assets">
+    <input type="hidden" name="from_course_id" id="kuMoveFromId" value="">
+    <p class="small mb-2">Z grupy <strong id="kuMoveFromName">—</strong> do:</p>
+    <div class="mb-2">
+      <label class="form-label small fw-semibold mb-1" for="kuMoveTo">Grupa docelowa</label>
+      <select class="form-select form-select-sm" name="to_course_id" id="kuMoveTo" required></select>
+    </div>
+    <div class="form-check form-switch mb-1">
+      <input class="form-check-input" type="checkbox" name="move_sessions" id="kuMoveSessions" checked>
+      <label class="form-check-label small" for="kuMoveSessions">Przenieś przyszłe zaplanowane zajęcia</label>
+    </div>
+    <div class="form-check form-switch mb-1">
+      <input class="form-check-input" type="checkbox" name="move_link" id="kuMoveLink" checked>
+      <label class="form-check-label small" for="kuMoveLink">Przenieś stały link do zajęć online (Zoom/Teams)</label>
+    </div>
+    <div class="form-text mt-1">
+      Przenoszone są tylko przyszłe, jeszcze nieodbyte terminy — historia (odbyte lekcje, frekwencja)
+      zostaje przy grupie źródłowej. Link jest przenoszony w całości, nie kopiowany:
+      w grupie źródłowej zostanie wyczyszczony.
+    </div>
+   </div>
+   <div class="modal-footer py-2">
+     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+     <button class="btn btn-info btn-sm text-white">
+       <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Przenieś
+     </button>
+   </div>
+   </form>
+  </div>
+ </div>
+</div>
+<script>
+var KU_ACTIVE_GROUPS = <?= json_encode(array_map(fn($g) => ['id' => (int)$g['id'], 'name' => (string)$g['name']], array_values($ku_active)), JSON_UNESCAPED_UNICODE) ?>;
+function dydKuMoveOpen(fromId, fromName) {
+  document.getElementById('kuMoveFromId').value = fromId;
+  document.getElementById('kuMoveFromName').textContent = fromName;
+  var sel = document.getElementById('kuMoveTo');
+  sel.innerHTML = '';
+  KU_ACTIVE_GROUPS.filter(function (g) { return g.id !== fromId; }).forEach(function (g) {
+    var o = document.createElement('option');
+    o.value = g.id; o.textContent = g.name;
+    sel.appendChild(o);
+  });
+  var m = document.getElementById('kuMoveModal');
+  if (m && window.bootstrap) bootstrap.Modal.getOrCreateInstance(m).show();
+}
+</script>
+<?php endif; ?>
+
 <?php if ($ku_view === 'tabela'): ?>
 
 <?php /* ── Widok tabeli: wszystkie kursy w jednym, gęstym zestawieniu ── */ ?>
@@ -616,6 +727,12 @@ document.addEventListener('DOMContentLoaded', function () {
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
               <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+            <?php if ($ku_can_write && $c['_active'] && !$cancelled && count($ku_active) > 1): ?>
+            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Przenieś zajęcia/link do innej grupy"
+                    onclick="dydKuMoveOpen(<?= $cid ?>, '<?= h(addslashes($c['name'])) ?>')">
+              <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Przenieś zajęcia/link</span>
+            </button>
+            <?php endif; ?>
             <?php if ($ku_can_del && !$cancelled): ?>
             <form method="post" class="d-inline"
                   onsubmit="return confirm('Wyłączyć i usunąć grupę „<?= h(addslashes($c['name'])) ?>&quot;?\n\nZniknie z aktywnych list — można ją przywrócić przyciskiem Aktywuj w sekcji Nieaktywne.')">
@@ -705,6 +822,13 @@ document.addEventListener('DOMContentLoaded', function () {
        class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
+    <!-- Przenieś zajęcia/link do innej grupy -->
+    <?php if ($ku_can_write && count($ku_active) > 1): ?>
+    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Przenieś zajęcia/link do innej grupy"
+            onclick="dydKuMoveOpen(<?= $cid ?>, '<?= h(addslashes($c['name'])) ?>')">
+      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+    </button>
+    <?php endif; ?>
     <!-- Wyłącz i usuń grupę (odwracalne) -->
     <?php if ($ku_can_del): ?>
     <form method="post" class="flex-shrink-0"

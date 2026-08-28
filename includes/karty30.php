@@ -2383,6 +2383,8 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'deactivate' => ['label' => 'Dezaktywowano',             'icon' => 'pause-circle',          'color' => 'secondary'],
     'delete'     => ['label' => 'Wyłączono i usunięto',      'icon' => 'trash3',                'color' => 'danger'],
     'restore'    => ['label' => 'Przywrócono',               'icon' => 'arrow-counterclockwise','color' => 'success'],
+    'transfer_out' => ['label' => 'Przeniesiono zajęcia/link', 'icon' => 'box-arrow-right',   'color' => 'info'],
+    'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
 ];
 
 function ti_course_log_migrate(): void {
