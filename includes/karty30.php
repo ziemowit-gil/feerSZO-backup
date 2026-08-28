@@ -380,6 +380,11 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses ADD COLUMN is_oneoff INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_courses ADD COLUMN oneoff_date DATE",
         "ALTER TABLE k30_ti_courses ADD COLUMN action_id INTEGER NOT NULL DEFAULT 0",
+        // Status planowania grupy: informacja dla kierownika o zbliżającej się zmianie
+        // (nie wpływa na is_active/status operacyjny — kurs działa normalnie do decyzji).
+        // '' = brak, to_launch = planowana do uruchomienia, to_phase_out = do wygaszenia.
+        "ALTER TABLE k30_ti_courses ADD COLUMN plan_status TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN plan_note   TEXT NOT NULL DEFAULT ''",
         // Oceny włączone dla osoby globalnie (per osoba) — niezależnie od kursu
         "ALTER TABLE k30_clients   ADD COLUMN ti_grades_enabled INTEGER NOT NULL DEFAULT 1",
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
@@ -2353,6 +2358,18 @@ const K30_TI_BILLING_STATUSES = [
     'issued' => ['label'=>'Wystawione',  'color'=>'#2563EB', 'bg'=>'#EFF6FF'],
     'paid'   => ['label'=>'Opłacone',    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
     'cancelled' => ['label'=>'Anulowane', 'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
+];
+
+/**
+ * Status planowania grupy TI (k30_ti_courses.plan_status) — informacja dla
+ * kierownika o zbliżającej się decyzji, NIEZALEŻNA od is_active/status
+ * operacyjnego: grupa oznaczona jako planowana do uruchomienia lub wygaszenia
+ * dalej działa normalnie (zajęcia, rozliczenia) aż do faktycznej zmiany.
+ * Każdy status wymaga uzasadnienia (plan_note) — widoczne w kartach/tabelach.
+ */
+const K30_TI_COURSE_PLAN_STATUSES = [
+    'to_launch'    => ['label' => 'Planowana do uruchomienia', 'badge' => 'primary'],
+    'to_phase_out' => ['label' => 'Planowana do wygaszenia',   'badge' => 'warning'],
 ];
 
 /**

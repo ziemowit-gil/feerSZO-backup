@@ -567,6 +567,11 @@ document.addEventListener('DOMContentLoaded', function () {
               działanie <i class="bi bi-box-arrow-up-right" style="font-size:.58rem" aria-hidden="true"></i></a>
             <?php endif; ?>
             <?php endif; ?>
+            <?php if (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']])): ?>
+            <span class="badge text-bg-<?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['badge']) ?> ms-1" style="font-size:.6rem"
+                  title="Uzasadnienie: <?= h((string)($c['plan_note'] ?? '')) ?>">
+              <i class="bi bi-signpost-split" aria-hidden="true"></i> <?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
+            <?php endif; ?>
           </th>
           <td class="small"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
           <td class="small"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
@@ -648,6 +653,11 @@ document.addEventListener('DOMContentLoaded', function () {
          title="Powiązane działanie w Strategii (wymaga logowania do SZO)">
         działanie <i class="bi bi-box-arrow-up-right" style="font-size:.6rem" aria-hidden="true"></i></a>
       <?php endif; ?>
+      <?php endif; ?>
+      <?php if (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']])): ?>
+      <span class="badge text-bg-<?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['badge']) ?>" style="font-size:.62rem"
+            title="Uzasadnienie: <?= h((string)($c['plan_note'] ?? '')) ?>">
+        <i class="bi bi-signpost-split" aria-hidden="true"></i> <?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
       <?php endif; ?>
       <?php if ($c['subject_abbr']): ?><span><?= h($c['subject_abbr']) ?></span><?php endif; ?>
       <?php if ($c['instructor_name']): ?>

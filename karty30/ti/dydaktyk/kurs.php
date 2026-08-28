@@ -166,6 +166,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $up_oneoff      = isset($_POST['is_oneoff']) ? 1 : 0;
         $up_oneoff_date = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['oneoff_date'] ?? ''))
             ? trim($_POST['oneoff_date']) : null;
+        // Status planowania (informacyjny, nie wpływa na is_active): wymaga uzasadnienia
+        $up_plan_status = (string)($_POST['plan_status'] ?? '');
+        if (!array_key_exists($up_plan_status, K30_TI_COURSE_PLAN_STATUSES)) $up_plan_status = '';
+        $up_plan_note   = trim($_POST['plan_note'] ?? '');
+        if ($up_plan_status !== '' && $up_plan_note === '') {
+            flash_set('danger', 'Status planowania wymaga uzasadnienia — opisz decyzję kilkoma słowami.');
+            header('Location: kurs.php?id=' . $id . '#edytuj'); exit;
+        }
+        if ($up_plan_status === '') $up_plan_note = '';   // brak statusu = brak uzasadnienia do pokazania
         $data = [
             'name'                => $name,
             'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
@@ -202,6 +211,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'class_type'          => in_array($_POST['class_type'] ?? '', ['individual', 'group'], true) ? $_POST['class_type'] : 'individual',
             'is_oneoff'           => $up_oneoff,
             'oneoff_date'         => $up_oneoff ? $up_oneoff_date : null,
+            'plan_status'         => $up_plan_status,
+            'plan_note'           => mb_substr($up_plan_note, 0, 500),
         ];
         $set = []; $par = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
@@ -325,6 +336,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <span class="badge text-bg-info ms-1 align-middle" style="font-size:.7rem">jednorazowy<?=
         !empty($course['oneoff_date']) ? ' · ' . h(date('d.m.Y', strtotime((string)$course['oneoff_date']))) : '' ?></span>
       <?php endif; ?>
+      <?php if (!empty($course['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$course['plan_status']])):
+        $pln = K30_TI_COURSE_PLAN_STATUSES[$course['plan_status']]; ?>
+      <span class="badge text-bg-<?= h($pln['badge']) ?> ms-1 align-middle" style="font-size:.7rem"
+            title="Uzasadnienie: <?= h((string)($course['plan_note'] ?? '')) ?>">
+        <i class="bi bi-signpost-split me-1" aria-hidden="true"></i><?= h($pln['label']) ?></span>
+      <?php endif; ?>
     </h1>
     <p class="text-body-secondary small mb-0">
       <?php if ($course['instructor_name']): ?><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($course['instructor_name']) ?><?php endif; ?>
@@ -332,6 +349,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       · <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Rozliczanie: <?= h(k30_ti_billing_model_label($cbm)) ?> (kod <?= $cbm ?>)<?php
         if ($cbm !== 2 && (float)($course['billing_amount'] ?? 0) > 0): ?> · <?= number_format((float)$course['billing_amount'], 2, ',', '') ?> zł<?php endif; ?>
     </p>
+    <?php if (!empty($course['plan_status']) && trim((string)($course['plan_note'] ?? '')) !== ''): ?>
+    <p class="text-body-secondary small mb-0 fst-italic">
+      <i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($course['plan_note']) ?>
+    </p>
+    <?php endif; ?>
   </div>
   <div class="ms-auto d-flex gap-2 flex-wrap">
     <a href="index.php?course=<?= $id ?>&tab=lekcje" class="btn btn-sm btn-outline-primary">
@@ -782,6 +804,26 @@ foreach ($enrollments as $e): ?>
         <input type="date" id="ed_oneoff_date" name="oneoff_date" class="form-control form-control-sm"
                value="<?= h((string)($course['oneoff_date'] ?? '')) ?>">
         <div class="form-text mt-0">Termin synchronizuje się z powiązanym działaniem w Strategii.</div>
+      </div>
+
+      <div class="col-12"><hr class="my-1"></div>
+      <div class="col-sm-5">
+        <label class="form-label small fw-semibold mb-1" for="ed_plan_status">
+          <i class="bi bi-signpost-split me-1 text-primary" aria-hidden="true"></i>Status planowania</label>
+        <select id="ed_plan_status" name="plan_status" class="form-select form-select-sm"
+                onchange="var w=document.getElementById('ed_plan_note_wrap'),n=document.getElementById('ed_plan_note');w.style.display=this.value?'':'none';n.required=!!this.value;">
+          <option value="">— brak (kurs działa normalnie) —</option>
+          <?php foreach (K30_TI_COURSE_PLAN_STATUSES as $pk => $pl): ?>
+          <option value="<?= h($pk) ?>" <?= (string)($course['plan_status'] ?? '') === $pk ? 'selected' : '' ?>><?= h($pl['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text mt-0">Informacja dla zespołu — nie wyłącza kursu ani nie zmienia rozliczeń.</div>
+      </div>
+      <div class="col-sm-7" id="ed_plan_note_wrap" style="<?= !empty($course['plan_status']) ? '' : 'display:none' ?>">
+        <label class="form-label small fw-semibold mb-1" for="ed_plan_note">Uzasadnienie <span class="text-danger">*</span></label>
+        <textarea id="ed_plan_note" name="plan_note" class="form-control form-control-sm" rows="2"
+                  maxlength="500" <?= !empty($course['plan_status']) ? 'required' : '' ?>
+                  placeholder="np. Niska liczba zapisów, decyzja o wygaszeniu od nowego roku szkolnego"><?= h((string)($course['plan_note'] ?? '')) ?></textarea>
       </div>
     </div>
    </div>

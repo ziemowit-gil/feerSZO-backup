@@ -208,6 +208,11 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
             <span class="badge text-bg-info ms-1" style="font-size:.6rem">jednorazowy<?=
               !empty($c['oneoff_date']) ? ' · ' . h(date('d.m.Y', strtotime((string)$c['oneoff_date']))) : '' ?></span>
             <?php endif; ?>
+            <?php if (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']])): ?>
+            <span class="badge text-bg-<?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['badge']) ?> ms-1" style="font-size:.6rem"
+                  title="Uzasadnienie: <?= h((string)($c['plan_note'] ?? '')) ?>">
+              <i class="bi bi-signpost-split" aria-hidden="true"></i> <?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
+            <?php endif; ?>
           </th>
           <td class="small"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
           <td class="small"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
@@ -276,6 +281,11 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
       <?php endif; ?>
       <?php if (!empty($c['is_subgroup'])): ?>
       <span class="badge" style="font-size:.62rem;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe">1I</span>
+      <?php endif; ?>
+      <?php if (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']])): ?>
+      <span class="badge text-bg-<?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['badge']) ?>" style="font-size:.62rem"
+            title="Uzasadnienie: <?= h((string)($c['plan_note'] ?? '')) ?>">
+        <i class="bi bi-signpost-split" aria-hidden="true"></i> <?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
       <?php endif; ?>
     </div>
   </div>
