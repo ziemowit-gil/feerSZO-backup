@@ -335,7 +335,7 @@ $bi_f = fn($x) => number_format((float)$x, 2, ',', ' ');
     <?php if ($bi_to_issue && $bi_can_write): ?>
     <form method="post" class="ms-auto"
           onsubmit="return confirm('Wystawić rozliczenia dla wszystkich kursantów z lekcjami w <?= h($bi_label) ?>?')">
-      <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="issue_all">
       <input type="hidden" name="month" value="<?= $bi_mon ?>">
       <input type="hidden" name="year"  value="<?= $bi_year ?>">
@@ -448,7 +448,7 @@ $bi_f = fn($x) => number_format((float)$x, 2, ',', ' ');
       </div>
       <?php if ($bi_can_write): ?>
       <form method="post" class="flex-shrink-0">
-        <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+        <input type="hidden" name="_token" value="<?= dyd_token() ?>">
         <input type="hidden" name="_op" value="issue">
         <input type="hidden" name="client_id" value="<?= $cid ?>">
         <input type="hidden" name="month" value="<?= $bi_mon ?>">
