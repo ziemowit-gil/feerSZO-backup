@@ -14,6 +14,13 @@ if (!defined('TZ_USERS_CHROME')) {
     exit;
 }
 $SELF_URL = TZ_USERS_URL;
+// Wygasła sesja IKA przy POST = akcja (np. import z katalogu AD) ginęła w 302
+// na ika_gate BEZ ŚLADU — „przycisk nie działa". Dajemy czytelny komunikat,
+// a po potwierdzeniu kodu użytkownik wraca tu i powtarza operację.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !ika_ok($SELF_URL, 3600)) {
+    flash_set('warning', 'Sesja kodu IKA wygasła w trakcie pracy — operacja NIE została wykonana. '
+        . 'Potwierdź kod IKA i powtórz działanie (np. import z katalogu AD).');
+}
 ika_require($SELF_URL, 3600);
 
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
