@@ -22,9 +22,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_participant_report.php';
 
-k30_require_access();
+k30_ti_staff_access();   // pracownik modułu LUB kierownik z panelu dydaktyka
 karty30_migrate();
-if (!(can_write('karty30') || is_admin())) { http_response_code(403); die('Brak uprawnień.'); }
 
 $user_id = (int)current_user()['id'];
 
@@ -617,6 +616,10 @@ $savedReports   = db_all("SELECT r.*, u.name AS gen_name FROM k30_ti_wup_reports
     LEFT JOIN users u ON u.id=r.generated_by ORDER BY r.period_from DESC, r.instructor_id LIMIT 30");
 
 $embed       = !empty($_GET['embed']);   // fragment do wczytania w modalu (bez chrome strony)
+// Kierownik z panelu dydaktyka (bez sesji SZO): layout modułu admina (header_k30)
+// liczy na current_user() — renderujemy wtedy zawsze jako fragment (modal na
+// dydaktyk/raporty.php i tak używa embed=1; to domyka wejście bez JS).
+if (!$embed && !current_user()) $embed = true;
 $mgrNameVal  = (string)$fld('manager_name', $mgr_name);
 $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
 $PAGE_TITLE  = 'Sprawozdanie do WUP';

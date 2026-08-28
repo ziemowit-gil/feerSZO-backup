@@ -13,10 +13,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_participant_report.php';
 
-k30_require_access();
+k30_ti_staff_access();   // pracownik modułu LUB kierownik z panelu dydaktyka
 karty30_migrate();
 
-if (!(can_write('karty30') || is_admin())) { http_response_code(403); die('Brak uprawnień.'); }
 
 $year = (int)($_GET['y'] ?? date('Y'));
 if ($year < 2000 || $year > 2100) $year = (int)date('Y');

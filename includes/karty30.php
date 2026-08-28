@@ -1533,6 +1533,25 @@ function k30_get_consultants(): array {
     );
 }
 
+/**
+ * Dostęp do raportów/wydruków TI dla DWÓCH tożsamości: kierownika z panelu
+ * dydaktyka (osobna sesja k30_dydaktyk) LUB pracownika modułu (sesja panelu
+ * SZO). Dydaktyka sprawdzamy NAJPIERW — bez uruchamiania sesji panelu; gdy to
+ * nie kierownik, zamykamy jego (pustą) sesję, żeby auth_start() mogło otworzyć
+ * sesję panelu pod własną nazwą ciasteczka.
+ */
+function k30_ti_staff_access(): void {
+    try {
+        require_once dirname(__DIR__) . '/karty30/ti/dydaktyk/auth.php';
+        if (dyd_is_staff()) return;
+    } catch (\Throwable $e) {}
+    if (session_status() === PHP_SESSION_ACTIVE && session_name() === 'k30_dydaktyk') {
+        session_write_close();
+    }
+    k30_require_access();
+    if (!(can_write('karty30') || is_admin())) { http_response_code(403); die('Brak uprawnień.'); }
+}
+
 function k30_require_access(): void {
     // Samodzielne wejście do modułu: niezalogowany → własny ekran logowania
     // (gdy plik istnieje). W przeciwnym razie standardowe logowanie systemu.

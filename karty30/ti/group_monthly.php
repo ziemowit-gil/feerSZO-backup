@@ -15,10 +15,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_participant_report.php';
 
-k30_require_access();
+k30_ti_staff_access();   // pracownik modułu LUB kierownik z panelu dydaktyka
 karty30_migrate();
 
-if (!(can_write('karty30') || is_admin())) { http_response_code(403); die('Brak uprawnień.'); }
 
 $ym = (string)($_GET['m'] ?? date('Y-m'));
 if (!preg_match('/^\d{4}-\d{2}$/', $ym)) $ym = date('Y-m');
