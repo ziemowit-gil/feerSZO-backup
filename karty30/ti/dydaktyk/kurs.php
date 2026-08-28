@@ -253,6 +253,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (\Throwable $e) {}
 
+        // Log operacji: krótkie podsumowanie zmienionych pól (audyt „co się zmieniło",
+        // nie pełny diff) — porównanie do stanu $course sprzed zapisu.
+        $ku_diff_labels = [
+            'name' => 'Nazwa', 'instructor_id' => 'Prowadzący', 'is_active' => 'Aktywny',
+            'billing_model' => 'Model rozliczania', 'billing_amount' => 'Kwota rozliczenia',
+            'plan_status' => 'Status planowania', 'is_oneoff' => 'Kurs jednorazowy',
+        ];
+        $ku_changes = [];
+        foreach ($ku_diff_labels as $ku_f => $ku_lbl) {
+            $ku_old = $course[$ku_f] ?? null;
+            $ku_new = $data[$ku_f] ?? null;
+            if ((string)$ku_old === (string)$ku_new) continue;
+            if ($ku_f === 'plan_status') {
+                $ku_ov = K30_TI_COURSE_PLAN_STATUSES[(string)$ku_old]['label'] ?? '—';
+                $ku_nv = K30_TI_COURSE_PLAN_STATUSES[(string)$ku_new]['label'] ?? '—';
+                $ku_changes[] = "$ku_lbl: $ku_ov → $ku_nv" . ($up_plan_note !== '' ? " ($up_plan_note)" : '');
+            } elseif (in_array($ku_f, ['is_active', 'is_oneoff'], true)) {
+                $ku_changes[] = "$ku_lbl: " . ((int)$ku_new ? 'tak' : 'nie');
+            } else {
+                $ku_changes[] = "$ku_lbl: " . ($ku_old ?: '—') . ' → ' . ($ku_new ?: '—');
+            }
+        }
+        if ($ku_changes) {
+            ti_course_log($id, 'update', implode('; ', $ku_changes), $uid, (string)($me['name'] ?? ''));
+        }
+
         flash_set('success', 'Kurs zaktualizowany.' . $extra);
         header('Location: kurs.php?id=' . $id); exit;
     }
@@ -364,6 +390,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia grupy</a>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#courseEditModal">
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
+    <a href="log_grup.php?course=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Log operacji tej grupy">
+      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Log operacji</a>
   </div>
 </div>
 

@@ -92,19 +92,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                     $ku_action_note = ' Uwaga: nie udało się utworzyć działania w Strategii — dodaj je ręcznie.';
                 }
             }
+            ti_course_log($new_id, 'create', 'Utworzono grupę „' . $name . '".', $uid ?? 0, (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Zapisz uczestników (możesz przenieść ich z innej grupy) i uzupełnij szczegóły.' . $ku_action_note];
             header('Location: index.php?course=' . $new_id . '&tab=uczestnicy');
             exit;
         }
     }
 
-    // Toggle aktywność kursu
+    // Toggle aktywność kursu (lub przywrócenie — patrz komentarz przy delete_course)
     if ($ku_op === 'toggle_active') {
         $cid = (int)($_POST['course_id'] ?? 0);
         $act = (int)($_POST['active'] ?? 0);
         if ($cid) {
+            $_was_cancelled = ((string)(db_one("SELECT status FROM k30_ti_courses WHERE id=?", [$cid])['status'] ?? '') === 'cancelled');
             db()->prepare("UPDATE k30_ti_courses SET is_active=?, status=? WHERE id=?")
                  ->execute([$act, $act ? 'active' : 'inactive', $cid]);
+            ti_course_log($cid, $act ? ($_was_cancelled ? 'restore' : 'activate') : 'deactivate',
+                '', $uid ?? 0, (string)($me['name'] ?? ''));
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
         exit;
@@ -116,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         $cid = (int)($_POST['course_id'] ?? 0);
         if ($cid) {
             db()->prepare("UPDATE k30_ti_courses SET status='cancelled', is_active=0 WHERE id=?")->execute([$cid]);
+            ti_course_log($cid, 'delete', '', $uid ?? 0, (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa wyłączona i usunięta z list. Można ją przywrócić przyciskiem „Aktywuj" w sekcji Nieaktywne.'];
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));

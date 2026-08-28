@@ -2372,6 +2372,66 @@ const K30_TI_COURSE_PLAN_STATUSES = [
     'to_phase_out' => ['label' => 'Planowana do wygaszenia',   'badge' => 'warning'],
 ];
 
+// ── Log operacji na grupach (kursach) TI ────────────────────────────────────
+// Dziennik zdarzeń widoczny dla kierownika: kto i kiedy utworzył/zmienił/
+// wyłączył/przywrócił grupę. Osobna, lekka tabela (wzorzec jak k30_ti_account_log).
+
+const K30_TI_COURSE_LOG_ACTIONS = [
+    'create'     => ['label' => 'Utworzono grupę',           'icon' => 'plus-circle',           'color' => 'success'],
+    'update'     => ['label' => 'Zmieniono ustawienia',      'icon' => 'pencil',                'color' => 'secondary'],
+    'activate'   => ['label' => 'Aktywowano',                'icon' => 'play-circle',           'color' => 'success'],
+    'deactivate' => ['label' => 'Dezaktywowano',             'icon' => 'pause-circle',          'color' => 'secondary'],
+    'delete'     => ['label' => 'Wyłączono i usunięto',      'icon' => 'trash3',                'color' => 'danger'],
+    'restore'    => ['label' => 'Przywrócono',               'icon' => 'arrow-counterclockwise','color' => 'success'],
+];
+
+function ti_course_log_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_course_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id   INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        action      TEXT    NOT NULL DEFAULT '',
+        detail      TEXT    NOT NULL DEFAULT '',
+        by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        by_name     TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_course_log_course ON k30_ti_course_log(course_id, created_at)");
+}
+
+/** Zapisuje wpis w dzienniku operacji grupy. Nie rzuca — log nie może wywrócić operacji. */
+function ti_course_log(int $course_id, string $action, string $detail = '', int $by_user_id = 0, string $by_name = ''): void {
+    if (!$course_id || !array_key_exists($action, K30_TI_COURSE_LOG_ACTIONS)) return;
+    try {
+        ti_course_log_migrate();
+        db_insert('k30_ti_course_log', [
+            'course_id'  => $course_id,
+            'action'     => $action,
+            'detail'     => mb_substr(trim($detail), 0, 500),
+            'by_user_id' => $by_user_id ?: null,
+            'by_name'    => mb_substr(trim($by_name), 0, 140),
+        ]);
+    } catch (\Throwable $e) {}
+}
+
+/** Wpisy dziennika — $course_id=0 zwraca log wszystkich grup (przegląd kierownika). */
+function ti_course_log_list(int $course_id = 0, int $limit = 300): array {
+    ti_course_log_migrate();
+    $where = $course_id ? 'WHERE l.course_id=?' : '';
+    $par   = $course_id ? [$course_id, $limit] : [$limit];
+    return db_all(
+        "SELECT l.*, c.name AS course_name
+         FROM k30_ti_course_log l
+         LEFT JOIN k30_ti_courses c ON c.id = l.course_id
+         $where
+         ORDER BY l.created_at DESC, l.id DESC
+         LIMIT ?",
+        $par
+    );
+}
+
 /**
  * Modele rozliczania zajęć TI (kod → opis).
  *   1 — miesięczny (stała kwota za miesiąc)
