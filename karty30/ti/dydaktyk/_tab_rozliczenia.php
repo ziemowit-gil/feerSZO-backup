@@ -6,6 +6,29 @@
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 ti_payments_migrate();
 
+// ── Kierownik zaznacza wpłatę kursanta (znaczoną na TĘ grupę) ────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'roz_payment_add') {
+    dyd_token_check();
+    $rp_cid    = (int)($_POST['client_id'] ?? 0);
+    $rp_amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+    $rp_date   = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['paid_at'] ?? '') ? $_POST['paid_at'] : '';
+    $rp_method = in_array($_POST['method'] ?? '', ['transfer','cash','card','other'], true) ? $_POST['method'] : 'transfer';
+    $rp_member = $rp_cid && db_one(
+        "SELECT 1 FROM k30_ti_enrollments WHERE course_id=? AND client_id=? AND status='active'",
+        [$cur_course, $rp_cid]);
+    if (!$rp_member || $rp_amount <= 0) {
+        $_SESSION['dyd_flash'] = ['type' => 'warn', 'msg' => 'Nieprawidłowa wpłata — sprawdź kursanta i kwotę.'];
+    } else {
+        $rp = ti_payment_add($rp_cid, $rp_amount, $rp_date, $rp_method,
+                             trim($_POST['note'] ?? '') ?: 'wpłata zaznaczona przez kierownika',
+                             'manual', 0, (int)$cur_course);
+        $_SESSION['dyd_flash'] = ['type' => 'success',
+            'msg' => 'Wpłata ' . number_format($rp_amount, 2, ',', ' ') . ' zł zapisana.'
+                   . ($rp['credit'] > 0.005 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : '')];
+    }
+    header('Location: index.php?course=' . (int)$cur_course . '&tab=rozliczenia'); exit;
+}
+
 $roz_enrolled = db_all(
     "SELECT cl.id, cl.name
      FROM k30_ti_enrollments e
@@ -219,6 +242,49 @@ $roz_balance        = $roz_total_payments - $roz_total_charges;
         <span class="d-none d-sm-inline ms-1">Szczegóły</span>
       </a>
     </div>
+
+    <?php /* Zaznaczenie wpłaty — inline, bez modala (pełna obsługa klawiaturą) */ ?>
+    <details class="mb-2 ms-2">
+      <summary class="btn btn-sm btn-outline-success py-0 px-2" style="list-style:none;cursor:pointer">
+        <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Zaznacz wpłatę
+      </summary>
+      <form method="post" class="row g-2 align-items-end border rounded p-2 mt-1" style="max-width:640px">
+        <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+        <input type="hidden" name="_op" value="roz_payment_add">
+        <input type="hidden" name="client_id" value="<?= (int)$en['id'] ?>">
+        <div class="col-sm-3">
+          <label class="form-label small mb-1" for="rozp-a-<?= (int)$en['id'] ?>">Kwota (zł)</label>
+          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm"
+                 id="rozp-a-<?= (int)$en['id'] ?>" name="amount"
+                 value="<?= $bal['debt'] > 0.005 ? number_format($bal['debt'], 2, '.', '') : '' ?>" required>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1" for="rozp-d-<?= (int)$en['id'] ?>">Data wpłaty</label>
+          <input type="date" class="form-control form-control-sm" id="rozp-d-<?= (int)$en['id'] ?>"
+                 name="paid_at" value="<?= date('Y-m-d') ?>">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1" for="rozp-m-<?= (int)$en['id'] ?>">Metoda</label>
+          <select class="form-select form-select-sm" id="rozp-m-<?= (int)$en['id'] ?>" name="method">
+            <option value="transfer">przelew</option>
+            <option value="cash">gotówka</option>
+            <option value="card">karta</option>
+            <option value="other">inna</option>
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1" for="rozp-n-<?= (int)$en['id'] ?>">Notatka</label>
+          <input type="text" class="form-control form-control-sm" id="rozp-n-<?= (int)$en['id'] ?>"
+                 name="note" maxlength="200" placeholder="opcjonalnie">
+        </div>
+        <div class="col-sm-1">
+          <button class="btn btn-sm btn-success w-100" title="Zapisz wpłatę"><i class="bi bi-check-lg" aria-hidden="true"></i></button>
+        </div>
+        <div class="col-12 form-text mt-0">
+          Wpłata zostanie znaczona na tę grupę i zaliczona na należności kursanta (saldo przelicza się automatycznie).
+        </div>
+      </form>
+    </details>
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
