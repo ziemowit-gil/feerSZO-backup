@@ -5686,6 +5686,28 @@ function ti_avail_add(int $instructor_id, int $dow, string $from, string $to, st
     return true;
 }
 
+/**
+ * Aktualizuje okno dostępności (dzień, godziny, ważność, notatka).
+ * Zwraca false przy błędnych danych — walidacja jak w ti_avail_add.
+ */
+function ti_avail_update(int $id, int $instructor_id, int $dow, string $from, string $to,
+                         string $valid_from = '', string $valid_to = '', string $notes = ''): bool {
+    $from = substr(trim($from), 0, 5);
+    $to   = substr(trim($to), 0, 5);
+    if (!$id || !$instructor_id || $dow < 0 || $dow > 6) return false;
+    if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
+    $vf = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_from) ? $valid_from : null;
+    $vt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $valid_to)   ? $valid_to   : null;
+    if ($vf && $vt && $vt < $vf) return false;
+    db_exec(
+        "UPDATE k30_ti_instructor_availability
+            SET day_of_week=?, time_from=?, time_to=?, valid_from=?, valid_to=?, notes=?
+          WHERE id=? AND instructor_id=?",
+        [$dow, $from, $to, $vf, $vt, substr(trim($notes), 0, 200), $id, $instructor_id]
+    );
+    return true;
+}
+
 /** Zatwierdza wszystkie szkice okien prowadzącego. Zwraca liczbę zatwierdzonych. */
 function ti_avail_approve_all(int $instructor_id): int {
     $st = db()->prepare("UPDATE k30_ti_instructor_availability

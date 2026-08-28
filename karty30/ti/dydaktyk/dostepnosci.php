@@ -50,6 +50,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: dostepnosci.php?instr=' . $iid); exit;
     }
 
+    // Edycja godzin/dnia/ważności istniejącego okna (bez usuwania i dodawania od nowa)
+    if ($op === 'win_edit') {
+        $dw = (int)($_POST['day_of_week'] ?? -1);
+        $vf = trim($_POST['valid_from'] ?? '');
+        $vt = trim($_POST['valid_to'] ?? '');
+        if ($vf !== '' && $vf === $vt && preg_match('/^\d{4}-\d{2}-\d{2}$/', $vf)) {
+            $dw = (int)date('w', strtotime($vf));   // jednorazowa: dzień z daty
+        }
+        if (!ti_avail_update((int)($_POST['avail_id'] ?? 0), $iid, $dw,
+                             $_POST['time_from'] ?? '', $_POST['time_to'] ?? '',
+                             $vf, $vt, trim($_POST['notes'] ?? ''))) {
+            flash_set('danger', 'Nie zapisano zmian: podaj poprawny dzień, godziny od–do i zakres dat (od ≤ do).');
+        } else {
+            flash_set('success', 'Okno zaktualizowane.');
+        }
+        header('Location: dostepnosci.php?instr=' . $iid); exit;
+    }
+
     if ($op === 'win_delete') {
         ti_avail_delete((int)($_POST['avail_id'] ?? 0), $iid);
         flash_set('success', 'Usunięto okno.');
@@ -237,6 +255,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 </td>
                 <td><span class="badge text-bg-<?= $is_draft ? 'warning' : 'success' ?>"><?= $is_draft ? 'szkic' : 'zatwierdzona' ?></span></td>
                 <td class="text-end text-nowrap">
+                  <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edytuj godziny i ważność okna"
+                          aria-expanded="false" aria-controls="winEdit<?= (int)$w['id'] ?>"
+                          onclick="var r=document.getElementById('winEdit<?= (int)$w['id'] ?>');r.classList.toggle('d-none');this.setAttribute('aria-expanded',r.classList.contains('d-none')?'false':'true')">
+                    <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Edytuj okno</span>
+                  </button>
                   <form method="post" class="d-inline">
                     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                     <input type="hidden" name="_op" value="win_status">
@@ -253,6 +276,47 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                     <input type="hidden" name="instructor_id" value="<?= $sel_instr ?>">
                     <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
                     <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                  </form>
+                </td>
+              </tr>
+              <tr id="winEdit<?= (int)$w['id'] ?>" class="d-none">
+                <td colspan="5" class="bg-body-tertiary">
+                  <form method="post" class="row g-2 align-items-end py-1">
+                    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                    <input type="hidden" name="_op" value="win_edit">
+                    <input type="hidden" name="instructor_id" value="<?= $sel_instr ?>">
+                    <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-dow-<?= (int)$w['id'] ?>">Dzień</label>
+                      <select class="form-select form-select-sm" id="we-dow-<?= (int)$w['id'] ?>" name="day_of_week">
+                        <?php foreach ($dow_order as $dw2): ?>
+                        <option value="<?= $dw2 ?>" <?= $dw2 === (int)$w['day_of_week'] ? 'selected' : '' ?>><?= h(K30_TI_DAYS[$dw2]) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-from-<?= (int)$w['id'] ?>">Od</label>
+                      <input type="time" class="form-control form-control-sm" id="we-from-<?= (int)$w['id'] ?>" name="time_from" required value="<?= h(substr((string)$w['time_from'],0,5)) ?>">
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-to-<?= (int)$w['id'] ?>">Do</label>
+                      <input type="time" class="form-control form-control-sm" id="we-to-<?= (int)$w['id'] ?>" name="time_to" required value="<?= h(substr((string)$w['time_to'],0,5)) ?>">
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-vf-<?= (int)$w['id'] ?>">Obowiązuje od</label>
+                      <input type="date" class="form-control form-control-sm" id="we-vf-<?= (int)$w['id'] ?>" name="valid_from" value="<?= h((string)($w['valid_from'] ?? '')) ?>">
+                    </div>
+                    <div class="col-auto">
+                      <label class="form-label small mb-1" for="we-vt-<?= (int)$w['id'] ?>">do</label>
+                      <input type="date" class="form-control form-control-sm" id="we-vt-<?= (int)$w['id'] ?>" name="valid_to" value="<?= h((string)($w['valid_to'] ?? '')) ?>">
+                    </div>
+                    <div class="col">
+                      <label class="form-label small mb-1" for="we-nt-<?= (int)$w['id'] ?>">Notatka</label>
+                      <input type="text" class="form-control form-control-sm" id="we-nt-<?= (int)$w['id'] ?>" name="notes" maxlength="200" value="<?= h((string)($w['notes'] ?? '')) ?>">
+                    </div>
+                    <div class="col-auto">
+                      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+                    </div>
                   </form>
                 </td>
               </tr>
