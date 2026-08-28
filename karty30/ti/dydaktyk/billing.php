@@ -917,7 +917,7 @@ echo '<main id="main" class="dyd-wrap">';
               <?php elseif ((float)$b['amount'] > 0): ?>
                 <form method="post" class="d-inline">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <input type="hidden" name="op" value="make_invoice">
+                  <input type="hidden" name="_op" value="make_invoice">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">
                     <i class="bi bi-receipt me-1"></i>Wystaw fakturę
@@ -939,7 +939,7 @@ echo '<main id="main" class="dyd-wrap">';
                 <form method="post" class="d-inline ms-2"
                       onsubmit="return confirm('Przeliczyć rozliczenie ponownie z aktualnych lekcji?\n\nKwota i godziny mogą się zmienić. Powiadomienia NIE zostaną wysłane ponownie.')">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <input type="hidden" name="op" value="reissue_billing">
+                  <input type="hidden" name="_op" value="reissue_billing">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem"
                           title="Przelicz godziny i kwotę z aktualnych lekcji. Zablokowane, gdy wystawiono fakturę.">
@@ -951,7 +951,7 @@ echo '<main id="main" class="dyd-wrap">';
                 <form method="post" class="d-inline ms-2"
                       onsubmit="return confirm('TRWALE usunąć to rozliczenie?\n\nOdejdą też alokacje wpłat i faktura demo, a saldo kursanta zostanie przeliczone. Operacja jest nieodwracalna.')">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <input type="hidden" name="op" value="purge_billing">
+                  <input type="hidden" name="_op" value="purge_billing">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem"
                           title="Trwale usuń rozliczenie (admin). Zablokowane, gdy wystawiono z niego fakturę.">
@@ -962,7 +962,7 @@ echo '<main id="main" class="dyd-wrap">';
               <?php if (false && (float)$b['amount'] > 0 && !$_noinv): ?>
                 <form method="post" class="d-inline ms-2">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <input type="hidden" name="op" value="demo_invoice">
+                  <input type="hidden" name="_op" value="demo_invoice">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem"
                           title="Wygeneruj FVAT demo dla tego uczestnika (numer TEST/…, nie idzie do KSeF ani do nabywcy)">
