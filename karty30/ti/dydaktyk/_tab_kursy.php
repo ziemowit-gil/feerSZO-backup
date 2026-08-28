@@ -601,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <?php endif; ?>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
-            <a href="../course.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
+            <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
               <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
             <?php if ($ku_can_del && !$cancelled): ?>
             <form method="post" class="d-inline"
@@ -683,7 +683,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </button>
     </form>
     <!-- Edytuj (pełna strona) -->
-    <a href="../course.php?id=<?= $cid ?>"
+    <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </button>
     </form>
     <?php endif; ?>
-    <a href="../course.php?id=<?= $cid ?>"
+    <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>

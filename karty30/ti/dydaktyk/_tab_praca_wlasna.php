@@ -297,7 +297,7 @@ $sw_export_qs   = http_build_query($sw_export_base);
     <span class="dyd-sw-date"><?= $d->format('d') ?> <?= $_sw_mon[(int)$d->format('n')] ?></span>
     <span class="dyd-sw-time"><?= h(substr((string)$r['time_from'],0,5)) ?></span>
     <span class="dyd-sw-dur"><?= (int)$r['duration_min'] ?> min</span>
-    <a class="dyd-sw-course text-decoration-none" href="../course.php?id=<?= (int)$r['course_id'] ?>">
+    <a class="dyd-sw-course text-decoration-none" href="kurs.php?id=<?= (int)$r['course_id'] ?>">
       <?= h($r['course_name']) ?>
     </a>
     <span class="dyd-sw-topic">
@@ -343,7 +343,7 @@ $sw_export_qs   = http_build_query($sw_export_base);
       <span class="dyd-sw-date"><?= $d->format('d') ?> <?= $_sw_mon[(int)$d->format('n')] ?></span>
       <span class="dyd-sw-time"><?= h(substr((string)$r['time_from'],0,5)) ?></span>
       <span class="dyd-sw-dur"><?= (int)$r['duration_min'] ?> min</span>
-      <a class="dyd-sw-course text-decoration-none" href="../course.php?id=<?= (int)$r['course_id'] ?>">
+      <a class="dyd-sw-course text-decoration-none" href="kurs.php?id=<?= (int)$r['course_id'] ?>">
         <?= h($r['course_name']) ?>
       </a>
       <span class="dyd-sw-topic">

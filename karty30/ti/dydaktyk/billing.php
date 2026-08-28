@@ -613,7 +613,7 @@ echo '<main id="main" class="dyd-wrap">';
 <nav aria-label="breadcrumb" class="mb-3 d-none"><ol class="breadcrumb">
   <li class="breadcrumb-item"><a href="../index.php">Zajęcia TI</a></li>
   <?php if ($course): ?>
-  <li class="breadcrumb-item"><a href="../course.php?id=<?= $course_id ?>"><?= h($course['name']) ?></a></li>
+  <li class="breadcrumb-item"><a href="kurs.php?id=<?= $course_id ?>"><?= h($course['name']) ?></a></li>
   <?php endif; ?>
   <li class="breadcrumb-item active">Rozliczenia miesięczne</li>
 </ol></nav>

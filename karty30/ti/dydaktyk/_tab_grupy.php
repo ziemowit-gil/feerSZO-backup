@@ -234,7 +234,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
             <?php endif; ?>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy grupy">
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
-            <a href="../course.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
+            <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
               <i class="bi bi-arrow-right" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
           </td>
         </tr>
@@ -304,7 +304,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
       <i class="bi bi-receipt" aria-hidden="true"></i>
     </a>
     <?php endif; ?>
-    <a href="../course.php?id=<?= $cid ?>"
+    <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-primary py-0 px-2"
        title="Zarządzaj kursem">
       <i class="bi bi-arrow-right" aria-hidden="true"></i>
@@ -343,7 +343,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     <?php endif; ?>
   </div>
   <div class="dyd-gr-actions">
-    <a href="../course.php?id=<?= $cid ?>"
+    <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2"
        title="Zarządzaj kursem">
       <i class="bi bi-arrow-right" aria-hidden="true"></i>
