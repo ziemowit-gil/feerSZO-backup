@@ -203,24 +203,27 @@ unset($_SESSION['dyd_flash']);
     <i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy TI
     <span class="badge bg-secondary ms-1" style="font-size:.72rem"><?= count($ku_all) ?></span>
   </div>
-  <a href="index.php?tab=kursy<?= $ku_show_new ? '' : '&new_course=1' ?>"
-     class="btn btn-<?= $ku_show_new ? 'outline-secondary' : 'primary' ?> btn-sm">
-    <?php if ($ku_show_new): ?>
-    <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Anuluj
-    <?php else: ?>
+  <?php if ($ku_can_write): ?>
+  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#kuNewModal">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs
-    <?php endif; ?>
-  </a>
+  </button>
+  <?php endif; ?>
   <a href="../index.php" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"
      title="Pełny panel zarządzania kursami TI">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
   </a>
 </div>
 
-<!-- Formularz nowego kursu -->
-<?php if ($ku_show_new && $ku_can_write): ?>
-<div class="dyd-ku-new-card">
-  <h6><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Nowy kurs TI</h6>
+<!-- Formularz nowego kursu — popup; ?new_course=1 (deep link z Przeglądu grup) otwiera go automatycznie -->
+<?php if ($ku_can_write): ?>
+<div class="modal fade" id="kuNewModal" tabindex="-1" aria-labelledby="kuNewModalLbl" aria-hidden="true">
+ <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-content">
+   <div class="modal-header py-2">
+     <h2 class="modal-title h6 mb-0" id="kuNewModalLbl"><i class="bi bi-plus-circle me-2 text-primary" aria-hidden="true"></i>Nowy kurs TI</h2>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+   </div>
+   <div class="modal-body">
   <form method="post" class="row g-2">
     <input type="hidden" name="_token" value="<?= dyd_token() ?>">
     <input type="hidden" name="_op" value="create_course">
@@ -449,14 +452,25 @@ unset($_SESSION['dyd_flash']);
       <button class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz kurs
       </button>
-      <a href="index.php?tab=kursy" class="btn btn-outline-secondary btn-sm">Anuluj</a>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
       <span class="text-body-secondary small align-self-center ms-2">
         <i class="bi bi-info-circle me-1 opacity-50" aria-hidden="true"></i>
         Po utworzeniu uzupełnisz stawki, kursantów i harmonogram w ustawieniach kursu.
       </span>
     </div>
   </form>
+   </div>
+  </div>
+ </div>
 </div>
+<?php if ($ku_show_new): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var m = document.getElementById('kuNewModal');
+  if (m && window.bootstrap) bootstrap.Modal.getOrCreateInstance(m).show();
+});
+</script>
+<?php endif; ?>
 <?php endif; ?>
 
 <!-- Aktywne kursy -->
