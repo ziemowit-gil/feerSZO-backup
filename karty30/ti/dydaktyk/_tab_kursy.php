@@ -1,11 +1,12 @@
 <?php
 /**
  * _tab_kursy.php — Zarządzanie kursami TI (Kierownik).
- * CRUD kursów: lista, szybkie tworzenie, toggle aktywności, link do pełnej edycji.
- * Tylko dyd_is_staff(). Niebezpieczne operacje (usunięcie) — tylko is_admin().
+ * CRUD kursów: lista, szybkie tworzenie, toggle aktywności, link do pełnej edycji,
+ * „Wyłącz i usuń grupę" (soft: is_active=0 + status=cancelled — odwracalne
+ * przyciskiem Aktywuj). Tylko dyd_is_staff() — kierownik nie potrzebuje admina SZO.
  */
 $ku_can_write = dyd_is_staff();
-$ku_can_del   = is_admin();
+$ku_can_del   = $ku_can_write;
 
 // ── Obsługa POST ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
@@ -109,11 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         exit;
     }
 
-    // Miękkie usunięcie kursu — tylko admin
+    // Wyłącz i usuń grupę — miękkie usunięcie (status=cancelled + is_active=0),
+    // odwracalne: przycisk „Aktywuj kurs" w sekcji Nieaktywne przywraca status='active'.
     if ($ku_op === 'delete_course' && $ku_can_del) {
         $cid = (int)($_POST['course_id'] ?? 0);
         if ($cid) {
             db()->prepare("UPDATE k30_ti_courses SET status='cancelled', is_active=0 WHERE id=?")->execute([$cid]);
+            $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa wyłączona i usunięta z list. Można ją przywrócić przyciskiem „Aktywuj" w sekcji Nieaktywne.'];
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
         exit;
@@ -121,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
 }
 
 // ── Dane ─────────────────────────────────────────────────────────────────────
-$ku_all      = k30_ti_courses(false);  // wszystkie (w tym nieaktywne)
+$ku_all      = k30_ti_courses(false, true);  // wszystkie, w tym nieaktywne i anulowane (Przywróć)
 $ku_active   = array_filter($ku_all, fn($c) => !empty($c['is_active']) && ($c['status']??'')!=='cancelled');
 $ku_inactive = array_filter($ku_all, fn($c) =>  empty($c['is_active']) || ($c['status']??'')==='cancelled');
 $ku_instrs   = k30_ti_instructors();
@@ -591,31 +594,31 @@ document.addEventListener('DOMContentLoaded', function () {
             <?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
-            <?php if (!$cancelled): ?>
+            <?php /* Cancelled (po „Wyłącz i usuń grupę") dostaje Przywróć zamiast Dezaktywuj/Aktywuj —
+                     operacja ma być odwracalna, nie ślepym zaułkiem. */ ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_token" value="<?= dyd_token() ?>">
               <input type="hidden" name="_op" value="toggle_active">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
-              <input type="hidden" name="active" value="<?= $c['_active'] ? 0 : 1 ?>">
-              <button class="btn btn-sm btn-outline-<?= $c['_active'] ? 'secondary' : 'success' ?> py-0 px-2"
-                      title="<?= $c['_active'] ? 'Dezaktywuj kurs' : 'Aktywuj kurs' ?>">
-                <i class="bi bi-<?= $c['_active'] ? 'pause-circle' : 'play-circle' ?>" aria-hidden="true"></i>
-                <span class="visually-hidden"><?= $c['_active'] ? 'Dezaktywuj' : 'Aktywuj' ?></span>
+              <input type="hidden" name="active" value="<?= ($cancelled || !$c['_active']) ? 1 : 0 ?>">
+              <button class="btn btn-sm btn-outline-<?= ($cancelled || !$c['_active']) ? 'success' : 'secondary' ?> py-0 px-2"
+                      title="<?= $cancelled ? 'Przywróć grupę' : ($c['_active'] ? 'Dezaktywuj kurs' : 'Aktywuj kurs') ?>">
+                <i class="bi bi-<?= $cancelled ? 'arrow-counterclockwise' : ($c['_active'] ? 'pause-circle' : 'play-circle') ?>" aria-hidden="true"></i>
+                <span class="visually-hidden"><?= $cancelled ? 'Przywróć' : ($c['_active'] ? 'Dezaktywuj' : 'Aktywuj') ?></span>
               </button>
             </form>
-            <?php endif; ?>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
               <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
             <?php if ($ku_can_del && !$cancelled): ?>
             <form method="post" class="d-inline"
-                  onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>&quot;? Kurs zniknie z listy i będzie nieaktywny.')">
+                  onsubmit="return confirm('Wyłączyć i usunąć grupę „<?= h(addslashes($c['name'])) ?>&quot;?\n\nZniknie z aktywnych list — można ją przywrócić przyciskiem Aktywuj w sekcji Nieaktywne.')">
               <input type="hidden" name="_token" value="<?= dyd_token() ?>">
               <input type="hidden" name="_op" value="delete_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
-              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
-                <i class="bi bi-trash3" aria-hidden="true"></i><span class="visually-hidden">Usuń</span>
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Wyłącz i usuń grupę (odwracalne)">
+                <i class="bi bi-trash3" aria-hidden="true"></i><span class="visually-hidden">Wyłącz i usuń grupę</span>
               </button>
             </form>
             <?php endif; ?>
@@ -697,14 +700,14 @@ document.addEventListener('DOMContentLoaded', function () {
        class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
-    <!-- Usuń (admin) -->
+    <!-- Wyłącz i usuń grupę (odwracalne) -->
     <?php if ($ku_can_del): ?>
     <form method="post" class="flex-shrink-0"
-          onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>"? Kurs zniknie z listy i będzie nieaktywny.')">
+          onsubmit="return confirm('Wyłączyć i usunąć grupę „<?= h(addslashes($c['name'])) ?>"?\n\nZniknie z aktywnych list — można ją przywrócić przyciskiem Aktywuj w sekcji Nieaktywne.')">
       <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="delete_course">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
-      <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
+      <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Wyłącz i usuń grupę (odwracalne)">
         <i class="bi bi-trash3" aria-hidden="true"></i>
       </button>
     </form>
@@ -755,29 +758,28 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
   </div>
   <div class="dyd-ku-actions">
-    <?php if (!$cancelled): ?>
-    <!-- Aktywuj -->
+    <!-- Aktywuj / Przywróć — działa też na grupy „wyłącz i usuń" (status=cancelled),
+         żeby ta operacja była faktycznie odwracalna, jak mówi jej dialog potwierdzenia. -->
     <form method="post" class="flex-shrink-0">
       <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="toggle_active">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
       <input type="hidden" name="active" value="1">
-      <button class="btn btn-sm btn-outline-success py-0 px-2" title="Aktywuj kurs">
-        <i class="bi bi-play-circle" aria-hidden="true"></i>
+      <button class="btn btn-sm btn-outline-success py-0 px-2" title="<?= $cancelled ? 'Przywróć grupę' : 'Aktywuj kurs' ?>">
+        <i class="bi bi-<?= $cancelled ? 'arrow-counterclockwise' : 'play-circle' ?>" aria-hidden="true"></i>
       </button>
     </form>
-    <?php endif; ?>
     <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
     <?php if ($ku_can_del && !$cancelled): ?>
     <form method="post" class="flex-shrink-0"
-          onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>"?')">
+          onsubmit="return confirm('Wyłączyć i usunąć grupę „<?= h(addslashes($c['name'])) ?>"?\n\nOdwracalne — status wraca do aktywnego po kliknięciu Aktywuj.')">
       <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="delete_course">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
-      <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
+      <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Wyłącz i usuń grupę (odwracalne)">
         <i class="bi bi-trash3" aria-hidden="true"></i>
       </button>
     </form>

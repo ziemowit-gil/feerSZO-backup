@@ -2826,9 +2826,11 @@ function k30_ti_client_payment(int $client_id): array {
     ];
 }
 
-// Kursy — pomija usunięte (status='cancelled')
-function k30_ti_courses(bool $active_only = true): array {
-    $w = "WHERE c.status!='cancelled'";
+// Kursy — domyślnie pomija usunięte (status='cancelled'); $include_cancelled=true
+// dla ekranów zarządczych, gdzie „Wyłącz i usuń grupę" musi być odwracalne
+// (kierownik musi widzieć anulowaną grupę, żeby ją przywrócić).
+function k30_ti_courses(bool $active_only = true, bool $include_cancelled = false): array {
+    $w = $include_cancelled ? 'WHERE 1=1' : "WHERE c.status!='cancelled'";
     if ($active_only) $w .= ' AND c.is_active=1';
     return db_all(
         "SELECT c.*, u.name AS instructor_name,
