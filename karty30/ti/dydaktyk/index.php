@@ -490,8 +490,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=' . urlencode($_bt !== '' ? $_bt : 'komunikaty')); exit;
     }
 
-    // Pozostałe operacje wymagają własności kursu.
-    if (!dyd_owns_course($uid, $course_id)) { http_response_code(403); exit('Brak uprawnień do tego kursu.'); }
+    // Pozostałe operacje wymagają własności kursu. Kierownik (staff) przechodzi
+    // zawsze — jego operacje z zakładek (np. create_course, move_student) nie
+    // niosą course_id w POST, a dyd_owns_course() dla course_id=0 zwraca false,
+    // co ucinało tworzenie kursu komunikatem „Brak uprawnień do tego kursu”.
+    if (!dyd_is_staff() && !dyd_owns_course($uid, $course_id)) { http_response_code(403); exit('Brak uprawnień do tego kursu.'); }
 
     // ── LEKCJE ────────────────────────────────────────────────────────────────
     if ($op === 'save_lesson') {
