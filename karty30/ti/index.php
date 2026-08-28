@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_messages.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_periods.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 
 k30_require_access();
@@ -169,6 +170,18 @@ $edit_row      = $edit_id ? k30_ti_course_get($edit_id) : null;
 $show_new      = isset($_GET['new']);
 $instructors   = k30_get_consultants();
 $subject_types = k30_ti_subject_types(false);
+
+// Okresy nauczania ze skrótem do schematu nazw grup: rok(2) + inicjały nazwy,
+// np. „Semestr Z 2026” → 26SZ, „Wakacje 2026” → 26W.
+ti_periods_migrate();
+$gen_periods = array_map(function ($p) {
+    $ini = implode('', array_map(
+        fn($w) => mb_strtoupper(mb_substr($w, 0, 1)),
+        array_slice(preg_split('/\s+/', preg_replace('/[^\p{L}\s]/u', '', preg_replace('/^TEST\s+/', '', preg_replace('/\s\d-[A-Z]{3}$/', '', (string)$p['name'])))) ?: [], 0, 3)
+    ));
+    $p['short'] = date('y', strtotime((string)$p['date_from'])) . $ini;
+    return $p;
+}, ti_periods_all());
 
 // Odwołania — przegląd dla kadry/administratora (ze wszystkich kursów).
 // Prośby kursantów czekające na potwierdzenie + ostatnio odwołane lekcje.
@@ -461,19 +474,54 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </div>
       </div>
 
-      <?php /* ── Nazwa grupy ── */ ?>
+      <?php /* ── Nazwa grupy: schemat OKRES-RODZAJ-POZIOMnr-kod ── */ ?>
       <div class="mb-3">
         <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
+        <div class="row g-1 mb-1">
+          <div class="col-sm-4">
+            <select class="form-select form-select-sm" id="gen_period" aria-label="Okres do nazwy">
+              <option value="">— okres —</option>
+              <?php foreach ($gen_periods as $gp): ?>
+              <option value="<?= h($gp['short']) ?>"><?= h($gp['short']) ?> · <?= h($gp['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-sm-2">
+            <select class="form-select form-select-sm" id="gen_level" aria-label="Poziom do nazwy">
+              <option value="P">P — podst.</option>
+              <option value="S">S — średni</option>
+              <option value="Z">Z — zaaw.</option>
+            </select>
+          </div>
+          <div class="col-sm-2">
+            <input type="number" class="form-control form-control-sm" id="gen_nr" value="1" min="1" max="99"
+                   aria-label="Numer grupy w poziomie">
+          </div>
+          <div class="col-sm-4 d-flex align-items-center gap-2">
+            <div class="form-check form-check-inline m-0">
+              <input class="form-check-input" type="checkbox" id="gen_test">
+              <label class="form-check-label small" for="gen_test">TEST</label>
+            </div>
+            <div class="form-check form-check-inline m-0">
+              <input class="form-check-input" type="checkbox" id="gen_pfron">
+              <label class="form-check-label small" for="gen_pfron">PFRON</label>
+            </div>
+          </div>
+        </div>
         <div class="input-group mb-1">
           <input type="text" class="form-control" id="helper_surname"
-                 placeholder="Nazwisko kursanta" autocomplete="off">
+                 placeholder="Nazwisko kursanta (tryb indywidualny)" autocomplete="off">
           <button type="button" class="btn btn-outline-primary" onclick="tiAutoName()" title="Wygeneruj nazwę grupy">
             <i class="bi bi-magic me-1"></i>Generuj
           </button>
         </div>
         <input type="text" class="form-control" name="name" id="name_input" value="<?= h($f['name']) ?>" required
-               placeholder="np. INF.742<?= date('y') ?>.Kowalski">
-        <div class="form-text" id="name_hint">Format: <code>Skrót.kod.Nazwisko</code> — wpisz nazwisko, kliknij Generuj lub edytuj ręcznie.</div>
+               placeholder="np. 26SZ-INF-P1-742<?= date('y') ?>">
+        <div class="form-text" id="name_hint">
+          Schemat: <code>OKRES-RODZAJ-POZIOMnr-kod</code> (np. <code>26SZ-INF-P1-742<?= date('y') ?></code>),
+          z prefiksem TEST i sufiksem -PFRON. Bez wybranego okresu generator używa
+          starego formatu <code>Skrót.kod.Nazwisko</code>.
+        </div>
       </div>
 
       <div class="row g-3 mb-3">
@@ -890,18 +938,31 @@ function tiAutoName() {
 
   var opt  = sel ? sel.options[sel.selectedIndex] : null;
   var abbr = (opt && opt.dataset.abbr) ? opt.dataset.abbr : '';
+  var code = gc ? gc.value.trim() : '';
 
-  var code   = gc ? gc.value.trim() : '';
+  // Nowy schemat: TEST OKRES-RODZAJ-POZIOMnr-kod-PFRON — gdy wybrano okres
+  var period = document.getElementById('gen_period');
+  if (period && period.value) {
+    var lvl  = document.getElementById('gen_level')?.value || 'P';
+    var nr   = Math.max(1, parseInt(document.getElementById('gen_nr')?.value || '1', 10));
+    var test = document.getElementById('gen_test')?.checked ? 'TEST ' : '';
+    var pfr  = document.getElementById('gen_pfron')?.checked ? '-PFRON' : '';
+    var parts = [period.value];
+    if (abbr) parts.push(abbr);
+    parts.push(lvl + nr);
+    if (code) parts.push(code);
+    out.value = test + parts.join('-') + pfr;
+    return;
+  }
+
+  // Stary format: [Skrót.]kod[.Nazwisko] — kursy indywidualne / bez okresu
   var suffix = sn ? sn.value.trim() : '';
-
   if (!abbr && !code) return; // nic do wygenerowania
-
-  // Format: [Skrót.]kod[.Nazwisko/NazwaGrupy]
-  var parts = [];
-  if (abbr) parts.push(abbr);
-  if (code) parts.push(code);
-  if (suffix) parts.push(suffix);
-  out.value = parts.join('.');
+  var parts2 = [];
+  if (abbr) parts2.push(abbr);
+  if (code) parts2.push(code);
+  if (suffix) parts2.push(suffix);
+  out.value = parts2.join('.');
 }
 
 // Nasłuchuj zmian
@@ -910,6 +971,9 @@ function tiAutoName() {
   var sn  = document.getElementById('helper_surname');
   if (sel) sel.addEventListener('change', tiAutoName);
   if (sn)  sn.addEventListener('input', tiAutoName);
+  ['gen_period','gen_level','gen_nr','gen_test','gen_pfron'].forEach(function (id) {
+    document.getElementById(id)?.addEventListener('change', tiAutoName);
+  });
   var gc = document.getElementById('gc_input');
   if (gc && !gc.value) tiGenCode();
   // Przełącznik typu zajęć

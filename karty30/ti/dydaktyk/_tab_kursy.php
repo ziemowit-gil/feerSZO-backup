@@ -174,13 +174,85 @@ unset($_SESSION['dyd_flash']);
 <div class="dyd-ku-new-card">
   <h6><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Nowy kurs TI</h6>
   <form method="post" class="row g-2">
-    <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
     <input type="hidden" name="_op" value="create_course">
 
     <div class="col-sm-8">
       <label class="form-label small fw-semibold mb-1" for="ku_name">Nazwa grupy <span class="text-danger">*</span></label>
+      <?php
+      // Generator nazwy wg schematu OKRES-RODZAJ-POZIOMnr (+TEST/-PFRON)
+      if (!function_exists('ti_periods_all')) require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
+      ti_periods_migrate();
+      $ku_gen_periods = array_map(function ($p) {
+          $ini = implode('', array_map(
+              fn($w) => mb_strtoupper(mb_substr($w, 0, 1)),
+              array_slice(preg_split('/\s+/', preg_replace('/[^\p{L}\s]/u', '', preg_replace('/^TEST\s+/', '', preg_replace('/\s\d-[A-Z]{3}$/', '', (string)$p['name'])))) ?: [], 0, 3)
+          ));
+          $p['short'] = date('y', strtotime((string)$p['date_from'])) . $ini;
+          return $p;
+      }, ti_periods_all());
+      $ku_gen_subjects = function_exists('k30_ti_subject_types') ? k30_ti_subject_types(true) : [];
+      ?>
+      <div class="row g-1 mb-1">
+        <div class="col-4">
+          <select class="form-select form-select-sm" id="kug_period" aria-label="Okres do nazwy">
+            <option value="">— okres —</option>
+            <?php foreach ($ku_gen_periods as $gp): ?>
+            <option value="<?= h($gp['short']) ?>"><?= h($gp['short']) ?> · <?= h($gp['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-3">
+          <select class="form-select form-select-sm" id="kug_subject" aria-label="Rodzaj zajęć do nazwy">
+            <option value="">— rodzaj —</option>
+            <?php foreach ($ku_gen_subjects as $st): ?>
+            <option value="<?= h($st['abbreviation']) ?>"><?= h($st['abbreviation']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-2">
+          <select class="form-select form-select-sm" id="kug_level" aria-label="Poziom do nazwy">
+            <option value="P">P</option><option value="S">S</option><option value="Z">Z</option>
+          </select>
+        </div>
+        <div class="col-1">
+          <input type="number" class="form-control form-control-sm" id="kug_nr" value="1" min="1" max="99" aria-label="Nr grupy">
+        </div>
+        <div class="col-2 d-flex align-items-center">
+          <button type="button" class="btn btn-outline-primary btn-sm w-100" id="kug_btn"
+                  title="Zbuduj nazwę: OKRES-RODZAJ-POZIOMnr (+TEST / -PFRON)">
+            <i class="bi bi-magic" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="d-flex gap-3 mb-1">
+        <div class="form-check m-0">
+          <input class="form-check-input" type="checkbox" id="kug_test">
+          <label class="form-check-label small" for="kug_test">TEST</label>
+        </div>
+        <div class="form-check m-0">
+          <input class="form-check-input" type="checkbox" id="kug_pfron">
+          <label class="form-check-label small" for="kug_pfron">PFRON</label>
+        </div>
+      </div>
       <input type="text" id="ku_name" name="name" class="form-control form-control-sm"
-             placeholder="np. Informatyka gr. 1A" required autofocus maxlength="200">
+             placeholder="np. 26SZ-INF-P1" required maxlength="200">
+      <script>
+      document.getElementById('kug_btn')?.addEventListener('click', function () {
+        var per = document.getElementById('kug_period');
+        if (!per.value) { per.focus(); alert('Wybierz okres — schemat nazwy zaczyna się od jego skrótu.'); return; }
+        var parts = [per.value];
+        var subj = document.getElementById('kug_subject').value;
+        if (subj) parts.push(subj);
+        parts.push(document.getElementById('kug_level').value
+                 + Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10)));
+        var out = document.getElementById('ku_name');
+        out.value = (document.getElementById('kug_test').checked ? 'TEST ' : '')
+                  + parts.join('-')
+                  + (document.getElementById('kug_pfron').checked ? '-PFRON' : '');
+        out.focus();
+      });
+      </script>
     </div>
     <div class="col-sm-4">
       <label class="form-label small fw-semibold mb-1" for="ku_class_type">Typ</label>
@@ -255,7 +327,7 @@ unset($_SESSION['dyd_flash']);
   <div class="dyd-ku-actions">
     <!-- Dezaktywuj -->
     <form method="post" class="flex-shrink-0">
-      <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="toggle_active">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
       <input type="hidden" name="active" value="0">
@@ -272,7 +344,7 @@ unset($_SESSION['dyd_flash']);
     <?php if ($ku_can_del): ?>
     <form method="post" class="flex-shrink-0"
           onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>"? Kurs zniknie z listy i będzie nieaktywny.')">
-      <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="delete_course">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
       <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
@@ -329,7 +401,7 @@ unset($_SESSION['dyd_flash']);
     <?php if (!$cancelled): ?>
     <!-- Aktywuj -->
     <form method="post" class="flex-shrink-0">
-      <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="toggle_active">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
       <input type="hidden" name="active" value="1">
@@ -345,7 +417,7 @@ unset($_SESSION['dyd_flash']);
     <?php if ($ku_can_del && !$cancelled): ?>
     <form method="post" class="flex-shrink-0"
           onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>"?')">
-      <input type="hidden" name="dyd_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
       <input type="hidden" name="_op" value="delete_course">
       <input type="hidden" name="course_id" value="<?= $cid ?>">
       <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
