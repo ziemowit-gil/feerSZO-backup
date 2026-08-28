@@ -86,6 +86,10 @@ $_kier_sections = [
     .kier-sidenav details > summary { display: none; }   /* na desktopie lista zawsze otwarta */
     .kier-sidenav details { display: contents; }
     main.dyd-wrap { margin-left: 264px !important; }
+    /* index.php (skórka USOS): main ma też .dyd-content, a ti_skin.css zeruje mu
+       margines selektorem body.dyd-usos .dyd-content !important — przebijamy
+       silniejszym selektorem, inaczej sidebar wjeżdża na treść. */
+    body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 264px !important; }
   }
 </style>
 
