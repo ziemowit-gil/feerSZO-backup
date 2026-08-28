@@ -141,6 +141,36 @@ foreach ($_cur_sec['items'] as $_i) {
   <?php endforeach; ?>
 </nav>
 
+<?php if ($_usos_cur === 'kierownik'):
+  // Pozycje sekcji Kierownik idą do MENU BOCZNEGO (jak na stronach zetony/okresy/
+  // billing), nie do poziomego rzędu — lista jest za długa na jeden wiersz.
+  $_kier_icons = [
+      'Przegląd grup'             => 'people',
+      'Rozliczenia grupy'         => 'receipt-cutoff',
+      'Rozliczenia kursantów'     => 'receipt',
+      'Zarządzanie kursami'       => 'collection',
+      'Wypłaty prowadzących'      => 'cash-stack',
+      'Praca własna'              => 'journal-text',
+      'Komunikacja'               => 'megaphone',
+      'Żetony SZO'                => 'ticket-detailed',
+      'Zapisy — tury'             => 'ticket-perforated',
+      'Dostępności prowadzących'  => 'clock-history',
+      'Okresy nauczania'          => 'calendar-range',
+      'Wyłączenia panelu'         => 'moon',
+      'Raporty i WUP'             => 'graph-up',
+      'Pełny panel TI'            => 'box-arrow-up-right',
+  ];
+  $KIER_ITEMS = [];
+  foreach ($_cur_sec['items'] as $_i) {
+      $KIER_ITEMS[] = ['label' => $_i['label'], 'href' => $_i['href'],
+                       'icon'  => $_kier_icons[$_i['label']] ?? 'dot',
+                       'n'     => (int)$_i['n'], 'v' => $_i['v'], 'blank' => $_i['blank'],
+                       'active'=> ($_i['tab'] !== '' && $_i['tab'] === $tab)];
+  }
+  $KIER_EMBED = true;
+  $KIER_LABEL = $_cur_label;
+  include __DIR__ . '/_kierownik_bar.php';
+else: ?>
 <nav class="skin-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
   <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
   <a href="<?= h($_i['href']) ?>"<?= $_i['blank'] ? ' target="_blank" rel="noopener"' : '' ?>
@@ -155,6 +185,7 @@ foreach ($_cur_sec['items'] as $_i) {
   <button type="button" class="skin-subnav-btn" onclick="window.dydStartTour && window.dydStartTour()">Tour powitalny</button>
   <?php endif; ?>
 </nav>
+<?php endif; ?>
 
 <div class="skin-crumbs">
   <a href="index.php?tab=pulpit">Panel dydaktyka</a>
