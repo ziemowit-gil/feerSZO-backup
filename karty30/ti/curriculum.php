@@ -24,6 +24,15 @@ $PAGE_TITLE = 'Plan nauczania — TI';
 
 $course_id  = (int)($_GET['course'] ?? 0);
 
+// Pobranie wzoru/przykładu CSV z GUI: ?wzor=1 → pusty wzór, ?wzor=przyklad → pełny sylabus
+if (isset($_GET['wzor'])) {
+    $przyklad = $_GET['wzor'] === 'przyklad';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . ($przyklad ? 'przyklad-sylabusa.csv' : 'wzor-sylabusa.csv') . '"');
+    echo k30_ti_syllabus_csv($przyklad);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $op  = $_POST['_op'] ?? '';
@@ -387,6 +396,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="hidden" name="_op" value="import_csv">
           <input type="hidden" name="course_id" value="<?= $course_id ?>">
           <p class="small text-muted mb-2">Kolumny (separator <code>;</code> lub <code>,</code>): <strong>dział; temat; opis; czas&nbsp;w&nbsp;min</strong>. Wiersz nagłówka jest pomijany. Tylko <em>temat</em> jest wymagany.</p>
+          <p class="mb-3 d-flex gap-2 flex-wrap">
+            <a href="curriculum.php?wzor=1" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz wzór (CSV)
+            </a>
+            <a href="curriculum.php?wzor=przyklad" class="btn btn-sm btn-outline-secondary"
+               title="Pełny przykładowy sylabus (kurs Pythona, 13 tematów) — do podejrzenia formatu">
+              <i class="bi bi-download me-1" aria-hidden="true"></i>Przykładowy sylabus (CSV)
+            </a>
+          </p>
           <div class="mb-2">
             <label class="form-label" for="csv-file">Plik CSV</label>
             <input type="file" class="form-control" id="csv-file" name="csv_file" accept=".csv,text/csv,text/plain">

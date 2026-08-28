@@ -256,6 +256,10 @@ function currBulkAddRow() {
         <a href="syllabus_wzor.php" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz wzór CSV
         </a>
+        <a href="syllabus_wzor.php?przyklad=1" class="btn btn-outline-secondary btn-sm"
+           title="Pełny przykładowy sylabus (kurs Pythona, 13 tematów)">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Przykładowy sylabus
+        </a>
         <span class="form-text ms-1">Otwórz w arkuszu, wpisz swoje tematy, zapisz jako CSV i wgraj poniżej.</span>
       </div>
       <p class="small mb-1 fw-semibold">Przykład zawartości pliku</p>

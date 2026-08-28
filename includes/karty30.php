@@ -5361,6 +5361,50 @@ function k30_ti_session_set_curriculum(int $session_id, array $curriculum_ids): 
  * Pierwszy wiersz traktowany jako nagłówek, jeśli wygląda na etykiety.
  * Zwraca ['added'=>int, 'errors'=>[['line'=>int,'msg'=>string], ...]].
  */
+/**
+ * Treść pliku CSV z wzorem sylabusa (kolumny importu k30_ti_curriculum_import_csv):
+ * $example=false → krótki wzór do wypełnienia; true → pełny przykładowy sylabus.
+ * BOM UTF-8 + CRLF + separator „;" — tak polskie Excele otwierają plik poprawnie.
+ * Używane przez pobieranie z GUI: curriculum.php (?wzor=) i dydaktyk/syllabus_wzor.php.
+ */
+function k30_ti_syllabus_csv(bool $example = false): string {
+    $rows = $example
+        ? [
+            ['dział', 'temat', 'opis', 'czas_min'],
+            ['Wprowadzenie',         'Czym jest programowanie',           'Pojęcia: program, algorytm, język; przykłady z życia', '45'],
+            ['Wprowadzenie',         'Instalacja środowiska',             'Python + edytor; pierwsze uruchomienie interpretera', '45'],
+            ['Podstawy języka',      'Zmienne i typy danych',             'int, float, str, bool; konwersje typów', '60'],
+            ['Podstawy języka',      'Operatory i wyrażenia',             'Arytmetyczne, porównania, logiczne; kolejność działań', '45'],
+            ['Podstawy języka',      'Instrukcje warunkowe',              'if / elif / else; zagnieżdżanie warunków', '60'],
+            ['Podstawy języka',      'Pętle',                             'for i while; range(); break i continue', '90'],
+            ['Struktury danych',     'Listy i krotki',                    'Indeksowanie, wycinki, metody list', '90'],
+            ['Struktury danych',     'Słowniki i zbiory',                 'Klucz-wartość; iterowanie po słowniku', '60'],
+            ['Funkcje',              'Definiowanie funkcji',              'def, parametry, wartość zwracana; zasięg zmiennych', '90'],
+            ['Funkcje',              'Funkcje wbudowane i moduły',        'import; random, math, datetime', '45'],
+            ['Praca z plikami',      'Odczyt i zapis plików tekstowych',  'open(), tryby, kodowanie UTF-8; menedżer kontekstu with', '60'],
+            ['Projekt zaliczeniowy', 'Planowanie projektu',               'Wybór tematu; rozbicie na etapy', '45'],
+            ['Projekt zaliczeniowy', 'Realizacja i prezentacja',          'Praca własna z konsultacjami; omówienie wyników', '120'],
+        ]
+        : [
+            ['dział', 'temat', 'opis', 'czas_min'],
+            ['Podstawy obsługi', 'Włączanie i logowanie',            'Uruchomienie komputera, logowanie do systemu', '45'],
+            ['Podstawy obsługi', 'Pulpit i okna',                    'Ikony, menu Start, przełączanie okien', '30'],
+            ['Czytnik ekranu',   'Pierwsze uruchomienie NVDA',       'Skróty klawiszowe, odczyt ekranu', '60'],
+            ['Czytnik ekranu',   'Nawigacja po stronie internetowej', '', '90'],
+        ];
+    // Ręcznie zamiast fputcsv(): PHP 8.4 deprecation $escape wypisałoby warning do pliku.
+    $lines = [];
+    foreach ($rows as $r) {
+        $lines[] = implode(';', array_map(
+            fn($v) => (strpbrk((string)$v, ";\"\r\n") !== false)
+                ? '"' . str_replace('"', '""', (string)$v) . '"'
+                : (string)$v,
+            $r
+        ));
+    }
+    return "\xEF\xBB\xBF" . implode("\r\n", $lines) . "\r\n";
+}
+
 function k30_ti_curriculum_import_csv(int $course_id, string $raw, ?int $created_by = null): array {
     $added  = 0;
     $errors = [];
