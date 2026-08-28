@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             db()->prepare("UPDATE k30_ti_courses SET is_active=?, status=? WHERE id=?")
                  ->execute([$act, $act ? 'active' : 'inactive', $cid]);
         }
-        header('Location: index.php?tab=kursy');
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
         exit;
     }
 
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         if ($cid) {
             db()->prepare("UPDATE k30_ti_courses SET status='cancelled', is_active=0 WHERE id=?")->execute([$cid]);
         }
-        header('Location: index.php?tab=kursy');
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
         exit;
     }
 }
@@ -128,6 +128,8 @@ $ku_instrs   = k30_ti_instructors();
 $ku_subjects = k30_ti_subject_types(true);
 
 $ku_show_new = isset($_GET['new_course']);
+// Widok listy: karty (domyślny) / tabela — przełącznik w pasku narzędzi
+$ku_view = ($_GET['v'] ?? 'karty') === 'tabela' ? 'tabela' : 'karty';
 
 $ku_flash = $_SESSION['dyd_flash'] ?? null;
 unset($_SESSION['dyd_flash']);
@@ -215,6 +217,16 @@ unset($_SESSION['dyd_flash']);
   <div class="dyd-ku-toolbar-title">
     <i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy TI
     <span class="badge bg-secondary ms-1" style="font-size:.72rem"><?= count($ku_all) ?></span>
+  </div>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Widok listy kursów">
+    <a href="index.php?tab=kursy&v=karty"
+       class="btn btn-<?= $ku_view==='karty'?'primary':'outline-secondary' ?>" title="Widok kart">
+      <i class="bi bi-grid-1x2 me-1" aria-hidden="true"></i>Karty
+    </a>
+    <a href="index.php?tab=kursy&v=tabela"
+       class="btn btn-<?= $ku_view==='tabela'?'primary':'outline-secondary' ?>" title="Widok tabeli">
+      <i class="bi bi-table me-1" aria-hidden="true"></i>Tabela
+    </a>
   </div>
   <?php if ($ku_can_write): ?>
   <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#kuNewModal">
@@ -501,6 +513,117 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php endif; ?>
 <?php endif; ?>
 
+<?php if ($ku_view === 'tabela'): ?>
+
+<?php /* ── Widok tabeli: wszystkie kursy w jednym, gęstym zestawieniu ── */ ?>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <caption class="visually-hidden">Kursy TI: rodzaj, prowadzący, kursanci, stawka BB i status</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Kurs</th>
+          <th scope="col">Rodzaj</th>
+          <th scope="col">Prowadzący</th>
+          <th scope="col" class="text-end">Kursanci</th>
+          <th scope="col" class="text-end">BB zł/lekcja</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end">Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $ku_rows = array_merge(
+            array_map(fn($c) => $c + ['_active' => true],  array_values($ku_active)),
+            array_map(fn($c) => $c + ['_active' => false], array_values($ku_inactive))
+        );
+        if (!$ku_rows): ?>
+        <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak kursów TI — utwórz pierwszy przyciskiem „Nowy kurs".</td></tr>
+        <?php endif; ?>
+        <?php foreach ($ku_rows as $c):
+          $cid       = (int)$c['id'];
+          $cancelled = ($c['status'] ?? '') === 'cancelled';
+        ?>
+        <tr<?= $c['_active'] ? '' : ' class="text-muted"' ?>>
+          <th scope="row" class="fw-semibold">
+            <?= h($c['name']) ?>
+            <?php if ($c['group_code']): ?>
+            <span class="text-body-secondary ms-1" style="font-family:var(--bs-font-monospace);font-size:.68rem">
+              <i class="bi bi-hash opacity-50" aria-hidden="true"></i><?= h($c['group_code']) ?></span>
+            <?php endif; ?>
+            <?php if (($c['class_type'] ?? '') === 'individual'): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+                  title="Nauczanie indywidualne — to też grupa">NI</span>
+            <?php endif; ?>
+            <?php if (!empty($c['is_online'])): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd">Online</span>
+            <?php endif; ?>
+            <?php if (!empty($c['is_oneoff'])): ?>
+            <span class="badge text-bg-info ms-1" style="font-size:.6rem">jednorazowy<?=
+              !empty($c['oneoff_date']) ? ' · ' . h(date('d.m.Y', strtotime((string)$c['oneoff_date']))) : '' ?></span>
+            <?php if (!empty($c['action_id'])): ?>
+            <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= (int)$c['action_id'] ?>" target="_blank" rel="noopener"
+               class="ms-1" style="font-size:.72rem" title="Powiązane działanie w Strategii (wymaga logowania do SZO)">
+              działanie <i class="bi bi-box-arrow-up-right" style="font-size:.58rem" aria-hidden="true"></i></a>
+            <?php endif; ?>
+            <?php endif; ?>
+          </th>
+          <td class="small"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="small"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="text-end"><?= (int)$c['enrolled_count'] ?></td>
+          <td class="text-end small">
+            <?= !empty($c['lesson_payout_bb']) && $c['lesson_payout_bb'] > 0
+                ? number_format((float)$c['lesson_payout_bb'], 2, ',', ' ')
+                : '<span class="text-body-secondary">—</span>' ?>
+          </td>
+          <td>
+            <?php if ($cancelled): ?>
+            <span class="badge bg-danger" style="font-size:.62rem">Anulowany</span>
+            <?php elseif ($c['_active']): ?>
+            <span class="badge text-bg-success" style="font-size:.62rem">aktywny</span>
+            <?php else: ?>
+            <span class="badge bg-secondary" style="font-size:.62rem">nieaktywny</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-end text-nowrap">
+            <?php if (!$cancelled): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+              <input type="hidden" name="_op" value="toggle_active">
+              <input type="hidden" name="course_id" value="<?= $cid ?>">
+              <input type="hidden" name="active" value="<?= $c['_active'] ? 0 : 1 ?>">
+              <button class="btn btn-sm btn-outline-<?= $c['_active'] ? 'secondary' : 'success' ?> py-0 px-2"
+                      title="<?= $c['_active'] ? 'Dezaktywuj kurs' : 'Aktywuj kurs' ?>">
+                <i class="bi bi-<?= $c['_active'] ? 'pause-circle' : 'play-circle' ?>" aria-hidden="true"></i>
+                <span class="visually-hidden"><?= $c['_active'] ? 'Dezaktywuj' : 'Aktywuj' ?></span>
+              </button>
+            </form>
+            <?php endif; ?>
+            <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
+              <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
+            <a href="../course.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
+              <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+            <?php if ($ku_can_del && !$cancelled): ?>
+            <form method="post" class="d-inline"
+                  onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>&quot;? Kurs zniknie z listy i będzie nieaktywny.')">
+              <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+              <input type="hidden" name="_op" value="delete_course">
+              <input type="hidden" name="course_id" value="<?= $cid ?>">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń kurs">
+                <i class="bi bi-trash3" aria-hidden="true"></i><span class="visually-hidden">Usuń</span>
+              </button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<?php else: ?>
+
 <!-- Aktywne kursy -->
 <?php if ($ku_active): ?>
 <div class="dyd-ku-section-head" aria-label="Sekcja Aktywne">
@@ -653,5 +776,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 <?php endforeach; ?>
 <?php endif; ?>
+
+<?php endif; /* widok karty / tabela */ ?>
 
 </section>
