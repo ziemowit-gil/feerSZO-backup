@@ -309,6 +309,9 @@ function karty30_migrate(): void {
     }
     // Migracja: kolumny harmonogramu kursu (mogą nie istnieć gdy tabela created po ich usunięciu z CREATE TABLE)
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN day_of_week  INTEGER"); } catch (\Throwable $e) {}
+    // Czytelna nazwa dla kursanta (np. „Informatyka — grupa 1”); techniczna
+    // nazwa (schemat OKRES-RODZAJ-…) zostaje dla kadry. Pusta = pokaż name.
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN display_name TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN time_from    TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN time_to      TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN duration_min INTEGER NOT NULL DEFAULT 60"); } catch (\Throwable $e) {}

@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         if ($name) {
             $data = [
                 'name'             => $name,
+                'display_name'     => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
                 'instructor_id'    => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
                 'is_active'        => 1,
                 'track_attendance' => 1,
@@ -206,7 +207,7 @@ unset($_SESSION['dyd_flash']);
           <select class="form-select form-select-sm" id="kug_subject" aria-label="Rodzaj zajęć do nazwy">
             <option value="">— rodzaj —</option>
             <?php foreach ($ku_gen_subjects as $st): ?>
-            <option value="<?= h($st['abbreviation']) ?>"><?= h($st['abbreviation']) ?></option>
+            <option value="<?= h($st['abbreviation']) ?>" data-name="<?= h($st['name']) ?>"><?= h($st['abbreviation']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -237,6 +238,11 @@ unset($_SESSION['dyd_flash']);
       </div>
       <input type="text" id="ku_name" name="name" class="form-control form-control-sm"
              placeholder="np. 26SZ-INF-P1" required maxlength="200">
+      <label class="form-label small fw-semibold mb-1 mt-2" for="ku_display_name">Nazwa dla kursanta</label>
+      <input type="text" id="ku_display_name" name="display_name" class="form-control form-control-sm"
+             placeholder="np. Informatyka — grupa 1" maxlength="160">
+      <div class="form-text mt-0">To widzi kursant zamiast kodu technicznego; generator podpowiada
+        „pełna nazwa rodzaju — grupa nr”.</div>
       <script>
       document.getElementById('kug_btn')?.addEventListener('click', function () {
         var per = document.getElementById('kug_period');
@@ -246,10 +252,16 @@ unset($_SESSION['dyd_flash']);
         if (subj) parts.push(subj);
         parts.push(document.getElementById('kug_level').value
                  + Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10)));
-        var out = document.getElementById('ku_name');
-        out.value = (document.getElementById('kug_test').checked ? 'TEST ' : '')
-                  + parts.join('-')
+        var test = document.getElementById('kug_test').checked ? 'TEST ' : '';
+        var out = document.getElementById('kug_name') || document.getElementById('ku_name');
+        out.value = test + parts.join('-')
                   + (document.getElementById('kug_pfron').checked ? '-PFRON' : '');
+        // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + numer grupy
+        var so = document.getElementById('kug_subject');
+        var full = so.selectedOptions[0]?.dataset.name || '';
+        var dn = document.getElementById('ku_display_name');
+        var nr = Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10));
+        if (dn && full) dn.value = test + full + ' — grupa ' + nr;
         out.focus();
       });
       </script>

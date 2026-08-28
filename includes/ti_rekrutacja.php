@@ -782,7 +782,7 @@ function rk_slot_save(array $d, ?int $id = null): int {
  */
 function rk_courses_for_client_round(int $round_id, int $client_id): array {
     return db_all(
-        "SELECT c.id, c.name,
+        "SELECT c.id, COALESCE(NULLIF(c.display_name, ''), c.name) AS name,
                 (SELECT COUNT(DISTINCT rci.instructor_id)
                    FROM k30_rk_round_course_instructors rci
                   WHERE rci.round_id = ? AND rci.course_id = c.id) AS n_assigned

@@ -121,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $data = [
         'name'                => trim($_POST['name'] ?? ''),
+        'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
         'description'         => trim($_POST['description'] ?? ''),
         'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
         'location'            => trim($_POST['location'] ?? ''),
@@ -404,7 +405,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1,'subject_type_id'=>null,'group_code'=>'','class_type'=>'individual'];
+  $f = $edit_row ?? ['name'=>'','display_name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1,'subject_type_id'=>null,'group_code'=>'','class_type'=>'individual'];
 ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:580px">
   <div class="card-header fw-semibold"><?= $edit_row ? 'Edytuj: '.h($f['name']) : 'Nowy kurs TI' ?></div>
@@ -521,6 +522,19 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           Schemat: <code>OKRES-RODZAJ-POZIOMnr-kod</code> (np. <code>26SZ-INF-P1-742<?= date('y') ?></code>),
           z prefiksem TEST i sufiksem -PFRON. Bez wybranego okresu generator używa
           starego formatu <code>Skrót.kod.Nazwisko</code>.
+        </div>
+      </div>
+
+      <?php /* ── Czytelna nazwa dla kursanta ── */ ?>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="display_name_input">Nazwa dla kursanta</label>
+        <input type="text" class="form-control" name="display_name" id="display_name_input"
+               value="<?= h($f['display_name'] ?? '') ?>" maxlength="160"
+               placeholder="np. Informatyka — grupa 1">
+        <div class="form-text">
+          To widzi kursant (zapisy, lekcje) zamiast technicznego kodu grupy.
+          Generator podpowiada „<em>pełna nazwa rodzaju zajęć</em> — grupa <em>nr</em>”;
+          puste pole = kursant zobaczy nazwę techniczną.
         </div>
       </div>
 
@@ -952,6 +966,10 @@ function tiAutoName() {
     parts.push(lvl + nr);
     if (code) parts.push(code);
     out.value = test + parts.join('-') + pfr;
+    // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + numer grupy
+    var dn = document.getElementById('display_name_input');
+    var full = (opt && opt.dataset.name) ? opt.dataset.name : '';
+    if (dn && full) dn.value = (test ? 'TEST ' : '') + full + ' — grupa ' + nr;
     return;
   }
 
