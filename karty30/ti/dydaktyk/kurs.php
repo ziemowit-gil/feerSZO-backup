@@ -253,26 +253,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (\Throwable $e) {}
 
-        // Log operacji: krótkie podsumowanie zmienionych pól (audyt „co się zmieniło",
-        // nie pełny diff) — porównanie do stanu $course sprzed zapisu.
+        // Log operacji: podsumowanie WSZYSTKICH zmienionych pól (porównanie do
+        // stanu $course sprzed zapisu) — nie tylko wybranych, żeby log faktycznie
+        // odzwierciedlał każdą zmianę wprowadzoną w tym formularzu.
         $ku_diff_labels = [
-            'name' => 'Nazwa', 'instructor_id' => 'Prowadzący', 'is_active' => 'Aktywny',
-            'billing_model' => 'Model rozliczania', 'billing_amount' => 'Kwota rozliczenia',
-            'plan_status' => 'Status planowania', 'is_oneoff' => 'Kurs jednorazowy',
+            'name'                => 'Nazwa',
+            'display_name'        => 'Nazwa dla kursanta',
+            'description'         => 'Opis',
+            'instructor_id'       => 'Prowadzący',
+            'location'            => 'Lokalizacja',
+            'default_meeting_url' => 'Link online',
+            'billing_model'       => 'Model rozliczania',
+            'billing_amount'      => 'Kwota rozliczenia',
+            'pay_account'         => 'Konto do wpłat',
+            'pay_title'           => 'Tytuł wpłaty',
+            'pay_due_days'        => 'Termin płatności (dni)',
+            'lesson_payout_bb'    => 'Stawka BB prowadzącego',
+            'is_active'           => 'Aktywny',
+            'track_attendance'    => 'Liczy frekwencję',
+            'is_subgroup'         => 'Podgrupa',
+            'is_online'           => 'Zajęcia online',
+            'no_invoice'          => 'Bez fakturowania',
+            'wup_exclude'         => 'Poza raportem WUP',
+            'subject_type_id'     => 'Rodzaj zajęć',
+            'class_type'          => 'Typ zajęć',
+            'is_oneoff'           => 'Kurs jednorazowy',
+            'oneoff_date'         => 'Termin realizacji',
+            'plan_status'         => 'Status planowania',
         ];
+        $ku_bool_fields  = ['is_active', 'track_attendance', 'is_subgroup', 'is_online', 'no_invoice', 'wup_exclude', 'is_oneoff'];
+        $ku_float_fields = ['billing_amount', 'lesson_payout_bb'];
+        $ku_int_fields   = ['pay_due_days', 'instructor_id', 'subject_type_id', 'billing_model'];
         $ku_changes = [];
         foreach ($ku_diff_labels as $ku_f => $ku_lbl) {
             $ku_old = $course[$ku_f] ?? null;
             $ku_new = $data[$ku_f] ?? null;
-            if ((string)$ku_old === (string)$ku_new) continue;
+            // Porównanie po typie pola — string vs float/int z bazy (np. "150.0" vs 150)
+            // dawałoby fałszywe „zmiany" przy niezmienionej wartości.
+            if (in_array($ku_f, $ku_float_fields, true)) {
+                if (abs((float)$ku_old - (float)$ku_new) < 0.005) continue;
+            } elseif (in_array($ku_f, $ku_int_fields, true) || in_array($ku_f, $ku_bool_fields, true)) {
+                if ((int)$ku_old === (int)$ku_new) continue;
+            } elseif ((string)$ku_old === (string)$ku_new) {
+                continue;
+            }
             if ($ku_f === 'plan_status') {
                 $ku_ov = K30_TI_COURSE_PLAN_STATUSES[(string)$ku_old]['label'] ?? '—';
                 $ku_nv = K30_TI_COURSE_PLAN_STATUSES[(string)$ku_new]['label'] ?? '—';
                 $ku_changes[] = "$ku_lbl: $ku_ov → $ku_nv" . ($up_plan_note !== '' ? " ($up_plan_note)" : '');
-            } elseif (in_array($ku_f, ['is_active', 'is_oneoff'], true)) {
+            } elseif (in_array($ku_f, $ku_bool_fields, true)) {
                 $ku_changes[] = "$ku_lbl: " . ((int)$ku_new ? 'tak' : 'nie');
+            } elseif ($ku_f === 'instructor_id') {
+                $ku_iname = $ku_new ? (string)(db_one("SELECT name FROM users WHERE id=?", [(int)$ku_new])['name'] ?? ('#' . $ku_new)) : '—';
+                $ku_changes[] = "$ku_lbl: $ku_iname";
+            } elseif ($ku_f === 'subject_type_id') {
+                $ku_sname = $ku_new ? (string)(db_one("SELECT abbreviation FROM k30_ti_subject_types WHERE id=?", [(int)$ku_new])['abbreviation'] ?? ('#' . $ku_new)) : '—';
+                $ku_changes[] = "$ku_lbl: $ku_sname";
+            } elseif ($ku_f === 'billing_model') {
+                $ku_changes[] = "$ku_lbl: " . k30_ti_billing_model_label((int)$ku_new);
+            } elseif ($ku_f === 'class_type') {
+                $ku_changes[] = "$ku_lbl: " . ($ku_new === 'group' ? 'Grupowy' : 'Indywidualny');
+            } elseif ($ku_f === 'description') {
+                $ku_changes[] = "$ku_lbl zmieniony";   // pełna treść bez sensu w jednowierszowym logu
             } else {
-                $ku_changes[] = "$ku_lbl: " . ($ku_old ?: '—') . ' → ' . ($ku_new ?: '—');
+                $ku_changes[] = "$ku_lbl: " . ($ku_old !== null && $ku_old !== '' ? $ku_old : '—')
+                              . ' → ' . ($ku_new !== null && $ku_new !== '' ? $ku_new : '—');
             }
         }
         if ($ku_changes) {
