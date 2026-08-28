@@ -17,7 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         $name = trim($_POST['name'] ?? '');
         if ($name) {
             $gc = trim($_POST['group_code'] ?? '');
+            $ku_oneoff      = isset($_POST['is_oneoff']) ? 1 : 0;
+            $ku_oneoff_date = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['oneoff_date'] ?? ''))
+                ? trim($_POST['oneoff_date']) : null;
             $data = [
+                'is_oneoff'           => $ku_oneoff,
+                'oneoff_date'         => $ku_oneoff ? $ku_oneoff_date : null,
                 'name'                => $name,
                 'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
                 'description'         => trim($_POST['description'] ?? ''),
@@ -44,7 +49,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'group_code'          => preg_match('/^\d{5}$/', $gc) ? $gc : k30_ti_generate_group_code(),
             ];
             $new_id = db_insert('k30_ti_courses', $data);
-            $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Zapisz uczestników (możesz przenieść ich z innej grupy) i uzupełnij szczegóły.'];
+
+            // Kurs jednorazowy = wpis w sekcji Działania (Strategia, tabela actions):
+            // szkolenie z terminem realizacji, formą i miejscem przepisanymi z kursu.
+            $ku_action_note = '';
+            if ($ku_oneoff) {
+                try {
+                    require_once dirname(dirname(dirname(__DIR__))) . '/includes/grants.php';
+                    $ku_action_id = db_insert('actions', [
+                        'nazwa'            => $data['display_name'] !== '' ? $data['display_name'] : $name,
+                        'typ'              => 'szkolenie',
+                        'opis'             => trim('Kurs jednorazowy TI — grupa ' . $name
+                                              . ($data['description'] !== '' ? "\n" . $data['description'] : '')),
+                        'status'           => 'planowane',
+                        'koordynator_id'   => $data['instructor_id'],
+                        'data_od'          => $ku_oneoff_date,
+                        'data_do'          => $ku_oneoff_date,
+                        'cykliczne'        => 0,
+                        'lokalizacja'      => $data['location'],
+                        'forma'            => $data['is_online'] ? 'online' : 'stacjonarne',
+                        'link_online'      => $data['default_meeting_url'],
+                        'wlasne_dzialanie' => 1,
+                        'created_by'       => $uid ?? null,
+                    ]);
+                    db()->prepare("UPDATE k30_ti_courses SET action_id=? WHERE id=?")->execute([$ku_action_id, $new_id]);
+                    $ku_action_note = ' Utworzono też działanie w Strategii (sekcja Działania).';
+                } catch (\Throwable $e) {
+                    $ku_action_note = ' Uwaga: nie udało się utworzyć działania w Strategii — dodaj je ręcznie.';
+                }
+            }
+            $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Kurs utworzony. Zapisz uczestników (możesz przenieść ich z innej grupy) i uzupełnij szczegóły.' . $ku_action_note];
             header('Location: index.php?course=' . $new_id . '&tab=uczestnicy');
             exit;
         }
@@ -360,6 +394,13 @@ unset($_SESSION['dyd_flash']);
 
     <div class="col-12 d-flex flex-wrap gap-3 mt-1">
       <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="is_oneoff" id="ku_oneoff"
+               onchange="document.getElementById('ku_oneoff_wrap').style.display = this.checked ? '' : 'none';
+                         if (this.checked) { var bm = document.getElementById('ku_bm'); bm.value = '3'; bm.dispatchEvent(new Event('change')); }">
+        <label class="form-check-label small" for="ku_oneoff">Kurs jednorazowy
+          <span class="text-body-secondary">(szkolenie/warsztat — trafia do sekcji Działania)</span></label>
+      </div>
+      <div class="form-check form-switch m-0">
         <input class="form-check-input" type="checkbox" name="track_attendance" id="ku_att" checked>
         <label class="form-check-label small" for="ku_att">Licz frekwencję</label>
       </div>
@@ -379,6 +420,13 @@ unset($_SESSION['dyd_flash']);
         <input class="form-check-input" type="checkbox" name="wup_exclude" id="ku_wup">
         <label class="form-check-label small" for="ku_wup">Poza raportem WUP</label>
       </div>
+    </div>
+
+    <div class="col-sm-5" id="ku_oneoff_wrap" style="display:none">
+      <label class="form-label small fw-semibold mb-1" for="ku_oneoff_date">Termin realizacji (kurs jednorazowy)</label>
+      <input type="date" id="ku_oneoff_date" name="oneoff_date" class="form-control form-control-sm">
+      <div class="form-text mt-0">Z tym terminem powstanie działanie „szkolenie" w Strategii;
+        model rozliczania przestawia się na Stały (jednorazowa kwota).</div>
     </div>
 
     <div class="col-12 d-flex gap-2 mt-1">
@@ -410,6 +458,15 @@ unset($_SESSION['dyd_flash']);
   <div class="dyd-ku-body">
     <div class="dyd-ku-name"><?= h($c['name']) ?></div>
     <div class="dyd-ku-meta">
+      <?php if (!empty($c['is_oneoff'])): ?>
+      <span class="badge text-bg-info" style="font-size:.62rem">jednorazowy<?=
+        !empty($c['oneoff_date']) ? ' · ' . h(date('d.m.Y', strtotime((string)$c['oneoff_date']))) : '' ?></span>
+      <?php if (!empty($c['action_id'])): ?>
+      <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= (int)$c['action_id'] ?>" target="_blank" rel="noopener"
+         title="Powiązane działanie w Strategii (wymaga logowania do SZO)">
+        działanie <i class="bi bi-box-arrow-up-right" style="font-size:.6rem" aria-hidden="true"></i></a>
+      <?php endif; ?>
+      <?php endif; ?>
       <?php if ($c['subject_abbr']): ?><span><?= h($c['subject_abbr']) ?></span><?php endif; ?>
       <?php if ($c['instructor_name']): ?>
       <span><i class="bi bi-person me-1 opacity-60"></i><?= h($c['instructor_name']) ?></span>

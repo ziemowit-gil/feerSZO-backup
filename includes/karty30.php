@@ -375,6 +375,11 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses ADD COLUMN is_online INTEGER NOT NULL DEFAULT 0",
         // Wyłączenie grupy ze sprawozdania do WUP
         "ALTER TABLE k30_ti_courses ADD COLUMN wup_exclude INTEGER NOT NULL DEFAULT 0",
+        // Kurs jednorazowy (pojedyncze szkolenie/warsztat): termin realizacji
+        // + powiązane działanie w Strategii (tabela actions, sekcja Działania)
+        "ALTER TABLE k30_ti_courses ADD COLUMN is_oneoff INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_courses ADD COLUMN oneoff_date DATE",
+        "ALTER TABLE k30_ti_courses ADD COLUMN action_id INTEGER NOT NULL DEFAULT 0",
         // Oceny włączone dla osoby globalnie (per osoba) — niezależnie od kursu
         "ALTER TABLE k30_clients   ADD COLUMN ti_grades_enabled INTEGER NOT NULL DEFAULT 1",
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
