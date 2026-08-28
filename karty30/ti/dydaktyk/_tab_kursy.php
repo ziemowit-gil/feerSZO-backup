@@ -37,7 +37,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
                 'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1,2,3], true) ? (int)$_POST['billing_model'] : 2,
                 'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
-                'pay_account'         => trim($_POST['pay_account'] ?? ''),
+                // Konto z listy rozwijanej rachunków organizacji — przyjmujemy tylko
+                // numer z listy ('' = domyślne konto dla TI z ustawień)
+                'pay_account'         => (function () {
+                    $sel = preg_replace('/\s+/', '', trim((string)($_POST['pay_account'] ?? '')));
+                    if ($sel === '') return '';
+                    $raw = org_setting('org_rachunki_bankowe');
+                    foreach (($raw ? (json_decode($raw, true) ?: []) : []) as $a) {
+                        $n = preg_replace('/\D/', '', (string)($a['nrb'] ?? ''));
+                        if ($n !== '' && ($sel === 'PL' . $n || $sel === $n)) {
+                            return strlen($n) === 26 ? implode(' ', str_split('PL' . $n, 4)) : (string)$a['nrb'];
+                        }
+                    }
+                    return '';
+                })(),
                 'pay_title'           => trim($_POST['pay_title'] ?? ''),
                 'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
                 'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
@@ -378,12 +391,27 @@ unset($_SESSION['dyd_flash']);
 
     <div class="col-sm-5">
       <label class="form-label small fw-semibold mb-1" for="ku_pay_acc">Nr konta do wpłat <span class="text-body-secondary fw-normal">(domyślny)</span></label>
-      <?php $ku_org_acc = k30_ti_org_account(); ?>
-      <input type="text" id="ku_pay_acc" name="pay_account" class="form-control form-control-sm font-monospace"
-             placeholder="<?= $ku_org_acc['iban'] !== '' ? h($ku_org_acc['iban']) : 'PL00 0000 0000 0000 0000 0000 0000' ?>">
-      <div class="form-text mt-0"><?= $ku_org_acc['iban'] !== ''
-          ? 'Puste = konto organizacji dla TI (z ustawień): ' . h($ku_org_acc['iban'])
-          : 'Puste pole = konto organizacji oznaczone „dla TI" w Ustawieniach organizacji → Rachunki.' ?></div>
+      <?php
+      $ku_org_acc  = k30_ti_org_account();
+      $ku_acc_raw  = org_setting('org_rachunki_bankowe');
+      $ku_accounts = [];
+      foreach (($ku_acc_raw ? (json_decode($ku_acc_raw, true) ?: []) : []) as $a) {
+          $n = preg_replace('/\D/', '', (string)($a['nrb'] ?? ''));
+          if (strlen($n) !== 26) continue;
+          $ku_accounts[] = ['iban' => implode(' ', str_split('PL' . $n, 4)),
+                            'opis' => trim((string)($a['opis'] ?? '')),
+                            'ti'   => !empty($a['dla_ti'])];
+      }
+      ?>
+      <select id="ku_pay_acc" name="pay_account" class="form-select form-select-sm">
+        <option value=""><?= $ku_org_acc['iban'] !== ''
+            ? '— domyślne: konto dla TI (' . h($ku_org_acc['iban']) . ') —'
+            : '— domyślne: konto dla TI z Ustawień organizacji —' ?></option>
+        <?php foreach ($ku_accounts as $ka): ?>
+        <option value="<?= h($ka['iban']) ?>"><?= h($ka['iban']) ?><?= $ka['opis'] !== '' ? ' · ' . h($ka['opis']) : '' ?><?= $ka['ti'] ? ' · TI' : '' ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text mt-0">Rachunki z Ustawień organizacji → Rachunki; domyślnie konto oznaczone „dla TI".</div>
     </div>
     <div class="col-sm-4">
       <label class="form-label small fw-semibold mb-1" for="ku_pay_title">Tytuł wpłaty <span class="text-body-secondary fw-normal">(domyślny)</span></label>
