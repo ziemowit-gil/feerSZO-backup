@@ -235,8 +235,36 @@ function stripe_mark_paid(int $payment_id): void {
                                'stripe', 'Płatność Stripe', 'stripe', (int)$p['source_id'], (int)$bill['course_id']);
             }
         }
+        // Doładowanie portfela kursanta TI (source_id = client_id) — wpłata OGÓLNA
+        // (course_id=0), automatycznie zużywana FIFO na kolejne należności za zajęcia.
+        if ($p['source_type'] === 'k30_ti_wallet' && (int)$p['source_id'] > 0) {
+            require_once __DIR__ . '/ti_payments.php';
+            ti_payment_add((int)$p['source_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
+                           'stripe', 'Doładowanie portfela (Stripe)', 'stripe', $payment_id, 0);
+        }
         // Kolejne źródła można dodać tutaj (zlecenie_rozliczenia, umowy_uslugi…)
     } catch (\Throwable $e) {}
+}
+
+/**
+ * Aktywnie sprawdza w API status oczekującej płatności i księguje ją, gdy Checkout
+ * został opłacony — uzupełnienie webhooka (powrót kupującego często go wyprzedza).
+ * @return string aktualny status wiersza stripe_payments ('' gdy nie znaleziono)
+ */
+function stripe_reconcile_payment(int $payment_id): string {
+    $p = db_one("SELECT id, status, session_id FROM stripe_payments WHERE id=?", [$payment_id]);
+    if (!$p) return '';
+    if ($p['status'] !== 'pending' || $p['session_id'] === '') return (string)$p['status'];
+    try {
+        $s = stripe_api_get('checkout/sessions/' . rawurlencode($p['session_id']));
+        if (($s['payment_status'] ?? '') === 'paid') { stripe_mark_paid($payment_id); return 'paid'; }
+        if (($s['status'] ?? '') === 'expired') {
+            db()->prepare("UPDATE stripe_payments SET status='expired' WHERE id=? AND status='pending'")
+               ->execute([$payment_id]);
+            return 'expired';
+        }
+    } catch (\Throwable $e) {}
+    return 'pending';
 }
 
 /** Ostatnia płatność dla danego źródła (do wyświetlenia linku/statusu). */

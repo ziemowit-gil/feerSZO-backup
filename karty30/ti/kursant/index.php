@@ -141,6 +141,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje'); exit;
     }
 
+    // Portfel: doładowanie online (Stripe/PayU). Wpłata jest OGÓLNA (course_id=0) —
+    // alokacja FIFO automatycznie pobiera z niej opłaty za kolejne zajęcia.
+    if ($op === 'wallet_topup') {
+        if (!empty($account['is_minor'])) { http_response_code(403); exit('Rozliczenia małoletnich prowadzi opiekun.'); }
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+        $wl_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $wl_provider = (string)($_POST['provider'] ?? '');
+        $wl_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php?tab=portfel';
+        if ($wl_amount < 1 || $wl_amount > 20000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę doładowania od 1 do 20 000 zł.'];
+            header('Location: index.php?tab=portfel'); exit;
+        }
+        $wl_desc  = 'Doładowanie portfela TI — ' . (string)($client['name'] ?? '');
+        $wl_email = (string)($client['email'] ?? '');
+        try {
+            if ($wl_provider === 'payu' && payu_enabled()) {
+                $wl = payu_create_order('k30_ti_wallet', (int)$student['client_id'], $wl_amount, $wl_desc,
+                                        $wl_back . '&wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $wl_email);
+                ti_account_log((int)$student['id'], 'wallet_topup', 'Rozpoczęto doładowanie portfela PayU: ' . number_format($wl_amount, 2, ',', ' ') . ' zł.');
+                header('Location: ' . $wl['url']); exit;
+            }
+            if ($wl_provider === 'stripe' && stripe_enabled()) {
+                $wl = stripe_create_checkout('k30_ti_wallet', (int)$student['client_id'], $wl_amount, $wl_desc,
+                                             $wl_back . '&wpay=stripe', $wl_back . '&wcancel=1', $wl_email);
+                ti_account_log((int)$student['id'], 'wallet_topup', 'Rozpoczęto doładowanie portfela Stripe: ' . number_format($wl_amount, 2, ',', ' ') . ' zł.');
+                header('Location: ' . $wl['url']); exit;
+            }
+            $_SESSION['wallet_flash'] = ['err', 'Wybrana metoda płatności nie jest teraz dostępna.'];
+        } catch (\Throwable $e) {
+            $_SESSION['wallet_flash'] = ['err', 'Nie udało się rozpocząć płatności: ' . $e->getMessage()];
+        }
+        header('Location: index.php?tab=portfel'); exit;
+    }
+
     // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie).
     // rk_book_series = rezerwacja cykliczna: ten dzień tygodnia i godzina
     // u prowadzącego na wszystkie terminy do końca tury (wszystko-albo-nic).
@@ -1062,6 +1097,11 @@ include __DIR__ . '/_layout_head.php';
       </a>
     </li>
     <li class="nav-item">
+      <a class="nav-link <?= $mc() ?> <?= $tab==='portfel'?'active':'' ?>" href="?tab=portfel" <?= $tab==='portfel'?'aria-current="page"':'' ?>>
+        <i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Portfel
+      </a>
+    </li>
+    <li class="nav-item">
       <a class="nav-link <?= $mc() ?> <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
         <i class="bi bi-person-check me-1" aria-hidden="true"></i>Upoważnieni
       </a>
@@ -1587,6 +1627,7 @@ document.addEventListener('DOMContentLoaded', function() {
   ];
   if (!$is_minor) {
     $kp_start_items[] = ['tab' => 'rozliczenia',  'icon' => 'receipt',      'label' => 'Rozliczenia'];
+    $kp_start_items[] = ['tab' => 'portfel',      'icon' => 'wallet2',      'label' => 'Portfel'];
     $kp_start_items[] = ['tab' => 'upowaznieni',  'icon' => 'person-check', 'label' => 'Upoważnieni'];
   }
   $kp_start_items[] = ['tab' => 'online',      'icon' => 'camera-video', 'label' => 'Szkolenia online'];
@@ -3341,6 +3382,11 @@ document.addEventListener('DOMContentLoaded', function() {
   $rv_client_id    = $student['client_id'];
   $rv_show_lessons = false;
   include __DIR__ . '/_rozliczenia_view.php';
+?>
+
+<?php elseif ($tab === 'portfel' && !$is_minor):
+  $pw_client_id = $student['client_id'];
+  include __DIR__ . '/_portfel_view.php';
 ?>
 
 <?php elseif ($tab === 'vlab'): ?>

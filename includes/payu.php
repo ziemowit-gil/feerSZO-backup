@@ -239,8 +239,42 @@ function payu_mark_paid(int $payment_id): void {
                                'payu', 'Płatność PayU', 'payu', (int)$p['source_id'], (int)$bill['course_id']);
             }
         }
+        // Doładowanie portfela kursanta TI (source_id = client_id) — wpłata OGÓLNA
+        // (course_id=0), automatycznie zużywana FIFO na kolejne należności za zajęcia.
+        if ($p['source_type'] === 'k30_ti_wallet' && (int)$p['source_id'] > 0) {
+            require_once __DIR__ . '/ti_payments.php';
+            ti_payment_add((int)$p['source_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
+                           'payu', 'Doładowanie portfela (PayU)', 'payu', $payment_id, 0);
+        }
         // Kolejne źródła można dodać tutaj.
     } catch (\Throwable $e) {}
+}
+
+/**
+ * Aktywnie sprawdza w API status oczekującego zamówienia i księguje płatność,
+ * gdy jest COMPLETED — uzupełnienie notyfikacji (powrót kupującego często ją wyprzedza).
+ * @return string aktualny status wiersza payu_payments ('' gdy nie znaleziono)
+ */
+function payu_reconcile_payment(int $payment_id): string {
+    $p = db_one("SELECT id, status, order_id FROM payu_payments WHERE id=?", [$payment_id]);
+    if (!$p) return '';
+    if ($p['status'] !== 'pending' || $p['order_id'] === '') return (string)$p['status'];
+    try {
+        $url = payu_base_url() . '/api/v2_1/orders/' . rawurlencode($p['order_id']);
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'GET',
+            'header'        => 'Authorization: Bearer ' . payu_oauth_token() . "\r\n",
+            'ignore_errors' => true,
+            'timeout'       => 20,
+        ]]);
+        $raw  = @file_get_contents($url, false, $ctx);
+        $resp = json_decode($raw ?: '{}', true) ?? [];
+        $st   = strtoupper((string)($resp['orders'][0]['status'] ?? ''));
+        if ($st !== '') payu_apply_order_status($payment_id, $st);
+        $row = db_one("SELECT status FROM payu_payments WHERE id=?", [$payment_id]);
+        return (string)($row['status'] ?? 'pending');
+    } catch (\Throwable $e) {}
+    return 'pending';
 }
 
 /** Aktualizuje status płatności wg statusu zamówienia PayU (z notyfikacji). */

@@ -30,6 +30,7 @@ $_minor    = !empty($is_minor);
 $_sprawy_items = [];
 if (!$_minor) {
     $_sprawy_items[] = $_it('rozliczenia', 'Rozliczenia', $_g('rozliczenia'));
+    $_sprawy_items[] = $_it('portfel',     'Portfel',     $_g('portfel'));
     $_sprawy_items[] = $_it('upowaznieni', 'Upoważnieni', $_g('upowaznieni'));
 }
 $_sprawy_items[] = $_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger');
