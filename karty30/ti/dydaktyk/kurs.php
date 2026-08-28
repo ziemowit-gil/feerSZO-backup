@@ -148,6 +148,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: kurs.php?id=' . $id . '#uczestnicy'); exit;
     }
 
+    // ── Edycja metadanych kursu przez kierownika (pełny zestaw pól admina) ───
+    if ($op === 'update_course') {
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            flash_set('danger', 'Nazwa kursu jest wymagana.');
+            header('Location: kurs.php?id=' . $id . '#edytuj'); exit;
+        }
+        $up_oneoff      = isset($_POST['is_oneoff']) ? 1 : 0;
+        $up_oneoff_date = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['oneoff_date'] ?? ''))
+            ? trim($_POST['oneoff_date']) : null;
+        $data = [
+            'name'                => $name,
+            'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
+            'description'         => trim($_POST['description'] ?? ''),
+            'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
+            'location'            => trim($_POST['location'] ?? ''),
+            'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
+            'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1, 2, 3], true) ? (int)$_POST['billing_model'] : 2,
+            'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
+            // Konto z listy rozwijanej rachunków organizacji ('' = konto dla TI z ustawień)
+            'pay_account'         => (function () {
+                $sel = preg_replace('/\s+/', '', trim((string)($_POST['pay_account'] ?? '')));
+                if ($sel === '') return '';
+                $raw = org_setting('org_rachunki_bankowe');
+                foreach (($raw ? (json_decode($raw, true) ?: []) : []) as $a) {
+                    $n = preg_replace('/\D/', '', (string)($a['nrb'] ?? ''));
+                    if ($n !== '' && ($sel === 'PL' . $n || $sel === $n)) {
+                        return strlen($n) === 26 ? implode(' ', str_split('PL' . $n, 4)) : (string)$a['nrb'];
+                    }
+                }
+                // Wartość spoza listy: zachowaj dotychczasowe konto kursu (np. wpis historyczny)
+                return (string)($GLOBALS['course']['pay_account'] ?? '');
+            })(),
+            'pay_title'           => trim($_POST['pay_title'] ?? ''),
+            'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
+            'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
+            'is_active'           => isset($_POST['is_active']) ? 1 : 0,
+            'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
+            'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
+            'is_online'           => isset($_POST['is_online']) ? 1 : 0,
+            'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
+            'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
+            'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
+            'class_type'          => in_array($_POST['class_type'] ?? '', ['individual', 'group'], true) ? $_POST['class_type'] : 'individual',
+            'is_oneoff'           => $up_oneoff,
+            'oneoff_date'         => $up_oneoff ? $up_oneoff_date : null,
+        ];
+        $set = []; $par = [];
+        foreach ($data as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
+        $par[] = $id;
+        db()->prepare("UPDATE k30_ti_courses SET " . implode(',', $set) . " WHERE id=?")->execute($par);
+
+        // Kurs jednorazowy ↔ sekcja Działania: dosync istniejącego działania,
+        // a przy świeżym włączeniu bez działania — utwórz je.
+        $extra = '';
+        try {
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/grants.php';
+            $aid = (int)($course['action_id'] ?? 0);
+            if ($up_oneoff && $aid > 0) {
+                db()->prepare("UPDATE actions SET nazwa=?, data_od=?, data_do=?, lokalizacja=?, forma=?, link_online=?, koordynator_id=? WHERE id=?")
+                   ->execute([$data['display_name'] !== '' ? $data['display_name'] : $name,
+                              $up_oneoff_date, $up_oneoff_date, $data['location'],
+                              $data['is_online'] ? 'online' : 'stacjonarne',
+                              $data['default_meeting_url'], $data['instructor_id'], $aid]);
+                $extra = ' Zaktualizowano powiązane działanie w Strategii.';
+            } elseif ($up_oneoff && $aid === 0) {
+                $aid = db_insert('actions', [
+                    'nazwa'            => $data['display_name'] !== '' ? $data['display_name'] : $name,
+                    'typ'              => 'szkolenie',
+                    'opis'             => 'Kurs jednorazowy TI — grupa ' . $name,
+                    'status'           => 'planowane',
+                    'koordynator_id'   => $data['instructor_id'],
+                    'data_od'          => $up_oneoff_date,
+                    'data_do'          => $up_oneoff_date,
+                    'cykliczne'        => 0,
+                    'lokalizacja'      => $data['location'],
+                    'forma'            => $data['is_online'] ? 'online' : 'stacjonarne',
+                    'link_online'      => $data['default_meeting_url'],
+                    'wlasne_dzialanie' => 1,
+                    'created_by'       => $uid,
+                ]);
+                db()->prepare("UPDATE k30_ti_courses SET action_id=? WHERE id=?")->execute([$aid, $id]);
+                $extra = ' Utworzono działanie w Strategii (sekcja Działania).';
+            }
+        } catch (\Throwable $e) {}
+
+        flash_set('success', 'Kurs zaktualizowany.' . $extra);
+        header('Location: kurs.php?id=' . $id); exit;
+    }
+
     // ── CoProwadzący ─────────────────────────────────────────────────────────
     if ($op === 'coinstr_add') {
         $cu = (int)($_POST['coinstr_user_id'] ?? 0);
@@ -179,6 +269,25 @@ $consultants   = k30_get_consultants();
 $coinstr_available = array_filter($consultants, fn($u) =>
     (int)$u['id'] !== (int)$course['instructor_id'] && !in_array((int)$u['id'], $coinstr_ids));
 $cbm = (int)($course['billing_model'] ?? 2) ?: 2;
+
+// Dane do modala edycji kursu
+$ed_instructors = k30_ti_instructors();
+$ed_subjects    = k30_ti_subject_types(false);
+$ed_accounts    = [];
+$ed_acc_raw     = org_setting('org_rachunki_bankowe');
+foreach (($ed_acc_raw ? (json_decode($ed_acc_raw, true) ?: []) : []) as $a) {
+    $n = preg_replace('/\D/', '', (string)($a['nrb'] ?? ''));
+    if (strlen($n) !== 26) continue;
+    $ed_accounts[] = ['iban' => implode(' ', str_split('PL' . $n, 4)),
+                      'opis' => trim((string)($a['opis'] ?? '')),
+                      'ti'   => !empty($a['dla_ti'])];
+}
+$ed_cur_acc  = trim((string)($course['pay_account'] ?? ''));
+$ed_acc_ibans = array_column($ed_accounts, 'iban');
+// Konto historyczne spoza rejestru — pokaż jako opcję, żeby edycja go nie gubiła
+if ($ed_cur_acc !== '' && !in_array($ed_cur_acc, $ed_acc_ibans, true)) {
+    $ed_accounts[] = ['iban' => $ed_cur_acc, 'opis' => 'konto spoza rejestru organizacji', 'ti' => false];
+}
 
 /* ── HTML ──────────────────────────────────────────────────────────────────── */
 $KP_TITLE  = 'Grupa: ' . $course['name'] . ' — Panel dydaktyka';
@@ -223,9 +332,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-people me-1" aria-hidden="true"></i>Kartoteka grupy</a>
     <a href="index.php?course=<?= $id ?>&tab=rozliczenia" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia grupy</a>
-    <a href="../index.php?edit=<?= $id ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"
-       title="Pełna edycja metadanych kursu (moduł admina — wymaga logowania do SZO)">
-      <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs <i class="bi bi-box-arrow-up-right" style="font-size:.62rem" aria-hidden="true"></i></a>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#courseEditModal">
+      <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
   </div>
 </div>
 
@@ -514,6 +622,169 @@ foreach ($enrollments as $e): ?>
   </div>
 </div>
 <?php endforeach; endif; ?>
+
+<!-- Modal: edycja metadanych kursu przez kierownika -->
+<div class="modal fade" id="courseEditModal" tabindex="-1" aria-labelledby="courseEditLbl" aria-hidden="true">
+ <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-content">
+   <div class="modal-header py-2">
+     <h2 class="modal-title h6 mb-0" id="courseEditLbl"><i class="bi bi-pencil me-2 text-primary" aria-hidden="true"></i>Edytuj kurs — <?= h($course['name']) ?></h2>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+   </div>
+   <form method="post">
+   <div class="modal-body">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op"   value="update_course">
+    <div class="row g-2">
+      <div class="col-sm-8">
+        <label class="form-label small fw-semibold mb-1" for="ed_name">Nazwa grupy <span class="text-danger">*</span></label>
+        <input type="text" id="ed_name" name="name" class="form-control form-control-sm" required maxlength="200"
+               value="<?= h($course['name']) ?>">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_gc">Kod grupy</label>
+        <input type="text" id="ed_gc" class="form-control form-control-sm font-monospace" value="<?= h((string)($course['group_code'] ?? '')) ?>" readonly>
+        <div class="form-text mt-0">Niezmienny po utworzeniu.</div>
+      </div>
+
+      <div class="col-sm-8">
+        <label class="form-label small fw-semibold mb-1" for="ed_display">Nazwa dla kursanta</label>
+        <input type="text" id="ed_display" name="display_name" class="form-control form-control-sm" maxlength="160"
+               value="<?= h((string)($course['display_name'] ?? '')) ?>" placeholder="np. Informatyka — grupa 1">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_class">Typ</label>
+        <select id="ed_class" name="class_type" class="form-select form-select-sm">
+          <option value="individual" <?= ($course['class_type'] ?? 'individual') === 'individual' ? 'selected' : '' ?>>Indywidualny</option>
+          <option value="group" <?= ($course['class_type'] ?? '') === 'group' ? 'selected' : '' ?>>Grupowy</option>
+        </select>
+      </div>
+
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_subject">Rodzaj zajęć</label>
+        <select id="ed_subject" name="subject_type_id" class="form-select form-select-sm">
+          <option value="">— nie określono —</option>
+          <?php foreach ($ed_subjects as $st):
+            if (empty($st['is_active']) && (int)($course['subject_type_id'] ?? 0) !== (int)$st['id']) continue; ?>
+          <option value="<?= (int)$st['id'] ?>" <?= (int)($course['subject_type_id'] ?? 0) === (int)$st['id'] ? 'selected' : '' ?>>
+            <?= h($st['abbreviation']) ?> — <?= h($st['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_instr">Prowadzący</label>
+        <select id="ed_instr" name="instructor_id" class="form-select form-select-sm">
+          <option value="0">— brak przypisania —</option>
+          <?php foreach ($ed_instructors as $ins): ?>
+          <option value="<?= (int)$ins['id'] ?>" <?= (int)($course['instructor_id'] ?? 0) === (int)$ins['id'] ? 'selected' : '' ?>><?= h($ins['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_bb">Stawka BB <span class="text-body-secondary fw-normal">(zł/lekcja)</span></label>
+        <input type="number" id="ed_bb" name="lesson_payout_bb" step="0.01" min="0" class="form-control form-control-sm"
+               value="<?= h(number_format((float)($course['lesson_payout_bb'] ?? 0), 2, '.', '')) ?>">
+      </div>
+
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_bm">Model rozliczania</label>
+        <select id="ed_bm" name="billing_model" class="form-select form-select-sm"
+                onchange="document.getElementById('ed_bm_amount_wrap').style.display = this.value==='2' ? 'none' : ''">
+          <?php foreach ([1, 2, 3] as $bm_code): ?>
+          <option value="<?= $bm_code ?>" <?= $cbm === $bm_code ? 'selected' : '' ?>><?= h(k30_ti_billing_model_label($bm_code)) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-4" id="ed_bm_amount_wrap" style="<?= $cbm === 2 ? 'display:none' : '' ?>">
+        <label class="form-label small fw-semibold mb-1" for="ed_bm_amount">Kwota (zł)</label>
+        <input type="number" id="ed_bm_amount" name="billing_amount" step="0.01" min="0" class="form-control form-control-sm"
+               value="<?= h(number_format((float)($course['billing_amount'] ?? 0), 2, '.', '')) ?>">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1" for="ed_due">Termin płatności <span class="text-body-secondary fw-normal">(dni)</span></label>
+        <input type="number" id="ed_due" name="pay_due_days" min="0" max="365" class="form-control form-control-sm"
+               value="<?= !empty($course['pay_due_days']) ? (int)$course['pay_due_days'] : '' ?>" placeholder="<?= K30_TI_PAY_DUE_DAYS_DEFAULT ?>">
+      </div>
+
+      <div class="col-sm-7">
+        <label class="form-label small fw-semibold mb-1" for="ed_pay_acc">Nr konta do wpłat <span class="text-body-secondary fw-normal">(domyślny)</span></label>
+        <select id="ed_pay_acc" name="pay_account" class="form-select form-select-sm">
+          <option value="">— domyślne: konto dla TI z Ustawień organizacji —</option>
+          <?php foreach ($ed_accounts as $ka): ?>
+          <option value="<?= h($ka['iban']) ?>" <?= $ed_cur_acc === $ka['iban'] ? 'selected' : '' ?>>
+            <?= h($ka['iban']) ?><?= $ka['opis'] !== '' ? ' · ' . h($ka['opis']) : '' ?><?= $ka['ti'] ? ' · TI' : '' ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label small fw-semibold mb-1" for="ed_pay_title">Tytuł wpłaty <span class="text-body-secondary fw-normal">(domyślny)</span></label>
+        <input type="text" id="ed_pay_title" name="pay_title" class="form-control form-control-sm"
+               value="<?= h((string)($course['pay_title'] ?? '')) ?>" placeholder="puste = automatyczny TI/nr/kod">
+      </div>
+
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1" for="ed_loc">Lokalizacja / sala</label>
+        <input type="text" id="ed_loc" name="location" class="form-control form-control-sm" value="<?= h((string)($course['location'] ?? '')) ?>">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1" for="ed_url">Stały link do zajęć online</label>
+        <input type="url" id="ed_url" name="default_meeting_url" class="form-control form-control-sm"
+               value="<?= h((string)($course['default_meeting_url'] ?? '')) ?>" placeholder="https://… (Teams/Zoom/Meet)">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-1" for="ed_desc">Opis</label>
+        <textarea id="ed_desc" name="description" class="form-control form-control-sm" rows="2"><?= h((string)($course['description'] ?? '')) ?></textarea>
+      </div>
+
+      <div class="col-12 d-flex flex-wrap gap-3 mt-1">
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="is_active" id="ed_active" <?= !empty($course['is_active']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_active">Kurs aktywny</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="is_oneoff" id="ed_oneoff" <?= !empty($course['is_oneoff']) ? 'checked' : '' ?>
+                 onchange="document.getElementById('ed_oneoff_wrap').style.display = this.checked ? '' : 'none'">
+          <label class="form-check-label small" for="ed_oneoff">Kurs jednorazowy <span class="text-body-secondary">(sekcja Działania)</span></label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="track_attendance" id="ed_att" <?= !isset($course['track_attendance']) || $course['track_attendance'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_att">Licz frekwencję</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="is_subgroup" id="ed_sub" <?= !empty($course['is_subgroup']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_sub">Podgrupa <span class="text-body-secondary">(lekcje zawsze 1I)</span></label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="is_online" id="ed_onl" <?= !empty($course['is_online']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_onl">Zajęcia online</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="no_invoice" id="ed_noinv" <?= !empty($course['no_invoice']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_noinv">Bez fakturowania</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="wup_exclude" id="ed_wup" <?= !empty($course['wup_exclude']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ed_wup">Poza raportem WUP</label>
+        </div>
+      </div>
+
+      <div class="col-sm-5" id="ed_oneoff_wrap" style="<?= !empty($course['is_oneoff']) ? '' : 'display:none' ?>">
+        <label class="form-label small fw-semibold mb-1" for="ed_oneoff_date">Termin realizacji (kurs jednorazowy)</label>
+        <input type="date" id="ed_oneoff_date" name="oneoff_date" class="form-control form-control-sm"
+               value="<?= h((string)($course['oneoff_date'] ?? '')) ?>">
+        <div class="form-text mt-0">Termin synchronizuje się z powiązanym działaniem w Strategii.</div>
+      </div>
+    </div>
+   </div>
+   <div class="modal-footer py-2">
+     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+     <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz zmiany</button>
+   </div>
+   </form>
+  </div>
+ </div>
+</div>
 
 <script>
 function billToggle(sel) {
