@@ -38,6 +38,7 @@ if (!empty($KIER_ITEMS)) {
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
+        ['Zespół i role',             'zespol.php',                 'person-gear'],
         ['Raporty i WUP',             'raporty.php',                'graph-up'],
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];

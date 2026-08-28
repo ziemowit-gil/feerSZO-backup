@@ -2672,6 +2672,63 @@ function k30_ti_effective_billing(array $enr, array $course): array {
     ];
 }
 
+// ── Role panelu dydaktyka — OSOBNY system uprawnień TI ───────────────────────
+// Niezależny od ról SZO (roles/role_permissions): dowolny aktywny użytkownik
+// SZO może dostać rolę panelu (np. zastępca kierownika) bez nadawania mu
+// uprawnień modułu karty30 w systemie głównym. kierownik/zastepca = is_staff
+// w panelu dydaktyka; prowadzacy = wejście do panelu jak doradca TI.
+
+const K30_TI_PANEL_ROLES = [
+    'kierownik'  => 'Kierownik',
+    'zastepca'   => 'Zastępca kierownika',
+    'prowadzacy' => 'Prowadzący TI',
+];
+
+function ti_panel_roles_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_panel_roles (
+        user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        role       TEXT    NOT NULL,
+        granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+}
+
+/** Rola panelu użytkownika ('' = brak). */
+function ti_panel_role(int $user_id): string {
+    if ($user_id <= 0) return '';
+    ti_panel_roles_migrate();
+    $r = db_one("SELECT role FROM k30_ti_panel_roles WHERE user_id=?", [$user_id]);
+    $role = (string)($r['role'] ?? '');
+    return array_key_exists($role, K30_TI_PANEL_ROLES) ? $role : '';
+}
+
+/** Nadaje/zmienia rolę panelu; '' usuwa. */
+function ti_panel_role_set(int $user_id, string $role, ?int $granted_by = null): void {
+    ti_panel_roles_migrate();
+    if ($role === '' || !array_key_exists($role, K30_TI_PANEL_ROLES)) {
+        db()->prepare("DELETE FROM k30_ti_panel_roles WHERE user_id=?")->execute([$user_id]);
+        return;
+    }
+    db()->prepare("INSERT INTO k30_ti_panel_roles (user_id, role, granted_by) VALUES (?,?,?)
+                   ON CONFLICT(user_id) DO UPDATE SET role=excluded.role, granted_by=excluded.granted_by")
+       ->execute([$user_id, $role, $granted_by]);
+}
+
+/** Wszystkie nadane role panelu (z danymi użytkowników). */
+function ti_panel_roles_all(): array {
+    ti_panel_roles_migrate();
+    return db_all(
+        "SELECT pr.*, u.name, u.email, u.is_active, g.name AS granted_by_name
+         FROM k30_ti_panel_roles pr
+         JOIN users u ON u.id = pr.user_id
+         LEFT JOIN users g ON g.id = pr.granted_by
+         ORDER BY pr.role, u.name COLLATE NOCASE"
+    );
+}
+
 /**
  * Rachunek organizacji oznaczony „dla TI" (ustawienia organizacji → Rachunki,
  * settings.org_rachunki_bankowe: pozycja z dla_ti=1). Domyślne konto do wpłat

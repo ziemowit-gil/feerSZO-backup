@@ -111,6 +111,7 @@ if (dyd_is_staff()) {
             $_it('',             'Dostępności prowadzących', 'dostepnosci.php'),
             $_it('',             'Okresy nauczania',      'okresy.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
+            $_it('',             'Zespół i role',         'zespol.php'),
             $_it('',             'Raporty i WUP',         'raporty.php'),
             $_it('',             'Pełny panel TI',        '../index.php',   0, 'secondary', true),
         ],
@@ -157,6 +158,7 @@ foreach ($_cur_sec['items'] as $_i) {
       'Dostępności prowadzących'  => 'clock-history',
       'Okresy nauczania'          => 'calendar-range',
       'Wyłączenia panelu'         => 'moon',
+      'Zespół i role'             => 'person-gear',
       'Raporty i WUP'             => 'graph-up',
       'Pełny panel TI'            => 'box-arrow-up-right',
   ];

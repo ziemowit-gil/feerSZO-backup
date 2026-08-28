@@ -83,16 +83,22 @@ function dyd_profile_from_user(array $u): ?array {
     $role = $u['role'] ?? '';
     $rp = role_permissions($role);
     $up = user_permissions((int)$u['id']);
-    $is_staff      = ($role === 'admin') || !empty($rp['karty30']['can_write']) || !empty($up['karty30']['can_write']);
-    $is_consultant = $is_staff || !empty($u['k30_consultant'])
+    // Osobny system uprawnień panelu (k30_ti_panel_roles): kierownik/zastepca
+    // = pełne funkcje kierownika, prowadzacy = wejście jak doradca TI —
+    // niezależnie od roli i uprawnień modułowych SZO.
+    $panel_role    = function_exists('ti_panel_role') ? ti_panel_role((int)$u['id']) : '';
+    $is_staff      = ($role === 'admin') || !empty($rp['karty30']['can_write']) || !empty($up['karty30']['can_write'])
+                     || in_array($panel_role, ['kierownik', 'zastepca'], true);
+    $is_consultant = $is_staff || !empty($u['k30_consultant']) || $panel_role !== ''
                      || !empty($rp['karty30']['can_read']) || !empty($up['karty30']['can_read']);
     if (!$is_consultant) return null; // konto bez uprawnień doradcy/dydaktyka TI
     return [
-        'user_id'  => (int)$u['id'],
-        'name'     => $u['name'] ?? ($u['email'] ?? ''),
-        'email'    => $u['email'] ?? '',
-        'role'     => $role,
-        'is_staff' => $is_staff,
+        'user_id'    => (int)$u['id'],
+        'name'       => $u['name'] ?? ($u['email'] ?? ''),
+        'email'      => $u['email'] ?? '',
+        'role'       => $role,
+        'panel_role' => $panel_role,
+        'is_staff'   => $is_staff,
     ];
 }
 
