@@ -129,6 +129,18 @@ function invoice_seller(string $currency = 'PLN'): array
         }
     }
 
+    // Konto oznaczone „dla TI" (ustawienia organizacji → Rachunki) idzie na
+    // pierwsze miejsce — faktury wystawiamy z modułu TI i na dokumencie ma być
+    // ten sam numer, który kursant widzi w danych do wpłat i w portfelu.
+    try {
+        $ti_raw = org_setting('org_rachunki_bankowe');
+        foreach (($ti_raw ? (json_decode($ti_raw, true) ?: []) : []) as $a) {
+            if (!is_array($a) || empty($a['nrb']) || empty($a['dla_ti'])) continue;
+            usort($accounts, fn($x, $y) => (int)($y['nrb'] === $a['nrb']) <=> (int)($x['nrb'] === $a['nrb']));
+            break;
+        }
+    } catch (\Throwable $e) {}
+
     $logo_f = trim((string)org_setting('org_logo'));
     $logo   = $logo_f !== '' ? dirname(__DIR__) . '/assets/logo/' . $logo_f : '';
     if ($logo !== '' && !is_file($logo)) $logo = '';

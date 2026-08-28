@@ -262,6 +262,7 @@ unset($_SESSION['dyd_flash']);
         <div class="col-2">
           <select class="form-select form-select-sm" id="kug_level" aria-label="Poziom do nazwy">
             <option value="P">P</option><option value="S">S</option><option value="Z">Z</option>
+            <option value="NI" title="Nauczanie indywidualne">NI</option>
           </select>
         </div>
         <div class="col-1">
@@ -269,7 +270,7 @@ unset($_SESSION['dyd_flash']);
         </div>
         <div class="col-2 d-flex align-items-center">
           <button type="button" class="btn btn-outline-primary btn-sm w-100" id="kug_btn"
-                  title="Zbuduj nazwę: OKRES-RODZAJ-POZIOMnr (+TEST / -PFRON)">
+                  title="Zbuduj nazwę: OKRES-RODZAJ-POZIOMnr (+TEST / -PFRON); poziom NI = nauczanie indywidualne">
             <i class="bi bi-magic" aria-hidden="true"></i>
           </button>
         </div>
@@ -298,19 +299,31 @@ unset($_SESSION['dyd_flash']);
         var parts = [per.value];
         var subj = document.getElementById('kug_subject').selectedOptions[0]?.dataset.abbr || '';
         if (subj) parts.push(subj);
-        parts.push(document.getElementById('kug_level').value
-                 + Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10)));
+        var lvl = document.getElementById('kug_level').value;
+        var nr  = Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10));
+        parts.push(lvl + nr);
         var test = document.getElementById('kug_test').checked ? 'TEST ' : '';
         var out = document.getElementById('kug_name') || document.getElementById('ku_name');
         out.value = test + parts.join('-')
                   + (document.getElementById('kug_pfron').checked ? '-PFRON' : '');
-        // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + numer grupy
+        // Czytelna nazwa dla kursanta: pełna nazwa rodzaju + grupa / nauczanie indywidualne
         var so = document.getElementById('kug_subject');
         var full = so.selectedOptions[0]?.dataset.name || '';
         var dn = document.getElementById('ku_display_name');
-        var nr = Math.max(1, parseInt(document.getElementById('kug_nr').value || '1', 10));
-        if (dn && full) dn.value = test + full + ' — grupa ' + nr;
+        if (dn && full) dn.value = test + full
+          + (lvl === 'NI' ? ' — nauczanie indywidualne' + (nr > 1 ? ' ' + nr : '') : ' — grupa ' + nr);
         out.focus();
+      });
+      // NI (nauczanie indywidualne) ↔ typ kursu — dwustronna synchronizacja
+      document.getElementById('kug_level')?.addEventListener('change', function () {
+        var ct = document.getElementById('ku_class_type');
+        if (ct) ct.value = this.value === 'NI' ? 'individual' : 'group';
+      });
+      document.getElementById('ku_class_type')?.addEventListener('change', function () {
+        var lv = document.getElementById('kug_level');
+        if (!lv) return;
+        if (this.value === 'individual') lv.value = 'NI';
+        else if (lv.value === 'NI')      lv.value = 'P';
       });
       </script>
     </div>
@@ -362,13 +375,18 @@ unset($_SESSION['dyd_flash']);
 
     <div class="col-sm-5">
       <label class="form-label small fw-semibold mb-1" for="ku_pay_acc">Nr konta do wpłat <span class="text-body-secondary fw-normal">(domyślny)</span></label>
+      <?php $ku_org_acc = k30_ti_org_account(); ?>
       <input type="text" id="ku_pay_acc" name="pay_account" class="form-control form-control-sm font-monospace"
-             placeholder="PL00 0000 0000 0000 0000 0000 0000">
+             placeholder="<?= $ku_org_acc['iban'] !== '' ? h($ku_org_acc['iban']) : 'PL00 0000 0000 0000 0000 0000 0000' ?>">
+      <div class="form-text mt-0"><?= $ku_org_acc['iban'] !== ''
+          ? 'Puste = konto organizacji dla TI (z ustawień): ' . h($ku_org_acc['iban'])
+          : 'Puste pole = konto organizacji oznaczone „dla TI" w Ustawieniach organizacji → Rachunki.' ?></div>
     </div>
     <div class="col-sm-4">
       <label class="form-label small fw-semibold mb-1" for="ku_pay_title">Tytuł wpłaty <span class="text-body-secondary fw-normal">(domyślny)</span></label>
       <input type="text" id="ku_pay_title" name="pay_title" class="form-control form-control-sm"
              placeholder="np. Opłata za zajęcia TI">
+      <div class="form-text mt-0">Puste = tytuł automatyczny: <code>TI/nr kursanta/kod grupy Imię Nazwisko</code>.</div>
     </div>
     <div class="col-sm-3">
       <label class="form-label small fw-semibold mb-1" for="ku_pay_due">Termin płatności <span class="text-body-secondary fw-normal">(dni)</span></label>
@@ -450,8 +468,9 @@ unset($_SESSION['dyd_flash']);
   $cid = (int)$c['id'];
 ?>
 <div class="dyd-ku-card">
-  <div class="dyd-ku-icon" aria-hidden="true">
-    <i class="bi bi-<?= ($c['class_type']??'') === 'group' ? 'people' : 'person-workspace' ?>"></i>
+  <div class="dyd-ku-icon" title="<?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : 'Nauczanie indywidualne' ?>">
+    <i class="bi bi-<?= ($c['class_type']??'') === 'group' ? 'people' : 'person-workspace' ?>" aria-hidden="true"></i>
+    <span class="visually-hidden"><?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : 'Nauczanie indywidualne' ?></span>
   </div>
   <div class="dyd-ku-body">
     <div class="dyd-ku-name"><?= h($c['name']) ?></div>
@@ -474,6 +493,10 @@ unset($_SESSION['dyd_flash']);
       <span style="font-family:var(--bs-font-monospace);font-size:.68rem">
         <i class="bi bi-hash opacity-50" aria-hidden="true"></i><?= h($c['group_code']) ?>
       </span>
+      <?php endif; ?>
+      <?php if (($c['class_type']??'') === 'individual'): ?>
+      <span class="badge" style="font-size:.62rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+            title="Nauczanie indywidualne — to też grupa">NI</span>
       <?php endif; ?>
       <?php if (!empty($c['is_online'])): ?>
       <span class="badge" style="font-size:.62rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd">Online</span>

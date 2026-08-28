@@ -2673,9 +2673,46 @@ function k30_ti_effective_billing(array $enr, array $course): array {
 }
 
 /**
+ * Rachunek organizacji oznaczony „dla TI" (ustawienia organizacji → Rachunki,
+ * settings.org_rachunki_bankowe: pozycja z dla_ti=1). Domyślne konto do wpłat
+ * za zajęcia TI i konto na fakturze TI, gdy kurs/kursant nie ma własnego.
+ * @return array{nrb:string,iban:string,bank:string} (puste stringi gdy brak)
+ */
+function k30_ti_org_account(): array {
+    $raw  = org_setting('org_rachunki_bankowe');
+    $list = $raw ? (json_decode($raw, true) ?: []) : [];
+    foreach ((is_array($list) ? $list : []) as $a) {
+        if (!is_array($a) || empty($a['nrb']) || empty($a['dla_ti'])) continue;
+        $n    = preg_replace('/\D/', '', (string)$a['nrb']);
+        $iban = strlen($n) === 26 ? implode(' ', str_split('PL' . $n, 4)) : (string)$a['nrb'];
+        return ['nrb' => (string)$a['nrb'], 'iban' => $iban, 'bank' => (string)($a['bank'] ?? '')];
+    }
+    return ['nrb' => '', 'iban' => '', 'bank' => ''];
+}
+
+/**
+ * Automatyczny tytuł wpłaty za zajęcia TI. Schemat:
+ *   TI/{id kursanta}[/{kod grupy}] {Imię Nazwisko}
+ * np. „TI/105/74226 Jan Kowalski" (wpłata na grupę), „TI/105 Jan Kowalski"
+ * (wpłata ogólna / portfel). Stały prefiks TI/ + id pozwala jednoznacznie
+ * zaksięgować przelew; kod grupy wskazuje przedmiot (model kombinowany).
+ */
+function k30_ti_payment_title(int $client_id, int $course_id = 0): string {
+    $cl   = db_one("SELECT name FROM k30_clients WHERE id=?", [$client_id]);
+    $code = '';
+    if ($course_id > 0) {
+        $c    = db_one("SELECT COALESCE(group_code,'') AS gc FROM k30_ti_courses WHERE id=?", [$course_id]);
+        $code = trim((string)($c['gc'] ?? ''));
+    }
+    return trim('TI/' . $client_id . ($code !== '' ? '/' . $code : '') . ' ' . (string)($cl['name'] ?? ''));
+}
+
+/**
  * Efektywne dane do wpłat + kody modeli dla klienta (po aktywnych zapisach).
  * Indywidualne dane (kod 9999 z ustawionym kontem) mają pierwszeństwo, inaczej
- * domyślne kursu. Zwraca ['account'=>str, 'title'=>str, 'codes'=>int[]].
+ * domyślne kursu, a gdy i tam pusto — rachunek organizacji „dla TI" i tytuł
+ * generowany automatycznie (k30_ti_payment_title).
+ * Zwraca ['account'=>str, 'title'=>str, 'codes'=>int[]].
  */
 function k30_ti_client_payment(int $client_id): array {
     $enrs = db_all(
@@ -2699,10 +2736,14 @@ function k30_ti_client_payment(int $client_id): array {
         if ($firstPick === null) $firstPick = $eff;
         if ($indivPick === null && $eff['individual'] && trim((string)$eff['pay_account']) !== '') $indivPick = $eff;
     }
-    $pick = $indivPick ?? $firstPick;
+    $pick    = $indivPick ?? $firstPick;
+    $account = trim((string)($pick['pay_account'] ?? ''));
+    $title   = trim((string)($pick['pay_title'] ?? ''));
+    if ($account === '') $account = k30_ti_org_account()['iban'];   // konto organizacji „dla TI"
+    if ($title === '')   $title   = k30_ti_payment_title($client_id);
     return [
-        'account'  => $pick['pay_account'] ?? '',
-        'title'    => $pick['pay_title'] ?? '',
+        'account'  => $account,
+        'title'    => $title,
         'codes'    => array_keys($codes),
         'due_days' => (int)($pick['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT),
     ];

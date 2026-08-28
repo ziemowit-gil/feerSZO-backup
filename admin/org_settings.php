@@ -290,6 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
             }
         }
+        // Konto do wpłat TI jest jedno — nowa flaga zdejmuje ją z pozostałych
+        $ti_flag = isset($_POST['rachunek_dla_ti']) ? 1 : 0;
+        if ($ti_flag) foreach ($rachunki_cur as &$ex2) { $ex2['dla_ti'] = 0; } unset($ex2);
         $rachunki_cur[] = [
             'nrb'    => $raw_nrb,
             'waluta' => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
@@ -297,9 +300,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'adres'  => mb_substr(trim($_POST['rachunek_adres'] ?? ''), 0, 140),
             'bank'   => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
             'opis'   => mb_substr(trim($_POST['rachunek_opis']  ?? ''), 0, 100),
+            'dla_ti' => $ti_flag,
         ];
         org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
         flash_set('success', 'Dodano rachunek ' . format_iban_pl($raw_nrb) . '.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
+    } elseif (isset($_POST['set_ti_rachunek'])) {
+        // Oznacz rachunek jako konto do wpłat TI (dokładnie jeden; ponowny klik zdejmuje)
+        $ti_nrb = trim($_POST['ti_nrb'] ?? '');
+        $rachunki_cur = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+        $now_on = false;
+        foreach ($rachunki_cur as &$rr) {
+            $was = !empty($rr['dla_ti']);
+            $rr['dla_ti'] = ($rr['nrb'] === $ti_nrb && !$was) ? 1 : 0;
+            if (!empty($rr['dla_ti'])) $now_on = true;
+        }
+        unset($rr);
+        org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
+        flash_set('success', $now_on
+            ? 'Rachunek oznaczony jako konto do wpłat TI — będzie podpowiadany kursantom i drukowany na fakturach TI.'
+            : 'Zdjęto oznaczenie konta TI — moduł TI wróci do kont ustawionych na kursach.');
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
 
     } elseif (isset($_POST['delete_rachunek'])) {
@@ -1145,10 +1166,17 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
 
       <div class="row g-3 align-items-end">
-        <div class="col-md-8">
+        <div class="col-md-5">
           <label class="form-label small fw-semibold">Opis / przeznaczenie rachunku</label>
           <input type="text" name="rachunek_opis" class="form-control form-control-sm"
                  placeholder="np. Rachunek bieżący PLN, subkonto projektowe" maxlength="100">
+        </div>
+        <div class="col-md-3">
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" name="rachunek_dla_ti" id="rachunek_dla_ti">
+            <label class="form-check-label small" for="rachunek_dla_ti">Konto do wpłat TI</label>
+          </div>
+          <div class="form-text mt-0">Podpowiadane kursantom i drukowane na fakturach TI (jedno konto).</div>
         </div>
         <div class="col-md-4">
           <button type="submit" name="add_rachunek" class="btn btn-sm btn-primary w-100">
@@ -1176,6 +1204,9 @@ include dirname(__DIR__) . '/includes/header.php';
           <tr>
             <td class="font-monospace fw-semibold" style="font-size:.82rem;letter-spacing:.04em">
               <?= h(format_iban_pl($r['nrb'])) ?>
+              <?php if (!empty($r['dla_ti'])): ?>
+              <span class="badge text-bg-primary ms-1" title="Konto do wpłat TI — podpowiadane kursantom i drukowane na fakturach TI">TI</span>
+              <?php endif; ?>
             </td>
             <td><span class="badge bg-secondary bg-opacity-75"><?= h($r['waluta'] ?: 'PLN') ?></span></td>
             <td class="text-muted small">
@@ -1187,7 +1218,15 @@ include dirname(__DIR__) . '/includes/header.php';
               <?php endif; ?>
             </td>
             <td class="text-muted small"><?= h($r['opis'] ?? '') ?></td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="ti_nrb" value="<?= h($r['nrb']) ?>">
+                <button type="submit" name="set_ti_rachunek" class="btn btn-sm btn-outline-<?= !empty($r['dla_ti']) ? 'secondary' : 'primary' ?>"
+                        title="<?= !empty($r['dla_ti']) ? 'Zdejmij oznaczenie konta do wpłat TI' : 'Oznacz jako konto do wpłat TI' ?>">
+                  <?= !empty($r['dla_ti']) ? 'Zdejmij TI' : 'Ustaw dla TI' ?>
+                </button>
+              </form>
               <form method="post" class="d-inline"
                     onsubmit="return confirm('Usunąć rachunek <?= h(addslashes(format_iban_pl($r['nrb']))) ?>?')">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
