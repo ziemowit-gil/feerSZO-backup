@@ -30,9 +30,16 @@ function _dyd_zoom_sync_alt_hosts(int $course_id, array $course): void {
     } catch (\Throwable $e) {}
 }
 
-$id     = (int)($_GET['id'] ?? 0);
+// id kursu: podstawowo ?id=, awaryjnie ?course= (spójnie z index.php?course=N)
+$id     = (int)($_GET['id'] ?? ($_GET['course'] ?? 0));
 $course = $id ? k30_ti_course_get($id) : null;
-if (!$course) { flash_set('danger', 'Kurs nie istnieje.'); header('Location: index.php?tab=kursy'); exit; }
+if (!$course) {
+    error_log('[dyd kurs.php] brak kursu — id=' . $id . ' uri=' . ($_SERVER['REQUEST_URI'] ?? ''));
+    flash_set('danger', $id > 0
+        ? 'Kurs #' . $id . ' nie istnieje w bazie panelu.'
+        : 'Nie przekazano identyfikatora kursu (id) — link był niepełny.');
+    header('Location: index.php?tab=kursy'); exit;
+}
 
 /* ── POST ──────────────────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
