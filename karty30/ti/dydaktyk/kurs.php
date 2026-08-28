@@ -34,17 +34,11 @@ function _dyd_zoom_sync_alt_hosts(int $course_id, array $course): void {
 $id     = (int)($_GET['id'] ?? ($_GET['course'] ?? 0));
 $course = $id ? k30_ti_course_get($id) : null;
 if (!$course) {
-    // Diagnostyka produkcyjna: id ginie w drodze — pokaż, którędy szło żądanie.
-    $dbg = 'host=' . ($_SERVER['HTTP_HOST'] ?? '?')
-         . ' uri=' . ($_SERVER['REQUEST_URI'] ?? '?')
-         . ' qs=' . ($_SERVER['QUERY_STRING'] ?? '?')
-         . ' redirect_qs=' . ($_SERVER['REDIRECT_QUERY_STRING'] ?? '-')
-         . ' ref=' . ($_SERVER['HTTP_REFERER'] ?? '-');
-    error_log('[dyd kurs.php] brak kursu — id=' . $id . ' ' . $dbg);
-    flash_set('danger', ($id > 0
+    error_log('[dyd kurs.php] brak kursu — id=' . $id . ' uri=' . ($_SERVER['REQUEST_URI'] ?? '')
+        . ' ref=' . ($_SERVER['HTTP_REFERER'] ?? '-'));
+    flash_set('danger', $id > 0
         ? 'Kurs #' . $id . ' nie istnieje w bazie panelu.'
-        : 'Nie przekazano identyfikatora kursu (id) — link był niepełny.')
-        . ' [debug: ' . $dbg . ']');
+        : 'Nie przekazano identyfikatora kursu (id) — link był niepełny.');
     header('Location: index.php?tab=kursy'); exit;
 }
 

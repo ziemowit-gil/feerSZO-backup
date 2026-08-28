@@ -15,6 +15,10 @@
 <script>
 // Powrót do ostatniej zakładki (poza 'dane') po wejściu na stronę bez ?tab=
 (function(){
+  // WYŁĄCZNIE strona główna panelu (index.php albo katalog "/") — strony
+  // samodzielne (kurs.php?id=, zetony.php, raporty.php…) nie mają ?tab=,
+  // a location.replace('?tab=…') kasował im WŁASNE parametry (np. id kursu).
+  if (!/\/(index\.php)?$/.test(window.location.pathname)) return;
   var TAB_KEY = 'kp_last_tab';
   var SKIP = ['dane'];
   // Odczytaj aktualny tab z URL
@@ -24,7 +28,10 @@
     try {
       var saved = localStorage.getItem(TAB_KEY);
       if (saved && SKIP.indexOf(saved) === -1) {
-        location.replace('?tab=' + encodeURIComponent(saved));
+        // Zachowaj pozostałe parametry (np. course=) — podmień tylko tab
+        var sp = new URLSearchParams(window.location.search);
+        sp.set('tab', saved);
+        location.replace('?' + sp.toString());
       }
     } catch(e) {}
   }
