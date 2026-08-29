@@ -113,19 +113,35 @@ if (isset($_GET['dl'])) {
 // ── Bieżący kurs i zakładka ───────────────────────────────────────────────────
 $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $_sess_key  = 'dyd_course_' . $uid;
+$_pref_key  = 'dyd_last_course';
 
-// Pobierz kurs: URL → sesja → pierwszy z listy
+// Czy mamy już JAKIKOLWIEK zapamiętany wybór (ta sesja przeglądarki lub poprzednie
+// logowanie) — decyduje, czy przy wejściu na pulpit bez ?course= pytamy o grupę.
+$_pref_course     = (int)dyd_pref($uid, $_pref_key);
+$_had_remembered  = !empty($_SESSION[$_sess_key]) || ($_pref_course && in_array($_pref_course, $course_ids, true));
+
+// Pobierz kurs: URL → sesja → zapamiętana preferencja (poprzednie logowanie) → pierwszy z listy
 if (isset($_GET['course'])) {
     $cur_course = (int)$_GET['course'];
     if (in_array($cur_course, $course_ids, true)) {
-        $_SESSION[$_sess_key] = $cur_course;  // zapamiętaj wybór
+        $_SESSION[$_sess_key] = $cur_course;                    // zapamiętaj wybór (ta sesja)
+        dyd_pref_set($uid, $_pref_key, (string)$cur_course);    // i na przyszłe logowania
     }
 } elseif (!empty($_SESSION[$_sess_key]) && in_array((int)$_SESSION[$_sess_key], $course_ids, true)) {
     $cur_course = (int)$_SESSION[$_sess_key];
+} elseif ($_pref_course && in_array($_pref_course, $course_ids, true)) {
+    $cur_course = $_pref_course;
+    $_SESSION[$_sess_key] = $cur_course;
 } else {
     $cur_course = 0;  // nie ustawiony — pokaż picker (jeśli >1 kurs) lub wybierz jedyny
 }
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
+
+// Pytaj o grupę TYLKO przy wejściu na pulpit bez wcześniejszego wyboru (pierwsze
+// logowanie / brak zapamiętanej preferencji) — na innych zakładkach cicho używamy
+// pierwszego kursu z listy, żeby nie blokować bezpośrednich linków (np. z powiadomień).
+$_show_course_picker = !$_had_remembered && !isset($_GET['course'])
+    && count($courses) > 1 && ($_GET['tab'] ?? 'pulpit') === 'pulpit';
 
 $tab = $_GET['tab'] ?? 'pulpit';
 // „Program zajęć" nazywa się teraz „Sylabus" — adres ?tab=sylabus prowadzi tam,
@@ -141,8 +157,9 @@ if ($tab === 'testy' && empty($_GET['legacy'])) {
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 
-// Picker pełnoekranowy usunięty — wybór grupy wyłącznie przez dropdown w topbarze.
-if (false && count($courses) > 1) {
+// Picker pełnoekranowy — pyta o grupę tylko przy pierwszym wejściu na pulpit
+// (brak zapamiętanego wyboru); poza tym wybór grupy przez dropdown w topbarze.
+if ($_show_course_picker) {
     // Najbliższa zaplanowana lekcja per kurs
     $next_lessons = [];
     if ($course_ids) {
