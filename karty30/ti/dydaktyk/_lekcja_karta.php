@@ -84,6 +84,9 @@ if ($open_ses):
       <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$open_id ?>">
         <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj lekcję
       </button>
+      <a href="lekcja_pdf.php?id=<?= (int)$open_id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartę lekcji
+      </a>
     </div>
   </div>
 

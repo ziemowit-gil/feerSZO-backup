@@ -376,6 +376,18 @@ if ($_sms_enabled && $cur_course) {
               <div class="dropdown">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                         data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="Wydruki dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
+                  <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydruki
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="lekcja_pdf.php?id=<?= (int)$s['id'] ?>" target="_blank">
+                    <i class="bi bi-file-earmark-pdf me-2"></i>Karta lekcji (PDF)
+                  </a></li>
+                </ul>
+              </div>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                        data-bs-toggle="dropdown" aria-expanded="false"
                         aria-label="Więcej akcji dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
                   Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
                 </button>
@@ -401,11 +413,6 @@ if ($_sms_enabled && $cur_course) {
                   <li><a class="dropdown-item" href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>">
                     <i class="bi bi-box-arrow-in-right me-2"></i>Wejdź do lekcji
                   </a></li>
-                  <?php if (dyd_is_staff()): ?>
-                  <li><a class="dropdown-item" href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" target="_blank" rel="noopener">
-                    <i class="bi bi-arrow-up-right-square me-2"></i>Szczegóły w module TI
-                  </a></li>
-                  <?php endif; ?>
                   <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
                   <li><hr class="dropdown-divider"></li>
                   <li><a class="dropdown-item" href="#"
