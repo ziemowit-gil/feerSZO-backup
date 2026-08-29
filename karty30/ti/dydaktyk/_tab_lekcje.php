@@ -262,7 +262,7 @@ if ($_sms_enabled && $cur_course) {
         $_mon_names = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                        7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
         $_last_month = null;
-        foreach ($sessions as $s):
+        foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
           $sdate   = strtotime($s['lesson_date']);
           $_mkey   = date('Y-m', $sdate);
