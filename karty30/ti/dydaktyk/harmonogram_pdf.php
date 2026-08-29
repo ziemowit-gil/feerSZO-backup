@@ -44,8 +44,7 @@ try {
     $pdf->SetFont('Helvetica', 'B', 14);
     $pdf->Cell($W, 10, $pl('Plan zajęć — ' . $course['name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
-    $sub = ($org ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—')
-         . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '');
+    $sub = ($org ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—');
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     if ($_meta) {
         $pdf->SetFont('Helvetica', 'B', 8.5);
@@ -111,6 +110,10 @@ try {
             'Plan wyznaczony na podstawie ostatnio zaplanowanych/odbytych terminów — może ulec zmianie. '
           . 'Aktualny harmonogram i ewentualne odwołania zawsze widoczne w panelu kursanta.'), 0, 'L');
     }
+
+    $pdf->SetY(-15);
+    $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
+    $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
     $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '.pdf';
     ti_print_log_add('harmonogram_pdf', 'Plan zajęć (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);

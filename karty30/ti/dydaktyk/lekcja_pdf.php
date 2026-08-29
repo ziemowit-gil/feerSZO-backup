@@ -45,7 +45,7 @@ try {
     $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Karta lekcji — ' . $s['course_name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
-    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1);
+    if ($org !== '') { $pdf->Cell($W, 5, $pl($org), 0, 1); }
     $pdf->Ln(4);
 
     $row = function (string $label, string $value) use ($pdf, $pl, $W) {
@@ -85,6 +85,10 @@ try {
             $pdf->SetTextColor(0, 0, 0);
         }
     }
+
+    $pdf->SetY(-15);
+    $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
+    $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
     ti_print_log_add('lekcja_pdf', 'Karta lekcji — ' . $s['course_name'] . ' (' . $s['lesson_date'] . ')', (int)$s['course_id'], 0, [], $me);
     $fname = 'lekcja_' . preg_replace('/[^a-z0-9]+/i', '_', $s['course_name']) . '_' . $s['lesson_date'] . '.pdf';

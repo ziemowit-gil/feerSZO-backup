@@ -128,7 +128,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->Cell($PW, 9, _mr('Raport frekwencji — ' . ($course['name'] ?? '')), 0, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('Helvetica', '', 8);
-    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1, 'C');
+    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label), 0, 1, 'C');
     $pdf->Ln(3);
 
     // Statystyki miesiaca
@@ -260,6 +260,10 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->SetTextColor(100, 100, 100);
     $pdf->Cell($PW, 4, _mr('+  obecny     –  nieobecny     x  odwołany udział     —  lekcja odwołana     %  frekwencja (bez odwołanych)'), 0, 1, 'L');
 }
+
+$pdf->SetY(-15);
+$pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
+$pdf->Cell($PW, 4, _mr('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
 $fname = 'frekwencja_' . str_replace('-', '_', $month_raw) . '_' . date('His') . '.pdf';
 $pdf->Output('D', $fname);

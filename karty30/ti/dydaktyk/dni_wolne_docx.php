@@ -26,12 +26,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 $phpWord = new \PhpOffice\PhpWord\PhpWord();
 $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
 $section = $phpWord->addSection();
+$footer  = $section->addFooter();
+$footer->addText('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''), ['size' => 7, 'color' => '828282']);
 
 $section->addText('Wykaz dni wolnych — ' . $year, ['bold' => true, 'size' => 16]);
-$section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
-    ['size' => 9, 'color' => '555555']
-);
+if ($org !== '') {
+    $section->addText($org, ['size' => 9, 'color' => '555555']);
+}
 $section->addTextBreak(1);
 
 if (!$items) {

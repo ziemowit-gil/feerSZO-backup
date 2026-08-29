@@ -38,7 +38,7 @@ try {
     $pdf->Cell($W, 10, $pl('Plan zajęć — ' . $instructor['name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
     $range = $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)';
-    $sub = ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '');
+    $sub = ($org !== '' ? $org . '   ·   ' : '') . $range;
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(4);
 
@@ -72,6 +72,10 @@ try {
             $pdf->Ln(2);
         }
     }
+
+    $pdf->SetY(-15);
+    $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
+    $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
     ti_print_log_add('plan_pdf', 'Plan zajęć PDF — ' . $instructor['name'], 0, 0, ['weeks' => $PD['weeks']], $me);
     $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', (string)$instructor['name']) . '.pdf';

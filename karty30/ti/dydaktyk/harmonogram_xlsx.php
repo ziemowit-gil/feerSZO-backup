@@ -31,7 +31,7 @@ $_contact = array_filter([$course['instructor_email'] ?? '', $course['instructor
 $x = new XlsxWriter();
 $x->addSheet('Plan zajęć');
 $x->writeRow(['Plan zajęć — ' . $course['name']], ['header']);
-$x->writeRow(['Prowadzący: ' . ($course['instructor_name'] ?: '—') . '   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
+$x->writeRow(['Prowadzący: ' . ($course['instructor_name'] ?: '—')]);
 if ($WP['first_lesson'] !== '') $x->writeRow(['Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson']))]);
 if ($_contact) $x->writeRow(['Kontakt do prowadzącego: ' . implode(' · ', $_contact)]);
 $x->writeRow([]);
@@ -54,6 +54,9 @@ foreach ($rows_time as $tk => $t) {
 if (!$rows_time) {
     $x->writeRow(['Brak zaplanowanych terminów — harmonogram nie został jeszcze ustalony.']);
 }
+
+$x->writeRow([]);
+$x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
 
 ti_print_log_add('harmonogram_xlsx', 'Plan zajęć XLSX (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);
 $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '.xlsx';

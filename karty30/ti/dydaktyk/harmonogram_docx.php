@@ -31,11 +31,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 $phpWord = new \PhpOffice\PhpWord\PhpWord();
 $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
 $section = $phpWord->addSection(['orientation' => 'landscape']);
+$footer  = $section->addFooter();
+$footer->addText('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''), ['size' => 7, 'color' => '828282']);
 
 $section->addText('Plan zajęć — ' . $course['name'], ['bold' => true, 'size' => 16]);
 $section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—')
-    . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
+    ($org !== '' ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—'),
     ['size' => 9, 'color' => '555555']
 );
 if ($WP['first_lesson'] !== '') {

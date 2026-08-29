@@ -28,11 +28,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 $phpWord = new \PhpOffice\PhpWord\PhpWord();
 $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
 $section = $phpWord->addSection();
+$footer  = $section->addFooter();
+$footer->addText('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''), ['size' => 7, 'color' => '828282']);
 
 $range = $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)';
 $section->addText('Plan zajęć — ' . $instructor['name'], ['bold' => true, 'size' => 16]);
 $section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
+    ($org !== '' ? $org . '   ·   ' : '') . $range,
     ['size' => 9, 'color' => '555555']
 );
 $section->addTextBreak(1);

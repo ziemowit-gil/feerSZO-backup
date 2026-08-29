@@ -35,7 +35,7 @@ try {
     $pdf->SetFont('Helvetica', 'B', 14);
     $pdf->Cell($W, 9, $pl('Wykaz dni wolnych — ' . $year), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
-    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1);
+    if ($org !== '') { $pdf->Cell($W, 5, $pl($org), 0, 1); }
     $pdf->Ln(4);
 
     if (!$items) {
@@ -66,6 +66,10 @@ try {
             $fill = !$fill;
         }
     }
+
+    $pdf->SetY(-15);
+    $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
+    $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
     ti_print_log_add('dni_wolne_pdf', 'Wykaz dni wolnych — ' . $year, 0, 0, ['year' => $year], $me);
     $fname = 'dni_wolne_' . $year . '.pdf';

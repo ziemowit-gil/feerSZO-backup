@@ -24,7 +24,6 @@ $type_labels = ['holiday' => 'Dzień wolny / święto', 'break' => 'Przerwa w dz
 $x = new XlsxWriter();
 $x->addSheet('Dni wolne ' . $year);
 $x->writeRow(['Wykaz dni wolnych — ' . $year], ['header']);
-$x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
 $x->writeRow([]);
 $x->writeRow(['Od', 'Do', 'Dni', 'Nazwa', 'Typ', 'Uwagi'], ['header']);
 
@@ -39,6 +38,9 @@ foreach ($items as $h) {
 if (!$items) {
     $x->writeRow(['Brak wpisów w kalendarzu dla roku ' . $year . '.']);
 }
+
+$x->writeRow([]);
+$x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
 
 ti_print_log_add('dni_wolne_xlsx', 'Wykaz dni wolnych XLSX — ' . $year, 0, 0, ['year' => $year], $me);
 $x->output('dni_wolne_' . $year . '.xlsx');

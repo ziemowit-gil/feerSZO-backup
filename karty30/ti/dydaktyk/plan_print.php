@@ -57,6 +57,7 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   .st-remote   { background: #f3e8ff; color: #7e22ce; }
   .students    { font-size: 9pt; color: #64748b; }
   .no-sessions { color: #94a3b8; font-style: italic; font-size: 10pt; padding: 6px 8px; }
+  .page-footer { color: #94a3b8; font-size: 8pt; padding: 10px 20px 16px; border-top: 1px solid #e2e8f0; margin-top: 8px; }
   .controls { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 8px 20px; display: flex; gap: 12px; align-items: center; }
   .controls label { font-size: 10pt; }
   .controls select, .controls button { font-size: 10pt; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
@@ -97,8 +98,7 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   <h1>Plan zajęć — <?= h($instructor['name']) ?></h1>
   <div class="meta">
     <?= h($org) ?><br>
-    <?= $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : h($from) . ' – ' . h($to) . ' (' . $weeks . ' tyg.)' ?><br>
-    Wydruk: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?>
+    <?= $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : h($from) . ' – ' . h($to) . ' (' . $weeks . ' tyg.)' ?>
   </div>
 </div>
 
@@ -139,5 +139,6 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   </table>
 <?php endforeach; ?>
 </div>
+<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?></div>
 </body>
 </html>
