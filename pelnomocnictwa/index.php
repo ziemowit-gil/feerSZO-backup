@@ -97,10 +97,16 @@ include dirname(__DIR__) . '/includes/header.php';
 
       <div class="col-md-5"><label class="form-label mb-1" style="font-size:.74rem">Mocodawca <span class="text-danger">*</span></label>
         <input type="text" name="mocodawca" class="form-control form-control-sm" value="<?= h($edit['mocodawca'] ?? '') ?>" required placeholder="kto udziela pełnomocnictwa"></div>
+
+      <div class="col-12 position-relative" id="peln-kontrahent-search-wrap">
+        <label class="form-label mb-1" style="font-size:.74rem"><i class="bi bi-search me-1"></i>Wyszukaj osobę z umową <span class="text-muted">(uzupełni pełnomocnika i PESEL)</span></label>
+        <input type="text" id="peln-kontrahent-search" class="form-control form-control-sm" autocomplete="off" placeholder="imię, nazwisko lub PESEL…">
+        <ul id="peln-kontrahent-list" class="list-group shadow-sm" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1052;max-height:280px;overflow-y:auto"></ul>
+      </div>
       <div class="col-md-5"><label class="form-label mb-1" style="font-size:.74rem">Pełnomocnik <span class="text-danger">*</span></label>
-        <input type="text" name="pelnomocnik" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik'] ?? '') ?>" required placeholder="komu udzielono pełnomocnictwa"></div>
+        <input type="text" name="pelnomocnik" id="peln-pelnomocnik" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik'] ?? '') ?>" required placeholder="komu udzielono pełnomocnictwa"></div>
       <div class="col-md-2"><label class="form-label mb-1" style="font-size:.74rem">PESEL</label>
-        <input type="text" name="pelnomocnik_pesel" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_pesel'] ?? '') ?>" maxlength="11" placeholder="opcjonalnie"></div>
+        <input type="text" name="pelnomocnik_pesel" id="peln-pesel" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_pesel'] ?? '') ?>" maxlength="11" placeholder="opcjonalnie"></div>
 
       <div class="col-12"><label class="form-label mb-1" style="font-size:.74rem">Zakres umocowania <span class="text-muted">(jedna pozycja na linię — w dokumencie zostanie ponumerowana)</span></label>
         <textarea name="zakres" class="form-control form-control-sm" rows="3" placeholder="np.&#10;wydawania zaświadczeń potwierdzających przeprowadzenie szkolenia lub instruktażu&#10;podpisywania dokumentacji związanej z realizacją szkoleń"><?= h($edit['zakres'] ?? '') ?></textarea></div>
@@ -246,5 +252,72 @@ include dirname(__DIR__) . '/includes/header.php';
     </table>
   </div>
 </div>
+
+<script>
+(function () {
+  var input = document.getElementById('peln-kontrahent-search');
+  var list  = document.getElementById('peln-kontrahent-list');
+  var wrap  = document.getElementById('peln-kontrahent-search-wrap');
+  var fName = document.getElementById('peln-pelnomocnik');
+  var fPesel= document.getElementById('peln-pesel');
+  if (!input || !list) return;
+
+  var timer = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function closeList() { list.style.display = 'none'; list.innerHTML = ''; }
+
+  function render(items, q) {
+    list.innerHTML = '';
+    if (!items.length) {
+      var li = document.createElement('li');
+      li.className = 'list-group-item text-muted small py-2';
+      li.textContent = 'Brak wyników dla „' + q + '”.';
+      list.appendChild(li);
+    } else {
+      items.forEach(function (p) {
+        var li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action py-2';
+        li.style.cursor = 'pointer';
+        li.innerHTML =
+          '<div class="d-flex align-items-baseline gap-2">' +
+            '<span class="fw-semibold">' + esc(p.imie_nazwisko) + '</span>' +
+            (p.pesel_display ? '<span class="font-monospace text-muted small">' + esc(p.pesel_display) + '</span>' : '') +
+          '</div>' +
+          '<div class="small text-muted">' + esc((p.contract_types || []).join(', ')) +
+            (p.numer_umowy ? ' · ' + esc(p.numer_umowy) : '') + '</div>';
+        li.addEventListener('click', function () {
+          if (fName) { fName.value = p.imie_nazwisko || ''; }
+          if (fPesel && p.pesel) { fPesel.value = p.pesel; }
+          input.value = '';
+          closeList();
+        });
+        list.appendChild(li);
+      });
+    }
+    list.style.display = '';
+  }
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = input.value.trim();
+    if (q.length < 2) { closeList(); return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/pelnomocnictwa/search_kontrahent.php?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) { render(data, q); })
+        .catch(closeList);
+    }, 280);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (wrap && !wrap.contains(e.target)) closeList();
+  });
+})();
+</script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
