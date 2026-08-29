@@ -487,7 +487,8 @@ foreach ($_ext_for_wiz as $_we) {
           </div>
           <div class="col-6 mb-2">
             <label class="form-label" for="series_count">Liczba lekcji</label>
-            <input type="number" class="form-control" id="series_count" name="count" min="1" max="52" value="8">
+            <input type="number" class="form-control" id="series_count" name="count" min="1" max="60" value="8">
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100" id="series_to_eoy_btn">Do końca roku</button>
           </div>
         </div>
       </div>
@@ -525,6 +526,24 @@ foreach ($_ext_for_wiz as $_we) {
     var picked = new Date(parts[0], parts[1]-1, parts[2]);
     markActive(picked.getDay());
   });
+
+  // „Do końca roku" — dolicza liczbę lekcji tak, by seria (co N tygodni od daty
+  // startowej) sięgnęła do 31 grudnia roku daty startowej.
+  var eoyBtn = document.getElementById('series_to_eoy_btn');
+  var weeksEl = document.getElementById('series_weeks');
+  var countEl = document.getElementById('series_count');
+  if (eoyBtn && weeksEl && countEl) {
+    eoyBtn.addEventListener('click', function(){
+      if (!dateEl.value) { dateEl.focus(); return; }
+      var parts = dateEl.value.split('-').map(Number);
+      var start = new Date(parts[0], parts[1]-1, parts[2]);
+      var eoy   = new Date(parts[0], 11, 31);
+      var iw    = parseInt(weeksEl.value, 10) || 1;
+      if (eoy < start) { countEl.value = 1; return; }
+      var days  = Math.floor((eoy - start) / 86400000);
+      countEl.value = Math.floor(days / (iw * 7)) + 1;
+    });
+  }
 })();
 </script>
 

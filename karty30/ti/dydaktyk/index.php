@@ -618,7 +618,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tt    = trim($_POST['time_to'] ?? '');
         $topic = trim($_POST['topic'] ?? '');
         $every = max(1, (int)($_POST['weeks'] ?? 1));
-        $count = max(1, min(52, (int)($_POST['count'] ?? 1)));
+        $count = max(1, min(60, (int)($_POST['count'] ?? 1)));
         $ser_lm       = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
         $ser_meet_url = in_array($ser_lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) {
