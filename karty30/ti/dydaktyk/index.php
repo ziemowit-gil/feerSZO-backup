@@ -749,22 +749,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Masowe czyszczenie terminów grupy — usuwa zaplanowane (jeszcze nieodbyte)
-    // lekcje naraz, np. przed regeneracją harmonogramu. Zajęcia ODBYTE (held,
-    // individual_change, remote_material) i ich obecności/rozliczenia NIGDY nie
-    // są ruszane — czyścimy wyłącznie status='planned'.
+    // lekcje naraz, np. przed regeneracją harmonogramu, opcjonalnie razem z
+    // odwołanymi. Zajęcia ODBYTE (held, individual_change, remote_material)
+    // i ich obecności/rozliczenia NIGDY nie są ruszane.
     if ($op === 'clear_group_sessions') {
         dyd_token_check();
-        $only_future = empty($_POST['include_past']);
-        $where = "course_id=? AND status='planned'" . ($only_future ? " AND lesson_date >= date('now')" : "");
+        $only_future     = empty($_POST['include_past']);
+        $clear_cancelled = !empty($_POST['clear_cancelled']);
+        $statuses = $clear_cancelled ? "('planned','cancelled')" : "('planned')";
+        $where = "course_id=? AND status IN $statuses" . ($only_future ? " AND lesson_date >= date('now')" : "");
         $cnt = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE $where", [$course_id])['n'] ?? 0);
         if ($cnt > 0) {
             db_exec("DELETE FROM k30_ti_sessions WHERE $where", [$course_id]);
-            ti_course_log($course_id, 'clear_sessions',
-                'Usunięto ' . $cnt . ' zaplanowanych terminów' . ($only_future ? '' : ' (w tym zaległe)') . '.',
-                $uid, (string)($me['name'] ?? ''));
-            flash_set('success', "Wyczyszczono terminy grupy: usunięto {$cnt} zaplanowanych lekcji.");
+            $detail = 'Usunięto ' . $cnt . ' terminów'
+                    . ($only_future ? '' : ' (w tym zaległe)')
+                    . ($clear_cancelled ? ', w tym odwołane' : '') . '.';
+            ti_course_log($course_id, 'clear_sessions', $detail, $uid, (string)($me['name'] ?? ''));
+            flash_set('success', "Wyczyszczono terminy grupy: usunięto {$cnt} terminów.");
         } else {
-            flash_set('info', 'Brak zaplanowanych terminów do usunięcia.');
+            flash_set('info', 'Brak terminów do usunięcia.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }

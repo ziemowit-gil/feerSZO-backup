@@ -530,8 +530,11 @@ foreach ($_ext_for_wiz as $_we) {
 
 <!-- Modal: masowe czyszczenie terminów grupy -->
 <?php
-  $_cs_future = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned' AND lesson_date >= date('now')", [$cur_course])['n'] ?? 0);
-  $_cs_past   = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned' AND lesson_date <  date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_future  = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned'   AND lesson_date >= date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_past    = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned'   AND lesson_date <  date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_c_future= (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='cancelled' AND lesson_date >= date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_c_past  = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='cancelled' AND lesson_date <  date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_total   = $_cs_future + $_cs_past + $_cs_c_future + $_cs_c_past;
 ?>
 <div class="modal fade" id="dydClearSessionsModal" tabindex="-1" aria-labelledby="dydClearSessionsLbl" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
@@ -551,30 +554,60 @@ foreach ($_ext_for_wiz as $_we) {
           własna” i indywidualne zmiany terminu) oraz ich obecności <strong>nigdy</strong> nie są usuwane.
         </p>
         <div class="form-check mb-2">
-          <input class="form-check-input" type="radio" name="include_past" id="csFutureOnly" value="0" checked>
+          <input class="form-check-input cs-scope" type="radio" name="include_past" id="csFutureOnly" value="0"
+                 data-planned="<?= $_cs_future ?>" data-cancelled="<?= $_cs_c_future ?>" checked>
           <label class="form-check-label" for="csFutureOnly">
             Tylko nadchodzące (<?= $_cs_future ?>)
           </label>
         </div>
         <div class="form-check mb-2">
-          <input class="form-check-input" type="radio" name="include_past" id="csAll" value="1">
+          <input class="form-check-input cs-scope" type="radio" name="include_past" id="csAll" value="1"
+                 data-planned="<?= $_cs_future + $_cs_past ?>" data-cancelled="<?= $_cs_c_future + $_cs_c_past ?>">
           <label class="form-check-label" for="csAll">
             Wszystkie zaplanowane, w tym zaległe (<?= $_cs_future + $_cs_past ?>)
           </label>
         </div>
-        <?php if ($_cs_future + $_cs_past === 0): ?>
-        <div class="alert alert-light border small mb-0">Brak zaplanowanych terminów do usunięcia.</div>
+        <div class="form-check mb-2 border-top pt-2">
+          <input class="form-check-input" type="checkbox" name="clear_cancelled" id="csCancelled" value="1">
+          <label class="form-check-label" for="csCancelled">
+            Czyść też odwołane (<?= $_cs_c_future + $_cs_c_past ?>)
+          </label>
+        </div>
+        <?php if ($_cs_total === 0): ?>
+        <div class="alert alert-light border small mb-0">Brak terminów do usunięcia.</div>
+        <?php else: ?>
+        <div class="alert alert-warning small mb-0">Do usunięcia: <strong id="csTotalCount"><?= $_cs_future ?></strong> terminów.</div>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <button type="submit" class="btn btn-danger" <?= ($_cs_future + $_cs_past === 0) ? 'disabled' : '' ?>>
+        <button type="submit" class="btn btn-danger" id="csSubmitBtn" <?= ($_cs_total === 0) ? 'disabled' : '' ?>>
           <i class="bi bi-trash me-1"></i>Usuń terminy
         </button>
       </div>
     </form>
   </div></div>
 </div>
+<script>
+(function(){
+  var scopeInputs = document.querySelectorAll('#dydClearSessionsModal .cs-scope');
+  var cancelledCb = document.getElementById('csCancelled');
+  var totalEl     = document.getElementById('csTotalCount');
+  var submitBtn   = document.getElementById('csSubmitBtn');
+  if (!scopeInputs.length || !submitBtn) return;
+  function recalc(){
+    var scope = document.querySelector('#dydClearSessionsModal .cs-scope:checked');
+    if (!scope) return;
+    var total = parseInt(scope.dataset.planned, 10) || 0;
+    if (cancelledCb && cancelledCb.checked) total += parseInt(scope.dataset.cancelled, 10) || 0;
+    if (totalEl) totalEl.textContent = total;
+    submitBtn.disabled = (total === 0);
+  }
+  scopeInputs.forEach(function(el){ el.addEventListener('change', recalc); });
+  if (cancelledCb) cancelledCb.addEventListener('change', recalc);
+  recalc();
+})();
+</script>
 
 <!-- Modal: zajęcia stałe -->
 <div class="modal fade" id="addRecurring" tabindex="-1" aria-labelledby="addRecurring_t" aria-hidden="true">
