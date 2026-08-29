@@ -3001,6 +3001,45 @@ function ti_course_weekly_slots(int $course_id): array {
     ];
 }
 
+/**
+ * Dane planu zajęć prowadzącego (lista chronologiczna, grupowana po tygodniu) —
+ * wspólne dla widoku HTML (plan_print.php) i wydruków do pobrania (plan_pdf.php,
+ * plan_docx.php). Uwzględnia lekcje, w których prowadzący jest zastępstwem
+ * (COALESCE(s.instructor_id, c.instructor_id) — patrz [[project_ti_payout]]).
+ * @return array{instructor: ?array, from: string, to: string, weeks: int, by_week: array<string,array>}
+ */
+function ti_instructor_plan_data(int $target_uid, int $weeks): array {
+    $weeks = max(1, min(26, $weeks));
+    $from  = date('Y-m-d');
+    $to    = date('Y-m-d', strtotime("+{$weeks} weeks"));
+
+    $instructor = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$target_uid]);
+
+    $sessions = $instructor ? db_all("
+        SELECT s.*, c.name AS course_name,
+               GROUP_CONCAT(cl.name, ', ') AS student_names
+        FROM k30_ti_sessions s
+        JOIN k30_ti_courses c ON c.id = s.course_id
+        LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
+        LEFT JOIN k30_clients cl ON cl.id = a.client_id
+        WHERE COALESCE(s.instructor_id, c.instructor_id) = ?
+          AND s.lesson_date BETWEEN ? AND ?
+          AND s.status NOT IN ('cancelled')
+        GROUP BY s.id
+        ORDER BY s.lesson_date, s.time_from
+    ", [$target_uid, $from, $to]) : [];
+
+    $by_week = [];
+    foreach ($sessions as $s) {
+        $wd = (int)date('N', strtotime((string)$s['lesson_date'])); // 1=Pn … 7=Nd
+        $week_start = date('Y-m-d', strtotime((string)$s['lesson_date'] . ' -' . ($wd - 1) . ' days'));
+        $by_week[$week_start][] = $s;
+    }
+    ksort($by_week);
+
+    return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'by_week' => $by_week];
+}
+
 function k30_ti_subject_types(bool $active_only = true): array {
     $w = $active_only ? 'WHERE is_active=1' : '';
     return db_all("SELECT * FROM k30_ti_subject_types $w ORDER BY sort_order, abbreviation");

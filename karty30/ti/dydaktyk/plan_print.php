@@ -17,38 +17,15 @@ if ($is_staff && isset($_GET['instructor_id'])) {
     $target_uid = max(1, (int)$_GET['instructor_id']);
 }
 
-// Zakres dat
-$weeks  = max(1, min(26, (int)($_GET['weeks'] ?? 8)));
-$from   = date('Y-m-d');
-$to     = date('Y-m-d', strtotime("+{$weeks} weeks"));
-
-// Dane prowadzącego
-$instructor = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$target_uid]);
+// Zakres dat + dane prowadzącego/sesji (wspólne z plan_pdf.php/plan_docx.php)
+$weeks_req = (int)($_GET['weeks'] ?? 8);
+$PD = ti_instructor_plan_data($target_uid, $weeks_req);
+$instructor = $PD['instructor'];
 if (!$instructor) { http_response_code(404); die('Nie znaleziono prowadzącego.'); }
-
-// Sesje w zakresie
-$sessions = db_all("
-    SELECT s.*, c.name AS course_name,
-           GROUP_CONCAT(cl.name, ', ') AS student_names
-    FROM k30_ti_sessions s
-    JOIN k30_ti_courses c ON c.id = s.course_id
-    LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
-    LEFT JOIN k30_clients cl ON cl.id = a.client_id
-    WHERE COALESCE(s.instructor_id, c.instructor_id) = ?
-      AND s.lesson_date BETWEEN ? AND ?
-      AND s.status NOT IN ('cancelled')
-    GROUP BY s.id
-    ORDER BY s.lesson_date, s.time_from
-", [$target_uid, $from, $to]);
-
-// Grupowanie po tygodniu
-$by_week = [];
-foreach ($sessions as $s) {
-    $wd = (int)date('N', strtotime((string)$s['lesson_date'])); // 1=Pn … 7=Nd
-    $week_start = date('Y-m-d', strtotime((string)$s['lesson_date'] . ' -' . ($wd - 1) . ' days'));
-    $by_week[$week_start][] = $s;
-}
-ksort($by_week);
+$from    = $PD['from'];
+$to      = $PD['to'];
+$weeks   = $PD['weeks'];
+$by_week = $PD['by_week'];
 
 $days_pl  = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
 $months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
@@ -109,6 +86,12 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
     </select>
   </label>
   <button onclick="window.print()"><i>🖨</i> Drukuj</button>
+  <a href="plan_pdf.php?weeks=<?= $weeks ?>&instructor_id=<?= $target_uid ?>" style="text-decoration:none">
+    <button type="button">Pobierz PDF</button>
+  </a>
+  <a href="plan_docx.php?weeks=<?= $weeks ?>&instructor_id=<?= $target_uid ?>" style="text-decoration:none">
+    <button type="button">Pobierz DOCX</button>
+  </a>
   <button onclick="window.close()">Zamknij</button>
 </div>
 
