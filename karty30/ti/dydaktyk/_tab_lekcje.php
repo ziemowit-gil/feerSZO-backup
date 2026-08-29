@@ -80,6 +80,17 @@ if ($_sms_enabled && $cur_course) {
             <i class="bi bi-person-workspace me-2"></i>Praca własna (bieżący)
           </a></li>
           <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header">Plan zajęć (dla ucznia/rodzica)</h6></li>
+          <li><a class="dropdown-item" href="harmonogram_pdf.php?course_id=<?= $cur_course ?>" target="_blank">
+            <i class="bi bi-file-earmark-pdf me-2"></i>Plan zajęć — PDF
+          </a></li>
+          <li><a class="dropdown-item" href="harmonogram_xlsx.php?course_id=<?= $cur_course ?>">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Plan zajęć — Excel (XLSX)
+          </a></li>
+          <li><a class="dropdown-item" href="harmonogram_docx.php?course_id=<?= $cur_course ?>">
+            <i class="bi bi-file-earmark-word me-2"></i>Plan zajęć — Word (DOCX)
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Kalendarz</h6></li>
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalModal">
             <i class="bi bi-calendar3 me-2"></i>Podgląd kalendarza
