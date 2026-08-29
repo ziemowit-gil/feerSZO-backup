@@ -37,6 +37,22 @@
         updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     try { db()->exec("CREATE INDEX IF NOT EXISTS idx_pelnomocnictwa_numer ON pelnomocnictwa(numer)"); } catch (\Throwable $e) {}
+
+    // Samonaprawa: kolumny dodane po pierwszym wdrożeniu (CREATE TABLE IF NOT EXISTS nie
+    // modyfikuje już istniejącej tabeli) — ALTER TABLE jest no-op jeśli kolumna już istnieje.
+    $cols = [
+        "pelnomocnik_pesel       TEXT    NOT NULL DEFAULT ''",
+        "podpisujacy             TEXT    NOT NULL DEFAULT ''",
+        "podpisujacy_funkcja     TEXT    NOT NULL DEFAULT ''",
+        "dokument_plik           TEXT    NOT NULL DEFAULT ''",
+        "dokument_oryginal_nazwa TEXT    NOT NULL DEFAULT ''",
+        "dokument_typ            TEXT    NOT NULL DEFAULT ''",
+        "dokument_uploaded_by    INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "dokument_uploaded_at    DATETIME",
+    ];
+    foreach ($cols as $def) {
+        try { db()->exec("ALTER TABLE pelnomocnictwa ADD COLUMN $def"); } catch (\Throwable $e) {}
+    }
 })();
 
 // ── Status wyliczany z dat ─────────────────────────────────────────────────────
