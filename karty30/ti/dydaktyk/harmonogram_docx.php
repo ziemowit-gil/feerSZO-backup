@@ -16,19 +16,15 @@ if (!$course_id || !dyd_owns_course($uid, $course_id)) {
     http_response_code(403); exit('Brak uprawnień do tego kursu.');
 }
 
-$course = db_one(
-    "SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c
-     LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id=?",
-    [$course_id]
-);
+$WP = ti_course_weekly_slots($course_id);
+$course = $WP['course'];
 if (!$course) { http_response_code(404); exit('Nie znaleziono grupy.'); }
-
-$WP        = ti_course_weekly_slots($course_id);
 $rows_time = $WP['rows_time'];
 $grid      = $WP['grid'];
 $DOW_COLS  = $WP['dow_cols'];
 $org       = defined('ORG_NAME') ? ORG_NAME : '';
 $lm_labels = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'zdalnie (Zoom)', 'zdalna_inne' => 'zdalnie'];
+$_contact  = array_filter([$course['instructor_email'] ?? '', $course['instructor_phone'] ?? '']);
 
 require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 
@@ -42,6 +38,12 @@ $section->addText(
     . '   ·   Wygenerowano: ' . date('d.m.Y H:i'),
     ['size' => 9, 'color' => '555555']
 );
+if ($WP['first_lesson'] !== '') {
+    $section->addText('Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson'])), ['size' => 9, 'bold' => true]);
+}
+if ($_contact) {
+    $section->addText('Kontakt do prowadzącego: ' . implode(' · ', $_contact), ['size' => 9]);
+}
 $section->addTextBreak(1);
 
 if (!$rows_time) {

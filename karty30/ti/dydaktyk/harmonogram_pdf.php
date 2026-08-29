@@ -17,18 +17,18 @@ if (!$course_id || !dyd_owns_course($uid, $course_id)) {
     http_response_code(403); exit('Brak uprawnień do tego kursu.');
 }
 
-$course = db_one(
-    "SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c
-     LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id=?",
-    [$course_id]
-);
+$WP = ti_course_weekly_slots($course_id);
+$course = $WP['course'];
 if (!$course) { http_response_code(404); exit('Nie znaleziono grupy.'); }
-
-$WP        = ti_course_weekly_slots($course_id);
 $rows_time = $WP['rows_time'];
 $grid      = $WP['grid'];
 $DOW_COLS  = $WP['dow_cols'];
 $org = defined('ORG_NAME') ? ORG_NAME : '';
+
+$_contact = array_filter([$course['instructor_email'] ?? '', $course['instructor_phone'] ?? '']);
+$_meta = [];
+if ($WP['first_lesson'] !== '') $_meta[] = 'Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson']));
+if ($_contact) $_meta[] = 'Kontakt: ' . implode(' · ', $_contact);
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
@@ -47,6 +47,10 @@ try {
     $sub = ($org ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—')
          . '   ·   Wygenerowano: ' . date('d.m.Y H:i');
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
+    if ($_meta) {
+        $pdf->SetFont('Helvetica', 'B', 8.5);
+        $pdf->Cell($W, 5, $pl(implode('   ·   ', $_meta)), 0, 1);
+    }
     $pdf->Ln(4);
 
     if (!$rows_time) {

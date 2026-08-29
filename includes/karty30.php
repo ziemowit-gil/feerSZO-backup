@@ -2954,10 +2954,26 @@ function k30_ti_course_get(int $id): ?array {
  * ucznia/rodzica, jak siatka lekcji w dzienniku elektronicznym. Wyznaczany z
  * odrębnych kombinacji dzień tygodnia/godziny widocznych w sesjach z ostatnich
  * ~90 dni (obejmuje wygenerowane przyszłe i niedawne odbyte lekcje) — nie
- * zależy od istnienia reguły cyklicznej (k30_ti_series).
- * @return array{rows_time: array<string,array{from:string,to:string}>, grid: array<string,array<int,array>>, dow_cols: array<int,string>}
+ * zależy od istnienia reguły cyklicznej (k30_ti_series). Dorzuca też dane
+ * kursu (kontakt prowadzącego) i datę pierwszej lekcji — wspólne dla wszystkich
+ * trzech formatów wydruku.
+ * @return array{
+ *   course: ?array, first_lesson: string,
+ *   rows_time: array<string,array{from:string,to:string}>,
+ *   grid: array<string,array<int,array>>, dow_cols: array<int,string>
+ * }
  */
 function ti_course_weekly_slots(int $course_id): array {
+    $course = db_one(
+        "SELECT c.*, u.name AS instructor_name, u.email AS instructor_email, u.phone_number AS instructor_phone
+         FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id=?",
+        [$course_id]
+    ) ?: null;
+    $first_lesson = (string)(db_one(
+        "SELECT MIN(lesson_date) AS d FROM k30_ti_sessions WHERE course_id=? AND status != 'cancelled'",
+        [$course_id]
+    )['d'] ?? '');
+
     $slots = db_all(
         "SELECT DISTINCT CAST(strftime('%w', lesson_date) AS INTEGER) AS dow, time_from, time_to, lesson_method
          FROM k30_ti_sessions
@@ -2974,9 +2990,11 @@ function ti_course_weekly_slots(int $course_id): array {
     }
     ksort($rows_time);
     return [
-        'rows_time' => $rows_time,
-        'grid'      => $grid,
-        'dow_cols'  => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
+        'course'       => $course,
+        'first_lesson' => $first_lesson,
+        'rows_time'    => $rows_time,
+        'grid'         => $grid,
+        'dow_cols'     => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
     ];
 }
 

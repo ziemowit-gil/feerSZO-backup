@@ -17,24 +17,23 @@ if (!$course_id || !dyd_owns_course($uid, $course_id)) {
     http_response_code(403); exit('Brak uprawnień do tego kursu.');
 }
 
-$course = db_one(
-    "SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c
-     LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id=?",
-    [$course_id]
-);
+$WP = ti_course_weekly_slots($course_id);
+$course = $WP['course'];
 if (!$course) { http_response_code(404); exit('Nie znaleziono grupy.'); }
-
-$WP        = ti_course_weekly_slots($course_id);
 $rows_time = $WP['rows_time'];
 $grid      = $WP['grid'];
 $DOW_COLS  = $WP['dow_cols'];
 
 $lm_labels = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'zdalnie (Zoom)', 'zdalna_inne' => 'zdalnie'];
 
+$_contact = array_filter([$course['instructor_email'] ?? '', $course['instructor_phone'] ?? '']);
+
 $x = new XlsxWriter();
 $x->addSheet('Plan zajęć');
 $x->writeRow(['Plan zajęć — ' . $course['name']], ['header']);
 $x->writeRow(['Prowadzący: ' . ($course['instructor_name'] ?: '—') . '   Wygenerowano: ' . date('d.m.Y H:i')]);
+if ($WP['first_lesson'] !== '') $x->writeRow(['Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson']))]);
+if ($_contact) $x->writeRow(['Kontakt do prowadzącego: ' . implode(' · ', $_contact)]);
 $x->writeRow([]);
 
 $header = ['Godzina'];
