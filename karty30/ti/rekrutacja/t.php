@@ -182,7 +182,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <main class="container py-5" style="max-width:640px">
   <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-      <h1 class="h5 fw-bold" style="color:#c2410c"><?= h($title) ?></h1>
+      <h1 class="h5 fw-bold text-primary"><?= h($title) ?></h1>
       <?= $body_html ?>
     </div>
   </div>
@@ -202,22 +202,17 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <title>Zapisy na zajęcia — <?= h($org) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>
-  .rk-brand { color:#c2410c }
-  .btn-rk   { background:#c2410c; border-color:#c2410c; color:#fff }
-  .btn-rk:hover { background:#9a3412; border-color:#9a3412; color:#fff }
-</style>
 </head>
 <body class="bg-body-tertiary">
 <main class="container py-4" style="max-width:860px">
 
 <header class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <div>
-    <h1 class="h4 fw-bold mb-0 rk-brand"><i class="bi bi-ticket-perforated me-2" aria-hidden="true"></i>Zapisy na zajęcia</h1>
+    <h1 class="h4 fw-bold mb-0 text-primary"><i class="bi bi-ticket-perforated me-2" aria-hidden="true"></i>Zapisy na zajęcia</h1>
     <div class="text-body-secondary small"><?= h($org) ?> · <?= h($client['name']) ?>
       <span class="badge text-bg-light border ms-1" title="Identyfikator kursanta">ID: <?= (int)$client['id'] ?></span></div>
   </div>
-  <span class="badge fs-6 ms-auto" style="background:#c2410c" title="Dostępne żetony">
+  <span class="badge fs-6 ms-auto text-bg-primary" title="Dostępne żetony">
     <i class="bi bi-coin me-1" aria-hidden="true"></i><?= $rk_avail ?> żet.<?php
     $rk_pln = rk_token_pln(); if ($rk_pln > 0): ?> <span class="opacity-75">≈ <?= number_format($rk_avail * $rk_pln, 2, ',', ' ') ?> zł</span><?php endif; ?>
   </span>
@@ -276,7 +271,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
     </div>
     <div class="ms-auto">
       <?php if ($r_open): ?>
-      <a class="btn btn-sm btn-rk" href="t.php?rk_round=<?= (int)$r['id'] ?>">Wybierz prowadzącego <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
+      <a class="btn btn-sm btn-primary" href="t.php?rk_round=<?= (int)$r['id'] ?>">Wybierz prowadzącego <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
       <?php else: ?><span class="badge text-bg-secondary">wkrótce</span><?php endif; ?>
     </div>
   </div></div>
@@ -292,11 +287,11 @@ function rk_t_page(string $org, string $title, string $body_html): void {
   <?php foreach ($rk_courses as $rc): ?>
   <div class="col-12 col-sm-6">
     <div class="card h-100 border-0 shadow-sm"><div class="card-body py-2 px-3">
-      <div class="fw-semibold"><i class="bi bi-journal-bookmark me-1 rk-brand" aria-hidden="true"></i><?= h($rc['name']) ?></div>
+      <div class="fw-semibold"><i class="bi bi-journal-bookmark me-1 text-primary" aria-hidden="true"></i><?= h($rc['name']) ?></div>
       <div class="text-body-secondary" style="font-size:.8rem">
         <?= (int)$rc['n_assigned'] > 0 ? 'prowadzący do wyboru: ' . (int)$rc['n_assigned'] : 'wszyscy prowadzący z terminami' ?>
       </div>
-      <a class="btn btn-sm btn-rk mt-2" href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= (int)$rc['id'] ?>">
+      <a class="btn btn-sm btn-primary mt-2" href="t.php?rk_round=<?= (int)$rk_round['id'] ?>&rk_course=<?= (int)$rc['id'] ?>">
         Wybierz prowadzącego <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
     </div></div>
   </div>
@@ -321,7 +316,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
   <?php foreach ($rk_instructors as $i): $free = (int)$i['slots_free']; ?>
   <div class="col-12 col-sm-6">
     <div class="card h-100 border-0 shadow-sm <?= $free ? '' : 'opacity-50' ?>"><div class="card-body py-2 px-3">
-      <div class="fw-semibold"><i class="bi bi-person-circle me-1 rk-brand" aria-hidden="true"></i><?= h($i['name']) ?></div>
+      <div class="fw-semibold"><i class="bi bi-person-circle me-1 text-primary" aria-hidden="true"></i><?= h($i['name']) ?></div>
       <div class="text-body-secondary" style="font-size:.8rem">
         <?= $free ? "wolne terminy: $free · najbliższy " . h(rk_fmt_dt((string)$i['next_free_at'])) : 'brak wolnych terminów' ?>
       </div>
@@ -380,7 +375,7 @@ function rk_t_page(string $org, string $title, string $body_html): void {
             <input type="hidden" name="rk_round" value="<?= (int)$rk_round['id'] ?>">
             <input type="hidden" name="rk_course" value="<?= (int)$rk_course_id ?>">
             <input type="hidden" name="rk_instr" value="<?= (int)$rk_instr_id ?>">
-            <button class="btn btn-sm btn-rk" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
+            <button class="btn btn-sm btn-primary" <?= $can ? '' : 'disabled title="Za mało żetonów"' ?>>
               <i class="bi bi-check2 me-1" aria-hidden="true"></i>Rezerwuję
             </button>
           </form>
