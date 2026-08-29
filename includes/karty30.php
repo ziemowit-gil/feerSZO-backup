@@ -192,6 +192,12 @@ function karty30_migrate(): void {
     // Liczba godzin szkolenia wg umowy (domyślnie 30 total / 25 właściwych)
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_total    INTEGER NOT NULL DEFAULT 30"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_training INTEGER NOT NULL DEFAULT 25"); } catch (\Throwable $e) {}
+    // Planowana siatka godzin — opcjonalny podział limitu na zdalnie/stacjonarnie,
+    // włączany przy rejestracji umowy; rozdział między beneficjentów widoczny
+    // zbiorczo w karty30/pfron/siatka.php.
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_plan_enabled   INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN planned_hours_remote REAL    NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN planned_hours_onsite  REAL    NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // Kara umowna (kwota i słownie) — do umowy
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN penalty_amount TEXT    NOT NULL DEFAULT '100,00'"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN penalty_words  TEXT    NOT NULL DEFAULT 'sto'");    } catch (\Throwable $e) {}
@@ -2034,7 +2040,8 @@ function k30_pfron_next_doc_number(int $year = 0): string {
 }
 
 function k30_pfron_contract_save(array $data, ?int $id = null): int {
-    $fields = ['client_id','contract_number','hours_limit','valid_from','valid_to','status','notes'];
+    $fields = ['client_id','contract_number','hours_limit','valid_from','valid_to','status','notes',
+               'hours_plan_enabled','planned_hours_remote','planned_hours_onsite'];
     $data['updated_at'] = date('Y-m-d H:i:s');
     if ($id) {
         $set = []; $params = [];
@@ -2056,6 +2063,23 @@ function k30_pfron_hours_remaining(int $contract_id): float {
     $c = db_one("SELECT hours_limit, hours_used FROM k30_pfron_contracts WHERE id=?", [$contract_id]);
     if (!$c) return 0;
     return max(0, (float)$c['hours_limit'] - (float)$c['hours_used']);
+}
+
+/**
+ * Godziny PFRON faktycznie wykorzystane w ramach umowy, z podziałem na tryb.
+ * Tryb wnioskowany z k30_schedules.resource_id: NULL = zdalnie, ustawiony = stacjonarnie
+ * (ten sam sygnał co przy zwykłych terminach — zob. karty30/schedules/add.php).
+ */
+function k30_pfron_hours_used_by_mode(int $contract_id): array {
+    $row = db_one(
+        "SELECT
+            COALESCE(SUM(CASE WHEN resource_id IS NULL THEN free_hours ELSE 0 END), 0) AS remote,
+            COALESCE(SUM(CASE WHEN resource_id IS NOT NULL THEN free_hours ELSE 0 END), 0) AS onsite
+         FROM k30_schedules
+         WHERE pfron_contract_id = ? AND billing_type = 'pfron' AND status NOT IN ('cancelled','rejected')",
+        [$contract_id]
+    );
+    return ['remote' => (float)($row['remote'] ?? 0), 'onsite' => (float)($row['onsite'] ?? 0)];
 }
 
 /**

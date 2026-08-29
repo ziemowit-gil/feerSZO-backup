@@ -77,6 +77,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <h1 class="h5 fw-bold mb-0">Szkolenia z PFRON</h1>
     <p class="text-body-secondary small mb-0">Zajęcia realizowane w ramach aktywnych umów PFRON</p>
   </div>
+  <a href="<?= APP_URL ?>/karty30/pfron/siatka.php" class="btn btn-outline-secondary btn-sm ms-auto">
+    <i class="bi bi-grid-3x3-gap-fill me-1" aria-hidden="true"></i>Planowana siatka godzin
+  </a>
 </div>
 
 <?php if (!$all_contracts): ?>

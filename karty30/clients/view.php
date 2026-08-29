@@ -57,16 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $vto     = trim($_POST['valid_to']   ?? '') ?: null;
         $pstatus = in_array($_POST['pfron_contract_status'] ?? '', ['active','expired','closed'], true)
                    ? $_POST['pfron_contract_status'] : 'active';
-        $notes   = trim($_POST['pfron_notes'] ?? '');
+        $notes       = trim($_POST['pfron_notes'] ?? '');
+        $planEnabled = !empty($_POST['hours_plan_enabled']) ? 1 : 0;
+        $planRemote  = max(0, (float)str_replace(',','.', $_POST['planned_hours_remote'] ?? '0'));
+        $planOnsite  = max(0, (float)str_replace(',','.', $_POST['planned_hours_onsite']  ?? '0'));
         if (!$cn) { flash_set('danger','Numer umowy PFRON jest wymagany.'); header('Location: view.php?id='.$id.'#pfron'); exit; }
+        if ($planEnabled && $limit > 0 && ($planRemote + $planOnsite) > $limit) {
+            flash_set('danger', sprintf(
+                'Suma godzin planu (%s) przekracza limit umowy (%s h).',
+                number_format($planRemote + $planOnsite, 2, ',', ''), number_format($limit, 2, ',', '')
+            ));
+            header('Location: view.php?id='.$id.'&pfron_edit='.($pid ?: 0).'#pfron'); exit;
+        }
         k30_pfron_contract_save([
-            'client_id'       => $id,
-            'contract_number' => $cn,
-            'hours_limit'     => $limit,
-            'valid_from'      => $vfrom,
-            'valid_to'        => $vto,
-            'status'          => $pstatus,
-            'notes'           => $notes,
+            'client_id'            => $id,
+            'contract_number'      => $cn,
+            'hours_limit'          => $limit,
+            'valid_from'           => $vfrom,
+            'valid_to'             => $vto,
+            'status'               => $pstatus,
+            'notes'                => $notes,
+            'hours_plan_enabled'   => $planEnabled,
+            'planned_hours_remote' => $planEnabled ? $planRemote : 0,
+            'planned_hours_onsite' => $planEnabled ? $planOnsite : 0,
         ], $pid ?: null);
         flash_set('success', 'Umowa PFRON zapisana.');
         header('Location: view.php?id='.$id.'#pfron'); exit;
@@ -306,7 +319,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
     <?php if (isset($_GET['pfron_edit'])): ?>
     <!-- Formularz umowy PFRON -->
-    <?php $fe = $pfron_edit_row ?? ['contract_number'=>'','hours_limit'=>0,'valid_from'=>'','valid_to'=>'','status'=>'active','notes'=>'']; ?>
+    <?php $fe = $pfron_edit_row ?? ['contract_number'=>'','hours_limit'=>0,'valid_from'=>'','valid_to'=>'','status'=>'active','notes'=>'',
+                                     'hours_plan_enabled'=>0,'planned_hours_remote'=>0,'planned_hours_onsite'=>0]; ?>
     <form method="post" class="mb-4">
       <input type="hidden" name="_csrf"    value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_action"  value="pfron_save">
@@ -320,7 +334,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="col-sm-3">
           <label class="form-label fw-semibold">Limit godzin</label>
           <div class="input-group">
-            <input type="number" class="form-control" name="hours_limit" min="0" step="0.5"
+            <input type="number" id="pfron_hours_limit" class="form-control" name="hours_limit" min="0" step="0.5"
                    value="<?= h($fe['hours_limit']) ?>">
             <span class="input-group-text">h</span>
           </div>
@@ -345,12 +359,68 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <label class="form-label">Uwagi</label>
           <input type="text" class="form-control" name="pfron_notes" value="<?= h($fe['notes']??'') ?>">
         </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="pfron_plan_enabled" name="hours_plan_enabled" value="1"
+                   <?= !empty($fe['hours_plan_enabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label fw-semibold" for="pfron_plan_enabled">
+              Planowana siatka godzin (podział zdalnie / stacjonarnie)
+            </label>
+          </div>
+          <div class="form-text">
+            Rozbija limit godzin na plan zdalny i stacjonarny. Widok zbiorczy dla wszystkich
+            beneficjentów z włączoną siatką: <a href="<?= APP_URL ?>/karty30/pfron/siatka.php" target="_blank">Planowana siatka godzin PFRON</a>.
+          </div>
+        </div>
+        <div class="col-sm-4" id="pfron_plan_remote_wrap" style="<?= empty($fe['hours_plan_enabled']) ? 'display:none' : '' ?>">
+          <label class="form-label">Planowane godziny — zdalnie</label>
+          <div class="input-group">
+            <input type="number" class="form-control pfron-plan-input" name="planned_hours_remote" min="0" step="0.5"
+                   value="<?= h($fe['planned_hours_remote']) ?>">
+            <span class="input-group-text">h</span>
+          </div>
+        </div>
+        <div class="col-sm-4" id="pfron_plan_onsite_wrap" style="<?= empty($fe['hours_plan_enabled']) ? 'display:none' : '' ?>">
+          <label class="form-label">Planowane godziny — stacjonarnie</label>
+          <div class="input-group">
+            <input type="number" class="form-control pfron-plan-input" name="planned_hours_onsite" min="0" step="0.5"
+                   value="<?= h($fe['planned_hours_onsite']) ?>">
+            <span class="input-group-text">h</span>
+          </div>
+        </div>
+        <div class="col-sm-4 d-flex align-items-end" id="pfron_plan_sum_wrap" style="<?= empty($fe['hours_plan_enabled']) ? 'display:none' : '' ?>">
+          <div class="text-body-secondary small" id="pfron_plan_sum">Razem: 0 h</div>
+        </div>
       </div>
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary btn-sm">Zapisz umowę</button>
         <a href="?id=<?= $id ?>#pfron" class="btn btn-outline-secondary btn-sm">Anuluj</a>
       </div>
     </form>
+    <script>
+    (function () {
+      var chk = document.getElementById('pfron_plan_enabled');
+      var wraps = ['pfron_plan_remote_wrap', 'pfron_plan_onsite_wrap', 'pfron_plan_sum_wrap'].map(function (id) {
+        return document.getElementById(id);
+      });
+      var sumEl = document.getElementById('pfron_plan_sum');
+      var inputs = document.querySelectorAll('.pfron-plan-input');
+      function recalc() {
+        var sum = 0;
+        inputs.forEach(function (i) { sum += parseFloat((i.value || '0').replace(',', '.')) || 0; });
+        sumEl.textContent = 'Razem: ' + sum.toLocaleString('pl-PL', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + ' h';
+      }
+      function toggle() {
+        wraps.forEach(function (w) { if (w) w.style.display = chk.checked ? '' : 'none'; });
+        if (chk.checked) recalc();
+      }
+      if (chk) {
+        chk.addEventListener('change', toggle);
+        inputs.forEach(function (i) { i.addEventListener('input', recalc); });
+        recalc();
+      }
+    })();
+    </script>
     <?php endif; ?>
 
     <?php if (!$pfron_contracts): ?>
@@ -380,7 +450,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             $ps        = K30_PFRON_CONTRACT_STATUSES[$pc['status']] ?? ['label'=>$pc['status'],'color'=>'#666','bg'=>'#eee'];
           ?>
           <tr>
-            <td class="fw-semibold font-monospace"><?= h($pc['contract_number']) ?></td>
+            <td class="fw-semibold font-monospace">
+              <?= h($pc['contract_number']) ?>
+              <?php if (!empty($pc['hours_plan_enabled'])): ?>
+              <br><span class="badge text-bg-light border" style="font-size:.68rem;font-weight:500">
+                <i class="bi bi-laptop"></i> <?= number_format((float)$pc['planned_hours_remote'],1,',','') ?> h
+                &nbsp;/&nbsp;<i class="bi bi-building"></i> <?= number_format((float)$pc['planned_hours_onsite'],1,',','') ?> h
+              </span>
+              <?php endif; ?>
+            </td>
             <td><?= number_format((float)$pc['hours_limit'],2,',','') ?> h</td>
             <td>
               <?= number_format((float)$pc['hours_used'],2,',','') ?> h
