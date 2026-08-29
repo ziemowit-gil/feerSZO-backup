@@ -17,22 +17,19 @@ if ($is_staff && isset($_GET['instructor_id'])) {
     $target_uid = max(1, (int)$_GET['instructor_id']);
 }
 
-// Zakres dat + dane prowadzącego/sesji (wspólne z plan_pdf.php/plan_docx.php)
+// Zakres dat + dane prowadzącego/sesji, grupowane dzień-tygodnia+godzina → daty
+// (wspólne z plan_pdf.php/plan_docx.php)
 $weeks_req = (int)($_GET['weeks'] ?? 8);
-$PD = ti_instructor_plan_data($target_uid, $weeks_req);
+$PD = ti_instructor_plan_grouped($target_uid, $weeks_req);
 $instructor = $PD['instructor'];
 if (!$instructor) { http_response_code(404); die('Nie znaleziono prowadzącego.'); }
-$from    = $PD['from'];
-$to      = $PD['to'];
-$weeks   = $PD['weeks'];
-$by_week = $PD['by_week'];
-
-$days_pl  = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
-$months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
+$from   = $PD['from'];
+$to     = $PD['to'];
+$weeks  = $PD['weeks'];
+$groups = $PD['groups'];
 
 $today = date('Y-m-d');
 $org   = defined('APP_ORG') ? APP_ORG : '';
-$WG    = ti_instructor_weekly_slots($target_uid); // siatka tygodniowa — jak plan ucznia (harmonogram_pdf.php)
 ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? ''), 0, 0, ['weeks' => $weeks], $me);
 ?><!DOCTYPE html>
 <html lang="pl">
@@ -58,12 +55,8 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   .st-planned  { background: #dbeafe; color: #1d4ed8; }
   .st-held     { background: #dcfce7; color: #166534; }
   .st-remote   { background: #f3e8ff; color: #7e22ce; }
-  .course-name { font-weight: 600; }
   .students    { font-size: 9pt; color: #64748b; }
   .no-sessions { color: #94a3b8; font-style: italic; font-size: 10pt; padding: 6px 8px; }
-  .grid-table th, .grid-table td { text-align: center; font-size: 9pt; }
-  .grid-table .time-col { font-weight: 700; background: #f5f8ff; }
-  .grid-cell-fill { background: #dceedc; font-weight: 600; font-size: 8.5pt; }
   .controls { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 8px 20px; display: flex; gap: 12px; align-items: center; }
   .controls label { font-size: 10pt; }
   .controls select, .controls button { font-size: 10pt; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
@@ -109,74 +102,41 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
 </div>
 
 <div class="content">
-<?php if ($WG['rows_time']): ?>
-  <div class="week-header">Siatka tygodniowa</div>
-  <table class="grid-table">
-    <thead><tr><th style="width:80px">Godzina</th><?php foreach ($WG['dow_cols'] as $dl): ?><th><?= h($dl) ?></th><?php endforeach; ?></tr></thead>
-    <tbody>
-      <?php foreach ($WG['rows_time'] as $tk => $t): ?>
-      <tr>
-        <td class="time-col"><?= h(substr((string)$t['from'],0,5)) ?>–<?= h(substr((string)$t['to'],0,5)) ?></td>
-        <?php foreach (array_keys($WG['dow_cols']) as $dow): $cell = $WG['grid'][$tk][$dow] ?? ''; ?>
-        <td class="<?= $cell !== '' ? 'grid-cell-fill' : '' ?>"><?= h($cell) ?></td>
-        <?php endforeach; ?>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-<?php endif; ?>
-<?php if (empty($by_week)): ?>
+<?php if (empty($groups)): ?>
   <p style="color:#64748b;font-style:italic">Brak zajęć w wybranym okresie.</p>
-<?php else: ?>
-  <div class="week-header" style="margin-top:22px">Szczegółowy plan</div>
 <?php endif; ?>
-<?php if (!empty($by_week)): ?>
-<?php foreach ($by_week as $week_start => $wsessions):
-    $ws_ts = strtotime($week_start);
-    $we_ts = strtotime($week_start . ' +6 days');
-    $wlabel = date('j', $ws_ts) . ' ' . $months_pl[(int)date('n', $ws_ts)]
-            . ' – ' . date('j', $we_ts) . ' ' . $months_pl[(int)date('n', $we_ts)]
-            . ' ' . date('Y', $ws_ts);
+<?php foreach ($groups as $g):
+    $time_label = ($g['time_from'] && $g['time_to']) ? substr((string)$g['time_from'],0,5) . '–' . substr((string)$g['time_to'],0,5) : '—';
 ?>
-  <div class="week-header">Tydzień <?= h($wlabel) ?></div>
+  <div class="week-header"><?= h($g['day_label']) ?>, <?= h($time_label) ?> · <?= h($g['course_name']) ?></div>
   <table>
     <thead>
       <tr>
-        <th>Dzień</th>
-        <th>Godziny</th>
-        <th>Kurs</th>
+        <th>Data</th>
         <th>Uczestnicy</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody>
-    <?php foreach ($wsessions as $s):
-        $wd = (int)date('N', strtotime((string)$s['lesson_date']));
-        $day_label = $days_pl[$wd] . ', ' . date('j', strtotime((string)$s['lesson_date'])) . ' ' . $months_pl[(int)date('n', strtotime((string)$s['lesson_date']))];
-        $time_label = ($s['time_from'] && $s['time_to']) ? h($s['time_from']) . '–' . h($s['time_to']) : '–';
-        $st_class = match((string)$s['status']) {
+    <?php foreach ($g['dates'] as $d):
+        $st_class = match($d['status']) {
             'held', 'individual_change' => 'st-held',
             'remote_material' => 'st-remote',
             default => 'st-planned',
         };
-        $st_label = K30_TI_SESSION_STATUSES[(string)$s['status']]['label'] ?? h($s['status']);
-        $is_today = ((string)$s['lesson_date'] === $today);
+        $st_label = K30_TI_SESSION_STATUSES[$d['status']]['label'] ?? h($d['status']);
+        $is_today = ($d['date'] === $today);
+        $dts = strtotime($d['date']);
     ?>
       <tr<?= $is_today ? ' style="background:#fffbeb"' : '' ?>>
-        <td class="day-col"><?= h($day_label) ?></td>
-        <td class="time-col"><?= $time_label ?></td>
-        <td>
-          <div class="course-name"><?= h($s['course_name']) ?></div>
-          <?php if ($s['topic']): ?><div style="font-size:9pt;color:#64748b"><?= h($s['topic']) ?></div><?php endif; ?>
-        </td>
-        <td class="students"><?= h($s['student_names'] ?? '–') ?></td>
+        <td class="day-col"><?= h(date('d.m.Y', $dts)) ?></td>
+        <td class="students"><?= h($d['student_names'] !== '' ? $d['student_names'] : '–') ?></td>
         <td><span class="status-badge <?= $st_class ?>"><?= $st_label ?></span></td>
       </tr>
     <?php endforeach; ?>
     </tbody>
   </table>
 <?php endforeach; ?>
-<?php endif; ?>
 </div>
 </body>
 </html>

@@ -1,7 +1,8 @@
 <?php
 /**
  * karty30/ti/dydaktyk/plan_pdf.php — Plan zajęć prowadzącego do pobrania (PDF).
- * Wariant plan_print.php (widok HTML) — te same dane (ti_instructor_plan_data()).
+ * Wariant plan_print.php (widok HTML) — te same dane (ti_instructor_plan_grouped()).
+ * Lista: najpierw dzień tygodnia + godzina + kurs, pod spodem konkretne daty.
  * GET: instructor_id (staff — dowolny; zwykły prowadzący tylko swój), weeks.
  */
 require_once __DIR__ . '/auth.php';
@@ -16,12 +17,10 @@ if ($is_staff && isset($_GET['instructor_id'])) {
     $target_uid = max(1, (int)$_GET['instructor_id']);
 }
 
-$PD = ti_instructor_plan_data($target_uid, (int)($_GET['weeks'] ?? 8));
+$PD = ti_instructor_plan_grouped($target_uid, (int)($_GET['weeks'] ?? 8));
 $instructor = $PD['instructor'];
 if (!$instructor) { http_response_code(404); exit('Nie znaleziono prowadzącego.'); }
 
-$days_pl   = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
-$months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
@@ -43,71 +42,31 @@ try {
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(4);
 
-    // Siatka tygodniowa — jak plan ucznia (harmonogram_pdf.php), zsumowana ze wszystkich grup.
-    $WG = ti_instructor_weekly_slots($target_uid);
-    if ($WG['rows_time']) {
-        $pdf->SetFont('Helvetica', 'B', 10);
-        $pdf->Cell($W, 7, $pl('Siatka tygodniowa'), 0, 1);
-        $timeW = 24; $dayW = ($W - $timeW) / 7; $rowH = 12;
-        $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225);
-        $pdf->SetFont('Helvetica', 'B', 8);
-        $pdf->Cell($timeW, 7, $pl('Godzina'), 1, 0, 'C', true);
-        foreach ($WG['dow_cols'] as $dlabel) $pdf->Cell($dayW, 7, $pl(mb_substr($dlabel, 0, 3)), 1, 0, 'C', true);
-        $pdf->Ln();
-        foreach ($WG['rows_time'] as $tk => $t) {
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 30) { $pdf->AddPage(); }
-            $pdf->SetFont('Helvetica', 'B', 8); $pdf->SetFillColor(245, 248, 255);
-            $pdf->Cell($timeW, $rowH, $pl(substr((string)$t['from'],0,5) . '–' . substr((string)$t['to'],0,5)), 1, 0, 'C', true);
-            $pdf->SetFont('Helvetica', '', 7);
-            foreach (array_keys($WG['dow_cols']) as $dow) {
-                $cell = $WG['grid'][$tk][$dow] ?? '';
-                $pdf->SetFillColor($cell !== '' ? 220 : 255, $cell !== '' ? 238 : 255, $cell !== '' ? 220 : 255);
-                $pdf->Cell($dayW, $rowH, $pl(mb_strimwidth($cell, 0, 18, '…')), 1, 0, 'C', true);
-            }
-            $pdf->Ln();
-        }
-        $pdf->Ln(4);
-        $pdf->SetFont('Helvetica', 'B', 10);
-        $pdf->Cell($W, 7, $pl('Szczegółowy plan'), 0, 1);
-    }
-
-    if (!$PD['by_week']) {
+    if (!$PD['groups']) {
         $pdf->SetFont('Helvetica', '', 10);
         $pdf->Cell($W, 8, $pl('Brak zajęć w wybranym okresie.'), 0, 1);
     } else {
-        $wDay = 42; $wTime = 24; $wCourse = $W - $wDay - $wTime - 40 - 30; $wStud = 40; $wStat = 30;
-        foreach ($PD['by_week'] as $week_start => $wsessions) {
-            $ws_ts = strtotime($week_start);
-            $we_ts = strtotime($week_start . ' +6 days');
-            $wlabel = date('j', $ws_ts) . ' ' . $months_pl[(int)date('n', $ws_ts)]
-                    . ' – ' . date('j', $we_ts) . ' ' . $months_pl[(int)date('n', $we_ts)] . ' ' . date('Y', $ws_ts);
-
+        $wDate = 30; $wStud = $W - $wDate - 34; $wStat = 34;
+        foreach ($PD['groups'] as $g) {
+            $time_label = ($g['time_from'] && $g['time_to']) ? substr((string)$g['time_from'],0,5) . '–' . substr((string)$g['time_to'],0,5) : '—';
             if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
             $pdf->SetFillColor(241, 245, 249); $pdf->SetTextColor(30, 41, 59);
             $pdf->SetFont('Helvetica', 'B', 10);
-            $pdf->Cell($W, 7, $pl('Tydzień ' . $wlabel), 0, 1, 'L', true);
+            $pdf->Cell($W, 7, $pl($g['day_label'] . ', ' . $time_label . ' · ' . $g['course_name']), 0, 1, 'L', true);
             $pdf->SetTextColor(0, 0, 0);
 
             $pdf->SetFillColor(248, 250, 252); $pdf->SetDrawColor(226, 232, 240);
             $pdf->SetFont('Helvetica', 'B', 8);
-            $pdf->Cell($wDay, 6, $pl('Dzień'), 1, 0, 'L', true);
-            $pdf->Cell($wTime, 6, $pl('Godziny'), 1, 0, 'L', true);
-            $pdf->Cell($wCourse, 6, $pl('Kurs'), 1, 0, 'L', true);
+            $pdf->Cell($wDate, 6, $pl('Data'), 1, 0, 'L', true);
             $pdf->Cell($wStud, 6, $pl('Uczestnicy'), 1, 0, 'L', true);
             $pdf->Cell($wStat, 6, $pl('Status'), 1, 1, 'L', true);
 
             $pdf->SetFont('Helvetica', '', 8);
-            foreach ($wsessions as $s) {
+            foreach ($g['dates'] as $d) {
                 if ($pdf->GetY() > $pdf->GetPageHeight() - 20) { $pdf->AddPage(); }
-                $wd = (int)date('N', strtotime((string)$s['lesson_date']));
-                $day_label = $days_pl[$wd] . ' ' . date('j.m', strtotime((string)$s['lesson_date']));
-                $time_label = ($s['time_from'] && $s['time_to']) ? substr((string)$s['time_from'],0,5) . '–' . substr((string)$s['time_to'],0,5) : '—';
-                $st_label = K30_TI_SESSION_STATUSES[(string)$s['status']]['label'] ?? (string)$s['status'];
-                $y0 = $pdf->GetY();
-                $pdf->Cell($wDay, 6, $pl($day_label), 1, 0, 'L');
-                $pdf->Cell($wTime, 6, $pl($time_label), 1, 0, 'L');
-                $pdf->Cell($wCourse, 6, $pl(mb_strimwidth((string)$s['course_name'], 0, 40, '…')), 1, 0, 'L');
-                $pdf->Cell($wStud, 6, $pl(mb_strimwidth((string)($s['student_names'] ?? '–'), 0, 22, '…')), 1, 0, 'L');
+                $st_label = K30_TI_SESSION_STATUSES[$d['status']]['label'] ?? $d['status'];
+                $pdf->Cell($wDate, 6, $pl(date('d.m.Y', strtotime($d['date']))), 1, 0, 'L');
+                $pdf->Cell($wStud, 6, $pl(mb_strimwidth($d['student_names'] !== '' ? $d['student_names'] : '–', 0, 45, '…')), 1, 0, 'L');
                 $pdf->Cell($wStat, 6, $pl($st_label), 1, 1, 'L');
             }
             $pdf->Ln(2);

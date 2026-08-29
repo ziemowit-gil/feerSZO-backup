@@ -3002,21 +3002,25 @@ function ti_course_weekly_slots(int $course_id): array {
 }
 
 /**
- * Dane planu zajęć prowadzącego (lista chronologiczna, grupowana po tygodniu) —
- * wspólne dla widoku HTML (plan_print.php) i wydruków do pobrania (plan_pdf.php,
- * plan_docx.php). Uwzględnia lekcje, w których prowadzący jest zastępstwem
- * (COALESCE(s.instructor_id, c.instructor_id) — patrz [[project_ti_payout]]).
- * @return array{instructor: ?array, from: string, to: string, weeks: int, by_week: array<string,array>}
+ * Plan zajęć prowadzącego jako LISTA grup dzień-tygodnia+godzina (nie siatka) —
+ * najpierw dzień/godzina/kurs, pod spodem wszystkie konkretne daty w zakresie.
+ * Uwzględnia zastępstwa (COALESCE(s.instructor_id, c.instructor_id) — patrz
+ * [[project_ti_payout]]). Grupy posortowane wg dnia tygodnia (Pn=1…Nd=7), potem godziny.
+ * @return array{
+ *   instructor: ?array, from: string, to: string, weeks: int,
+ *   groups: array<int,array{dow:int,day_label:string,time_from:string,time_to:string,course_name:string,dates:array<int,array{date:string,status:string,student_names:string}>}>
+ * }
  */
-function ti_instructor_plan_data(int $target_uid, int $weeks): array {
+function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
     $weeks = max(1, min(26, $weeks));
     $from  = date('Y-m-d');
     $to    = date('Y-m-d', strtotime("+{$weeks} weeks"));
+    $days_pl = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
 
     $instructor = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$target_uid]);
 
     $sessions = $instructor ? db_all("
-        SELECT s.*, c.name AS course_name,
+        SELECT s.lesson_date, s.time_from, s.time_to, s.status, c.id AS course_id, c.name AS course_name,
                GROUP_CONCAT(cl.name, ', ') AS student_names
         FROM k30_ti_sessions s
         JOIN k30_ti_courses c ON c.id = s.course_id
@@ -3029,49 +3033,25 @@ function ti_instructor_plan_data(int $target_uid, int $weeks): array {
         ORDER BY s.lesson_date, s.time_from
     ", [$target_uid, $from, $to]) : [];
 
-    $by_week = [];
+    $groups = [];
     foreach ($sessions as $s) {
-        $wd = (int)date('N', strtotime((string)$s['lesson_date'])); // 1=Pn … 7=Nd
-        $week_start = date('Y-m-d', strtotime((string)$s['lesson_date'] . ' -' . ($wd - 1) . ' days'));
-        $by_week[$week_start][] = $s;
+        $dow = (int)date('N', strtotime((string)$s['lesson_date'])); // 1=Pn … 7=Nd
+        $tk  = $dow . '|' . $s['time_from'] . '|' . $s['time_to'] . '|' . $s['course_id'];
+        if (!isset($groups[$tk])) {
+            $groups[$tk] = [
+                'dow' => $dow, 'day_label' => $days_pl[$dow] ?? '',
+                'time_from' => (string)$s['time_from'], 'time_to' => (string)$s['time_to'],
+                'course_name' => (string)$s['course_name'], 'dates' => [],
+            ];
+        }
+        $groups[$tk]['dates'][] = [
+            'date' => (string)$s['lesson_date'], 'status' => (string)$s['status'],
+            'student_names' => (string)($s['student_names'] ?? ''),
+        ];
     }
-    ksort($by_week);
+    uasort($groups, fn($a, $b) => [$a['dow'], $a['time_from']] <=> [$b['dow'], $b['time_from']]);
 
-    return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'by_week' => $by_week];
-}
-
-/**
- * Wzorzec tygodniowy WSZYSTKICH grup prowadzącego (nie jednej, jak
- * ti_course_weekly_slots()) — do "planu jak u ucznia" (siatka dzień×godzina)
- * w plan_print.php/plan_pdf.php/plan_docx.php. Uwzględnia zastępstwa
- * (COALESCE(s.instructor_id, c.instructor_id) — patrz [[project_ti_payout]]).
- * Jedna komórka może mieć kilka grup naraz (rzadkie, ale możliwe przy
- * naprzemiennych terminach) — sklejone " / ".
- * @return array{rows_time: array<string,array{from:string,to:string}>, grid: array<string,array<int,string>>, dow_cols: array<int,string>}
- */
-function ti_instructor_weekly_slots(int $target_uid): array {
-    $slots = db_all(
-        "SELECT DISTINCT CAST(strftime('%w', s.lesson_date) AS INTEGER) AS dow, s.time_from, s.time_to, c.name AS course_name
-         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
-         WHERE COALESCE(s.instructor_id, c.instructor_id)=? AND s.status != 'cancelled' AND s.time_from != ''
-           AND s.lesson_date >= date('now','-90 days')
-         ORDER BY s.time_from, c.name",
-        [$target_uid]
-    );
-    $rows_time = [];
-    $grid = [];
-    foreach ($slots as $s) {
-        $tk = (string)$s['time_from'] . '-' . (string)$s['time_to'];
-        if (!isset($rows_time[$tk])) $rows_time[$tk] = ['from' => $s['time_from'], 'to' => $s['time_to']];
-        $dow = (int)$s['dow'];
-        $grid[$tk][$dow] = isset($grid[$tk][$dow]) ? $grid[$tk][$dow] . ' / ' . $s['course_name'] : $s['course_name'];
-    }
-    ksort($rows_time);
-    return [
-        'rows_time' => $rows_time,
-        'grid'      => $grid,
-        'dow_cols'  => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
-    ];
+    return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'groups' => array_values($groups)];
 }
 
 function k30_ti_subject_types(bool $active_only = true): array {

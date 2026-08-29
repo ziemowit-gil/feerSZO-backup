@@ -1,7 +1,8 @@
 <?php
 /**
  * karty30/ti/dydaktyk/plan_docx.php — Plan zajęć prowadzącego do pobrania (DOCX).
- * Wariant plan_print.php (widok HTML) — te same dane (ti_instructor_plan_data()).
+ * Wariant plan_print.php (widok HTML) — te same dane (ti_instructor_plan_grouped()).
+ * Lista: najpierw dzień tygodnia + godzina + kurs, pod spodem konkretne daty.
  * GET: instructor_id (staff — dowolny; zwykły prowadzący tylko swój), weeks.
  */
 require_once __DIR__ . '/auth.php';
@@ -16,12 +17,10 @@ if ($is_staff && isset($_GET['instructor_id'])) {
     $target_uid = max(1, (int)$_GET['instructor_id']);
 }
 
-$PD = ti_instructor_plan_data($target_uid, (int)($_GET['weeks'] ?? 8));
+$PD = ti_instructor_plan_grouped($target_uid, (int)($_GET['weeks'] ?? 8));
 $instructor = $PD['instructor'];
 if (!$instructor) { http_response_code(404); exit('Nie znaleziono prowadzącego.'); }
 
-$days_pl   = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
-$months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
 
 require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
@@ -38,54 +37,26 @@ $section->addText(
 );
 $section->addTextBreak(1);
 
-// Siatka tygodniowa — jak plan ucznia (harmonogram_docx.php), zsumowana ze wszystkich grup.
-$WG = ti_instructor_weekly_slots($target_uid);
-if ($WG['rows_time']) {
-    $section->addText('Siatka tygodniowa', ['bold' => true, 'size' => 11]);
-    $gt = $section->addTable(['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 60]);
-    $gt->addRow();
-    $gt->addCell(1300, ['bgColor' => 'E0E8F4'])->addText('Godzina', ['bold' => true, 'size' => 8]);
-    foreach ($WG['dow_cols'] as $dlabel) $gt->addCell(1300, ['bgColor' => 'E0E8F4'])->addText($dlabel, ['bold' => true, 'size' => 7]);
-    foreach ($WG['rows_time'] as $tk => $t) {
-        $gt->addRow();
-        $gt->addCell(1300)->addText(substr((string)$t['from'],0,5) . '–' . substr((string)$t['to'],0,5), ['bold' => true, 'size' => 8]);
-        foreach (array_keys($WG['dow_cols']) as $dow) {
-            $cell = $WG['grid'][$tk][$dow] ?? '';
-            $gt->addCell(1300, $cell !== '' ? ['bgColor' => 'DCEEDC'] : [])->addText($cell, ['size' => 7]);
-        }
-    }
-    $section->addTextBreak(1);
-    $section->addText('Szczegółowy plan', ['bold' => true, 'size' => 11]);
-}
-
-if (!$PD['by_week']) {
+if (!$PD['groups']) {
     $section->addText('Brak zajęć w wybranym okresie.');
 } else {
-    foreach ($PD['by_week'] as $week_start => $wsessions) {
-        $ws_ts = strtotime($week_start);
-        $we_ts = strtotime($week_start . ' +6 days');
-        $wlabel = date('j', $ws_ts) . ' ' . $months_pl[(int)date('n', $ws_ts)]
-                . ' – ' . date('j', $we_ts) . ' ' . $months_pl[(int)date('n', $we_ts)] . ' ' . date('Y', $ws_ts);
-
-        $section->addText('Tydzień ' . $wlabel, ['bold' => true, 'size' => 11], ['spaceBefore' => 200, 'spaceAfter' => 80]);
+    foreach ($PD['groups'] as $g) {
+        $time_label = ($g['time_from'] && $g['time_to']) ? substr((string)$g['time_from'],0,5) . '–' . substr((string)$g['time_to'],0,5) : '—';
+        $section->addText($g['day_label'] . ', ' . $time_label . ' · ' . $g['course_name'],
+            ['bold' => true, 'size' => 11], ['spaceBefore' => 200, 'spaceAfter' => 80]);
 
         $table = $section->addTable(['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 60]);
         $table->addRow();
-        foreach (['Dzień', 'Godziny', 'Kurs', 'Uczestnicy', 'Status'] as $i => $h) {
-            $w = [1600, 1200, 2600, 2200, 1200][$i];
+        foreach (['Data', 'Uczestnicy', 'Status'] as $i => $h) {
+            $w = [1600, 4200, 1600][$i];
             $table->addCell($w, ['bgColor' => 'F1F5F9'])->addText($h, ['bold' => true, 'size' => 8]);
         }
-        foreach ($wsessions as $s) {
+        foreach ($g['dates'] as $d) {
             $table->addRow();
-            $wd = (int)date('N', strtotime((string)$s['lesson_date']));
-            $day_label = $days_pl[$wd] . ' ' . date('j.m', strtotime((string)$s['lesson_date']));
-            $time_label = ($s['time_from'] && $s['time_to']) ? substr((string)$s['time_from'],0,5) . '–' . substr((string)$s['time_to'],0,5) : '—';
-            $st_label = K30_TI_SESSION_STATUSES[(string)$s['status']]['label'] ?? (string)$s['status'];
-            $table->addCell(1600)->addText($day_label, ['size' => 8]);
-            $table->addCell(1200)->addText($time_label, ['size' => 8]);
-            $table->addCell(2600)->addText((string)$s['course_name'], ['size' => 8]);
-            $table->addCell(2200)->addText((string)($s['student_names'] ?? '–'), ['size' => 7]);
-            $table->addCell(1200)->addText($st_label, ['size' => 8]);
+            $st_label = K30_TI_SESSION_STATUSES[$d['status']]['label'] ?? $d['status'];
+            $table->addCell(1600)->addText(date('d.m.Y', strtotime($d['date'])), ['size' => 8]);
+            $table->addCell(4200)->addText($d['student_names'] !== '' ? $d['student_names'] : '–', ['size' => 7]);
+            $table->addCell(1600)->addText($st_label, ['size' => 8]);
         }
     }
 }
