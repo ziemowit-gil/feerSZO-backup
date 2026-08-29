@@ -159,6 +159,19 @@ $rk_slots = ($rk_round && $rk_instr_id && $rk_instr_name !== '')
         ['only_free' => 1] + ($rk_course_id ? ['course_id' => $rk_course_id] : []))
     : [];
 
+// Kreator: liczba kroków zależy od tego, czy kursant ma własne grupy (krok
+// „Rodzaj zajęć” pomijamy dla nowej osoby bez zapisów — patrz $rk_need_course).
+$rk_steps = [['key' => 'round', 'label' => 'Tura']];
+if ($rk_courses) $rk_steps[] = ['key' => 'course', 'label' => 'Rodzaj zajęć'];
+$rk_steps[] = ['key' => 'instr', 'label' => 'Prowadzący'];
+$rk_steps[] = ['key' => 'slot',  'label' => 'Termin'];
+$rk_active_key = 'round';
+if ($rk_round) {
+    if ($rk_need_course)      { $rk_active_key = 'course'; }
+    elseif (!$rk_instr_id)    { $rk_active_key = 'instr'; }
+    else                      { $rk_active_key = 'slot'; }
+}
+
 $rk_flash = $_SESSION['rk_flash'] ?? null;
 unset($_SESSION['rk_flash']);
 
@@ -279,6 +292,30 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 </div>
 <?php endif; ?>
 
+<!-- ── Kreator: pasek postępu kroków rejestracji ───────────────────────────── -->
+<?php if ($rk_rounds):
+  $rk_active_idx = 0;
+  foreach ($rk_steps as $rk_i => $rk_st) { if ($rk_st['key'] === $rk_active_key) { $rk_active_idx = $rk_i; break; } }
+?>
+<div class="d-flex align-items-start mb-4" style="max-width:640px">
+  <?php foreach ($rk_steps as $rk_i => $rk_st): $rk_done = $rk_i < $rk_active_idx; $rk_is_active = $rk_i === $rk_active_idx; ?>
+  <?php if ($rk_i > 0): ?>
+  <div class="flex-grow-1 mt-4" style="height:2px;background:<?= $rk_done ? 'var(--bs-primary)' : 'var(--bs-border-color)' ?>"></div>
+  <?php endif; ?>
+  <div class="d-flex flex-column align-items-center text-center" style="min-width:4.5rem">
+    <span class="d-inline-flex align-items-center justify-content-center rounded-circle fw-semibold flex-shrink-0
+                 <?= $rk_done ? 'text-bg-primary' : ($rk_is_active ? 'border border-primary text-primary' : 'border text-body-secondary') ?>"
+          style="width:1.9rem;height:1.9rem;font-size:.85rem">
+      <?php if ($rk_done): ?><i class="bi bi-check-lg" aria-hidden="true"></i><?php else: ?><?= $rk_i + 1 ?><?php endif; ?>
+    </span>
+    <span class="mt-1 <?= $rk_is_active ? 'fw-semibold text-primary' : 'text-body-secondary' ?>" style="font-size:.72rem">
+      <?= h($rk_st['label']) ?>
+    </span>
+  </div>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <!-- ── Wybór: tura → prowadzący → termin ─────────────────────────────────── -->
 <?php if (!$rk_rounds): ?>
 <div class="card border-0 shadow-sm mb-4"><div class="card-body text-body-secondary">
@@ -287,6 +324,45 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 
 <?php elseif (!$rk_round): ?>
 <h2 class="h6 fw-bold mb-2">Wybierz turę</h2>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h3 class="h6 fw-bold mb-1"><i class="bi bi-flag me-1 text-primary" aria-hidden="true"></i>Czym jest tura rejestracji?</h3>
+    <p class="text-body-secondary small mb-3" style="max-width:46rem">
+      Tura to okno czasowe przypisane do jednego okresu nauki (np. semestru) — tylko w tym
+      oknie można rezerwować terminy na ten okres. Poza nim strona pokaże termin startu
+      kolejnej tury zamiast listy zajęć.
+    </p>
+    <div class="row g-3 small">
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-calendar-range text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Okno czasowe, nie „na zawsze”</div>
+            <div class="text-body-secondary">Zapisy działają tylko między startem a zamknięciem tury — sprawdzisz to przy jej nazwie niżej.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-hourglass-split text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Bez wyścigu o północy</div>
+            <div class="text-body-secondary">Masz czas aż do zamknięcia tury — o miejscu decydują żetony, nie to, kto kliknie pierwszy.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-arrow-repeat text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Nowy okres = nowa tura</div>
+            <div class="text-body-secondary">Każdy kolejny okres nauki dostaje własną turę z odświeżoną pulą terminów do wyboru.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="d-flex flex-column gap-2 mb-4">
   <?php foreach ($rk_rounds as $r): $r_open = $r['status'] === 'open' && strtotime((string)$r['opens_at']) <= time(); ?>
   <div class="card border-0 shadow-sm"><div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
@@ -372,11 +448,27 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 <div class="text-body-secondary small mb-4">Ten prowadzący nie ma teraz wolnych terminów.
   <a href="t.php?rk_round=<?= (int)$rk_round['id'] ?>">Wybierz innego</a>.</div>
 <?php else: ?>
-<div class="alert alert-light border py-2 small mb-2" role="note">
-  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-  <strong>„Rezerwuję”</strong> zapisuje na pojedyncze zajęcia.
-  <strong>„Ustal zajęcia na cały okres”</strong> rezerwuje ten sam dzień tygodnia i godzinę
-  co tydzień, do końca tury — <strong>wybrana data to data pierwszych zajęć</strong>.
+<div class="row g-2 mb-3">
+  <div class="col-12 col-md-6">
+    <div class="border rounded p-2 px-3 h-100">
+      <div class="fw-semibold small"><i class="bi bi-calendar-check me-1 text-primary" aria-hidden="true"></i>„Rezerwuję” — tylko TEN JEDEN termin</div>
+      <div class="text-body-secondary" style="font-size:.8rem">
+        Przykład: klikasz przy wtorku 14:00 → masz zajęcia <strong>tylko w ten jeden wtorek</strong>.
+        Na następny tydzień, jeśli chcesz przyjść znowu, zapisujesz się jeszcze raz.
+        Dobre na próbę, konsultację albo nieregularne zajęcia.
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="border rounded p-2 px-3 h-100">
+      <div class="fw-semibold small"><i class="bi bi-arrow-repeat me-1 text-primary" aria-hidden="true"></i>„Ustal zajęcia na cały okres” — CO TYDZIEŃ automatycznie</div>
+      <div class="text-body-secondary" style="font-size:.8rem">
+        Przykład: klikasz przy wtorku 14:00 → masz zajęcia <strong>w każdy kolejny wtorek o 14:00,
+        aż do końca tury</strong> — bez zapisywania się od nowa co tydzień. Wybrana data to data
+        pierwszych zajęć. Dobre na stałe zajęcia grupowe/indywidualne na cały semestr.
+      </div>
+    </div>
+  </div>
 </div>
 <div class="table-responsive mb-4">
   <table class="table table-sm align-middle bg-body rounded shadow-sm">
