@@ -171,6 +171,42 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć grupy — format Librus</h3>
+        <form method="get" action="plan_librus.php" target="_blank" class="row g-2 mt-1">
+          <div class="col-12">
+            <select name="course_id" class="form-select form-select-sm" required>
+              <option value="">— wybierz grupę —</option>
+              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12">
+            <select name="weeks" class="form-select form-select-sm">
+              <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+        </form>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-geo-alt me-2 text-primary" aria-hidden="true"></i>Harmonogram grup — dzień, godziny, lokalizacja</h3>
+        <p class="small text-body-secondary">Tabela wszystkich grup stacjonarnych z ich wzorcem spotkań i przypisaną salą — do podglądu, druku lub skopiowania jako Markdown.</p>
+        <a class="btn btn-sm btn-primary w-100" href="harmonogram_lokalizacje.php" target="_blank"><i class="bi bi-table me-1" aria-hidden="true"></i>Pokaż zestawienie</a>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary" aria-hidden="true"></i>Wykaz sal do rezerwacji</h3>
+        <p class="small text-body-secondary">Lista kontrolna dla koordynatora logistycznego — terminy z przypisaną salą, pogrupowane dniami, ze statusem zgłoszenia.</p>
+        <a class="btn btn-sm btn-primary w-100" href="sale_rezerwacje.php" target="_blank"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Pokaż wykaz (bieżący tydzień)</a>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
         <h3 class="h6 fw-semibold"><i class="bi bi-journal-text me-2 text-primary" aria-hidden="true"></i>Protokół zajęć (PDF)</h3>
         <p class="small text-body-secondary mb-0">Protokoły są przypisane do konkretnych lekcji — wydruk dostępny
         z widoku grupy: <a href="index.php?tab=lekcje">Zajęcia → zakładka Protokół</a>.</p>
