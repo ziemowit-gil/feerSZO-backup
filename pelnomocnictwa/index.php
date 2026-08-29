@@ -29,6 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Wpis usunięty.');
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php'); exit;
         }
+        if ($action === 'upload_dokument') {
+            $id  = (int)($_POST['id'] ?? 0);
+            $typ = ($_POST['dokument_typ'] ?? '') === 'odwolanie' ? 'odwolanie' : 'pelnomocnictwo';
+            $err = pelnomocnictwo_upload($id, $user_id, $typ);
+            if ($err) throw new \RuntimeException($err);
+            flash_set('success', 'Dokument dołączony do wpisu.');
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
+        }
+        if ($action === 'delete_dokument') {
+            $id = (int)($_POST['id'] ?? 0);
+            pelnomocnictwo_document_delete($id);
+            flash_set('success', 'Dokument usunięty ze wpisu.');
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
+        }
     } catch (\Throwable $e) {
         flash_set('error', $e->getMessage());
     }
@@ -81,24 +95,74 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="col-md-3"><label class="form-label mb-1" style="font-size:.74rem">Ważne do <span class="text-muted">(puste = bezterminowe)</span></label>
         <input type="date" name="data_waznosci" class="form-control form-control-sm" value="<?= h($edit['data_waznosci'] ?? '') ?>"></div>
 
-      <div class="col-md-6"><label class="form-label mb-1" style="font-size:.74rem">Mocodawca <span class="text-danger">*</span></label>
+      <div class="col-md-5"><label class="form-label mb-1" style="font-size:.74rem">Mocodawca <span class="text-danger">*</span></label>
         <input type="text" name="mocodawca" class="form-control form-control-sm" value="<?= h($edit['mocodawca'] ?? '') ?>" required placeholder="kto udziela pełnomocnictwa"></div>
-      <div class="col-md-6"><label class="form-label mb-1" style="font-size:.74rem">Pełnomocnik <span class="text-danger">*</span></label>
+      <div class="col-md-5"><label class="form-label mb-1" style="font-size:.74rem">Pełnomocnik <span class="text-danger">*</span></label>
         <input type="text" name="pelnomocnik" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik'] ?? '') ?>" required placeholder="komu udzielono pełnomocnictwa"></div>
+      <div class="col-md-2"><label class="form-label mb-1" style="font-size:.74rem">PESEL</label>
+        <input type="text" name="pelnomocnik_pesel" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_pesel'] ?? '') ?>" maxlength="11" placeholder="opcjonalnie"></div>
 
-      <div class="col-12"><label class="form-label mb-1" style="font-size:.74rem">Zakres umocowania</label>
-        <textarea name="zakres" class="form-control form-control-sm" rows="2"><?= h($edit['zakres'] ?? '') ?></textarea></div>
+      <div class="col-12"><label class="form-label mb-1" style="font-size:.74rem">Zakres umocowania <span class="text-muted">(jedna pozycja na linię — w dokumencie zostanie ponumerowana)</span></label>
+        <textarea name="zakres" class="form-control form-control-sm" rows="3" placeholder="np.&#10;wydawania zaświadczeń potwierdzających przeprowadzenie szkolenia lub instruktażu&#10;podpisywania dokumentacji związanej z realizacją szkoleń"><?= h($edit['zakres'] ?? '') ?></textarea></div>
 
       <div class="col-md-4"><label class="form-label mb-1" style="font-size:.74rem">Data odwołania <span class="text-muted">(jeśli odwołane)</span></label>
         <input type="date" name="data_odwolania" class="form-control form-control-sm" value="<?= h($edit['data_odwolania'] ?? '') ?>"></div>
       <div class="col-md-8"><label class="form-label mb-1" style="font-size:.74rem">Uwagi</label>
         <input type="text" name="uwagi" class="form-control form-control-sm" value="<?= h($edit['uwagi'] ?? '') ?>"></div>
 
+      <div class="col-12 mt-2"><hr class="my-1"><div class="text-muted mb-1" style="font-size:.72rem"><i class="bi bi-file-earmark-text me-1"></i>Dane do generowanego dokumentu</div></div>
+      <div class="col-md-6">
+        <label class="form-label mb-1" style="font-size:.74rem">Podpisujący w imieniu mocodawcy</label>
+        <input type="text" name="podpisujacy" class="form-control form-control-sm" list="peln-reps" value="<?= h($edit['podpisujacy'] ?? '') ?>" placeholder="imię i nazwisko">
+        <datalist id="peln-reps">
+          <?php foreach (function_exists('org_representatives') ? org_representatives() : [] as $rep): ?>
+          <option value="<?= h($rep['name']) ?>"><?php endforeach; ?>
+        </datalist>
+      </div>
+      <div class="col-md-6"><label class="form-label mb-1" style="font-size:.74rem">Funkcja podpisującego</label>
+        <input type="text" name="podpisujacy_funkcja" class="form-control form-control-sm" value="<?= h($edit['podpisujacy_funkcja'] ?? '') ?>" placeholder="np. Prezes Zarządu (uzupełni się automatycznie z listy przedstawicieli)"></div>
+
       <div class="col-12 d-flex gap-2 mt-2">
         <button class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i><?= $edit ? 'Zapisz zmiany' : 'Dodaj' ?></button>
         <?php if($edit): ?><a href="<?= APP_URL ?>/pelnomocnictwa/index.php" class="btn btn-outline-secondary btn-sm">Anuluj</a><?php endif; ?>
       </div>
     </form>
+
+    <?php if ($edit): ?>
+    <hr class="my-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="text-muted" style="font-size:.72rem"><i class="bi bi-file-earmark-richtext me-1"></i>Generuj dokument:</span>
+      <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $edit['id'] ?>&typ=pelnomocnictwo" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-plus me-1"></i>Pełnomocnictwo</a>
+      <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $edit['id'] ?>&typ=odwolanie" target="_blank" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-x me-1"></i>Odwołanie</a>
+    </div>
+
+    <div class="mt-3">
+      <span class="text-muted" style="font-size:.72rem"><i class="bi bi-paperclip me-1"></i>Podpisany skan (PDF/JPG/PNG):</span>
+      <?php if ($edit['dokument_plik']): ?>
+      <div class="d-flex align-items-center gap-2 mt-1">
+        <a href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= $edit['id'] ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download me-1"></i><?= h($edit['dokument_oryginal_nazwa'] ?: 'pobierz') ?></a>
+        <form method="post" onsubmit="return confirm('Usunąć dołączony dokument?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="delete_dokument">
+          <input type="hidden" name="id" value="<?= $edit['id'] ?>">
+          <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i></button>
+        </form>
+      </div>
+      <?php else: ?>
+      <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center mt-1">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="upload_dokument">
+        <input type="hidden" name="id" value="<?= $edit['id'] ?>">
+        <select name="dokument_typ" class="form-select form-select-sm" style="width:auto">
+          <option value="pelnomocnictwo">Pełnomocnictwo</option>
+          <option value="odwolanie">Odwołanie</option>
+        </select>
+        <input type="file" name="dokument" class="form-control form-control-sm" style="width:auto" required accept=".pdf,.jpg,.jpeg,.png">
+        <button class="btn btn-outline-primary btn-sm"><i class="bi bi-upload me-1"></i>Wgraj</button>
+      </form>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -155,7 +219,11 @@ include dirname(__DIR__) . '/includes/header.php';
           </td>
           <td><span class="badge bg-<?= $color ?> bg-opacity-15 text-<?= $color ?> border border-<?= $color ?>" style="font-size:.72rem"><?= h($label) ?></span></td>
           <td class="text-end text-nowrap">
-            <a href="<?= APP_URL ?>/pelnomocnictwa/print.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Wydruk" target="_blank"><i class="bi bi-printer"></i></a>
+            <?php if ($r['dokument_plik']): ?>
+            <a href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-success btn-sm" title="Pobierz podpisany skan"><i class="bi bi-paperclip"></i></a>
+            <?php endif; ?>
+            <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $r['id'] ?>&typ=pelnomocnictwo" class="btn btn-xs btn-outline-secondary btn-sm" title="Generuj dokument" target="_blank"><i class="bi bi-file-earmark-richtext"></i></a>
+            <a href="<?= APP_URL ?>/pelnomocnictwa/print.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Wydruk rejestru" target="_blank"><i class="bi bi-printer"></i></a>
             <a href="?edit=<?= $r['id'] ?>#form-peln" class="btn btn-xs btn-outline-secondary btn-sm" title="Edytuj"><i class="bi bi-pencil"></i></a>
             <?php if(is_admin()): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć wpis z rejestru?')">

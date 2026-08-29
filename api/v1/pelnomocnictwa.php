@@ -64,6 +64,7 @@ function peln_api_row(array $r): array {
         'numer'           => $r['numer'],
         'mocodawca'       => $r['mocodawca'],
         'pelnomocnik'     => $r['pelnomocnik'],
+        'pelnomocnik_pesel' => $r['pelnomocnik_pesel'],
         'zakres'          => $r['zakres'],
         'forma'           => $r['forma'],
         'data_udzielenia' => $r['data_udzielenia'],
@@ -71,6 +72,9 @@ function peln_api_row(array $r): array {
         'data_odwolania'  => $r['data_odwolania'],
         'status'          => pelnomocnictwo_status($r),
         'uwagi'           => $r['uwagi'],
+        'podpisujacy'         => $r['podpisujacy'],
+        'podpisujacy_funkcja' => $r['podpisujacy_funkcja'],
+        'dokument_zalaczony'  => $r['dokument_plik'] !== '',
         'created_at'      => $r['created_at'],
         'updated_at'      => $r['updated_at'],
     ];
@@ -84,7 +88,7 @@ function peln_api_build(array $in, bool $require_fields): array {
     $errors = [];
     $data   = [];
 
-    $fields = ['numer','mocodawca','pelnomocnik','zakres','forma','data_udzielenia','data_waznosci','data_odwolania','uwagi'];
+    $fields = ['numer','mocodawca','pelnomocnik','pelnomocnik_pesel','zakres','forma','data_udzielenia','data_waznosci','data_odwolania','uwagi','podpisujacy','podpisujacy_funkcja'];
     foreach ($fields as $f) {
         if (array_key_exists($f, $in)) {
             $v = $in[$f];

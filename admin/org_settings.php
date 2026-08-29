@@ -30,7 +30,7 @@ function format_iban_pl(string $nrb): string {
 
 
 
-$branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
+$branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','org_sad_rejestrowy','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif (isset($_POST['save_manual'])) {
-        $fields = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres'];
+        $fields = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_sad_rejestrowy'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($fields as $k) {
             $v = trim($_POST[$k] ?? '');
@@ -468,6 +468,12 @@ include dirname(__DIR__) . '/includes/header.php';
           <label class="form-label">Adres siedziby</label>
           <input type="text" name="org_adres" class="form-control"
                  value="<?= h($saved['org_adres']) ?>" placeholder="ul. Przykładowa 1, 00-001 Warszawa">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Sąd rejestrowy <span class="text-muted small">(używane w dokumentach pełnomocnictw, po zwrocie „…wpisanej do rejestru stowarzyszeń Krajowego Rejestru Sądowego, ")</span></label>
+          <input type="text" name="org_sad_rejestrowy" class="form-control"
+                 value="<?= h($saved['org_sad_rejestrowy']) ?>"
+                 placeholder="którego akta przechowuje Sąd Rejonowy dla ... w ... Wydział ... Gospodarczy KRS">
         </div>
       </div>
       <div class="mt-3">
