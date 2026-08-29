@@ -820,6 +820,19 @@ function rk_instructors_for_round(int $round_id, int $client_id = 0, int $course
                                         WHERE round_id=? AND course_id=?)';
             $params[] = $round_id;
             $params[] = $course_id;
+        } else {
+            // Brak ręcznego przypisania kierownika — zamiast pokazywać WSZYSTKICH
+            // prowadzących tury (co miesza przedmioty, np. angielski pokazywałby
+            // też prowadzących matematyki), zawężamy do tych, którzy realnie
+            // wystawili sloty na TEN przedmiot. Dopiero gdy nikt nie oznaczył
+            // slotów tym przedmiotem, zostaje bez zawężenia (nowy przedmiot bez
+            // żadnej konfiguracji — lepiej pokazać wszystkich niż nikogo).
+            $tagged = db_one("SELECT 1 FROM k30_rk_slots
+                               WHERE round_id=? AND course_id=? LIMIT 1", [$round_id, $course_id]);
+            if ($tagged) {
+                $extra   .= ' AND s.course_id = ?';
+                $params[] = $course_id;
+            }
         }
     }
     return db_all(
