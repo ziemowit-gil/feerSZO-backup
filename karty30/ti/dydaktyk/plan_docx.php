@@ -38,6 +38,26 @@ $section->addText(
 );
 $section->addTextBreak(1);
 
+// Siatka tygodniowa — jak plan ucznia (harmonogram_docx.php), zsumowana ze wszystkich grup.
+$WG = ti_instructor_weekly_slots($target_uid);
+if ($WG['rows_time']) {
+    $section->addText('Siatka tygodniowa', ['bold' => true, 'size' => 11]);
+    $gt = $section->addTable(['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 60]);
+    $gt->addRow();
+    $gt->addCell(1300, ['bgColor' => 'E0E8F4'])->addText('Godzina', ['bold' => true, 'size' => 8]);
+    foreach ($WG['dow_cols'] as $dlabel) $gt->addCell(1300, ['bgColor' => 'E0E8F4'])->addText($dlabel, ['bold' => true, 'size' => 7]);
+    foreach ($WG['rows_time'] as $tk => $t) {
+        $gt->addRow();
+        $gt->addCell(1300)->addText(substr((string)$t['from'],0,5) . '–' . substr((string)$t['to'],0,5), ['bold' => true, 'size' => 8]);
+        foreach (array_keys($WG['dow_cols']) as $dow) {
+            $cell = $WG['grid'][$tk][$dow] ?? '';
+            $gt->addCell(1300, $cell !== '' ? ['bgColor' => 'DCEEDC'] : [])->addText($cell, ['size' => 7]);
+        }
+    }
+    $section->addTextBreak(1);
+    $section->addText('Szczegółowy plan', ['bold' => true, 'size' => 11]);
+}
+
 if (!$PD['by_week']) {
     $section->addText('Brak zajęć w wybranym okresie.');
 } else {

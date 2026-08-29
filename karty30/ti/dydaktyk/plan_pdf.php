@@ -43,6 +43,34 @@ try {
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(4);
 
+    // Siatka tygodniowa — jak plan ucznia (harmonogram_pdf.php), zsumowana ze wszystkich grup.
+    $WG = ti_instructor_weekly_slots($target_uid);
+    if ($WG['rows_time']) {
+        $pdf->SetFont('Helvetica', 'B', 10);
+        $pdf->Cell($W, 7, $pl('Siatka tygodniowa'), 0, 1);
+        $timeW = 24; $dayW = ($W - $timeW) / 7; $rowH = 12;
+        $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225);
+        $pdf->SetFont('Helvetica', 'B', 8);
+        $pdf->Cell($timeW, 7, $pl('Godzina'), 1, 0, 'C', true);
+        foreach ($WG['dow_cols'] as $dlabel) $pdf->Cell($dayW, 7, $pl(mb_substr($dlabel, 0, 3)), 1, 0, 'C', true);
+        $pdf->Ln();
+        foreach ($WG['rows_time'] as $tk => $t) {
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 30) { $pdf->AddPage(); }
+            $pdf->SetFont('Helvetica', 'B', 8); $pdf->SetFillColor(245, 248, 255);
+            $pdf->Cell($timeW, $rowH, $pl(substr((string)$t['from'],0,5) . '–' . substr((string)$t['to'],0,5)), 1, 0, 'C', true);
+            $pdf->SetFont('Helvetica', '', 7);
+            foreach (array_keys($WG['dow_cols']) as $dow) {
+                $cell = $WG['grid'][$tk][$dow] ?? '';
+                $pdf->SetFillColor($cell !== '' ? 220 : 255, $cell !== '' ? 238 : 255, $cell !== '' ? 220 : 255);
+                $pdf->Cell($dayW, $rowH, $pl(mb_strimwidth($cell, 0, 18, '…')), 1, 0, 'C', true);
+            }
+            $pdf->Ln();
+        }
+        $pdf->Ln(4);
+        $pdf->SetFont('Helvetica', 'B', 10);
+        $pdf->Cell($W, 7, $pl('Szczegółowy plan'), 0, 1);
+    }
+
     if (!$PD['by_week']) {
         $pdf->SetFont('Helvetica', '', 10);
         $pdf->Cell($W, 8, $pl('Brak zajęć w wybranym okresie.'), 0, 1);

@@ -3040,6 +3040,40 @@ function ti_instructor_plan_data(int $target_uid, int $weeks): array {
     return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'by_week' => $by_week];
 }
 
+/**
+ * Wzorzec tygodniowy WSZYSTKICH grup prowadzącego (nie jednej, jak
+ * ti_course_weekly_slots()) — do "planu jak u ucznia" (siatka dzień×godzina)
+ * w plan_print.php/plan_pdf.php/plan_docx.php. Uwzględnia zastępstwa
+ * (COALESCE(s.instructor_id, c.instructor_id) — patrz [[project_ti_payout]]).
+ * Jedna komórka może mieć kilka grup naraz (rzadkie, ale możliwe przy
+ * naprzemiennych terminach) — sklejone " / ".
+ * @return array{rows_time: array<string,array{from:string,to:string}>, grid: array<string,array<int,string>>, dow_cols: array<int,string>}
+ */
+function ti_instructor_weekly_slots(int $target_uid): array {
+    $slots = db_all(
+        "SELECT DISTINCT CAST(strftime('%w', s.lesson_date) AS INTEGER) AS dow, s.time_from, s.time_to, c.name AS course_name
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+         WHERE COALESCE(s.instructor_id, c.instructor_id)=? AND s.status != 'cancelled' AND s.time_from != ''
+           AND s.lesson_date >= date('now','-90 days')
+         ORDER BY s.time_from, c.name",
+        [$target_uid]
+    );
+    $rows_time = [];
+    $grid = [];
+    foreach ($slots as $s) {
+        $tk = (string)$s['time_from'] . '-' . (string)$s['time_to'];
+        if (!isset($rows_time[$tk])) $rows_time[$tk] = ['from' => $s['time_from'], 'to' => $s['time_to']];
+        $dow = (int)$s['dow'];
+        $grid[$tk][$dow] = isset($grid[$tk][$dow]) ? $grid[$tk][$dow] . ' / ' . $s['course_name'] : $s['course_name'];
+    }
+    ksort($rows_time);
+    return [
+        'rows_time' => $rows_time,
+        'grid'      => $grid,
+        'dow_cols'  => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
+    ];
+}
+
 function k30_ti_subject_types(bool $active_only = true): array {
     $w = $active_only ? 'WHERE is_active=1' : '';
     return db_all("SELECT * FROM k30_ti_subject_types $w ORDER BY sort_order, abbreviation");

@@ -32,6 +32,7 @@ $months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>
 
 $today = date('Y-m-d');
 $org   = defined('APP_ORG') ? APP_ORG : '';
+$WG    = ti_instructor_weekly_slots($target_uid); // siatka tygodniowa — jak plan ucznia (harmonogram_pdf.php)
 ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? ''), 0, 0, ['weeks' => $weeks], $me);
 ?><!DOCTYPE html>
 <html lang="pl">
@@ -60,6 +61,9 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   .course-name { font-weight: 600; }
   .students    { font-size: 9pt; color: #64748b; }
   .no-sessions { color: #94a3b8; font-style: italic; font-size: 10pt; padding: 6px 8px; }
+  .grid-table th, .grid-table td { text-align: center; font-size: 9pt; }
+  .grid-table .time-col { font-weight: 700; background: #f5f8ff; }
+  .grid-cell-fill { background: #dceedc; font-weight: 600; font-size: 8.5pt; }
   .controls { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 8px 20px; display: flex; gap: 12px; align-items: center; }
   .controls label { font-size: 10pt; }
   .controls select, .controls button { font-size: 10pt; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
@@ -105,9 +109,28 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
 </div>
 
 <div class="content">
+<?php if ($WG['rows_time']): ?>
+  <div class="week-header">Siatka tygodniowa</div>
+  <table class="grid-table">
+    <thead><tr><th style="width:80px">Godzina</th><?php foreach ($WG['dow_cols'] as $dl): ?><th><?= h($dl) ?></th><?php endforeach; ?></tr></thead>
+    <tbody>
+      <?php foreach ($WG['rows_time'] as $tk => $t): ?>
+      <tr>
+        <td class="time-col"><?= h(substr((string)$t['from'],0,5)) ?>–<?= h(substr((string)$t['to'],0,5)) ?></td>
+        <?php foreach (array_keys($WG['dow_cols']) as $dow): $cell = $WG['grid'][$tk][$dow] ?? ''; ?>
+        <td class="<?= $cell !== '' ? 'grid-cell-fill' : '' ?>"><?= h($cell) ?></td>
+        <?php endforeach; ?>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+<?php endif; ?>
 <?php if (empty($by_week)): ?>
   <p style="color:#64748b;font-style:italic">Brak zajęć w wybranym okresie.</p>
 <?php else: ?>
+  <div class="week-header" style="margin-top:22px">Szczegółowy plan</div>
+<?php endif; ?>
+<?php if (!empty($by_week)): ?>
 <?php foreach ($by_week as $week_start => $wsessions):
     $ws_ts = strtotime($week_start);
     $we_ts = strtotime($week_start . ' +6 days');
