@@ -284,11 +284,14 @@ function _menu_editor(): array {
         $obs[] = _mi('Pisma','/contracts/letters/index.php','bi-envelope-paper',['match'=>'/contracts/letters/','kw'=>'pisma korespondencja']);
     if (module_enabled('terminations_enabled'))
         $obs[] = _mi('Rozwiązania','/admin/terminations.php','bi-file-earmark-x',['match'=>'/admin/terminations','badge'=>$cnt['term'],'kw'=>'rozwiązanie umowy']);
+    if (module_enabled('pelnomocnictwa_enabled'))
+        $obs[] = _mi('Rejestr pełnomocnictw','/pelnomocnictwa/index.php','bi-person-badge',['match'=>'/pelnomocnictwa/','kw'=>'pełnomocnictwo upoważnienie mocodawca 013']);
     $um_g[] = ['label'=>'Obsługa umów','items'=>$obs];
     $nodes[] = [
         'id'=>'umowy','label'=>'Umowy','icon'=>'bi-file-text','badge'=>$cnt['pending']+$cnt['term'],
         'active'=>(_menu_hit('/contracts/') && !_menu_hit('/contracts/wolontariat') && !_menu_hit('/contracts/rekrutacja'))
-                 || _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations'),
+                 || _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations')
+                 || _menu_hit('/pelnomocnictwa/'),
         'groups'=>$um_g,
     ];
 

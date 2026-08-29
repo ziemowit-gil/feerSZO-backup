@@ -31,6 +31,8 @@ const AM_API_PERMISSIONS = [
     'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
     'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
     'ezd:read'         => 'EZD Wirtualne biurko — odczyt (teczki, sprawy, pisma)',
+    'pelnomocnictwa:read'  => 'Rejestr pełnomocnictw — odczyt',
+    'pelnomocnictwa:write' => 'Rejestr pełnomocnictw — zapis (twórz / edytuj / usuń)',
     'ext:read'         => 'Materiały zewnętrzne — odczyt katalogu i dziennika (bez treści plików)',
     // Osobne od crm:write — token dla zewnętrznego CMS-a ma móc TYLKO przyjmować
     // zgłoszenia z formularzy, a nie edytować i kasować kartotekę.
@@ -484,6 +486,15 @@ curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=spraw
 
 # Pisma sprawy o id=42
 curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=pisma&sprawa_id=42"</pre>
+
+      <h6 class="fw-semibold mt-4"><i class="bi bi-person-badge-fill text-primary me-1"></i>Rejestr pełnomocnictw — <code><?= h($api_base) ?>/pelnomocnictwa.php</code></h6>
+      <p class="mb-2">CRUD wpisów rejestru (numer, mocodawca, pełnomocnik, zakres, ważność). Scope: <code>pelnomocnictwa:read</code> / <code>pelnomocnictwa:write</code>.
+        Filtry listy: <code>q, status (wazne/wygasle/odwolane), rok</code>. Status jest wyliczany z dat, nie ustawiany ręcznie.</p>
+      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"mocodawca":"Jan Kowalski","pelnomocnik":"Anna Nowak","zakres":"reprezentacja przed urzędami","data_udzielenia":"2026-01-10"}' \
+  "<?= h($api_base) ?>/pelnomocnictwa.php"
+
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/pelnomocnictwa.php?status=wazne"</pre>
     </div>
   </div>
 </div><!-- /pane-api -->
