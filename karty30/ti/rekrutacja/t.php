@@ -226,16 +226,45 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body">
-    <h2 class="h6 fw-bold mb-2"><i class="bi bi-info-circle me-1 text-primary" aria-hidden="true"></i>Jak działają zapisy żetonowe</h2>
-    <p class="text-body-secondary small mb-0" style="max-width:46rem">
-      Miejsc w grupach jest mniej niż chętnych — żetonówka pilnuje, żeby nikt nie zajmował
-      „na zapas” miejsc w kilku grupach naraz i nie blokował ich innym. Każda rezerwacja
-      kosztuje żetony z Twojej puli (saldo widoczne u góry strony), więc zapisujesz się na
-      jedną–dwie grupy, w których faktycznie będziesz. Żetony nie są pieniędzmi — rezerwacja
-      pobiera je od razu i gwarantuje miejsce, a odpowiednio wczesna rezygnacja zwraca je
-      w całości. Wybrana data to data pierwszych zajęć — opcja „Ustal zajęcia na cały okres”
-      rezerwuje ten sam dzień i godzinę co tydzień, aż do końca okresu.
+    <h2 class="h6 fw-bold mb-1"><i class="bi bi-coin me-1 text-primary" aria-hidden="true"></i>Po co żetony?</h2>
+    <p class="text-body-secondary small mb-3" style="max-width:46rem">
+      Miejsc w grupach jest mniej niż chętnych, więc zamiast „kto pierwszy, ten lepszy”
+      o północy, każdy dostaje pulę żetonów i sam decyduje, na co je wyda.
     </p>
+    <div class="row g-3 small">
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-shield-check text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Uczciwy podział miejsc</div>
+            <div class="text-body-secondary">Limit żetonów nie pozwala zająć „na zapas” miejsc w kilku grupach naraz i zablokować ich innym.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-lightning-charge text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Żeton = gwarancja miejsca</div>
+            <div class="text-body-secondary">To nie są pieniądze — rezerwacja od razu pobiera żeton z Twojej puli (saldo u góry) i miejsce jest Twoje.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="d-flex gap-2">
+          <i class="bi bi-arrow-counterclockwise text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+          <div>
+            <div class="fw-semibold">Rezygnacja z wyprzedzeniem = zwrot</div>
+            <div class="text-body-secondary">Odwołujesz odpowiednio wcześnie — żeton wraca w całości i możesz go wykorzystać gdzie indziej.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="small text-body-secondary mt-3 mb-0">
+      <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>
+      Wybrana data to data pierwszych zajęć — <strong>„Ustal zajęcia na cały okres”</strong>
+      rezerwuje od razu ten sam dzień i godzinę co tydzień, aż do końca okresu.
+    </div>
   </div>
 </div>
 
