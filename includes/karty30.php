@@ -2409,6 +2409,7 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'restore'    => ['label' => 'Przywrócono',               'icon' => 'arrow-counterclockwise','color' => 'success'],
     'transfer_out' => ['label' => 'Przeniesiono zajęcia/link', 'icon' => 'box-arrow-right',   'color' => 'info'],
     'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
+    'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
 ];
 
 function ti_course_log_migrate(): void {

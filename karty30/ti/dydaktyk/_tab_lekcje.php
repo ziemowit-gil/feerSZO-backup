@@ -55,6 +55,11 @@ if ($_sms_enabled && $cur_course) {
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addSeries">
             <i class="bi bi-calendar-plus me-2"></i>Seria lekcji
           </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header">Zarządzanie terminami</h6></li>
+          <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#dydClearSessionsModal">
+            <i class="bi bi-calendar-x me-2"></i>Wyczyść terminy grupy
+          </a></li>
           <?php if ($all_sessions): ?>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Raporty PDF</h6></li>
@@ -480,6 +485,54 @@ foreach ($_ext_for_wiz as $_we) {
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Utwórz serię</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Modal: masowe czyszczenie terminów grupy -->
+<?php
+  $_cs_future = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned' AND lesson_date >= date('now')", [$cur_course])['n'] ?? 0);
+  $_cs_past   = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='planned' AND lesson_date <  date('now')", [$cur_course])['n'] ?? 0);
+?>
+<div class="modal fade" id="dydClearSessionsModal" tabindex="-1" aria-labelledby="dydClearSessionsLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" onsubmit="return confirm('Na pewno usunąć zaznaczone terminy? Tej operacji nie można cofnąć.')">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="clear_group_sessions">
+      <input type="hidden" name="_tab" value="lekcje">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dydClearSessionsLbl"><i class="bi bi-calendar-x me-2 text-danger"></i>Wyczyść terminy grupy</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-body-secondary small">
+          Masowo usuwa <strong>zaplanowane</strong> (jeszcze nieodbyte) terminy tej grupy — przydatne
+          np. przed wygenerowaniem harmonogramu od nowa. Zajęcia już <strong>odbyte</strong> (w tym „praca
+          własna” i indywidualne zmiany terminu) oraz ich obecności <strong>nigdy</strong> nie są usuwane.
+        </p>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" name="include_past" id="csFutureOnly" value="0" checked>
+          <label class="form-check-label" for="csFutureOnly">
+            Tylko nadchodzące (<?= $_cs_future ?>)
+          </label>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" name="include_past" id="csAll" value="1">
+          <label class="form-check-label" for="csAll">
+            Wszystkie zaplanowane, w tym zaległe (<?= $_cs_future + $_cs_past ?>)
+          </label>
+        </div>
+        <?php if ($_cs_future + $_cs_past === 0): ?>
+        <div class="alert alert-light border small mb-0">Brak zaplanowanych terminów do usunięcia.</div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-danger" <?= ($_cs_future + $_cs_past === 0) ? 'disabled' : '' ?>>
+          <i class="bi bi-trash me-1"></i>Usuń terminy
+        </button>
       </div>
     </form>
   </div></div>
