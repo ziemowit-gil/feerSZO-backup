@@ -120,10 +120,12 @@ function _esb_exact(string $path): string {
 
     <div class="ezd-sb-section">Rejestry</div>
 
-    <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/pelnomocnictwa/') ?>">
-      <i class="bi bi-person-vcard" aria-hidden="true"></i><span>Pełnomocnictwa</span>
+    <?php if (!function_exists('module_enabled') || module_enabled('pelnomocnictwa_enabled')): ?>
+    <a href="<?= APP_URL ?>/pelnomocnictwa/index.php"
+       class="ezd-sb-link<?= _esb_a('/pelnomocnictwa/') ?>">
+      <i class="bi bi-person-badge" aria-hidden="true"></i><span>Pełnomocnictwa</span>
     </a>
+    <?php endif; ?>
 
     <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"
        class="ezd-sb-link<?= _esb_a('/ezd/zaswiadczenia/') ?>">

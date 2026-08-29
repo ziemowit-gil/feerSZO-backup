@@ -18,7 +18,6 @@ $settings_keys = [
     'ezd_enabled',
     'ezd_mini',
     'ezd_reminders_enabled',
-    'ezd_peln_jrwa',
     'ezd_cert_jrwa',
     'ezd_kdok_jrwa',
     'ezd_kopia_watermark',
@@ -60,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_enabled'           => isset($_POST['ezd_enabled'])           ? '1' : '0',
         'ezd_mini'              => isset($_POST['ezd_mini'])              ? '1' : '0',
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
-        'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
         'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
         'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
         'ezd_kopia_watermark'   => mb_substr(trim($_POST['ezd_kopia_watermark'] ?? ''), 0, 60) ?: EZD_KOPIA_WATERMARK_DEFAULT,
@@ -141,12 +139,10 @@ include dirname(__DIR__) . '/includes/header.php';
             <label class="form-check-label fw-semibold" for="ezd_rpwy_auto">Automatyczny wpis pism wychodzących do książki nadawczej</label>
             <div class="form-text">Każde nowe pismo wychodzące dostaje kolejny numer RPW-W w <a href="<?= APP_URL ?>/ezd/rpwy/index.php">książce nadawczej</a> ze stanem „Przygotowana" (albo „Nadana", jeśli pismo ma już datę wysyłki). Po wyłączeniu wpis dodaje się ręcznie z karty pisma.</div>
           </div>
+          <div class="alert alert-light border py-2 px-3 mb-3" style="font-size:.82rem">
+            <i class="bi bi-info-circle me-1"></i><a href="<?= APP_URL ?>/pelnomocnictwa/index.php">Rejestr pełnomocnictw</a> to od teraz samodzielny moduł SZO (poza EZD, bez wymogu zakładania sprawy) — konfiguracja włączenia jest w <a href="<?= APP_URL ?>/admin/modules_settings.php">Ustawieniach modułów</a>.
+          </div>
           <div class="row g-3">
-            <div class="col-sm-4" style="max-width:200px">
-              <label class="form-label fw-semibold mb-1" for="ezd_peln_jrwa">Symbol JRWA pełnomocnictw</label>
-              <input type="text" class="form-control form-control-sm font-monospace" id="ezd_peln_jrwa" name="ezd_peln_jrwa" value="<?= h($cfg['ezd_peln_jrwa'] ?: '013') ?>" placeholder="013">
-              <div class="form-text"><a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestr pełnomocnictw</a></div>
-            </div>
             <div class="col-sm-4" style="max-width:200px">
               <label class="form-label fw-semibold mb-1" for="ezd_cert_jrwa">Symbol JRWA zaświadczeń</label>
               <input type="text" class="form-control form-control-sm font-monospace" id="ezd_cert_jrwa" name="ezd_cert_jrwa" value="<?= h($cfg['ezd_cert_jrwa'] ?: '53') ?>" placeholder="53">

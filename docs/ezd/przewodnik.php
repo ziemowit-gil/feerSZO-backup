@@ -391,8 +391,6 @@ dokumenty księgowe, wolontariat).</div>
 <tr><th>Tabela</th><th>Rola</th><th>Kluczowe kolumny</th></tr>
 <tr><td><code>ezd_rpw</code></td><td>Rejestr Przesyłek Wpływających / dziennik podawczy</td>
   <td><span class="col-key">rpw_nr</span>, <span class="col-key">rok</span>, <span class="col-key">typ</span>, <span class="col-key">status</span>, <span class="col-key">scan_file</span>, <span class="col-key">przekazano_unit_id</span></td></tr>
-<tr><td><code>ezd_pelnomocnictwa</code></td><td>Rejestr pełnomocnictw — metadane 1:1 ze sprawą JRWA 013</td>
-  <td>PK=<span class="col-key">sprawa_id</span>, <span class="col-key">mocodawca</span>, <span class="col-key">pelnomocnik</span>, <span class="col-key">zakres</span>, <span class="col-key">data_waznosci</span></td></tr>
 <tr><td><code>ezd_przerejestrowania</code></td><td>Protokół przerejestrowania spraw do Nowego JRWA (asystent AI)</td>
   <td><span class="col-key">stary_znak</span>, <span class="col-key">nowy_znak</span>, <span class="col-key">kod_jrwa</span>, <span class="col-key">forma</span>, <span class="col-key">zastosowano</span></td></tr>
 <tr><td><code>ezd_szablony</code></td><td>Szablony pism / korespondencja seryjna (mail merge)</td>
@@ -766,9 +764,9 @@ Azure AD, nie dokumenty EZD.</div>
 <h2>Rejestry pochodne (auto-rejestracja) <a class="anchor" href="#rejestry">#</a></h2>
 <p>Kilka modułów SZO automatycznie zakłada w EZD sprawy ciągłe i pisma pod dedykowanymi klasami JRWA
 (konfigurowalnymi). Każda rejestracja jest idempotentna.</p>
+<p><em>Rejestr pełnomocnictw</em> (dawniej sprawy JRWA <code>013</code>, 1:1 metadane w <code>ezd_pelnomocnictwa</code>) został wydzielony jako samodzielny moduł SZO, niezależny od EZD — patrz <code>/pelnomocnictwa/</code> i <code>includes/pelnomocnictwa.php</code>. Nie wymaga już zakładania sprawy/koszulki.</p>
 <div class="tablewrap"><table class="fn">
 <tr><th>Rejestr</th><th>JRWA (dom.)</th><th>Funkcja / źródło</th></tr>
-<tr><td>Pełnomocnictwa</td><td><code>013</code></td><td><code>ezd_pelnomocnictwo_save()</code> — metadane 1:1 ze sprawą</td></tr>
 <tr><td>Zaświadczenia</td><td><code>53</code></td><td><code>ezd_register_certificate()</code>, backfill zaległych</td></tr>
 <tr><td>Korespondencja</td><td><code>KOR</code></td><td>Autorejestracja przychodzącej/wychodzącej do sprawy ciągłej</td></tr>
 <tr><td>Dok. księgowe</td><td><code>KSG</code></td><td><code>kdok_register_in_ezd()</code> (w <code>includes/ksiegowosc.php</code>)</td></tr>

@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
+require_once dirname(__DIR__) . '/includes/pelnomocnictwa.php';
 if (file_exists(dirname(__DIR__) . '/includes/notifications.php')) {
     require_once dirname(__DIR__) . '/includes/notifications.php';
 }
@@ -151,13 +152,14 @@ if (function_exists('ann_list_for_user')) {
     try { $komunikaty = array_slice(ann_list_for_user($user_id, $user['role'] ?? '', ''), 0, 5); } catch(\Throwable $e) {}
 }
 
-// Zastępstwa
+// Zastępstwa (rejestr pełnomocnictw — moduł samodzielny, poza EZD)
 $cur_name = $user['name'] ?? '';
 $zastepuje = []; $zastepuje_mnie = [];
 try {
-    if ($cur_name) {
-        $zastepuje      = db_all("SELECT * FROM ezd_pelnomocnictwa WHERE mocodawca=? AND is_active=1 ORDER BY created_at DESC LIMIT 5", [$cur_name]);
-        $zastepuje_mnie = db_all("SELECT * FROM ezd_pelnomocnictwa WHERE pelnomocnik=? AND is_active=1 ORDER BY created_at DESC LIMIT 5", [$cur_name]);
+    if ($cur_name && module_enabled('pelnomocnictwa_enabled')) {
+        $wazne          = pelnomocnictwa_all(['status' => 'wazne']);
+        $zastepuje      = array_slice(array_values(array_filter($wazne, fn($r) => $r['mocodawca']   === $cur_name)), 0, 5);
+        $zastepuje_mnie = array_slice(array_values(array_filter($wazne, fn($r) => $r['pelnomocnik'] === $cur_name)), 0, 5);
     }
 } catch(\Throwable $e) {}
 
