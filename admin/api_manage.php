@@ -488,13 +488,31 @@ curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=spraw
 curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/ezd.php?resource=pisma&sprawa_id=42"</pre>
 
       <h6 class="fw-semibold mt-4"><i class="bi bi-person-badge-fill text-primary me-1"></i>Rejestr pełnomocnictw — <code><?= h($api_base) ?>/pelnomocnictwa.php</code></h6>
-      <p class="mb-2">CRUD wpisów rejestru (numer, mocodawca, pełnomocnik, zakres, ważność). Scope: <code>pelnomocnictwa:read</code> / <code>pelnomocnictwa:write</code>.
-        Filtry listy: <code>q, status (wazne/wygasle/odwolane), rok</code>. Status jest wyliczany z dat, nie ustawiany ręcznie.</p>
-      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+      <p class="mb-1">Routing <code>?id=N</code>; metody GET/POST/PATCH/DELETE. Scope: <code>pelnomocnictwa:read</code> (GET) / <code>pelnomocnictwa:write</code> (POST/PATCH/DELETE).
+        Samodzielny rejestr SZO, niezależny od EZD — bez powiązania ze sprawą/koszulką.</p>
+      <ul class="mb-2">
+        <li><code>GET</code> lista — filtry <code>q</code> (numer/mocodawca/pełnomocnik/zakres), <code>status</code> (<code>wazne</code>/<code>wygasle</code>/<code>odwolane</code> — wyliczany z dat, nie ustawiany ręcznie), <code>rok</code> (rok utworzenia wpisu); paginacja <code>page</code>/<code>per_page</code>.</li>
+        <li><code>GET ?id=N</code> — pojedynczy wpis.</li>
+        <li><code>POST</code> — nowy wpis. Wymagane: <code>mocodawca</code>, <code>pelnomocnik</code>. Opcjonalne: <code>numer</code> (domyślnie auto <code>P/0001/2026</code>), <code>zakres</code>, <code>forma</code>, <code>data_udzielenia</code>, <code>data_waznosci</code> (puste = bezterminowe), <code>data_odwolania</code>, <code>uwagi</code> — daty w formacie <code>RRRR-MM-DD</code>.</li>
+        <li><code>PATCH ?id=N</code> — aktualizacja dowolnego podzbioru pól (jak wyżej).</li>
+        <li><code>DELETE ?id=N</code> — trwałe usunięcie wpisu z rejestru.</li>
+      </ul>
+      <p class="mb-2 text-muted" style="font-size:.8rem">Błędy: <code>400</code> zły JSON / brak <code>id</code>, <code>401</code> brak lub zły scope, <code>404</code> nie znaleziono, <code>422</code> brak pól wymaganych lub zła data.</p>
+      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem"># Nowy wpis
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"mocodawca":"Jan Kowalski","pelnomocnik":"Anna Nowak","zakres":"reprezentacja przed urzędami","data_udzielenia":"2026-01-10"}' \
   "<?= h($api_base) ?>/pelnomocnictwa.php"
 
-curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/pelnomocnictwa.php?status=wazne"</pre>
+# Lista ważnych pełnomocnictw
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/pelnomocnictwa.php?status=wazne"
+
+# Odwołanie pełnomocnictwa o id=7
+curl -X PATCH -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"data_odwolania":"2026-08-29"}' \
+  "<?= h($api_base) ?>/pelnomocnictwa.php?id=7"
+
+# Usunięcie wpisu
+curl -X DELETE -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/pelnomocnictwa.php?id=7"</pre>
     </div>
   </div>
 </div><!-- /pane-api -->
