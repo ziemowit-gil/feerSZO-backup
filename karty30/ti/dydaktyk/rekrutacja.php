@@ -379,6 +379,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: rekrutacja.php?tab=tury'); exit;
     }
 
+    // Link do samodzielnego wyboru terminu przez kursanta — dostępny dla każdego
+    // prowadzącego (nie tylko kierownika), ale tylko dla JEGO kursantów: chroni
+    // przed wygenerowaniem tokenu do cudzej rezerwacji przez podanie obcego ID.
+    if ($op === 'link_issue') {
+        $li_round_id = (int)($_POST['round_id'] ?? 0);
+        $li_cid      = (int)($_POST['client_id'] ?? 0);
+        $li_round    = $li_round_id ? rk_round_get($li_round_id) : null;
+        $li_client   = $li_cid ? db_one("SELECT id, name FROM k30_clients WHERE id=?", [$li_cid]) : null;
+        $li_owns     = $is_staff || ($li_cid && db_one(
+            "SELECT 1 FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+              WHERE e.client_id=? AND c.instructor_id=? AND e.status='active' LIMIT 1",
+            [$li_cid, $uid]
+        ));
+        if (!$li_round || !$li_client || !$li_owns) {
+            flash_set('danger', 'Nie udało się wygenerować linku — sprawdź turę i numer ID kursanta (musi być zapisany na Twoje zajęcia).');
+            header('Location: rekrutacja.php?tab=terminy'); exit;
+        }
+        $li_link = rtrim(APP_URL, '/') . '/karty30/ti/rekrutacja/t.php?t=' . rk_token_issue((int)$li_client['id'], $li_round_id, 30);
+        auth_start();
+        $_SESSION['rk_link_reveal'] = [
+            'client_name' => (string)$li_client['name'],
+            'client_id'   => (int)$li_client['id'],
+            'round_name'  => (string)$li_round['name'],
+            'link'        => $li_link,
+        ];
+        header('Location: rekrutacja.php?tab=terminy'); exit;
+    }
+
     if ($is_staff && $op === 'round_announce') {
         $rid = (int)($_POST['round_id'] ?? 0);
         $n   = $rid ? rk_round_announce($rid) : 0;
@@ -550,6 +578,12 @@ $dt_local = function (?string $v): string {
     return $t ? date('Y-m-d\TH:i', $t) : '';
 };
 $dow_names = [1=>'pon',2=>'wt',3=>'śr',4=>'czw',5=>'pt',6=>'sob',7=>'niedz'];
+
+// Świeżo wygenerowany link do samodzielnego wyboru terminu — pokazujemy raz,
+// zaraz po przekierowaniu z formularza (jak reveal danych ownCloud w index.php).
+auth_start();
+$rk_link_reveal = $_SESSION['rk_link_reveal'] ?? null;
+unset($_SESSION['rk_link_reveal']);
 
 /* ══════════════════════════════════════════════════════════════════════════
    HTML
@@ -779,6 +813,66 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?= h($dow_names[(int)$a['day_of_week']] ?? (string)$a['day_of_week']) ?> <?= h($a['time_from']) ?>–<?= h($a['time_to']) ?><br>
           <?php endforeach; ?>
         </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Link do samodzielnego wyboru terminu — kursant sam rezerwuje wolny slot
+         z listy wystawionej obok; rezerwacja trafia do zatwierdzenia jak zawsze. -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Link dla kursanta</h2>
+        <p class="text-body-secondary small mb-2">
+          Wygeneruj osobisty link do strony zapisów — kursant wejdzie bez logowania
+          i sam wybierze wolny termin z Twoich wystawionych slotów. Rezerwacja i tak
+          trafi do Ciebie do zatwierdzenia (patrz sekcja wyżej).
+        </p>
+        <?php if ($rk_link_reveal): ?>
+        <div class="alert alert-success py-2 px-3 mb-2" role="status">
+          <div class="small mb-1">
+            Link dla <strong><?= h($rk_link_reveal['client_name']) ?></strong>
+            <span class="badge text-bg-light border">#<?= (int)$rk_link_reveal['client_id'] ?></span>
+            · tura „<?= h($rk_link_reveal['round_name']) ?>" · ważny 30 dni:
+          </div>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace" readonly
+                   id="rkLinkOut" value="<?= h($rk_link_reveal['link']) ?>" onclick="this.select()">
+            <button type="button" class="btn btn-outline-success" onclick="dydRkCopyLink()">
+              <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj
+            </button>
+          </div>
+        </div>
+        <script>
+        function dydRkCopyLink() {
+          var el = document.getElementById('rkLinkOut');
+          el.select();
+          navigator.clipboard?.writeText(el.value).catch(function () { document.execCommand('copy'); });
+        }
+        </script>
+        <?php endif; ?>
+        <?php if (!$rounds_live): ?>
+        <div class="text-body-secondary small">Brak trwającej ani zaplanowanej tury zapisów.</div>
+        <?php else: ?>
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="link_issue">
+          <div class="col-7">
+            <label class="form-label small mb-1" for="rk-li-round">Tura</label>
+            <select class="form-select form-select-sm" id="rk-li-round" name="round_id" required>
+              <?php foreach ($rounds_live as $r): ?>
+              <option value="<?= (int)$r['id'] ?>"><?= h($r['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-5">
+            <label class="form-label small mb-1" for="rk-li-cid">ID kursanta</label>
+            <input type="number" class="form-control form-control-sm" id="rk-li-cid" name="client_id" min="1" required>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-link-45deg me-1"></i>Wygeneruj link</button>
+          </div>
+        </form>
+        <div class="form-text mt-1">ID kursanta znajdziesz przy nazwisku w zapisach na Twoje zajęcia.</div>
         <?php endif; ?>
       </div>
     </div>
