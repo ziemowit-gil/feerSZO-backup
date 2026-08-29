@@ -40,6 +40,7 @@ if (!empty($KIER_ITEMS)) {
         ['Zapisy na zajęcia',         'rekrutacja.php',             'ticket-perforated'],
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
+        ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
         ['Raporty i WUP',             'raporty.php',                'graph-up'],
