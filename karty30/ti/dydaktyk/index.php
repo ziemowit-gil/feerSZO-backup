@@ -591,6 +591,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Ręczna flaga "dokumentacja uzupełniona" — widoczna i przełączalna zarówno
+    // przez kierownika (staff), jak i prowadzącego kursu (ten sam warunek co edycja lekcji).
+    if ($op === 'toggle_docs_complete') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        if (dyd_owns_session($uid, $sid)) {
+            db()->prepare("UPDATE k30_ti_sessions SET docs_complete = 1 - COALESCE(docs_complete,0) WHERE id=?")->execute([$sid]);
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     if ($op === 'sms_week_group') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
         if (!sms_channel_ready()) {

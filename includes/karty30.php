@@ -1291,6 +1291,9 @@ HTML;
     // NULL = dziedziczy z k30_ti_courses.instructor_id. Ustawiane tylko przez
     // kierownika (dyd_is_staff()); wpływa też na wypłaty (k30_ti_payouts_by_instructor).
     try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+    // Ręczna flaga "dokumentacja uzupełniona" (np. papierowa, poza systemem) —
+    // widoczna i przełączalna zarówno przez kierownika, jak i prowadzącego kursu.
+    try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN docs_complete INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // ── Status dostępności prowadzących (zatwierdzona / szkic) ────────────────
     try { $pdo->exec("ALTER TABLE k30_ti_instructor_availability ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'"); } catch (\Throwable $e) {}

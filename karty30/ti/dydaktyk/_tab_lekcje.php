@@ -321,6 +321,12 @@ if ($_sms_enabled && $cur_course) {
               <i class="bi bi-person-workspace me-1" aria-hidden="true"></i>Zastępstwo: <?= h($_instr_names[$_s_instr] ?? ('#' . $_s_instr)) ?>
             </span>
             <?php endif; ?>
+            <?php if (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])): ?>
+            <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle d-block mt-1" style="font-size:.66rem"
+                  title="Brak potwierdzenia uzupełnienia dokumentacji — zaznacz w menu „Więcej”">
+              <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Dokumentacja niekompletna
+            </span>
+            <?php endif; ?>
           </td>
           <td class="text-truncate" style="max-width:0;font-size:.83rem">
             <?= !empty($s['topic']) ? h($s['topic']) : '<span class="text-body-tertiary">—</span>' ?>
@@ -377,6 +383,21 @@ if ($_sms_enabled && $cur_course) {
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
+                  <?php if (in_array($s['status'], K30_TI_HELD_STATUSES, true)): ?>
+                  <li>
+                    <form method="post">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="toggle_docs_complete">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <button type="submit" class="dropdown-item <?= !empty($s['docs_complete']) ? 'text-success' : '' ?>">
+                        <i class="bi bi-<?= !empty($s['docs_complete']) ? 'check-square-fill' : 'square' ?> me-2"></i>
+                        <?= !empty($s['docs_complete']) ? 'Dokumentacja uzupełniona ✓' : 'Oznacz: dokumentacja uzupełniona' ?>
+                      </button>
+                    </form>
+                  </li>
+                  <?php endif; ?>
                   <li><a class="dropdown-item" href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>">
                     <i class="bi bi-box-arrow-in-right me-2"></i>Wejdź do lekcji
                   </a></li>
