@@ -80,7 +80,7 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
       <?php foreach ([4,8,12,16,26] as $w): ?>
         <option value="<?= $w ?>"<?= (!$PD['unbounded'] && $weeks == $w) ? ' selected' : '' ?>><?= $w ?> tyg.</option>
       <?php endforeach; ?>
-      <option value="0"<?= $PD['unbounded'] ? ' selected' : '' ?>>Ogólny (cały plan)</option>
+      <option value="0"<?= $PD['unbounded'] ? ' selected' : '' ?>>Ogólny (bez limitu tygodni)</option>
     </select>
   </label>
   <button onclick="window.print()"><i>🖨</i> Drukuj</button>
@@ -97,7 +97,7 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   <h1>Plan zajęć — <?= h($instructor['name']) ?></h1>
   <div class="meta">
     <?= h($org) ?><br>
-    <?= $PD['unbounded'] ? 'Ogólny — cały zapisany plan' : h($from) . ' – ' . h($to) . ' (' . $weeks . ' tyg.)' ?><br>
+    <?= $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : h($from) . ' – ' . h($to) . ' (' . $weeks . ' tyg.)' ?><br>
     Wydruk: <?= date('d.m.Y H:i') ?>
   </div>
 </div>

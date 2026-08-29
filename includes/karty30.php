@@ -3006,8 +3006,8 @@ function ti_course_weekly_slots(int $course_id): array {
  * najpierw dzień/godzina/kurs, pod spodem wszystkie konkretne daty w zakresie.
  * Uwzględnia zastępstwa (COALESCE(s.instructor_id, c.instructor_id) — patrz
  * [[project_ti_payout]]). Grupy posortowane wg dnia tygodnia (Pn=1…Nd=7), potem godziny.
- * $weeks=0 → wydruk OGÓLNY (nie wg okresu): bez ograniczenia dat, cały zapisany
- * plan prowadzącego (przeszłe i przyszłe lekcje), zamiast "najbliższe N tygodni".
+ * $weeks=0 → wydruk OGÓLNY (nie wg okresu): bez górnej granicy dat (zamiast
+ * "najbliższe N tygodni") — zawsze jednak od dziś, BEZ zaległych (już minionych) lekcji.
  * @return array{
  *   instructor: ?array, from: string, to: string, weeks: int, unbounded: bool,
  *   groups: array<int,array{dow:int,day_label:string,time_from:string,time_to:string,course_name:string,dates:array<int,array{date:string,status:string,student_names:string}>}>
@@ -3016,7 +3016,9 @@ function ti_course_weekly_slots(int $course_id): array {
 function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
     $unbounded = ($weeks <= 0);
     $weeks = $unbounded ? 0 : max(1, min(26, $weeks));
-    $from  = $unbounded ? '2000-01-01' : date('Y-m-d');
+    // Zawsze od dziś — plan to co przed prowadzącym, nie historia zaległych lekcji.
+    // "Ogólny" różni się tylko brakiem górnej granicy (nie ograniczony do N tygodni).
+    $from  = date('Y-m-d');
     $to    = $unbounded ? '2099-12-31' : date('Y-m-d', strtotime("+{$weeks} weeks"));
     $days_pl = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
 
