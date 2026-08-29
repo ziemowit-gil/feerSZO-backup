@@ -515,8 +515,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($date === '') { flash_set('danger', 'Data lekcji jest wymagana.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
+        // Prowadzący TEJ lekcji — tylko kierownik może wskazać zastępstwo (inaczej
+        // dziedziczy z kursu). Wpływa też na sprawdzenie dostępności i na wypłatę
+        // (k30_ti_payouts_by_instructor via COALESCE(instructor_id, kurs)).
+        $sess_instr = dyd_is_staff() ? max(0, (int)($_POST['instructor_id'] ?? 0)) : 0;
+        $eff_instr  = $sess_instr ?: ti_course_instructor_id($course_id);
+
         // Zajęcia tylko w dostępności prowadzącego (gdy zdefiniowana)
-        $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
         // Zamknięty okres nauczania — rozliczony protokołami, nic już w nim nie ruszamy
@@ -538,6 +544,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, updated_at=datetime('now')
                  WHERE id=?"
             )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $sid]);
+            // Prowadzący edytowalny tylko przez kierownika — nie dotykamy pola,
+            // gdy edytuje zwykły prowadzący (formularz mu go nawet nie pokazuje).
+            if (dyd_is_staff()) {
+                db()->prepare("UPDATE k30_ti_sessions SET instructor_id=? WHERE id=?")->execute([$sess_instr ?: null, $sid]);
+            }
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             if ($st === 'remote_material') {
                 // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
@@ -550,7 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'time_from'       => $tf, 'time_to' => $tt, 'duration_min' => $dur,
                 'status'          => 'planned', 'topic' => $topic, 'notes' => $notes,
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
-                'lesson_method'   => $lm, 'meeting_url' => $meet_url,
+                'lesson_method'   => $lm, 'meeting_url' => $meet_url, 'instructor_id' => $sess_instr ?: null,
                 'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
@@ -626,8 +637,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        // Prowadzący CAŁEJ serii — tylko kierownik może wskazać zastępstwo (patrz save_lesson).
+        $sess_instr = dyd_is_staff() ? max(0, (int)($_POST['instructor_id'] ?? 0)) : 0;
+        $eff_instr  = $sess_instr ?: ti_course_instructor_id($course_id);
         // Cała seria ma ten sam dzień tygodnia i godziny — sprawdzamy raz
-        $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         // Zajętość konta Zoom — sprawdzana per termin (różne dni, ten sam host)
         $ser_dates = [];
@@ -652,7 +666,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
-                'lesson_method' => $ser_lm, 'meeting_url' => $ser_meet_url,
+                'lesson_method' => $ser_lm, 'meeting_url' => $ser_meet_url, 'instructor_id' => $sess_instr ?: null,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             foreach ($enrollees as $e) {
@@ -1642,7 +1656,7 @@ $sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id, $
 // ── Formularze renderowane w wyskakujących okienkach (dodawanie + edycja) ─────
 // $r = wiersz do edycji lub null (dodawanie). $pfx = unikalny prefiks id pól/modalu.
 
-$lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
+$lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     $isEdit  = (bool)$r;
     $isPast  = $isEdit && isset($r['lesson_date']) && $r['lesson_date'] < date('Y-m-d'); ?>
   <form method="post">
@@ -1725,6 +1739,19 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
           </label>
         </div>
       </div>
+      <?php if (dyd_is_staff()): $_les_instrs = k30_ti_instructors(); ?>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_instr">
+          Prowadzący <span class="text-body-secondary fw-normal small">(zastępstwo — opcjonalnie, wpływa na wypłatę)</span>
+        </label>
+        <select class="form-select" id="<?= $pfx ?>_instr" name="instructor_id">
+          <option value="0">— domyślny: <?= h($course['instructor_name'] ?? '') ?: 'brak przypisania' ?> —</option>
+          <?php foreach ($_les_instrs as $ins): ?>
+          <option value="<?= (int)$ins['id'] ?>" <?= (int)($r['instructor_id'] ?? 0) === (int)$ins['id'] ? 'selected' : '' ?>><?= h($ins['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
       <?php
         // Realizowane punkty planu nauczania — progressive disclosure (rozwijane),
         // natywny multi-select dla pełnej obsługi klawiaturą i czytnikiem ekranu.

@@ -99,8 +99,13 @@ if ($_sms_enabled && $cur_course) {
             <i class="bi bi-calendar-check me-2"></i>Subskrybuj / pobierz
           </a></li>
           <li><a class="dropdown-item" href="plan_print.php?instructor_id=<?= $uid ?>" target="_blank">
-            <i class="bi bi-printer me-2"></i>Wydruk planu tygodniowego
+            <i class="bi bi-printer me-2"></i>Wydruk mojego planu tygodniowego
           </a></li>
+          <?php if (dyd_is_staff() && !empty($course['instructor_id']) && (int)$course['instructor_id'] !== $uid): ?>
+          <li><a class="dropdown-item" href="plan_print.php?instructor_id=<?= (int)$course['instructor_id'] ?>" target="_blank">
+            <i class="bi bi-printer me-2"></i>Wydruk planu — <?= h($course['instructor_name'] ?? '') ?>
+          </a></li>
+          <?php endif; ?>
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
           <li>
@@ -171,6 +176,9 @@ if ($_sms_enabled && $cur_course) {
   <?php
     $_today   = date('Y-m-d');
     $_days_pl = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+    // Mapa id→imię prowadzących — do odznaczenia zastępstwa (lekcja.instructor_id != kurs.instructor_id)
+    $_instr_names = [];
+    foreach (k30_ti_instructors() as $_ins) $_instr_names[(int)$_ins['id']] = (string)$_ins['name'];
   ?>
   <?php if ($recurring_rules): ?>
   <div class="mb-3">
@@ -307,6 +315,11 @@ if ($_sms_enabled && $cur_course) {
             <i class="bi bi-camera-video-fill ms-1" title="Zdalna — Zoom" data-bs-toggle="tooltip" style="color:#1D4ED8;font-size:.8rem"></i>
             <?php elseif ($_lm2 === 'zdalna_inne'): ?>
             <i class="bi bi-display ms-1" title="Zdalna — Inne" data-bs-toggle="tooltip" style="color:#6B21A8;font-size:.8rem"></i>
+            <?php endif; ?>
+            <?php $_s_instr = (int)($s['instructor_id'] ?? 0); if ($_s_instr && $_s_instr !== (int)($course['instructor_id'] ?? 0)): ?>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-block mt-1" style="font-size:.66rem">
+              <i class="bi bi-person-workspace me-1" aria-hidden="true"></i>Zastępstwo: <?= h($_instr_names[$_s_instr] ?? ('#' . $_s_instr)) ?>
+            </span>
             <?php endif; ?>
           </td>
           <td class="text-truncate" style="max-width:0;font-size:.83rem">
@@ -520,6 +533,19 @@ foreach ($_ext_for_wiz as $_we) {
           <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
           <input type="text" class="form-control" id="series_topic" name="topic" placeholder="np. Zajęcia cykliczne">
         </div>
+        <?php if (dyd_is_staff()): $_ser_instrs = k30_ti_instructors(); ?>
+        <div class="mb-2">
+          <label class="form-label" for="series_instr">
+            Prowadzący <span class="text-body-secondary fw-normal small">(zastępstwo — opcjonalnie, wpływa na wypłatę)</span>
+          </label>
+          <select class="form-select" id="series_instr" name="instructor_id">
+            <option value="0">— domyślny: <?= h($course['instructor_name'] ?? '') ?: 'brak przypisania' ?> —</option>
+            <?php foreach ($_ser_instrs as $ins): ?>
+            <option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
         <div class="mb-2">
           <label class="form-label" for="series_method">Metoda lekcji</label>
           <select class="form-select" id="series_method" name="lesson_method"

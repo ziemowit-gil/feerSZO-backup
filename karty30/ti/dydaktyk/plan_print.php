@@ -34,7 +34,7 @@ $sessions = db_all("
     JOIN k30_ti_courses c ON c.id = s.course_id
     LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
     LEFT JOIN k30_clients cl ON cl.id = a.client_id
-    WHERE c.instructor_id = ?
+    WHERE COALESCE(s.instructor_id, c.instructor_id) = ?
       AND s.lesson_date BETWEEN ? AND ?
       AND s.status NOT IN ('cancelled')
     GROUP BY s.id

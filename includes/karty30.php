@@ -1287,6 +1287,10 @@ HTML;
         created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN series_id INTEGER"); } catch (\Throwable $e) {}
+    // Prowadzący TEJ lekcji, gdy inny niż stały prowadzący kursu (zastępstwo) —
+    // NULL = dziedziczy z k30_ti_courses.instructor_id. Ustawiane tylko przez
+    // kierownika (dyd_is_staff()); wpływa też na wypłaty (k30_ti_payouts_by_instructor).
+    try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
 
     // ── Status dostępności prowadzących (zatwierdzona / szkic) ────────────────
     try { $pdo->exec("ALTER TABLE k30_ti_instructor_availability ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'"); } catch (\Throwable $e) {}
@@ -2574,14 +2578,17 @@ function _k30_ti_payout_accumulate(array &$acc, array $b): void {
  * Zwraca wiersze posortowane wg nazwiska, z agregatem składowych + listą kursów.
  */
 function k30_ti_payouts_by_instructor(string $ym): array {
+    // Prowadzący lekcji: własny (zastępstwo — s.instructor_id) albo stały prowadzący
+    // kursu. Dzięki COALESCE lekcja "przekazana" innemu prowadzącemu (patrz
+    // k30_ti_sessions.instructor_id) liczy się do wypłaty TEJ osoby, nie kursu.
     $rows = db_all(
-        "SELECT c.instructor_id AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
+        "SELECT COALESCE(s.instructor_id, c.instructor_id) AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
                 COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
                 COALESCE(s.self_prep_remote, 0) AS self_prep_remote,
                 c.id AS course_id, c.name AS course_name, c.lesson_payout_bb AS bb
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
-         LEFT JOIN users u ON u.id = c.instructor_id
+         LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
          WHERE s.status IN ('held','individual_change','remote_material') AND c.lesson_payout_bb > 0
            AND strftime('%Y-%m', s.lesson_date) = ?
          ORDER BY iname, c.name",
