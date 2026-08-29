@@ -7,6 +7,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_hours_report.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
 karty30_migrate();
@@ -29,6 +30,7 @@ try {
     $pdf  = ti_hours_pdf($data);
     $name = 'rozpiska_godzin_' . preg_replace('/[^a-z0-9]+/i', '_', (string)($data['client']['name'] ?? $client_id))
           . '_' . sprintf('%04d-%02d', $year, $month) . '.pdf';
+    ti_print_log_add('hours_pdf', 'Rozpiska godzin — ' . sprintf('%04d-%02d', $year, $month), $course_id, $client_id, [], dyd_current());
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $name . '"');

@@ -9,6 +9,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 require_once __DIR__ . '/auth.php';
 
 // Tylko staff/admin
@@ -133,6 +134,7 @@ try {
     }
 
     $fname = 'rozliczenia_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '_' . date('Ymd') . '.pdf';
+    ti_print_log_add('billing_pdf', 'Zestawienie rozliczeń — ' . $course['name'], $course_id, 0, [], dyd_current());
     $pdfData = $pdf->Output('S');
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');

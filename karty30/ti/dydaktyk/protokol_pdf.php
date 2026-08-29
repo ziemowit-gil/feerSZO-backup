@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
 ti_protocols_migrate();
@@ -25,6 +26,7 @@ if ($pdf === null) {
     exit;
 }
 
+ti_print_log_add('protokol_pdf', 'Protokół zajęć #' . $id, (int)$pr['course_id'], 0, [], $me);
 header('Content-Type: application/pdf');
 header('Content-Disposition: attachment; filename="' . ti_protocol_pdf_filename($pr) . '"');
 header('Content-Length: ' . strlen($pdf));

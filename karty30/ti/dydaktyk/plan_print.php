@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 $me       = dyd_require();
 $uid      = (int)$me['user_id'];
@@ -54,6 +55,7 @@ $months_pl = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>
 
 $today = date('Y-m-d');
 $org   = defined('APP_ORG') ? APP_ORG : '';
+ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? ''), 0, 0, ['weeks' => $weeks], $me);
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>

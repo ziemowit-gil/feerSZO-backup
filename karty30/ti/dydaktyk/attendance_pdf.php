@@ -6,6 +6,7 @@
  * Dostęp: zalogowany dydaktyk posiadający ten kurs.
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
 $me  = dyd_require();
@@ -203,6 +204,7 @@ $pdf->SetTextColor(0, 0, 0);
 
 // ── Wysyłka ───────────────────────────────────────────────────────────────────
 $fname = 'obecnosc_' . preg_replace('/[^a-z0-9_]/i', '_', $course['name'] ?? 'kurs') . '_' . date('Ymd') . '.pdf';
+ti_print_log_add('attendance_pdf', 'Lista obecności — ' . ($course['name'] ?? ''), $course_id, 0, [], $me);
 $pdf->Output('D', $fname);
 exit;
 } catch (\Throwable $e) {

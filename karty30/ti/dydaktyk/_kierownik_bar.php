@@ -32,6 +32,7 @@ if (!empty($KIER_ITEMS)) {
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
+        ['Wydruki',                   'wydruki.php',                 'printer'],
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
         ['Komunikacja',               'index.php?tab=komunikacja',  'megaphone'],
