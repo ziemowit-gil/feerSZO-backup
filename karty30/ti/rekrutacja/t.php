@@ -224,20 +224,20 @@ function rk_t_page(string $org, string $title, string $body_html): void {
 </div>
 <?php endif; ?>
 
-<details class="small mb-3">
-  <summary class="text-body-secondary" style="cursor:pointer">
-    <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Na czym polega rejestracja żetonowa?
-  </summary>
-  <div class="text-body-secondary mt-2 ps-3" style="max-width:46rem">
-    Miejsc w grupach jest mniej niż chętnych — żetony są po to, żeby nikt nie zajmował
-    „na zapas” miejsc w kilku grupach naraz i nie blokował ich innym. Każda rezerwacja
-    kosztuje żetony z Twojej puli (saldo u góry), więc zapisujesz się na jedną–dwie grupy,
-    w których faktycznie będziesz. Żetony nie są pieniędzmi; rezerwacja pobiera je od razu
-    i gwarantuje miejsce, a odpowiednio wczesna rezygnacja zwraca w całości.
-    Wybrana data to data pierwszych zajęć — „Ustal zajęcia na cały okres” rezerwuje ten sam
-    dzień i godzinę co tydzień, do końca okresu.
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-info-circle me-1 text-primary" aria-hidden="true"></i>Jak działają zapisy żetonowe</h2>
+    <p class="text-body-secondary small mb-0" style="max-width:46rem">
+      Miejsc w grupach jest mniej niż chętnych — żetonówka pilnuje, żeby nikt nie zajmował
+      „na zapas” miejsc w kilku grupach naraz i nie blokował ich innym. Każda rezerwacja
+      kosztuje żetony z Twojej puli (saldo widoczne u góry strony), więc zapisujesz się na
+      jedną–dwie grupy, w których faktycznie będziesz. Żetony nie są pieniędzmi — rezerwacja
+      pobiera je od razu i gwarantuje miejsce, a odpowiednio wczesna rezygnacja zwraca je
+      w całości. Wybrana data to data pierwszych zajęć — opcja „Ustal zajęcia na cały okres”
+      rezerwuje ten sam dzień i godzinę co tydzień, aż do końca okresu.
+    </p>
   </div>
-</details>
+</div>
 
 <?php if ($rk_pools): ?>
 <div class="d-flex gap-2 flex-wrap mb-3">
