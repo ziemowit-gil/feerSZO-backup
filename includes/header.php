@@ -208,7 +208,7 @@ if ($_user) {
 <script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
 <style>
 /* ── Layout ───────────────────────────────── */
-body { background: #f8fafc; }
+body { background: #fff; }
 #content { padding: 1.5rem 1.5rem 5rem; }
 
 /* ── Navbar ───────────────────────────────── */
