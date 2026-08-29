@@ -2213,7 +2213,9 @@ function rk_auto_generate_rounds(): array {
 
 function rk_fmt_dt(string $dt): string {
     $t = strtotime($dt);
-    return $t ? date('d.m.Y H:i', $t) : $dt;
+    if (!$t) return $dt;
+    static $dow = [1=>'pon',2=>'wt',3=>'śr',4=>'czw',5=>'pt',6=>'sob',7=>'niedz'];
+    return $dow[(int)date('N', $t)] . ' ' . date('d.m.Y H:i', $t);
 }
 
 /** Komunikat dla kursanta z kodu RkException. */
