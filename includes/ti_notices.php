@@ -50,6 +50,32 @@ function ti_notices_migrate(): void {
             ]);
         }
     } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — komunikat o rozbudowie panelu dydaktyka (sierpień 2026)
+    try {
+        $seeded2 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_08_panel_features_seeded'");
+        if (!$seeded2) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_08_panel_features_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'all', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Nowości w panelu dydaktyka',
+                'Panel dydaktyka (zakładka Lekcje i menu Kierownik) doczekał się kilku nowych funkcji:'
+                . "\n\n• Wyczyść terminy grupy — masowe usuwanie zaplanowanych (i opcjonalnie odwołanych) lekcji naraz."
+                . "\n• Seria lekcji — wybór dnia tygodnia jednym kliknięciem i przycisk „Do końca roku”."
+                . "\n• Filtrowanie listy lekcji po tekście, miesiącu i konkretnej dacie; lista domyślnie od najnowszych."
+                . "\n• Kierownik może wskazać innego prowadzącego dla lekcji/serii (zastępstwo) — wpływa też na wypłaty."
+                . "\n• Ręczna flaga „dokumentacja uzupełniona” na odbytej lekcji."
+                . "\n• Karta pojedynczej lekcji do druku (przycisk przy „Wejdź” i dropdown „Wydruki” w wierszu)."
+                . "\n• Plan zajęć grupy dla ucznia/rodzica oraz plan prowadzącego — do pobrania jako PDF, XLSX i DOCX."
+                . "\n• Nowe ekrany kierownika: Podgląd klientów (z szybkim doładowaniem portfela), katalog Wydruki"
+                . ' (z historią wygenerowanych dokumentów) i Dni wolne — kalendarz dni wolnych/przerw, który przy'
+                . ' zapisie automatycznie odwołuje zaplanowane lekcje w danym okresie.'
+                . "\n\nSzczegóły przy każdej funkcji — w razie pytań śmiało pytaj administratora.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
 }
 
 function ti_notices_list_active_for_instructor(int $user_id = 0): array {
