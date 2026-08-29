@@ -437,6 +437,15 @@ foreach ($_ext_for_wiz as $_we) {
       <div class="modal-body">
         <p class="text-body-secondary small">Utworzy kilka lekcji powtarzających się co wybraną liczbę tygodni, od daty startowej.</p>
         <div class="mb-2">
+          <label class="form-label" id="series_dow_lbl">Co tydzień od dnia…</label>
+          <div class="btn-group btn-group-sm d-flex flex-wrap" role="group" aria-labelledby="series_dow_lbl">
+            <?php foreach (['Pn'=>1,'Wt'=>2,'Śr'=>3,'Cz'=>4,'Pt'=>5,'So'=>6,'Nd'=>0] as $_dl => $_dv): ?>
+            <button type="button" class="btn btn-outline-secondary flex-fill series-dow-btn" data-dow="<?= $_dv ?>"><?= $_dl ?></button>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-text">Wybierz dzień tygodnia — pole daty poniżej samo ustawi się na najbliższe takie wystąpienie.</div>
+        </div>
+        <div class="mb-2">
           <label class="form-label fw-semibold" for="series_date">Data startowa <span class="text-danger">*</span></label>
           <input type="date" class="form-control" id="series_date" name="lesson_date" required value="<?= h(date('Y-m-d')) ?>">
         </div>
@@ -489,6 +498,35 @@ foreach ($_ext_for_wiz as $_we) {
     </form>
   </div></div>
 </div>
+<script>
+(function(){
+  var dateEl = document.getElementById('series_date');
+  var btns   = document.querySelectorAll('.series-dow-btn');
+  if (!dateEl || !btns.length) return;
+  function markActive(dow){
+    btns.forEach(function(b){ b.classList.toggle('active', parseInt(b.dataset.dow,10) === dow); });
+  }
+  btns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var wantDow = parseInt(btn.dataset.dow, 10); // 0=Nd..6=So (JS getDay())
+      var d = new Date();
+      d.setHours(0,0,0,0);
+      var diff = (wantDow - d.getDay() + 7) % 7; // najbliższe wystąpienie, dziś liczy się jako pasujące
+      d.setDate(d.getDate() + diff);
+      var iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      dateEl.value = iso;
+      markActive(wantDow);
+    });
+  });
+  // Ręczna zmiana daty — podświetl odpowiadający jej dzień tygodnia (lub zdejmij podświetlenie).
+  dateEl.addEventListener('change', function(){
+    if (!dateEl.value) { markActive(-1); return; }
+    var parts = dateEl.value.split('-').map(Number);
+    var picked = new Date(parts[0], parts[1]-1, parts[2]);
+    markActive(picked.getDay());
+  });
+})();
+</script>
 
 <!-- Modal: masowe czyszczenie terminów grupy -->
 <?php
