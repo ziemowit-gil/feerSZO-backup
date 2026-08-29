@@ -1554,7 +1554,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <!-- Podgląd grafiku i dyspozycji prowadzącego -->
     <div class="card border-0 shadow-sm mt-4">
       <div class="card-body">
-        <h2 class="h6 fw-bold mb-1"><i class="bi bi-eye me-1" aria-hidden="true"></i>Grafik i dyspozycje prowadzącego</h2>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <h2 class="h6 fw-bold mb-0"><i class="bi bi-eye me-1" aria-hidden="true"></i>Grafik i dyspozycje prowadzącego</h2>
+          <?php if ($peek_instr_id): ?>
+          <a class="btn btn-outline-secondary btn-sm py-0 px-2 ms-auto"
+             href="rekrutacja_print.php?what=prowadzacy&instr=<?= $peek_instr_id ?>&round=<?= (int)$grp_round['id'] ?>"
+             target="_blank" rel="noopener">
+            <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj listę
+          </a>
+          <?php endif; ?>
+        </div>
         <form method="get" class="mb-3">
           <input type="hidden" name="tab" value="grupy">
           <input type="hidden" name="round" value="<?= (int)$grp_round['id'] ?>">
