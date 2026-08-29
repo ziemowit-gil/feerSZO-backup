@@ -107,6 +107,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_t
     header('Location: parent.php?ptab=portfel'); exit;
 }
 
+// Portfel: zgłoszenie WYKONANEGO przelewu tradycyjnego przez opiekuna — czeka na
+// zaksięgowanie przez kierownika (ti_wallet_request_approve tworzy dopiero wtedy wpłatę).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_declare') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+        $wd_amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $wd_note   = trim($_POST['note'] ?? '');
+        if ($wd_amount < 1 || $wd_amount > 20000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę przelewu od 1 do 20 000 zł.'];
+        } else {
+            ti_wallet_request_add((int)$p['client_id'], $wd_amount, $wd_note, 'opiekun');
+            $_SESSION['wallet_flash'] = ['ok', 'Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.'];
+        }
+    }
+    header('Location: parent.php?ptab=portfel'); exit;
+}
+
 // Wiadomosc od rodzica do prowadzacego
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_msg_send') {
     $p = parent_current();

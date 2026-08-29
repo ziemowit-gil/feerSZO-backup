@@ -49,6 +49,7 @@ if (isset($_GET['wcancel']) && !$pw_flash) {
 }
 
 $pw_bal    = ti_client_balance($pw_cid);
+$pw_wreqs  = ti_wallet_requests_for_client($pw_cid);
 $pw_stripe_on = stripe_enabled();
 $pw_payu_on   = payu_enabled();
 $pw_online    = $pw_stripe_on || $pw_payu_on;
@@ -105,6 +106,17 @@ foreach (k30_ti_client_billing($pw_cid) as $b) {
         'note'   => (string)($b['adjustment_note'] ?? ''),
         'status' => (string)$b['status'],
         'covered'=> (float)($b['paid_amount'] ?? 0),
+    ];
+}
+foreach ($pw_wreqs as $wr) {
+    if ($wr['status'] !== 'pending') continue;   // zatwierdzone widać już jako wpłata; odrzucone nieistotne w historii
+    $pw_ops[] = [
+        'date'   => substr((string)$wr['created_at'], 0, 10),
+        'kind'   => 'declared',
+        'amount' => (float)$wr['amount'],
+        'label'  => 'Zgłoszenie przelewu tradycyjnego',
+        'note'   => (string)$wr['note'],
+        'status' => '',
     ];
 }
 usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
@@ -253,11 +265,30 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
           <dt class="col-sm-3 text-body-secondary fw-normal">Kwota</dt>
           <dd class="col-sm-9 mb-0">dowolna — nadwyżka zostanie w portfelu na kolejne zajęcia</dd>
         </dl>
-        <p class="small text-body-secondary mt-3 mb-0"><i class="bi bi-clock me-1" aria-hidden="true"></i>
-        Przelew tradycyjny księgujemy ręcznie — środki pojawią się w portfelu w ciągu 1–2 dni roboczych.</p>
+        <p class="small text-body-secondary mt-3 mb-2"><i class="bi bi-clock me-1" aria-hidden="true"></i>
+        Przelew tradycyjny księgujemy ręcznie — środki pojawią się w portfelu w ciągu 1–2 dni roboczych.
+        Możesz od razu zgłosić, że przelew został wykonany — placówka zaksięguje go szybciej.</p>
         <?php else: ?>
-        <p class="text-body-secondary mb-0">Dane do wpłaty nie zostały jeszcze ustawione — skontaktuj się z placówką.</p>
+        <p class="text-body-secondary mb-2">Dane do wpłaty nie zostały jeszcze ustawione — skontaktuj się z placówką.</p>
         <?php endif; ?>
+        <form method="post" action="<?= h($pw_form_action) ?>" class="row g-2 align-items-end border-top pt-3 mt-1">
+          <input type="hidden" name="_op" value="wallet_declare">
+          <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+          <div class="col-6">
+            <label for="pwDeclAmt" class="form-label small mb-1">Kwota przelewu</label>
+            <div class="input-group input-group-sm">
+              <input type="number" class="form-control" id="pwDeclAmt" name="amount" min="1" max="20000" step="0.01" inputmode="decimal" required>
+              <span class="input-group-text">zł</span>
+            </div>
+          </div>
+          <div class="col-6">
+            <label for="pwDeclNote" class="form-label small mb-1">Tytuł / referencja (opcjonalnie)</label>
+            <input type="text" class="form-control form-control-sm" id="pwDeclNote" name="note" maxlength="500">
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-send-check me-1" aria-hidden="true"></i>Zgłoś wykonany przelew</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -286,18 +317,22 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
         <tr>
           <td class="text-nowrap"><?= h(date('d.m.Y', strtotime($op['date']))) ?></td>
           <td>
-            <?php if ($op['kind'] === 'in'): ?>
+            <?php if ($op['kind'] === 'declared'): ?>
+            <i class="bi bi-hourglass-split text-warning me-1" aria-hidden="true"></i><?= h($op['label']) ?>
+            <?php elseif ($op['kind'] === 'in'): ?>
             <i class="bi bi-arrow-down-circle text-success me-1" aria-hidden="true"></i><?= h($op['label']) ?>
             <?php else: ?>
             <i class="bi bi-arrow-up-circle text-body-secondary me-1" aria-hidden="true"></i><?= h($op['label']) ?>
             <?php endif; ?>
             <?php if ($op['note'] !== ''): ?><div class="text-body-secondary" style="font-size:.78rem"><?= h($op['note']) ?></div><?php endif; ?>
           </td>
-          <td class="text-end fw-semibold text-nowrap <?= $op['kind'] === 'in' ? 'text-success' : '' ?>">
-            <?= $op['kind'] === 'in' ? '+' : '−' ?><?= number_format($op['amount'], 2, ',', ' ') ?> zł
+          <td class="text-end fw-semibold text-nowrap <?= $op['kind'] === 'in' ? 'text-success' : ($op['kind'] === 'declared' ? 'text-warning-emphasis' : '') ?>">
+            <?= $op['kind'] === 'out' ? '−' : '+' ?><?= number_format($op['amount'], 2, ',', ' ') ?> zł
           </td>
           <td>
-            <?php if ($op['kind'] === 'in'): ?>
+            <?php if ($op['kind'] === 'declared'): ?>
+            <span class="badge text-bg-warning">oczekuje na zatwierdzenie</span>
+            <?php elseif ($op['kind'] === 'in'): ?>
             <span class="badge text-bg-success">zaksięgowana</span>
             <?php elseif ($op['status'] === 'paid'): ?>
             <span class="badge text-bg-success">pokryta z portfela</span>

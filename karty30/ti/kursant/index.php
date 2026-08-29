@@ -176,6 +176,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=portfel'); exit;
     }
 
+    // Portfel: zgłoszenie WYKONANEGO przelewu tradycyjnego — czeka na zaksięgowanie
+    // przez kierownika (ti_wallet_request_approve tworzy dopiero wtedy wpłatę).
+    if ($op === 'wallet_declare') {
+        if (!empty($account['is_minor'])) { http_response_code(403); exit('Rozliczenia małoletnich prowadzi opiekun.'); }
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+        $wd_amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $wd_note   = trim($_POST['note'] ?? '');
+        if ($wd_amount < 1 || $wd_amount > 20000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę przelewu od 1 do 20 000 zł.'];
+        } else {
+            ti_wallet_request_add((int)$student['client_id'], $wd_amount, $wd_note, 'kursant');
+            ti_account_log((int)$student['id'], 'wallet_declare', 'Zgłoszono przelew tradycyjny: ' . number_format($wd_amount, 2, ',', ' ') . ' zł.');
+            $_SESSION['wallet_flash'] = ['ok', 'Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.'];
+        }
+        header('Location: index.php?tab=portfel'); exit;
+    }
+
     // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie).
     // rk_book_series = rezerwacja cykliczna: ten dzień tygodnia i godzina
     // u prowadzącego na wszystkie terminy do końca tury (wszystko-albo-nic).

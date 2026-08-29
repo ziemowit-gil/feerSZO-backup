@@ -43,7 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: klienci.php' . (isset($_GET['q']) ? '?q=' . urlencode($_GET['q']) : '')); exit;
     }
+
+    if ($op === 'wallet_request_approve' || $op === 'wallet_request_reject') {
+        $rid = (int)($_POST['request_id'] ?? 0);
+        if ($op === 'wallet_request_approve') {
+            $ok = ti_wallet_request_approve($rid, (int)$me['user_id']);
+            flash_set($ok ? 'success' : 'danger', $ok ? 'Zgłoszenie zatwierdzone — wpłata zaksięgowana.' : 'Nie udało się zatwierdzić zgłoszenia.');
+        } else {
+            $ok = ti_wallet_request_reject($rid, (int)$me['user_id']);
+            flash_set($ok ? 'success' : 'danger', $ok ? 'Zgłoszenie odrzucone.' : 'Nie udało się odrzucić zgłoszenia.');
+        }
+        header('Location: klienci.php'); exit;
+    }
 }
+
+$pending_requests = ti_wallet_requests_pending();
 
 $q = trim($_GET['q'] ?? '');
 
@@ -83,6 +97,40 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="container-fluid py-3" style="max-width:1200px">
   <h1 class="h4 fw-bold mb-3"><i class="bi bi-people text-primary me-2" aria-hidden="true"></i>Podgląd klientów</h1>
   <?= flash_html() ?>
+
+  <?php if ($pending_requests): ?>
+  <div class="card border-warning-subtle mb-3">
+    <div class="card-header bg-warning bg-opacity-10 fw-semibold">
+      <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Oczekujące zgłoszenia przelewów
+      <span class="badge bg-warning text-dark ms-1"><?= count($pending_requests) ?></span>
+    </div>
+    <ul class="list-group list-group-flush">
+      <?php foreach ($pending_requests as $wr): ?>
+      <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span>
+          <strong><?= h($wr['client_name']) ?></strong> — <?= number_format((float)$wr['amount'], 2, ',', ' ') ?> zł
+          <span class="text-body-secondary small">· zgłoszono <?= h(substr($wr['created_at'], 0, 16)) ?> (<?= $wr['declared_by'] === 'opiekun' ? 'opiekun' : 'kursant' ?>)</span>
+          <?php if ($wr['note'] !== ''): ?><div class="text-body-secondary small"><?= h($wr['note']) ?></div><?php endif; ?>
+        </span>
+        <span class="d-flex gap-2">
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="wallet_request_approve">
+            <input type="hidden" name="request_id" value="<?= (int)$wr['id'] ?>">
+            <button class="btn btn-sm btn-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zatwierdź</button>
+          </form>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="wallet_request_reject">
+            <input type="hidden" name="request_id" value="<?= (int)$wr['id'] ?>">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i></button>
+          </form>
+        </span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
 
   <form method="get" class="mb-3" style="max-width:360px">
     <div class="input-group">

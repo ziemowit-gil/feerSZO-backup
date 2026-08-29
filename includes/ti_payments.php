@@ -52,6 +52,23 @@ function ti_payments_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_pay_course ON k30_ti_payments(client_id, course_id)");
     // Należność: ile już pokryto (alokacja FIFO wpłat)
     try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Zgłoszenia przelewu tradycyjnego przez kursanta — czekają na zaksięgowanie
+    // przez kierownika (dopiero wtedy powstaje wpłata w k30_ti_payments).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_wallet_requests (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id    INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        amount       REAL    NOT NULL DEFAULT 0,
+        note         TEXT    NOT NULL DEFAULT '',
+        status       TEXT    NOT NULL DEFAULT 'pending',  -- pending|approved|rejected
+        declared_by  TEXT    NOT NULL DEFAULT '',          -- kursant|opiekun
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        decided_at   DATETIME,
+        decide_note  TEXT    NOT NULL DEFAULT '',
+        payment_id   INTEGER REFERENCES k30_ti_payments(id) ON DELETE SET NULL
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_wallet_req_client ON k30_ti_wallet_requests(client_id)");
+
     // Wnioski o przeniesienie płatności na następny miesiąc
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_payment_deferrals (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -535,6 +552,61 @@ function ti_payment_delete(int $payment_id): void {
     if (!$p) return;
     db()->prepare("DELETE FROM k30_ti_payments WHERE id=?")->execute([$payment_id]);
     ti_billing_recompute((int)$p['client_id']);
+}
+
+// ── Zgłoszenia przelewu tradycyjnego (kursant/opiekun → akceptacja kierownika) ──
+
+/** Kursant/opiekun deklaruje przelew — czeka na zaksięgowanie przez kierownika. */
+function ti_wallet_request_add(int $client_id, float $amount, string $note, string $declared_by = 'kursant'): int {
+    ti_payments_migrate();
+    return db_insert('k30_ti_wallet_requests', [
+        'client_id'   => $client_id,
+        'amount'      => round($amount, 2),
+        'note'        => mb_substr(trim($note), 0, 500),
+        'status'      => 'pending',
+        'declared_by' => $declared_by,
+    ]);
+}
+
+/** Zatwierdza zgłoszenie — księguje wpłatę (ogólną, metoda „przelew") i przelicza saldo. */
+function ti_wallet_request_approve(int $id, int $decided_by, string $note = ''): bool {
+    ti_payments_migrate();
+    $r = db_one("SELECT * FROM k30_ti_wallet_requests WHERE id=? AND status='pending'", [$id]);
+    if (!$r) return false;
+    $pay = ti_payment_add((int)$r['client_id'], (float)$r['amount'], '', 'transfer',
+                          trim('Zgłoszenie kursanta' . ($r['note'] !== '' ? ' — ' . $r['note'] : '')),
+                          'manual', 0, 0);
+    db()->prepare(
+        "UPDATE k30_ti_wallet_requests SET status='approved', decided_by=?, decided_at=datetime('now'), decide_note=?, payment_id=? WHERE id=?"
+    )->execute([$decided_by, mb_substr(trim($note), 0, 500), $pay['payment_id'], $id]);
+    return true;
+}
+
+/** Odrzuca zgłoszenie (np. wpłata nie dotarła). */
+function ti_wallet_request_reject(int $id, int $decided_by, string $note = ''): bool {
+    ti_payments_migrate();
+    $r = db_one("SELECT id FROM k30_ti_wallet_requests WHERE id=? AND status='pending'", [$id]);
+    if (!$r) return false;
+    db()->prepare(
+        "UPDATE k30_ti_wallet_requests SET status='rejected', decided_by=?, decided_at=datetime('now'), decide_note=? WHERE id=?"
+    )->execute([$decided_by, mb_substr(trim($note), 0, 500), $id]);
+    return true;
+}
+
+/** Oczekujące zgłoszenia — dla panelu kierownika. */
+function ti_wallet_requests_pending(): array {
+    ti_payments_migrate();
+    return db_all(
+        "SELECT w.*, cl.name AS client_name FROM k30_ti_wallet_requests w
+         JOIN k30_clients cl ON cl.id=w.client_id
+         WHERE w.status='pending' ORDER BY w.created_at"
+    );
+}
+
+/** Zgłoszenia jednego klienta (najnowsze pierwsze) — dla portfela kursanta. */
+function ti_wallet_requests_for_client(int $client_id): array {
+    ti_payments_migrate();
+    return db_all("SELECT * FROM k30_ti_wallet_requests WHERE client_id=? ORDER BY created_at DESC", [$client_id]);
 }
 
 /**
