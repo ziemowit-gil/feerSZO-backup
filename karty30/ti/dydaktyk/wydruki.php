@@ -187,12 +187,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-calendar-x me-2 text-primary" aria-hidden="true"></i>Wykaz dni wolnych (PDF)</h3>
+        <h3 class="h6 fw-semibold"><i class="bi bi-calendar-x me-2 text-primary" aria-hidden="true"></i>Wykaz dni wolnych</h3>
         <form method="get" action="dni_wolne_pdf.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-8">
+          <div class="col-12">
             <input type="number" name="year" class="form-control form-control-sm" value="<?= (int)date('Y') ?>" min="2020" max="2035">
           </div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Drukuj</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_xlsx.php"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>XLSX</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button></div>
         </form>
       </div></div>
     </div>

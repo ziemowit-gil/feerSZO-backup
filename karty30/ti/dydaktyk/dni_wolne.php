@@ -124,9 +124,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <a href="?year=<?= $year-1 ?>" class="btn btn-outline-secondary btn-sm" aria-label="Poprzedni rok"><i class="bi bi-chevron-left"></i></a>
     <span class="fw-semibold"><?= $year ?></span>
     <a href="?year=<?= $year+1 ?>" class="btn btn-outline-secondary btn-sm" aria-label="Następny rok"><i class="bi bi-chevron-right"></i></a>
-    <a href="dni_wolne_pdf.php?year=<?= $year ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-printer me-1"></i>Drukuj wykaz
-    </a>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-printer me-1"></i>Drukuj wykaz
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="dni_wolne_pdf.php?year=<?= $year ?>" target="_blank"><i class="bi bi-file-earmark-pdf me-2"></i>PDF</a></li>
+        <li><a class="dropdown-item" href="dni_wolne_xlsx.php?year=<?= $year ?>"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Excel (XLSX)</a></li>
+        <li><a class="dropdown-item" href="dni_wolne_docx.php?year=<?= $year ?>"><i class="bi bi-file-earmark-word me-2"></i>Word (DOCX)</a></li>
+      </ul>
+    </div>
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
       <i class="bi bi-plus-lg me-1"></i>Dodaj
     </button>
