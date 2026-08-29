@@ -90,6 +90,9 @@ if ($_sms_enabled && $cur_course) {
           <li><a class="dropdown-item" href="harmonogram_docx.php?course_id=<?= $cur_course ?>">
             <i class="bi bi-file-earmark-word me-2"></i>Plan zajęć — Word (DOCX)
           </a></li>
+          <li><a class="dropdown-item" href="plan_librus.php?course_id=<?= $cur_course ?>" target="_blank">
+            <i class="bi bi-grid-3x3 me-2"></i>Plan zajęć — format Librus
+          </a></li>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Kalendarz</h6></li>
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalModal">
@@ -591,6 +594,16 @@ foreach ($_ext_for_wiz as $_we) {
           <input type="url" class="form-control" id="series_meeturl" name="meeting_url" placeholder="https://zoom.us/j/…">
           <div class="form-text">Wspólny link dla wszystkich lekcji w serii — można zmienić per-lekcja po utworzeniu.</div>
         </div>
+        <div class="mb-2">
+          <label class="form-label" for="series_room">Sala / lokalizacja</label>
+          <select class="form-select" id="series_room" name="room_id">
+            <option value="0">— nie wybrano —</option>
+            <?php foreach (pl_rooms_list(['is_active' => 1]) as $_room): ?>
+            <option value="<?= (int)$_room['id'] ?>"><?= h($_room['name']) ?><?= trim((string)$_room['location']) !== '' ? ' — ' . h($_room['location']) : '' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Wspólna sala dla wszystkich lekcji serii.</div>
+        </div>
         <div class="row g-2">
           <div class="col-6 mb-2">
             <label class="form-label" for="series_weeks">Co ile tygodni</label>
@@ -785,6 +798,16 @@ foreach ($_ext_for_wiz as $_we) {
         <div class="mb-2">
           <label class="form-label" for="rec_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
           <input type="text" class="form-control" id="rec_topic" name="topic" placeholder="np. Ćwiczenia praktyczne">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="rec_room">Sala / lokalizacja</label>
+          <select class="form-select" id="rec_room" name="room_id">
+            <option value="0">— nie wybrano —</option>
+            <?php foreach (pl_rooms_list(['is_active' => 1]) as $_room): ?>
+            <option value="<?= (int)$_room['id'] ?>"><?= h($_room['name']) ?><?= trim((string)$_room['location']) !== '' ? ' — ' . h($_room['location']) : '' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Wspólna sala dla całego cyklu — dziedziczona przez wszystkie generowane lekcje.</div>
         </div>
       </div>
       <div class="modal-footer">

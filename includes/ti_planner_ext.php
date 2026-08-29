@@ -253,14 +253,25 @@ function ti_planner_ext_migrate(): void {
     }
 
     foreach ([
-        'room_id'    => 'INTEGER',
-        'mode'       => "TEXT DEFAULT 'onsite'",
-        'block_type' => "TEXT DEFAULT 'theory'",
-        'draft_id'   => 'INTEGER',
+        'room_id'                 => 'INTEGER',
+        'mode'                    => "TEXT DEFAULT 'onsite'",
+        'block_type'              => "TEXT DEFAULT 'theory'",
+        'draft_id'                => 'INTEGER',
+        // Status zgłoszenia sali do koordynatora logistycznego — niezależny od
+        // statusu samej lekcji (K30_TI_SESSION_STATUSES). Patrz „Wykaz sal do
+        // rezerwacji" (sale_rezerwacje.php): 'do_rezerwacji' | 'potwierdzone'.
+        'room_reservation_status' => "TEXT NOT NULL DEFAULT 'do_rezerwacji'",
     ] as $col => $def) {
         if (!in_array($col, $exist_sessions, true)) {
             try { $pdo->exec("ALTER TABLE k30_ti_sessions ADD COLUMN $col $def"); } catch (\Throwable) {}
         }
+    }
+
+    // k30_ti_series (reguła zajęć stałych, tabela z includes/karty30.php) —
+    // sala przypisana do całego cyklu, dziedziczona przez generowane lekcje.
+    $exist_series = array_column(db_all("PRAGMA table_info(k30_ti_series)"), 'name');
+    if (!in_array('room_id', $exist_series, true)) {
+        try { $pdo->exec("ALTER TABLE k30_ti_series ADD COLUMN room_id INTEGER"); } catch (\Throwable) {}
     }
 
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_room  ON k30_ti_sessions(room_id, lesson_date)"); } catch (\Throwable) {}
@@ -334,6 +345,12 @@ function pl_room_availability(int $room_id, string $date, string $from, string $
            AND time_from<? AND time_to>?" . ($skip_id ? " AND id!=?" : ''),
         $skip_id ? [$room_id, $date, $to, $from, $skip_id] : [$room_id, $date, $to, $from]
     );
+}
+
+/** Przełącza status zgłoszenia sali do koordynatora (Wykaz sal do rezerwacji). */
+function pl_room_reservation_set(int $session_id, string $status): void {
+    $status = in_array($status, ['do_rezerwacji', 'potwierdzone'], true) ? $status : 'do_rezerwacji';
+    db_exec("UPDATE k30_ti_sessions SET room_reservation_status=? WHERE id=?", [$status, $session_id]);
 }
 
 /* ── LAPTOPY ──────────────────────────────────────────────────────────────── */

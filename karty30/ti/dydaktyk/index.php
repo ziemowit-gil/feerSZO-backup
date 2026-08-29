@@ -17,10 +17,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
 ti_notices_migrate();
+ti_planner_ext_migrate();
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
 
@@ -525,6 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $spr   = !empty($_POST['self_prep_remote']) ? 1 : 0;
         $lm    = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
         $meet_url = in_array($lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
+        $room_id = max(0, (int)($_POST['room_id'] ?? 0));
         $dur   = 60;
         if ($tf && $tt) {
             $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
@@ -553,14 +556,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
 
+        // Sala zajęta w tym oknie czasowym — twarda blokada (patrz pl_check_conflicts).
+        if ($room_id) {
+            $rc = pl_check_conflicts(['lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $room_id, 'skip_id' => $sid]);
+            if ($rc['hard']) { flash_set('danger', $rc['hard'][0]['msg'] ?? 'Sala zajęta w tym terminie.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        }
+
         if ($sid && dyd_owns_session($uid, $sid)) {
             $st      = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, room_id=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $sid]);
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $room_id ?: null, $sid]);
             // Prowadzący edytowalny tylko przez kierownika — nie dotykamy pola,
             // gdy edytuje zwykły prowadzący (formularz mu go nawet nie pokazuje).
             if (dyd_is_staff()) {
@@ -579,6 +588,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'status'          => 'planned', 'topic' => $topic, 'notes' => $notes,
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
                 'lesson_method'   => $lm, 'meeting_url' => $meet_url, 'instructor_id' => $sess_instr ?: null,
+                'room_id'         => $room_id ?: null,
                 'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
@@ -661,6 +671,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $count = max(1, min(60, (int)($_POST['count'] ?? 1)));
         $ser_lm       = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
         $ser_meet_url = in_array($ser_lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
+        $ser_room_id  = max(0, (int)($_POST['room_id'] ?? 0));
         if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) {
             flash_set('danger', 'Podaj poprawną datę startową serii.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
@@ -689,6 +700,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
+        if ($ser_room_id) {
+            foreach ($ser_dates as $_d) {
+                $rc = pl_check_conflicts(['lesson_date' => $_d, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $ser_room_id]);
+                if ($rc['hard']) {
+                    flash_set('danger', ($rc['hard'][0]['msg'] ?? 'Sala zajęta.') . " ({$_d}) Seria nie została utworzona.");
+                    header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+                }
+            }
+        }
         $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
         $created = 0;
         foreach ($ser_dates as $d) {
@@ -696,6 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
                 'lesson_method' => $ser_lm, 'meeting_url' => $ser_meet_url, 'instructor_id' => $sess_instr ?: null,
+                'room_id' => $ser_room_id ?: null,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             foreach ($enrollees as $e) {
@@ -717,6 +738,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tt         = trim($_POST['time_to'] ?? '');
         $topic      = trim($_POST['topic'] ?? '');
         $every      = max(1, min(8, (int)($_POST['interval_weeks'] ?? 1)));
+        $rec_room_id = max(0, (int)($_POST['room_id'] ?? 0));
         if (!$date_from || !$date_to || $date_to < $date_from) {
             flash_set('danger', 'Podaj poprawny zakres dat.');
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -743,6 +765,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
+        if ($rec_room_id) {
+            foreach ($rule_dates as $_d) {
+                $rc = pl_check_conflicts(['lesson_date' => $_d, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $rec_room_id]);
+                if ($rc['hard']) {
+                    flash_set('danger', ($rc['hard'][0]['msg'] ?? 'Sala zajęta.') . " ({$_d}) Zajęcia stałe nie zostały dodane.");
+                    header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+                }
+            }
+        }
         $rule_id = db_insert('k30_ti_series', [
             'course_id'      => $course_id,
             'time_from'      => $tf,
@@ -751,6 +782,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'date_from'      => $date_from,
             'date_to'        => $date_to,
             'topic'          => $topic,
+            'room_id'        => $rec_room_id ?: null,
             'created_by'     => $uid,
             'created_at'     => date('Y-m-d H:i:s'),
         ]);
@@ -760,6 +792,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
                 'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'room_id' => $rec_room_id ?: null,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'), 'series_id' => $rule_id,
             ]);
             foreach ($enrollees as $e) {
@@ -1749,6 +1782,20 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <input type="url" class="form-control" id="<?= $pfx ?>_meeturl" name="meeting_url"
                value="<?= h($r['meeting_url'] ?? '') ?>" placeholder="https://zoom.us/j/…">
         <div class="form-text">Link widoczny kursantom — pojawi się przycisk „Dołącz" przed lekcją.</div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_room">
+          <i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Sala / lokalizacja
+        </label>
+        <select class="form-select" id="<?= $pfx ?>_room" name="room_id">
+          <option value="0">— nie wybrano —</option>
+          <?php foreach (pl_rooms_list(['is_active' => 1]) as $_room): ?>
+          <option value="<?= (int)$_room['id'] ?>" <?= (int)($r['room_id'] ?? 0) === (int)$_room['id'] ? 'selected' : '' ?>>
+            <?= h($_room['name']) ?><?= trim((string)$_room['location']) !== '' ? ' — ' . h($_room['location']) : '' ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Sale zarządzane w <a href="sale.php" target="_blank">wykazie sal</a>.</div>
       </div>
       <div class="border rounded p-2 mb-2 bg-body-tertiary">
         <div class="form-check form-switch mb-1">

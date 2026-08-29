@@ -39,6 +39,7 @@ if (!empty($KIER_ITEMS)) {
         ['Żetony SZO',                'zetony.php',                 'ticket-detailed'],
         ['Zapisy na zajęcia',         'rekrutacja.php',             'ticket-perforated'],
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
+        ['Sale / lokalizacje',        'sale.php',                   'geo-alt'],
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],

@@ -14,9 +14,10 @@ $pl_prev = date('Y-m-d', strtotime($pl_mon . ' -7 days'));
 $pl_next = date('Y-m-d', strtotime($pl_mon . ' +7 days'));
 
 $pl_rows = db_all(
-    "SELECT * FROM k30_ti_sessions
-      WHERE course_id = ? AND lesson_date BETWEEN ? AND ?
-      ORDER BY lesson_date, time_from",
+    "SELECT s.*, r.name AS room_name, r.location AS room_location
+       FROM k30_ti_sessions s LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
+      WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ?
+      ORDER BY s.lesson_date, s.time_from",
     [$cur_course, $pl_mon, $pl_sun]
 );
 $pl_by_day = [];
@@ -26,9 +27,10 @@ foreach ($pl_rows as $r) $pl_by_day[(string)$r['lesson_date']][] = $r;
 $pl_m_from = date('Y-m-01', strtotime($pl_mon));
 $pl_m_to   = date('Y-m-t',  strtotime($pl_mon));
 $pl_month  = db_all(
-    "SELECT * FROM k30_ti_sessions
-      WHERE course_id = ? AND lesson_date BETWEEN ? AND ?
-      ORDER BY lesson_date, time_from",
+    "SELECT s.*, r.name AS room_name, r.location AS room_location
+       FROM k30_ti_sessions s LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
+      WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ?
+      ORDER BY s.lesson_date, s.time_from",
     [$cur_course, $pl_m_from, $pl_m_to]
 );
 
@@ -78,6 +80,7 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
               <strong><?= h(substr((string)$s['time_from'], 0, 5)) ?><?= $s['time_to'] ? '–' . h(substr((string)$s['time_to'], 0, 5)) : '' ?></strong>
               <?php if (trim((string)$s['topic']) !== ''): ?><br><?= h(mb_strimwidth((string)$s['topic'], 0, 40, '…', 'UTF-8')) ?><?php endif; ?>
               <?php if (!empty($s['lesson_method'])): ?><br><span class="text-body-secondary"><?= h($pl_method[(string)$s['lesson_method']] ?? (string)$s['lesson_method']) ?></span><?php endif; ?>
+              <?php if (!empty($s['room_name'])): ?><br><span class="text-body-secondary"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($s['room_name']) ?></span><?php endif; ?>
               <?php if ((string)$s['status'] !== 'planned'): ?><br><span class="badge text-bg-<?= h($bad[0]) ?>"><?= h($bad[1]) ?></span><?php endif; ?>
             </span>
             <?php endforeach; ?>
@@ -99,11 +102,12 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
         <th scope="col" class="text-nowrap">Godziny</th>
         <th scope="col">Temat</th>
         <th scope="col">Forma</th>
+        <th scope="col">Sala / lokalizacja</th>
         <th scope="col">Status</th>
       </tr></thead>
       <tbody>
         <?php if (!$pl_month): ?>
-        <tr><td colspan="5" class="text-center text-muted py-3">Brak terminów w tym miesiącu.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-3">Brak terminów w tym miesiącu.</td></tr>
         <?php endif; ?>
         <?php foreach ($pl_month as $s):
           $bad = $pl_status_badge[(string)$s['status']] ?? ['secondary', (string)$s['status']];
@@ -116,6 +120,7 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
           <td class="text-nowrap small"><?= h(substr((string)$s['time_from'], 0, 5)) ?><?= $s['time_to'] ? '–' . h(substr((string)$s['time_to'], 0, 5)) : '' ?></td>
           <td class="small"><?= trim((string)$s['topic']) !== '' ? h($s['topic']) : '<span class="text-muted">—</span>' ?></td>
           <td class="small"><?= !empty($s['lesson_method']) ? h($pl_method[(string)$s['lesson_method']] ?? (string)$s['lesson_method']) : '<span class="text-muted">—</span>' ?></td>
+          <td class="small"><?= !empty($s['room_name']) ? h($s['room_name']) . (trim((string)($s['room_location'] ?? '')) !== '' ? ' <span class="text-body-secondary">(' . h($s['room_location']) . ')</span>' : '') : '<span class="text-muted">—</span>' ?></td>
           <td class="small"><span class="badge text-bg-<?= h($bad[0]) ?>"><?= h($bad[1]) ?></span></td>
         </tr>
         <?php endforeach; ?>
