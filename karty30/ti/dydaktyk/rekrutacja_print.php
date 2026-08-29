@@ -11,12 +11,14 @@
  *                          od–do, okres zajęć, liczba miejsc, koszt w żetonach,
  *                          prowadzący i instrukcja zapisu. Bez danych osobowych
  *                          kursantów i bez tokenów.
- * ?what=dostepnosci      — zestawienie okien dostępności wszystkich prowadzących
- *                          (dzień, godziny, obowiązywanie, status) z rubrykami
- *                          podpisu kierownika (tylko kierownik).
- * ?what=prowadzacy&instr=X — grafik i dyspozycje JEDNEGO prowadzącego (to samo,
- *                          co podgląd w zakładce „Grupy” — kierownik albo sam
- *                          zainteresowany prowadzący).
+ * ?what=dostepnosci      — zestawienie okien dostępności prowadzących (dzień,
+ *                          godziny, obowiązywanie, status) z rubrykami podpisu
+ *                          kierownika. Domyślnie wszyscy (tylko kierownik);
+ *                          z &instr=X zawężone do JEDNEGO prowadzącego —
+ *                          wtedy dostępne też dla niego samego (własne okna).
+ *                          Dostępność ustawia się niezależnie od rekrutacji/tur
+ *                          (dydaktyk/dostepnosci.php), więc wydruk nie wymaga
+ *                          &round=.
  *
  * Strona print-friendly: bez skórki panelu, przycisk drukowania ukrywany
  * w @media print.
@@ -35,9 +37,13 @@ $is_staff = dyd_is_staff();
 $org      = defined('ORG_NAME') ? ORG_NAME : 'SZO';
 
 $what = $_GET['what'] ?? 'siatka';
-if (!in_array($what, ['siatka','kalendarz','plakat','dostepnosci','prowadzacy'], true)) $what = 'siatka';
-if (in_array($what, ['kalendarz','dostepnosci'], true) && !$is_staff) {
+if (!in_array($what, ['siatka','kalendarz','plakat','dostepnosci'], true)) $what = 'siatka';
+$av_instr_id = $what === 'dostepnosci' ? (int)($_GET['instr'] ?? 0) : 0;
+if ($what === 'kalendarz' && !$is_staff) {
     http_response_code(403); die('Ten wydruk jest dostępny dla kierownika.');
+}
+if ($what === 'dostepnosci' && !$is_staff) {
+    if ($av_instr_id !== $uid) { http_response_code(403); die('Możesz wydrukować wyłącznie własne okna dostępności.'); }
 }
 
 $dow_names = [1=>'poniedziałek',2=>'wtorek',3=>'środa',4=>'czwartek',5=>'piątek',6=>'sobota',0=>'niedziela'];
@@ -82,12 +88,19 @@ $av_rows = [];
 // Rozpiska dostępności na wybraną formę zajęć: online / stacjonarne
 // (okna „obie" obowiązują w każdej formie, więc zawsze wchodzą do wydruku).
 $av_mode = in_array($_GET['mode'] ?? '', ['online', 'stacjonarne'], true) ? (string)$_GET['mode'] : '';
+$av_instr = null;
 if ($what === 'dostepnosci') {
     $av_where = "a.is_active = 1 AND u.is_active = 1";
     $av_par   = [];
     if ($av_mode !== '') {
         $av_where .= " AND COALESCE(NULLIF(a.mode,''),'obie') IN (?, 'obie')";
         $av_par[] = $av_mode;
+    }
+    if ($av_instr_id > 0) {
+        $av_where .= " AND a.instructor_id = ?";
+        $av_par[] = $av_instr_id;
+        $av_instr = db_one("SELECT id, name FROM users WHERE id=?", [$av_instr_id]);
+        if (!$av_instr) { http_response_code(404); die('Nie znaleziono prowadzącego.'); }
     }
     $av_rows = db_all(
         "SELECT a.*, u.name AS instructor_name
@@ -96,19 +109,6 @@ if ($what === 'dostepnosci') {
           WHERE $av_where
           ORDER BY u.name COLLATE NOCASE, (a.day_of_week + 6) % 7, a.time_from",
         $av_par);
-}
-
-/* ── Dane: grafik i dyspozycje jednego prowadzącego ───────────────────────── */
-$pr_instr = null; $pr_avail = []; $pr_slots = [];
-if ($what === 'prowadzacy') {
-    $instr_id = (int)($_GET['instr'] ?? 0);
-    if (!$is_staff && $instr_id !== $uid) {
-        http_response_code(403); die('Możesz wydrukować wyłącznie własny grafik.');
-    }
-    $pr_instr = $instr_id ? db_one("SELECT id, name FROM users WHERE id=?", [$instr_id]) : null;
-    if (!$pr_instr) { http_response_code(404); die('Nie znaleziono prowadzącego.'); }
-    $pr_avail = ti_instructor_availability($instr_id, 'approved');
-    $pr_slots = rk_slots_of_instructor($instr_id, 200);
 }
 
 /* ── Dane: plakat publiczny ────────────────────────────────────────────────── */
@@ -145,8 +145,7 @@ if ($what === 'plakat') {
 <title><?= match ($what) {
     'kalendarz'   => 'Kalendarz naborów',
     'plakat'      => 'Zapisy na zajęcia — ' . h($pl['round']['name']),
-    'dostepnosci' => 'Dostępności prowadzących',
-    'prowadzacy'  => 'Grafik i dyspozycje — ' . h($pr_instr['name']),
+    'dostepnosci' => $av_instr ? 'Dostępności — ' . h($av_instr['name']) : 'Dostępności prowadzących',
     default       => 'Siatka godzin — ' . h($round['name']),
 } ?> — <?= h($org) ?></title>
 <style>
@@ -184,9 +183,9 @@ if ($what === 'plakat') {
 <div class="toolbar">
   <button onclick="window.print()">🖨 Drukuj</button>
   <a href="rekrutacja.php<?= match ($what) {
-      'kalendarz'  => '?tab=tury',
-      'prowadzacy' => '?tab=grupy&round=' . (int)($_GET['round'] ?? 0) . '&instr=' . (int)($pr_instr['id'] ?? 0),
-      default      => '',
+      'kalendarz'   => '?tab=tury',
+      'dostepnosci' => $av_instr ? '?tab=grupy&instr=' . (int)$av_instr['id'] : '',
+      default       => '',
   } ?>">← Wróć do zapisów</a>
 </div>
 
@@ -241,7 +240,7 @@ if ($what === 'plakat') {
 
 <?php elseif ($what === 'dostepnosci'): ?>
 
-<h1>Dostępności prowadzących — <?= $av_mode === 'stacjonarne' ? 'szkolenia stacjonarne'
+<h1><?= $av_instr ? 'Dostępności — ' . h($av_instr['name']) : 'Dostępności prowadzących' ?> — <?= $av_mode === 'stacjonarne' ? 'szkolenia stacjonarne'
     : ($av_mode === 'online' ? 'szkolenia online' : 'zestawienie do zatwierdzenia') ?></h1>
 <div class="meta"><?= h($org) ?> · okna tygodniowe z obowiązywaniem<?=
     $av_mode !== '' ? ' · forma: ' . ($av_mode === 'stacjonarne' ? 'stacjonarnie (w tym okna „obie")' : 'online (w tym okna „obie")') : '' ?>
@@ -253,7 +252,7 @@ if ($what === 'plakat') {
 <table>
   <thead>
     <tr>
-      <th>Prowadzący</th>
+      <?php if (!$av_instr): ?><th>Prowadzący</th><?php endif; ?>
       <th>Dzień tygodnia</th>
       <th>Godziny</th>
       <th>Forma</th>
@@ -264,7 +263,9 @@ if ($what === 'plakat') {
   <tbody>
     <?php $prev = ''; foreach ($av_rows as $w): $w_m = (string)($w['mode'] ?? 'obie'); ?>
     <tr>
+      <?php if (!$av_instr): ?>
       <td><?= $w['instructor_name'] !== $prev ? '<strong>' . h($w['instructor_name']) . '</strong>' : '' ?><?php $prev = $w['instructor_name']; ?></td>
+      <?php endif; ?>
       <td><?= h($dow_names[(int)$w['day_of_week']] ?? (string)$w['day_of_week']) ?></td>
       <td><strong><?= h(substr((string)$w['time_from'],0,5)) ?>–<?= h(substr((string)$w['time_to'],0,5)) ?></strong></td>
       <td><?= h(TI_AVAIL_MODES[$w_m] ?? $w_m) ?></td>
@@ -285,59 +286,6 @@ if ($what === 'plakat') {
   Szkice wymagają zatwierdzenia (panel kierownika › Dostępności prowadzących), zanim generator
   utworzy z nich terminy zapisów. Okna z zakresem dat obowiązują tylko we wskazanym okresie.
 </p>
-<?php endif; ?>
-
-<?php elseif ($what === 'prowadzacy'): ?>
-
-<h1>Grafik i dyspozycje — <?= h($pr_instr['name']) ?></h1>
-<div class="meta"><?= h($org) ?> · wydruk: <?= date('d.m.Y H:i') ?></div>
-
-<h2>Dyspozycje (okna tygodniowe)</h2>
-<?php if (!$pr_avail): ?>
-<p class="muted">Brak zatwierdzonych okien dostępności.</p>
-<?php else: ?>
-<table>
-  <thead>
-    <tr><th>Dzień tygodnia</th><th>Godziny</th><th>Forma</th><th>Obowiązuje</th></tr>
-  </thead>
-  <tbody>
-    <?php foreach ($pr_avail as $a): $a_m = (string)($a['mode'] ?? 'obie'); ?>
-    <tr>
-      <td><?= h($dow_names[(int)$a['day_of_week']] ?? (string)$a['day_of_week']) ?></td>
-      <td><strong><?= h(substr((string)$a['time_from'],0,5)) ?>–<?= h(substr((string)$a['time_to'],0,5)) ?></strong></td>
-      <td><?= h(TI_AVAIL_MODES[$a_m] ?? $a_m) ?></td>
-      <td>
-        <?php if (!empty($a['valid_from']) && $a['valid_from'] === ($a['valid_to'] ?? '')): ?>
-          jednorazowo <?= h($a['valid_from']) ?>
-        <?php elseif (!empty($a['valid_from']) || !empty($a['valid_to'])): ?>
-          <?= $a['valid_from'] ? 'od ' . h($a['valid_from']) : '' ?><?= $a['valid_to'] ? ' do ' . h($a['valid_to']) : '' ?>
-        <?php else: ?>bezterminowo<?php endif; ?>
-      </td>
-    </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
-<?php endif; ?>
-
-<h2>Grafik terminów</h2>
-<?php if (!$pr_slots): ?>
-<p class="muted">Brak terminów w module zapisów.</p>
-<?php else: ?>
-<table>
-  <thead>
-    <tr><th>Termin</th><th>Tura</th><th style="text-align:right">Miejsca</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    <?php foreach ($pr_slots as $ps): ?>
-    <tr<?= $ps['status'] === 'cancelled' ? ' class="cancelled"' : '' ?>>
-      <td><?= h(rk_fmt_dt((string)$ps['starts_at'])) ?>–<?= h(substr((string)$ps['ends_at'], 11, 5)) ?></td>
-      <td class="muted"><?= h($ps['round_name']) ?></td>
-      <td style="text-align:right"><?= (int)$ps['seats_taken'] ?>/<?= (int)$ps['capacity'] ?></td>
-      <td><?= h($ps['status']) ?></td>
-    </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
 <?php endif; ?>
 
 <?php elseif ($what === 'plakat'):

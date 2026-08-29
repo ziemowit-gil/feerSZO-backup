@@ -1558,7 +1558,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <h2 class="h6 fw-bold mb-0"><i class="bi bi-eye me-1" aria-hidden="true"></i>Grafik i dyspozycje prowadzącego</h2>
           <?php if ($peek_instr_id): ?>
           <a class="btn btn-outline-secondary btn-sm py-0 px-2 ms-auto"
-             href="rekrutacja_print.php?what=prowadzacy&instr=<?= $peek_instr_id ?>&round=<?= (int)$grp_round['id'] ?>"
+             href="rekrutacja_print.php?what=dostepnosci&instr=<?= $peek_instr_id ?>"
              target="_blank" rel="noopener">
             <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj listę
           </a>
