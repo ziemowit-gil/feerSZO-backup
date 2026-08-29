@@ -110,9 +110,23 @@ if ($_sms_enabled && $cur_course) {
       </button>
     </div>
     <?php if ($sessions): ?>
-    <div class="w-100">
-      <input type="search" class="form-control form-control-sm" placeholder="Szukaj lekcji (data, temat, status…)"
-             aria-label="Filtruj lekcje" data-dyd-filterbox="dyd-table-lekcje">
+    <div class="w-100 d-flex flex-wrap gap-2">
+      <input type="search" class="form-control form-control-sm flex-grow-1" id="lek_search" style="min-width:220px"
+             placeholder="Szukaj lekcji (temat, status…)" aria-label="Filtruj lekcje po tekście">
+      <?php
+        $_lek_months = [];
+        foreach ($sessions as $_ls) { $_ym = substr((string)$_ls['lesson_date'], 0, 7); if ($_ym !== '') $_lek_months[$_ym] = true; }
+        krsort($_lek_months);
+        $_months_pl_short = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
+      ?>
+      <select class="form-select form-select-sm" id="lek_month" style="max-width:160px" aria-label="Filtruj po miesiącu">
+        <option value="">— wszystkie miesiące —</option>
+        <?php foreach (array_keys($_lek_months) as $_ym): [$_yy,$_mm] = explode('-', $_ym); ?>
+        <option value="<?= h($_ym) ?>"><?= $_months_pl_short[(int)$_mm] ?> <?= $_yy ?></option>
+        <?php endforeach; ?>
+      </select>
+      <input type="date" class="form-control form-control-sm" id="lek_date" style="max-width:160px" aria-label="Filtruj po konkretnej dacie">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="lek_filter_reset">Wyczyść filtry</button>
     </div>
     <?php endif; ?>
   </div>
@@ -259,7 +273,7 @@ if ($_sms_enabled && $cur_course) {
           $_mat_url   = trim((string)($s['material_url'] ?? ''));
           $_meet_url  = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? '')));
         ?>
-        <tr data-filter-item="1"
+        <tr data-filter-item="1" data-date="<?= h($s['lesson_date']) ?>"
             style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
@@ -385,6 +399,38 @@ if ($_sms_enabled && $cur_course) {
     <?php endif; ?>
   </div><!-- /dyd-table-lekcje -->
 </div>
+<script>
+(function(){
+  var wrap  = document.getElementById('dyd-table-lekcje');
+  var text  = document.getElementById('lek_search');
+  var month = document.getElementById('lek_month');
+  var day   = document.getElementById('lek_date');
+  var reset = document.getElementById('lek_filter_reset');
+  if (!wrap || !text) return;
+  function apply(){
+    var q  = text.value.toLowerCase().trim();
+    var ym = month ? month.value : '';
+    var d  = day ? day.value : '';
+    var items = wrap.querySelectorAll('[data-filter-item]');
+    var shown = 0;
+    items.forEach(function(item){
+      var okText  = !q  || item.textContent.toLowerCase().indexOf(q) !== -1;
+      var okMonth = !ym || (item.dataset.date || '').slice(0,7) === ym;
+      var okDay   = !d  || item.dataset.date === d;
+      var match = okText && okMonth && okDay;
+      item.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    var msg = wrap.querySelector('.dyd-filter-empty');
+    if (msg) msg.style.display = ((q || ym || d) && shown === 0) ? '' : 'none';
+  }
+  [text, month, day].forEach(function(el){ if (el) { el.addEventListener('input', apply); el.addEventListener('change', apply); } });
+  if (reset) reset.addEventListener('click', function(){
+    text.value = ''; if (month) month.value = ''; if (day) day.value = '';
+    apply();
+  });
+})();
+</script>
 
 
 <?php

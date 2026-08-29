@@ -2942,6 +2942,37 @@ function k30_ti_course_get(int $id): ?array {
     ) ?: null;
 }
 
+/**
+ * Wzorzec tygodniowy zajęć grupy — do wydruku "Plan zajęć" (PDF/XLS/DOCX) dla
+ * ucznia/rodzica, jak siatka lekcji w dzienniku elektronicznym. Wyznaczany z
+ * odrębnych kombinacji dzień tygodnia/godziny widocznych w sesjach z ostatnich
+ * ~90 dni (obejmuje wygenerowane przyszłe i niedawne odbyte lekcje) — nie
+ * zależy od istnienia reguły cyklicznej (k30_ti_series).
+ * @return array{rows_time: array<string,array{from:string,to:string}>, grid: array<string,array<int,array>>, dow_cols: array<int,string>}
+ */
+function ti_course_weekly_slots(int $course_id): array {
+    $slots = db_all(
+        "SELECT DISTINCT CAST(strftime('%w', lesson_date) AS INTEGER) AS dow, time_from, time_to, lesson_method
+         FROM k30_ti_sessions
+         WHERE course_id=? AND status != 'cancelled' AND time_from != '' AND lesson_date >= date('now','-90 days')
+         ORDER BY time_from",
+        [$course_id]
+    );
+    $rows_time = [];
+    $grid = [];
+    foreach ($slots as $s) {
+        $tk = (string)$s['time_from'] . '-' . (string)$s['time_to'];
+        if (!isset($rows_time[$tk])) $rows_time[$tk] = ['from' => $s['time_from'], 'to' => $s['time_to']];
+        $grid[$tk][(int)$s['dow']] = $s;
+    }
+    ksort($rows_time);
+    return [
+        'rows_time' => $rows_time,
+        'grid'      => $grid,
+        'dow_cols'  => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
+    ];
+}
+
 function k30_ti_subject_types(bool $active_only = true): array {
     $w = $active_only ? 'WHERE is_active=1' : '';
     return db_all("SELECT * FROM k30_ti_subject_types $w ORDER BY sort_order, abbreviation");
