@@ -598,7 +598,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (dyd_owns_session($uid, $sid)) {
             db()->prepare("UPDATE k30_ti_sessions SET docs_complete = 1 - COALESCE(docs_complete,0) WHERE id=?")->execute([$sid]);
         }
-        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        // Zachowaj otwartą kartę lekcji (?lesson=), gdy przełącznik wywołano stamtąd.
+        $back_lesson = (int)($_POST['lesson'] ?? 0);
+        header('Location: ' . dyd_back($course_id, 'lekcje') . ($back_lesson ? '&lesson=' . $back_lesson : '')); exit;
     }
 
     if ($op === 'sms_week_group') {

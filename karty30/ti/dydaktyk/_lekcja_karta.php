@@ -7,7 +7,7 @@ $open_id  = (int)($_GET['lesson'] ?? 0);
 $open_ses = null;
 if ($open_id && dyd_owns_session($uid, $open_id)) {
     $open_ses = db_one(
-        "SELECT s.*, c.name AS course_name, c.default_meeting_url
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url, c.instructor_id AS course_instructor_id
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
           WHERE s.id = ?",
         [$open_id]
@@ -24,6 +24,11 @@ if ($open_ses):
     $_o_min   = (int)($open_ses['duration_min'] ?? 0);
     $_o_method = ['stacjonarna'=>'stacjonarne','zdalna_zoom'=>'zdalne — Zoom','zdalna_inne'=>'zdalne — inne'][(string)($open_ses['lesson_method'] ?? '')] ?? '';
     $_o_active = array_values(array_filter($_o_att, fn($a) => empty($a['cancelled']) && empty($a['cancel_pending'])));
+    $_o_instr_id = (int)($open_ses['instructor_id'] ?? 0);
+    $_o_instr_name = '';
+    if ($_o_instr_id && $_o_instr_id !== (int)($open_ses['course_instructor_id'] ?? 0)) {
+        $_o_instr_name = (string)(db_one("SELECT name FROM users WHERE id=?", [$_o_instr_id])['name'] ?? '');
+    }
 ?>
 <div class="card">
   <div class="card-header d-flex align-items-center flex-wrap gap-2">
@@ -49,6 +54,22 @@ if ($open_ses):
       <dd class="col-sm-9"><?= trim((string)($open_ses['topic'] ?? '')) !== '' ? h($open_ses['topic']) : '<span class="text-muted">nie wpisano</span>' ?></dd>
       <?php if ($_o_method !== ''): ?>
       <dt class="col-sm-3">Forma</dt><dd class="col-sm-9"><?= h($_o_method) ?></dd>
+      <?php endif; ?>
+      <?php if ($_o_instr_name !== ''): ?>
+      <dt class="col-sm-3">Prowadzący</dt>
+      <dd class="col-sm-9"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+        <i class="bi bi-person-workspace me-1" aria-hidden="true"></i>Zastępstwo: <?= h($_o_instr_name) ?>
+      </span></dd>
+      <?php endif; ?>
+      <?php if (in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
+      <dt class="col-sm-3">Dokumentacja</dt>
+      <dd class="col-sm-9">
+        <?php if (!empty($open_ses['docs_complete'])): ?>
+        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-check-square-fill me-1" aria-hidden="true"></i>uzupełniona</span>
+        <?php else: ?>
+        <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>niekompletna</span>
+        <?php endif; ?>
+      </dd>
       <?php endif; ?>
       <?php if (trim((string)($open_ses['notes'] ?? '')) !== ''): ?>
       <dt class="col-sm-3">Notatka dla kursantów</dt><dd class="col-sm-9"><?= nl2br(h($open_ses['notes'])) ?></dd>
@@ -87,6 +108,20 @@ if ($open_ses):
       <a href="lekcja_pdf.php?id=<?= (int)$open_id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartę lekcji
       </a>
+      <?php if (in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="toggle_docs_complete">
+        <input type="hidden" name="_tab" value="lekcje">
+        <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
+        <input type="hidden" name="session_id" value="<?= (int)$open_id ?>">
+        <input type="hidden" name="lesson" value="<?= (int)$open_id ?>">
+        <button type="submit" class="btn btn-sm <?= !empty($open_ses['docs_complete']) ? 'btn-outline-success' : 'btn-outline-danger' ?>">
+          <i class="bi bi-<?= !empty($open_ses['docs_complete']) ? 'check-square-fill' : 'square' ?> me-1" aria-hidden="true"></i>
+          <?= !empty($open_ses['docs_complete']) ? 'Dokumentacja uzupełniona' : 'Oznacz dokumentację jako uzupełnioną' ?>
+        </button>
+      </form>
+      <?php endif; ?>
     </div>
   </div>
 
