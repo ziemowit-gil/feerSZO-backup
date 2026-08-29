@@ -510,6 +510,14 @@ foreach ($_ext_for_wiz as $_we) {
 ?>
 <script>window.DYD_EXT_SESSIONS = <?= json_encode($_wiz_ext_data, JSON_UNESCAPED_UNICODE) ?>;</script>
 
+<!-- Podpowiedzi tematu lekcji z planu nauczania kursu — współdzielone przez
+     formularz pojedynczej lekcji, serię lekcji i regułę zajęć stałych. -->
+<datalist id="ti_topic_options">
+  <?php foreach (k30_ti_curriculum_list($cur_course, true) as $_to): ?>
+  <option value="<?= h($_to['title']) ?>">
+  <?php endforeach; ?>
+</datalist>
+
 <!-- Modale: dodawanie + edycja lekcji -->
 <div class="modal fade" id="addL" tabindex="-1" aria-labelledby="addL_t" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $lessonFormHtml(null, 'addL'); ?></div></div>
@@ -562,7 +570,7 @@ foreach ($_ext_for_wiz as $_we) {
         </div>
         <div class="mb-2">
           <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
-          <input type="text" class="form-control" id="series_topic" name="topic" placeholder="np. Zajęcia cykliczne">
+          <input type="text" class="form-control" id="series_topic" name="topic" list="ti_topic_options" placeholder="np. Zajęcia cykliczne — można wybrać z planu nauczania">
         </div>
         <?php if (dyd_is_staff()): $_ser_instrs = k30_ti_instructors(); ?>
         <div class="mb-2">
@@ -797,7 +805,7 @@ foreach ($_ext_for_wiz as $_we) {
         </div>
         <div class="mb-2">
           <label class="form-label" for="rec_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
-          <input type="text" class="form-control" id="rec_topic" name="topic" placeholder="np. Ćwiczenia praktyczne">
+          <input type="text" class="form-control" id="rec_topic" name="topic" list="ti_topic_options" placeholder="np. Ćwiczenia praktyczne — można wybrać z planu nauczania">
         </div>
         <div class="mb-2">
           <label class="form-label" for="rec_room">Sala / lokalizacja</label>

@@ -1720,7 +1720,11 @@ $sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id, $
 
 $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     $isEdit  = (bool)$r;
-    $isPast  = $isEdit && isset($r['lesson_date']) && $r['lesson_date'] < date('Y-m-d'); ?>
+    $isPast  = $isEdit && isset($r['lesson_date']) && $r['lesson_date'] < date('Y-m-d');
+    // Plan nauczania kursu (= sylabus zrealizowany w tym kursie, patrz curriculum.php)
+    // — źródło podpowiedzi dla tematu lekcji, żeby nie wpisywać go ręcznie za każdym razem.
+    $_curr = k30_ti_curriculum_list($cur_course, true);
+    ?>
   <form method="post">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_lesson">
@@ -1758,7 +1762,11 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <?php endif; ?>
       <div class="mb-2">
         <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
-        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML">
+        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
+               value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML — zacznij pisać, aby wybrać z planu nauczania">
+        <?php if ($_curr): ?>
+        <div class="form-text">Podpowiedzi z <a href="index.php?course=<?= $cur_course ?>&tab=program" target="_blank">planu nauczania</a> kursu — można też wpisać własny temat.</div>
+        <?php endif; ?>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
@@ -1831,8 +1839,8 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <?php
         // Realizowane punkty planu nauczania — progressive disclosure (rozwijane),
         // natywny multi-select dla pełnej obsługi klawiaturą i czytnikiem ekranu.
-        $_curr = k30_ti_curriculum_list($cur_course, true);
-        $_sel  = $isEdit ? k30_ti_session_curriculum_ids((int)$r['id']) : [];
+        // ($_curr pobrane wcześniej — patrz podpowiedzi tematu lekcji powyżej.)
+        $_sel = $isEdit ? k30_ti_session_curriculum_ids((int)$r['id']) : [];
       ?>
       <div class="mb-2">
         <?php if ($_curr): ?>
