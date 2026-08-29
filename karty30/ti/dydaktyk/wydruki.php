@@ -176,6 +176,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-file-earmark-text me-2 text-primary" aria-hidden="true"></i>Karta pojedynczej lekcji (PDF)</h3>
+        <p class="small text-body-secondary mb-0">Termin, temat, obecność i notatki jednej lekcji — wydruk dostępny
+        przy konkretnej lekcji: <a href="index.php?tab=lekcje">Zajęcia → „Wejdź” lub dropdown „Wydruki” w wierszu lekcji</a>.</p>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-calendar-x me-2 text-primary" aria-hidden="true"></i>Wykaz dni wolnych (PDF)</h3>
+        <form method="get" action="dni_wolne_pdf.php" target="_blank" class="row g-2 mt-1">
+          <div class="col-8">
+            <input type="number" name="year" class="form-control form-control-sm" value="<?= (int)date('Y') ?>" min="2020" max="2035">
+          </div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Drukuj</button></div>
+        </form>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
         <h3 class="h6 fw-semibold"><i class="bi bi-file-earmark-spreadsheet me-2 text-primary" aria-hidden="true"></i>Wzór sylabusu (CSV)</h3>
         <div class="d-flex gap-2 mt-1">
           <a class="btn btn-sm btn-outline-primary" href="syllabus_wzor.php" target="_blank">Pusty wzór</a>
