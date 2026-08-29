@@ -3,8 +3,9 @@
  * karty30/ti/dydaktyk/sale_rezerwacje.php — Wykaz sal do rezerwacji.
  *
  * Lista kontrolna dla koordynatora logistycznego: wszystkie terminy z
- * przypisaną salą w danym tygodniu, pogrupowane dniami, ze statusem
- * zgłoszenia (Do rezerwacji / Potwierdzone — k30_ti_sessions.room_reservation_status).
+ * przypisaną salą w wybranym okresie (tydzień / miesiąc / 3 miesiące),
+ * pogrupowane dniami, ze statusem zgłoszenia (Do rezerwacji / Potwierdzone
+ * — k30_ti_sessions.room_reservation_status).
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
@@ -24,19 +25,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'toggle_r
     header('Location: ' . $_SERVER['REQUEST_URI']); exit;
 }
 
+$range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w = (string)($_GET['w'] ?? '');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $w)) $w = date('Y-m-d');
-$mon  = date('Y-m-d', strtotime('monday this week', strtotime($w)));
-$sun  = date('Y-m-d', strtotime($mon . ' +6 days'));
-$prev = date('Y-m-d', strtotime($mon . ' -7 days'));
-$next = date('Y-m-d', strtotime($mon . ' +7 days'));
 
-$by_day = ti_room_reservation_report($mon, $sun);
+$months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+              7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+
+if ($range === 'month') {
+    $from  = date('Y-m-01', strtotime($w));
+    $to    = date('Y-m-t',  strtotime($w));
+    $prev  = date('Y-m-01', strtotime($from . ' -1 month'));
+    $next  = date('Y-m-01', strtotime($from . ' +1 month'));
+    $range_label = $months_pl[(int)date('n', strtotime($from))] . ' ' . date('Y', strtotime($from));
+} elseif ($range === 'quarter') {
+    $from  = date('Y-m-01', strtotime($w));
+    $to    = date('Y-m-t',  strtotime($from . ' +2 months'));
+    $prev  = date('Y-m-01', strtotime($from . ' -3 months'));
+    $next  = date('Y-m-01', strtotime($from . ' +3 months'));
+    $range_label = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to)) . ' (3 mies.)';
+} else {
+    $from  = date('Y-m-d', strtotime('monday this week', strtotime($w)));
+    $to    = date('Y-m-d', strtotime($from . ' +6 days'));
+    $prev  = date('Y-m-d', strtotime($from . ' -7 days'));
+    $next  = date('Y-m-d', strtotime($from . ' +7 days'));
+    $range_label = date('d.m', strtotime($from)) . '–' . date('d.m.Y', strtotime($to));
+}
+
+$by_day = ti_room_reservation_report($from, $to);
 $total  = array_sum(array_map('count', $by_day));
 $pending = 0;
 foreach ($by_day as $day_rows) foreach ($day_rows as $r) if ($r['room_reservation_status'] !== 'potwierdzone') $pending++;
 
-ti_print_log_add('sale_rezerwacje', 'Wykaz sal do rezerwacji — ' . $mon . ' – ' . $sun, 0, 0, [], $me);
+ti_print_log_add('sale_rezerwacje', 'Wykaz sal do rezerwacji — ' . $from . ' – ' . $to, 0, 0, ['range' => $range], $me);
 
 $KP_TITLE  = 'Wykaz sal do rezerwacji — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $me['name'] ?? '', 'logout' => 'logout.php'];
@@ -54,28 +75,34 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap usos-noprint">
   <h1 class="h4 fw-bold mb-0"><i class="bi bi-clipboard-check text-primary me-2" aria-hidden="true"></i>Wykaz sal do rezerwacji</h1>
-  <div class="ms-auto d-flex gap-2 align-items-center">
-    <a href="?w=<?= h($prev) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni tydzień"><i class="bi bi-chevron-left"></i></a>
-    <span class="small fw-semibold"><?= h(date('d.m', strtotime($mon))) ?>–<?= h(date('d.m.Y', strtotime($sun))) ?></span>
-    <a href="?w=<?= h($next) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny tydzień"><i class="bi bi-chevron-right"></i></a>
-    <a href="?w=<?= h(date('Y-m-d')) ?>" class="btn btn-sm btn-outline-primary">Bieżący tydzień</a>
+  <div class="ms-auto d-flex gap-2 align-items-center flex-wrap">
+    <select class="form-select form-select-sm" style="width:auto" aria-label="Zakres"
+            onchange="location.href='?range='+this.value+'&w=<?= h(date('Y-m-d')) ?>'">
+      <option value="week"    <?= $range==='week'    ? 'selected' : '' ?>>Tydzień</option>
+      <option value="month"   <?= $range==='month'   ? 'selected' : '' ?>>Miesiąc</option>
+      <option value="quarter" <?= $range==='quarter' ? 'selected' : '' ?>>3 miesiące</option>
+    </select>
+    <a href="?range=<?= h($range) ?>&w=<?= h($prev) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni okres"><i class="bi bi-chevron-left"></i></a>
+    <span class="small fw-semibold"><?= h($range_label) ?></span>
+    <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
+    <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
     <button onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer me-1"></i>Drukuj</button>
   </div>
 </div>
 
 <p class="text-body-secondary small usos-noprint">
-  Terminy z przypisaną salą w wybranym tygodniu. Zaznacz „Potwierdzone" po zgłoszeniu rezerwacji do administracji budynku —
+  Terminy z przypisaną salą w wybranym okresie. Zaznacz „Potwierdzone" po zgłoszeniu rezerwacji do administracji budynku —
   status jest niezależny od statusu samej lekcji. Sale zarządzane w <a href="sale.php">wykazie sal</a>.
 </p>
 
 <?php if ($total): ?>
 <div class="alert <?= $pending ? 'alert-warning' : 'alert-success' ?> py-2 small usos-noprint">
-  <?= $total ?> termin(y/ów) z salą w tym tygodniu, w tym <strong><?= $pending ?></strong> jeszcze „Do rezerwacji".
+  <?= $total ?> termin(y/ów) z salą w wybranym okresie, w tym <strong><?= $pending ?></strong> jeszcze „Do rezerwacji".
 </div>
 <?php endif; ?>
 
 <?php if (!$by_day): ?>
-<div class="card"><div class="card-body text-center text-body-secondary py-4">Brak terminów z przypisaną salą w tym tygodniu.</div></div>
+<div class="card"><div class="card-body text-center text-body-secondary py-4">Brak terminów z przypisaną salą w wybranym okresie.</div></div>
 <?php endif; ?>
 
 <?php foreach ($by_day as $date => $day_rows): $dow = (int)date('N', strtotime($date)); ?>
