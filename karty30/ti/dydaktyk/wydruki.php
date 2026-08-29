@@ -161,7 +161,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===8?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_print.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="plan_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="plan_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button></div>
         </form>
       </div></div>
     </div>
