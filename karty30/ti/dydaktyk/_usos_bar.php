@@ -100,6 +100,7 @@ if (dyd_is_staff()) {
         'href'  => $_g('grupy'),
         'items' => [
             $_it('grupy',        'Przegląd grup',         $_g('grupy')),
+            $_it('',             'Podgląd klientów',      'klienci.php'),
             $_it('rozliczenia',  'Rozliczenia grupy',     $_ct('rozliczenia'), (int)($_sb_roz_debt ?? 0), 'danger'),
             $_it('',             'Rozliczenia kursantów', 'billing.php'),
             $_it('kursy',        'Zarządzanie kursami',   $_g('kursy')),
@@ -148,6 +149,7 @@ foreach ($_cur_sec['items'] as $_i) {
   // billing), nie do poziomego rzędu — lista jest za długa na jeden wiersz.
   $_kier_icons = [
       'Przegląd grup'             => 'people',
+      'Podgląd klientów'          => 'person-lines-fill',
       'Rozliczenia grupy'         => 'receipt-cutoff',
       'Rozliczenia kursantów'     => 'receipt',
       'Zarządzanie kursami'       => 'collection',

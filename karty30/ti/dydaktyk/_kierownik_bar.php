@@ -27,6 +27,7 @@ if (!empty($KIER_ITEMS)) {
     /** [etykieta, adres, ikona bi-*, nowa karta?] — pełny zestaw ekranów kierownika */
     $_kier_defaults = [
         ['Przegląd grup',             'index.php?tab=grupy',        'people'],
+        ['Podgląd klientów',          'klienci.php',                'person-lines-fill'],
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
