@@ -35,7 +35,7 @@ try {
     $pdf->SetFont('Helvetica', 'B', 14);
     $pdf->Cell($W, 9, $pl('Wykaz dni wolnych — ' . $year), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
-    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')), 0, 1);
+    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1);
     $pdf->Ln(4);
 
     if (!$items) {

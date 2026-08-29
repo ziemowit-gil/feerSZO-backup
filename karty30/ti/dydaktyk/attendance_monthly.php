@@ -128,7 +128,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->Cell($PW, 9, _mr('Raport frekwencji — ' . ($course['name'] ?? '')), 0, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('Helvetica', '', 8);
-    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
+    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1, 'C');
     $pdf->Ln(3);
 
     // Statystyki miesiaca

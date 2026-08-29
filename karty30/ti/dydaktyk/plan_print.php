@@ -98,7 +98,7 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   <div class="meta">
     <?= h($org) ?><br>
     <?= $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : h($from) . ' – ' . h($to) . ' (' . $weeks . ' tyg.)' ?><br>
-    Wydruk: <?= date('d.m.Y H:i') ?>
+    Wydruk: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?>
   </div>
 </div>
 

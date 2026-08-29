@@ -79,7 +79,7 @@ $pdf->Cell($PW, 10, _att_txt('Lista obecności — ' . ($course['name'] ?? '')),
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('Helvetica', '', 8);
 $org = defined('ORG_NAME') ? ORG_NAME : '';
-$pdf->Cell($PW, 5, _att_txt(($org ? $org . '   |   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
+$pdf->Cell($PW, 5, _att_txt(($org ? $org . '   |   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1, 'C');
 $pdf->Ln(3);
 
 // ── Oblicz szerokości kolumn ─────────────────────────────────────────────────

@@ -45,7 +45,7 @@ try {
     $pdf->Cell($W, 10, $pl('Plan zajęć — ' . $course['name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
     $sub = ($org ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—')
-         . '   ·   Wygenerowano: ' . date('d.m.Y H:i');
+         . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '');
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     if ($_meta) {
         $pdf->SetFont('Helvetica', 'B', 8.5);

@@ -35,7 +35,7 @@ $section = $phpWord->addSection(['orientation' => 'landscape']);
 $section->addText('Plan zajęć — ' . $course['name'], ['bold' => true, 'size' => 16]);
 $section->addText(
     ($org !== '' ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—')
-    . '   ·   Wygenerowano: ' . date('d.m.Y H:i'),
+    . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ['size' => 9, 'color' => '555555']
 );
 if ($WP['first_lesson'] !== '') {

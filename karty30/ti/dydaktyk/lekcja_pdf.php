@@ -45,7 +45,7 @@ try {
     $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Karta lekcji — ' . $s['course_name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
-    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')), 0, 1);
+    $pdf->Cell($W, 5, $pl(($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 1);
     $pdf->Ln(4);
 
     $row = function (string $label, string $value) use ($pdf, $pl, $W) {

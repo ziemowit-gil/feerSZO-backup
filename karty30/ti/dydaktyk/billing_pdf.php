@@ -60,7 +60,8 @@ try {
     $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl('Zestawienie rozliczeń — ' . $course['name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8);
-    $sub = ($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')
+    $_me = dyd_current();
+    $sub = ($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($_me['name'] ?? '')
          . '   ·   Kursantów: ' . count($enrolled);
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(3);
@@ -134,7 +135,7 @@ try {
     }
 
     $fname = 'rozliczenia_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '_' . date('Ymd') . '.pdf';
-    ti_print_log_add('billing_pdf', 'Zestawienie rozliczeń — ' . $course['name'], $course_id, 0, [], dyd_current());
+    ti_print_log_add('billing_pdf', 'Zestawienie rozliczeń — ' . $course['name'], $course_id, 0, [], $_me);
     $pdfData = $pdf->Output('S');
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');

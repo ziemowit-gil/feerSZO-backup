@@ -24,7 +24,7 @@ $type_labels = ['holiday' => 'Dzień wolny / święto', 'break' => 'Przerwa w dz
 $x = new XlsxWriter();
 $x->addSheet('Dni wolne ' . $year);
 $x->writeRow(['Wykaz dni wolnych — ' . $year], ['header']);
-$x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i')]);
+$x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
 $x->writeRow([]);
 $x->writeRow(['Od', 'Do', 'Dni', 'Nazwa', 'Typ', 'Uwagi'], ['header']);
 

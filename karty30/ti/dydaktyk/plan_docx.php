@@ -32,7 +32,7 @@ $section = $phpWord->addSection();
 $range = $PD['unbounded'] ? 'Ogólny — od dziś, bez ograniczenia końcowego' : $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)';
 $section->addText('Plan zajęć — ' . $instructor['name'], ['bold' => true, 'size' => 16]);
 $section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i'),
+    ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ['size' => 9, 'color' => '555555']
 );
 $section->addTextBreak(1);

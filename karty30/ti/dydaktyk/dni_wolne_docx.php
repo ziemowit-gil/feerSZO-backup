@@ -29,7 +29,7 @@ $section = $phpWord->addSection();
 
 $section->addText('Wykaz dni wolnych — ' . $year, ['bold' => true, 'size' => 16]);
 $section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i'),
+    ($org !== '' ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ['size' => 9, 'color' => '555555']
 );
 $section->addTextBreak(1);
