@@ -159,6 +159,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <div class="col-12">
             <select name="weeks" class="form-select form-select-sm">
               <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===8?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              <option value="0">Ogólny (cały plan)</option>
             </select>
           </div>
           <div class="col-4"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_print.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>

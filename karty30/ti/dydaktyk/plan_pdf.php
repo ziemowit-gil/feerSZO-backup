@@ -37,8 +37,8 @@ try {
     $pdf->SetFont('Helvetica', 'B', 14);
     $pdf->Cell($W, 10, $pl('Plan zajęć — ' . $instructor['name']), 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
-    $sub = ($org !== '' ? $org . '   ·   ' : '') . h($PD['from']) . ' – ' . h($PD['to'])
-         . ' (' . $PD['weeks'] . ' tyg.)   ·   Wygenerowano: ' . date('d.m.Y H:i');
+    $range = $PD['unbounded'] ? 'Ogólny — cały zapisany plan' : $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)';
+    $sub = ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i');
     $pdf->Cell($W, 5, $pl($sub), 0, 1);
     $pdf->Ln(4);
 

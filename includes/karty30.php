@@ -3006,15 +3006,18 @@ function ti_course_weekly_slots(int $course_id): array {
  * najpierw dzień/godzina/kurs, pod spodem wszystkie konkretne daty w zakresie.
  * Uwzględnia zastępstwa (COALESCE(s.instructor_id, c.instructor_id) — patrz
  * [[project_ti_payout]]). Grupy posortowane wg dnia tygodnia (Pn=1…Nd=7), potem godziny.
+ * $weeks=0 → wydruk OGÓLNY (nie wg okresu): bez ograniczenia dat, cały zapisany
+ * plan prowadzącego (przeszłe i przyszłe lekcje), zamiast "najbliższe N tygodni".
  * @return array{
- *   instructor: ?array, from: string, to: string, weeks: int,
+ *   instructor: ?array, from: string, to: string, weeks: int, unbounded: bool,
  *   groups: array<int,array{dow:int,day_label:string,time_from:string,time_to:string,course_name:string,dates:array<int,array{date:string,status:string,student_names:string}>}>
  * }
  */
 function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
-    $weeks = max(1, min(26, $weeks));
-    $from  = date('Y-m-d');
-    $to    = date('Y-m-d', strtotime("+{$weeks} weeks"));
+    $unbounded = ($weeks <= 0);
+    $weeks = $unbounded ? 0 : max(1, min(26, $weeks));
+    $from  = $unbounded ? '2000-01-01' : date('Y-m-d');
+    $to    = $unbounded ? '2099-12-31' : date('Y-m-d', strtotime("+{$weeks} weeks"));
     $days_pl = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
 
     $instructor = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$target_uid]);
@@ -3051,7 +3054,7 @@ function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
     }
     uasort($groups, fn($a, $b) => [$a['dow'], $a['time_from']] <=> [$b['dow'], $b['time_from']]);
 
-    return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'groups' => array_values($groups)];
+    return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'unbounded' => $unbounded, 'groups' => array_values($groups)];
 }
 
 function k30_ti_subject_types(bool $active_only = true): array {

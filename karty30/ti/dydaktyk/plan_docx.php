@@ -29,10 +29,10 @@ $phpWord = new \PhpOffice\PhpWord\PhpWord();
 $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
 $section = $phpWord->addSection();
 
+$range = $PD['unbounded'] ? 'Ogólny — cały zapisany plan' : $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)';
 $section->addText('Plan zajęć — ' . $instructor['name'], ['bold' => true, 'size' => 16]);
 $section->addText(
-    ($org !== '' ? $org . '   ·   ' : '') . $PD['from'] . ' – ' . $PD['to'] . ' (' . $PD['weeks'] . ' tyg.)'
-    . '   ·   Wygenerowano: ' . date('d.m.Y H:i'),
+    ($org !== '' ? $org . '   ·   ' : '') . $range . '   ·   Wygenerowano: ' . date('d.m.Y H:i'),
     ['size' => 9, 'color' => '555555']
 );
 $section->addTextBreak(1);
