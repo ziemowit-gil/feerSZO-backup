@@ -73,6 +73,7 @@ try {
         }
     }
 
+    $pdf->SetAutoPageBreak(false);
     $pdf->SetY(-15);
     $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');

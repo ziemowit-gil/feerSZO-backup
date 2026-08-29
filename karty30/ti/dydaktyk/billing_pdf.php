@@ -134,6 +134,7 @@ try {
     }
 
     $fname = 'rozliczenia_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '_' . date('Ymd') . '.pdf';
+    $pdf->SetAutoPageBreak(false);
     $pdf->SetY(-15);
     $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($_me['name'] ?? '')), 0, 0, 'L');

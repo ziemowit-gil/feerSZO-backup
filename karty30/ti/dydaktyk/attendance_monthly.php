@@ -261,6 +261,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->Cell($PW, 4, _mr('+  obecny     –  nieobecny     x  odwołany udział     —  lekcja odwołana     %  frekwencja (bez odwołanych)'), 0, 1, 'L');
 }
 
+$pdf->SetAutoPageBreak(false);
 $pdf->SetY(-15);
 $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
 $pdf->Cell($PW, 4, _mr('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');

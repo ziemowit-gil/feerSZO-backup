@@ -202,6 +202,7 @@ if ($show_cancelled) {
 }
 $pdf->SetTextColor(0, 0, 0);
 
+$pdf->SetAutoPageBreak(false);
 $pdf->SetY(-15);
 $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
 $pdf->Cell($PW, 4, _att_txt('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
