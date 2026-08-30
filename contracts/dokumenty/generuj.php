@@ -91,13 +91,21 @@ if ($missing) {
           <div class="input-group input-group-sm">
             <input type="text" id="<?= $_fid ?>" name="override[<?= h($tag) ?>]" class="form-control"
                    value="<?= h($overrides[$tag] ?? '') ?>">
-            <button type="button" class="btn btn-outline-secondary"
-                    onclick="document.getElementById('<?= $_fid ?>').value=<?= json_encode(KATWER_NO_DATA_LABEL) ?>">
+            <button type="button" class="btn btn-outline-secondary btn-no-data" data-target="<?= $_fid ?>">
               Brak danych w systemie
             </button>
           </div>
         </div>
         <?php endforeach; ?>
+        <script>
+        var NO_DATA_LABEL = <?= json_encode(KATWER_NO_DATA_LABEL) ?>;
+        document.querySelectorAll('.btn-no-data').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var el = document.getElementById(btn.dataset.target);
+            if (el) { el.value = NO_DATA_LABEL; el.focus(); }
+          });
+        });
+        </script>
         <div class="d-flex justify-content-end gap-2">
           <a href="<?= h($view_url) ?>" class="btn btn-sm btn-outline-secondary">Anuluj</a>
           <button type="submit" class="btn btn-sm btn-primary">
