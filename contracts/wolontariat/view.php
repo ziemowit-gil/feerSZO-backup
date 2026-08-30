@@ -2085,9 +2085,25 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <!-- ── Dokumenty edytowalne (generowanie + live edycja przed eksportem) ── -->
     <div class="mt-3 pt-3 border-top">
       <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-        <span class="fw-semibold small">
-          <i class="bi bi-pencil-square me-1 text-success"></i>Dokumenty edytowalne
-        </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="fw-semibold small">
+            <i class="bi bi-pencil-square me-1 text-success"></i>Dokumenty edytowalne
+          </span>
+          <?php $_verif = cgd_verification_status($TYPE, $id); ?>
+          <?php if (!$_verif['verified_at']): ?>
+          <span class="badge bg-secondary" title="Nie wygenerowano jeszcze Karty Weryfikacji Danych">
+            <i class="bi bi-question-circle me-1"></i>Dane nigdy nie zweryfikowane
+          </span>
+          <?php elseif ($_verif['is_stale']): ?>
+          <span class="badge bg-danger" title="Ostatnia weryfikacja: <?= h(date_pl($_verif['verified_at'])) ?>">
+            <i class="bi bi-exclamation-triangle me-1"></i>Dane wymagają weryfikacji
+          </span>
+          <?php else: ?>
+          <span class="badge bg-success" title="Ważne do: <?= h(date_pl($_verif['expires_at'])) ?>">
+            <i class="bi bi-check-circle me-1"></i>Dane zweryfikowane <?= h(date_pl($_verif['verified_at'])) ?>
+          </span>
+          <?php endif; ?>
+        </div>
         <?php if ($_cte_templates && can_edit()): ?>
         <div class="dropdown">
           <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
