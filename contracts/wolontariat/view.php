@@ -13,6 +13,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
 require_once dirname(dirname(__DIR__)) . '/includes/autenti.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
 cte_migrate();
+require_once dirname(dirname(__DIR__)) . '/includes/contract_document_engine.php';
+cgd_migrate();
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
@@ -2079,6 +2081,81 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <a href="#" data-bs-toggle="modal" data-bs-target="#printDocsModal" class="ms-1">Drukuj dokumenty →</a>
     </div>
     <?php endif; ?>
+
+    <!-- ── Dokumenty edytowalne (generowanie + live edycja przed eksportem) ── -->
+    <div class="mt-3 pt-3 border-top">
+      <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <span class="fw-semibold small">
+          <i class="bi bi-pencil-square me-1 text-success"></i>Dokumenty edytowalne
+        </span>
+        <?php if ($_cte_templates && can_edit()): ?>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-plus-lg me-1"></i>Nowy dokument
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <?php foreach ($_cte_templates as $_gtpl): ?>
+            <li>
+              <form method="post" action="<?= APP_URL ?>/contracts/dokumenty/generuj.php">
+                <input type="hidden" name="_csrf"         value="<?= csrf_token() ?>">
+                <input type="hidden" name="template_id"   value="<?= $_gtpl['id'] ?>">
+                <input type="hidden" name="contract_type" value="<?= h($TYPE) ?>">
+                <input type="hidden" name="contract_id"   value="<?= $id ?>">
+                <button class="dropdown-item" type="submit"><?= h($_gtpl['name']) ?></button>
+              </form>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+      </div>
+
+      <?php $_cgd_docs = cgd_list_for_contract($TYPE, $id); ?>
+      <?php if ($_cgd_docs): ?>
+      <div class="table-responsive">
+      <table class="cv-table">
+        <thead>
+          <tr><th>Dokument</th><th>Status</th><th>Ostatnia zmiana</th><th></th></tr>
+        </thead>
+        <tbody>
+          <?php $_cgd_statuses = cgd_statuses(); ?>
+          <?php foreach ($_cgd_docs as $_gd): ?>
+          <tr>
+            <td>
+              <i class="bi bi-file-earmark-richtext text-success me-1"></i>
+              <a href="<?= APP_URL ?>/contracts/dokumenty/edytuj.php?id=<?= $_gd['id'] ?>">
+                <?= h($_gd['template_name'] ?? 'Dokument') ?>
+              </a>
+            </td>
+            <td><span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem">
+              <?= h($_cgd_statuses[$_gd['status']] ?? $_gd['status']) ?>
+            </span></td>
+            <td class="small text-muted"><?= date_pl($_gd['updated_at'] ?? $_gd['created_at']) ?></td>
+            <td class="text-end">
+              <a href="<?= APP_URL ?>/contracts/dokumenty/edytuj.php?id=<?= $_gd['id'] ?>"
+                 class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj / podgląd">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="<?= APP_URL ?>/contracts/dokumenty/pdf.php?id=<?= $_gd['id'] ?>" target="_blank"
+                 class="btn btn-sm btn-outline-danger py-0 px-2" title="Pobierz PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <?php if (class_exists('ZipArchive')): ?>
+              <a href="<?= APP_URL ?>/contracts/dokumenty/docx.php?id=<?= $_gd['id'] ?>"
+                 class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz Word">
+                <i class="bi bi-file-earmark-word"></i>
+              </a>
+              <?php endif; ?>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+      <?php else: ?>
+      <div class="text-muted small">Brak wygenerowanych dokumentów edytowalnych.</div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php if ($_cte_templates): ?>
