@@ -224,7 +224,7 @@ function owncloud_ocs_request(array $admin_cfg, string $method, string $path, ar
     $r = owncloud_request($adminAsCfg, $method, $url, $body, $headers);
 
     if (!$r['ok'] && $r['http'] === 0) {
-        return ['ok' => false, 'statuscode' => 0, 'data' => [], 'message' => $r['err'] ?: 'Błąd połączenia z ownCloud.'];
+        return ['ok' => false, 'statuscode' => 0, 'http' => 0, 'data' => [], 'message' => $r['err'] ?: 'Błąd połączenia z ownCloud.'];
     }
 
     $decoded = json_decode($r['body'], true);
@@ -245,6 +245,7 @@ function owncloud_ocs_request(array $admin_cfg, string $method, string $path, ar
     return [
         'ok'         => $status === 100,
         'statuscode' => $status,
+        'http'       => $r['http'],
         'data'       => $decoded['ocs']['data'] ?? [],
         'message'    => $message,
     ];
@@ -265,7 +266,11 @@ function owncloud_create_user(array $admin_cfg, string $userid, string $password
 /** Usuwa konto w ownCloud — WSZYSTKIE pliki właściciela giną bezpowrotnie. 404 (już nie ma) traktowane jako sukces. */
 function owncloud_delete_user(array $admin_cfg, string $userid): array {
     $r = owncloud_ocs_request($admin_cfg, 'DELETE', 'cloud/users/' . rawurlencode($userid));
-    if ($r['ok'] || $r['statuscode'] === 998) { // 998 = "not found" w OCS — już usunięte
+    // Sukces, albo konto już nie istniało — 998 to kod "not found" w envelope OCS,
+    // a surowe HTTP 404 zdarza się, gdy dispatcher OCS zwraca gołą odpowiedź 404
+    // zamiast poprawnego envelope (obserwowane realnie, nie tylko teoretycznie —
+    // ten sam wzorzec co owncloud_delete() dla plików WebDAV w tym pliku).
+    if ($r['ok'] || $r['statuscode'] === 998 || ($r['http'] ?? 0) === 404) {
         return ['ok' => true, 'msg' => 'Konto usunięte.'];
     }
     return ['ok' => false, 'msg' => 'Błąd usuwania konta ownCloud: ' . ($r['message'] ?: "kod {$r['statuscode']}")];
