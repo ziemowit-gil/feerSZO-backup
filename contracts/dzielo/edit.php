@@ -87,326 +87,415 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-pencil text-primary"></i> Edycja: <?= h($row['numer_umowy']) ?></h4>
-  <div class="d-flex gap-2">
-    <a href="view.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> Podgląd</a>
-    <a href="list.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+<div class="tw-max-w-6xl tw-mx-auto">
+
+<div class="tw-flex tw-items-center tw-justify-between tw-mb-4 tw-flex-wrap tw-gap-2">
+  <h1 class="tw-text-xl tw-font-semibold tw-text-slate-800 tw-flex tw-items-center tw-gap-2">
+    <i class="bi bi-pencil tw-text-blue-600"></i> Edycja: <?= h($row['numer_umowy']) ?>
+  </h1>
+  <div class="tw-flex tw-gap-2">
+    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+      <i class="bi bi-eye"></i> Podgląd
+    </a>
+    <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+      <i class="bi bi-arrow-left"></i> Lista
+    </a>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>".h($e)."</li>"; ?></ul></div>
+<div class="tw-rounded-lg tw-border tw-border-red-200 tw-bg-red-50 tw-text-red-800 tw-px-4 tw-py-3 tw-mb-4 tw-text-sm">
+  <ul class="tw-mb-0 tw-pl-4 tw-list-disc"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
+</div>
 <?php endif; ?>
 
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" novalidate x-data="tabbedContractForm(5)" @submit="onSubmit($event)"
+      class="tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<!-- Numery referencyjne -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-<div class="card-body"><div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr roboczy umowy</label>
-    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
-    <div class="form-text">Numer roboczy w projekcie.</div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO, opcjonalne)</span></label>
-    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
-    <input name="nr_rejestru" class="form-control font-monospace"
-      value="<?= h($row['nr_rejestru']??'') ?>"
-      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
-    <div class="form-text">Zostaw puste — zostanie nadany automatycznie.</div>
-  </div>
-</div></div>
+<!-- Zakładki -->
+<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
+  <?php $_tabs = ['Umowa', 'Wykonawca', 'Dzieło i wynagrodzenie', 'Podpisanie i pliki', 'M365 i uwagi']; ?>
+  <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
+  <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
+          class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition"
+          :class="tab===<?= $_tn ?> ? 'tw-bg-white tw-text-blue-600 tw-border tw-border-b-0 tw-border-slate-200' : 'tw-text-slate-500 hover:tw-text-slate-700'">
+    <?= h($_tlabel) ?>
+  </button>
+  <?php endforeach; ?>
 </div>
 
-<div class="row">
-<div class="col-lg-8">
+<!-- TAB 1: Umowa -->
+<div data-tab-pane="1" x-show="tab===1" x-cloak class="tw-p-6">
 
-<!-- DANE PODSTAWOWE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Dane podstawowe</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Numer umowy *</label>
-    <input name="numer_umowy" class="form-control fw-bold" value="<?= h($row['numer_umowy']) ?>" required></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Status *</label>
-    <select name="status" class="form-select" required>
-      <?php foreach(['projekt','podpisana','w realizacji','zakończona','rozwiązana','anulowana'] as $s):
-        $sel = $row['status']===$s?'selected':''; ?>
-      <option value="<?= h($s) ?>" <?= $sel ?>><?= h(ucfirst($s)) ?></option>
-      <?php endforeach; ?>
-    </select></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data zawarcia</label>
-    <input name="data_zawarcia" type="date" class="form-control" value="<?= h($row['data_zawarcia']) ?>"></div>
-</div>
-</div>
-</div>
-
-<!-- WYKONAWCA -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Wykonawca</div>
-<div class="card-body">
-<!-- Person picker -->
-<div class="mb-3">
-  <label class="form-label fw-semibold">Osoba powiązana w rejestrze</label>
-  <div class="input-group">
-    <input type="text" id="person_search" class="form-control"
-           placeholder="Szukaj po imieniu, PESEL lub email…"
-           value="<?= h($row['_person_name'] ?? '') ?>"
-           autocomplete="off">
-    <a href="<?= APP_URL ?>/persons/add.php" class="btn btn-outline-secondary" target="_blank" title="Dodaj nową osobę">
-      <i class="bi bi-person-plus"></i>
-    </a>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-hash"></i> Numery referencyjne</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-6">
+    <div>
+      <label for="nr_roboczy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr roboczy umowy</label>
+      <input id="nr_roboczy" name="nr_roboczy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Numer roboczy w projekcie.</p>
+    </div>
+    <div>
+      <label for="nr_system" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr ogólny <span class="tw-text-slate-400 tw-font-normal">(webNGO, opcjonalne)</span></label>
+      <input id="nr_system" name="nr_system" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_system']??'') ?>">
+    </div>
+    <div>
+      <label for="nr_rejestru" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr rejestru <span class="tw-text-slate-400 tw-font-normal">RU/{nr}/{rok}/{inicjały}</span></label>
+      <input id="nr_rejestru" name="nr_rejestru" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_rejestru']??'') ?>"
+             placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Zostaw puste — zostanie nadany automatycznie.</p>
+    </div>
   </div>
-  <input type="hidden" name="person_id" id="person_id" value="<?= h($row['person_id'] ?? '') ?>">
-  <div id="person_results" class="list-group mt-1" style="display:none;position:absolute;z-index:1000;max-width:500px"></div>
-  <div class="form-text">Opcjonalnie: wybierz istniejącą osobę lub <a href="<?= APP_URL ?>/persons/add.php" target="_blank">dodaj nową</a>.</div>
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-info-circle"></i> Dane podstawowe</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-6">
+    <div>
+      <label for="numer_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer umowy <span class="tw-text-red-500">*</span></label>
+      <input id="numer_umowy" name="numer_umowy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['numer_umowy']) ?>" required>
+    </div>
+    <div>
+      <label for="status" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Status <span class="tw-text-red-500">*</span></label>
+      <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+        <?php foreach(['projekt','podpisana','w realizacji','zakończona','rozwiązana','anulowana'] as $s):
+          $sel = $row['status']===$s?'selected':''; ?>
+        <option value="<?= h($s) ?>" <?= $sel ?>><?= h(ucfirst($s)) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div>
+      <label for="data_zawarcia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data zawarcia</label>
+      <input id="data_zawarcia" name="data_zawarcia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_zawarcia']) ?>">
+    </div>
+  </div>
+
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4">
+    <div>
+      <label for="numer_projektu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer projektu</label>
+      <input id="numer_projektu" name="numer_projektu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['numer_projektu']) ?>">
+    </div>
+    <div>
+      <label for="opiekun" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Opiekun umowy</label>
+      <input id="opiekun" name="opiekun" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['opiekun']) ?>">
+    </div>
+  </div>
 </div>
-<!-- Pozycja w strukturze -->
-<div class="mb-3">
-  <label class="form-label">Komórka organizacyjna</label>
-  <select name="org_unit_id" class="form-select">
-    <option value="">— wybierz —</option>
-    <?php
-    try {
-      $units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name");
-      foreach ($units as $pos):
-        $sel = ($row['org_unit_id'] ?? '') == $pos['id'] ? 'selected' : '';
-    ?>
-    <option value="<?= h($pos['id']) ?>" <?= $sel ?>><?= h($pos['name']) ?></option>
-    <?php endforeach; } catch(\Throwable $e) {} ?>
-  </select>
-</div>
-<div class="row mb-2">
-  <div class="col-md-5">
-    <label class="form-label small text-muted">Szybkie uzupełnienie z CEIDG (dla JDG)</label>
-    <div class="input-group input-group-sm">
-      <span class="input-group-text"><i class="bi bi-building-check"></i></span>
-      <input type="text" id="ceidgNipInput" class="form-control" placeholder="NIP działalności (10 cyfr)" maxlength="13">
-      <button type="button" class="btn btn-outline-primary" id="ceidgBtn" onclick="ceidgSearch()">
+
+<!-- TAB 2: Wykonawca -->
+<div data-tab-pane="2" x-show="tab===2" x-cloak class="tw-p-6">
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-person"></i> Wykonawca</h2>
+
+  <div class="tw-mb-4">
+    <label for="person_search" class="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-1">Osoba powiązana w rejestrze</label>
+    <div class="tw-relative tw-flex tw-gap-2">
+      <input type="text" id="person_search"
+             class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             placeholder="Szukaj po imieniu, PESEL lub email…"
+             value="<?= h($row['_person_name'] ?? '') ?>"
+             autocomplete="off">
+      <a href="<?= APP_URL ?>/persons/add.php" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-text-slate-600 hover:tw-bg-slate-50 tw-flex-shrink-0" target="_blank" title="Dodaj nową osobę">
+        <i class="bi bi-person-plus"></i>
+      </a>
+      <div id="person_results" class="tw-hidden tw-absolute tw-top-full tw-left-0 tw-mt-1 tw-z-50 tw-w-full tw-max-w-[500px] tw-bg-white tw-border tw-border-slate-200 tw-rounded-lg tw-shadow-lg tw-overflow-hidden" style="display:none;position:absolute;z-index:1000;max-width:500px"></div>
+    </div>
+    <input type="hidden" name="person_id" id="person_id" value="<?= h($row['person_id'] ?? '') ?>">
+    <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Opcjonalnie: wybierz istniejącą osobę lub <a href="<?= APP_URL ?>/persons/add.php" target="_blank" class="tw-text-blue-600 hover:tw-underline">dodaj nową</a>.</p>
+  </div>
+
+  <div class="tw-mb-4">
+    <label for="org_unit_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Komórka organizacyjna</label>
+    <select id="org_unit_id" name="org_unit_id" class="tw-w-full sm:tw-w-1/2 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+      <option value="">— wybierz —</option>
+      <?php
+      try {
+        $units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name");
+        foreach ($units as $pos):
+          $sel = ($row['org_unit_id'] ?? '') == $pos['id'] ? 'selected' : '';
+      ?>
+      <option value="<?= h($pos['id']) ?>" <?= $sel ?>><?= h($pos['name']) ?></option>
+      <?php endforeach; } catch(\Throwable $e) {} ?>
+    </select>
+  </div>
+
+  <div class="tw-mb-4">
+    <label for="ceidgNipInput" class="tw-block tw-text-sm tw-font-medium tw-text-slate-500 tw-mb-1">Szybkie uzupełnienie z CEIDG (dla JDG)</label>
+    <div class="tw-flex tw-gap-2 tw-max-w-md">
+      <div class="tw-relative tw-flex-1">
+        <i class="bi bi-building-check tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-text-slate-400"></i>
+        <input type="text" id="ceidgNipInput" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-pl-9 tw-pr-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="NIP działalności (10 cyfr)" maxlength="13">
+      </div>
+      <button type="button" id="ceidgBtn" onclick="ceidgSearch()"
+              class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50 tw-flex-shrink-0">
         <i class="bi bi-search"></i> CEIDG
       </button>
     </div>
     <div id="ceidgResult"></div>
   </div>
-</div>
-<div class="row">
-  <div class="col-md-6 mb-3"><label class="form-label">Imię i nazwisko</label>
-    <input name="imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']) ?>"><?= byli_check_field('imie_nazwisko') ?></div>
-  <div class="col-md-6 mb-3"><label class="form-label">PESEL</label>
-    <input name="pesel" class="form-control" maxlength="11" value="<?= h($row['pesel']) ?>"></div>
-</div>
-<div class="row">
-  <div class="col-12 mb-3">
-    <label class="form-label fw-semibold"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania / siedziby</label>
-    <?= address_widget($row) ?>
-  </div>
-  <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
-    <input type="email" name="email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email'])?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Urząd skarbowy</label>
-    <input name="urzad_skarbowy" class="form-control" value="<?= h($row['urzad_skarbowy']) ?>"></div>
-</div>
-<div class="mb-3"><label class="form-label">Rachunek bankowy</label>
-  <input name="rachunek_bankowy" class="form-control" value="<?= h($row['rachunek_bankowy']) ?>"></div>
-<div class="mb-2">
-  <label class="form-label">Email do logowania w panelu</label>
-  <div class="input-group">
-    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-    <input name="m365_login" type="email" class="form-control"
-      value="<?= h($row['m365_login'] ?? '') ?>"
-      placeholder="imie.nazwisko@feer.org.pl  lub  prywatny@email.com">
-  </div>
-  <div class="form-text">Adres Microsoft 365 (<code>@feer.org.pl</code>) lub prywatny e-mail — umożliwia dostęp do panelu umów.</div>
-</div>
-</div>
-</div>
 
-<!-- DZIEŁO I WYNAGRODZENIE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Dzieło i wynagrodzenie</div>
-<div class="card-body">
-<div class="mb-3"><label class="form-label">Opis dzieła</label>
-  <textarea name="opis_dziela" class="form-control" rows="4"><?= h($row['opis_dziela']) ?></textarea></div>
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Termin oddania</label>
-    <input name="termin_oddania" type="date" class="form-control" value="<?= h($row['termin_oddania']) ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Wynagrodzenie brutto (PLN)</label>
-    <input name="wynagrodzenie_brutto" type="number" step="0.01" class="form-control" value="<?= h($row['wynagrodzenie_brutto']) ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Zaliczka na podatek (PLN)</label>
-    <input name="zaliczka_podatek" type="number" step="0.01" class="form-control" value="<?= h($row['zaliczka_podatek']) ?>"></div>
-</div>
-<div class="form-check mb-2">
-  <input class="form-check-input" type="checkbox" name="kup50" id="kup50" value="1" <?= $row['kup50']?'checked':'' ?>>
-  <label class="form-check-label" for="kup50">50% koszty uzyskania przychodu (KUP)</label>
-</div>
-</div>
-</div>
-
-<!-- PRAWA AUTORSKIE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Prawa autorskie</div>
-<div class="card-body">
-<div class="form-check mb-3">
-  <input class="form-check-input" type="checkbox" name="prawa_autorskie" id="prawa_autorskie" value="1"
-    <?= $row['prawa_autorskie']?'checked':'' ?> onchange="toggleZakres(this)">
-  <label class="form-check-label" for="prawa_autorskie">Przeniesienie praw autorskich</label>
-</div>
-<div id="zakres_praw_field" style="display:<?= $row['prawa_autorskie']?'':'none' ?>">
-  <label class="form-label">Zakres praw autorskich</label>
-  <textarea name="zakres_praw" class="form-control" rows="3"><?= h($row['zakres_praw']) ?></textarea>
-</div>
-</div>
-</div>
-
-<!-- ODBIÓR -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Odbiór dzieła</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3 pt-4">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="wymagany_protokol" id="wymagany_protokol" value="1" <?= $row['wymagany_protokol']?'checked':'' ?>>
-      <label class="form-check-label" for="wymagany_protokol">Wymagany protokół odbioru</label>
-    </div></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data odbioru</label>
-    <input name="data_odbioru" type="date" class="form-control" value="<?= h($row['data_odbioru']) ?>"></div>
-  <div class="col-md-4 mb-3 pt-4">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="dzielo_przyjete" id="dzielo_przyjete" value="1" <?= $row['dzielo_przyjete']?'checked':'' ?>>
-      <label class="form-check-label" for="dzielo_przyjete">Dzieło przyjęte</label>
-    </div></div>
-</div>
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Data złożenia rachunku</label>
-    <input name="data_zl_rachunku" type="date" class="form-control" value="<?= h($row['data_zl_rachunku']) ?>"></div>
-</div>
-</div>
-</div>
-
-<!-- PROJEKT I OPIEKUN -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Projekt i opiekun</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-6 mb-3"><label class="form-label">Numer projektu</label>
-    <input name="numer_projektu" class="form-control" value="<?= h($row['numer_projektu']) ?>"></div>
-  <div class="col-md-6 mb-3"><label class="form-label">Opiekun umowy</label>
-    <input name="opiekun" class="form-control" value="<?= h($row['opiekun']) ?>"></div>
-</div>
-</div>
-</div>
-
-<!-- PODPISANIE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Forma podpisania</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Podpisuje ze strony fundacji</label>
-    <input name="podpisujacy_fundacja" class="form-control" value="<?= h($row['podpisujacy_fundacja'] ?? '') ?>" placeholder="Imię i nazwisko"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Stanowisko / funkcja</label>
-    <input name="podpisujacy_stanowisko" class="form-control" value="<?= h($row['podpisujacy_stanowisko'] ?? '') ?>" placeholder="np. Prezes Zarządu"></div>
-</div>
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Forma podpisania</label>
-    <select name="forma_podpisania" class="form-select" id="forma_podpisania">
-      <option value="">—</option>
-      <option value="papierowa" <?= $row['forma_podpisania']==='papierowa'?'selected':'' ?>>Papierowa</option>
-      <option value="elektroniczna" <?= $row['forma_podpisania']==='elektroniczna'?'selected':'' ?>>Elektroniczna</option>
-      <option value="epodpis_kwalifikowany" <?= ($row['forma_podpisania'] === 'epodpis_kwalifikowany') ? 'selected' : '' ?>>ePodpis kwalifikowany</option>
-    </select></div>
-</div>
-<div id="el_fields" class="row" style="display:<?= $row['forma_podpisania']==='elektroniczna'?'':'none' ?>">
-  <div class="col-md-4 mb-3"><label class="form-label">Platforma</label>
-    <input name="platforma_el" class="form-control" value="<?= h($row['platforma_el']) ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">ID dokumentu</label>
-    <input name="id_dokumentu_el" class="form-control" value="<?= h($row['id_dokumentu_el']) ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Nowy plik potwierdzenia</label>
-    <input name="plik_potwierdzenia" type="file" class="form-control" accept=".pdf">
-    <?php if ($row['plik_potwierdzenia']): ?>
-    <div class="mt-1"><?= upload_link($row['plik_potwierdzenia']) ?></div>
-    <?php endif; ?>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
+    <div class="sm:tw-col-span-2">
+      <label for="imie_nazwisko" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Imię i nazwisko</label>
+      <input id="imie_nazwisko" name="imie_nazwisko" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['imie_nazwisko']) ?>">
+      <?= byli_check_field('imie_nazwisko') ?>
+    </div>
+    <div>
+      <label for="pesel" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">PESEL</label>
+      <input id="pesel" name="pesel" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             maxlength="11" value="<?= h($row['pesel']) ?>">
+    </div>
+    <div class="sm:tw-col-span-3">
+      <label class="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-1"><i class="bi bi-house me-1 tw-text-slate-400"></i>Adres zamieszkania / siedziby</label>
+      <?= address_widget($row) ?>
+    </div>
+    <div>
+      <label for="email" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Adres e-mail kontrahenta</label>
+      <input type="email" name="email" id="email" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email'])?>">
+    </div>
+    <div class="sm:tw-col-span-2">
+      <label for="urzad_skarbowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Urząd skarbowy</label>
+      <input id="urzad_skarbowy" name="urzad_skarbowy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['urzad_skarbowy']) ?>">
+    </div>
+    <div class="sm:tw-col-span-3">
+      <label for="rachunek_bankowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Rachunek bankowy</label>
+      <input id="rachunek_bankowy" name="rachunek_bankowy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['rachunek_bankowy']) ?>">
+    </div>
+    <div class="sm:tw-col-span-3">
+      <label for="m365_login" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Email do logowania w panelu</label>
+      <div class="tw-relative">
+        <i class="bi bi-envelope tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-text-slate-400"></i>
+        <input id="m365_login" name="m365_login" type="email"
+               class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-pl-9 tw-pr-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+               value="<?= h($row['m365_login'] ?? '') ?>"
+               placeholder="imie.nazwisko@feer.org.pl  lub  prywatny@email.com">
+      </div>
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Adres Microsoft 365 (<code>@feer.org.pl</code>) lub prywatny e-mail — umożliwia dostęp do panelu umów.</p>
+    </div>
   </div>
 </div>
-<div id="epodpis_fields" class="row" style="display:none">
-  <div class="col-md-4 mb-3"><label class="form-label">Dostawca podpisu (TSP)</label>
-    <input name="epodpis_dostawca" class="form-control" placeholder="Certum, SimplySign, mSzafir, Autenti…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Numer seryjny certyfikatu</label>
-    <input name="epodpis_nr_certyfikatu" class="form-control font-monospace" value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Ważność certyfikatu</label>
-    <input name="epodpis_data_waznosci" type="date" class="form-control" value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>"></div>
-</div>
-</div>
-</div>
 
-<div class="mb-3"><label class="form-label">Uwagi</label>
-  <textarea name="uwagi" class="form-control" rows="3"><?= h($row['uwagi']) ?></textarea></div>
+<!-- TAB 3: Dzieło i wynagrodzenie -->
+<div data-tab-pane="3" x-show="tab===3" x-cloak class="tw-p-6">
 
-<!-- M365 -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-microsoft"></i> Microsoft 365</div>
-<div class="card-body">
-  <div class="form-check form-switch mb-2">
-    <input class="form-check-input" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>
-    <label class="form-check-label" for="m365_konto">Konto M365 zostało utworzone</label>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-file-earmark-text"></i> Opis i wynagrodzenie</h2>
+  <div class="tw-mb-4">
+    <label for="opis_dziela" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Opis dzieła</label>
+    <textarea id="opis_dziela" name="opis_dziela" rows="4" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['opis_dziela']) ?></textarea>
   </div>
-  <div id="m365_manual_fields" style="display:<?= !empty($row['m365_konto'])?'':'none' ?>">
-    <div class="row">
-      <div class="col-md-6 mb-2">
-        <label class="form-label small">User ID (Azure AD)</label>
-        <input name="m365_user_id" class="form-control form-control-sm font-monospace" value="<?= h($row['m365_user_id']??'') ?>">
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
+    <div>
+      <label for="termin_oddania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Termin oddania</label>
+      <input id="termin_oddania" name="termin_oddania" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['termin_oddania']) ?>">
+    </div>
+    <div>
+      <label for="wynagrodzenie_brutto" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wynagrodzenie brutto (PLN)</label>
+      <input id="wynagrodzenie_brutto" name="wynagrodzenie_brutto" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['wynagrodzenie_brutto']) ?>">
+    </div>
+    <div>
+      <label for="zaliczka_podatek" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Zaliczka na podatek (PLN)</label>
+      <input id="zaliczka_podatek" name="zaliczka_podatek" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['zaliczka_podatek']) ?>">
+    </div>
+  </div>
+  <div class="tw-mb-6">
+    <label for="kup50" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
+      <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="kup50" id="kup50" value="1" <?= $row['kup50']?'checked':'' ?>>
+      50% koszty uzyskania przychodu (KUP)
+    </label>
+  </div>
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-c-circle"></i> Prawa autorskie</h2>
+  <div class="tw-mb-6">
+    <label for="prawa_autorskie" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700 tw-mb-3">
+      <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="prawa_autorskie" id="prawa_autorskie" value="1"
+        <?= $row['prawa_autorskie']?'checked':'' ?> onchange="toggleZakres(this)">
+      Przeniesienie praw autorskich
+    </label>
+    <div id="zakres_praw_field" class="<?= $row['prawa_autorskie']?'':'tw-hidden' ?>">
+      <label for="zakres_praw" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Zakres praw autorskich</label>
+      <textarea id="zakres_praw" name="zakres_praw" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['zakres_praw']) ?></textarea>
+    </div>
+  </div>
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-check2-circle"></i> Odbiór dzieła</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-4 tw-gap-4 tw-items-start">
+    <div class="tw-pt-6">
+      <label for="wymagany_protokol" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
+        <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="wymagany_protokol" id="wymagany_protokol" value="1" <?= $row['wymagany_protokol']?'checked':'' ?>>
+        Wymagany protokół odbioru
+      </label>
+    </div>
+    <div>
+      <label for="data_odbioru" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data odbioru</label>
+      <input id="data_odbioru" name="data_odbioru" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_odbioru']) ?>">
+    </div>
+    <div class="tw-pt-6">
+      <label for="dzielo_przyjete" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
+        <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="dzielo_przyjete" id="dzielo_przyjete" value="1" <?= $row['dzielo_przyjete']?'checked':'' ?>>
+        Dzieło przyjęte
+      </label>
+    </div>
+    <div>
+      <label for="data_zl_rachunku" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data złożenia rachunku</label>
+      <input id="data_zl_rachunku" name="data_zl_rachunku" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_zl_rachunku']) ?>">
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: Podpisanie i pliki -->
+<div data-tab-pane="4" x-show="tab===4" x-cloak class="tw-p-6">
+  <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-6">
+    <div class="lg:tw-col-span-2">
+
+      <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-pen"></i> Forma podpisania</h2>
+      <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
+        <div>
+          <label for="podpisujacy_fundacja" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Podpisuje ze strony fundacji</label>
+          <input id="podpisujacy_fundacja" name="podpisujacy_fundacja" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['podpisujacy_fundacja'] ?? '') ?>" placeholder="Imię i nazwisko">
+        </div>
+        <div>
+          <label for="podpisujacy_stanowisko" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Stanowisko / funkcja</label>
+          <input id="podpisujacy_stanowisko" name="podpisujacy_stanowisko" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['podpisujacy_stanowisko'] ?? '') ?>" placeholder="np. Prezes Zarządu">
+        </div>
+        <div>
+          <label for="forma_podpisania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Forma podpisania</label>
+          <select name="forma_podpisania" id="forma_podpisania" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+            <option value="">—</option>
+            <option value="papierowa" <?= $row['forma_podpisania']==='papierowa'?'selected':'' ?>>Papierowa</option>
+            <option value="elektroniczna" <?= $row['forma_podpisania']==='elektroniczna'?'selected':'' ?>>Elektroniczna</option>
+            <option value="epodpis_kwalifikowany" <?= ($row['forma_podpisania'] === 'epodpis_kwalifikowany') ? 'selected' : '' ?>>ePodpis kwalifikowany</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="el_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4 <?= $row['forma_podpisania']==='elektroniczna'?'':'tw-hidden' ?>">
+        <div>
+          <label for="platforma_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Platforma</label>
+          <input id="platforma_el" name="platforma_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['platforma_el']) ?>">
+        </div>
+        <div>
+          <label for="id_dokumentu_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">ID dokumentu</label>
+          <input id="id_dokumentu_el" name="id_dokumentu_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['id_dokumentu_el']) ?>">
+        </div>
+        <div>
+          <label for="plik_potwierdzenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nowy plik potwierdzenia</label>
+          <input id="plik_potwierdzenia" name="plik_potwierdzenia" type="file" accept=".pdf"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <?php if ($row['plik_potwierdzenia']): ?>
+          <div class="tw-mt-1"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <div id="epodpis_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4 tw-hidden">
+        <div>
+          <label for="epodpis_dostawca" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Dostawca podpisu (TSP)</label>
+          <input id="epodpis_dostawca" name="epodpis_dostawca" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 placeholder="Certum, SimplySign, mSzafir, Autenti…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="epodpis_nr_certyfikatu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer seryjny certyfikatu</label>
+          <input id="epodpis_nr_certyfikatu" name="epodpis_nr_certyfikatu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="epodpis_data_waznosci" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Ważność certyfikatu</label>
+          <input id="epodpis_data_waznosci" name="epodpis_data_waznosci" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+        </div>
+      </div>
+    </div>
+
+    <div class="lg:tw-col-span-1 tw-space-y-4">
+      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+        <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Plik umowy</h2>
+        <?php if ($row['plik_umowy']): ?>
+        <div class="tw-mb-2 tw-text-sm"><?= upload_link($row['plik_umowy']) ?></div>
+        <label for="plik_umowy" class="tw-block tw-text-xs tw-text-slate-500 tw-mb-1">Zastąp nowym plikiem:</label>
+        <?php else: ?>
+        <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Plik umowy (PDF)</label>
+        <?php endif; ?>
+        <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
+               class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+      </div>
+      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+        <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-shield-lock"></i> Dostęp</h2>
+        <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
       </div>
     </div>
   </div>
-  <script>document.getElementById('m365_konto').addEventListener('change',function(){document.getElementById('m365_manual_fields').style.display=this.checked?'':'none'});</script>
-  <small class="text-muted">Konto można też <a href="#">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</small>
-</div>
 </div>
 
-</div><!-- /col-lg-8 -->
+<!-- TAB 5: M365 i uwagi -->
+<div data-tab-pane="5" x-show="tab===5" x-cloak class="tw-p-6">
 
-<div class="col-lg-4">
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Plik umowy</div>
-<div class="card-body">
-  <?php if ($row['plik_umowy']): ?>
-  <div class="mb-2"><?= upload_link($row['plik_umowy']) ?></div>
-  <label class="form-label small text-muted">Zastąp nowym plikiem:</label>
-  <?php else: ?>
-  <label class="form-label">Plik umowy (PDF)</label>
-  <?php endif; ?>
-  <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
-</div>
-</div>
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
-<div class="card-body">
-  <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
-</div>
-</div>
-</div>
-</div><!-- /row -->
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-microsoft"></i> Microsoft 365</h2>
+  <div class="tw-mb-6">
+    <label for="m365_konto" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700 tw-mb-3">
+      <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>
+      Konto M365 zostało utworzone
+    </label>
+    <div id="m365_manual_fields" class="<?= !empty($row['m365_konto'])?'':'tw-hidden' ?>">
+      <div class="sm:tw-w-1/2">
+        <label for="m365_user_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">User ID (Azure AD)</label>
+        <input id="m365_user_id" name="m365_user_id" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+               value="<?= h($row['m365_user_id']??'') ?>">
+      </div>
+    </div>
+    <p class="tw-mt-2 tw-text-xs tw-text-slate-500">Konto można też <a href="#" class="tw-text-blue-600 hover:tw-underline">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</p>
+  </div>
 
-<div class="d-flex gap-2 mb-4">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz zmiany</button>
-  <a href="view.php?id=<?= $id ?>" class="btn btn-outline-secondary">Anuluj</a>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-chat-left-text"></i> Uwagi</h2>
+  <div>
+    <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi']) ?></textarea>
+  </div>
 </div>
+
+<!-- Pasek akcji — zawsze widoczny, niezależnie od aktywnej zakładki -->
+<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-border-t tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
+  <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">Anuluj</a>
+  <button type="submit" :disabled="submitting"
+          class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-blue-700 disabled:tw-opacity-60">
+    <span x-show="submitting" x-cloak class="tw-inline-block tw-h-3.5 tw-w-3.5 tw-animate-spin tw-rounded-full tw-border-2 tw-border-white/40 tw-border-t-white" aria-hidden="true"></span>
+    <i x-show="!submitting" x-cloak class="bi bi-check-lg"></i>
+    <span x-text="submitting ? 'Zapisywanie…' : 'Zapisz zmiany'"></span>
+  </button>
+</div>
+
 </form>
+
+</div><!-- /tw-max-w-6xl -->
 
 <script>
 document.getElementById('forma_podpisania').addEventListener('change', function() {
   var _fp = this.value;
-  document.getElementById('el_fields').style.display = _fp === 'elektroniczna' ? '' : 'none';
-  document.getElementById('epodpis_fields').style.display = _fp === 'epodpis_kwalifikowany' ? '' : 'none';
+  document.getElementById('el_fields').classList.toggle('tw-hidden', _fp !== 'elektroniczna');
+  document.getElementById('epodpis_fields').classList.toggle('tw-hidden', _fp !== 'epodpis_kwalifikowany');
 });
 function toggleZakres(cb) {
-  document.getElementById('zakres_praw_field').style.display = cb.checked ? '' : 'none';
+  document.getElementById('zakres_praw_field').classList.toggle('tw-hidden', !cb.checked);
 }
+document.getElementById('m365_konto').addEventListener('change', function() {
+  document.getElementById('m365_manual_fields').classList.toggle('tw-hidden', !this.checked);
+});
 
 async function ceidgSearch() {
   var nip = document.getElementById('ceidgNipInput').value.replace(/\D/g, '');
@@ -467,15 +556,15 @@ function ceidgFill(d) {
         .then(r => r.json()).then(function(data) {
           results.innerHTML = '';
           if (!data.length) {
-            results.innerHTML = '<div class="list-group-item text-muted small">Nie znaleziono. <a href="<?= APP_URL ?>/persons/add.php" target="_blank">Dodaj nową osobę</a>.</div>';
+            results.innerHTML = '<div class="tw-p-2 tw-text-sm tw-text-slate-500">Nie znaleziono. <a href="<?= APP_URL ?>/persons/add.php" target="_blank" class="tw-text-blue-600 hover:tw-underline">Dodaj nową osobę</a>.</div>';
           } else {
             data.forEach(function(p) {
               var btn = document.createElement('button');
               btn.type = 'button';
-              btn.className = 'list-group-item list-group-item-action small';
+              btn.className = 'tw-block tw-w-full tw-text-left tw-px-3 tw-py-2 tw-text-sm hover:tw-bg-slate-50 tw-border-b tw-border-slate-100 last:tw-border-b-0';
               btn.innerHTML = '<strong>' + p.imie_nazwisko + '</strong>'
-                + (p.pesel ? ' <span class="text-muted">' + p.pesel.substring(0,6) + '…</span>' : '')
-                + (p.email ? ' <span class="text-muted">' + p.email + '</span>' : '');
+                + (p.pesel ? ' <span class="tw-text-slate-400">' + p.pesel.substring(0,6) + '…</span>' : '')
+                + (p.email ? ' <span class="tw-text-slate-400">' + p.email + '</span>' : '');
               btn.addEventListener('click', function() {
                 hiddenId.value    = p.id;
                 searchInput.value = p.imie_nazwisko;

@@ -891,7 +891,6 @@ HTML;
 $current_user = current_user();
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
-?>
 
 <style>
 /* ══ Wizard — Horizontal Stepper ════════════════════════════════════════════ */
@@ -1066,7 +1065,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<form method="post" enctype="multipart/form-data" id="wolontariatForm" novalidate>
+<form method="post" enctype="multipart/form-data" id="wolontariatForm" novalidate x-data="contractFormGuard()" @submit="if (!$event.defaultPrevented) onSubmit()">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <!-- ── Współpraca historyczna ─────────────────────────────────────────────── -->
@@ -2262,8 +2261,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div class="p-3 border-top">
       <div class="d-grid gap-2">
-        <button type="submit" class="btn btn-success fw-semibold">
-          <i class="bi bi-check-lg me-1"></i>Zapisz porozumienie
+        <button type="submit" class="btn btn-success fw-semibold" :disabled="submitting">
+          <span x-show="submitting" x-cloak class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          <i x-show="!submitting" x-cloak class="bi bi-check-lg me-1"></i><span x-text="submitting ? 'Zapisywanie…' : 'Zapisz porozumienie'"></span>
         </button>
         <a href="list.php" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-x me-1"></i>Anuluj
@@ -2302,7 +2302,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <a href="list.php" class="btn btn-link text-muted">Anuluj</a>
   <div class="ms-auto d-flex gap-2">
     <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
-    <button type="submit" id="wizSave" class="btn btn-success" style="display:none"><i class="bi bi-check-lg me-1"></i>Zapisz porozumienie</button>
+    <button type="submit" id="wizSave" class="btn btn-success" style="display:none" :disabled="submitting"><span x-show="submitting" x-cloak class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span><i x-show="!submitting" x-cloak class="bi bi-check-lg me-1"></i><span x-text="submitting ? 'Zapisywanie…' : 'Zapisz porozumienie'"></span></button>
   </div>
 </div>
 

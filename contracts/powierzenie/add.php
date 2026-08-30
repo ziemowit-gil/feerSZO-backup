@@ -93,325 +93,370 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-bank text-primary"></i> Nowa umowa powierzenia zadania publicznego</h4>
-  <a href="list.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Lista</a>
+<div class="tw-max-w-6xl tw-mx-auto">
+
+<div class="tw-flex tw-items-center tw-justify-between tw-mb-4 tw-flex-wrap tw-gap-2">
+  <h1 class="tw-text-xl tw-font-semibold tw-text-slate-800 tw-flex tw-items-center tw-gap-2">
+    <i class="bi bi-bank tw-text-blue-600"></i> Nowa umowa powierzenia zadania publicznego
+  </h1>
+  <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+    <i class="bi bi-arrow-left"></i> Lista
+  </a>
 </div>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger">
-  <ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
+<div class="tw-rounded-lg tw-border tw-border-red-200 tw-bg-red-50 tw-text-red-800 tw-px-4 tw-py-3 tw-mb-4 tw-text-sm">
+  <ul class="tw-mb-0 tw-pl-4 tw-list-disc"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
 </div>
 <?php endif; ?>
 
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" novalidate x-data="tabbedContractForm(4)" @submit="onSubmit($event)"
+      class="tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<!-- Numery referencyjne -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-<div class="card-body"><div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr roboczy umowy</label>
-    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
-    <div class="form-text">Numer roboczy w projekcie.</div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO, opcjonalne)</span></label>
-    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
-    <input name="nr_rejestru" class="form-control font-monospace"
-      value="<?= h($row['nr_rejestru']??'') ?>"
-      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
-    <div class="form-text">Zostaw puste — zostanie nadany automatycznie.</div>
-  </div>
-</div></div>
+<!-- Zakładki -->
+<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
+  <?php $_tabs = ['Umowa', 'Zadanie i zleceniodawca', 'Finansowanie i terminy', 'Podpisanie i pliki']; ?>
+  <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
+  <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
+          class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition"
+          :class="tab===<?= $_tn ?> ? 'tw-bg-white tw-text-blue-600 tw-border tw-border-b-0 tw-border-slate-200' : 'tw-text-slate-500 hover:tw-text-slate-700'">
+    <?= h($_tlabel) ?>
+  </button>
+  <?php endforeach; ?>
 </div>
 
-<div class="row">
-<div class="col-lg-8">
+<!-- TAB 1: Umowa -->
+<div data-tab-pane="1" x-show="tab===1" x-cloak class="tw-p-6">
 
-<!-- DANE PODSTAWOWE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-info-circle"></i> Dane podstawowe</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Numer umowy *</label>
-    <input name="numer_umowy" class="form-control fw-bold" value="<?= h($row['numer_umowy'] ?? '') ?>" required>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-hash"></i> Numery referencyjne</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-6">
+    <div>
+      <label for="nr_roboczy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr roboczy umowy</label>
+      <input id="nr_roboczy" name="nr_roboczy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Numer roboczy w projekcie.</p>
+    </div>
+    <div>
+      <label for="nr_system" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr ogólny <span class="tw-text-slate-400 tw-font-normal">(webNGO, opcjonalne)</span></label>
+      <input id="nr_system" name="nr_system" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_system']??'') ?>">
+    </div>
+    <div>
+      <label for="nr_rejestru" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr rejestru <span class="tw-text-slate-400 tw-font-normal">RU/{nr}/{rok}/{inicjały}</span></label>
+      <input id="nr_rejestru" name="nr_rejestru" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['nr_rejestru']??'') ?>"
+             placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Zostaw puste — zostanie nadany automatycznie.</p>
+    </div>
   </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Status *</label>
-    <select name="status" class="form-select" required>
-      <?php foreach ($statuses as $k => $v):
-        $sel = ($row['status'] ?? '') === $k ? 'selected' : ''; ?>
-      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Forma zlecenia</label>
-    <select name="forma_zlecenia" class="form-select" id="forma_zlecenia">
-      <?php foreach ($formy_zlecenia as $k => $v):
-        $sel = ($row['forma_zlecenia'] ?? 'powierzenie') === $k ? 'selected' : ''; ?>
-      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-</div>
-<div class="row">
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Opiekun umowy</label>
-    <input name="opiekun" class="form-control" value="<?= h($row['opiekun'] ?? '') ?>">
-  </div>
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Numer projektu / źródło finansowania</label>
-    <input name="numer_projektu" class="form-control" value="<?= h($row['numer_projektu'] ?? '') ?>">
-  </div>
-</div>
-</div>
-</div>
 
-<!-- ZADANIE PUBLICZNE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-clipboard-check"></i> Zadanie publiczne</div>
-<div class="card-body">
-<div class="mb-3">
-  <label class="form-label">Nazwa zadania publicznego *</label>
-  <input name="nazwa_zadania" class="form-control" value="<?= h($row['nazwa_zadania'] ?? '') ?>" required>
-</div>
-<div class="row">
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Sfera pożytku publicznego</label>
-    <input name="sfera_zadania" class="form-control" list="sfery_list" value="<?= h($row['sfera_zadania'] ?? '') ?>"
-      placeholder="np. ochrona i promocja zdrowia">
-    <datalist id="sfery_list">
-      <option value="Pomoc społeczna"></option>
-      <option value="Działalność na rzecz osób niepełnosprawnych"></option>
-      <option value="Ochrona i promocja zdrowia"></option>
-      <option value="Nauka, edukacja, oświata i wychowanie"></option>
-      <option value="Kultura, sztuka, ochrona dóbr kultury"></option>
-      <option value="Wspieranie i upowszechnianie kultury fizycznej"></option>
-      <option value="Ekologia i ochrona zwierząt"></option>
-      <option value="Działalność na rzecz dzieci i młodzieży"></option>
-      <option value="Przeciwdziałanie uzależnieniom i patologiom społecznym"></option>
-    </datalist>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-info-circle"></i> Dane podstawowe</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
+    <div>
+      <label for="numer_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer umowy <span class="tw-text-red-500">*</span></label>
+      <input id="numer_umowy" name="numer_umowy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['numer_umowy'] ?? '') ?>" required>
+    </div>
+    <div>
+      <label for="status" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Status <span class="tw-text-red-500">*</span></label>
+      <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+        <?php foreach ($statuses as $k => $v):
+          $sel = ($row['status'] ?? '') === $k ? 'selected' : ''; ?>
+        <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div>
+      <label for="forma_zlecenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Forma zlecenia</label>
+      <select id="forma_zlecenia" name="forma_zlecenia" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+        <?php foreach ($formy_zlecenia as $k => $v):
+          $sel = ($row['forma_zlecenia'] ?? 'powierzenie') === $k ? 'selected' : ''; ?>
+        <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div>
+      <label for="opiekun" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Opiekun umowy</label>
+      <input id="opiekun" name="opiekun" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['opiekun'] ?? '') ?>">
+    </div>
+    <div class="sm:tw-col-span-2">
+      <label for="numer_projektu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer projektu / źródło finansowania</label>
+      <input id="numer_projektu" name="numer_projektu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['numer_projektu'] ?? '') ?>">
+    </div>
   </div>
-  <div class="col-md-3 mb-3">
-    <label class="form-label">Tryb zlecenia</label>
-    <select name="tryb_zlecenia" class="form-select">
-      <option value="">— wybierz —</option>
-      <?php foreach ($tryby as $k => $v):
-        $sel = ($row['tryb_zlecenia'] ?? '') === $k ? 'selected' : ''; ?>
-      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-md-3 mb-3">
-    <label class="form-label">Nr / nazwa konkursu</label>
-    <input name="nazwa_konkursu" class="form-control" value="<?= h($row['nazwa_konkursu'] ?? '') ?>">
-  </div>
-</div>
-<div class="mb-3">
-  <label class="form-label">Zakres rzeczowy zadania</label>
-  <textarea name="zakres_rzeczowy" class="form-control" rows="3"><?= h($row['zakres_rzeczowy'] ?? '') ?></textarea>
-</div>
-<div class="mb-3">
-  <label class="form-label">Zakładane rezultaty</label>
-  <textarea name="rezultaty" class="form-control" rows="2"><?= h($row['rezultaty'] ?? '') ?></textarea>
-</div>
-</div>
 </div>
 
-<!-- ORGAN ZLECAJĄCY -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-building"></i> Zleceniodawca (organ administracji)</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Organ zlecający</label>
-    <input name="organ_zlecajacy" class="form-control" value="<?= h($row['organ_zlecajacy'] ?? '') ?>"
-      placeholder="np. Gmina Miasta X / Urząd Marszałkowski…">
+<!-- TAB 2: Zadanie i zleceniodawca -->
+<div data-tab-pane="2" x-show="tab===2" x-cloak class="tw-p-6">
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-clipboard-check"></i> Zadanie publiczne</h2>
+  <div class="tw-mb-4">
+    <label for="nazwa_zadania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nazwa zadania publicznego <span class="tw-text-red-500">*</span></label>
+    <input id="nazwa_zadania" name="nazwa_zadania" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+           value="<?= h($row['nazwa_zadania'] ?? '') ?>" required>
   </div>
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Reprezentowany przez</label>
-    <input name="organ_reprezentacja" class="form-control" value="<?= h($row['organ_reprezentacja'] ?? '') ?>"
-      placeholder="imię, nazwisko, stanowisko">
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4 tw-mb-4">
+    <div>
+      <label for="sfera_zadania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Sfera pożytku publicznego</label>
+      <input id="sfera_zadania" name="sfera_zadania" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             list="sfery_list" value="<?= h($row['sfera_zadania'] ?? '') ?>" placeholder="np. ochrona i promocja zdrowia">
+      <datalist id="sfery_list">
+        <option value="Pomoc społeczna"></option>
+        <option value="Działalność na rzecz osób niepełnosprawnych"></option>
+        <option value="Ochrona i promocja zdrowia"></option>
+        <option value="Nauka, edukacja, oświata i wychowanie"></option>
+        <option value="Kultura, sztuka, ochrona dóbr kultury"></option>
+        <option value="Wspieranie i upowszechnianie kultury fizycznej"></option>
+        <option value="Ekologia i ochrona zwierząt"></option>
+        <option value="Działalność na rzecz dzieci i młodzieży"></option>
+        <option value="Przeciwdziałanie uzależnieniom i patologiom społecznym"></option>
+      </datalist>
+    </div>
+    <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4">
+      <div>
+        <label for="tryb_zlecenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Tryb zlecenia</label>
+        <select id="tryb_zlecenia" name="tryb_zlecenia" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+          <option value="">— wybierz —</option>
+          <?php foreach ($tryby as $k => $v):
+            $sel = ($row['tryb_zlecenia'] ?? '') === $k ? 'selected' : ''; ?>
+          <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label for="nazwa_konkursu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr / nazwa konkursu</label>
+        <input id="nazwa_konkursu" name="nazwa_konkursu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+               value="<?= h($row['nazwa_konkursu'] ?? '') ?>">
+      </div>
+    </div>
   </div>
-</div>
-<div class="mb-3">
-  <label class="form-label">Adres organu</label>
-  <input name="organ_adres" class="form-control" value="<?= h($row['organ_adres'] ?? '') ?>">
-</div>
-<div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontaktowy</label>
-  <input type="email" name="email" class="form-control" placeholder="np. kontakt@urzad.gov.pl" value="<?= h($row['email']??'')?>"></div>
-</div>
+  <div class="tw-mb-4">
+    <label for="zakres_rzeczowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Zakres rzeczowy zadania</label>
+    <textarea id="zakres_rzeczowy" name="zakres_rzeczowy" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['zakres_rzeczowy'] ?? '') ?></textarea>
+  </div>
+  <div class="tw-mb-6">
+    <label for="rezultaty" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Zakładane rezultaty</label>
+    <textarea id="rezultaty" name="rezultaty" rows="2" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['rezultaty'] ?? '') ?></textarea>
+  </div>
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-building"></i> Zleceniodawca (organ administracji)</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4 tw-mb-4">
+    <div>
+      <label for="organ_zlecajacy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Organ zlecający</label>
+      <input id="organ_zlecajacy" name="organ_zlecajacy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['organ_zlecajacy'] ?? '') ?>" placeholder="np. Gmina Miasta X / Urząd Marszałkowski…">
+    </div>
+    <div>
+      <label for="organ_reprezentacja" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Reprezentowany przez</label>
+      <input id="organ_reprezentacja" name="organ_reprezentacja" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['organ_reprezentacja'] ?? '') ?>" placeholder="imię, nazwisko, stanowisko">
+    </div>
+  </div>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4">
+    <div>
+      <label for="organ_adres" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Adres organu</label>
+      <input id="organ_adres" name="organ_adres" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['organ_adres'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="email" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Adres e-mail kontaktowy</label>
+      <input id="email" type="email" name="email" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             placeholder="np. kontakt@urzad.gov.pl" value="<?= h($row['email']??'')?>">
+    </div>
+  </div>
 </div>
 
-<!-- FINANSOWANIE / DOTACJA -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-cash-coin"></i> Finansowanie / dotacja</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Kwota dotacji</label>
-    <input name="kwota_dotacji" type="number" step="0.01" class="form-control" value="<?= h($row['kwota_dotacji'] ?? '') ?>">
+<!-- TAB 3: Finansowanie i terminy -->
+<div data-tab-pane="3" x-show="tab===3" x-cloak class="tw-p-6">
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-cash-coin"></i> Finansowanie / dotacja</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
+    <div>
+      <label for="kwota_dotacji" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Kwota dotacji</label>
+      <input id="kwota_dotacji" name="kwota_dotacji" type="number" step="0.01"
+             class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['kwota_dotacji'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="waluta" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Waluta</label>
+      <select id="waluta" name="waluta" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+        <?php foreach (['PLN', 'EUR', 'USD'] as $cur):
+          $sel = ($row['waluta'] ?? 'PLN') === $cur ? 'selected' : ''; ?>
+        <option value="<?= $cur ?>" <?= $sel ?>><?= $cur ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div>
+      <label for="rachunek_dotacji" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wyodrębniony rachunek bankowy dotacji</label>
+      <input id="rachunek_dotacji" name="rachunek_dotacji" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['rachunek_dotacji'] ?? '') ?>">
+    </div>
   </div>
-  <div class="col-md-2 mb-3">
-    <label class="form-label">Waluta</label>
-    <select name="waluta" class="form-select">
-      <?php foreach (['PLN', 'EUR', 'USD'] as $cur):
-        $sel = ($row['waluta'] ?? 'PLN') === $cur ? 'selected' : ''; ?>
-      <option value="<?= $cur ?>" <?= $sel ?>><?= $cur ?></option>
-      <?php endforeach; ?>
-    </select>
+  <div id="wsparcie_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:<?= ($row['forma_zlecenia'] ?? '') === 'wsparcie' ? '' : 'none' ?>">
+    <div>
+      <label for="wklad_wlasny" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wkład własny finansowy</label>
+      <input id="wklad_wlasny" name="wklad_wlasny" type="number" step="0.01"
+             class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['wklad_wlasny'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="wklad_osobowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wkład osobowy / rzeczowy</label>
+      <input id="wklad_osobowy" name="wklad_osobowy" type="number" step="0.01"
+             class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['wklad_osobowy'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="calkowity_koszt" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Całkowity koszt zadania</label>
+      <input id="calkowity_koszt" name="calkowity_koszt" type="number" step="0.01"
+             class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['calkowity_koszt'] ?? '') ?>">
+    </div>
   </div>
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Wyodrębniony rachunek bankowy dotacji</label>
-    <input name="rachunek_dotacji" class="form-control font-monospace" value="<?= h($row['rachunek_dotacji'] ?? '') ?>">
+  <div class="tw-mb-4">
+    <label for="transze" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Harmonogram / transze płatności</label>
+    <textarea id="transze" name="transze" rows="2" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+              placeholder="np. I transza 60% po podpisaniu, II transza 40% po rozliczeniu"><?= h($row['transze'] ?? '') ?></textarea>
   </div>
-</div>
-<div class="row" id="wsparcie_fields" style="display:<?= ($row['forma_zlecenia'] ?? '') === 'wsparcie' ? '' : 'none' ?>">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Wkład własny finansowy</label>
-    <input name="wklad_wlasny" type="number" step="0.01" class="form-control" value="<?= h($row['wklad_wlasny'] ?? '') ?>">
+  <div class="tw-mb-6">
+    <label for="koszty_kwalifikowane" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Koszty kwalifikowane / kosztorys</label>
+    <textarea id="koszty_kwalifikowane" name="koszty_kwalifikowane" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['koszty_kwalifikowane'] ?? '') ?></textarea>
   </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Wkład osobowy / rzeczowy</label>
-    <input name="wklad_osobowy" type="number" step="0.01" class="form-control" value="<?= h($row['wklad_osobowy'] ?? '') ?>">
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-calendar3"></i> Terminy</h2>
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
+    <div>
+      <label for="data_zawarcia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data zawarcia</label>
+      <input id="data_zawarcia" name="data_zawarcia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_zawarcia'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="data_rozpoczecia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Realizacja od</label>
+      <input id="data_rozpoczecia" name="data_rozpoczecia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_rozpoczecia'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="data_zakonczenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Realizacja do</label>
+      <input id="data_zakonczenia" name="data_zakonczenia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['data_zakonczenia'] ?? '') ?>">
+    </div>
   </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Całkowity koszt zadania</label>
-    <input name="calkowity_koszt" type="number" step="0.01" class="form-control" value="<?= h($row['calkowity_koszt'] ?? '') ?>">
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4">
+    <div>
+      <label for="termin_wykorzystania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Termin wykorzystania dotacji</label>
+      <input id="termin_wykorzystania" name="termin_wykorzystania" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['termin_wykorzystania'] ?? '') ?>">
+    </div>
+    <div>
+      <label for="termin_sprawozdania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Termin złożenia sprawozdania końcowego</label>
+      <input id="termin_sprawozdania" name="termin_sprawozdania" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+             value="<?= h($row['termin_sprawozdania'] ?? '') ?>">
+    </div>
   </div>
-</div>
-<div class="mb-3">
-  <label class="form-label">Harmonogram / transze płatności</label>
-  <textarea name="transze" class="form-control" rows="2" placeholder="np. I transza 60% po podpisaniu, II transza 40% po rozliczeniu"><?= h($row['transze'] ?? '') ?></textarea>
-</div>
-<div class="mb-3">
-  <label class="form-label">Koszty kwalifikowane / kosztorys</label>
-  <textarea name="koszty_kwalifikowane" class="form-control" rows="3"><?= h($row['koszty_kwalifikowane'] ?? '') ?></textarea>
-</div>
-</div>
 </div>
 
-<!-- TERMINY -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-calendar3"></i> Terminy</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Data zawarcia</label>
-    <input name="data_zawarcia" type="date" class="form-control" value="<?= h($row['data_zawarcia'] ?? '') ?>">
+<!-- TAB 4: Podpisanie i pliki -->
+<div data-tab-pane="4" x-show="tab===4" x-cloak class="tw-p-6">
+  <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-6">
+    <div class="lg:tw-col-span-2">
+
+      <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-pen"></i> Forma podpisania</h2>
+      <div class="tw-mb-4 sm:tw-w-1/2">
+        <label for="forma_podpisania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Forma podpisania</label>
+        <select id="forma_podpisania" name="forma_podpisania" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+          <option value="">—</option>
+          <option value="papierowa" <?= ($row['forma_podpisania'] ?? '') === 'papierowa' ? 'selected' : '' ?>>Papierowa</option>
+          <option value="elektroniczna" <?= ($row['forma_podpisania'] ?? '') === 'elektroniczna' ? 'selected' : '' ?>>Elektroniczna</option>
+          <option value="epodpis_kwalifikowany" <?= (($row['forma_podpisania'] ?? '') === 'epodpis_kwalifikowany') ? 'selected' : '' ?>>ePodpis kwalifikowany</option>
+        </select>
+      </div>
+
+      <div id="el_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:<?= ($row['forma_podpisania'] ?? '') === 'elektroniczna' ? '' : 'none' ?>">
+        <div>
+          <label for="platforma_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Platforma</label>
+          <input id="platforma_el" name="platforma_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 placeholder="Autenti / inny" value="<?= h($row['platforma_el'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="id_dokumentu_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">ID dokumentu w systemie</label>
+          <input id="id_dokumentu_el" name="id_dokumentu_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['id_dokumentu_el'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="plik_potwierdzenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Plik potwierdzenia (PDF)</label>
+          <input id="plik_potwierdzenia" name="plik_potwierdzenia" type="file" accept=".pdf"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+        </div>
+      </div>
+
+      <div id="epodpis_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:<?= ($row['forma_podpisania'] ?? '') === 'epodpis_kwalifikowany' ? '' : 'none' ?>">
+        <div>
+          <label for="epodpis_dostawca" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Dostawca podpisu (TSP)</label>
+          <input id="epodpis_dostawca" name="epodpis_dostawca" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 placeholder="Certum, SimplySign, mSzafir, Autenti…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="epodpis_nr_certyfikatu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer seryjny certyfikatu</label>
+          <input id="epodpis_nr_certyfikatu" name="epodpis_nr_certyfikatu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="epodpis_data_waznosci" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Ważność certyfikatu</label>
+          <input id="epodpis_data_waznosci" name="epodpis_data_waznosci" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                 value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+        </div>
+      </div>
+
+      <div>
+        <label for="uwagi" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Uwagi</label>
+        <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi'] ?? '') ?></textarea>
+      </div>
+    </div>
+
+    <div class="lg:tw-col-span-1 tw-space-y-4">
+      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+        <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Pliki</h2>
+        <div class="tw-mb-3">
+          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Plik umowy (PDF/DOCX, max 20MB)</label>
+          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+        </div>
+        <div>
+          <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Załączniki</label>
+          <input id="zalaczniki" name="zalaczniki" type="file" accept=".pdf,.docx,.jpg,.png"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+        </div>
+      </div>
+      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+        <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-shield-lock"></i> Dostęp</h2>
+        <?= contract_access_field_html([]) ?>
+      </div>
+    </div>
   </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Realizacja od</label>
-    <input name="data_rozpoczecia" type="date" class="form-control" value="<?= h($row['data_rozpoczecia'] ?? '') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Realizacja do</label>
-    <input name="data_zakonczenia" type="date" class="form-control" value="<?= h($row['data_zakonczenia'] ?? '') ?>">
-  </div>
-</div>
-<div class="row">
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Termin wykorzystania dotacji</label>
-    <input name="termin_wykorzystania" type="date" class="form-control" value="<?= h($row['termin_wykorzystania'] ?? '') ?>">
-  </div>
-  <div class="col-md-6 mb-3">
-    <label class="form-label">Termin złożenia sprawozdania końcowego</label>
-    <input name="termin_sprawozdania" type="date" class="form-control" value="<?= h($row['termin_sprawozdania'] ?? '') ?>">
-  </div>
-</div>
-</div>
 </div>
 
-<!-- PODPISANIE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-pen"></i> Forma podpisania</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Forma podpisania</label>
-    <select name="forma_podpisania" class="form-select" id="forma_podpisania">
-      <option value="">—</option>
-      <option value="papierowa" <?= ($row['forma_podpisania'] ?? '') === 'papierowa' ? 'selected' : '' ?>>Papierowa</option>
-      <option value="elektroniczna" <?= ($row['forma_podpisania'] ?? '') === 'elektroniczna' ? 'selected' : '' ?>>Elektroniczna</option>
-      <option value="epodpis_kwalifikowany" <?= (($row['forma_podpisania'] ?? '') === 'epodpis_kwalifikowany') ? 'selected' : '' ?>>ePodpis kwalifikowany</option>
-    </select>
-  </div>
-</div>
-<div id="el_fields" class="row" style="display:<?= ($row['forma_podpisania'] ?? '') === 'elektroniczna' ? '' : 'none' ?>">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Platforma</label>
-    <input name="platforma_el" class="form-control" placeholder="Autenti / inny" value="<?= h($row['platforma_el'] ?? '') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">ID dokumentu w systemie</label>
-    <input name="id_dokumentu_el" class="form-control" value="<?= h($row['id_dokumentu_el'] ?? '') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Plik potwierdzenia (PDF)</label>
-    <input name="plik_potwierdzenia" type="file" class="form-control" accept=".pdf">
-  </div>
-</div>
-<div id="epodpis_fields" class="row" style="display:<?= ($row['forma_podpisania'] ?? '') === 'epodpis_kwalifikowany' ? '' : 'none' ?>">
-  <div class="col-md-4 mb-3"><label class="form-label">Dostawca podpisu (TSP)</label>
-    <input name="epodpis_dostawca" class="form-control" placeholder="Certum, SimplySign, mSzafir, Autenti…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Numer seryjny certyfikatu</label>
-    <input name="epodpis_nr_certyfikatu" class="form-control font-monospace" value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Ważność certyfikatu</label>
-    <input name="epodpis_data_waznosci" type="date" class="form-control" value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>"></div>
-</div>
-</div>
-</div>
-
-<div class="mb-3">
-  <label class="form-label">Uwagi</label>
-  <textarea name="uwagi" class="form-control" rows="3"><?= h($row['uwagi'] ?? '') ?></textarea>
-</div>
-
-</div><!-- /col-lg-8 -->
-
-<!-- SIDEBAR -->
-<div class="col-lg-4">
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
-<div class="card-body">
-  <div class="mb-3">
-    <label class="form-label">Plik umowy (PDF/DOCX, max 20MB)</label>
-    <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Załączniki</label>
-    <input name="zalaczniki" type="file" class="form-control" accept=".pdf,.docx,.jpg,.png">
-  </div>
-</div>
-</div>
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
-<div class="card-body">
-  <?= contract_access_field_html([]) ?>
-</div>
-</div>
-</div>
-
-</div><!-- /row -->
-
-<div class="form-check mb-3">
-  <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
-  <label class="form-check-label text-muted" for="nie_mam_drukarki">
+<!-- Pasek akcji — zawsze widoczny, niezależnie od aktywnej zakładki -->
+<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-border-t tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
+  <label for="nie_mam_drukarki" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-600">
+    <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
     <i class="bi bi-printer"></i> Nie mam drukarki — zapisz umowę jako PDF do późniejszego wydruku
   </label>
+  <div class="tw-flex tw-gap-2">
+    <a href="list.php" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">Anuluj</a>
+    <button type="submit" :disabled="submitting"
+            class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-blue-700 disabled:tw-opacity-60">
+      <span x-show="submitting" x-cloak class="tw-inline-block tw-h-3.5 tw-w-3.5 tw-animate-spin tw-rounded-full tw-border-2 tw-border-white/40 tw-border-t-white" aria-hidden="true"></span>
+      <i x-show="!submitting" x-cloak class="bi bi-check-lg"></i>
+      <span x-text="submitting ? 'Zapisywanie…' : 'Zapisz umowę'"></span>
+    </button>
+  </div>
 </div>
-<div class="d-flex gap-2 mt-2 mb-4">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz umowę</button>
-  <a href="list.php" class="btn btn-outline-secondary">Anuluj</a>
-</div>
+
 </form>
+
+</div><!-- /tw-max-w-6xl -->
 
 <script>
 // Wkład własny — tylko dla formy „wsparcie"

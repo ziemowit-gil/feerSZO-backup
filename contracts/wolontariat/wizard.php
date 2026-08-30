@@ -238,7 +238,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 
-<form method="post" enctype="multipart/form-data" id="wz-form">
+<form method="post" enctype="multipart/form-data" id="wz-form" x-data="contractFormGuard()" @submit="if (!$event.defaultPrevented) onSubmit()">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 <input type="hidden" name="person_id" id="wz_person_id">
 
@@ -575,8 +575,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <button type="button" class="btn btn-outline-secondary" id="btn-prev-3">
     <i class="bi bi-arrow-left me-1"></i>Wstecz
   </button>
-  <button type="submit" class="btn btn-success btn-lg px-5 shadow-sm" id="btn-submit">
-    <i class="bi bi-check-lg me-2"></i>Zapisz i przekaż do akceptacji
+  <button type="submit" class="btn btn-success btn-lg px-5 shadow-sm" id="btn-submit" :disabled="submitting">
+    <span x-show="submitting" x-cloak class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+    <i x-show="!submitting" x-cloak class="bi bi-check-lg me-2"></i><span x-text="submitting ? 'Zapisywanie…' : 'Zapisz i przekaż do akceptacji'"></span>
   </button>
 </div>
 </div>
