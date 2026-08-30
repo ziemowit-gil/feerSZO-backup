@@ -51,8 +51,6 @@ body { font-family: dejavusans, sans-serif; color:#111; }
 .doc-org-name { font-size:11pt; font-weight:bold; text-transform:uppercase; }
 .doc-org-meta { font-size:8pt; color:#444; white-space:pre-line; }
 .doc-org-ref { text-align:right; font-size:8pt; color:#555; }
-.doc-title { text-align:center; font-size:14pt; font-weight:bold; text-transform:uppercase;
-             letter-spacing:1pt; margin:6pt 0 14pt; }
 .doc-body { font-size:11pt; line-height:1.4; text-align:justify; }
 .doc-body p { margin:0 0 8pt; }
 </style></head><body>';
@@ -68,7 +66,6 @@ if ($doc_ref) $html .= htmlspecialchars($doc_ref) . '<br>';
 $html .= ($org_city ? htmlspecialchars($org_city) . ', ' : '') . 'dnia ' . $doc_date;
 $html .= '</td></tr></table></div>';
 
-$html .= '<div class="doc-title">' . htmlspecialchars($doc_name) . '</div>';
 $html .= '<div class="doc-body">' . $doc['tresc_finalna'] . '</div>';
 $html .= '</body></html>';
 

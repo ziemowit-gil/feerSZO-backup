@@ -74,8 +74,6 @@ $cellR->addText(
 );
 
 $section->addTextBreak(1);
-$section->addText($doc_name, ['bold' => true, 'size' => 14, 'allCaps' => true],
-    ['alignment' => Jc::CENTER, 'spaceAfter' => 160, 'spaceBefore' => 60]);
 
 $htmlBody = '<div style="text-align:justify;font-family:Calibri;font-size:11pt">' . $doc['tresc_finalna'] . '</div>';
 PhpWordHtml::addHtml($section, $htmlBody, false, false);
