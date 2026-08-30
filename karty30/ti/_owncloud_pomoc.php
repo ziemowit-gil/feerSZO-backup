@@ -7,7 +7,29 @@
 $_oc_url = rtrim(owncloud_setting('url'), '/') ?: '(adres wskazany w przycisku „Otwórz ownCloud” powyżej)';
 $_oc_id  = $owncloud_pomoc_id ?? 'oc-pomoc';
 ?>
-<div class="accordion mt-3" id="<?= h($_oc_id) ?>" style="max-width:720px">
+<style>
+  #<?= h($_oc_id) ?> {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+    align-items: start;
+  }
+  /* Bootstrap zakłada pojedynczy pionowy stos akordeonu (górna krawędź
+     zdjęta poza pierwszym elementem, zaokrąglenie rogów tylko na pierwszym/
+     ostatnim) — w układzie siatki każdy element ma być samodzielną, w pełni
+     obramowaną kartą, więc te założenia trzeba nadpisać. overflow:hidden
+     przy okazji przycina wewnętrzny przycisk/treść do zaokrąglenia karty,
+     bez osobnego nadpisywania promienia accordion-button/accordion-collapse. */
+  #<?= h($_oc_id) ?> .accordion-item {
+    border-radius: 0.5rem !important;
+    border-top: var(--bs-accordion-border-width) solid var(--bs-accordion-border-color) !important;
+    overflow: hidden;
+  }
+  @media (max-width: 767.98px) {
+    #<?= h($_oc_id) ?> { grid-template-columns: 1fr; }
+  }
+</style>
+<div class="accordion mt-3" id="<?= h($_oc_id) ?>" style="max-width:960px">
   <div class="accordion-item">
     <h3 class="accordion-header">
       <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?= h($_oc_id) ?>-co">
