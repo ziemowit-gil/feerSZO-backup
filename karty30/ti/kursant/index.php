@@ -5118,6 +5118,8 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
+  <?php $owncloud_pomoc_id = 'oc-kursant'; require dirname(__DIR__) . '/_owncloud_pomoc.php'; ?>
+
 <?php elseif ($tab === 'pfron'):
     $pf_msg      = $_SESSION['pfron_msg'] ?? null; unset($_SESSION['pfron_msg']);
     $pf_unlocked = pfron_unlocked_ids();

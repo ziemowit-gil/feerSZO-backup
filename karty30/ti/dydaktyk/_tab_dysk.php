@@ -69,4 +69,6 @@
     </div>
   </div>
   <?php endif; ?>
+
+  <?php $owncloud_pomoc_id = 'oc-dyd'; require __DIR__ . '/../_owncloud_pomoc.php'; ?>
 </div>
