@@ -30,6 +30,53 @@ function cgd_migrate(): void {
     )");
     db()->exec("CREATE INDEX IF NOT EXISTS idx_contract_documents_contract
                 ON contract_documents(contract_type, contract_id)");
+
+    db()->exec("CREATE TABLE IF NOT EXISTS contract_data_verifications (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_type TEXT     NOT NULL,
+        contract_id   INTEGER  NOT NULL,
+        verified_at   DATETIME NOT NULL,
+        document_id   INTEGER  NULL,
+        UNIQUE(contract_type, contract_id)
+    )");
+}
+
+/** Ile dni od potwierdzenia danych uznajemy je za nadal aktualne. */
+const CGD_VERIFICATION_VALIDITY_MONTHS = 6;
+
+/**
+ * Zapisuje/aktualizuje datę ostatniego potwierdzenia aktualności danych dla
+ * umowy — wołane automatycznie z cgd_create() przy generowaniu dokumentu
+ * z wzoru oznaczonego jako „potwierdzający dane" (contract_doc_templates.verifies_data).
+ */
+function cgd_mark_data_verified(string $contract_type, int $contract_id, int $document_id): void {
+    cgd_migrate();
+    db()->prepare(
+        "INSERT INTO contract_data_verifications (contract_type, contract_id, verified_at, document_id)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(contract_type, contract_id) DO UPDATE SET
+            verified_at = excluded.verified_at, document_id = excluded.document_id"
+    )->execute([$contract_type, $contract_id, date('Y-m-d H:i:s'), $document_id]);
+}
+
+/**
+ * Status weryfikacji danych dla umowy.
+ * Zwraca: verified_at (albo null gdy nigdy), expires_at, is_stale (bool).
+ */
+function cgd_verification_status(string $contract_type, int $contract_id): array {
+    cgd_migrate();
+    $row = db_one(
+        "SELECT verified_at FROM contract_data_verifications WHERE contract_type=? AND contract_id=?",
+        [$contract_type, $contract_id]
+    );
+    if (!$row) return ['verified_at' => null, 'expires_at' => null, 'is_stale' => true];
+
+    $expires_at = date('Y-m-d H:i:s', strtotime('+' . CGD_VERIFICATION_VALIDITY_MONTHS . ' months', strtotime($row['verified_at'])));
+    return [
+        'verified_at' => $row['verified_at'],
+        'expires_at'  => $expires_at,
+        'is_stale'    => strtotime($expires_at) < time(),
+    ];
 }
 
 /** Statusy dokumentu wraz z etykietami (kolejność = ścieżka procesu). */
@@ -95,7 +142,7 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
     if ($overrides) $map = array_merge($map, $overrides);
     $html = cte_render($tpl['body'], $map);
 
-    return db_insert('contract_documents', [
+    $doc_id = db_insert('contract_documents', [
         'template_id'   => $template_id,
         'contract_type' => $contract_type,
         'contract_id'   => $contract_id,
@@ -104,6 +151,12 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
         'created_by'    => $created_by ?: null,
         'created_at'    => date('Y-m-d H:i:s'),
     ]);
+
+    if (!empty($tpl['verifies_data'])) {
+        cgd_mark_data_verified($contract_type, $contract_id, $doc_id);
+    }
+
+    return $doc_id;
 }
 
 function cgd_get(int $id): ?array {

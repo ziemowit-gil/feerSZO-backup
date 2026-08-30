@@ -21,6 +21,10 @@ function cte_migrate(): void {
         created_at  DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
         updated_at  DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
     )");
+
+    // Samonaprawa schematu: instalacje sprzed tej kolumny nie mają jej jeszcze.
+    // SQLite nie zna ADD COLUMN IF NOT EXISTS — łapiemy "duplicate column".
+    try { db()->exec("ALTER TABLE contract_doc_templates ADD COLUMN verifies_data INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 }
 
 /**
