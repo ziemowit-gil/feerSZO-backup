@@ -11,6 +11,7 @@
  * dokumenty).
  */
 require_once __DIR__ . '/contract_template_engine.php';
+require_once __DIR__ . '/katwer.php';
 
 function cgd_migrate(): void {
     static $done = false;
@@ -34,68 +35,7 @@ function cgd_migrate(): void {
     // Samonaprawa schematu — instalacje sprzed tej kolumny nie mają jej jeszcze.
     try { db()->exec("ALTER TABLE contract_documents ADD COLUMN nr_karty TEXT NULL"); } catch (\Throwable $e) {}
 
-    db()->exec("CREATE TABLE IF NOT EXISTS contract_data_verifications (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        contract_type TEXT     NOT NULL,
-        contract_id   INTEGER  NOT NULL,
-        verified_at   DATETIME NOT NULL,
-        document_id   INTEGER  NULL,
-        UNIQUE(contract_type, contract_id)
-    )");
-}
-
-/** Ile dni od potwierdzenia danych uznajemy je za nadal aktualne. */
-const CGD_VERIFICATION_VALIDITY_MONTHS = 6;
-
-/**
- * Zapisuje/aktualizuje datę ostatniego potwierdzenia aktualności danych dla
- * umowy — wołane automatycznie z cgd_create() przy generowaniu dokumentu
- * z wzoru oznaczonego jako „potwierdzający dane" (contract_doc_templates.verifies_data).
- */
-function cgd_mark_data_verified(string $contract_type, int $contract_id, int $document_id): void {
-    cgd_migrate();
-    db()->prepare(
-        "INSERT INTO contract_data_verifications (contract_type, contract_id, verified_at, document_id)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(contract_type, contract_id) DO UPDATE SET
-            verified_at = excluded.verified_at, document_id = excluded.document_id"
-    )->execute([$contract_type, $contract_id, date('Y-m-d H:i:s'), $document_id]);
-}
-
-/**
- * Status weryfikacji danych dla umowy.
- * Zwraca: verified_at (albo null gdy nigdy), expires_at, is_stale (bool).
- */
-function cgd_verification_status(string $contract_type, int $contract_id): array {
-    cgd_migrate();
-    $row = db_one(
-        "SELECT verified_at FROM contract_data_verifications WHERE contract_type=? AND contract_id=?",
-        [$contract_type, $contract_id]
-    );
-    if (!$row) return ['verified_at' => null, 'expires_at' => null, 'is_stale' => true];
-
-    $expires_at = date('Y-m-d H:i:s', strtotime('+' . CGD_VERIFICATION_VALIDITY_MONTHS . ' months', strtotime($row['verified_at'])));
-    return [
-        'verified_at' => $row['verified_at'],
-        'expires_at'  => $expires_at,
-        'is_stale'    => strtotime($expires_at) < time(),
-    ];
-}
-
-/**
- * Generuje unikalny numer Karty Weryfikacji Danych: EZD-KaWer/{6 cyfr}{3 litery}.
- * Sprawdza unikalność w bazie (kolizja losowa jest bliska zeru, ale i tak
- * zabezpieczamy się przed nią pętlą).
- */
-function cgd_generate_karta_numer(): string {
-    cgd_migrate();
-    do {
-        $digits  = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $letters = '';
-        for ($i = 0; $i < 3; $i++) $letters .= chr(random_int(65, 90));
-        $numer = 'EZD-KaWer/' . $digits . $letters;
-    } while (db_one("SELECT id FROM contract_documents WHERE nr_karty=?", [$numer]));
-    return $numer;
+    katwer_migrate();
 }
 
 /** Statusy dokumentu wraz z etykietami (kolejność = ścieżka procesu). */
@@ -144,15 +84,13 @@ function cgd_missing_placeholders(string $template_body, array $map): array {
     return $missing;
 }
 
-/** Tekst wstawiany zamiast placeholdera, gdy koordynator jawnie oznaczy pole jako niedostępne. */
-const CGD_NO_DATA_LABEL = 'Brak danych w systemie';
-
 /**
  * Krok 1 — generuje dokument z wzorca: podstawia dane umowy (i ewentualne
  * ręcznie uzupełnione braki z $overrides) i zapisuje nowy wiersz w
  * contract_documents (status początkowy: 'szkic').
  * Wzory oznaczone jako verifies_data dostają dodatkowo unikalny numer karty
- * (patrz cgd_generate_karta_numer()) dostępny w treści jako {nr_karty}.
+ * (moduł KATWER — patrz includes/katwer.php) dostępny w treści jako {nr_karty},
+ * i zapisują datę weryfikacji danych tej umowy.
  * Zwraca ID nowo utworzonego dokumentu, albo null gdy wzorzec nie istnieje.
  */
 function cgd_create(int $template_id, string $contract_type, int $contract_id, int $created_by, array $overrides = []): ?int {
@@ -167,7 +105,7 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
 
     $nr_karty = null;
     if (!empty($tpl['verifies_data'])) {
-        $nr_karty = cgd_generate_karta_numer();
+        $nr_karty = katwer_generate_numer();
         $map['{nr_karty}'] = $nr_karty;
     }
 
@@ -185,7 +123,7 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
     ]);
 
     if (!empty($tpl['verifies_data'])) {
-        cgd_mark_data_verified($contract_type, $contract_id, $doc_id);
+        katwer_mark_verified($contract_type, $contract_id, $doc_id);
     }
 
     return $doc_id;

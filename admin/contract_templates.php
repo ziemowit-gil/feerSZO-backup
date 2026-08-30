@@ -436,7 +436,7 @@ include dirname(__DIR__) . '/includes/header.php';
             <input type="checkbox" class="form-check-input" id="tpl-verifies" name="verifies_data" value="1">
             <label class="form-check-label small" for="tpl-verifies">
               Ten wzór to <strong>Karta Weryfikacji Danych</strong> — wygenerowanie go zapisuje datę
-              potwierdzenia aktualności danych tej umowy (ważność: <?= CGD_VERIFICATION_VALIDITY_MONTHS ?> mies.)
+              potwierdzenia aktualności danych tej umowy (ważność: <?= KATWER_VALIDITY_MONTHS ?> mies.)
             </label>
           </div>
 

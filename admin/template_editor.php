@@ -157,7 +157,7 @@ include dirname(__DIR__) . '/includes/header.php';
            <?= !empty($tpl['verifies_data']) ? 'checked' : '' ?>>
     <label class="form-check-label small" for="verifies_data">
       Ten wzór to <strong>Karta Weryfikacji Danych</strong> — wygenerowanie go zapisuje datę
-      potwierdzenia aktualności danych tej umowy (ważność: <?= CGD_VERIFICATION_VALIDITY_MONTHS ?> mies.)
+      potwierdzenia aktualności danych tej umowy (ważność: <?= KATWER_VALIDITY_MONTHS ?> mies.)
     </label>
   </div>
 
