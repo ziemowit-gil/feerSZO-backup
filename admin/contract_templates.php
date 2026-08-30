@@ -205,6 +205,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $SELF); exit;
     }
 
+    if ($act === 'center_all') {
+        $rows  = db_all("SELECT id, body FROM contract_doc_templates");
+        $count = 0;
+        foreach ($rows as $r) {
+            $centered = cte_center_all_blocks($r['body']);
+            if ($centered !== $r['body']) {
+                db()->prepare("UPDATE contract_doc_templates SET body=?, updated_at=datetime('now','localtime') WHERE id=?")
+                    ->execute([$centered, $r['id']]);
+                $count++;
+            }
+        }
+        flash_set('success', 'Wyśrodkowano treść ' . $count . ' z ' . count($rows) . ' wzorów.');
+        header('Location: ' . $SELF); exit;
+    }
+
     header('Location: ' . $SELF); exit;
 }
 
@@ -240,6 +255,14 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="d-flex align-items-center gap-2 mb-3">
   <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Wzory dokumentów</h4>
   <div class="d-flex gap-2 ms-auto">
+    <form method="post" class="d-inline"
+          onsubmit="return confirm('Wyśrodkować treść WSZYSTKICH wzorów dokumentów? Nadpisze bieżące formatowanie akapitów.')">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="center_all">
+      <button class="btn btn-outline-secondary btn-sm" title="Wyśrodkuj treść wszystkich wzorów">
+        <i class="bi bi-text-center me-1"></i>Wyśrodkuj wszystkie
+      </button>
+    </form>
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importDocxModal">
       <i class="bi bi-file-earmark-word me-1"></i>Import DOCX
     </button>

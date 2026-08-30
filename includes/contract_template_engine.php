@@ -125,6 +125,52 @@ function cte_get(int $id): ?array {
 }
 
 /**
+ * Wyśrodkowuje wszystkie bloki tekstu (akapity, nagłówki, elementy list) w
+ * treści wzoru — dopisuje/nadpisuje `text-align:center` w ich atrybucie
+ * style, zachowując resztę stylu. Używane przez masową poprawkę formatowania
+ * istniejących wzorów (admin/contract_templates.php).
+ */
+function cte_center_all_blocks(string $html): string {
+    if (trim($html) === '') return $html;
+
+    $dom = new \DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML(
+        '<?xml encoding="utf-8"?><div id="cte-root">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+    libxml_clear_errors();
+
+    $xpath = new \DOMXPath($dom);
+    $root  = $xpath->query('//div[@id="cte-root"]')->item(0);
+    if (!$root) return $html;
+
+    foreach ($xpath->query('.//p | .//div | .//h1 | .//h2 | .//h3 | .//h4 | .//h5 | .//h6 | .//li', $root) as $el) {
+        $decls = array_filter(array_map('trim', explode(';', $el->getAttribute('style'))));
+        $decls = array_values(array_filter($decls, fn($d) => stripos($d, 'text-align') !== 0));
+        $decls[] = 'text-align:center';
+        $el->setAttribute('style', implode('; ', $decls));
+    }
+
+    $out = '';
+    foreach ($root->childNodes as $child) {
+        $out .= $dom->saveHTML($child);
+    }
+
+    // DOMDocument::saveHTML zapisuje puste elementy jako <br> (bez /) —
+    // PHPWord Html::addHtml() parsuje treść jako ścisły XML i taki
+    // niedomknięty tag psuje cały eksport DOCX (patrz pamięć projektu:
+    // feedback_phpword_html_unclosed_br). Zawsze domykaj.
+    $out = preg_replace_callback(
+        '/<(br|hr|img|input)\b([^>]*?)\/?>/i',
+        fn($m) => '<' . $m[1] . rtrim($m[2]) . '/>',
+        $out
+    );
+
+    return $out;
+}
+
+/**
  * Zwraca listę aktywnych szablonów, opcjonalnie filtrowaną po typie.
  */
 function cte_list(?string $type = null): array {
