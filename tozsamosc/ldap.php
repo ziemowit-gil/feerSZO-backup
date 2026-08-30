@@ -134,6 +134,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'sync
     }
 }
 
+// ── Obsługa POST (konfigurator: zapisz + wystaw OU + zsynchronizuj) ────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save_and_run') {
+    csrf_check();
+    $_tab       = 'sync';
+    $action_ran = true;
+
+    try {
+        $result = ldap_configure_and_run($_POST);
+
+        foreach ($result['sync']['items'] as $item) {
+            $msg = $LDAP_ACTION_LABELS[$item['ldap_action']] ?? ($item['ldap_error'] ?? $item['ldap_action']);
+            if ($item['graph_action'] === 'updated') {
+                $msg .= ' + M365';
+            } elseif ($item['graph_action'] === 'error') {
+                $msg .= ' (M365: ' . $item['graph_error'] . ')';
+            }
+            $action_results[] = [
+                'ok'    => $item['ldap_action'] !== 'error' && $item['graph_action'] !== 'error',
+                'name'  => $item['name'],
+                'login' => $item['email'],
+                'msg'   => $msg,
+            ];
+        }
+
+        $l = $result['sync']['summary']['ldap'];
+        $g = $result['sync']['summary']['graph'];
+        if (function_exists('admin_audit')) {
+            admin_audit('ldap_sync', 'ldap', "Konfiguracja zapisana + synchronizacja: utw {$l['created']}, upd {$l['updated']}, err {$l['error']}.", 0);
+        }
+        $hasErrors = $l['error'] > 0 || $g['error'] > 0;
+        flash_set($hasErrors ? 'warning' : 'success',
+            "Konfiguracja zapisana. Gałęzie: users_ou {$result['install']['users_ou']}, disabled_ou {$result['install']['disabled_ou']}. "
+            . "Synchronizacja — nowe: {$l['created']}, zaktualizowane: {$l['updated']}, "
+            . "dezaktywowane: {$l['deactivated']}, reaktywowane: {$l['reactivated']}, bledy: {$l['error']}.");
+    } catch (\Throwable $e) {
+        // Ustawienia sa juz zapisane w tym momencie (ldap_configure_and_run zapisuje
+        // przed probą połączenia) — admin poprawia tylko blędne pole, nie wpisuje wszystkiego od nowa.
+        $_tab = 'konfigurator';
+        flash_set('danger', 'Zapisano ustawienia, ale uruchomienie nie powiodlo sie: ' . $e->getMessage());
+    }
+}
+
 // ── Dane ──────────────────────────────────────────────────────────────────────
 $ldap_configured = (new LdapDirectory())->is_configured();
 $last_sync       = ldap_setting('ldap_last_sync');
@@ -147,13 +189,17 @@ if ($ldap_configured) {
     } catch (\Throwable $e) { $conn_err = $e->getMessage(); }
 }
 
-// Wartości do autokonfiguratora (po stronie PHP — wypełnienie formularza)
-$cfg_host     = defined('LDAP_HOST')     ? LDAP_HOST     : '';
-$cfg_port     = defined('LDAP_PORT')     ? (int)LDAP_PORT : 389;
-$cfg_base_dn  = defined('LDAP_BASE_DN')  ? LDAP_BASE_DN  : '';
-$cfg_users_ou = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
-$cfg_bind_dn  = defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '';
-$cfg_use_tls  = defined('LDAP_USE_TLS')  && LDAP_USE_TLS;
+// Wartości do autokonfiguratora (po stronie PHP — wypełnienie formularza).
+// Ustawienie zapisane przez sam Konfigurator ma pierwszeństwo przed stałą
+// z config.local.php — to ten sam porządek co w LdapDirectory::__construct().
+$cfg_host        = ldap_setting('ldap_host')        ?: (defined('LDAP_HOST')     ? LDAP_HOST     : '');
+$cfg_port        = ldap_setting('ldap_port')         ?: (defined('LDAP_PORT')     ? (int)LDAP_PORT : 389);
+$cfg_base_dn     = ldap_setting('ldap_base_dn')     ?: (defined('LDAP_BASE_DN')  ? LDAP_BASE_DN  : '');
+$cfg_users_ou    = ldap_setting('ldap_users_ou')    ?: (defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '');
+$cfg_disabled_ou = ldap_setting('ldap_disabled_ou') ?: (defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : '');
+$cfg_bind_dn     = ldap_setting('ldap_bind_dn')     ?: (defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '');
+$cfg_use_tls     = ldap_setting('ldap_use_tls') !== '' ? ldap_setting('ldap_use_tls') === '1' : (defined('LDAP_USE_TLS') && LDAP_USE_TLS);
+$cfg_has_bind_pw = ldap_setting('ldap_bind_pw') !== '' || (defined('LDAP_BIND_PW') && LDAP_BIND_PW !== '');
 
 // Odczyt katalogu (tylko na zakładce katalog)
 $ldap_entries = [];
@@ -422,6 +468,9 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
      ═══════════════════════════════════════════════════════════════════════════ -->
 <?php elseif ($_tab === 'konfigurator'): ?>
 
+<form method="post" id="cfg-form-el">
+<input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+<input type="hidden" name="_action" value="save_and_run">
 <div class="tz-card mb-3">
   <div class="tz-card__hd"><i class="bi bi-sliders"></i> Parametry serwera LDAP</div>
   <div class="tz-card__bd cfg-form">
@@ -429,7 +478,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       <div>
         <label for="f-host">Host</label>
         <div style="display:flex;gap:.4rem;align-items:center">
-          <input id="f-host" class="cfg-in" data-k="host" type="text" value="<?= h($cfg_host) ?>" placeholder="127.0.0.1" style="flex:1;min-width:0">
+          <input id="f-host" name="host" class="cfg-in" data-k="host" type="text" value="<?= h($cfg_host) ?>" placeholder="127.0.0.1" style="flex:1;min-width:0">
           <button type="button" id="btn-host-ext" title="Zewnętrzny (poza Dockerem)" class="copy-btn" style="white-space:nowrap">127.0.0.1</button>
           <button type="button" id="btn-host-docker" title="Nazwa serwisu Docker Compose" class="copy-btn" style="white-space:nowrap;background:var(--tz-50);border-color:var(--tz)">ldap</button>
         </div>
@@ -439,28 +488,40 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       </div>
       <div>
         <label for="f-port">Port</label>
-        <input id="f-port" class="cfg-in" data-k="port" type="number" value="<?= $cfg_port ?>" placeholder="389">
+        <input id="f-port" name="port" class="cfg-in" data-k="port" type="number" value="<?= $cfg_port ?>" placeholder="389">
       </div>
     </div>
-    <div class="row mb-3">
+    <div class="row row3 mb-3">
       <div>
         <label for="f-base-dn">Base DN</label>
-        <input id="f-base-dn" class="cfg-in" data-k="base_dn" type="text" value="<?= h($cfg_base_dn) ?>" placeholder="dc=feer,dc=org,dc=pl">
+        <input id="f-base-dn" name="base_dn" class="cfg-in" data-k="base_dn" type="text" value="<?= h($cfg_base_dn) ?>" placeholder="dc=feer,dc=org,dc=pl">
       </div>
       <div>
         <label for="f-users-ou">Users OU</label>
-        <input id="f-users-ou" class="cfg-in" data-k="users_ou" type="text" value="<?= h($cfg_users_ou) ?>" placeholder="ou=users,dc=feer,dc=org,dc=pl">
+        <input id="f-users-ou" name="users_ou" class="cfg-in" data-k="users_ou" type="text" value="<?= h($cfg_users_ou) ?>" placeholder="ou=users,dc=feer,dc=org,dc=pl">
+      </div>
+      <div>
+        <label for="f-disabled-ou">Disabled OU (dezaktywowane)</label>
+        <input id="f-disabled-ou" name="disabled_ou" class="cfg-in" data-k="disabled_ou" type="text" value="<?= h($cfg_disabled_ou) ?>" placeholder="ou=disabled,dc=feer,dc=org,dc=pl">
       </div>
     </div>
     <div class="row mb-2">
       <div>
         <label for="f-bind-dn">Bind DN</label>
-        <input id="f-bind-dn" class="cfg-in" data-k="bind_dn" type="text" value="<?= h($cfg_bind_dn) ?>" placeholder="cn=admin,dc=feer,dc=org,dc=pl">
+        <input id="f-bind-dn" name="bind_dn" class="cfg-in" data-k="bind_dn" type="text" value="<?= h($cfg_bind_dn) ?>" placeholder="cn=admin,dc=feer,dc=org,dc=pl">
       </div>
       <div>
-        <label for="f-bind-pw">Haslo (do testu polaczenia)</label>
-        <input id="f-bind-pw" class="cfg-in" data-k="bind_pw" type="password" value="" placeholder="<?= $ldap_configured ? '(zapisane w config.local.php)' : '' ?>">
+        <label for="f-bind-pw">Hasło</label>
+        <input id="f-bind-pw" name="bind_pw" class="cfg-in" data-k="bind_pw" type="password" value=""
+               autocomplete="new-password"
+               placeholder="<?= $cfg_has_bind_pw ? '(zapisane — zostaw puste by nie zmieniać)' : 'haslo konta serwisowego' ?>">
       </div>
+    </div>
+    <div class="mb-1">
+      <label style="display:inline-flex;align-items:center;gap:.4rem;text-transform:none;font-weight:500;font-size:.85rem;color:inherit">
+        <input type="checkbox" name="use_tls" value="1" class="cfg-in" data-k="use_tls" <?= $cfg_use_tls ? 'checked' : '' ?>>
+        STARTTLS (LDAP_USE_TLS)
+      </label>
     </div>
   </div>
   <div class="cfg-test-bar">
@@ -468,12 +529,19 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       <i class="bi bi-plug"></i> Testuj polaczenie
     </button>
     <span id="test-result"></span>
-    <span class="ms-auto text-muted small">
-      <i class="bi bi-info-circle"></i>
-      Haslo potrzebne tylko do testu — nie jest zapisywane
-    </span>
+    <button type="submit" class="tz-btn ms-auto"
+            onclick="return confirm('Zapisac ustawienia, utworzyc galezie (users/disabled) i od razu uruchomic pelna synchronizacje z LDAP i M365?');">
+      <i class="bi bi-rocket-takeoff"></i> Zapisz i uruchom synchronizacje
+    </button>
+  </div>
+  <div class="tz-note">
+    <i class="bi bi-info-circle"></i>
+    Zapisuje parametry do bazy (bez SSH / edycji config.local.php), tworzy galezie
+    <code>users</code>/<code>disabled</code> jesli brak, i od razu wykonuje pelna
+    synchronizacje — wynik zobaczysz w zakladce <a href="?tab=sync">Synchronizacja</a>.
   </div>
 </div>
+</form>
 
 <!-- Bloki konfiguracyjne -->
 <div id="cfg-blocks">
@@ -551,12 +619,15 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   function updateBlocks() {
     var host    = v('host')     || '127.0.0.1';
     var port    = v('port')     || '389';
-    var baseDn  = v('base_dn') || 'dc=example,dc=org';
-    var usersOu = v('users_ou')|| 'ou=users,' + baseDn;
-    var bindDn  = v('bind_dn') || 'cn=admin,' + baseDn;
-    var docker  = 'ldap';
+    var baseDn     = v('base_dn') || 'dc=example,dc=org';
+    var usersOu    = v('users_ou')|| 'ou=users,' + baseDn;
+    var disabledOu = v('disabled_ou') || 'ou=disabled,' + baseDn;
+    var bindDn     = v('bind_dn') || 'cn=admin,' + baseDn;
+    var docker     = 'ldap';
 
-    // SZO
+    // SZO — opcjonalne: przycisk "Zapisz i uruchom" wyzej zapisuje te same
+    // parametry do bazy, wiec edycja config.local.php nie jest wymagana.
+    // Ten blok zostaje dla instalacji, ktore wola trzymac konfiguracje w pliku.
     var szoTxt =
       "define('LDAP_ENABLED',  true);\n" +
       "define('LDAP_HOST',     '127.0.0.1');  // Docker internal: '" + docker + "'\n" +
@@ -564,7 +635,8 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       "define('LDAP_BIND_DN',  '" + bindDn + "');\n" +
       "define('LDAP_BIND_PW',  '...');  // LDAP_ADMIN_PASSWORD z docker/.env\n" +
       "define('LDAP_BASE_DN',  '" + baseDn + "');\n" +
-      "define('LDAP_USERS_OU', '" + usersOu + "');";
+      "define('LDAP_USERS_OU', '" + usersOu + "');\n" +
+      "define('LDAP_DISABLED_OU', '" + disabledOu + "');";
     document.getElementById('blk-szo').textContent = szoTxt;
 
     // Gitea

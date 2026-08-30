@@ -42,16 +42,23 @@ class LdapDirectory
     /** @var resource|\LDAP\Connection|null */
     private $conn = null;
 
+    /**
+     * Kolejność pierwszeństwa dla każdego parametru: $cfg jawnie przekazany >
+     * ustawienie zapisane przez Konfigurator (tabela `settings`, edytowalne
+     * bez dostępu do serwera) > stała LDAP_* z config.local.php > domyślna.
+     * Dzięki temu admin może skonfigurować LDAP wyłącznie przez GUI
+     * (tozsamosc/ldap.php?tab=konfigurator), bez SSH i edycji plików.
+     */
     public function __construct(array $cfg = [])
     {
-        $this->host       = $cfg['host']        ?? (defined('LDAP_HOST') ? LDAP_HOST : '');
-        $this->port       = (int) ($cfg['port'] ?? (defined('LDAP_PORT') ? LDAP_PORT : 389));
-        $this->useTls     = (bool) ($cfg['use_tls'] ?? (defined('LDAP_USE_TLS') ? LDAP_USE_TLS : false));
-        $this->bindDn     = $cfg['bind_dn']     ?? (defined('LDAP_BIND_DN') ? LDAP_BIND_DN : '');
-        $this->bindPw     = $cfg['bind_pw']     ?? (defined('LDAP_BIND_PW') ? LDAP_BIND_PW : '');
-        $this->baseDn     = $cfg['base_dn']     ?? (defined('LDAP_BASE_DN') ? LDAP_BASE_DN : '');
-        $this->usersOu    = $cfg['users_ou']    ?? (defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '');
-        $this->disabledOu = $cfg['disabled_ou'] ?? (defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : '');
+        $this->host       = $cfg['host']        ?? (ldap_setting('ldap_host')     ?: (defined('LDAP_HOST') ? LDAP_HOST : ''));
+        $this->port       = (int) ($cfg['port'] ?? (ldap_setting('ldap_port')     ?: (defined('LDAP_PORT') ? LDAP_PORT : 389)));
+        $this->useTls     = (bool) ($cfg['use_tls'] ?? (ldap_setting('ldap_use_tls') !== '' ? ldap_setting('ldap_use_tls') === '1' : (defined('LDAP_USE_TLS') ? LDAP_USE_TLS : false)));
+        $this->bindDn     = $cfg['bind_dn']     ?? (ldap_setting('ldap_bind_dn')  ?: (defined('LDAP_BIND_DN') ? LDAP_BIND_DN : ''));
+        $this->bindPw     = $cfg['bind_pw']     ?? (ldap_setting('ldap_bind_pw')  ?: (defined('LDAP_BIND_PW') ? LDAP_BIND_PW : ''));
+        $this->baseDn     = $cfg['base_dn']     ?? (ldap_setting('ldap_base_dn')  ?: (defined('LDAP_BASE_DN') ? LDAP_BASE_DN : ''));
+        $this->usersOu    = $cfg['users_ou']    ?? (ldap_setting('ldap_users_ou') ?: (defined('LDAP_USERS_OU') ? LDAP_USERS_OU : ''));
+        $this->disabledOu = $cfg['disabled_ou'] ?? (ldap_setting('ldap_disabled_ou') ?: (defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : ''));
     }
 
     /** Czy integracja ma komplet parametrów, by w ogóle próbować połączenia. */
@@ -666,4 +673,46 @@ function ldap_run_sync(): array
     }
 
     return ['summary' => $summary, 'items' => $items];
+}
+
+/**
+ * Zapisuje parametry połączenia (z formularza Konfiguratora) do tabeli
+ * `settings`, zapewnia istnienie obu gałęzi katalogu i od razu wykonuje
+ * pełną synchronizację — samoobsługowa konfiguracja bez SSH / edycji
+ * config.local.php. Hasło nadpisywane TYLKO gdy podano nową wartość
+ * (puste pole = zachowaj już zapisane), wzorem admin/m365_settings.php.
+ *
+ * @param array $params host, port, base_dn, users_ou, disabled_ou, bind_dn, bind_pw, use_tls
+ * @return array{install: array{users_ou: string, disabled_ou: string}, sync: array}
+ * @throws RuntimeException gdy brak wymaganych pól albo bind/połączenie nieudane —
+ *         ustawienia SĄ już zapisane w tym momencie, więc admin poprawia tylko błędne pole
+ */
+function ldap_configure_and_run(array $params): array
+{
+    ldap_save_setting('ldap_host', trim((string) ($params['host'] ?? '')));
+    ldap_save_setting('ldap_port', (string) (int) ($params['port'] ?? 389));
+    ldap_save_setting('ldap_base_dn', trim((string) ($params['base_dn'] ?? '')));
+    ldap_save_setting('ldap_users_ou', trim((string) ($params['users_ou'] ?? '')));
+    ldap_save_setting('ldap_disabled_ou', trim((string) ($params['disabled_ou'] ?? '')));
+    ldap_save_setting('ldap_bind_dn', trim((string) ($params['bind_dn'] ?? '')));
+    ldap_save_setting('ldap_use_tls', !empty($params['use_tls']) ? '1' : '0');
+
+    $bindPw = trim((string) ($params['bind_pw'] ?? ''));
+    if ($bindPw !== '') {
+        ldap_save_setting('ldap_bind_pw', $bindPw);
+    }
+
+    $ldap = new LdapDirectory();
+    if (!$ldap->is_configured()) {
+        throw new RuntimeException('Uzupełnij wszystkie wymagane pola (Host, Bind DN, Hasło, Users OU).');
+    }
+    $ldap->connect();
+
+    $install = [
+        'users_ou'    => $ldap->ensure_users_ou(),
+        'disabled_ou' => $ldap->ensure_disabled_ou(),
+    ];
+    $ldap->close();
+
+    return ['install' => $install, 'sync' => ldap_run_sync()];
 }
