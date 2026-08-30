@@ -31,6 +31,9 @@ function cgd_migrate(): void {
     db()->exec("CREATE INDEX IF NOT EXISTS idx_contract_documents_contract
                 ON contract_documents(contract_type, contract_id)");
 
+    // Samonaprawa schematu — instalacje sprzed tej kolumny nie mają jej jeszcze.
+    try { db()->exec("ALTER TABLE contract_documents ADD COLUMN nr_karty TEXT NULL"); } catch (\Throwable $e) {}
+
     db()->exec("CREATE TABLE IF NOT EXISTS contract_data_verifications (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         contract_type TEXT     NOT NULL,
@@ -79,6 +82,22 @@ function cgd_verification_status(string $contract_type, int $contract_id): array
     ];
 }
 
+/**
+ * Generuje unikalny numer Karty Weryfikacji Danych: EZD-KaWer/{6 cyfr}{3 litery}.
+ * Sprawdza unikalność w bazie (kolizja losowa jest bliska zeru, ale i tak
+ * zabezpieczamy się przed nią pętlą).
+ */
+function cgd_generate_karta_numer(): string {
+    cgd_migrate();
+    do {
+        $digits  = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $letters = '';
+        for ($i = 0; $i < 3; $i++) $letters .= chr(random_int(65, 90));
+        $numer = 'EZD-KaWer/' . $digits . $letters;
+    } while (db_one("SELECT id FROM contract_documents WHERE nr_karty=?", [$numer]));
+    return $numer;
+}
+
 /** Statusy dokumentu wraz z etykietami (kolejność = ścieżka procesu). */
 function cgd_statuses(): array {
     return [
@@ -125,10 +144,15 @@ function cgd_missing_placeholders(string $template_body, array $map): array {
     return $missing;
 }
 
+/** Tekst wstawiany zamiast placeholdera, gdy koordynator jawnie oznaczy pole jako niedostępne. */
+const CGD_NO_DATA_LABEL = 'Brak danych w systemie';
+
 /**
  * Krok 1 — generuje dokument z wzorca: podstawia dane umowy (i ewentualne
  * ręcznie uzupełnione braki z $overrides) i zapisuje nowy wiersz w
  * contract_documents (status początkowy: 'szkic').
+ * Wzory oznaczone jako verifies_data dostają dodatkowo unikalny numer karty
+ * (patrz cgd_generate_karta_numer()) dostępny w treści jako {nr_karty}.
  * Zwraca ID nowo utworzonego dokumentu, albo null gdy wzorzec nie istnieje.
  */
 function cgd_create(int $template_id, string $contract_type, int $contract_id, int $created_by, array $overrides = []): ?int {
@@ -140,6 +164,13 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
     $row  = cgd_source_row($contract_type, $contract_id);
     $map  = cte_build_map($contract_type, $row);
     if ($overrides) $map = array_merge($map, $overrides);
+
+    $nr_karty = null;
+    if (!empty($tpl['verifies_data'])) {
+        $nr_karty = cgd_generate_karta_numer();
+        $map['{nr_karty}'] = $nr_karty;
+    }
+
     $html = cte_render($tpl['body'], $map);
 
     $doc_id = db_insert('contract_documents', [
@@ -147,6 +178,7 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
         'contract_type' => $contract_type,
         'contract_id'   => $contract_id,
         'tresc_finalna' => $html,
+        'nr_karty'      => $nr_karty,
         'status'        => 'szkic',
         'created_by'    => $created_by ?: null,
         'created_at'    => date('Y-m-d H:i:s'),
@@ -157,6 +189,49 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
     }
 
     return $doc_id;
+}
+
+/**
+ * Buduje HTML nagłówka organizacji (logo, nazwa, adres, NIP/KRS, numer/data)
+ * — ten sam wygląd w podglądzie/edycji (edytuj.php) i w eksporcie PDF
+ * (contracts/dokumenty/pdf.php), żeby to, co koordynator widzi przy edycji,
+ * odpowiadało temu, co dostanie na wydruku.
+ */
+function cgd_org_header_html(array $doc, array $row): string {
+    $org_name  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+    $org_adres = org_setting('org_adres') ?: '';
+    $org_nip   = org_setting('org_nip') ?: '';
+    $org_krs   = org_setting('org_krs') ?: '';
+    $org_city  = org_setting('org_miejscowosc') ?: '';
+
+    $logo_b64 = ''; $logo_mime = 'image/png';
+    $logo_file = org_setting('org_logo');
+    if ($logo_file) {
+        $lpath = dirname(__DIR__) . '/assets/logo/' . basename($logo_file);
+        if (file_exists($lpath) && filesize($lpath) < 500_000) {
+            $logo_b64  = base64_encode(file_get_contents($lpath));
+            $logo_mime = str_ends_with(strtolower($logo_file), '.svg') ? 'image/svg+xml'
+                       : (str_ends_with(strtolower($logo_file), '.jpg') ? 'image/jpeg' : 'image/png');
+        }
+    }
+
+    $doc_ref  = $doc['nr_karty'] ?? ($row['numer_umowy'] ?? '');
+    $doc_date = date('d.m.Y', strtotime($doc['updated_at'] ?? $doc['created_at']));
+    $meta = trim(($org_adres ?: '') . ($org_nip ? "\nNIP: {$org_nip}" . ($org_krs ? " · KRS: {$org_krs}" : '') : ''));
+
+    $html  = '<div class="doc-org-header" style="width:100%;border-bottom:1.5pt solid #000;padding-bottom:8pt;margin-bottom:14pt">';
+    $html .= '<table style="width:100%;border-collapse:collapse"><tr>';
+    $html .= '<td style="width:70%;vertical-align:top">';
+    if ($logo_b64) $html .= '<img src="data:' . $logo_mime . ';base64,' . $logo_b64 . '" style="height:30pt;margin-bottom:4pt"/><br/>';
+    $html .= '<span style="font-size:11pt;font-weight:bold;text-transform:uppercase">' . htmlspecialchars($org_name) . '</span><br/>';
+    if ($meta) $html .= '<span style="font-size:8pt;color:#444;white-space:pre-line">' . nl2br(htmlspecialchars($meta)) . '</span>';
+    $html .= '</td>';
+    $html .= '<td style="text-align:right;font-size:8pt;color:#555;vertical-align:top">';
+    if ($doc_ref) $html .= htmlspecialchars($doc_ref) . '<br/>';
+    $html .= ($org_city ? htmlspecialchars($org_city) . ', ' : '') . 'dnia ' . $doc_date;
+    $html .= '</td></tr></table></div>';
+
+    return $html;
 }
 
 function cgd_get(int $id): ?array {

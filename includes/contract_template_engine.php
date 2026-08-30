@@ -64,6 +64,10 @@ function cte_variables(): array {
             '{wynagrodzenie}'  => 'Wynagrodzenie / kwota',
             '{nr_konta}'       => 'Numer konta bankowego',
         ],
+        'Karta Weryfikacji Danych' => [
+            '{nr_karty}' => 'Numer karty EZD-KaWer/… (nadawany automatycznie — tylko dla wzorów '
+                          . 'oznaczonych jako „Karta Weryfikacji Danych")',
+        ],
     ];
 }
 
