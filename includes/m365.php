@@ -178,6 +178,14 @@ class M365Graph {
         );
     }
 
+    /** Aktualizuje wyświetlaną nazwę konta (np. przy zmianie imienia/nazwiska w SZO). */
+    public function update_profile(string $user_id, string $display_name): void {
+        $this->http_patch(
+            "https://graph.microsoft.com/v1.0/users/{$user_id}",
+            ['displayName' => $display_name]
+        );
+    }
+
     // ── Reset hasła ──────────────────────────────────────────────────────────
 
     public function set_password(string $user_id, string $password, bool $force_change = true): void {
