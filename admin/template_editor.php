@@ -86,7 +86,7 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 
 <style>
-#editorWrap { display:flex; gap:0; height:calc(100vh - 130px); min-height:500px; }
+#editorWrap { display:flex; gap:0; height:calc(100vh - 130px); min-height:500px; background:#fff; }
 #editorMain { flex:1; display:flex; flex-direction:column; min-width:0; }
 #editorSide { width:260px; flex-shrink:0; display:flex; flex-direction:column; overflow:hidden; border-left:1px solid #e2e8f0; }
 #quillEditor { flex:1; font-size:.93rem; overflow-y:auto; }
