@@ -10,12 +10,14 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_room_reports.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
 karty30_migrate();
 ti_planner_ext_migrate();
+k30_ti_reschedule_migrate();
 
 $course_id = (int)($_GET['course_id'] ?? 0);
 if (!$course_id || !dyd_owns_course($uid, $course_id)) {
@@ -56,6 +58,12 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   .lb-cell .instr     { color: #334155; font-size: 9pt; }
   .lb-cell .room      { color: #0f766e; font-size: 9pt; }
   .lb-empty { color: #cbd5e1; }
+  .exceptions { margin-top: 16px; }
+  .exceptions h2 { font-size: 10.5pt; color: #334155; margin: 0 0 6px; }
+  .exceptions ul { margin: 0; padding-left: 18px; }
+  .exceptions li { font-size: 9.5pt; margin-bottom: 3px; }
+  .exceptions .arrow { color: #94a3b8; margin: 0 4px; }
+  .exceptions .room { color: #0f766e; }
   .page-footer { color: #94a3b8; font-size: 8pt; padding: 10px 20px 16px; border-top: 1px solid #e2e8f0; margin-top: 8px; }
   @media print {
     .controls { display: none; }
@@ -119,6 +127,16 @@ $org = defined('APP_ORG') ? APP_ORG : '';
       <?php endforeach; ?>
     </tbody>
   </table>
+<?php endif; ?>
+<?php if ($L['exceptions']): ?>
+  <div class="exceptions">
+    <h2>Zmiany terminów w tym okresie</h2>
+    <ul>
+      <?php foreach ($L['exceptions'] as $ex): ?>
+      <li><?= h($ex['from_label']) ?><span class="arrow">→</span><strong><?= h($ex['to_label']) ?></strong><?php if ($ex['room'] !== '—'): ?>, <span class="room"><?= h($ex['room']) ?></span><?php endif; ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
 <?php endif; ?>
 </div>
 <div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?></div>

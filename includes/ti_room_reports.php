@@ -82,6 +82,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
     $rows = db_all(
         "SELECT s.lesson_date, s.time_from, s.time_to, s.instructor_id, s.room_id,
+                s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
                 u.name AS instr_name, r.name AS room_name, r.location AS room_location
          FROM k30_ti_sessions s
          LEFT JOIN users u ON u.id = s.instructor_id
@@ -95,17 +96,35 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
 
     // Grupuj po (dow, time_from, time_to) — biorąc najczęściej występującego
     // prowadzącego/salę w tym slocie (zwykle jednorodne, ale zastępstwa się zdarzają).
+    // Lekcja przeniesioną na inny termin (rescheduled_from_*) grupujemy wg jej
+    // PIERWOTNEGO slotu, żeby siatka nadal pokazywała normalny plan tygodnia —
+    // sam wyjątek trafia osobno do $exceptions (adnotacja pod siatką w wydruku).
     $slots = [];
+    $exceptions = [];
     foreach ($rows as $r) {
-        $dow = (int)date('N', strtotime((string)$r['lesson_date']));
-        $tf  = substr((string)$r['time_from'], 0, 5);
-        $tt  = substr((string)$r['time_to'], 0, 5);
+        $has_orig = trim((string)($r['rescheduled_from_date'] ?? '')) !== '';
+        $group_date = $has_orig ? (string)$r['rescheduled_from_date']      : (string)$r['lesson_date'];
+        $group_tf   = $has_orig ? (string)$r['rescheduled_from_time_from'] : (string)$r['time_from'];
+        $group_tt   = $has_orig ? (string)$r['rescheduled_from_time_to']   : (string)$r['time_to'];
+
+        $dow = (int)date('N', strtotime($group_date));
+        $tf  = substr($group_tf, 0, 5);
+        $tt  = substr($group_tt, 0, 5);
         $tk  = $tf . '–' . $tt;
         $slots[$tk][$dow]['count']       = ($slots[$tk][$dow]['count'] ?? 0) + 1;
         $slots[$tk][$dow]['instructors'][] = $r['instr_name'] ?: $course['instructor_name'];
         $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $course['location']);
         $slots[$tk][$dow]['rooms'][] = $room_lbl;
-        $slots[$tk][$dow]['dates'][] = (string)$r['lesson_date'];
+        $slots[$tk][$dow]['dates'][] = $group_date;
+
+        if ($has_orig) {
+            $exceptions[] = [
+                'from_label' => date('d.m.Y', strtotime($group_date)) . ' (' . TI_DAYS_PL_FULL[$dow] . '), ' . $tf . '–' . $tt,
+                'to_label'   => date('d.m.Y', strtotime((string)$r['lesson_date'])) . ' (' . (TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['lesson_date']))] ?? '') . '), '
+                                . substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5),
+                'room'       => $room_lbl,
+            ];
+        }
     }
 
     $grid = [];
@@ -124,6 +143,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     }
     $time_slots = array_keys($grid);
     usort($time_slots, fn($a, $b) => substr($a, 0, 5) <=> substr($b, 0, 5));
+    usort($exceptions, fn($a, $b) => $a['from_label'] <=> $b['from_label']);
 
     return [
         'course'     => $course,
@@ -131,6 +151,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
         'to'         => $to,
         'time_slots' => $time_slots,
         'grid'       => $grid,
+        'exceptions' => $exceptions,
     ];
 }
 

@@ -38,6 +38,23 @@ function k30_ti_reschedule_migrate(): void {
         created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_resch_sess ON k30_ti_reschedule_requests(session_id, status)");
+
+    // Ślad PIERWOTNEGO terminu na samej lekcji — przetrwa niezależnie od
+    // k30_ti_reschedule_requests (ta ścieżka istnieje tylko dla propozycji
+    // kursanta/opiekuna, nie dla bezpośredniej zmiany przez prowadzącego).
+    // Dzięki temu plan w formacie Librus (ti_librus_grid()) może dalej pokazać
+    // lekcję w jej NORMALNYM slocie tygodniowym, z adnotacją o przeniesieniu,
+    // zamiast tworzyć osobną, mylącą kolumnę/wiersz dla jednorazowego wyjątku.
+    $exist_sessions = array_column(db_all("PRAGMA table_info(k30_ti_sessions)"), 'name');
+    foreach ([
+        'rescheduled_from_date'      => 'TEXT',
+        'rescheduled_from_time_from' => 'TEXT',
+        'rescheduled_from_time_to'   => 'TEXT',
+    ] as $col => $def) {
+        if (!in_array($col, $exist_sessions, true)) {
+            try { db()->exec("ALTER TABLE k30_ti_sessions ADD COLUMN $col $def"); } catch (\Throwable) {}
+        }
+    }
 }
 
 /** Wylicza czas trwania (min) z godzin od–do; gdy brak — zwraca null (nie zmieniaj). */
@@ -53,14 +70,47 @@ function _k30_ti_dur_min(string $tf, string $tt): ?int {
  */
 function k30_ti_do_reschedule(int $session_id, string $date, string $tf, string $tt): ?array {
     k30_ti_reschedule_migrate();
-    $old = db_one("SELECT lesson_date, time_from, time_to, duration_min FROM k30_ti_sessions WHERE id=?", [$session_id]);
+    $old = db_one(
+        "SELECT lesson_date, time_from, time_to, duration_min,
+                rescheduled_from_date, rescheduled_from_time_from, rescheduled_from_time_to
+         FROM k30_ti_sessions WHERE id=?",
+        [$session_id]
+    );
     if (!$old) return null;
     $dur = _k30_ti_dur_min($tf, $tt) ?? (int)($old['duration_min'] ?? 60);
-    db()->prepare(
-        "UPDATE k30_ti_sessions
-         SET lesson_date=?, time_from=?, time_to=?, duration_min=?, updated_at=datetime('now')
-         WHERE id=?"
-    )->execute([$date, $tf, $tt, $dur, $session_id]);
+
+    $already_moved = trim((string)($old['rescheduled_from_date'] ?? '')) !== '';
+    $changed       = $date !== (string)$old['lesson_date'] || $tf !== (string)$old['time_from'] || $tt !== (string)$old['time_to'];
+    // Powrót dokładnie na zapamiętany pierwotny slot — to już nie jest wyjątek,
+    // więc kasujemy ślad (inaczej plan Librus pokazywałby fałszywy wpis w "Zmianach terminów").
+    $back_to_orig  = $already_moved
+        && $date === (string)$old['rescheduled_from_date']
+        && $tf   === (string)$old['rescheduled_from_time_from']
+        && $tt   === (string)$old['rescheduled_from_time_to'];
+
+    if ($back_to_orig) {
+        db()->prepare(
+            "UPDATE k30_ti_sessions
+             SET lesson_date=?, time_from=?, time_to=?, duration_min=?,
+                 rescheduled_from_date=NULL, rescheduled_from_time_from=NULL, rescheduled_from_time_to=NULL,
+                 updated_at=datetime('now')
+             WHERE id=?"
+        )->execute([$date, $tf, $tt, $dur, $session_id]);
+    } elseif ($changed && !$already_moved) {
+        // Pierwsza zmiana terminu tej lekcji — zapamiętaj slot, w którym normalnie
+        // by wypadła (patrz komentarz w k30_ti_reschedule_migrate()).
+        db()->prepare(
+            "UPDATE k30_ti_sessions
+             SET lesson_date=?, time_from=?, time_to=?, duration_min=?,
+                 rescheduled_from_date=?, rescheduled_from_time_from=?, rescheduled_from_time_to=?,
+                 updated_at=datetime('now')
+             WHERE id=?"
+        )->execute([$date, $tf, $tt, $dur, $old['lesson_date'], $old['time_from'], $old['time_to'], $session_id]);
+    } else {
+        db()->prepare(
+            "UPDATE k30_ti_sessions SET lesson_date=?, time_from=?, time_to=?, duration_min=?, updated_at=datetime('now') WHERE id=?"
+        )->execute([$date, $tf, $tt, $dur, $session_id]);
+    }
     return [
         'lesson_date' => (string)($old['lesson_date'] ?? ''),
         'time_from'   => (string)($old['time_from'] ?? ''),
