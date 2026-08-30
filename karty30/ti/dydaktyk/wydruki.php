@@ -200,8 +200,18 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
         <h3 class="h6 fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary" aria-hidden="true"></i>Wykaz sal do rezerwacji</h3>
-        <p class="small text-body-secondary">Lista kontrolna dla koordynatora logistycznego — terminy z przypisaną salą, pogrupowane dniami, ze statusem zgłoszenia.</p>
-        <a class="btn btn-sm btn-primary w-100" href="sale_rezerwacje.php" target="_blank"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Pokaż wykaz (bieżący tydzień)</a>
+        <p class="small text-body-secondary mb-1">Lista kontrolna dla koordynatora logistycznego — terminy z przypisaną salą, pogrupowane dniami, ze statusem zgłoszenia.</p>
+        <form method="get" action="sale_rezerwacje.php" target="_blank" class="row g-2 mt-1">
+          <div class="col-12">
+            <select name="range" class="form-select form-select-sm">
+              <option value="week">Tydzień (bieżący)</option>
+              <option value="month">Miesiąc (bieżący)</option>
+              <option value="quarter">3 miesiące (od bieżącego)</option>
+            </select>
+          </div>
+          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
+        </form>
       </div></div>
     </div>
 

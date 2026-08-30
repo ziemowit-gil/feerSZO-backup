@@ -27,30 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'toggle_r
 
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w = (string)($_GET['w'] ?? '');
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $w)) $w = date('Y-m-d');
-
-$months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
-              7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
-
-if ($range === 'month') {
-    $from  = date('Y-m-01', strtotime($w));
-    $to    = date('Y-m-t',  strtotime($w));
-    $prev  = date('Y-m-01', strtotime($from . ' -1 month'));
-    $next  = date('Y-m-01', strtotime($from . ' +1 month'));
-    $range_label = $months_pl[(int)date('n', strtotime($from))] . ' ' . date('Y', strtotime($from));
-} elseif ($range === 'quarter') {
-    $from  = date('Y-m-01', strtotime($w));
-    $to    = date('Y-m-t',  strtotime($from . ' +2 months'));
-    $prev  = date('Y-m-01', strtotime($from . ' -3 months'));
-    $next  = date('Y-m-01', strtotime($from . ' +3 months'));
-    $range_label = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to)) . ' (3 mies.)';
-} else {
-    $from  = date('Y-m-d', strtotime('monday this week', strtotime($w)));
-    $to    = date('Y-m-d', strtotime($from . ' +6 days'));
-    $prev  = date('Y-m-d', strtotime($from . ' -7 days'));
-    $next  = date('Y-m-d', strtotime($from . ' +7 days'));
-    $range_label = date('d.m', strtotime($from)) . '–' . date('d.m.Y', strtotime($to));
-}
+$RR = ti_room_reservation_range($w, $range);
+$from = $RR['from']; $to = $RR['to']; $prev = $RR['prev']; $next = $RR['next']; $range_label = $RR['label'];
 
 $by_day = ti_room_reservation_report($from, $to);
 $total  = array_sum(array_map('count', $by_day));
@@ -87,6 +65,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
     <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
     <button onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer me-1"></i>Drukuj</button>
+    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>" target="_blank" class="btn btn-sm btn-primary">
+      <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
+    </a>
   </div>
 </div>
 

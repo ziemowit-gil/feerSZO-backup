@@ -16,6 +16,42 @@ declare(strict_types=1);
 
 const TI_DAYS_PL_FULL = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',7=>'Niedziela'];
 
+/**
+ * Zakres dat dla wykazu sal do rezerwacji — wspólny dla widoku HTML (sale_rezerwacje.php)
+ * i eksportu PDF (sale_rezerwacje_pdf.php), żeby logika „tydzień/miesiąc/3 miesiące"
+ * i nawigacja prev/next nie rozjechały się między nimi.
+ *
+ * @param string $w      data kotwicząca zakres (Y-m-d)
+ * @param string $range  'week' | 'month' | 'quarter'
+ * @return array{from:string,to:string,prev:string,next:string,label:string}
+ */
+function ti_room_reservation_range(string $w, string $range): array {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $w)) $w = date('Y-m-d');
+    $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                  7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+
+    if ($range === 'month') {
+        $from  = date('Y-m-01', strtotime($w));
+        $to    = date('Y-m-t',  strtotime($w));
+        $prev  = date('Y-m-01', strtotime($from . ' -1 month'));
+        $next  = date('Y-m-01', strtotime($from . ' +1 month'));
+        $label = $months_pl[(int)date('n', strtotime($from))] . ' ' . date('Y', strtotime($from));
+    } elseif ($range === 'quarter') {
+        $from  = date('Y-m-01', strtotime($w));
+        $to    = date('Y-m-t',  strtotime($from . ' +2 months'));
+        $prev  = date('Y-m-01', strtotime($from . ' -3 months'));
+        $next  = date('Y-m-01', strtotime($from . ' +3 months'));
+        $label = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to)) . ' (3 mies.)';
+    } else {
+        $from  = date('Y-m-d', strtotime('monday this week', strtotime($w)));
+        $to    = date('Y-m-d', strtotime($from . ' +6 days'));
+        $prev  = date('Y-m-d', strtotime($from . ' -7 days'));
+        $next  = date('Y-m-d', strtotime($from . ' +7 days'));
+        $label = date('d.m', strtotime($from)) . '–' . date('d.m.Y', strtotime($to));
+    }
+    return ['from' => $from, 'to' => $to, 'prev' => $prev, 'next' => $next, 'label' => $label];
+}
+
 /** Etykieta lokalizacji dla wyświetlenia: nazwa sali + jej lokalizacja, albo wolny tekst z kursu. */
 function ti_room_label(?array $room, ?string $course_location = null): string {
     if ($room) {
