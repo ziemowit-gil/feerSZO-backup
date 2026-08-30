@@ -102,6 +102,10 @@ if (!defined('LDAP_BIND_DN'))   define('LDAP_BIND_DN',   getenv('LDAP_BIND_DN') 
 if (!defined('LDAP_BIND_PW'))   define('LDAP_BIND_PW',   getenv('LDAP_BIND_PW') ?: '');
 if (!defined('LDAP_BASE_DN'))   define('LDAP_BASE_DN',   getenv('LDAP_BASE_DN') ?: 'dc=feer,dc=org,dc=pl');
 if (!defined('LDAP_USERS_OU'))  define('LDAP_USERS_OU',  getenv('LDAP_USERS_OU') ?: 'ou=users,dc=feer,dc=org,dc=pl');
+// Gałąź, do której trafiają konta dezaktywowane w SZO (is_active=0) — synchronizacja
+// przenosi wpis tutaj zamiast go kasować, więc appki bindujące po prostym filtrze
+// na LDAP_USERS_OU automatycznie przestają je widzieć.
+if (!defined('LDAP_DISABLED_OU')) define('LDAP_DISABLED_OU', getenv('LDAP_DISABLED_OU') ?: 'ou=disabled,dc=feer,dc=org,dc=pl');
 
 // ── SZO Planner ───────────────────────────────────────────────────────────────
 // URL aplikacji Angular SZO Planner. Lokalnie: http://localhost:4201

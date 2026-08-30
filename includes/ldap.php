@@ -3,11 +3,17 @@
  * Klient LDAP — jednokierunkowy eksport kont SZO do katalogu OpenLDAP.
  *
  * Analogia do includes/m365.php: klasa transportowa współdzielona przez GUI
- * (admin/ldap_sync.php) oraz CLI (cron/sync_ldap.php) + helpery ustawień.
+ * (admin/ldap_sync.php, tozsamosc/ldap.php) oraz CLI (cron/sync_ldap.php) +
+ * helpery ustawień.
  *
  * Kierunek zawsze SZO -> LDAP. Nie modyfikujemy tabeli `users`, nie usuwamy
- * wpisów w katalogu (synchronizacja addytywna). LDAP nie bierze udziału w
- * logowaniu do SZO — dlatego NIE eksportujemy haseł.
+ * wpisów w katalogu. LDAP nie bierze udziału w logowaniu do SZO — dlatego
+ * NIE eksportujemy haseł.
+ *
+ * Status konta JEST propagowany: `is_active=0` przenosi wpis z LDAP_USERS_OU
+ * do LDAP_DISABLED_OU (nie kasuje go), więc appki bindujące po prostym
+ * filtrze na users_ou przestają widzieć dezaktywowane konto. Reaktywacja
+ * przenosi wpis z powrotem.
  *
  * Mapowanie atrybutów (inetOrgPerson):
  *   uid, employeeNumber <- users.id      (w SZO „UID = users.id")
@@ -20,6 +26,8 @@
  *   ou                  <- jednostka organizacyjna (org_units.name)
  */
 
+require_once __DIR__ . '/m365.php';
+
 class LdapDirectory
 {
     private string $host;
@@ -27,19 +35,23 @@ class LdapDirectory
     private bool $useTls;
     private string $bindDn;
     private string $bindPw;
+    private string $baseDn;
     private string $usersOu;
+    private string $disabledOu;
 
     /** @var resource|\LDAP\Connection|null */
     private $conn = null;
 
     public function __construct(array $cfg = [])
     {
-        $this->host    = $cfg['host']     ?? (defined('LDAP_HOST') ? LDAP_HOST : '');
-        $this->port    = (int) ($cfg['port'] ?? (defined('LDAP_PORT') ? LDAP_PORT : 389));
-        $this->useTls  = (bool) ($cfg['use_tls'] ?? (defined('LDAP_USE_TLS') ? LDAP_USE_TLS : false));
-        $this->bindDn  = $cfg['bind_dn']  ?? (defined('LDAP_BIND_DN') ? LDAP_BIND_DN : '');
-        $this->bindPw  = $cfg['bind_pw']  ?? (defined('LDAP_BIND_PW') ? LDAP_BIND_PW : '');
-        $this->usersOu = $cfg['users_ou'] ?? (defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '');
+        $this->host       = $cfg['host']        ?? (defined('LDAP_HOST') ? LDAP_HOST : '');
+        $this->port       = (int) ($cfg['port'] ?? (defined('LDAP_PORT') ? LDAP_PORT : 389));
+        $this->useTls     = (bool) ($cfg['use_tls'] ?? (defined('LDAP_USE_TLS') ? LDAP_USE_TLS : false));
+        $this->bindDn     = $cfg['bind_dn']     ?? (defined('LDAP_BIND_DN') ? LDAP_BIND_DN : '');
+        $this->bindPw     = $cfg['bind_pw']     ?? (defined('LDAP_BIND_PW') ? LDAP_BIND_PW : '');
+        $this->baseDn     = $cfg['base_dn']     ?? (defined('LDAP_BASE_DN') ? LDAP_BASE_DN : '');
+        $this->usersOu    = $cfg['users_ou']    ?? (defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '');
+        $this->disabledOu = $cfg['disabled_ou'] ?? (defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : '');
     }
 
     /** Czy integracja ma komplet parametrów, by w ogóle próbować połączenia. */
@@ -85,10 +97,10 @@ class LdapDirectory
     }
 
     /**
-     * Utwórz lub zaktualizuj wpis użytkownika w katalogu.
+     * Utwórz, zaktualizuj lub przenieś (aktywacja/dezaktywacja) wpis użytkownika.
      *
      * @param  array  $u  wiersz z tabeli `users` (opc. wzbogacony przez ldap_collect_users)
-     * @return string 'created' albo 'updated'
+     * @return string 'created' | 'updated' | 'deactivated' | 'reactivated' | 'skipped'
      * @throws RuntimeException przy błędzie operacji LDAP
      */
     public function upsert_user(array $u): string
@@ -102,21 +114,81 @@ class LdapDirectory
             throw new RuntimeException('Rekord bez identyfikatora (users.id).');
         }
 
-        $dn = 'uid=' . self::escapeRdn($uid) . ',' . $this->usersOu;
-        $attrs = $this->buildAttributes($u, $uid);
+        $isActive   = !empty($u['is_active']);
+        $existingDn = $this->find_existing_dn($uid);
 
-        if ($this->entryExists($dn)) {
-            // Nie ruszamy atrybutu nazewniczego (uid) przy modyfikacji.
-            unset($attrs['uid'], $attrs['objectClass']);
-            if (!@ldap_modify($this->conn, $dn, $attrs)) {
+        // Konto nieaktywne, którego nigdy nie było w katalogu — nic do zrobienia.
+        if ($existingDn === null && !$isActive) {
+            return 'skipped';
+        }
+
+        $targetOu = $isActive ? $this->usersOu : $this->disabledOu();
+        $targetDn = 'uid=' . self::escapeRdn($uid) . ',' . $targetOu;
+        $attrs    = $this->buildAttributes($u, $uid);
+
+        if ($existingDn === null) {
+            if (!@ldap_add($this->conn, $targetDn, $attrs)) {
                 throw new RuntimeException(ldap_error($this->conn));
             }
 
-            return 'updated';
+            return 'created';
         }
 
-        if (!@ldap_add($this->conn, $dn, $attrs)) {
+        $moved = strcasecmp($existingDn, $targetDn) !== 0;
+        if ($moved) {
+            $rdn = 'uid=' . self::escapeRdn($uid);
+            if (!@ldap_rename($this->conn, $existingDn, $rdn, $targetOu, true)) {
+                throw new RuntimeException(
+                    ($isActive ? 'Reaktywacja' : 'Dezaktywacja') . ' (przeniesienie wpisu) nieudana: '
+                    . ldap_error($this->conn)
+                );
+            }
+        }
+
+        // Nie ruszamy atrybutu nazewniczego (uid) przy modyfikacji.
+        unset($attrs['uid'], $attrs['objectClass']);
+        if (!@ldap_modify($this->conn, $targetDn, $attrs)) {
             throw new RuntimeException(ldap_error($this->conn));
+        }
+
+        if ($moved) {
+            return $isActive ? 'reactivated' : 'deactivated';
+        }
+
+        return 'updated';
+    }
+
+    /**
+     * Zapewnij istnienie gałęzi (OU) kont dezaktywowanych. Idempotentne,
+     * analogiczne do ensure_users_ou().
+     *
+     * @return string 'exists' albo 'created'
+     * @throws RuntimeException przy błędzie LDAP
+     */
+    public function ensure_disabled_ou(): string
+    {
+        if ($this->conn === null) {
+            $this->connect();
+        }
+
+        $dn = $this->disabledOu();
+        if ($this->entryExists($dn)) {
+            return 'exists';
+        }
+
+        $rdn = explode(',', $dn)[0] ?? '';
+        $val = trim(explode('=', $rdn, 2)[1] ?? '');
+        if ($val === '') {
+            throw new RuntimeException('Nieprawidłowe LDAP_DISABLED_OU: ' . $dn);
+        }
+
+        $entry = [
+            'objectClass' => ['top', 'organizationalUnit'],
+            'ou'          => $val,
+        ];
+
+        if (!@ldap_add($this->conn, $dn, $entry)) {
+            throw new RuntimeException('Nie udało się utworzyć OU „' . $dn . '": ' . ldap_error($this->conn));
         }
 
         return 'created';
@@ -226,6 +298,43 @@ class LdapDirectory
         return $search !== false && @ldap_count_entries($this->conn, $search) > 0;
     }
 
+    /**
+     * Odnajdź DN istniejącego wpisu po uid, niezależnie od tego, w której
+     * gałęzi (users/disabled) aktualnie się znajduje — potrzebne, żeby
+     * wykryć zmianę statusu aktywności między przebiegami synchronizacji.
+     */
+    private function find_existing_dn(string $uid): ?string
+    {
+        $filter = '(&(objectClass=inetOrgPerson)(uid=' . self::escapeFilter($uid) . '))';
+        $search = @ldap_search($this->conn, $this->baseDn(), $filter, ['dn'], 0, 1);
+        if ($search === false) {
+            return null;
+        }
+
+        $entries = @ldap_get_entries($this->conn, $search);
+        if (!$entries || ($entries['count'] ?? 0) === 0) {
+            return null;
+        }
+
+        return $entries[0]['dn'];
+    }
+
+    private function baseDn(): string
+    {
+        if ($this->baseDn !== '') {
+            return $this->baseDn;
+        }
+        // Wyprowadź z usersOu, gdyby LDAP_BASE_DN nie był ustawiony osobno.
+        $comma = strpos($this->usersOu, ',');
+
+        return $comma !== false ? substr($this->usersOu, $comma + 1) : $this->usersOu;
+    }
+
+    private function disabledOu(): string
+    {
+        return $this->disabledOu !== '' ? $this->disabledOu : ('ou=disabled,' . $this->baseDn());
+    }
+
     /** Escapowanie wartości RDN (RFC 4514) dla bezpiecznego DN. */
     private static function escapeRdn(string $value): string
     {
@@ -234,6 +343,16 @@ class LdapDirectory
         }
 
         return addcslashes($value, "\\,+\"<>;=#");
+    }
+
+    /** Escapowanie wartości w filtrze wyszukiwania (RFC 4515). */
+    private static function escapeFilter(string $value): string
+    {
+        if (function_exists('ldap_escape')) {
+            return ldap_escape($value, '', LDAP_ESCAPE_FILTER);
+        }
+
+        return addcslashes($value, "\\*()\0");
     }
 }
 
@@ -288,13 +407,16 @@ function ldap_enrich_row(array &$u): void
 }
 
 /**
- * Zbiór aktywnych kont do eksportu, wzbogaconych o dane organizacyjne.
+ * Zbiór WSZYSTKICH kont (aktywnych i nieaktywnych) do synchronizacji,
+ * wzbogaconych o dane organizacyjne. Konta nieaktywne muszą tu być —
+ * to jedyny sposób, żeby upsert_user() wykrył dezaktywację i przeniósł
+ * wpis do LDAP_DISABLED_OU.
  *
  * @return array<int, array<string, mixed>>
  */
 function ldap_collect_users(): array
 {
-    $rows = db_all('SELECT * FROM users WHERE is_active = 1 ORDER BY id');
+    $rows = db_all('SELECT * FROM users ORDER BY id');
 
     foreach ($rows as &$u) {
         ldap_enrich_row($u);
@@ -316,4 +438,232 @@ function ldap_user_row(int $id): ?array
     ldap_enrich_row($u);
 
     return $u;
+}
+
+// ── Kolejka ponowień (LDAP i M365 Graph) ────────────────────────────────────
+//
+// Błąd pojedynczego użytkownika (LDAP chwilowo padł, Graph rzucił 429/5xx)
+// nie przerywa reszty przebiegu — trafia tutaj i jest ponawiany z rosnącym
+// odstępem (exponential backoff) przy kolejnych uruchomieniach synchronizacji,
+// aż do limitu prób. Po przekroczeniu limitu wpis zostaje jako "dead letter"
+// do ręcznego przeglądu (ldap_queue_dead_letters()).
+
+const LDAP_QUEUE_MAX_ATTEMPTS = 8;
+const LDAP_QUEUE_BASE_BACKOFF = 30; // sekund; 30, 60, 120, ... maks. 3600
+
+function ldap_queue_migrate(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    db()->exec("CREATE TABLE IF NOT EXISTS ldap_sync_queue (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        target          TEXT     NOT NULL,
+        user_id         INTEGER  NOT NULL,
+        attempts        INTEGER  NOT NULL DEFAULT 0,
+        next_attempt_at DATETIME NOT NULL,
+        last_error      TEXT,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+}
+
+function ldap_queue_enqueue(string $target, int $user_id, string $error): void
+{
+    ldap_queue_migrate();
+    db_insert('ldap_sync_queue', [
+        'target'          => $target,
+        'user_id'         => $user_id,
+        'attempts'        => 0,
+        'next_attempt_at' => date('Y-m-d H:i:s'),
+        'last_error'      => $error,
+    ]);
+}
+
+/** Operacje gotowe do ponowienia (czas backoffu minął, limit prób nie przekroczony). */
+function ldap_queue_due(string $target): array
+{
+    ldap_queue_migrate();
+
+    return db_all(
+        'SELECT * FROM ldap_sync_queue WHERE target = ? AND attempts < ? AND next_attempt_at <= ? ORDER BY id',
+        [$target, LDAP_QUEUE_MAX_ATTEMPTS, date('Y-m-d H:i:s')]
+    );
+}
+
+function ldap_queue_mark_success(int $id): void
+{
+    db_exec('DELETE FROM ldap_sync_queue WHERE id = ?', [$id]);
+}
+
+function ldap_queue_mark_failure(array $op, string $error): void
+{
+    $attempts = (int) $op['attempts'] + 1;
+    $backoff  = min(LDAP_QUEUE_BASE_BACKOFF * (2 ** $attempts), 3600);
+    db_exec(
+        'UPDATE ldap_sync_queue SET attempts = ?, next_attempt_at = ?, last_error = ? WHERE id = ?',
+        [$attempts, date('Y-m-d H:i:s', time() + $backoff), $error, (int) $op['id']]
+    );
+}
+
+/** Operacje, które wyczerpały limit prób — wymagają ręcznego przeglądu. */
+function ldap_queue_dead_letters(string $target = ''): array
+{
+    ldap_queue_migrate();
+    if ($target !== '') {
+        return db_all(
+            'SELECT * FROM ldap_sync_queue WHERE target = ? AND attempts >= ? ORDER BY id',
+            [$target, LDAP_QUEUE_MAX_ATTEMPTS]
+        );
+    }
+
+    return db_all('SELECT * FROM ldap_sync_queue WHERE attempts >= ? ORDER BY id', [LDAP_QUEUE_MAX_ATTEMPTS]);
+}
+
+// ── Powiązanie z M365 Graph ──────────────────────────────────────────────────
+//
+// WYŁĄCZNIE dla kont już powiązanych z Entra ID (users.microsoft_id ustawiony
+// przez istniejący, kontraktowy przepływ m365_auto_link_or_create_local() —
+// ten moduł NIGDY nie zakłada nowych kont M365 samodzielnie). Synchronizujemy
+// tylko to, co już eksportujemy do LDAP: status konta i wyświetlaną nazwę.
+
+/**
+ * @throws RuntimeException gdy Graph zwróci błąd (>=400) — wołający kolejkuje retry.
+ */
+function ldap_sync_graph_profile(M365Graph $graph, array $u): void
+{
+    $userId = (string) ($u['microsoft_id'] ?? '');
+    if ($userId === '') {
+        return;
+    }
+
+    $graph->set_enabled($userId, !empty($u['is_active']));
+    if ($graph->last_status() >= 400) {
+        throw new RuntimeException('Graph set_enabled: ' . json_encode($graph->last_error()));
+    }
+
+    $name = trim((string) ($u['name'] ?? ''));
+    if ($name !== '') {
+        $graph->update_profile($userId, $name);
+        if ($graph->last_status() >= 400) {
+            throw new RuntimeException('Graph update_profile: ' . json_encode($graph->last_error()));
+        }
+    }
+}
+
+// ── Orkiestrator: jeden pełny przebieg (LDAP + Graph + drenaż kolejki) ──────
+//
+// Współdzielony przez cron/sync_ldap.php, admin/ldap_sync.php i tozsamosc/ldap.php,
+// żeby logika (kolejkowanie błędów, powiązanie z Graph) istniała w jednym miejscu.
+
+/**
+ * @return array{
+ *   summary: array{ldap: array<string,int>, graph: array<string,int>, retried: array<string,int>},
+ *   items: array<int, array<string, mixed>>
+ * }
+ * @throws RuntimeException gdy LDAP nie jest skonfigurowany/nieosiągalny (cały przebieg przerwany)
+ */
+function ldap_run_sync(): array
+{
+    $ldap = new LdapDirectory();
+    if (!$ldap->is_configured()) {
+        throw new RuntimeException('LDAP nie jest skonfigurowany (uzupełnij stałe LDAP_* w config.local.php).');
+    }
+    $ldap->connect();
+
+    try {
+        $ldap->ensure_disabled_ou();
+    } catch (\Throwable $e) {
+        // Nie przerywamy całego przebiegu — brak OU ujawni się jako błąd
+        // pojedynczej dezaktywacji i trafi do kolejki retry.
+        error_log('[LDAP sync] ensure_disabled_ou: ' . $e->getMessage());
+    }
+
+    $graph       = new M365Graph();
+    $graphReady  = $graph->is_configured();
+
+    $summary = [
+        'ldap'    => ['created' => 0, 'updated' => 0, 'deactivated' => 0, 'reactivated' => 0, 'skipped' => 0, 'error' => 0],
+        'graph'   => ['updated' => 0, 'skipped' => 0, 'error' => 0],
+        'retried' => ['ldap' => 0, 'graph' => 0],
+    ];
+    $items = [];
+
+    foreach (ldap_collect_users() as $user) {
+        $uid  = (int) ($user['id'] ?? 0);
+        $item = ['user_id' => $uid, 'name' => $user['name'] ?? '', 'email' => $user['email'] ?? ''];
+
+        try {
+            $item['ldap_action'] = $ldap->upsert_user($user);
+            $summary['ldap'][$item['ldap_action']]++;
+        } catch (\Throwable $e) {
+            $item['ldap_action'] = 'error';
+            $item['ldap_error']  = $e->getMessage();
+            $summary['ldap']['error']++;
+            error_log('[LDAP sync] uid=' . $uid . ': ' . $e->getMessage());
+            ldap_queue_enqueue('ldap', $uid, $e->getMessage());
+        }
+
+        if ($graphReady && !empty($user['microsoft_id'])) {
+            try {
+                ldap_sync_graph_profile($graph, $user);
+                $item['graph_action'] = 'updated';
+                $summary['graph']['updated']++;
+            } catch (\Throwable $e) {
+                $item['graph_action'] = 'error';
+                $item['graph_error']  = $e->getMessage();
+                $summary['graph']['error']++;
+                error_log('[Graph sync] uid=' . $uid . ': ' . $e->getMessage());
+                ldap_queue_enqueue('graph', $uid, $e->getMessage());
+            }
+        } else {
+            $item['graph_action'] = null; // konto nigdy nie powiązane z M365 — nic do zrobienia
+            $summary['graph']['skipped']++;
+        }
+
+        $items[] = $item;
+    }
+
+    $ldap->close();
+    ldap_save_setting('ldap_last_sync', date('Y-m-d H:i:s'));
+
+    // Drenaż zakolejkowanych wcześniej błędów, którym minął czas backoffu.
+    foreach (ldap_queue_due('ldap') as $op) {
+        $u = db_one('SELECT * FROM users WHERE id = ?', [(int) $op['user_id']]);
+        if (!$u) {
+            ldap_queue_mark_success((int) $op['id']);
+            continue;
+        }
+        try {
+            $ldap2 = new LdapDirectory();
+            $ldap2->connect();
+            $ldap2->upsert_user($u);
+            $ldap2->close();
+            ldap_queue_mark_success((int) $op['id']);
+            $summary['retried']['ldap']++;
+        } catch (\Throwable $e) {
+            ldap_queue_mark_failure($op, $e->getMessage());
+        }
+    }
+
+    if ($graphReady) {
+        foreach (ldap_queue_due('graph') as $op) {
+            $u = db_one('SELECT * FROM users WHERE id = ?', [(int) $op['user_id']]);
+            if (!$u || empty($u['microsoft_id'])) {
+                ldap_queue_mark_success((int) $op['id']);
+                continue;
+            }
+            try {
+                ldap_sync_graph_profile($graph, $u);
+                ldap_queue_mark_success((int) $op['id']);
+                $summary['retried']['graph']++;
+            } catch (\Throwable $e) {
+                ldap_queue_mark_failure($op, $e->getMessage());
+            }
+        }
+    }
+
+    return ['summary' => $summary, 'items' => $items];
 }

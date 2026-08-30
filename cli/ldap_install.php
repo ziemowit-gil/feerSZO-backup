@@ -79,7 +79,7 @@ try {
 
 // ── 3. Gałąź ou=users ─────────────────────────────────────────────────────────
 if ($dry) {
-    $info('DRY-RUN: pomijam tworzenie OU (' . LDAP_USERS_OU . ').');
+    $info('DRY-RUN: pomijam tworzenie OU (' . LDAP_USERS_OU . ' i ' . LDAP_DISABLED_OU . ').');
 } else {
     try {
         $res = $ldap->ensure_users_ou();
@@ -88,6 +88,18 @@ if ($dry) {
             : $ok('Gałąź już istnieje: ' . LDAP_USERS_OU);
     } catch (\Throwable $e) {
         $err('Nie udało się zapewnić OU: ' . $e->getMessage());
+        $ldap->close();
+        exit(1);
+    }
+
+    // ── 4. Gałąź ou=disabled (konta dezaktywowane w SZO) ────────────────────────
+    try {
+        $res = $ldap->ensure_disabled_ou();
+        $res === 'created'
+            ? $ok('Utworzono gałąź ' . LDAP_DISABLED_OU)
+            : $ok('Gałąź już istnieje: ' . LDAP_DISABLED_OU);
+    } catch (\Throwable $e) {
+        $err('Nie udało się zapewnić OU dezaktywowanych: ' . $e->getMessage());
         $ldap->close();
         exit(1);
     }

@@ -19,53 +19,49 @@ $PAGE_TITLE = 'Synchronizacja kont LDAP';
 $results = [];
 $ran = false;
 
+$ACTION_LABELS = [
+    'created'     => 'Utworzono wpis',
+    'updated'     => 'Zaktualizowano wpis',
+    'deactivated' => 'Przeniesiono do dezaktywowanych',
+    'reactivated' => 'Przywrócono z dezaktywowanych',
+    'skipped'     => 'Pominięto (nieaktywny, nigdy nie był w LDAP)',
+];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $ran = true;
 
-    $created = 0;
-    $updated = 0;
-    $failed = 0;
-
     try {
-        $ldap = new LdapDirectory();
-        if (!$ldap->is_configured()) {
-            throw new RuntimeException('LDAP nie jest skonfigurowany (uzupełnij stałe LDAP_* w config.local.php).');
-        }
-        $ldap->connect();
+        $sync = ldap_run_sync();
 
-        foreach (ldap_collect_users() as $user) {
-            try {
-                $action = $ldap->upsert_user($user);
-                $action === 'created' ? $created++ : $updated++;
-
-                $results[] = [
-                    'status' => 'ok',
-                    'name'   => $user['name'] ?? '',
-                    'login'  => $user['email'] ?? '',
-                    'action' => $action === 'created' ? 'Utworzono wpis' : 'Zaktualizowano wpis',
-                ];
-            } catch (\Throwable $e) {
-                $failed++;
-                error_log('[LDAP sync] uid=' . ($user['id'] ?? '?') . ': ' . $e->getMessage());
-                $results[] = [
-                    'status' => 'err',
-                    'name'   => $user['name'] ?? '',
-                    'login'  => $user['email'] ?? '',
-                    'action' => '',
-                    'msg'    => $e->getMessage(),
-                ];
+        foreach ($sync['items'] as $item) {
+            $label = $ACTION_LABELS[$item['ldap_action']] ?? $item['ldap_action'];
+            if ($item['graph_action'] === 'updated') {
+                $label .= ' · M365: zaktualizowano';
+            } elseif ($item['graph_action'] === 'error') {
+                $label .= ' · M365: błąd';
             }
+
+            $results[] = [
+                'status' => $item['ldap_action'] === 'error' || $item['graph_action'] === 'error' ? 'err' : 'ok',
+                'name'   => $item['name'],
+                'login'  => $item['email'],
+                'action' => $item['ldap_action'] === 'error' ? '' : $label,
+                'msg'    => trim(($item['ldap_error'] ?? '') . (($item['graph_error'] ?? '') ? ' | M365: ' . $item['graph_error'] : '')),
+            ];
         }
 
-        $ldap->close();
-        ldap_save_setting('ldap_last_sync', date('Y-m-d H:i:s'));
+        $l = $sync['summary']['ldap'];
+        $g = $sync['summary']['graph'];
+        $summary = "LDAP — utworzono: {$l['created']}, zaktualizowano: {$l['updated']}, "
+            . "dezaktywowano: {$l['deactivated']}, reaktywowano: {$l['reactivated']}, błędy: {$l['error']}."
+            . ($g['updated'] > 0 || $g['error'] > 0 ? " M365 — zaktualizowano: {$g['updated']}, błędy: {$g['error']}." : '');
 
-        $summary = "Utworzono: {$created}, zaktualizowano: {$updated}, błędy: {$failed}.";
         if (function_exists('admin_audit')) {
-            admin_audit('ldap_sync', 'ldap', $summary, 0, 'Eksport kont do LDAP');
+            admin_audit('ldap_sync', 'ldap', $summary, 0, 'Eksport kont do LDAP + M365');
         }
-        flash_set($failed > 0 ? 'warning' : 'success', 'Synchronizacja LDAP zakończona. ' . $summary);
+        $hasErrors = $l['error'] > 0 || $g['error'] > 0;
+        flash_set($hasErrors ? 'warning' : 'success', 'Synchronizacja zakończona. ' . $summary);
     } catch (\Throwable $e) {
         flash_set('danger', 'Synchronizacja LDAP przerwana: ' . $e->getMessage());
     }
@@ -83,9 +79,11 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <div class="card shadow-sm mb-3">
     <div class="card-body">
       <p class="mb-2">
-        Jednokierunkowy eksport aktywnych kont (<code>users</code>) do katalogu
-        <span class="fw-semibold"><?= h(defined('LDAP_HOST') ? LDAP_HOST : '—') ?></span>.
-        Logowanie do SZO pozostaje lokalne — hasła nie są eksportowane.
+        Jednokierunkowy eksport wszystkich kont (<code>users</code>) do katalogu
+        <span class="fw-semibold"><?= h(defined('LDAP_HOST') ? LDAP_HOST : '—') ?></span> —
+        dezaktywowane konta trafiają do gałęzi <code><?= h(defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : 'ou=disabled') ?></code>
+        zamiast być kasowane. Konta powiązane z M365 (<code>microsoft_id</code>) są dodatkowo
+        aktualizowane w Entra ID (status, nazwa). Logowanie do SZO pozostaje lokalne — hasła nie są eksportowane.
       </p>
 
       <div class="alert alert-light border small mb-3">
@@ -96,7 +94,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <button type="submit" class="btn btn-primary"
-                onclick="return confirm('Zsynchronizować wszystkie aktywne konta do LDAP?');">
+                onclick="return confirm('Zsynchronizować wszystkie konta do LDAP (i M365 dla powiązanych)?');">
           <i class="bi bi-arrow-repeat"></i> Synchronizuj teraz
         </button>
       </form>

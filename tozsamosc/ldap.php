@@ -89,37 +89,46 @@ $_tab           = in_array($_GET['tab'] ?? '', ['sync', 'katalog', 'konfigurator
 $action_results = [];
 $action_ran     = false;
 
+$LDAP_ACTION_LABELS = [
+    'created'     => 'Nowy wpis',
+    'updated'     => 'Zaktualizowano',
+    'deactivated' => 'Przeniesiono do dezaktywowanych',
+    'reactivated' => 'Przywrocono z dezaktywowanych',
+    'skipped'     => 'Pominieto',
+];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'sync') {
     csrf_check();
     $_tab       = 'sync';
     $action_ran = true;
-    $created = $updated = $failed = 0;
 
     try {
-        $ldap = new LdapDirectory();
-        if (!$ldap->is_configured()) {
-            throw new RuntimeException('LDAP nie jest skonfigurowany (uzupelnij LDAP_* w config.local.php).');
-        }
-        $ldap->connect();
+        $sync = ldap_run_sync();
 
-        foreach (ldap_collect_users() as $user) {
-            try {
-                $act = $ldap->upsert_user($user);
-                $act === 'created' ? $created++ : $updated++;
-                $action_results[] = ['ok' => true,  'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $act === 'created' ? 'Nowy wpis' : 'Zaktualizowano'];
-            } catch (\Throwable $e) {
-                $failed++;
-                error_log('[LDAP sync] uid=' . ($user['id'] ?? '?') . ': ' . $e->getMessage());
-                $action_results[] = ['ok' => false, 'name' => $user['name'] ?? '', 'login' => $user['email'] ?? '', 'msg' => $e->getMessage()];
+        foreach ($sync['items'] as $item) {
+            $msg = $LDAP_ACTION_LABELS[$item['ldap_action']] ?? ($item['ldap_error'] ?? $item['ldap_action']);
+            if ($item['graph_action'] === 'updated') {
+                $msg .= ' + M365';
+            } elseif ($item['graph_action'] === 'error') {
+                $msg .= ' (M365: ' . $item['graph_error'] . ')';
             }
+            $action_results[] = [
+                'ok'    => $item['ldap_action'] !== 'error' && $item['graph_action'] !== 'error',
+                'name'  => $item['name'],
+                'login' => $item['email'],
+                'msg'   => $msg,
+            ];
         }
 
-        $ldap->close();
-        ldap_save_setting('ldap_last_sync', date('Y-m-d H:i:s'));
+        $l = $sync['summary']['ldap'];
+        $g = $sync['summary']['graph'];
         if (function_exists('admin_audit')) {
-            admin_audit('ldap_sync', 'ldap', "Utw: {$created}, upd: {$updated}, err: {$failed}.", 0);
+            admin_audit('ldap_sync', 'ldap', "Utw: {$l['created']}, upd: {$l['updated']}, dezakt: {$l['deactivated']}, err: {$l['error']}.", 0);
         }
-        flash_set($failed > 0 ? 'warning' : 'success', "Synchronizacja zakonczona - nowe: {$created}, zaktualizowane: {$updated}, bledy: {$failed}.");
+        $hasErrors = $l['error'] > 0 || $g['error'] > 0;
+        flash_set($hasErrors ? 'warning' : 'success',
+            "Synchronizacja zakonczona - nowe: {$l['created']}, zaktualizowane: {$l['updated']}, "
+            . "dezaktywowane: {$l['deactivated']}, reaktywowane: {$l['reactivated']}, bledy: {$l['error']}.");
     } catch (\Throwable $e) {
         flash_set('danger', 'Synchronizacja przerwana: ' . $e->getMessage());
     }
@@ -282,7 +291,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
     <div style="grid-column:1/-1"><dt>Blad polaczenia</dt><dd class="text-danger small font-monospace"><?= h($conn_err) ?></dd></div>
     <?php endif; ?>
   </div>
-  <div class="tz-note"><i class="bi bi-info-circle"></i> Synchronizacja jest addytywna — nie usuwa istniejacych wpisow z katalogu.</div>
+  <div class="tz-note"><i class="bi bi-info-circle"></i> Synchronizacja nigdy nie kasuje wpisow z katalogu — dezaktywacja przenosi konto do <code><?= h(defined('LDAP_DISABLED_OU') ? LDAP_DISABLED_OU : 'ou=disabled') ?></code>.</div>
 </div>
 
 <div class="tz-card mb-3">
@@ -292,8 +301,9 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       <p class="text-muted small mb-0">Najpierw skonfiguruj polaczenie LDAP w zakładce <a href="?tab=konfigurator">Konfigurator</a>.</p>
     <?php else: ?>
     <p class="small text-muted mb-3">
-      Eksportuje wszystkie aktywne konta (<code>is_active=1</code>) do katalogu LDAP.
-      Istniejace wpisy sa aktualizowane; nowe tworzone.
+      Eksportuje wszystkie konta do katalogu LDAP: aktywne sa tworzone/aktualizowane,
+      nieaktywne przenoszone do galezi dezaktywowanych. Konta juz powiazane z M365
+      (<code>microsoft_id</code>) sa dodatkowo aktualizowane w Entra ID (status + nazwa).
     </p>
     <form method="post">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
