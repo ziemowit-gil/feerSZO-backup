@@ -201,45 +201,19 @@ $cfg_bind_dn     = ldap_setting('ldap_bind_dn')     ?: (defined('LDAP_BIND_DN') 
 $cfg_use_tls     = ldap_setting('ldap_use_tls') !== '' ? ldap_setting('ldap_use_tls') === '1' : (defined('LDAP_USE_TLS') && LDAP_USE_TLS);
 $cfg_has_bind_pw = ldap_setting('ldap_bind_pw') !== '' || (defined('LDAP_BIND_PW') && LDAP_BIND_PW !== '');
 
-// Odczyt katalogu (tylko na zakładce katalog)
+// Odczyt katalogu (tylko na zakładce katalog) — przez LdapDirectory, żeby
+// konfiguracja (ustawienia z bazy albo stałe LDAP_*) była brana z JEDNEGO
+// miejsca, tego samego co reszta strony (patrz LdapDirectory::__construct).
 $ldap_entries = [];
 $ldap_err_msg = '';
 if ($_tab === 'katalog' && $ldap_configured) {
-    $host2 = defined('LDAP_HOST')     ? LDAP_HOST     : '';
-    $port2 = defined('LDAP_PORT')     ? (int)LDAP_PORT : 389;
-    $dn2   = defined('LDAP_BIND_DN')  ? LDAP_BIND_DN  : '';
-    $pw2   = defined('LDAP_BIND_PW')  ? LDAP_BIND_PW  : '';
-    $ou2   = defined('LDAP_USERS_OU') ? LDAP_USERS_OU : '';
-
-    $c2 = @ldap_connect(sprintf('ldap://%s:%d', $host2, $port2));
-    if ($c2) {
-        ldap_set_option($c2, LDAP_OPT_PROTOCOL_VERSION, 3);
-        ldap_set_option($c2, LDAP_OPT_REFERRALS, 0);
-        ldap_set_option($c2, LDAP_OPT_NETWORK_TIMEOUT, 5);
-        if (@ldap_bind($c2, $dn2, $pw2)) {
-            $res2 = @ldap_search($c2, $ou2, '(objectClass=inetOrgPerson)',
-                ['uid','cn','mail','telephoneNumber','title','ou','displayName']);
-            if ($res2) {
-                $all2 = ldap_get_entries($c2, $res2);
-                for ($i = 0; $i < ($all2['count'] ?? 0); $i++) {
-                    $e2 = $all2[$i];
-                    $ldap_entries[] = [
-                        'uid'   => $e2['uid'][0] ?? '',
-                        'cn'    => $e2['cn'][0] ?? ($e2['displayname'][0] ?? ''),
-                        'mail'  => $e2['mail'][0] ?? '',
-                        'phone' => $e2['telephonenumber'][0] ?? '',
-                        'title' => $e2['title'][0] ?? '',
-                        'ou'    => $e2['ou'][0] ?? '',
-                    ];
-                }
-                usort($ldap_entries, fn($a, $b) => strcmp($a['cn'], $b['cn']));
-            }
-        } else {
-            $ldap_err_msg = 'Bind nieudany: ' . ldap_error($c2);
-        }
-        @ldap_unbind($c2);
-    } else {
-        $ldap_err_msg = 'Nie mozna nawiazac polaczenia LDAP.';
+    try {
+        $dir = new LdapDirectory();
+        $dir->connect();
+        $ldap_entries = $dir->search_users();
+        $dir->close();
+    } catch (\Throwable $e) {
+        $ldap_err_msg = $e->getMessage();
     }
 }
 

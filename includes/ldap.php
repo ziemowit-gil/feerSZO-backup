@@ -245,6 +245,49 @@ class LdapDirectory
         }
     }
 
+    /**
+     * Odczyt kont z gałęzi użytkowników — do przeglądarki katalogu (zakładka
+     * Katalog). Celowo NIE duplikuje connect/bind gdzie indziej w kodzie:
+     * zawsze przez tę metodę, żeby konfiguracja (host/DN/hasło) była brana
+     * z jednego miejsca (patrz __construct — ustawienia z bazy albo stałe).
+     *
+     * @return array<int, array{uid: string, cn: string, mail: string, phone: string, title: string, ou: string}>
+     * @throws RuntimeException przy błędzie wyszukiwania
+     */
+    public function search_users(): array
+    {
+        if ($this->conn === null) {
+            $this->connect();
+        }
+
+        $search = @ldap_search(
+            $this->conn,
+            $this->usersOu,
+            '(objectClass=inetOrgPerson)',
+            ['uid', 'cn', 'mail', 'telephoneNumber', 'title', 'ou', 'displayName']
+        );
+        if ($search === false) {
+            throw new RuntimeException('Wyszukiwanie nieudane: ' . ldap_error($this->conn));
+        }
+
+        $all     = @ldap_get_entries($this->conn, $search);
+        $entries = [];
+        for ($i = 0; $i < ($all['count'] ?? 0); $i++) {
+            $e         = $all[$i];
+            $entries[] = [
+                'uid'   => $e['uid'][0] ?? '',
+                'cn'    => $e['cn'][0] ?? ($e['displayname'][0] ?? ''),
+                'mail'  => $e['mail'][0] ?? '',
+                'phone' => $e['telephonenumber'][0] ?? '',
+                'title' => $e['title'][0] ?? '',
+                'ou'    => $e['ou'][0] ?? '',
+            ];
+        }
+        usort($entries, fn ($a, $b) => strcmp($a['cn'], $b['cn']));
+
+        return $entries;
+    }
+
     // ── Wewnętrzne ─────────────────────────────────────────────────────────────
 
     /**
