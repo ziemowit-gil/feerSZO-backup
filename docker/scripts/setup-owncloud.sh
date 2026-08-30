@@ -4,34 +4,72 @@
 # serwerze/hoście Docker.
 #
 # Uruchom z katalogu docker/ na serwerze, tam gdzie leży .env.prod:
-#   cd /opt/feer-szo/docker && bash setup-owncloud.sh [domena]
+#   cd /opt/feer-szo/docker && bash setup-owncloud.sh [domena] [opcje]
 #
 # Domyślna domena: owncloud.feer.org.pl (można nadpisać argumentem).
+#
+# Opcje:
+#   --reset-admin-password   Wygeneruj NOWE hasło administratora ownCloud
+#                             (nadpisuje istniejące w .env.prod i na żywym
+#                             koncie przez occ user:resetpassword) — jedyny
+#                             krok, który celowo NIE jest idempotentny.
+#   --app-container=NAZWA    Kontener aplikacji FEER SZO do automatycznej
+#                             konfiguracji (domyślnie: feer-app). Ustaw np.
+#                             feer-testy-app, żeby skonfigurować środowisko
+#                             testowe zamiast produkcji.
+#   --reconfigure             NIEODWRACALNE: usuwa kontener ownCloud I jego
+#                             wolumin (WSZYSTKIE pliki, konta, ustawienia)
+#                             i instaluje od zera. Wymaga interaktywnego
+#                             potwierdzenia (wpisanie hasła kontrolnego) —
+#                             odmawia działania bez terminala. Tworzy kopię
+#                             zapasową woluminu przed usunięciem (docker/backups/),
+#                             ale to i tak ostatnia deska ratunku, nie substytut
+#                             realnego backupu. Aplikacji FEER SZO (domyślnie
+#                             feer-app) nie dotyka.
 #
 # Co robi:
 #   1. Sprawdza, że główny stack (feer-traefik) już działa — NIE startuje go
 #      od zera, dokłada się do niego.
 #   2. Dopisuje brakujące zmienne OWNCLOUD_* do istniejącego .env.prod
-#      (generuje hasło admina, jeśli jeszcze go nie ma — nie nadpisuje istniejących).
+#      (generuje hasło admina, jeśli jeszcze go nie ma — nie nadpisuje istniejących,
+#      chyba że podano --reset-admin-password).
 #   3. Sprawdza DNS domeny.
 #   4. `docker compose up -d` na docker-compose.yml + prod.yml + owncloud.yml.
 #   5. Czeka aż kontener ownCloud wstanie.
 #   6. Tworzy dedykowane konto integracyjne (occ user:add) — TYM kontem/hasłem
 #      (nie danymi admina) aplikacja łączy się przez WebDAV.
-#   7. Pokazuje dokładnie co wkleić w Admin → Integracje → Magazyn plików /
-#      ownCloud (admin/owncloud_settings.php).
+#   7. Konfiguruje WSZYSTKO automatycznie w aplikacji FEER SZO (kontener
+#      $APP_CONTAINER, cli/owncloud_reconfigure.php) — URL, konto administratora
+#      (do kont „Mój dysk” kursantów/prowadzących) i — gdy świeżo utworzone —
+#      konto integracyjne. Bez tego kroku trzeba było wklejać dane ręcznie
+#      w admin/owncloud_settings.php.
 #
 # Bezpieczne do wielokrotnego uruchamiania (idempotentne — nie nadpisuje
-# istniejących sekretów, nie tworzy konta integracyjnego drugi raz).
+# istniejących sekretów, nie tworzy konta integracyjnego drugi raz) — z
+# wyjątkiem jawnie podanego --reset-admin-password.
 
 set -euo pipefail
 
 # ── Konfiguracja ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env.prod"
-OC_DOMAIN="${1:-owncloud.feer.org.pl}"
 OC_CONTAINER="feer-owncloud"
 INTEGRATION_USER="feerszo-integracja"
+APP_CONTAINER="feer-app"
+RESET_ADMIN_PASSWORD=0
+REINSTALL_FROM_SCRATCH=0
+OC_DOMAIN=""
+
+for arg in "$@"; do
+    case "${arg}" in
+        --reset-admin-password) RESET_ADMIN_PASSWORD=1 ;;
+        --reconfigure)          REINSTALL_FROM_SCRATCH=1 ;;
+        --app-container=*)      APP_CONTAINER="${arg#*=}" ;;
+        --*)                    echo "Nieznana opcja: ${arg}" >&2; exit 1 ;;
+        *)                      OC_DOMAIN="${arg}" ;;
+    esac
+done
+OC_DOMAIN="${OC_DOMAIN:-owncloud.feer.org.pl}"
 
 COMPOSE_FILES=(-f "${SCRIPT_DIR}/docker-compose.yml" -f "${SCRIPT_DIR}/docker-compose.prod.yml" -f "${SCRIPT_DIR}/docker-compose.owncloud.yml")
 
@@ -64,6 +102,62 @@ fi
     || die "Kontener feer-traefik nie działa. Sprawdź: docker logs feer-traefik"
 ok "feer-traefik działa — ownCloud dołączy do tej samej sieci/Traefika"
 
+# ── 1b. Reinstalacja od zera (--reconfigure) ─────────────────────────────────
+if [[ "${REINSTALL_FROM_SCRATCH}" -eq 1 ]]; then
+    section "1b. Reinstalacja od zera (--reconfigure)"
+
+    VOL_NAMES=""
+    if docker inspect "${OC_CONTAINER}" &>/dev/null; then
+        VOL_NAMES="$(docker inspect "${OC_CONTAINER}" --format '{{ range .Mounts }}{{ if eq .Type "volume" }}{{ .Name }} {{ end }}{{ end }}')"
+    fi
+
+    echo -e "${RED}${BOLD}  UWAGA — TRWAŁE USUNIĘCIE DANYCH${RESET}"
+    if [[ -n "${VOL_NAMES}" ]]; then
+        echo -e "${RED}  Zostanie usunięty kontener „${OC_CONTAINER}” oraz wolumin(y):${RESET}"
+        for v in ${VOL_NAMES}; do echo -e "${RED}    - ${v}${RESET}"; done
+        echo -e "${RED}  To znaczy WSZYSTKIE pliki, konta i ustawienia wewnątrz ownCloud —${RESET}"
+        echo -e "${RED}  nieodwracalnie (poza kopią zapasową tworzoną poniżej).${RESET}"
+    else
+        echo -e "${YELLOW}  Kontener „${OC_CONTAINER}” jeszcze nie istnieje — nie ma czego usuwać,${RESET}"
+        echo -e "${YELLOW}  ten krok od razu przejdzie do świeżej instalacji.${RESET}"
+    fi
+    echo -e "${YELLOW}  Kontener i dane aplikacji FEER SZO (${APP_CONTAINER}) NIE są ruszane.${RESET}"
+    echo ""
+
+    if [[ -n "${VOL_NAMES}" ]]; then
+        if [[ ! -t 0 ]]; then
+            die "Brak terminala interaktywnego — --reconfigure wymaga ręcznego potwierdzenia. Uruchom skrypt bezpośrednio w terminalu (nie przez potok/cron)."
+        fi
+        read -r -p "  Wpisz dokładnie „usuń dane ownCloud” aby kontynuować: " CONFIRM
+        [[ "${CONFIRM}" == "usuń dane ownCloud" ]] || die "Potwierdzenie się nie zgadza — przerwano bez żadnych zmian."
+
+        BACKUP_DIR="${SCRIPT_DIR}/backups"
+        mkdir -p "${BACKUP_DIR}"
+        for v in ${VOL_NAMES}; do
+            BACKUP_FILE="${BACKUP_DIR}/${v}_$(date +%Y%m%d_%H%M%S).tar.gz"
+            info "Kopia zapasowa woluminu „${v}” → ${BACKUP_FILE}"
+            if docker run --rm -v "${v}:/data:ro" -v "${BACKUP_DIR}:/backup" alpine \
+                sh -c "tar czf /backup/$(basename "${BACKUP_FILE}") -C /data ." 2>/dev/null; then
+                ok "Zapisano ($(du -h "${BACKUP_FILE}" 2>/dev/null | cut -f1 || echo '?'))"
+            else
+                warn "Kopia zapasowa woluminu „${v}” nie powiodła się — kontynuuję mimo to (jawnie zażądano --reconfigure)."
+            fi
+        done
+
+        info "Usuwanie kontenera „${OC_CONTAINER}”..."
+        docker stop "${OC_CONTAINER}" &>/dev/null || true
+        docker rm "${OC_CONTAINER}" &>/dev/null || true
+        for v in ${VOL_NAMES}; do
+            if docker volume rm "${v}" &>/dev/null; then
+                ok "Wolumin „${v}” usunięty"
+            else
+                warn "Nie udało się usunąć woluminu „${v}” (może być w użyciu — sprawdź ręcznie: docker volume rm ${v})"
+            fi
+        done
+    fi
+    ok "Gotowe do reinstalacji — kolejne kroki utworzą ownCloud od zera."
+fi
+
 # ── 2. Zmienne w .env.prod ───────────────────────────────────────────────────
 section "2. Konfiguracja .env.prod"
 
@@ -95,8 +189,39 @@ chmod 600 "${ENV_FILE}"
 read_env_var() {
     grep -m1 "^${1}=" "${ENV_FILE}" | cut -d'=' -f2-
 }
+set_env_var() {
+    local key="$1" value="$2"
+    if grep -q "^${key}=" "${ENV_FILE}"; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+    else
+        echo "${key}=${value}" >> "${ENV_FILE}"
+    fi
+    chmod 600 "${ENV_FILE}"
+}
 OWNCLOUD_DOMAIN="$(read_env_var OWNCLOUD_DOMAIN)"
 OWNCLOUD_ADMIN_USERNAME="$(read_env_var OWNCLOUD_ADMIN_USERNAME)"
+OWNCLOUD_ADMIN_PASSWORD="$(read_env_var OWNCLOUD_ADMIN_PASSWORD)"
+
+if [[ "${RESET_ADMIN_PASSWORD}" -eq 1 ]]; then
+    OWNCLOUD_ADMIN_PASSWORD="$(openssl rand -hex 16)"
+    set_env_var "OWNCLOUD_ADMIN_PASSWORD" "${OWNCLOUD_ADMIN_PASSWORD}"
+    ok "Wygenerowano nowe hasło administratora (zapisane w ${ENV_FILE})"
+    # Jeśli ownCloud już działa i jest zainstalowany, zastosuj hasło na żywym
+    # koncie od razu — inaczej wpis w .env.prod ma znaczenie tylko przy
+    # pierwszej instalacji kontenera (świeży wolumin), nie przy istniejącej.
+    if docker inspect "${OC_CONTAINER}" &>/dev/null \
+       && [[ "$(docker inspect "${OC_CONTAINER}" --format '{{.State.Status}}')" == "running" ]] \
+       && docker exec -u www-data "${OC_CONTAINER}" occ user:list --output=json 2>/dev/null | grep -q "\"${OWNCLOUD_ADMIN_USERNAME}\""; then
+        if docker exec -u www-data -e OC_PASS="${OWNCLOUD_ADMIN_PASSWORD}" "${OC_CONTAINER}" \
+            occ user:resetpassword --password-from-env "${OWNCLOUD_ADMIN_USERNAME}" 2>/dev/null; then
+            ok "Hasło administratora zastosowane na żywym koncie „${OWNCLOUD_ADMIN_USERNAME}”"
+        else
+            warn "Nie udało się zastosować hasła przez occ — zresetuj ręcznie: docker exec -it -u www-data ${OC_CONTAINER} occ user:resetpassword ${OWNCLOUD_ADMIN_USERNAME}"
+        fi
+    else
+        info "Kontener ownCloud jeszcze nie działa — nowe hasło zostanie użyte przy pierwszej instalacji (krok 4)."
+    fi
+fi
 
 # ── 3. DNS ─────────────────────────────────────────────────────────────────────
 section "3. Sprawdzenie DNS"
@@ -153,6 +278,35 @@ else
     fi
 fi
 
+# ── 7. Konfiguracja w aplikacji FEER SZO ─────────────────────────────────────
+section "7. Konfiguracja automatyczna w aplikacji FEER SZO (${APP_CONTAINER})"
+
+APP_CONFIGURED=0
+if ! docker inspect "${APP_CONTAINER}" &>/dev/null; then
+    warn "Kontener „${APP_CONTAINER}” nie istnieje — pomijam automatyczną konfigurację."
+    info "Podaj właściwy kontener przez --app-container=NAZWA, jeśli aplikacja nazywa się inaczej."
+elif [[ "$(docker inspect "${APP_CONTAINER}" --format '{{.State.Status}}')" != "running" ]]; then
+    warn "Kontener „${APP_CONTAINER}” nie działa — pomijam automatyczną konfigurację."
+else
+    OC_RECONFIGURE_ARGS=(--url="https://${OWNCLOUD_DOMAIN}" --enabled=1
+        --admin-username="${OWNCLOUD_ADMIN_USERNAME}" --admin-password="${OWNCLOUD_ADMIN_PASSWORD}")
+
+    # Konto integracyjne (główne, WebDAV) da się wpisać automatycznie tylko
+    # gdy hasło zostało świeżo wygenerowane w tym uruchomieniu (krok 6) —
+    # ownCloud nie pozwala odczytać hasła istniejącego konta.
+    if [[ "${INTEGRATION_PASS}" != "(bez zmian"* && "${INTEGRATION_PASS}" != "(utwórz ręcznie)" ]]; then
+        OC_RECONFIGURE_ARGS+=(--username="${INTEGRATION_USER}" --password="${INTEGRATION_PASS}")
+    fi
+
+    if docker exec "${APP_CONTAINER}" php cli/owncloud_reconfigure.php "${OC_RECONFIGURE_ARGS[@]}" &>/dev/null; then
+        ok "Ustawienia zapisane w aplikacji (settings: owncloud_*)"
+        APP_CONFIGURED=1
+        docker exec "${APP_CONTAINER}" php cli/owncloud_reconfigure.php --test || true
+    else
+        warn "Nie udało się zapisać ustawień w aplikacji — sprawdź: docker exec -it ${APP_CONTAINER} php cli/owncloud_reconfigure.php --status"
+    fi
+fi
+
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════════╗${RESET}"
@@ -162,13 +316,21 @@ echo ""
 echo -e "  ${BOLD}Adres ownCloud:${RESET}  https://${OWNCLOUD_DOMAIN}/"
 echo -e "  ${BOLD}Admin (konto kontenera, panel ownCloud):${RESET}  ${OWNCLOUD_ADMIN_USERNAME} / (zob. ${ENV_FILE})"
 echo ""
-echo -e "  ${YELLOW}Teraz w aplikacji FEER SZO:${RESET} Admin → Integracje → Magazyn plików / ownCloud"
-echo -e "  ${BOLD}(admin/owncloud_settings.php)${RESET} — uzupełnij:"
-echo -e "    URL:    ${CYAN}https://${OWNCLOUD_DOMAIN}${RESET}"
-echo -e "    Login:  ${CYAN}${INTEGRATION_USER}${RESET}"
-echo -e "    Hasło:  ${CYAN}${INTEGRATION_PASS}${RESET}"
-echo -e "  a następnie kliknij „Testuj połączenie” i zapisz."
+if [[ "${APP_CONFIGURED}" -eq 1 ]]; then
+    echo -e "  ${GREEN}${BOLD}Aplikacja FEER SZO skonfigurowana automatycznie${RESET} (kontener ${APP_CONTAINER})."
+    echo -e "  Sprawdź wynik testu połączenia powyżej. W razie potrzeby: Admin → Integracje →"
+    echo -e "  Magazyn plików / ownCloud (${BOLD}admin/owncloud_settings.php${RESET})."
+else
+    echo -e "  ${YELLOW}Automatyczna konfiguracja pominięta — uzupełnij ręcznie:${RESET}"
+    echo -e "  Admin → Integracje → Magazyn plików / ownCloud (${BOLD}admin/owncloud_settings.php${RESET}):"
+    echo -e "    URL:              ${CYAN}https://${OWNCLOUD_DOMAIN}${RESET}"
+    echo -e "    Login:            ${CYAN}${INTEGRATION_USER}${RESET}"
+    echo -e "    Hasło:            ${CYAN}${INTEGRATION_PASS}${RESET}"
+    echo -e "    Login admina:     ${CYAN}${OWNCLOUD_ADMIN_USERNAME}${RESET}"
+    echo -e "    Hasło admina:     ${CYAN}(zob. ${ENV_FILE})${RESET}"
+    echo -e "  a następnie kliknij „Testuj połączenie” i zapisz."
+fi
 echo ""
 echo -e "  ${BOLD}Ponowne uruchomienie tego skryptu jest bezpieczne${RESET} (nie nadpisuje sekretów,"
-echo -e "  nie tworzy konta integracyjnego drugi raz)."
+echo -e "  nie tworzy konta integracyjnego drugi raz) — chyba że podasz --reset-admin-password."
 echo ""
