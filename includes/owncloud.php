@@ -262,6 +262,15 @@ function owncloud_create_user(array $admin_cfg, string $userid, string $password
     return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'Konto utworzone.' : ('Błąd tworzenia konta ownCloud: ' . ($r['message'] ?: "kod {$r['statuscode']}"))];
 }
 
+/** Usuwa konto w ownCloud — WSZYSTKIE pliki właściciela giną bezpowrotnie. 404 (już nie ma) traktowane jako sukces. */
+function owncloud_delete_user(array $admin_cfg, string $userid): array {
+    $r = owncloud_ocs_request($admin_cfg, 'DELETE', 'cloud/users/' . rawurlencode($userid));
+    if ($r['ok'] || $r['statuscode'] === 998) { // 998 = "not found" w OCS — już usunięte
+        return ['ok' => true, 'msg' => 'Konto usunięte.'];
+    }
+    return ['ok' => false, 'msg' => 'Błąd usuwania konta ownCloud: ' . ($r['message'] ?: "kod {$r['statuscode']}")];
+}
+
 /** Ustawia limit miejsca (np. "2048MB", "none" = bez limitu). */
 function owncloud_set_quota(array $admin_cfg, string $userid, string $quota): array {
     $r = owncloud_ocs_request($admin_cfg, 'PUT', 'cloud/users/' . rawurlencode($userid), ['key' => 'quota', 'value' => $quota]);
@@ -424,6 +433,36 @@ function owncloud_reset_student_password(int $student_account_id): array {
     ];
 }
 
+/**
+ * Usuwa istniejące konto ownCloud kursanta i zakłada nowe od zera (nowy login,
+ * nowe hasło, świeży limit). UWAGA: usuwa też WSZYSTKIE pliki, które kursant
+ * miał zapisane na starym koncie — nieodwracalnie. Wywołujący (panel kursanta)
+ * musi pokazać to ostrzeżenie PRZED wywołaniem, tu nie ma już cofnięcia.
+ */
+function owncloud_recreate_student_account(int $student_account_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+    $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student_account_id]);
+    if (!$account || empty($account['owncloud_username'])) {
+        return ['ok' => false, 'msg' => 'Nie masz jeszcze konta ownCloud — użyj „Utwórz konto”.'];
+    }
+
+    $admin_cfg = owncloud_admin_config();
+    $deleted = owncloud_delete_user($admin_cfg, $account['owncloud_username']);
+    if (!$deleted['ok']) return ['ok' => false, 'msg' => 'Nie udało się usunąć starego konta: ' . $deleted['msg']];
+
+    db()->prepare(
+        "UPDATE k30_ti_student_accounts SET owncloud_username='', owncloud_created_at=NULL, owncloud_quota_mb=0 WHERE id=?"
+    )->execute([$student_account_id]);
+
+    $created = owncloud_create_student_account($student_account_id);
+    if (!$created['ok']) return $created;
+
+    $created['msg'] = 'Stare konto usunięte (razem z plikami), nowe konto utworzone.';
+    return $created;
+}
+
 // ══ OCS PROVISIONING API — konta prowadzących (panel dydaktyka, „mój dysk") ══
 //
 // Sama mechanika co konta kursantów powyżej. Tożsamość dydaktyka to users.id
@@ -515,6 +554,32 @@ function owncloud_reset_instructor_password(int $user_id): array {
         'quota_mb' => (int)$account['owncloud_quota_mb'],
         'url'      => $admin_cfg['url'],
     ];
+}
+
+/**
+ * Usuwa istniejące konto ownCloud prowadzącego i zakłada nowe od zera (nowy
+ * login, nowe hasło, świeży limit). UWAGA: usuwa też WSZYSTKIE pliki, które
+ * prowadzący miał zapisane na starym koncie — nieodwracalnie. Wywołujący
+ * (panel dydaktyka) musi pokazać to ostrzeżenie PRZED wywołaniem.
+ */
+function owncloud_recreate_instructor_account(int $user_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+    $account = owncloud_instructor_account($user_id);
+    if (!$account) return ['ok' => false, 'msg' => 'Nie masz jeszcze konta ownCloud — użyj „Utwórz konto”.'];
+
+    $admin_cfg = owncloud_admin_config();
+    $deleted = owncloud_delete_user($admin_cfg, $account['owncloud_username']);
+    if (!$deleted['ok']) return ['ok' => false, 'msg' => 'Nie udało się usunąć starego konta: ' . $deleted['msg']];
+
+    db()->prepare("DELETE FROM k30_ti_instructor_owncloud WHERE user_id=?")->execute([$user_id]);
+
+    $created = owncloud_create_instructor_account($user_id);
+    if (!$created['ok']) return $created;
+
+    $created['msg'] = 'Stare konto usunięte (razem z plikami), nowe konto utworzone.';
+    return $created;
 }
 
 /**

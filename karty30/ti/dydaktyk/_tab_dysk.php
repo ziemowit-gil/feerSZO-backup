@@ -60,6 +60,11 @@
           <input type="hidden" name="_op"    value="owncloud_reset">
           <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
         </form>
+        <form method="post" onsubmit="return confirm('UWAGA: to usunie Twoje obecne konto ownCloud WRAZ ZE WSZYSTKIMI plikami, które masz na nim zapisane — nieodwracalnie, bez możliwości odzyskania. Zostanie od razu założone nowe, puste konto z nowym loginem i hasłem. Czy na pewno chcesz kontynuować?');">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"    value="owncloud_recreate">
+          <button type="submit" class="btn btn-outline-danger"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Utwórz konto od nowa</button>
+        </form>
       </div>
     </div>
   </div>

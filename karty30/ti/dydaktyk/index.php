@@ -411,6 +411,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($r['ok']) { $_SESSION['owncloud_reveal'] = $r; } else { flash_set('danger', $r['msg']); }
         header('Location: index.php?tab=dysk'); exit;
     }
+    // Usunięcie i ponowne założenie konta ownCloud — kasuje WSZYSTKIE pliki
+    // prowadzącego na starym koncie. Ostrzeżenie pokazuje formularz (confirm()).
+    if ($op === 'owncloud_recreate') {
+        $r = owncloud_recreate_instructor_account($uid);
+        if ($r['ok']) { $_SESSION['owncloud_reveal'] = $r; } else { flash_set('danger', $r['msg']); }
+        header('Location: index.php?tab=dysk'); exit;
+    }
 
     // ── WIADOMOŚCI — nie wymagają konkretnego course_id ─────────────────────────
     if ($op === 'dyd_msg_send') {

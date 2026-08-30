@@ -734,6 +734,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dysk'); exit;
     }
 
+    // Usunięcie i ponowne założenie konta ownCloud — kasuje WSZYSTKIE pliki
+    // kursanta na starym koncie. Ostrzeżenie pokazuje formularz (confirm()).
+    if ($op === 'owncloud_recreate') {
+        $r = owncloud_recreate_student_account((int)$student['id']);
+        if ($r['ok']) {
+            $_SESSION['owncloud_reveal'] = $r;
+        } else {
+            $_SESSION['k30_oc_msg'] = ['err', $r['msg']];
+        }
+        header('Location: index.php?tab=dysk'); exit;
+    }
+
     // Zarządzanie osobami upoważnionymi (tylko pełnoletni)
 }
 
@@ -5095,6 +5107,11 @@ document.addEventListener('DOMContentLoaded', function() {
           <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
           <input type="hidden" name="_op"    value="owncloud_reset">
           <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
+        </form>
+        <form method="post" onsubmit="return confirm('UWAGA: to usunie Twoje obecne konto ownCloud WRAZ ZE WSZYSTKIMI plikami, które masz na nim zapisane — nieodwracalnie, bez możliwości odzyskania. Zostanie od razu założone nowe, puste konto z nowym loginem i hasłem. Czy na pewno chcesz kontynuować?');">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op"    value="owncloud_recreate">
+          <button type="submit" class="btn btn-outline-danger"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Utwórz konto od nowa</button>
         </form>
       </div>
     </div>
