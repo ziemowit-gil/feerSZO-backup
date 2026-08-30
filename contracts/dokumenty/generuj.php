@@ -51,6 +51,17 @@ if (isset($_POST['confirmed'])) {
 
 $missing = cgd_missing_placeholders($tpl['body'], $map);
 
+// Karta Weryfikacji Danych nigdy nie blokuje generowania — cały jej sens to
+// pokazanie, czego brakuje w systemie, więc puste pola dostają wprost
+// KATWER_NO_DATA_LABEL zamiast pytać koordynatora. Dla pozostałych wzorów
+// (np. właściwej umowy) brakujące dane nadal wymagają ręcznego uzupełnienia.
+if ($missing && !empty($tpl['verifies_data'])) {
+    foreach ($missing as $tag => $desc) {
+        $overrides[$tag] = KATWER_NO_DATA_LABEL;
+    }
+    $missing = [];
+}
+
 if ($missing) {
     $PAGE_TITLE = 'Uzupełnij dane — ' . $tpl['name'];
     include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -81,7 +92,7 @@ if ($missing) {
             <input type="text" id="<?= $_fid ?>" name="override[<?= h($tag) ?>]" class="form-control"
                    value="<?= h($overrides[$tag] ?? '') ?>">
             <button type="button" class="btn btn-outline-secondary"
-                    onclick="document.getElementById('<?= $_fid ?>').value=<?= json_encode(CGD_NO_DATA_LABEL) ?>">
+                    onclick="document.getElementById('<?= $_fid ?>').value=<?= json_encode(KATWER_NO_DATA_LABEL) ?>">
               Brak danych w systemie
             </button>
           </div>
