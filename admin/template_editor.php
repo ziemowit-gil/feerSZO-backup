@@ -9,8 +9,10 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/contract_template_engine.php';
+require_once dirname(__DIR__) . '/includes/contract_document_engine.php';
 require_role('admin');
 cte_migrate();
+cgd_migrate();
 
 $SELF = APP_URL . '/admin/template_editor.php';
 $LIST = APP_URL . '/admin/contract_templates.php';
@@ -34,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = array_key_exists($_POST['type'] ?? '', $type_labels) ? $_POST['type'] : 'universal';
     $desc = trim($_POST['description'] ?? '');
     $body = $_POST['body'] ?? '';
+    $verifies_data = isset($_POST['verifies_data']) ? 1 : 0;
 
     if (!$name) {
         flash_set('danger', 'Nazwa wzoru jest wymagana.');
@@ -47,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'type'        => $type,
             'description' => $desc,
             'body'        => $body,
+            'verifies_data' => $verifies_data,
             'created_by'  => (int)current_user()['id'],
             'created_at'  => date('Y-m-d H:i:s'),
         ]);
@@ -56,9 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($act === 'update') {
         db()->prepare(
-            "UPDATE contract_doc_templates SET name=?,type=?,description=?,body=?,
+            "UPDATE contract_doc_templates SET name=?,type=?,description=?,body=?,verifies_data=?,
              updated_at=datetime('now','localtime') WHERE id=?"
-        )->execute([$name, $type, $desc, $body, $id]);
+        )->execute([$name, $type, $desc, $body, $verifies_data, $id]);
         flash_set('success', 'Wzor zaktualizowany.');
         header('Location: ' . $SELF . '?id=' . $id); exit;
     }
@@ -146,6 +150,15 @@ include dirname(__DIR__) . '/includes/header.php';
              placeholder="Krótki opis (opcjonalnie)"
              value="<?= h($tpl['description'] ?? '') ?>">
     </div>
+  </div>
+
+  <div class="form-check mb-2">
+    <input type="checkbox" class="form-check-input" id="verifies_data" name="verifies_data" value="1"
+           <?= !empty($tpl['verifies_data']) ? 'checked' : '' ?>>
+    <label class="form-check-label small" for="verifies_data">
+      Ten wzór to <strong>Karta Weryfikacji Danych</strong> — wygenerowanie go zapisuje datę
+      potwierdzenia aktualności danych tej umowy (ważność: <?= CGD_VERIFICATION_VALIDITY_MONTHS ?> mies.)
+    </label>
   </div>
 
   <!-- Edytor pełnoekranowy -->

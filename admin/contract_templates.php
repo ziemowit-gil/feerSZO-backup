@@ -8,10 +8,12 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/contract_template_engine.php';
+require_once dirname(__DIR__) . '/includes/contract_document_engine.php';
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 require_role('admin');
 cte_migrate();
+cgd_migrate();
 
 $PAGE_TITLE = 'Wzory dokumentów';
 $SELF       = APP_URL . '/admin/contract_templates.php';
@@ -164,6 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $type = array_key_exists($_POST['type'] ?? '', $type_labels) ? $_POST['type'] : 'universal';
         $desc = trim($_POST['description'] ?? '');
         $body = $_POST['body'] ?? '';
+        $verifies_data = isset($_POST['verifies_data']) ? 1 : 0;
 
         if (!$name) { flash_set('error', 'Nazwa szablonu jest wymagana.'); header('Location: ' . $SELF); exit; }
 
@@ -173,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'type'        => $type,
                 'description' => $desc,
                 'body'        => $body,
+                'verifies_data' => $verifies_data,
                 'created_by'  => (int)current_user()['id'],
                 'created_at'  => date('Y-m-d H:i:s'),
             ]);
@@ -180,8 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $id = (int)($_POST['id'] ?? 0);
             db()->prepare(
-                "UPDATE contract_doc_templates SET name=?, type=?, description=?, body=?, updated_at=datetime('now','localtime') WHERE id=?"
-            )->execute([$name, $type, $desc, $body, $id]);
+                "UPDATE contract_doc_templates SET name=?, type=?, description=?, body=?, verifies_data=?, updated_at=datetime('now','localtime') WHERE id=?"
+            )->execute([$name, $type, $desc, $body, $verifies_data, $id]);
             flash_set('success', 'Szablon zaktualizowany.');
         }
         header('Location: ' . $SELF); exit;
@@ -295,7 +299,13 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php endif; ?>
         <?php foreach ($templates as $t): ?>
         <tr class="tpl-row">
-          <td class="ps-3 fw-semibold"><?= h($t['name']) ?></td>
+          <td class="ps-3 fw-semibold">
+            <?= h($t['name']) ?>
+            <?php if (!empty($t['verifies_data'])): ?>
+            <i class="bi bi-patch-check-fill text-success ms-1"
+               title="Karta Weryfikacji Danych — generowanie zapisuje datę potwierdzenia danych umowy"></i>
+            <?php endif; ?>
+          </td>
           <td><span class="badge bg-secondary bg-opacity-25 text-secondary"><?= h($type_labels[$t['type']] ?? $t['type']) ?></span></td>
           <td class="small text-muted"><?= h(mb_substr($t['description'] ?? '', 0, 80)) ?></td>
           <td class="text-center">
@@ -420,6 +430,14 @@ include dirname(__DIR__) . '/includes/header.php';
               <input type="text" name="description" id="tpl-desc" class="form-control form-control-sm"
                      placeholder="Krótki opis zastosowania">
             </div>
+          </div>
+
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="tpl-verifies" name="verifies_data" value="1">
+            <label class="form-check-label small" for="tpl-verifies">
+              Ten wzór to <strong>Karta Weryfikacji Danych</strong> — wygenerowanie go zapisuje datę
+              potwierdzenia aktualności danych tej umowy (ważność: <?= CGD_VERIFICATION_VALIDITY_MONTHS ?> mies.)
+            </label>
           </div>
 
           <div class="row g-3">
@@ -612,17 +630,19 @@ function openCreate() {
     document.getElementById('tpl-name').value   = '';
     document.getElementById('tpl-type').value   = 'universal';
     document.getElementById('tpl-desc').value   = '';
+    document.getElementById('tpl-verifies').checked = false;
     document.getElementById('tpl-modal-title').textContent = 'Nowy wzór dokumentu';
     quill.root.innerHTML = '';
     setEditorMode('visual');
 }
 
-function openEdit(id, name, type, desc, body) {
+function openEdit(id, name, type, desc, body, verifiesData) {
     document.getElementById('tpl-action').value = 'update';
     document.getElementById('tpl-id').value     = id;
     document.getElementById('tpl-name').value   = name;
     document.getElementById('tpl-type').value   = type;
     document.getElementById('tpl-desc').value   = desc;
+    document.getElementById('tpl-verifies').checked = !!verifiesData;
     document.getElementById('tpl-modal-title').textContent = 'Edytuj wzór: ' + name;
     quill.root.innerHTML = body;
     setEditorMode('visual');
@@ -641,7 +661,8 @@ window.addEventListener('load', function() {
         <?= json_encode($editing['name']) ?>,
         <?= json_encode($editing['type']) ?>,
         <?= json_encode($editing['description'] ?? '') ?>,
-        <?= json_encode($editing['body']) ?>
+        <?= json_encode($editing['body']) ?>,
+        <?= !empty($editing['verifies_data']) ? 'true' : 'false' ?>
     );
 });
 <?php endif; ?>
