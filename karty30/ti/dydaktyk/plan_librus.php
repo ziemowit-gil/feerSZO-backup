@@ -57,6 +57,7 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   .lb-cell .subject   { font-weight: 700; font-size: 10pt; }
   .lb-cell .instr     { color: #334155; font-size: 9pt; }
   .lb-cell .room      { color: #0f766e; font-size: 9pt; }
+  .lb-cell .valid     { color: #b45309; font-size: 7.5pt; margin-top: 2px; }
   .lb-empty { color: #cbd5e1; }
   .exceptions { margin-top: 16px; }
   .exceptions h2 { font-size: 10.5pt; color: #334155; margin: 0 0 6px; }
@@ -97,6 +98,11 @@ $org = defined('APP_ORG') ? APP_ORG : '';
 <?php if (!$L['time_slots']): ?>
   <p style="color:#64748b;font-style:italic">Brak zaplanowanych terminów w wybranym okresie.</p>
 <?php else: ?>
+  <?php if ($L['multi_slot']): ?>
+  <p style="color:#b45309;font-size:9pt;margin:0 0 8px">
+    Harmonogram tej grupy zmienia się w wybranym okresie — przy każdym terminie podano zakres dat, w którym obowiązuje.
+  </p>
+  <?php endif; ?>
   <table class="librus">
     <thead>
       <tr>
@@ -117,6 +123,9 @@ $org = defined('APP_ORG') ? APP_ORG : '';
             <div class="subject"><?= h($cell['subject']) ?></div>
             <div class="instr"><?= h($cell['instructor']) ?></div>
             <div class="room"><?= h($cell['room']) ?></div>
+            <?php if ($L['multi_slot']): ?>
+            <div class="valid">obowiązuje: <?= h(date('d.m.Y', strtotime($cell['valid_from']))) ?>–<?= h(date('d.m.Y', strtotime($cell['valid_to']))) ?></div>
+            <?php endif; ?>
           </div>
           <?php else: ?>
           <span class="lb-empty">—</span>

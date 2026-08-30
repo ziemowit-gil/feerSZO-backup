@@ -133,11 +133,19 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
             $instr_counts = array_count_values(array_filter($d['instructors']));
             $room_counts  = array_count_values(array_filter($d['rooms']));
             arsort($instr_counts); arsort($room_counts);
+            sort($d['dates']);
             $grid[$tk][$dow] = [
                 'subject'    => $subject,
                 'instructor' => (string)array_key_first($instr_counts) ?: '—',
                 'room'       => (string)array_key_first($room_counts) ?: '—',
                 'n_dates'    => count($d['dates']),
+                // Zakres dat, w którym ten konkretny slot faktycznie występuje —
+                // istotne, gdy grupa ma WIĘCEJ NIŻ JEDEN slot w oknie wydruku:
+                // to znak, że harmonogram grupy zmienił się w trakcie (np. od
+                // 1.09 do 30.10 piątek 18:00, a od 1.11 inny dzień/godzina) —
+                // patrz $multi_slot niżej i adnotacja "obowiązuje" w plan_librus.php.
+                'valid_from' => $d['dates'][0],
+                'valid_to'   => $d['dates'][count($d['dates']) - 1],
             ];
         }
     }
@@ -145,12 +153,19 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     usort($time_slots, fn($a, $b) => substr($a, 0, 5) <=> substr($b, 0, 5));
     usort($exceptions, fn($a, $b) => $a['from_label'] <=> $b['from_label']);
 
+    // Czy grupa ma w tym oknie więcej niż jeden (dzień, godzina)? Jeśli tak,
+    // wydruk pokazuje przy każdej komórce zakres dat, w którym ten slot
+    // faktycznie obowiązuje — inaczej dwa następujące po sobie okresy z różnym
+    // terminem wyglądałyby jak dwa równoległe, cotygodniowe spotkania naraz.
+    $multi_slot = array_sum(array_map('count', $grid)) > 1;
+
     return [
         'course'     => $course,
         'from'       => $from,
         'to'         => $to,
         'time_slots' => $time_slots,
         'grid'       => $grid,
+        'multi_slot' => $multi_slot,
         'exceptions' => $exceptions,
     ];
 }
