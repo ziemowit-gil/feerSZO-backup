@@ -185,6 +185,75 @@ function contract_correction_notice_modal(string $type, int $id, array $row): st
 }
 
 /**
+ * Przycisk "Złóż wniosek o edycję" + modal (Alpine.js), zastępuje dawny
+ * pełnoekranowy link do contracts/approvals/changes_request.php — ten sam
+ * endpoint jest teraz wołany przez fetch() (patrz assets/js/app.js:
+ * Alpine.data('editRequestModal', ...)), więc logika walidacji/zapisu w
+ * changes_request.php jest nienaruszona, zmienia się tylko sposób jej wywołania.
+ * Bez JS działa dalej jak dawniej — <noscript> pokazuje zwykły link.
+ * Wołany przez wszystkie 7 typów umów z ich bloku "Wnioski o edycję", tylko gdy
+ * can_edit() && !$has_pending_edit (warunek zostaje w każdym view.php jak dotąd).
+ */
+function edit_request_trigger_html(string $type, int $id, string $numerUmowy = ''): string
+{
+    $endpoint = APP_URL . '/contracts/approvals/changes_request.php';
+    $fallbackUrl = $endpoint . '?type=' . rawurlencode($type) . '&id=' . (int)$id;
+    $cfg = [
+        'endpoint' => $endpoint,
+        'type'     => $type,
+        'id'       => (int)$id,
+        'csrf'     => csrf_token(),
+    ];
+
+    ob_start();
+    ?>
+    <span x-data="editRequestModal(<?= h(json_encode($cfg)) ?>)">
+      <noscript>
+        <a href="<?= h($fallbackUrl) ?>" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil"></i> Złóż wniosek o edycję
+        </a>
+      </noscript>
+      <button type="button" x-cloak class="btn btn-sm btn-outline-secondary" @click="openModal()">
+        <i class="bi bi-pencil"></i> Złóż wniosek o edycję
+      </button>
+
+      <div x-show="open" x-cloak x-trap.noscroll="open" @keydown.escape.window="close()"
+           class="modal d-block" style="background:rgba(0,0,0,.5)" role="dialog" aria-modal="true"
+           :aria-labelledby="labelId" @click.self="close()">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:640px" @click.stop>
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" :id="labelId">
+                <i class="bi bi-pencil-square"></i> Wniosek o edycję: <?= h($numerUmowy) ?>
+              </h5>
+              <button type="button" class="btn-close" @click="close()" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+              <div x-show="errors.length" x-cloak class="alert alert-danger py-2" role="alert" aria-live="assertive">
+                <ul class="mb-0"><template x-for="e in errors" :key="e"><li x-text="e"></li></template></ul>
+              </div>
+              <p class="text-muted small mb-3">Opisz jakie zmiany chcesz wprowadzić do umowy. Administrator otrzyma powiadomienie i zatwierdzi lub odrzuci wniosek.</p>
+              <label class="form-label fw-semibold" :for="textareaId">Co chcesz zmienić? <span class="text-danger" aria-hidden="true">*</span><span class="visually-hidden">(wymagane)</span></label>
+              <textarea :id="textareaId" x-ref="textarea" x-model="opis" class="form-control" rows="5" required
+                @keydown.enter.meta="submitForm()" @keydown.enter.ctrl="submitForm()"
+                placeholder="Np. Zmiana daty zakończenia z 31.12.2025 na 28.02.2026, powód: przedłużenie projektu..."></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" @click="close()" :disabled="submitting">Anuluj</button>
+              <button type="button" class="btn btn-primary" @click="submitForm()" :disabled="submitting">
+                <span x-show="submitting" x-cloak class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                <i x-show="!submitting" x-cloak class="bi bi-send"></i> Złóż wniosek
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </span>
+    <?php
+    return ob_get_clean();
+}
+
+/**
  * Przycisk "Oznacz: do uzupełnienia" (+ modal z wymaganym powodem), widoczny
  * dla edytorów tylko gdy umowa nie jest już oznaczona. Umieszczany w pasku akcji
  * karty umowy, obok wydruków/dokumentów (includes/contract_view_header.php).

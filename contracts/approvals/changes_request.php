@@ -7,6 +7,23 @@ require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
 
 require_login();
 
+// Wywołanie z modala Alpine.js (contracts/includes/edit_request_modal.php) ustawia
+// ten nagłówek i oczekuje JSON zamiast przekierowania — reszta logiki jest identyczna
+// jak dla zwykłego (nie-JS) wejścia na tę stronę.
+$isAjax = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest';
+
+function changes_request_fail(bool $isAjax, string $level, string $msg, string $back): void {
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code($level === 'danger' ? 404 : 409);
+        echo json_encode(['ok' => false, 'errors' => [$msg]]);
+        exit;
+    }
+    flash_set($level, $msg);
+    header('Location: ' . $back);
+    exit;
+}
+
 $type = preg_replace('/[^a-z]/', '', $_GET['type'] ?? $_POST['type'] ?? '');
 $id   = intval($_GET['id'] ?? $_POST['id'] ?? 0);
 $back = APP_URL . "/contracts/{$type}/view.php?id={$id}";
@@ -15,13 +32,12 @@ if (!$type || !$id) { header('Location: ' . APP_URL); exit; }
 
 $table = table_for_type($type);
 $row   = db_one("SELECT * FROM {$table} WHERE id=?", [$id]);
-if (!$row) { flash_set('danger', 'Nie znaleziono umowy.'); header('Location: ' . $back); exit; }
+if (!$row) changes_request_fail($isAjax, 'danger', 'Nie znaleziono umowy.', $back);
 
 // Blokuj jeśli jest oczekujący wniosek
 $pending = db_one("SELECT id FROM contract_edit_requests WHERE contract_type=? AND contract_id=? AND status='oczekuje'", [$type, $id]);
 if ($pending) {
-    flash_set('warning', 'Ta umowa ma już oczekujący wniosek o edycję.');
-    header('Location: ' . $back); exit;
+    changes_request_fail($isAjax, 'warning', 'Ta umowa ma już oczekujący wniosek o edycję.', $back);
 }
 
 $errors = [];
@@ -37,8 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = submit_edit_request($type, $id, $user['id'], $row['numer_umowy'], $opis);
         $msg    = 'Wniosek o edycję złożony.';
         if ($result['emails_sent'] > 0) $msg .= " ";
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => true, 'message' => $msg]);
+            exit;
+        }
         flash_set('success', $msg);
         header('Location: ' . $back);
+        exit;
+    } elseif ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'errors' => $errors]);
         exit;
     }
 }

@@ -206,10 +206,25 @@ if ($_user) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= APP_URL ?>/assets/js/app.js" defer></script>
 <script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
+<!-- Alpine.js — komponenty potrzebujące płynnych, dostępnych modali bez przeładowania strony.
+     Wtyczka focus MUSI ładować się przed rdzeniem Alpine (rejestruje się na obiekcie Alpine przed jego startem). -->
+<script src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3/dist/cdn.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
+<!-- Tailwind — nowy standard wizualny dla przebudowywanych stron (na razie: moduł umów).
+     Klasy z prefiksem "tw-" i wyłączonym preflight, żeby NIGDY nie kolidować z Bootstrapem,
+     który zostaje globalnym frameworkiem dla reszty, jeszcze nieprzebudowanej części systemu. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    prefix: 'tw-',
+    corePlugins: { preflight: false },
+  };
+</script>
 <style>
 /* ── Layout ───────────────────────────────── */
 body { background: #fff; }
 #content { padding: 1.5rem 1.5rem 5rem; }
+[x-cloak] { display: none !important; }
 
 /* ── Navbar ───────────────────────────────── */
 #navbar {

@@ -495,9 +495,7 @@ $edit_requests = get_edit_requests($TYPE, $id);
   <?php
   $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
   if (can_edit() && !$has_pending_edit): ?>
-  <a href="<?= APP_URL ?>/contracts/approvals/changes_request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-pencil"></i> Złóż wniosek o edycję
-  </a>
+  <?= edit_request_trigger_html($TYPE, $id, $row['numer_umowy'] ?? '') ?>
   <?php endif; ?>
 </div>
 <?php if ($edit_requests): ?>

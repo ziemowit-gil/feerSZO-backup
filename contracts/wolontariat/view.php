@@ -2505,9 +2505,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <span class="cv-section-title">Wnioski o edycję</span>
       <?php if (can_edit() && !$has_pending_edit): ?>
       <div class="cv-section-action">
-        <a href="<?= APP_URL ?>/contracts/approvals/changes_request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-pencil"></i> Złóż wniosek
-        </a>
+        <?= edit_request_trigger_html($TYPE, $id, $row['numer_umowy'] ?? '') ?>
       </div>
       <?php endif; ?>
     </div>
