@@ -420,6 +420,209 @@ if (!function_exists('osw_zweryfikuj_i_podpisz')) {
             OSW_STATUS_PODPISANE, $tresc_hash, $teraz, $ip, mb_substr($user_agent, 0, 255), $podpis_hash, $id,
         ]);
 
+        try {
+            osw_wyslij_potwierdzenie_podpisu($id, $user_id);
+        } catch (\Throwable $e) {
+            // E-mail potwierdzający nie może cofnąć już zapisanego podpisu —
+            // błąd wysyłki tylko logujemy, podpis pozostaje ważny.
+            error_log('[oswiadczenia] potwierdzenie podpisu: ' . $e->getMessage());
+        }
+
         return ['ok' => true, 'podpisano_at' => $teraz, 'podpis_hash' => $podpis_hash];
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Powiadomienia e-mail
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OSW_PLATFORMA_URL = 'szo.feer.org.pl';
+
+if (!function_exists('_osw_stopka_mail')) {
+    function _osw_stopka_mail(): string {
+        return "Bezpieczny dostęp do platformy: " . OSW_PLATFORMA_URL . "\n\n"
+             . "W przypadku pytań lub trudności technicznych, prosimy o kontakt z administratorem systemu.\n\n"
+             . "Z pozdrowieniami,\n\n"
+             . "Zespół Fundacji FEER";
+    }
+}
+
+if (!function_exists('osw_powiadom_nowe_oswiadczenie')) {
+    /**
+     * Wysyła e-mail (czysty tekst) do wszystkich aktywnych wolontariuszy/
+     * zleceniobiorców, których dotyczy nowo utworzony szablon (mechanizm
+     * zależności — patrz osw_szablon_dotyczy_uzytkownika()). Wywoływane
+     * jednorazowo przy tworzeniu szablonu (osw_szablon_utworz()).
+     *
+     * @return int liczba wysłanych powiadomień
+     */
+    function osw_powiadom_nowe_oswiadczenie(array $szablon): int {
+        $uzytkownicy = db_all(
+            "SELECT id, email, name, microsoft_id FROM users WHERE is_active = 1 AND role = 'viewer'"
+        );
+
+        $subj  = 'Nowe oświadczenie do podpisania w Systemie Zarządzania Organizacją (SZO)';
+        $wyslano = 0;
+
+        foreach ($uzytkownicy as $user) {
+            if (empty($user['email'])) continue;
+            if (!osw_szablon_dotyczy_uzytkownika($szablon, $user)) continue;
+
+            $body = "Dzień dobry,\n\n"
+                  . "Informujemy, że w Systemie Zarządzania Organizacją (SZO) pod adresem " . OSW_PLATFORMA_URL . " "
+                  . "zostało udostępnione nowe oświadczenie („" . $szablon['tytul'] . "”) wymagające Twojego "
+                  . "zapoznania się oraz złożenia podpisu.\n\n"
+                  . "Prosimy o zalogowanie się do systemu, przejście do sekcji dokumentów oczekujących i dopełnienie "
+                  . "niezbędnych formalności.\n\n"
+                  . _osw_stopka_mail();
+
+            try {
+                if (function_exists('mail_queue_add')) {
+                    mail_queue_add($user['email'], (string)($user['name'] ?? ''), $subj, '', $body, 'oswiadczenie', (int)$szablon['id']);
+                } else {
+                    mail($user['email'], $subj, $body);
+                }
+                $wyslano++;
+            } catch (\Throwable $e) {
+                error_log('[oswiadczenia] powiadomienie o nowym oświadczeniu: ' . $e->getMessage());
+            }
+        }
+
+        return $wyslano;
+    }
+}
+
+if (!function_exists('osw_szablon_utworz')) {
+    /**
+     * Tworzy nowy szablon oświadczenia i powiadamia e-mailem wszystkich
+     * użytkowników, których od razu dotyczy (wg mechanizmu zależności).
+     * Jedyny punkt wejścia do tworzenia szablonów — tak, żeby powiadomienie
+     * zawsze towarzyszyło udostępnieniu nowej treści.
+     */
+    function osw_szablon_utworz(array $dane): int {
+        $id = db_insert('szablony_oswiadczen', [
+            'kod'                => $dane['kod'],
+            'tytul'              => $dane['tytul'],
+            'tresc'              => $dane['tresc'],
+            'wersja'             => $dane['wersja'] ?? 1,
+            'aktywny'            => $dane['aktywny'] ?? 1,
+            'wymaga_2fa'         => $dane['wymaga_2fa'] ?? 1,
+            'warunek_pole_umowy' => $dane['warunek_pole_umowy'] ?? null,
+            'utworzyl_id'        => $dane['utworzyl_id'] ?? null,
+        ]);
+
+        $szablon = db_one("SELECT * FROM szablony_oswiadczen WHERE id = ?", [$id]);
+        if ($szablon && !empty($szablon['aktywny'])) {
+            try {
+                osw_powiadom_nowe_oswiadczenie($szablon);
+            } catch (\Throwable $e) {
+                error_log('[oswiadczenia] masowe powiadomienie o nowym szablonie: ' . $e->getMessage());
+            }
+        }
+
+        return $id;
+    }
+}
+
+if (!function_exists('osw_pdf_potwierdzenia_html')) {
+    /** Treść HTML potwierdzenia podpisu — do wydruku PDF (mPDF, jak guardian_consent_generate_pdf()). */
+    function osw_pdf_potwierdzenia_html(array $osw, array $user): string {
+        $org = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
+        return '
+        <h2 style="text-align:center">Potwierdzenie podpisania oświadczenia</h2>
+        <p style="text-align:center;color:#555">' . htmlspecialchars($org, ENT_QUOTES) . '</p>
+        <hr>
+        <table style="width:100%;font-size:10.5pt">
+          <tr><td style="width:35%"><strong>Tytuł oświadczenia</strong></td><td>' . htmlspecialchars($osw['tytul'], ENT_QUOTES) . '</td></tr>
+          <tr><td><strong>Wersja</strong></td><td>' . (int)$osw['wersja'] . '</td></tr>
+          <tr><td><strong>Osoba składająca</strong></td><td>' . htmlspecialchars($user['name'] ?? '', ENT_QUOTES) . ' (' . htmlspecialchars($user['email'] ?? '', ENT_QUOTES) . ')</td></tr>
+          <tr><td><strong>Data i godzina podpisu</strong></td><td>' . htmlspecialchars($osw['podpisano_at'], ENT_QUOTES) . '</td></tr>
+          <tr><td><strong>Adres IP</strong></td><td>' . htmlspecialchars($osw['podpis_ip'] ?? '', ENT_QUOTES) . '</td></tr>
+          <tr><td><strong>Hash treści</strong></td><td style="font-family:monospace;font-size:8.5pt">' . htmlspecialchars($osw['tresc_hash'] ?? '', ENT_QUOTES) . '</td></tr>
+          <tr><td><strong>Hash podpisu</strong></td><td style="font-family:monospace;font-size:8.5pt">' . htmlspecialchars($osw['podpis_hash'] ?? '', ENT_QUOTES) . '</td></tr>
+        </table>
+        <hr>
+        <p style="font-size:10.5pt"><strong>Treść podpisanego oświadczenia:</strong></p>
+        <div style="font-size:10.5pt">' . $osw['tresc'] . '</div>
+        <p style="margin-top:2em;font-size:8.5pt;color:#777">
+          Dokument wygenerowany automatycznie jako potwierdzenie złożenia oświadczenia w formie dokumentowej
+          (art. 77(2) Kodeksu cywilnego) — tożsamość osoby podpisującej została potwierdzona jednorazowym
+          kodem autoryzacyjnym przesłanym na zweryfikowany kanał (SMS/e-mail).
+        </p>';
+    }
+}
+
+if (!function_exists('osw_generuj_pdf_potwierdzenia')) {
+    /** Renderuje PDF potwierdzenia i zapisuje go pod UPLOAD_DIR; zwraca ścieżkę względną (do mail_queue_add) albo null. */
+    function osw_generuj_pdf_potwierdzenia(array $osw, array $user): ?string {
+        try {
+            require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+            $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+            if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+
+            $mpdf = new \Mpdf\Mpdf([
+                'mode'          => 'utf-8',
+                'format'        => 'A4',
+                'margin_left'   => 25,
+                'margin_right'  => 20,
+                'margin_top'    => 18,
+                'margin_bottom' => 18,
+                'default_font'  => 'dejavusans',
+                'tempDir'       => $mpdf_tmp,
+            ]);
+            $mpdf->SetTitle('Potwierdzenie podpisania oświadczenia — ' . $osw['tytul']);
+            $mpdf->WriteHTML(osw_pdf_potwierdzenia_html($osw, $user));
+            $pdf = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+
+            $dir = UPLOAD_DIR . 'oswiadczenia_potwierdzenia/';
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            $nazwa = 'oswiadczenie_' . $osw['id'] . '_' . bin2hex(random_bytes(4)) . '.pdf';
+            file_put_contents($dir . $nazwa, $pdf);
+
+            return 'oswiadczenia_potwierdzenia/' . $nazwa;
+        } catch (\Throwable $e) {
+            error_log('[oswiadczenia_pdf] ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+if (!function_exists('osw_wyslij_potwierdzenie_podpisu')) {
+    /** Wysyła e-mail (czysty tekst) potwierdzający podpis, z PDF-em potwierdzenia w załączniku. */
+    function osw_wyslij_potwierdzenie_podpisu(int $id, int $user_id): void {
+        $user = db_one("SELECT id, email, name FROM users WHERE id = ?", [$user_id]);
+        if (!$user || empty($user['email'])) return;
+
+        $osw = osw_pobierz($id, $user_id);
+        if (!$osw) return;
+
+        $sciezka_pdf = osw_generuj_pdf_potwierdzenia($osw, $user);
+
+        $subj = 'Potwierdzenie podpisania oświadczenia w Systemie Zarządzania Organizacją (SZO)';
+        $body = "Dzień dobry,\n\n"
+              . "Potwierdzamy, że w Systemie Zarządzania Organizacją (SZO) pod adresem " . OSW_PLATFORMA_URL . " "
+              . "zostało złożone Twoje podpisane oświadczenie („" . $osw['tytul'] . "”).\n\n"
+              . "W załączniku przesyłamy potwierdzenie podpisania oświadczenia w formie dokumentowej.\n\n"
+              . _osw_stopka_mail();
+
+        $attachments = [];
+        if ($sciezka_pdf !== null) {
+            $attachments[] = [
+                'path' => $sciezka_pdf,
+                'name' => 'potwierdzenie_oswiadczenia.pdf',
+                'mime' => 'application/pdf',
+                'size' => filesize(UPLOAD_DIR . $sciezka_pdf) ?: 0,
+            ];
+        }
+
+        if (function_exists('mail_queue_add')) {
+            mail_queue_add(
+                $user['email'], (string)($user['name'] ?? ''), $subj, '', $body,
+                'oswiadczenie', $id, '', false, $attachments
+            );
+        } else {
+            mail($user['email'], $subj, $body);
+        }
     }
 }
