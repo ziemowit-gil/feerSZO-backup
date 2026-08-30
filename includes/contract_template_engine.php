@@ -35,6 +35,7 @@ function cte_variables(): array {
             '{org_nip}'      => 'NIP organizacji',
             '{org_krs}'      => 'KRS organizacji',
             '{org_regon}'    => 'REGON organizacji',
+            '{org_email}'    => 'E-mail kontaktowy organizacji',
             '{data_dzisiaj}' => 'Dzisiejsza data (dd.mm.rrrr)',
         ],
         'Wolontariusz / Zleceniobiorca' => [
@@ -79,6 +80,7 @@ function cte_build_map(string $type, array $row): array {
         '{org_nip}'      => org_setting('org_nip')          ?: '',
         '{org_krs}'      => org_setting('org_krs')          ?: '',
         '{org_regon}'    => org_setting('org_regon')        ?: '',
+        '{org_email}'    => org_setting('org_email')        ?: '',
         '{data_dzisiaj}' => date('d.m.Y'),
 
         // person
