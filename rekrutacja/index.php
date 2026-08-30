@@ -133,6 +133,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="btn-group">
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/kalendarz.php"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Rozmowy</a>
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/apply.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny</a>
+      <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/rekrutacja/zapisy.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Zapisy na zajęcia</a>
       <?php if (is_admin()): ?>
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(APP_URL) ?>/admin/rekrutacja.php"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia</a>
       <?php endif; ?>

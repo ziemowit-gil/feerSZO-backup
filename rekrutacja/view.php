@@ -125,6 +125,11 @@ $emails     = db_all("SELECT l.*, u.name AS sender_name FROM rekr_email_log l
 $templates  = db_all("SELECT * FROM rekr_email_templates WHERE enabled=1 ORDER BY name");
 $operators  = db_all("SELECT id, name FROM users WHERE role IN ('admin','editor') OR rekrutacja_operator=1 ORDER BY name");
 $type       = REKR_TYPES[$app['type']] ?? REKR_TYPES['wolontariat'];
+$courses    = $app['type'] === 'zajecia'
+    ? db_all("SELECT ac.status AS enroll_status, p.id, p.name, p.limit_miejsc
+              FROM rekr_application_courses ac JOIN rekr_positions p ON p.id=ac.position_id
+              WHERE ac.application_id=? ORDER BY p.name", [$id])
+    : [];
 
 // Szablony wyrenderowane pod tego kandydata — do JS edytora
 $tpl_js = [];
@@ -164,6 +169,33 @@ include dirname(__DIR__) . '/includes/header.php';
       <i class="bi bi-send me-1" aria-hidden="true"></i>Napisz do kandydata
     </button>
   </div>
+
+  <?php if ($app['type'] === 'zajecia'): ?>
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>Zapisy na zajęcia</div>
+    <ul class="list-group list-group-flush">
+      <?php if (!$courses): ?><li class="list-group-item text-muted">Brak powiązanych zajęć.</li><?php endif; ?>
+      <?php foreach ($courses as $c): ?>
+      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><?= h($c['name']) ?><?php if ($c['limit_miejsc'] !== null): ?> <span class="text-muted small">(limit: <?= (int)$c['limit_miejsc'] ?>)</span><?php endif; ?></span>
+        <?= $c['enroll_status'] === 'rezerwa'
+            ? '<span class="badge text-bg-warning">Lista rezerwowa</span>'
+            : '<span class="badge text-bg-success">Zapisany</span>' ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php if ($app['rodzaj_niepelnosprawnosci'] !== '' || $app['wymagane_dostosowania'] !== ''): ?>
+    <div class="card-footer small">
+      <?php if ($app['rodzaj_niepelnosprawnosci'] !== ''): ?><div><strong>Rodzaj niepełnosprawności:</strong> <?= h($app['rodzaj_niepelnosprawnosci']) ?></div><?php endif; ?>
+      <?php if ($app['wymagane_dostosowania'] !== ''): ?><div><strong>Wymagane dostosowania:</strong> <?= h($app['wymagane_dostosowania']) ?></div><?php endif; ?>
+    </div>
+    <?php endif; ?>
+    <div class="card-footer small text-muted">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Oświadczenia: moduł Oświadczenia wymaga konta użytkownika —
+      dla zgłoszeń bez konta status oświadczeń nie jest jeszcze śledzony automatycznie.
+    </div>
+  </div>
+  <?php endif; ?>
 
   <div class="row g-3">
     <!-- Lewa kolumna: dokumenty, wiadomość, notatki -->

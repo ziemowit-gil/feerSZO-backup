@@ -19,6 +19,7 @@ require_once __DIR__ . '/db.php';
 const REKR_TYPES = [
     'wolontariat' => ['label' => 'Wolontariat', 'class' => 'success', 'icon' => 'bi-heart-fill'],
     'etat'        => ['label' => 'Etat',        'class' => 'primary', 'icon' => 'bi-briefcase-fill'],
+    'zajecia'     => ['label' => 'Zajęcia',     'class' => 'info',    'icon' => 'bi-calendar2-check'],
 ];
 
 const REKR_FILE_KINDS = [
@@ -63,7 +64,7 @@ function rekr_migrate(): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS rekr_positions (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         name          TEXT    NOT NULL,
-        type          TEXT    NOT NULL DEFAULT 'wolontariat',   -- wolontariat|etat
+        type          TEXT    NOT NULL DEFAULT 'wolontariat',   -- wolontariat|etat|zajecia
         description   TEXT    NOT NULL DEFAULT '',
         auto_tags     TEXT    NOT NULL DEFAULT '',              -- CSV tagów nadawanych automatycznie
         crm_group_id  INTEGER REFERENCES crm_groups(id) ON DELETE SET NULL,
@@ -84,7 +85,7 @@ function rekr_migrate(): void {
     // Zgłoszenia (kandydaci)
     $pdo->exec("CREATE TABLE IF NOT EXISTS rekr_applications (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        type           TEXT    NOT NULL DEFAULT 'wolontariat',  -- wolontariat|etat
+        type           TEXT    NOT NULL DEFAULT 'wolontariat',  -- wolontariat|etat|zajecia
         position_id    INTEGER REFERENCES rekr_positions(id) ON DELETE SET NULL,
         status         TEXT    NOT NULL DEFAULT 'nowa',
         imie           TEXT    NOT NULL,
@@ -214,6 +215,32 @@ function rekr_migrate(): void {
 
     // Operator rekrutacji na koncie użytkownika (idempotentny ALTER — jak w helpdesku)
     try { $pdo->exec("ALTER TABLE users ADD COLUMN rekrutacja_operator INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
+    // Uproszczony nabór na zajęcia: limit miejsc per stanowisko/kurs,
+    // pola dostępności kandydata (idempotentne ALTER — samonaprawa schematu)
+    try { $pdo->exec("ALTER TABLE rekr_positions ADD COLUMN limit_miejsc INTEGER"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE rekr_applications ADD COLUMN rodzaj_niepelnosprawnosci TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE rekr_applications ADD COLUMN wymagane_dostosowania TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
+    // Zapisy na wiele kursów/zajęć bez priorytetów (checkboxy) — jedno zgłoszenie,
+    // wiele powiązanych stanowisk typu "zajecia"; status per-kurs odróżnia rezerwę
+    // od zapisania, gdy limit_miejsc zostanie wyczerpany w chwili zgłoszenia.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS rekr_application_courses (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        application_id INTEGER NOT NULL REFERENCES rekr_applications(id) ON DELETE CASCADE,
+        position_id    INTEGER NOT NULL REFERENCES rekr_positions(id) ON DELETE CASCADE,
+        status         TEXT    NOT NULL DEFAULT 'zapisany',  -- zapisany|rezerwa
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(application_id, position_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rekr_appcourse_pos ON rekr_application_courses(position_id)");
+
+    // Samonaprawa crm_contacts: pola dostosowań potrzebne przez zapisy na zajęcia
+    // (bez twardej zależności — gdy moduł CRM nie jest jeszcze zainstalowany, pomiń)
+    if (db_one("SELECT name FROM sqlite_master WHERE type='table' AND name='crm_contacts'")) {
+        try { $pdo->exec("ALTER TABLE crm_contacts ADD COLUMN rodzaj_niepelnosprawnosci TEXT"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE crm_contacts ADD COLUMN wymagane_dostosowania TEXT"); } catch (\Throwable $e) {}
+    }
 
     // Seed domyślnego pipeline'u statusów
     $cnt = (int)(db_one("SELECT COUNT(*) AS c FROM rekr_statuses")['c'] ?? 0);
@@ -567,11 +594,25 @@ function rekr_crm_sync(array $app): void {
                 'imie_nazwisko' => trim($app['imie'] . ' ' . $app['nazwisko']),
                 'email'         => $app['email'],
                 'telefon'       => $app['telefon'],
+                'rodzaj_niepelnosprawnosci' => $app['rodzaj_niepelnosprawnosci'] ?? '',
+                'wymagane_dostosowania'     => $app['wymagane_dostosowania'] ?? '',
                 'source'        => 'rekrutacja',
                 'notatka'       => 'Kandydat z modułu naboru (zgłoszenie #' . $app['id'] . ')',
             ]);
         }
         db_exec("UPDATE rekr_applications SET crm_contact_id=? WHERE id=?", [$contact_id, (int)$app['id']]);
+    }
+
+    // Kontakt już istniał (kolejne zgłoszenie) — dociągnij nowe dane bez nadpisywania
+    // pustymi wartościami (np. telefon lub dostosowania podane tym razem dokładniej).
+    if (($app['telefon'] ?? '') !== '' || ($app['rodzaj_niepelnosprawnosci'] ?? '') !== '' || ($app['wymagane_dostosowania'] ?? '') !== '') {
+        db_exec("UPDATE crm_contacts SET
+                    telefon = COALESCE(NULLIF(?, ''), telefon),
+                    rodzaj_niepelnosprawnosci = COALESCE(NULLIF(?, ''), rodzaj_niepelnosprawnosci),
+                    wymagane_dostosowania = COALESCE(NULLIF(?, ''), wymagane_dostosowania),
+                    updated_at = ?
+                 WHERE id=?",
+            [$app['telefon'] ?? '', $app['rodzaj_niepelnosprawnosci'] ?? '', $app['wymagane_dostosowania'] ?? '', date('Y-m-d H:i:s'), $contact_id]);
     }
 
     // Autogrupa: grupa przypisana do stanowiska, a w braku — domyślna per typ
@@ -581,7 +622,9 @@ function rekr_crm_sync(array $app): void {
         $group_id = (int)($pos['crm_group_id'] ?? 0);
     }
     if (!$group_id) {
-        $gname = $app['type'] === 'etat' ? 'Nabór — kandydaci (etat)' : 'Nabór — potencjalni wolontariusze';
+        if ($app['type'] === 'etat')          $gname = 'Nabór — kandydaci (etat)';
+        elseif ($app['type'] === 'zajecia')   $gname = 'Nabór — zapisy na zajęcia';
+        else                                  $gname = 'Nabór — potencjalni wolontariusze';
         $g = db_one("SELECT id FROM crm_groups WHERE name=?", [$gname]);
         $group_id = $g ? (int)$g['id']
                        : db_insert('crm_groups', ['name' => $gname, 'description' => 'Grupa automatyczna modułu naboru', 'auto_source' => 'rekrutacja']);
@@ -602,6 +645,113 @@ function rekr_crm_group_add(array $app, int $group_id): bool {
     db_exec("INSERT OR IGNORE INTO crm_group_members (group_id, contact_id) VALUES (?,?)",
         [$group_id, (int)$app['crm_contact_id']]);
     return true;
+}
+
+// ── Zapisy na zajęcia (checkboxy, bez priorytetów) ───────────────────────────
+
+/** Liczba zajętych miejsc (status 'zapisany') na dane zajęcia, z aktywnych zgłoszeń. */
+function rekr_course_seats_taken(int $position_id): int {
+    return (int)(db_one(
+        "SELECT COUNT(*) AS c FROM rekr_application_courses ac
+         JOIN rekr_applications a ON a.id = ac.application_id
+         WHERE ac.position_id=? AND ac.status='zapisany' AND a.status <> 'odrzucona'",
+        [$position_id])['c'] ?? 0);
+}
+
+/**
+ * Tworzy jedno zgłoszenie ("Uproszczony nabór na zajęcia") powiązane z wieloma
+ * kursami naraz (bez priorytetów — checkboxy), w jednej transakcji PDO:
+ * nagłówek zgłoszenia + powiązania z kursami (z automatycznym przydziałem do
+ * rezerwy, gdy limit_miejsc danego kursu jest wyczerpany) + upsert kontaktu CRM
+ * + wpis historii w crm_activities. Zwraca ['ok'=>bool,'id'=>int,'courses'=>array,'errors'=>string[]].
+ */
+function rekr_enrollment_create(array $data, array $position_ids, string $source = 'zapisy'): array {
+    $errors = [];
+    $imie     = trim((string)($data['imie'] ?? ''));
+    $nazwisko = trim((string)($data['nazwisko'] ?? ''));
+    $email    = trim(mb_strtolower((string)($data['email'] ?? '')));
+    $telefon  = trim((string)($data['telefon'] ?? ''));
+    $message  = mb_substr(trim((string)($data['message'] ?? '')), 0, 2000);
+    $rodzaj_np = mb_substr(trim((string)($data['rodzaj_niepelnosprawnosci'] ?? '')), 0, 200);
+    $dostosow  = mb_substr(trim((string)($data['wymagane_dostosowania'] ?? '')), 0, 2000);
+
+    if ($imie === '' || mb_strlen($imie) > 100)         $errors[] = 'Podaj imię.';
+    if ($nazwisko === '' || mb_strlen($nazwisko) > 100) $errors[] = 'Podaj nazwisko.';
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL))     $errors[] = 'Podaj poprawny adres e-mail.';
+    if (empty($data['consent']) && $source === 'zapisy') $errors[] = 'Zgoda na przetwarzanie danych jest wymagana.';
+
+    $position_ids = array_values(array_unique(array_map('intval', $position_ids)));
+    $courses = $position_ids ? db_all(
+        "SELECT * FROM rekr_positions WHERE is_active=1 AND type='zajecia' AND id IN (" .
+        implode(',', array_fill(0, count($position_ids), '?')) . ")", $position_ids) : [];
+    if (!$courses) $errors[] = 'Wybierz co najmniej jedne zajęcia.';
+
+    if ($errors) return ['ok' => false, 'id' => 0, 'courses' => [], 'errors' => $errors];
+
+    $first_slug = array_key_first(rekr_statuses()) ?: 'nowa';
+    $u = current_user();
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $app_id = db_insert('rekr_applications', [
+            'type'        => 'zajecia',
+            'position_id' => null,
+            'status'      => $first_slug,
+            'imie'        => $imie,
+            'nazwisko'    => $nazwisko,
+            'email'       => $email,
+            'telefon'     => mb_substr($telefon, 0, 30),
+            'message'     => $message,
+            'rodzaj_niepelnosprawnosci' => $rodzaj_np,
+            'wymagane_dostosowania'     => $dostosow,
+            'source'      => $source,
+            'consent_at'  => !empty($data['consent']) ? date('Y-m-d H:i:s') : null,
+            'created_by'  => $u['id'] ?? null,
+        ]);
+        db_exec("INSERT INTO rekr_status_history (application_id, from_status, to_status, note, changed_by, changed_name)
+                 VALUES (?,?,?,?,?,?)",
+            [$app_id, '', $first_slug, 'Zapis na zajęcia przyjęty (' . $source . ')', $u['id'] ?? null, $u['name'] ?? 'formularz']);
+
+        $course_statuses = [];
+        foreach ($courses as $c) {
+            $limit = $c['limit_miejsc'] !== null ? (int)$c['limit_miejsc'] : null;
+            $taken = $limit !== null ? rekr_course_seats_taken((int)$c['id']) : 0;
+            $cstatus = ($limit !== null && $taken >= $limit) ? 'rezerwa' : 'zapisany';
+            db_insert('rekr_application_courses', [
+                'application_id' => $app_id,
+                'position_id'    => (int)$c['id'],
+                'status'         => $cstatus,
+            ]);
+            $course_statuses[] = ['id' => (int)$c['id'], 'name' => $c['name'], 'status' => $cstatus];
+        }
+
+        $app = db_one("SELECT * FROM rekr_applications WHERE id=?", [$app_id]);
+        rekr_crm_sync($app);
+
+        $contact_id = (int)(db_one("SELECT crm_contact_id FROM rekr_applications WHERE id=?", [$app_id])['crm_contact_id'] ?? 0);
+        if ($contact_id && db_one("SELECT name FROM sqlite_master WHERE type='table' AND name='crm_activities'")) {
+            $lista = implode(', ', array_map(fn($c) => $c['name'] . ($c['status'] === 'rezerwa' ? ' (rezerwa)' : ''), $course_statuses));
+            db_insert('crm_activities', [
+                'contact_id'   => $contact_id,
+                'type'         => 'zajecia_zapis',
+                'title'        => 'Zapis na zajęcia',
+                'description'  => 'Zgłoszenie #' . $app_id . ' — wybrane zajęcia: ' . $lista,
+                'status'       => 'completed',
+                'created_by'   => $u['id'] ?? null,
+                'completed_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    rekr_apply_autotags($app_id);
+    rekr_run_automations(db_one("SELECT * FROM rekr_applications WHERE id=?", [$app_id]), $first_slug);
+
+    return ['ok' => true, 'id' => $app_id, 'courses' => $course_statuses, 'errors' => []];
 }
 
 // ── TidyCal: samodzielne umawianie rozmów ────────────────────────────────────
@@ -691,9 +841,14 @@ function rekr_sanitize_html(string $html): string {
 
 // ── Drobne helpery widoków ────────────────────────────────────────────────────
 
-/** @return array lista aktywnych stanowisk */
-function rekr_positions(bool $only_active = true): array {
-    return db_all("SELECT * FROM rekr_positions " . ($only_active ? "WHERE is_active=1 " : "") . "ORDER BY type, name");
+/** @return array lista stanowisk (opcjonalnie filtrowana typem, np. 'zajecia') */
+function rekr_positions(bool $only_active = true, ?string $type = null): array {
+    $where = [];
+    $params = [];
+    if ($only_active) $where[] = 'is_active=1';
+    if ($type !== null) { $where[] = 'type=?'; $params[] = $type; }
+    $sql = "SELECT * FROM rekr_positions" . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . " ORDER BY type, name";
+    return db_all($sql, $params);
 }
 
 function rekr_candidate_name(array $app): string {

@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'description'  => mb_substr(trim((string)($_POST['description'] ?? '')), 0, 5000),
                 'auto_tags'    => mb_substr(trim(mb_strtolower((string)($_POST['auto_tags'] ?? ''))), 0, 500),
                 'crm_group_id' => (int)($_POST['crm_group_id'] ?? 0) ?: null,
+                'limit_miejsc' => trim((string)($_POST['limit_miejsc'] ?? '')) !== '' ? max(0, (int)$_POST['limit_miejsc']) : null,
                 'is_active'    => !empty($_POST['is_active']) ? 1 : 0,
             ];
             if ($data['name'] !== '') {
@@ -222,7 +223,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="card-body">
       <p class="small text-muted">„Autotagi" (CSV) są nadawane każdemu zgłoszeniu na to stanowisko. „Grupa CRM" — kandydat trafia do niej automatycznie po złożeniu aplikacji.</p>
       <div class="table-responsive"><table class="table table-sm align-middle">
-        <thead><tr><th>Nazwa</th><th>Typ</th><th>Autotagi (CSV)</th><th>Grupa CRM</th><th>Aktywne</th><th></th></tr></thead>
+        <thead><tr><th>Nazwa</th><th>Typ</th><th>Autotagi (CSV)</th><th>Grupa CRM</th><th>Limit miejsc</th><th>Aktywne</th><th></th></tr></thead>
         <tbody>
         <?php foreach (array_merge($positions, [null]) as $p): $new = $p === null; ?>
         <tr>
@@ -238,6 +239,7 @@ include dirname(__DIR__) . '/includes/header.php';
             <option value="">— domyślna wg typu —</option>
             <?php foreach ($crm_groups as $g): ?><option value="<?= (int)$g['id'] ?>" <?= (int)($p['crm_group_id'] ?? 0)===(int)$g['id']?'selected':'' ?>><?= h($g['name']) ?></option><?php endforeach; ?>
           </select></td>
+          <td style="width:110px"><input type="number" min="0" class="form-control form-control-sm" name="limit_miejsc" value="<?= isset($p['limit_miejsc']) && $p['limit_miejsc'] !== null ? (int)$p['limit_miejsc'] : '' ?>" placeholder="bez limitu" aria-label="Limit miejsc (dotyczy typu Zajęcia)"></td>
           <td class="text-center"><input type="checkbox" class="form-check-input" name="is_active" value="1" <?= ($new || $p['is_active'])?'checked':'' ?> aria-label="Stanowisko aktywne"></td>
           <td class="text-nowrap">
             <button class="btn btn-sm btn-<?= $new?'primary':'outline-primary' ?>"><?= $new?'Dodaj':'Zapisz' ?></button>
