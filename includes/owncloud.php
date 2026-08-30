@@ -179,12 +179,21 @@ function owncloud_test_connection(array $cfg): array {
 // potrzebuje dostępu do socketu Dockera / `occ` — tylko sieciowego dostępu do
 // instancji ownCloud, tak jak WebDAV.
 
-/** Konfiguracja konta administratora (do OCS Provisioning API). */
+/**
+ * Konfiguracja konta administratora (do OCS Provisioning API).
+ * Gdy nie ustawiono dedykowanego konta administratora, spada na konto główne
+ * (WebDAV) — częsty przypadek małych instalacji, gdzie jedno konto pełni obie
+ * role. Jeśli konto główne faktycznie NIE ma uprawnień administratora, OCS
+ * i tak zwróci błąd autoryzacji przy pierwszym wywołaniu — nie ma ryzyka
+ * cichego niepowodzenia, tylko później niż przy braku poświadczeń w ogóle.
+ */
 function owncloud_admin_config(): array {
+    $admin_username = owncloud_setting('admin_username');
+    $admin_password = owncloud_setting('admin_password');
     return [
         'url'      => rtrim(owncloud_setting('url'), '/'),
-        'username' => owncloud_setting('admin_username'),
-        'password' => owncloud_setting('admin_password'),
+        'username' => $admin_username !== '' ? $admin_username : owncloud_setting('username'),
+        'password' => $admin_password !== '' ? $admin_password : owncloud_setting('password'),
     ];
 }
 

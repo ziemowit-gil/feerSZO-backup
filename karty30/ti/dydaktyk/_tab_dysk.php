@@ -24,7 +24,7 @@
 
   <?php if (!$oc_ready): ?>
   <div class="alert alert-secondary" role="note">
-    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Ta funkcja nie jest jeszcze skonfigurowana przez administratora. Spróbuj później.
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Konta „Mój dysk” wymagają konta administratora ownCloud, którego administrator systemu jeszcze nie skonfigurował. Spróbuj później.
   </div>
   <?php elseif (!$oc_account): ?>
   <div class="card border-0 shadow-sm" style="max-width:460px">
