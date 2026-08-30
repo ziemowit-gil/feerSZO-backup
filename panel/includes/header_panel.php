@@ -490,6 +490,15 @@ try {
     <span class="pv-badge" aria-label="<?= $_gc_pending ?> do odnowienia"><?= $_gc_pending ?></span>
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('oswiadczenia_enabled')): ?>
+  <a href="<?= APP_URL ?>/oswiadczenia/index.php" class="pv-nav-link<?= _pv_nav_active('/oswiadczenia/') ?>"
+     aria-label="Oświadczenia<?= $_osw_pending ? ' — ' . count($_osw_pending) . ' do podpisania' : '' ?>">
+    <i class="bi bi-file-earmark-check" aria-hidden="true"></i>Oświadczenia
+    <?php if ($_osw_pending): ?>
+    <span class="pv-badge" aria-label="<?= count($_osw_pending) ?> do podpisania"><?= count($_osw_pending) ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
   <?php if (module_enabled('terminations_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/terminations.php" class="pv-nav-link<?= _pv_nav_active('/panel/terminations') ?>">
     <i class="bi bi-file-earmark-x" aria-hidden="true"></i>Rozwiązanie umowy

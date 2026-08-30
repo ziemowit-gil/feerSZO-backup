@@ -17,6 +17,8 @@
  * EXISTS w try/catch, bezpieczne przy współbieżnym starcie wielu workerów.
  */
 
+require_once __DIR__ . '/mail_queue.php'; // mail_queue_add() — nie jest ładowany globalnie, każdy moduł dociąga sam
+
 (function () {
     static $done = false;
     if ($done) return;
@@ -345,11 +347,7 @@ if (!function_exists('osw_rozpocznij_podpis')) {
                   . '<p style="font-size:1.5em;letter-spacing:.15em"><strong>' . htmlspecialchars($kod, ENT_QUOTES) . '</strong></p>'
                   . '<p>Kod jest ważny 5 minut. Nie udostępniaj go nikomu.</p>';
             try {
-                if (function_exists('mail_queue_add')) {
-                    mail_queue_add($user['email'], '', $subj, $body, '', 'oswiadczenie', $id, '', true);
-                } else {
-                    mail($user['email'], $subj, strip_tags($body));
-                }
+                mail_queue_add($user['email'], '', $subj, $body, '', 'oswiadczenie', $id, '', true);
                 $kanal = 'email';
             } catch (\Throwable $e) {
                 $blad = $e->getMessage();
@@ -477,11 +475,7 @@ if (!function_exists('osw_powiadom_nowe_oswiadczenie')) {
                   . _osw_stopka_mail();
 
             try {
-                if (function_exists('mail_queue_add')) {
-                    mail_queue_add($user['email'], (string)($user['name'] ?? ''), $subj, '', $body, 'oswiadczenie', (int)$szablon['id']);
-                } else {
-                    mail($user['email'], $subj, $body);
-                }
+                mail_queue_add($user['email'], (string)($user['name'] ?? ''), $subj, '', $body, 'oswiadczenie', (int)$szablon['id']);
                 $wyslano++;
             } catch (\Throwable $e) {
                 error_log('[oswiadczenia] powiadomienie o nowym oświadczeniu: ' . $e->getMessage());
@@ -616,13 +610,9 @@ if (!function_exists('osw_wyslij_potwierdzenie_podpisu')) {
             ];
         }
 
-        if (function_exists('mail_queue_add')) {
-            mail_queue_add(
-                $user['email'], (string)($user['name'] ?? ''), $subj, '', $body,
-                'oswiadczenie', $id, '', false, $attachments
-            );
-        } else {
-            mail($user['email'], $subj, $body);
-        }
+        mail_queue_add(
+            $user['email'], (string)($user['name'] ?? ''), $subj, '', $body,
+            'oswiadczenie', $id, '', false, $attachments
+        );
     }
 }
