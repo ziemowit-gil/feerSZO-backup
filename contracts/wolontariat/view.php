@@ -1949,6 +1949,8 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane fade<?= ($_tab==='docs'||$_tab==='all')?' show active':'' ?>" id="tab-docs" role="tabpanel">
 
+  <?= katwer_banner_html($TYPE, $id) ?>
+
   <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
   <?php $_cte_templates = cte_list($TYPE); // wzory dokumentów dostępne dla tego typu umowy ?>
   <div class="cv-section">
@@ -2089,7 +2091,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           <span class="fw-semibold small">
             <i class="bi bi-pencil-square me-1 text-success"></i>Dokumenty edytowalne
           </span>
-          <?php $_verif = cgd_verification_status($TYPE, $id); ?>
+          <?php $_verif = katwer_status($TYPE, $id); ?>
           <?php if (!$_verif['verified_at']): ?>
           <span class="badge bg-secondary" title="Nie wygenerowano jeszcze Karty Weryfikacji Danych">
             <i class="bi bi-question-circle me-1"></i>Dane nigdy nie zweryfikowane
