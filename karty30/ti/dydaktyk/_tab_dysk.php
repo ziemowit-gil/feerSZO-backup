@@ -8,6 +8,15 @@
   <h2 class="h5 fw-bold mb-1"><i class="bi bi-hdd-network text-primary me-2" aria-hidden="true"></i>Mój dysk</h2>
   <p class="text-body-secondary small mb-3">Własne miejsce na pliki w chmurze ownCloud — materiały, kopie notatek, projekty.</p>
 
+  <div class="alert alert-info alert-dismissible fade show" role="alert" style="max-width:720px">
+    <i class="bi bi-megaphone me-1" aria-hidden="true"></i>
+    <strong>Nowość:</strong> jeśli zapomniałeś/-aś hasła albo chcesz zacząć od zera, możesz
+    teraz samodzielnie odtworzyć swoje konto przyciskiem „Utwórz konto od nowa” poniżej
+    (usuwa stare pliki i zakłada nowe, puste konto). Zobacz też instrukcję obsługi w
+    sekcji pomocy niżej.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+
   <?php if ($oc_reveal): ?>
   <div class="alert alert-warning shadow-sm" role="alert" style="max-width:520px">
     <h3 class="h6 fw-bold mb-2"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Zapisz dane logowania — pokażemy je tylko raz</h3>

@@ -5049,6 +5049,15 @@ document.addEventListener('DOMContentLoaded', function() {
     To nie jest to samo co zakładka „Dydaktyka / eLearning" — tam oddajesz zadania domowe prowadzącemu.
   </p>
 
+  <div class="alert alert-info alert-dismissible fade show" role="alert" style="max-width:720px">
+    <i class="bi bi-megaphone me-1" aria-hidden="true"></i>
+    <strong>Nowość:</strong> jeśli zapomniałeś/-aś hasła albo chcesz zacząć od zera, możesz
+    teraz samodzielnie odtworzyć swoje konto przyciskiem „Utwórz konto od nowa” poniżej
+    (usuwa stare pliki i zakłada nowe, puste konto). Zobacz też instrukcję obsługi w
+    sekcji pomocy niżej.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+
   <?php if ($oc_msg): ?>
   <div class="alert alert-<?= $oc_msg[0]==='ok'?'success':'danger' ?> alert-dismissible fade show" role="alert">
     <i class="bi bi-<?= $oc_msg[0]==='ok'?'check-circle':'exclamation-triangle' ?> me-1" aria-hidden="true"></i><?= h($oc_msg[1]) ?>
