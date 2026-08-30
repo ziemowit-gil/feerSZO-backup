@@ -72,13 +72,19 @@ if ($missing) {
         <input type="hidden" name="contract_type" value="<?= h($contract_type) ?>">
         <input type="hidden" name="contract_id"   value="<?= $contract_id ?>">
         <input type="hidden" name="confirmed"     value="1">
-        <?php foreach ($missing as $tag => $desc): ?>
+        <?php foreach ($missing as $tag => $desc): $_fid = 'ov_' . preg_replace('/[^a-z0-9]/i', '', $tag); ?>
         <div class="mb-3">
-          <label class="form-label small fw-semibold">
+          <label class="form-label small fw-semibold" for="<?= $_fid ?>">
             <?= h($desc) ?> <code class="text-muted"><?= h($tag) ?></code>
           </label>
-          <input type="text" name="override[<?= h($tag) ?>]" class="form-control form-control-sm"
-                 value="<?= h($overrides[$tag] ?? '') ?>">
+          <div class="input-group input-group-sm">
+            <input type="text" id="<?= $_fid ?>" name="override[<?= h($tag) ?>]" class="form-control"
+                   value="<?= h($overrides[$tag] ?? '') ?>">
+            <button type="button" class="btn btn-outline-secondary"
+                    onclick="document.getElementById('<?= $_fid ?>').value=<?= json_encode(CGD_NO_DATA_LABEL) ?>">
+              Brak danych w systemie
+            </button>
+          </div>
         </div>
         <?php endforeach; ?>
         <div class="d-flex justify-content-end gap-2">

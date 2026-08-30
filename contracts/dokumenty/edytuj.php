@@ -50,6 +50,7 @@ $doc = cgd_get($id); // odśwież po ewentualnym POST (dla spójności przy bł�
 $tpl = cte_get((int)$doc['template_id']) ?? db_one("SELECT name FROM contract_doc_templates WHERE id=?", [$doc['template_id']]);
 $statuses  = cgd_statuses();
 $view_url  = APP_URL . '/contracts/' . $doc['contract_type'] . '/view.php?id=' . $doc['contract_id'] . '&tab=docs';
+$src_row   = cgd_source_row($doc['contract_type'], (int)$doc['contract_id']);
 
 $PAGE_TITLE = 'Edycja dokumentu — ' . ($tpl['name'] ?? 'Umowa');
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -69,6 +70,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <span class="badge bg-secondary bg-opacity-25 text-secondary">
     <?= h($statuses[$doc['status']] ?? $doc['status']) ?>
   </span>
+  <?php if (!empty($doc['nr_karty'])): ?>
+  <span class="badge bg-light text-dark border font-monospace"><?= h($doc['nr_karty']) ?></span>
+  <?php endif; ?>
   <div class="ms-auto d-flex gap-2 flex-wrap">
     <a href="<?= APP_URL ?>/contracts/dokumenty/pdf.php?id=<?= $id ?>" target="_blank" class="btn btn-sm btn-outline-danger">
       <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
@@ -101,6 +105,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<div class="card shadow-sm mb-2">
+  <div class="card-body" style="max-width:210mm;margin:0 auto">
+    <?= cgd_org_header_html($doc, $src_row) ?>
+  </div>
+</div>
 
 <form method="post" id="docForm">
   <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
