@@ -56,11 +56,35 @@ function cgd_source_row(string $contract_type, int $contract_id): array {
 }
 
 /**
- * Krok 1 — generuje dokument z wzorca: podstawia dane umowy i zapisuje
- * nowy wiersz w contract_documents (status początkowy: 'szkic').
+ * Zwraca listę placeholderów UŻYTYCH w treści wzorca, dla których mapa danych
+ * ma pustą wartość — czyli te, o które trzeba dopytać koordynatora przed
+ * wygenerowaniem dokumentu. Format: {tag} => opis (z cte_variables()).
+ */
+function cgd_missing_placeholders(string $template_body, array $map): array {
+    static $desc_by_tag = null;
+    if ($desc_by_tag === null) {
+        $desc_by_tag = [];
+        foreach (cte_variables() as $vars) {
+            foreach ($vars as $tag => $desc) $desc_by_tag[$tag] = $desc;
+        }
+    }
+
+    $missing = [];
+    foreach ($map as $tag => $val) {
+        if (trim((string)$val) === '' && str_contains($template_body, $tag)) {
+            $missing[$tag] = $desc_by_tag[$tag] ?? trim($tag, '{}');
+        }
+    }
+    return $missing;
+}
+
+/**
+ * Krok 1 — generuje dokument z wzorca: podstawia dane umowy (i ewentualne
+ * ręcznie uzupełnione braki z $overrides) i zapisuje nowy wiersz w
+ * contract_documents (status początkowy: 'szkic').
  * Zwraca ID nowo utworzonego dokumentu, albo null gdy wzorzec nie istnieje.
  */
-function cgd_create(int $template_id, string $contract_type, int $contract_id, int $created_by): ?int {
+function cgd_create(int $template_id, string $contract_type, int $contract_id, int $created_by, array $overrides = []): ?int {
     cgd_migrate();
 
     $tpl = cte_get($template_id);
@@ -68,6 +92,7 @@ function cgd_create(int $template_id, string $contract_type, int $contract_id, i
 
     $row  = cgd_source_row($contract_type, $contract_id);
     $map  = cte_build_map($contract_type, $row);
+    if ($overrides) $map = array_merge($map, $overrides);
     $html = cte_render($tpl['body'], $map);
 
     return db_insert('contract_documents', [
