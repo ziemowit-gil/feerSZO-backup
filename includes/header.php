@@ -220,41 +220,37 @@ if ($_user) {
     corePlugins: { preflight: false },
   };
 </script>
-<style>
+<style type="text/tailwindcss">
 /* ── Layout ───────────────────────────────── */
 body { background: #fff; }
 #content { padding: 1.5rem 1.5rem 5rem; }
 [x-cloak] { display: none !important; }
 
-/* ── Navbar ───────────────────────────────── */
+/* ── Navbar (Tailwind @apply — tylko warstwa wizualna; struktura HTML,
+   dropdowny Bootstrapa i offcanvas mobilny zostają nietknięte) ──────── */
 #navbar {
+    @apply tw-sticky tw-top-0 tw-z-[100] tw-px-4 tw-py-1.5 tw-border-b tw-border-black/10 tw-shadow-sm;
     background: <?= h($_sb_color) ?>;
-    border-bottom: 1px solid rgba(0,0,0,.12);
-    padding: .3rem 1rem;
-    position: sticky; top: 0; z-index: 100;
 }
 .nb-brand {
-    display: flex; align-items: center; gap: .55rem;
-    text-decoration: none; flex-shrink: 0;
+    @apply tw-flex tw-items-center tw-gap-2 tw-no-underline tw-shrink-0;
     color: <?= h($_sb_brand_color) ?>;
 }
 .nb-brand:hover { color: <?= h($_sb_brand_color) ?>; opacity: .88; }
 .nb-brand-icon {
-    width: 32px; height: 32px; background: rgba(255,255,255,.15);
-    border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    font-size: 1.05rem; flex-shrink: 0; color: <?= h($_sb_icon_color) ?>;
+    @apply tw-w-8 tw-h-8 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0;
+    background: rgba(255,255,255,.15);
+    color: <?= h($_sb_icon_color) ?>;
 }
-.nb-logo-img { height: 30px; width: auto; max-width: 38px; object-fit: contain; border-radius: 4px; }
-.nb-brand-name { font-weight: 700; font-size: .9rem; white-space: nowrap; line-height: 1.2; }
-.nb-brand-sub { font-size: .59rem; opacity: .6; font-weight: 400; display: block; }
+.nb-logo-img { @apply tw-h-[30px] tw-w-auto tw-max-w-[38px] tw-object-contain tw-rounded; }
+.nb-brand-name { @apply tw-font-bold tw-text-sm tw-whitespace-nowrap tw-leading-tight; }
+.nb-brand-sub { @apply tw-text-[.59rem] tw-opacity-60 tw-font-normal tw-block; }
 
 /* Nav links */
 #navbar .navbar-nav .nav-link {
+    @apply tw-text-[.82rem] tw-font-medium tw-rounded-md tw-whitespace-nowrap tw-flex tw-items-center tw-gap-1.5 tw-transition-colors;
     color: <?= h($_sb_text) ?> !important;
-    font-size: .82rem; font-weight: 500;
-    padding: .3rem .55rem !important; border-radius: 6px;
-    transition: background .12s; white-space: nowrap;
-    display: flex; align-items: center; gap: .35rem;
+    padding: .3rem .55rem !important;
 }
 #navbar .navbar-nav .nav-link:hover,
 #navbar .navbar-nav .nav-link.show {
@@ -262,10 +258,11 @@ body { background: #fff; }
     color: <?= h($_sb_hover_text) ?> !important;
 }
 #navbar .navbar-nav .nav-link.active {
-    background: <?= h($_sb_hover_bg) ?>; font-weight: 600;
+    @apply tw-font-semibold;
+    background: <?= h($_sb_hover_bg) ?>;
     color: <?= h($_sb_hover_text) ?> !important;
 }
-#navbar .navbar-nav .nav-link .badge { font-size: .58rem; margin-left: .2rem; }
+#navbar .navbar-nav .nav-link .badge { @apply tw-text-[.58rem] tw-ml-1; }
 #navbar .navbar-nav .nb-ezd-link { color: #dc2626 !important; }
 #navbar .navbar-nav .nb-ezd-link:hover,
 #navbar .navbar-nav .nb-ezd-link.show,
@@ -300,26 +297,22 @@ body { background: #fff; }
 
 /* User chip */
 .nb-user-chip {
-    display: inline-flex; align-items: center; gap: .35rem;
+    @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-cursor-pointer tw-no-underline tw-transition-colors;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
-    border-radius: 20px; padding: .2rem .6rem .2rem .32rem;
+    padding: .2rem .6rem .2rem .32rem;
     font-size: .8rem; font-weight: 500; color: <?= h($_sb_text) ?>;
-    cursor: pointer; transition: background .14s; text-decoration: none;
 }
 .nb-user-chip:hover { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
 .nb-user-chip .avatar {
-    width: 22px; height: 22px; border-radius: 50%;
+    @apply tw-w-[22px] tw-h-[22px] tw-rounded-full tw-text-white tw-text-[.6rem] tw-font-bold tw-flex tw-items-center tw-justify-center tw-shrink-0;
     background: linear-gradient(135deg, #2563eb, #6610f2);
-    color: #fff; font-size: .6rem; font-weight: 700;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 /* Bell / icon buttons in navbar */
 .nb-icon-btn {
+    @apply tw-rounded-md tw-text-[.88rem] tw-cursor-pointer tw-inline-flex tw-items-center tw-relative tw-transition-colors;
     background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
-    border-radius: 7px; color: <?= h($_sb_text) ?>;
-    padding: .25rem .45rem; font-size: .88rem; cursor: pointer;
-    display: inline-flex; align-items: center; transition: background .12s;
-    position: relative;
+    color: <?= h($_sb_text) ?>;
+    padding: .25rem .45rem;
 }
 .nb-icon-btn:hover { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
 
@@ -345,11 +338,10 @@ body { background: #fff; }
 
 /* Page title bar */
 #page-title-bar {
-    background: #fff; border-bottom: 1px solid #e2e8f0;
-    padding: .45rem 1.5rem; display: flex; align-items: center; gap: .6rem;
-    font-size: .92rem; font-weight: 600; color: #1e293b;
+    @apply tw-bg-white tw-border-b tw-border-slate-200 tw-flex tw-items-center tw-gap-2.5 tw-text-[.92rem] tw-font-semibold tw-text-slate-800;
+    padding: .45rem 1.5rem;
 }
-#page-title-bar .ptb-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-title-bar .ptb-title { @apply tw-flex-1 tw-min-w-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap; }
 
 /* SaaS / impersonate bars */
 #saas-bar {
