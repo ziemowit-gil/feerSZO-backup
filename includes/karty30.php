@@ -2359,6 +2359,7 @@ const K30_TI_DAYS = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=
 
 const K30_TI_SESSION_STATUSES = [
     'draft'             => ['label'=>'Szkic (SZO Planner)',                           'color'=>'#9CA3AF', 'bg'=>'#F9FAFB'],
+    'reserved'          => ['label'=>'Rezerwacja',                                    'color'=>'#2563EB', 'bg'=>'#EFF6FF'],
     'planned'           => ['label'=>'Zaplanowana',                                   'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
     'held'              => ['label'=>'Odbyła się',                                    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
     'individual_change' => ['label'=>'Zajęcia indywidualne',                          'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],

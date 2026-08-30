@@ -28,8 +28,8 @@ if ((int)($course['track_attendance'] ?? 1) === 0) {
 // jest wykluczona z listy obecności — nie liczymy dla niej obecności/nieobecności.
 $show_cancelled = !empty($_GET['all']); // ?all=1 → pokaż też odwołane
 $sessions = $show_cancelled
-    ? db_all("SELECT * FROM k30_ti_sessions WHERE course_id=? AND status!='remote_material' ORDER BY lesson_date, time_from", [$course_id])
-    : db_all("SELECT * FROM k30_ti_sessions WHERE course_id=? AND (status IS NULL OR status NOT IN ('cancelled','remote_material')) ORDER BY lesson_date, time_from", [$course_id]);
+    ? db_all("SELECT * FROM k30_ti_sessions WHERE course_id=? AND status NOT IN ('remote_material','reserved') ORDER BY lesson_date, time_from", [$course_id])
+    : db_all("SELECT * FROM k30_ti_sessions WHERE course_id=? AND (status IS NULL OR status NOT IN ('cancelled','remote_material','reserved')) ORDER BY lesson_date, time_from", [$course_id]);
 
 // Aktywni kursanci
 $enrollees = db_all(

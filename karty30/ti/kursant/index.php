@@ -765,7 +765,7 @@ foreach ($courses as $c) {
     if ($tot === 0) {
         // Fallback: liczba sesji z k30_ti_sessions jako denominator
         try {
-            $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status NOT IN ('cancelled','removed')", [$cid])['n'] ?? 0);
+            $tot = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status NOT IN ('cancelled','removed','reserved')", [$cid])['n'] ?? 0);
         } catch (\Throwable $e) { $tot = 0; }
     }
     try {
@@ -793,7 +793,7 @@ try {
          JOIN k30_ti_courses c ON c.id=s.course_id
          LEFT JOIN users u ON u.id=c.instructor_id
          JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
-         WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
+         WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','reserved'))
          ORDER BY s.lesson_date, s.time_from LIMIT 1",
         [$student['client_id']]
     );
@@ -870,7 +870,7 @@ try {
          LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
          WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
            AND s.lesson_date=?
-           AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','remote_material'))
+           AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','remote_material','reserved'))
            AND (a.cancelled IS NULL OR a.cancelled=0)
          ORDER BY s.time_from",
         [$student['client_id'], $student['client_id'], $today_str]

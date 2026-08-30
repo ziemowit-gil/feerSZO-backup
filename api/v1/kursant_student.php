@@ -246,7 +246,7 @@ switch ($action) {
                 SELECT course_id FROM k30_ti_enrollments WHERE client_id = ? AND status = 'active'
             )
               AND s.lesson_date >= date('now')
-              AND s.status NOT IN ('cancelled', 'removed')
+              AND s.status NOT IN ('cancelled', 'removed', 'reserved')
             ORDER BY s.lesson_date ASC, s.time_from ASC
             LIMIT 1
         ");
@@ -699,7 +699,7 @@ switch ($action) {
                 SELECT course_id FROM k30_ti_enrollments WHERE client_id = ? AND status = 'active'
             )
               AND s.lesson_date = date('now')
-              AND s.status NOT IN ('cancelled', 'removed')
+              AND s.status NOT IN ('cancelled', 'removed', 'reserved')
             ORDER BY s.time_from ASC
             LIMIT 1
         ");
@@ -875,7 +875,7 @@ switch ($action) {
               AND s.course_id IN (
                   SELECT course_id FROM k30_ti_enrollments WHERE client_id = ? AND status = 'active'
               )
-              AND s.status NOT IN ('cancelled', 'removed')
+              AND s.status NOT IN ('cancelled', 'removed', 'reserved')
         ");
         $chk->execute([$sid, $cid]);
         if (!$chk->fetchColumn()) json_err('Lekcja nie znaleziona lub brak uprawnień.', 403);

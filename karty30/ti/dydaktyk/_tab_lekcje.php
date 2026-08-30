@@ -152,6 +152,7 @@ if ($_sms_enabled && $cur_course) {
 
   <!-- Legenda statusów lekcji -->
   <?php $_sdesc = [
+    'reserved'          => 'termin zarezerwowany i zablokowany — kursanci jej nie widzą, dopóki nie zostanie potwierdzona',
     'planned'           => 'zaplanowana, jeszcze się nie odbyła',
     'held'              => 'odbyła się z pełną grupą',
     'individual_change' => 'odbyła się, ale ze zmienionym składem uczestników',
@@ -404,6 +405,20 @@ if ($_sms_enabled && $cur_course) {
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
+                  <?php if ($s['status'] === 'reserved'): ?>
+                  <li>
+                    <form method="post">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="confirm_reservation">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <button type="submit" class="dropdown-item text-primary">
+                        <i class="bi bi-bookmark-check me-2"></i>Potwierdź rezerwację
+                      </button>
+                    </form>
+                  </li>
+                  <?php endif; ?>
                   <?php if (in_array($s['status'], K30_TI_HELD_STATUSES, true)): ?>
                   <li>
                     <form method="post">

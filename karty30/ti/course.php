@@ -190,13 +190,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $m = (strtotime('1970-01-01 '.$tt) - strtotime('1970-01-01 '.$tf)) / 60;
             if ($m > 0) $dur = (int)$m;
         }
+        $is_reservation = !empty($_POST['is_reservation']);
         $sess_data = [
             'course_id'    => $id,
             'lesson_date' => trim($_POST['lesson_date'] ?? ''),
             'time_from'    => $tf,
             'time_to'      => $tt,
             'duration_min' => $dur,
-            'status'       => 'planned',
+            'status'       => $is_reservation ? 'reserved' : 'planned',
             'notes'        => trim($_POST['notes'] ?? ''),
             'meeting_url'  => trim($_POST['meeting_url'] ?? ''),
             'created_by'   => current_user()['id'] ?? null,
@@ -231,12 +232,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             try { db_insert('k30_ti_attendance', ['session_id'=>$sid,'client_id'=>(int)$e['client_id'],'attended'=>0]); }
             catch(\Throwable $ex) {}
         }
-        // Powiadomienia SMS o nowych zajęciach — tylko do kursantów, którzy je włączyli
-        $course_row = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$id]);
-        $when = $sess_data['lesson_date'] . ($tf !== '' ? ' o ' . $tf : '');
-        $sms_sent = ti_lesson_sms_notify((int)$id,
-            'Nowe zajecia: ' . ($course_row['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
-        flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : '') . $zw);
+        if ($is_reservation) {
+            flash_set('success', 'Rezerwacja terminu utworzona — termin jest zablokowany, ale kursanci jej nie widzą, dopóki nie zostanie potwierdzona.' . $zw);
+        } else {
+            // Powiadomienia SMS o nowych zajęciach — tylko do kursantów, którzy je włączyli
+            $course_row = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$id]);
+            $when = $sess_data['lesson_date'] . ($tf !== '' ? ' o ' . $tf : '');
+            $sms_sent = ti_lesson_sms_notify((int)$id,
+                'Nowe zajecia: ' . ($course_row['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+            flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : '') . $zw);
+        }
         header('Location: lesson.php?id='.$sid); exit;
     }
 
@@ -286,6 +291,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         }
         flash_set('success','Lekcja sklonowana na '.date('d.m.Y', strtotime($new_date)).'.');
         header('Location: lesson.php?id='.$new_id); exit;
+    }
+
+    // Potwierdzenie rezerwacji — zamienia ją w zwykłą, zaplanowaną lekcję (widoczną
+    // dla kursanta). Termin był zablokowany od chwili rezerwacji, więc tu już nie
+    // trzeba ponownie sprawdzać konfliktów.
+    if ($op === 'confirm_reservation') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        $r = db()->prepare("UPDATE k30_ti_sessions SET status='planned', updated_at=datetime('now') WHERE id=? AND course_id=? AND status='reserved'");
+        $r->execute([$sid, $id]);
+        flash_set($r->rowCount() ? 'success' : 'danger', $r->rowCount() ? 'Rezerwacja potwierdzona — lekcja jest teraz widoczna dla kursantów.' : 'Ta rezerwacja już nie istnieje albo została wcześniej potwierdzona.');
+        header('Location: course.php?id='.$id.'#lekcje'); exit;
     }
 
     // ── CoProwadzący ───────────────────────────────────────────────────────────
@@ -751,6 +767,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                         onclick="openClone(<?= (int)$s['id'] ?>, '<?= h($s['lesson_date']) ?>', '<?= h($s['time_from']) ?>', '<?= h($s['time_to']) ?>')">
                   <i class="bi bi-copy"></i>
                 </button>
+                <?php if ($s['status'] === 'reserved'): ?>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op" value="confirm_reservation">
+                  <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                  <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2 ms-1" title="Potwierdź rezerwację">
+                    <i class="bi bi-bookmark-check"></i>
+                  </button>
+                </form>
+                <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>
@@ -825,6 +851,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php else: ?>
           <p class="form-text mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Prowadzący nie ma zdefiniowanej dostępności — lekcje bez ograniczeń. <a href="availability.php?instructor=<?= ti_course_instructor_id((int)$id) ?>">Ustaw dostępność</a>.</p>
           <?php endif; ?>
+          <div class="form-check form-switch mt-2 p-2 rounded" style="background:#EFF6FF">
+            <input class="form-check-input" type="checkbox" role="switch" name="is_reservation" id="sess_reservation" value="1">
+            <label class="form-check-label" for="sess_reservation">
+              <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>To jest rezerwacja terminu (nie ostateczna lekcja)
+            </label>
+            <div class="form-text mb-0">Termin zostaje zablokowany, ale kursanci jej nie zobaczą, dopóki nie zostanie potwierdzona.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
