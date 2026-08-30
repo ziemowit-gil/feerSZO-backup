@@ -29,8 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['_action'] ?? '';
 
     if ($act === 'save') {
-        cgd_update_content($id, $_POST['body'] ?? '');
-        flash_set('success', 'Zmiany zapisane.');
+        if (cgd_update_content($id, $_POST['body'] ?? '')) {
+            flash_set('success', 'Zmiany zapisane.');
+        } else {
+            flash_set('error', 'Dokument jest zarchiwizowany — nie można go już edytować.');
+        }
         header('Location: ' . $SELF); exit;
     }
 
@@ -38,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (cgd_set_status($id, $_POST['status'] ?? '')) {
             flash_set('success', 'Status dokumentu zmieniony.');
         } else {
-            flash_set('error', 'Nieprawidłowy status.');
+            flash_set('error', 'Nieprawidłowy status albo dokument jest już zarchiwizowany.');
         }
         header('Location: ' . $SELF); exit;
     }
@@ -51,6 +54,8 @@ $tpl = cte_get((int)$doc['template_id']) ?? db_one("SELECT name FROM contract_do
 $statuses  = cgd_statuses();
 $view_url  = APP_URL . '/contracts/' . $doc['contract_type'] . '/view.php?id=' . $doc['contract_id'] . '&tab=docs';
 $src_row   = cgd_source_row($doc['contract_type'], (int)$doc['contract_id']);
+$is_archived = cgd_is_archived($doc);
+$editable    = $can_edit_doc && !$is_archived;
 
 $PAGE_TITLE = 'Edycja dokumentu — ' . ($tpl['name'] ?? 'Umowa');
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -67,7 +72,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <h5 class="mb-0 fw-bold">
     <i class="bi bi-file-earmark-richtext text-primary me-1"></i><?= h($tpl['name'] ?? 'Dokument') ?>
   </h5>
-  <span class="badge bg-secondary bg-opacity-25 text-secondary">
+  <span class="badge <?= $is_archived ? 'bg-dark' : 'bg-secondary bg-opacity-25 text-secondary' ?>">
+    <?php if ($is_archived): ?><i class="bi bi-archive-fill me-1"></i><?php endif; ?>
     <?= h($statuses[$doc['status']] ?? $doc['status']) ?>
   </span>
   <?php if (!empty($doc['nr_karty'])): ?>
@@ -87,7 +93,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<?php if ($can_edit_doc): ?>
+<?php if ($editable): ?>
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 d-flex align-items-center gap-2 flex-wrap">
     <span class="small fw-semibold text-muted">Status dokumentu:</span>
@@ -104,6 +110,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endforeach; ?>
   </div>
 </div>
+<?php elseif ($is_archived): ?>
+<div class="alert alert-secondary py-2 small mb-3">
+  <i class="bi bi-archive me-1"></i>
+  Dokument zarchiwizowany — treść i status są trwale zablokowane (bez możliwości edycji ani usunięcia).
+</div>
 <?php endif; ?>
 
 <div class="card shadow-sm mb-2">
@@ -116,7 +127,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
   <input type="hidden" name="_action" value="save">
 
-  <?php if ($can_edit_doc): ?>
+  <?php if ($editable): ?>
   <div class="card shadow-sm mb-2">
     <div class="card-body p-0">
       <textarea id="docBody" name="body" style="width:100%;min-height:520px"><?= h($doc['tresc_finalna']) ?></textarea>
@@ -144,7 +155,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- TinyMCE 7 (CDN, spójny z ezd/poczta/compose) -->
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-<?php if ($can_edit_doc): ?>
+<?php if ($editable): ?>
 if (!window.tinymce) {
   document.getElementById('docEditorFallback').style.display = 'block';
 } else {

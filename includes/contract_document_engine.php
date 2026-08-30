@@ -38,12 +38,19 @@ function cgd_migrate(): void {
     katwer_migrate();
 }
 
-/** Statusy dokumentu wraz z etykietami (kolejność = ścieżka procesu). */
+/**
+ * Statusy dokumentu wraz z etykietami (kolejność = ścieżka procesu).
+ * 'zarchiwizowany' jest stanem KOŃCOWYM i nieodwracalnym — po jego ustawieniu
+ * cgd_set_status()/cgd_update_content() odmawiają dalszych zmian (patrz niżej).
+ * Nie ma i celowo nie będzie funkcji usuwania contract_documents — Karta
+ * Weryfikacji Danych to zapis audytowy, musi przetrwać jako dowód.
+ */
 function cgd_statuses(): array {
     return [
-        'szkic'       => 'Szkic',
-        'do_podpisu'  => 'Do podpisu',
-        'podpisana'   => 'Podpisana',
+        'szkic'           => 'Szkic',
+        'do_podpisu'      => 'Do podpisu',
+        'podpisana'       => 'Podpisana',
+        'zarchiwizowany'  => 'Zarchiwizowany',
     ];
 }
 
@@ -190,15 +197,26 @@ function cgd_list_for_contract(string $contract_type, int $contract_id): array {
     );
 }
 
-/** Krok 2 — zapisuje treść po live edycji. */
-function cgd_update_content(int $id, string $html): void {
-    cgd_migrate();
-    db_update('contract_documents', ['tresc_finalna' => $html], $id);
+/** Czy dokument jest zablokowany do edycji/zmiany statusu (stan końcowy). */
+function cgd_is_archived(array $doc): bool {
+    return ($doc['status'] ?? '') === 'zarchiwizowany';
 }
 
+/** Krok 2 — zapisuje treść po live edycji. Odmawia, gdy dokument zarchiwizowany. */
+function cgd_update_content(int $id, string $html): bool {
+    cgd_migrate();
+    $doc = cgd_get($id);
+    if (!$doc || cgd_is_archived($doc)) return false;
+    db_update('contract_documents', ['tresc_finalna' => $html], $id);
+    return true;
+}
+
+/** Zmienia status — odmawia, gdy dokument jest już zarchiwizowany (stan końcowy, bez odwrotu). */
 function cgd_set_status(int $id, string $status): bool {
     cgd_migrate();
     if (!array_key_exists($status, cgd_statuses())) return false;
+    $doc = cgd_get($id);
+    if (!$doc || cgd_is_archived($doc)) return false;
     db_update('contract_documents', ['status' => $status], $id);
     return true;
 }
