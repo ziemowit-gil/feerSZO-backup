@@ -116,35 +116,38 @@ if (!function_exists('osw_szablon_hash')) {
 // Mechanizm zależności — czy szablon dotyczy danego użytkownika
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Tabele umów sprawdzane przez mechanizm zależności — w tej kolejności. */
+const OSW_TABELE_UMOW = ['umowy_wolontariat', 'umowy_zlecenie'];
+
 if (!function_exists('_osw_kolumna_istnieje')) {
-    /** Czy kolumna istnieje w umowy_wolontariat — cache per request, bezpieczne na SQLite i MySQL. */
-    function _osw_kolumna_istnieje(string $kolumna): bool {
-        static $cols = null;
-        if ($cols === null) {
+    /** Czy kolumna istnieje w danej tabeli umów — cache per tabela, bezpieczne na SQLite i MySQL. */
+    function _osw_kolumna_istnieje(string $tabela, string $kolumna): bool {
+        static $cols = [];
+        if (!array_key_exists($tabela, $cols)) {
             try {
-                $cols = (DB_TYPE === 'sqlite')
-                    ? db()->query("PRAGMA table_info(umowy_wolontariat)")->fetchAll(PDO::FETCH_COLUMN, 1)
-                    : db()->query("SHOW COLUMNS FROM `umowy_wolontariat`")->fetchAll(PDO::FETCH_COLUMN, 0);
+                $cols[$tabela] = (DB_TYPE === 'sqlite')
+                    ? db()->query("PRAGMA table_info(`{$tabela}`)")->fetchAll(PDO::FETCH_COLUMN, 1)
+                    : db()->query("SHOW COLUMNS FROM `{$tabela}`")->fetchAll(PDO::FETCH_COLUMN, 0);
             } catch (\Throwable $e) {
-                $cols = [];
+                $cols[$tabela] = [];
             }
         }
-        return in_array($kolumna, $cols, true);
+        return in_array($kolumna, $cols[$tabela], true);
     }
 }
 
 if (!function_exists('osw_uzytkownik_ma_pole_umowy')) {
     /**
-     * Sprawdza, czy najnowsza umowa wolontariacka powiązana z użytkownikiem
-     * (po e-mailu lub loginie/ID M365 — jak w panel_contracts()) ma zaznaczone
-     * dane pole (wartość „1"). Nazwa pola musi być bezpiecznym identyfikatorem
-     * (litery/cyfry/podkreślenie) i istnieć w tabeli — inaczej fail-closed
-     * (nie wymagaj), żeby błędna konfiguracja szablonu nigdy nie zablokowała
-     * logowania do panelu.
+     * Sprawdza, czy dowolna umowa powiązana z użytkownikiem — wolontariacka
+     * ALBO zlecenie (po e-mailu lub loginie/ID M365 — jak w panel_contracts())
+     * — ma zaznaczone dane pole (wartość „1"). Wystarczy jedna pasująca umowa
+     * z dowolnej z tabel. Nazwa pola musi być bezpiecznym identyfikatorem
+     * (litery/cyfry/podkreślenie) i istnieć w danej tabeli — inaczej fail-closed
+     * (nie wymagaj) dla tej tabeli, żeby błędna konfiguracja szablonu nigdy nie
+     * zablokowała logowania do panelu.
      */
     function osw_uzytkownik_ma_pole_umowy(array $user, string $pole): bool {
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $pole)) return false;
-        if (!_osw_kolumna_istnieje($pole)) return false;
 
         $email = trim($user['email'] ?? '');
         $ms_id = trim($user['microsoft_id'] ?? '');
@@ -155,18 +158,24 @@ if (!function_exists('osw_uzytkownik_ma_pole_umowy')) {
         if ($email !== '') { $conds[] = 'm365_login = ?';  $params[] = $email; }
         if ($ms_id !== '') { $conds[] = 'm365_user_id = ?'; $params[] = $ms_id; }
 
-        try {
-            $umowa = db_one(
-                "SELECT `{$pole}` AS wartosc FROM umowy_wolontariat
-                 WHERE (" . implode(' OR ', $conds) . ")
-                 ORDER BY created_at DESC LIMIT 1",
-                $params
-            );
-        } catch (\Throwable $e) {
-            return false;
+        foreach (OSW_TABELE_UMOW as $tabela) {
+            if (!_osw_kolumna_istnieje($tabela, $pole)) continue;
+
+            try {
+                $umowa = db_one(
+                    "SELECT `{$pole}` AS wartosc FROM `{$tabela}`
+                     WHERE (" . implode(' OR ', $conds) . ")
+                     ORDER BY created_at DESC LIMIT 1",
+                    $params
+                );
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            if ($umowa !== null && (string)$umowa['wartosc'] === '1') return true;
         }
 
-        return $umowa !== null && (string)$umowa['wartosc'] === '1';
+        return false;
     }
 }
 
