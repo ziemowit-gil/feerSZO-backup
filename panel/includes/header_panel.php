@@ -374,6 +374,14 @@ try {
       $_gc_pending = count(guardian_consent_pending_for_email($_pu['email'] ?? ''));
   } catch (\Throwable $e) {}
 
+  // Oświadczenia wymagane a jeszcze niepodpisane (zawsze, lub warunkowo wg
+  // pola zaznaczonego w umowie — patrz includes/oswiadczenia.php).
+  $_osw_pending = [];
+  try {
+      require_once dirname(dirname(__DIR__)) . '/includes/oswiadczenia.php';
+      $_osw_pending = osw_wymagane_niepodpisane($_pu);
+  } catch (\Throwable $e) {}
+
   // Pokaż link do RODO jeśli użytkownik ma aktywne upoważnienie
   $_has_rodo = false;
   try {
@@ -955,6 +963,73 @@ if (empty($_SESSION['rpts_consent_snoozed'])) {
     fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
     fd.append('action', 'snooze');
     fetch(APP_URL + '/api/guardian_consent_nudge.php', { method: 'POST', body: fd })
+      .finally(function () { modal.hide(); });
+  });
+})();
+</script>
+<?php endif; ?>
+
+<?php
+// ── Przypomnienie: oświadczenia wymagane a niepodpisane ──────────────────────
+// Wymagalność ustala includes/oswiadczenia.php: zawsze dla wszystkich wolontariuszy
+// albo warunkowo, gdy w umowie zaznaczono odpowiednie pole (np. zgoda na kontakt
+// z małoletnimi). Odsyła do pełnej strony /oswiadczenia/ — tam odbywa się właściwy
+// podpis (treść + kod autoryzacyjny 2FA); tu tylko przypominamy i można odłożyć
+// do następnego logowania (sesja), jak przy zgodzie przedstawiciela ustawowego.
+?>
+<?php if ($_osw_pending && empty($_SESSION['oswiadczenia_nudge_snoozed']) && !str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/oswiadczenia/')): ?>
+<div class="modal fade" id="oswNudge" tabindex="-1" aria-labelledby="oswNudgeLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden">
+      <div class="modal-header" style="background:var(--vol-color,#1D4ED8);color:#fff;border:none">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="oswNudgeLabel">
+          <i class="bi bi-file-earmark-check" aria-hidden="true"></i>Oczekujące oświadczenia
+        </h5>
+      </div>
+      <div class="modal-body" style="padding:1.5rem">
+        <p class="mb-2">
+          Masz <strong><?= count($_osw_pending) ?></strong>
+          <?= count($_osw_pending) === 1 ? 'oświadczenie oczekujące na podpis' : 'oświadczeń oczekujących na podpis' ?>:
+        </p>
+        <ul class="mb-0 ps-3">
+          <?php foreach ($_osw_pending as $_o): ?>
+          <li><?= h($_o['tytul']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+      <div class="modal-footer" style="border:none">
+        <button type="button" class="btn btn-link text-muted" id="oswNudgeSnooze" style="font-size:.85rem">
+          Przypomnij później
+        </button>
+        <a href="<?= APP_URL ?>/oswiadczenia/index.php" class="btn" style="background:var(--vol-color,#1D4ED8);color:#fff">
+          <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Podpisz teraz
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var APP_URL = '<?= APP_URL ?>';
+  var modalEl = document.getElementById('oswNudge');
+  if (!modalEl || !window.bootstrap) return;
+  var modal = new bootstrap.Modal(modalEl);
+
+  function show() { modal.show(); }
+  var chain = document.getElementById('gcConsentNudge') || document.getElementById('rptsConsentModal') || document.getElementById('pvAnnPopup');
+  if (chain) {
+    chain.addEventListener('hidden.bs.modal', show, { once: true });
+  } else {
+    show();
+  }
+
+  var snooze = document.getElementById('oswNudgeSnooze');
+  snooze.addEventListener('click', function () {
+    snooze.disabled = true;
+    var fd = new FormData();
+    fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+    fd.append('action', 'snooze');
+    fetch(APP_URL + '/api/oswiadczenia_nudge.php', { method: 'POST', body: fd })
       .finally(function () { modal.hide(); });
   });
 })();

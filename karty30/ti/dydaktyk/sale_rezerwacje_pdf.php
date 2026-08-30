@@ -4,6 +4,9 @@
  * Wariant sale_rezerwacje.php (widok HTML) — te same dane i ten sam zakres dat
  * (ti_room_reservation_range() + ti_room_reservation_report()).
  * GET: range ('week'|'month'|'quarter', domyślnie 'week'), w (data kotwicząca).
+ *
+ * mPDF (nie FPDF) — natywne UTF-8, żeby polskie znaki (ą, ć, ę, ł, ń, ó, ś, ź, ż)
+ * nie ginęły przy transliteracji do CP1252, jak w starszych wydrukach FPDF.
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
@@ -23,72 +26,80 @@ $from  = $RR['from']; $to = $RR['to']; $range_label = $RR['label'];
 $by_day = ti_room_reservation_report($from, $to);
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
 
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
-$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+function _h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
 try {
-    $pdf = new FPDF('L', 'mm', 'A4');
-    $pdf->SetAutoPageBreak(true, 15);
-    $pdf->SetMargins(12, 12, 12);
-    $pdf->AddPage();
-    $W = $pdf->GetPageWidth() - 24;
+    require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 
-    $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('Helvetica', 'B', 14);
-    $pdf->Cell($W, 10, $pl('Wykaz sal do rezerwacji'), 0, 1, 'L', true);
-    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Helvetica', '', 8.5);
-    $sub = ($org !== '' ? $org . '   ·   ' : '') . $range_label;
-    $pdf->Cell($W, 5, $pl($sub), 0, 1);
-    $pdf->Ln(4);
+    $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+    if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+
+    $mpdf = new \Mpdf\Mpdf([
+        'mode'          => 'utf-8',
+        'format'        => 'A4-L', // poziomo — 5 kolumn
+        'margin_left'   => 14,
+        'margin_right'  => 14,
+        'margin_top'    => 14,
+        'margin_bottom' => 16,
+        'default_font'  => 'dejavusans',
+        'tempDir'       => $mpdf_tmp,
+    ]);
+    $mpdf->SetTitle('Wykaz sal do rezerwacji — ' . $range_label);
+    $mpdf->SetAuthor($org !== '' ? $org : 'FEER');
+
+    $mpdf->WriteHTML(
+        'body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; }
+         h1 { font-size: 15pt; margin: 0 0 1mm; }
+         p.meta { color: #555; font-size: 9pt; margin: 0 0 5mm; }
+         h2.day { font-size: 10.5pt; background: #f1f5f9; padding: 1.5mm 2.5mm; margin: 4mm 0 1.5mm; border-left: 1mm solid #3b82f6; }
+         table { border-collapse: collapse; width: 100%; margin-bottom: 2mm; }
+         th { background: #f8fafc; border-bottom: .3mm solid #cbd5e1; padding: 1mm 2mm; text-align: left; font-size: 8.5pt; color: #475569; }
+         td { border-bottom: .2mm solid #e2e8f0; padding: 1.2mm 2mm; font-size: 9pt; vertical-align: top; }
+         td.time { white-space: nowrap; }
+         .st-confirmed { color: #166534; }
+         .st-pending   { color: #92400e; }
+         p.empty { color: #64748b; font-style: italic; }
+         p.footer { color: #94a3b8; font-size: 7.5pt; margin-top: 6mm; }',
+        \Mpdf\HTMLParserMode::HEADER_CSS
+    );
+
+    $html = '<h1>Wykaz sal do rezerwacji</h1>'
+          . '<p class="meta">' . ($org !== '' ? _h($org) . '   ·   ' : '') . _h($range_label) . '</p>';
 
     if (!$by_day) {
-        $pdf->SetFont('Helvetica', '', 10);
-        $pdf->Cell($W, 8, $pl('Brak terminów z przypisaną salą w wybranym okresie.'), 0, 1);
+        $html .= '<p class="empty">Brak terminów z przypisaną salą w wybranym okresie.</p>';
     } else {
-        // Godziny | Sala/lokalizacja | Grupa | Prowadzący | Status
-        $wTime = 24; $wStat = 34; $rest = $W - $wTime - $wStat;
-        $wRoom = (int)round($rest * 0.34); $wCourse = (int)round($rest * 0.34); $wInstr = $rest - $wRoom - $wCourse;
-
         foreach ($by_day as $date => $day_rows) {
             $dow = (int)date('N', strtotime($date));
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
-
-            $pdf->SetFillColor(241, 245, 249); $pdf->SetTextColor(30, 41, 59);
-            $pdf->SetFont('Helvetica', 'B', 10);
-            $pdf->Cell($W, 7, $pl((TI_DAYS_PL_FULL[$dow] ?? '') . ', ' . date('d.m.Y', strtotime($date)) . ' (' . count($day_rows) . ')'), 0, 1, 'L', true);
-            $pdf->SetTextColor(0, 0, 0);
-
-            $pdf->SetFillColor(248, 250, 252); $pdf->SetDrawColor(226, 232, 240);
-            $pdf->SetFont('Helvetica', 'B', 8);
-            $pdf->Cell($wTime,   6, $pl('Godziny'),           1, 0, 'L', true);
-            $pdf->Cell($wRoom,   6, $pl('Sala / lokalizacja'),1, 0, 'L', true);
-            $pdf->Cell($wCourse, 6, $pl('Grupa'),             1, 0, 'L', true);
-            $pdf->Cell($wInstr,  6, $pl('Prowadzący'),        1, 0, 'L', true);
-            $pdf->Cell($wStat,   6, $pl('Status'),            1, 1, 'L', true);
-
-            $pdf->SetFont('Helvetica', '', 8);
+            $html .= '<h2 class="day">' . _h((TI_DAYS_PL_FULL[$dow] ?? '') . ', ' . date('d.m.Y', strtotime($date)) . ' (' . count($day_rows) . ')') . '</h2>';
+            $html .= '<table><thead><tr>'
+                   . '<th style="width:16%">Godziny</th>'
+                   . '<th style="width:26%">Sala / lokalizacja</th>'
+                   . '<th style="width:26%">Grupa</th>'
+                   . '<th style="width:20%">Prowadzący</th>'
+                   . '<th style="width:12%">Status</th>'
+                   . '</tr></thead><tbody>';
             foreach ($day_rows as $r) {
-                if ($pdf->GetY() > $pdf->GetPageHeight() - 20) $pdf->AddPage();
                 $confirmed = $r['room_reservation_status'] === 'potwierdzone';
                 $time_lbl  = substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5);
-                $pdf->Cell($wTime,   6, $pl($time_lbl), 1, 0, 'L');
-                $pdf->Cell($wRoom,   6, $pl(mb_strimwidth($r['room_label'], 0, 30, '…')), 1, 0, 'L');
-                $pdf->Cell($wCourse, 6, $pl(mb_strimwidth($r['course_name'], 0, 30, '…')), 1, 0, 'L');
-                $pdf->Cell($wInstr,  6, $pl(mb_strimwidth($r['instructor_label'], 0, 28, '…')), 1, 0, 'L');
-                $pdf->Cell($wStat,   6, $pl($confirmed ? 'Potwierdzone' : 'Do rezerwacji'), 1, 1, 'L');
+                $html .= '<tr>'
+                       . '<td class="time">' . _h($time_lbl) . '</td>'
+                       . '<td>' . _h($r['room_label']) . '</td>'
+                       . '<td>' . _h($r['course_name']) . '</td>'
+                       . '<td>' . _h($r['instructor_label']) . '</td>'
+                       . '<td class="' . ($confirmed ? 'st-confirmed' : 'st-pending') . '">' . ($confirmed ? 'Potwierdzone' : 'Do rezerwacji') . '</td>'
+                       . '</tr>';
             }
-            $pdf->Ln(2);
+            $html .= '</tbody></table>';
         }
     }
 
-    $pdf->SetAutoPageBreak(false);
-    $pdf->SetY(-15);
-    $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
-    $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
+    $html .= '<p class="footer">Wygenerowano: ' . _h(date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')) . '</p>';
+    $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
 
     ti_print_log_add('sale_rezerwacje_pdf', 'Wykaz sal do rezerwacji PDF — ' . $range_label, 0, 0, ['range' => $range], $me);
     $fname = 'wykaz_sal_' . preg_replace('/[^a-z0-9]+/i', '_', $from . '_' . $to) . '.pdf';
-    $pdfData = $pdf->Output('S');
+    $pdfData = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $fname . '"');
