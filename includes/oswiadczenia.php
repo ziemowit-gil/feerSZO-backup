@@ -347,7 +347,7 @@ if (!function_exists('osw_rozpocznij_podpis')) {
                   . '<p style="font-size:1.5em;letter-spacing:.15em"><strong>' . htmlspecialchars($kod, ENT_QUOTES) . '</strong></p>'
                   . '<p>Kod jest ważny 5 minut. Nie udostępniaj go nikomu.</p>';
             try {
-                mail_queue_add($user['email'], '', $subj, $body, '', 'oswiadczenie', $id, '', true);
+                mail_queue_add($user['email'], '', $subj, $body, '', 'oswiadczenie', $id, '', true, from_email: _osw_from_email());
                 $kanal = 'email';
             } catch (\Throwable $e) {
                 $blad = $e->getMessage();
@@ -436,6 +436,18 @@ if (!function_exists('osw_zweryfikuj_i_podpisz')) {
 
 const OSW_PLATFORMA_URL = 'szo.feer.org.pl';
 
+if (!function_exists('_osw_from_email')) {
+    /**
+     * Adres nadawcy powiadomień modułu — konfigurowalny osobno od domyślnego
+     * nadawcy systemowego (fundacja@feer.org.pl), np. powiadomienia@szo.feer.org.pl.
+     * Puste ustawienie = nadawca systemowy (patrz includes/mail_queue.php, _mail_from()).
+     * Zarządzane w admin/oswiadczenia_settings.php.
+     */
+    function _osw_from_email(): string {
+        return trim(org_setting('oswiadczenia_from_email'));
+    }
+}
+
 if (!function_exists('_osw_stopka_mail')) {
     function _osw_stopka_mail(): string {
         return "Bezpieczny dostęp do platformy: " . OSW_PLATFORMA_URL . "\n\n"
@@ -475,7 +487,7 @@ if (!function_exists('osw_powiadom_nowe_oswiadczenie')) {
                   . _osw_stopka_mail();
 
             try {
-                mail_queue_add($user['email'], (string)($user['name'] ?? ''), $subj, '', $body, 'oswiadczenie', (int)$szablon['id']);
+                mail_queue_add($user['email'], (string)($user['name'] ?? ''), $subj, '', $body, 'oswiadczenie', (int)$szablon['id'], from_email: _osw_from_email());
                 $wyslano++;
             } catch (\Throwable $e) {
                 error_log('[oswiadczenia] powiadomienie o nowym oświadczeniu: ' . $e->getMessage());
@@ -525,6 +537,7 @@ if (!function_exists('osw_pdf_potwierdzenia_html')) {
         return '
         <h2 style="text-align:center">Potwierdzenie podpisania oświadczenia</h2>
         <p style="text-align:center;color:#555">' . htmlspecialchars($org, ENT_QUOTES) . '</p>
+        <p style="text-align:center;font-size:11pt;margin:1.2em 0"><em>W formie dokumentowej potwierdzam złożenie oświadczenia „' . htmlspecialchars($osw['tytul'], ENT_QUOTES) . '”.</em></p>
         <hr>
         <table style="width:100%;font-size:10.5pt">
           <tr><td style="width:35%"><strong>Tytuł oświadczenia</strong></td><td>' . htmlspecialchars($osw['tytul'], ENT_QUOTES) . '</td></tr>
@@ -595,8 +608,8 @@ if (!function_exists('osw_wyslij_potwierdzenie_podpisu')) {
 
         $subj = 'Potwierdzenie podpisania oświadczenia w Systemie Zarządzania Organizacją (SZO)';
         $body = "Dzień dobry,\n\n"
-              . "Potwierdzamy, że w Systemie Zarządzania Organizacją (SZO) pod adresem " . OSW_PLATFORMA_URL . " "
-              . "zostało złożone Twoje podpisane oświadczenie („" . $osw['tytul'] . "”).\n\n"
+              . "W formie dokumentowej potwierdzam złożenie oświadczenia „" . $osw['tytul'] . "” "
+              . "w Systemie Zarządzania Organizacją (SZO) pod adresem " . OSW_PLATFORMA_URL . ".\n\n"
               . "W załączniku przesyłamy potwierdzenie podpisania oświadczenia w formie dokumentowej.\n\n"
               . _osw_stopka_mail();
 
@@ -612,7 +625,7 @@ if (!function_exists('osw_wyslij_potwierdzenie_podpisu')) {
 
         mail_queue_add(
             $user['email'], (string)($user['name'] ?? ''), $subj, '', $body,
-            'oswiadczenie', $id, '', false, $attachments
+            'oswiadczenie', $id, '', false, $attachments, from_email: _osw_from_email()
         );
     }
 }

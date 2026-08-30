@@ -99,6 +99,11 @@ tailwind.config = {
     </a>
     <h1 class="text-lg font-semibold text-slate-800"><i class="bi bi-file-earmark-check mr-2 text-brand-600" aria-hidden="true"></i>Oświadczenia</h1>
     <span class="ml-auto text-sm text-slate-500"><?= h($user['name'] ?? $user['email'] ?? '') ?></span>
+    <?php if (function_exists('is_admin') && is_admin()): ?>
+    <a href="<?= h(APP_URL) ?>/admin/oswiadczenia_settings.php" class="text-slate-400 hover:text-brand-600" aria-label="Ustawienia modułu">
+      <i class="bi bi-gear text-lg" aria-hidden="true"></i>
+    </a>
+    <?php endif; ?>
   </div>
 </header>
 
