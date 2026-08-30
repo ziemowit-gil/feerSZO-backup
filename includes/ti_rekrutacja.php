@@ -899,7 +899,7 @@ function rk_slots_of_instructor(int $instructor_id, int $limit = 200): array {
 
 function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $token_id = null,
                  string $series_key = ''): array {
-    return rk_tx(function () use ($slot_id, $client_id, $source, $token_id, $series_key) {
+    $result = rk_tx(function () use ($slot_id, $client_id, $source, $token_id, $series_key) {
 
         /* 1. Slot + tura — migawka wewnątrz transakcji */
         $slot = db_one(
@@ -1015,6 +1015,130 @@ function rk_book(int $slot_id, int $client_id, string $source = 'panel', ?int $t
 
         return ['booking_id' => $booking_id, 'tokens_spent' => $cost, 'status' => $status];
     });
+
+    rk_crm_sync_booking($client_id, $slot_id, $result);
+
+    return $result;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INTEGRACJA Z CRM — najlepszego wysiłku (nigdy nie wywraca rezerwacji):
+   po zapisie klient trafia/aktualizuje się w crm_contacts, a rezerwacja
+   zostaje odnotowana jako aktywność na jego karcie. Wzorowane na
+   k30_sync_to_crm()/k30_log_crm_activity() z includes/karty30.php, ale
+   z własnym tagiem/grupą — tamten helper jest zaszyty pod Konsultacje Tyflo.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Grupa CRM „TI — Zapisy na zajęcia” (tworzona przy pierwszym użyciu). */
+function rk_crm_group_id(): int {
+    static $gid = null;
+    if ($gid !== null) return $gid;
+    try {
+        $existing = db_one("SELECT id FROM crm_groups WHERE auto_source='ti_rekrutacja'");
+        if ($existing) { $gid = (int)$existing['id']; return $gid; }
+        $gid = db_insert('crm_groups', [
+            'name'        => 'TI — Zapisy na zajęcia',
+            'description' => 'Kursanci z rezerwacjami w module Rekrutacja TI — dodawani automatycznie',
+            'auto_source' => 'ti_rekrutacja',
+        ]);
+    } catch (\Throwable $e) { $gid = 0; }
+    return $gid;
+}
+
+/**
+ * Upsert kontaktu CRM po e-mailu (a w braku — po imieniu i nazwisku) na
+ * podstawie wiersza k30_clients. Zwraca crm_contacts.id albo 0 przy błędzie.
+ */
+function rk_crm_sync(array $client, ?int $created_by = null): int {
+    try {
+        require_once __DIR__ . '/crm.php';
+        crm_migrate();
+
+        $email = trim($client['email'] ?? '');
+        $name  = trim($client['name']  ?? '');
+        if ($name === '') return 0;
+
+        $contact_id = null;
+        if ($email) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE LOWER(email)=LOWER(?) AND crm_active=1", [$email]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+        if (!$contact_id) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE imie_nazwisko=? AND crm_active=1 ORDER BY id DESC LIMIT 1", [$name]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+
+        if ($contact_id) {
+            $upd = [];
+            if ($email && $email !== (db_one("SELECT email FROM crm_contacts WHERE id=?", [$contact_id])['email'] ?? ''))
+                $upd['email'] = $email;
+            if ($client['phone'] ?? '') $upd['telefon'] = $client['phone'];
+            if ($upd) CrmManager::updateContact($contact_id, $upd);
+        } else {
+            $contact_id = CrmManager::createContact([
+                'type'          => 'osoba',
+                'imie_nazwisko' => $name,
+                'email'         => $email ?: null,
+                'telefon'       => $client['phone'] ?? null,
+                'adres'         => $client['address'] ?? null,
+                'status'        => 'aktywny',
+                'source'        => 'ti_rekrutacja',
+                'created_by'    => $created_by,
+            ]);
+        }
+
+        try {
+            db()->prepare("INSERT OR IGNORE INTO crm_tags (contact_id, tag) VALUES (?,?)")
+                ->execute([$contact_id, 'zajecia-ti']);
+        } catch (\Throwable $e) {}
+
+        $gid = rk_crm_group_id();
+        if ($gid) CrmManager::addToGroup($gid, $contact_id, $created_by ?? 0);
+
+        return $contact_id;
+    } catch (\Throwable $e) {
+        error_log('[rk_crm] ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Wywoływane po każdej udanej rezerwacji (rk_book): synchronizuje klienta do
+ * CRM i loguje rezerwację jako aktywność na jego karcie. Najlepszy wysiłek —
+ * błąd CRM nigdy nie cofa ani nie sygnalizuje niepowodzenia samej rezerwacji.
+ */
+function rk_crm_sync_booking(int $client_id, int $slot_id, array $result): void {
+    if (!module_enabled('crm_enabled')) return;
+    try {
+        $client = db_one("SELECT name, email, phone, address FROM k30_clients WHERE id=?", [$client_id]);
+        if (!$client) return;
+
+        $contact_id = rk_crm_sync($client);
+        if (!$contact_id) return;
+
+        $slot = db_one(
+            "SELECT s.starts_at, s.subject_label, r.name AS round_name, c.name AS course_name
+               FROM k30_rk_slots s
+               JOIN k30_rk_rounds r ON r.id = s.round_id
+          LEFT JOIN k30_ti_courses c ON c.id = s.course_id
+              WHERE s.id = ?", [$slot_id]);
+        $co = $slot['course_name'] ?? $slot['subject_label'] ?? '';
+        $termin = $slot ? date('d.m.Y H:i', strtotime((string)$slot['starts_at'])) : '';
+
+        db_insert('crm_activities', [
+            'contact_id'   => $contact_id,
+            'type'         => 'zajecia_zapis',
+            'title'        => 'Zapis na zajęcia — ' . ($co !== '' ? $co : ($slot['round_name'] ?? 'TI')),
+            'description'  => 'Rezerwacja #' . (int)($result['booking_id'] ?? 0) . ' na ' . $termin
+                              . ' — status: ' . ($result['status'] ?? '?'),
+            'status'       => ($result['status'] ?? '') === 'confirmed' ? 'done' : 'planned',
+            'created_at'   => date('Y-m-d H:i:s'),
+            'updated_at'   => date('Y-m-d H:i:s'),
+            'completed_at' => ($result['status'] ?? '') === 'confirmed' ? date('Y-m-d H:i:s') : null,
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[rk_crm] sync rezerwacji nieudany: ' . $e->getMessage());
+    }
 }
 
 /** Opiekun małoletniego kursanta z konta k30_ti_student_accounts. */
