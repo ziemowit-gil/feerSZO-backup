@@ -19,7 +19,7 @@ $limit    = $show_all ? 2000 : 500;
 
 // Pobierz lekcje — wszystkie kursy kursanta, malejąco po dacie
 $lessons = db_all(
-    "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status,
+    "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status, s.date_flag,
             c.name AS course_name,
             a.attended, a.cancelled AS att_cancelled
      FROM k30_ti_sessions s
@@ -126,6 +126,8 @@ foreach ($lessons as $l) {
     }
 
     $topic = mb_strimwidth(trim((string)($l['topic'] ?? '')), 0, 80, '...');
+    $flag_prefix = ['tentative' => '[TERMIN NIEPEWNY] ', 'change_possible' => '[MOZLIWA ZMIANA TERMINU] '];
+    $topic = ($flag_prefix[(string)($l['date_flag'] ?? '')] ?? '') . $topic;
     if ($is_cancelled) $topic = '[odwolana] ' . $topic;
 
     $pdf->Cell($COL[0], $ROW_H, _lp($date),                           1, 0, 'L', true);
@@ -150,6 +152,7 @@ $pdf->Cell($PW, 5, _lp("Razem: $total lekcji  |  Obecnosci: $att  |  Odwolane: $
 // Legenda
 $pdf->SetFont('Helvetica', '', 6.5);
 $pdf->Cell($PW, 4, _lp('Kolor wiersza: zielony = obecny, rozowy = nieobecny, szary = odwolana, biale = nadchodzace'), 0, 1, 'C');
+$pdf->Cell($PW, 4, _lp('[TERMIN NIEPEWNY] / [MOZLIWA ZMIANA TERMINU] przy temacie = termin moze jeszcze ulec zmianie'), 0, 1, 'C');
 
 $fname = 'zajecia_' . preg_replace('/[^a-z0-9]/i', '_', $name) . '_' . date('Ymd') . '.pdf';
 $pdf->Output('D', $fname);
