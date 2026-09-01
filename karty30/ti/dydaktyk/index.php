@@ -540,6 +540,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // co zwykła lekcja — patrz sprawdzenia niżej), ale niewidoczny dla kursanta
         // i nieliczony do frekwencji/wypłat, dopóki ktoś jej nie potwierdzi.
         $is_reservation = !empty($_POST['is_reservation']);
+        // Rezerwacja „na PESEL" — blokada terminu dla beneficjenta PFRON jeszcze
+        // bez zapisu w systemie (bez zakładania kursanta/k30_clients). Temat
+        // dostaje etykietę PFRON-XXX (3 ostatnie cyfry), pełny PESEL do notatek.
+        if ($is_reservation && trim($_POST['pfron_pesel'] ?? '') !== '') {
+            $pfron_pesel = preg_replace('/\D/', '', trim($_POST['pfron_pesel']));
+            if (!pesel_valid($pfron_pesel)) {
+                flash_set('danger', 'Nieprawidłowy PESEL — sprawdź cyfry.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            $topic = 'PFRON-' . substr($pfron_pesel, -3);
+            $notes = preg_replace('/^PESEL:\s*\d{11}\s*\|\s*/', '', $notes); // bez duplikatu przy edycji
+            $notes = trim('PESEL: ' . $pfron_pesel . ($notes !== '' ? " | {$notes}" : ''));
+        }
         $dur   = 60;
         if ($tf && $tt) {
             $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
@@ -1806,13 +1819,24 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <?php if (!$isPast): $isReserved = $isEdit && ($r['status'] ?? '') === 'reserved'; ?>
       <div class="form-check form-switch mb-2 p-2 rounded" style="background:#EFF6FF">
         <input class="form-check-input" type="checkbox" role="switch"
-               id="<?= $pfx ?>_reservation" name="is_reservation" value="1" <?= $isReserved ? 'checked' : '' ?>>
+               id="<?= $pfx ?>_reservation" name="is_reservation" value="1" <?= $isReserved ? 'checked' : '' ?>
+               onchange="document.getElementById('<?= $pfx ?>_pesel_wrap').style.display=this.checked?'':'none'">
         <label class="form-check-label" for="<?= $pfx ?>_reservation">
           <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>To jest rezerwacja terminu (nie ostateczna lekcja)
         </label>
         <div class="form-text mb-0">
           Termin zostaje zablokowany tak samo jak zwykła lekcja (nikt inny go nie zajmie), ale kursanci jej
           nie zobaczą, dopóki nie zostanie potwierdzona przyciskiem „Potwierdź rezerwację” na liście lekcji.
+        </div>
+        <div class="mt-2" id="<?= $pfx ?>_pesel_wrap" style="display:<?= $isReserved ? '' : 'none' ?>">
+          <label class="form-label small mb-1" for="<?= $pfx ?>_pesel">PESEL beneficjenta PFRON (opcjonalnie)</label>
+          <?php $_pesel_val = ''; if (preg_match('/PESEL:\s*(\d{11})/', (string)($r['notes'] ?? ''), $_pm)) $_pesel_val = $_pm[1]; ?>
+          <input type="text" class="form-control form-control-sm" id="<?= $pfx ?>_pesel" name="pfron_pesel"
+                 maxlength="11" inputmode="numeric" placeholder="11 cyfr" value="<?= h($_pesel_val) ?>">
+          <div class="form-text mb-0">
+            Blokada terminu dla osoby jeszcze bez zapisu w systemie — bez zakładania kursanta. Temat lekcji
+            ustawi się automatycznie jako „PFRON-XXX” (3 ostatnie cyfry PESEL), pełny PESEL trafi do notatek.
+          </div>
         </div>
       </div>
       <?php endif; ?>
