@@ -272,6 +272,17 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć — cała instytucja, siatka</h3>
+        <p class="small text-body-secondary mb-1">Wszystkie aktywne grupy naraz, jedna siatka tygodnia — kolizje kilku grup w tym samym terminie to norma, nie błąd.</p>
+        <div class="d-flex gap-2">
+          <a class="btn btn-sm btn-outline-primary flex-fill" href="plan_librus_all.php" target="_blank"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</a>
+          <a class="btn btn-sm btn-primary flex-fill" href="plan_librus_all_pdf.php" target="_blank"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
         <h3 class="h6 fw-semibold"><i class="bi bi-geo-alt me-2 text-primary" aria-hidden="true"></i>Harmonogram grup — dzień, godziny, lokalizacja</h3>
         <p class="small text-body-secondary">Tabela wszystkich grup stacjonarnych z ich wzorcem spotkań i przypisaną salą — do podglądu, druku lub skopiowania jako Markdown.</p>
         <a class="btn btn-sm btn-primary w-100" href="harmonogram_lokalizacje.php" target="_blank"><i class="bi bi-table me-1" aria-hidden="true"></i>Pokaż zestawienie</a>

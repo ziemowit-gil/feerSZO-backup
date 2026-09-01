@@ -332,6 +332,121 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
 }
 
 /**
+ * Siatka tygodniowa (dzień × godzina) ZBIORCZA dla CAŁEJ instytucji — wszystkie
+ * aktywne kursy naraz, nie jednego klienta ani jednej grupy. Ten sam kształt
+ * komórki co ti_librus_grid_client() (LISTA wpisów — tu kolizje w tym samym
+ * slocie są NORMĄ, nie wyjątkiem, bo różne grupy zwykle mają zajęcia
+ * równolegle). „Subject" to pełna nazwa kursu (nie skrót przedmiotu) — w
+ * przeglądzie całej instytucji liczy się KTÓRA grupa, nie tylko jaki przedmiot.
+ */
+function ti_librus_grid_institution(int $weeks = 8): array {
+    $from = date('Y-m-d');
+    $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
+    $rows = db_all(
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.room_id, s.date_flag,
+                s.lesson_method, s.meeting_url,
+                s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
+                s.course_id, c.name AS course_name, c.location AS course_location, c.default_meeting_url,
+                COALESCE(iu.name, cu.name) AS instr_name,
+                COALESCE(iu.phone_number, cu.phone_number) AS instr_phone,
+                COALESCE(iu.email, cu.email) AS instr_email,
+                r.name AS room_name, r.location AS room_location
+           FROM k30_ti_sessions s
+           JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN users iu ON iu.id = s.instructor_id
+           LEFT JOIN users cu ON cu.id = c.instructor_id
+           LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
+          WHERE c.is_active = 1 AND c.status NOT IN ('cancelled', 'archived')
+            AND s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')
+          ORDER BY s.lesson_date, s.time_from",
+        [$from, $to]
+    );
+
+    $cells = [];
+    $slot_keys_per_course = [];
+    $exceptions = [];
+    $instructors_seen = [];
+    foreach ($rows as $r) {
+        $has_orig = trim((string)($r['rescheduled_from_date'] ?? '')) !== '';
+        $group_date = $has_orig ? (string)$r['rescheduled_from_date']      : (string)$r['lesson_date'];
+        $group_tf   = $has_orig ? (string)$r['rescheduled_from_time_from'] : (string)$r['time_from'];
+        $group_tt   = $has_orig ? (string)$r['rescheduled_from_time_to']   : (string)$r['time_to'];
+
+        $dow = (int)date('N', strtotime($group_date));
+        $tf  = substr($group_tf, 0, 5);
+        $tt  = substr($group_tt, 0, 5);
+        $tk  = $tf . '–' . $tt;
+        $ck  = (int)$r['course_id'];
+        $slot_keys_per_course[$ck][$tk . '|' . $dow] = true;
+
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $cells[$tk][$dow][$ck]['subject']    = (string)$r['course_name'];
+        $cells[$tk][$dow][$ck]['instructor'] = $r['instr_name'] ?: '—';
+        if (trim((string)$r['instr_name']) !== '' && !isset($instructors_seen[$r['instr_name']])) {
+            $instructors_seen[$r['instr_name']] = [
+                'name' => $r['instr_name'], 'phone' => (string)($r['instr_phone'] ?? ''), 'email' => (string)($r['instr_email'] ?? ''),
+            ];
+        }
+        $cells[$tk][$dow][$ck]['rooms'][]    = $room_lbl;
+        $cells[$tk][$dow][$ck]['dates'][]    = $group_date;
+        $cells[$tk][$dow][$ck]['flags'][]    = (string)($r['date_flag'] ?? '');
+        if (in_array($r['lesson_method'], ['zdalna_zoom', 'zdalna_inne'], true)) {
+            $link = trim((string)($r['meeting_url'] ?: $r['default_meeting_url']));
+            if ($link !== '') $cells[$tk][$dow][$ck]['link'] = $link;
+        }
+
+        if ($has_orig) {
+            $exceptions[] = [
+                'from_label' => date('d.m.Y', strtotime($group_date)) . ' (' . TI_DAYS_PL_FULL[$dow] . '), ' . $tf . '–' . $tt,
+                'to_label'   => date('d.m.Y', strtotime((string)$r['lesson_date'])) . ' (' . (TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['lesson_date']))] ?? '') . '), '
+                                . substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5),
+                'course'     => (string)$r['course_name'],
+            ];
+        }
+    }
+
+    $grid = [];
+    foreach ($cells as $tk => $days) {
+        foreach ($days as $dow => $courses_in_slot) {
+            $items = [];
+            foreach ($courses_in_slot as $ck => $c) {
+                $room_counts = array_count_values(array_filter($c['rooms']));
+                arsort($room_counts);
+                sort($c['dates']);
+                $cell_flag = in_array('change_possible', $c['flags'], true) ? 'change_possible'
+                           : (in_array('tentative', $c['flags'], true) ? 'tentative' : '');
+                $items[] = [
+                    'subject'    => $c['subject'],
+                    'instructor' => $c['instructor'],
+                    'room'       => (string)array_key_first($room_counts) ?: '—',
+                    'valid_from' => $c['dates'][0],
+                    'valid_to'   => $c['dates'][count($c['dates']) - 1],
+                    'multi_slot' => count($slot_keys_per_course[$ck] ?? []) > 1,
+                    'date_flag'  => $cell_flag,
+                    'link'       => $c['link'] ?? '',
+                ];
+            }
+            // W przeglądzie całej instytucji jedna komórka regularnie zbiera kilka
+            // równoległych grup — sortuj wg przedmiotu, żeby wydruk był czytelny.
+            usort($items, fn($a, $b) => strcmp($a['subject'], $b['subject']));
+            $grid[$tk][$dow] = $items;
+        }
+    }
+    $time_slots = array_keys($grid);
+    usort($time_slots, fn($a, $b) => substr($a, 0, 5) <=> substr($b, 0, 5));
+    usort($exceptions, fn($a, $b) => $a['from_label'] <=> $b['from_label']);
+
+    return [
+        'from'        => $from,
+        'to'          => $to,
+        'time_slots'  => $time_slots,
+        'grid'        => $grid,
+        'exceptions'  => $exceptions,
+        'instructors' => array_values($instructors_seen),
+    ];
+}
+
+/**
  * PDF (bajty) siatki dzień×godzina — wspólne dla ti_librus_grid() (grupa,
  * komórka = jeden wpis) i ti_librus_grid_client() (kursant, komórka = LISTA
  * wpisów). Normalizuje oba kształty do listy wpisów na komórkę.
