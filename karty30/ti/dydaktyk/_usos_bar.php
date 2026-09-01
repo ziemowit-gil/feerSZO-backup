@@ -105,7 +105,7 @@ if (dyd_is_staff()) {
             $_it('',             'Rozliczenia kursantów', 'billing.php'),
             $_it('kursy',        'Zarządzanie kursami',   $_g('kursy')),
             $_it('',             'Log operacji na grupach', 'log_grup.php'),
-            $_it('',             'Wydruki',               'wydruki.php'),
+            $_it('',             'Wydruki i raporty',     'wydruki.php'),
             $_it('wypłaty',      'Wypłaty prowadzących',  $_g('wypłaty')),
             $_it('praca_wlasna', 'Praca własna',          $_g('praca_wlasna')),
             $_it('komunikacja',  'Komunikacja',           $_g('komunikacja')),
@@ -116,7 +116,6 @@ if (dyd_is_staff()) {
             $_it('',             'Dni wolne',             'dni_wolne.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
             $_it('',             'Zespół i role',         'zespol.php'),
-            $_it('',             'Raporty i WUP',         'raporty.php'),
             $_it('',             'Pełny panel TI',        '../index.php',   0, 'secondary', true),
         ],
     ];

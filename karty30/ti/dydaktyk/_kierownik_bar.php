@@ -32,7 +32,7 @@ if (!empty($KIER_ITEMS)) {
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
-        ['Wydruki',                   'wydruki.php',                 'printer'],
+        ['Wydruki i raporty',         'wydruki.php',                 'printer'],
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
         ['Komunikacja',               'index.php?tab=komunikacja',  'megaphone'],
@@ -44,7 +44,6 @@ if (!empty($KIER_ITEMS)) {
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
-        ['Raporty i WUP',             'raporty.php',                'graph-up'],
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];
     $_kier_norm = [];

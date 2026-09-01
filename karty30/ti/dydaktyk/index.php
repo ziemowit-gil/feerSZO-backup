@@ -2958,8 +2958,8 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link" href="wylaczenia.php">
     <i class="bi bi-calendar-x" aria-hidden="true"></i>Wyłączenia panelu
   </a>
-  <a class="dyd-sb-link" href="../raporty.php" target="_blank" rel="noopener">
-    <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>Raporty i WUP
+  <a class="dyd-sb-link" href="wydruki.php" target="_blank" rel="noopener">
+    <i class="bi bi-printer" aria-hidden="true"></i>Wydruki i raporty
   </a>
   <a class="dyd-sb-link <?= $tab==='komunikacja'?'active':'' ?>" href="index.php?tab=komunikacja"
      <?= $tab==='komunikacja'?'aria-current="page"':'' ?>>
