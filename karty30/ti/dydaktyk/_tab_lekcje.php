@@ -1011,6 +1011,12 @@ function dydSeriesEndToggle(){
           </select>
           <div class="form-text">Wspólna sala dla całego cyklu — dziedziczona przez wszystkie generowane lekcje.</div>
         </div>
+        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+          <input class="form-check-input" type="checkbox" role="switch" id="rec_draft" name="is_draft" value="1">
+          <label class="form-check-label" for="rec_draft">
+            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Cały cykl jako wersja robocza (szkic)
+          </label>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

@@ -824,6 +824,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rec_dow    = max(0, min(6, (int)($_POST['recur_dow'] ?? 1)));
         $rec_pos    = in_array((string)($_POST['recur_position'] ?? '1'), ['1','2','3','4','last'], true) ? (string)$_POST['recur_position'] : '1';
         $rec_room_id = max(0, (int)($_POST['room_id'] ?? 0));
+        $rec_draft   = !empty($_POST['is_draft']);
+        $rec_status  = $rec_draft ? 'draft' : 'planned';
         if (!$date_from || !$date_to || $date_to < $date_from) {
             flash_set('danger', 'Podaj poprawny zakres dat.');
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -882,7 +884,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($rule_dates as $d) {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
-                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'duration_min' => $dur, 'status' => $rec_status, 'topic' => $topic, 'notes' => '',
                 'room_id' => $rec_room_id ?: null,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'), 'series_id' => $rule_id,
             ]);
@@ -893,7 +895,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $created++;
         }
         $rec_pattern_label = $rec_mode === 'monthly' ? 'wzorzec miesięczny' : "co {$every} tyg.";
-        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji ({$rec_pattern_label})." . $zw);
+        $rec_kind = $rec_draft ? ' (wersja robocza)' : '';
+        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji ({$rec_pattern_label}){$rec_kind}." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
