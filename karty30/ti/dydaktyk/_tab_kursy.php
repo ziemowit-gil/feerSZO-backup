@@ -28,8 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
                 'description'         => trim($_POST['description'] ?? ''),
                 'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
-                'location'            => trim($_POST['location'] ?? ''),
-                'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
+                'location'            => trim($_POST['location'] ?? '') === '__custom__'
+                                          ? trim($_POST['location_custom'] ?? '')
+                                          : trim($_POST['location'] ?? ''),
+                'default_meeting_url' => isset($_POST['is_online']) ? trim($_POST['default_meeting_url'] ?? '') : '',
                 'is_active'           => 1,
                 'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
                 'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
@@ -565,12 +567,27 @@ unset($_SESSION['dyd_flash']);
 
     <div class="col-sm-6">
       <label class="form-label small fw-semibold mb-1" for="ku_loc">Lokalizacja / sala</label>
-      <input type="text" id="ku_loc" name="location" class="form-control form-control-sm" placeholder="Sala A, piętro 2…">
+      <select id="ku_loc" name="location" class="form-select form-select-sm"
+              onchange="document.getElementById('ku_loc_custom_wrap').style.display = (this.value === '__custom__') ? '' : 'none'">
+        <option value="">— nie wybrano —</option>
+        <?php foreach (pl_rooms_list(['is_active' => 1]) as $_kuroom):
+          $_kuroom_lbl = $_kuroom['name'] . (trim((string)$_kuroom['location']) !== '' ? ' — ' . $_kuroom['location'] : '');
+        ?>
+        <option value="<?= h($_kuroom_lbl) ?>"><?= h($_kuroom_lbl) ?></option>
+        <?php endforeach; ?>
+        <option value="__custom__">— inne (wpisz ręcznie) —</option>
+      </select>
+      <div class="form-text">Z wykazu sal w Zasobach — do zarządzania w <a href="sale.php" target="_blank">Sale / lokalizacje</a>.</div>
+      <div id="ku_loc_custom_wrap" style="display:none" class="mt-1">
+        <input type="text" id="ku_loc_custom" name="location_custom" class="form-control form-control-sm" placeholder="Sala A, piętro 2…">
+      </div>
     </div>
     <div class="col-sm-6">
-      <label class="form-label small fw-semibold mb-1" for="ku_url">Stały link do zajęć online</label>
-      <input type="url" id="ku_url" name="default_meeting_url" class="form-control form-control-sm"
-             placeholder="https://… (Teams/Zoom/Meet)">
+      <div id="ku_url_wrap" style="display:none">
+        <label class="form-label small fw-semibold mb-1" for="ku_url">Stały link do zajęć online</label>
+        <input type="url" id="ku_url" name="default_meeting_url" class="form-control form-control-sm"
+               placeholder="https://… (Teams/Zoom/Meet)">
+      </div>
     </div>
 
     <div class="col-12">
@@ -594,7 +611,8 @@ unset($_SESSION['dyd_flash']);
       <?php /* Podgrupa to inna konstrukcja (wydzielenie z istniejącej grupy, lekcje 1I) —
                ustawia się ją w pełnej edycji kursu, nie przy szybkim tworzeniu. */ ?>
       <div class="form-check form-switch m-0">
-        <input class="form-check-input" type="checkbox" name="is_online" id="ku_onl">
+        <input class="form-check-input" type="checkbox" name="is_online" id="ku_onl"
+               onchange="document.getElementById('ku_url_wrap').style.display = this.checked ? '' : 'none'">
         <label class="form-check-label small" for="ku_onl">Zajęcia online</label>
       </div>
       <div class="form-check form-switch m-0">
