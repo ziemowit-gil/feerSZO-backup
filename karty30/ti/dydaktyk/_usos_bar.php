@@ -113,6 +113,7 @@ if (dyd_is_staff()) {
             $_it('',             'Zapisy — tury',         'rekrutacja.php?tab=tury'),
             $_it('',             'Dostępności prowadzących', 'dostepnosci.php'),
             $_it('',             'Okresy nauczania',      'okresy.php'),
+            $_it('',             'Rodzaje zajęć',         'przedmioty.php'),
             $_it('',             'Dni wolne',             'dni_wolne.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
             $_it('',             'Zespół i role',         'zespol.php'),
@@ -155,7 +156,7 @@ foreach ($_cur_sec['items'] as $_i) {
       'Rozliczenia kursantów'     => 'receipt',
       'Zarządzanie kursami'       => 'collection',
       'Log operacji na grupach'   => 'clock-history',
-      'Wydruki'                   => 'printer',
+      'Wydruki i raporty'         => 'printer',
       'Wypłaty prowadzących'      => 'cash-stack',
       'Praca własna'              => 'journal-text',
       'Komunikacja'               => 'megaphone',
@@ -163,10 +164,10 @@ foreach ($_cur_sec['items'] as $_i) {
       'Zapisy — tury'             => 'ticket-perforated',
       'Dostępności prowadzących'  => 'clock-history',
       'Okresy nauczania'          => 'calendar-range',
+      'Rodzaje zajęć'             => 'tags',
       'Dni wolne'                 => 'calendar-x',
       'Wyłączenia panelu'         => 'moon',
       'Zespół i role'             => 'person-gear',
-      'Raporty i WUP'             => 'graph-up',
       'Pełny panel TI'            => 'box-arrow-up-right',
   ];
   $KIER_ITEMS = [];

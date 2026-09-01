@@ -41,6 +41,7 @@ if (!empty($KIER_ITEMS)) {
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Sale / lokalizacje',        'sale.php',                   'geo-alt'],
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
+        ['Rodzaje zajęć',             'przedmioty.php',             'tags'],
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
