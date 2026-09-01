@@ -2224,6 +2224,9 @@ document.addEventListener('DOMContentLoaded', function() {
       <a href="lessons_pdf.php?all=1" class="btn btn-sm btn-outline-secondary" target="_blank">
         <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Wszystkie (PDF)
       </a>
+      <a href="plan_librus.php" class="btn btn-sm btn-outline-secondary" target="_blank">
+        <i class="bi bi-grid-3x3 me-1" aria-hidden="true"></i>Plan tygodniowy
+      </a>
     </div>
   </div>
 

@@ -178,6 +178,119 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
 }
 
 /**
+ * Siatka tygodniowa (dzień × godzina) ZAGREGOWANA ze wszystkich aktywnych
+ * zapisów kursanta — osobisty „plan lekcji" w konwencji Librusa, analogiczny
+ * do ti_librus_grid() dla jednej grupy, ale scalający wszystkie jego kursy.
+ * Komórka to LISTA wpisów (zwykle jeden) — dwa różne kursy w tym samym slocie
+ * (rzadka kolizja terminów) trafiają osobno zamiast się zlewać w jeden wpis.
+ * Wpis z linkiem (Zoom/inne) — tylko gdy zajęcia zdalne i link faktycznie ustawiony.
+ */
+function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
+    $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$client_id]);
+    if (!$client) return ['client' => null, 'time_slots' => [], 'grid' => [], 'exceptions' => []];
+
+    $from = date('Y-m-d');
+    $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
+    $rows = db_all(
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.room_id, s.date_flag,
+                s.lesson_method, s.meeting_url,
+                s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
+                s.course_id, c.name AS course_name, c.location AS course_location, c.default_meeting_url,
+                st.abbreviation AS subject_abbr, st.name AS subject_name,
+                COALESCE(iu.name, cu.name) AS instr_name, r.name AS room_name, r.location AS room_location
+           FROM k30_ti_sessions s
+           JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN users iu ON iu.id = s.instructor_id
+           LEFT JOIN users cu ON cu.id = c.instructor_id
+           LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
+           LEFT JOIN k30_ti_subject_types st ON st.id = c.subject_type_id
+          WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+            AND s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')
+          ORDER BY s.lesson_date, s.time_from",
+        [$client_id, $from, $to]
+    );
+
+    // Grupuj po (dow, time_from, time_to, course_id) — jak ti_librus_grid(), ale
+    // klucz obejmuje kurs, więc kolizja dwóch kursów w tym samym slocie zostaje
+    // dwoma osobnymi wpisami komórki zamiast się zlać w jeden.
+    $cells = [];
+    $slot_keys_per_course = [];
+    $exceptions = [];
+    foreach ($rows as $r) {
+        $has_orig = trim((string)($r['rescheduled_from_date'] ?? '')) !== '';
+        $group_date = $has_orig ? (string)$r['rescheduled_from_date']      : (string)$r['lesson_date'];
+        $group_tf   = $has_orig ? (string)$r['rescheduled_from_time_from'] : (string)$r['time_from'];
+        $group_tt   = $has_orig ? (string)$r['rescheduled_from_time_to']   : (string)$r['time_to'];
+
+        $dow = (int)date('N', strtotime($group_date));
+        $tf  = substr($group_tf, 0, 5);
+        $tt  = substr($group_tt, 0, 5);
+        $tk  = $tf . '–' . $tt;
+        $ck  = (int)$r['course_id'];
+        $slot_keys_per_course[$ck][$tk . '|' . $dow] = true;
+
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $cells[$tk][$dow][$ck]['subject']    = $r['subject_abbr'] ?: ($r['subject_name'] ?: $r['course_name']);
+        $cells[$tk][$dow][$ck]['instructor'] = $r['instr_name'] ?: '—';
+        $cells[$tk][$dow][$ck]['rooms'][]    = $room_lbl;
+        $cells[$tk][$dow][$ck]['dates'][]    = $group_date;
+        $cells[$tk][$dow][$ck]['flags'][]    = (string)($r['date_flag'] ?? '');
+        if (in_array($r['lesson_method'], ['zdalna_zoom', 'zdalna_inne'], true)) {
+            $link = trim((string)($r['meeting_url'] ?: $r['default_meeting_url']));
+            if ($link !== '') $cells[$tk][$dow][$ck]['link'] = $link;
+        }
+
+        if ($has_orig) {
+            $exceptions[] = [
+                'from_label' => date('d.m.Y', strtotime($group_date)) . ' (' . TI_DAYS_PL_FULL[$dow] . '), ' . $tf . '–' . $tt,
+                'to_label'   => date('d.m.Y', strtotime((string)$r['lesson_date'])) . ' (' . (TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['lesson_date']))] ?? '') . '), '
+                                . substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5),
+                'course'     => (string)$r['course_name'],
+            ];
+        }
+    }
+
+    $grid = [];
+    foreach ($cells as $tk => $days) {
+        foreach ($days as $dow => $courses_in_slot) {
+            $items = [];
+            foreach ($courses_in_slot as $ck => $c) {
+                $room_counts = array_count_values(array_filter($c['rooms']));
+                arsort($room_counts);
+                sort($c['dates']);
+                $cell_flag = in_array('change_possible', $c['flags'], true) ? 'change_possible'
+                           : (in_array('tentative', $c['flags'], true) ? 'tentative' : '');
+                $items[] = [
+                    'subject'    => $c['subject'],
+                    'instructor' => $c['instructor'],
+                    'room'       => (string)array_key_first($room_counts) ?: '—',
+                    'valid_from' => $c['dates'][0],
+                    'valid_to'   => $c['dates'][count($c['dates']) - 1],
+                    // Ten konkretny kurs zmienił dzień/godzinę w oknie wydruku —
+                    // pokaż zakres dat, w którym TA komórka obowiązuje (jak przy grupie).
+                    'multi_slot' => count($slot_keys_per_course[$ck] ?? []) > 1,
+                    'date_flag'  => $cell_flag,
+                    'link'       => $c['link'] ?? '',
+                ];
+            }
+            $grid[$tk][$dow] = $items;
+        }
+    }
+    $time_slots = array_keys($grid);
+    usort($time_slots, fn($a, $b) => substr($a, 0, 5) <=> substr($b, 0, 5));
+    usort($exceptions, fn($a, $b) => $a['from_label'] <=> $b['from_label']);
+
+    return [
+        'client'     => $client,
+        'from'       => $from,
+        'to'         => $to,
+        'time_slots' => $time_slots,
+        'grid'       => $grid,
+        'exceptions' => $exceptions,
+    ];
+}
+
+/**
  * Tabela podsumowująca: Grupa | Dzień i Godziny | Lokalizacja — jeden wiersz
  * na każdy odrębny (dzień tygodnia, godzina) wzorzec spotkań grupy stacjonarnej,
  * wyprowadzony z faktycznie zaplanowanych/odbytych terminów (a nie z pól
