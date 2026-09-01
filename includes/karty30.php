@@ -2429,6 +2429,7 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'deactivate' => ['label' => 'Dezaktywowano',             'icon' => 'pause-circle',          'color' => 'secondary'],
     'delete'     => ['label' => 'Wyłączono i usunięto',      'icon' => 'trash3',                'color' => 'danger'],
     'restore'    => ['label' => 'Przywrócono',               'icon' => 'arrow-counterclockwise','color' => 'success'],
+    'archive'    => ['label' => 'Zarchiwizowano',            'icon' => 'archive',               'color' => 'secondary'],
     'transfer_out' => ['label' => 'Przeniesiono zajęcia/link', 'icon' => 'box-arrow-right',   'color' => 'info'],
     'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
     'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
@@ -2942,7 +2943,10 @@ function k30_ti_client_payment(int $client_id): array {
 // dla ekranów zarządczych, gdzie „Wyłącz i usuń grupę" musi być odwracalne
 // (kierownik musi widzieć anulowaną grupę, żeby ją przywrócić).
 function k30_ti_courses(bool $active_only = true, bool $include_cancelled = false): array {
-    $w = $include_cancelled ? 'WHERE 1=1' : "WHERE c.status!='cancelled'";
+    // $include_cancelled mimo nazwy pokrywa też 'archived' — obie tucked-away
+    // grupy mają zniknąć z domyślnych list/filtrów tak samo, dopóki ktoś
+    // jawnie nie poprosi o wszystko (np. _tab_kursy.php do zarządzania).
+    $w = $include_cancelled ? 'WHERE 1=1' : "WHERE c.status NOT IN ('cancelled','archived')";
     if ($active_only) $w .= ' AND c.is_active=1';
     return db_all(
         "SELECT c.*, u.name AS instructor_name,
