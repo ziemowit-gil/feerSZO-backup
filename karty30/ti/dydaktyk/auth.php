@@ -127,11 +127,30 @@ function dyd_logout(): void {
     session_destroy();
 }
 
-/** Wymaga zalogowanego dydaktyka; przy braku sesji → strona logowania. */
+/**
+ * Wymaga zalogowanego dydaktyka; przy braku sesji → strona logowania.
+ *
+ * Kierownik, który jest TEŻ prowadzącym (ma własne kursy jako instructor_id
+ * lub coProwadzący), wybiera raz na sesję rolę — patrz choose_context.php,
+ * dyd_is_staff() (honoruje wybór) i dyd_ctx_role(). Zwykły kierownik bez
+ * własnych kursów i zwykły prowadzący (bez uprawnień kierownika) nigdy nie
+ * widzą tego ekranu — nie mają czego wybierać.
+ */
 function dyd_require(): array {
     $s = dyd_current();
     if (!$s) { header('Location: login.php'); exit; }
+    if (!empty($s['is_staff']) && !isset($_SESSION['k30_dyd_ctx']['role'])) {
+        if (k30_ti_instructor_courses((int)$s['user_id'], false)) {
+            header('Location: choose_context.php'); exit;
+        }
+        $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej
+    }
     return $s;
+}
+
+/** Rola robocza kierownika-prowadzącego w tej sesji: 'staff'|'instructor'|'' (zwykły użytkownik, brak wyboru). */
+function dyd_ctx_role(): string {
+    return (string)($_SESSION['k30_dyd_ctx']['role'] ?? '');
 }
 
 /** Token CSRF panelu dydaktyka (osobna sesja k30_dydaktyk). */
@@ -151,10 +170,16 @@ function dyd_token_check(): void {
     }
 }
 
-/** Czy zalogowany dydaktyk jest pracownikiem D3 (widzi wszystkie kursy). */
+/**
+ * Czy zalogowany dydaktyk jest pracownikiem D3 (widzi wszystkie kursy).
+ * Kierownik, który świadomie wybrał pracę jako Prowadzący (choose_context.php),
+ * dostaje tu `false` przez resztę sesji — traci widok kierownika, dopóki nie
+ * przełączy roli z powrotem (bez ponownego logowania).
+ */
 function dyd_is_staff(): bool {
     $s = dyd_current();
-    return $s ? !empty($s['is_staff']) : false;
+    if (!$s || empty($s['is_staff'])) return false;
+    return dyd_ctx_role() !== 'instructor';
 }
 
 /** Czy dydaktyk może zarządzać kursem (własny kurs lub pracownik D3). */
