@@ -875,15 +875,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // i ich obecności/rozliczenia NIGDY nie są ruszane.
     if ($op === 'clear_group_sessions') {
         dyd_token_check();
-        $only_future     = empty($_POST['include_past']);
+        $scope = in_array($_POST['scope'] ?? '', ['future', 'all', 'day'], true) ? $_POST['scope'] : 'future';
         $clear_cancelled = !empty($_POST['clear_cancelled']);
         $statuses = $clear_cancelled ? "('planned','cancelled')" : "('planned')";
-        $where = "course_id=? AND status IN $statuses" . ($only_future ? " AND lesson_date >= date('now')" : "");
-        $cnt = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE $where", [$course_id])['n'] ?? 0);
+        $params = [$course_id];
+        $where  = "course_id=? AND status IN $statuses";
+        $detail_scope = '';
+        if ($scope === 'future') {
+            $where .= " AND lesson_date >= date('now')";
+        } elseif ($scope === 'day') {
+            $clear_date = trim($_POST['clear_date'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $clear_date)) {
+                flash_set('danger', 'Wybierz poprawną datę dnia do wyczyszczenia.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            $where .= " AND lesson_date = ?";
+            $params[] = $clear_date;
+            $detail_scope = ' z dnia ' . $clear_date;
+        } else {
+            $detail_scope = ' (w tym zaległe)';
+        }
+        $cnt = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE $where", $params)['n'] ?? 0);
         if ($cnt > 0) {
-            db_exec("DELETE FROM k30_ti_sessions WHERE $where", [$course_id]);
-            $detail = 'Usunięto ' . $cnt . ' terminów'
-                    . ($only_future ? '' : ' (w tym zaległe)')
+            db_exec("DELETE FROM k30_ti_sessions WHERE $where", $params);
+            $detail = 'Usunięto ' . $cnt . ' terminów' . $detail_scope
                     . ($clear_cancelled ? ', w tym odwołane' : '') . '.';
             ti_course_log($course_id, 'clear_sessions', $detail, $uid, (string)($me['name'] ?? ''));
             flash_set('success', "Wyczyszczono terminy grupy: usunięto {$cnt} terminów.");

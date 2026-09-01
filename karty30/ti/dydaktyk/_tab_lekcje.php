@@ -726,18 +726,26 @@ foreach ($_ext_for_wiz as $_we) {
           własna” i indywidualne zmiany terminu) oraz ich obecności <strong>nigdy</strong> nie są usuwane.
         </p>
         <div class="form-check mb-2">
-          <input class="form-check-input cs-scope" type="radio" name="include_past" id="csFutureOnly" value="0"
+          <input class="form-check-input cs-scope" type="radio" name="scope" id="csFutureOnly" value="future"
                  data-planned="<?= $_cs_future ?>" data-cancelled="<?= $_cs_c_future ?>" checked>
           <label class="form-check-label" for="csFutureOnly">
             Tylko nadchodzące (<?= $_cs_future ?>)
           </label>
         </div>
         <div class="form-check mb-2">
-          <input class="form-check-input cs-scope" type="radio" name="include_past" id="csAll" value="1"
+          <input class="form-check-input cs-scope" type="radio" name="scope" id="csAll" value="all"
                  data-planned="<?= $_cs_future + $_cs_past ?>" data-cancelled="<?= $_cs_c_future + $_cs_c_past ?>">
           <label class="form-check-label" for="csAll">
             Wszystkie zaplanowane, w tym zaległe (<?= $_cs_future + $_cs_past ?>)
           </label>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input cs-scope" type="radio" name="scope" id="csDay" value="day"
+                 data-planned="0" data-cancelled="0">
+          <label class="form-check-label" for="csDay">
+            Tylko konkretny dzień
+          </label>
+          <input type="date" class="form-control form-control-sm mt-1" name="clear_date" id="csDayDate" disabled>
         </div>
         <div class="form-check mb-2 border-top pt-2">
           <input class="form-check-input" type="checkbox" name="clear_cancelled" id="csCancelled" value="1">
@@ -748,7 +756,7 @@ foreach ($_ext_for_wiz as $_we) {
         <?php if ($_cs_total === 0): ?>
         <div class="alert alert-light border small mb-0">Brak terminów do usunięcia.</div>
         <?php else: ?>
-        <div class="alert alert-warning small mb-0">Do usunięcia: <strong id="csTotalCount"><?= $_cs_future ?></strong> terminów.</div>
+        <div class="alert alert-warning small mb-0" id="csCountAlert">Do usunięcia: <strong id="csTotalCount"><?= $_cs_future ?></strong> terminów.</div>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
@@ -765,11 +773,21 @@ foreach ($_ext_for_wiz as $_we) {
   var scopeInputs = document.querySelectorAll('#dydClearSessionsModal .cs-scope');
   var cancelledCb = document.getElementById('csCancelled');
   var totalEl     = document.getElementById('csTotalCount');
+  var countAlert  = document.getElementById('csCountAlert');
   var submitBtn   = document.getElementById('csSubmitBtn');
+  var dayDate     = document.getElementById('csDayDate');
   if (!scopeInputs.length || !submitBtn) return;
   function recalc(){
     var scope = document.querySelector('#dydClearSessionsModal .cs-scope:checked');
     if (!scope) return;
+    var isDay = scope.value === 'day';
+    if (dayDate) dayDate.disabled = !isDay;
+    if (isDay) {
+      if (countAlert) countAlert.style.display = 'none';
+      submitBtn.disabled = !dayDate || !dayDate.value;
+      return;
+    }
+    if (countAlert) countAlert.style.display = '';
     var total = parseInt(scope.dataset.planned, 10) || 0;
     if (cancelledCb && cancelledCb.checked) total += parseInt(scope.dataset.cancelled, 10) || 0;
     if (totalEl) totalEl.textContent = total;
@@ -777,6 +795,7 @@ foreach ($_ext_for_wiz as $_we) {
   }
   scopeInputs.forEach(function(el){ el.addEventListener('change', recalc); });
   if (cancelledCb) cancelledCb.addEventListener('change', recalc);
+  if (dayDate) dayDate.addEventListener('input', recalc);
   recalc();
 })();
 </script>
