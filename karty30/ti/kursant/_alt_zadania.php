@@ -82,6 +82,7 @@ if ($sel_row) {
   Zadania od prowadzącego uszeregowane według pilności. Wybierz zadanie z listy — szczegóły,
   materiały i oddawanie pokażą się obok. Oceny znajdziesz w zakładce <a href="?tab=oceny">Oceny</a>.
 </p>
+<?= $ti_ctx_switch_html ?? '' ?>
 
 <?php $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']); if ($hwf): ?>
 <div class="alert alert-<?= $hwf[0] === 'ok' ? 'success' : 'danger' ?> alert-dismissible fade show" role="alert">

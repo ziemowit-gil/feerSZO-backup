@@ -784,7 +784,7 @@ function ti_protocol_final_grades_for_client(int $client_id): array {
     if (!$client_id) return [];
     try {
         return db_all(
-            "SELECT c.name AS course_name,
+            "SELECT c.id AS course_id, c.name AS course_name,
                     COALESCE(per.name, '') AS period,
                     e.value_text AS value, e.note,
                     p.approved_at, p.approved_name

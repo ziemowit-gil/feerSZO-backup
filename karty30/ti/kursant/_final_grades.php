@@ -3,6 +3,10 @@
   // jest deklaracją, więc oceny w toku nie są tu pokazywane.
   require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
   $_final = ti_protocol_final_grades_for_client((int)$_fg_client_id);
+  // Kontekst wielogrupowy (patrz index.php $ti_ctx_course_id) — zawęź do wybranej grupy.
+  if (!empty($_fg_course_id)) {
+      $_final = array_values(array_filter($_final, fn($f) => (int)($f['course_id'] ?? 0) === (int)$_fg_course_id));
+  }
 ?>
 <?php if ($_final): ?>
 <div class="kp-card p-3 mb-3">

@@ -89,6 +89,32 @@ if (isset($_GET['grades_pdf'])) {
     require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_grades_pdf.php';
     ti_grades_pdf_student((int)$student['client_id'], $cl['name'] ?? '');
 }
+// ── Kontekst „aktywna grupa" ──────────────────────────────────────────────
+// Kursant zapisany do WIĘCEJ NIŻ JEDNEJ aktywnej grupy wybiera jedną po
+// zalogowaniu (choose_group.php) — scopuje TYLKO zadania/oceny (patrz niżej
+// przy każdej z tych zakładek); reszta panelu (lekcje, plan, płatności…)
+// zostaje zbiorcza jak dotąd. Wybór żyje w sesji, nie przy koncie — zmienny
+// przełącznikiem bez ponownego logowania.
+$ti_ctx_courses = array_values(array_filter(
+    k30_ti_client_courses($student['client_id']),
+    fn($c) => ($c['status'] ?? 'active') === 'active'
+));
+$ti_ctx_multi     = count($ti_ctx_courses) > 1;
+$ti_ctx_course_id = 0;
+if ($ti_ctx_multi) {
+    $ti_ctx_course_id = (int)($_SESSION['k30_ti_ctx']['course_id'] ?? 0);
+    if (!$ti_ctx_course_id || !in_array($ti_ctx_course_id, array_column($ti_ctx_courses, 'course_id'), true)) {
+        header('Location: choose_group.php?tab=' . urlencode((string)($_GET['tab'] ?? 'dane'))); exit;
+    }
+}
+$ti_ctx_switch_html = '';
+if ($ti_ctx_multi) {
+    $_ti_ctx_name = '';
+    foreach ($ti_ctx_courses as $_cc) { if ((int)$_cc['course_id'] === $ti_ctx_course_id) { $_ti_ctx_name = (string)$_cc['course_name']; break; } }
+    $ti_ctx_switch_html = '<p class="small text-body-secondary mb-3"><i class="bi bi-people me-1" aria-hidden="true"></i>Grupa: <strong>'
+        . h($_ti_ctx_name) . '</strong> &middot; <a href="choose_group.php?tab=' . h((string)($_GET['tab'] ?? 'dane')) . '">Zmień grupę</a></p>';
+}
+
 $tab        = $_GET['tab'] ?? 'dane';
 $vlab_token = student_token();
 
@@ -809,6 +835,12 @@ if (!k30_ti_client_grades_enabled((int)$student['client_id'])) {
 } else {
     $grades_student = array_values(array_filter($grades_student, fn($g) => k30_ti_course_grades_enabled((int)$g['course_id'])));
 }
+// Zakładka „oceny" scoped do wybranej grupy (kontekst wielogrupowy) — patrz
+// $ti_ctx_switch_html wyżej; poza tą zakładką $grades_student zostaje pełny
+// (na wypadek gdyby coś jeszcze z niego korzystało).
+if ($tab === 'oceny' && $ti_ctx_course_id) {
+    $grades_student = array_values(array_filter($grades_student, fn($g) => (int)($g['course_id'] ?? 0) === $ti_ctx_course_id));
+}
 $grades_by_course = [];
 foreach ($grades_student as $g) { $grades_by_course[$g['course_name']][] = $g; }
 
@@ -839,6 +871,23 @@ try {
         $ext_pins_by_session = ext_pins_for_sessions(array_map(fn($g) => (int)$g['session_id'], $dyd_groups));
     }
 } catch (\Throwable $e) { $ext_pins_by_session = []; }
+
+// Zakładka „zadania" scoped do wybranej grupy (kontekst wielogrupowy) — buduje
+// WŁASNE $homeworks_student/$materials_student/$dyd_groups z przefiltrowanych
+// list, żeby nie dotknąć oryginałów (liczniki na innych ekranach, zakładka
+// „lekcje" — patrz komentarz przy $ti_ctx_switch_html wyżej).
+if ($tab === 'zadania' && $ti_ctx_course_id) {
+    $homeworks_student = array_values(array_filter($homeworks_student, fn($h) => (int)($h['course_id'] ?? 0) === $ti_ctx_course_id));
+    $materials_student  = array_values(array_filter($materials_student,  fn($m) => (int)($m['course_id'] ?? 0) === $ti_ctx_course_id));
+    $dyd_groups = [];
+    foreach ($materials_student as $m) { $dyd_add($m, false); }
+    foreach ($homeworks_student as $h) { $dyd_add($h, true); }
+    uasort($dyd_groups, function($a, $b) {
+        if ($a['session_id'] === 0) return 1;
+        if ($b['session_id'] === 0) return -1;
+        return strcmp((string)$b['date'], (string)$a['date']);
+    });
+}
 
 try { $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_courses_student = []; }
 
@@ -3056,6 +3105,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
   <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
+  <?= $ti_ctx_switch_html ?>
 
   <div class="alert alert-info d-flex align-items-start gap-2 mb-3" role="note">
     <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
@@ -3212,7 +3262,8 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 
 <?php elseif ($tab === 'oceny'): ?>
-  <?php $_fg_client_id = (int)($student['client_id'] ?? 0); include __DIR__ . '/_final_grades.php'; ?>
+  <?= $ti_ctx_switch_html ?>
+  <?php $_fg_client_id = (int)($student['client_id'] ?? 0); $_fg_course_id = $ti_ctx_course_id; include __DIR__ . '/_final_grades.php'; ?>
 <?php
   // Dane do wykresu — sortuj wg daty, pomiń oceny bez wartości liczbowej
   $chart_datasets = [];
