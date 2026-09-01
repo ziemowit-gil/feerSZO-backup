@@ -22,7 +22,7 @@ k30_ti_reschedule_migrate();
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]) ?: [];
 $name    = trim((string)($client['name'] ?? $student['login'] ?? 'Kursant'));
 
-$weeks = max(1, min(26, (int)($_GET['weeks'] ?? 12)));
+$weeks = max(1, min(52, (int)($_GET['weeks'] ?? 12)));
 $L = ti_librus_grid_client((int)$student['client_id'], $weeks);
 
 $dow_cols = [1,2,3,4,5,6,7];
@@ -80,12 +80,15 @@ $org = defined('APP_ORG') ? APP_ORG : '';
 <div class="controls">
   <label>Zakres:
     <select onchange="location.href='plan_librus.php?weeks='+this.value">
-      <?php foreach ([4,8,12,16,26] as $w): ?>
+      <?php foreach ([4,8,12,16,26,52] as $w): ?>
         <option value="<?= $w ?>" <?= $weeks === $w ? 'selected' : '' ?>><?= $w ?> tyg.</option>
       <?php endforeach; ?>
     </select>
   </label>
   <button onclick="window.print()">🖨 Drukuj</button>
+  <a href="plan_librus_pdf.php?weeks=<?= $weeks ?>" target="_blank" style="text-decoration:none">
+    <button type="button">📄 PDF</button>
+  </a>
   <button onclick="window.close()">Zamknij</button>
 </div>
 

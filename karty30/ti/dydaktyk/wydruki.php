@@ -239,10 +239,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           </div>
           <div class="col-12">
             <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_librus.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="plan_librus_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
         </form>
       </div></div>
     </div>
@@ -260,10 +261,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           </div>
           <div class="col-12">
             <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_librus_client.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
+          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="plan_librus_client_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
         </form>
       </div></div>
     </div>

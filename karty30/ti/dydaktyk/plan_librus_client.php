@@ -25,7 +25,7 @@ $clients = db_all(
 );
 
 $client_id = (int)($_GET['client_id'] ?? 0);
-$weeks     = max(1, min(26, (int)($_GET['weeks'] ?? 12)));
+$weeks     = max(1, min(52, (int)($_GET['weeks'] ?? 12)));
 
 $L = $client_id ? ti_librus_grid_client($client_id, $weeks) : ['client' => null, 'time_slots' => [], 'grid' => [], 'exceptions' => []];
 $name = trim((string)($L['client']['name'] ?? ''));
@@ -97,12 +97,17 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   </label>
   <label>Zakres:
     <select name="weeks" onchange="this.form.submit()">
-      <?php foreach ([4,8,12,16,26] as $w): ?>
+      <?php foreach ([4,8,12,16,26,52] as $w): ?>
         <option value="<?= $w ?>" <?= $weeks === $w ? 'selected' : '' ?>><?= $w ?> tyg.</option>
       <?php endforeach; ?>
     </select>
   </label>
   <button type="button" onclick="window.print()">🖨 Drukuj</button>
+  <?php if ($client_id): ?>
+  <a href="plan_librus_client_pdf.php?client_id=<?= $client_id ?>&weeks=<?= $weeks ?>" target="_blank" style="text-decoration:none">
+    <button type="button">📄 PDF</button>
+  </a>
+  <?php endif; ?>
   <button type="button" onclick="window.close()">Zamknij</button>
 </form>
 

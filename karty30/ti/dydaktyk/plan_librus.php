@@ -24,7 +24,7 @@ if (!$course_id || !dyd_owns_course($uid, $course_id)) {
     http_response_code(403); die('Brak dostępu do planu tej grupy.');
 }
 
-$weeks = max(1, min(26, (int)($_GET['weeks'] ?? 12)));
+$weeks = max(1, min(52, (int)($_GET['weeks'] ?? 12)));
 $L = ti_librus_grid($course_id, $weeks);
 if (!$L['course']) { http_response_code(404); die('Nie znaleziono grupy.'); }
 $course = $L['course'];
@@ -83,12 +83,15 @@ $org = defined('APP_ORG') ? APP_ORG : '';
 <div class="controls">
   <label>Zakres:
     <select onchange="location.href='plan_librus.php?course_id=<?= $course_id ?>&weeks='+this.value">
-      <?php foreach ([4,8,12,16,26] as $w): ?>
+      <?php foreach ([4,8,12,16,26,52] as $w): ?>
         <option value="<?= $w ?>" <?= $weeks === $w ? 'selected' : '' ?>><?= $w ?> tyg.</option>
       <?php endforeach; ?>
     </select>
   </label>
   <button onclick="window.print()">🖨 Drukuj</button>
+  <a href="plan_librus_pdf.php?course_id=<?= $course_id ?>&weeks=<?= $weeks ?>" target="_blank" style="text-decoration:none">
+    <button type="button">📄 PDF</button>
+  </a>
   <button onclick="window.close()">Zamknij</button>
 </div>
 

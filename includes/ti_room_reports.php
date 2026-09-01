@@ -291,6 +291,139 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
 }
 
 /**
+ * PDF (bajty) siatki dzień×godzina — wspólne dla ti_librus_grid() (grupa,
+ * komórka = jeden wpis) i ti_librus_grid_client() (kursant, komórka = LISTA
+ * wpisów). Normalizuje oba kształty do listy wpisów na komórkę.
+ *
+ * @param array $L       wynik ti_librus_grid()/ti_librus_grid_client()
+ * @param array $dow_lbl [dzień_tygodnia(1-7) => etykieta]
+ * @param array $opts    ['title','subtitle','footer']
+ */
+function ti_librus_grid_pdf(array $L, array $dow_lbl, array $opts = []): string {
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    $pl = fn($s) => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', (string)$s) ?: (string)$s;
+
+    $pdf = new \FPDF('L', 'mm', 'A4');
+    $pdf->SetAutoPageBreak(false);
+    $pdf->SetMargins(10, 10, 10);
+    $pdf->AddPage();
+    $W = $pdf->GetPageWidth() - 20;
+
+    $pdf->SetFillColor(30, 41, 59);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('Helvetica', 'B', 13);
+    $pdf->Cell($W, 9, $pl((string)($opts['title'] ?? 'Plan zajęć')), 0, 1, 'L', true);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('Helvetica', '', 8);
+    if (!empty($opts['subtitle'])) $pdf->Cell($W, 5, $pl((string)$opts['subtitle']), 0, 1);
+    $pdf->Ln(2);
+
+    $timeColW = 22;
+    $dayColW  = ($W - $timeColW) / count($dow_lbl);
+    $lineH    = 4;
+
+    $drawHead = function () use ($pdf, $pl, $timeColW, $dayColW, $dow_lbl) {
+        $pdf->SetFont('Helvetica', 'B', 8);
+        $pdf->SetFillColor(241, 245, 249);
+        $pdf->SetTextColor(51, 65, 85);
+        $pdf->Cell($timeColW, 7, $pl('Godzina'), 1, 0, 'C', true);
+        foreach ($dow_lbl as $lbl) { $pdf->Cell($dayColW, 7, $pl($lbl), 1, 0, 'C', true); }
+        $pdf->Ln();
+        $pdf->SetTextColor(0, 0, 0);
+    };
+    $drawHead();
+
+    // Wpis komórki -> linie tekstu (etykieta, pogrubienie, kolor RGB)
+    $cellLines = function (array $item): array {
+        $lines = [];
+        $lines[] = ['t' => (string)$item['subject'], 'b' => true, 'c' => [17, 17, 17]];
+        if (trim((string)($item['instructor'] ?? '')) !== '' && $item['instructor'] !== '—') {
+            $lines[] = ['t' => (string)$item['instructor'], 'b' => false, 'c' => [51, 65, 85]];
+        }
+        if (trim((string)($item['room'] ?? '')) !== '' && $item['room'] !== '—') {
+            $lines[] = ['t' => (string)$item['room'], 'b' => false, 'c' => [15, 118, 110]];
+        }
+        if (!empty($item['multi_slot']) && !empty($item['valid_from']) && !empty($item['valid_to'])) {
+            $lines[] = ['t' => 'obow.: ' . date('d.m.y', strtotime((string)$item['valid_from'])) . '-' . date('d.m.y', strtotime((string)$item['valid_to'])),
+                        'b' => false, 'c' => [180, 83, 9]];
+        }
+        if (($item['date_flag'] ?? '') === 'change_possible') {
+            $lines[] = ['t' => 'MOZLIWA ZMIANA TERMINU', 'b' => true, 'c' => [7, 89, 133]];
+        } elseif (($item['date_flag'] ?? '') === 'tentative') {
+            $lines[] = ['t' => 'TERMIN NIEPEWNY', 'b' => true, 'c' => [146, 64, 14]];
+        }
+        return $lines;
+    };
+
+    foreach ($L['time_slots'] as $tk) {
+        $colLines = []; $maxLines = 2;
+        foreach (array_keys($dow_lbl) as $d) {
+            $raw = $L['grid'][$tk][$d] ?? [];
+            $items = (is_array($raw) && array_key_exists('subject', $raw)) ? [$raw] : (array)$raw;
+            $lines = [];
+            foreach ($items as $idx => $it) {
+                if ($idx > 0) $lines[] = ['t' => '— — —', 'b' => false, 'c' => [203, 213, 225]];
+                foreach ($cellLines($it) as $ln) $lines[] = $ln;
+            }
+            if (!$lines) $lines[] = ['t' => '—', 'b' => false, 'c' => [203, 213, 225]];
+            $colLines[$d] = $lines;
+            $maxLines = max($maxLines, count($lines));
+        }
+        $rowH = max($lineH * 2, $maxLines * $lineH) + 1;
+
+        if ($pdf->GetY() + $rowH > $pdf->GetPageHeight() - 14) {
+            $pdf->AddPage();
+            $drawHead();
+        }
+
+        $x0 = $pdf->GetX(); $y0 = $pdf->GetY();
+        $pdf->Rect($x0, $y0, $timeColW, $rowH);
+        $pdf->SetFont('Helvetica', 'B', 8);
+        $pdf->SetXY($x0, $y0 + ($rowH - $lineH) / 2);
+        $pdf->Cell($timeColW, $lineH, $pl($tk), 0, 0, 'C');
+
+        $x = $x0 + $timeColW;
+        foreach (array_keys($dow_lbl) as $d) {
+            $pdf->Rect($x, $y0, $dayColW, $rowH);
+            $ly = $y0 + 1;
+            foreach ($colLines[$d] as $ln) {
+                $pdf->SetXY($x + 1, $ly);
+                $pdf->SetFont('Helvetica', $ln['b'] ? 'B' : '', 7);
+                $pdf->SetTextColor($ln['c'][0], $ln['c'][1], $ln['c'][2]);
+                $pdf->Cell($dayColW - 2, $lineH, $pl(mb_strimwidth($ln['t'], 0, 42, '…')), 0, 0, 'L');
+                $ly += $lineH;
+            }
+            $x += $dayColW;
+        }
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetXY($x0, $y0 + $rowH);
+    }
+
+    if (!empty($L['exceptions'])) {
+        $pdf->Ln(3);
+        if ($pdf->GetY() > $pdf->GetPageHeight() - 25) { $pdf->AddPage(); }
+        $pdf->SetFont('Helvetica', 'B', 9);
+        $pdf->Cell($W, 6, $pl('Zmiany terminów w tym okresie'), 0, 1);
+        $pdf->SetFont('Helvetica', '', 7.5);
+        foreach ($L['exceptions'] as $ex) {
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 14) { $pdf->AddPage(); }
+            $extra = (string)($ex['room'] ?? $ex['course'] ?? '');
+            $pdf->Cell($W, 5, $pl($ex['from_label'] . ' -> ' . $ex['to_label'] . ($extra !== '' && $extra !== '—' ? ', ' . $extra : '')), 0, 1);
+        }
+    }
+
+    if (!empty($opts['footer'])) {
+        if ($pdf->GetY() > $pdf->GetPageHeight() - 12) { $pdf->AddPage(); }
+        $pdf->SetY($pdf->GetPageHeight() - 12);
+        $pdf->SetFont('Helvetica', '', 7);
+        $pdf->SetTextColor(130, 130, 130);
+        $pdf->Cell($W, 4, $pl((string)$opts['footer']), 0, 0, 'L');
+    }
+
+    return $pdf->Output('S');
+}
+
+/**
  * Tabela podsumowująca: Grupa | Dzień i Godziny | Lokalizacja — jeden wiersz
  * na każdy odrębny (dzień tygodnia, godzina) wzorzec spotkań grupy stacjonarnej,
  * wyprowadzony z faktycznie zaplanowanych/odbytych terminów (a nie z pól
