@@ -58,6 +58,9 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   .lb-cell .instr     { color: #334155; font-size: 9pt; }
   .lb-cell .room      { color: #0f766e; font-size: 9pt; }
   .lb-cell .valid     { color: #b45309; font-size: 7.5pt; margin-top: 2px; }
+  .lb-cell .flag      { display: inline-block; font-size: 7.5pt; font-weight: 700; margin-top: 2px; padding: 1px 5px; border-radius: 3px; }
+  .lb-cell .flag-tentative { color: #92400e; background: #fef3c7; }
+  .lb-cell .flag-change    { color: #075985; background: #e0f2fe; }
   .lb-empty { color: #cbd5e1; }
   .exceptions { margin-top: 16px; }
   .exceptions h2 { font-size: 10.5pt; color: #334155; margin: 0 0 6px; }
@@ -103,6 +106,12 @@ $org = defined('APP_ORG') ? APP_ORG : '';
     Harmonogram tej grupy zmienia się w wybranym okresie — przy każdym terminie podano zakres dat, w którym obowiązuje.
   </p>
   <?php endif; ?>
+  <?php $_has_flags = false; foreach ($L['grid'] as $_row) foreach ($_row as $_c) if (($_c['date_flag'] ?? '') !== '') { $_has_flags = true; break 2; } ?>
+  <?php if ($_has_flags): ?>
+  <p style="color:#64748b;font-size:9pt;margin:0 0 8px">
+    Etykiety „Termin niepewny" / „Możliwa zmiana terminu" dotyczą co najmniej jednego terminu w tym slocie w wybranym oknie — szczegóły w Planie zajęć grupy w panelu.
+  </p>
+  <?php endif; ?>
   <table class="librus">
     <thead>
       <tr>
@@ -125,6 +134,11 @@ $org = defined('APP_ORG') ? APP_ORG : '';
             <div class="room"><?= h($cell['room']) ?></div>
             <?php if ($L['multi_slot']): ?>
             <div class="valid">obowiązuje: <?= h(date('d.m.Y', strtotime($cell['valid_from']))) ?>–<?= h(date('d.m.Y', strtotime($cell['valid_to']))) ?></div>
+            <?php endif; ?>
+            <?php if (($cell['date_flag'] ?? '') === 'change_possible'): ?>
+            <div class="flag flag-change">Możliwa zmiana terminu</div>
+            <?php elseif (($cell['date_flag'] ?? '') === 'tentative'): ?>
+            <div class="flag flag-tentative">Termin niepewny</div>
             <?php endif; ?>
           </div>
           <?php else: ?>

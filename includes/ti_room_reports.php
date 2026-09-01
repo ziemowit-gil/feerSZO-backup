@@ -81,7 +81,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     $from = date('Y-m-d');
     $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
     $rows = db_all(
-        "SELECT s.lesson_date, s.time_from, s.time_to, s.instructor_id, s.room_id,
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.instructor_id, s.room_id, s.date_flag,
                 s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
                 u.name AS instr_name, r.name AS room_name, r.location AS room_location
          FROM k30_ti_sessions s
@@ -116,6 +116,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
         $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $course['location']);
         $slots[$tk][$dow]['rooms'][] = $room_lbl;
         $slots[$tk][$dow]['dates'][] = $group_date;
+        $slots[$tk][$dow]['flags'][] = (string)($r['date_flag'] ?? '');
 
         if ($has_orig) {
             $exceptions[] = [
@@ -134,11 +135,17 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
             $room_counts  = array_count_values(array_filter($d['rooms']));
             arsort($instr_counts); arsort($room_counts);
             sort($d['dates']);
+            // Adnotacja niepewności terminu (K30_TI_DATE_FLAGS) — komórka grupuje
+            // wiele konkretnych dat, więc pokazujemy najpilniejszą: możliwa zmiana
+            // ma pierwszeństwo przed samą niepewnością terminu.
+            $cell_flag = in_array('change_possible', $d['flags'], true) ? 'change_possible'
+                       : (in_array('tentative', $d['flags'], true) ? 'tentative' : '');
             $grid[$tk][$dow] = [
                 'subject'    => $subject,
                 'instructor' => (string)array_key_first($instr_counts) ?: '—',
                 'room'       => (string)array_key_first($room_counts) ?: '—',
                 'n_dates'    => count($d['dates']),
+                'date_flag'  => $cell_flag,
                 // Zakres dat, w którym ten konkretny slot faktycznie występuje —
                 // istotne, gdy grupa ma WIĘCEJ NIŻ JEDEN slot w oknie wydruku:
                 // to znak, że harmonogram grupy zmienił się w trakcie (np. od
