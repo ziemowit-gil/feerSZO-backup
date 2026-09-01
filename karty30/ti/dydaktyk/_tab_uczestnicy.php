@@ -63,6 +63,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') =
     header('Location: index.php?course=' . (int)$cur_course . '&tab=uczestnicy'); exit;
 }
 
+// ── Zapisanie nowego uczestnika do grupy (kierownik) — przeniesione z
+// admina (karty30/ti/course.php), które wymagało osobnego logowania SZO.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') === 'enroll') {
+    dyd_token_check();
+    $en_cid  = (int)($_POST['client_id'] ?? 0);
+    $en_rate = max(0, (float)str_replace(',', '.', $_POST['hourly_rate'] ?? '0'));
+    if ($en_cid) {
+        try {
+            db()->prepare(
+                "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,start_date,status)
+                 VALUES (?,?,?,?,'active')
+                 ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, status='active', start_date=excluded.start_date"
+            )->execute([$cur_course, $en_cid, $en_rate, date('Y-m-d')]);
+            $_SESSION['dyd_flash'] = ['type' => 'success', 'msg' => 'Uczestnik zapisany.'];
+        } catch (\Throwable $e) {
+            $_SESSION['dyd_flash'] = ['type' => 'danger', 'msg' => 'Nie udało się zapisać uczestnika.'];
+        }
+    }
+    header('Location: index.php?course=' . (int)$cur_course . '&tab=uczestnicy'); exit;
+}
+
+// ── Wypisanie uczestnika z grupy (kierownik) — status='inactive', historia zostaje.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') === 'unenroll') {
+    dyd_token_check();
+    $un_cid = (int)($_POST['client_id'] ?? 0);
+    if ($un_cid) {
+        db()->prepare("UPDATE k30_ti_enrollments SET status='inactive' WHERE course_id=? AND client_id=?")
+           ->execute([$cur_course, $un_cid]);
+        $_SESSION['dyd_flash'] = ['type' => 'success', 'msg' => 'Uczestnik wypisany.'];
+    }
+    header('Location: index.php?course=' . (int)$cur_course . '&tab=uczestnicy'); exit;
+}
+
 // Grupy docelowe do przenoszenia (aktywne, bez bieżącej)
 $u_targets = $u_staff
     ? array_values(array_filter(k30_ti_courses(true), fn($c) => (int)$c['id'] !== (int)$cur_course))
@@ -107,6 +140,16 @@ foreach (k30_ti_course_grades($cur_course) as $g) {
 }
 
 $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'active'));
+
+// Klienci możliwi do dopisania — wszyscy poza już AKTYWNYMI w tej grupie
+// (kogoś wypisanego można zapisać ponownie — ON CONFLICT wyżej to obsłuży).
+$u_active_ids   = array_map('intval', array_column(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'active'), 'client_id'));
+$u_not_enrolled = $u_staff
+    ? array_values(array_filter(
+        db_all("SELECT id, name FROM k30_clients ORDER BY name COLLATE NOCASE"),
+        fn($c) => !in_array((int)$c['id'], $u_active_ids, true)
+    ))
+    : [];
 ?>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
@@ -129,6 +172,31 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
 </div>
 <?php endif; ?>
 
+<?php if ($u_staff && $u_not_enrolled): ?>
+<div class="card mb-3 usos-noprint">
+  <div class="card-body">
+    <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="enroll">
+      <div>
+        <label class="form-label small fw-semibold mb-1" for="u_en_cid">Zapisz uczestnika</label>
+        <select name="client_id" id="u_en_cid" class="form-select form-select-sm" required>
+          <option value="">— wybierz —</option>
+          <?php foreach ($u_not_enrolled as $c): ?>
+          <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label class="form-label small fw-semibold mb-1" for="u_en_rate">Stawka (zł/h)</label>
+        <input type="number" class="form-control form-control-sm" id="u_en_rate" name="hourly_rate" step="0.01" min="0" value="0" style="width:90px">
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Zapisz</button>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <div class="card-header">Lista uczestników grupy</div>
   <div class="table-responsive">
@@ -142,11 +210,14 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
         <th scope="col" class="text-nowrap">Frekwencja</th>
         <th scope="col" class="text-nowrap">Oceny</th>
         <th scope="col">Status</th>
-        <?php if ($u_staff): ?><th scope="col" class="usos-noprint">Przenieś do grupy</th><?php endif; ?>
+        <?php if ($u_staff): ?>
+        <th scope="col" class="usos-noprint">Przenieś do grupy</th>
+        <th scope="col" class="usos-noprint">Wypisz</th>
+        <?php endif; ?>
       </tr></thead>
       <tbody>
         <?php if (!$u_parts): ?>
-        <tr><td colspan="<?= $u_staff ? 8 : 7 ?>" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
+        <tr><td colspan="<?= $u_staff ? 9 : 7 ?>" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
         <?php endif; ?>
         <?php foreach ($u_parts as $i => $p):
           $cid  = (int)$p['client_id'];
@@ -211,6 +282,19 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
               </button>
             </form>
             <?php elseif (!$inactive): ?><span class="text-muted small">brak innych grup</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-nowrap usos-noprint">
+            <?php if (!$inactive): ?>
+            <form method="post" onsubmit="return confirm('Wypisać uczestnika z tej grupy?\n\nHistoria frekwencji i rozliczeń zostaje — to tylko zamknięcie zapisu.')">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="unenroll">
+              <input type="hidden" name="client_id" value="<?= $cid ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Wypisz z grupy">
+                <i class="bi bi-person-dash" aria-hidden="true"></i><span class="visually-hidden">Wypisz</span>
+              </button>
+            </form>
+            <?php else: ?><span class="text-muted small">—</span>
             <?php endif; ?>
           </td>
           <?php endif; ?>
