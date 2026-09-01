@@ -75,9 +75,13 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
             <?php if (!$day): ?><span class="text-body-secondary small">—</span><?php endif; ?>
             <?php foreach ($day as $s):
               $bad = $pl_status_badge[(string)$s['status']] ?? ['secondary', (string)$s['status']];
+              $dfl = K30_TI_DATE_FLAGS[(string)($s['date_flag'] ?? '')] ?? null;
             ?>
             <span class="usos-slot">
               <strong><?= h(substr((string)$s['time_from'], 0, 5)) ?><?= $s['time_to'] ? '–' . h(substr((string)$s['time_to'], 0, 5)) : '' ?></strong>
+              <?php if ($dfl && (string)($s['date_flag'] ?? '') !== ''): ?>
+              <span class="badge <?= h($dfl['class']) ?>" title="<?= h($dfl['label']) ?>"><?= h($dfl['badge']) ?></span>
+              <?php endif; ?>
               <?php if (trim((string)$s['topic']) !== ''): ?><br><?= h(mb_strimwidth((string)$s['topic'], 0, 40, '…', 'UTF-8')) ?><?php endif; ?>
               <?php if (!empty($s['lesson_method'])): ?><br><span class="text-body-secondary"><?= h($pl_method[(string)$s['lesson_method']] ?? (string)$s['lesson_method']) ?></span><?php endif; ?>
               <?php if (!empty($s['room_name'])): ?><br><span class="text-body-secondary"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($s['room_name']) ?></span><?php endif; ?>
@@ -111,6 +115,7 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
         <?php endif; ?>
         <?php foreach ($pl_month as $s):
           $bad = $pl_status_badge[(string)$s['status']] ?? ['secondary', (string)$s['status']];
+          $dfl = K30_TI_DATE_FLAGS[(string)($s['date_flag'] ?? '')] ?? null;
         ?>
         <tr>
           <td class="text-nowrap small">
@@ -121,7 +126,12 @@ $pl_days   = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
           <td class="small"><?= trim((string)$s['topic']) !== '' ? h($s['topic']) : '<span class="text-muted">—</span>' ?></td>
           <td class="small"><?= !empty($s['lesson_method']) ? h($pl_method[(string)$s['lesson_method']] ?? (string)$s['lesson_method']) : '<span class="text-muted">—</span>' ?></td>
           <td class="small"><?= !empty($s['room_name']) ? h($s['room_name']) . (trim((string)($s['room_location'] ?? '')) !== '' ? ' <span class="text-body-secondary">(' . h($s['room_location']) . ')</span>' : '') : '<span class="text-muted">—</span>' ?></td>
-          <td class="small"><span class="badge text-bg-<?= h($bad[0]) ?>"><?= h($bad[1]) ?></span></td>
+          <td class="small">
+            <span class="badge text-bg-<?= h($bad[0]) ?>"><?= h($bad[1]) ?></span>
+            <?php if ($dfl && (string)($s['date_flag'] ?? '') !== ''): ?>
+            <span class="badge <?= h($dfl['class']) ?>" title="<?= h($dfl['label']) ?>"><?= h($dfl['badge']) ?></span>
+            <?php endif; ?>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>

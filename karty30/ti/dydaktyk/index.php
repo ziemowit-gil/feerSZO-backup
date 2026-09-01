@@ -533,6 +533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hw    = !empty($_POST['has_homework']) ? 1 : 0;
         $spr   = !empty($_POST['self_prep_remote']) ? 1 : 0;
         $lm    = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
+        $dflag = in_array($_POST['date_flag'] ?? '', ['tentative','change_possible'], true) ? $_POST['date_flag'] : '';
         $meet_url = in_array($lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         $room_id = max(0, (int)($_POST['room_id'] ?? 0));
         // Rezerwacja: termin trzymany naprawdę (te same blokady Zoom/sali/dostępności
@@ -579,9 +580,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, room_id=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, room_id=?, date_flag=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $room_id ?: null, $sid]);
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $room_id ?: null, $dflag, $sid]);
             // Prowadzący edytowalny tylko przez kierownika — nie dotykamy pola,
             // gdy edytuje zwykły prowadzący (formularz mu go nawet nie pokazuje).
             if (dyd_is_staff()) {
@@ -600,7 +601,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'status'          => $is_reservation ? 'reserved' : 'planned', 'topic' => $topic, 'notes' => $notes,
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
                 'lesson_method'   => $lm, 'meeting_url' => $meet_url, 'instructor_id' => $sess_instr ?: null,
-                'room_id'         => $room_id ?: null,
+                'room_id'         => $room_id ?: null, 'date_flag' => $dflag,
                 'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
@@ -1789,6 +1790,17 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
           <label class="form-label" for="<?= $pfx ?>_to">Do</label>
           <select class="form-select" id="<?= $pfx ?>_to" name="time_to"><?= ti_time_options($r['time_to'] ?? '') ?></select>
         </div>
+      </div>
+      <?php endif; ?>
+      <?php if (!$isPast): ?>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_dflag">Pewność terminu</label>
+        <select class="form-select" id="<?= $pfx ?>_dflag" name="date_flag">
+          <?php foreach (K30_TI_DATE_FLAGS as $_dfk => $_dfv): ?>
+          <option value="<?= h($_dfk) ?>" <?= (string)($r['date_flag'] ?? '') === $_dfk ? 'selected' : '' ?>><?= h($_dfv['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Widoczne w Planie zajęć obok terminu — niezależne od statusu lekcji.</div>
       </div>
       <?php endif; ?>
       <?php if (!$isPast): $isReserved = $isEdit && ($r['status'] ?? '') === 'reserved'; ?>

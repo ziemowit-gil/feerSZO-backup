@@ -460,6 +460,9 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_url TEXT NOT NULL DEFAULT ''",
         // Metoda lekcji: stacjonarna | zdalna_zoom | zdalna_inne ('' = nie wybrano)
         "ALTER TABLE k30_ti_sessions ADD COLUMN lesson_method TEXT NOT NULL DEFAULT ''",
+        // Pewność terminu w grafiku — niezależna od statusu lekcji. '' = ustalony,
+        // tentative = niepewny (?), change_possible = możliwa zmiana terminu.
+        "ALTER TABLE k30_ti_sessions ADD COLUMN date_flag TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -2369,6 +2372,17 @@ const K30_TI_SESSION_STATUSES = [
 
 /** Statusy lekcji liczone jako „odbyła się" (do rozliczeń i wypłat). */
 const K30_TI_HELD_STATUSES = ['held', 'individual_change', 'remote_material'];
+
+/**
+ * Adnotacja pewności terminu w grafiku — NIEZALEŻNA od statusu lekcji
+ * (K30_TI_SESSION_STATUSES): lekcja może być np. „Zaplanowana" i jednocześnie
+ * oznaczona jako termin niepewny. '' (brak wpisu) = termin ustalony.
+ */
+const K30_TI_DATE_FLAGS = [
+    ''                => ['label' => 'Termin ustalony',        'badge' => '!',      'class' => 'text-bg-secondary'],
+    'tentative'       => ['label' => 'Termin niepewny',        'badge' => '?',      'class' => 'text-bg-warning'],
+    'change_possible' => ['label' => 'Możliwa zmiana terminu', 'badge' => 'Zmiana', 'class' => 'text-bg-info'],
+];
 
 /**
  * Statusy liczone do FREKWENCJI (obecność / nieobecność kursantów).
