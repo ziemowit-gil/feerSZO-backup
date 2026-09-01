@@ -27,7 +27,7 @@ $L = ti_librus_grid_client((int)$student['client_id'], $weeks);
 
 $dow_cols = [1,2,3,4,5,6,7];
 $dow_lbl  = TI_DAYS_PL_FULL;
-$org = defined('APP_ORG') ? APP_ORG : '';
+$org = ti_org_contact_info();
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -59,13 +59,17 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   .lb-cell .flag-tentative { color: #92400e; background: #fef3c7; }
   .lb-cell .flag-change    { color: #075985; background: #e0f2fe; }
   .lb-empty { color: #cbd5e1; }
-  .exceptions { margin-top: 16px; }
-  .exceptions h2 { font-size: 10.5pt; color: #334155; margin: 0 0 6px; }
-  .exceptions ul { margin: 0; padding-left: 18px; }
-  .exceptions li { font-size: 9.5pt; margin-bottom: 3px; }
-  .exceptions .arrow { color: #94a3b8; margin: 0 4px; }
-  .exceptions .course { color: #0f766e; }
+  .info-cols { display: flex; gap: 24px; margin-top: 18px; }
+  .info-col { flex: 1; min-width: 0; }
+  .info-col h2 { font-size: 10.5pt; color: #334155; margin: 0 0 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  .info-col ul { margin: 0; padding-left: 18px; }
+  .info-col li { font-size: 9.5pt; margin-bottom: 4px; }
+  .contact-name { font-weight: 600; }
+  .contact-line { color: #475569; font-size: 8.5pt; }
+  .arrow { color: #94a3b8; margin: 0 4px; }
+  .course { color: #0f766e; }
   .page-footer { color: #94a3b8; font-size: 8pt; padding: 10px 20px 16px; border-top: 1px solid #e2e8f0; margin-top: 8px; }
+  @media (max-width: 700px) { .info-cols { flex-direction: column; gap: 12px; } }
   @media print {
     .controls { display: none; }
     .print-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -94,25 +98,18 @@ $org = defined('APP_ORG') ? APP_ORG : '';
 
 <div class="print-header">
   <h1>Mój plan zajęć</h1>
-  <div class="meta"><?= h($org) ?><br><?= h($name) ?></div>
+  <div class="meta">
+    <?php if ($org['name'] !== ''): ?><strong><?= h($org['name']) ?></strong><br><?php endif; ?>
+    <?php if ($org['address'] !== ''): ?><?= h($org['address']) ?><br><?php endif; ?>
+    <?php $_oc = array_filter([$org['phone'], $org['email']]); if ($_oc): ?><?= h(implode(' · ', $_oc)) ?><br><?php endif; ?>
+    <?= h($name) ?>
+  </div>
 </div>
 
 <div class="content">
 <?php if (!$L['time_slots']): ?>
   <p style="color:#64748b;font-style:italic">Brak zaplanowanych terminów w wybranym okresie.</p>
 <?php else: ?>
-  <?php $_has_multi = false; foreach ($L['grid'] as $_row) foreach ($_row as $_items) foreach ($_items as $_it) if (!empty($_it['multi_slot'])) { $_has_multi = true; break 3; } ?>
-  <?php if ($_has_multi): ?>
-  <p style="color:#b45309;font-size:9pt;margin:0 0 8px">
-    Harmonogram co najmniej jednego kursu zmienia się w wybranym okresie — przy takim terminie podano zakres dat, w którym obowiązuje.
-  </p>
-  <?php endif; ?>
-  <?php $_has_flags = false; foreach ($L['grid'] as $_row) foreach ($_row as $_items) foreach ($_items as $_it) if (($_it['date_flag'] ?? '') !== '') { $_has_flags = true; break 3; } ?>
-  <?php if ($_has_flags): ?>
-  <p style="color:#64748b;font-size:9pt;margin:0 0 8px">
-    Etykiety „Termin niepewny" / „Możliwa zmiana terminu" dotyczą co najmniej jednego terminu w tym slocie w wybranym oknie.
-  </p>
-  <?php endif; ?>
   <table class="librus">
     <thead>
       <tr>
@@ -155,16 +152,47 @@ $org = defined('APP_ORG') ? APP_ORG : '';
     </tbody>
   </table>
 <?php endif; ?>
-<?php if ($L['exceptions']): ?>
-  <div class="exceptions">
-    <h2>Zmiany terminów w tym okresie</h2>
+<?php
+  $_has_multi = false; foreach ($L['grid'] ?? [] as $_row) foreach ($_row as $_items) foreach ($_items as $_it) if (!empty($_it['multi_slot'])) { $_has_multi = true; break 3; }
+  $_has_flags = false; foreach ($L['grid'] ?? [] as $_row) foreach ($_row as $_items) foreach ($_items as $_it) if (($_it['date_flag'] ?? '') !== '') { $_has_flags = true; break 3; }
+?>
+<div class="info-cols">
+  <div class="info-col">
+    <h2>Kontakty do prowadzących</h2>
+    <?php if (empty($L['instructors'])): ?>
+    <p style="color:#94a3b8;font-size:9pt">Brak przypisanych prowadzących.</p>
+    <?php else: ?>
     <ul>
-      <?php foreach ($L['exceptions'] as $ex): ?>
-      <li><?= h($ex['from_label']) ?><span class="arrow">→</span><strong><?= h($ex['to_label']) ?></strong>, <span class="course"><?= h($ex['course']) ?></span></li>
+      <?php foreach ($L['instructors'] as $ins): ?>
+      <li>
+        <span class="contact-name"><?= h($ins['name']) ?></span><br>
+        <?php $_ic = array_filter([$ins['phone'], $ins['email']]); ?>
+        <?php if ($_ic): ?><span class="contact-line"><?= h(implode(' · ', $_ic)) ?></span>
+        <?php else: ?><span class="contact-line">brak danych kontaktowych w systemie</span><?php endif; ?>
+      </li>
       <?php endforeach; ?>
     </ul>
+    <?php endif; ?>
   </div>
-<?php endif; ?>
+  <div class="info-col">
+    <h2>Uwagi</h2>
+    <?php if (!$_has_multi && !$_has_flags && empty($L['exceptions'])): ?>
+    <p style="color:#94a3b8;font-size:9pt">Brak uwag do wybranego okresu.</p>
+    <?php else: ?>
+    <ul>
+      <?php if ($_has_multi): ?>
+      <li>Harmonogram co najmniej jednego kursu zmienia się w wybranym okresie — przy takim terminie podano zakres dat, w którym obowiązuje.</li>
+      <?php endif; ?>
+      <?php if ($_has_flags): ?>
+      <li>Etykiety „Termin niepewny" / „Możliwa zmiana terminu" przy niektórych terminach — dotyczą co najmniej jednej daty w danym slocie.</li>
+      <?php endif; ?>
+      <?php foreach ($L['exceptions'] as $ex): ?>
+      <li>Zmiana terminu: <?= h($ex['from_label']) ?><span class="arrow">→</span><strong><?= h($ex['to_label']) ?></strong>, <span class="course"><?= h($ex['course']) ?></span></li>
+      <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+  </div>
+</div>
 </div>
 <div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?></div>
 </body>

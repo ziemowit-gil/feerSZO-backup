@@ -22,12 +22,13 @@ $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]
 $name   = trim((string)($client['name'] ?? $student['login'] ?? 'Kursant'));
 $weeks  = max(1, min(52, (int)($_GET['weeks'] ?? 12)));
 $L      = ti_librus_grid_client((int)$student['client_id'], $weeks);
-$org    = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
+$org    = ti_org_contact_info();
 
 try {
     $pdfData = ti_librus_grid_pdf($L, TI_DAYS_PL_FULL, [
         'title'    => 'Mój plan zajęć (siatka) — ' . $name,
-        'subtitle' => ($org !== '' ? $org . '   ·   ' : '') . $weeks . ' tyg.',
+        'subtitle' => $weeks . ' tyg.',
+        'org'      => $org,
         'footer'   => 'Wygenerowano: ' . date('d.m.Y H:i'),
     ]);
     $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $name) . '.pdf';

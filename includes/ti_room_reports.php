@@ -52,6 +52,20 @@ function ti_room_reservation_range(string $w, string $range): array {
     return ['from' => $from, 'to' => $to, 'prev' => $prev, 'next' => $next, 'label' => $label];
 }
 
+/**
+ * Dane organizacji do nagłówka wydruków TI (plan_librus*.php) — te same klucze
+ * org_setting() co reszta systemu (invoice_pdf.php, certificates.php…).
+ */
+function ti_org_contact_info(): array {
+    return [
+        'name'    => (string)(org_setting('org_name') ?: (defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : ''))),
+        'address' => (string)org_setting('org_adres'),
+        'phone'   => (string)org_setting('org_telefon'),
+        'email'   => (string)org_setting('org_email'),
+        'www'     => (string)org_setting('org_www'),
+    ];
+}
+
 /** Etykieta lokalizacji dla wyświetlenia: nazwa sali + jej lokalizacja, albo wolny tekst z kursu. */
 function ti_room_label(?array $room, ?string $course_location = null): string {
     if ($room) {
@@ -69,7 +83,8 @@ function ti_room_label(?array $room, ?string $course_location = null): string {
  */
 function ti_librus_grid(int $course_id, int $weeks = 8): array {
     $course = db_one(
-        "SELECT c.*, u.name AS instructor_name, st.name AS subject_name, st.abbreviation AS subject_abbr
+        "SELECT c.*, u.name AS instructor_name, u.phone_number AS instructor_phone, u.email AS instructor_email,
+                st.name AS subject_name, st.abbreviation AS subject_abbr
          FROM k30_ti_courses c
          LEFT JOIN users u ON u.id = c.instructor_id
          LEFT JOIN k30_ti_subject_types st ON st.id = c.subject_type_id
@@ -83,7 +98,8 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     $rows = db_all(
         "SELECT s.lesson_date, s.time_from, s.time_to, s.instructor_id, s.room_id, s.date_flag,
                 s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
-                u.name AS instr_name, r.name AS room_name, r.location AS room_location
+                u.name AS instr_name, u.phone_number AS instr_phone, u.email AS instr_email,
+                r.name AS room_name, r.location AS room_location
          FROM k30_ti_sessions s
          LEFT JOIN users u ON u.id = s.instructor_id
          LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -93,6 +109,12 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     );
 
     $subject = $course['subject_abbr'] ?: ($course['subject_name'] ?: $course['name']);
+    // Kontakty prowadzących faktycznie występujących w oknie wydruku (domyślny
+    // + zastępstwa) — do sekcji „Kontakty do prowadzących" w plan_librus.php.
+    $instructors_seen = [];
+    if (trim((string)$course['instructor_name']) !== '') {
+        $instructors_seen[$course['instructor_name']] = ['name' => $course['instructor_name'], 'phone' => (string)($course['instructor_phone'] ?? ''), 'email' => (string)($course['instructor_email'] ?? '')];
+    }
 
     // Grupuj po (dow, time_from, time_to) — biorąc najczęściej występującego
     // prowadzącego/salę w tym slocie (zwykle jednorodne, ale zastępstwa się zdarzają).
@@ -112,7 +134,15 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
         $tt  = substr($group_tt, 0, 5);
         $tk  = $tf . '–' . $tt;
         $slots[$tk][$dow]['count']       = ($slots[$tk][$dow]['count'] ?? 0) + 1;
-        $slots[$tk][$dow]['instructors'][] = $r['instr_name'] ?: $course['instructor_name'];
+        $_instr_name = $r['instr_name'] ?: $course['instructor_name'];
+        $slots[$tk][$dow]['instructors'][] = $_instr_name;
+        if (trim((string)$_instr_name) !== '' && !isset($instructors_seen[$_instr_name])) {
+            $instructors_seen[$_instr_name] = [
+                'name'  => $_instr_name,
+                'phone' => (string)($r['instr_name'] ? ($r['instr_phone'] ?? '') : ($course['instructor_phone'] ?? '')),
+                'email' => (string)($r['instr_name'] ? ($r['instr_email'] ?? '') : ($course['instructor_email'] ?? '')),
+            ];
+        }
         $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $course['location']);
         $slots[$tk][$dow]['rooms'][] = $room_lbl;
         $slots[$tk][$dow]['dates'][] = $group_date;
@@ -167,13 +197,14 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
     $multi_slot = array_sum(array_map('count', $grid)) > 1;
 
     return [
-        'course'     => $course,
-        'from'       => $from,
-        'to'         => $to,
-        'time_slots' => $time_slots,
-        'grid'       => $grid,
-        'multi_slot' => $multi_slot,
-        'exceptions' => $exceptions,
+        'course'      => $course,
+        'from'        => $from,
+        'to'          => $to,
+        'time_slots'  => $time_slots,
+        'grid'        => $grid,
+        'multi_slot'  => $multi_slot,
+        'exceptions'  => $exceptions,
+        'instructors' => array_values($instructors_seen),
     ];
 }
 
@@ -197,7 +228,10 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
                 s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
                 s.course_id, c.name AS course_name, c.location AS course_location, c.default_meeting_url,
                 st.abbreviation AS subject_abbr, st.name AS subject_name,
-                COALESCE(iu.name, cu.name) AS instr_name, r.name AS room_name, r.location AS room_location
+                COALESCE(iu.name, cu.name) AS instr_name,
+                COALESCE(iu.phone_number, cu.phone_number) AS instr_phone,
+                COALESCE(iu.email, cu.email) AS instr_email,
+                r.name AS room_name, r.location AS room_location
            FROM k30_ti_sessions s
            JOIN k30_ti_courses c ON c.id = s.course_id
            LEFT JOIN users iu ON iu.id = s.instructor_id
@@ -216,6 +250,7 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
     $cells = [];
     $slot_keys_per_course = [];
     $exceptions = [];
+    $instructors_seen = [];
     foreach ($rows as $r) {
         $has_orig = trim((string)($r['rescheduled_from_date'] ?? '')) !== '';
         $group_date = $has_orig ? (string)$r['rescheduled_from_date']      : (string)$r['lesson_date'];
@@ -232,6 +267,11 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
         $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
         $cells[$tk][$dow][$ck]['subject']    = $r['subject_abbr'] ?: ($r['subject_name'] ?: $r['course_name']);
         $cells[$tk][$dow][$ck]['instructor'] = $r['instr_name'] ?: '—';
+        if (trim((string)$r['instr_name']) !== '' && !isset($instructors_seen[$r['instr_name']])) {
+            $instructors_seen[$r['instr_name']] = [
+                'name' => $r['instr_name'], 'phone' => (string)($r['instr_phone'] ?? ''), 'email' => (string)($r['instr_email'] ?? ''),
+            ];
+        }
         $cells[$tk][$dow][$ck]['rooms'][]    = $room_lbl;
         $cells[$tk][$dow][$ck]['dates'][]    = $group_date;
         $cells[$tk][$dow][$ck]['flags'][]    = (string)($r['date_flag'] ?? '');
@@ -281,12 +321,13 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
     usort($exceptions, fn($a, $b) => $a['from_label'] <=> $b['from_label']);
 
     return [
-        'client'     => $client,
-        'from'       => $from,
-        'to'         => $to,
-        'time_slots' => $time_slots,
-        'grid'       => $grid,
-        'exceptions' => $exceptions,
+        'client'      => $client,
+        'from'        => $from,
+        'to'          => $to,
+        'time_slots'  => $time_slots,
+        'grid'        => $grid,
+        'exceptions'  => $exceptions,
+        'instructors' => array_values($instructors_seen),
     ];
 }
 
@@ -316,6 +357,16 @@ function ti_librus_grid_pdf(array $L, array $dow_lbl, array $opts = []): string 
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('Helvetica', '', 8);
     if (!empty($opts['subtitle'])) $pdf->Cell($W, 5, $pl((string)$opts['subtitle']), 0, 1);
+    if (!empty($opts['org']) && is_array($opts['org'])) {
+        $org = $opts['org'];
+        $orgLine = implode(' · ', array_filter([$org['name'] ?? '', $org['address'] ?? '', $org['phone'] ?? '', $org['email'] ?? '']));
+        if ($orgLine !== '') {
+            $pdf->SetFont('Helvetica', '', 7.5);
+            $pdf->SetTextColor(100, 100, 100);
+            $pdf->Cell($W, 4.5, $pl($orgLine), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
+        }
+    }
     $pdf->Ln(2);
 
     $timeColW = 22;
@@ -399,17 +450,77 @@ function ti_librus_grid_pdf(array $L, array $dow_lbl, array $opts = []): string 
         $pdf->SetXY($x0, $y0 + $rowH);
     }
 
-    if (!empty($L['exceptions'])) {
+    // Uwagi zbierane z tych samych danych, co wiersze siatki (multi_slot/flagi
+    // per komórka) + wyjątki (przeniesione terminy) — jedna lista, jak w HTML.
+    $hasMultiSlot = !empty($L['multi_slot']);
+    $hasFlags = false;
+    foreach ($L['grid'] ?? [] as $_row) {
+        foreach ($_row as $_raw) {
+            $_items = (is_array($_raw) && array_key_exists('subject', $_raw)) ? [$_raw] : (array)$_raw;
+            foreach ($_items as $_it) {
+                if (!empty($_it['multi_slot'])) $hasMultiSlot = true;
+                if (($_it['date_flag'] ?? '') !== '') $hasFlags = true;
+            }
+        }
+    }
+    $notes = [];
+    if ($hasMultiSlot) $notes[] = 'Harmonogram zmienia się w wybranym okresie — przy takim terminie podano zakres dat, w którym obowiązuje.';
+    if ($hasFlags) $notes[] = 'Etykiety TERMIN NIEPEWNY / MOZLIWA ZMIANA TERMINU dotyczą co najmniej jednej daty w danym slocie.';
+    foreach ($L['exceptions'] ?? [] as $ex) {
+        $extra = (string)($ex['room'] ?? $ex['course'] ?? '');
+        $notes[] = 'Zmiana terminu: ' . $ex['from_label'] . ' -> ' . $ex['to_label'] . ($extra !== '' && $extra !== '—' ? ', ' . $extra : '');
+    }
+
+    if (!empty($L['instructors']) || $notes) {
         $pdf->Ln(3);
         if ($pdf->GetY() > $pdf->GetPageHeight() - 25) { $pdf->AddPage(); }
+        $colW = ($W - 10) / 2;
+        $y0 = $pdf->GetY();
+
+        // Lewa kolumna: kontakty do prowadzących
+        $pdf->SetXY(10, $y0);
         $pdf->SetFont('Helvetica', 'B', 9);
-        $pdf->Cell($W, 6, $pl('Zmiany terminów w tym okresie'), 0, 1);
-        $pdf->SetFont('Helvetica', '', 7.5);
-        foreach ($L['exceptions'] as $ex) {
-            if ($pdf->GetY() > $pdf->GetPageHeight() - 14) { $pdf->AddPage(); }
-            $extra = (string)($ex['room'] ?? $ex['course'] ?? '');
-            $pdf->Cell($W, 5, $pl($ex['from_label'] . ' -> ' . $ex['to_label'] . ($extra !== '' && $extra !== '—' ? ', ' . $extra : '')), 0, 1);
+        $pdf->Cell($colW, 6, $pl('Kontakty do prowadzących'), 0, 1);
+        $pdf->SetX(10);
+        if (!$L['instructors']) {
+            $pdf->SetFont('Helvetica', '', 7.5);
+            $pdf->SetTextColor(148, 163, 184);
+            $pdf->Cell($colW, 5, $pl('Brak przypisanych prowadzących.'), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
+        } else {
+            foreach ($L['instructors'] as $ins) {
+                $pdf->SetX(10);
+                $pdf->SetFont('Helvetica', 'B', 7.5);
+                $pdf->Cell($colW, 4.5, $pl($ins['name']), 0, 1);
+                $contact = implode(' · ', array_filter([$ins['phone'] ?? '', $ins['email'] ?? '']));
+                $pdf->SetX(10);
+                $pdf->SetFont('Helvetica', '', 7);
+                $pdf->SetTextColor(71, 85, 105);
+                $pdf->Cell($colW, 4.5, $pl($contact !== '' ? $contact : 'brak danych kontaktowych'), 0, 1);
+                $pdf->SetTextColor(0, 0, 0);
+            }
         }
+        $yLeftEnd = $pdf->GetY();
+
+        // Prawa kolumna: uwagi
+        $pdf->SetXY(10 + $colW + 10, $y0);
+        $pdf->SetFont('Helvetica', 'B', 9);
+        $pdf->Cell($colW, 6, $pl('Uwagi'), 0, 1);
+        if (!$notes) {
+            $pdf->SetX(10 + $colW + 10);
+            $pdf->SetFont('Helvetica', '', 7.5);
+            $pdf->SetTextColor(148, 163, 184);
+            $pdf->Cell($colW, 5, $pl('Brak uwag do wybranego okresu.'), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
+        } else {
+            $pdf->SetFont('Helvetica', '', 7.5);
+            foreach ($notes as $note) {
+                $pdf->SetX(10 + $colW + 10);
+                $pdf->MultiCell($colW, 4.5, $pl('• ' . $note), 0, 'L');
+            }
+        }
+        $yRightEnd = $pdf->GetY();
+        $pdf->SetY(max($yLeftEnd, $yRightEnd));
     }
 
     if (!empty($opts['footer'])) {

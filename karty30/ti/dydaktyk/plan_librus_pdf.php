@@ -25,12 +25,13 @@ $weeks = max(1, min(52, (int)($_GET['weeks'] ?? 12)));
 $L = ti_librus_grid($course_id, $weeks);
 if (!$L['course']) { http_response_code(404); exit('Nie znaleziono grupy.'); }
 $course = $L['course'];
-$org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
+$org = ti_org_contact_info();
 
 try {
     $pdfData = ti_librus_grid_pdf($L, TI_DAYS_PL_FULL, [
         'title'    => 'Plan zajęć (siatka) — ' . $course['name'],
-        'subtitle' => ($org !== '' ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?? '—') . '   ·   ' . $weeks . ' tyg.',
+        'subtitle' => 'Prowadzący: ' . ($course['instructor_name'] ?? '—') . '   ·   ' . $weeks . ' tyg.',
+        'org'      => $org,
         'footer'   => 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ]);
     ti_print_log_add('plan_librus_pdf', 'Plan zajęć (siatka, PDF) — ' . $course['name'], $course_id, 0, ['weeks' => $weeks], $me);
