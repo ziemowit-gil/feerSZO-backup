@@ -893,7 +893,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // i ich obecności/rozliczenia NIGDY nie są ruszane.
     if ($op === 'clear_group_sessions') {
         dyd_token_check();
-        $scope = in_array($_POST['scope'] ?? '', ['future', 'all', 'day'], true) ? $_POST['scope'] : 'future';
+        $scope = in_array($_POST['scope'] ?? '', ['future', 'all', 'day', 'weekday'], true) ? $_POST['scope'] : 'future';
         $clear_cancelled = !empty($_POST['clear_cancelled']);
         $statuses = $clear_cancelled ? "('planned','cancelled')" : "('planned')";
         $params = [$course_id];
@@ -910,6 +910,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $where .= " AND lesson_date = ?";
             $params[] = $clear_date;
             $detail_scope = ' z dnia ' . $clear_date;
+        } elseif ($scope === 'weekday') {
+            $clear_weekday = (int)($_POST['clear_weekday'] ?? -1);
+            if ($clear_weekday < 0 || $clear_weekday > 6) {
+                flash_set('danger', 'Wybierz poprawny dzień tygodnia.');
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            $where .= " AND lesson_date >= date('now') AND CAST(strftime('%w', lesson_date) AS INTEGER) = CAST(? AS INTEGER)";
+            $params[] = $clear_weekday;
+            $detail_scope = ' — ' . mb_strtolower(K30_TI_DAYS[$clear_weekday]) . ' (nadchodzące)';
         } else {
             $detail_scope = ' (w tym zaległe)';
         }

@@ -776,6 +776,18 @@ foreach ($_ext_for_wiz as $_we) {
           </label>
           <input type="date" class="form-control form-control-sm mt-1" name="clear_date" id="csDayDate" disabled>
         </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input cs-scope" type="radio" name="scope" id="csWeekday" value="weekday"
+                 data-planned="0" data-cancelled="0">
+          <label class="form-check-label" for="csWeekday">
+            Konkretny dzień tygodnia (tylko nadchodzące)
+          </label>
+          <select class="form-select form-select-sm mt-1" name="clear_weekday" id="csWeekdaySelect" disabled>
+            <?php foreach (K30_TI_DAYS as $_wdv => $_wdl): ?>
+            <option value="<?= $_wdv ?>"><?= h($_wdl) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
         <div class="form-check mb-2 border-top pt-2">
           <input class="form-check-input" type="checkbox" name="clear_cancelled" id="csCancelled" value="1">
           <label class="form-check-label" for="csCancelled">
@@ -805,15 +817,23 @@ foreach ($_ext_for_wiz as $_we) {
   var countAlert  = document.getElementById('csCountAlert');
   var submitBtn   = document.getElementById('csSubmitBtn');
   var dayDate     = document.getElementById('csDayDate');
+  var weekdaySel  = document.getElementById('csWeekdaySelect');
   if (!scopeInputs.length || !submitBtn) return;
   function recalc(){
     var scope = document.querySelector('#dydClearSessionsModal .cs-scope:checked');
     if (!scope) return;
-    var isDay = scope.value === 'day';
-    if (dayDate) dayDate.disabled = !isDay;
+    var isDay     = scope.value === 'day';
+    var isWeekday = scope.value === 'weekday';
+    if (dayDate)    dayDate.disabled    = !isDay;
+    if (weekdaySel) weekdaySel.disabled = !isWeekday;
     if (isDay) {
       if (countAlert) countAlert.style.display = 'none';
       submitBtn.disabled = !dayDate || !dayDate.value;
+      return;
+    }
+    if (isWeekday) {
+      if (countAlert) countAlert.style.display = 'none';
+      submitBtn.disabled = false;
       return;
     }
     if (countAlert) countAlert.style.display = '';
