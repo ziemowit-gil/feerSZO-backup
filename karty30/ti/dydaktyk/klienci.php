@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
+$dyd_name = (string)($me['name'] ?? '');
 karty30_migrate();
 ti_payments_migrate();
 
@@ -44,6 +45,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: klienci.php' . (isset($_GET['q']) ? '?q=' . urlencode($_GET['q']) : '')); exit;
     }
 
+    // Nowy klient — dotąd tylko w starym adminie (karty30/clients/add.php,
+    // wymagał osobnego logowania SZO). Tu celowo lekka wersja: minimum danych
+    // + od razu zapis do wybranej grupy (bez tego klient nie pojawiłby się
+    // nawet na tej liście — filtrowana po aktywnym zapisie, patrz $rows niżej).
+    if ($op === 'add_client') {
+        $nc_name  = trim($_POST['name'] ?? '');
+        $nc_email = trim($_POST['email'] ?? '');
+        $nc_phone = trim($_POST['phone'] ?? '');
+        $nc_pesel = preg_replace('/\D/', '', trim($_POST['pesel'] ?? ''));
+        $nc_course = (int)($_POST['course_id'] ?? 0);
+        $nc_err = [];
+        if ($nc_name === '') $nc_err[] = 'Imię i nazwisko jest wymagane.';
+        if ($nc_email !== '' && !filter_var($nc_email, FILTER_VALIDATE_EMAIL)) $nc_err[] = 'Nieprawidłowy adres e-mail.';
+        if ($nc_pesel !== '' && !pesel_valid($nc_pesel)) $nc_err[] = 'Nieprawidłowy PESEL.';
+        if (!$nc_course || !db_one("SELECT 1 FROM k30_ti_courses WHERE id=? AND is_active=1", [$nc_course])) $nc_err[] = 'Wybierz grupę, do której zapisać klienta.';
+        if ($nc_err) {
+            flash_set('danger', implode(' ', $nc_err));
+        } else {
+            $nc_id = db_insert('k30_clients', [
+                'name' => $nc_name, 'email' => $nc_email ?: null, 'phone' => $nc_phone ?: null,
+                'pesel' => $nc_pesel ?: '', 'status' => 'enrolled', 'created_by' => $me['user_id'] ?? null,
+            ]);
+            db()->prepare(
+                "INSERT INTO k30_ti_enrollments (course_id,client_id,start_date,status) VALUES (?,?,?,'active')"
+            )->execute([$nc_course, $nc_id, date('Y-m-d')]);
+            try { k30_sync_to_crm(['name' => $nc_name, 'email' => $nc_email, 'phone' => $nc_phone], (int)($me['user_id'] ?? 0)); }
+            catch (\Throwable $e) { /* best-effort, jak przy rk_book() */ }
+            flash_set('success', 'Klient dodany i zapisany do grupy.');
+        }
+        header('Location: klienci.php'); exit;
+    }
+
     if ($op === 'wallet_request_approve' || $op === 'wallet_request_reject') {
         $rid = (int)($_POST['request_id'] ?? 0);
         if ($op === 'wallet_request_approve') {
@@ -58,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pending_requests = ti_wallet_requests_pending();
+$nc_courses = k30_ti_courses(true);
 
 $q = trim($_GET['q'] ?? '');
 
@@ -132,12 +166,17 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
   <?php endif; ?>
 
-  <form method="get" class="mb-3" style="max-width:360px">
-    <div class="input-group">
-      <input type="text" name="q" class="form-control" placeholder="Szukaj po nazwisku…" value="<?= h($q) ?>">
-      <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
-    </div>
-  </form>
+  <div class="d-flex flex-wrap gap-2 align-items-start mb-3">
+    <form method="get" style="max-width:360px" class="flex-grow-1">
+      <div class="input-group">
+        <input type="text" name="q" class="form-control" placeholder="Szukaj po nazwisku…" value="<?= h($q) ?>">
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+      </div>
+    </form>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newClientModal">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Nowy klient
+    </button>
+  </div>
 
   <div class="card border-0 shadow-sm">
     <div class="table-responsive">
@@ -189,6 +228,56 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?php endforeach; ?>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: nowy klient -->
+<div class="modal fade" id="newClientModal" tabindex="-1" aria-labelledby="newClientLbl" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="add_client">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="newClientLbl"><i class="bi bi-person-plus text-primary me-2" aria-hidden="true"></i>Nowy klient</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="nc_name">Imię i nazwisko <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="nc_name" name="name" required>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label" for="nc_email">E-mail</label>
+              <input type="email" class="form-control" id="nc_email" name="email">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="nc_phone">Telefon</label>
+              <input type="tel" class="form-control" id="nc_phone" name="phone">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="nc_pesel">PESEL <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+            <input type="text" class="form-control" id="nc_pesel" name="pesel" maxlength="11" inputmode="numeric">
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="nc_course">Zapisz od razu do grupy <span class="text-danger">*</span></label>
+            <select class="form-select" id="nc_course" name="course_id" required>
+              <option value="">— wybierz grupę —</option>
+              <?php foreach ($nc_courses as $co): ?>
+              <option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Pełne dane beneficjenta (RODO, sprzęt, status uczestnictwa…) uzupełnisz później w module Beneficjenci.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Dodaj i zapisz</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
