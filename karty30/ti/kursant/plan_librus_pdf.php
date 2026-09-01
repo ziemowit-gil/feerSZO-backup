@@ -27,7 +27,6 @@ $org    = ti_org_contact_info();
 try {
     $pdfData = ti_librus_grid_pdf($L, TI_DAYS_PL_FULL, [
         'title'    => 'Mój plan zajęć (siatka) — ' . $name,
-        'subtitle' => $weeks . ' tyg.',
         'org'      => $org,
         'footer'   => 'Wygenerowano: ' . date('d.m.Y H:i'),
     ]);

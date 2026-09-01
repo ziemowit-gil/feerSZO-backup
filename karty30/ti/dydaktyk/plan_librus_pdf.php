@@ -30,7 +30,7 @@ $org = ti_org_contact_info();
 try {
     $pdfData = ti_librus_grid_pdf($L, TI_DAYS_PL_FULL, [
         'title'    => 'Plan zajęć (siatka) — ' . $course['name'],
-        'subtitle' => 'Prowadzący: ' . ($course['instructor_name'] ?? '—') . '   ·   ' . $weeks . ' tyg.',
+        'subtitle' => 'Prowadzący: ' . ($course['instructor_name'] ?? '—'),
         'org'      => $org,
         'footer'   => 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ]);
