@@ -716,8 +716,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tf    = trim($_POST['time_from'] ?? '');
         $tt    = trim($_POST['time_to'] ?? '');
         $topic = trim($_POST['topic'] ?? '');
-        $every = max(1, (int)($_POST['weeks'] ?? 1));
-        $count = max(1, min(60, (int)($_POST['count'] ?? 1)));
         $ser_lm       = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
         $ser_meet_url = in_array($ser_lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         $ser_room_id  = max(0, (int)($_POST['room_id'] ?? 0));
@@ -739,17 +737,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        // Wzorzec: co N tygodni (domyślnie), albo N-ty/ostatni dzień tygodnia miesiąca.
+        // Koniec: po liczbie lekcji (domyślnie), albo do wskazanej daty (włącznie).
+        $ser_end_mode = ($_POST['end_mode'] ?? '') === 'until' ? 'until' : 'count';
+        $ser_until    = trim($_POST['until'] ?? '');
+        if ($ser_end_mode === 'until' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ser_until) || $ser_until < $date)) {
+            flash_set('danger', 'Podaj poprawną datę końcową (nie wcześniejszą niż data startowa).');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $ser_dates = ti_recurrence_dates([
+            'mode'     => ($_POST['recur_mode'] ?? '') === 'monthly' ? 'monthly' : 'weekly',
+            'start'    => $date,
+            'every'    => max(1, min(8, (int)($_POST['weeks'] ?? 1))),
+            'dow'      => max(0, min(6, (int)($_POST['recur_dow'] ?? 1))),
+            'position' => (string)($_POST['recur_position'] ?? '1'),
+            'end_mode' => $ser_end_mode,
+            'count'    => max(1, min(104, (int)($_POST['count'] ?? 1))),
+            'until'    => $ser_until,
+        ]);
+        if (!$ser_dates) {
+            flash_set('danger', 'Wzorzec nie wygenerował żadnego terminu — sprawdź datę startową i warunek zakończenia.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
         // Prowadzący CAŁEJ serii — tylko kierownik może wskazać zastępstwo (patrz save_lesson).
         $sess_instr = dyd_is_staff() ? max(0, (int)($_POST['instructor_id'] ?? 0)) : 0;
         $eff_instr  = $sess_instr ?: ti_course_instructor_id($course_id);
-        // Cała seria ma ten sam dzień tygodnia i godziny — sprawdzamy raz
-        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
+        // Cała seria ma tę samą godzinę — dostępność sprawdzamy na pierwszym wystąpieniu
+        $av = ti_instructor_available_at($eff_instr, $ser_dates[0], $tf, $tt);
         if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         // Zajętość konta Zoom — sprawdzana per termin (różne dni, ten sam host)
-        $ser_dates = [];
-        for ($i = 0; $i < $count; $i++) {
-            $ser_dates[] = date('Y-m-d', strtotime($date . ' +' . ($i * $every) . ' weeks'));
-        }
         foreach ($ser_dates as $_d) {
             if ($_pc = ti_period_closed_for_date($_d)) {
                 flash_set('danger', ti_period_closed_msg($_pc) . ' Seria nie została utworzona.');
@@ -788,7 +804,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $created++;
         }
         $ser_kind = $ser_reservation ? ' (rezerwacja terminu)' : ($ser_draft ? ' (wersja robocza)' : '');
-        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.){$ser_kind}." . $zw);
+        $ser_pattern_label = ($_POST['recur_mode'] ?? '') === 'monthly'
+            ? 'wzorzec miesięczny'
+            : ('co ' . max(1, min(8, (int)($_POST['weeks'] ?? 1))) . ' tyg.');
+        flash_set('success', "Utworzono serię: {$created} lekcji ({$ser_pattern_label}){$ser_kind}." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
@@ -800,7 +819,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tf         = trim($_POST['time_from'] ?? '');
         $tt         = trim($_POST['time_to'] ?? '');
         $topic      = trim($_POST['topic'] ?? '');
+        $rec_mode   = ($_POST['recur_mode'] ?? '') === 'monthly' ? 'monthly' : 'weekly';
         $every      = max(1, min(8, (int)($_POST['interval_weeks'] ?? 1)));
+        $rec_dow    = max(0, min(6, (int)($_POST['recur_dow'] ?? 1)));
+        $rec_pos    = in_array((string)($_POST['recur_position'] ?? '1'), ['1','2','3','4','last'], true) ? (string)$_POST['recur_position'] : '1';
         $rec_room_id = max(0, (int)($_POST['room_id'] ?? 0));
         if (!$date_from || !$date_to || $date_to < $date_from) {
             flash_set('danger', 'Podaj poprawny zakres dat.');
@@ -809,11 +831,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 '.$tt) - strtotime('1970-01-01 '.$tf)) / 60; if ($m > 0) $dur = (int)$m; }
         // Terminy reguły — potrzebne przed zapisem, żeby sprawdzić zajętość Zoom
-        $rule_dates = [];
-        $d = $date_from;
-        while ($d <= $date_to && count($rule_dates) < 104) {
-            $rule_dates[] = $d;
-            $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
+        $rule_dates = ti_recurrence_dates([
+            'mode' => $rec_mode, 'start' => $date_from, 'every' => $every,
+            'dow' => $rec_dow, 'position' => $rec_pos,
+            'end_mode' => 'until', 'until' => $date_to,
+        ]);
+        if (!$rule_dates) {
+            flash_set('danger', 'Wzorzec nie wygenerował żadnego terminu w podanym zakresie dat.');
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         foreach ($rule_dates as $_d) {
             if ($_pc = ti_period_closed_for_date($_d)) {
@@ -842,6 +867,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'time_from'      => $tf,
             'time_to'        => $tt,
             'interval_weeks' => $every,
+            'recur_mode'     => $rec_mode,
+            'recur_dow'      => $rec_mode === 'monthly' ? $rec_dow : null,
+            'recur_position' => $rec_mode === 'monthly' ? $rec_pos : '',
             'date_from'      => $date_from,
             'date_to'        => $date_to,
             'topic'          => $topic,
@@ -864,7 +892,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $created++;
         }
-        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji (co {$every} tyg.)." . $zw);
+        $rec_pattern_label = $rec_mode === 'monthly' ? 'wzorzec miesięczny' : "co {$every} tyg.";
+        flash_set('success', "Zajęcia stałe dodane: {$created} lekcji ({$rec_pattern_label})." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 

@@ -273,6 +273,15 @@ function ti_planner_ext_migrate(): void {
     if (!in_array('room_id', $exist_series, true)) {
         try { $pdo->exec("ALTER TABLE k30_ti_series ADD COLUMN room_id INTEGER"); } catch (\Throwable) {}
     }
+    // Wzorzec miesięczny (N-ty/ostatni dzień tygodnia) — obok domyślnego co-N-tygodni.
+    // recur_mode='' albo 'weekly' -> interval_weeks jak dotąd; 'monthly' -> recur_dow+recur_position.
+    foreach ([
+        "ALTER TABLE k30_ti_series ADD COLUMN recur_mode     TEXT NOT NULL DEFAULT 'weekly'",
+        "ALTER TABLE k30_ti_series ADD COLUMN recur_dow      INTEGER",
+        "ALTER TABLE k30_ti_series ADD COLUMN recur_position TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable) {}
+    }
 
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_room  ON k30_ti_sessions(room_id, lesson_date)"); } catch (\Throwable) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_draft ON k30_ti_sessions(draft_id)"); } catch (\Throwable) {}
@@ -1089,4 +1098,89 @@ function pl_basket_cancel(int $client_id): void {
         db_exec("UPDATE k30_pl_basket_items SET status='cancelled' WHERE id=?", [$item['id']]);
     }
     db_exec("UPDATE k30_pl_baskets SET status='cancelled' WHERE id=?", [$b['id']]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WZORCE POWTARZANIA — Seria lekcji / Zajęcia stałe (save_lesson_series,
+//  save_recurring_rule w dydaktyk/index.php). Dwa wymiary, niezależne:
+//  wzorzec (co N tygodni | N-ty dzień tygodnia miesiąca) i koniec (liczba
+//  wystąpień | data końcowa).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * N-ty (albo ostatni) dzień tygodnia w danym miesiącu.
+ * $dow: 0=niedziela..6=sobota (konwencja SQLite %w, ta sama co K30_TI_DAYS).
+ * $position: '1'|'2'|'3'|'4'|'last'. Zwraca null, gdy miesiąc nie ma tylu
+ * wystąpień (np. „5. poniedziałek" w krótkim miesiącu).
+ */
+function ti_nth_weekday_of_month(int $year, int $month, int $dow, string $position): ?string {
+    $first    = new \DateTime(sprintf('%04d-%02d-01', $year, $month));
+    $firstDow = (int)$first->format('w');
+    $daysInMonth = (int)$first->format('t');
+
+    if ($position === 'last') {
+        $last    = new \DateTime(sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth));
+        $lastDow = (int)$last->format('w');
+        $diff    = ($lastDow - $dow + 7) % 7;
+        return date('Y-m-d', strtotime(sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth) . " -{$diff} days"));
+    }
+
+    $n = max(1, min(4, (int)$position));
+    $offset = ($dow - $firstDow + 7) % 7;
+    $day = 1 + $offset + ($n - 1) * 7;
+    if ($day > $daysInMonth) return null;
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+/**
+ * Generuje listę dat wg wzorca — wspólne dla Serii lekcji i Zajęć stałych.
+ *
+ * @param array $o {
+ *   mode:     'weekly'|'monthly' (domyślnie 'weekly')
+ *   start:    'Y-m-d' — pierwsza możliwa data (dla monthly: miesiąc startowy,
+ *             wystąpienia wcześniejsze w tym samym miesiącu są pomijane)
+ *   every:    int — co ile tygodni (tylko mode=weekly), domyślnie 1
+ *   dow:      int 0-6 — dzień tygodnia (tylko mode=monthly)
+ *   position: '1'|'2'|'3'|'4'|'last' (tylko mode=monthly)
+ *   end_mode: 'count'|'until' (domyślnie 'count')
+ *   count:    int — liczba wystąpień (gdy end_mode=count)
+ *   until:    'Y-m-d' — data graniczna, WŁĄCZNIE (gdy end_mode=until)
+ * }
+ * @return string[] daty 'Y-m-d' rosnąco, max 104 (twardy limit bezpieczeństwa)
+ */
+function ti_recurrence_dates(array $o): array {
+    $mode      = ($o['mode'] ?? 'weekly') === 'monthly' ? 'monthly' : 'weekly';
+    $end_mode  = ($o['end_mode'] ?? 'count') === 'until' ? 'until' : 'count';
+    $start     = (string)($o['start'] ?? date('Y-m-d'));
+    $until     = (string)($o['until'] ?? '');
+    $count     = max(1, min(104, (int)($o['count'] ?? 1)));
+    $HARD_MAX  = 104;
+    $dates = [];
+
+    if ($mode === 'monthly') {
+        $dow      = max(0, min(6, (int)($o['dow'] ?? 1)));
+        $position = in_array((string)($o['position'] ?? '1'), ['1','2','3','4','last'], true) ? (string)$o['position'] : '1';
+        $y = (int)date('Y', strtotime($start));
+        $m = (int)date('n', strtotime($start));
+        $yStop = $y + 6; // bezpiecznik: nie szukaj w nieskończoność, gdy "do daty" jest w odległej przyszłości
+        while (count($dates) < $HARD_MAX && $y <= $yStop) {
+            $d = ti_nth_weekday_of_month($y, $m, $dow, $position);
+            if ($d !== null && $d >= $start) {
+                if ($end_mode === 'until' && $until !== '' && $d > $until) break;
+                $dates[] = $d;
+                if ($end_mode === 'count' && count($dates) >= $count) break;
+            }
+            $m++; if ($m > 12) { $m = 1; $y++; }
+        }
+    } else {
+        $every = max(1, min(8, (int)($o['every'] ?? 1)));
+        $d = $start;
+        while (count($dates) < $HARD_MAX) {
+            if ($end_mode === 'until' && $until !== '' && $d > $until) break;
+            $dates[] = $d;
+            if ($end_mode === 'count' && count($dates) >= $count) break;
+            $d = date('Y-m-d', strtotime($d . " +{$every} weeks"));
+        }
+    }
+    return $dates;
 }

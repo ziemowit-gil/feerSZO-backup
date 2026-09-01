@@ -192,8 +192,17 @@ if ($_sms_enabled && $cur_course) {
       <span class="badge bg-primary rounded-pill"><?= count($recurring_rules) ?></span>
     </div>
     <div class="row g-2">
+      <?php
+        $_rec_pos_lbl = ['1'=>'Pierwszy','2'=>'Drugi','3'=>'Trzeci','4'=>'Czwarty','last'=>'Ostatni'];
+      ?>
       <?php foreach ($recurring_rules as $rr):
-        $rr_dow = ['Nd','Pn','Wt','Śr','Cz','Pt','So'][(int)date('w', strtotime((string)$rr['date_from']))];
+        $rr_monthly = ($rr['recur_mode'] ?? 'weekly') === 'monthly';
+        $rr_dow = $rr_monthly
+            ? (K30_TI_DAYS[(int)($rr['recur_dow'] ?? 1)] ?? '?')
+            : ['Nd','Pn','Wt','Śr','Cz','Pt','So'][(int)date('w', strtotime((string)$rr['date_from']))];
+        $rr_pattern = $rr_monthly
+            ? ($_rec_pos_lbl[(string)($rr['recur_position'] ?? '1')] ?? '?') . ' ' . mb_strtolower($rr_dow) . ' miesiąca'
+            : 'Co ' . (int)$rr['interval_weeks'] . ' tyg. · ' . $rr_dow;
         $rr_upcoming = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [(int)$rr['id']])['n'] ?? 0);
       ?>
       <div class="col-md-6">
@@ -202,7 +211,7 @@ if ($_sms_enabled && $cur_course) {
             <div class="flex-grow-1">
               <div class="fw-semibold small"><?= h($rr['topic'] ?: '—') ?></div>
               <div class="text-body-secondary small">
-                Co <?= (int)$rr['interval_weeks'] ?> tyg. · <?= $rr_dow ?>
+                <?= h($rr_pattern) ?>
                 <?= $rr['time_from'] ? ' · ' . h($rr['time_from']) . '–' . h($rr['time_to']) : '' ?>
                 · <?= h($rr['date_from']) ?> → <?= h($rr['date_to']) ?>
               </div>
@@ -566,19 +575,56 @@ foreach ($_ext_for_wiz as $_we) {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
-        <p class="text-body-secondary small">Utworzy kilka lekcji powtarzających się co wybraną liczbę tygodni, od daty startowej.</p>
+        <p class="text-body-secondary small">Utworzy kilka lekcji powtarzających się wg wzorca, od daty startowej.</p>
         <div class="mb-2">
-          <label class="form-label" id="series_dow_lbl">Co tydzień od dnia…</label>
-          <div class="btn-group btn-group-sm d-flex flex-wrap" role="group" aria-labelledby="series_dow_lbl">
-            <?php foreach (['Pn'=>1,'Wt'=>2,'Śr'=>3,'Cz'=>4,'Pt'=>5,'So'=>6,'Nd'=>0] as $_dl => $_dv): ?>
-            <button type="button" class="btn btn-outline-secondary flex-fill series-dow-btn" data-dow="<?= $_dv ?>"><?= $_dl ?></button>
-            <?php endforeach; ?>
+          <label class="form-label" id="series_mode_lbl">Wzorzec</label>
+          <div class="btn-group btn-group-sm d-flex" role="group" aria-labelledby="series_mode_lbl">
+            <input type="radio" class="btn-check" name="recur_mode" id="series_mode_weekly" value="weekly" checked
+                   onchange="dydSeriesModeToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="series_mode_weekly">Co N tygodni</label>
+            <input type="radio" class="btn-check" name="recur_mode" id="series_mode_monthly" value="monthly"
+                   onchange="dydSeriesModeToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="series_mode_monthly">Miesięcznie (np. 2. czwartek)</label>
           </div>
-          <div class="form-text">Wybierz dzień tygodnia — pole daty poniżej samo ustawi się na najbliższe takie wystąpienie.</div>
+        </div>
+        <div id="series_weekly_panel">
+          <div class="mb-2">
+            <label class="form-label" id="series_dow_lbl">Zacznij od dnia…</label>
+            <div class="btn-group btn-group-sm d-flex flex-wrap" role="group" aria-labelledby="series_dow_lbl">
+              <?php foreach (['Pn'=>1,'Wt'=>2,'Śr'=>3,'Cz'=>4,'Pt'=>5,'So'=>6,'Nd'=>0] as $_dl => $_dv): ?>
+              <button type="button" class="btn btn-outline-secondary flex-fill series-dow-btn" data-dow="<?= $_dv ?>"><?= $_dl ?></button>
+              <?php endforeach; ?>
+            </div>
+            <div class="form-text">Wybierz dzień tygodnia — pole daty poniżej samo ustawi się na najbliższe takie wystąpienie.</div>
+          </div>
+        </div>
+        <div id="series_monthly_panel" style="display:none">
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label" for="series_month_dow">Dzień tygodnia</label>
+              <select class="form-select" id="series_month_dow" name="recur_dow">
+                <?php foreach (K30_TI_DAYS as $_wdv => $_wdl): ?>
+                <option value="<?= $_wdv ?>"><?= h($_wdl) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label" for="series_month_pos">Który</label>
+              <select class="form-select" id="series_month_pos" name="recur_position">
+                <option value="1">Pierwszy</option>
+                <option value="2">Drugi</option>
+                <option value="3">Trzeci</option>
+                <option value="4">Czwarty</option>
+                <option value="last">Ostatni</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-text mb-2">Np. „Drugi" + „Czwartek" = co 2. czwartek każdego miesiąca.</div>
         </div>
         <div class="mb-2">
           <label class="form-label fw-semibold" for="series_date">Data startowa <span class="text-danger">*</span></label>
           <input type="date" class="form-control" id="series_date" name="lesson_date" required value="<?= h(date('Y-m-d')) ?>">
+          <div class="form-text" id="series_date_hint" style="display:none">Wystąpienia wcześniejsze niż ta data (w tym samym miesiącu) są pomijane.</div>
         </div>
         <div class="row g-2">
           <div class="col-6 mb-2">
@@ -662,16 +708,29 @@ foreach ($_ext_for_wiz as $_we) {
           </select>
           <div class="form-text">Wspólna sala dla wszystkich lekcji serii.</div>
         </div>
-        <div class="row g-2">
-          <div class="col-6 mb-2">
-            <label class="form-label" for="series_weeks">Co ile tygodni</label>
-            <input type="number" class="form-control" id="series_weeks" name="weeks" min="1" max="8" value="1">
+        <div id="series_weeks_wrap" class="mb-2">
+          <label class="form-label" for="series_weeks">Co ile tygodni</label>
+          <input type="number" class="form-control" id="series_weeks" name="weeks" min="1" max="8" value="1">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" id="series_end_lbl">Zakończ</label>
+          <div class="btn-group btn-group-sm d-flex" role="group" aria-labelledby="series_end_lbl">
+            <input type="radio" class="btn-check" name="end_mode" id="series_end_count" value="count" checked
+                   onchange="dydSeriesEndToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="series_end_count">Po liczbie lekcji</label>
+            <input type="radio" class="btn-check" name="end_mode" id="series_end_until" value="until"
+                   onchange="dydSeriesEndToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="series_end_until">Do daty</label>
           </div>
-          <div class="col-6 mb-2">
-            <label class="form-label" for="series_count">Liczba lekcji</label>
-            <input type="number" class="form-control" id="series_count" name="count" min="1" max="60" value="8">
-            <button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100" id="series_to_eoy_btn">Do końca roku</button>
-          </div>
+        </div>
+        <div id="series_count_wrap" class="mb-2">
+          <label class="form-label" for="series_count">Liczba lekcji</label>
+          <input type="number" class="form-control" id="series_count" name="count" min="1" max="104" value="8">
+          <button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100" id="series_to_eoy_btn">Do końca roku</button>
+        </div>
+        <div id="series_until_wrap" class="mb-2" style="display:none">
+          <label class="form-label" for="series_until">Powtarzaj do daty (włącznie)</label>
+          <input type="date" class="form-control" id="series_until" name="until">
         </div>
       </div>
       <div class="modal-footer">
@@ -682,6 +741,21 @@ foreach ($_ext_for_wiz as $_we) {
   </div></div>
 </div>
 <script>
+function dydSeriesModeToggle(){
+  var monthly = document.getElementById('series_mode_monthly').checked;
+  document.getElementById('series_weekly_panel').style.display  = monthly ? 'none' : '';
+  document.getElementById('series_monthly_panel').style.display = monthly ? '' : 'none';
+  document.getElementById('series_weeks_wrap').style.display    = monthly ? 'none' : '';
+  var hint = document.getElementById('series_date_hint');
+  if (hint) hint.style.display = monthly ? '' : 'none';
+  var eoyBtn = document.getElementById('series_to_eoy_btn');
+  if (eoyBtn) eoyBtn.style.display = monthly ? 'none' : '';
+}
+function dydSeriesEndToggle(){
+  var until = document.getElementById('series_end_until').checked;
+  document.getElementById('series_count_wrap').style.display = until ? 'none' : '';
+  document.getElementById('series_until_wrap').style.display = until ? '' : 'none';
+}
 (function(){
   var dateEl = document.getElementById('series_date');
   var btns   = document.querySelectorAll('.series-dow-btn');
@@ -883,13 +957,44 @@ foreach ($_ext_for_wiz as $_we) {
             <select class="form-select" id="rec_time_to" name="time_to"><?= ti_time_options('') ?></select>
           </div>
         </div>
-        <div class="row g-2 mb-2">
+        <div class="mb-2">
+          <label class="form-label" id="rec_mode_lbl">Wzorzec</label>
+          <div class="btn-group btn-group-sm d-flex" role="group" aria-labelledby="rec_mode_lbl">
+            <input type="radio" class="btn-check" name="recur_mode" id="rec_mode_weekly" value="weekly" checked
+                   onchange="dydRecurringModeToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="rec_mode_weekly">Co N tygodni</label>
+            <input type="radio" class="btn-check" name="recur_mode" id="rec_mode_monthly" value="monthly"
+                   onchange="dydRecurringModeToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="rec_mode_monthly">Miesięcznie (np. 2. czwartek)</label>
+          </div>
+        </div>
+        <div id="rec_weekly_panel" class="row g-2 mb-2">
           <div class="col-6">
             <label class="form-label" for="rec_interval">Co ile tygodni</label>
             <input type="number" class="form-control" id="rec_interval" name="interval_weeks" min="1" max="8" value="1">
           </div>
           <div class="col-6 d-flex align-items-end">
             <span class="text-body-secondary small" id="rec_count_hint"></span>
+          </div>
+        </div>
+        <div id="rec_monthly_panel" class="row g-2 mb-2" style="display:none">
+          <div class="col-6">
+            <label class="form-label" for="rec_month_dow">Dzień tygodnia</label>
+            <select class="form-select" id="rec_month_dow" name="recur_dow">
+              <?php foreach (K30_TI_DAYS as $_wdv => $_wdl): ?>
+              <option value="<?= $_wdv ?>"><?= h($_wdl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label" for="rec_month_pos">Który</label>
+            <select class="form-select" id="rec_month_pos" name="recur_position">
+              <option value="1">Pierwszy</option>
+              <option value="2">Drugi</option>
+              <option value="3">Trzeci</option>
+              <option value="4">Czwarty</option>
+              <option value="last">Ostatni</option>
+            </select>
           </div>
         </div>
         <div class="mb-2">
@@ -915,11 +1020,18 @@ foreach ($_ext_for_wiz as $_we) {
   </div></div>
 </div>
 <script>
+function dydRecurringModeToggle(){
+  var monthly = document.getElementById('rec_mode_monthly').checked;
+  document.getElementById('rec_weekly_panel').style.display  = monthly ? 'none' : '';
+  document.getElementById('rec_monthly_panel').style.display = monthly ? '' : 'none';
+}
 (function(){
   var df=document.getElementById('rec_date_from'), dt=document.getElementById('rec_date_to'),
       iv=document.getElementById('rec_interval'), hint=document.getElementById('rec_count_hint');
   function upd(){
+    var monthly = document.getElementById('rec_mode_monthly').checked;
     var f=df?df.value:'',t=dt?dt.value:'',iw=parseInt(iv?iv.value:1)||1;
+    if(monthly){ hint.textContent=''; return; }
     if(f&&t&&t>=f){
       var ms=new Date(t)-new Date(f), d=Math.floor(ms/86400000)+1;
       var n=Math.ceil(d/(iw*7));
