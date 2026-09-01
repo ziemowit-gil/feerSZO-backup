@@ -738,12 +738,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60; if ($m > 0) $dur = (int)$m; }
         // Wzorzec: co N tygodni (domyślnie), albo N-ty/ostatni dzień tygodnia miesiąca.
-        // Koniec: po liczbie lekcji (domyślnie), albo do wskazanej daty (włącznie).
-        $ser_end_mode = ($_POST['end_mode'] ?? '') === 'until' ? 'until' : 'count';
+        // Koniec: po liczbie lekcji (domyślnie), do wskazanej daty (włącznie), albo do
+        // osiągnięcia zadanej liczby godzin (przeliczane na liczbę lekcji tej długości —
+        // ti_recurrence_dates zna tylko count/until, „hours" to tylko sposób policzenia count).
+        $ser_end_mode = in_array($_POST['end_mode'] ?? '', ['until', 'hours'], true) ? $_POST['end_mode'] : 'count';
         $ser_until    = trim($_POST['until'] ?? '');
+        $ser_count    = max(1, min(104, (int)($_POST['count'] ?? 1)));
         if ($ser_end_mode === 'until' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ser_until) || $ser_until < $date)) {
             flash_set('danger', 'Podaj poprawną datę końcową (nie wcześniejszą niż data startowa).');
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $ser_target_hours = null;
+        if ($ser_end_mode === 'hours') {
+            $ser_target_hours = max(0.5, (float)str_replace(',', '.', (string)($_POST['target_hours'] ?? '0')));
+            $ser_count = max(1, min(104, (int)ceil($ser_target_hours * 60 / $dur)));
         }
         $ser_dates = ti_recurrence_dates([
             'mode'     => ($_POST['recur_mode'] ?? '') === 'monthly' ? 'monthly' : 'weekly',
@@ -751,8 +759,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'every'    => max(1, min(8, (int)($_POST['weeks'] ?? 1))),
             'dow'      => max(0, min(6, (int)($_POST['recur_dow'] ?? 1))),
             'position' => (string)($_POST['recur_position'] ?? '1'),
-            'end_mode' => $ser_end_mode,
-            'count'    => max(1, min(104, (int)($_POST['count'] ?? 1))),
+            'end_mode' => $ser_end_mode === 'until' ? 'until' : 'count',
+            'count'    => $ser_count,
             'until'    => $ser_until,
         ]);
         if (!$ser_dates) {
@@ -807,7 +815,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ser_pattern_label = ($_POST['recur_mode'] ?? '') === 'monthly'
             ? 'wzorzec miesięczny'
             : ('co ' . max(1, min(8, (int)($_POST['weeks'] ?? 1))) . ' tyg.');
-        flash_set('success', "Utworzono serię: {$created} lekcji ({$ser_pattern_label}){$ser_kind}." . $zw);
+        $ser_hours_note = $ser_target_hours !== null
+            ? ' — łącznie ' . number_format($created * $dur / 60, 1, ',', '') . ' godz. (cel: ' . number_format($ser_target_hours, 1, ',', '') . ')'
+            : '';
+        flash_set('success', "Utworzono serię: {$created} lekcji ({$ser_pattern_label}){$ser_kind}{$ser_hours_note}." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 

@@ -721,6 +721,9 @@ foreach ($_ext_for_wiz as $_we) {
             <input type="radio" class="btn-check" name="end_mode" id="series_end_until" value="until"
                    onchange="dydSeriesEndToggle()">
             <label class="btn btn-outline-secondary flex-fill" for="series_end_until">Do daty</label>
+            <input type="radio" class="btn-check" name="end_mode" id="series_end_hours" value="hours"
+                   onchange="dydSeriesEndToggle()">
+            <label class="btn btn-outline-secondary flex-fill" for="series_end_hours">Do X godzin</label>
           </div>
         </div>
         <div id="series_count_wrap" class="mb-2">
@@ -731,6 +734,11 @@ foreach ($_ext_for_wiz as $_we) {
         <div id="series_until_wrap" class="mb-2" style="display:none">
           <label class="form-label" for="series_until">Powtarzaj do daty (włącznie)</label>
           <input type="date" class="form-control" id="series_until" name="until">
+        </div>
+        <div id="series_hours_wrap" class="mb-2" style="display:none">
+          <label class="form-label" for="series_target_hours">Docelowa liczba godzin</label>
+          <input type="number" class="form-control" id="series_target_hours" name="target_hours" min="0.5" step="0.5" value="10">
+          <div class="form-text">Tyle lekcji, żeby osiągnąć sumę godzin — przy krótszej ostatniej lekcji łączny czas może nieznacznie przekroczyć cel.</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -753,8 +761,10 @@ function dydSeriesModeToggle(){
 }
 function dydSeriesEndToggle(){
   var until = document.getElementById('series_end_until').checked;
-  document.getElementById('series_count_wrap').style.display = until ? 'none' : '';
+  var hours = document.getElementById('series_end_hours').checked;
+  document.getElementById('series_count_wrap').style.display = (until || hours) ? 'none' : '';
   document.getElementById('series_until_wrap').style.display = until ? '' : 'none';
+  document.getElementById('series_hours_wrap').style.display = hours ? '' : 'none';
 }
 (function(){
   var dateEl = document.getElementById('series_date');
