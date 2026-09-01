@@ -91,7 +91,7 @@ if ($_sms_enabled && $cur_course) {
             <i class="bi bi-file-earmark-word me-2"></i>Plan zajęć — Word (DOCX)
           </a></li>
           <li><a class="dropdown-item" href="plan_librus.php?course_id=<?= $cur_course ?>" target="_blank">
-            <i class="bi bi-grid-3x3 me-2"></i>Plan zajęć — format Librus
+            <i class="bi bi-grid-3x3 me-2"></i>Plan zajęć — siatka
           </a></li>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Kalendarz</h6></li>
@@ -333,7 +333,7 @@ if ($_sms_enabled && $cur_course) {
             <?php endif; ?>
             <?php if (!empty($s['rescheduled_from_date'])): ?>
             <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1" style="font-size:.66rem"
-                  title="Normalny termin tej lekcji to <?= h(date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))) ?><?= $s['rescheduled_from_time_from'] ? ', ' . h(substr((string)$s['rescheduled_from_time_from'], 0, 5)) : '' ?> — uwzględniane tak w planie w formacie Librus.">
+                  title="Normalny termin tej lekcji to <?= h(date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))) ?><?= $s['rescheduled_from_time_from'] ? ', ' . h(substr((string)$s['rescheduled_from_time_from'], 0, 5)) : '' ?> — uwzględniane tak w planie zajęć (siatka).">
               <i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Przeniesiono z <?= h(date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))) ?>
             </span>
             <?php endif; ?>

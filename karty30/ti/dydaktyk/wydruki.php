@@ -229,7 +229,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć grupy — format Librus</h3>
+        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć grupy - siatka</h3>
         <form method="get" action="plan_librus.php" target="_blank" class="row g-2 mt-1">
           <div class="col-12">
             <select name="course_id" class="form-select form-select-sm" required>
@@ -249,7 +249,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć kursanta — zbiorczy, format Librus</h3>
+        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć kursanta - siatka (wszystkie grupy)</h3>
         <p class="small text-body-secondary mb-1">Wszystkie aktywne grupy jednego kursanta naraz, w jednej siatce tygodnia.</p>
         <form method="get" action="plan_librus_client.php" target="_blank" class="row g-2 mt-1">
           <div class="col-12">

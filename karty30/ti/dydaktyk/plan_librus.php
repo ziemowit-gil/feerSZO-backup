@@ -29,7 +29,7 @@ $L = ti_librus_grid($course_id, $weeks);
 if (!$L['course']) { http_response_code(404); die('Nie znaleziono grupy.'); }
 $course = $L['course'];
 
-ti_print_log_add('plan_librus', 'Plan zajęć (Librus) — ' . $course['name'], $course_id, 0, ['weeks' => $weeks], $me);
+ti_print_log_add('plan_librus', 'Plan zajęć (siatka) — ' . $course['name'], $course_id, 0, ['weeks' => $weeks], $me);
 
 $dow_cols = [1,2,3,4,5,6,7];
 $dow_lbl  = TI_DAYS_PL_FULL;

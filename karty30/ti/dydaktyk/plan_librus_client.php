@@ -31,7 +31,7 @@ $L = $client_id ? ti_librus_grid_client($client_id, $weeks) : ['client' => null,
 $name = trim((string)($L['client']['name'] ?? ''));
 
 if ($client_id && $L['client']) {
-    ti_print_log_add('plan_librus_client', 'Plan zajęć (Librus, zbiorczy) — ' . $name, 0, $client_id, ['weeks' => $weeks], $me);
+    ti_print_log_add('plan_librus_client', 'Plan zajęć (siatka, wszystkie grupy) — ' . $name, 0, $client_id, ['weeks' => $weeks], $me);
 }
 
 $dow_cols = [1,2,3,4,5,6,7];
