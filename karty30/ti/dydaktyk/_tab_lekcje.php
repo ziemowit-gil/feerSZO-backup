@@ -152,6 +152,7 @@ if ($_sms_enabled && $cur_course) {
 
   <!-- Legenda statusów lekcji -->
   <?php $_sdesc = [
+    'draft'             => 'wersja robocza — niewidoczna dla kursantów, nie liczy się do frekwencji ani rozliczeń',
     'reserved'          => 'termin zarezerwowany i zablokowany — kursanci jej nie widzą, dopóki nie zostanie potwierdzona',
     'planned'           => 'zaplanowana, jeszcze się nie odbyła',
     'held'              => 'odbyła się z pełną grupą',
@@ -162,7 +163,7 @@ if ($_sms_enabled && $cur_course) {
   <div class="px-3 pt-2 pb-2 border-bottom">
     <div class="small fw-semibold mb-1">Co znaczą statusy</div>
     <ul class="list-unstyled small mb-2">
-      <?php foreach ($STATUS as $_sk => $_sv): if ($_sk === 'draft') continue; ?>
+      <?php foreach ($STATUS as $_sk => $_sv): ?>
       <li class="d-flex align-items-start gap-2 py-1">
         <span class="badge flex-shrink-0" style="background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44;min-width:7.5rem"><?= h($_sv['label']) ?></span>
         <span class="text-body-secondary"><?= h($_sdesc[$_sk] ?? '') ?></span>
@@ -588,6 +589,34 @@ foreach ($_ext_for_wiz as $_we) {
             <label class="form-label" for="series_to">Do</label>
             <select class="form-select" id="series_to" name="time_to"><?= ti_time_options('') ?></select>
           </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="series_dflag">Pewność terminu</label>
+          <select class="form-select" id="series_dflag" name="date_flag">
+            <?php foreach (K30_TI_DATE_FLAGS as $_dfk => $_dfv): ?>
+            <option value="<?= h($_dfk) ?>"><?= h($_dfv['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Ta sama adnotacja dla wszystkich lekcji serii — niezależna od statusu.</div>
+        </div>
+        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#EFF6FF">
+          <input class="form-check-input" type="checkbox" role="switch" id="series_reservation" name="is_reservation" value="1"
+                 onchange="document.getElementById('series_pesel_wrap').style.display=this.checked?'':'none'; if(this.checked){var d=document.getElementById('series_draft'); if(d) d.checked=false;}">
+          <label class="form-check-label" for="series_reservation">
+            <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>Cała seria to rezerwacja terminu (nie ostateczne lekcje)
+          </label>
+          <div class="mt-2" id="series_pesel_wrap" style="display:none">
+            <label class="form-label small mb-1" for="series_pesel">PESEL beneficjenta PFRON (opcjonalnie)</label>
+            <input type="text" class="form-control form-control-sm" id="series_pesel" name="pfron_pesel" maxlength="11" inputmode="numeric" placeholder="11 cyfr">
+            <div class="form-text mb-0">Temat każdej lekcji serii ustawi się jako „PFRON-XXX", pełny PESEL trafi do notatek.</div>
+          </div>
+        </div>
+        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+          <input class="form-check-input" type="checkbox" role="switch" id="series_draft" name="is_draft" value="1"
+                 onchange="if(this.checked){var rv=document.getElementById('series_reservation'); if(rv && rv.checked){rv.checked=false; document.getElementById('series_pesel_wrap').style.display='none';}}">
+          <label class="form-check-label" for="series_draft">
+            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Cała seria jako wersja robocza (szkic)
+          </label>
         </div>
         <div class="mb-2">
           <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>

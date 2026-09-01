@@ -540,6 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // co zwykła lekcja — patrz sprawdzenia niżej), ale niewidoczny dla kursanta
         // i nieliczony do frekwencji/wypłat, dopóki ktoś jej nie potwierdzi.
         $is_reservation = !empty($_POST['is_reservation']);
+        $is_draft       = !$is_reservation && !empty($_POST['is_draft']);
         // Rezerwacja „na PESEL" — blokada terminu dla beneficjenta PFRON jeszcze
         // bez zapisu w systemie (bez zakładania kursanta/k30_clients). Temat
         // dostaje etykietę PFRON-XXX (3 ostatnie cyfry), pełny PESEL do notatek.
@@ -589,7 +590,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($sid && dyd_owns_session($uid, $sid)) {
             $st      = $is_reservation ? 'reserved'
-                     : (in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned');
+                     : ($is_draft ? 'draft'
+                     : (in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned'));
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
@@ -606,12 +608,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Praca własna prowadzącego = wszyscy obecni bez ręcznego sprawdzania
                 db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
             }
-            flash_set('success', ($is_reservation ? 'Rezerwacja zaktualizowana.' : 'Lekcja zaktualizowana.') . $zw);
+            flash_set('success', ($is_reservation ? 'Rezerwacja zaktualizowana.' : ($is_draft ? 'Wersja robocza zaktualizowana.' : 'Lekcja zaktualizowana.')) . $zw);
         } else {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id'       => $course_id, 'lesson_date' => $date,
                 'time_from'       => $tf, 'time_to' => $tt, 'duration_min' => $dur,
-                'status'          => $is_reservation ? 'reserved' : 'planned', 'topic' => $topic, 'notes' => $notes,
+                'status'          => $is_reservation ? 'reserved' : ($is_draft ? 'draft' : 'planned'), 'topic' => $topic, 'notes' => $notes,
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
                 'lesson_method'   => $lm, 'meeting_url' => $meet_url, 'instructor_id' => $sess_instr ?: null,
                 'room_id'         => $room_id ?: null, 'date_flag' => $dflag,
@@ -625,6 +627,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($is_reservation) {
                 flash_set('success', 'Rezerwacja terminu utworzona — termin jest zablokowany, ale kursanci jej nie widzą, dopóki nie zostanie potwierdzona.' . $zw);
+            } elseif ($is_draft) {
+                flash_set('success', 'Wersja robocza zapisana — niewidoczna dla kursantów, nie liczy się do frekwencji ani rozliczeń.' . $zw);
             } else {
                 $msg = 'Lekcja dodana.' . $zw;
                 if (isset($_POST['notify']) && !$spr) {
@@ -717,6 +721,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ser_lm       = in_array($_POST['lesson_method'] ?? '', ['stacjonarna','zdalna_zoom','zdalna_inne'], true) ? $_POST['lesson_method'] : '';
         $ser_meet_url = in_array($ser_lm, ['zdalna_zoom','zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
         $ser_room_id  = max(0, (int)($_POST['room_id'] ?? 0));
+        $ser_dflag    = in_array($_POST['date_flag'] ?? '', ['tentative','change_possible'], true) ? $_POST['date_flag'] : '';
+        $ser_reservation = !empty($_POST['is_reservation']);
+        $ser_draft       = !$ser_reservation && !empty($_POST['is_draft']);
+        $ser_notes = '';
+        if ($ser_reservation && trim($_POST['pfron_pesel'] ?? '') !== '') {
+            $ser_pesel = preg_replace('/\D/', '', trim($_POST['pfron_pesel']));
+            if (!pesel_valid($ser_pesel)) {
+                flash_set('danger', 'Nieprawidłowy PESEL — sprawdź cyfry.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            $topic = 'PFRON-' . substr($ser_pesel, -3);
+            $ser_notes = 'PESEL: ' . $ser_pesel;
+        }
+        $ser_status = $ser_reservation ? 'reserved' : ($ser_draft ? 'draft' : 'planned');
         if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) {
             flash_set('danger', 'Podaj poprawną datę startową serii.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
@@ -759,9 +776,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($ser_dates as $d) {
             $sid = db_insert('k30_ti_sessions', [
                 'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
-                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'duration_min' => $dur, 'status' => $ser_status, 'topic' => $topic, 'notes' => $ser_notes,
                 'lesson_method' => $ser_lm, 'meeting_url' => $ser_meet_url, 'instructor_id' => $sess_instr ?: null,
-                'room_id' => $ser_room_id ?: null,
+                'room_id' => $ser_room_id ?: null, 'date_flag' => $ser_dflag,
                 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
             foreach ($enrollees as $e) {
@@ -770,7 +787,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $created++;
         }
-        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.)." . $zw);
+        $ser_kind = $ser_reservation ? ' (rezerwacja terminu)' : ($ser_draft ? ' (wersja robocza)' : '');
+        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.){$ser_kind}." . $zw);
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
@@ -1835,7 +1853,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <div class="form-check form-switch mb-2 p-2 rounded" style="background:#EFF6FF">
         <input class="form-check-input" type="checkbox" role="switch"
                id="<?= $pfx ?>_reservation" name="is_reservation" value="1" <?= $isReserved ? 'checked' : '' ?>
-               onchange="document.getElementById('<?= $pfx ?>_pesel_wrap').style.display=this.checked?'':'none'">
+               onchange="document.getElementById('<?= $pfx ?>_pesel_wrap').style.display=this.checked?'':'none'; if(this.checked){var d=document.getElementById('<?= $pfx ?>_draft'); if(d) d.checked=false;}">
         <label class="form-check-label" for="<?= $pfx ?>_reservation">
           <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>To jest rezerwacja terminu (nie ostateczna lekcja)
         </label>
@@ -1852,6 +1870,19 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
             Blokada terminu dla osoby jeszcze bez zapisu w systemie — bez zakładania kursanta. Temat lekcji
             ustawi się automatycznie jako „PFRON-XXX” (3 ostatnie cyfry PESEL), pełny PESEL trafi do notatek.
           </div>
+        </div>
+      </div>
+      <?php $isDraft = $isEdit && ($r['status'] ?? '') === 'draft'; ?>
+      <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="<?= $pfx ?>_draft" name="is_draft" value="1" <?= $isDraft ? 'checked' : '' ?>
+               onchange="if(this.checked){var rv=document.getElementById('<?= $pfx ?>_reservation'); if(rv && rv.checked){rv.checked=false; document.getElementById('<?= $pfx ?>_pesel_wrap').style.display='none';}}">
+        <label class="form-check-label" for="<?= $pfx ?>_draft">
+          <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zapisz jako wersję roboczą (szkic)
+        </label>
+        <div class="form-text mb-0">
+          Termin widoczny tylko w panelu, nie liczy się do frekwencji ani rozliczeń — do czasu, aż ktoś
+          zmieni status na „Zaplanowana".
         </div>
       </div>
       <?php endif; ?>
