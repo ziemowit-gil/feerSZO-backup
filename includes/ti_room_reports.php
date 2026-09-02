@@ -471,7 +471,7 @@ function ti_librus_grid_instructor(int $instructor_id, int $weeks = 8): array {
            JOIN k30_ti_courses c ON c.id = s.course_id
            LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
            LEFT JOIN k30_ti_subject_types st ON st.id = c.subject_type_id
-          WHERE COALESCE(s.instructor_id, c.instructor_id) = ?
+          WHERE COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER)
             AND s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')
           ORDER BY s.lesson_date, s.time_from",
         [$instructor_id, $from, $to]
