@@ -466,11 +466,23 @@ function ti_protocol_fill_text(array $stats): string {
 
 /**
  * Średnia ważona z e-dziennika per uczestnik (do kolumny pomocniczej w protokole).
+ *
+ * Liczona TYLKO z ocen wystawionych w okresie protokołu ($from/$to — daty
+ * okresu nauczania), a nie od dnia utworzenia grupy: k30_ti_course_grades()
+ * zwraca całą historię ocen kursu (e-dziennik pokazuje ją w całości celowo),
+ * więc bez tego ograniczenia protokół za np. wrzesień pokazywałby średnią
+ * wliczającą też oceny z czerwca czy lipca. Ocena bez powiązanej lekcji
+ * (session_id NULL) liczy się po dacie wystawienia (graded_at).
+ *
  * @return array<int, float> client_id => średnia
  */
-function ti_protocol_diary_averages(int $course_id): array {
+function ti_protocol_diary_averages(int $course_id, ?string $from = null, ?string $to = null): array {
     $by_client = [];
     foreach (k30_ti_course_grades($course_id) as $g) {
+        if ($from !== null && $to !== null) {
+            $gdate = substr((string)($g['session_date'] ?? '') ?: (string)($g['graded_at'] ?? ''), 0, 10);
+            if ($gdate === '' || $gdate < $from || $gdate > $to) continue;
+        }
         $by_client[(int)$g['client_id']][] = $g;
     }
     $out = [];
@@ -590,7 +602,7 @@ function ti_protocol_print_html(array $prot): string {
     $course_id = (int)$prot['course_id'];
     $parts     = ti_protocol_participants($course_id);
     $entries   = ti_protocol_entries((int)$prot['id']);
-    $avgs      = ti_protocol_diary_averages($course_id);
+    $avgs      = ti_protocol_diary_averages($course_id, $prot['date_from'] ?? null, $prot['date_to'] ?? null);
     $stats     = ti_protocol_stats((int)$prot['id'], $course_id);
     $h         = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 

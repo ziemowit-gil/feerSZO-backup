@@ -23,7 +23,7 @@ $pr_free = array_values(array_filter($pr_periods, fn($p) => !in_array((int)$p['i
 
 $pr_parts   = $pr ? ti_protocol_participants($cur_course) : [];
 $pr_entries = $pr ? ti_protocol_entries((int)$pr['id']) : [];
-$pr_avgs    = $pr ? ti_protocol_diary_averages($cur_course) : [];
+$pr_avgs    = $pr ? ti_protocol_diary_averages($cur_course, $pr['date_from'] ?? null, $pr['date_to'] ?? null) : [];
 $pr_stats   = $pr ? ti_protocol_stats((int)$pr['id'], $cur_course) : ['total'=>0,'filled'=>0,'pct'=>0];
 $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
 $pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
