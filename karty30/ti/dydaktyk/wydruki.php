@@ -108,302 +108,318 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?= function_exists('flash_html') ? flash_html() : '' ?>
 
   <h2 class="h6 fw-semibold text-uppercase text-body-secondary mb-2">Katalog wydruków</h2>
-  <div class="row g-3 mb-4">
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Katalog wydruków i eksportów panelu kierownika — parametry i pobieranie</caption>
+        <thead class="table-light">
+          <tr>
+            <th scope="col" style="width:26%">Wydruk</th>
+            <th scope="col">Parametry i pobieranie</th>
+          </tr>
+        </thead>
+        <tbody>
 
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-clock-history me-2 text-primary" aria-hidden="true"></i>Rozpiska godzin kursanta (PDF)</h3>
-        <form method="get" action="hours_pdf.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="client_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz kursanta —</option>
-              <?php foreach ($clients as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6">
-            <select name="month" class="form-select form-select-sm">
-              <?php foreach ($months_pl as $mn => $ml): ?><option value="<?= $mn ?>" <?= $mn===$cur_m?'selected':'' ?>><?= h($ml) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6">
-            <input type="number" name="year" class="form-control form-control-sm" value="<?= $cur_y ?>" min="2020" max="2100">
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button></div>
-        </form>
-      </div></div>
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-clock-history me-1 text-primary" aria-hidden="true"></i>Rozpiska godzin kursanta</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td>
+            <form method="get" action="hours_pdf.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="client_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz kursanta —</option>
+                <?php foreach ($clients as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="month" class="form-select form-select-sm w-auto">
+                <?php foreach ($months_pl as $mn => $ml): ?><option value="<?= $mn ?>" <?= $mn===$cur_m?'selected':'' ?>><?= h($ml) ?></option><?php endforeach; ?>
+              </select>
+              <input type="number" name="year" class="form-control form-control-sm" style="width:6.5rem" value="<?= $cur_y ?>" min="2020" max="2100">
+              <button class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-receipt me-1 text-primary" aria-hidden="true"></i>Zestawienie rozliczeń grupy</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td>
+            <form method="get" action="billing_pdf.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-receipt-cutoff me-1 text-primary" aria-hidden="true"></i>Zestawienie pozycji do FVAT</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td>
+            <form method="get" action="billing_fv_summary.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="month" class="form-select form-select-sm w-auto">
+                <?php foreach ($months_pl as $mn => $ml): ?><option value="<?= $mn ?>" <?= $mn===$cur_m?'selected':'' ?>><?= h($ml) ?></option><?php endforeach; ?>
+              </select>
+              <input type="number" name="year" class="form-control form-control-sm" style="width:6.5rem" value="<?= $cur_y ?>" min="2020" max="2100">
+              <button class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-clipboard-check me-1 text-primary" aria-hidden="true"></i>Lista obecności grupy</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td>
+            <form method="get" action="attendance_pdf.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-filetype-csv me-1 text-primary" aria-hidden="true"></i>Eksport CSV frekwencji</div>
+          </td>
+          <td>
+            <form method="get" action="attendance_csv.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <input type="month" name="month" class="form-control form-control-sm w-auto" value="<?= sprintf('%04d-%02d', $cur_y, $cur_m) ?>">
+              <select name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem">
+                <option value="0">— wszystkie grupy —</option>
+                <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Generuj</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-calendar-week me-1 text-primary" aria-hidden="true"></i>Plan zajęć prowadzącego</div>
+          </td>
+          <td>
+            <form method="get" action="plan_print.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="instructor_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz prowadzącego —</option>
+                <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="weeks" class="form-select form-select-sm w-auto">
+                <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===8?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+                <option value="0">Ogólny (bez limitu tygodni)</option>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="plan_print.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="plan_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+              <button class="btn btn-sm btn-primary" formaction="plan_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-grid-3x3 me-1 text-primary" aria-hidden="true"></i>Plan zajęć prowadzącego - siatka</div>
+            <div class="small text-body-secondary">Wszystkie kursy prowadzącego naraz (własne + zastępstwa).</div>
+          </td>
+          <td>
+            <form method="get" action="plan_librus_instructor.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="instructor_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz prowadzącego —</option>
+                <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="weeks" class="form-select form-select-sm w-auto">
+                <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="plan_librus_instructor.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="plan_librus_instructor_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-calendar2-check me-1 text-primary" aria-hidden="true"></i>Eksport iCal — prowadzący</div>
+            <div class="small text-body-secondary">Plik .ics — wszystkie kursy prowadzącego (własne + zastępstwa).</div>
+          </td>
+          <td>
+            <form method="get" action="ical_export.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="instructor_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz prowadzącego —</option>
+                <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz .ics</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-grid-3x3 me-1 text-primary" aria-hidden="true"></i>Plan zajęć grupy - siatka</div>
+          </td>
+          <td>
+            <form method="get" action="plan_librus.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="weeks" class="form-select form-select-sm w-auto">
+                <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="plan_librus.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="plan_librus_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-grid-3x3 me-1 text-primary" aria-hidden="true"></i>Plan zajęć kursanta - siatka</div>
+            <div class="small text-body-secondary">Wszystkie aktywne grupy jednego kursanta naraz.</div>
+          </td>
+          <td>
+            <form method="get" action="plan_librus_client.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="client_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz kursanta —</option>
+                <?php foreach ($clients as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option><?php endforeach; ?>
+              </select>
+              <select name="weeks" class="form-select form-select-sm w-auto">
+                <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="plan_librus_client.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="plan_librus_client_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-grid-3x3 me-1 text-primary" aria-hidden="true"></i>Plan zajęć — cała instytucja, siatka</div>
+            <div class="small text-body-secondary">Wszystkie aktywne grupy naraz — kolizje kilku grup w tym samym terminie to norma.</div>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="plan_librus_all.php" target="_blank"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</a>
+              <a class="btn btn-sm btn-primary" href="plan_librus_all_pdf.php" target="_blank"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-geo-alt me-1 text-primary" aria-hidden="true"></i>Harmonogram grup</div>
+            <div class="small text-body-secondary">Dzień, godziny, lokalizacja — grupy stacjonarne, do druku lub jako Markdown.</div>
+          </td>
+          <td>
+            <a class="btn btn-sm btn-primary" href="harmonogram_lokalizacje.php" target="_blank"><i class="bi bi-table me-1" aria-hidden="true"></i>Pokaż zestawienie</a>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-clipboard-check me-1 text-primary" aria-hidden="true"></i>Wykaz sal do rezerwacji</div>
+            <div class="small text-body-secondary">Lista kontrolna dla koordynatora — terminy z salą, ze statusem zgłoszenia.</div>
+          </td>
+          <td>
+            <form method="get" action="sale_rezerwacje.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <select name="range" class="form-select form-select-sm w-auto">
+                <option value="week">Tydzień (bieżący)</option>
+                <option value="month">Miesiąc (bieżący)</option>
+                <option value="quarter">3 miesiące (od bieżącego)</option>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-journal-text me-1 text-primary" aria-hidden="true"></i>Protokół zajęć</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td class="small text-body-secondary">
+            Przypisany do konkretnych lekcji — wydruk z widoku grupy:
+            <a href="index.php?tab=lekcje">Zajęcia → zakładka Protokół</a>.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-file-earmark-text me-1 text-primary" aria-hidden="true"></i>Karta pojedynczej lekcji</div>
+            <div class="small text-body-secondary">PDF</div>
+          </td>
+          <td class="small text-body-secondary">
+            Termin, temat, obecność i notatki jednej lekcji — wydruk przy konkretnej lekcji:
+            <a href="index.php?tab=lekcje">Zajęcia → „Wejdź” lub dropdown „Wydruki” w wierszu lekcji</a>.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-calendar-x me-1 text-primary" aria-hidden="true"></i>Wykaz dni wolnych</div>
+          </td>
+          <td>
+            <form method="get" action="dni_wolne_pdf.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <input type="number" name="year" class="form-control form-control-sm" style="width:6.5rem" value="<?= (int)date('Y') ?>" min="2020" max="2035">
+              <button class="btn btn-sm btn-primary" formaction="dni_wolne_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+              <button class="btn btn-sm btn-primary" formaction="dni_wolne_xlsx.php"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>XLSX</button>
+              <button class="btn btn-sm btn-primary" formaction="dni_wolne_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-file-earmark-spreadsheet me-1 text-primary" aria-hidden="true"></i>Wzór sylabusu</div>
+            <div class="small text-body-secondary">CSV</div>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="syllabus_wzor.php" target="_blank">Pusty wzór</a>
+              <a class="btn btn-sm btn-outline-primary" href="syllabus_wzor.php?przyklad=1" target="_blank">Przykład (Python)</a>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-ticket-perforated me-1 text-primary" aria-hidden="true"></i>Zestawienia zapisów na zajęcia</div>
+            <div class="small text-body-secondary">Rezerwacje za żetony — per prowadzący, rodzaj zajęć, kursant lub pula.</div>
+          </td>
+          <td>
+            <a class="btn btn-sm btn-primary" href="rekrutacja.php?tab=zestawienia"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz zestawienia zapisów</a>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-clock-history me-1 text-primary" aria-hidden="true"></i>Dostępności i grafiki prowadzących</div>
+            <div class="small text-body-secondary">Okna dostępności, grafik tury, kalendarz naborów, plakat — z podglądu w tych ekranach.</div>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="dostepnosci.php">Dostępności</a>
+              <a class="btn btn-sm btn-outline-primary" href="rekrutacja.php?tab=grupy">Grafik tury (grupy)</a>
+            </div>
+          </td>
+        </tr>
+
+        </tbody>
+      </table>
     </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-receipt me-2 text-primary" aria-hidden="true"></i>Zestawienie rozliczeń grupy (PDF)</h3>
-        <form method="get" action="billing_pdf.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="course_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz grupę —</option>
-              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-receipt-cutoff me-2 text-primary" aria-hidden="true"></i>Zestawienie pozycji do FVAT (PDF)</h3>
-        <form method="get" action="billing_fv_summary.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="course_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz grupę —</option>
-              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6">
-            <select name="month" class="form-select form-select-sm">
-              <?php foreach ($months_pl as $mn => $ml): ?><option value="<?= $mn ?>" <?= $mn===$cur_m?'selected':'' ?>><?= h($ml) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6">
-            <input type="number" name="year" class="form-control form-control-sm" value="<?= $cur_y ?>" min="2020" max="2100">
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary" aria-hidden="true"></i>Lista obecności grupy (PDF)</h3>
-        <form method="get" action="attendance_pdf.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="course_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz grupę —</option>
-              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-filetype-csv me-2 text-primary" aria-hidden="true"></i>Eksport CSV frekwencji</h3>
-        <form method="get" action="attendance_csv.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-6">
-            <input type="month" name="month" class="form-control form-control-sm" value="<?= sprintf('%04d-%02d', $cur_y, $cur_m) ?>">
-          </div>
-          <div class="col-6">
-            <select name="course_id" class="form-select form-select-sm">
-              <option value="0">— wszystkie grupy —</option>
-              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Generuj</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-calendar-week me-2 text-primary" aria-hidden="true"></i>Plan zajęć prowadzącego</h3>
-        <form method="get" action="plan_print.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="instructor_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz prowadzącego —</option>
-              <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12">
-            <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26] as $w): ?><option value="<?= $w ?>" <?= $w===8?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
-              <option value="0">Ogólny (bez limitu tygodni)</option>
-            </select>
-          </div>
-          <div class="col-4"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_print.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="plan_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="plan_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć prowadzącego - siatka</h3>
-        <p class="small text-body-secondary mb-1">Wszystkie kursy prowadzącego naraz (własne + zastępstwa), w jednej siatce tygodnia.</p>
-        <form method="get" action="plan_librus_instructor.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="instructor_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz prowadzącego —</option>
-              <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12">
-            <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_librus_instructor.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
-          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="plan_librus_instructor_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-calendar2-check me-2 text-primary" aria-hidden="true"></i>Eksport iCal — prowadzący</h3>
-        <p class="small text-body-secondary mb-1">Plik .ics do zaimportowania w dowolnym kalendarzu — wszystkie kursy prowadzącego (własne + zastępstwa).</p>
-        <form method="get" action="ical_export.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="instructor_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz prowadzącego —</option>
-              <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz .ics</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć grupy - siatka</h3>
-        <form method="get" action="plan_librus.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="course_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz grupę —</option>
-              <?php foreach ($courses as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12">
-            <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_librus.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
-          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="plan_librus_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć kursanta - siatka (wszystkie grupy)</h3>
-        <p class="small text-body-secondary mb-1">Wszystkie aktywne grupy jednego kursanta naraz, w jednej siatce tygodnia.</p>
-        <form method="get" action="plan_librus_client.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="client_id" class="form-select form-select-sm" required>
-              <option value="">— wybierz kursanta —</option>
-              <?php foreach ($clients as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-12">
-            <select name="weeks" class="form-select form-select-sm">
-              <?php foreach ([4,8,12,16,26,52] as $w): ?><option value="<?= $w ?>" <?= $w===12?'selected':'' ?>><?= $w ?> tygodni</option><?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="plan_librus_client.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
-          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="plan_librus_client_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć — cała instytucja, siatka</h3>
-        <p class="small text-body-secondary mb-1">Wszystkie aktywne grupy naraz, jedna siatka tygodnia — kolizje kilku grup w tym samym terminie to norma, nie błąd.</p>
-        <div class="d-flex gap-2">
-          <a class="btn btn-sm btn-outline-primary flex-fill" href="plan_librus_all.php" target="_blank"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</a>
-          <a class="btn btn-sm btn-primary flex-fill" href="plan_librus_all_pdf.php" target="_blank"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
-        </div>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-geo-alt me-2 text-primary" aria-hidden="true"></i>Harmonogram grup — dzień, godziny, lokalizacja</h3>
-        <p class="small text-body-secondary">Tabela wszystkich grup stacjonarnych z ich wzorcem spotkań i przypisaną salą — do podglądu, druku lub skopiowania jako Markdown.</p>
-        <a class="btn btn-sm btn-primary w-100" href="harmonogram_lokalizacje.php" target="_blank"><i class="bi bi-table me-1" aria-hidden="true"></i>Pokaż zestawienie</a>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary" aria-hidden="true"></i>Wykaz sal do rezerwacji</h3>
-        <p class="small text-body-secondary mb-1">Lista kontrolna dla koordynatora logistycznego — terminy z przypisaną salą, pogrupowane dniami, ze statusem zgłoszenia.</p>
-        <form method="get" action="sale_rezerwacje.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <select name="range" class="form-select form-select-sm">
-              <option value="week">Tydzień (bieżący)</option>
-              <option value="month">Miesiąc (bieżący)</option>
-              <option value="quarter">3 miesiące (od bieżącego)</option>
-            </select>
-          </div>
-          <div class="col-6"><button class="btn btn-sm btn-outline-primary w-100" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button></div>
-          <div class="col-6"><button class="btn btn-sm btn-primary w-100" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-journal-text me-2 text-primary" aria-hidden="true"></i>Protokół zajęć (PDF)</h3>
-        <p class="small text-body-secondary mb-0">Protokoły są przypisane do konkretnych lekcji — wydruk dostępny
-        z widoku grupy: <a href="index.php?tab=lekcje">Zajęcia → zakładka Protokół</a>.</p>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-file-earmark-text me-2 text-primary" aria-hidden="true"></i>Karta pojedynczej lekcji (PDF)</h3>
-        <p class="small text-body-secondary mb-0">Termin, temat, obecność i notatki jednej lekcji — wydruk dostępny
-        przy konkretnej lekcji: <a href="index.php?tab=lekcje">Zajęcia → „Wejdź” lub dropdown „Wydruki” w wierszu lekcji</a>.</p>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-calendar-x me-2 text-primary" aria-hidden="true"></i>Wykaz dni wolnych</h3>
-        <form method="get" action="dni_wolne_pdf.php" target="_blank" class="row g-2 mt-1">
-          <div class="col-12">
-            <input type="number" name="year" class="form-control form-control-sm" value="<?= (int)date('Y') ?>" min="2020" max="2035">
-          </div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button></div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_xlsx.php"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>XLSX</button></div>
-          <div class="col-4"><button class="btn btn-sm btn-primary w-100" formaction="dni_wolne_docx.php"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>DOCX</button></div>
-        </form>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-file-earmark-spreadsheet me-2 text-primary" aria-hidden="true"></i>Wzór sylabusu (CSV)</h3>
-        <div class="d-flex gap-2 mt-1">
-          <a class="btn btn-sm btn-outline-primary" href="syllabus_wzor.php" target="_blank">Pusty wzór</a>
-          <a class="btn btn-sm btn-outline-primary" href="syllabus_wzor.php?przyklad=1" target="_blank">Przykład (Python)</a>
-        </div>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-ticket-perforated me-2 text-primary" aria-hidden="true"></i>Zestawienia zapisów na zajęcia</h3>
-        <p class="small text-body-secondary mb-1">Rezerwacje za żetony: per prowadzący, rodzaj zajęć, kursant lub pula — z filtrem tury, do druku.</p>
-        <a class="btn btn-sm btn-primary w-100" href="rekrutacja.php?tab=zestawienia"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz zestawienia zapisów</a>
-      </div></div>
-    </div>
-
-    <div class="col-12 col-md-6">
-      <div class="card h-100"><div class="card-body">
-        <h3 class="h6 fw-semibold"><i class="bi bi-clock-history me-2 text-primary" aria-hidden="true"></i>Wydruki dostępności i grafików prowadzących</h3>
-        <p class="small text-body-secondary mb-1">Okna dostępności (z rubrykami podpisów), grafik tury, kalendarz naborów i plakat — dostępne z podglądu w tych ekranach.</p>
-        <div class="d-flex gap-2 flex-wrap">
-          <a class="btn btn-sm btn-outline-primary" href="dostepnosci.php">Dostępności</a>
-          <a class="btn btn-sm btn-outline-primary" href="rekrutacja.php?tab=grupy">Grafik tury (grupy)</a>
-        </div>
-      </div></div>
-    </div>
-
   </div>
 
   <h2 class="h6 fw-semibold text-uppercase text-body-secondary mb-2">Lekcje z niepewnym terminem / możliwą zmianą</h2>
