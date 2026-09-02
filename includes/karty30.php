@@ -118,6 +118,31 @@ function karty30_migrate(): void {
         $pdo->exec("ALTER TABLE users ADD COLUMN ti_payout_form TEXT NOT NULL DEFAULT 'zlecenie'");
     } catch (\Throwable $e) {}
 
+    // Prowadzący "wirtualni" — VCT (wakat, stanowisko nieobsadzone) i DUU (osoba
+    // do ustalenia) — żeby dało się przypisać kurs, gdy nie ma jeszcze konkretnej
+    // osoby, bez zostawiania go bez żadnej adnotacji w grafikach i na wydrukach.
+    // Konta nieaktywne (is_active=0) — nie da się nimi zalogować, ale FK
+    // instructor_id->users(id) i wszystkie JOIN-y "u ON u.id=c.instructor_id"
+    // działają na nich bez zmian gdzie indziej (grid, kontakty, wypłaty…).
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN ti_placeholder_instructor TEXT NOT NULL DEFAULT ''");
+    } catch (\Throwable $e) {}
+    foreach ([
+        'vct' => ['name' => 'VCT (wakat)',       'email' => 'ti-placeholder-vct@local.invalid'],
+        'duu' => ['name' => 'DUU (do ustalenia)', 'email' => 'ti-placeholder-duu@local.invalid'],
+    ] as $_ph_key => $_ph) {
+        try {
+            $_st = $pdo->prepare("SELECT id FROM users WHERE ti_placeholder_instructor=?");
+            $_st->execute([$_ph_key]);
+            if (!$_st->fetch()) {
+                $pdo->prepare(
+                    "INSERT INTO users (name, email, password, role, is_active, ti_placeholder_instructor)
+                     VALUES (?, ?, ?, 'viewer', 0, ?)"
+                )->execute([$_ph['name'], $_ph['email'], password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT), $_ph_key]);
+            }
+        } catch (\Throwable $e) {}
+    }
+
     // Zasób zarezerwowany na termin (sala, stanowisko itp.)
     try {
         $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL");
@@ -6887,13 +6912,21 @@ function k30_ti_comm_guardian_recipients(array $course_ids): array {
     );
 }
 
-/** Lista osób prowadzących (instruktorów) TI — id + nazwa. */
+/**
+ * Lista osób prowadzących (instruktorów) TI — id + nazwa.
+ *
+ * Zawiera też "wirtualnych" prowadzących VCT (wakat) i DUU (do ustalenia) —
+ * zawsze, niezależnie od tego, czy już są przypisani do jakiegoś kursu, żeby
+ * dało się ich wybrać przy zakładaniu nowej grupy. Sortowane na końcu listy,
+ * po prawdziwych prowadzących.
+ */
 function k30_ti_instructors(): array {
     return db_all(
         "SELECT u.id, u.name, u.email FROM users u
          WHERE u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL)
             OR u.id IN (SELECT user_id FROM k30_ti_instructor_accounts)
-         ORDER BY u.name COLLATE NOCASE"
+            OR u.ti_placeholder_instructor != ''
+         ORDER BY (u.ti_placeholder_instructor != '') ASC, u.name COLLATE NOCASE"
     );
 }
 
