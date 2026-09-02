@@ -567,9 +567,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sess_instr = dyd_is_staff() ? max(0, (int)($_POST['instructor_id'] ?? 0)) : 0;
         $eff_instr  = $sess_instr ?: ti_course_instructor_id($course_id);
 
-        // Zajęcia tylko w dostępności prowadzącego (gdy zdefiniowana)
-        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
-        if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        // Zajęcia tylko w dostępności prowadzącego (gdy zdefiniowana) — kierownik
+        // może to świadomie ominąć (np. pilne zastępstwo poza zwykłymi godzinami)
+        $skip_avail = dyd_is_staff() && !empty($_POST['skip_availability']);
+        if (!$skip_avail) {
+            $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
+            if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        }
 
         // Zamknięty okres nauczania — rozliczony protokołami, nic już w nim nie ruszamy
         if ($_pc = ti_period_closed_for_date($date)) {
@@ -770,9 +774,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Prowadzący CAŁEJ serii — tylko kierownik może wskazać zastępstwo (patrz save_lesson).
         $sess_instr = dyd_is_staff() ? max(0, (int)($_POST['instructor_id'] ?? 0)) : 0;
         $eff_instr  = $sess_instr ?: ti_course_instructor_id($course_id);
-        // Cała seria ma tę samą godzinę — dostępność sprawdzamy na pierwszym wystąpieniu
-        $av = ti_instructor_available_at($eff_instr, $ser_dates[0], $tf, $tt);
-        if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        // Cała seria ma tę samą godzinę — dostępność sprawdzamy na pierwszym wystąpieniu,
+        // chyba że kierownik świadomie ją pomija (np. pilne zastępstwo poza zwykłymi godzinami)
+        $ser_skip_avail = dyd_is_staff() && !empty($_POST['skip_availability']);
+        if (!$ser_skip_avail) {
+            $av = ti_instructor_available_at($eff_instr, $ser_dates[0], $tf, $tt);
+            if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        }
         // Zajętość konta Zoom — sprawdzana per termin (różne dni, ten sam host)
         foreach ($ser_dates as $_d) {
             if ($_pc = ti_period_closed_for_date($_d)) {
@@ -2012,6 +2020,16 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
           <option value="<?= (int)$ins['id'] ?>" <?= (int)($r['instructor_id'] ?? 0) === (int)$ins['id'] ? 'selected' : '' ?>><?= h($ins['name']) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="<?= $pfx ?>_skipavail" name="skip_availability" value="1">
+        <label class="form-check-label" for="<?= $pfx ?>_skipavail">
+          Nie sprawdzaj dostępności prowadzącego
+        </label>
+        <div class="form-text mb-0">
+          Zapisz mimo zdefiniowanych okien dostępności prowadzącego dla tego terminu — np. wyjątkowa zgoda
+          albo pilne zastępstwo poza zwykłymi godzinami. Pozostałe blokady (Zoom, sala, zamknięty okres) działają normalnie.
+        </div>
       </div>
       <?php endif; ?>
       <?php

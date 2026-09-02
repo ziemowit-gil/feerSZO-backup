@@ -680,6 +680,14 @@ foreach ($_ext_for_wiz as $_we) {
             <?php endforeach; ?>
           </select>
         </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="series_skipavail" name="skip_availability" value="1">
+          <label class="form-check-label" for="series_skipavail">Nie sprawdzaj dostępności prowadzącego</label>
+          <div class="form-text mb-0">
+            Sprawdzana jest dostępność na pierwszym terminie serii — zaznacz, żeby ją pominąć (np. pilne
+            zastępstwo poza zwykłymi godzinami). Pozostałe blokady (Zoom, sala, zamknięty okres) działają normalnie.
+          </div>
+        </div>
         <?php endif; ?>
         <div class="mb-2">
           <label class="form-label" for="series_method">Metoda lekcji</label>
