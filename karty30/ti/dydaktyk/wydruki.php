@@ -251,6 +251,22 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="col-12 col-md-6">
       <div class="card h-100"><div class="card-body">
+        <h3 class="h6 fw-semibold"><i class="bi bi-calendar2-check me-2 text-primary" aria-hidden="true"></i>Eksport iCal — prowadzący</h3>
+        <p class="small text-body-secondary mb-1">Plik .ics do zaimportowania w dowolnym kalendarzu — wszystkie kursy prowadzącego (własne + zastępstwa).</p>
+        <form method="get" action="ical_export.php" target="_blank" class="row g-2 mt-1">
+          <div class="col-12">
+            <select name="instructor_id" class="form-select form-select-sm" required>
+              <option value="">— wybierz prowadzącego —</option>
+              <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz .ics</button></div>
+        </form>
+      </div></div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100"><div class="card-body">
         <h3 class="h6 fw-semibold"><i class="bi bi-grid-3x3 me-2 text-primary" aria-hidden="true"></i>Plan zajęć grupy - siatka</h3>
         <form method="get" action="plan_librus.php" target="_blank" class="row g-2 mt-1">
           <div class="col-12">
