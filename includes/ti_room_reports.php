@@ -66,9 +66,17 @@ function ti_org_contact_info(): array {
     ];
 }
 
-/** Etykieta lokalizacji dla wyświetlenia: nazwa sali + jej lokalizacja, albo wolny tekst z kursu. */
+/**
+ * Etykieta lokalizacji dla wyświetlenia: nazwa sali + jej lokalizacja, albo
+ * wolny tekst z kursu. Gdy sala ma ustawiony skrót (short_label, np.
+ * "KR-Centr" dla "Centrum Reymonta 20") — pokazuje skrót zamiast pełnej
+ * nazwy+lokalizacji. Używane w zwięzłych widokach (siatki planu, wydruki);
+ * wybór sali w formularzach kursu/lekcji pokazuje pełną nazwę+lokalizację
+ * wprost, nie przez tę funkcję — tam skrót by tylko przeszkadzał.
+ */
 function ti_room_label(?array $room, ?string $course_location = null): string {
     if ($room) {
+        if (trim((string)($room['short_label'] ?? '')) !== '') return trim((string)$room['short_label']);
         $lbl = (string)$room['name'];
         if (trim((string)$room['location']) !== '') $lbl .= ' (' . trim((string)$room['location']) . ')';
         return $lbl;
@@ -99,7 +107,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
         "SELECT s.lesson_date, s.time_from, s.time_to, s.instructor_id, s.room_id, s.date_flag,
                 s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
                 u.name AS instr_name, u.phone_number AS instr_phone, u.email AS instr_email,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
          FROM k30_ti_sessions s
          LEFT JOIN users u ON u.id = s.instructor_id
          LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -143,7 +151,7 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
                 'email' => (string)($r['instr_name'] ? ($r['instr_email'] ?? '') : ($course['instructor_email'] ?? '')),
             ];
         }
-        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $course['location']);
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? ''] : null, $course['location']);
         $slots[$tk][$dow]['rooms'][] = $room_lbl;
         $slots[$tk][$dow]['dates'][] = $group_date;
         $slots[$tk][$dow]['flags'][] = (string)($r['date_flag'] ?? '');
@@ -231,7 +239,7 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
                 COALESCE(iu.name, cu.name) AS instr_name,
                 COALESCE(iu.phone_number, cu.phone_number) AS instr_phone,
                 COALESCE(iu.email, cu.email) AS instr_email,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
            FROM k30_ti_sessions s
            JOIN k30_ti_courses c ON c.id = s.course_id
            LEFT JOIN users iu ON iu.id = s.instructor_id
@@ -264,7 +272,7 @@ function ti_librus_grid_client(int $client_id, int $weeks = 8): array {
         $ck  = (int)$r['course_id'];
         $slot_keys_per_course[$ck][$tk . '|' . $dow] = true;
 
-        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? ''] : null, $r['course_location']);
         $cells[$tk][$dow][$ck]['subject']    = $r['subject_abbr'] ?: ($r['subject_name'] ?: $r['course_name']);
         $cells[$tk][$dow][$ck]['instructor'] = $r['instr_name'] ?: '—';
         if (trim((string)$r['instr_name']) !== '' && !isset($instructors_seen[$r['instr_name']])) {
@@ -350,7 +358,7 @@ function ti_librus_grid_institution(int $weeks = 8): array {
                 COALESCE(iu.name, cu.name) AS instr_name,
                 COALESCE(iu.phone_number, cu.phone_number) AS instr_phone,
                 COALESCE(iu.email, cu.email) AS instr_email,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
            FROM k30_ti_sessions s
            JOIN k30_ti_courses c ON c.id = s.course_id
            LEFT JOIN users iu ON iu.id = s.instructor_id
@@ -379,7 +387,7 @@ function ti_librus_grid_institution(int $weeks = 8): array {
         $ck  = (int)$r['course_id'];
         $slot_keys_per_course[$ck][$tk . '|' . $dow] = true;
 
-        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? ''] : null, $r['course_location']);
         $cells[$tk][$dow][$ck]['subject']    = (string)$r['course_name'];
         $cells[$tk][$dow][$ck]['instructor'] = $r['instr_name'] ?: '—';
         if (trim((string)$r['instr_name']) !== '' && !isset($instructors_seen[$r['instr_name']])) {
@@ -466,7 +474,7 @@ function ti_librus_grid_instructor(int $instructor_id, int $weeks = 8): array {
                 s.rescheduled_from_date, s.rescheduled_from_time_from, s.rescheduled_from_time_to,
                 s.course_id, c.name AS course_name, c.location AS course_location, c.default_meeting_url,
                 st.abbreviation AS subject_abbr, st.name AS subject_name,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
            FROM k30_ti_sessions s
            JOIN k30_ti_courses c ON c.id = s.course_id
            LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -493,7 +501,7 @@ function ti_librus_grid_instructor(int $instructor_id, int $weeks = 8): array {
         $ck  = (int)$r['course_id'];
         $slot_keys_per_course[$ck][$tk . '|' . $dow] = true;
 
-        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? ''] : null, $r['course_location']);
         $cells[$tk][$dow][$ck]['subject']    = $r['subject_abbr'] ?: ($r['subject_name'] ?: $r['course_name']);
         $cells[$tk][$dow][$ck]['instructor'] = (string)$instructor['name'];
         $cells[$tk][$dow][$ck]['rooms'][]    = $room_lbl;
@@ -773,7 +781,7 @@ function ti_group_location_summary(int $weeks = 8): array {
     $rows = db_all(
         "SELECT s.course_id, s.lesson_date, s.time_from, s.time_to, s.room_id,
                 c.name AS course_name, c.location AS course_location, c.group_code,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
          LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -788,7 +796,7 @@ function ti_group_location_summary(int $weeks = 8): array {
         $dow = (int)date('N', strtotime((string)$r['lesson_date']));
         $tf  = substr((string)$r['time_from'], 0, 5);
         $tt  = substr((string)$r['time_to'], 0, 5);
-        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location']] : null, $r['course_location']);
+        $room_lbl = ti_room_label($r['room_id'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? ''] : null, $r['course_location']);
         $tk = $r['course_id'] . '|' . $dow . '|' . $tf . '|' . $tt . '|' . $room_lbl;
         if (!isset($groups[$tk])) {
             $groups[$tk] = [
@@ -818,7 +826,7 @@ function ti_room_reservation_report(string $from, string $to): array {
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.room_id, s.room_reservation_status,
                 s.instructor_id, c.name AS course_name, c.instructor_id AS course_instructor_id,
                 u.name AS instr_name, cu.name AS course_instr_name,
-                r.name AS room_name, r.location AS room_location
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
          JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -832,7 +840,7 @@ function ti_room_reservation_report(string $from, string $to): array {
     $by_day = [];
     foreach ($rows as $r) {
         $r['instructor_label'] = (string)($r['instr_name'] ?: $r['course_instr_name'] ?: '—');
-        $r['room_label']       = ti_room_label(['name' => $r['room_name'], 'location' => $r['room_location']]);
+        $r['room_label']       = ti_room_label(['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? '']);
         $by_day[(string)$r['lesson_date']][] = $r;
     }
     return $by_day;

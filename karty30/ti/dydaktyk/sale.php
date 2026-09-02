@@ -110,7 +110,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <?php foreach ($rooms as $r): $n_up = $upcoming_by_room[(int)$r['id']] ?? 0; ?>
         <tr class="<?= $r['is_active'] ? '' : 'opacity-50' ?>">
           <td class="fw-semibold"><?= h($r['name']) ?></td>
-          <td class="small"><?= trim((string)$r['location']) !== '' ? h($r['location']) : '<span class="text-muted">—</span>' ?></td>
+          <td class="small">
+            <?= trim((string)$r['location']) !== '' ? h($r['location']) : '<span class="text-muted">—</span>' ?>
+            <?php if (trim((string)($r['short_label'] ?? '')) !== ''): ?>
+            <span class="badge text-bg-light border ms-1" title="Skrót używany w siatkach planu i wydrukach"><?= h($r['short_label']) ?></span>
+            <?php endif; ?>
+          </td>
           <td class="text-center"><?= (int)$r['capacity'] ?></td>
           <td class="text-center"><?= (int)$r['workstations'] ?></td>
           <td class="small">
@@ -166,6 +171,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <label class="form-label fw-semibold">Lokalizacja</label>
             <input type="text" class="form-control" name="location" id="rf_location" maxlength="200" placeholder="np. ul. Przykładowa 5, budynek B, piętro 2">
             <div class="form-text">Adres budynku, nazwa ośrodka lub numer piętra/budynku — pokazuje się w planach i wydrukach.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Skrót</label>
+            <input type="text" class="form-control" name="short_label" id="rf_short_label" maxlength="40" placeholder="np. KR-Centr">
+            <div class="form-text">Opcjonalnie — gdy ustawiony, zastępuje pełną nazwę+lokalizację w zwięzłych widokach
+              (siatki planu zajęć, wydruki). Wybór sali przy dodawaniu lekcji nadal pokazuje pełną nazwę.</div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6">
@@ -226,6 +237,7 @@ function roomEdit(r) {
   document.getElementById('rf_id').value = r.id;
   document.getElementById('rf_name').value = r.name;
   document.getElementById('rf_location').value = r.location || '';
+  document.getElementById('rf_short_label').value = r.short_label || '';
   document.getElementById('rf_capacity').value = r.capacity;
   document.getElementById('rf_workstations').value = r.workstations;
   document.getElementById('rf_projector').checked = !!parseInt(r.has_projector, 10);
@@ -241,6 +253,7 @@ document.getElementById('btnAddRoom').addEventListener('click', function() {
   document.getElementById('rf_id').value = '0';
   document.getElementById('rf_name').value = '';
   document.getElementById('rf_location').value = '';
+  document.getElementById('rf_short_label').value = '';
   document.getElementById('rf_capacity').value = '20';
   document.getElementById('rf_workstations').value = '0';
   document.getElementById('rf_projector').checked = false;

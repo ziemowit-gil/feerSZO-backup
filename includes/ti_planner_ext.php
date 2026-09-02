@@ -50,6 +50,10 @@ function ti_planner_ext_migrate(): void {
         is_active       INTEGER NOT NULL DEFAULT 1,
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Skrót do zwięzłych widoków (siatki planu, wydruki) — np. "KR-Centr" dla
+    // "Centrum Reymonta 20". Puste = ti_room_label() pokazuje pełną nazwę+lokalizację
+    // jak dotąd; skrót nie zmienia pełnego opisu w wykazie sal ani w wyborze sali.
+    try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN short_label TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_laptop_pool (
         id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -331,6 +335,7 @@ function pl_room_save(array $d, ?int $id = null): int {
         'laptop_pool_cnt' => max(0, (int)($d['laptop_pool_cnt'] ?? 0)),
         'mode_support'    => in_array($d['mode_support'] ?? '', ['onsite','remote','hybrid','all']) ? $d['mode_support'] : 'onsite',
         'location'        => substr($d['location'] ?? '', 0, 200),
+        'short_label'     => substr(trim($d['short_label'] ?? ''), 0, 40),
         'notes'           => substr($d['notes'] ?? '', 0, 500),
         'is_active'       => (int)(bool)($d['is_active'] ?? true),
     ];
