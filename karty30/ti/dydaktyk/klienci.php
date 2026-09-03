@@ -88,9 +88,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: klienci.php'); exit;
     }
+
+    // Wnioski wypisania (małoletni) — przeniesione z karty30/ti/unenroll_admin.php.
+    // dyd_is_staff() zastępuje tam dawne is_admin()/can_write('karty30').
+    if ($op === 'unenroll_approve' || $op === 'unenroll_reject') {
+        $req_id = (int)($_POST['req_id'] ?? 0);
+        $note   = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 500);
+        if ($op === 'unenroll_approve') {
+            $ok = $req_id ? k30_ti_unenroll_admin_decide($req_id, (int)$me['user_id'], true, $note) : false;
+            flash_set($ok ? 'success' : 'danger', $ok ? 'Wniosek zatwierdzony. Kursant wypisany z kursu.' : 'Nie udało się zatwierdzić — wniosek mógł już być rozpatrzony.');
+        } else {
+            $ok = $req_id ? k30_ti_unenroll_admin_decide($req_id, (int)$me['user_id'], false, $note) : false;
+            flash_set($ok ? 'warning' : 'danger', $ok ? 'Wniosek odrzucony. Kursant pozostaje na kursie.' : 'Nie udało się odrzucić — wniosek mógł już być rozpatrzony.');
+        }
+        header('Location: klienci.php'); exit;
+    }
 }
 
-$pending_requests = ti_wallet_requests_pending();
+$pending_requests   = ti_wallet_requests_pending();
+$unenroll_pending   = k30_ti_unenroll_pending_admin();
+$unenroll_history   = k30_ti_unenroll_requests_all();
+$unenroll_status_labels = [
+    'pending_parent' => ['label' => 'Czeka na opiekuna', 'cls' => 'warning'],
+    'pending_admin'  => ['label' => 'Czeka na kierownika', 'cls' => 'primary'],
+    'approved'       => ['label' => 'Zatwierdzone',       'cls' => 'success'],
+    'rejected'       => ['label' => 'Odrzucone',          'cls' => 'secondary'],
+];
 $nc_courses = k30_ti_courses(true);
 
 $q = trim($_GET['q'] ?? '');
@@ -163,6 +186,84 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </li>
       <?php endforeach; ?>
     </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($unenroll_pending): ?>
+  <div class="card border-warning-subtle mb-3">
+    <div class="card-header bg-warning bg-opacity-10 fw-semibold">
+      <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Oczekujące wnioski wypisania (małoletni)
+      <span class="badge bg-warning text-dark ms-1"><?= count($unenroll_pending) ?></span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <caption class="visually-hidden">Wnioski wypisania oczekujące na decyzję</caption>
+        <thead class="table-light">
+          <tr><th>Kursant</th><th>Kurs</th><th>Powód</th><th>Status</th><th>Zgłoszono</th><th>Opiekun ok</th><th class="text-end">Decyzja</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($unenroll_pending as $r):
+            $sl = $unenroll_status_labels[$r['status']] ?? ['label' => $r['status'], 'cls' => 'secondary'];
+          ?>
+          <tr>
+            <td class="fw-semibold small"><?= h($r['client_name']) ?></td>
+            <td class="small"><?= h($r['course_name']) ?></td>
+            <td class="small text-body-secondary" style="max-width:200px">
+              <?= $r['reason'] !== '' ? nl2br(h(mb_substr($r['reason'], 0, 120))) : '<em>—</em>' ?>
+            </td>
+            <td><span class="badge text-bg-<?= $sl['cls'] ?>"><?= h($sl['label']) ?></span></td>
+            <td class="small text-nowrap"><?= h(substr($r['created_at'] ?? '', 0, 16)) ?></td>
+            <td class="small text-nowrap"><?= $r['parent_ok_at'] ? h(substr($r['parent_ok_at'], 0, 16)) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="text-end text-nowrap">
+              <button type="button" class="btn btn-success btn-sm"
+                      data-bs-toggle="modal" data-bs-target="#unenrollDecideModal"
+                      data-req-id="<?= (int)$r['id'] ?>" data-action="unenroll_approve"
+                      data-client="<?= h($r['client_name']) ?>" data-course="<?= h($r['course_name']) ?>">
+                <i class="bi bi-check-lg" aria-hidden="true"></i> Zatwierdź
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-sm ms-1"
+                      data-bs-toggle="modal" data-bs-target="#unenrollDecideModal"
+                      data-req-id="<?= (int)$r['id'] ?>" data-action="unenroll_reject"
+                      data-client="<?= h($r['client_name']) ?>" data-course="<?= h($r['course_name']) ?>">
+                <i class="bi bi-x-lg" aria-hidden="true"></i> Odrzuć
+              </button>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($unenroll_history): ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-clock-history" aria-hidden="true"></i> Historia wniosków wypisania
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 small">
+        <caption class="visually-hidden">Historia wniosków wypisania</caption>
+        <thead class="table-light">
+          <tr><th>Kursant</th><th>Kurs</th><th>Status</th><th>Zgłoszono</th><th>Decyzja</th><th>Kierownik</th><th>Uwaga</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($unenroll_history as $r):
+            $sl = $unenroll_status_labels[$r['status']] ?? ['label' => $r['status'], 'cls' => 'secondary'];
+          ?>
+          <tr>
+            <td class="fw-semibold"><?= h($r['client_name']) ?></td>
+            <td><?= h($r['course_name']) ?></td>
+            <td><span class="badge text-bg-<?= $sl['cls'] ?>"><?= h($sl['label']) ?></span></td>
+            <td class="text-nowrap"><?= h(substr($r['created_at'] ?? '', 0, 16)) ?></td>
+            <td class="text-nowrap"><?= $r['admin_ok_at'] ? h(substr($r['admin_ok_at'], 0, 16)) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td><?= $r['admin_name'] ? h($r['admin_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="text-body-secondary"><?= $r['admin_note'] !== '' ? h(mb_substr($r['admin_note'], 0, 80)) : '' ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -331,6 +432,61 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
 </div>
 <?php endforeach; ?>
+
+<!-- Modal: decyzja ws. wniosku wypisania -->
+<div class="modal fade" id="unenrollDecideModal" tabindex="-1" aria-labelledby="unenrollDecideLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h2 class="modal-title h5 fw-bold" id="unenrollDecideLbl">Decyzja ws. wniosku</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"    id="unenrollDecideOp" value="">
+        <input type="hidden" name="req_id" id="unenrollDecideReqId" value="">
+        <div class="modal-body">
+          <p id="unenrollDecideDesc" class="mb-3"></p>
+          <div class="mb-0">
+            <label class="form-label" for="unenrollDecideNote">Uwaga dla kursanta <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+            <textarea class="form-control" id="unenrollDecideNote" name="note" rows="2" maxlength="500"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" id="unenrollDecideSubmitBtn" class="btn btn-primary fw-semibold">Potwierdź</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('unenrollDecideModal');
+  if (!modal) return;
+  modal.addEventListener('show.bs.modal', function (e) {
+    var btn    = e.relatedTarget;
+    var action = btn.getAttribute('data-action');
+    var client = btn.getAttribute('data-client') || '';
+    var course = btn.getAttribute('data-course') || '';
+    document.getElementById('unenrollDecideOp').value    = action;
+    document.getElementById('unenrollDecideReqId').value = btn.getAttribute('data-req-id') || '';
+    document.getElementById('unenrollDecideNote').value  = '';
+    var submitBtn = document.getElementById('unenrollDecideSubmitBtn');
+    if (action === 'unenroll_approve') {
+      document.getElementById('unenrollDecideDesc').textContent =
+        'Zatwierdź wypisanie kursanta ' + client + ' z kursu ' + course + '. Operacja jest nieodwracalna.';
+      submitBtn.textContent = 'Zatwierdź wypisanie';
+      submitBtn.className = 'btn btn-success fw-semibold';
+    } else {
+      document.getElementById('unenrollDecideDesc').textContent =
+        'Odrzuć wniosek wypisania kursanta ' + client + ' z kursu ' + course + '. Kursant pozostanie na kursie.';
+      submitBtn.textContent = 'Odrzuć wniosek';
+      submitBtn.className = 'btn btn-danger fw-semibold';
+    }
+  });
+})();
+</script>
 
 </main>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
