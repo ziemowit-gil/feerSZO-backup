@@ -5,7 +5,7 @@
  * Wydzielone z index.php. Oczekuje zmiennych z kontrolera: $workspace, $can_add,
  * $ws_id, $filter_status, $filter_priority, $filter_tag, $filter_list, $filter_q,
  * $lists_map, $available_tags, $all_areas, $all_org_units, $view_mode,
- * $my_notify_prefs, $my_role, $cnt.
+ * $my_notify_prefs, $my_role, $cnt, $available_templates.
  */
 ?>
 <!-- ── Nagłówek obszaru: nazwa + główna akcja ──────────────────────────────── -->
@@ -15,12 +15,22 @@
     <?= h($workspace['name']) ?>
   </h2>
   <?php if ($can_add): ?>
-  <button type="button"
-          class="btn btn-primary"
-          onclick="openAddModal()"
-          aria-label="Dodaj nowe zadanie">
-    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
-  </button>
+  <div class="d-flex gap-2">
+    <?php if ($available_templates && $lists_map): ?>
+    <button type="button"
+            class="btn btn-outline-primary"
+            onclick="openTemplateModal()"
+            aria-label="Zastosuj szablon zadań">
+      <i class="bi bi-list-check me-1" aria-hidden="true"></i>Zastosuj szablon
+    </button>
+    <?php endif; ?>
+    <button type="button"
+            class="btn btn-primary"
+            onclick="openAddModal()"
+            aria-label="Dodaj nowe zadanie">
+      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
+    </button>
+  </div>
   <?php endif; ?>
 </div>
 

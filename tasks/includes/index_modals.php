@@ -4,7 +4,7 @@
  * Offcanvas szczegółów zadania + modale (dodaj zadanie, powiadomienia obszaru,
  * usuń obszar) modułu Zadania. Wydzielone z index.php. Oczekuje: $can_add,
  * $workspace, $ws_id, $lists_map, $all_areas, $ws_members_for_assign,
- * $all_org_units, $my_notify_prefs, $my_role.
+ * $all_org_units, $my_notify_prefs, $my_role, $available_templates.
  */
 ?>
 <!-- ── Offcanvas: szczegóły zadania ─────────────────────────────────────── -->
@@ -156,6 +156,49 @@
         <button type="button" class="btn btn-primary btn-sm"
                 id="at-submit" onclick="submitAddTask()">
           <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj zadanie
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ── Modal: zastosuj szablon zadań ────────────────────────────────────────── -->
+<?php if ($can_add && $workspace && $available_templates && $lists_map): ?>
+<div class="modal fade" id="templateApplyModal" tabindex="-1"
+     aria-labelledby="templateApplyModalLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="h6 modal-title fw-bold mb-0" id="templateApplyModalLabel">
+          <i class="bi bi-list-check me-1 text-primary" aria-hidden="true"></i>Zastosuj szablon
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="ta-template">Szablon</label>
+          <select id="ta-template" class="form-select form-select-sm">
+            <?php foreach ($available_templates as $tpl): ?>
+            <option value="<?= (int)$tpl['id'] ?>"><?= h($tpl['name']) ?> (<?= (int)$tpl['item_count'] ?> poz.)</option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="ta-list">Utwórz zadania w kolumnie</label>
+          <select id="ta-list" class="form-select form-select-sm">
+            <?php foreach ($lists_map as $l): ?>
+            <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <p class="text-muted small mb-0">Utworzy nowe zadania — nie wpłynie na już istniejące ani na sam szablon.</p>
+        <div id="ta-error" class="alert alert-danger py-2 small mt-2 d-none" role="alert"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ta-submit" onclick="submitApplyTemplate()">
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zastosuj
         </button>
       </div>
     </div>

@@ -124,6 +124,10 @@
        href="<?= APP_URL ?>/tasks/settings/teams.php">
       <i class="bi bi-people-fill" aria-hidden="true"></i>Zespoły
     </a>
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/templates') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/settings/templates.php">
+      <i class="bi bi-list-check" aria-hidden="true"></i>Szablony zadań
+    </a>
     <?php endif; ?>
     <?php if ($_is_admin): ?>
     <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/areas') ? 'active' : '' ?>"

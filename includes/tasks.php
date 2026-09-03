@@ -709,3 +709,98 @@ function task_field_editable(string $field_key, ?string $ws_role = null): bool {
     if (!is_array($allowed) || empty($allowed)) return false;
     return in_array($ws_role, $allowed, true);
 }
+
+// ── Szablony zadań (checklisty wielokrotnego użytku) ────────────────────────
+// Szablon jest globalny (jak task_areas/task_tags) — może być zastosowany
+// w dowolnym obszarze roboczym przez jego lidera. Zastosowanie tworzy realne
+// zadania w wybranej kolumnie (kopia, nie odwołanie — edycja szablonu później
+// nie zmienia już utworzonych zadań).
+
+function task_templates_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_templates (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        VARCHAR(150) NOT NULL,
+        description TEXT         NOT NULL DEFAULT '',
+        is_active   INTEGER      NOT NULL DEFAULT 1,
+        created_by  INTEGER,
+        created_at  DATETIME     NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at  DATETIME     NOT NULL DEFAULT (datetime('now','localtime'))
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_template_items (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER      NOT NULL REFERENCES task_templates(id) ON DELETE CASCADE,
+        title       VARCHAR(255) NOT NULL,
+        description TEXT         NOT NULL DEFAULT '',
+        priority    INTEGER      NOT NULL DEFAULT 2,
+        position    INTEGER      NOT NULL DEFAULT 0
+    )");
+}
+
+/** Wszystkie szablony (aktywne domyślnie), z liczbą pozycji. */
+function task_get_templates(bool $active_only = true): array {
+    task_templates_migrate();
+    return db_all(
+        "SELECT tt.*,
+                (SELECT COUNT(*) FROM task_template_items WHERE template_id = tt.id) AS item_count
+         FROM task_templates tt"
+        . ($active_only ? " WHERE tt.is_active = 1" : "")
+        . " ORDER BY tt.name"
+    );
+}
+
+function task_get_template_items(int $template_id): array {
+    task_templates_migrate();
+    return db_all(
+        "SELECT * FROM task_template_items WHERE template_id = ? ORDER BY position, id",
+        [$template_id]
+    );
+}
+
+/**
+ * Tworzy realne zadania w $list_id (obszar $workspace_id) na podstawie pozycji
+ * szablonu. Zwraca ID utworzonych zadań. Rzuca RuntimeException gdy lista
+ * nie istnieje w tym obszarze.
+ */
+function task_apply_template(int $template_id, int $workspace_id, int $list_id, int $user_id): array {
+    task_templates_migrate();
+    $items = task_get_template_items($template_id);
+    if (!$items) return [];
+
+    $list = db_one("SELECT * FROM task_lists WHERE id=? AND workspace_id=?", [$list_id, $workspace_id]);
+    if (!$list) throw new \RuntimeException('Lista nie istnieje w tym obszarze.');
+
+    $pos = (float)(db_one(
+        "SELECT MAX(position) AS m FROM tasks WHERE list_id=? AND deleted_at IS NULL", [$list_id]
+    )['m'] ?? 0);
+    $now = date('Y-m-d H:i:s');
+    $created_ids = [];
+
+    foreach ($items as $item) {
+        $pos += 1;
+        $id = db_insert('tasks', [
+            'workspace_id' => $workspace_id,
+            'list_id'      => $list_id,
+            'title'        => $item['title'],
+            'description'  => $item['description'],
+            'position'     => $pos,
+            'priority'     => max(1, min(4, (int)$item['priority'])),
+            'created_by'   => $user_id,
+            'created_at'   => $now,
+            'updated_at'   => $now,
+        ]);
+        task_start_time_tracking($id, $list_id, $list['name']);
+        task_log($id, $user_id, 'created', null, $list['name'], ['from_template' => $template_id]);
+        $created_ids[] = $id;
+    }
+
+    try {
+        require_once __DIR__ . '/task_notify.php';
+        foreach ($created_ids as $id) task_notify_created($id, $user_id);
+    } catch (\Throwable $e) {}
+
+    return $created_ids;
+}

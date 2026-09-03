@@ -142,6 +142,9 @@ if ($ws_id) {
 $my_role = $ws_id ? task_workspace_role($ws_id, $uid) : null;
 $can_add = in_array($my_role, ['admin', 'editor'], true);
 
+// Szablony zadań — tylko do pobrania gdy lider może w ogóle dodawać zadania
+$available_templates = $can_add ? task_get_templates() : [];
+
 // Dane per-obszar: picker osób + prefs powiadomień
 if ($ws_id) {
     try {

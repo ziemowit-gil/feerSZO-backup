@@ -572,6 +572,44 @@
         .catch(() => { btn.disabled = false; alert('Błąd połączenia.'); });
     };
 
+    // ── Modal: zastosuj szablon zadań ────────────────────────────────────────
+    window.openTemplateModal = function () {
+        const el = document.getElementById('templateApplyModal');
+        if (!el) return;
+        document.getElementById('ta-error').classList.add('d-none');
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    };
+
+    window.submitApplyTemplate = function () {
+        const templateId = parseInt(document.getElementById('ta-template').value, 10);
+        const listId     = parseInt(document.getElementById('ta-list').value, 10);
+        const err = document.getElementById('ta-error');
+        const btn = document.getElementById('ta-submit');
+        btn.disabled = true;
+        fetch(BASE + '/tasks/api/template.php', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({_csrf: CSRF, action: 'apply', template_id: templateId, workspace_id: WS_ID, list_id: listId})
+        })
+        .then(r => r.json())
+        .then(r => {
+            btn.disabled = false;
+            if (r.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('templateApplyModal')).hide();
+                tkAnnounce('Utworzono ' + r.data.count + ' zadań z szablonu.');
+                window.tkAjaxLoad();
+            } else {
+                err.textContent = r.error || 'Błąd zastosowania szablonu.';
+                err.classList.remove('d-none');
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            err.textContent = 'Błąd połączenia.';
+            err.classList.remove('d-none');
+        });
+    };
+
     // ── Modal: Usuń obszar ────────────────────────────────────────────────────
     let _delWsPrevFocus = null;
 
