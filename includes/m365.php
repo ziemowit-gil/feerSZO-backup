@@ -1233,37 +1233,6 @@ class M365Graph {
     }
 
     /**
-     * Nadchodzące spotkania online z kalendarza użytkownika (Teams) — z linkami „dołącz".
-     * Zwraca listę [{subject,start,end,join_url}] tylko dla zdarzeń mających onlineMeeting/joinUrl.
-     * Wymaga: Calendars.Read (Application).
-     */
-    public function get_online_calendar_events(string $user_id, string $start, string $end): array
-    {
-        $select = 'subject,start,end,isCancelled,isOnlineMeeting,onlineMeeting,onlineMeetingUrl,webLink';
-        $filter = urlencode("start/dateTime ge '{$start}' and end/dateTime le '{$end}'");
-        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($user_id)
-             . "/calendar/events?\$select={$select}&\$filter={$filter}&\$top=50&\$orderby=start/dateTime";
-
-        $out = [];
-        while ($url) {
-            $resp = $this->http_get($url);
-            foreach ($resp['value'] ?? [] as $ev) {
-                if (!empty($ev['isCancelled'])) continue;
-                $join = $ev['onlineMeeting']['joinUrl'] ?? ($ev['onlineMeetingUrl'] ?? '');
-                if (!$join) continue;
-                $out[] = [
-                    'subject'  => $ev['subject'] ?? 'Spotkanie',
-                    'start'    => $ev['start']['dateTime'] ?? '',
-                    'end'      => $ev['end']['dateTime'] ?? '',
-                    'join_url' => $join,
-                ];
-            }
-            $url = $resp['@odata.nextLink'] ?? null;
-        }
-        return $out;
-    }
-
-    /**
      * Delta-sync kalendarza (pełna lista lub tylko zmiany od ostatniej synch).
      * Wymaga: Calendars.Read
      */

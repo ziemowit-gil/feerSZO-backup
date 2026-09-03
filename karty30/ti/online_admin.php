@@ -4,7 +4,7 @@
  * konfiguracja tenanta szkoleniowego Microsoft 365, integracji Zoom oraz
  * katalogu ręcznych linków do szkoleń (k30_ti_meetings).
  *
- * Konta MS/Moodle tworzone są per kursant w karty30/ti/kursant/accounts.php
+ * Konta MS tworzone są per kursant w karty30/ti/kursant/accounts.php
  * oraz samoobsługą w panelu kursanta (?tab=online).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -27,14 +27,6 @@ $test_result = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = $_POST['_op'] ?? '';
-
-    if ($op === 'save_ms') {
-        // Konfiguracja połączenia M365 jest w „Dydaktyka 3 → M365". Tu zapisujemy tylko
-        // ustawienie specyficzne dla Nauki online: kalendarz szkoleń Teams.
-        m365_save_setting('m365t_meetings_user', trim($_POST['m365t_meetings_user'] ?? ''));
-        flash_set('success', 'Zapisano.');
-        header('Location: online_admin.php'); exit;
-    }
 
     if ($op === 'save_zoom') {
         m365_save_setting('zoom_enabled',    isset($_POST['zoom_enabled']) ? '1' : '0');
@@ -71,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mid  = (int)($_POST['meeting_id'] ?? 0);
         $data = [
             'title'     => trim($_POST['title'] ?? ''),
-            'platform'  => in_array($_POST['platform'] ?? '', ['zoom','teams','other'], true) ? $_POST['platform'] : 'other',
+            'platform'  => in_array($_POST['platform'] ?? '', ['zoom','other'], true) ? $_POST['platform'] : 'other',
             'join_url'  => trim($_POST['join_url'] ?? ''),
             'course_id' => ($cid = (int)($_POST['course_id'] ?? 0)) ?: null,
             'starts_at' => ($s = trim($_POST['starts_at'] ?? '')) !== '' ? str_replace('T', ' ', $s) . ':00' : null,
@@ -124,7 +116,7 @@ if (zoom_enabled()) {
 }
 
 $ms_set = fn($k) => org_setting($k);
-$plat_badge = ['zoom' => ['primary','Zoom'], 'teams' => ['info','MS Teams'], 'other' => ['secondary','Link']];
+$plat_badge = ['zoom' => ['primary','Zoom'], 'other' => ['secondary','Link']];
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -139,7 +131,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <h4 class="mb-0 fw-bold"><i class="bi bi-camera-video text-primary me-2"></i>Nauka online — Microsoft 365, Zoom, szkolenia</h4>
   <span class="badge <?= ti_ms_enabled() ? 'bg-success' : 'bg-secondary' ?>">MS <?= ti_ms_enabled() ? 'on' : 'off' ?></span>
   <span class="badge <?= zoom_enabled() ? 'bg-success' : 'bg-secondary' ?>">Zoom <?= zoom_enabled() ? 'on' : 'off' ?></span>
-  <span class="badge <?= ti_moodle_enabled() ? 'bg-success' : 'bg-secondary' ?>">Moodle <?= ti_moodle_enabled() ? 'on' : 'off' ?></span>
 </div>
 
 <?= flash_html() ?>
@@ -151,9 +142,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; ?>
 
 <p class="text-muted small">
-  Konta Microsoft i Moodle tworzone są dla pojedynczych kursantów w
+  Konta Microsoft tworzone są dla pojedynczych kursantów w
   <a href="kursant/accounts.php">Kontach kursantów</a> oraz samoobsługą w panelu kursanta.
-  Loginem do Moodle jest UPN konta Microsoft (spójna tożsamość).
 </p>
 
 <div class="row g-4">
@@ -176,14 +166,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </p>
         <hr>
         <form method="post">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_op" value="save_ms">
-          <div class="mb-2"><label class="form-label small">Kalendarz szkoleń Teams — UPN/ID użytkownika <span class="text-muted">(opcjonalnie)</span></label>
-            <input class="form-control form-control-sm" name="m365t_meetings_user" value="<?= h($ms_set('m365t_meetings_user')) ?>" placeholder="szkolenia@... (kalendarz z wydarzeniami Teams)">
-            <div class="form-text">Spotkania online z kalendarza tego konta pojawią się kursantom w zakładce „Szkolenia online".</div></div>
-          <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>
-        </form>
-        <form method="post" class="mt-2">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="test_ms">
           <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug me-1"></i>Test połączenia MS</button>
@@ -291,7 +273,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input class="form-control form-control-sm" name="title" value="<?= h($edit_m['title'] ?? '') ?>" required></div>
         <div class="col-md-3"><label class="form-label small">Platforma</label>
           <select class="form-select form-select-sm" name="platform">
-            <?php foreach (['zoom'=>'Zoom','teams'=>'MS Teams','other'=>'Inny link'] as $k=>$v): ?>
+            <?php foreach (['zoom'=>'Zoom','other'=>'Inny link'] as $k=>$v): ?>
             <option value="<?= $k ?>" <?= ($edit_m['platform'] ?? 'other')===$k?'selected':'' ?>><?= $v ?></option>
             <?php endforeach; ?>
           </select></div>
@@ -320,7 +302,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
 
     <?php if (!$meetings): ?>
-    <div class="text-muted">Brak ręcznych szkoleń. Linki z Teams/Zoom dociągane są automatycznie z API.</div>
+    <div class="text-muted">Brak ręcznych szkoleń. Linki z Zoom dociągane są automatycznie z API.</div>
     <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" style="font-size:.86rem">

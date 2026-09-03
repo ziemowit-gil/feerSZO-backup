@@ -2,22 +2,18 @@
 /**
  * includes/ti_online.php — warstwa „nauki online" panelu kursanta TI.
  *
- * Łączy trzy integracje, wszystkie skonfigurowane przez admina:
+ * Łączy dwie integracje, obie skonfigurowane przez admina:
  *   1. Konta Microsoft 365 w OSOBNYM tenancie szkoleniowym (klucze settings m365t_*).
  *      Reużywa klasy M365Graph (includes/m365.php) z własnym zestawem creds.
- *   2. Konta Moodle (reużywa MoodleAPI z includes/moodle.php). Loginem do Moodle
- *      jest UPN konta MS szkoleniowego — spójna tożsamość MS↔Moodle.
- *   3. Linki do nadchodzących szkoleń: ręczne (k30_ti_meetings) + Teams (kalendarz
- *      tenanta szkoleniowego, Graph) + Zoom (Zoom API).
+ *   2. Linki do nadchodzących szkoleń: ręczne (k30_ti_meetings) + Zoom (Zoom API).
  *
- * Kotwicą kursanta jest k30_ti_student_accounts (kolumny ms_* oraz moodle_* dodane w karty30_migrate()).
+ * Kotwicą kursanta jest k30_ti_student_accounts (kolumny ms_* dodane w karty30_migrate()).
  * Wszystkie wywołania zewnętrzne są w try/catch — operacje zwracają ['ok'=>bool,'msg'=>string,...].
  */
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php'; // org_setting()
 require_once __DIR__ . '/m365.php';      // M365Graph, m365_save_setting()
-require_once __DIR__ . '/moodle.php';    // MoodleAPI, moodle_setting()
 require_once __DIR__ . '/zoom.php';      // ZoomAPI, zoom_enabled()
 
 // ── Ustawienia tenanta szkoleniowego ──────────────────────────────────────────
@@ -59,13 +55,8 @@ function ti_ms_enabled(): bool {
     return m365_training()->is_configured();
 }
 
-/** Czy provisioning Moodle jest możliwy (URL + token ustawione). */
-function ti_moodle_enabled(): bool {
-    return moodle_setting('url') !== '' && moodle_setting('token') !== '';
-}
-
 /**
- * Czy kursant obsługuje konta Microsoft 365 / Moodle SAM, ze swojego panelu.
+ * Czy kursant obsługuje konta Microsoft 365 SAM, ze swojego panelu.
  *
  * Wyłączone: zajęcia idą przez Zoom, materiały i zadania przez zakładkę
  * „Dydaktyka / eLearning", a konta szkoleniowe zakłada administracja — kursant
@@ -98,12 +89,8 @@ function ti_student_online_state(int $studentId): array {
     return [
         'exists'         => true,
         'ms_enabled'     => ti_ms_enabled(),
-        'moodle_enabled' => ti_moodle_enabled(),
         'ms_upn'         => $r['ms_upn'] ?? '',
         'ms_active'      => !empty($r['ms_user_id']),
-        'moodle_login'   => $r['moodle_username'] ?? '',
-        'moodle_active'  => !empty($r['moodle_user_id']),
-        'moodle_url'     => rtrim(moodle_setting('url'), '/'),
     ];
 }
 
@@ -234,95 +221,11 @@ function ti_send_ms_credentials(array $student, string $upn, string $pass): void
     }
 }
 
-// ── Konto Moodle ───────────────────────────────────────────────────────────────
-
-/**
- * Tworzy (lub dowiązuje istniejące) konto Moodle dla kursanta.
- * Loginem/e-mailem jest UPN konta MS szkoleniowego. Zwraca ['ok','msg','login'?,'url'?].
- */
-function ti_moodle_provision(int $studentId): array {
-    if (!ti_moodle_enabled()) return ['ok' => false, 'msg' => 'Integracja Moodle nie jest skonfigurowana.'];
-    $r = ti_student_row($studentId);
-    if (!$r) return ['ok' => false, 'msg' => 'Konto kursanta nie istnieje.'];
-    if (!empty($r['moodle_user_id'])) {
-        return ['ok' => true, 'msg' => 'Konto Moodle już istnieje.', 'login' => $r['moodle_username'], 'url' => rtrim(moodle_setting('url'), '/')];
-    }
-    $upn = trim((string)$r['ms_upn']);
-    if ($upn === '') return ['ok' => false, 'msg' => 'Najpierw utwórz konto Microsoft — jego login posłuży jako login Moodle.'];
-
-    $name = trim($r['client_name'] ?: $r['login']);
-    try {
-        $api = new MoodleAPI();
-        $mu  = $api->find_user($upn);
-        if ($mu) {
-            $moodleId = (int)$mu['id'];
-            $login    = $mu['username'] ?? $upn;
-        } else {
-            // E-mail powiadomień: UPN (domyślnie) lub rzeczywisty adres beneficjenta
-            // (admin/moodle.php → „Adres e-mail kont"). Login pozostaje UPN.
-            $clientEmail = trim((string)($r['client_email'] ?? ''));
-            $email = (moodle_setting('email_source') === 'client' && filter_var($clientEmail, FILTER_VALIDATE_EMAIL))
-                ? $clientEmail : $upn;
-            $pass     = bin2hex(random_bytes(6)) . 'Aa1!';
-            $moodleId = $api->create_user($name, $email, $pass, $upn);
-            $login    = strtolower(preg_replace('/[^a-z0-9._-]/', '', $upn));
-        }
-        if (!$moodleId) return ['ok' => false, 'msg' => 'Moodle nie zwrócił identyfikatora użytkownika.'];
-    } catch (\Throwable $e) {
-        return ['ok' => false, 'msg' => 'Błąd tworzenia konta Moodle: ' . $e->getMessage()];
-    }
-
-    db_update('k30_ti_student_accounts', [
-        'moodle_user_id'    => $moodleId,
-        'moodle_username'   => $login,
-        'moodle_created_at' => date('Y-m-d H:i:s'),
-        'updated_at'        => date('Y-m-d H:i:s'),
-    ], $studentId);
-
-    return ['ok' => true, 'msg' => 'Konto Moodle gotowe.', 'login' => $login, 'url' => rtrim(moodle_setting('url'), '/')];
-}
-
-/**
- * Ustawia własne hasło kursanta na platformie Moodle.
- * Wymaga istniejącego konta Moodle (moodle_user_id). Zwraca ['ok','msg'].
- * Złożoność wstępnie sprawdzamy lokalnie (domyślna polityka Moodle), a ostatecznie
- * waliduje sam Moodle — jego ewentualny błąd przekazujemy kursantowi.
- */
-function ti_moodle_set_password(int $studentId, string $password): array {
-    if (!ti_moodle_enabled()) return ['ok' => false, 'msg' => 'Integracja Moodle nie jest skonfigurowana.'];
-    $r = ti_student_row($studentId);
-    if (!$r) return ['ok' => false, 'msg' => 'Konto kursanta nie istnieje.'];
-    if (empty($r['moodle_user_id'])) return ['ok' => false, 'msg' => 'Najpierw utwórz konto na platformie e-learningowej.'];
-
-    $err = ti_moodle_password_problem($password);
-    if ($err !== '') return ['ok' => false, 'msg' => $err];
-
-    try {
-        $api = new MoodleAPI();
-        $api->update_user((int)$r['moodle_user_id'], ['password' => $password]);
-    } catch (\Throwable $e) {
-        // Najczęściej: niezgodność z polityką haseł skonfigurowaną w Moodle.
-        return ['ok' => false, 'msg' => 'Moodle odrzucił hasło: ' . $e->getMessage()];
-    }
-
-    return ['ok' => true, 'msg' => 'Hasło do platformy e-learningowej zostało zmienione.'];
-}
-
-/** Sprawdza hasło wg domyślnej polityki Moodle. Zwraca '' gdy OK, inaczej komunikat. */
-function ti_moodle_password_problem(string $p): string {
-    if (mb_strlen($p) < 8)            return 'Hasło musi mieć co najmniej 8 znaków.';
-    if (!preg_match('/[a-z]/', $p))   return 'Hasło musi zawierać małą literę.';
-    if (!preg_match('/[A-Z]/', $p))   return 'Hasło musi zawierać wielką literę.';
-    if (!preg_match('/[0-9]/', $p))   return 'Hasło musi zawierać cyfrę.';
-    if (!preg_match('/[^a-zA-Z0-9]/', $p)) return 'Hasło musi zawierać znak specjalny (np. ! @ # ?).';
-    return '';
-}
-
-// ── Nadchodzące szkolenia (agregacja trzech źródeł) ────────────────────────────
+// ── Nadchodzące szkolenia (agregacja dwóch źródeł) ─────────────────────────────
 
 /**
  * Scalona, posortowana lista nadchodzących szkoleń online.
- * Każdy element: ['title','platform'=>zoom|teams|other,'join_url','starts_at'].
+ * Każdy element: ['title','platform'=>zoom|other,'join_url','starts_at'].
  */
 function ti_upcoming_meetings(?int $clientId = null): array {
     $items = [];
@@ -356,10 +259,9 @@ function ti_upcoming_meetings(?int $clientId = null): array {
 
     // (b) Stałe linki per kurs/kursant.
     //     Gdy clientId podany: enrollment.zoom_meeting_url > course.default_meeting_url.
-    //     Platforma wykrywana z URL-a (zoom.us → zoom, teams.microsoft → teams, reszta → other).
+    //     Platforma wykrywana z URL-a (zoom.us → zoom, reszta → other).
     $ti_perm_detect_plat = static function(string $url): string {
-        if (str_contains($url, 'zoom.us'))             return 'zoom';
-        if (str_contains($url, 'teams.microsoft'))     return 'teams';
+        if (str_contains($url, 'zoom.us')) return 'zoom';
         return 'other';
     };
     try {
@@ -398,26 +300,7 @@ function ti_upcoming_meetings(?int $clientId = null): array {
         }
     } catch (\Throwable $e) { /* ignoruj */ }
 
-    // (c) Teams — kalendarz tenanta szkoleniowego
-    $calUser = org_setting('m365t_meetings_user');
-    if (ti_ms_enabled() && $calUser !== '') {
-        try {
-            $start = date('Y-m-d\TH:i:s');
-            $end   = date('Y-m-d\TH:i:s', strtotime('+30 days'));
-            foreach (m365_training()->get_online_calendar_events($calUser, $start, $end) as $ev) {
-                $items[] = [
-                    'title'       => $ev['subject'],
-                    'platform'    => 'teams',
-                    'join_url'    => $ev['join_url'],
-                    'starts_at'   => $ev['start'] ? date('Y-m-d H:i:s', strtotime($ev['start'])) : '',
-                    'course_id'   => null,
-                    'course_name' => null,
-                ];
-            }
-        } catch (\Throwable $e) { /* ignoruj */ }
-    }
-
-    // (d) Zoom API — spotkania z datą (typ 1/2); per-kursowe stałe linki (typ 3) już w (b).
+    // (c) Zoom API — spotkania z datą (typ 1/2); per-kursowe stałe linki (typ 3) już w (b).
     //     Pomijamy join_url, które już dodaliśmy z DB, żeby uniknąć duplikatów.
     if (zoom_enabled()) {
         $db_zoom_urls = array_column(

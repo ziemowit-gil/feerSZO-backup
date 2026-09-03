@@ -8,7 +8,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS / Moodle
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS
 require_once __DIR__ . '/auth.php'; // parent_make_token()
 
 k30_require_access();
@@ -250,14 +250,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $res = ti_ms_delete($aid);
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
-        header('Location: accounts.php'); exit;
-    }
-
-    // ── Konto Moodle (login = UPN konta MS) ──────────────────────────────────
-    if ($op === 'moodle_create') {
-        $aid = (int)($_POST['account_id'] ?? 0);
-        $res = ti_moodle_provision($aid);
-        flash_set($res['ok'] ? 'success' : 'danger', $res['ok'] ? ('Konto Moodle gotowe: ' . ($res['login'] ?? '')) : $res['msg']);
         header('Location: accounts.php'); exit;
     }
 
@@ -604,8 +596,7 @@ $bulk_creds = $_SESSION['bulk_student_creds'] ?? null;
 unset($_SESSION['bulk_student_creds']);
 $new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
 unset($_SESSION['new_ms_creds']);
-$ms_online_enabled     = ti_ms_enabled();
-$moodle_online_enabled = ti_moodle_enabled();
+$ms_online_enabled = ti_ms_enabled();
 $parent_link = $_SESSION['parent_link'] ?? null;
 unset($_SESSION['parent_link']);
 $new_parent_creds = $_SESSION['new_parent_creds'] ?? null;
@@ -728,7 +719,7 @@ function printBulk(){
       <tr><th>Login (UPN)</th><td class="font-monospace fw-bold"><?= h($new_ms_creds['upn']) ?></td></tr>
       <tr><th>Hasło tymczasowe</th><td class="font-monospace fw-bold text-danger"><?= h($new_ms_creds['password']) ?></td></tr>
     </table>
-    <div class="small text-muted">Ten sam login służy do logowania w Moodle. Dane wysłano też e-mailem/SMS-em (jeśli skonfigurowane).</div>
+    <div class="small text-muted">Dane wysłano też e-mailem/SMS-em (jeśli skonfigurowane).</div>
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
 </div>
@@ -1155,30 +1146,17 @@ function printBulk(){
                 <?php endif; ?>
               </td>
               <td style="min-width:160px">
-                <?php $has_ms = !empty($a['ms_user_id']); $has_moodle = !empty($a['moodle_user_id']); ?>
-                <?php if (!$ms_online_enabled && !$moodle_online_enabled): ?>
+                <?php $has_ms = !empty($a['ms_user_id']); ?>
+                <?php if (!$ms_online_enabled): ?>
                 <span class="text-muted small">moduł wyłączony</span>
                 <?php else: ?>
                 <div class="d-flex flex-column gap-1">
-                  <?php if ($ms_online_enabled): ?>
                   <?php if ($has_ms): ?>
                   <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-truncate" style="max-width:100%" title="<?= h($a['ms_upn']) ?>">
                     <i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($a['ms_upn']) ?></span>
                   </span>
                   <?php else: ?>
                   <span class="badge bg-secondary-subtle text-secondary-emphasis border">Brak konta MS</span>
-                  <?php endif; ?>
-                  <?php endif; ?>
-                  <?php if ($moodle_online_enabled): ?>
-                  <?php if ($has_moodle): ?>
-                  <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle text-truncate" style="max-width:100%" title="<?= h($a['moodle_username']) ?>">
-                    <i class="bi bi-mortarboard" aria-hidden="true"></i> <span class="font-monospace"><?= h($a['moodle_username']) ?></span>
-                  </span>
-                  <?php elseif ($has_ms): ?>
-                  <span class="badge bg-secondary-subtle text-secondary-emphasis border">Brak konta Moodle</span>
-                  <?php else: ?>
-                  <span class="text-muted small">Moodle wymaga konta MS</span>
-                  <?php endif; ?>
                   <?php endif; ?>
                 </div>
                 <?php endif; ?>
@@ -1249,10 +1227,9 @@ function printBulk(){
                     </li>
                     <?php endif; ?>
 
-                    <?php if ($ms_online_enabled || $moodle_online_enabled): ?>
+                    <?php if ($ms_online_enabled): ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><h6 class="dropdown-header">Nauka online</h6></li>
-                    <?php if ($ms_online_enabled): ?>
                     <li>
                       <form method="post" <?= $has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
                         <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
@@ -1263,17 +1240,6 @@ function printBulk(){
                         </button>
                       </form>
                     </li>
-                    <?php endif; ?>
-                    <?php if ($moodle_online_enabled && !$has_moodle && $has_ms): ?>
-                    <li>
-                      <form method="post">
-                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-                        <input type="hidden" name="_op"        value="moodle_create">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-mortarboard me-2 text-success" aria-hidden="true"></i>Utwórz konto Moodle</button>
-                      </form>
-                    </li>
-                    <?php endif; ?>
                     <?php endif; ?>
 
                     <li><hr class="dropdown-divider"></li>

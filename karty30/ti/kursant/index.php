@@ -11,8 +11,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // ti_moodle_enabled()
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
@@ -889,17 +888,7 @@ if ($tab === 'zadania' && $ti_ctx_course_id) {
     });
 }
 
-try { $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_courses_student = []; }
-
-// Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
-// listę czytamy z cache (tanio) na potrzeby licznika na innych zakładkach.
-if ($tab === 'zadania') {
-    ti_moodle_sync_client_assignments($student['client_id']);
-}
-try { $moodle_assignments = ti_moodle_assignments_for_client($student['client_id']); } catch (\Throwable $e) { $moodle_assignments = []; }
-$moodle_hw_pending  = array_values(array_filter($moodle_assignments,
-    fn($a) => ($a['sub_status'] ?? '') !== 'submitted' && empty($a['sub_graded'])));
-$hw_pending_total   = count($hw_pending) + count($moodle_hw_pending);
+$hw_pending_total = count($hw_pending);
 
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 // Do diagnozy pustej listy lekcji: czy kursant ma aktywny zapis na jakikolwiek kurs?
@@ -1367,9 +1356,7 @@ if ($ti_vac): ?>
 <?php endif; ?>
 
 <?php if ($hw_pending_total > 0):
-  // Etykieta pierwszego oczekującego zadania (lokalne mają pierwszeństwo, potem Moodle)
-  if (!empty($hw_pending))           { $hw_first_t = $hw_pending[0]['title']; $hw_first_c = $hw_pending[0]['course_name']; }
-  else                               { $hw_first_t = $moodle_hw_pending[0]['name']; $hw_first_c = $moodle_hw_pending[0]['ti_course_name']; }
+  $hw_first_t = $hw_pending[0]['title']; $hw_first_c = $hw_pending[0]['course_name'];
 ?>
 <!-- ── Zadania do oddania — zwięzły banner widoczny po zalogowaniu ───────────── -->
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
@@ -3195,62 +3182,6 @@ document.addEventListener('DOMContentLoaded', function() {
       <i class="bi bi-eye-slash me-1" aria-hidden="true"></i><?= $_hidden_mat_cnt === 1 ? '1 materiał' : $_hidden_mat_cnt . ' materiałów' ?> z lekcji sprzed ponad 14 dni jest ukrytych.
     </p>
     <?php endif; ?>
-  <?php endif; ?>
-
-  <!-- Zadania z Moodle wyłączone — zastąpione przez Dydaktykę panelu -->
-  <?php if (false && $moodle_assignments): $now_m = date('Y-m-d H:i:s'); ?>
-  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mt-4 mb-1">
-    <i class="bi bi-mortarboard text-primary" aria-hidden="true"></i>Zadania z Moodle
-    <?php if (!empty($moodle_hw_pending)): ?><span class="badge text-bg-warning"><?= count($moodle_hw_pending) ?> do zrobienia</span><?php endif; ?>
-  </h2>
-  <p class="text-body-secondary small mb-3">Zadania z kursów Moodle Twoich grup. Oddajesz je bezpośrednio w Moodle — tutaj pilnujesz terminów i statusu.</p>
-  <div class="d-flex flex-column gap-3">
-    <?php foreach ($moodle_assignments as $a):
-      $submitted = ($a['sub_status'] ?? '') === 'submitted';
-      $graded    = !empty($a['sub_graded']);
-      $due       = $a['due_at'] ?? '';
-      $overdue   = $due && $due < $now_m && !$submitted && !$graded;
-      // „Dodano": data otwarcia z Moodle, a w razie braku — pierwsze pojawienie się w systemie
-      $added     = !empty($a['open_at']) ? $a['open_at'] : ($a['first_seen_at'] ?? '');
-      $link      = ti_moodle_assign_url((string)$a['base_url'], (int)$a['cmid']);
-    ?>
-    <div class="card <?= $graded ? 'border-success' : ($overdue ? 'border-danger' : '') ?>">
-      <div class="card-body">
-        <div class="d-flex flex-wrap align-items-start gap-2 mb-1">
-          <div class="flex-grow-1 min-width-0">
-            <div class="fw-bold"><?= h($a['name']) ?></div>
-            <div class="small text-body-secondary d-flex flex-wrap gap-2 mt-1">
-              <span><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($a['ti_course_name']) ?></span>
-              <?php if ($added): ?>
-              <span><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>dodano: <?= h(substr($added,0,10)) ?></span>
-              <?php endif; ?>
-              <?php if ($due): ?>
-              <span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>"><i class="bi bi-alarm me-1" aria-hidden="true"></i>termin: <?= h(substr($due,0,16)) ?></span>
-              <?php else: ?>
-              <span><i class="bi bi-alarm me-1" aria-hidden="true"></i>termin: brak</span>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php if ($graded): ?>
-          <span class="badge text-bg-success">Ocena<?= $a['sub_grade'] !== '' ? ': '.h($a['sub_grade']) : '' ?></span>
-          <?php elseif ($submitted): ?>
-          <span class="badge text-bg-secondary">Oddane<?= !empty($a['sub_submitted_at']) ? ' '.h(substr($a['sub_submitted_at'],0,10)) : '' ?></span>
-          <?php elseif ($overdue): ?>
-          <span class="badge text-bg-danger">Po terminie</span>
-          <?php else: ?>
-          <span class="badge text-bg-warning">Do zrobienia</span>
-          <?php endif; ?>
-        </div>
-        <?php if (!empty($a['intro'])): ?>
-        <p class="small mb-2" style="white-space:pre-wrap"><?= h(mb_substr($a['intro'],0,300)) ?></p>
-        <?php endif; ?>
-        <a href="<?= h($link) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz w Moodle
-        </a>
-      </div>
-    </div>
-    <?php endforeach; ?>
-  </div>
   <?php endif; ?>
 
 <?php elseif ($tab === 'oceny' && ($_dz_off = ti_blackout_active('dziennik'))): ?>
@@ -5309,7 +5240,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
     <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
     <div>
-      <strong>Kont Microsoft 365 i platformy Moodle nie obsługujemy już w panelu.</strong>
+      <strong>Kont Microsoft 365 nie obsługujemy już samodzielnie w panelu.</strong>
       Zajęcia odbywają się przez <strong>Zoom</strong>, a materiały i zadania znajdziesz
       w zakładce <a href="?tab=zadania" class="alert-link">Dydaktyka / eLearning</a>.
       Jeśli potrzebujesz konta szkoleniowego albo masz kłopot z logowaniem, napisz przez
@@ -5318,31 +5249,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
-  <?php if (false && $moodle_courses_student): ?>
-  <section class="card mb-4" aria-labelledby="mdl-heading">
-    <div class="card-body">
-      <h2 id="mdl-heading" class="h6 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy Moodle</h2>
-      <p class="text-body-secondary small mb-3">Kursy e-learningowe przypięte do Twoich grup. Kliknij, aby otworzyć kurs na platformie Moodle.</p>
-      <div class="row g-2">
-        <?php foreach ($moodle_courses_student as $mc): ?>
-        <div class="col-md-6">
-          <a href="<?= h(ti_moodle_course_url($mc['base_url'], (int)$mc['moodle_course_id'])) ?>" target="_blank" rel="noopener"
-             class="d-flex align-items-center gap-2 text-decoration-none border rounded p-2 h-100">
-            <i class="bi bi-mortarboard-fill text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
-            <span class="flex-grow-1 min-width-0">
-              <span class="fw-semibold d-block text-truncate"><?= $mc['fullname'] ? h($mc['fullname']) : ('Kurs #'.(int)$mc['moodle_course_id']) ?></span>
-              <span class="small text-body-secondary"><?= h($mc['ti_course_name']) ?> · <?= h($mc['server_name']) ?></span>
-            </span>
-            <i class="bi bi-box-arrow-up-right text-body-secondary flex-shrink-0" aria-hidden="true"></i>
-          </a>
-        </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-  </section>
-  <?php endif; ?>
-
-  <?php /* data-self decyduje, czy front rysuje karty kont MS/Moodle. Bramka jest
+  <?php /* data-self decyduje, czy front rysuje kartę konta MS. Bramka jest
            też po stronie ti_online_api.php — tutaj chodzi tylko o to, żeby nie
            pokazywać przycisków, których i tak nie da się użyć. */ ?>
   <div id="online-root" data-token="<?= h($vlab_token) ?>" data-self="<?= ti_student_selfservice_enabled() ? '1' : '0' ?>">
@@ -5351,9 +5258,9 @@ document.addEventListener('DOMContentLoaded', function() {
     </h1>
     <p class="text-body-secondary small mb-3">
       <?php if (ti_student_selfservice_enabled()): ?>
-      Twoje konto szkoleniowe Microsoft&nbsp;365, dostęp do platformy e-learningowej oraz linki do nadchodzących szkoleń (Zoom / MS&nbsp;Teams).
+      Twoje konto szkoleniowe Microsoft&nbsp;365 oraz linki do nadchodzących szkoleń (Zoom).
       <?php else: ?>
-      Linki do nadchodzących szkoleń Twoich grup (Zoom / MS&nbsp;Teams).
+      Linki do nadchodzących szkoleń Twoich grup (Zoom).
       <?php endif; ?>
     </p>
     <div id="online-content" aria-live="polite">
@@ -5366,7 +5273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const root = document.getElementById('online-root');
     const box  = document.getElementById('online-content');
     const token = root.dataset.token;
-    const SELF  = root.dataset.self === '1';   // samoobsługa kont MS/Moodle
+    const SELF  = root.dataset.self === '1';   // samoobsługa konta MS
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
     async function api(action, params){
@@ -5381,7 +5288,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (isNaN(d)) return esc(s);
       return d.toLocaleString('pl-PL', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
     }
-    const platMap = {zoom:['primary','camera-video','Zoom'], teams:['info','microsoft-teams','MS Teams'], other:['secondary','link-45deg','Link']};
+    const platMap = {zoom:['primary','camera-video','Zoom'], other:['secondary','link-45deg','Link']};
 
     let lastCreds = null; // jednorazowe dane konta MS po utworzeniu
 
@@ -5390,7 +5297,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!d.ms_enabled){
         inner = '<p class="text-body-secondary small mb-0">Moduł kont Microsoft nie został skonfigurowany przez administratora.</p>';
       } else if (d.ms_active){
-        inner = '<p class="small mb-2">Twój login (działa też w Moodle):<br><span class="font-monospace fw-semibold">'+esc(d.ms_upn)+'</span></p>';
+        inner = '<p class="small mb-2">Twój login:<br><span class="font-monospace fw-semibold">'+esc(d.ms_upn)+'</span></p>';
         if (lastCreds && lastCreds.upn === d.ms_upn){
           inner += '<div class="alert alert-warning small py-2"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>'
             + 'Hasło tymczasowe (zapisz teraz, zmienisz przy pierwszym logowaniu): <span class="font-monospace fw-bold">'+esc(lastCreds.password)+'</span></div>';
@@ -5403,38 +5310,11 @@ document.addEventListener('DOMContentLoaded', function() {
           + 'już istnieje (utworzone poza systemem). Zaloguj się nim — <strong>nie tworzymy nowego</strong>, aby go nie nadpisać. '
           + 'Jeśli to nie Twoje konto, skontaktuj się z administratorem.</div>';
       } else {
-        inner = '<p class="text-body-secondary small mb-2">Nie masz jeszcze konta szkoleniowego. Utwórz je, aby korzystać z usług Microsoft i platformy e-learningowej.</p>'
+        inner = '<p class="text-body-secondary small mb-2">Nie masz jeszcze konta szkoleniowego. Utwórz je, aby korzystać z usług Microsoft.</p>'
           + '<button type="button" class="btn btn-primary btn-sm" data-act="ms_create"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konto</button>';
       }
       return '<div class="col-12 col-lg-6"><div class="card h-100"><div class="card-body">'
         + '<h2 class="h6 fw-bold d-flex align-items-center mb-2"><i class="bi bi-microsoft me-2 text-primary" aria-hidden="true"></i>Konto Microsoft 365</h2>'
-        + inner + '</div></div></div>';
-    }
-
-    function cardMoodle(d){
-      let inner;
-      if (!d.moodle_enabled){
-        inner = '<p class="text-body-secondary small mb-0">Integracja z platformą e-learningową nie została skonfigurowana.</p>';
-      } else if (d.moodle_active){
-        inner = '<p class="small mb-2">Login: <span class="font-monospace fw-semibold">'+esc(d.moodle_login)+'</span><br>'
-          + '<span class="text-body-secondary">Hasło: domyślnie takie samo jak do konta Microsoft — możesz ustawić własne poniżej.</span></p>'
-          + (d.moodle_url ? '<a class="btn btn-success btn-sm mb-2" href="'+esc(d.moodle_url)+'" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz platformę</a>' : '')
-          + '<details class="mt-1">'
-          + '<summary class="small text-primary" style="cursor:pointer"><i class="bi bi-key me-1" aria-hidden="true"></i>Ustaw własne hasło do platformy</summary>'
-          + '<div class="mt-2" style="max-width:340px">'
-          + '<label class="form-label small mb-1" for="moodle-pwd">Nowe hasło</label>'
-          + '<input type="password" class="form-control form-control-sm mb-2" id="moodle-pwd" autocomplete="new-password" minlength="8" placeholder="min. 8 znaków, A-z, cyfra, znak specjalny">'
-          + '<button type="button" class="btn btn-primary btn-sm" data-act="moodle_password"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz hasło</button>'
-          + '<p class="form-text small mb-0">Hasło musi mieć min. 8 znaków oraz zawierać małą i wielką literę, cyfrę i znak specjalny.</p>'
-          + '</div></details>';
-      } else if (!d.ms_active){
-        inner = '<p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Najpierw utwórz konto Microsoft — jego login posłuży jako login do platformy.</p>';
-      } else {
-        inner = '<p class="text-body-secondary small mb-2">Utwórz konto na platformie e-learningowej (login = Twój adres Microsoft).</p>'
-          + '<button type="button" class="btn btn-primary btn-sm" data-act="moodle_create"><i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Utwórz konto Moodle</button>';
-      }
-      return '<div class="col-12 col-lg-6"><div class="card h-100"><div class="card-body">'
-        + '<h2 class="h6 fw-bold d-flex align-items-center mb-2"><i class="bi bi-mortarboard me-2 text-primary" aria-hidden="true"></i>Platforma e-learning</h2>'
         + inner + '</div></div></div>';
     }
 
@@ -5481,7 +5361,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function render(d){
-      const accounts = SELF ? (cardMS(d) + cardMoodle(d)) : '';
+      const accounts = SELF ? cardMS(d) : '';
       box.innerHTML = '<div class="row g-3">' + accounts + cardMeetings(d) + '</div>';
     }
 
@@ -5492,19 +5372,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'ms_delete' && !confirm('Usunąć konto Microsoft? Stracisz dostęp do powiązanych usług.')) return;
-      let params = {};
-      if (act === 'moodle_password'){
-        const inp = box.querySelector('#moodle-pwd');
-        const pwd = inp ? inp.value : '';
-        if (!pwd){ if (inp) inp.focus(); return; }
-        params = {password: pwd};
-      }
       btn.disabled = true;
       const orig = btn.innerHTML;
       btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Pracuję…';
-      const r = await api(act, params);
+      const r = await api(act, {});
       if (act === 'ms_create' && r.ok && r.password) lastCreds = {upn: r.upn, password: r.password};
-      if (act === 'moodle_password' && r.ok) alert(r.msg || 'Hasło zmienione.');
       if (!r.ok) alert(r.msg || 'Błąd.');
       if (r.data) render(r.data); else { btn.disabled = false; btn.innerHTML = orig; reload(); }
     });
@@ -5520,7 +5392,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-lg-8">
     <h1 class="h5 fw-bold mb-1"><i class="bi bi-wrench-adjustable text-primary me-2" aria-hidden="true"></i>Zgłoś problem techniczny</h1>
     <p class="text-body-secondary small mb-3">
-      Masz kłopot z logowaniem, kontem Microsoft 365, Moodle, VLab lub innym narzędziem?
+      Masz kłopot z logowaniem, kontem Microsoft 365, VLab lub innym narzędziem?
       Opisz problem — zespół wsparcia IT zajmie się Twoim zgłoszeniem.
     </p>
 
@@ -5548,7 +5420,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="mb-3">
             <label class="form-label fw-semibold" for="hd-cat">Czego dotyczy</label>
             <select class="form-select" id="hd-cat" name="category">
-              <?php foreach (['it_konto'=>'Konto / logowanie','it_m365'=>'Microsoft 365','it_oprogramowanie'=>'Oprogramowanie / Moodle','it_siec'=>'Sieć / Internet','it_inne'=>'Inne'] as $ck => $cl): ?>
+              <?php foreach (['it_konto'=>'Konto / logowanie','it_m365'=>'Microsoft 365','it_oprogramowanie'=>'Oprogramowanie','it_siec'=>'Sieć / Internet','it_inne'=>'Inne'] as $ck => $cl): ?>
               <option value="<?= h($ck) ?>" <?= ($_POST['category'] ?? '') === $ck ? 'selected' : '' ?>><?= h($cl) ?></option>
               <?php endforeach; ?>
             </select>

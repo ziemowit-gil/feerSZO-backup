@@ -998,13 +998,10 @@ HTML;
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_password_hash TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_must_change   INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_last_login    DATETIME",
-        // ── Nauka online: konto MS (tenant szkoleniowy) + konto Moodle ────────
+        // ── Nauka online: konto MS (tenant szkoleniowy) ───────────────────────
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_user_id        TEXT NOT NULL DEFAULT ''", // objectId w tenancie szkoleniowym
-        "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_upn            TEXT NOT NULL DEFAULT ''", // login MS = login Moodle
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_upn            TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_created_at     DATETIME",
-        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_user_id    INTEGER",
-        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_username   TEXT NOT NULL DEFAULT ''",
-        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_created_at DATETIME",
         // Alias logowania — własny login ustawiony przez kursanta (opcjonalny, unikalny)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN login_alias TEXT NOT NULL DEFAULT ''",
         // Adres IP ostatniego logowania/wejścia do panelu (logowanie hasłem lub ciche wznowienie „zapamiętaj mnie")
@@ -1119,11 +1116,11 @@ HTML;
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
-    // ── Szkolenia online (linki ręczne; Teams/Zoom dociągane na żywo z API) ───
+    // ── Szkolenia online (linki ręczne; Zoom dociągany na żywo z API) ─────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_meetings (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         title       TEXT    NOT NULL DEFAULT '',
-        platform    TEXT    NOT NULL DEFAULT 'other',  -- 'zoom' | 'teams' | 'other'
+        platform    TEXT    NOT NULL DEFAULT 'other',  -- 'zoom' | 'other' (dawne 'teams' wycofane)
         join_url    TEXT    NOT NULL DEFAULT '',
         course_id   INTEGER REFERENCES k30_ti_courses(id) ON DELETE SET NULL,
         starts_at   DATETIME,

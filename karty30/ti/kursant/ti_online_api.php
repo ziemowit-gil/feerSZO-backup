@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/kursant/ti_online_api.php — endpoint AJAX „nauki online" dla kursanta.
- * Akcje: list | ms_create | ms_delete | moodle_create.
+ * Akcje: list | ms_create | ms_delete.
  * Operacje modyfikujące wymagają tokenu CSRF kursanta i metody POST,
  * i działają WYŁĄCZNIE na koncie zalogowanego kursanta — o ile
  * ti_student_selfservice_enabled() na to pozwala (dziś nie pozwala;
@@ -36,13 +36,13 @@ function ti_online_payload(int $sid): array {
     return $state + ['meetings' => ti_upcoming_meetings($clientId)];
 }
 
-$modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create', 'moodle_password'], true);
+$modifying = in_array($action, ['ms_create', 'ms_delete'], true);
 if ($modifying) {
-    // Zakładanie i kasowanie kont MS/Moodle z panelu kursanta jest wyłączone —
+    // Zakładanie i kasowanie kont MS z panelu kursanta jest wyłączone —
     // bramka stoi tu, nie tylko w interfejsie, więc żądanie wprost też odpada.
     if (!ti_student_selfservice_enabled()) {
         http_response_code(403);
-        echo json_encode(['ok' => false, 'msg' => 'Kontami Microsoft 365 i Moodle zajmuje się administracja — napisz przez „Zgłoś problem".']);
+        echo json_encode(['ok' => false, 'msg' => 'Kontami Microsoft 365 zajmuje się administracja — napisz przez „Zgłoś problem".']);
         exit;
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
@@ -64,18 +64,6 @@ try {
 
         case 'ms_delete': {
             $res = ti_ms_delete($sid);
-            echo json_encode($res + ['data' => ti_online_payload($sid)]);
-            break;
-        }
-
-        case 'moodle_create': {
-            $res = ti_moodle_provision($sid);
-            echo json_encode($res + ['data' => ti_online_payload($sid)]);
-            break;
-        }
-
-        case 'moodle_password': {
-            $res = ti_moodle_set_password($sid, (string)($_POST['password'] ?? ''));
             echo json_encode($res + ['data' => ti_online_payload($sid)]);
             break;
         }
