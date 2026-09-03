@@ -1,10 +1,19 @@
 <?php
 /**
  * tasks/includes/header_tasks.php
- * Layout modułu Zadania — styl panelu wolontariusza (biały navbar + offcanvas).
+ * Layout modułu Zadania — Tailwind (prefiks tw-, preflight wyłączony obok
+ * Bootstrapa, który zostaje silnikiem interaktywnych komponentów: dropdowny,
+ * offcanvas, modale — zgodnie z konwencją migracji, patrz includes/header.php).
  *
  * Wymaga zdefiniowania $PAGE_TITLE przed include.
  * Opcjonalnie: $PAGE_SUBTITLE, $TASKS_WS_ID (int), $TASKS_BREADCRUMB (string)
+ *
+ * Podział na pliki (przebudowa 2026-09-03, poprzednio jeden plik 1133 linii):
+ *   - tasks/includes/tasks_topbar.php  — górny pasek (marka, przełącznik obszaru,
+ *     powiadomienia, menu użytkownika)
+ *   - tasks/includes/tasks_sidebar.php — offcanvas nawigacji
+ *   - tasks/includes/tasks_notif_modal.php — modal "Ustawienia powiadomień"
+ *   - assets/js/tasks-header.js — cała logika JS (dawniej kilka inline <script>)
  */
 
 if (!defined('APP_INSTALLED')) require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -12,6 +21,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
+require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 
 require_login();
 require_module_enabled('tasks_enabled', 'Moduł zadań');
@@ -161,10 +171,24 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
-<style>
+<!-- Tailwind — warstwa wizualna modułu Zadania (klasy z prefiksem "tw-",
+     preflight wyłączony, żeby nie kolidować z Bootstrapem, który zostaje
+     silnikiem interaktywnych komponentów: dropdowny/offcanvas/modale). -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    prefix: 'tw-',
+    corePlugins: { preflight: false },
+  };
+</script>
+<style type="text/tailwindcss">
 /* ══════════════════════════════════════════════════════════════
    Moduł Zadania — layout w stylu panelu wolontariusza
    Paleta: emerald/teal  ·  WCAG AA
+   Zmienne --tsk-* są WSPÓLNYM kontraktem z pozostałymi, jeszcze
+   nieprzebudowanymi stronami modułu (dashboard.php, charts.php,
+   files.php, moje.php, notifications.php, problems.php, inbox.php)
+   — NIE zmieniać nazw/wartości bez przeglądu tych plików.
    ══════════════════════════════════════════════════════════════ */
 :root {
   --tsk-green:       #059669;
@@ -182,20 +206,19 @@ try {
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body {
-  margin: 0; background: var(--tsk-bg);
+  @apply tw-m-0 tw-min-h-screen tw-flex tw-flex-col tw-text-[.9375rem] tw-leading-[1.6];
+  background: var(--tsk-bg);
   color: var(--tsk-text);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: .9375rem; line-height: 1.6;
-  min-height: 100vh; display: flex; flex-direction: column;
 }
 
 /* Skip link */
 .skip-link {
-  position: absolute; top: -100%; left: 1rem; z-index: 9999;
-  background: var(--tsk-green); color: #fff;
-  padding: .65rem 1.4rem; border-radius: 0 0 8px 8px;
-  font-size: .95rem; font-weight: 700; text-decoration: none;
-  border: 3px solid var(--tsk-focus);
+  @apply tw-absolute tw-left-4 tw-z-[9999] tw-text-white tw-py-[.65rem] tw-px-[1.4rem]
+         tw-rounded-b-lg tw-text-[.95rem] tw-font-bold tw-no-underline tw-border-[3px] tw-border-solid;
+  top: -100%;
+  background: var(--tsk-green);
+  border-color: var(--tsk-focus);
 }
 .skip-link:focus { top: 0; outline: 3px solid var(--tsk-focus); }
 
@@ -208,42 +231,34 @@ body {
 
 /* ── Biały navbar (wzorzec .pv-navbar) ──────────────────────── */
 .tsk-navbar {
-  background: #fff;
-  border-bottom: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-  position: sticky; top: 0; z-index: 1040;
+  @apply tw-bg-white tw-border-b tw-border-[#E5E7EB] tw-shadow-[0_1px_3px_rgba(0,0,0,.04)] tw-sticky tw-top-0 tw-z-[1040];
 }
 .tsk-menu-btn {
-  border: 1px solid #E5E7EB; background: #fff;
-  border-radius: 9px; width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.25rem; color: #374151; cursor: pointer; flex-shrink: 0;
-  transition: border-color .12s, color .12s;
+  @apply tw-border tw-border-[#E5E7EB] tw-bg-white tw-rounded-[9px] tw-w-10 tw-h-10
+         tw-flex tw-items-center tw-justify-center tw-text-xl tw-text-[#374151] tw-cursor-pointer tw-shrink-0
+         tw-transition-colors;
 }
 .tsk-menu-btn:hover { border-color: var(--tsk-green); color: var(--tsk-green); }
 
 .tsk-brand {
-  display: flex; align-items: center; gap: .6rem;
-  text-decoration: none; color: #111827; font-weight: 800;
-  font-size: .98rem; min-width: 0;
+  @apply tw-flex tw-items-center tw-gap-[.6rem] tw-no-underline tw-text-[#111827] tw-font-extrabold tw-text-[.98rem] tw-min-w-0;
 }
 .tsk-brand:hover { color: #111827; }
 .tsk-brand-icon {
-  width: 34px; height: 34px; background: var(--tsk-green);
-  color: #fff; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1rem; flex-shrink: 0;
+  @apply tw-w-[34px] tw-h-[34px] tw-text-white tw-rounded-[9px]
+         tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0;
+  background: var(--tsk-green);
 }
 .tsk-brand-sub {
-  font-size: .66rem; opacity: .6; font-weight: 500; line-height: 1;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+  @apply tw-text-[.66rem] tw-opacity-60 tw-font-medium tw-leading-none
+         tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis tw-max-w-[180px];
 }
 
 .tsk-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--tsk-green); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .78rem; font-weight: 700; cursor: pointer; border: none; line-height: 1;
+  @apply tw-w-9 tw-h-9 tw-rounded-full tw-text-white
+         tw-flex tw-items-center tw-justify-center tw-text-[.78rem] tw-font-bold
+         tw-cursor-pointer tw-border-0 tw-leading-none;
+  background: var(--tsk-green);
 }
 
 /* ── Offcanvas nawigacja ─────────────────────────────────────── */
@@ -252,84 +267,70 @@ body {
   background: var(--tsk-green-dark); color: #fff;
 }
 .tsk-offcanvas .offcanvas-body {
-  display: flex; flex-direction: column; padding: .35rem 0;
+  @apply tw-flex tw-flex-col;
+  padding: .35rem 0;
 }
 .tsk-nav-label {
-  font-size: .65rem; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: #9CA3AF;
-  padding: .85rem 1rem .3rem; user-select: none; display: block;
+  @apply tw-text-[.65rem] tw-font-bold tw-tracking-[.08em] tw-uppercase tw-text-[#9CA3AF]
+         tw-px-4 tw-pt-[.85rem] tw-pb-[.3rem] tw-select-none tw-block;
 }
 .tsk-nav-link {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .5rem .75rem; border-radius: 8px;
-  font-size: .88rem; font-weight: 500; color: #374151;
-  text-decoration: none;
-  transition: background .1s, color .1s, border-color .1s;
-  margin: .05rem .5rem; border-left: 3px solid transparent;
+  @apply tw-flex tw-items-center tw-gap-[.6rem] tw-py-2 tw-px-3 tw-rounded-lg
+         tw-text-[.88rem] tw-font-medium tw-text-[#374151] tw-no-underline
+         tw-transition-colors tw-mx-2 tw-my-[.05rem] tw-border-l-[3px] tw-border-transparent;
 }
 .tsk-nav-link i {
-  font-size: 1rem; width: 20px; text-align: center;
-  flex-shrink: 0; color: #9CA3AF; transition: color .1s;
+  @apply tw-text-base tw-w-5 tw-text-center tw-shrink-0 tw-text-[#9CA3AF] tw-transition-colors;
 }
 .tsk-nav-link:hover { background: var(--tsk-green-bg); color: var(--tsk-green); border-left-color: var(--tsk-green); }
 .tsk-nav-link:hover i { color: var(--tsk-green); }
 .tsk-nav-link.active {
-  background: var(--tsk-green-bg); color: var(--tsk-green);
-  font-weight: 700; border-left-color: var(--tsk-green);
+  @apply tw-font-bold;
+  background: var(--tsk-green-bg); color: var(--tsk-green); border-left-color: var(--tsk-green);
 }
 .tsk-nav-link.active i { color: var(--tsk-green); }
 .tsk-nav-link.tsk-danger { color: #dc2626; }
 .tsk-nav-link.tsk-danger i { color: #dc2626; }
 .tsk-nav-link.tsk-danger:hover { background: #fef2f2; color: #b91c1c; border-left-color: #dc2626; }
 .tsk-nav-badge {
-  margin-left: auto;
-  background: var(--tsk-green); color: #fff;
-  font-size: .65rem; font-weight: 700;
-  padding: .1rem .4rem; border-radius: 10px; min-width: 18px; text-align: center;
+  @apply tw-ml-auto tw-text-white tw-text-[.65rem] tw-font-bold tw-py-[.1rem] tw-px-[.4rem]
+         tw-rounded-[10px] tw-min-w-[18px] tw-text-center;
+  background: var(--tsk-green);
 }
-.tsk-nav-sep { height: 1px; background: #F3F4F6; margin: .4rem .75rem; }
-.tsk-sidebar-bottom { margin-top: auto; border-top: 1px solid #F3F4F6; padding: .5rem; }
+.tsk-nav-sep { @apply tw-h-px tw-bg-[#F3F4F6] tw-mx-3 tw-my-[.4rem]; }
+.tsk-sidebar-bottom { @apply tw-mt-auto tw-border-t tw-border-[#F3F4F6] tw-p-2; }
 
 /* ── Przełącznik obszaru ─────────────────────────────────────── */
 .tsk-ws-switch-btn {
-  display: inline-flex; align-items: center; gap: .4rem;
-  background: #F4F6F9; border: 1px solid #E5E7EB;
-  border-radius: 8px; color: #374151;
-  padding: .3rem .7rem; font-size: .83rem; font-weight: 500;
-  cursor: pointer; white-space: nowrap; flex-shrink: 0;
-  transition: background .12s, border-color .12s;
+  @apply tw-inline-flex tw-items-center tw-gap-[.4rem] tw-bg-[#F4F6F9] tw-border tw-border-[#E5E7EB]
+         tw-rounded-lg tw-text-[#374151] tw-py-[.3rem] tw-px-[.7rem] tw-text-[.83rem] tw-font-medium
+         tw-cursor-pointer tw-whitespace-nowrap tw-shrink-0 tw-transition-colors;
 }
 .tsk-ws-switch-btn:hover { background: var(--tsk-green-bg); border-color: var(--tsk-green); color: var(--tsk-green); }
-.tsk-ws-switch-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.tsk-ws-switch-dot { @apply tw-w-[9px] tw-h-[9px] tw-rounded-full tw-shrink-0; }
 .tsk-ws-switch-menu {
-  width: 290px; max-height: 420px;
-  flex-direction: column; padding: 0; overflow: hidden;
+  @apply tw-w-[290px] tw-max-h-[420px] tw-flex-col tw-p-0 tw-overflow-hidden;
 }
 .tsk-ws-switch-menu.show { display: flex; }
-.tsk-ws-switch-search-wrap { padding: .5rem; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-.tsk-ws-switch-list { overflow-y: auto; }
+.tsk-ws-switch-search-wrap { @apply tw-p-2 tw-border-b tw-border-[#e2e8f0] tw-shrink-0; }
+.tsk-ws-switch-list { @apply tw-overflow-y-auto; }
 .tsk-ws-switch-item {
-  display: flex; align-items: center; gap: .55rem;
-  padding: .5rem .9rem; color: #334155; text-decoration: none;
-  font-size: .84rem; white-space: nowrap;
+  @apply tw-flex tw-items-center tw-gap-[.55rem] tw-py-2 tw-px-[.9rem] tw-text-[#334155] tw-no-underline
+         tw-text-[.84rem] tw-whitespace-nowrap;
 }
 .tsk-ws-switch-item:hover { background: #f8fafc; color: #0f172a; }
 .tsk-ws-switch-item.active { background: var(--tsk-green-bg); color: var(--tsk-green); font-weight: 600; }
-.tsk-ws-switch-item i { flex-shrink: 0; }
-.tsk-ws-switch-sep { height: 1px; background: #f1f5f9; margin: .3rem 0; }
-.tsk-ws-switch-empty { text-align: center; color: #94a3b8; font-size: .8rem; padding: 1rem; }
-.tsk-ws-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.tsk-ws-cnt { margin-left: auto; font-size: .68rem; color: #94a3b8; }
+.tsk-ws-switch-item i { @apply tw-shrink-0; }
+.tsk-ws-switch-sep { @apply tw-h-px tw-bg-[#f1f5f9] tw-my-[.3rem]; }
+.tsk-ws-switch-empty { @apply tw-text-center tw-text-[#94a3b8] tw-text-[.8rem] tw-p-4; }
+.tsk-ws-dot { @apply tw-w-2 tw-h-2 tw-rounded-full tw-shrink-0; }
+.tsk-ws-cnt { @apply tw-ml-auto tw-text-[.68rem] tw-text-[#94a3b8]; }
 
 /* ── Powiadomienia ───────────────────────────────────────────── */
 .tsk-notif-btn {
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #F4F6F9; border: 1px solid #E5E7EB;
-  border-radius: 8px; color: #374151;
-  width: 38px; height: 38px; flex-shrink: 0;
-  font-size: .95rem; cursor: pointer;
-  transition: background .12s, border-color .12s;
+  @apply tw-relative tw-inline-flex tw-items-center tw-justify-center
+         tw-bg-[#F4F6F9] tw-border tw-border-[#E5E7EB] tw-rounded-lg tw-text-[#374151]
+         tw-w-[38px] tw-h-[38px] tw-shrink-0 tw-text-[.95rem] tw-cursor-pointer tw-transition-colors;
 }
 .tsk-notif-btn:hover { background: var(--tsk-green-bg); border-color: var(--tsk-green); color: var(--tsk-green); }
 .tsk-notif-btn.tsk-notif-shake { animation: tskNotifShake .5s ease; }
@@ -341,12 +342,9 @@ body {
   80%      { transform: rotate(6deg); }
 }
 .tsk-notif-badge {
-  position: absolute; top: -4px; right: -4px;
-  background: #dc2626; color: #fff;
-  border-radius: 999px; font-size: .6rem; font-weight: 700;
-  min-width: 16px; height: 16px; padding: 0 3px;
-  display: flex; align-items: center; justify-content: center;
-  line-height: 1; border: 2px solid #fff;
+  @apply tw-absolute tw-top-[-4px] tw-right-[-4px] tw-bg-red-600 tw-text-white
+         tw-rounded-full tw-text-[.6rem] tw-font-bold tw-min-w-[16px] tw-h-4 tw-px-[3px]
+         tw-flex tw-items-center tw-justify-center tw-leading-none tw-border-2 tw-border-white;
 }
 .tsk-notif-item.fw-semibold { background: #f5f9ff; }
 
@@ -356,235 +354,50 @@ body {
 
 /* ── Stopka ──────────────────────────────────────────────────── */
 .tsk-footer {
-  border-top: 1px solid #E5E7EB; padding: .6rem 1.5rem;
-  font-size: .75rem; color: #9CA3AF; background: #fff;
-  display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+  @apply tw-border-t tw-border-[#E5E7EB] tw-py-[.6rem] tw-px-6 tw-text-xs tw-text-[#9CA3AF] tw-bg-white
+         tw-flex tw-justify-between tw-flex-wrap tw-gap-2;
 }
 
 /* ── Baner konfiguracji powiadomień e-mail (nowi użytkownicy) ─── */
 #tsk-setup-banner {
-  background: #fffbeb; border: 1px solid #fcd34d;
-  border-radius: 10px; padding: .75rem 1rem;
-  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-  margin-bottom: 1rem; animation: tskBannerIn .25s ease;
+  @apply tw-bg-amber-50 tw-border tw-border-amber-300 tw-rounded-[10px] tw-py-3 tw-px-4
+         tw-flex tw-items-center tw-gap-3 tw-flex-wrap tw-mb-4;
+  animation: tskBannerIn .25s ease;
 }
 #tsk-setup-banner .tsk-sb-icon {
-  width:36px; height:36px; border-radius:9px;
-  background:#f59e0b; color:#fff;
-  display:flex; align-items:center; justify-content:center;
-  font-size:1rem; flex-shrink:0;
+  @apply tw-w-9 tw-h-9 tw-rounded-[9px] tw-bg-amber-500 tw-text-white
+         tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0;
 }
-#tsk-setup-banner .tsk-sb-body { flex:1; min-width:180px; }
-#tsk-setup-banner .tsk-sb-title { font-weight:700; font-size:.88rem; color:#78350f; }
-#tsk-setup-banner .tsk-sb-sub   { font-size:.77rem; color:#92400e; margin-top:.1rem; }
+#tsk-setup-banner .tsk-sb-body { @apply tw-flex-1 tw-min-w-[180px]; }
+#tsk-setup-banner .tsk-sb-title { @apply tw-font-bold tw-text-[.88rem] tw-text-amber-900; }
+#tsk-setup-banner .tsk-sb-sub   { @apply tw-text-[.77rem] tw-text-amber-800 tw-mt-[.1rem]; }
 
 /* ── Baner powiadomień przeglądarkowych ──────────────────────── */
 #tsk-notif-banner {
-  background: #ecfdf5; border: 1px solid #6ee7b7;
-  border-radius: 10px; padding: .75rem 1rem;
-  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-  margin-bottom: 1rem; animation: tskBannerIn .25s ease;
+  @apply tw-border tw-border-emerald-300 tw-rounded-[10px] tw-py-3 tw-px-4
+         tw-flex tw-items-center tw-gap-3 tw-flex-wrap tw-mb-4;
+  background: var(--tsk-green-bg);
+  animation: tskBannerIn .25s ease;
 }
 @keyframes tskBannerIn {
   from { opacity:0; transform:translateY(-6px); }
   to   { opacity:1; transform:translateY(0); }
 }
 #tsk-notif-banner .tsk-nb-icon {
-  width:36px; height:36px; border-radius:9px;
-  background:var(--tsk-green); color:#fff;
-  display:flex; align-items:center; justify-content:center;
-  font-size:1rem; flex-shrink:0;
+  @apply tw-w-9 tw-h-9 tw-rounded-[9px] tw-text-white
+         tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0;
+  background: var(--tsk-green);
 }
-#tsk-notif-banner .tsk-nb-body { flex:1; min-width:180px; }
-#tsk-notif-banner .tsk-nb-title { font-weight:700; font-size:.88rem; color:#065f46; }
-#tsk-notif-banner .tsk-nb-sub { font-size:.77rem; color:#047857; margin-top:.1rem; }
+#tsk-notif-banner .tsk-nb-body { @apply tw-flex-1 tw-min-w-[180px]; }
+#tsk-notif-banner .tsk-nb-title { @apply tw-font-bold tw-text-[.88rem]; color: #065f46; }
+#tsk-notif-banner .tsk-nb-sub { @apply tw-text-[.77rem] tw-mt-[.1rem]; color: #047857; }
 </style>
 </head>
 <body>
 
 <a class="skip-link" href="#tsk-main">Przejdź do treści</a>
 
-<!-- ══ Navbar ══════════════════════════════════════════════════════════════ -->
-<header class="tsk-navbar" role="banner">
-  <div class="container-xl d-flex align-items-center gap-2 py-2">
-
-    <button class="tsk-menu-btn" type="button"
-            data-bs-toggle="offcanvas" data-bs-target="#tskNav"
-            aria-controls="tskNav" aria-label="Otwórz menu nawigacji">
-      <i class="bi bi-list" aria-hidden="true"></i>
-    </button>
-
-    <a href="<?= APP_URL ?>/tasks/dashboard.php" class="tsk-brand"
-       aria-label="Zadania — strona główna modułu">
-      <span class="tsk-brand-icon" aria-hidden="true"><i class="bi bi-table"></i></span>
-      <span class="d-flex flex-column">
-        <span>Zadania</span>
-        <?php if ($_org_name): ?>
-        <span class="tsk-brand-sub" title="<?= h($_org_name) ?>"><?= h($_org_name) ?></span>
-        <?php endif; ?>
-      </span>
-    </a>
-
-    <?php if ($_tsk_workspaces):
-        $_tsk_cur_ws  = null;
-        foreach ($_tsk_workspaces as $_wsRow) {
-            if ((int)$_wsRow['id'] === (int)$_ws_id) { $_tsk_cur_ws = $_wsRow; break; }
-        }
-        // tasks/files.php ustawia $TASKS_FILES_VIEW = true — WS switcher zmienia URL na files.php
-        $_tsk_on_files = $TASKS_FILES_VIEW ?? false;
-        $_tsk_view_qs  = $_tsk_on_files ? '' : (isset($_GET['view']) ? '&view=' . urlencode($_GET['view']) : '');
-        $_tsk_ws_base  = $_tsk_on_files
-            ? (APP_URL . '/tasks/files.php')
-            : (APP_URL . '/tasks/index.php');
-    ?>
-    <div class="dropdown d-none d-sm-block" id="tsk-ws-switch-wrap">
-      <button type="button" class="tsk-ws-switch-btn" id="tsk-ws-switch-btn"
-              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-              aria-label="Przełącz obszar roboczy<?= $_tsk_cur_ws ? ' — bieżący: ' . h($_tsk_cur_ws['name']) : '' ?>">
-        <?php if ($_tsk_cur_ws): ?>
-        <span class="tsk-ws-switch-dot" style="background:<?= h($_tsk_cur_ws['color']) ?>" aria-hidden="true"></span>
-        <span class="text-truncate" style="max-width:130px"><?= h($_tsk_cur_ws['name']) ?></span>
-        <?php else: ?>
-        <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
-        <span>Wszystkie obszary</span>
-        <?php endif; ?>
-        <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.6" aria-hidden="true"></i>
-      </button>
-      <div class="dropdown-menu shadow tsk-ws-switch-menu" role="menu" aria-label="Lista obszarów roboczych">
-        <div class="tsk-ws-switch-search-wrap">
-          <input type="search" id="tsk-ws-switch-search"
-                 class="form-control form-control-sm"
-                 placeholder="Szukaj obszaru…"
-                 aria-label="Szukaj obszaru roboczego"
-                 oninput="tskWsFilter(this.value)">
-        </div>
-        <div class="tsk-ws-switch-list" id="tsk-ws-switch-list">
-          <?php if (!$_tsk_on_files): ?>
-          <a href="<?= APP_URL ?>/tasks/index.php<?= $_tsk_view_qs ? '?' . ltrim($_tsk_view_qs, '&') : '' ?>"
-             class="tsk-ws-switch-item <?= !$_ws_id ? 'active' : '' ?>"
-             data-name="wszystkie zadania"
-             aria-current="<?= !$_ws_id ? 'page' : 'false' ?>">
-            <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
-            <span class="flex-grow-1">Wszystkie zadania</span>
-          </a>
-          <div class="tsk-ws-switch-sep" role="separator"></div>
-          <?php endif; ?>
-          <?php foreach ($_tsk_workspaces as $ws): ?>
-          <a href="<?= $_tsk_ws_base ?>?ws=<?= $ws['id'] ?><?= $_tsk_view_qs ?>"
-             class="tsk-ws-switch-item <?= (int)$_ws_id === (int)$ws['id'] ? 'active' : '' ?>"
-             data-name="<?= h(mb_strtolower($ws['name'])) ?>"
-             aria-current="<?= (int)$_ws_id === (int)$ws['id'] ? 'page' : 'false' ?>">
-            <span class="tsk-ws-dot" style="background:<?= h($ws['color']) ?>" aria-hidden="true"></span>
-            <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
-            <span class="flex-grow-1 text-truncate"><?= h($ws['name']) ?></span>
-            <span class="tsk-ws-cnt" aria-label="<?= (int)$ws['task_count'] ?> zadań"><?= (int)$ws['task_count'] ?></span>
-          </a>
-          <?php endforeach; ?>
-          <div class="tsk-ws-switch-empty" id="tsk-ws-switch-empty" style="display:none">Brak wyników</div>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
-
-      <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-              data-bs-toggle="modal" data-bs-target="#bugReportModal"
-              title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd">
-        <i class="bi bi-bug-fill" aria-hidden="true"></i>
-        <span class="d-none d-md-inline">Zgłoś błąd</span>
-      </button>
-      <?php endif; ?>
-
-      <?php $msw_active='tasks'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
-
-      <!-- Powiadomienia -->
-      <div class="dropdown" id="tsk-notif-wrap">
-        <button type="button" class="tsk-notif-btn" id="tsk-notif-btn"
-                data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                aria-label="Powiadomienia zadań — <?= $_tsk_notif_unread ?> nieprzeczytanych">
-          <i class="bi bi-bell-fill" aria-hidden="true"></i>
-          <span class="tsk-notif-badge <?= $_tsk_notif_unread ? '' : 'd-none' ?>" id="tsk-notif-count">
-            <?= $_tsk_notif_unread > 99 ? '99+' : $_tsk_notif_unread ?>
-          </span>
-        </button>
-        <div class="dropdown-menu dropdown-menu-end shadow" id="tsk-notif-menu"
-             style="width:320px;max-height:420px;overflow-y:auto" role="menu"
-             aria-label="Lista powiadomień modułu Zadania">
-          <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-            <span class="fw-semibold" style="font-size:.85rem">Powiadomienia — Zadania</span>
-            <button type="button" class="btn btn-link btn-sm p-0 text-muted <?= $_tsk_notif_unread ? '' : 'd-none' ?>"
-                    id="tsk-notif-mark-all" style="font-size:.75rem">Oznacz przeczytane</button>
-          </div>
-          <div id="tsk-notif-list">
-            <?php if (!$_tsk_notif_latest): ?>
-            <div class="text-center py-4 text-muted" style="font-size:.82rem" id="tsk-notif-empty">
-              <i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem;opacity:.3" aria-hidden="true"></i>
-              Brak powiadomień
-            </div>
-            <?php else: foreach ($_tsk_notif_latest as $n): ?>
-            <a href="<?= h($n['url'] ?: APP_URL . '/tasks/notifications.php') ?>"
-               class="dropdown-item py-2 px-3 tsk-notif-item <?= $n['is_read'] ? '' : 'fw-semibold' ?>"
-               style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9"
-               data-notif-id="<?= (int)$n['id'] ?>">
-              <div class="d-flex gap-2 align-items-start">
-                <i class="bi bi-kanban-fill mt-1 flex-shrink-0" style="color:#8B5CF6;font-size:.9rem" aria-hidden="true"></i>
-                <div class="flex-grow-1">
-                  <div><?= h($n['title']) ?></div>
-                  <?php if ($n['body']): ?>
-                  <div class="text-muted fw-normal" style="font-size:.74rem"><?= h($n['body']) ?></div>
-                  <?php endif; ?>
-                  <div class="text-muted fw-normal" style="font-size:.72rem"><?= h(substr($n['created_at'], 0, 16)) ?></div>
-                </div>
-                <?php if (!$n['is_read']): ?>
-                <span class="rounded-circle flex-shrink-0" style="width:7px;height:7px;margin-top:5px;background:var(--tsk-green)" aria-hidden="true"></span>
-                <?php endif; ?>
-              </div>
-            </a>
-            <?php endforeach; endif; ?>
-          </div>
-          <div class="px-3 py-2 border-top d-flex gap-2">
-            <a href="<?= APP_URL ?>/tasks/notifications.php" class="btn btn-sm flex-fill"
-               style="background:#f1f5f9;color:#374151;font-size:.8rem">
-              <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia
-            </a>
-            <button type="button" class="btn btn-sm flex-fill"
-                    style="background:#fffbeb;color:#92400e;font-size:.8rem;border:1px solid #fcd34d"
-                    onclick="tskOpenNotifSettings()">
-              <i class="bi bi-gear-fill me-1" aria-hidden="true"></i>Ustawienia
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- User dropdown -->
-      <div class="dropdown">
-        <button type="button" class="tsk-avatar"
-                data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                aria-label="Menu użytkownika <?= h($_tu_name) ?>">
-          <?= h($_tu_initials) ?>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.88rem;min-width:200px">
-          <li class="px-3 py-2 border-bottom">
-            <div class="fw-bold"><?= h($_tu_name) ?></div>
-            <div class="text-muted small"><?= h($_tu['email'] ?? '') ?></div>
-          </li>
-          <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/index.php"><i class="bi bi-house-door me-2" aria-hidden="true"></i>Mój panel</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php"
-               onclick="return confirm('Wylogować się?')">
-              <i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Wyloguj się
-            </a>
-          </li>
-        </ul>
-      </div>
-
-    </nav>
-  </div>
-</header>
+<?php require_once __DIR__ . '/tasks_topbar.php'; ?>
 
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 <?php $ASAI_WIDGET_SCOPE = 'zadania';
@@ -592,177 +405,10 @@ body {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>
 
-<!-- ══ Offcanvas — nawigacja ════════════════════════════════════════════════ -->
-<div class="offcanvas offcanvas-start tsk-offcanvas" tabindex="-1" id="tskNav"
-     aria-label="Nawigacja modułu Zadania">
-  <div class="offcanvas-header">
-    <span class="offcanvas-title fw-bold d-flex align-items-center gap-2">
-      <i class="bi bi-table" aria-hidden="true"></i>Zadania
-    </span>
-    <button type="button" class="btn-close btn-close-white"
-            data-bs-dismiss="offcanvas" aria-label="Zamknij menu"></button>
-  </div>
-  <nav class="offcanvas-body" aria-label="Sekcje modułu Zadania">
-
-    <span class="tsk-nav-label">Przegląd</span>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/dashboard') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/dashboard.php"
-       aria-current="<?= _tsk_active('/tasks/dashboard') ? 'page' : 'false' ?>">
-      <i class="bi bi-speedometer2" aria-hidden="true"></i>Dashboard
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/inbox') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/inbox.php"
-       aria-current="<?= _tsk_active('/tasks/inbox') ? 'page' : 'false' ?>">
-      <i class="bi bi-inbox" aria-hidden="true"></i>Skrzynka
-      <?php if ($_inbox_unread > 0): ?>
-      <span class="tsk-nav-badge" style="background:#fee2e2;color:#dc2626"
-            aria-label="<?= $_inbox_unread ?> nieprzeczytanych"><?= $_inbox_unread ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a class="tsk-nav-link <?= (str_contains($_uri,'/tasks/index') || (str_contains($_uri,'/tasks/') && !_tsk_active('/tasks/dashboard') && !_tsk_active('/tasks/inbox') && !_tsk_active('/tasks/archive') && !_tsk_active('/tasks/notification') && !_tsk_active('/tasks/settings') && !_tsk_active('/tasks/problems'))) ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/index.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
-       aria-current="<?= str_contains($_uri,'/tasks/index') ? 'page' : 'false' ?>">
-      <i class="bi bi-table" aria-hidden="true"></i>Wszystkie zadania
-      <?php if ($_open_count > 0): ?>
-      <span class="tsk-nav-badge" aria-label="<?= $_open_count ?> wolnych"><?= $_open_count ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/files') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/files.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
-       aria-current="<?= _tsk_active('/tasks/files') ? 'page' : 'false' ?>">
-      <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/archive') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/archive.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
-       aria-current="<?= _tsk_active('/tasks/archive') ? 'page' : 'false' ?>">
-      <i class="bi bi-archive" aria-hidden="true"></i>Archiwum zadań
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/moje') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/moje.php"
-       aria-current="<?= _tsk_active('/tasks/moje') ? 'page' : 'false' ?>">
-      <i class="bi bi-person-check" aria-hidden="true"></i>Moje zadania
-      <?php if ($_my_count > 0): ?>
-      <span class="tsk-nav-badge" aria-label="<?= $_my_count ?> zadań"><?= $_my_count ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/charts') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/charts.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
-       aria-current="<?= _tsk_active('/tasks/charts') ? 'page' : 'false' ?>">
-      <i class="bi bi-bar-chart-line" aria-hidden="true"></i>Wykresy
-    </a>
-
-    <?php if ($_tsk_is_leader): ?>
-    <div class="tsk-nav-sep" role="separator"></div>
-    <span class="tsk-nav-label">Lider</span>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/problems') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/problems.php"
-       aria-current="<?= _tsk_active('/tasks/problems') ? 'page' : 'false' ?>">
-      <i class="bi bi-megaphone" aria-hidden="true"></i>Zgłoszone problemy
-      <?php if ($_tsk_open_problems > 0): ?>
-      <span class="tsk-nav-badge" style="background:#fef9c3;color:#92400e"
-            aria-label="<?= $_tsk_open_problems ?> otwartych"><?= $_tsk_open_problems ?></span>
-      <?php endif; ?>
-    </a>
-    <?php endif; ?>
-
-    <div class="tsk-nav-sep" role="separator"></div>
-    <span class="tsk-nav-label">Ustawienia</span>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/notification_settings') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/notification_settings.php"
-       aria-current="<?= _tsk_active('/tasks/notification_settings') ? 'page' : 'false' ?>"
-       onclick="if(!event.ctrlKey&&!event.metaKey){event.preventDefault();tskOpenNotifSettings();}">
-      <i class="bi bi-bell-fill" aria-hidden="true"></i>Powiadomienia — ustawienia
-      <?php if ($_tsk_notif_setup_needed): ?>
-      <span class="tsk-nav-badge" style="background:#f59e0b;color:#fff" aria-label="do skonfigurowania">!</span>
-      <?php endif; ?>
-    </a>
-
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/notifications.php') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/notifications.php"
-       aria-current="<?= _tsk_active('/tasks/notifications.php') ? 'page' : 'false' ?>">
-      <i class="bi bi-clock-history" aria-hidden="true"></i>Historia powiadomień
-      <?php if ($_due_soon > 0): ?>
-      <span class="tsk-nav-badge" style="background:#fee2e2;color:#dc2626"
-            aria-label="<?= $_due_soon ?> zadań z bliskim terminem"><?= $_due_soon ?></span>
-      <?php endif; ?>
-    </a>
-
-    <?php if ($_tsk_is_any_leader): ?>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/workspaces') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/settings/workspaces.php">
-      <i class="bi bi-sliders" aria-hidden="true"></i>Obszary i listy
-    </a>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/tags') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/settings/tags.php">
-      <i class="bi bi-tags" aria-hidden="true"></i>Tagi
-    </a>
-    <?php endif; ?>
-    <?php if ($_is_admin): ?>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/areas') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/settings/areas.php">
-      <i class="bi bi-layers" aria-hidden="true"></i>Obszary zadań
-    </a>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/roles') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/settings/roles.php">
-      <i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia ról
-    </a>
-    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/fields') ? 'active' : '' ?>"
-       href="<?= APP_URL ?>/tasks/settings/fields.php">
-      <i class="bi bi-ui-checks-grid" aria-hidden="true"></i>Uprawnienia pól
-    </a>
-    <div class="tsk-nav-sep" role="separator"></div>
-    <a class="tsk-nav-link tsk-danger"
-       href="<?= APP_URL ?>/admin/tasks_cleanup.php"
-       aria-label="Wyczyść moduł zadań — operacja nieodwracalna">
-      <i class="bi bi-trash3" aria-hidden="true"></i>Wyczyść moduł
-    </a>
-    <?php endif; ?>
-
-    <div class="tsk-sidebar-bottom">
-      <a href="<?= APP_URL ?>/auth/logout.php"
-         class="tsk-nav-link"
-         style="color:#dc2626"
-         onclick="return confirm('Wylogować się?')">
-        <i class="bi bi-box-arrow-right" aria-hidden="true" style="color:#dc2626"></i>Wyloguj się
-      </a>
-    </div>
-
-  </nav>
-</div>
+<?php require_once __DIR__ . '/tasks_sidebar.php'; ?>
 
 <!-- ══ Treść główna ══════════════════════════════════════════════════════════ -->
 <main class="container-xl py-4" id="tsk-main" tabindex="-1" role="main">
-
-<!-- ── Komunikat: moduł tymczasowo wyłączony ─────────────────────────────── -->
-<div class="alert mb-4 d-flex align-items-start gap-3 border-0 rounded-3"
-     style="background:#fef3c7;border-left:4px solid #f59e0b!important;border-left-style:solid!important">
-  <i class="bi bi-exclamation-triangle-fill text-warning fs-4 flex-shrink-0 mt-1"></i>
-  <div>
-    <strong class="d-block mb-1" style="color:#92400e">Moduł Zadań jest tymczasowo niedostępny</strong>
-    <span style="color:#78350f;font-size:.92rem">
-      Tymczasowo wracamy do Trello — prosimy korzystać z tablicy zespołu do czasu wprowadzenia aktualizacji.
-    </span>
-    <div class="mt-2">
-      <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u"
-         target="_blank" rel="noopener"
-         class="btn btn-sm btn-warning fw-semibold">
-        <i class="bi bi-trello me-1"></i>Otwórz tablicę Trello
-      </a>
-    </div>
-  </div>
-</div>
-<?php
-require_once __DIR__ . '/footer_tasks.php';
-exit;
-?>
 
 <?php
 $_fm = flash_get();
@@ -809,325 +455,11 @@ if ($_fm): ?>
             class="btn btn-sm btn-outline-secondary" style="font-size:.8rem">Później</button>
   </div>
 </div>
-<script>
-(function () {
-    var KEY  = 'tskSetupBannerDismissed';
-    var DAYS = 7;
-    var el   = document.getElementById('tsk-setup-banner');
-    var btn  = document.getElementById('tsk-setup-dismiss-btn');
-    if (!el) return;
-    var ts = parseInt(localStorage.getItem(KEY) || '0', 10);
-    if (ts && (Date.now() - ts) < DAYS * 86400 * 1000) {
-        el.style.display = 'none';
-    }
-    if (btn) btn.addEventListener('click', function () {
-        localStorage.setItem(KEY, String(Date.now()));
-        el.style.display = 'none';
-    });
-})();
-</script>
 <?php endif; ?>
 
-<script>
-/* Przełącznik obszaru roboczego — wyszukiwarka */
-function tskWsFilter(query) {
-    const q    = query.trim().toLowerCase();
-    const list = document.getElementById('tsk-ws-switch-list');
-    if (!list) return;
-    const items = list.querySelectorAll('.tsk-ws-switch-item');
-    const sep   = list.querySelector('.tsk-ws-switch-sep');
-    let visible = 0;
-    items.forEach(function (item) {
-        const match = !q || (item.dataset.name || '').includes(q);
-        item.style.display = match ? '' : 'none';
-        if (match) visible++;
-    });
-    if (sep) sep.style.display = q ? 'none' : '';
-    const empty = document.getElementById('tsk-ws-switch-empty');
-    if (empty) empty.style.display = visible ? 'none' : '';
-}
-(function () {
-    const wrap = document.getElementById('tsk-ws-switch-wrap');
-    if (!wrap) return;
-    wrap.addEventListener('shown.bs.dropdown', function () {
-        const search = document.getElementById('tsk-ws-switch-search');
-        if (search) { search.value = ''; tskWsFilter(''); search.focus(); }
-    });
-})();
-
-/* Mini centrum powiadomień — polling + dźwięk + natywne powiadomienia przeglądarki */
-(function () {
-    const APP_URL  = '<?= APP_URL ?>';
-    const POLL_MS  = 25000;
-    let lastUnread = <?= (int)$_tsk_notif_unread ?>;
-    let audioCtx   = null;
-
-    function escHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
-            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-        }[c]));
-    }
-
-    function tskPlayDing() {
-        try {
-            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-            const now = audioCtx.currentTime;
-            [[880, 0], [1318.5, 0.09]].forEach(([freq, delay]) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine'; osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.0001, now + delay);
-                gain.gain.exponentialRampToValueAtTime(0.18, now + delay + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.5);
-                osc.connect(gain).connect(audioCtx.destination);
-                osc.start(now + delay); osc.stop(now + delay + 0.55);
-            });
-        } catch (e) {}
-    }
-
-    function tskNativeNotif(title, body, url) {
-        try {
-            if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-            const n = new Notification(title, {
-                body: body || '',
-                icon: APP_URL + '/assets/img/icon-192.png',
-                tag:  'tsk-notif'
-            });
-            if (url) n.onclick = function () { window.focus(); window.location = url; n.close(); };
-        } catch (e) {}
-    }
-
-    function tskRenderNotifList(items) {
-        const list = document.getElementById('tsk-notif-list');
-        if (!list) return;
-        if (!items.length) {
-            list.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:.82rem"><i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem;opacity:.3" aria-hidden="true"></i>Brak powiadomień</div>';
-            return;
-        }
-        list.innerHTML = items.map(n => (
-            '<a href="' + escHtml(n.url || (APP_URL + '/tasks/notifications.php')) + '"'
-            + ' class="dropdown-item py-2 px-3 tsk-notif-item ' + (n.is_read ? '' : 'fw-semibold') + '"'
-            + ' style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9" data-notif-id="' + n.id + '">'
-            + '<div class="d-flex gap-2 align-items-start">'
-            + '<i class="bi bi-kanban-fill mt-1 flex-shrink-0" style="color:#8B5CF6;font-size:.9rem" aria-hidden="true"></i>'
-            + '<div class="flex-grow-1"><div>' + escHtml(n.title) + '</div>'
-            + (n.body ? '<div class="text-muted fw-normal" style="font-size:.74rem">' + escHtml(n.body) + '</div>' : '')
-            + '<div class="text-muted fw-normal" style="font-size:.72rem">' + escHtml((n.created_at || '').slice(0, 16)) + '</div></div>'
-            + (n.is_read ? '' : '<span class="rounded-circle flex-shrink-0" style="width:7px;height:7px;margin-top:5px;background:var(--tsk-green)" aria-hidden="true"></span>')
-            + '</div></a>'
-        )).join('');
-    }
-
-    function tskApplyUnread(unread) {
-        const badge   = document.getElementById('tsk-notif-count');
-        const markAll = document.getElementById('tsk-notif-mark-all');
-        const btn     = document.getElementById('tsk-notif-btn');
-        if (badge) { badge.textContent = unread > 99 ? '99+' : unread; badge.classList.toggle('d-none', unread === 0); }
-        if (markAll) markAll.classList.toggle('d-none', unread === 0);
-        if (btn) btn.setAttribute('aria-label', 'Powiadomienia zadań — ' + unread + ' nieprzeczytanych');
-    }
-
-    function tskPollNotifications() {
-        fetch(APP_URL + '/tasks/api/notif_poll.php', {cache: 'no-store'})
-            .then(r => r.json())
-            .then(d => {
-                if (!d.ok) return;
-                if (d.unread > lastUnread) {
-                    tskPlayDing();
-                    const btn = document.getElementById('tsk-notif-btn');
-                    if (btn) { btn.classList.remove('tsk-notif-shake'); void btn.offsetWidth; btn.classList.add('tsk-notif-shake'); }
-                    /* Powiadomienie natywne przeglądarki — pierwsze nowe powiadomienie z listy */
-                    const newest = (d.latest || []).find(n => !n.is_read);
-                    if (newest) tskNativeNotif(newest.title, newest.body, newest.url);
-                }
-                lastUnread = d.unread;
-                tskApplyUnread(d.unread);
-                tskRenderNotifList(d.latest || []);
-            })
-            .catch(() => {});
-    }
-
-    document.addEventListener('click', function (e) {
-        const link = e.target.closest('#tsk-notif-menu [data-notif-id]');
-        if (link) {
-            fetch(APP_URL + '/tasks/api/notif_poll.php', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', id: parseInt(link.dataset.notifId, 10)})
-            }).catch(() => {});
-            return;
-        }
-        const markAll = e.target.closest('#tsk-notif-mark-all');
-        if (markAll) {
-            fetch(APP_URL + '/tasks/api/notif_poll.php', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_all'})
-            }).then(r => r.json()).then(d => {
-                if (d.ok) { lastUnread = d.unread; tskApplyUnread(d.unread); tskRenderNotifList(d.latest || []); }
-            }).catch(() => {});
-        }
-    });
-
-    setInterval(tskPollNotifications, POLL_MS);
-})();
-
-/* Baner zachęty do powiadomień przeglądarkowych */
-(function () {
-    const DISMISS_KEY     = 'tskNotifBannerDismissed';
-    const DISMISS_DAYS    = 14;
-
-    function bannerShouldShow() {
-        if (typeof Notification === 'undefined') return false;
-        if (Notification.permission !== 'default') return false;
-        const ts = parseInt(localStorage.getItem(DISMISS_KEY) || '0', 10);
-        if (ts && (Date.now() - ts) < DISMISS_DAYS * 86400 * 1000) return false;
-        return true;
-    }
-
-    function bannerHide() {
-        const el = document.getElementById('tsk-notif-banner');
-        if (el) el.style.display = 'none';
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        if (!bannerShouldShow()) return;
-        const banner = document.getElementById('tsk-notif-banner');
-        if (!banner) return;
-        banner.style.display = '';
-
-        document.getElementById('tsk-notif-enable-btn').addEventListener('click', function () {
-            Notification.requestPermission().then(function (result) {
-                bannerHide();
-                if (result === 'granted') {
-                    /* Potwierdzenie po włączeniu */
-                    try { new Notification('Powiadomienia włączone', { body: 'Będziesz informowany/a o nowych zadaniach i komentarzach.', tag: 'tsk-welcome' }); }
-                    catch (e) {}
-                }
-            }).catch(function () { bannerHide(); });
-        });
-
-        document.getElementById('tsk-notif-dismiss-btn').addEventListener('click', function () {
-            localStorage.setItem(DISMISS_KEY, String(Date.now()));
-            bannerHide();
-        });
-    });
-})();
-</script>
-
-<!-- ══ Modal: Ustawienia powiadomień ════════════════════════════════════ -->
-<div class="modal fade" id="tskNotifSettingsModal" tabindex="-1"
-     aria-labelledby="tskNotifSettingsModalLabel" aria-modal="true" role="dialog">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content" style="border-radius:12px;overflow:hidden">
-      <div class="modal-header py-2 px-3" style="background:#1e40af;border-bottom:none">
-        <h5 class="modal-title h6 fw-bold mb-0 text-white" id="tskNotifSettingsModalLabel">
-          <i class="bi bi-bell-fill me-2" aria-hidden="true"></i>Ustawienia powiadomień
-        </h5>
-        <button type="button" class="btn-close btn-close-white btn-sm"
-                data-bs-dismiss="modal" aria-label="Zamknij ustawienia powiadomień"></button>
-      </div>
-      <div class="modal-body p-0 overflow-auto" id="tskNotifSettingsModalBody" style="max-height:82vh">
-        <div class="text-center py-5 text-muted">
-          <div class="spinner-border spinner-border-sm" role="status">
-            <span class="visually-hidden">Ładowanie…</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<?php require_once __DIR__ . '/tasks_notif_modal.php'; ?>
 
 <script>
-/* ── Modal: Ustawienia powiadomień — AJAX loader ──────────────────────────── */
-(function () {
-    var APP = '<?= APP_URL ?>';
-    var FRAG_URL = APP + '/tasks/notification_settings.php?_fragment=1';
-    var modalEl  = null;
-    var modalInst = null;
-    var loaded   = false;
-
-    function getInst() {
-        if (!modalEl) {
-            modalEl   = document.getElementById('tskNotifSettingsModal');
-            modalInst = bootstrap.Modal.getOrCreateInstance(modalEl);
-        }
-        return modalInst;
-    }
-
-    function getBody() {
-        return document.getElementById('tskNotifSettingsModalBody');
-    }
-
-    function showBanner(body, ok, msg) {
-        var old = body.querySelector('.tsk-ns-alert-wrap');
-        if (old) old.remove();
-        var wrap = document.createElement('div');
-        wrap.className = 'tsk-ns-alert-wrap';
-        wrap.innerHTML = '<div class="alert alert-' + (ok ? 'success' : 'warning')
-            + ' d-flex align-items-center gap-2 py-2 mx-3 mt-3 mb-0" role="status" style="font-size:.83rem">'
-            + '<i class="bi bi-' + (ok ? 'check-circle-fill' : 'exclamation-triangle-fill') + '"></i>'
-            + '<span>' + msg.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
-            + '<button type="button" class="btn-close btn-sm ms-auto py-0" onclick="this.closest(\'.tsk-ns-alert-wrap\').remove()" aria-label="Zamknij"></button>'
-            + '</div>';
-        body.prepend(wrap);
-    }
-
-    function wireBody(body) {
-        body.addEventListener('submit', function (e) {
-            var form = e.target.closest('form');
-            if (!form) return;
-            e.preventDefault();
-            var submitter = e.submitter;
-            var fd = new FormData(form);
-            if (submitter && submitter.name) fd.set(submitter.name, submitter.value);
-
-            var btn = submitter || form.querySelector('[type=submit]');
-            var origHtml = btn ? btn.innerHTML : '';
-            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.85em;height:.85em" aria-hidden="true"></span>'; }
-
-            fetch(FRAG_URL, { method: 'POST', body: fd })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-                    showBanner(body, d.ok, d.msg || (d.ok ? 'OK' : 'Błąd'));
-                    if (d.reload) loadContent(true);
-                })
-                .catch(function () {
-                    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-                    showBanner(body, false, 'Błąd połączenia. Spróbuj ponownie.');
-                });
-        });
-    }
-
-    function loadContent(force) {
-        var body = getBody();
-        if (!body) return;
-        if (loaded && !force) return;
-        loaded = false;
-        body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Ładowanie…</span></div></div>';
-        fetch(FRAG_URL)
-            .then(function (r) { return r.text(); })
-            .then(function (html) {
-                body.innerHTML = '';
-                var frag = document.createRange().createContextualFragment(html);
-                body.appendChild(frag);
-                loaded = true;
-                wireBody(body);
-            })
-            .catch(function () {
-                body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania ustawień powiadomień.</div>';
-            });
-    }
-
-    window.tskOpenNotifSettings = function () {
-        getInst().show();
-        loadContent(false);
-    };
-
-    document.addEventListener('DOMContentLoaded', function () {
-        var el = document.getElementById('tskNotifSettingsModal');
-        if (el) {
-            el.addEventListener('hidden.bs.modal', function () { loaded = false; });
-        }
-    });
-})();
+  window.TSK_HEADER = { appUrl: <?= json_encode(APP_URL) ?>, unread: <?= (int)$_tsk_notif_unread ?> };
 </script>
+<script src="<?= APP_URL ?>/assets/js/tasks-header.js" defer></script>
