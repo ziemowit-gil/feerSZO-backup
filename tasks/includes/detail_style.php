@@ -36,7 +36,10 @@
 }
 
 /* ── Reset offcanvas body padding ───────────────────────────── */
-.offcanvas-body { padding: 0 !important; }
+/* overflow-x:hidden dodane — Bootstrap .row ma ujemne marginesy (gutter),
+   w wąskim offcanvasie to kilka px poza krawędź (niegroźna biała przestrzeń
+   z gutter), co dawało niepotrzebny poziomy scrollbar. */
+.offcanvas-body { padding: 0 !important; overflow-x: hidden; }
 
 /* ── Sekcje ─────────────────────────────────────────────────── */
 .td-section {
