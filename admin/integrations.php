@@ -138,6 +138,7 @@ function _isection(string $icon, string $label): void {
 
   <?php _isection('bi-mortarboard', 'E-learning & Zasoby') ?>
 
+  <?php _icard('bi-key-fill',          'Kody dostępowe M365', 'Automatyczne zakładanie kont M365 z kodów LCCC', $int_m365, '/admin/ms_edu_codes.php', '#0078d4') ?>
   <?php _icard('bi-palette2',          'Canva Pro',           'Dostęp do kont Canva Pro dla zespołu',     $int_canva,  '/admin/canva.php',     '#7d2ae8') ?>
 
   <?php _isection('bi-stars', 'AI') ?>
