@@ -82,37 +82,6 @@ import { OnlineState } from '../../core/models/kursant.models';
           }
         </section>
 
-        <!-- Moodle -->
-        <section class="k-card" aria-labelledby="moodle-heading">
-          <h2 class="k-card-title" id="moodle-heading">
-            <span class="material-symbols-outlined" aria-hidden="true">school</span>
-            Moodle
-          </h2>
-          @if (s.moodle_provisioned) {
-            <div class="access-info">
-              <div class="info-row">
-                <span class="info-label">Nazwa użytkownika</span>
-                <code class="info-value">{{ s.moodle_username }}</code>
-              </div>
-              @if (s.moodle_url) {
-                <a [href]="s.moodle_url"
-                   target="_blank" rel="noopener noreferrer"
-                   mat-stroked-button
-                   style="margin-top:.75rem"
-                   aria-label="Przejdź do Moodle — nowa karta">
-                  <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-                  Otwórz Moodle
-                </a>
-              }
-            </div>
-          } @else {
-            <div class="k-alert info">
-              <span class="material-symbols-outlined" aria-hidden="true">info</span>
-              Konto Moodle nie zostało jeszcze aktywowane.
-            </div>
-          }
-        </section>
-
         <!-- Zoom -->
         @if (s.zoom_link) {
           <section class="k-card" aria-labelledby="zoom-heading">

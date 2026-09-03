@@ -24,8 +24,6 @@ export interface StudentAccount {
   notify_sms_lessons: number;
   ms_upn: string | null;
   ms_user_id: string | null;
-  moodle_username: string | null;
-  moodle_user_id: number | null;
   owncloud_login: string | null;
   name: string;
 }
@@ -257,9 +255,6 @@ export interface OnlineState {
   ms_upn: string | null;
   ms_temp_password: string | null;
   ms_tenant_name: string | null;
-  moodle_provisioned: boolean;
-  moodle_username: string | null;
-  moodle_url: string | null;
   zoom_link: string | null;
   teams_link: string | null;
   active_lesson_url: string | null;
