@@ -3236,7 +3236,7 @@ if ($cur_course && dyd_is_staff()) {
         (<?= h(ti_leave_type_label($lv['type'])) ?>)</strong> — termin <strong><?= h($range) ?></strong>.
       <?php if (!empty($lv['note'])): ?><div class="small mt-1"><?= h($lv['note']) ?></div><?php endif; ?>
       <div class="small mt-1">W tym czasie zaplanuj odwołanie lub przełożenie lekcji.
-        <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/urlopy.php">Nieobecności prowadzących</a>.</div>
+        <a href="urlopy.php">Nieobecności prowadzących</a>.</div>
     </div>
   </div>
   <?php endforeach; endif; ?>
