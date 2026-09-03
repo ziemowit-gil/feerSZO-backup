@@ -68,6 +68,11 @@ function task_workspace_role(int $workspace_id, ?int $user_id = null): ?string {
         $member_role = 'admin';
     }
 
+    // Zespoły — dostęp DODATKOWY obok bezpośredniego przypisania (uzupełnia, nie zastępuje).
+    // Jeśli zespół użytkownika ma wyższą rolę w obszarze niż jego przypisanie indywidualne,
+    // wygrywa wyższa (np. member wprost + admin przez zespół → admin).
+    $member_role = task_ws_role_max($member_role, task_workspace_team_role($workspace_id, $user_id));
+
     if (!$member_role) return null;
 
     // Sprawdź edit_roles — jeśli ustawione i rola systemowa jej nie ma → viewer
@@ -370,14 +375,116 @@ function task_user_workspaces(?int $user_id = null): array {
         );
     }
 
-    return db_all(
-        "SELECT tw.*, twm.role AS my_role, COUNT(t.id) AS task_count
-         FROM task_workspace_members twm
-         JOIN task_workspaces tw ON tw.id = twm.workspace_id
+    // Dostęp bezpośredni (task_workspace_members) LUB przez zespół (task_workspace_teams)
+    task_teams_migrate();
+    $rows = db_all(
+        "SELECT tw.*, COUNT(t.id) AS task_count
+         FROM task_workspaces tw
          LEFT JOIN tasks t ON t.workspace_id = tw.id AND t.deleted_at IS NULL
-         WHERE twm.user_id=? AND tw.is_active=1
+         WHERE tw.is_active=1 AND tw.id IN (
+             SELECT workspace_id FROM task_workspace_members WHERE user_id=?
+             UNION
+             SELECT wt.workspace_id FROM task_workspace_teams wt
+             JOIN task_team_members tm ON tm.team_id = wt.team_id
+             WHERE tm.user_id=?
+         )
          GROUP BY tw.id
          ORDER BY tw.name",
+        [$user_id, $user_id]
+    );
+    foreach ($rows as &$r) {
+        $r['my_role'] = task_workspace_role((int)$r['id'], $user_id);
+    }
+    unset($r);
+    return $rows;
+}
+
+// ── Zespoły ──────────────────────────────────────────────────────────────
+// Grupa użytkowników, niezależna od jednostek organizacyjnych (org_units).
+// Zespół można przypisać do obszaru roboczego (task_workspace_teams) — wszyscy
+// jego członkowie dostają wtedy rolę w tym obszarze, DODATKOWO do ewentualnego
+// bezpośredniego przypisania pojedynczych osób (task_workspace_members).
+
+function task_teams_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_teams (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        VARCHAR(100) NOT NULL,
+        description TEXT         NOT NULL DEFAULT '',
+        color       VARCHAR(7)   NOT NULL DEFAULT '#2563eb',
+        icon        VARCHAR(50)  NOT NULL DEFAULT 'bi-people-fill',
+        is_active   INTEGER      NOT NULL DEFAULT 1,
+        created_by  INTEGER,
+        created_at  DATETIME     NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at  DATETIME     NOT NULL DEFAULT (datetime('now','localtime'))
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_team_members (
+        team_id  INTEGER  NOT NULL REFERENCES task_teams(id) ON DELETE CASCADE,
+        user_id  INTEGER  NOT NULL,
+        added_by INTEGER,
+        added_at DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY (team_id, user_id)
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_workspace_teams (
+        workspace_id INTEGER     NOT NULL REFERENCES task_workspaces(id) ON DELETE CASCADE,
+        team_id      INTEGER     NOT NULL REFERENCES task_teams(id) ON DELETE CASCADE,
+        role         VARCHAR(20) NOT NULL DEFAULT 'member',
+        added_by     INTEGER,
+        added_at     DATETIME    NOT NULL DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY (workspace_id, team_id)
+    )");
+}
+
+/** Najwyższa z dwóch ról wg hierarchii admin>editor>member>viewer (null-owe pomijane). */
+function task_ws_role_max(?string $a, ?string $b): ?string {
+    $rank = ['admin' => 4, 'editor' => 3, 'member' => 2, 'viewer' => 1];
+    $ra = $a !== null ? ($rank[$a] ?? 0) : 0;
+    $rb = $b !== null ? ($rank[$b] ?? 0) : 0;
+    if ($ra === 0 && $rb === 0) return null;
+    return $ra >= $rb ? $a : $b;
+}
+
+/** Najwyższa rola nadana użytkownikowi w obszarze przez przynależność do zespołu(ów). */
+function task_workspace_team_role(int $workspace_id, int $user_id): ?string {
+    task_teams_migrate();
+    try {
+        $rows = db_all(
+            "SELECT wt.role FROM task_workspace_teams wt
+             JOIN task_team_members tm ON tm.team_id = wt.team_id
+             JOIN task_teams t ON t.id = wt.team_id AND t.is_active = 1
+             WHERE wt.workspace_id = ? AND tm.user_id = ?",
+            [$workspace_id, $user_id]
+        );
+    } catch (\Throwable $e) { return null; }
+    $best = null;
+    foreach ($rows as $r) $best = task_ws_role_max($best, $r['role']);
+    return $best;
+}
+
+/** Wszystkie zespoły (aktywne domyślnie), z liczbą członków i obszarów. */
+function task_get_teams(bool $active_only = true): array {
+    task_teams_migrate();
+    return db_all(
+        "SELECT tt.*,
+                (SELECT COUNT(*) FROM task_team_members WHERE team_id = tt.id) AS member_count,
+                (SELECT COUNT(*) FROM task_workspace_teams WHERE team_id = tt.id) AS workspace_count
+         FROM task_teams tt"
+        . ($active_only ? " WHERE tt.is_active = 1" : "")
+        . " ORDER BY tt.name"
+    );
+}
+
+/** Zespoły, do których należy dany użytkownik. */
+function task_user_teams(int $user_id): array {
+    task_teams_migrate();
+    return db_all(
+        "SELECT tt.* FROM task_teams tt
+         JOIN task_team_members tm ON tm.team_id = tt.id
+         WHERE tm.user_id = ? AND tt.is_active = 1
+         ORDER BY tt.name",
         [$user_id]
     );
 }

@@ -120,6 +120,12 @@
     </a>
     <?php endif; ?>
     <?php if ($_is_admin): ?>
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/teams') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/settings/teams.php">
+      <i class="bi bi-people-fill" aria-hidden="true"></i>Zespoły
+    </a>
+    <?php endif; ?>
+    <?php if ($_is_admin): ?>
     <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/areas') ? 'active' : '' ?>"
        href="<?= APP_URL ?>/tasks/settings/areas.php">
       <i class="bi bi-layers" aria-hidden="true"></i>Obszary zadań

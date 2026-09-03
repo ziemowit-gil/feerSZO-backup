@@ -47,7 +47,11 @@ if ($overview_mode) {
         return array_merge($ws, ['folder_count' => $fc, 'file_count' => $ff, 'ws_role' => $ws_role]);
     }, $workspaces);
 
-    $recent_files = empty($ov_workspaces) ? [] : db_all(
+    // Zakres obszarów bierzemy z $ov_workspaces (task_user_workspaces()) zamiast osobnego
+    // JOIN-a na task_workspace_members, żeby uwzględnić też dostęp nadany przez zespół
+    // (task_workspace_teams) — patrz task_workspace_role() w includes/tasks.php.
+    $ov_ws_ids    = array_column($ov_workspaces, 'id');
+    $recent_files = empty($ov_ws_ids) ? [] : db_all(
         "SELECT f.id, f.name, f.original_name, f.file_size, f.created_at,
                 fo.id AS folder_id, fo.name AS folder_name,
                 tw.id AS ws_id, tw.name AS ws_name, tw.color AS ws_color,
@@ -55,11 +59,11 @@ if ($overview_mode) {
          FROM ws_files f
          JOIN ws_folders fo ON fo.id = f.folder_id
          JOIN task_workspaces tw ON tw.id = fo.workspace_id
-         JOIN task_workspace_members twm ON twm.workspace_id = tw.id AND twm.user_id = ?
          LEFT JOIN users u ON u.id = f.uploaded_by
-         WHERE tw.is_active = 1 AND f.deleted_at IS NULL
+         WHERE tw.id IN (" . implode(',', array_fill(0, count($ov_ws_ids), '?')) . ")
+           AND tw.is_active = 1 AND f.deleted_at IS NULL
          ORDER BY f.created_at DESC LIMIT 10",
-        [$uid]
+        $ov_ws_ids
     );
     $any_can_manage = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor'])));
     $any_can_upload = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor','member'])));
