@@ -54,8 +54,8 @@ function crm_export_emit(array $headers, iterable $data, string $sheet, string $
     header('Cache-Control: no-cache');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");                 // BOM — inaczej Excel psuje polskie znaki
-    fputcsv($out, $headers, ';');
-    foreach ($data as $row) fputcsv($out, $row, ';');
+    fputcsv($out, $headers, ';', '"', '\\');
+    foreach ($data as $row) fputcsv($out, $row, ';', '"', '\\');
     fclose($out);
     exit;
 }
