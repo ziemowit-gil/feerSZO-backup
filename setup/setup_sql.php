@@ -986,6 +986,20 @@ function migrate_tenant_db(PDO $pdo): array {
         }
     }
 
+    // ── Usunięcie integracji Moodle (2026-09-03) — moduł wycofany z całego
+    // systemu (TI + panel wolontariusza + wtyczka moodle-plugin/). DROP zamiast
+    // ADD COLUMN — $run() obsługuje ten sam rejestr, więc jest równie idempotentne.
+    $run('moodle.drop_v1.k30_ti_moodle_assignments', "DROP TABLE IF EXISTS k30_ti_moodle_assignments");
+    $run('moodle.drop_v1.k30_ti_moodle_submissions', "DROP TABLE IF EXISTS k30_ti_moodle_submissions");
+    $run('moodle.drop_v1.k30_ti_moodle_courses',     "DROP TABLE IF EXISTS k30_ti_moodle_courses");
+    $run('moodle.drop_v1.k30_ti_moodle_servers',     "DROP TABLE IF EXISTS k30_ti_moodle_servers");
+    $run('moodle.drop_v1.moodle_courses',            "DROP TABLE IF EXISTS moodle_courses");
+    $run('moodle.drop_v1.moodle_enrollments',        "DROP TABLE IF EXISTS moodle_enrollments");
+    $run('moodle.drop_v1.k30_ti_student_accounts.moodle_user_id',    "ALTER TABLE k30_ti_student_accounts DROP COLUMN moodle_user_id");
+    $run('moodle.drop_v1.k30_ti_student_accounts.moodle_username',   "ALTER TABLE k30_ti_student_accounts DROP COLUMN moodle_username");
+    $run('moodle.drop_v1.k30_ti_student_accounts.moodle_created_at', "ALTER TABLE k30_ti_student_accounts DROP COLUMN moodle_created_at");
+    $run('moodle.drop_v1.users.moodle_login',        "ALTER TABLE users DROP COLUMN moodle_login");
+
     return $results;
 }
 
