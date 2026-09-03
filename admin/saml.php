@@ -3,7 +3,7 @@
  * admin/saml.php — zarządzanie SAML 2.0 Identity Provider.
  *
  * Status IdP + certyfikat + metadata, rejestr Service Providerów (dodaj/edytuj/
- * usuń/aktywacja), import metadata SP, presety (Moodle/Nextcloud/Grafana),
+ * usuń/aktywacja), import metadata SP, presety (Nextcloud/Grafana),
  * polityka dostępu (role), log zdarzeń SSO.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -30,7 +30,7 @@ $NAMEID_FORMATS = ['emailAddress' => 'E-mail (emailAddress)', 'persistent' => 'T
                    'transient' => 'Ulotny (transient)', 'unspecified' => 'Nieokreślony (unspecified)'];
 $NAMEID_ATTRS   = ['email' => 'E-mail', 'username' => 'Login (część przed @)', 'id' => 'ID użytkownika',
                    'name' => 'Imię i nazwisko'];
-$PRESETS = ['generic' => 'Generyczny (OID)', 'moodle' => 'Moodle', 'nextcloud' => 'Nextcloud',
+$PRESETS = ['generic' => 'Generyczny (OID)', 'nextcloud' => 'Nextcloud',
             'owncloud' => 'ownCloud', 'grafana' => 'Grafana'];
 $PRESET_ENDPOINTS = saml_preset_endpoints();
 $ROLES_AVAILABLE = [];

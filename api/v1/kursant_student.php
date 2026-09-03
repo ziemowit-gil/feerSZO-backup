@@ -114,8 +114,6 @@ if ($action === 'login' && $method === 'POST') {
         'notify_sms_lessons'    => (int)($acc['notify_sms_lessons'] ?? 0),
         'ms_upn'                => $acc['ms_upn'] ?? null,
         'ms_user_id'            => $acc['ms_user_id'] ?? null,
-        'moodle_username'       => $acc['moodle_username'] ?? null,
-        'moodle_user_id'        => isset($acc['moodle_user_id']) ? (int)$acc['moodle_user_id'] : null,
         'owncloud_login'        => $acc['owncloud_login'] ?? null,
         'name'                  => $acc['client_name'],
     ];
@@ -684,7 +682,7 @@ switch ($action) {
         json_ok(['balance' => round($bal, 2), 'currency' => 'PLN', 'entries' => $entries]);
     }
 
-    // ── online (MS365 / Moodle) ────────────────────────────────────────────────
+    // ── online (MS365) ──────────────────────────────────────────────────────────
     case 'online': {
         $acc = load_student($student_id);
         $cid = (int)$acc['client_id'];
@@ -711,9 +709,6 @@ switch ($action) {
             'ms_upn'            => $acc['ms_upn'] ?? null,
             'ms_temp_password'  => $acc['ms_temp_password'] ?? null,
             'ms_tenant_name'    => defined('M365_TENANT_NAME') ? M365_TENANT_NAME : null,
-            'moodle_provisioned'=> !empty($acc['moodle_username']),
-            'moodle_username'   => $acc['moodle_username'] ?? null,
-            'moodle_url'        => defined('MOODLE_URL') ? MOODLE_URL : null,
             'zoom_link'         => $acc['zoom_link'] ?? null,
             'teams_link'        => $acc['teams_link'] ?? null,
             'active_lesson_url' => $active_url,

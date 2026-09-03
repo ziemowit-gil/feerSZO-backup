@@ -2,7 +2,7 @@
 /**
  * includes/saml_idp.php — SAML 2.0 Identity Provider (IdP)
  *
- * Pozwala zewnętrznym aplikacjom (Service Providerom: Moodle, Nextcloud,
+ * Pozwala zewnętrznym aplikacjom (Service Providerom: Nextcloud,
  * Grafana itp.) logować użytkowników na danych z SZO.
  *
  * Zależności:
@@ -227,13 +227,6 @@ function saml_preset(string $preset): array {
     $basic = 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic';
     $uri   = 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri';
     switch ($preset) {
-        case 'moodle':
-            return ['nameid_format' => 'emailAddress', 'nameid_attr' => 'email', 'attrs' => [
-                ['name' => 'email',     'friendly' => 'email',     'nameformat' => $basic, 'source' => 'email'],
-                ['name' => 'firstname', 'friendly' => 'firstname', 'nameformat' => $basic, 'source' => 'first_name'],
-                ['name' => 'lastname',  'friendly' => 'lastname',  'nameformat' => $basic, 'source' => 'last_name'],
-                ['name' => 'username',  'friendly' => 'username',  'nameformat' => $basic, 'source' => 'username'],
-            ]];
         case 'nextcloud':
         case 'owncloud': // ten sam app user_saml co Nextcloud — identyczne oczekiwane atrybuty
             return ['nameid_format' => 'emailAddress', 'nameid_attr' => 'email', 'attrs' => [

@@ -19,7 +19,6 @@ $int_docusign   = (bool)(org_setting('docusign_account_id'));
 $int_apaczka    = org_setting('apaczka_enabled') === '1' && (bool)(org_setting('apaczka_api_key'));
 $int_furgonetka = org_setting('furgonetka_enabled') === '1';
 $int_ceidg      = (bool)(org_setting('ceidg_api_key'));
-$int_moodle     = (bool)(org_setting('moodle_url'));
 $int_canva      = org_setting('canva_enabled') !== '0';
 $int_ai         = (bool)(org_setting('ai_openai_key') ?: org_setting('ai_anthropic_key'));
 
@@ -33,7 +32,7 @@ try {
 $connected_total = array_sum(array_map('intval', [
     $int_m365, $int_sp, $int_smtp, $int_sms, $int_whatsapp, $int_postivo,
     $int_autenti, $int_docusign, $int_apaczka, $int_furgonetka,
-    $int_ceidg, $int_moodle, $int_canva, $int_ai,
+    $int_ceidg, $int_canva, $int_ai,
     $api_keys_count > 0, $webhooks_count > 0,
 ]));
 
@@ -139,7 +138,6 @@ function _isection(string $icon, string $label): void {
 
   <?php _isection('bi-mortarboard', 'E-learning & Zasoby') ?>
 
-  <?php _icard('bi-mortarboard-fill',  'Moodle',              'Platforma e-learningowa — kursy i zapisy', $int_moodle, '/admin/moodle.php',    '#e97626') ?>
   <?php _icard('bi-palette2',          'Canva Pro',           'Dostęp do kont Canva Pro dla zespołu',     $int_canva,  '/admin/canva.php',     '#7d2ae8') ?>
 
   <?php _isection('bi-stars', 'AI') ?>

@@ -22,7 +22,6 @@ $PANEL_ITEMS = [
     'wiadomosci'    => ['label' => 'Wiadomości',           'icon' => 'bi-chat-left-text',   'page' => 'panel/messages.php'],
     'zasady'        => ['label' => 'Zasady organizacji',   'icon' => 'bi-building-heart',   'page' => 'org_intro/index.php'],
     'asystent'      => ['label' => 'Asystent AI',          'icon' => 'bi-stars',            'page' => 'panel/asystent.php'],
-    'kursy'         => ['label' => 'Moje kursy (Moodle)',  'icon' => 'bi-mortarboard',      'page' => 'panel/moodle.php'],
     'pisma'         => ['label' => 'Moje pisma',           'icon' => 'bi-archive',          'page' => 'panel/letters.php'],
     'wnioski'       => ['label' => 'Wyślij wniosek/pismo', 'icon' => 'bi-send',             'page' => 'panel/apply.php'],
     'zaswiadczenia' => ['label' => 'Zaświadczenia',        'icon' => 'bi-award',            'page' => 'panel/certificates.php'],

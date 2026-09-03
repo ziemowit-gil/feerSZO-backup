@@ -192,7 +192,6 @@ $int_smtp      = (bool)(org_setting('smtp_host') ?: org_setting('m365_send_from_
 $int_sp        = (bool)(org_setting('sharepoint_site_url'));
 $int_sms       = (bool)(org_setting('sms_api_key') ?: org_setting('sms_api_token'));
 $int_whatsapp  = (bool)(org_setting('whatsapp_token'));
-$int_moodle    = (bool)(org_setting('moodle_url'));
 $int_apaczka   = org_setting('apaczka_enabled') === '1' && (bool)(org_setting('apaczka_api_key'));
 $int_furgonetka= org_setting('furgonetka_enabled') === '1';
 $int_autenti   = (bool)(org_setting('autenti_client_id'));
@@ -759,7 +758,6 @@ function _int_card(string $icon, string $name, string $desc, bool $connected, st
     <?php _int_card('bi-box-seam-fill',     'Apaczka',            'Nadawanie paczek — integracja z Apaczka.pl',            $int_apaczka,  '/admin/apaczka_settings.php',     '#f97316') ?>
     <?php _int_card('bi-truck',             'Furgonetka',         'Nadawanie paczek — integracja z Furgonetka.pl',         $int_furgonetka,'/admin/furgonetka_settings.php', '#0369a1') ?>
     <?php _int_card('bi-building-check',    'CEIDG',              'Weryfikacja firm z rejestru CEIDG',                     $int_ceidg,    '/admin/ceidg_settings.php',        '#16a34a') ?>
-    <?php _int_card('bi-mortarboard-fill',  'Moodle',             'Platforma e-learningowa — kursy i zapisy',              $int_moodle,   '/admin/moodle.php',                '#e97626') ?>
     <?php _int_card('bi-stars',             'AI (OpenAI/Anthropic)', 'Asystent AI do analizy i generowania treści',       $int_ai,       '/admin/ai_settings.php',           '#8b5cf6') ?>
 
   </div>

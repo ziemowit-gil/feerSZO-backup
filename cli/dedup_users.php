@@ -58,7 +58,7 @@ $SIMPLE_TABLES = [
     'checkin_sessions', 'contract_audit_log', 'contract_supervisors',
     'ev_roles', 'ezd_log', 'k30_clients', 'k30_consultant_certs',
     'kdok_certificates', 'kdok_history', 'kdok_steps', 'kdok_user_roles',
-    'login_log', 'm365_standalone_accounts', 'moodle_enrollments',
+    'login_log', 'm365_standalone_accounts',
     'notifications', 'org_members', 'org_rules_ack',
     'resource_reservation_log', 'resource_reservations',
     'shipments', 'sms_login_tokens',

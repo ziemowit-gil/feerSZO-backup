@@ -360,7 +360,7 @@ function owncloud_create_student_account(int $student_account_id): array {
 
     $admin_cfg = owncloud_admin_config();
 
-    // Spójna tożsamość z kontem MS/Moodle (tenant szkoleniowy TI, jak w
+    // Spójna tożsamość z kontem MS (tenant szkoleniowy TI, jak w
     // includes/ti_online.php) — jeśli kursant ma już własne konto MS, login
     // ownCloud pochodzi z tego samego UPN (hasło i tak zostaje osobne, ownCloud
     // nie ma SSO). Jeśli w tenancie istnieje konto UTWORZONE POZA SYSTEMEM

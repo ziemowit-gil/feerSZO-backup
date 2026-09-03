@@ -236,8 +236,6 @@ function _menu_viewer(): array {
         $search[] = _mi('Rozwiązanie umowy','/panel/terminations.php','bi-file-earmark-x',['match'=>'/panel/terminations']);
     if (module_enabled('timesheets_enabled') && panel_visible('godziny'))
         $search[] = _mi('Ewidencja godzin','/panel/timesheets.php','bi-clock-history',['match'=>'/panel/timesheets','kw'=>'godziny czas']);
-    if (module_enabled('moodle_enabled') && panel_visible('kursy'))
-        $search[] = _mi('Moje kursy','/panel/moodle.php','bi-mortarboard',['match'=>'/panel/moodle','kw'=>'kursy szkolenia moodle']);
     $search[] = _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']);
     $search[] = _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']);
     $search[] = _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']);

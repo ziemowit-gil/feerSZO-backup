@@ -77,10 +77,6 @@ $cnt['mail_failed'] = 0;
 try { $r = db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE status='failed'"); $cnt['mail_failed'] = (int)($r['c'] ?? 0); }
 catch (\Throwable $e) {}
 
-$cnt['moodle_pending'] = 0;
-try { $cnt['moodle_pending'] = (int)db()->query("SELECT COUNT(*) FROM moodle_enrollments WHERE status='oczekuje'")->fetchColumn(); }
-catch (\Throwable $e) {}
-
 $cnt['log_today'] = 0;
 try { $r = db_one("SELECT COUNT(*) AS c FROM auth_log WHERE DATE(created_at)=DATE('now')"); $cnt['log_today'] = (int)($r['c'] ?? 0); }
 catch (\Throwable $e) {}
@@ -243,7 +239,6 @@ $groups = [
         'icon'  => 'bi-mortarboard',
         'color' => 'indigo',
         'items' => [
-            ['icon'=>'bi-mortarboard',          'label'=>'Moodle',                   'url'=>'/admin/moodle.php',            'badge'=>$cnt['moodle_pending'] ?: null,'badge_type'=>'warning'],
             ['icon'=>'bi-building-heart',       'label'=>'Zasady i Wprowadzenie',    'url'=>'/admin/org_rules.php'],
             ['icon'=>'bi-calendar-check',       'label'=>'Rezerwacje zasobów',       'url'=>'/resources/admin/',            'badge'=>$cnt['res_pending'] ?: null, 'badge_type'=>'warning'],
             ['icon'=>'bi-box',                  'label'=>'Zasoby',                   'url'=>'/resources/admin/resources.php'],

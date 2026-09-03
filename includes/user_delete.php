@@ -64,7 +64,6 @@ function user_delete_impact(int $uid): array
         'user_consents'             => ['user_id', 'Zgody RODO'],
         'org_position_assignments'  => ['user_id', 'Przypisania stanowisk'],
         'approval_step_assignees'   => ['user_id', 'Przypisania kroków akceptacji'],
-        'moodle_enrollments'        => ['user_id', 'Zapisy Moodle'],
         'crm_group_members'         => ['user_id', 'Przynależność grup CRM'],
         'crm_user_calendar_prefs'   => ['user_id', 'Preferencje kalendarza Outlook'],
         'user_resource_reservations'=> ['user_id', 'Rezerwacje zasobów'],

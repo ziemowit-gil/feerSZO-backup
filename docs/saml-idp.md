@@ -1,7 +1,7 @@
 # SAML 2.0 Identity Provider (IdP) w SZO
 
 SZO działa jako **dostawca tożsamości SAML 2.0**. Zewnętrzne aplikacje
-(*Service Providers*, SP) — np. Moodle, Nextcloud, Grafana, Canva — mogą
+(*Service Providers*, SP) — np. Nextcloud, Grafana, Canva — mogą
 logować użytkowników na kontach z tabeli `users` w SZO (Single Sign-On).
 
 ---
@@ -15,7 +15,6 @@ logować użytkowników na kontach z tabeli `users` w SZO (Single Sign-On).
 5. [Rejestracja aplikacji (Service Provider)](#rejestracja-aplikacji-service-provider)
 6. [Konfiguracja konkretnych aplikacji](#konfiguracja-konkretnych-aplikacji)
    - [Canva](#canva)
-   - [Moodle](#moodle)
    - [Nextcloud](#nextcloud)
    - [Grafana](#grafana)
 7. [Mapowanie atrybutów i NameID](#mapowanie-atrybutów-i-nameid)
@@ -100,7 +99,7 @@ endpoint SSO i certyfikat automatycznie.
 - **Entity ID (SP)** — identyfikator aplikacji (z jej metadata).
 - **ACS URL** — *AssertionConsumerService* aplikacji (tam trafia asercja).
 - **SLO URL** — *SingleLogoutService* (opcjonalnie).
-- **Preset** — gotowy zestaw atrybutów (Moodle/Nextcloud/Grafana/Canva/generyczny).
+- **Preset** — gotowy zestaw atrybutów (Nextcloud/Grafana/Canva/generyczny).
 - **Format / pole NameID** — patrz [niżej](#mapowanie-atrybutów-i-nameid).
 - **Dozwolone role** — puste = wszyscy; inaczej tylko wskazane role.
 - **Podpisy** — podpis asercji (domyślnie tak), całej odpowiedzi, wymóg
@@ -143,13 +142,6 @@ uzupełnią się automatycznie):
 
 > Canva wymaga, by konta miały wypełnione imię i nazwisko (`first_name`,
 > `last_name`). Konta bez tych pól wyślą puste atrybuty.
-
-### Moodle
-
-Wtyczka **Auth: SAML2** (`auth_saml2`). W Moodle wskaż metadata IdP; w SZO
-wybierz preset **Moodle**. Atrybuty: `email`, `firstname`, `lastname`,
-`username`. NameID = e-mail. W Moodle zmapuj `email → email`,
-`firstname → firstname`, `lastname → lastname`.
 
 ### Nextcloud
 

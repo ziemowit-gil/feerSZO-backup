@@ -141,12 +141,6 @@ function szo_features(): array {
             'desc' => 'Wybór wolnego terminu szkolenia/spotkania z kalendarza organizacji (TidyCal) i potwierdzenie rezerwacji mailem.',
         ],
         [
-            'id' => 'panel_moodle', 'title' => 'Kursy e-learning (Moodle)',
-            'path' => '/panel/moodle.php', 'module' => 'moodle_enabled', 'roles' => 'all',
-            'kw' => 'kursy moodle e-learning szkolenia online nauka platforma kurs obowiązkowy',
-            'desc' => 'Zapisy na kursy i wejście na platformę Moodle z konta SZO.',
-        ],
-        [
             'id' => 'panel_kalendarz', 'title' => 'Kalendarz organizacji',
             'path' => '/panel/calendar.php', 'module' => 'org_calendar_enabled', 'roles' => 'all',
             'kw' => 'kalendarz wydarzenia terminy spotkania organizacji ics harmonogram',

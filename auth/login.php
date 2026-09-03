@@ -87,7 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user && $user['password'] && password_verify($pass, $user['password'])) {
                 brute_clear($email);
                 auth_start();
-                $_SESSION['_moodle_pwd'] = base64_encode($pass ^ str_repeat(session_id(), (int)ceil(strlen($pass) / 32)));
                 if (!empty($user['twofa_method'])) {
                     auth_start();
                     $_SESSION['2fa_uid']      = $user['id'];
