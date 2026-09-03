@@ -182,7 +182,6 @@ function _k30_active(string $path): bool {
       $K30_NAV[] = ['link', 'Konta kursantów',   'person-badge',    '/karty30/ti/kursant/accounts.php', ['/karty30/ti/kursant/accounts']];
       $K30_NAV[] = ['link', 'Dostępność prowadzących', 'clock-history', '/karty30/ti/availability.php', ['/karty30/ti/availability']];
       $K30_NAV[] = ['link', 'Nauka online',      'camera-video',    '/karty30/ti/online_admin.php',     ['/karty30/ti/online_admin']];
-      $K30_NAV[] = ['link', 'Moodle',            'mortarboard',     '/karty30/ti/moodle_admin.php',     ['/karty30/ti/moodle_admin']];
       $K30_NAV[] = ['link', 'Licencje',          'key',             '/karty30/ti/licencje_admin.php',   ['/karty30/ti/licencje_admin']];
       $K30_NAV[] = ['link', 'VLAB / Docker',     'hdd-stack',       '/karty30/ti/vlab_admin.php',       ['/karty30/ti/vlab_admin']];
       $K30_NAV[] = ['link', 'Umowy VLab',        'file-earmark-lock','/karty30/ti/vlab_contracts.php',  ['/karty30/ti/vlab_contracts']];
