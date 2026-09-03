@@ -68,7 +68,7 @@ $choices = [
     ],
     [
         'label' => 'Tożsamość',
-        'desc'  => 'Konta, dostępy do systemów IT — Microsoft 365, Moodle i inne',
+        'desc'  => 'Konta, dostępy do systemów IT — Microsoft 365 i inne',
         'icon'  => 'bi-person-badge-fill',
         'grad'  => 'linear-gradient(135deg,#065F46,#10B981)',
         'url'   => APP_URL . '/tozsamosc/',

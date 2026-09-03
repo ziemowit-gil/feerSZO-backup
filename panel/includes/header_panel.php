@@ -468,11 +468,6 @@ try {
     <i class="bi bi-award-fill" aria-hidden="true"></i>Zaświadczenia EZD
   </a>
   <?php endif; ?>
-  <?php if (module_enabled('moodle_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/moodle.php" class="pv-nav-link<?= _pv_nav_active('/panel/moodle') ?>">
-    <i class="bi bi-mortarboard" aria-hidden="true"></i>Kursy Moodle
-  </a>
-  <?php endif; ?>
   <?php if (module_enabled('tidycal_enabled') && trim(org_setting('tidycal_api_key')) !== ''): ?>
   <a href="<?= APP_URL ?>/panel/szkolenie.php" class="pv-nav-link<?= _pv_nav_active('/panel/szkolenie') ?>">
     <i class="bi bi-calendar2-check" aria-hidden="true"></i>Umów się na szkolenie

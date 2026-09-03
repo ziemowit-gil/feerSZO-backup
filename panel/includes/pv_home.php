@@ -39,21 +39,15 @@ $_vol_dark = (function (string $hex): string {
         (int)(hexdec(substr($hex,4,2))*.70));
 })($_vol_color);
 
-/* ── Dane platform (login portalu / M365 / Moodle) ───────────────────────── */
+/* ── Dane platform (login portalu / M365) ─────────────────────────────────── */
 $u_db = db_one(
     "SELECT u.*, ou.name AS org_unit_name
        FROM users u LEFT JOIN org_units ou ON ou.id = u.org_unit_id
       WHERE u.id = ?",
     [(int)$user['id']]
 ) ?: [];
-$email        = $user['email'] ?? ($u_db['email'] ?? '');
-$m365_login   = $u_db['m365_login']   ?? ($_active_row['m365_login'] ?? '');
-$moodle_login = $u_db['moodle_login'] ?? '';
-$moodle_url   = '';
-try {
-    require_once $ROOT . '/includes/moodle.php';
-    $moodle_url = rtrim((function_exists('moodle_setting') ? moodle_setting('url') : '') ?: (org_setting('moodle_url') ?: ''), '/');
-} catch (\Throwable $e) {}
+$email      = $user['email'] ?? ($u_db['email'] ?? '');
+$m365_login = $u_db['m365_login'] ?? ($_active_row['m365_login'] ?? '');
 
 /* ── Canva: status dostępu + samodzielne konto ───────────────────────────── */
 $_canva_module_on = false;
@@ -681,7 +675,7 @@ $_pv_rel_time = function (string $dt): string {
   </main><!-- /.pv-bento -->
 
   <!-- ════════════════════════════════════════════════════════════════════
-       POD BENTO — Konta i dostępy (M365, Moodle, Canva, Portal)
+       POD BENTO — Konta i dostępy (M365, Canva, Portal)
        ════════════════════════════════════════════════════════════════════ -->
   <section class="tz-card" aria-labelledby="pv-accounts-heading">
     <div class="tz-card__hd">
@@ -742,22 +736,6 @@ $_pv_rel_time = function (string $dt): string {
             <a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h($_mail_chooser_label) ?></a>
             <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)</a>
           </div>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <!-- Moodle -->
-      <?php if ($moodle_url): ?>
-      <div class="tz-svc">
-        <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Platforma e-learningowa (Moodle)
-            <?php if ($moodle_login): ?><span class="tz-badge tz-badge--ok ms-1"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tz-badge tz-badge--wait ms-1"><i class="bi bi-clock" aria-hidden="true"></i>Synchronizacja</span><?php endif; ?>
-          </div>
-          <div class="tz-kv">Login: <code><?= h($moodle_login ?: $email) ?></code>
-            <button class="tz-copy" type="button" onclick="pvCopy(<?= h(json_encode($moodle_login ?: $email)) ?>, this)" aria-label="Kopiuj login Moodle"><i class="bi bi-copy" aria-hidden="true"></i></button>
-          </div>
-          <div class="tz-svc__foot"><a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz <?= h(parse_url($moodle_url, PHP_URL_HOST)) ?></a></div>
         </div>
       </div>
       <?php endif; ?>

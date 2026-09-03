@@ -2,7 +2,7 @@
 /**
  * panel/standalone.php — Panel wolontariusza bez umowy.
  *
- * Pokazuje dane logowania do platform (portal, M365, Moodle), podsumowanie
+ * Pokazuje dane logowania do platform (portal, M365), podsumowanie
  * zadań i skróty. Układ i komponenty jak w module „Tożsamość"
  * (tozsamosc/_head.php): nagłówek .tz-h, karta .tz-card z wierszami usług
  * .tz-svc, kafelki .tz-tile — style z panel/includes/pv_styles.php.
@@ -14,14 +14,13 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once __DIR__ . '/../includes/webmail_clients.php';
 require_once dirname(__DIR__) . '/includes/cpc.php';
-require_once dirname(__DIR__) . '/includes/moodle.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
 
 require_login();
 $user    = current_user();
 $user_id = (int)$user['id'];
 
-// Pobierz pełne dane ze świeżymi kolumnami (m365_login, moodle_login, org_unit)
+// Pobierz pełne dane ze świeżymi kolumnami (m365_login, org_unit)
 $u_db = db_one(
     "SELECT u.*, ou.name AS org_unit_name
      FROM users u
@@ -41,8 +40,6 @@ $email        = $u_db['email'] ?? '';
 
 // Dane platform
 $m365_login    = $u_db['m365_login']    ?? '';
-$moodle_login  = $u_db['moodle_login']  ?? '';
-$moodle_url    = rtrim(moodle_setting('url') ?: org_setting('moodle_url') ?: '', '/');
 $org_name      = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
 $org_unit_name = $u_db['org_unit_name'] ?? '';
 
@@ -152,39 +149,6 @@ include __DIR__ . '/includes/header_panel.php';
       </div>
       <?php endif; ?>
 
-      <!-- 3. Moodle -->
-      <?php if ($moodle_url): ?>
-      <div class="tz-svc">
-        <span class="tz-svc__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Platforma e-learningowa</div>
-          <div class="tz-kv">Moodle — kursy i szkolenia</div>
-          <?php if ($moodle_login): ?>
-          <div class="tz-kv">
-            Login: <code><?= h($moodle_login) ?></code>
-            <button class="tz-copy" type="button" data-copy="<?= h($moodle_login) ?>"
-                    aria-label="Kopiuj login Moodle do schowka">
-              <i class="bi bi-copy" aria-hidden="true"></i>
-            </button>
-          </div>
-          <?php else: ?>
-          <div class="tz-kv">Login: <code><?= h($email) ?></code> <span>(Twój adres e-mail)</span></div>
-          <?php endif; ?>
-          <div class="tz-svc__foot">
-            <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"
-               aria-label="Otwórz platformę Moodle (nowa karta)">
-              <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><?= h(parse_url($moodle_url, PHP_URL_HOST)) ?>
-            </a>
-          </div>
-        </div>
-        <?php if ($moodle_login): ?>
-        <span class="tz-badge tz-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span>
-        <?php else: ?>
-        <span class="tz-badge tz-badge--wait"><i class="bi bi-clock" aria-hidden="true"></i>Oczekuje na synchronizację</span>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
-
     </div>
     <div class="tz-note" style="margin:0;border:0;border-top:1px solid var(--tz-line);border-radius:0">
       <i class="bi bi-info-circle" aria-hidden="true"></i>
@@ -215,15 +179,6 @@ include __DIR__ . '/includes/header_panel.php';
       <span class="tz-tile__ttl">Ustawienia konta</span>
       <span class="tz-tile__sub">Hasło, telefon</span>
     </a>
-
-    <?php if ($moodle_url): ?>
-    <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="tz-tile"
-       aria-label="Kursy — otwórz platformę Moodle (nowa karta)">
-      <span class="tz-tile__ico" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
-      <span class="tz-tile__ttl">Kursy</span>
-      <span class="tz-tile__sub">Platforma Moodle</span>
-    </a>
-    <?php endif; ?>
 
     <?php if (module_enabled('procedures_enabled')): ?>
     <a href="<?= APP_URL ?>/panel/procedures.php" class="tz-tile">
