@@ -88,6 +88,7 @@ $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + na
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
 $dyd_notices        = ti_notices_list_active_for_instructor($uid);
 $dyd_notices_unread = ti_notices_unread_count_instructor($uid);
+$dyd_notices_admin  = dyd_is_staff() ? ti_notices_list_admin() : null;
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
 if (isset($_GET['dl'])) {
@@ -514,6 +515,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Po potwierdzeniu z pełnoekranowej bramki wracamy tam, gdzie użytkownik szedł
         $_bt = trim((string)($_POST['back_tab'] ?? ''));
         header('Location: index.php?tab=' . urlencode($_bt !== '' ? $_bt : 'komunikaty')); exit;
+    }
+
+    // Komunikaty placówki — CRUD kierownika (dyd_is_staff() zastępuje is_admin()
+    // ze starego karty30/ti/notices.php — kierownik nie ma konta SZO).
+    if (in_array($op, ['notice_add', 'notice_edit'], true) && dyd_is_staff()) {
+        $nid = (int)($_POST['id'] ?? 0);
+        $title = trim($_POST['title'] ?? '');
+        if ($title === '') {
+            flash_set('danger', 'Podaj tytuł komunikatu.');
+            header('Location: index.php?tab=komunikaty'); exit;
+        }
+        $data = [
+            'title'       => $title,
+            'body'        => trim($_POST['body'] ?? ''),
+            'audience'    => 'all',
+            'is_pinned'   => !empty($_POST['is_pinned']) ? 1 : 0,
+            'is_active'   => !empty($_POST['is_active']) ? 1 : 0,
+            'expires_at'  => trim($_POST['expires_at'] ?? ''),
+            'author_id'   => $uid,
+            'author_name' => $me['name'] ?? '',
+        ];
+        if ($nid) {
+            ti_notices_update($nid, $data);
+            flash_set('success', 'Komunikat zaktualizowany.');
+        } else {
+            ti_notices_save($data);
+            flash_set('success', 'Komunikat opublikowany.');
+        }
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+    if ($op === 'notice_delete' && dyd_is_staff()) {
+        $nid = (int)($_POST['id'] ?? 0);
+        if ($nid) {
+            db()->prepare("DELETE FROM k30_ti_notice_reads WHERE notice_id=?")->execute([$nid]);
+            db()->prepare("DELETE FROM k30_ti_notices WHERE id=?")->execute([$nid]);
+            flash_set('success', 'Komunikat usunięty.');
+        }
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+    if ($op === 'notice_toggle_active' && dyd_is_staff()) {
+        $nid = (int)($_POST['id'] ?? 0);
+        $val = (int)($_POST['val'] ?? 0);
+        if ($nid) db()->prepare("UPDATE k30_ti_notices SET is_active=?, updated_at=datetime('now') WHERE id=?")->execute([$val, $nid]);
+        flash_set('success', $val ? 'Komunikat aktywowany.' : 'Komunikat dezaktywowany.');
+        header('Location: index.php?tab=komunikaty'); exit;
+    }
+    if ($op === 'notice_toggle_pin' && dyd_is_staff()) {
+        $nid = (int)($_POST['id'] ?? 0);
+        $val = (int)($_POST['val'] ?? 0);
+        if ($nid) db()->prepare("UPDATE k30_ti_notices SET is_pinned=?, updated_at=datetime('now') WHERE id=?")->execute([$val, $nid]);
+        flash_set('success', $val ? 'Komunikat przypięty.' : 'Odepnięto komunikat.');
+        header('Location: index.php?tab=komunikaty'); exit;
     }
 
     // Pozostałe operacje wymagają własności kursu. Kierownik (staff) przechodzi
