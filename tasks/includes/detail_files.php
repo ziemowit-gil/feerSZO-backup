@@ -1,0 +1,168 @@
+<!--
+ tasks/includes/detail_files.php — wydzielone z tasks/detail.php.
+ Załączniki + Pliki z Koszulek (workspaces). Wymaga: $task, $my_role, $can_manage_files, $files, $ws_linked_files, $ws_for_task, $id.
+-->
+<!-- ══ ZAŁĄCZNIKI ══════════════════════════════════════════════════════════ -->
+<?php if (task_field_visible('files', $my_role)): ?>
+<div class="td-section">
+  <div class="td-label">
+    <i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki
+    <?php if ($files): ?>
+    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= count($files) ?></span>
+    <?php endif; ?>
+  </div>
+
+  <div id="td-files">
+    <?php foreach ($files as $f):
+      $ext = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
+      $icon = match (true) {
+        in_array($ext, ['jpg','jpeg','png','gif','webp','svg','bmp'], true) => 'image',
+        $ext === 'pdf'                                                      => 'pdf',
+        in_array($ext, ['xls','xlsx','csv'], true)                          => 'spreadsheet',
+        in_array($ext, ['doc','docx'], true)                               => 'word',
+        $ext === 'zip'                                                      => 'zip',
+        default                                                             => 'text',
+      };
+      $file_url = APP_URL . '/uploads/tasks/' . $f['stored_name'];
+    ?>
+    <div class="td-file-row" id="file-<?= $f['id'] ?>">
+      <i class="bi bi-file-earmark-<?= $icon ?> text-primary flex-shrink-0" aria-hidden="true"></i>
+      <button type="button" class="td-file-name"
+              onclick="tdPreviewFile(<?= htmlspecialchars(json_encode($file_url), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($f['original_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($ext), ENT_QUOTES) ?>)"
+              aria-label="Podgląd: <?= h($f['original_name']) ?>">
+        <?= h($f['original_name']) ?>
+      </button>
+      <span class="text-muted flex-shrink-0" style="font-size:.7rem"><?= round($f['file_size']/1024) ?> KB</span>
+      <a href="<?= h($file_url) ?>" download
+         class="td-file-dl"
+         title="Pobierz" aria-label="Pobierz <?= h($f['original_name']) ?>">
+        <i class="bi bi-download" aria-hidden="true"></i>
+      </a>
+      <?php if ($can_manage_files): ?>
+      <button type="button"
+              class="btn-close flex-shrink-0"
+              onclick="tdDeleteFile(<?= $f['id'] ?>)"
+              aria-label="Usuń plik <?= h($f['original_name']) ?>"
+              style="font-size:.55rem"></button>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+  <?php if ($can_manage_files): ?>
+  <div class="d-flex flex-wrap gap-2 mt-2">
+    <label class="btn btn-sm btn-outline-secondary" style="cursor:pointer">
+      <i class="bi bi-upload me-1" aria-hidden="true"></i>Z dysku
+      <span class="text-muted fw-normal small">(max 10 MB)</span>
+      <input type="file"
+             id="td-file-input"
+             class="visually-hidden"
+             accept=".pdf,.jpg,.jpeg,.png,.gif,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.zip,.txt,.csv"
+             aria-label="Wybierz plik do uploadu">
+    </label>
+
+    <?php if ($ms_available && $has_ms): ?>
+    <button type="button"
+            class="btn btn-sm"
+            style="background:#0078d4;color:#fff;border:none"
+            onclick="tdOpenOneDrive()"
+            aria-label="Wybierz plik z Microsoft OneDrive lub SharePoint">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1" aria-hidden="true">
+        <path d="M10.5 18.5H6a4.5 4.5 0 0 1-.95-8.9A6 6 0 0 1 16.7 7.6a4 4 0 0 1 2.8 6.9H10.5zm5-4.5-3.5-3.5-3.5 3.5h2.5v4h2v-4z"/>
+      </svg>
+      OneDrive / SharePoint
+    </button>
+    <?php elseif ($ms_available && !$has_ms): ?>
+    <span class="btn btn-sm btn-outline-secondary disabled"
+          aria-disabled="true"
+          tabindex="-1"
+          title="Zaloguj się przez Microsoft, aby importować z OneDrive">
+      <i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i>OneDrive
+      <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">Wymagane konto MS</span>
+    </span>
+    <?php endif; ?>
+  </div>
+
+  <div id="td-upload-status" class="small text-muted mt-2 d-none" aria-live="polite">
+    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+    <span id="td-upload-msg">Wysyłanie…</span>
+  </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- ══ PLIKI Z KOSZULEK (workspaces) ══════════════════════════════════════ -->
+<?php if ($ws_for_task): ?>
+<div class="td-section">
+  <div class="td-label">
+    <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki z Koszulek
+    <?php if ($ws_linked_files): ?>
+    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= count($ws_linked_files) ?></span>
+    <?php endif; ?>
+    <span class="text-muted ms-1" style="font-size:.72rem;font-weight:400"><?= h($ws_for_task['name']) ?></span>
+  </div>
+
+  <div id="td-ws-files">
+    <?php foreach ($ws_linked_files as $wf):
+      $ext  = strtolower(pathinfo($wf['original_name'] ?: $wf['name'], PATHINFO_EXTENSION));
+      $icon = match(true) {
+          in_array($ext, ['jpg','jpeg','png','gif','webp'], true) => 'image',
+          $ext === 'pdf'                                          => 'pdf',
+          in_array($ext, ['xls','xlsx','csv'], true)              => 'spreadsheet',
+          in_array($ext, ['doc','docx'], true)                    => 'word',
+          in_array($ext, ['zip','7z'], true)                      => 'zip',
+          default                                                 => 'text',
+      };
+      $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . (int)$wf['id'] . '&_csrf=' . urlencode($csrf);
+    ?>
+    <div class="td-file-row" id="wsfile-<?= $wf['id'] ?>">
+      <i class="bi bi-file-earmark-<?= $icon ?> flex-shrink-0" style="color:#3b82f6" aria-hidden="true"></i>
+      <span class="td-file-name text-truncate" style="flex:1;min-width:0" title="<?= h($wf['name']) ?>">
+        <?= h($wf['name']) ?>
+      </span>
+      <span class="text-muted flex-shrink-0" style="font-size:.7rem"><?= ws_format_size((int)$wf['file_size']) ?></span>
+      <a href="<?= h($dl_url) ?>"
+         class="td-file-dl flex-shrink-0"
+         title="Pobierz przez backend" aria-label="Pobierz <?= h($wf['name']) ?>">
+        <i class="bi bi-download" aria-hidden="true"></i>
+      </a>
+      <?php if ($can_edit): ?>
+      <button type="button"
+              class="btn-close flex-shrink-0 td-ws-unlink"
+              data-file-id="<?= (int)$wf['id'] ?>"
+              data-task-id="<?= $id ?>"
+              aria-label="Odepnij plik <?= h($wf['name']) ?>"
+              style="font-size:.55rem"></button>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+    <?php if (empty($ws_linked_files)): ?>
+    <p class="text-muted small mb-0" id="td-ws-empty">Brak powiązanych plików z koszulki.</p>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($can_edit): ?>
+  <div class="mt-2">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="td-ws-link-btn"
+            data-task-id="<?= $id ?>" data-ws-id="<?= (int)$task['workspace_id'] ?>">
+      <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Dodaj z koszulki
+    </button>
+  </div>
+
+  <!-- Inline picker plików z koszulki -->
+  <div id="td-ws-picker" class="mt-2" style="display:none">
+    <div class="input-group input-group-sm mb-1">
+      <input type="text" id="td-ws-search" class="form-control" placeholder="Szukaj pliku…" autocomplete="off">
+      <button class="btn btn-outline-secondary" id="td-ws-search-btn" type="button">
+        <i class="bi bi-search" aria-hidden="true"></i>
+      </button>
+      <button class="btn btn-outline-secondary" id="td-ws-picker-close" type="button">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div id="td-ws-results" class="list-group" style="max-height:180px;overflow-y:auto;font-size:.82rem"></div>
+  </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
