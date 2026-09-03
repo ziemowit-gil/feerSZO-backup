@@ -77,7 +77,12 @@ class NozbeAPI {
             'project_id' => $project_id,
         ];
         if ($due_date) {
-            $data['due_at'] = $due_date . 'T00:00:00.000Z';
+            // Schemat API (api4.nozbe.com/v1/api) pokazuje due_at jako liczbę
+            // (unix ms), nie string ISO — ta ścieżka nigdy nie była wywołana
+            // w praktyce (oba dotychczasowe wywołania create_task() z due_date
+            // to martwy kod), więc poprawka nie zmienia żadnego działającego
+            // zachowania. Godzina 00:00 UTC dnia terminu.
+            $data['due_at'] = strtotime($due_date . ' 00:00:00 UTC') * 1000;
         }
         if ($is_priority) {
             $data['is_starred'] = true;
@@ -108,7 +113,12 @@ class NozbeAPI {
 
     /** Oznacz zadanie jako ukończone. */
     public function complete_task(string $task_id): array {
-        return $this->request('PUT', '/tasks/' . $task_id, ['is_completed' => true]);
+        return $this->request('PUT', '/tasks/' . $task_id, ['ended_at' => time() * 1000]);
+    }
+
+    /** Zaktualizuj dowolne pola zadania (np. name, due_at) — PUT jest częściowy (PATCH-like). */
+    public function update_task(string $task_id, array $fields): array {
+        return $this->request('PUT', '/tasks/' . $task_id, $fields);
     }
 
     // ── Settings helpers ──────────────────────────────────────────────────────

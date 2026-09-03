@@ -51,6 +51,10 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [3, 5],       // między 3:00 a 5:00
     ],
+    'tasks_nozbe_sync' => [
+        'file'     => __DIR__ . '/tasks_nozbe_sync.php',
+        'interval' => 900,          // co 15 min — per-user push do Nozbe, patrz includes/task_nozbe.php
+    ],
     'tasks_notification_worker' => [
         'file'     => __DIR__ . '/tasks_notification_worker.php',
         'interval' => 120,          // co 2 minuty — przetwarza kolejkę powiadomień

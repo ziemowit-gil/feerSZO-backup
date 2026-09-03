@@ -109,6 +109,19 @@
       <?php endif; ?>
     </a>
 
+    <?php
+    require_once dirname(dirname(__DIR__)) . '/includes/task_nozbe.php';
+    $_tsk_nozbe_connected = task_nozbe_configured((int)$_tu['id']);
+    ?>
+    <a class="tsk-nav-link <?= _tsk_active('/tasks/nozbe_settings') ? 'active' : '' ?>"
+       href="<?= APP_URL ?>/tasks/nozbe_settings.php"
+       aria-current="<?= _tsk_active('/tasks/nozbe_settings') ? 'page' : 'false' ?>">
+      <i class="bi bi-check2-square" aria-hidden="true"></i>Moje połączenie z Nozbe
+      <?php if (!$_tsk_nozbe_connected): ?>
+      <span class="tsk-nav-badge" style="background:#f1f5f9;color:#94a3b8" aria-label="niepołączone">–</span>
+      <?php endif; ?>
+    </a>
+
     <?php if ($_tsk_is_any_leader): ?>
     <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/workspaces') ? 'active' : '' ?>"
        href="<?= APP_URL ?>/tasks/settings/workspaces.php">
