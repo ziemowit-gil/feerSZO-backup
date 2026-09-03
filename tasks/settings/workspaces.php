@@ -3,6 +3,12 @@
  * tasks/settings/workspaces.php
  * Zarządzanie obszarami roboczymi — dostępne dla liderów obszarów i adminów.
  * Przeniesione z admin/tasks_workspaces.php do modułu Zadania.
+ *
+ * Przebudowa na Tailwind (2026-09-04) — podział na pliki, patrz
+ * tasks/settings/includes/: workspaces_sidebar.php (lista obszarów),
+ * workspaces_tab_lists.php, workspaces_tab_members.php, workspaces_tab_teams.php,
+ * workspaces_tab_settings.php (zakładki), workspaces_modals.php (modale),
+ * assets/js/tasks-settings-workspaces.js (logika JS).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -219,43 +225,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Dane widoku ────────────────────────────────────────────────────────────
 $active_ws_id = (int)($_GET['ws'] ?? 0);
 
-// Lider widzi tylko swoje obszary; admin widzi wszystkie
+// Lider widzi tylko obszary gdzie ma admin/editor — bezpośrednio, jako twórca,
+// LUB przez zespół (task_user_workspaces() liczy to poprawnie, patrz
+// task_workspace_role() w includes/tasks.php). Admin systemu widzi wszystkie.
 if ($sys_admin) {
     $workspaces = db_all(
-        "SELECT tw.*, u.name AS creator_name, COUNT(DISTINCT t.id) AS task_count
+        "SELECT tw.*, COUNT(DISTINCT t.id) AS task_count
          FROM task_workspaces tw
-         LEFT JOIN users u ON u.id=tw.created_by
          LEFT JOIN tasks t ON t.workspace_id=tw.id AND t.deleted_at IS NULL
          GROUP BY tw.id ORDER BY tw.name"
     );
 } else {
-    $workspaces = db_all(
-        "SELECT tw.*, u.name AS creator_name, COUNT(DISTINCT t.id) AS task_count
-         FROM task_workspaces tw
-         JOIN task_workspace_members twm ON twm.workspace_id=tw.id AND twm.user_id=? AND twm.role IN ('admin','editor')
-         LEFT JOIN users u ON u.id=tw.created_by
-         LEFT JOIN tasks t ON t.workspace_id=tw.id AND t.deleted_at IS NULL
-         GROUP BY tw.id ORDER BY tw.name",
-        [$uid]
-    );
-    // Dodaj obszary gdzie jest created_by
-    $created = db_all(
-        "SELECT tw.*, u.name AS creator_name, COUNT(DISTINCT t.id) AS task_count
-         FROM task_workspaces tw
-         LEFT JOIN users u ON u.id=tw.created_by
-         LEFT JOIN tasks t ON t.workspace_id=tw.id AND t.deleted_at IS NULL
-         WHERE tw.created_by=?
-         GROUP BY tw.id",
-        [$uid]
-    );
-    $seen_ids = array_column($workspaces, 'id');
-    foreach ($created as $c) {
-        if (!in_array($c['id'], $seen_ids)) $workspaces[] = $c;
-    }
-    usort($workspaces, fn($a,$b) => strcmp($a['name'],$b['name']));
+    $workspaces = array_values(array_filter(
+        task_user_workspaces($uid),
+        fn($w) => in_array($w['my_role'], ['admin', 'editor'], true)
+    ));
 }
 
 $active_ws = null; $lists = []; $members = []; $all_users = [];
+$linked_teams = []; $linkable_teams = [];
 if ($active_ws_id) {
     $active_ws  = db_one("SELECT * FROM task_workspaces WHERE id=?", [$active_ws_id]);
     $ws_role    = task_workspace_role($active_ws_id, $uid);
@@ -280,8 +268,9 @@ if ($active_ws_id) {
          ORDER BY tt.name",
         [$active_ws_id]
     );
-    $linked_team_ids   = array_column($linked_teams, 'id');
-    $linkable_teams    = array_filter(task_get_teams(), fn($t) => !in_array($t['id'], $linked_team_ids, true));
+    $linked_team_ids = array_column($linked_teams, 'id');
+    $linkable_teams  = array_filter(task_get_teams(), fn($t) => !in_array($t['id'], $linked_team_ids, true));
+    $ws_task_count   = (int)(db_one("SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND deleted_at IS NULL", [$active_ws_id])['n'] ?? 0);
 }
 
 $PAGE_TITLE       = 'Obszary robocze';
@@ -291,12 +280,12 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
   <div>
-    <h1 class="h5 fw-bold mb-0">
-      <i class="bi bi-sliders text-primary me-2" aria-hidden="true"></i>Obszary robocze
+    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+      <i class="bi bi-sliders tw-text-blue-600" aria-hidden="true"></i>Obszary robocze
     </h1>
-    <p class="text-muted small mb-0">Zarządzaj obszarami, kolumnami i członkami</p>
+    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Zarządzaj obszarami, kolumnami i członkami</p>
   </div>
   <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#wsModal">
     <i class="bi bi-plus-lg me-1"></i>Nowy obszar
@@ -305,43 +294,17 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <div class="row g-3">
 
-  <!-- Lista obszarów -->
   <div class="col-lg-3">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-semibold small py-2 border-bottom">Obszary</div>
-      <div class="list-group list-group-flush">
-        <?php if (!$workspaces): ?>
-        <div class="list-group-item text-muted small py-3 text-center">Brak obszarów.</div>
-        <?php endif; ?>
-        <?php foreach ($workspaces as $ws): ?>
-        <a href="?ws=<?= $ws['id'] ?>"
-           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2
-                  <?= $ws['id'] == $active_ws_id ? 'active' : '' ?>"
-           style="<?= !$ws['is_active'] ? 'opacity:.55' : '' ?>">
-          <span style="width:9px;height:9px;border-radius:50%;background:<?= h($ws['color']) ?>;flex-shrink:0"></span>
-          <i class="bi <?= h($ws['icon']) ?>" style="font-size:.85rem;flex-shrink:0"></i>
-          <span class="flex-grow-1 small text-truncate"><?= h($ws['name']) ?></span>
-          <span style="font-size:.67rem;background:#f1f5f9;color:#64748b;border-radius:2rem;padding:.05rem .4rem">
-            <?= (int)$ws['task_count'] ?>
-          </span>
-        </a>
-        <?php endforeach; ?>
-      </div>
-    </div>
+    <?php require_once __DIR__ . '/includes/workspaces_sidebar.php'; ?>
   </div>
 
-  <!-- Szczegóły -->
   <div class="col-lg-9">
     <?php if (!$active_ws): ?>
-    <div class="card border-0 shadow-sm">
-      <div class="card-body text-center text-muted py-5">
-        <i class="bi bi-sliders display-4 opacity-25 d-block mb-2"></i>
-        Wybierz obszar z listy lub utwórz nowy.
-      </div>
+    <div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-py-14 tw-text-center tw-text-slate-400">
+      <i class="bi bi-sliders tw-text-4xl tw-block tw-mb-2 tw-opacity-40" aria-hidden="true"></i>
+      Wybierz obszar z listy lub utwórz nowy.
     </div>
-    <?php else:
-      $ws_task_count = (int)(db_one("SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND deleted_at IS NULL",[$active_ws_id])['n']??0);
-    ?>
+    <?php else: ?>
 
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
@@ -367,567 +330,29 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
     </ul>
 
     <div class="tab-content">
-
-      <!-- ── Kolumny ── -->
       <div class="tab-pane fade show active" id="tab-lists">
-        <div class="card border-0 shadow-sm mb-2">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-            <span class="small fw-semibold">Kolejność i konfiguracja kolumn</span>
-            <button class="btn btn-sm btn-outline-primary btn-sm"
-                    onclick="openListModal(0,<?= $active_ws_id ?>)">
-              <i class="bi bi-plus-lg me-1"></i>Dodaj kolumnę
-            </button>
-          </div>
-          <div class="list-group list-group-flush" id="lists-sortable">
-            <?php foreach ($lists as $list): ?>
-            <div class="list-group-item d-flex align-items-center gap-3 py-2"
-                 data-list-id="<?= $list['id'] ?>">
-              <i class="bi bi-grip-vertical text-muted" style="cursor:grab;font-size:.85rem"></i>
-              <span style="width:10px;height:10px;border-radius:2px;background:<?= h($list['color']?:'#e2e8f0') ?>;flex-shrink:0"></span>
-              <span class="flex-grow-1 small fw-semibold">
-                <?= h($list['name']) ?>
-                <?php if ($list['is_done_state']): ?>
-                <i class="bi bi-check-circle-fill text-success ms-1" style="font-size:.72rem"></i>
-                <?php endif; ?>
-                <?php if ($list['wip_limit']): ?>
-                <span class="text-muted fw-normal ms-1" style="font-size:.72rem">WIP:<?= $list['wip_limit'] ?></span>
-                <?php endif; ?>
-              </span>
-              <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.65rem">
-                <?= (int)$list['task_count'] ?>
-              </span>
-              <div class="d-flex gap-1 flex-shrink-0">
-                <button class="btn btn-outline-secondary"
-                        style="padding:.18rem .45rem;font-size:.72rem"
-                        onclick="openListModal(<?= $list['id'] ?>,<?= $active_ws_id ?>,'<?= h(addslashes($list['name'])) ?>','<?= h($list['color']) ?>',<?= $list['is_done_state'] ?>,<?= $list['wip_limit']?:'null' ?>)">
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <form method="post" class="d-inline" onsubmit="return confirmDelete(<?= $list['task_count'] ?>)">
-                  <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-                  <input type="hidden" name="_action" value="delete_list">
-                  <input type="hidden" name="ws_id"   value="<?= $active_ws_id ?>">
-                  <input type="hidden" name="list_id" value="<?= $list['id'] ?>">
-                  <button class="btn btn-outline-danger" style="padding:.18rem .45rem;font-size:.72rem">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </form>
-              </div>
-            </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-        <form method="post" id="reorder-form">
-          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="reorder_lists">
-          <input type="hidden" name="ws_id"   value="<?= $active_ws_id ?>">
-          <input type="hidden" name="order"   id="lists-order-input" value="">
-          <button type="submit" id="save-order-btn" class="btn btn-sm btn-success d-none">
-            <i class="bi bi-check2 me-1"></i>Zapisz kolejność
-          </button>
-        </form>
+        <?php require_once __DIR__ . '/includes/workspaces_tab_lists.php'; ?>
       </div>
-
-      <!-- ── Członkowie ── -->
       <div class="tab-pane fade" id="tab-members">
-        <div class="card border-0 shadow-sm mb-3">
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th class="ps-3 small">Użytkownik</th>
-                  <th class="small">Rola</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (!$members): ?>
-                <tr><td colspan="3" class="text-muted small ps-3 py-3 text-center">
-                  Brak przypisanych członków. Administratorzy systemu mają dostęp zawsze.
-                </td></tr>
-                <?php endif; ?>
-                <?php foreach ($members as $m): ?>
-                <tr>
-                  <td class="ps-3 small">
-                    <div class="fw-semibold"><?= h($m['name']) ?></div>
-                    <div class="text-muted" style="font-size:.71rem"><?= h($m['email']) ?></div>
-                  </td>
-                  <td>
-                    <span class="badge bg-<?= $m['role']==='admin'?'danger':($m['role']==='editor'?'primary':($m['role']==='member'?'info':'secondary')) ?>">
-                      <?= h($m['role']) ?>
-                    </span>
-                  </td>
-                  <td class="text-end pe-3">
-                    <form method="post" class="d-inline">
-                      <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
-                      <input type="hidden" name="_action"    value="remove_member">
-                      <input type="hidden" name="ws_id"      value="<?= $active_ws_id ?>">
-                      <input type="hidden" name="member_uid" value="<?= $m['user_id'] ?>">
-                      <button class="btn btn-outline-danger" style="padding:.15rem .4rem;font-size:.72rem">
-                        <i class="bi bi-person-dash"></i>
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white small fw-semibold py-2">Dodaj użytkownika do obszaru</div>
-          <div class="card-body py-3">
-            <form method="post" class="row g-2 align-items-end">
-              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="add_member">
-              <input type="hidden" name="ws_id"   value="<?= $active_ws_id ?>">
-              <div class="col-sm-5">
-                <label class="form-label small fw-semibold mb-1">Użytkownik</label>
-                <select name="member_uid" class="form-select form-select-sm" required>
-                  <option value="">— wybierz —</option>
-                  <?php foreach ($all_users as $u):
-                    if (!in_array($u['id'], $member_ids)): ?>
-                  <option value="<?= $u['id'] ?>"><?= h($u['name']) ?> (<?= h($u['email']) ?>)</option>
-                  <?php endif; endforeach; ?>
-                </select>
-              </div>
-              <div class="col-sm-3">
-                <label class="form-label small fw-semibold mb-1">Rola</label>
-                <select name="member_role" class="form-select form-select-sm">
-                  <option value="member" selected>Member</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                  <option value="admin">Admin obszaru</option>
-                </select>
-              </div>
-              <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-primary">
-                  <i class="bi bi-person-plus me-1"></i>Dodaj
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <?php require_once __DIR__ . '/includes/workspaces_tab_members.php'; ?>
       </div>
-
-      <!-- ── Zespoły ── -->
       <div class="tab-pane fade" id="tab-teams">
-        <p class="text-muted small">
-          Zespół przypisany tutaj daje dostęp do obszaru WSZYSTKIM swoim członkom,
-          dodatkowo obok osób dodanych pojedynczo w zakładce „Członkowie".
-          Zarządzanie samymi zespołami (tworzenie, członkowie) — w
-          <a href="<?= APP_URL ?>/tasks/settings/teams.php">ustawieniach Zespołów</a>.
-        </p>
-        <div class="card border-0 shadow-sm mb-3">
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th class="ps-3 small">Zespół</th>
-                  <th class="small">Rola w obszarze</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="ws-teams-tbody">
-                <?php if (!$linked_teams): ?>
-                <tr id="ws-teams-empty-row"><td colspan="3" class="text-muted small ps-3 py-3 text-center">
-                  Brak przypisanych zespołów.
-                </td></tr>
-                <?php endif; ?>
-                <?php foreach ($linked_teams as $t): ?>
-                <tr data-team-id="<?= (int)$t['id'] ?>">
-                  <td class="ps-3 small">
-                    <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?= h($t['color']) ?>;margin-right:.4rem"></span>
-                    <span class="fw-semibold"><?= h($t['name']) ?></span>
-                    <span class="text-muted" style="font-size:.71rem"> · <?= (int)$t['member_count'] ?> os.</span>
-                  </td>
-                  <td>
-                    <span class="badge bg-<?= $t['role']==='admin'?'danger':($t['role']==='editor'?'primary':($t['role']==='member'?'info':'secondary')) ?>">
-                      <?= h($t['role']) ?>
-                    </span>
-                  </td>
-                  <td class="text-end pe-3">
-                    <button type="button" class="btn btn-outline-danger" style="padding:.15rem .4rem;font-size:.72rem"
-                            onclick="wsUnlinkTeam(<?= (int)$t['id'] ?>, this)">
-                      <i class="bi bi-x-lg"></i>
-                    </button>
-                  </td>
-                </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <?php if ($linkable_teams): ?>
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white small fw-semibold py-2">Przypisz zespół do obszaru</div>
-          <div class="card-body py-3">
-            <div class="row g-2 align-items-end">
-              <div class="col-sm-5">
-                <label class="form-label small fw-semibold mb-1">Zespół</label>
-                <select id="ws-link-team-select" class="form-select form-select-sm">
-                  <?php foreach ($linkable_teams as $t): ?>
-                  <option value="<?= (int)$t['id'] ?>" data-name="<?= h($t['name']) ?>" data-color="<?= h($t['color']) ?>" data-members="<?= (int)$t['member_count'] ?>"><?= h($t['name']) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-sm-3">
-                <label class="form-label small fw-semibold mb-1">Rola</label>
-                <select id="ws-link-team-role" class="form-select form-select-sm">
-                  <option value="member" selected>Member</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                  <option value="admin">Admin obszaru</option>
-                </select>
-              </div>
-              <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-primary" onclick="wsLinkTeam(<?= (int)$active_ws_id ?>)">
-                  <i class="bi bi-plus-lg me-1"></i>Przypisz
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <?php else: ?>
-        <p class="text-muted small">Wszystkie aktywne zespoły są już przypisane do tego obszaru, albo nie istnieje żaden zespół — <a href="<?= APP_URL ?>/tasks/settings/teams.php">utwórz zespół</a>.</p>
-        <?php endif; ?>
+        <?php require_once __DIR__ . '/includes/workspaces_tab_teams.php'; ?>
       </div>
-
-      <!-- ── Ustawienia ── -->
       <div class="tab-pane fade" id="tab-settings">
-        <?php
-          $all_roles_for_ws = db_all("SELECT name, display_name FROM roles ORDER BY display_name");
-          $ws_visible_roles = json_decode($active_ws['visible_roles'] ?? '', true) ?: [];
-          $ws_edit_roles    = json_decode($active_ws['edit_roles']    ?? '', true) ?: [];
-        ?>
-        <div class="card border-0 shadow-sm">
-          <div class="card-body">
-            <form method="post" class="row g-3">
-              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="save_workspace">
-              <input type="hidden" name="ws_id"   value="<?= $active_ws_id ?>">
-              <div class="col-sm-8">
-                <label class="form-label small fw-semibold">Nazwa *</label>
-                <input type="text" name="name" class="form-control form-control-sm"
-                       value="<?= h($active_ws['name']) ?>" required maxlength="120">
-              </div>
-              <div class="col-sm-4">
-                <label class="form-label small fw-semibold">Kolor</label>
-                <input type="color" name="color" class="form-control form-control-sm form-control-color"
-                       value="<?= h($active_ws['color']) ?>">
-              </div>
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Opis</label>
-                <textarea name="description" class="form-control form-control-sm" rows="2"><?= h($active_ws['description']) ?></textarea>
-              </div>
-              <div class="col-sm-6">
-                <label class="form-label small fw-semibold">Ikona (bez bi-)</label>
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text"><i class="bi <?= h($active_ws['icon']) ?>" id="ws-icon-preview"></i></span>
-                  <input type="text" name="icon" id="ws-icon-input" class="form-control form-control-sm"
-                         value="<?= h(ltrim($active_ws['icon'],'bi-')) ?>" placeholder="kanban">
-                </div>
-              </div>
-
-              <?php if ($all_roles_for_ws): ?>
-              <!-- ── Role widoczności / edycji ── -->
-              <div class="col-12">
-                <hr class="my-1">
-                <div class="fw-semibold small mb-2">
-                  <i class="bi bi-shield-lock me-1 text-primary"></i>Uprawnienia ról systemowych
-                </div>
-                <p class="text-muted small mb-2">
-                  Puste = brak ograniczeń (każda rola z dostępem do obszaru).
-                  Administratorzy systemu mają zawsze pełny dostęp.
-                </p>
-                <div class="row g-3">
-                  <div class="col-sm-6">
-                    <label class="form-label small fw-semibold text-secondary">
-                      <i class="bi bi-eye me-1"></i>Może widzieć obszar (<code>visible_roles</code>)
-                    </label>
-                    <div class="border rounded p-2" style="max-height:160px;overflow-y:auto;background:#fafafa">
-                      <?php foreach ($all_roles_for_ws as $r): ?>
-                      <div class="form-check form-check-sm mb-1">
-                        <input class="form-check-input" type="checkbox"
-                               name="visible_roles[]" value="<?= h($r['name']) ?>"
-                               id="vr_<?= h($r['name']) ?>"
-                               <?= in_array($r['name'], $ws_visible_roles) ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="vr_<?= h($r['name']) ?>">
-                          <?= h($r['display_name']) ?>
-                        </label>
-                      </div>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                  <div class="col-sm-6">
-                    <label class="form-label small fw-semibold text-secondary">
-                      <i class="bi bi-pencil-square me-1"></i>Może edytować (<code>edit_roles</code>)
-                    </label>
-                    <div class="border rounded p-2" style="max-height:160px;overflow-y:auto;background:#fafafa">
-                      <?php foreach ($all_roles_for_ws as $r): ?>
-                      <div class="form-check form-check-sm mb-1">
-                        <input class="form-check-input" type="checkbox"
-                               name="edit_roles[]" value="<?= h($r['name']) ?>"
-                               id="er_<?= h($r['name']) ?>"
-                               <?= in_array($r['name'], $ws_edit_roles) ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="er_<?= h($r['name']) ?>">
-                          <?= h($r['display_name']) ?>
-                        </label>
-                      </div>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <?php endif; ?>
-
-              <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-                <button type="submit" class="btn btn-sm btn-primary">
-                  <i class="bi bi-check2 me-1"></i>Zapisz zmiany
-                </button>
-                <form method="post" class="d-inline mb-0">
-                  <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-                  <input type="hidden" name="_action" value="toggle_workspace">
-                  <input type="hidden" name="ws_id"   value="<?= $active_ws_id ?>">
-                  <button type="submit" class="btn btn-sm <?= $active_ws['is_active']?'btn-outline-warning':'btn-outline-success' ?>">
-                    <i class="bi bi-<?= $active_ws['is_active']?'pause':'play' ?> me-1"></i>
-                    <?= $active_ws['is_active']?'Dezaktywuj':'Aktywuj' ?>
-                  </button>
-                </form>
-                <button type="button" class="btn btn-sm btn-outline-danger ms-auto"
-                        data-bs-toggle="modal" data-bs-target="#deleteWsModal"
-                        onclick="prepareDeleteWs('<?= h(addslashes($active_ws['name'])) ?>',<?= $active_ws_id ?>,<?= $ws_task_count ?>)">
-                  <i class="bi bi-trash3 me-1"></i>Usuń obszar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <?php require_once __DIR__ . '/includes/workspaces_tab_settings.php'; ?>
       </div>
-
     </div><!-- /tab-content -->
     <?php endif; ?>
   </div><!-- /col-lg-9 -->
 </div>
 
-<!-- Modal: Nowy obszar -->
-<div class="modal fade" id="wsModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form method="post">
-        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="save_workspace">
-        <div class="modal-header py-2">
-          <h6 class="modal-title fw-bold">Nowy obszar roboczy</h6>
-          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Nazwa *</label>
-            <input type="text" name="name" id="wsModalName" class="form-control form-control-sm" required maxlength="120" placeholder="np. Projekt 2026">
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col">
-              <label class="form-label small fw-semibold">Kolor</label>
-              <input type="color" name="color" class="form-control form-control-sm form-control-color" value="#2563eb">
-            </div>
-            <div class="col">
-              <label class="form-label small fw-semibold">Ikona (bez bi-)</label>
-              <input type="text" name="icon" class="form-control form-control-sm" value="kanban" placeholder="kanban">
-            </div>
-          </div>
-
-          <?php if (ws_available()): ?>
-          <hr class="my-2">
-          <div class="mb-1">
-            <label class="form-label small fw-semibold mb-1">
-              <i class="bi bi-folder2-open me-1 text-primary"></i>Foldery w SharePoint
-              <span class="text-muted fw-normal">(opcjonalnie)</span>
-            </label>
-            <div id="wsFolderList" class="d-flex flex-column gap-1 mb-1"></div>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="wsAddFolder" style="font-size:.8rem">
-              <i class="bi bi-folder-plus me-1"></i>Dodaj folder
-            </button>
-            <div class="form-text" style="font-size:.72rem">Foldery zostaną automatycznie utworzone w SharePoint po zapisaniu obszaru.</div>
-          </div>
-          <?php endif; ?>
-        </div>
-        <div class="modal-footer py-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Utwórz</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<?php require_once __DIR__ . '/includes/workspaces_modals.php'; ?>
 
 <script>
-document.getElementById('wsAddFolder')?.addEventListener('click', function() {
-  const list = document.getElementById('wsFolderList');
-  const row  = document.createElement('div');
-  row.className = 'd-flex gap-1 align-items-center';
-  row.innerHTML = `
-    <input type="text" name="folders[]" class="form-control form-control-sm flex-grow-1"
-           placeholder="Nazwa folderu" maxlength="120" style="font-size:.83rem">
-    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ws-rm-folder" title="Usuń">
-      <i class="bi bi-x-lg" style="font-size:.75rem"></i>
-    </button>`;
-  row.querySelector('.ws-rm-folder').addEventListener('click', () => row.remove());
-  list.appendChild(row);
-  row.querySelector('input').focus();
-});
+  <?php /* Sortable.js już załadowany globalnie w header_tasks.php — nie duplikować */ ?>
+  window.TSK_WORKSPACES = { csrf: <?= json_encode(csrf_token()) ?>, base: <?= json_encode(rtrim(APP_URL, '/')) ?> };
 </script>
-
-<!-- Modal: Kolumna -->
-<div class="modal fade" id="listModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <form method="post">
-        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="save_list">
-        <input type="hidden" name="ws_id"   id="lm-ws-id"   value="">
-        <input type="hidden" name="list_id" id="lm-list-id" value="">
-        <div class="modal-header py-2">
-          <h6 class="modal-title fw-bold" id="lm-title">Kolumna</h6>
-          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Nazwa *</label>
-            <input type="text" name="lname" id="lm-name" class="form-control form-control-sm" required maxlength="120">
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col">
-              <label class="form-label small fw-semibold">Kolor paska</label>
-              <input type="color" name="lcolor" id="lm-color" class="form-control form-control-sm form-control-color" value="#e2e8f0">
-            </div>
-            <div class="col">
-              <label class="form-label small fw-semibold">Limit WIP</label>
-              <input type="number" name="wip_limit" id="lm-wip" class="form-control form-control-sm" min="0" placeholder="Brak">
-            </div>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="is_done_state" value="1" id="lm-done">
-            <label class="form-check-label small" for="lm-done">Kolumna „ukończone"</label>
-          </div>
-        </div>
-        <div class="modal-footer py-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Zapisz</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Usuń obszar -->
-<div class="modal fade" id="deleteWsModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content border-danger border-opacity-50">
-      <form method="post">
-        <input type="hidden" name="_csrf"        value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action"      value="delete_workspace">
-        <input type="hidden" name="ws_id"        id="del-ws-id"   value="">
-        <input type="hidden" name="force_delete" value="1">
-        <div class="modal-header py-2 bg-danger bg-opacity-10">
-          <h6 class="modal-title fw-bold text-danger"><i class="bi bi-trash3 me-1"></i>Usuń obszar</h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="small mb-2">Usuwasz obszar: <strong id="del-ws-name"></strong></p>
-          <div id="del-ws-warn" class="alert alert-warning small py-2 mb-2 d-none">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            Obszar zawiera <strong id="del-ws-cnt"></strong> zadań — zostaną usunięte bezpowrotnie.
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="del-ws-chk" required>
-            <label class="form-check-label small fw-semibold text-danger" for="del-ws-chk">
-              Rozumiem, usuń bezpowrotnie
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer py-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash3 me-1"></i>Usuń</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script>
-// Ikona podgląd
-const iconInp = document.getElementById('ws-icon-input');
-const iconPrv = document.getElementById('ws-icon-preview');
-if (iconInp && iconPrv) iconInp.addEventListener('input', () => iconPrv.className = 'bi bi-' + iconInp.value.trim());
-
-// Modal kolumny
-function openListModal(id, wsId, name='', color='#e2e8f0', done=0, wip=null) {
-    document.getElementById('lm-ws-id').value   = wsId;
-    document.getElementById('lm-list-id').value = id;
-    document.getElementById('lm-name').value    = name;
-    document.getElementById('lm-color').value   = color || '#e2e8f0';
-    document.getElementById('lm-done').checked  = !!done;
-    document.getElementById('lm-wip').value     = wip || '';
-    document.getElementById('lm-title').textContent = id ? 'Edytuj kolumnę' : 'Nowa kolumna';
-    new bootstrap.Modal(document.getElementById('listModal')).show();
-}
-
-function confirmDelete(cnt) {
-    if (cnt > 0) { alert('Kolumna zawiera ' + cnt + ' zadań. Przenieś je najpierw.'); return false; }
-    return confirm('Usunąć tę kolumnę?');
-}
-
-// Sortowanie kolumn
-const sortEl = document.getElementById('lists-sortable');
-if (sortEl) {
-    Sortable.create(sortEl, {
-        animation: 150, handle: '.bi-grip-vertical',
-        onEnd: function() {
-            const ids = Array.from(sortEl.querySelectorAll('[data-list-id]')).map(e=>e.dataset.listId).join(',');
-            document.getElementById('lists-order-input').value = ids;
-            document.getElementById('save-order-btn').classList.remove('d-none');
-        }
-    });
-}
-
-// Modal usuwania obszaru
-function prepareDeleteWs(name, wsId, tasks) {
-    document.getElementById('del-ws-id').value = wsId;
-    document.getElementById('del-ws-name').textContent = name;
-    document.getElementById('del-ws-chk').checked = false;
-    const warn = document.getElementById('del-ws-warn');
-    const cnt  = document.getElementById('del-ws-cnt');
-    if (tasks > 0) { cnt.textContent = tasks; warn.classList.remove('d-none'); }
-    else warn.classList.add('d-none');
-}
-
-// ── Zespoły przypisane do obszaru ────────────────────────────────────────
-const WS_TEAMS_CSRF = <?= json_encode(csrf_token()) ?>;
-const WS_TEAMS_BASE = <?= json_encode(rtrim(APP_URL, '/')) ?>;
-
-function wsTeamApi(action, extra) {
-    return fetch(WS_TEAMS_BASE + '/tasks/api/team.php', {
-        method:  'POST',
-        headers: {'Content-Type': 'application/json'},
-        body:    JSON.stringify(Object.assign({_csrf: WS_TEAMS_CSRF, action: action}, extra || {}))
-    }).then(r => r.json());
-}
-
-function wsLinkTeam(wsId) {
-    const sel  = document.getElementById('ws-link-team-select');
-    const role = document.getElementById('ws-link-team-role').value;
-    if (!sel || !sel.value) return;
-    wsTeamApi('link_workspace', {workspace_id: wsId, team_id: parseInt(sel.value, 10), role: role})
-        .then(r => { if (r.ok) window.location.reload(); else alert(r.error || 'Błąd przypisania zespołu.'); });
-}
-
-function wsUnlinkTeam(teamId, btn) {
-    const wsId = <?= (int)$active_ws_id ?>;
-    if (!confirm('Odpiąć ten zespół od obszaru? Jego członkowie stracą dostęp nadany przez zespół (chyba że są dodani też pojedynczo).')) return;
-    wsTeamApi('unlink_workspace', {workspace_id: wsId, team_id: teamId})
-        .then(r => { if (r.ok) window.location.reload(); else alert(r.error || 'Błąd.'); });
-}
-</script>
+<script src="<?= APP_URL ?>/assets/js/tasks-settings-workspaces.js" defer></script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer_tasks.php'; ?>
