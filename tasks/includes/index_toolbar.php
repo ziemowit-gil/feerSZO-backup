@@ -172,7 +172,11 @@ $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
     <?php
     $kanban_url = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'kanban']));
     $list_url   = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'list']));
+    $export_url = APP_URL . '/tasks/export.php?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id]));
     ?>
+    <a href="<?= h($export_url) ?>" class="btn btn-outline-secondary btn-sm" title="Eksportuj widoczne zadania do CSV">
+      <i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Eksportuj
+    </a>
     <?php if ($view_mode === 'kanban'): ?>
     <a href="<?= $list_url ?>" class="btn btn-outline-secondary btn-sm" title="Widok listy">
       <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista
