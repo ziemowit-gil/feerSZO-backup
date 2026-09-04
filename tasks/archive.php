@@ -67,9 +67,9 @@ $TASKS_BREADCRUMB = 'Archiwum zadań';
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-  <h2 class="h5 fw-bold mb-0 d-flex align-items-center gap-2">
-    <i class="bi bi-archive-fill text-secondary" aria-hidden="true"></i>
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
+  <h2 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+    <i class="bi bi-archive-fill tw-text-slate-500" aria-hidden="true"></i>
     Archiwum zadań<?= $workspace ? ' — ' . h($workspace['name']) : '' ?>
   </h2>
   <a href="<?= APP_URL ?>/tasks/index.php<?= $ws_id ? '?ws='.$ws_id : '' ?>" class="btn btn-outline-secondary btn-sm">
@@ -77,8 +77,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </a>
 </div>
 
-<div class="alert alert-secondary d-flex align-items-start gap-2 mb-3" style="font-size:.85rem">
-  <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+<div class="tw-flex tw-items-start tw-gap-2 tw-mb-4 tw-bg-slate-100 tw-text-slate-600 tw-rounded-lg tw-py-3 tw-px-4 tw-text-sm">
+  <i class="bi bi-info-circle-fill tw-flex-shrink-0 tw-mt-1" aria-hidden="true"></i>
   <div>
     Zadania ukończone są automatycznie archiwizowane <strong>7 dni</strong> po realizacji —
     znikają z aktywnej tablicy, ale zostają tutaj do wglądu. W każdej chwili można
@@ -87,48 +87,50 @@ require_once __DIR__ . '/includes/header_tasks.php';
 </div>
 
 <?php if (!$workspace): ?>
-<div class="text-center text-muted py-5">
-  <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.5"></i>
+<div class="tw-text-center tw-text-slate-400 tw-py-12">
+  <i class="bi bi-inbox tw-text-3xl tw-block tw-mb-2 tw-opacity-50" aria-hidden="true"></i>
   Nie masz dostępu do żadnego obszaru roboczego.
 </div>
 <?php elseif (!$archived): ?>
-<div class="text-center text-muted py-5">
-  <i class="bi bi-archive" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.5"></i>
+<div class="tw-text-center tw-text-slate-400 tw-py-12">
+  <i class="bi bi-archive tw-text-3xl tw-block tw-mb-2 tw-opacity-50" aria-hidden="true"></i>
   Brak zarchiwizowanych zadań w tym obszarze.
 </div>
 <?php else: ?>
-<div style="overflow-x:auto">
-  <table class="table table-sm align-middle" style="font-size:.85rem">
-    <thead>
-      <tr>
-        <th scope="col">Zadanie</th>
-        <th scope="col">Lista</th>
-        <th scope="col">Ukończono</th>
-        <th scope="col">Zarchiwizowano</th>
-        <th scope="col">Przypisani</th>
-        <?php if ($can_edit): ?><th scope="col" class="text-center">Akcja</th><?php endif; ?>
-      </tr>
-    </thead>
-    <tbody id="arch-tbody">
-      <?php foreach ($archived as $t): ?>
-      <tr id="arch-row-<?= (int)$t['id'] ?>">
-        <td><?= h($t['title']) ?></td>
-        <td><span class="text-muted"><?= h($t['list_name']) ?></span></td>
-        <td><?= h(substr($t['completed_at'] ?? '', 0, 10)) ?></td>
-        <td><?= h(substr($t['archived_at'] ?? '', 0, 10)) ?></td>
-        <td><?= $t['assignees'] ? h(implode(', ', array_column($t['assignees'], 'name'))) : '—' ?></td>
-        <?php if ($can_edit): ?>
-        <td class="text-center">
-          <button type="button" class="btn btn-outline-secondary btn-sm"
-                  onclick="archRestore(<?= (int)$t['id'] ?>, this)">
-            <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć
-          </button>
-        </td>
-        <?php endif; ?>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0" style="font-size:.85rem">
+      <thead class="table-light">
+        <tr>
+          <th scope="col" class="ps-3">Zadanie</th>
+          <th scope="col">Lista</th>
+          <th scope="col">Ukończono</th>
+          <th scope="col">Zarchiwizowano</th>
+          <th scope="col">Przypisani</th>
+          <?php if ($can_edit): ?><th scope="col" class="text-center pe-3">Akcja</th><?php endif; ?>
+        </tr>
+      </thead>
+      <tbody id="arch-tbody">
+        <?php foreach ($archived as $t): ?>
+        <tr id="arch-row-<?= (int)$t['id'] ?>">
+          <td class="ps-3"><?= h($t['title']) ?></td>
+          <td><span class="text-muted"><?= h($t['list_name']) ?></span></td>
+          <td><?= h(substr($t['completed_at'] ?? '', 0, 10)) ?></td>
+          <td><?= h(substr($t['archived_at'] ?? '', 0, 10)) ?></td>
+          <td><?= $t['assignees'] ? h(implode(', ', array_column($t['assignees'], 'name'))) : '—' ?></td>
+          <?php if ($can_edit): ?>
+          <td class="text-center pe-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    onclick="archRestore(<?= (int)$t['id'] ?>, this)">
+              <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć
+            </button>
+          </td>
+          <?php endif; ?>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 <?php endif; ?>
 
