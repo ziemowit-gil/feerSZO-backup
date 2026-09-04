@@ -28,6 +28,21 @@ function pr_decision(?array $step): string {
     $label = match($step['status']) { 'ok' => 'TAK', 'uwagi' => 'Z UWAGAMI', 'odrzucono' => 'ODRZUCONO', default => $step['status'] };
     return '<span class="badge-' . h($step['status']) . '">' . h($label) . '</span>';
 }
+/** Blok podpisu: rodzaj akceptacji (jawna etykieta) + kto/kiedy + zawsze widoczny opis/uwagi. */
+function pr_signoff(?array $step, string $verb): string {
+    $html = '<div class="signoff">';
+    $html .= '<table><tr><td class="l">Rodzaj akceptacji</td><td class="v">' . pr_decision($step) . '</td></tr></table>';
+    if ($step && $step['decided_at']) {
+        $html .= '<div class="mt-1">' . h($verb) . ': <span class="name">' . h($step['user_name']) . '</span>'
+            . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
+            . ', dnia ' . date_pl($step['decided_at']) . ' o ' . date('H:i', strtotime($step['decided_at'])) . '</div>';
+    }
+    $notes = trim($step['notes'] ?? '');
+    $html .= '<div class="desc-box"><div class="desc-label">Opis / uwagi</div>'
+        . ($notes !== '' ? nl2br(h($notes)) : '<span class="muted">Brak uwag.</span>') . '</div>';
+    $html .= '</div>';
+    return $html;
+}
 ?>
 <!doctype html>
 <html lang="pl">
@@ -55,6 +70,9 @@ function pr_decision(?array $step): string {
   .badge-pending { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
   .signoff { margin-top: 8px; font-size: 12px; color: #333; }
   .signoff .name { font-weight: 700; }
+  .desc-box { border: 1px solid #ccc; background: #fbfbfa; border-radius: 3px; padding: 7px 9px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; }
+  .desc-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: #777; margin-bottom: 3px; }
+  .muted { color: #999; font-style: italic; }
   .stamp { margin-top: 22px; padding-top: 10px; border-top: 1px dashed #999; font-size: 10.5px; color: #666; line-height: 1.5; }
   .noprint { margin: 14px auto; max-width: 620px; text-align: right; }
   @media print { .noprint { display: none; } body { padding: 0; } .sheet { border: none; max-width: 100%; } }
@@ -82,28 +100,21 @@ function pr_decision(?array $step): string {
     </table>
   </div>
 
+  <h2>Opis wydatku</h2>
+  <div class="desc-box">
+    <?= trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '<span class="muted">Brak opisu.</span>' ?>
+  </div>
+
   <h2>Dekretacja i alokacja kosztów</h2>
   <table>
     <?= pr_row('Rodzaj działalności', EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') ?>
     <?= pr_row('Projekt / działanie', $doc['projekt']) ?>
     <?= pr_row('MPK', $doc['mpk']) ?>
   </table>
-  <div class="signoff">
-    <?= pr_decision($dekretacja) ?>
-    <?php if ($dekretacja && $dekretacja['decided_at']): ?>
-    <div class="mt-1">Zadekretował: <span class="name"><?= h($dekretacja['user_name']) ?></span><?= $dekretacja['user_role'] ? ' (' . h($dekretacja['user_role']) . ')' : '' ?>, dnia <?= date_pl($dekretacja['decided_at']) ?> o <?= date('H:i', strtotime($dekretacja['decided_at'])) ?></div>
-    <?php if ($dekretacja['notes']): ?><div>Uwagi: <?= h($dekretacja['notes']) ?></div><?php endif; ?>
-    <?php endif; ?>
-  </div>
+  <?= pr_signoff($dekretacja, 'Zadekretował') ?>
 
   <h2>Zatwierdzenie końcowe do zapłaty i księgowania</h2>
-  <div class="signoff">
-    <?= pr_decision($zatwierdza) ?>
-    <?php if ($zatwierdza && $zatwierdza['decided_at']): ?>
-    <div class="mt-1">Zatwierdził: <span class="name"><?= h($zatwierdza['user_name']) ?></span><?= $zatwierdza['user_role'] ? ' (' . h($zatwierdza['user_role']) . ')' : '' ?>, dnia <?= date_pl($zatwierdza['decided_at']) ?> o <?= date('H:i', strtotime($zatwierdza['decided_at'])) ?></div>
-    <?php if ($zatwierdza['notes']): ?><div>Uwagi: <?= h($zatwierdza['notes']) ?></div><?php endif; ?>
-    <?php endif; ?>
-  </div>
+  <?= pr_signoff($zatwierdza, 'Zatwierdził') ?>
 
   <div class="stamp">
     Karta wygenerowana elektronicznie z systemu EODoK dnia <?= date('d.m.Y H:i') ?> przez <?= h(current_user()['name'] ?? '—') ?>.
