@@ -412,7 +412,7 @@ function kdok_ksef_sync(): array {
  * @param string $to   Data do (Y-m-d)
  * @return array ['imported'=>int, 'skipped'=>int, 'errors'=>array, 'new_doc_ids'=>array]
  */
-function kdok_ksef_sync_export(string $from, string $to): array {
+function kdok_ksef_sync_export(string $from, string $to, string $queue_table = 'kdok_ksef_queue', callable|string $create_doc_fn = 'kdok_ksef_create_doc'): array {
     if (!org_setting('kdok_ksef_nip')) {
         throw new RuntimeException('Brak NIP w konfiguracji KSeF.');
     }
@@ -520,11 +520,11 @@ function kdok_ksef_sync_export(string $from, string $to): array {
                 $data = kdok_ksef_parse_xml($fileContent);
                 $ref  = $data['ksef_reference'] ?? pathinfo($filename, PATHINFO_FILENAME);
 
-                $exists = kdok_one("SELECT 1 FROM kdok_ksef_queue WHERE ksef_reference=?", [$ref]);
+                $exists = kdok_one("SELECT 1 FROM {$queue_table} WHERE ksef_reference=?", [$ref]);
                 if ($exists) { $stats['skipped']++; continue; }
 
                 try {
-                    kdok_insert('kdok_ksef_queue', [
+                    kdok_insert($queue_table, [
                         'ksef_reference' => $ref,
                         'invoice_number' => $data['invoice_number'] ?? '',
                         'seller_name'    => $data['seller_name']    ?? '',
@@ -534,8 +534,8 @@ function kdok_ksef_sync_export(string $from, string $to): array {
                         'issue_date'     => $data['issue_date']      ?? '',
                         'ksef_date'      => date('Y-m-d'),
                     ]);
-                    $doc_id = kdok_ksef_create_doc(array_merge($data, ['ksef_reference' => $ref]));
-                    kdok_exec("UPDATE kdok_ksef_queue SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
+                    $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref]));
+                    kdok_exec("UPDATE {$queue_table} SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
                     $stats['imported']++;
                     $stats['new_doc_ids'][] = $doc_id;
                 } catch (\Throwable $e) {
@@ -567,7 +567,7 @@ function kdok_ksef_sync_export(string $from, string $to): array {
  * @param string $role  'buyer' (domyślnie) lub 'seller'
  * @return array ['imported'=>int, 'skipped'=>int, 'errors'=>array, 'new_doc_ids'=>array]
  */
-function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer'): array {
+function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer', string $queue_table = 'kdok_ksef_queue', callable|string $create_doc_fn = 'kdok_ksef_create_doc'): array {
     if (!org_setting('kdok_ksef_nip')) {
         throw new RuntimeException('Brak NIP w konfiguracji KSeF.');
     }
@@ -602,14 +602,14 @@ function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer'):
 
         foreach ($refs as $ref) {
             if (empty($ref)) continue;
-            $exists = kdok_one("SELECT 1 FROM kdok_ksef_queue WHERE ksef_reference=?", [$ref]);
+            $exists = kdok_one("SELECT 1 FROM {$queue_table} WHERE ksef_reference=?", [$ref]);
             if ($exists) { $stats['skipped']++; continue; }
 
             try {
                 $xml  = kdok_ksef_get_invoice_xml(null, $ref);
                 $data = kdok_ksef_parse_xml($xml);
 
-                kdok_insert('kdok_ksef_queue', [
+                kdok_insert($queue_table, [
                     'ksef_reference' => $ref,
                     'invoice_number' => $data['invoice_number'] ?? '',
                     'seller_name'    => $data['seller_name']    ?? '',
@@ -620,8 +620,8 @@ function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer'):
                     'ksef_date'      => date('Y-m-d'),
                 ]);
 
-                $doc_id = kdok_ksef_create_doc(array_merge($data, ['ksef_reference' => $ref]));
-                kdok_exec("UPDATE kdok_ksef_queue SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
+                $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref]));
+                kdok_exec("UPDATE {$queue_table} SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
 
                 $stats['imported']++;
                 $stats['new_doc_ids'][] = $doc_id;

@@ -326,13 +326,13 @@ function _menu_editor(): array {
     if (menu_visible('actions'))
         $fin_search[] = _mi('Działania','/strategy/actions/index.php','bi-calendar-event',['match'=>'/strategy/actions/','kw'=>'działania projekt']);
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
-    if ($cnt['has_edok'])
-        $fin[] = _mi('EODoK — Dok. Księgowe','/edok/index.php','bi-journal-check',['match'=>'/edok/','kw'=>'edok eodok akceptacja dekretacja kontrola merytoryczna formalna rachunkowa dokumenty księgowe']);
-    if ($cnt['has_kdok']) {
-        $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
-        if (kdok_has_role('zatwierdza'))
-            $fin[] = _mi('Preliminarz Płatności','/ksiegowosc/preliminarz.php','bi-calendar-check',['match'=>'/ksiegowosc/preliminarz','kw'=>'preliminarz płatności przelew']);
+    if ($cnt['has_edok']) {
+        $fin[] = _mi('EODoK — Dok. Księgowe','/edok/index.php','bi-journal-check',['match'=>'/edok/index','kw'=>'edok eodok akceptacja dekretacja kontrola merytoryczna formalna rachunkowa dokumenty księgowe']);
+        if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
+            $fin[] = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
     }
+    if ($cnt['has_kdok'])
+        $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
     $fin[] = _mi('Zasoby','/resources/','bi-box-seam',['match'=>'/resources/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt']);
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);

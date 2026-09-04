@@ -9,12 +9,9 @@ require_once __DIR__ . '/../includes/ksiegowosc.php';
 kdok_require_access();
 kdok_migrate();
 
-// Tylko rola "zatwierdza" lub admin może widzieć preliminarz
-if (!kdok_has_role('zatwierdza')) {
-    flash_set('danger', 'Brak dostępu do Preliminarza Płatności.');
-    header('Location: ' . APP_URL . '/ksiegowosc/index.php');
-    exit;
-}
+// Przeniesiony do EODoK — ujednolicony widok obejmuje też archiwalne dokumenty KDOK.
+header('Location: ' . APP_URL . '/edok/preliminarz.php');
+exit;
 
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $f_termin_od = trim($_GET['termin_od'] ?? '');

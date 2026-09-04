@@ -5,6 +5,8 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
+require_once __DIR__ . '/../includes/crm_offers.php';
+require_once __DIR__ . '/../includes/ksiegowosc.php';
 
 edok_require_role('upload');
 edok_migrate();
@@ -23,12 +25,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data_sprzedazy   = trim($_POST['data_sprzedazy'] ?? '');
     $data_wplywu      = trim($_POST['data_wplywu'] ?? '') ?: date('Y-m-d');
     $kwota_netto      = trim($_POST['kwota_netto'] ?? '');
+    $stawka_vat       = trim($_POST['stawka_vat'] ?? '');
     $kwota_vat        = trim($_POST['kwota_vat'] ?? '');
     $kwota_brutto     = trim($_POST['kwota_brutto'] ?? '');
     $waluta           = $_POST['waluta'] ?? 'PLN';
     $rodzaj           = $_POST['rodzaj_dzialalnosci'] ?? '';
     $projekt          = trim($_POST['projekt'] ?? '');
     $mpk              = trim($_POST['mpk'] ?? '');
+    $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
+    $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
+    $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
     if ($description === '')                              $errors[] = 'Uzupełnij opis wydatku — jest wymagany do kontroli merytorycznej.';
@@ -52,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj]))          $errors[] = 'Wybierz rodzaj działalności (projekt/działanie, statutowa odpłatna lub nieodpłatna).';
     if ($rodzaj === 'projekt' && $projekt === '')           $errors[] = 'Przy rodzaju „Projekt / działanie” podaj nazwę projektu.';
+    if ($stawka_vat !== '' && !isset(CRM_OFFER_VAT_RATES[$stawka_vat])) $errors[] = 'Nieprawidłowa stawka VAT.';
 
     $file_path = null;
     if (!$errors) {
@@ -74,12 +81,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'data_sprzedazy'      => $data_sprzedazy ?: null,
             'data_wplywu'         => $data_wplywu ?: null,
             'kwota_netto'         => $kwota_netto,
+            'stawka_vat'          => $stawka_vat,
             'kwota_vat'           => $kwota_vat,
             'kwota_brutto'        => $kwota_brutto,
             'waluta'              => $waluta ?: 'PLN',
             'rodzaj_dzialalnosci' => $rodzaj,
             'projekt'             => $projekt,
             'mpk'                 => $mpk,
+            'rachunek_bankowy'    => $rachunek_bankowy,
+            'termin_platnosci'    => $termin_platnosci ?: null,
+            'wymaga_mpp'          => $wymaga_mpp,
             'file_path'           => $file_path,
             'file_size'           => is_file(UPLOAD_DIR . $file_path) ? filesize(UPLOAD_DIR . $file_path) : null,
             'status'              => 'w_obiegu',
@@ -88,6 +99,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'          => date('Y-m-d H:i:s'),
             'updated_at'          => date('Y-m-d H:i:s'),
         ]);
+
+        // Zapisz kontrahenta do wspólnej kartoteki dostawców (KDOK + CRM), żeby był
+        // podpowiadany przy kolejnych dokumentach — patrz edok/search_dostawca.php.
+        if ($kontrahent_nip && $rachunek_bankowy) {
+            try { kdok_migrate(); kdok_dostawcy_upsert($kontrahent_nip, $kontrahent_nazwa, $rachunek_bankowy); } catch (\Throwable $e) {}
+        }
 
         edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu akceptacji przez ' . ($user['name'] ?? '—') . '.');
 
@@ -151,16 +168,28 @@ require_once __DIR__ . '/../includes/header.php';
           placeholder="Cel wydatku, potwierdzenie wykonania usługi/dostawy…"><?= h($_POST['description'] ?? '') ?></textarea>
       </div>
 
+      <div class="mb-2">
+        <label class="form-label">Szukaj kontrahenta <span class="text-muted fw-normal">(kartoteka: zapisani dostawcy + CRM)</span></label>
+        <input type="text" id="kontrahent-search" class="form-control" autocomplete="off"
+          placeholder="Nazwa lub NIP…">
+        <div id="kontrahent-results" class="list-group mt-1" style="display:none;position:absolute;z-index:20;max-width:600px"></div>
+        <div id="kontrahent-picked" class="form-text"></div>
+      </div>
       <div class="row g-3 mb-3">
-        <div class="col-sm-8">
+        <div class="col-sm-6">
           <label class="form-label">Kontrahent</label>
           <input type="text" name="kontrahent_nazwa" class="form-control" maxlength="255"
             value="<?= h($_POST['kontrahent_nazwa'] ?? '') ?>" required>
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-3">
           <label class="form-label">NIP kontrahenta</label>
-          <input type="text" name="kontrahent_nip" class="form-control" maxlength="13"
+          <input type="text" id="kontrahent_nip" name="kontrahent_nip" class="form-control" maxlength="13"
             value="<?= h($_POST['kontrahent_nip'] ?? '') ?>" placeholder="9999999999">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label">Nr rachunku kontrahenta</label>
+          <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control" maxlength="34"
+            value="<?= h($_POST['rachunek_bankowy'] ?? '') ?>" placeholder="26 cyfr lub IBAN">
         </div>
       </div>
 
@@ -180,22 +209,31 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="row g-3 mb-2">
-        <div class="col-sm-4">
+        <div class="col-sm-3">
           <label class="form-label">Kwota netto</label>
           <input type="text" id="kwota_netto" name="kwota_netto" class="form-control text-end font-monospace"
             value="<?= h($_POST['kwota_netto'] ?? '') ?>" placeholder="0,00" oninput="edokRecalc()">
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-3">
+          <label class="form-label">Stawka VAT</label>
+          <select id="stawka_vat" name="stawka_vat" class="form-select" onchange="edokRecalc()">
+            <option value="">— podaj VAT ręcznie —</option>
+            <?php foreach (CRM_OFFER_VAT_RATES as $k => $r): ?>
+            <option value="<?= h($k) ?>" data-rate="<?= h($r['rate']) ?>" <?= ($_POST['stawka_vat'] ?? '') === $k ? 'selected' : '' ?>><?= h($r['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-sm-3">
           <label class="form-label">Kwota VAT</label>
           <input type="text" id="kwota_vat" name="kwota_vat" class="form-control text-end font-monospace"
             value="<?= h($_POST['kwota_vat'] ?? '') ?>" placeholder="0,00" oninput="edokRecalc()">
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-3">
           <label class="form-label fw-semibold">Kwota brutto</label>
           <div class="input-group">
             <input type="text" id="kwota_brutto" name="kwota_brutto" class="form-control text-end font-monospace fw-semibold"
               value="<?= h($_POST['kwota_brutto'] ?? '') ?>" placeholder="0,00">
-            <select name="waluta" class="form-select" style="max-width:90px">
+            <select name="waluta" id="waluta" class="form-select" style="max-width:90px" onchange="edokMppCheck()">
               <?php foreach (['PLN','EUR','USD','CHF','GBP'] as $w): ?>
               <option value="<?= $w ?>" <?= ($_POST['waluta'] ?? 'PLN') === $w ? 'selected' : '' ?>><?= $w ?></option>
               <?php endforeach; ?>
@@ -203,7 +241,23 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
       </div>
-      <div class="form-text mb-3"><i class="bi bi-magic"></i> Kwota brutto liczy się automatycznie z netto + VAT (można ją nadpisać ręcznie).</div>
+      <div class="form-text mb-3"><i class="bi bi-magic"></i> Stawka VAT liczy VAT z netto; brutto liczy się automatycznie z netto + VAT (każdą wartość można nadpisać ręcznie).</div>
+
+      <div class="row g-3 mb-2">
+        <div class="col-sm-4">
+          <label class="form-label">Termin płatności</label>
+          <input type="date" name="termin_platnosci" class="form-control" value="<?= h($_POST['termin_platnosci'] ?? '') ?>">
+        </div>
+        <div class="col-sm-8 d-flex align-items-end">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" name="wymaga_mpp" id="wymaga_mpp" value="1" <?= !empty($_POST['wymaga_mpp']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="wymaga_mpp">Wymaga mechanizmu podzielonej płatności (MPP)</label>
+          </div>
+        </div>
+      </div>
+      <div id="mpp-alert" class="alert alert-warning py-2 small mb-3" style="display:none">
+        <i class="bi bi-exclamation-triangle-fill"></i> Kwota brutto ≥ 15 000 PLN — zwykle wymagany MPP.
+      </div>
 
       <hr>
       <h6 class="text-muted"><i class="bi bi-journal-bookmark"></i> Dekretacja</h6>
@@ -244,15 +298,86 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 function edokRecalc() {
   var netto = parseFloat((document.getElementById('kwota_netto').value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
-  var vat   = parseFloat((document.getElementById('kwota_vat').value   || '0').replace(',', '.').replace(/\s/g, '')) || 0;
+  var vatSel = document.getElementById('stawka_vat');
+  var vatField = document.getElementById('kwota_vat');
+  var rate = vatSel.selectedOptions[0] ? vatSel.selectedOptions[0].getAttribute('data-rate') : null;
+  if (rate !== null && vatSel.value !== '') {
+    vatField.value = (netto * parseFloat(rate) / 100).toFixed(2).replace('.', ',');
+  }
+  var vat = parseFloat((vatField.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   var brutto = document.getElementById('kwota_brutto');
   if (netto + vat > 0) brutto.value = (netto + vat).toFixed(2).replace('.', ',');
+  edokMppCheck();
+}
+function edokMppCheck() {
+  var brutto = parseFloat((document.getElementById('kwota_brutto').value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
+  var waluta = document.getElementById('waluta').value;
+  var alert = document.getElementById('mpp-alert');
+  var mpp = document.getElementById('wymaga_mpp');
+  var show = waluta === 'PLN' && brutto >= 15000;
+  alert.style.display = show ? '' : 'none';
+  if (show) mpp.checked = true;
 }
 function edokToggleProjekt() {
   var v = document.getElementById('rodzaj_dzialalnosci').value;
   document.getElementById('projekt_wrap').style.display = (v === 'projekt') ? '' : 'none';
 }
 edokToggleProjekt();
+edokMppCheck();
+
+// ── Selektor kontrahenta (kartoteka: zapisani dostawcy + CRM) ────────────────
+(function () {
+  var search  = document.getElementById('kontrahent-search');
+  var results = document.getElementById('kontrahent-results');
+  var picked  = document.getElementById('kontrahent-picked');
+  if (!search) return;
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function fillFields(r) {
+    document.querySelector('[name="kontrahent_nazwa"]').value = r.nazwa || '';
+    if (r.nip) document.getElementById('kontrahent_nip').value = r.nip;
+    if (r.rachunek_bankowy) document.getElementById('rachunek_bankowy').value = r.rachunek_bankowy;
+    picked.innerHTML = r.nazwa
+      ? '<i class="bi bi-check-circle-fill text-success me-1"></i>Wybrano: <strong>' + esc(r.nazwa) + '</strong>'
+         + (r.nip ? ' · NIP: ' + esc(r.nip) : '')
+      : '';
+    results.style.display = 'none';
+  }
+
+  var timer = null;
+  search.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = search.value.trim();
+    if (q.length < 2) { results.style.display = 'none'; return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/edok/search_dostawca.php?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          results.innerHTML = '';
+          if (!data.results || !data.results.length) { results.style.display = 'none'; return; }
+          data.results.forEach(function (item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action py-2';
+            var src = item.source === 'crm'
+              ? '<span class="badge bg-primary ms-1" style="font-size:.65rem">CRM</span>'
+              : '<span class="badge bg-secondary ms-1" style="font-size:.65rem">Zapisany</span>';
+            btn.innerHTML = '<span class="fw-semibold">' + esc(item.nazwa || '—') + '</span> '
+              + (item.nip ? '<span class="text-muted small ms-1">NIP: ' + esc(item.nip) + '</span>' : '') + src;
+            btn.addEventListener('click', function () { fillFields(item); });
+            results.appendChild(btn);
+          });
+          results.style.display = '';
+        })
+        .catch(function () { results.style.display = 'none'; });
+    }, 280);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target !== search && !results.contains(e.target)) results.style.display = 'none';
+  });
+})();
 
 function edokKsefFetch() {
   var ref = document.getElementById('ksef_ref').value.trim();

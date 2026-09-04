@@ -112,6 +112,17 @@ function edok_migrate(): void {
         'creator_name'        => "TEXT NOT NULL DEFAULT ''",
         'created_at'          => "TEXT",
         'updated_at'          => "TEXT",
+        // Preliminarz Płatności (przeniesiony z KDOK — patrz edok_preliminarz_query())
+        'termin_platnosci'       => "TEXT",
+        'rachunek_bankowy'       => "TEXT NOT NULL DEFAULT ''",
+        'status_platnosci'       => "TEXT NOT NULL DEFAULT 'nowy'",
+        'wymaga_mpp'             => "INTEGER NOT NULL DEFAULT 0",
+        'wyklucz_z_preliminarza' => "INTEGER NOT NULL DEFAULT 0",
+        'tytul_przelewu'         => "TEXT NOT NULL DEFAULT ''",
+        // Stawka VAT — kod z CRM_OFFER_VAT_RATES (includes/crm_offers.php): 23/8/5/0/zw/np
+        'stawka_vat'             => "TEXT NOT NULL DEFAULT ''",
+        // Numer referencyjny KSeF, gdy dokument pochodzi z synchronizacji
+        'ksef_reference'         => "TEXT NOT NULL DEFAULT ''",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -170,6 +181,23 @@ function edok_migrate(): void {
         role    TEXT    NOT NULL
     )");
     try { $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_edok_user_roles ON edok_user_roles(user_id, role)"); } catch (\Throwable $e) {}
+
+    // Kolejka dedup KSeF (przeniesiona z KDOK) — reużywa kdok_ksef_sync_export()/
+    // kdok_ksef_sync_range() z includes/kdok_ksef.php, wskazując tę tabelę i
+    // edok_ksef_create_doc() jako cel importu. Ten sam kształt co kdok_ksef_queue.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_ksef_queue (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        ksef_reference TEXT    NOT NULL UNIQUE,
+        invoice_number TEXT    NOT NULL DEFAULT '',
+        seller_name    TEXT    NOT NULL DEFAULT '',
+        seller_nip     TEXT    NOT NULL DEFAULT '',
+        gross_value    TEXT    NOT NULL DEFAULT '',
+        currency       TEXT    NOT NULL DEFAULT 'PLN',
+        issue_date     TEXT    NOT NULL DEFAULT '',
+        ksef_date      TEXT    NOT NULL DEFAULT '',
+        doc_id         INTEGER DEFAULT NULL,
+        created_at     TEXT    NOT NULL DEFAULT ''
+    )");
 }
 
 function _edok_add_columns(PDO $db, string $table, array $cols): void {
@@ -474,4 +502,173 @@ function edok_transfer_label_klasyfikacja(string $rodzaj, string $projekt): stri
 function edok_status_badge(string $status): string {
     $s = EDOK_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
     return '<span class="badge bg-' . $s['class'] . '">' . h($s['label']) . '</span>';
+}
+
+// ── Preliminarz Płatności (przeniesiony z KDOK, ujednolicony z KDOK) ──────────
+// EODoK jest docelowym miejscem dla NOWYCH dokumentów, ale istniejące
+// dokumenty zaakceptowane jeszcze w KDOK (includes/ksiegowosc.php) też czekają
+// na zapłatę — dlatego zapytanie łączy obie tabele w jedną listę zamiast
+// zostawiać dwa osobne, rozjeżdżające się widoki „co trzeba zapłacić".
+
+const EDOK_STATUS_PLATNOSCI = [
+    'nowy'          => ['label' => 'Nowy',             'class' => 'secondary'],
+    'do_realizacji' => ['label' => 'Do realizacji',    'class' => 'warning'],
+    'zlecony'       => ['label' => 'Zlecony do banku', 'class' => 'info'],
+    'oplacony'      => ['label' => 'Opłacony',         'class' => 'success'],
+    'wstrzymany'    => ['label' => 'Wstrzymany',       'class' => 'danger'],
+    'anulowany'     => ['label' => 'Anulowany',        'class' => 'dark'],
+];
+
+function edok_status_platnosci_badge(string $status): string {
+    $s = EDOK_STATUS_PLATNOSCI[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . '">' . h($s['label']) . '</span>';
+}
+
+/** Priorytet P1 (krytyczny) – P5 (oczekujący) na podstawie terminu i MPP. */
+function edok_platnosc_priorytet(array $row): int {
+    $termin = $row['termin_platnosci'] ?? '';
+    if (!$termin) return 5;
+    $diff = (int) round((strtotime(substr($termin, 0, 10)) - strtotime(date('Y-m-d'))) / 86400);
+    $mpp  = !empty($row['wymaga_mpp']);
+    if ($diff < 0)          return 1;
+    if ($mpp && $diff <= 7) return 1;
+    if ($diff <= 3)         return 2;
+    if ($diff <= 7)         return 3;
+    if ($diff <= 14)        return 4;
+    return 5;
+}
+
+function edok_platnosc_priorytet_label(int $p): string {
+    return ['', 'Krytyczny', 'Pilny', 'Wkrótce', 'Normalny', 'Oczekujący'][$p] ?? '?';
+}
+
+/**
+ * Dokumenty kwalifikowane do Preliminarza — z EODoK ORAZ (jeśli dostępny)
+ * z archiwalnego KDOK, znormalizowane do wspólnego kształtu wiersza:
+ * source, id, number, title, kontrahent, nip, rachunek_bankowy, kwota_netto,
+ * kwota_vat, kwota_brutto, waluta, termin_platnosci, klasyfikacja,
+ * status_platnosci, wymaga_mpp, priorytet, view_url.
+ */
+function edok_preliminarz_query(array $f = []): array {
+    $where  = ["status = 'zaakceptowany'", "COALESCE(wyklucz_z_preliminarza,0) = 0"];
+    $params = [];
+    if (!empty($f['status_platnosci'])) { $where[] = "COALESCE(status_platnosci,'nowy') = ?"; $params[] = $f['status_platnosci']; }
+    else                                { $where[] = "COALESCE(status_platnosci,'nowy') NOT IN ('anulowany')"; }
+    if (!empty($f['termin_od']))        { $where[] = "termin_platnosci >= ?"; $params[] = $f['termin_od']; }
+    if (!empty($f['termin_do']))        { $where[] = "termin_platnosci <= ?"; $params[] = $f['termin_do']; }
+    if (!empty($f['waluta']))           { $where[] = "waluta = ?"; $params[] = $f['waluta']; }
+    if (!empty($f['mpp']))              { $where[] = "wymaga_mpp = 1"; }
+    if (!empty($f['q'])) {
+        $where[] = "(title LIKE ? OR kontrahent_nazwa LIKE ? OR nr_faktury LIKE ?)";
+        $q = '%' . $f['q'] . '%';
+        array_push($params, $q, $q, $q);
+    }
+
+    $edok_rows = db_all(
+        "SELECT * FROM edok_documents WHERE " . implode(' AND ', $where) . " ORDER BY id DESC",
+        $params
+    );
+
+    $out = [];
+    foreach ($edok_rows as $r) {
+        $out[] = [
+            'source'            => 'edok',
+            'id'                => (int)$r['id'],
+            'number'            => $r['number'],
+            'title'             => $r['title'],
+            'kontrahent'        => $r['kontrahent_nazwa'],
+            'nip'               => $r['kontrahent_nip'],
+            'rachunek_bankowy'  => $r['rachunek_bankowy'],
+            'kwota_netto'       => $r['kwota_netto'],
+            'kwota_vat'         => $r['kwota_vat'],
+            'kwota_brutto'      => $r['kwota_brutto'],
+            'waluta'            => $r['waluta'] ?: 'PLN',
+            'termin_platnosci'  => $r['termin_platnosci'],
+            'klasyfikacja'      => edok_transfer_label_klasyfikacja($r['rodzaj_dzialalnosci'], $r['projekt']),
+            'status_platnosci'  => $r['status_platnosci'] ?: 'nowy',
+            'wymaga_mpp'        => (int)$r['wymaga_mpp'],
+            'view_url'          => APP_URL . '/edok/view.php?id=' . $r['id'],
+        ];
+    }
+
+    // Archiwalny KDOK — best-effort, nie wywracaj Preliminarza gdy moduł/tabela nie istnieje.
+    try {
+        require_once __DIR__ . '/ksiegowosc.php';
+        kdok_migrate();
+        $kdok_where  = ["status = 'zaakceptowany'", "COALESCE(wyklucz_z_preliminarza,0) = 0"];
+        $kdok_params = [];
+        if (!empty($f['status_platnosci'])) { $kdok_where[] = "COALESCE(status_platnosci,'nowy') = ?"; $kdok_params[] = $f['status_platnosci']; }
+        else                                { $kdok_where[] = "COALESCE(status_platnosci,'nowy') NOT IN ('anulowany')"; }
+        if (!empty($f['termin_od']))        { $kdok_where[] = "termin_platnosci >= ?"; $kdok_params[] = $f['termin_od']; }
+        if (!empty($f['termin_do']))        { $kdok_where[] = "termin_platnosci <= ?"; $kdok_params[] = $f['termin_do']; }
+        if (!empty($f['waluta']))           { $kdok_where[] = "waluta = ?"; $kdok_params[] = $f['waluta']; }
+        if (!empty($f['mpp']))              { $kdok_where[] = "wymaga_mpp = 1"; }
+        if (!empty($f['q'])) {
+            $kdok_where[] = "(title LIKE ? OR nip_dostawcy LIKE ? OR nr_faktury LIKE ?)";
+            $q = '%' . $f['q'] . '%';
+            array_push($kdok_params, $q, $q, $q);
+        }
+        $kdok_rows = kdok_all(
+            "SELECT * FROM kdok_documents WHERE " . implode(' AND ', $kdok_where) . " ORDER BY id DESC",
+            $kdok_params
+        );
+        foreach ($kdok_rows as $r) {
+            $out[] = [
+                'source'            => 'kdok',
+                'id'                => (int)$r['id'],
+                'number'            => $r['number'],
+                'title'             => $r['title'],
+                'kontrahent'        => $r['title'],
+                'nip'               => $r['nip_dostawcy'] ?? '',
+                'rachunek_bankowy'  => $r['rachunek_bankowy'] ?? '',
+                'kwota_netto'       => $r['kwota_netto'] ?? '',
+                'kwota_vat'         => $r['kwota_vat'] ?? '',
+                'kwota_brutto'      => $r['kwota_brutto'] ?: $r['kwota'] ?: '',
+                'waluta'            => $r['waluta'] ?: 'PLN',
+                'termin_platnosci'  => $r['termin_platnosci'] ?? '',
+                'klasyfikacja'      => $r['centrum_kosztow'] ?: $r['projekt'] ?? '',
+                'status_platnosci'  => $r['status_platnosci'] ?: 'nowy',
+                'wymaga_mpp'        => (int)($r['wymaga_mpp'] ?? 0),
+                'view_url'          => APP_URL . '/ksiegowosc/view.php?id=' . $r['id'],
+            ];
+        }
+    } catch (\Throwable $e) {}
+
+    foreach ($out as &$row) $row['priorytet'] = edok_platnosc_priorytet($row);
+    unset($row);
+    usort($out, fn($a, $b) => $a['priorytet'] <=> $b['priorytet'] ?: strcmp($a['termin_platnosci'] ?? '', $b['termin_platnosci'] ?? ''));
+    return $out;
+}
+
+// ── Integracja KSeF (reużywa includes/kdok_ksef.php — wspólne połączenie organizacyjne) ─
+
+/** Tworzy dokument EODoK z danych faktury pobranej z KSeF (analogicznie do kdok_ksef_create_doc). */
+function edok_ksef_create_doc(array $invoice_data): int {
+    $title = trim(
+        ($invoice_data['invoice_number'] ?? '')
+        . ($invoice_data['seller_name'] ? ' — ' . $invoice_data['seller_name'] : '')
+    ) ?: ('Faktura KSeF ' . ($invoice_data['ksef_reference'] ?? ''));
+
+    $doc_id = db_insert('edok_documents', [
+        'number'              => edok_next_number(),
+        'title'               => $title,
+        'typ_dokumentu'       => 'faktura_vat',
+        'description'         => 'Faktura pobrana automatycznie z KSeF, nr referencyjny: ' . ($invoice_data['ksef_reference'] ?? ''),
+        'kontrahent_nazwa'    => $invoice_data['seller_name'] ?? '',
+        'kontrahent_nip'      => $invoice_data['seller_nip']  ?? '',
+        'nr_faktury'          => $invoice_data['invoice_number'] ?? '',
+        'data_wystawienia'    => $invoice_data['issue_date'] ?: null,
+        'kwota_brutto'        => $invoice_data['gross_value'] ?? '',
+        'waluta'              => $invoice_data['currency'] ?: 'PLN',
+        'ksef_reference'      => $invoice_data['ksef_reference'] ?? '',
+        'status'              => 'w_obiegu',
+        'created_by'          => null,
+        'creator_name'        => 'KSeF (auto-import)',
+        'created_at'          => date('Y-m-d H:i:s'),
+        'updated_at'          => date('Y-m-d H:i:s'),
+    ]);
+
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Auto-import z KSeF, nr referencyjny: ' . ($invoice_data['ksef_reference'] ?? '') . '. Dokument wymaga uzupełnienia opisu, kwot netto/VAT i dekretacji przed etapem kontroli merytorycznej.');
+
+    return $doc_id;
 }

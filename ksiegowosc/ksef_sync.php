@@ -12,6 +12,10 @@ require_once __DIR__ . '/../includes/kdok_ksef.php';
 
 require_login();
 
+// Przeniesiony do EODoK — nowe faktury z KSeF importują się tam.
+header('Location: ' . APP_URL . '/edok/ksef_sync.php');
+exit;
+
 if (!kdok_has_role('upload') && !is_admin()) {
     flash_set('error', 'Brak uprawnień do tej strony.');
     header('Location: ' . APP_URL . '/ksiegowosc/index.php');
