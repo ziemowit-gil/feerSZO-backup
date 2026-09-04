@@ -127,7 +127,7 @@ if ($overview_mode) {
 </style>
 
 <main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
-<?php require_once dirname(dirname(__DIR__)) . '/includes/banner_rewrite.php' ?>
+<?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php' ?>
 
 <!-- Pasek narzędzi — widoki + akcje -->
 <div class="tf-toolbar">
@@ -568,7 +568,7 @@ document.getElementById('ovBtnUpload')?.addEventListener('click', async () => {
 </script>
 
 <?php
-include dirname(__DIR__) . '/includes/footer.php';
+include __DIR__ . '/includes/footer_tasks.php';
 exit; // ← overview mode ends here — below is per-workspace code
 }
 
@@ -670,7 +670,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 </style>
 
 <main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
-<?php require_once dirname(dirname(__DIR__)) . '/includes/banner_rewrite.php' ?>
+<?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php' ?>
 
 <!-- Pasek narzędzi — widoki + breadcrumb -->
 <div class="tf-toolbar">
@@ -1257,6 +1257,5 @@ document.querySelectorAll('[data-action="delete-folder"]').forEach(btn => {
 </script>
 
 <?php
-function _tasks_files_footer(): void {}
-include dirname(__DIR__) . '/includes/footer.php';
+include __DIR__ . '/includes/footer_tasks.php';
 ?>
