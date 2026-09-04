@@ -79,8 +79,8 @@ $TASKS_BREADCRUMB = 'Wykresy';
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
-/* ── viz-root custom properties ─────────────────────────────────────────── */
+<style type="text/tailwindcss">
+/* ── viz-root custom properties (paleta wykresów + wsparcie dark mode) ──── */
 .viz-root {
   --vz-s1: #2a78d6; --vz-s2: #eb6834; --vz-s3: #1baf7a; --vz-s4: #eda100;
   --vz-seq1: #86b6ef; --vz-seq2: #5598e7; --vz-seq3: #3987e5; --vz-seq4: #256abf;
@@ -104,49 +104,44 @@ require_once __DIR__ . '/includes/header_tasks.php';
 }
 
 /* ── layout ────────────────────────────────────────────── */
-.ch-wrap    { max-width: 1140px; padding: 1.5rem 1rem 3rem; }
-.ch-filter  { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.ch-pill    { font-size: .78rem; padding: .28rem .75rem; border-radius: 20px;
-              border: 1px solid #e2e8f0; background: #fff; color: #475569;
-              cursor: pointer; text-decoration: none; transition: all .12s; }
+.ch-wrap    { @apply tw-max-w-[1140px]; padding: 1.5rem 1rem 3rem; }
+.ch-filter  { @apply tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
+.ch-pill    { @apply tw-text-[.78rem] tw-py-[.28rem] tw-px-3 tw-rounded-full tw-border tw-border-slate-200
+              tw-bg-white tw-text-slate-600 tw-cursor-pointer tw-no-underline tw-transition-all; }
 .ch-pill:hover, .ch-pill.active { border-color: var(--tsk-green); color: var(--tsk-green); background: #ecfdf5; }
 .ch-pill.active { font-weight: 600; }
 
 /* ── KPI tiles ─────────────────────────────────────────── */
-.kc-tile    { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
-              padding: 1rem 1.25rem; }
-.kc-val     { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: #0f172a; }
-.kc-lbl     { font-size: .75rem; color: #64748b; margin-top: .2rem; }
-.kc-delta   { font-size: .75rem; margin-top: .35rem; }
+.kc-tile    { @apply tw-border tw-border-slate-200 tw-rounded-[10px] tw-bg-white tw-py-4 tw-px-5; }
+.kc-val     { @apply tw-text-[1.75rem] tw-font-bold tw-leading-[1.1] tw-text-slate-900; }
+.kc-lbl     { @apply tw-text-xs tw-text-slate-500 tw-mt-[.2rem]; }
+.kc-delta   { @apply tw-text-xs tw-mt-[.35rem]; }
 .kc-tile.is-red   .kc-val { color: #dc2626; }
 .kc-tile.is-green .kc-val { color: #059669; }
 .kc-tile.is-amber .kc-val { color: #d97706; }
 
 /* ── chart cards ───────────────────────────────────────── */
-.ch-card    { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
-              overflow: hidden; }
-.ch-card-hd { padding: .75rem 1.25rem; border-bottom: 1px solid #f1f5f9;
-              font-size: .84rem; font-weight: 700; color: #1e293b;
-              display: flex; align-items: center; gap: .5rem; }
-.ch-card-hd .ch-sub { font-weight: 400; color: #94a3b8; font-size: .75rem; margin-left: auto; }
-.ch-card-bd { padding: 1.25rem; }
+.ch-card    { @apply tw-border tw-border-slate-200 tw-rounded-[10px] tw-bg-white tw-overflow-hidden; }
+.ch-card-hd { @apply tw-py-3 tw-px-5 tw-border-b tw-border-slate-100 tw-text-[.84rem] tw-font-bold
+              tw-text-slate-800 tw-flex tw-items-center tw-gap-2; }
+.ch-card-hd .ch-sub { @apply tw-font-normal tw-text-slate-400 tw-text-xs tw-ml-auto; }
+.ch-card-bd { @apply tw-p-5; }
 .ch-canvas  { width: 100% !important; }
 
 /* ── status bar ────────────────────────────────────────── */
-.st-bar     { display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 2px; }
-.st-seg     { transition: flex .4s ease; display: flex; align-items: center;
-              justify-content: center; font-size: .65rem; font-weight: 700;
-              color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
-.st-legend  { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .85rem; font-size: .78rem; color: #374151; }
-.st-dot     { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.st-bar     { @apply tw-flex tw-h-7 tw-rounded-md tw-overflow-hidden tw-gap-[2px]; }
+.st-seg     { @apply tw-flex tw-items-center tw-justify-center tw-text-[.65rem] tw-font-bold
+              tw-text-white tw-min-w-0 tw-overflow-hidden tw-whitespace-nowrap tw-transition-[flex] tw-duration-300; }
+.st-legend  { @apply tw-flex tw-flex-wrap tw-gap-x-4 tw-gap-y-2 tw-mt-[.85rem] tw-text-[.78rem] tw-text-slate-700; }
+.st-dot     { @apply tw-w-[10px] tw-h-[10px] tw-rounded-[3px] tw-shrink-0; }
 
 /* ── ws bars ───────────────────────────────────────────── */
-.ws-row     { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; font-size: .8rem; }
-.ws-name    { min-width: 110px; max-width: 130px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ws-track   { flex: 1; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; }
-.ws-fill    { height: 100%; border-radius: 5px; background: var(--vz-s1); transition: width .5s ease; }
-.ws-pct     { width: 36px; text-align: right; color: #64748b; }
-.ws-cnt     { width: 36px; text-align: right; color: #94a3b8; font-size: .72rem; }
+.ws-row     { @apply tw-flex tw-items-center tw-gap-[.6rem] tw-mb-[.6rem] tw-text-[.8rem]; }
+.ws-name    { @apply tw-min-w-[110px] tw-max-w-[130px] tw-text-slate-700 tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis; }
+.ws-track   { @apply tw-flex-1 tw-h-[10px] tw-bg-slate-100 tw-rounded-full tw-overflow-hidden; }
+.ws-fill    { @apply tw-h-full tw-rounded-full tw-transition-[width] tw-duration-500; background: var(--vz-s1); }
+.ws-pct     { @apply tw-w-9 tw-text-right tw-text-slate-500; }
+.ws-cnt     { @apply tw-w-9 tw-text-right tw-text-slate-400 tw-text-[.72rem]; }
 </style>
 
 <div class="ch-wrap viz-root mx-auto">
@@ -154,16 +149,16 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <!-- Header + filter ────────────────────────────────────── -->
   <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
     <div>
-      <h1 class="h5 fw-bold mb-0" style="color:#0f172a">
-        <i class="bi bi-bar-chart-line me-2" style="color:var(--tsk-green)"></i>Wykresy i statystyki
+      <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-text-slate-900 tw-flex tw-items-center tw-gap-2">
+        <i class="bi bi-bar-chart-line" style="color:var(--tsk-green)"></i>Wykresy i statystyki
       </h1>
-      <div style="font-size:.8rem;color:#64748b;margin-top:.2rem">
+      <div class="tw-text-[.8rem] tw-text-slate-500 tw-mt-[.2rem]">
         <?= $ws_id ? ('Obszar: <strong>' . h((db_one("SELECT name FROM task_workspaces WHERE id=$ws_id") ?: [])['name'] ?? '—') . '</strong> · ') : '' ?>
         Ostatnie <?= $period ?> dni
       </div>
     </div>
     <div class="ch-filter">
-      <span style="font-size:.75rem;color:#94a3b8">Okres:</span>
+      <span class="tw-text-xs tw-text-slate-400">Okres:</span>
       <?php foreach ([7=>'7 dni',30=>'30 dni',90=>'90 dni',365=>'Rok'] as $d => $lbl): ?>
       <a href="?<?= http_build_query(array_merge($_GET, ['period' => $d])) ?>"
          class="ch-pill <?= $period === $d ? 'active' : '' ?>"><?= $lbl ?></a>
@@ -461,4 +456,4 @@ function initCharts() {
 })();
 </script>
 
-<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php require_once __DIR__ . '/includes/footer_tasks.php'; ?>
