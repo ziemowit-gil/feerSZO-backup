@@ -60,41 +60,41 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
   <div>
-    <h1 class="h5 fw-bold mb-0">
-      <i class="bi bi-ui-checks-grid text-primary me-2" aria-hidden="true"></i>Uprawnienia pól — Moduł Zadania
+    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+      <i class="bi bi-ui-checks-grid tw-text-blue-600" aria-hidden="true"></i>Uprawnienia pól — Moduł Zadania
     </h1>
-    <p class="text-muted small mb-0">Kontrola, które pola zadania widzą i mogą edytować uczestnicy (member) i obserwatorzy (viewer)</p>
+    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Kontrola, które pola zadania widzą i mogą edytować uczestnicy (member) i obserwatorzy (viewer)</p>
   </div>
   <a href="<?= APP_URL ?>/tasks/settings/roles.php" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-shield-lock me-1"></i>Uprawnienia ról
   </a>
 </div>
 
-<div class="alert alert-info-subtle border small mb-4">
-  <i class="bi bi-info-circle me-1"></i>
-  Liderzy obszaru (role <strong>admin</strong> i <strong>editor</strong>) zawsze widzą i mogą edytować
+<div class="tw-flex tw-gap-2 tw-items-start tw-bg-blue-50 tw-border tw-border-blue-100 tw-rounded-lg tw-py-2 tw-px-3 tw-text-sm tw-mb-4">
+  <i class="bi bi-info-circle tw-mt-[.15rem] tw-text-blue-600" aria-hidden="true"></i>
+  <span>Liderzy obszaru (role <strong>admin</strong> i <strong>editor</strong>) zawsze widzą i mogą edytować
   wszystkie pola zadania, niezależnie od ustawień poniżej. Konfiguracja dotyczy wyłącznie ról
-  <strong>member</strong> i <strong>viewer</strong>.
+  <strong>member</strong> i <strong>viewer</strong>.</span>
 </div>
 
 <form method="post">
   <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
-  <div class="card border-0 shadow-sm mb-4">
+  <div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden tw-mb-4">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th style="min-width:180px">Pole</th>
+            <th class="tw-min-w-[180px]">Pole</th>
             <th>
               <i class="bi bi-eye me-1 text-secondary"></i>Kto może <u>widzieć</u>?
-              <span class="text-muted fw-normal" style="font-size:.75rem">(puste = wszyscy)</span>
+              <span class="tw-text-slate-400 tw-font-normal tw-text-[.75rem]">(puste = wszyscy)</span>
             </th>
             <th>
               <i class="bi bi-pencil me-1 text-secondary"></i>Kto może <u>edytować</u>?
-              <span class="text-muted fw-normal" style="font-size:.75rem">(puste = nikt z member/viewer)</span>
+              <span class="tw-text-slate-400 tw-font-normal tw-text-[.75rem]">(puste = nikt z member/viewer)</span>
             </th>
           </tr>
         </thead>

@@ -104,12 +104,12 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
   <div>
-    <h1 class="h5 fw-bold mb-0">
-      <i class="bi bi-tags text-primary me-2" aria-hidden="true"></i>Słownik tagów
+    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+      <i class="bi bi-tags tw-text-blue-600" aria-hidden="true"></i>Słownik tagów
     </h1>
-    <p class="text-muted small mb-0">Tagi globalne i przypisane do obszarów</p>
+    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Tagi globalne i przypisane do obszarów</p>
   </div>
   <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#tagModal"
           onclick="openTagModal(0)">
@@ -117,16 +117,16 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
   </button>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden">
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th class="ps-3" style="width:180px">Tag</th>
+          <th class="ps-3 tw-w-[180px]">Tag</th>
           <th>Zakres</th>
-          <th class="text-center" style="width:80px">Użycia</th>
-          <th class="text-center" style="width:90px">Status</th>
-          <th style="width:120px"></th>
+          <th class="text-center tw-w-20">Użycia</th>
+          <th class="text-center tw-w-[90px]">Status</th>
+          <th class="tw-w-[120px]"></th>
         </tr>
       </thead>
       <tbody>

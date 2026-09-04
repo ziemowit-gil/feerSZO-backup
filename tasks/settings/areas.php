@@ -98,12 +98,12 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
   <div>
-    <h1 class="h5 fw-bold mb-0">
-      <i class="bi bi-layers text-primary me-2" aria-hidden="true"></i>Obszary zadań
+    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+      <i class="bi bi-layers tw-text-blue-600" aria-hidden="true"></i>Obszary zadań
     </h1>
-    <p class="text-muted small mb-0">Etykiety kategoryzujące zadania niezależnie od obszarów roboczych</p>
+    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Etykiety kategoryzujące zadania niezależnie od obszarów roboczych</p>
   </div>
   <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#areaModal"
           onclick="openAreaModal()">
@@ -111,16 +111,16 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
   </button>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden">
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th class="ps-3" style="width:200px">Obszar</th>
+          <th class="ps-3 tw-w-[200px]">Obszar</th>
           <th>Ikona</th>
-          <th class="text-center" style="width:80px">Zadań</th>
-          <th class="text-center" style="width:90px">Status</th>
-          <th style="width:120px"></th>
+          <th class="text-center tw-w-20">Zadań</th>
+          <th class="text-center tw-w-[90px]">Status</th>
+          <th class="tw-w-[120px]"></th>
         </tr>
       </thead>
       <tbody>

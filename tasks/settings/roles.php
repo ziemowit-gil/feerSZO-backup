@@ -48,12 +48,12 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
   <div>
-    <h1 class="h5 fw-bold mb-0">
-      <i class="bi bi-shield-lock text-primary me-2" aria-hidden="true"></i>Uprawnienia ról — Moduł Zadania
+    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
+      <i class="bi bi-shield-lock tw-text-blue-600" aria-hidden="true"></i>Uprawnienia ról — Moduł Zadania
     </h1>
-    <p class="text-muted small mb-0">Role systemowe i ich dostęp do modułu zadań oraz poszczególnych obszarów</p>
+    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Role systemowe i ich dostęp do modułu zadań oraz poszczególnych obszarów</p>
   </div>
   <?php if ($sys_admin): ?>
   <a href="<?= APP_URL ?>/tasks/settings/fields.php" class="btn btn-sm btn-outline-secondary">
@@ -66,8 +66,8 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 </div>
 
 <!-- ── Role systemowe ── -->
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-header bg-white fw-semibold small py-2 border-bottom">
+<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden tw-mb-4">
+  <div class="tw-bg-white tw-font-semibold tw-text-sm tw-py-2 tw-px-3 tw-border-b tw-border-slate-100">
     <i class="bi bi-people me-1 text-primary"></i>Role systemowe — dostęp do modułu Zadania
   </div>
   <div class="table-responsive">
@@ -110,7 +110,7 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
       </tbody>
     </table>
   </div>
-  <div class="card-footer bg-white py-2">
+  <div class="tw-bg-white tw-border-t tw-border-slate-100 tw-py-2 tw-px-3">
     <span class="text-muted small">
       <i class="bi bi-info-circle me-1"></i>
       Administratorzy systemu mają zawsze pełny dostęp do wszystkich obszarów, niezależnie od ustawień poniżej.
@@ -127,8 +127,8 @@ $ws_with_restr = array_filter($workspaces_with_roles, fn($w) =>
 );
 ?>
 <?php if ($workspaces_with_roles): ?>
-<div class="card border-0 shadow-sm">
-  <div class="card-header bg-white fw-semibold small py-2 border-bottom">
+<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden">
+  <div class="tw-bg-white tw-font-semibold tw-text-sm tw-py-2 tw-px-3 tw-border-b tw-border-slate-100">
     <i class="bi bi-kanban me-1 text-primary"></i>Obszary robocze — ograniczenia per rola
   </div>
   <div class="table-responsive">
@@ -184,7 +184,7 @@ $ws_with_restr = array_filter($workspaces_with_roles, fn($w) =>
     </table>
   </div>
   <?php if (!$ws_with_restr): ?>
-  <div class="card-footer bg-white py-2">
+  <div class="tw-bg-white tw-border-t tw-border-slate-100 tw-py-2 tw-px-3">
     <span class="text-muted small">
       <i class="bi bi-info-circle me-1"></i>Żaden obszar nie ma ustawionych ograniczeń ról.
       Dodaj je w <a href="<?= APP_URL ?>/tasks/settings/workspaces.php">Ustawieniach obszarów</a>.
