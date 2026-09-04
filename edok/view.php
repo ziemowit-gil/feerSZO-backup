@@ -146,10 +146,17 @@ $steps_config = [
     <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
     <h4 class="mb-0"><code><?= h($doc['number']) ?></code> <?= edok_status_badge($doc['status']) ?></h4>
   </div>
+  <?php $generated = edok_latest_generated_pdf($id); ?>
   <div class="d-flex gap-2">
+    <?php if ($generated): ?>
+    <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=final" target="_blank" class="btn btn-sm btn-primary">
+      <i class="bi bi-file-earmark-check"></i> Pobierz dokument końcowy
+    </a>
+    <?php else: ?>
     <a href="<?= APP_URL ?>/edok/print.php?id=<?= $id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-printer"></i> Wydruk dekretacji i zatwierdzenia
     </a>
+    <?php endif; ?>
     <?php if (edok_has_unlock_perm() && $is_terminal): ?>
     <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#unlockModal">
       <i class="bi bi-arrow-counterclockwise"></i> Cofnij decyzję

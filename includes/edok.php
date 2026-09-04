@@ -198,6 +198,18 @@ function edok_migrate(): void {
         doc_id         INTEGER DEFAULT NULL,
         created_at     TEXT    NOT NULL DEFAULT ''
     )");
+
+    // Dokumenty końcowe (źródło + karta akceptacji) wygenerowane przez edok_generate_final_pdf()
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_generated_pdf (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id        INTEGER NOT NULL,
+        file_path     TEXT    NOT NULL DEFAULT '',
+        file_sha256   TEXT    NOT NULL DEFAULT '',
+        file_size     INTEGER,
+        generated_by  INTEGER,
+        gen_name      TEXT    NOT NULL DEFAULT '',
+        created_at    TEXT    NOT NULL DEFAULT ''
+    )");
 }
 
 function _edok_add_columns(PDO $db, string $table, array $cols): void {
@@ -435,6 +447,13 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
     db_exec("UPDATE edok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
     if ($new_status === 'zaakceptowany') {
         edok_log($id, 'status_change', '', $doc['status'], 'zaakceptowany', 'Obieg zakończony — dokument zaakceptowany do zapłaty i księgowania (5/5 etapów).');
+        // Dokument końcowy (źródło + karta akceptacji) — best-effort, błąd generowania
+        // PDF nie może cofnąć już zapisanej akceptacji.
+        try {
+            edok_generate_final_pdf($id);
+        } catch (\Throwable $e) {
+            edok_log($id, 'generate_pdf_error', '', 'zaakceptowany', 'zaakceptowany', 'Nie udało się wygenerować dokumentu końcowego: ' . $e->getMessage());
+        }
     }
     return ['status' => $new_status, 'rejected' => false];
 }
@@ -502,6 +521,184 @@ function edok_transfer_label_klasyfikacja(string $rodzaj, string $projekt): stri
 function edok_status_badge(string $status): string {
     $s = EDOK_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
     return '<span class="badge bg-' . $s['class'] . '">' . h($s['label']) . '</span>';
+}
+
+// ── Karta akceptacji — HTML współdzielony między edok/print.php (przeglądarka) ─
+// i edok_generate_final_pdf() (mPDF). Jedno źródło prawdy dla wyglądu karty.
+
+function edok_print_decision_label(?array $step): string {
+    if (!$step || !in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true)) return 'OCZEKUJE';
+    return match($step['status']) { 'ok' => 'TAK', 'uwagi' => 'Z UWAGAMI', 'odrzucono' => 'ODRZUCONO', default => $step['status'] };
+}
+
+function edok_print_who(?array $step): string {
+    if (!$step || !$step['decided_at']) return '—';
+    return h($step['user_name']) . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
+        . '<br>' . date_pl($step['decided_at']) . ' ' . date('H:i', strtotime($step['decided_at']));
+}
+
+/** Styl karty — bez @page/@media print (nieistotne dla mPDF, dodawane osobno w print.php dla przeglądarki). */
+function edok_print_css(): string {
+    return '
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 14px; background: #fff; font-size: 11px; line-height: 1.3; }
+  .sheet { max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 13px; margin: 0 0 2px; font-weight: 700; }
+  .sub { font-size: 10px; margin-bottom: 8px; }
+  h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .3px; margin: 8px 0 2px; border-bottom: 1px solid #000; padding-bottom: 1px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 2px 4px; vertical-align: top; }
+  .head-table td { border: none; padding: 1px 4px; }
+  .head-table td.l { width: 15%; }
+  .kwoty td { border-top: 1px solid #000; border-bottom: 1px solid #000; font-weight: 700; }
+  .kwoty td.lbl { font-weight: 400; width: 12%; }
+  .desc { border: 1px solid #000; padding: 3px 5px; margin: 2px 0 4px; min-height: 12px; }
+  .steps { border-collapse: collapse; margin-top: 2px; }
+  .steps th, .steps td { border: 1px solid #000; font-size: 10px; }
+  .steps th { text-transform: uppercase; font-size: 8.5px; font-weight: 700; text-align: left; }
+  .steps td.dec { text-align: center; font-weight: 700; white-space: nowrap; }
+  .stamp { margin-top: 8px; padding-top: 4px; border-top: 1px solid #000; font-size: 8.5px; line-height: 1.35; }
+';
+}
+
+/** Fragment HTML karty akceptacji (bez <html>/<head>/<body>) — dla przeglądarki i dla mPDF. */
+function edok_print_html(array $doc): string {
+    $org = defined('ORG_NAME') ? ORG_NAME : '';
+    $html = '<div class="sheet">';
+    $html .= '<h1>' . h($org ?: 'EODoK') . ' — Karta akceptacji dokumentu</h1>';
+    $html .= '<div class="sub">Dokument <strong>' . h($doc['number']) . '</strong> · '
+        . h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) . ' · nr ' . h($doc['nr_faktury'])
+        . ' · status: ' . h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) . '</div>';
+
+    $html .= '<table class="head-table"><tr><td class="l">Kontrahent</td><td>' . h($doc['kontrahent_nazwa'])
+        . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr></table>';
+
+    $html .= '<table class="kwoty"><tr>'
+        . '<td class="lbl">Netto</td><td>' . h($doc['kwota_netto'] ?: '—') . '</td>'
+        . '<td class="lbl">VAT</td><td>' . h($doc['kwota_vat'] ?: '—') . '</td>'
+        . '<td class="lbl">Brutto</td><td>' . h($doc['kwota_brutto'] ?: '—') . ' ' . h($doc['waluta']) . '</td>'
+        . '</tr></table>';
+
+    $html .= '<h2>Opis wydatku</h2><div class="desc">' . (trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '—') . '</div>';
+
+    $html .= '<h2>Dekretacja i alokacja kosztów</h2><table class="head-table"><tr>'
+        . '<td class="l">Rodzaj działalności</td><td>' . h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') . '</td>'
+        . '<td class="l">Projekt / MPK</td><td>' . h($doc['projekt'] ?: $doc['mpk'] ?: '—') . '</td>'
+        . '</tr></table>';
+
+    $html .= '<h2>Etapy akceptacji</h2><table class="steps"><thead><tr>'
+        . '<th style="width:32%">Etap</th><th style="width:14%">Rodzaj akceptacji</th><th style="width:22%">Kto / kiedy</th><th>Opis / uwagi</th>'
+        . '</tr></thead><tbody>';
+    foreach (EDOK_STEPS as $sk => $sl) {
+        $s = $doc['steps'][$sk] ?? null;
+        $html .= '<tr><td>' . h($sl) . '</td>'
+            . '<td class="dec">' . h(edok_print_decision_label($s)) . '</td>'
+            . '<td>' . edok_print_who($s) . '</td>'
+            . '<td>' . ($s && trim((string)$s['notes']) !== '' ? nl2br(h($s['notes'])) : '—') . '</td></tr>';
+    }
+    $html .= '</tbody></table>';
+
+    $html .= '<div class="stamp">Karta wygenerowana elektronicznie z systemu EODoK dnia ' . date('d.m.Y H:i')
+        . ' przez ' . h(current_user()['name'] ?? '—') . '. Identyfikatory osób decydujących, stemple czasowe '
+        . 'i historia decyzji zastępują w pełni tradycyjne pieczątki dekretacyjne.</div>';
+
+    $html .= '</div>';
+    return $html;
+}
+
+// ── Dokument końcowy (źródłowy + karta obiegu) — FPDI (import) + mPDF (karta) ──
+
+/**
+ * Składa jeden PDF: oryginalny dokument źródłowy (PDF-y strona po stronie,
+ * albo obraz JPG/PNG na całej stronie; XML/DOCX pomijane — nie da się ich
+ * "zaimportować" jako strony) + doklejona karta akceptacji (edok_print_html(),
+ * wyrenderowana przez mPDF, doklejona przez FPDI jak zwykły import PDF).
+ * Zapisuje do uploads/edok_generated/, rejestruje w edok_generated_pdf.
+ * Zwraca względną ścieżkę pliku.
+ */
+function edok_generate_final_pdf(int $doc_id): string {
+    $doc = edok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+    // 1) Karta akceptacji jako osobny PDF (mPDF, z gotowego HTML-a).
+    $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+    if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+    $mpdf = new \Mpdf\Mpdf([
+        'mode' => 'utf-8', 'format' => 'A4',
+        'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 8, 'margin_bottom' => 8,
+        'default_font' => 'dejavusans', 'tempDir' => $tmp_dir,
+    ]);
+    $mpdf->SetTitle('Karta akceptacji ' . $doc['number']);
+    $mpdf->WriteHTML('<style>' . edok_print_css() . '</style>' . edok_print_html($doc));
+    $card_path = $tmp_dir . '/karta_' . $doc_id . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    $mpdf->Output($card_path, \Mpdf\Output\Destination::FILE);
+
+    // 2) Złożenie finalnego PDF: źródło (jeśli PDF/obraz) + karta (import stron przez FPDI).
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/fpdi/autoload_fpdi.php';
+
+    $pdf = new \setasign\Fpdi\Fpdi();
+    $pdf->SetAutoPageBreak(true, 10);
+
+    $orig_path = $doc['file_path'] ? UPLOAD_DIR . ltrim($doc['file_path'], '/') : '';
+    $ext = $orig_path ? strtolower(pathinfo($orig_path, PATHINFO_EXTENSION)) : '';
+
+    if ($orig_path && is_file($orig_path)) {
+        if ($ext === 'pdf') {
+            try {
+                $count = $pdf->setSourceFile($orig_path);
+                for ($i = 1; $i <= $count; $i++) {
+                    $tpl  = $pdf->importPage($i);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl);
+                }
+            } catch (\Throwable $e) {}
+        } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+            $pdf->AddPage('P', 'A4');
+            try {
+                $pdf->Image($orig_path, 10, 10, 190);
+            } catch (\Throwable $e) {}
+        }
+        // XML (KSeF) / DOCX — nie da się zaimportować jako strony PDF, pomijane.
+    }
+
+    $card_count = $pdf->setSourceFile($card_path);
+    for ($i = 1; $i <= $card_count; $i++) {
+        $tpl  = $pdf->importPage($i);
+        $size = $pdf->getTemplateSize($tpl);
+        $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+        $pdf->useTemplate($tpl);
+    }
+    @unlink($card_path);
+
+    $out_dir = UPLOAD_DIR . 'edok_generated/';
+    if (!is_dir($out_dir)) mkdir($out_dir, 0755, true);
+    $filename = preg_replace('/[^a-zA-Z0-9_.\-]/', '_', 'final_' . $doc['number'] . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf');
+    $full_path = $out_dir . $filename;
+    $pdf->Output($full_path, 'F');
+
+    $rel   = 'edok_generated/' . $filename;
+    $user  = current_user();
+    db_insert('edok_generated_pdf', [
+        'doc_id'       => $doc_id,
+        'file_path'    => $rel,
+        'file_sha256'  => hash_file('sha256', $full_path),
+        'file_size'    => filesize($full_path),
+        'generated_by' => $user['id'] ?? null,
+        'gen_name'     => $user['name'] ?? '',
+        'created_at'   => date('Y-m-d H:i:s'),
+    ]);
+
+    edok_log($doc_id, 'generate_pdf', '', $doc['status'], $doc['status'], 'Wygenerowano dokument końcowy (źródło + karta akceptacji).');
+
+    return $rel;
+}
+
+function edok_latest_generated_pdf(int $doc_id): ?array {
+    return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1", [$doc_id]);
 }
 
 // ── Preliminarz Płatności (przeniesiony z KDOK, ujednolicony z KDOK) ──────────

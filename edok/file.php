@@ -9,11 +9,20 @@ require_once __DIR__ . '/../includes/edok.php';
 edok_require_access();
 edok_migrate();
 
-$id  = (int)($_GET['id'] ?? 0);
-$doc = db_one("SELECT file_path FROM edok_documents WHERE id = ?", [$id]);
-if (!$doc || !$doc['file_path']) { http_response_code(404); die('Plik nie istnieje.'); }
+$id   = (int)($_GET['id'] ?? 0);
+$type = $_GET['type'] ?? 'source';
 
-$abs = UPLOAD_DIR . $doc['file_path'];
+if ($type === 'final') {
+    $gen = edok_latest_generated_pdf($id);
+    if (!$gen || !$gen['file_path']) { http_response_code(404); die('Dokument końcowy nie został jeszcze wygenerowany.'); }
+    $file_path = $gen['file_path'];
+} else {
+    $doc = db_one("SELECT file_path FROM edok_documents WHERE id = ?", [$id]);
+    if (!$doc || !$doc['file_path']) { http_response_code(404); die('Plik nie istnieje.'); }
+    $file_path = $doc['file_path'];
+}
+
+$abs = UPLOAD_DIR . $file_path;
 if (!is_file($abs)) { http_response_code(404); die('Plik nie istnieje na dysku.'); }
 
 $ext  = strtolower(pathinfo($abs, PATHINFO_EXTENSION));

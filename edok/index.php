@@ -36,18 +36,61 @@ foreach ($docs as &$d) {
 }
 unset($d);
 
+if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="EODoK_dokumenty_' . date('Y-m-d') . '.csv"');
+    header('Cache-Control: no-cache');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['Numer', 'Kontrahent', 'NIP', 'Tytuł', 'Netto', 'VAT', 'Brutto', 'Waluta', 'Status', 'Klasyfikacja', 'Dodano'], ';');
+    foreach ($docs as $d) {
+        fputcsv($out, [
+            $d['number'], $d['kontrahent_nazwa'], $d['kontrahent_nip'], $d['title'],
+            $d['kwota_netto'], $d['kwota_vat'], $d['kwota_brutto'], $d['waluta'] ?: 'PLN',
+            EDOK_STATUSES[$d['status']]['label'] ?? $d['status'],
+            edok_transfer_label_klasyfikacja($d['rodzaj_dzialalnosci'], $d['projekt']),
+            $d['created_at'],
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 $PAGE_TITLE = 'EODoK — Elektroniczny Obieg Dokumentów Księgowych';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-journal-check"></i> EODoK — Elektroniczny Obieg Dokumentów Księgowych</h4>
   <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/edok/index.php?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn btn-outline-success btn-sm">
+      <i class="bi bi-filetype-csv"></i> Eksport CSV
+    </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <?php if (is_admin() || edok_has_role('upload')): ?>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>
   </div>
 </div>
+
+<form method="get" action="<?= APP_URL ?>/edok/monthly_pdf.php" class="row g-2 mb-3 align-items-end">
+  <div class="col-auto">
+    <label class="form-label small mb-1">PDF ze wszystkimi dokumentami z miesiąca</label>
+    <?php $months_pl = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień']; ?>
+    <div class="d-flex gap-1">
+      <select name="miesiac" class="form-select form-select-sm">
+        <?php for ($m = 1; $m <= 12; $m++): ?>
+        <option value="<?= $m ?>" <?= $m == (int)date('n') ? 'selected' : '' ?>><?= h($months_pl[$m]) ?></option>
+        <?php endfor; ?>
+      </select>
+      <select name="rok" class="form-select form-select-sm" style="max-width:100px">
+        <?php for ($r = (int)date('Y'); $r >= (int)date('Y') - 5; $r--): ?>
+        <option value="<?= $r ?>" <?= $r == (int)date('Y') ? 'selected' : '' ?>><?= $r ?></option>
+        <?php endfor; ?>
+      </select>
+      <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap"><i class="bi bi-file-earmark-pdf"></i> Pobierz PDF</button>
+    </div>
+  </div>
+</form>
 
 <form method="get" class="row g-2 mb-3 align-items-end">
   <div class="col-auto">
