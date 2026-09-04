@@ -644,6 +644,27 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <?= flash_html() ?>
 
+<script>
+function printCredCard(title, rows, portalUrl){
+  var w = window.open('', '_blank');
+  var body = '<table>' + rows.map(function(r){
+    return '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>';
+  }).join('') + '</table>';
+  w.document.write('<html><head><title>' + title + '</title>'
+    + '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:16px}'
+    + 'table{border-collapse:collapse;width:100%;max-width:420px}'
+    + 'th,td{border:1px solid #999;padding:6px 10px;text-align:left}th{background:#eee;width:40%}'
+    + 'h3{margin:0 0 12px}</style></head><body>'
+    + '<h3><?= h(addslashes(ORG_NAME ?? 'Panel kursanta')) ?></h3>'
+    + '<div style="font-weight:bold;margin-bottom:8px">' + title + '</div>'
+    + body
+    + '<p style="margin-top:16px;font-size:14px">Adres panelu: <strong>kursant.feer.org.pl</strong></p>'
+    + '<p style="font-size:12px;color:#555">Link bezpośredni: ' + portalUrl + '</p>'
+    + '</body></html>');
+  w.document.close(); w.focus(); w.print();
+}
+</script>
+
 <!-- Nowo wygenerowane dane -->
 <?php if ($new_creds): ?>
 <div class="alert alert-warning d-flex gap-3 align-items-start mb-4 shadow-sm">
@@ -655,7 +676,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <tr><th>Login</th><td class="font-monospace fw-bold"><?= h($new_creds['login']) ?></td></tr>
       <tr><th>Hasło</th><td class="font-monospace fw-bold text-danger"><?= h($new_creds['password']) ?></td></tr>
     </table>
-    <div class="small text-muted">Link do logowania: <a href="<?= h($portal_url) ?>" target="_blank"><?= h($portal_url) ?></a></div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div class="small text-muted">Link do logowania: <a href="<?= h($portal_url) ?>" target="_blank"><?= h($portal_url) ?></a></div>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              onclick='printCredCard("Dane dostępowe — panel kursanta", [["Beneficjent","<?= h(addslashes($new_creds['name'])) ?>"],["Login","<?= h(addslashes($new_creds['login'])) ?>"],["Hasło","<?= h(addslashes($new_creds['password'])) ?>"]], "<?= h(addslashes($portal_url)) ?>")'>
+        <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartkę
+      </button>
+    </div>
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()" aria-label="Zamknij"></button>
 </div>
@@ -845,8 +872,12 @@ function printBulk(){
         <div class="small text-success mb-2"><i class="bi bi-envelope-check me-1" aria-hidden="true"></i>E-mail z informacją o upoważnieniu wysłany do osoby upoważnionej.</div>
         <?php endif; ?>
         <div class="d-flex gap-2 flex-wrap align-items-center">
+          <button type="button" class="btn btn-sm btn-primary"
+                  onclick='printCredCard("Dane dostępowe — osoba upoważniona", [["Kursant","<?= h(addslashes($new_authp_creds['student_name'])) ?>"],["Osoba upoważniona","<?= h(addslashes($new_authp_creds['name'])) ?>"],["Login","<?= h(addslashes($new_authp_creds['login'])) ?>"],["Hasło","<?= h(addslashes($new_authp_creds['pass'])) ?>"]], "<?= h(addslashes($parent_portal_url)) ?>")'>
+            <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartkę z hasłem
+          </button>
           <a href="../kursant/authp_print.php?id=<?= (int)$new_authp_creds['id'] ?>"
-             target="_blank" class="btn btn-sm btn-primary">
+             target="_blank" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartkę dla osoby upoważnionej
           </a>
           <a href="../kursant/authp_declaration.php?id=<?= (int)$new_authp_creds['id'] ?>"
