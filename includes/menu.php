@@ -72,7 +72,7 @@ function _menu_counts(): array {
     $c = [
         'pending'=>0,'msg'=>0,'term'=>0,'cert'=>0,'ts'=>0,'ship'=>0,'has_shipping'=>false,
         'zwr'=>0,'rek'=>0,'ob'=>0,'res'=>0,'adm'=>0,'hd'=>0,'alias'=>0,'alias_op'=>false,
-        'obieg'=>0,'vpn'=>0,'wsparcie_ou'=>0,'has_kdok'=>false,
+        'obieg'=>0,'vpn'=>0,'wsparcie_ou'=>0,'has_kdok'=>false,'has_edok'=>false,
     ];
     if (is_admin()) {
         try { require_once __DIR__ . '/amendments.php'; $c['pending'] = get_workflow_pending_count(); } catch (\Throwable $e) {}
@@ -125,6 +125,10 @@ function _menu_counts(): array {
     try {
         require_once __DIR__ . '/ksiegowosc.php'; kdok_migrate();
         $c['has_kdok'] = kdok_has_role('upload') || kdok_has_role('meryt') || kdok_has_role('formal') || kdok_has_role('zatwierdza') || is_admin();
+    } catch (\Throwable $e) {}
+    try {
+        require_once __DIR__ . '/edok.php'; edok_migrate();
+        $c['has_edok'] = edok_has_any_role();
     } catch (\Throwable $e) {}
     return $c;
 }
@@ -322,8 +326,10 @@ function _menu_editor(): array {
     if (menu_visible('actions'))
         $fin_search[] = _mi('Działania','/strategy/actions/index.php','bi-calendar-event',['match'=>'/strategy/actions/','kw'=>'działania projekt']);
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
+    if ($cnt['has_edok'])
+        $fin[] = _mi('EODoK — Dok. Księgowe','/edok/index.php','bi-journal-check',['match'=>'/edok/','kw'=>'edok eodok akceptacja dekretacja kontrola merytoryczna formalna rachunkowa dokumenty księgowe']);
     if ($cnt['has_kdok']) {
-        $fin[] = _mi('EOD Dok. Księgowych','/ksiegowosc/index.php','bi-file-earmark-check',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty']);
+        $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
         if (kdok_has_role('zatwierdza'))
             $fin[] = _mi('Preliminarz Płatności','/ksiegowosc/preliminarz.php','bi-calendar-check',['match'=>'/ksiegowosc/preliminarz','kw'=>'preliminarz płatności przelew']);
     }
@@ -333,7 +339,7 @@ function _menu_editor(): array {
     $nodes[] = [
         'search'=>$fin_search,
         'id'=>'finanse','label'=>'Finanse','icon'=>'bi-cash-coin','badge'=>$cnt['zwr']+$cnt['res']+$cnt['ship'],
-        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/resources/')||_menu_hit('/admin/shipments'),
+        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/resources/')||_menu_hit('/admin/shipments'),
         'groups'=>[['label'=>null,'items'=>$fin]],
     ];
 

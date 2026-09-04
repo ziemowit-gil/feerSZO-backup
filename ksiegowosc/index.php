@@ -103,8 +103,17 @@ if ($ksef_enabled) {
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
+<div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+  <i class="bi bi-info-circle-fill fs-5"></i>
+  <div>
+    Ten moduł (KDOK) został zastąpiony modułem <strong>EODoK</strong> — pełnym, 5-etapowym obiegiem akceptacji
+    (kontrola merytoryczna → formalno-prawna → rachunkowa → dekretacja → zatwierdzenie). Nowe dokumenty dodawaj
+    w <a href="<?= APP_URL ?>/edok/index.php" class="alert-link">EODoK</a>. Tutaj zostaje dostęp do istniejących
+    dokumentów, Preliminarza Płatności i synchronizacji KSeF do czasu zamknięcia trwających rozliczeń.
+  </div>
+</div>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> EOD Dokumentów Księgowych</h4>
+  <h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> EOD Dokumentów Księgowych <span class="badge bg-secondary">archiwum</span></h4>
   <div class="d-flex gap-2">
     <?php if (is_admin() || kdok_has_role('zatwierdza')): ?>
     <a href="<?= APP_URL ?>/ksiegowosc/zip.php" class="btn btn-outline-secondary btn-sm">

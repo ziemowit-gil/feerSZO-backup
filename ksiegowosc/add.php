@@ -8,6 +8,15 @@ require_once __DIR__ . '/../includes/ksiegowosc.php';
 require_once __DIR__ . '/../includes/kdok_ksef.php';
 
 kdok_require_role('upload');
+
+// KDOK zastąpiony przez EODoK (Elektroniczny Obieg Dokumentów Księgowych) —
+// nowe dokumenty księguje się tam (5-etapowy obieg zgodny z art. 21 UoR).
+// Preliminarz Płatności, KSeF i istniejące dokumenty w KDOK zostają dostępne
+// do czasu zamknięcia trwających płatności/rozliczeń.
+flash_set('info', 'Dodawanie dokumentów przeniesiono do modułu EODoK — nowy, pełny 5-etapowy obieg akceptacji.');
+header('Location: ' . APP_URL . '/edok/add.php');
+exit;
+
 require_once __DIR__ . '/../includes/tz_auth.php';
 tz_require_level(TZ_LEVEL_MFA, APP_URL . '/ksiegowosc/add.php', 'Dokumenty finansowe');
 kdok_migrate();
