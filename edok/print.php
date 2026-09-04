@@ -105,7 +105,7 @@ function pr_signoff(?array $step, string $verb): string {
     <?= trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '<span class="muted">Brak opisu.</span>' ?>
   </div>
 
-  <h2>Dekretacja i alokacja kosztów</h2>
+  <h2><?= h(EDOK_STEPS['dekretacja']) ?></h2>
   <table>
     <?= pr_row('Rodzaj działalności', EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') ?>
     <?= pr_row('Projekt / działanie', $doc['projekt']) ?>
@@ -113,7 +113,7 @@ function pr_signoff(?array $step, string $verb): string {
   </table>
   <?= pr_signoff($dekretacja, 'Zadekretował') ?>
 
-  <h2>Zatwierdzenie końcowe do zapłaty i księgowania</h2>
+  <h2><?= h(EDOK_STEPS['zatwierdza']) ?></h2>
   <?= pr_signoff($zatwierdza, 'Zatwierdził') ?>
 
   <div class="stamp">

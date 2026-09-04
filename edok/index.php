@@ -77,8 +77,9 @@ require_once __DIR__ . '/../includes/header.php';
         <th>Tytuł</th>
         <th class="text-end">Kwota brutto</th>
         <th>Status</th>
+        <?php $step_abbr = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z']; ?>
         <?php foreach (EDOK_STEPS as $sk => $sl): ?>
-        <th class="text-center" title="<?= h($sl) ?>"><?= h(mb_substr($sl, 0, 1)) ?>.</th>
+        <th class="text-center" title="<?= h($sl) ?>"><?= h($step_abbr[$sk] ?? '?') ?>.</th>
         <?php endforeach; ?>
         <th>Dodano</th>
         <th></th>

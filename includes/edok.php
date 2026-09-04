@@ -49,11 +49,11 @@ const EDOK_STATUSES = [
 ];
 
 const EDOK_STEPS = [
-    'meryt'      => 'Kontrola merytoryczna',
-    'formal'     => 'Kontrola formalno-prawna',
-    'rachunkowa' => 'Kontrola rachunkowa',
+    'meryt'      => 'Zaakceptowano pod względem merytorycznym',
+    'formal'     => 'Zaakceptowano pod względem formalnym',
+    'rachunkowa' => 'Zaakceptowano pod względem rachunkowym',
     'dekretacja' => 'Dekretacja i alokacja kosztów',
-    'zatwierdza' => 'Zatwierdzenie końcowe do zapłaty i księgowania',
+    'zatwierdza' => 'Zatwierdzam do zapłaty / wypłaty',
 ];
 
 const EDOK_ROLES = [
