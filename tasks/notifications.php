@@ -233,105 +233,82 @@ $TASKS_BREADCRUMB = 'Powiadomienia';
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
-.notif-card {
-  background: #fff; border: 1px solid #e2e8f0;
-  border-radius: .65rem; overflow: hidden;
-}
+<style type="text/tailwindcss">
+.notif-card { @apply tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden; }
 .notif-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: .75rem 1rem; border-bottom: 1px solid #f1f5f9; background: #f8fafc;
-  flex-wrap: wrap; gap: .5rem;
+  @apply tw-flex tw-items-center tw-justify-between tw-py-3 tw-px-4 tw-border-b tw-border-slate-100 tw-bg-slate-50 tw-flex-wrap tw-gap-2;
 }
 .notif-title {
-  font-size: .75rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .07em;
-  color: #64748b; display: flex; align-items: center; gap: .4rem; margin: 0;
+  @apply tw-text-xs tw-font-bold tw-uppercase tw-tracking-wider tw-text-slate-500 tw-flex tw-items-center tw-gap-[.4rem] tw-m-0;
 }
 
 /* Pasek filtrów */
 .notif-filter-bar {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .6rem 1rem; border-bottom: 1px solid #f1f5f9;
-  background: #fafbfc; flex-wrap: wrap;
+  @apply tw-flex tw-items-center tw-gap-2 tw-py-[.6rem] tw-px-4 tw-border-b tw-border-slate-100 tw-bg-[#fafbfc] tw-flex-wrap;
 }
 .notif-filter-label {
-  font-size: .73rem; color: #94a3b8; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .05em; flex-shrink: 0;
+  @apply tw-text-[.73rem] tw-text-slate-400 tw-font-semibold tw-uppercase tw-tracking-wide tw-flex-shrink-0;
 }
 .notif-chip {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .22rem .65rem; border-radius: 999px; border: 1px solid #e2e8f0;
-  background: #fff; color: #374151; font-size: .78rem; font-weight: 500;
-  cursor: pointer; text-decoration: none; transition: all .1s;
-  white-space: nowrap;
+  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-py-[.22rem] tw-px-[.65rem] tw-rounded-full tw-border tw-border-slate-200 tw-bg-white tw-text-slate-700 tw-text-[.78rem] tw-font-medium tw-cursor-pointer tw-no-underline tw-transition-all tw-whitespace-nowrap;
 }
 .notif-chip:hover { border-color: var(--tsk-green); color: var(--tsk-green); background: #ecfdf5; }
 .notif-chip.active { background: var(--tsk-green); color: #fff; border-color: var(--tsk-green); }
-.notif-chip-sep { width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0; }
+.notif-chip-sep { @apply tw-w-px tw-h-5 tw-bg-slate-200 tw-flex-shrink-0; }
 
 /* Wiersze logu */
 .notif-row {
-  display: flex; align-items: flex-start; gap: .75rem;
-  padding: .65rem 1rem; border-bottom: 1px solid #f8fafc;
-  font-size: .84rem;
+  @apply tw-flex tw-items-start tw-gap-3 tw-py-[.65rem] tw-px-4 tw-border-b tw-border-slate-50 tw-text-[.84rem];
 }
-.notif-row:last-child { border-bottom: none; }
+.notif-row:last-child { @apply tw-border-b-0; }
 .notif-icon {
-  width: 32px; height: 32px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: .95rem; background: #f1f5f9;
+  @apply tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-flex-shrink-0 tw-text-[.95rem] tw-bg-slate-100;
 }
-.notif-body  { flex: 1; line-height: 1.45; min-width: 0; }
-.notif-task  { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.notif-meta  { font-size: .73rem; color: #94a3b8; margin-top: .1rem; }
-.notif-time  { font-size: .72rem; color: #94a3b8; }
+.notif-body  { @apply tw-flex-1 tw-leading-[1.45] tw-min-w-0; }
+.notif-task  { @apply tw-font-semibold tw-text-slate-900 tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis; }
+.notif-meta  { @apply tw-text-[.73rem] tw-text-slate-400 tw-mt-[.1rem]; }
+.notif-time  { @apply tw-text-[.72rem] tw-text-slate-400; }
 
 /* Badge kanału */
 .notif-ch-badge {
-  display: inline-flex; align-items: center; gap: .2rem;
-  font-size: .62rem; font-weight: 700; padding: .1rem .4rem;
-  border-radius: 999px; line-height: 1.4; white-space: nowrap;
+  @apply tw-inline-flex tw-items-center tw-gap-[.2rem] tw-text-[.62rem] tw-font-bold tw-py-[.1rem] tw-px-[.4rem] tw-rounded-full tw-leading-[1.4] tw-whitespace-nowrap;
 }
-.notif-ch-email  { background: #eff6ff; color: #1d4ed8; }
-.notif-ch-sms    { background: #f0fdf4; color: #15803d; }
-.notif-ch-queue  { background: #fffbeb; color: #b45309; }
-.notif-ch-failed { background: #fef2f2; color: #dc2626; }
-.notif-row-failed { opacity: .82; }
-.notif-row-failed .notif-task { text-decoration: line-through; color: #94a3b8; }
+.notif-ch-email  { @apply tw-bg-blue-50 tw-text-blue-700; }
+.notif-ch-sms    { @apply tw-bg-green-50 tw-text-green-700; }
+.notif-ch-queue  { @apply tw-bg-amber-50 tw-text-amber-700; }
+.notif-ch-failed { @apply tw-bg-red-50 tw-text-red-600; }
+.notif-row-failed { @apply tw-opacity-[.82]; }
+.notif-row-failed .notif-task { @apply tw-line-through tw-text-slate-400; }
 
 /* Załaduj więcej */
-.notif-more-wrap { display: flex; justify-content: center; padding: .75rem; border-top: 1px solid #f1f5f9; }
+.notif-more-wrap { @apply tw-flex tw-justify-center tw-py-3 tw-border-t tw-border-slate-100; }
 .notif-more-btn {
-  background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0;
-  font-size: .82rem; border-radius: 8px; padding: .4rem 1.1rem;
+  @apply tw-bg-slate-100 tw-text-slate-700 tw-border tw-border-slate-200 tw-text-[.82rem] tw-rounded-lg tw-py-[.4rem] tw-px-[1.1rem];
 }
 .notif-more-btn:hover { background: var(--tsk-green-bg); color: var(--tsk-green); border-color: var(--tsk-green); }
 
 /* Nadchodzące terminy */
 .due-row {
-  display: flex; align-items: center; gap: .65rem; padding: .6rem 1rem;
-  border-bottom: 1px solid #f8fafc; text-decoration: none; color: inherit;
-  cursor: pointer; transition: background .1s;
+  @apply tw-flex tw-items-center tw-gap-[.65rem] tw-py-[.6rem] tw-px-4 tw-border-b tw-border-slate-50 tw-no-underline tw-text-inherit tw-cursor-pointer tw-transition-colors;
 }
-.due-row:last-child { border-bottom: none; }
-.due-row:hover { background: #f8fafc; }
-.due-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.due-title { flex: 1; font-size: .86rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.due-date  { font-size: .77rem; white-space: nowrap; font-weight: 600; }
-.due-date.overdue { color: #dc2626; }
-.due-date.today   { color: #f59e0b; }
-.due-date.soon    { color: #2563eb; }
+.due-row:last-child { @apply tw-border-b-0; }
+.due-row:hover { @apply tw-bg-slate-50; }
+.due-dot   { @apply tw-w-[10px] tw-h-[10px] tw-rounded-full tw-flex-shrink-0; }
+.due-title { @apply tw-flex-1 tw-text-[.86rem] tw-font-semibold tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis; }
+.due-date  { @apply tw-text-[.77rem] tw-whitespace-nowrap tw-font-semibold; }
+.due-date.overdue { @apply tw-text-red-600; }
+.due-date.today   { @apply tw-text-amber-500; }
+.due-date.soon    { @apply tw-text-blue-600; }
 
 /* Preferencje */
-.pref-row { display: flex; align-items: center; justify-content: space-between; padding: .7rem 1rem; border-bottom: 1px solid #f8fafc; }
-.pref-row:last-child { border-bottom: none; }
-.pref-label { display: block; cursor: pointer; font-size: .88rem; color: #0f172a; }
-.pref-desc  { font-size: .75rem; color: #94a3b8; }
+.pref-row { @apply tw-flex tw-items-center tw-justify-between tw-py-[.7rem] tw-px-4 tw-border-b tw-border-slate-50; }
+.pref-row:last-child { @apply tw-border-b-0; }
+.pref-label { @apply tw-block tw-cursor-pointer tw-text-[.88rem] tw-text-slate-900; }
+.pref-desc  { @apply tw-text-xs tw-text-slate-400; }
 
 /* Empty state */
-.notif-empty { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
-.notif-empty i { font-size: 1.6rem; display: block; margin-bottom: .5rem; opacity: .3; }
+.notif-empty { @apply tw-text-center tw-py-10 tw-px-4 tw-text-slate-400; }
+.notif-empty i { @apply tw-text-2xl tw-block tw-mb-2 tw-opacity-30; }
 </style>
 
 <div class="d-flex align-items-start justify-content-between mb-4">
