@@ -9,7 +9,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 
-k30_require_access();
+k30_ti_staff_access();
 karty30_migrate();
 
 $id = (int)($_GET['id'] ?? 0);
