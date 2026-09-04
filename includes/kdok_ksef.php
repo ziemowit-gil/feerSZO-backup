@@ -417,7 +417,7 @@ function kdok_ksef_sync_export(string $from, string $to, string $queue_table = '
         throw new RuntimeException('Brak NIP w konfiguracji KSeF.');
     }
 
-    $stats = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => []];
+    $stats = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => [], 'notices' => []];
     $log_prefix = 'KSEF_SYNC [' . kdok_ksef_env_id() . '] NIP=' . org_setting('kdok_ksef_nip');
 
     // Klient z kluczem szyfrującym — wymagane dla eksportu
@@ -450,13 +450,17 @@ function kdok_ksef_sync_export(string $from, string $to, string $queue_table = '
 
             // 2. Polling statusu (max 5 minut)
             $downloadUrl = null;
+            $lastCode = null;
+            $polled = 0;
             for ($i = 0; $i < 60; $i++) {
                 sleep(5);
+                $polled++;
                 $statusResp = $client->invoices()->exports()->status(
                     new ExportStatusRequest(ReferenceNumber::from($refNumber))
                 );
                 $statusData = json_decode($statusResp->body(), true);
                 $code = $statusData['processingCode'] ?? $statusData['status']['code'] ?? null;
+                $lastCode = $code;
 
                 if ($code === 'DONE' || $code === 200) {
                     $downloadUrl = $statusData['url']
@@ -471,7 +475,13 @@ function kdok_ksef_sync_export(string $from, string $to, string $queue_table = '
             }
 
             if (!$downloadUrl) {
-                // Eksport gotowy ale bez URL-a — może być pusta paczka
+                // Eksport gotowy, ale bez URL-a paczki (albo timeout pollingu po 5 min) —
+                // wcześniej to znikało bez śladu, przez co "0 zaimportowano" wyglądało jak
+                // sukces zamiast jak nierozstrzygnięty eksport. Zostawiamy jawną notatkę.
+                $reason = $polled >= 60
+                    ? 'przekroczono czas oczekiwania (5 min), eksport KSeF nie zdążył się przygotować'
+                    : 'brak adresu paczki w odpowiedzi (kod statusu: ' . var_export($lastCode, true) . ')';
+                $stats['notices'][] = "Eksport {$chunk_from}–{$chunk_to}: {$reason}.";
                 continue;
             }
 
@@ -495,6 +505,11 @@ function kdok_ksef_sync_export(string $from, string $to, string $queue_table = '
                 @unlink($tmpZip);
                 $stats['errors'][] = "Rozpakowywanie ZIP {$chunk_from}–{$chunk_to}: błąd otwarcia";
                 continue;
+            }
+            if ($zip->numFiles === 0) {
+                // Eksport zakończony poprawnie, ale KSeF nie znalazł żadnych faktur
+                // (jako nabywca, wg daty wystawienia) w tym zakresie dat.
+                $stats['notices'][] = "Eksport {$chunk_from}–{$chunk_to}: paczka pobrana poprawnie, ale nie zawiera żadnych faktur (brak faktur zakupowych za ten okres w KSeF, środowisko: " . kdok_ksef_env_id() . ").";
             }
 
             $decryptHandler = new DecryptDocumentHandler();
@@ -572,7 +587,7 @@ function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer', 
         throw new RuntimeException('Brak NIP w konfiguracji KSeF.');
     }
 
-    $stats = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => []];
+    $stats = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => [], 'notices' => []];
 
     // Podziel zakres na 3-miesięczne przedziały (limit API KSeF)
     $chunks = kdok_ksef_date_chunks($from, $to, 3);
@@ -585,6 +600,9 @@ function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer', 
         $refs = [];
         try {
             $refs = kdok_ksef_query_by_date(null, $chunk_from, $chunk_to, 'Issue');
+            if (!$refs) {
+                $stats['notices'][] = "Zapytanie {$chunk_from}–{$chunk_to}: KSeF nie zwrócił żadnych faktur zakupowych (środowisko: " . kdok_ksef_env_id() . ").";
+            }
         } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), '429')) {
                 sleep(5);

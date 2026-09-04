@@ -101,12 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $imported = (int)($sync_result['imported'] ?? 0);
             $skipped  = (int)($sync_result['skipped']  ?? 0);
-            $sync_errors = $sync_result['errors'] ?? [];
+            $sync_errors  = $sync_result['errors']  ?? [];
+            $sync_notices = $sync_result['notices'] ?? [];
             $msg = "{$label} zakończona. Zaimportowano: {$imported}, pominięto: {$skipped}.";
-            if (empty($sync_errors)) {
-                flash_set('success', $msg);
-            } else {
+            if ($sync_errors) {
                 flash_set('warning', $msg . ' Błędy: ' . count($sync_errors) . ' — ' . implode('; ', array_slice($sync_errors, 0, 3)));
+            } elseif ($imported === 0 && $sync_notices) {
+                // Zero zaimportowanych bez błędów wygląda jak sukces, ale najczęściej znaczy
+                // "KSeF nie miał czego zwrócić" — pokazujemy dlaczego, zamiast milczącego zera.
+                flash_set('info', $msg . ' ' . implode(' ', array_slice($sync_notices, 0, 2)));
+            } else {
+                flash_set('success', $msg);
             }
         } catch (\Throwable $e) {
             flash_set('error', 'Błąd podczas synchronizacji: ' . $e->getMessage());
