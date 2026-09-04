@@ -1,17 +1,36 @@
 <!--
  tasks/includes/detail_files.php — wydzielone z tasks/detail.php.
- Załączniki + Pliki z Koszulek (workspaces). Wymaga: $task, $my_role, $can_manage_files, $files, $ws_linked_files, $ws_for_task, $id.
+ Załączniki + Pliki z Koszulek (workspaces), scalone w jedną sekcję "Pliki zadania"
+ z linkiem do pełnego widoku Plików obszaru (tasks/files.php). Wymaga: $task, $my_role,
+ $can_manage_files, $files, $ws_linked_files, $ws_for_task, $id, $can_edit, $ms_available, $has_ms, $csrf.
 -->
-<!-- ══ ZAŁĄCZNIKI ══════════════════════════════════════════════════════════ -->
-<?php if (task_field_visible('files', $my_role)): ?>
+<?php
+$td_show_attachments = task_field_visible('files', $my_role);
+$td_show_ws_files     = (bool)$ws_for_task;
+?>
+<!-- ══ PLIKI ZADANIA (Załączniki + Koszulki, jedna sekcja) ═══════════════════ -->
+<?php if ($td_show_attachments || $td_show_ws_files): ?>
 <div class="td-section">
-  <div class="td-label">
-    <i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki
-    <?php if ($files): ?>
-    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= count($files) ?></span>
+  <div class="td-label d-flex align-items-center">
+    <i class="bi bi-paperclip" aria-hidden="true"></i>Pliki zadania
+    <?php
+    $td_files_total = ($td_show_attachments ? count($files) : 0) + ($td_show_ws_files ? count($ws_linked_files) : 0);
+    if ($td_files_total):
+    ?>
+    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= $td_files_total ?></span>
     <?php endif; ?>
+    <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= (int)$task['workspace_id'] ?>"
+       target="_blank" rel="noopener"
+       class="ms-auto text-decoration-none small"
+       style="font-size:.75rem"
+       title="Otwórz pełny widok plików tego obszaru w nowej karcie">
+      Wszystkie pliki obszaru <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
+    </a>
   </div>
 
+  <!-- ── Załączniki (lokalne, uploads/tasks/) ──────────────────────────────── -->
+  <?php if ($td_show_attachments): ?>
+  <div class="td-files-sub">Załączniki</div>
   <div id="td-files">
     <?php foreach ($files as $f):
       $ext = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
@@ -47,6 +66,9 @@
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
+    <?php if (empty($files)): ?>
+    <p class="text-muted small mb-0">Brak załączników.</p>
+    <?php endif; ?>
   </div>
 
   <?php if ($can_manage_files): ?>
@@ -88,18 +110,13 @@
     <span id="td-upload-msg">Wysyłanie…</span>
   </div>
   <?php endif; ?>
-</div>
-<?php endif; ?>
+  <?php endif; // td_show_attachments ?>
 
-<!-- ══ PLIKI Z KOSZULEK (workspaces) ══════════════════════════════════════ -->
-<?php if ($ws_for_task): ?>
-<div class="td-section">
-  <div class="td-label">
-    <i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki z Koszulek
-    <?php if ($ws_linked_files): ?>
-    <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= count($ws_linked_files) ?></span>
-    <?php endif; ?>
-    <span class="text-muted ms-1" style="font-size:.72rem;font-weight:400"><?= h($ws_for_task['name']) ?></span>
+  <!-- ── Pliki z Koszulek (workspaces / SharePoint) ────────────────────────── -->
+  <?php if ($td_show_ws_files): ?>
+  <div class="td-files-sub<?= $td_show_attachments ? ' mt-3' : '' ?>">
+    Pliki z Koszulek
+    <span class="text-muted" style="font-weight:400"><?= h($ws_for_task['name']) ?></span>
   </div>
 
   <div id="td-ws-files">
@@ -163,6 +180,7 @@
     <div id="td-ws-results" class="list-group" style="max-height:180px;overflow-y:auto;font-size:.82rem"></div>
   </div>
   <?php endif; ?>
-</div>
-<?php endif; ?>
+  <?php endif; // td_show_ws_files ?>
 
+</div>
+<?php endif; // td_show_attachments || td_show_ws_files ?>

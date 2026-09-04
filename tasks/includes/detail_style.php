@@ -56,6 +56,12 @@
 }
 .td-label i { font-size: .72rem; }
 
+.td-files-sub {
+  font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--c-muted); margin-bottom: .35rem;
+}
+
 /* ── Nagłówek ───────────────────────────────────────────────── */
 .td-header {
   padding: 1.05rem 1.1rem .8rem;
