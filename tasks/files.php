@@ -65,6 +65,22 @@ if ($overview_mode) {
          ORDER BY f.created_at DESC LIMIT 10",
         $ov_ws_ids
     );
+    // Załączniki zadań — lokalne pliki (uploads/tasks/), NIEZALEŻNE od SharePoint/Koszulek.
+    // Działają zawsze (nie wymagają $sp_ok) — patrz tasks/api/upload.php.
+    $recent_task_files = empty($ov_ws_ids) ? [] : db_all(
+        "SELECT tf.id, tf.original_name, tf.stored_name, tf.file_size, tf.created_at,
+                t.id AS task_id, t.title AS task_title,
+                tw.id AS ws_id, tw.name AS ws_name, tw.color AS ws_color,
+                u.name AS uploader_name
+         FROM task_files tf
+         JOIN tasks t ON t.id = tf.task_id
+         JOIN task_workspaces tw ON tw.id = t.workspace_id
+         LEFT JOIN users u ON u.id = tf.uploaded_by
+         WHERE tw.id IN (" . implode(',', array_fill(0, count($ov_ws_ids), '?')) . ")
+           AND tw.is_active = 1 AND t.deleted_at IS NULL
+         ORDER BY tf.created_at DESC LIMIT 10",
+        $ov_ws_ids
+    );
     $any_can_manage = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor'])));
     $any_can_upload = !empty(array_filter($ov_workspaces, fn($w) => in_array($w['ws_role'], ['admin','editor','member'])));
     $sp_ok = ws_available();
@@ -278,6 +294,74 @@ if ($overview_mode) {
   </div>
 </div>
 <?php endif; // recent_files ?>
+
+<!-- Załączniki zadań (lokalne, niezależne od SharePoint/Koszulek) -->
+<?php if (!empty($recent_task_files)): ?>
+<div class="tf-wrap mt-3">
+  <div class="d-flex align-items-center px-3 py-2 border-bottom"
+       style="font-size:.8rem; font-weight:700; color:var(--tk-muted); text-transform:uppercase; letter-spacing:.04em">
+    <i class="bi bi-paperclip me-1"></i>Załączniki zadań
+    <span class="badge text-bg-secondary rounded-pill ms-2" style="font-size:.6rem"><?= count($recent_task_files) ?></span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th style="width:2rem" class="ps-3"></th>
+          <th>Nazwa</th>
+          <th class="d-none d-md-table-cell">Zadanie / Obszar</th>
+          <th class="d-none d-md-table-cell">Rozmiar</th>
+          <th class="d-none d-lg-table-cell">Data</th>
+          <th class="text-end pe-3">Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($recent_task_files as $tf):
+        $ext  = strtolower(pathinfo($tf['original_name'], PATHINFO_EXTENSION));
+        $icon = match($ext) {
+            'pdf'        => 'bi-file-earmark-pdf text-danger',
+            'doc','docx' => 'bi-file-earmark-word text-primary',
+            'xls','xlsx' => 'bi-file-earmark-excel text-success',
+            'ppt','pptx' => 'bi-file-earmark-ppt text-warning',
+            'jpg','jpeg','png','gif','webp' => 'bi-file-earmark-image text-info',
+            'zip','7z','tar','gz'           => 'bi-file-earmark-zip text-secondary',
+            default      => 'bi-file-earmark text-muted',
+        };
+        $tf_dl_url = APP_URL . '/uploads/tasks/' . $tf['stored_name'];
+      ?>
+      <tr>
+        <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
+        <td class="text-truncate" style="max-width:200px" title="<?= h($tf['original_name']) ?>">
+          <?= h($tf['original_name']) ?>
+        </td>
+        <td class="d-none d-md-table-cell text-muted" style="font-size:.78rem">
+          <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$tf['task_id'] ?>&ws=<?= (int)$tf['ws_id'] ?>"
+             class="text-decoration-none fw-semibold">
+            <?= h($tf['task_title']) ?>
+          </a>
+          <span class="text-muted"> / <?= h($tf['ws_name']) ?></span>
+        </td>
+        <td class="d-none d-md-table-cell text-muted"><?= ws_format_size((int)$tf['file_size']) ?></td>
+        <td class="d-none d-lg-table-cell text-muted"><?= date('d.m.Y', strtotime($tf['created_at'])) ?></td>
+        <td class="text-end pe-2">
+          <div class="d-flex gap-1 justify-content-end">
+            <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$tf['task_id'] ?>&ws=<?= (int)$tf['ws_id'] ?>"
+               class="btn btn-sm btn-outline-secondary py-0 px-2" title="Otwórz zadanie">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            <a href="<?= h($tf_dl_url) ?>" download
+               class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
+              <i class="bi bi-download"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; // recent_task_files ?>
 <?php endif; // ov_workspaces not empty ?>
 
 </main>
@@ -608,6 +692,20 @@ if ($active_folder_id) {
     }
 }
 
+// Załączniki zadań w tym obszarze — lokalne pliki (uploads/tasks/), NIEZALEŻNE
+// od SharePoint/Koszulek, działają zawsze. Patrz tasks/api/upload.php.
+$task_attachments = db_all(
+    "SELECT tf.id, tf.original_name, tf.stored_name, tf.file_size, tf.created_at,
+            tf.uploaded_by, t.id AS task_id, t.title AS task_title,
+            u.name AS uploader_name
+     FROM task_files tf
+     JOIN tasks t ON t.id = tf.task_id
+     LEFT JOIN users u ON u.id = tf.uploaded_by
+     WHERE t.workspace_id = ? AND t.deleted_at IS NULL
+     ORDER BY tf.created_at DESC LIMIT 50",
+    [$ws_id]
+);
+
 $PAGE_TITLE       = h($workspace['name']) . ' — Pliki';
 $PAGE_SUBTITLE    = 'Pliki';
 $TASKS_BREADCRUMB = h($workspace['name']);
@@ -913,6 +1011,82 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
   </div><!-- /col-lg-9 -->
 </div><!-- /row -->
+
+<!-- Załączniki zadań w tym obszarze (lokalne, niezależne od SharePoint/Koszulek) -->
+<?php if (!empty($task_attachments)): ?>
+<div class="tf-wrap mt-3">
+  <div class="d-flex align-items-center px-3 py-2 border-bottom"
+       style="font-size:.8rem; font-weight:700; color:var(--tk-muted); text-transform:uppercase; letter-spacing:.04em">
+    <i class="bi bi-paperclip me-1"></i>Załączniki zadań w tym obszarze
+    <span class="badge text-bg-secondary rounded-pill ms-2" style="font-size:.6rem"><?= count($task_attachments) ?></span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th style="width:2rem" class="ps-3"></th>
+          <th>Nazwa</th>
+          <th>Zadanie</th>
+          <th class="d-none d-md-table-cell">Wgrał/a</th>
+          <th class="d-none d-md-table-cell">Rozmiar</th>
+          <th class="d-none d-lg-table-cell">Data</th>
+          <th class="text-end pe-3">Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="taskAttachTbody">
+      <?php foreach ($task_attachments as $tf):
+        $ext  = strtolower(pathinfo($tf['original_name'], PATHINFO_EXTENSION));
+        $icon = match($ext) {
+            'pdf'        => 'bi-file-earmark-pdf text-danger',
+            'doc','docx' => 'bi-file-earmark-word text-primary',
+            'xls','xlsx' => 'bi-file-earmark-excel text-success',
+            'ppt','pptx' => 'bi-file-earmark-ppt text-warning',
+            'jpg','jpeg','png','gif','webp' => 'bi-file-earmark-image text-info',
+            'zip','7z','tar','gz'           => 'bi-file-earmark-zip text-secondary',
+            default      => 'bi-file-earmark text-muted',
+        };
+        $tf_dl_url  = APP_URL . '/uploads/tasks/' . $tf['stored_name'];
+        $can_delete = $can_manage || (int)$tf['uploaded_by'] === $uid;
+      ?>
+      <tr id="tattach-<?= (int)$tf['id'] ?>">
+        <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
+        <td class="text-truncate" style="max-width:200px" title="<?= h($tf['original_name']) ?>">
+          <?= h($tf['original_name']) ?>
+        </td>
+        <td class="text-truncate" style="max-width:180px">
+          <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$tf['task_id'] ?>&ws=<?= $ws_id ?>"
+             class="text-decoration-none fw-semibold" title="<?= h($tf['task_title']) ?>">
+            <?= h($tf['task_title']) ?>
+          </a>
+        </td>
+        <td class="d-none d-md-table-cell text-muted"><?= h($tf['uploader_name'] ?? '—') ?></td>
+        <td class="d-none d-md-table-cell text-muted"><?= ws_format_size((int)$tf['file_size']) ?></td>
+        <td class="d-none d-lg-table-cell text-muted"><?= date('d.m.Y', strtotime($tf['created_at'])) ?></td>
+        <td class="text-end pe-2">
+          <div class="d-flex gap-1 justify-content-end">
+            <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$tf['task_id'] ?>&ws=<?= $ws_id ?>"
+               class="btn btn-sm btn-outline-secondary py-0 px-2" title="Otwórz zadanie">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            <a href="<?= h($tf_dl_url) ?>" download
+               class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
+              <i class="bi bi-download"></i>
+            </a>
+            <?php if ($can_delete): ?>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 btn-delete-task-attach"
+                    data-id="<?= (int)$tf['id'] ?>" data-task-id="<?= (int)$tf['task_id'] ?>" title="Usuń plik">
+              <i class="bi bi-trash3"></i>
+            </button>
+            <?php endif; ?>
+          </div>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; // task_attachments ?>
 
 </main>
 
@@ -1233,6 +1407,23 @@ document.querySelectorAll('[data-action="delete-folder"]').forEach(btn => {
     const r = await wsApi({action: 'delete_folder', id: +btn.dataset.id});
     if (r.ok) window.location.href = `?ws=${WS_ID}`;
     else alert(r.error || 'Błąd.');
+  });
+});
+
+// ── Usuń załącznik zadania (lokalny, uploads/tasks/ — tasks/api/upload.php) ──
+document.querySelectorAll('.btn-delete-task-attach').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Usunąć załącznik zadania?')) return;
+    const fileId = +btn.dataset.id, taskId = +btn.dataset.taskId;
+    try {
+      const r = await fetch(<?= json_encode(APP_URL . '/tasks/api/upload.php') ?>, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({_csrf: CSRF, action: 'delete', file_id: fileId, task_id: taskId})
+      }).then(res => res.json());
+      if (r.ok) document.getElementById(`tattach-${fileId}`)?.remove();
+      else alert(r.error || 'Błąd usuwania.');
+    } catch (e) { alert('Błąd połączenia.'); }
   });
 });
 </script>
