@@ -81,7 +81,7 @@ $pri_colors = [4=>'#dc2626',3=>'#f59e0b',2=>'#3b82f6',1=>'#94a3b8'];
 $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 ?>
 
-<style>
+<style type="text/tailwindcss">
 /* ══ Dashboard zadań — styl „panel wolontariusza" (pvtz) ════════════════
    Zmienne strukturalne zgodne z .pvtz; akcent = --tsk-green (emerald).   */
 .tsk-dash {
@@ -90,44 +90,42 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
   --tz-ink: #111827;
   --tz-50: rgba(5,150,105,.07);
   --tz-strong: var(--tsk-green);
-  max-width: 1100px;
+  @apply tw-max-w-[1100px];
 }
 
 /* Nagłówek strony */
 .tsk-dash .dash-h { margin-bottom: 1.25rem; }
-.tsk-dash .dash-h h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; margin: 0; line-height: 1.2; color: var(--tz-ink); }
-.tsk-dash .dash-h p  { color: var(--tz-muted); margin: .2rem 0 0; font-size: .9rem; }
+.tsk-dash .dash-h h1 { @apply tw-text-2xl tw-font-extrabold tw-tracking-[-.01em] tw-m-0 tw-leading-[1.2]; color: var(--tz-ink); }
+.tsk-dash .dash-h p  { @apply tw-mt-[.2rem] tw-mb-0 tw-text-[.9rem]; color: var(--tz-muted); }
 
 /* Karty — identycznie jak .tz-card */
-.tsk-dash .tz-card { background: #fff; border: 1px solid var(--tz-line); border-radius: 14px; box-shadow: 0 1px 3px rgba(16,24,40,.08); overflow: hidden; }
-.tsk-dash .tz-card__hd { padding: .9rem 1.15rem; border-bottom: 1px solid var(--tz-line); display: flex; align-items: center; gap: .6rem; font-weight: 700; font-size: .95rem; color: var(--tz-ink); }
+.tsk-dash .tz-card { @apply tw-bg-white tw-border tw-rounded-2xl tw-overflow-hidden; border-color: var(--tz-line); box-shadow: 0 1px 3px rgba(16,24,40,.08); }
+.tsk-dash .tz-card__hd { @apply tw-py-[.9rem] tw-px-[1.15rem] tw-border-b tw-flex tw-items-center tw-gap-[.6rem] tw-font-bold tw-text-[.95rem]; border-color: var(--tz-line); color: var(--tz-ink); }
 .tsk-dash .tz-card__hd i { color: var(--tsk-green); }
-.tsk-dash .tz-card__hd a.btn { margin-left: auto; font-size: .74rem; }
+.tsk-dash .tz-card__hd a.btn { @apply tw-ml-auto tw-text-[.74rem]; }
 
 /* Nagłówki sekcji — identycznie jak .tz-section-h */
-.tsk-dash .tz-section-h { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--tz-muted); margin: 1.4rem 0 .7rem; }
+.tsk-dash .tz-section-h { @apply tw-text-[.82rem] tw-font-bold tw-uppercase tw-tracking-[.05em] tw-my-[1.4rem] tw-mx-0 tw-mb-[.7rem]; color: var(--tz-muted); }
 .tsk-dash .tz-section-h:first-child { margin-top: 0; }
 
 /* KPI tiles — wzorowane na .tz-tile */
 .tsk-dash .kpi-tile {
-  position: relative; display: flex; flex-direction: column; gap: .15rem;
-  background: #fff; border: 1px solid var(--tz-line); border-radius: 14px;
-  padding: 1rem 1.05rem; text-decoration: none; color: inherit;
-  min-height: 100px; transition: transform .15s, border-color .15s, box-shadow .15s;
-  overflow: hidden;
+  @apply tw-relative tw-flex tw-flex-col tw-gap-[.15rem] tw-bg-white tw-border tw-rounded-2xl
+         tw-py-4 tw-px-[1.05rem] tw-no-underline tw-text-inherit tw-min-h-[100px] tw-overflow-hidden
+         tw-transition-all;
+  border-color: var(--tz-line);
 }
 .tsk-dash .kpi-tile:hover, .tsk-dash .kpi-tile:focus-visible {
   transform: translateY(-2px); border-color: var(--tsk-green);
   box-shadow: 0 8px 24px -6px rgba(5,150,105,.22); color: inherit;
 }
 .tsk-dash .kpi-tile__ico {
-  width: 38px; height: 38px; border-radius: 10px;
-  background: var(--tsk-green); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.05rem; margin-bottom: .5rem; flex-shrink: 0;
+  @apply tw-w-[38px] tw-h-[38px] tw-rounded-[10px] tw-text-white
+         tw-flex tw-items-center tw-justify-center tw-text-[1.05rem] tw-mb-2 tw-shrink-0;
+  background: var(--tsk-green);
 }
-.tsk-dash .kpi-tile__val  { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--tz-ink); }
-.tsk-dash .kpi-tile__lbl  { font-size: .76rem; color: var(--tz-muted); font-weight: 500; }
+.tsk-dash .kpi-tile__val  { @apply tw-text-[1.7rem] tw-font-extrabold tw-leading-none; color: var(--tz-ink); }
+.tsk-dash .kpi-tile__lbl  { @apply tw-text-[.76rem] tw-font-medium; color: var(--tz-muted); }
 .tsk-dash .kpi-tile.is-red   .kpi-tile__ico { background: #dc2626; }
 .tsk-dash .kpi-tile.is-red   .kpi-tile__val { color: #dc2626; }
 .tsk-dash .kpi-tile.is-green .kpi-tile__ico { background: #16a34a; }
@@ -137,52 +135,49 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 
 /* Wiersze zadań */
 .tsk-dash .tsk-row {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .65rem 1.15rem; border-bottom: 1px solid var(--tz-line);
-  text-decoration: none; color: inherit; transition: background .1s;
+  @apply tw-flex tw-items-center tw-gap-3 tw-py-[.65rem] tw-px-[1.15rem] tw-border-b
+         tw-no-underline tw-text-inherit tw-transition-colors;
+  border-color: var(--tz-line);
 }
 .tsk-dash .tsk-row:last-child { border-bottom: none; }
 .tsk-dash .tsk-row:hover { background: #f8fafc; }
 .tsk-dash .tsk-row:focus-visible { outline: 3px solid var(--tsk-focus) !important; outline-offset: -2px; }
-.tsk-dash .tsk-row__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.tsk-dash .tsk-row__ttl { flex: 1; font-size: .87rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tz-ink); }
-.tsk-dash .tsk-row__list { font-size: .7rem; color: var(--tz-muted); white-space: nowrap; }
-.tsk-dash .tsk-row__due  { font-size: .73rem; white-space: nowrap; color: var(--tz-muted); }
+.tsk-dash .tsk-row__dot { @apply tw-w-[10px] tw-h-[10px] tw-rounded-full tw-shrink-0; }
+.tsk-dash .tsk-row__ttl { @apply tw-flex-1 tw-text-[.87rem] tw-font-semibold tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis; color: var(--tz-ink); }
+.tsk-dash .tsk-row__list { @apply tw-text-[.7rem] tw-whitespace-nowrap; color: var(--tz-muted); }
+.tsk-dash .tsk-row__due  { @apply tw-text-[.73rem] tw-whitespace-nowrap; color: var(--tz-muted); }
 .tsk-dash .tsk-row__due.overdue { color: #dc2626; font-weight: 700; }
 
 /* Aktywność */
 .tsk-dash .act-row {
-  display: flex; gap: .6rem; align-items: flex-start;
-  padding: .55rem 1.15rem; border-bottom: 1px solid var(--tz-line);
-  font-size: .78rem; color: var(--tz-muted);
+  @apply tw-flex tw-gap-[.6rem] tw-items-start tw-py-[.55rem] tw-px-[1.15rem] tw-border-b tw-text-[.78rem];
+  border-color: var(--tz-line); color: var(--tz-muted);
 }
 .tsk-dash .act-row:last-child { border-bottom: none; }
-.tsk-dash .act-row__ico { flex-shrink: 0; margin-top: .1rem; font-size: .8rem; color: var(--tz-muted); }
-.tsk-dash .act-row__bd  { flex: 1; line-height: 1.4; }
-.tsk-dash .act-row__time { flex-shrink: 0; font-size: .7rem; color: var(--tz-muted); white-space: nowrap; }
+.tsk-dash .act-row__ico { @apply tw-shrink-0 tw-mt-[.1rem] tw-text-[.8rem]; color: var(--tz-muted); }
+.tsk-dash .act-row__bd  { @apply tw-flex-1 tw-leading-[1.4]; }
+.tsk-dash .act-row__time { @apply tw-shrink-0 tw-text-[.7rem] tw-whitespace-nowrap; color: var(--tz-muted); }
 
 /* Obszary robocze */
 .tsk-dash .ws-row {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .65rem 1.15rem; border-bottom: 1px solid var(--tz-line);
-  text-decoration: none; color: inherit; transition: background .1s;
+  @apply tw-flex tw-items-center tw-gap-3 tw-py-[.65rem] tw-px-[1.15rem] tw-border-b
+         tw-no-underline tw-text-inherit tw-transition-colors;
+  border-color: var(--tz-line);
 }
 .tsk-dash .ws-row:last-child { border-bottom: none; }
 .tsk-dash .ws-row:hover { background: #f8fafc; }
 .tsk-dash .ws-row__ico {
-  width: 36px; height: 36px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .95rem; flex-shrink: 0;
+  @apply tw-w-9 tw-h-9 tw-rounded-[10px] tw-flex tw-items-center tw-justify-center tw-text-[.95rem] tw-shrink-0;
 }
-.tsk-dash .ws-row__prog { flex: 1; min-width: 0; }
-.tsk-dash .ws-row__name { font-size: .88rem; font-weight: 600; color: var(--tz-ink); }
-.tsk-dash .ws-row__bar  { height: 5px; background: var(--tz-line); border-radius: 999px; overflow: hidden; margin-top: .3rem; }
-.tsk-dash .ws-row__fill { height: 5px; border-radius: 999px; }
-.tsk-dash .ws-row__cnt  { font-size: .74rem; color: var(--tz-muted); white-space: nowrap; }
+.tsk-dash .ws-row__prog { @apply tw-flex-1 tw-min-w-0; }
+.tsk-dash .ws-row__name { @apply tw-text-[.88rem] tw-font-semibold; color: var(--tz-ink); }
+.tsk-dash .ws-row__bar  { @apply tw-h-[5px] tw-rounded-full tw-overflow-hidden tw-mt-[.3rem]; background: var(--tz-line); }
+.tsk-dash .ws-row__fill { @apply tw-h-[5px] tw-rounded-full; }
+.tsk-dash .ws-row__cnt  { @apply tw-text-[.74rem] tw-whitespace-nowrap; color: var(--tz-muted); }
 
 /* Puste stany */
-.tsk-dash .tsk-empty { text-align: center; padding: 2rem 1rem; color: var(--tz-muted); font-size: .84rem; }
-.tsk-dash .tsk-empty i { font-size: 1.6rem; display: block; margin-bottom: .4rem; opacity: .3; }
+.tsk-dash .tsk-empty { @apply tw-text-center tw-py-8 tw-px-4 tw-text-[.84rem]; color: var(--tz-muted); }
+.tsk-dash .tsk-empty i { @apply tw-text-2xl tw-block tw-mb-[.4rem] tw-opacity-30; }
 </style>
 
 <div class="tsk-dash">
@@ -366,12 +361,26 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
       <?php
       $ev_labels = ['moved'=>'Przeniesiono','created'=>'Dodano','assigned'=>'Przypisano',
                     'unassigned'=>'Odpięto','completed'=>'Ukończono','reopened'=>'Wznowiono',
-                    'comment_added'=>'Komentarz','tag_added'=>'Tag','priority_changed'=>'Priorytet',
-                    'due_changed'=>'Termin','uploaded_file'=>'Plik'];
+                    'comment_added'=>'Komentarz','tag_added'=>'Tag','tag_removed'=>'Tag usunięty',
+                    'priority_changed'=>'Priorytet','due_changed'=>'Termin','uploaded_file'=>'Plik',
+                    'deleted_file'=>'Plik usunięty','deleted'=>'Usunięto','archived'=>'Zarchiwizowano',
+                    'unarchived'=>'Przywrócono z archiwum','confirmed'=>'Potwierdzono wykonanie',
+                    'rejected'=>'Odrzucono wykonanie','subtask_added'=>'Podzadanie dodane',
+                    'subtask_deleted'=>'Podzadanie usunięte','time_started'=>'Rozpoczęto czas pracy',
+                    'time_logged'=>'Zalogowano czas pracy','leader_notified'=>'Zgłoszono liderowi',
+                    'problem_resolved'=>'Problem rozwiązany','takeover_requested'=>'Prośba o przejęcie',
+                    'transfer_rejected'=>'Odrzucono przejęcie'];
       $ev_icons  = ['moved'=>'bi-arrow-right','created'=>'bi-plus-circle','assigned'=>'bi-person-plus',
                     'unassigned'=>'bi-person-dash','completed'=>'bi-check-circle','reopened'=>'bi-arrow-counterclockwise',
-                    'comment_added'=>'bi-chat','tag_added'=>'bi-tag','priority_changed'=>'bi-flag',
-                    'due_changed'=>'bi-calendar3','uploaded_file'=>'bi-paperclip'];
+                    'comment_added'=>'bi-chat','tag_added'=>'bi-tag','tag_removed'=>'bi-tag',
+                    'priority_changed'=>'bi-flag','due_changed'=>'bi-calendar3','uploaded_file'=>'bi-paperclip',
+                    'deleted_file'=>'bi-paperclip','deleted'=>'bi-trash3','archived'=>'bi-archive',
+                    'unarchived'=>'bi-arrow-counterclockwise','confirmed'=>'bi-patch-check',
+                    'rejected'=>'bi-x-octagon','subtask_added'=>'bi-check2-square',
+                    'subtask_deleted'=>'bi-check2-square','time_started'=>'bi-stopwatch',
+                    'time_logged'=>'bi-stopwatch','leader_notified'=>'bi-megaphone',
+                    'problem_resolved'=>'bi-check-circle','takeover_requested'=>'bi-person-up',
+                    'transfer_rejected'=>'bi-person-x'];
       if ($recent): foreach ($recent as $ev):
         $icon  = $ev_icons[$ev['event_type']] ?? 'bi-circle';
         $label = $ev_labels[$ev['event_type']] ?? $ev['event_type'];
