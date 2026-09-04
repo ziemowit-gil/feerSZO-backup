@@ -204,102 +204,72 @@ $TASKS_BREADCRUMB = 'Problemy (' . $cnt_open . ' otwartych)';
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
+<style type="text/tailwindcss">
 /* ── Karta problemu ─────────────────────────────────────────────────── */
 .prob-card {
-  background: #fff;
+  @apply tw-bg-white tw-rounded-xl tw-mb-3 tw-overflow-hidden tw-transition-shadow;
   border: 1.5px solid #e2e8f0;
-  border-radius: .65rem;
-  margin-bottom: .75rem;
-  overflow: hidden;
-  transition: box-shadow .12s;
 }
 .prob-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,.07); }
 .prob-card.resolved {
-  opacity: .65;
+  @apply tw-opacity-[.65];
   border-color: #f1f5f9;
 }
 
 .prob-card-head {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .8rem 1rem .6rem;
-  border-bottom: 1px solid #f1f5f9;
+  @apply tw-flex tw-items-center tw-gap-3 tw-pt-[.8rem] tw-px-4 tw-pb-[.6rem] tw-border-b tw-border-slate-100;
 }
 .prob-task-link {
-  flex: 1;
-  display: block;
-  background: none; border: none; padding: 0;
-  text-align: left; font-family: inherit;
-  font-weight: 700; font-size: .92rem;
-  color: #0f172a; text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  @apply tw-flex-1 tw-block tw-bg-transparent tw-border-0 tw-p-0 tw-text-left tw-font-sans tw-font-bold tw-text-[.92rem] tw-text-slate-900 tw-no-underline tw-cursor-pointer tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis;
 }
-.prob-task-link:hover { color: #2563eb; text-decoration: underline; }
-.prob-task-link:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 3px; }
+.prob-task-link:hover { @apply tw-text-blue-600 tw-underline; }
+.prob-task-link:focus-visible { @apply tw-outline tw-outline-2 tw-outline-blue-600 tw-outline-offset-2 tw-rounded; }
 
 .prob-ws-chip {
-  display: inline-flex; align-items: center; gap: .3rem;
-  font-size: .72rem; color: #64748b; flex-shrink: 0;
+  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-text-xs tw-text-slate-500 tw-flex-shrink-0;
 }
-.prob-ws-dot { width: 7px; height: 7px; border-radius: 50%; }
+.prob-ws-dot { @apply tw-w-[7px] tw-h-[7px] tw-rounded-full; }
 
 .prob-badge-resolved {
-  font-size: .68rem; font-weight: 700;
-  padding: .15rem .5rem; border-radius: 2rem;
-  background: #dcfce7; color: #15803d;
-  flex-shrink: 0; white-space: nowrap;
+  @apply tw-text-[.68rem] tw-font-bold tw-py-[.15rem] tw-px-2 tw-rounded-full tw-bg-green-100 tw-text-green-700 tw-flex-shrink-0 tw-whitespace-nowrap;
 }
 .prob-badge-open {
-  font-size: .68rem; font-weight: 700;
-  padding: .15rem .5rem; border-radius: 2rem;
-  background: #fef9c3; color: #92400e;
-  flex-shrink: 0; white-space: nowrap;
+  @apply tw-text-[.68rem] tw-font-bold tw-py-[.15rem] tw-px-2 tw-rounded-full tw-bg-yellow-100 tw-text-amber-800 tw-flex-shrink-0 tw-whitespace-nowrap;
 }
 
 .prob-card-body {
-  padding: .7rem 1rem;
+  @apply tw-py-[.7rem] tw-px-4;
 }
 .prob-message {
-  font-size: .87rem; color: #334155;
-  line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-  background: #f8fafc; border: 1px solid #e2e8f0;
-  border-radius: .4rem; padding: .6rem .8rem;
-  margin-bottom: .6rem;
+  @apply tw-text-[.87rem] tw-text-slate-700 tw-leading-[1.55] tw-whitespace-pre-wrap tw-break-words tw-bg-slate-50 tw-border tw-border-slate-200 tw-rounded tw-py-[.6rem] tw-px-[.8rem] tw-mb-[.6rem];
 }
 
 .prob-meta {
-  display: flex; align-items: center; gap: 1rem;
-  flex-wrap: wrap; font-size: .77rem; color: #94a3b8;
+  @apply tw-flex tw-items-center tw-gap-4 tw-flex-wrap tw-text-[.77rem] tw-text-slate-400;
 }
-.prob-meta strong { color: #475569; }
+.prob-meta strong { @apply tw-text-slate-600; }
 
-.prob-actions { display: flex; gap: .5rem; align-items: center; margin-top: .65rem; }
+.prob-actions { @apply tw-flex tw-gap-2 tw-items-center tw-mt-[.65rem]; }
 
 /* Filtr pills */
 .prob-filter {
-  display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: 1.1rem;
+  @apply tw-flex tw-gap-[.35rem] tw-flex-wrap tw-mb-[1.1rem];
 }
 .prob-pill {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .25rem .7rem; border-radius: 2rem;
-  font-size: .8rem; font-weight: 600;
+  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-py-1 tw-px-[.7rem] tw-rounded-full tw-text-[.8rem] tw-font-semibold tw-bg-white tw-text-slate-500 tw-no-underline tw-transition-all;
   border: 1.5px solid #e2e8f0;
-  background: #fff; color: #64748b;
-  text-decoration: none; transition: all .12s;
 }
-.prob-pill:hover { border-color: #94a3b8; }
-.prob-pill.active { background: #0f172a; color: #fff; border-color: #0f172a; }
-.prob-pill[data-f="open"].active  { background: #d97706; border-color: #d97706; }
-.prob-pill[data-f="resolved"].active { background: #16a34a; border-color: #16a34a; }
+.prob-pill:hover { @apply tw-border-slate-400; }
+.prob-pill.active { @apply tw-bg-slate-900 tw-text-white tw-border-slate-900; }
+.prob-pill[data-f="open"].active  { @apply tw-bg-amber-600 tw-border-amber-600; }
+.prob-pill[data-f="resolved"].active { @apply tw-bg-green-600 tw-border-green-600; }
 .prob-pill:focus-visible { outline: 3px solid var(--tsk-focus) !important; }
 
 /* Empty */
 .prob-empty {
-  text-align: center; padding: 4rem 1rem;
-  color: #94a3b8;
+  @apply tw-text-center tw-py-16 tw-px-4 tw-text-slate-400;
 }
-.prob-empty i { font-size: 2rem; display: block; margin-bottom: .6rem; opacity: .25; }
+.prob-empty i { @apply tw-text-3xl tw-block tw-mb-[.6rem] tw-opacity-25; }
 
 /* SR announce */
 #prob-sr { position:absolute;width:1px;height:1px;padding:0;margin:-1px;
@@ -307,63 +277,46 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
 /* ── Sekcja odpowiedzi lidera ──────────────────────────────────────── */
 .prob-replies {
-  border-top: 1px solid #f1f5f9;
-  background: #f8fafc;
-  padding: .7rem 1rem;
+  @apply tw-border-t tw-border-slate-100 tw-bg-slate-50 tw-py-[.7rem] tw-px-4;
 }
 .prob-reply-bubble {
-  display: flex; gap: .55rem; align-items: flex-start;
-  margin-bottom: .55rem;
+  @apply tw-flex tw-gap-[.55rem] tw-items-start tw-mb-[.55rem];
 }
 .prob-reply-av {
-  width: 26px; height: 26px; border-radius: 50%;
-  background: #059669; color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .6rem; font-weight: 700; flex-shrink: 0; margin-top: .1rem;
+  @apply tw-w-[26px] tw-h-[26px] tw-rounded-full tw-bg-emerald-600 tw-text-white tw-flex tw-items-center tw-justify-center tw-text-[.6rem] tw-font-bold tw-flex-shrink-0 tw-mt-[.1rem];
 }
 .prob-reply-body {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  @apply tw-flex-1 tw-bg-white tw-border tw-border-slate-200 tw-py-[.45rem] tw-px-[.65rem];
   border-radius: .15rem .5rem .5rem .5rem;
-  padding: .45rem .65rem;
 }
 .prob-reply-meta {
-  display: flex; gap: .5rem; align-items: center;
-  font-size: .7rem; color: #94a3b8; margin-bottom: .2rem;
+  @apply tw-flex tw-gap-2 tw-items-center tw-text-[.7rem] tw-text-slate-400 tw-mb-[.2rem];
 }
-.prob-reply-meta strong { color: #0f172a; font-size: .78rem; }
+.prob-reply-meta strong { @apply tw-text-slate-900 tw-text-[.78rem]; }
 .prob-reply-text {
-  font-size: .84rem; color: #334155;
-  white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+  @apply tw-text-[.84rem] tw-text-slate-700 tw-whitespace-pre-wrap tw-break-words tw-leading-relaxed;
 }
 
 /* Pole odpowiedzi */
 .prob-reply-form {
-  display: none;
-  margin-top: .5rem;
+  @apply tw-hidden tw-mt-2;
 }
-.prob-reply-form.open { display: block; }
+.prob-reply-form.open { @apply tw-block; }
 .prob-reply-ta {
-  width: 100%; font-size: .84rem;
-  border: 1.5px solid #e2e8f0; border-radius: .45rem;
-  padding: .45rem .65rem; resize: vertical; min-height: 70px;
-  font-family: inherit; line-height: 1.5; color: #0f172a;
-  transition: border-color .12s;
+  @apply tw-w-full tw-text-[.84rem] tw-rounded-lg tw-py-[.45rem] tw-px-[.65rem] tw-resize-y tw-font-sans tw-leading-relaxed tw-text-slate-900 tw-transition-colors;
+  border: 1.5px solid #e2e8f0; min-height: 70px;
 }
-.prob-reply-ta:focus { outline: 2px solid #059669; border-color: transparent; }
-.prob-reply-ta.invalid { border-color: #dc2626; }
+.prob-reply-ta:focus { @apply tw-outline tw-outline-2 tw-outline-emerald-600 tw-border-transparent; }
+.prob-reply-ta.invalid { @apply tw-border-red-600; }
 .prob-reply-hint {
-  font-size: .71rem; color: #94a3b8; margin-top: .25rem; margin-bottom: .4rem;
+  @apply tw-text-[.71rem] tw-text-slate-400 tw-mt-1 tw-mb-[.4rem];
 }
 .btn-reply-toggle {
-  font-size: .78rem; font-weight: 600;
-  padding: .26rem .65rem; border-radius: .4rem;
-  border: 1.5px solid #059669; color: #059669; background: #fff;
-  cursor: pointer; transition: all .12s; display: inline-flex; align-items: center; gap: .3rem;
+  @apply tw-text-[.78rem] tw-font-semibold tw-py-[.26rem] tw-px-[.65rem] tw-rounded tw-text-emerald-600 tw-bg-white tw-cursor-pointer tw-transition-all tw-inline-flex tw-items-center tw-gap-[.3rem];
+  border: 1.5px solid #059669;
 }
-.btn-reply-toggle:hover { background: #059669; color: #fff; }
-.btn-reply-toggle:focus-visible { outline: 2px solid #059669; outline-offset: 2px; }
+.btn-reply-toggle:hover { @apply tw-bg-emerald-600 tw-text-white; }
+.btn-reply-toggle:focus-visible { @apply tw-outline tw-outline-2 tw-outline-emerald-600 tw-outline-offset-2; }
 </style>
 
 <div id="prob-sr" aria-live="polite" aria-atomic="true"></div>
