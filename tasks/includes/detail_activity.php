@@ -243,6 +243,41 @@ $ev_defs = [
     'label'       => 'Odrzucono przekazanie',
     'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">👤 ' . h($e['from_value']) . '</span>' : '',
   ],
+  'deleted' => [
+    'icon'        => 'bi-trash3-fill',
+    'bg'          => '#fef2f2', 'color' => '#dc2626',
+    'badge_bg'    => '#fef2f2', 'badge_color' => '#dc2626',
+    'label'       => 'Usunięto',
+    'desc'        => fn($e) => '',
+  ],
+  'subtask_added' => [
+    'icon'        => 'bi-plus-square',
+    'bg'          => '#f0fdf4', 'color' => '#16a34a',
+    'badge_bg'    => '#f0fdf4', 'badge_color' => '#16a34a',
+    'label'       => 'Podzadanie dodane',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
+  ],
+  'subtask_deleted' => [
+    'icon'        => 'bi-dash-square',
+    'bg'          => '#fef2f2', 'color' => '#dc2626',
+    'badge_bg'    => '#fef2f2', 'badge_color' => '#dc2626',
+    'label'       => 'Podzadanie usunięte',
+    'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">' . h($e['from_value']) . '</span>' : '',
+  ],
+  'time_started' => [
+    'icon'        => 'bi-stopwatch',
+    'bg'          => '#dbeafe', 'color' => '#2563eb',
+    'badge_bg'    => '#eff6ff', 'badge_color' => '#2563eb',
+    'label'       => 'Rozpoczęto śledzenie czasu',
+    'desc'        => fn($e) => '',
+  ],
+  'time_logged' => [
+    'icon'        => 'bi-clock-fill',
+    'bg'          => '#dbeafe', 'color' => '#2563eb',
+    'badge_bg'    => '#eff6ff', 'badge_color' => '#2563eb',
+    'label'       => 'Zalogowano czas',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
+  ],
 ];
 ?>
 <div class="td-section">
