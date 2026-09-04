@@ -13,38 +13,16 @@ $id  = (int)($_GET['id'] ?? 0);
 $doc = edok_get($id);
 if (!$doc) { http_response_code(404); die('Dokument nie istnieje.'); }
 
-$meryt      = $doc['steps']['meryt']      ?? null;
-$formal     = $doc['steps']['formal']     ?? null;
-$rachunkowa = $doc['steps']['rachunkowa'] ?? null;
-$dekretacja = $doc['steps']['dekretacja'] ?? null;
-$zatwierdza = $doc['steps']['zatwierdza'] ?? null;
-$org        = defined('ORG_NAME') ? ORG_NAME : '';
+$org = defined('ORG_NAME') ? ORG_NAME : '';
 
-function pr_row(string $label, string $val): string {
-    if ($val === '') return '';
-    return '<tr><td class="l">' . h($label) . '</td><td class="v">' . h($val) . '</td></tr>';
+function pr_decision_label(?array $step): string {
+    if (!$step || !in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true)) return 'OCZEKUJE';
+    return match($step['status']) { 'ok' => 'TAK', 'uwagi' => 'Z UWAGAMI', 'odrzucono' => 'ODRZUCONO', default => $step['status'] };
 }
-function pr_decision(?array $step): string {
-    if (!$step || !in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true)) {
-        return '<span class="badge-pending">OCZEKUJE NA DECYZJĘ</span>';
-    }
-    $label = match($step['status']) { 'ok' => 'TAK', 'uwagi' => 'Z UWAGAMI', 'odrzucono' => 'ODRZUCONO', default => $step['status'] };
-    return '<span class="badge-' . h($step['status']) . '">' . h($label) . '</span>';
-}
-/** Blok podpisu: rodzaj akceptacji (jawna etykieta) + kto/kiedy + zawsze widoczny opis/uwagi. */
-function pr_signoff(?array $step, string $verb): string {
-    $html = '<div class="signoff">';
-    $html .= '<table><tr><td class="l">Rodzaj akceptacji</td><td class="v">' . pr_decision($step) . '</td></tr></table>';
-    if ($step && $step['decided_at']) {
-        $html .= '<div class="mt-1">' . h($verb) . ': <span class="name">' . h($step['user_name']) . '</span>'
-            . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
-            . ', dnia ' . date_pl($step['decided_at']) . ' o ' . date('H:i', strtotime($step['decided_at'])) . '</div>';
-    }
-    $notes = trim($step['notes'] ?? '');
-    $html .= '<div class="desc-box"><div class="desc-label">Opis / uwagi</div>'
-        . ($notes !== '' ? nl2br(h($notes)) : '<span class="muted">Brak uwag.</span>') . '</div>';
-    $html .= '</div>';
-    return $html;
+function pr_who(?array $step): string {
+    if (!$step || !$step['decided_at']) return '—';
+    return h($step['user_name']) . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
+        . '<br>' . date_pl($step['decided_at']) . ' ' . date('H:i', strtotime($step['decided_at']));
 }
 ?>
 <!doctype html>
@@ -53,32 +31,27 @@ function pr_signoff(?array $step, string $verb): string {
 <meta charset="utf-8">
 <title>Karta akceptacji dokumentu — <?= h($doc['number']) ?></title>
 <style>
+  @page { size: A4; margin: 10mm 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; padding: 24px; background: #fff; }
-  .sheet { max-width: 620px; margin: 0 auto; border: 1.5px solid #333; padding: 18px 22px; }
-  h1 { font-size: 16px; margin: 0 0 2px; letter-spacing: .3px; }
-  .sub { color: #555; font-size: 12px; margin-bottom: 14px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #444; margin: 16px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  td { padding: 3px 4px; vertical-align: top; }
-  td.l { color: #555; width: 42%; }
-  td.v { font-weight: 600; font-family: 'Courier New', monospace; }
-  .amount-box { border: 1px solid #999; background: #f7f6f2; padding: 8px 10px; margin: 8px 0; }
-  .badge-ok, .badge-uwagi, .badge-odrzucono, .badge-pending {
-    display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 700; border-radius: 3px; letter-spacing: .5px;
-  }
-  .badge-ok { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-  .badge-uwagi { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
-  .badge-odrzucono { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-  .badge-pending { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
-  .signoff { margin-top: 8px; font-size: 12px; color: #333; }
-  .signoff .name { font-weight: 700; }
-  .desc-box { border: 1px solid #ccc; background: #fbfbfa; border-radius: 3px; padding: 7px 9px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; }
-  .desc-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: #777; margin-bottom: 3px; }
-  .muted { color: #999; font-style: italic; }
-  .stamp { margin-top: 22px; padding-top: 10px; border-top: 1px dashed #999; font-size: 10.5px; color: #666; line-height: 1.5; }
-  .noprint { margin: 14px auto; max-width: 620px; text-align: right; }
-  @media print { .noprint { display: none; } body { padding: 0; } .sheet { border: none; max-width: 100%; } }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 14px; background: #fff; font-size: 11px; line-height: 1.3; }
+  .sheet { max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 13px; margin: 0 0 2px; font-weight: 700; }
+  .sub { font-size: 10px; margin-bottom: 8px; }
+  h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .3px; margin: 8px 0 2px; border-bottom: 1px solid #000; padding-bottom: 1px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 2px 4px; vertical-align: top; }
+  .head-table td { border: none; padding: 1px 4px; }
+  .head-table td.l { width: 15%; }
+  .kwoty td { border-top: 1px solid #000; border-bottom: 1px solid #000; font-weight: 700; }
+  .kwoty td.lbl { font-weight: 400; width: 12%; }
+  .desc { border: 1px solid #000; padding: 3px 5px; margin: 2px 0 4px; min-height: 12px; }
+  .steps { border-collapse: collapse; margin-top: 2px; }
+  .steps th, .steps td { border: 1px solid #000; font-size: 10px; }
+  .steps th { text-transform: uppercase; font-size: 8.5px; font-weight: 700; text-align: left; }
+  .steps td.dec { text-align: center; font-weight: 700; white-space: nowrap; }
+  .stamp { margin-top: 8px; padding-top: 4px; border-top: 1px solid #000; font-size: 8.5px; line-height: 1.35; }
+  .noprint { margin: 10px auto; max-width: 700px; text-align: right; }
+  @media print { .noprint { display: none; } body { padding: 0; } }
 </style>
 </head>
 <body>
@@ -89,50 +62,51 @@ function pr_signoff(?array $step, string $verb): string {
 
 <div class="sheet">
   <h1><?= h($org ?: 'EODoK') ?> — Karta akceptacji dokumentu</h1>
-  <div class="sub">Dokument <strong><?= h($doc['number']) ?></strong> · <?= h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) ?> · <?= h($doc['nr_faktury']) ?></div>
+  <div class="sub">Dokument <strong><?= h($doc['number']) ?></strong> · <?= h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) ?> · nr <?= h($doc['nr_faktury']) ?> · status: <?= h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) ?></div>
 
-  <table>
-    <?= pr_row('Kontrahent', $doc['kontrahent_nazwa']) ?>
-    <?= pr_row('NIP', $doc['kontrahent_nip']) ?>
+  <table class="head-table">
+    <tr><td class="l">Kontrahent</td><td><?= h($doc['kontrahent_nazwa']) ?></td><td class="l">NIP</td><td><?= h($doc['kontrahent_nip'] ?: '—') ?></td></tr>
   </table>
-  <div class="amount-box">
-    <table>
-      <tr><td class="l">Netto</td><td class="v"><?= h($doc['kwota_netto']) ?></td></tr>
-      <tr><td class="l">VAT</td><td class="v"><?= h($doc['kwota_vat']) ?></td></tr>
-      <tr><td class="l"><strong>Brutto</strong></td><td class="v"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td></tr>
-    </table>
-  </div>
+
+  <table class="kwoty">
+    <tr>
+      <td class="lbl">Netto</td><td><?= h($doc['kwota_netto'] ?: '—') ?></td>
+      <td class="lbl">VAT</td><td><?= h($doc['kwota_vat'] ?: '—') ?></td>
+      <td class="lbl">Brutto</td><td><?= h($doc['kwota_brutto'] ?: '—') ?> <?= h($doc['waluta']) ?></td>
+    </tr>
+  </table>
 
   <h2>Opis wydatku</h2>
-  <div class="desc-box">
-    <?= trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '<span class="muted">Brak opisu.</span>' ?>
-  </div>
+  <div class="desc"><?= trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '—' ?></div>
 
-  <h2><?= h(EDOK_STEPS['meryt']) ?></h2>
-  <?= pr_signoff($meryt, 'Sprawdził') ?>
-
-  <h2><?= h(EDOK_STEPS['formal']) ?></h2>
-  <?= pr_signoff($formal, 'Sprawdził') ?>
-
-  <h2><?= h(EDOK_STEPS['rachunkowa']) ?></h2>
-  <?= pr_signoff($rachunkowa, 'Sprawdził') ?>
-
-  <h2><?= h(EDOK_STEPS['dekretacja']) ?></h2>
-  <table>
-    <?= pr_row('Rodzaj działalności', EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') ?>
-    <?= pr_row('Projekt / działanie', $doc['projekt']) ?>
-    <?= pr_row('MPK', $doc['mpk']) ?>
+  <h2>Dekretacja i alokacja kosztów</h2>
+  <table class="head-table">
+    <tr>
+      <td class="l">Rodzaj działalności</td><td><?= h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') ?></td>
+      <td class="l">Projekt / MPK</td><td><?= h($doc['projekt'] ?: $doc['mpk'] ?: '—') ?></td>
+    </tr>
   </table>
-  <?= pr_signoff($dekretacja, 'Zadekretował') ?>
 
-  <h2><?= h(EDOK_STEPS['zatwierdza']) ?></h2>
-  <?= pr_signoff($zatwierdza, 'Zatwierdził') ?>
+  <h2>Etapy akceptacji</h2>
+  <table class="steps">
+    <thead>
+      <tr><th style="width:32%">Etap</th><th style="width:14%">Rodzaj akceptacji</th><th style="width:22%">Kto / kiedy</th><th>Opis / uwagi</th></tr>
+    </thead>
+    <tbody>
+      <?php foreach (EDOK_STEPS as $sk => $sl): $s = $doc['steps'][$sk] ?? null; ?>
+      <tr>
+        <td><?= h($sl) ?></td>
+        <td class="dec"><?= h(pr_decision_label($s)) ?></td>
+        <td><?= pr_who($s) ?></td>
+        <td><?= $s && trim((string)$s['notes']) !== '' ? nl2br(h($s['notes'])) : '—' ?></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
 
   <div class="stamp">
     Karta wygenerowana elektronicznie z systemu EODoK dnia <?= date('d.m.Y H:i') ?> przez <?= h(current_user()['name'] ?? '—') ?>.
-    Identyfikatory osób decydujących, stemple czasowe i historia decyzji stanowią elektroniczny odpowiednik
-    tradycyjnych pieczątek dekretacyjnych i zastępują je w pełni w obiegu elektronicznym dokumentu.
-    Status dokumentu: <?= h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) ?>.
+    Identyfikatory osób decydujących, stemple czasowe i historia decyzji zastępują w pełni tradycyjne pieczątki dekretacyjne.
   </div>
 </div>
 
