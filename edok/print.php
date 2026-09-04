@@ -13,6 +13,9 @@ $id  = (int)($_GET['id'] ?? 0);
 $doc = edok_get($id);
 if (!$doc) { http_response_code(404); die('Dokument nie istnieje.'); }
 
+$meryt      = $doc['steps']['meryt']      ?? null;
+$formal     = $doc['steps']['formal']     ?? null;
+$rachunkowa = $doc['steps']['rachunkowa'] ?? null;
 $dekretacja = $doc['steps']['dekretacja'] ?? null;
 $zatwierdza = $doc['steps']['zatwierdza'] ?? null;
 $org        = defined('ORG_NAME') ? ORG_NAME : '';
@@ -48,7 +51,7 @@ function pr_signoff(?array $step, string $verb): string {
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<title>Karta dekretacji i zatwierdzenia — <?= h($doc['number']) ?></title>
+<title>Karta akceptacji dokumentu — <?= h($doc['number']) ?></title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; padding: 24px; background: #fff; }
@@ -85,7 +88,7 @@ function pr_signoff(?array $step, string $verb): string {
 </div>
 
 <div class="sheet">
-  <h1><?= h($org ?: 'EODoK') ?> — Karta dekretacji i zatwierdzenia</h1>
+  <h1><?= h($org ?: 'EODoK') ?> — Karta akceptacji dokumentu</h1>
   <div class="sub">Dokument <strong><?= h($doc['number']) ?></strong> · <?= h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) ?> · <?= h($doc['nr_faktury']) ?></div>
 
   <table>
@@ -104,6 +107,15 @@ function pr_signoff(?array $step, string $verb): string {
   <div class="desc-box">
     <?= trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '<span class="muted">Brak opisu.</span>' ?>
   </div>
+
+  <h2><?= h(EDOK_STEPS['meryt']) ?></h2>
+  <?= pr_signoff($meryt, 'Sprawdził') ?>
+
+  <h2><?= h(EDOK_STEPS['formal']) ?></h2>
+  <?= pr_signoff($formal, 'Sprawdził') ?>
+
+  <h2><?= h(EDOK_STEPS['rachunkowa']) ?></h2>
+  <?= pr_signoff($rachunkowa, 'Sprawdził') ?>
 
   <h2><?= h(EDOK_STEPS['dekretacja']) ?></h2>
   <table>
