@@ -186,6 +186,11 @@ function ti_rk_migrate(): void {
             'auto_duration_min' => 'INTEGER NOT NULL DEFAULT 60',
             'auto_capacity'     => 'INTEGER NOT NULL DEFAULT 1',
             'auto_mode'         => "TEXT NOT NULL DEFAULT 'online'",
+            // Tryb podglądowy (P) — ręczny przełącznik kierownika: tura zostaje
+            // widoczna (grafik/dyspozycje prowadzących), ale rk_book() blokuje
+            // każdą rezerwację (ROUND_PREVIEW). Do godzin ustalanych poza
+            // standardowym mechanizmem zapisów za żetony.
+            'is_preview'        => 'INTEGER NOT NULL DEFAULT 0',
         ] as $c => $def) {
             if (!in_array($c, $cols, true)) {
                 try { $pdo->exec("ALTER TABLE k30_rk_rounds ADD COLUMN $c $def"); } catch (\Throwable) {}
@@ -539,6 +544,7 @@ function rk_round_save(array $d, ?int $id = null): int {
         'auto_capacity'     => min(30, max(1, (int)($d['auto_capacity'] ?? 1))),
         'auto_mode'         => in_array($d['auto_mode'] ?? '', ['online','onsite','hybrid'], true)
                                  ? $d['auto_mode'] : 'online',
+        'is_preview'        => !empty($d['is_preview']) ? 1 : 0,
     ];
     if ($id) {
         $sets = implode(',', array_map(fn($k) => "$k=?", array_keys($fields)));
