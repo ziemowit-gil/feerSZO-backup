@@ -208,160 +208,115 @@ $TASKS_BREADCRUMB = 'Skrzynka';
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
+<style type="text/tailwindcss">
 /* ── Layout inbox ────────────────────────────────────────────────── */
 .inbox-wrap {
-  display: grid;
+  @apply tw-grid tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-overflow-hidden;
   grid-template-columns: 280px 1fr;
-  gap: 0;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: .75rem;
-  overflow: hidden;
   height: calc(100vh - var(--tsk-topbar-h) - 5rem);
   min-height: 400px;
 }
 @media (max-width: 768px) {
-  .inbox-wrap { grid-template-columns: 1fr; height: auto; }
-  .inbox-thread-panel { display: none; }
-  .inbox-thread-panel.open { display: flex; }
-  .inbox-sidebar { border-right: none; border-bottom: 1px solid #e2e8f0; }
+  .inbox-wrap { @apply tw-grid-cols-1 tw-h-auto; }
+  .inbox-thread-panel { @apply tw-hidden; }
+  .inbox-thread-panel.open { @apply tw-flex; }
+  .inbox-sidebar { @apply tw-border-r-0 tw-border-b tw-border-slate-200; }
 }
 
 /* ── Sidebar wątków ──────────────────────────────────────────────── */
 .inbox-sidebar {
-  border-right: 1px solid #e2e8f0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
+  @apply tw-border-r tw-border-slate-200 tw-flex tw-flex-col tw-overflow-hidden;
 }
 .inbox-sidebar-head {
-  padding: .75rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  background: #f8fafc;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
+  @apply tw-py-3 tw-px-4 tw-border-b tw-border-slate-100 tw-bg-slate-50 tw-flex tw-items-center tw-justify-between tw-flex-shrink-0;
 }
 .inbox-sidebar-title {
-  font-size: .75rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .07em;
-  color: #64748b; margin: 0;
+  @apply tw-text-xs tw-font-bold tw-uppercase tw-tracking-wider tw-text-slate-500 tw-m-0;
 }
 .inbox-thread-list {
-  flex: 1; overflow-y: auto;
+  @apply tw-flex-1 tw-overflow-y-auto;
 }
 .inbox-thread-item {
-  display: flex; align-items: flex-start; gap: .6rem;
-  padding: .7rem 1rem;
-  border-bottom: 1px solid #f8fafc;
-  cursor: pointer; transition: background .1s;
-  border-left: 3px solid transparent;
+  @apply tw-flex tw-items-start tw-gap-[.6rem] tw-py-[.7rem] tw-px-4 tw-border-b tw-border-slate-50 tw-cursor-pointer tw-transition-colors tw-border-l-[3px] tw-border-l-transparent;
 }
-.inbox-thread-item:hover { background: #f8fafc; }
-.inbox-thread-item.active { background: #eff6ff; border-left-color: #2563eb; }
-.inbox-thread-item.unread .inbox-th-title { font-weight: 700; color: #0f172a; }
+.inbox-thread-item:hover { @apply tw-bg-slate-50; }
+.inbox-thread-item.active { @apply tw-bg-blue-50 tw-border-l-blue-600; }
+.inbox-thread-item.unread .inbox-th-title { @apply tw-font-bold tw-text-slate-900; }
 .inbox-thread-item:focus-visible { outline: 3px solid var(--tsk-focus) !important; }
 .inbox-unread-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #2563eb; flex-shrink: 0; margin-top: .45rem;
+  @apply tw-w-2 tw-h-2 tw-rounded-full tw-bg-blue-600 tw-flex-shrink-0 tw-mt-[.45rem];
 }
 .inbox-th-title {
-  font-size: .86rem; font-weight: 500; color: #0f172a;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  flex: 1;
+  @apply tw-text-[.86rem] tw-font-medium tw-text-slate-900 tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis tw-flex-1;
 }
 .inbox-th-preview {
-  font-size: .74rem; color: #94a3b8;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-top: .1rem;
+  @apply tw-text-[.74rem] tw-text-slate-400 tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis tw-mt-[.1rem];
 }
-.inbox-th-time { font-size: .7rem; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+.inbox-th-time { @apply tw-text-[.7rem] tw-text-slate-400 tw-whitespace-nowrap tw-flex-shrink-0; }
 
 /* ── Panel wątku ─────────────────────────────────────────────────── */
 .inbox-thread-panel {
-  display: flex; flex-direction: column; overflow: hidden;
+  @apply tw-flex tw-flex-col tw-overflow-hidden;
 }
 .inbox-thread-head {
-  padding: .75rem 1.1rem;
-  border-bottom: 1px solid #f1f5f9;
-  background: #f8fafc;
-  flex-shrink: 0;
+  @apply tw-py-3 tw-px-[1.1rem] tw-border-b tw-border-slate-100 tw-bg-slate-50 tw-flex-shrink-0;
 }
 .inbox-thread-task {
-  font-size: .9rem; font-weight: 700; color: #0f172a;
-  display: flex; align-items: center; gap: .5rem;
+  @apply tw-text-[.9rem] tw-font-bold tw-text-slate-900 tw-flex tw-items-center tw-gap-2;
 }
-.inbox-thread-task a { color: #2563eb; font-size: .78rem; }
+.inbox-thread-task a { @apply tw-text-blue-600 tw-text-[.78rem]; }
 
 .inbox-msg-list {
-  flex: 1; overflow-y: auto;
-  padding: 1rem 1.1rem;
-  display: flex; flex-direction: column; gap: .75rem;
+  @apply tw-flex-1 tw-overflow-y-auto tw-py-4 tw-px-[1.1rem] tw-flex tw-flex-col tw-gap-3;
 }
 
 /* Dymek wiadomości */
 .inbox-bubble {
-  display: flex; gap: .55rem; max-width: 90%;
+  @apply tw-flex tw-gap-[.55rem] tw-max-w-[90%];
 }
-.inbox-bubble.mine { flex-direction: row-reverse; align-self: flex-end; }
+.inbox-bubble.mine { @apply tw-flex-row-reverse tw-self-end; }
 .inbox-bubble-av {
-  width: 30px; height: 30px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .62rem; font-weight: 700; color: #fff;
-  flex-shrink: 0;
+  @apply tw-w-[30px] tw-h-[30px] tw-rounded-full tw-flex tw-items-center tw-justify-center tw-text-[.62rem] tw-font-bold tw-text-white tw-flex-shrink-0;
 }
-.inbox-bubble-body { display: flex; flex-direction: column; }
-.inbox-bubble.mine .inbox-bubble-body { align-items: flex-end; }
+.inbox-bubble-body { @apply tw-flex tw-flex-col; }
+.inbox-bubble.mine .inbox-bubble-body { @apply tw-items-end; }
 
 .inbox-bubble-text {
-  background: #f1f5f9;
+  @apply tw-bg-slate-100 tw-py-[.55rem] tw-px-3 tw-text-[.86rem] tw-leading-relaxed tw-text-slate-900 tw-whitespace-pre-wrap tw-break-words tw-max-w-full;
   border-radius: .55rem .55rem .55rem .15rem;
-  padding: .55rem .75rem;
-  font-size: .86rem; line-height: 1.5;
-  color: #0f172a;
-  white-space: pre-wrap; word-break: break-word;
-  max-width: 100%;
 }
 .inbox-bubble.mine .inbox-bubble-text {
-  background: #dbeafe;
+  @apply tw-bg-blue-100;
   border-radius: .55rem .55rem .15rem .55rem;
   color: #1e3a5f;
 }
 .inbox-bubble-meta {
-  font-size: .7rem; color: #94a3b8; margin-top: .2rem;
-  display: flex; align-items: center; gap: .4rem;
+  @apply tw-text-[.7rem] tw-text-slate-400 tw-mt-[.2rem] tw-flex tw-items-center tw-gap-[.4rem];
 }
 
 /* CTA w dymku — prośba o przejęcie */
 .inbox-bubble-cta {
-  margin-top: .5rem;
-  display: flex; gap: .5rem; flex-wrap: wrap;
+  @apply tw-mt-2 tw-flex tw-gap-2 tw-flex-wrap;
 }
 
 /* Pole odpowiedzi */
 .inbox-reply-bar {
-  padding: .75rem 1.1rem;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
-  flex-shrink: 0;
+  @apply tw-py-3 tw-px-[1.1rem] tw-border-t tw-border-slate-200 tw-bg-white tw-flex-shrink-0;
 }
 .inbox-reply-inner {
-  display: flex; gap: .6rem; align-items: flex-end;
+  @apply tw-flex tw-gap-[.6rem] tw-items-end;
 }
 .inbox-reply-ta {
-  flex: 1; font-size: .86rem;
-  border: 1.5px solid #e2e8f0; border-radius: .5rem;
-  padding: .45rem .75rem; resize: none;
-  line-height: 1.5; max-height: 120px;
+  @apply tw-flex-1 tw-text-[.86rem] tw-rounded-lg tw-py-[.45rem] tw-px-3 tw-resize-none tw-leading-relaxed;
+  border: 1.5px solid #e2e8f0; max-height: 120px;
 }
-.inbox-reply-ta:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: transparent; }
+.inbox-reply-ta:focus { @apply tw-outline tw-outline-2 tw-outline-blue-600 tw-outline-offset-1 tw-border-transparent; }
 
 /* Stan pusty */
 .inbox-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  flex: 1; color: #94a3b8; text-align: center; padding: 2rem;
+  @apply tw-flex tw-flex-col tw-items-center tw-justify-center tw-flex-1 tw-text-slate-400 tw-text-center tw-p-8;
 }
-.inbox-empty i { font-size: 2rem; display: block; margin-bottom: .5rem; opacity: .25; }
+.inbox-empty i { @apply tw-text-3xl tw-block tw-mb-2 tw-opacity-25; }
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3">
