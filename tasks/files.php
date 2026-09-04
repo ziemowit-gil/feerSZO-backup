@@ -77,7 +77,7 @@ if ($overview_mode) {
     require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
+<style type="text/tailwindcss">
 :root {
   --tk-focus:   #2563eb;
   --tk-border:  #e2e8f0;
@@ -87,42 +87,30 @@ if ($overview_mode) {
   --tk-radius:  .5rem;
 }
 .tf-toolbar {
-  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-  background: #fff; border: 1px solid var(--tk-border);
-  border-radius: var(--tk-radius); padding: .55rem .75rem;
-  margin-bottom: .85rem;
+  @apply tw-flex tw-flex-wrap tw-gap-2 tw-items-center tw-bg-white tw-py-[.55rem] tw-px-3 tw-mb-[.85rem];
+  border: 1px solid var(--tk-border); border-radius: var(--tk-radius);
 }
 .tf-view-btn {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .22rem .65rem; border-radius: 2rem; font-size: .77rem; font-weight: 600;
-  border: 1.5px solid transparent; text-decoration: none;
-  background: #f1f5f9; color: var(--tk-muted); transition: all .12s; white-space: nowrap;
+  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-py-[.22rem] tw-px-[.65rem] tw-rounded-full tw-text-[.77rem] tw-font-semibold tw-border-[1.5px] tw-border-transparent tw-no-underline tw-bg-slate-100 tw-transition-all tw-whitespace-nowrap;
+  color: var(--tk-muted);
 }
 .tf-view-btn.active { background: var(--tsk-green, #059669); color: #fff; border-color: var(--tsk-green, #059669); }
-.tf-view-btn:hover:not(.active) { border-color: #94a3b8; }
-.tf-sep { width: 1px; height: 1.3rem; background: #e2e8f0; flex-shrink: 0; }
-.tf-wrap { background: #fff; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); overflow: hidden; }
-.tf-file-icon { font-size: 1.1rem; }
+.tf-view-btn:hover:not(.active) { @apply tw-border-slate-400; }
+.tf-sep { @apply tw-w-px tw-h-[1.3rem] tw-bg-slate-200 tw-flex-shrink-0; }
+.tf-wrap { @apply tw-bg-white tw-overflow-hidden; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); }
+.tf-file-icon { @apply tw-text-[1.1rem]; }
 
 .tf-ws-card {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .85rem 1rem;
-  background: #fff; border: 1px solid var(--tk-border);
-  border-radius: var(--tk-radius);
-  text-decoration: none; color: inherit;
-  transition: box-shadow .12s, border-color .12s;
-  height: 100%;
+  @apply tw-flex tw-items-center tw-gap-3 tw-py-[.85rem] tw-px-4 tw-bg-white tw-no-underline tw-text-inherit tw-transition-all tw-h-full;
+  border: 1px solid var(--tk-border); border-radius: var(--tk-radius);
 }
 .tf-ws-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.09); border-color: #94a3b8; color: inherit; }
 .tf-ws-card-icon {
-  width: 2.5rem; height: 2.5rem; border-radius: .5rem;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 1.15rem; flex-shrink: 0;
+  @apply tw-w-10 tw-h-10 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-white tw-text-[1.15rem] tw-flex-shrink-0;
 }
 .tf-ws-empty {
-  border: 2px dashed var(--tk-border); background: var(--tk-bg-soft);
-  border-radius: var(--tk-radius); padding: 3rem 1rem;
-  text-align: center; color: var(--tk-muted);
+  @apply tw-border-2 tw-border-dashed tw-py-12 tw-px-4 tw-text-center;
+  border-color: var(--tk-border); background: var(--tk-bg-soft); border-radius: var(--tk-radius); color: var(--tk-muted);
 }
 </style>
 
@@ -628,7 +616,7 @@ $TASKS_FILES_VIEW = true;  // sygnał dla header_tasks.php: switcher WS → file
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style>
+<style type="text/tailwindcss">
 /* ── Tokeny wspólne z tasks/index.php ─────────────────────────────────── */
 :root {
   --tk-focus:   #2563eb;
@@ -640,33 +628,26 @@ require_once __DIR__ . '/includes/header_tasks.php';
 }
 
 .tf-toolbar {
-  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-  background: #fff; border: 1px solid var(--tk-border);
-  border-radius: var(--tk-radius); padding: .55rem .75rem;
-  margin-bottom: .85rem;
+  @apply tw-flex tw-flex-wrap tw-gap-2 tw-items-center tw-bg-white tw-py-[.55rem] tw-px-3 tw-mb-[.85rem];
+  border: 1px solid var(--tk-border); border-radius: var(--tk-radius);
 }
 .tf-view-btn {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .22rem .65rem; border-radius: 2rem; font-size: .77rem; font-weight: 600;
-  border: 1.5px solid transparent; text-decoration: none;
-  background: #f1f5f9; color: var(--tk-muted); transition: all .12s; white-space: nowrap;
+  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-py-[.22rem] tw-px-[.65rem] tw-rounded-full tw-text-[.77rem] tw-font-semibold tw-border-[1.5px] tw-border-transparent tw-no-underline tw-bg-slate-100 tw-transition-all tw-whitespace-nowrap;
+  color: var(--tk-muted);
 }
 .tf-view-btn.active { background: var(--tsk-green, #059669); color: #fff; border-color: var(--tsk-green, #059669); }
-.tf-view-btn:hover:not(.active) { border-color: #94a3b8; }
-.tf-sep { width: 1px; height: 1.3rem; background: #e2e8f0; flex-shrink: 0; }
-.tf-wrap { background: #fff; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); overflow: hidden; }
+.tf-view-btn:hover:not(.active) { @apply tw-border-slate-400; }
+.tf-sep { @apply tw-w-px tw-h-[1.3rem] tw-bg-slate-200 tw-flex-shrink-0; }
+.tf-wrap { @apply tw-bg-white tw-overflow-hidden; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); }
 .tf-folder-link {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .45rem .9rem; font-size: .85rem; text-decoration: none; color: #374151;
-  border-left: 3px solid transparent;
-  transition: background .1s, color .1s, border-color .1s;
+  @apply tw-flex tw-items-center tw-gap-2 tw-py-[.45rem] tw-px-[.9rem] tw-text-[.85rem] tw-no-underline tw-text-slate-700 tw-border-l-[3px] tw-border-l-transparent tw-transition-all;
 }
 .tf-folder-link:hover { background: #f8fafc; color: var(--tsk-green, #059669); border-left-color: #e2e8f0; }
 .tf-folder-link.active {
   background: var(--tsk-green-bg, #ecfdf5); color: var(--tsk-green, #059669);
   font-weight: 600; border-left-color: var(--tsk-green, #059669);
 }
-.tf-file-icon { font-size: 1.1rem; }
+.tf-file-icon { @apply tw-text-[1.1rem]; }
 </style>
 
 <main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
