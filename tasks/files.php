@@ -746,6 +746,42 @@ require_once __DIR__ . '/includes/header_tasks.php';
   font-weight: 600; border-left-color: var(--tsk-green, #059669);
 }
 .tf-file-icon { @apply tw-text-[1.1rem]; }
+
+/* ── Przełącznik widoku Lista/Galeria ─────────────────────────────────── */
+.tf-view-toggle.active { @apply tw-bg-slate-800 tw-text-white tw-border-slate-800; }
+
+/* ── Drag & drop upload ───────────────────────────────────────────────── */
+.tf-dropzone { @apply tw-relative; }
+.tf-drop-overlay {
+  @apply tw-hidden tw-absolute tw-inset-0 tw-z-20 tw-flex-col tw-items-center tw-justify-center tw-gap-2
+         tw-text-white tw-text-sm tw-font-semibold tw-text-center tw-pointer-events-none tw-rounded-lg tw-p-4;
+  background: rgba(5,150,105,.88);
+  border: 3px dashed rgba(255,255,255,.75);
+}
+.tf-drop-overlay i { @apply tw-text-4xl; }
+.tf-dropzone.tf-drop-active .tf-drop-overlay { @apply tw-flex; }
+
+/* ── Widok galerii ─────────────────────────────────────────────────────── */
+.tf-file-grid {
+  @apply tw-grid tw-gap-3 tw-p-3;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+.tf-grid-card { @apply tw-flex tw-flex-col tw-gap-1; }
+.tf-grid-thumb {
+  @apply tw-relative tw-aspect-square tw-rounded-lg tw-overflow-hidden tw-flex tw-items-center tw-justify-center tw-bg-slate-100;
+  border: 1px solid var(--tk-border);
+}
+.tf-grid-thumb img { @apply tw-w-full tw-h-full tw-object-cover; }
+.tf-grid-thumb i { @apply tw-text-4xl; color: var(--tk-muted); }
+.tf-grid-overlay {
+  @apply tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center tw-gap-1 tw-opacity-0 tw-transition-opacity;
+  background: rgba(15,23,42,.55);
+}
+.tf-grid-thumb:hover .tf-grid-overlay,
+.tf-grid-thumb:focus-within .tf-grid-overlay { @apply tw-opacity-100; }
+.tf-grid-taskbadge { @apply tw-absolute tw-top-1 tw-right-1 tw-text-[.62rem]; }
+.tf-grid-name { @apply tw-text-[.8rem] tw-font-medium tw-mt-1; color: var(--tk-text); }
+.tf-grid-meta { @apply tw-text-[.7rem]; color: var(--tk-muted); }
 </style>
 
 <main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
@@ -822,10 +858,23 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
     <?php if ($active_folder): ?>
     <!-- Nagłówek folderu -->
-    <div class="tf-wrap mb-3">
+    <div class="tf-wrap mb-3<?= ($can_upload && $sp_ok) ? ' tf-dropzone' : '' ?>" id="tfFolderCard">
       <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
         <i class="bi bi-folder2-open" style="color:<?= h($workspace['color'] ?: '#3b82f6') ?>"></i>
         <span class="fw-semibold flex-grow-1" style="font-size:.9rem"><?= h($active_folder['name']) ?></span>
+
+        <?php if (!empty($files)): ?>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Widok plików">
+          <button type="button" class="btn btn-outline-secondary py-0 px-2 tf-view-toggle active"
+                  data-view="list" title="Widok listy" style="font-size:.78rem">
+            <i class="bi bi-list-ul"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary py-0 px-2 tf-view-toggle"
+                  data-view="grid" title="Widok galerii" style="font-size:.78rem">
+            <i class="bi bi-grid-3x3-gap"></i>
+          </button>
+        </div>
+        <?php endif; ?>
 
         <?php if ($can_upload && $sp_ok): ?>
         <button class="btn btn-sm btn-primary py-0 px-2" onclick="document.getElementById('uploadInput').click()">
@@ -850,13 +899,21 @@ require_once __DIR__ . '/includes/header_tasks.php';
         <small class="text-muted" id="uploadStatus"></small>
       </div>
 
+      <!-- Nakładka drag&drop -->
+      <?php if ($can_upload && $sp_ok): ?>
+      <div id="tfDropOverlay" class="tf-drop-overlay">
+        <i class="bi bi-cloud-arrow-up-fill" aria-hidden="true"></i>
+        <span>Upuść pliki, aby wgrać do folderu „<?= h($active_folder['name']) ?>”</span>
+      </div>
+      <?php endif; ?>
+
       <?php if (empty($files)): ?>
-      <div class="text-center text-muted py-5" style="font-size:.88rem">
+      <div class="text-center text-muted py-5" style="font-size:.88rem" id="tfEmptyState">
         <i class="bi bi-file-earmark d-block mb-2" style="font-size:2rem; opacity:.3"></i>
-        Folder jest pusty. Wgraj pierwszy plik.
+        Folder jest pusty. <?= ($can_upload && $sp_ok) ? 'Wgraj pierwszy plik albo przeciągnij go tutaj.' : 'Wgraj pierwszy plik.' ?>
       </div>
       <?php else: ?>
-      <div class="table-responsive">
+      <div class="table-responsive" id="tfListView">
         <table class="table table-sm table-hover mb-0 tk-table" style="font-size:.83rem">
           <thead class="table-light">
             <tr>
@@ -972,6 +1029,80 @@ require_once __DIR__ . '/includes/header_tasks.php';
           <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+
+      <!-- Widok galerii (kafelki + miniatury dla obrazów) -->
+      <div class="tf-file-grid" id="tfGridView" style="display:none">
+        <?php foreach ($files as $f):
+          $ext  = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
+          $icon = match($ext) {
+              'pdf'            => 'bi-file-earmark-pdf text-danger',
+              'doc','docx'     => 'bi-file-earmark-word text-primary',
+              'xls','xlsx'     => 'bi-file-earmark-excel text-success',
+              'ppt','pptx'     => 'bi-file-earmark-ppt text-warning',
+              'jpg','jpeg','png',
+              'gif','webp'     => 'bi-file-earmark-image text-info',
+              'zip','7z','tar',
+              'gz'             => 'bi-file-earmark-zip text-secondary',
+              default          => 'bi-file-earmark text-muted',
+          };
+          $is_image    = in_array($ext, ['jpg','jpeg','png','gif','webp'], true);
+          $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
+          $docPreview  = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
+          $task_count  = (int)(db_one(
+              "SELECT COUNT(*) AS n FROM ws_task_files WHERE file_id=?", [$f['id']]
+          )['n'] ?? 0);
+          $fid    = (int)$f['id'];
+          $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode(csrf_token());
+          $pv_url = APP_URL . '/workspaces/api.php?action=preview&id='  . $fid . '&_csrf=' . urlencode(csrf_token());
+        ?>
+        <div class="tf-grid-card" id="gcard-<?= $fid ?>">
+          <div class="tf-grid-thumb">
+            <?php if ($is_image): ?>
+            <img src="<?= h($pv_url) ?>" alt="<?= h($f['name']) ?>" loading="lazy">
+            <?php else: ?>
+            <i class="bi <?= $icon ?>" aria-hidden="true"></i>
+            <?php endif; ?>
+
+            <div class="tf-grid-overlay">
+              <?php if ($previewable): ?>
+              <button class="btn btn-sm btn-light btn-preview"
+                      data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
+                      data-name="<?= h($f['name']) ?>" title="Podgląd">
+                <i class="bi bi-eye"></i>
+              </button>
+              <?php elseif ($docPreview && $f['web_url']): ?>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-light" title="Otwórz w Office Online">
+                <i class="bi bi-box-arrow-up-right"></i>
+              </a>
+              <?php endif; ?>
+              <a href="<?= h($dl_url) ?>" class="btn btn-sm btn-light" title="Pobierz">
+                <i class="bi bi-download"></i>
+              </a>
+              <button class="btn btn-sm btn-light btn-link-task"
+                      data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>" title="Przypisz do zadania">
+                <i class="bi bi-link-45deg"></i>
+              </button>
+              <?php if ($can_manage): ?>
+              <button class="btn btn-sm btn-light text-danger btn-delete-file"
+                      data-id="<?= $fid ?>" title="Usuń plik">
+                <i class="bi bi-trash3"></i>
+              </button>
+              <?php endif; ?>
+            </div>
+
+            <?php if ($task_count): ?>
+            <span class="badge rounded-pill border-0 tf-grid-taskbadge text-bg-info"
+                  title="Powiązane zadania: <?= $task_count ?> (rozwiń w widoku listy)">
+              <i class="bi bi-check2-square me-1"></i><?= $task_count ?>
+            </span>
+            <?php endif; ?>
+          </div>
+          <div class="tf-grid-name text-truncate" title="<?= h($f['name']) ?>"><?= h($f['name']) ?></div>
+          <div class="tf-grid-meta"><?= ws_format_size((int)$f['file_size']) ?> · <?= date('d.m.Y', strtotime($f['created_at'])) ?></div>
+        </div>
+        <?php endforeach; ?>
       </div>
       <?php endif; ?>
     </div><!-- /folder card -->
@@ -1328,15 +1459,18 @@ document.getElementById('btnCreateFolder')?.addEventListener('click', async () =
   else { alertEl.textContent = r.error || 'Błąd.'; alertEl.style.display = ''; }
 });
 
-// ── Upload ────────────────────────────────────────────────────────────────
-document.getElementById('uploadInput')?.addEventListener('change', async function() {
-  if (!FOLDER_ID || !this.files.length) return;
+// ── Upload (współdzielone: input plików + drag&drop) ───────────────────────
+async function uploadFilesToFolder(fileList) {
+  if (!FOLDER_ID || !fileList.length) return;
   const progress = document.getElementById('uploadProgress');
   const bar = document.getElementById('uploadBar');
   const status = document.getElementById('uploadStatus');
-  for (const file of this.files) {
+  for (const file of fileList) {
     progress.style.display = '';
     bar.style.width = '0%';
+    bar.classList.remove('progress-bar-animated');
+    bar.classList.add('progress-bar-animated');
+    bar.classList.replace('bg-danger','bg-primary');
     status.textContent = `Wgrywam: ${file.name}…`;
     const fd = new FormData();
     fd.append('_csrf', CSRF);
@@ -1364,7 +1498,57 @@ document.getElementById('uploadInput')?.addEventListener('change', async functio
       xhr.open('POST', API); xhr.send(fd);
     });
   }
+}
+
+document.getElementById('uploadInput')?.addEventListener('change', function() {
+  uploadFilesToFolder(this.files);
 });
+
+// ── Drag & drop wgrywanie ────────────────────────────────────────────────
+(function () {
+  const zone = document.getElementById('tfFolderCard');
+  if (!zone || !zone.classList.contains('tf-dropzone')) return;
+  let dragDepth = 0;
+
+  zone.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragDepth++;
+    zone.classList.add('tf-drop-active');
+  });
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) zone.classList.remove('tf-drop-active');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    zone.classList.remove('tf-drop-active');
+    const files = e.dataTransfer?.files;
+    if (files && files.length) uploadFilesToFolder(files);
+  });
+})();
+
+// ── Przełącznik widoku Lista / Galeria (localStorage per przeglądarkę) ────
+(function () {
+  const listView = document.getElementById('tfListView');
+  const gridView = document.getElementById('tfGridView');
+  const toggles  = document.querySelectorAll('.tf-view-toggle');
+  if (!listView || !gridView || !toggles.length) return;
+
+  function setView(view) {
+    listView.style.display = view === 'grid' ? 'none' : '';
+    gridView.style.display = view === 'grid' ? '' : 'none';
+    toggles.forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    try { localStorage.setItem('tfFileView', view); } catch (e) {}
+  }
+
+  toggles.forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
+
+  let saved = 'list';
+  try { saved = localStorage.getItem('tfFileView') || 'list'; } catch (e) {}
+  setView(saved);
+})();
 
 // ── Usuń plik ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.btn-delete-file').forEach(btn => {
