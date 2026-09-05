@@ -6825,10 +6825,13 @@ function k30_ti_notify_low_attendance(int $course_id, int $client_id, int $pct, 
     // SMS (opt-in lekcje + numery zweryfikowane; opiekun małoletniego)
     require_once __DIR__ . '/sms.php';
     if (function_exists('sms_channel_ready') && sms_channel_ready()) {
-        $nums = k30_ti_sms_numbers($row);
-        if ($isMinor) { $gp = trim((string)($row['guardian_phone'] ?? '')); if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp; }
-        $msg = "Niska frekwencja: {$crs} — {$pct}% (prog {$threshold}%). Prosimy o regularna obecnosc.";
-        foreach ($nums as $n) { try { sms_send($n, $msg); } catch (\Throwable $e) {} }
+        if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
+        $stpl = sms_tpl_render('ti_low_attendance', ['course' => $crs, 'pct' => (string)$pct, 'threshold' => (string)$threshold]);
+        if ($stpl['enabled']) {
+            $nums = k30_ti_sms_numbers($row);
+            if ($isMinor) { $gp = trim((string)($row['guardian_phone'] ?? '')); if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp; }
+            foreach ($nums as $n) { try { sms_send($n, $stpl['message']); } catch (\Throwable $e) {} }
+        }
     }
 }
 

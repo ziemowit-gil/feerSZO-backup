@@ -18,6 +18,7 @@ require_once $base_dir . '/config.php';
 require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/karty30.php';
+require_once $base_dir . '/includes/sms_templates.php';
 
 karty30_migrate();
 
@@ -37,11 +38,14 @@ $sent = 0; $skip = 0; $errs = 0;
 
 foreach ($sessions as $s) {
     try {
-        $when = 'jutro' . ($s['time_from'] ? ' o ' . substr((string)$s['time_from'], 0, 5) : '');
-        $message = 'Przypomnienie: masz zajecia ' . $when . ' — ' . $s['course_name'] . '.';
-        $n = ti_lesson_sms_notify((int)$s['course_id'], $message);
+        $tpl = sms_tpl_render('ti_lesson_reminder', [
+            'course' => (string)$s['course_name'],
+            'when'   => $s['time_from'] ? ' o ' . substr((string)$s['time_from'], 0, 5) : '',
+        ]);
         db()->prepare("UPDATE k30_ti_sessions SET reminder_sent_at = datetime('now') WHERE id = ?")
             ->execute([$s['id']]);
+        if (!$tpl['enabled']) { $skip++; continue; }
+        $n = ti_lesson_sms_notify((int)$s['course_id'], $tpl['message']);
         if ($n > 0) { $sent++; } else { $skip++; }
     } catch (\Throwable $e) {
         $errs++;

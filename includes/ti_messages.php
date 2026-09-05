@@ -155,10 +155,13 @@ function ti_msg_notify_student(int $studentId, string $subject, string $body): v
     if (!empty($acc['notify_sms_messages'])) {
         if (!function_exists('sms_send')) @require_once __DIR__ . '/sms.php';
         if (function_exists('sms_send') && function_exists('sms_is_enabled') && sms_is_enabled()) {
-            $txt  = "{$org}: nowa wiadomosc w panelu kursanta. Zaloguj sie, aby przeczytac.";
-            $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
-            foreach ($nums as $num) {
-                try { sms_send($num, $txt); } catch (\Throwable $e) {}
+            if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
+            $stpl = sms_tpl_render('ti_new_message', ['org' => $org]);
+            if ($stpl['enabled']) {
+                $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
+                foreach ($nums as $num) {
+                    try { sms_send($num, $stpl['message']); } catch (\Throwable $e) {}
+                }
             }
         }
     }

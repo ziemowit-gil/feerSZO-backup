@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
+require_once dirname(dirname(__DIR__)) . '/includes/sms_templates.php';
 
 k30_require_access();
 karty30_migrate();
@@ -263,8 +264,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             // Powiadomienia SMS o nowych zajęciach — tylko do kursantów, którzy je włączyli
             $course_row = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$id]);
             $when = $sess_data['lesson_date'] . ($tf !== '' ? ' o ' . $tf : '');
-            $sms_sent = ti_lesson_sms_notify((int)$id,
-                'Nowe zajecia: ' . ($course_row['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+            $sms_sent = 0;
+            $stpl = sms_tpl_render('ti_lesson_added', ['course' => (string)($course_row['name'] ?? ''), 'when' => $when]);
+            if ($stpl['enabled']) {
+                $sms_sent = ti_lesson_sms_notify((int)$id, $stpl['message']);
+            }
             flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : '') . $zw);
         }
         header('Location: lesson.php?id='.$sid); exit;

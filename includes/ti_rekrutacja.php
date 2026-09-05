@@ -1536,6 +1536,7 @@ function rk_waitlist_notify_slot_free(int $slot_id): void {
 
     if (!function_exists('mail_queue_add'))    require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('email_tpl_render'))  require_once __DIR__ . '/email_templates.php';
+    if (!function_exists('sms_tpl_render'))    require_once __DIR__ . '/sms_templates.php';
     if (!function_exists('sms_channel_ready')) @require_once __DIR__ . '/sms.php';
 
     $when  = rk_fmt_dt((string)$slot['starts_at']) . '–' . substr((string)$slot['ends_at'], 11, 5);
@@ -1555,11 +1556,12 @@ function rk_waitlist_notify_slot_free(int $slot_id): void {
     }
     $phone = trim((string)($client['phone'] ?? ''));
     if ($phone !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
-        $msg = 'Zwolnilo sie miejsce na termin ' . date('d.m H:i', strtotime((string)$slot['starts_at']))
-             . ' — bylas(es) na liscie oczekujacych. Zapisz sie w panelu, dopoki miejsce wolne.';
-        try {
-            function_exists('sms_send_with_fallback') ? sms_send_with_fallback($phone, $msg, $email) : sms_send($phone, $msg);
-        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        $stpl = sms_tpl_render('rk_waitlist_slot_free', ['when' => date('d.m H:i', strtotime((string)$slot['starts_at']))]);
+        if ($stpl['enabled']) {
+            try {
+                function_exists('sms_send_with_fallback') ? sms_send_with_fallback($phone, $stpl['message'], $email) : sms_send($phone, $stpl['message']);
+            } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        }
     }
 }
 
@@ -1982,6 +1984,7 @@ function rk_parent_token_issue(int $booking_id, int $client_id, int $days = 7): 
 function rk_parent_request_send(int $booking_id): bool {
     if (!function_exists('mail_queue_add')) require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('email_tpl_render')) require_once __DIR__ . '/email_templates.php';
+    if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
 
     $b = db_one(
         "SELECT b.*, s.starts_at, s.ends_at, s.subject_label, s.mode,
@@ -2042,13 +2045,15 @@ function rk_parent_request_send(int $booking_id): bool {
 
     // SMS informacyjny — decyzja i tak zapada w mailu
     if ($g['phone'] !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
-        try {
-            sms_send($g['phone'],
-                'Kursant ' . $b['client_name'] . ' zapisal sie na zajecia '
-                . date('d.m H:i', strtotime((string)$b['starts_at']))
-                . '. Prosimy zatwierdzic rezerwacje - link wyslalismy e-mailem na adres '
-                . $g['email'] . '. ' . (defined('ORG_NAME') ? ORG_NAME : ''));
-        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        $stpl = sms_tpl_render('rk_parent_confirm', [
+            'student' => (string)$b['client_name'],
+            'when'    => date('d.m H:i', strtotime((string)$b['starts_at'])),
+            'email'   => $g['email'],
+            'org'     => defined('ORG_NAME') ? ORG_NAME : '',
+        ]);
+        if ($stpl['enabled']) {
+            try { sms_send($g['phone'], $stpl['message']); } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        }
     }
     return true;
 }
@@ -2195,16 +2200,20 @@ function rk_approval_notify(int $booking_id, string $stage): bool {
         }
     }
     if ($phone !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
-        $msg = 'Nowy wpis na zajecia: ' . $b['client_name'] . ', '
-             . date('d.m H:i', strtotime((string)$b['starts_at']))
-             . ($series_cnt > 1 ? " (seria x$series_cnt)" : '')
-             . '. Wymaga zatwierdzenia w panelu. ' . (defined('ORG_NAME') ? ORG_NAME : '');
-        try {
-            // Fallback: gdy bramka SMS zawiedzie, treść trafia e-mailem
-            function_exists('sms_send_with_fallback')
-                ? sms_send_with_fallback($phone, $msg, $email)
-                : sms_send($phone, $msg);
-        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
+        $stpl = sms_tpl_render('rk_pending_notify', [
+            'student' => (string)$b['client_name'],
+            'when'    => date('d.m H:i', strtotime((string)$b['starts_at'])) . ($series_cnt > 1 ? " (seria x$series_cnt)" : ''),
+            'org'     => defined('ORG_NAME') ? ORG_NAME : '',
+        ]);
+        if ($stpl['enabled']) {
+            try {
+                // Fallback: gdy bramka SMS zawiedzie, treść trafia e-mailem
+                function_exists('sms_send_with_fallback')
+                    ? sms_send_with_fallback($phone, $stpl['message'], $email)
+                    : sms_send($phone, $stpl['message']);
+            } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+        }
     }
     return $sent;
 }

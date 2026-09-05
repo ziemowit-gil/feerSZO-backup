@@ -358,7 +358,11 @@ function k30_ti_reschedule_notify_parties(int $session_id, array $old, bool $als
         _k30_ti_send($emails, $subject, $html, 'ti_reschedule', $session_id);
     }
     if ($also_sms && function_exists('ti_lesson_sms_notify')) {
-        try { ti_lesson_sms_notify((int)$s['course_id'], 'Zmiana terminu zajec: ' . (string)$s['course_name'] . ' -> ' . $newW . '. Szczegoly w panelu kursanta.'); }
-        catch (\Throwable $e) {}
+        if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
+        $stpl = sms_tpl_render('ti_reschedule_notify', ['course' => (string)$s['course_name'], 'when' => $newW]);
+        if ($stpl['enabled']) {
+            try { ti_lesson_sms_notify((int)$s['course_id'], $stpl['message']); }
+            catch (\Throwable $e) {}
+        }
     }
 }

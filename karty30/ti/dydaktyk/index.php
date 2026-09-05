@@ -13,6 +13,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms_templates.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner.php';
@@ -1273,7 +1274,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($moved > 0 && !empty($_POST['notify'])) {
                 $cname = (string)(db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id])['name'] ?? '');
-                ti_lesson_sms_notify($course_id, "Zmiana terminow zajec: {$cname} - przesunieto {$moved} lekcji. Szczegoly w panelu kursanta.");
+                $stpl = sms_tpl_render('ti_bulk_reschedule', ['course' => $cname, 'count' => (string)$moved]);
+                if ($stpl['enabled']) ti_lesson_sms_notify($course_id, $stpl['message']);
             }
             $msg = "Przesunięto {$moved} " . ($moved === 1 ? 'lekcję' : 'lekcji') . ' o ' . ($shift > 0 ? "+{$shift}" : $shift) . ' dni.';
             if ($skipped) $msg .= " Pominięto {$skipped} — kolizja terminu, konta Zoom albo zamknięty okres." . ZOOM_BUSY_HINT;
@@ -3211,6 +3213,12 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link <?= $tab==='komunikacja'?'active':'' ?>" href="index.php?tab=komunikacja"
      <?= $tab==='komunikacja'?'aria-current="page"':'' ?>>
     <i class="bi bi-send" aria-hidden="true"></i>Komunikacja
+  </a>
+  <a class="dyd-sb-link" href="../email_templates.php" target="_blank" rel="noopener">
+    <i class="bi bi-envelope-paper" aria-hidden="true"></i>Szablony e-mail
+  </a>
+  <a class="dyd-sb-link" href="../sms_templates.php" target="_blank" rel="noopener">
+    <i class="bi bi-chat-left-text" aria-hidden="true"></i>Szablony SMS
   </a>
   <a class="dyd-sb-link" href="../index.php" target="_blank" rel="noopener" style="opacity:.6">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Pełny panel TI
