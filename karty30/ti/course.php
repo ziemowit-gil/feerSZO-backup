@@ -539,6 +539,46 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </div>
 
+<!-- Kalendarz lekcji — GŁÓWNY widok terminów kursu (przeszłe i przyszłe) -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-calendar3-week me-2 text-primary"></i>Kalendarz lekcji
+    <span class="ms-2 text-muted fw-normal" style="font-size:.8rem">Kliknij dzień, aby otworzyć lekcję</span>
+  </div>
+  <div class="card-body">
+    <div id="courseCalendar"></div>
+  </div>
+</div>
+
+<!-- FullCalendar v6 -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+(function(){
+  var el = document.getElementById('courseCalendar');
+  if (!el) return;
+  var cal = new FullCalendar.Calendar(el, {
+    locale: 'pl',
+    initialView: 'dayGridMonth',
+    height: 'auto',
+    firstDay: 1,
+    buttonText: { today: 'Dziś' },
+    headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+    events: function (fetchInfo, successCallback, failureCallback) {
+      var s = fetchInfo.startStr.slice(0, 10), e = fetchInfo.endStr.slice(0, 10);
+      fetch('?id=<?= (int)$id ?>&_json=1&start=' + s + '&end=' + e)
+        .then(function (r) { return r.json(); })
+        .then(successCallback)
+        .catch(failureCallback);
+    },
+    eventClick: function (info) {
+      info.jsEvent.preventDefault();
+      window.location.href = 'lesson.php?id=' + info.event.id;
+    }
+  });
+  cal.render();
+})();
+</script>
+
 <div class="row g-4">
 
   <!-- Uczestnicy -->
@@ -749,15 +789,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="col-lg-6" id="lekcje">
     <div class="card border-0 shadow-sm">
       <div class="card-header fw-semibold d-flex align-items-center">
-        <i class="bi bi-calendar3 me-2 text-primary"></i>Lekcje (ostatnie 30 dni)
+        <i class="bi bi-calendar3 me-2 text-primary"></i>Lista lekcji
+        <span class="text-muted fw-normal" style="font-size:.75rem">(ostatnie 30 dni)</span>
         <span class="badge bg-secondary ms-2"><?= count($sessions) ?></span>
+        <button type="button" class="btn btn-xs btn-sm btn-outline-secondary ms-auto py-0 px-2"
+                data-bs-toggle="collapse" data-bs-target="#lekcjeListaBody">
+          <i class="bi bi-chevron-expand me-1" aria-hidden="true"></i>Rozwiń/zwiń
+        </button>
         <?php if ($can_write): ?>
-        <button type="button" class="btn btn-xs btn-sm btn-outline-primary ms-auto py-0 px-2"
+        <button type="button" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"
                 data-bs-toggle="modal" data-bs-target="#addLessonModal">
           <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
         </button>
         <?php endif; ?>
       </div>
+      <div class="collapse" id="lekcjeListaBody">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
@@ -816,54 +862,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </tbody>
         </table>
       </div>
+      </div><!-- /lekcjeListaBody -->
     </div>
   </div>
 
 </div>
-
-<!-- Kalendarz lekcji — pełna historia (tabela wyżej ogranicza się do ostatnich 30 dni) -->
-<div class="row g-4 mt-0">
-  <div class="col-12">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold d-flex align-items-center">
-        <i class="bi bi-calendar3-week me-2 text-primary"></i>Kalendarz lekcji
-        <span class="ms-2 text-muted fw-normal" style="font-size:.8rem">Wszystkie lekcje kursu — przeszłe i przyszłe, kliknij dzień, aby otworzyć lekcję</span>
-      </div>
-      <div class="card-body">
-        <div id="courseCalendar"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- FullCalendar v6 — kalendarz wszystkich lekcji kursu -->
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-<script>
-(function(){
-  var el = document.getElementById('courseCalendar');
-  if (!el) return;
-  var cal = new FullCalendar.Calendar(el, {
-    locale: 'pl',
-    initialView: 'dayGridMonth',
-    height: 'auto',
-    firstDay: 1,
-    buttonText: { today: 'Dziś' },
-    headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-    events: function (fetchInfo, successCallback, failureCallback) {
-      var s = fetchInfo.startStr.slice(0, 10), e = fetchInfo.endStr.slice(0, 10);
-      fetch('?id=<?= (int)$id ?>&_json=1&start=' + s + '&end=' + e)
-        .then(function (r) { return r.json(); })
-        .then(successCallback)
-        .catch(failureCallback);
-    },
-    eventClick: function (info) {
-      info.jsEvent.preventDefault();
-      window.location.href = 'lesson.php?id=' + info.event.id;
-    }
-  });
-  cal.render();
-})();
-</script>
 
 <!-- Modal: dodanie lekcji (czytelne okienko zamiast ciasnego formularza w stopce) -->
 <?php if ($can_write): ?>

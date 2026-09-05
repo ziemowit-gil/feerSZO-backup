@@ -186,9 +186,6 @@ if ($_sms_enabled && $cur_course) {
           </a></li>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Kalendarz</h6></li>
-          <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalModal">
-            <i class="bi bi-calendar3 me-2"></i>Podgląd kalendarza
-          </a></li>
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
             <i class="bi bi-calendar-check me-2"></i>Subskrybuj / pobierz
           </a></li>
@@ -215,12 +212,18 @@ if ($_sms_enabled && $cur_course) {
           </li>
         </ul>
       </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Widok lekcji">
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokKal" autocomplete="off" checked>
+        <label class="btn btn-outline-primary" for="lekWidokKal"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Kalendarz</label>
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokLista" autocomplete="off">
+        <label class="btn btn-outline-primary" for="lekWidokLista"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista</label>
+      </div>
       <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
         <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
       </button>
     </div>
     <?php if ($sessions): ?>
-    <div class="w-100 d-flex flex-wrap gap-2">
+    <div class="w-100 d-flex flex-wrap gap-2" id="dyd-lekcje-filters" style="display:none">
       <input type="search" class="form-control form-control-sm flex-grow-1" id="lek_search" style="min-width:220px"
              placeholder="Szukaj lekcji (temat, status…)" aria-label="Filtruj lekcje po tekście">
       <?php
@@ -240,6 +243,41 @@ if ($_sms_enabled && $cur_course) {
     </div>
     <?php endif; ?>
   </div>
+
+  <!-- ── Widok: kalendarz (domyślny) ──────────────────────────────── -->
+  <div id="dyd-cal-lekcje" class="p-3">
+    <div id="dydLekcjeCalendar" class="ti-term-calendar border rounded"></div>
+  </div>
+  <script>
+  window.dydLekcjeCalendarInit = function () {
+    var el = document.getElementById('dydLekcjeCalendar');
+    if (!el || el._fcInited) return;
+    el._fcInited = true;
+    var cal = new FullCalendar.Calendar(el, {
+      locale: 'pl',
+      initialView: 'dayGridMonth',
+      height: 'auto',
+      firstDay: 1,
+      buttonText: { today: 'Dziś' },
+      headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+      events: function (fetchInfo, successCallback, failureCallback) {
+        var s = fetchInfo.startStr.slice(0, 10), e = fetchInfo.endStr.slice(0, 10);
+        fetch('lekcje_feed.php?course=<?= (int)$cur_course ?>&start=' + s + '&end=' + e)
+          .then(function (r) { return r.json(); })
+          .then(successCallback)
+          .catch(failureCallback);
+      },
+      eventClick: function (info) {
+        info.jsEvent.preventDefault();
+        window.location.href = 'index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=' + info.event.id;
+      }
+    });
+    cal.render();
+    window._dydLekcjeCal = cal;
+  };
+  </script>
+
+  <div id="dyd-list-lekcje" style="display:none">
 
   <!-- Legenda statusów lekcji -->
   <?php $_sdesc = [
@@ -575,7 +613,40 @@ if ($_sms_enabled && $cur_course) {
     </div>
     <?php endif; ?>
   </div><!-- /dyd-table-lekcje -->
+  </div><!-- /dyd-list-lekcje -->
 </div>
+<script>
+(function(){
+  // Przełącznik widoku: Kalendarz (domyślny) / Lista — zapamiętany w localStorage.
+  var calWrap  = document.getElementById('dyd-cal-lekcje');
+  var listWrap = document.getElementById('dyd-list-lekcje');
+  var filters  = document.getElementById('dyd-lekcje-filters');
+  var rKal     = document.getElementById('lekWidokKal');
+  var rLista   = document.getElementById('lekWidokLista');
+  var calRendered = false;
+
+  function showCalendar() {
+    if (calWrap) calWrap.style.display = '';
+    if (listWrap) listWrap.style.display = 'none';
+    if (filters) filters.style.display = 'none';
+    if (!calRendered && window.dydLekcjeCalendarInit) { window.dydLekcjeCalendarInit(); calRendered = true; }
+    try { localStorage.setItem('dydLekcjeWidok', 'kalendarz'); } catch (e) {}
+  }
+  function showList() {
+    if (calWrap) calWrap.style.display = 'none';
+    if (listWrap) listWrap.style.display = '';
+    if (filters) filters.style.display = '';
+    try { localStorage.setItem('dydLekcjeWidok', 'lista'); } catch (e) {}
+  }
+  if (rKal)   rKal.addEventListener('change', function () { if (rKal.checked) showCalendar(); });
+  if (rLista) rLista.addEventListener('change', function () { if (rLista.checked) showList(); });
+
+  var saved = null;
+  try { saved = localStorage.getItem('dydLekcjeWidok'); } catch (e) {}
+  if (saved === 'lista' && rLista) { rLista.checked = true; showList(); }
+  else { showCalendar(); }
+})();
+</script>
 <script>
 (function(){
   var wrap  = document.getElementById('dyd-table-lekcje');
@@ -1156,62 +1227,6 @@ function dydRecurringModeToggle(){
   [df,dt,iv].forEach(function(el){if(el)el.addEventListener('change',upd);});
 })();
 </script>
-
-<!-- Modal: widok kalendarza lekcji -->
-<?php if ($all_sessions):
-  $cal_by_date = [];
-  foreach ($all_sessions as $s) { $cal_by_date[(string)$s['lesson_date']][] = $s; }
-  $cal_months = []; foreach (array_keys($cal_by_date) as $ld) { if ($ld !== '') $cal_months[substr($ld,0,7)] = true; }
-  $cal_months = array_keys($cal_months); sort($cal_months);
-  $months_full = [1=>'Styczeń',2=>'Luty',3=>'Marzec',4=>'Kwiecień',5=>'Maj',6=>'Czerwiec',7=>'Lipiec',8=>'Sierpień',9=>'Wrzesień',10=>'Październik',11=>'Listopad',12=>'Grudzień'];
-  $wd_short = ['Pn','Wt','Śr','Cz','Pt','So','Nd']; $wd_full = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
-  $today_ymd = date('Y-m-d');
-?>
-<div class="modal fade" id="dydCalModal" tabindex="-1" aria-labelledby="dydCalTitle" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header">
-      <h5 class="modal-title" id="dydCalTitle"><i class="bi bi-calendar3 me-2"></i>Kalendarz lekcji — <?= h($course['name'] ?? '') ?></h5>
-      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-    </div>
-    <div class="modal-body">
-      <?php foreach ($cal_months as $ym):
-        $year = (int)substr($ym,0,4); $mon = (int)substr($ym,5,2);
-        $daysIn = (int)date('t', mktime(0,0,0,$mon,1,$year));
-        $startDow = (int)date('N', mktime(0,0,0,$mon,1,$year));
-      ?>
-      <table class="table table-bordered kp-cal mb-4">
-        <caption class="fw-semibold text-body mb-1"><?= $months_full[$mon] ?> <?= $year ?></caption>
-        <thead><tr><?php foreach ($wd_short as $i=>$w): ?><th scope="col" class="text-center small text-body-secondary" abbr="<?= h($wd_full[$i]) ?>"><?= $w ?></th><?php endforeach; ?></tr></thead>
-        <tbody><tr>
-          <?php
-            for ($i=1;$i<$startDow;$i++) echo '<td class="kp-cal-empty" aria-hidden="true"></td>';
-            $col = $startDow - 1;
-            for ($day=1;$day<=$daysIn;$day++):
-              $ymd = sprintf('%04d-%02d-%02d',$year,$mon,$day);
-              $dl = $cal_by_date[$ymd] ?? []; $isToday = $ymd===$today_ymd;
-          ?>
-          <td class="kp-cal-day<?= $dl?' has-lesson':'' ?><?= $isToday?' is-today':'' ?>"<?= $isToday?' aria-current="date"':'' ?>>
-            <div class="kp-cal-num <?= $isToday?'fw-bold':'' ?>"><?= $day ?></div>
-            <?php foreach ($dl as $e): ?>
-            <div class="kp-cal-ev" title="<?= h(($e['time_from']??'' ? substr($e['time_from'],0,5).' ' : '').($e['topic'] ?: 'Lekcja')) ?>">
-              <?php if (!empty($e['time_from'])): ?><span class="fw-semibold"><?= h(substr($e['time_from'],0,5)) ?></span> <?php endif; ?><?= h($e['topic'] ?: 'Lekcja') ?>
-            </div>
-            <?php endforeach; ?>
-          </td>
-          <?php
-              $col++;
-              if ($col % 7 === 0 && $day < $daysIn) echo '</tr><tr>';
-            endfor;
-            while ($col % 7 !== 0) { echo '<td class="kp-cal-empty" aria-hidden="true"></td>'; $col++; }
-          ?>
-        </tr></tbody>
-      </table>
-      <?php endforeach; ?>
-      <p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1"></i>Miesiące z lekcjami; dzisiejszy dzień jest wyróżniony.</p>
-    </div>
-  </div></div>
-</div>
-<?php endif; ?>
 
 <?php
   $cal_tok  = k30_ti_instructor_cal_token($uid);
