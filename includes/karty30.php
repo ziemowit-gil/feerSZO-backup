@@ -488,6 +488,9 @@ function karty30_migrate(): void {
         // Pewność terminu w grafiku — niezależna od statusu lekcji. '' = ustalony,
         // tentative = niepewny (?), change_possible = możliwa zmiana terminu.
         "ALTER TABLE k30_ti_sessions ADD COLUMN date_flag TEXT NOT NULL DEFAULT ''",
+        // Znacznik wysłania SMS-owego przypomnienia o zbliżającej się lekcji
+        // (cron/ti_lesson_reminders.php) — NULL = jeszcze nie wysłano, zapobiega duplikatom.
+        "ALTER TABLE k30_ti_sessions ADD COLUMN reminder_sent_at DATETIME",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

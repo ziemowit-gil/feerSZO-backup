@@ -145,6 +145,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie (skrypt działa tylko w ostatni dzień miesiąca)
         'schedule' => [21, 23],     // wieczorem ostatniego dnia miesiąca
     ],
+    'ti_lesson_reminders' => [
+        'file'     => __DIR__ . '/ti_lesson_reminders.php',
+        'interval' => 86400,        // raz dziennie — SMS o zajęciach zaplanowanych na jutro
+        'schedule' => [8, 10],
+    ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
         'interval' => 14400,        // co 4h — backup przyrostowy (lokalny)
