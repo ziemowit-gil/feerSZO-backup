@@ -2959,7 +2959,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <!-- Modal: propozycja nowego terminu lekcji -->
   <div class="modal fade" id="reschedLessonModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <form method="post" class="modal-content">
         <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
         <input type="hidden" name="_op"          value="propose_reschedule">
@@ -2971,9 +2971,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="modal-body">
           <p class="mb-2">Lekcja: <strong id="rs_lesson_label"></strong></p>
           <p class="text-body-secondary small mb-3">Propozycja zostanie wysłana do prowadzącego. Termin zmieni się dopiero po jego akceptacji.</p>
-          <div class="mb-2">
-            <label class="form-label fw-semibold" for="rs_date">Proponowana data</label>
-            <input type="date" class="form-control" id="rs_date" name="lesson_date" required>
+          <div class="mb-3">
+            <label class="form-label fw-semibold d-block">Proponowana data</label>
+            <input type="hidden" id="rs_date" name="lesson_date" required>
+            <div id="rs_calendar" class="ti-term-calendar border rounded"></div>
+            <div class="form-text mt-1" id="rs_date_display">Kliknij dzień w kalendarzu, aby wybrać termin.</div>
           </div>
           <div class="row g-2">
             <div class="col-6 mb-2">
@@ -3001,16 +3003,59 @@ document.addEventListener('DOMContentLoaded', function() {
   (function(){
     var modalEl = document.getElementById('reschedLessonModal');
     if (!modalEl) return;
+    var calEl = document.getElementById('rs_calendar');
+    var cal = null, pendingDate = '';
+
+    function ensureCalendar() {
+      if (cal) return cal;
+      cal = new FullCalendar.Calendar(calEl, {
+        locale: 'pl', initialView: 'dayGridMonth', height: 'auto', firstDay: 1,
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        buttonText: { today: 'Dziś' },
+        dateClick: function (info) { selectDate(info.dateStr); }
+      });
+      cal.render();
+      return cal;
+    }
+
+    function selectDate(dateStr) {
+      document.getElementById('rs_date').value = dateStr;
+      calEl.querySelectorAll('.ti-selected-day').forEach(function (d) { d.classList.remove('ti-selected-day'); });
+      var cell = calEl.querySelector('[data-date="' + dateStr + '"]');
+      if (cell) cell.classList.add('ti-selected-day');
+      var disp = document.getElementById('rs_date_display');
+      if (disp) {
+        var d = new Date(dateStr + 'T00:00:00');
+        disp.textContent = 'Wybrano: ' + d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      }
+    }
+
+    modalEl.addEventListener('shown.bs.modal', function () {
+      var c = ensureCalendar();
+      c.updateSize();
+      if (pendingDate) { c.gotoDate(pendingDate); selectDate(pendingDate); }
+    });
+
     document.querySelectorAll('[data-reschedule-session]').forEach(function(btn){
       btn.addEventListener('click', function(){
         document.getElementById('rs_session_id').value = btn.getAttribute('data-reschedule-session');
         document.getElementById('rs_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
-        document.getElementById('rs_date').value = btn.getAttribute('data-lesson-date') || '';
+        pendingDate = btn.getAttribute('data-lesson-date') || '';
+        document.getElementById('rs_date').value = pendingDate;
+        var disp0 = document.getElementById('rs_date_display');
+        if (disp0) disp0.textContent = 'Kliknij dzień w kalendarzu, aby wybrać termin.';
         document.getElementById('rs_from').value = (btn.getAttribute('data-lesson-from') || '').slice(0,5);
         document.getElementById('rs_to').value   = (btn.getAttribute('data-lesson-to') || '').slice(0,5);
         document.getElementById('rs_reason').value = '';
         new bootstrap.Modal(modalEl).show();
       });
+    });
+
+    modalEl.querySelector('form').addEventListener('submit', function (e) {
+      if (!document.getElementById('rs_date').value) {
+        e.preventDefault();
+        alert('Wybierz proponowaną datę w kalendarzu.');
+      }
     });
   })();
   </script>

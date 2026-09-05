@@ -1308,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal: zmiana terminu lekcji -->
 <div class="modal fade" id="reschedSessionModal" tabindex="-1" aria-labelledby="reschedSession_t" aria-hidden="true">
-  <div class="modal-dialog"><form method="post" class="modal-content">
+  <div class="modal-dialog modal-lg"><form method="post" class="modal-content">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="reschedule_session">
     <input type="hidden" name="_tab" value="lekcje">
@@ -1320,9 +1320,11 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="modal-body">
       <p class="text-body-secondary small mb-3">Obecny termin: <strong id="rs_label"></strong></p>
-      <div class="mb-2">
-        <label class="form-label fw-semibold" for="rs_date">Nowa data <span class="text-danger">*</span></label>
-        <input type="date" class="form-control" id="rs_date" name="lesson_date" required>
+      <div class="mb-3">
+        <label class="form-label fw-semibold d-block">Nowa data <span class="text-danger">*</span></label>
+        <input type="hidden" id="rs_date" name="lesson_date" required>
+        <div id="rs_calendar" class="ti-term-calendar border rounded"></div>
+        <div class="form-text mt-1" id="rs_date_display">Kliknij dzień w kalendarzu, aby wybrać nowy termin.</div>
       </div>
       <div class="row g-2">
         <div class="col-6 mb-2">
@@ -1349,6 +1351,59 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </form></div>
 </div>
+<script>
+(function(){
+  var modalEl = document.getElementById('reschedSessionModal');
+  if (!modalEl) return;
+  var calEl = document.getElementById('rs_calendar');
+  var cal = null, pendingDate = '';
+
+  function ensureCalendar() {
+    if (cal) return cal;
+    cal = new FullCalendar.Calendar(calEl, {
+      locale: 'pl', initialView: 'dayGridMonth', height: 'auto', firstDay: 1,
+      headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+      buttonText: { today: 'Dziś' },
+      dateClick: function (info) { selectDate(info.dateStr); }
+    });
+    cal.render();
+    return cal;
+  }
+
+  function selectDate(dateStr) {
+    document.getElementById('rs_date').value = dateStr;
+    calEl.querySelectorAll('.ti-selected-day').forEach(function (d) { d.classList.remove('ti-selected-day'); });
+    var cell = calEl.querySelector('[data-date="' + dateStr + '"]');
+    if (cell) cell.classList.add('ti-selected-day');
+    var disp = document.getElementById('rs_date_display');
+    if (disp) {
+      var d = new Date(dateStr + 'T00:00:00');
+      disp.textContent = 'Wybrano: ' + d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  }
+
+  // Wywoływane z dydOpenReschedule() w index.php przy otwieraniu modala.
+  window.tiSetRescheduleDate = function (dateStr) {
+    pendingDate = dateStr || '';
+    document.getElementById('rs_date').value = pendingDate;
+    var disp0 = document.getElementById('rs_date_display');
+    if (disp0) disp0.textContent = 'Kliknij dzień w kalendarzu, aby wybrać nowy termin.';
+  };
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    var c = ensureCalendar();
+    c.updateSize();
+    if (pendingDate) { c.gotoDate(pendingDate); selectDate(pendingDate); }
+  });
+
+  modalEl.querySelector('form').addEventListener('submit', function (e) {
+    if (!document.getElementById('rs_date').value) {
+      e.preventDefault();
+      alert('Wybierz nową datę w kalendarzu.');
+    }
+  });
+})();
+</script>
 
 <!-- ── Modal: podgląd SMS z planem tygodnia ─────────────────────────────────── -->
 <?php if ($_sms_enabled): ?>

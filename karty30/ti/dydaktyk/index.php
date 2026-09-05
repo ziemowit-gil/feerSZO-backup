@@ -3537,7 +3537,8 @@ function dydOpenCancelSession(sid, label) {
 function dydOpenReschedule(sid, label, date, from, to) {
   document.getElementById('rs_sid').value = sid;
   document.getElementById('rs_label').textContent = label || '';
-  var d = document.getElementById('rs_date'); if (d) d.value = date || '';
+  if (typeof window.tiSetRescheduleDate === 'function') { window.tiSetRescheduleDate(date || ''); }
+  else { var d = document.getElementById('rs_date'); if (d) d.value = date || ''; }
   var f = document.getElementById('rs_from'); if (f) f.value = from || '';
   var t = document.getElementById('rs_to');   if (t) t.value = to || '';
   new bootstrap.Modal(document.getElementById('reschedSessionModal')).show();

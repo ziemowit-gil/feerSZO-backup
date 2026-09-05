@@ -20,6 +20,8 @@ $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 <title><?= h($KP_TITLE) ?> — <?= h($KP_ORG) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<!-- FullCalendar v6 — duży kalendarz przy wyborze terminu (zmiana terminu lekcji) -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <style>
 :root {
   --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250;
@@ -134,6 +136,13 @@ body:has(.kp-auth-wrap) {
 .kp-cal-num { font-size:.8rem; color:var(--bs-secondary-color); }
 .kp-cal-ev { font-size:.72rem; line-height:1.2; background:var(--bs-primary); color:#fff; border-radius:.25rem; padding:1px 4px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .kp-cal-ev.cancelled { background:var(--bs-secondary-bg); color:var(--bs-secondary-color); text-decoration:line-through; }
+
+/* ── Duży kalendarz przy wyborze terminu (FullCalendar) ─────────────────── */
+.ti-term-calendar { padding:.5rem; }
+.ti-term-calendar .fc-toolbar-title { font-size:1rem; }
+.ti-term-calendar .fc-daygrid-day.ti-selected-day { background:rgba(var(--kp-primary-rgb,37,99,235),.18); }
+.ti-term-calendar .fc-daygrid-day.ti-selected-day .fc-daygrid-day-number { font-weight:700; color:var(--kp-primary,#2563eb); }
+.ti-term-calendar .fc-daygrid-day-frame { cursor:pointer; }
 
 /* ── Menu dostępności (a11y) ───────────────────────────────────────────── */
 html[data-kp-font="1"] { font-size:112.5%; }
