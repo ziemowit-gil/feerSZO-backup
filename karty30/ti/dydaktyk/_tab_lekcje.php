@@ -246,6 +246,11 @@ if ($_sms_enabled && $cur_course) {
 
   <!-- ── Widok: kalendarz (domyślny) ──────────────────────────────── -->
   <div id="dyd-cal-lekcje" class="p-3">
+    <?php if (dyd_is_staff()): ?>
+    <div class="text-body-secondary small mb-2"><i class="bi bi-people-fill me-1" aria-hidden="true"></i>Widok kierownika — wszystkie grupy naraz.</div>
+    <?php else: ?>
+    <div class="text-body-secondary small mb-2"><i class="bi bi-person me-1" aria-hidden="true"></i>Twoje zajęcia — <?= h($course['name'] ?? '') ?>.</div>
+    <?php endif; ?>
     <div id="dydLekcjeCalendar" class="ti-term-calendar border rounded"></div>
   </div>
   <script>
@@ -269,7 +274,8 @@ if ($_sms_enabled && $cur_course) {
       },
       eventClick: function (info) {
         info.jsEvent.preventDefault();
-        window.location.href = 'index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=' + info.event.id;
+        var cid = (info.event.extendedProps && info.event.extendedProps.courseId) || <?= (int)$cur_course ?>;
+        window.location.href = 'index.php?course=' + cid + '&tab=lekcje&lesson=' + info.event.id;
       }
     });
     cal.render();
