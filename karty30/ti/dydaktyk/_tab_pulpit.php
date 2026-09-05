@@ -82,7 +82,41 @@ foreach ($dash_today as $_s) {
     );
     if ($_rows) $_att_by_session[(int)$_s['id']] = $_rows;
 }
+
+// ── Frekwencja: bieżący miesiąc (liczone tu, żeby pasek statystyk u góry mógł
+//    pokazać zbiorczy % zanim wyrenderujemy pełną tabelę per grupa niżej) ────
+$_att_rows = [];
+if (!empty($course_ids)) {
+    $_ph2 = implode(',', array_fill(0, count($course_ids), '?'));
+    $_att_rows = db_all(
+        "SELECT c.id AS course_id, c.name AS course_name,
+                COUNT(DISTINCT s.id) AS lessons,
+                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=1 THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=0 THEN 1 ELSE 0 END) AS absent
+           FROM k30_ti_sessions s
+           JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
+          WHERE s.course_id IN ($_ph2)
+            AND s.status IN ('held','individual_change')
+            AND strftime('%Y-%m', s.lesson_date) = strftime('%Y-%m','now','localtime')
+          GROUP BY c.id
+          ORDER BY c.name COLLATE NOCASE",
+        $course_ids
+    );
+}
 ?>
+
+<style>
+/* Mini paski frekwencji — szerokość zawsze w % rodzica (komórki tabeli), bez
+   stałych pikselowych wymiarów; to jest DOKŁADNIE to, czego unikamy po
+   poprzedniej, rozjeżdżającej się wersji (patrz komentarz na górze pliku). */
+.dyd-bar { background: var(--bs-secondary-bg, #e9ecef); border-radius: 99px; height: 6px; overflow: hidden; min-width: 3rem; }
+.dyd-bar-fill { height: 100%; border-radius: 99px; }
+.dyd-stat-card { border: 0; border-radius: .6rem; }
+.dyd-stat-num { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.dyd-stat-label { font-size: .74rem; }
+.dyd-card-accent { border-left: 4px solid transparent; }
+</style>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h1 class="h5 fw-bold mb-0"><i class="bi bi-house me-2" aria-hidden="true"></i>Pulpit</h1>
@@ -94,12 +128,60 @@ foreach ($dash_today as $_s) {
   <?php endif; ?>
 </div>
 
+<?php /* ── Pasek szybkich statystyk: fluid Bootstrap grid, bez stałych szerokości ── */
+  $_stat_pct_all = null;
+  if (!empty($_att_rows)) {
+      $_sp = 0; $_sa = 0;
+      foreach ($_att_rows as $_ar0) { $_sp += (int)$_ar0['present']; $_sa += (int)$_ar0['absent']; }
+      if ($_sp + $_sa > 0) $_stat_pct_all = (int)round($_sp / ($_sp + $_sa) * 100);
+  }
+?>
+<div class="row row-cols-2 row-cols-md-4 g-2 mb-3">
+  <div class="col">
+    <div class="card dyd-stat-card h-100 <?= $_todo ? 'text-bg-warning-subtle' : 'text-bg-light' ?>">
+      <div class="card-body py-2 px-3">
+        <div class="dyd-stat-num"><?= count($_todo) ?></div>
+        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Do zrobienia</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card dyd-stat-card h-100 <?= $dash_today ? 'text-bg-primary-subtle' : 'text-bg-light' ?>">
+      <div class="card-body py-2 px-3">
+        <div class="dyd-stat-num"><?= count($dash_today) ?></div>
+        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-calendar-day me-1" aria-hidden="true"></i>Dziś</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card dyd-stat-card h-100 text-bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="dyd-stat-num"><?= count($dash_upcoming) ?></div>
+        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Następne 7 dni</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card dyd-stat-card h-100 text-bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="dyd-stat-num">
+          <?php if ($_stat_pct_all === null): ?><span class="text-muted fs-6">—</span>
+          <?php else: ?><?= $_stat_pct_all ?>%<?php endif; ?>
+        </div>
+        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Frekwencja <?= h(date('m.Y')) ?></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
-<div class="card">
-  <div class="card-header">Do zrobienia</div>
+<div class="card dyd-card-accent <?= $_todo ? 'border-warning' : '' ?>">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="bi bi-list-check text-warning" aria-hidden="true"></i>Do zrobienia
+  </div>
   <?php if (!$_todo): ?>
   <div class="card-body small text-body-secondary">
-    <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Nic nie czeka — wszystko uzupełnione.
+    <i class="bi bi-check2-circle me-1 text-success" aria-hidden="true"></i>Nic nie czeka — wszystko uzupełnione.
   </div>
   <?php else: ?>
   <div class="table-responsive">
@@ -130,7 +212,7 @@ foreach ($dash_today as $_s) {
 
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
 <div class="card">
-  <div class="card-header">Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></div>
+  <div class="card-header"><i class="bi bi-calendar-day text-primary me-1" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></div>
   <?php if (!$dash_today): ?>
   <div class="card-body small text-body-secondary">Brak zaplanowanych zajęć na dziś.</div>
   <?php else: ?>
@@ -190,7 +272,7 @@ foreach ($dash_today as $_s) {
 
 <?php /* ── Najbliższe 7 dni ──────────────────────────────────────────────── */ ?>
 <div class="card">
-  <div class="card-header">Najbliższe zajęcia <span class="badge bg-secondary ms-1"><?= count($dash_upcoming) ?></span>
+  <div class="card-header"><i class="bi bi-calendar-week text-secondary me-1" aria-hidden="true"></i>Najbliższe zajęcia <span class="badge bg-secondary ms-1"><?= count($dash_upcoming) ?></span>
     <span class="ms-2 small fw-normal text-body-secondary">następne 7 dni</span></div>
   <?php if (!$dash_upcoming): ?>
   <div class="card-body small text-body-secondary">Brak zajęć zaplanowanych w najbliższych 7 dniach.</div>
@@ -228,31 +310,10 @@ foreach ($dash_today as $_s) {
   <?php endif; ?>
 </div>
 
-<?php /* ── Frekwencja: bieżący miesiąc ───────────────────────────────────── */ ?>
-<?php
-$_att_rows = [];
-if (!empty($course_ids)) {
-    $_ph2 = implode(',', array_fill(0, count($course_ids), '?'));
-    $_att_rows = db_all(
-        "SELECT c.id AS course_id, c.name AS course_name,
-                COUNT(DISTINCT s.id) AS lessons,
-                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=1 THEN 1 ELSE 0 END) AS present,
-                SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=0 THEN 1 ELSE 0 END) AS absent
-           FROM k30_ti_sessions s
-           JOIN k30_ti_courses c ON c.id = s.course_id
-           LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
-          WHERE s.course_id IN ($_ph2)
-            AND s.status IN ('held','individual_change')
-            AND strftime('%Y-%m', s.lesson_date) = strftime('%Y-%m','now','localtime')
-          GROUP BY c.id
-          ORDER BY c.name COLLATE NOCASE",
-        $course_ids
-    );
-}
-?>
+<?php /* ── Frekwencja: bieżący miesiąc ($_att_rows policzone wyżej) ───────── */ ?>
 <?php if ($_att_rows): ?>
 <div class="card">
-  <div class="card-header">Frekwencja — <?= h(date('m.Y')) ?></div>
+  <div class="card-header"><i class="bi bi-graph-up text-success me-1" aria-hidden="true"></i>Frekwencja — <?= h(date('m.Y')) ?></div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Frekwencja w bieżącym miesiącu per grupa</caption>
@@ -275,8 +336,11 @@ if (!empty($course_ids)) {
           <td class="text-end small<?= (int)$_ar['absent'] > 0 ? ' text-danger' : '' ?>"><?= (int)$_ar['absent'] ?></td>
           <td class="text-end small">
             <?php if ($_pct === null): ?><span class="text-muted">—</span>
-            <?php else: ?>
-              <span class="badge <?= $_pct >= 80 ? 'text-bg-success' : ($_pct >= 60 ? 'text-bg-warning' : 'text-bg-danger') ?>"><?= $_pct ?>%</span>
+            <?php else: $_barc = $_pct >= 80 ? '#198754' : ($_pct >= 60 ? '#ffc107' : '#dc3545'); ?>
+              <div class="d-flex align-items-center justify-content-end gap-2">
+                <div class="dyd-bar flex-grow-1"><div class="dyd-bar-fill" style="width:<?= $_pct ?>%;background:<?= $_barc ?>"></div></div>
+                <span class="badge <?= $_pct >= 80 ? 'text-bg-success' : ($_pct >= 60 ? 'text-bg-warning' : 'text-bg-danger') ?>"><?= $_pct ?>%</span>
+              </div>
             <?php endif; ?>
           </td>
         </tr>
@@ -314,7 +378,7 @@ if (!empty($course_ids)) {
 ?>
 <?php if ($_ch_rows): ?>
 <div class="card">
-  <div class="card-header">Trend — ostatnie 6 miesięcy</div>
+  <div class="card-header"><i class="bi bi-bar-chart-line text-info me-1" aria-hidden="true"></i>Trend — ostatnie 6 miesięcy</div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Zajęcia i frekwencja w kolejnych miesiącach</caption>
@@ -338,7 +402,15 @@ if (!empty($course_ids)) {
           <td class="text-end small"><?= (int)$_cr['spr'] ?></td>
           <td class="text-end small"><?= (int)$_cr['present'] ?></td>
           <td class="text-end small<?= (int)$_cr['absent'] > 0 ? ' text-danger' : '' ?>"><?= (int)$_cr['absent'] ?></td>
-          <td class="text-end small"><?= $_pct !== null ? (int)$_pct . '%' : '<span class="text-muted">—</span>' ?></td>
+          <td class="text-end small" style="min-width:8rem">
+            <?php if ($_pct === null): ?><span class="text-muted">—</span>
+            <?php else: $_barc2 = $_pct >= 80 ? '#198754' : ($_pct >= 60 ? '#ffc107' : '#dc3545'); ?>
+              <div class="d-flex align-items-center justify-content-end gap-2">
+                <div class="dyd-bar flex-grow-1"><div class="dyd-bar-fill" style="width:<?= $_pct ?>%;background:<?= $_barc2 ?>"></div></div>
+                <span class="small"><?= $_pct ?>%</span>
+              </div>
+            <?php endif; ?>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -352,7 +424,7 @@ if (!empty($course_ids)) {
 <?php if ($_notices): ?>
 <div class="card">
   <div class="card-header d-flex align-items-center">
-    <span>Komunikaty placówki</span>
+    <span><i class="bi bi-megaphone text-warning me-1" aria-hidden="true"></i>Komunikaty placówki</span>
     <a href="index.php?tab=komunikaty" class="btn btn-sm btn-outline-secondary ms-auto">Wszystkie</a>
   </div>
   <div class="table-responsive">
