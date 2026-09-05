@@ -335,6 +335,7 @@ $komm_ch_guard     = false;
 $komm_subject      = '';
 $komm_body         = '';
 $komm_body_html    = '';
+$bulk_resched_preview = null; // ustawiane w _op=bulk_reschedule_preview, odczyt w _tab_lekcje.php
 
 // ── Operacje zapisu ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -1210,16 +1211,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tt   = trim($_POST['time_to'] ?? '');
         if ($sid && dyd_owns_session($uid, $sid)) {
             if ($date === '') { flash_set('danger', 'Podaj nowy termin lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
-            $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
-            if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
-            if ($_pc = ti_period_closed_for_date($date)) {
-                flash_set('danger', ti_period_closed_msg($_pc));
+            $v = ti_validate_reschedule($sid, $course_id, $date, $tf, $tt);
+            if (!$v['ok']) {
+                flash_set('danger', $v['reason'] . ($v['code'] === 'zoom' ? ZOOM_BUSY_HINT : ''));
                 header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
             }
-            // Zajętość konta Zoom w nowym terminie — twarda blokada
-            $_lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_method'] ?? '');
-            $zc  = ti_zoom_slot_check($course_id, $_lm, $date, $tf, $tt, $sid);
-            if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
             $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
             if ($old !== null && isset($_POST['notify'])) {
                 k30_ti_reschedule_notify_parties($sid, $old, isset($_POST['notify_sms']));
@@ -1229,6 +1225,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Zbiorcze przesunięcie terminów wszystkich lekcji kursu w zadanym zakresie
+    // dat o N dni (np. prowadzący choruje przez tydzień). Te same 3 sprawdzenia
+    // co pojedyncza zmiana terminu (ti_validate_reschedule) — lekcje kolidujące
+    // (dostępność/Zoom/zamknięty okres) są POMIJANE, nie blokują całej operacji.
+    if ($op === 'bulk_reschedule_preview' || $op === 'bulk_reschedule_apply') {
+        $shift  = (int)($_POST['shift_days'] ?? 0);
+        $d_from = trim($_POST['date_from'] ?? '');
+        $d_to   = trim($_POST['date_to']   ?? '');
+
+        if (!dyd_owns_course($uid, $course_id)) { flash_set('danger', 'Brak dostępu do tego kursu.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        if ($shift === 0) { flash_set('danger', 'Podaj przesunięcie różne od zera (w dniach).'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        if ($d_from === '' || $d_to === '' || $d_from > $d_to) { flash_set('danger', 'Podaj poprawny zakres dat (od–do).'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+
+        $rows = db_all(
+            "SELECT * FROM k30_ti_sessions
+              WHERE course_id=? AND lesson_date BETWEEN ? AND ? AND status IN ('planned','reserved')
+              ORDER BY lesson_date, time_from",
+            [$course_id, $d_from, $d_to]
+        );
+        $plan = [];
+        foreach ($rows as $s) {
+            $new_date = date('Y-m-d', strtotime((string)$s['lesson_date'] . ' ' . ($shift >= 0 ? '+' : '') . $shift . ' days'));
+            $v = ti_validate_reschedule((int)$s['id'], $course_id, $new_date, (string)$s['time_from'], (string)$s['time_to']);
+            $plan[] = ['session' => $s, 'new_date' => $new_date, 'ok' => $v['ok'], 'reason' => $v['reason']];
+        }
+
+        if ($op === 'bulk_reschedule_apply') {
+            $moved = 0; $skipped = 0;
+            db()->beginTransaction();
+            try {
+                foreach ($plan as $p) {
+                    // Re-sprawdź na świeżo: wcześniejsze przesunięcia w tej samej
+                    // pętli mogły zmienić zajętość Zoom dla kolejnych lekcji.
+                    $v2 = ti_validate_reschedule((int)$p['session']['id'], $course_id, $p['new_date'], (string)$p['session']['time_from'], (string)$p['session']['time_to']);
+                    if (!$v2['ok']) { $skipped++; continue; }
+                    k30_ti_do_reschedule((int)$p['session']['id'], $p['new_date'], (string)$p['session']['time_from'], (string)$p['session']['time_to']);
+                    $moved++;
+                }
+                db()->commit();
+            } catch (\Throwable $e) {
+                db()->rollBack();
+                flash_set('danger', 'Operacja nie powiodła się: ' . $e->getMessage());
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+            if ($moved > 0 && !empty($_POST['notify'])) {
+                $cname = (string)(db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id])['name'] ?? '');
+                ti_lesson_sms_notify($course_id, "Zmiana terminow zajec: {$cname} - przesunieto {$moved} lekcji. Szczegoly w panelu kursanta.");
+            }
+            $msg = "Przesunięto {$moved} " . ($moved === 1 ? 'lekcję' : 'lekcji') . ' o ' . ($shift > 0 ? "+{$shift}" : $shift) . ' dni.';
+            if ($skipped) $msg .= " Pominięto {$skipped} — kolizja terminu, konta Zoom albo zamknięty okres." . ZOOM_BUSY_HINT;
+            flash_set($skipped ? 'warning' : 'success', $msg);
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+
+        // Podgląd — bez exit: reszta strony renderuje się normalnie, z tabelą planu.
+        $bulk_resched_preview = compact('plan', 'shift', 'd_from', 'd_to');
     }
 
     // Decyzja ws. propozycji nowego terminu od kursanta / opiekuna

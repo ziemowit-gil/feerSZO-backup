@@ -65,6 +65,30 @@ function _k30_ti_dur_min(string $tf, string $tt): ?int {
 }
 
 /**
+ * Waliduje możliwość zmiany terminu POJEDYNCZEJ lekcji — te same 3 sprawdzenia
+ * co ręczna zmiana terminu przez prowadzącego (dostępność, okres zamknięty,
+ * kolizja Zoom). Współdzielone przez pojedynczą zmianę terminu i zbiorcze
+ * przesunięcie lekcji kursu, żeby walidacja nie rozjechała się między nimi.
+ * 'code' pozwala wywołującemu dobrać dodatkowy podpowiedź (np. ZOOM_BUSY_HINT).
+ * @return array{ok:bool, reason:string, code:string}
+ */
+function ti_validate_reschedule(int $session_id, int $course_id, string $date, string $tf, string $tt): array {
+    $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+    if (!$av['ok']) return ['ok' => false, 'reason' => $av['reason'], 'code' => 'availability'];
+
+    require_once __DIR__ . '/ti_periods.php';
+    if ($pc = ti_period_closed_for_date($date)) {
+        return ['ok' => false, 'reason' => ti_period_closed_msg($pc), 'code' => 'period_closed'];
+    }
+
+    $lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$session_id])['lesson_method'] ?? '');
+    $zc = ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $session_id);
+    if (!$zc['ok']) return ['ok' => false, 'reason' => $zc['reason'], 'code' => 'zoom'];
+
+    return ['ok' => true, 'reason' => '', 'code' => ''];
+}
+
+/**
  * Bezpośrednia zmiana terminu lekcji (prowadzący / admin).
  * Zwraca snapshot starego terminu: ['lesson_date','time_from','time_to'] albo null gdy lekcja nie istnieje.
  */
