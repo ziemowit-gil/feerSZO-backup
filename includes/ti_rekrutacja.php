@@ -231,6 +231,26 @@ function ti_rk_migrate(): void {
             }
         }
     }
+
+    // Lista oczekujących: gdy slot jest pełny (SLOT_FULL), kursant dołącza tu
+    // zamiast dostać tylko odmowę. Żetony NIE są pobierane przy dołączeniu —
+    // rk_book() sprawdza miejsce przed żetonami, więc SLOT_FULL nie ma efektów
+    // ubocznych do cofnięcia. Powiadomienie wysyłane, gdy miejsce się zwolni
+    // (rk_cancel() → rk_waitlist_notify_slot_free()).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_rk_waitlist (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        slot_id     INTEGER NOT NULL REFERENCES k30_rk_slots(id) ON DELETE CASCADE,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id)  ON DELETE CASCADE,
+        status      TEXT    NOT NULL DEFAULT 'waiting', -- waiting|notified|booked|cancelled
+        notified_at DATETIME,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Jeden żywy wpis (waiting/notified) na kursanta i slot — kolejne próby
+    // dołączenia są no-opem (ALREADY_WAITLISTED), nie duplikatem w kolejce.
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rk_waitlist_uniq
+                ON k30_rk_waitlist(slot_id, client_id)
+                WHERE status IN ('waiting','notified')");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rk_waitlist_slot ON k30_rk_waitlist(slot_id, status, created_at)");
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1381,7 +1401,7 @@ function rk_grafik_approve(int $round_id, array $instructor_ids = [], int $creat
    ══════════════════════════════════════════════════════════════════════════ */
 
 function rk_cancel(int $booking_id, int $client_id, string $by = 'student', string $reason = ''): array {
-    return rk_tx(function () use ($booking_id, $client_id, $by, $reason) {
+    $result = rk_tx(function () use ($booking_id, $client_id, $by, $reason) {
 
         $b = db_one(
             "SELECT b.*, s.starts_at, s.id AS slot_id, s.session_id,
@@ -1452,8 +1472,95 @@ function rk_cancel(int $booking_id, int $client_id, string $by = 'student', stri
                     [$b['client_id'], (int)$b['session_id']]);
         }
 
-        return ['refunded' => $refund, 'forfeited' => $paid - $refund];
+        return ['refunded' => $refund, 'forfeited' => $paid - $refund, 'slot_id' => (int)$b['slot_id']];
     });
+
+    // Poza transakcją (nie blokuj zapisu SQLite na czas maila/SMS-a): jeśli ktoś
+    // czeka na liście oczekujących na ten slot, powiadom pierwszą osobę w kolejce.
+    // Pojedynczy błąd wysyłki nie może cofnąć już zatwierdzonej rezygnacji.
+    try { rk_waitlist_notify_slot_free($result['slot_id']); } catch (\Throwable) {}
+
+    return $result;
+}
+
+/**
+ * Dołączenie do listy oczekujących na slot, który jest już pełny.
+ * Nie pobiera żetonów — to tylko zgłoszenie chęci, rezerwacja i płatność
+ * następują normalnie przez rk_book(), gdy kursant dostanie powiadomienie
+ * i sam dokona zapisu (miejsce nie jest dla niego automatycznie blokowane).
+ */
+function rk_waitlist_join(int $slot_id, int $client_id): array {
+    $slot = db_one("SELECT * FROM k30_rk_slots WHERE id=?", [$slot_id]);
+    if (!$slot) throw new RkException('SLOT_NOT_FOUND');
+    if ($slot['status'] !== 'open') throw new RkException('SLOT_CLOSED');
+
+    $dup = db_one(
+        "SELECT 1 FROM k30_rk_bookings WHERE slot_id=? AND client_id=? AND status IN (" . rk_in(RK_LIVE_STATUSES) . ")",
+        [$slot_id, $client_id]);
+    if ($dup) throw new RkException('ALREADY_BOOKED');
+
+    try {
+        db_exec("INSERT INTO k30_rk_waitlist (slot_id, client_id, status) VALUES (?,?,'waiting')", [$slot_id, $client_id]);
+    } catch (\PDOException) {
+        throw new RkException('ALREADY_WAITLISTED');
+    }
+    return ['ok' => true];
+}
+
+/**
+ * Wywoływane po każdym rk_cancel(): jeśli na zwolnionym slocie czeka ktoś na
+ * liście oczekujących, powiadamia PIERWSZĄ osobę w kolejce (mail + SMS) — nie
+ * rezerwuje za nią miejsca automatycznie, tylko informuje, że może się zapisać.
+ * Idempotentne: oznacza wpis jako 'notified', więc kolejne zwolnienie miejsca
+ * (np. druga rezygnacja z rzędu) przejdzie do następnej osoby w kolejce.
+ */
+function rk_waitlist_notify_slot_free(int $slot_id): void {
+    if ($slot_id <= 0) return;
+    $slot = db_one(
+        "SELECT s.*, c.name AS course_name
+           FROM k30_rk_slots s LEFT JOIN k30_ti_courses c ON c.id = s.course_id
+          WHERE s.id = ? AND s.status = 'open' AND s.seats_taken < s.capacity",
+        [$slot_id]);
+    if (!$slot) return; // slot już znów pełny/zamknięty — nic do zrobienia
+
+    $w = db_one(
+        "SELECT * FROM k30_rk_waitlist WHERE slot_id = ? AND status = 'waiting' ORDER BY created_at ASC LIMIT 1",
+        [$slot_id]);
+    if (!$w) return;
+
+    $ok = rk_affect("UPDATE k30_rk_waitlist SET status='notified', notified_at=datetime('now') WHERE id=? AND status='waiting'", [$w['id']]);
+    if ($ok !== 1) return; // ktoś inny (np. drugi cron/request) już obsłużył ten wpis
+
+    $client = db_one("SELECT * FROM k30_clients WHERE id=?", [(int)$w['client_id']]);
+    if (!$client) return;
+
+    if (!function_exists('mail_queue_add'))    require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('email_tpl_render'))  require_once __DIR__ . '/email_templates.php';
+    if (!function_exists('sms_channel_ready')) @require_once __DIR__ . '/sms.php';
+
+    $when  = rk_fmt_dt((string)$slot['starts_at']) . '–' . substr((string)$slot['ends_at'], 11, 5);
+    $panel = rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php?tab=zapisy';
+    $email = trim((string)($client['email'] ?? ''));
+    if ($email !== '') {
+        $tpl = email_tpl_render('rk_waitlist_slot_free', [
+            'name'    => (string)$client['name'],
+            'when'    => $when,
+            'subject' => (string)($slot['subject_label'] ?: ($slot['course_name'] ?? '') ?: 'zajęcia'),
+            'panel_url' => $panel,
+            'org'     => defined('ORG_NAME') ? ORG_NAME : '',
+        ]);
+        if ($tpl['enabled'] && $tpl['subject'] !== '') {
+            mail_queue_add($email, (string)$client['name'], $tpl['subject'], $tpl['html'], '', 'rk_waitlist', (int)$w['id']);
+        }
+    }
+    $phone = trim((string)($client['phone'] ?? ''));
+    if ($phone !== '' && function_exists('sms_channel_ready') && sms_channel_ready()) {
+        $msg = 'Zwolnilo sie miejsce na termin ' . date('d.m H:i', strtotime((string)$slot['starts_at']))
+             . ' — bylas(es) na liscie oczekujacych. Zapisz sie w panelu, dopoki miejsce wolne.';
+        try {
+            function_exists('sms_send_with_fallback') ? sms_send_with_fallback($phone, $msg, $email) : sms_send($phone, $msg);
+        } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+    }
 }
 
 /**
@@ -1553,7 +1660,9 @@ function rk_slots_admin_list(array $f = [], int $limit = 500): array {
                 (s.capacity - s.seats_taken) AS seats_free,
                 (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id) AS n_bookings_all,
                 (SELECT COUNT(*) FROM k30_rk_bookings b WHERE b.slot_id = s.id
-                   AND b.status IN (" . rk_in(RK_LIVE_STATUSES) . ")) AS n_bookings_live
+                   AND b.status IN (" . rk_in(RK_LIVE_STATUSES) . ")) AS n_bookings_live,
+                (SELECT COUNT(*) FROM k30_rk_waitlist w WHERE w.slot_id = s.id
+                   AND w.status IN ('waiting','notified')) AS n_waitlist
            FROM k30_rk_slots s
            JOIN users u ON u.id = s.instructor_id
            JOIN k30_rk_rounds r ON r.id = s.round_id

@@ -1086,6 +1086,39 @@ HTML,
                 'panel_url'  => ['label' => 'Link do panelu zatwierdzeń', 'sample' => $base . '/karty30/ti/dydaktyk/rekrutacja.php?tab=zapisy'],
             ],
         ],
+
+        // — Rekrutacja TI: zwolniło się miejsce (lista oczekujących) ————————
+        'rk_waitlist_slot_free' => [
+            'label'       => 'Rekrutacja TI — zwolniło się miejsce (lista oczekujących)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-bell',
+            'auto'        => true,
+            'description' => 'Wysyłane do pierwszej osoby z listy oczekujących, gdy na wcześniej pełnym terminie zwolni się miejsce (ktoś zrezygnował). Miejsce NIE jest rezerwowane automatycznie — trzeba zapisać się samodzielnie w panelu.',
+            'subject'     => 'Zwolniło się miejsce — {{when}}',
+            'body'        => <<<'HTML'
+<p>Dzień dobry, <strong>{{name}}</strong>.</p>
+<p>Byłeś(-aś) na liście oczekujących na termin, który był pełny — właśnie zwolniło się na nim miejsce:</p>
+<table style="background:#f8f9fa;border-radius:8px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr><td style="padding:6px 14px;color:#6c757d;width:130px;font-size:.9em">Termin</td><td style="padding:6px 14px"><strong>{{when}}</strong></td></tr>
+  <tr><td style="padding:6px 14px;color:#6c757d;font-size:.9em">Zajęcia</td><td style="padding:6px 14px">{{subject}}</td></tr>
+</table>
+<p>Miejsce <strong>nie jest</strong> zarezerwowane automatycznie — może je zająć ktoś inny, jeśli będzie szybszy.
+Zaloguj się i zapisz, dopóki jest wolne:</p>
+<div style="margin:24px 0;text-align:center">
+  <a href="{{panel_url}}" style="background:#c2410c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Zapisz się teraz &rarr;
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;word-break:break-all">Jeśli przycisk nie działa: <a href="{{panel_url}}">{{panel_url}}</a></p>
+HTML,
+            'vars'        => [
+                'org'       => ['label' => 'Nazwa organizacji',   'sample' => 'Dydaktyka TI'],
+                'name'      => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
+                'when'      => ['label' => 'Termin',              'sample' => '05.10.2026 16:00–17:00'],
+                'subject'   => ['label' => 'Temat/rodzaj zajęć',  'sample' => 'konsultacja projektowa'],
+                'panel_url' => ['label' => 'Link do zapisów w panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=zapisy'],
+            ],
+        ],
     ];
 
     return $reg;

@@ -260,7 +260,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $back = 'index.php?tab=zapisy';
         } catch (RkException $e) {
-            $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+            // Slot pełny: dołącz do listy oczekujących zamiast samej odmowy —
+            // powiadomimy, gdy zwolni się miejsce (rk_waitlist_notify_slot_free).
+            if ($e->getMessage() === 'SLOT_FULL') {
+                try {
+                    rk_waitlist_join((int)($_POST['slot_id'] ?? 0), (int)$student['client_id']);
+                    $_SESSION['rk_flash'] = ['ok', 'Ten termin jest pełny — dodaliśmy Cię do listy oczekujących. Damy znać e-mailem/SMS-em, gdy zwolni się miejsce. Możesz też od razu wybrać inny termin.'];
+                } catch (RkException $e2) {
+                    $_SESSION['rk_flash'] = ['err', rk_error_message($e2->getMessage())];
+                }
+            } else {
+                $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+            }
         }
         header('Location: ' . $back); exit;
     }

@@ -106,7 +106,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $back = 't.php';
         } catch (RkException $e) {
-            $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+            if ($e->getMessage() === 'SLOT_FULL') {
+                try {
+                    rk_waitlist_join((int)($_POST['slot_id'] ?? 0), $client_id);
+                    $_SESSION['rk_flash'] = ['ok', 'Ten termin jest pełny — dodaliśmy Cię do listy oczekujących. Damy znać e-mailem/SMS-em, gdy zwolni się miejsce. Możesz też od razu wybrać inny termin.'];
+                } catch (RkException $e2) {
+                    $_SESSION['rk_flash'] = ['err', rk_error_message($e2->getMessage())];
+                }
+            } else {
+                $_SESSION['rk_flash'] = ['err', rk_error_message($e->getMessage())];
+            }
         }
     } elseif ($op === 'rk_cancel') {
         try {

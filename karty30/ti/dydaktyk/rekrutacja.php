@@ -1510,7 +1510,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                      aria-label="Lekcja w dzienniku"></i>
                   <?php endif; ?>
                 </td>
-                <td class="text-end"><?= (int)$gs['seats_taken'] ?>/<?= (int)$gs['capacity'] ?></td>
+                <td class="text-end">
+                  <?= (int)$gs['seats_taken'] ?>/<?= (int)$gs['capacity'] ?>
+                  <?php if ((int)($gs['n_waitlist'] ?? 0) > 0): ?>
+                  <span class="badge text-bg-warning ms-1" title="Kursantów na liście oczekujących">
+                    <i class="bi bi-hourglass-split" aria-hidden="true"></i> <?= (int)$gs['n_waitlist'] ?>
+                  </span>
+                  <?php endif; ?>
+                </td>
                 <td class="text-end"><?= (int)$gs['token_cost'] ?> żet.</td>
                 <td><span class="badge text-bg-<?= match ((string)$gs['status']) {
                     'open' => 'success', 'draft' => 'secondary', 'locked' => 'warning',
