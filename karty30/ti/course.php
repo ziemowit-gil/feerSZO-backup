@@ -39,6 +39,31 @@ $id        = (int)($_GET['id'] ?? 0);
 $course    = $id ? k30_ti_course_get($id) : null;
 if (!$course) { flash_set('danger','Kurs nie istnieje.'); header('Location: index.php'); exit; }
 
+// Feed JSON dla kalendarza lekcji (FullCalendar) — GET, tylko odczyt, bez CSRF.
+if (($_GET['_json'] ?? '') === '1') {
+    header('Content-Type: application/json; charset=utf-8');
+    $start = trim($_GET['start'] ?? '');
+    $end   = trim($_GET['end']   ?? '');
+    $rows  = k30_ti_sessions($id, $start, $end);
+    $out = [];
+    foreach ($rows as $s) {
+        $st = K30_TI_SESSION_STATUSES[$s['status']] ?? ['label'=>$s['status'],'color'=>'#666','bg'=>'#eee'];
+        $title = ($s['time_from'] ? substr((string)$s['time_from'],0,5).'–'.substr((string)$s['time_to'],0,5).' · ' : '') . $st['label'];
+        $out[] = [
+            'id'              => (int)$s['id'],
+            'title'           => $title,
+            'start'           => $s['lesson_date'] . ($s['time_from'] ? 'T'.$s['time_from'] : ''),
+            'end'             => $s['time_to'] ? $s['lesson_date'].'T'.$s['time_to'] : null,
+            'allDay'          => $s['time_from'] === '' || $s['time_from'] === null,
+            'backgroundColor' => $st['bg'],
+            'borderColor'     => $st['color'],
+            'textColor'       => $st['color'],
+        ];
+    }
+    echo json_encode($out);
+    exit;
+}
+
 $can_write = can_write('karty30') || is_admin();
 $PAGE_TITLE= 'TI: ' . $course['name'];
 
@@ -351,6 +376,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <style>
 .rate-display { cursor:pointer; border-bottom:1px dashed #94a3b8; }
 .rate-edit { display:none }
+.ti-term-calendar { padding:.5rem; }
+.ti-term-calendar .fc-toolbar-title { font-size:1rem; }
+.ti-term-calendar .fc-daygrid-day.ti-selected-day { background:rgba(37,99,235,.18); }
+.ti-term-calendar .fc-daygrid-day.ti-selected-day .fc-daygrid-day-number { font-weight:700; color:#2563eb; }
+.ti-term-calendar .fc-daygrid-day-frame { cursor:pointer; }
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
@@ -791,10 +821,54 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 </div>
 
+<!-- Kalendarz lekcji — pełna historia (tabela wyżej ogranicza się do ostatnich 30 dni) -->
+<div class="row g-4 mt-0">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header fw-semibold d-flex align-items-center">
+        <i class="bi bi-calendar3-week me-2 text-primary"></i>Kalendarz lekcji
+        <span class="ms-2 text-muted fw-normal" style="font-size:.8rem">Wszystkie lekcje kursu — przeszłe i przyszłe, kliknij dzień, aby otworzyć lekcję</span>
+      </div>
+      <div class="card-body">
+        <div id="courseCalendar"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FullCalendar v6 — kalendarz wszystkich lekcji kursu -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+(function(){
+  var el = document.getElementById('courseCalendar');
+  if (!el) return;
+  var cal = new FullCalendar.Calendar(el, {
+    locale: 'pl',
+    initialView: 'dayGridMonth',
+    height: 'auto',
+    firstDay: 1,
+    buttonText: { today: 'Dziś' },
+    headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+    events: function (fetchInfo, successCallback, failureCallback) {
+      var s = fetchInfo.startStr.slice(0, 10), e = fetchInfo.endStr.slice(0, 10);
+      fetch('?id=<?= (int)$id ?>&_json=1&start=' + s + '&end=' + e)
+        .then(function (r) { return r.json(); })
+        .then(successCallback)
+        .catch(failureCallback);
+    },
+    eventClick: function (info) {
+      info.jsEvent.preventDefault();
+      window.location.href = 'lesson.php?id=' + info.event.id;
+    }
+  });
+  cal.render();
+})();
+</script>
+
 <!-- Modal: dodanie lekcji (czytelne okienko zamiast ciasnego formularza w stopce) -->
 <?php if ($can_write): ?>
 <div class="modal fade" id="addLessonModal" tabindex="-1" aria-labelledby="addLessonLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <form method="post" id="add_session_form">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -805,9 +879,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label class="form-label fw-semibold" for="sess_date">Data <span class="text-danger">*</span></label>
-            <input type="date" class="form-control" name="lesson_date" id="sess_date"
-                   value="<?= date('Y-m-d') ?>" required>
+            <label class="form-label fw-semibold d-block">Data <span class="text-danger">*</span></label>
+            <input type="hidden" name="lesson_date" id="sess_date" value="<?= date('Y-m-d') ?>" required>
+            <div id="sess_calendar" class="ti-term-calendar border rounded"></div>
+            <div class="form-text mt-1" id="sess_date_display">Dziś: <?= date('d.m.Y') ?> — kliknij inny dzień, aby zmienić.</div>
           </div>
           <div class="row g-2 mb-3 align-items-end">
             <div class="col-5">
@@ -876,6 +951,50 @@ function updateDur() {
     if (m > 0) document.getElementById('sess_dur').value = Math.round(m);
   }
 }
+(function(){
+  var modalEl = document.getElementById('addLessonModal');
+  if (!modalEl) return;
+  var calEl = document.getElementById('sess_calendar');
+  var cal = null;
+
+  function ensureCalendar() {
+    if (cal) return cal;
+    cal = new FullCalendar.Calendar(calEl, {
+      locale: 'pl', initialView: 'dayGridMonth', height: 'auto', firstDay: 1,
+      headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+      buttonText: { today: 'Dziś' },
+      dateClick: function (info) { selectDate(info.dateStr); }
+    });
+    cal.render();
+    return cal;
+  }
+
+  function selectDate(dateStr) {
+    document.getElementById('sess_date').value = dateStr;
+    calEl.querySelectorAll('.ti-selected-day').forEach(function (d) { d.classList.remove('ti-selected-day'); });
+    var cell = calEl.querySelector('[data-date="' + dateStr + '"]');
+    if (cell) cell.classList.add('ti-selected-day');
+    var disp = document.getElementById('sess_date_display');
+    if (disp) {
+      var d = new Date(dateStr + 'T00:00:00');
+      disp.textContent = 'Wybrano: ' + d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  }
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    var c = ensureCalendar();
+    c.updateSize();
+    var cur = document.getElementById('sess_date').value;
+    if (cur) { c.gotoDate(cur); selectDate(cur); }
+  });
+
+  document.getElementById('add_session_form').addEventListener('submit', function (e) {
+    if (!document.getElementById('sess_date').value) {
+      e.preventDefault();
+      alert('Wybierz datę lekcji w kalendarzu.');
+    }
+  });
+})();
 </script>
 <?php endif; ?>
 
@@ -892,7 +1011,7 @@ document.querySelectorAll('.rate-form').forEach(function(form) {
 
 <!-- Modal klonowania lekcji -->
 <div class="modal fade" id="cloneModal" tabindex="-1" aria-labelledby="cloneModalLabel">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <form method="post">
         <input type="hidden" name="_csrf"          value="<?= h(csrf_token()) ?>">
@@ -907,9 +1026,10 @@ document.querySelectorAll('.rate-form').forEach(function(form) {
         <div class="modal-body">
           <p class="text-muted small mb-3" id="clone_src_info"></p>
           <div class="mb-3">
-            <label class="form-label fw-semibold">Nowa data lekcji <span class="text-danger">*</span></label>
-            <input type="date" class="form-control" name="clone_date" id="clone_date"
-                   value="<?= date('Y-m-d') ?>" required min="<?= date('Y-m-d') ?>">
+            <label class="form-label fw-semibold d-block">Nowa data lekcji <span class="text-danger">*</span></label>
+            <input type="hidden" name="clone_date" id="clone_date" value="<?= date('Y-m-d') ?>" required>
+            <div id="clone_calendar" class="ti-term-calendar border rounded"></div>
+            <div class="form-text mt-1" id="clone_date_display">Kliknij dzień w kalendarzu, aby wybrać nową datę.</div>
             <div class="form-text">Godziny (od–do) i czas trwania zostaną skopiowane z oryginału.</div>
           </div>
           <?php if (ti_instructor_availability(ti_course_instructor_id((int)$id))): ?>
@@ -931,6 +1051,54 @@ document.querySelectorAll('.rate-form').forEach(function(form) {
 </div>
 
 <script>
+(function(){
+  var modalEl = document.getElementById('cloneModal');
+  if (!modalEl) return;
+  var calEl = document.getElementById('clone_calendar');
+  var cal = null, pendingDate = '';
+  var todayStr = '<?= date('Y-m-d') ?>';
+
+  function ensureCalendar() {
+    if (cal) return cal;
+    cal = new FullCalendar.Calendar(calEl, {
+      locale: 'pl', initialView: 'dayGridMonth', height: 'auto', firstDay: 1,
+      validRange: { start: todayStr },
+      headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+      buttonText: { today: 'Dziś' },
+      dateClick: function (info) { selectDate(info.dateStr); }
+    });
+    cal.render();
+    return cal;
+  }
+
+  function selectDate(dateStr) {
+    document.getElementById('clone_date').value = dateStr;
+    calEl.querySelectorAll('.ti-selected-day').forEach(function (d) { d.classList.remove('ti-selected-day'); });
+    var cell = calEl.querySelector('[data-date="' + dateStr + '"]');
+    if (cell) cell.classList.add('ti-selected-day');
+    var disp = document.getElementById('clone_date_display');
+    if (disp) {
+      var d = new Date(dateStr + 'T00:00:00');
+      disp.textContent = 'Wybrano: ' + d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  }
+
+  window.tiSetCloneDate = function (dateStr) { pendingDate = dateStr || todayStr; };
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    var c = ensureCalendar();
+    c.updateSize();
+    if (pendingDate) { c.gotoDate(pendingDate); selectDate(pendingDate); }
+  });
+
+  modalEl.querySelector('form').addEventListener('submit', function (e) {
+    if (!document.getElementById('clone_date').value) {
+      e.preventDefault();
+      alert('Wybierz nową datę w kalendarzu.');
+    }
+  });
+})();
+
 function openClone(lessonId, date, timeFrom, timeTo) {
   document.getElementById('clone_src_id').value = lessonId;
   var info = 'Oryginał: ' + date.split('-').reverse().join('.');
@@ -939,7 +1107,9 @@ function openClone(lessonId, date, timeFrom, timeTo) {
   // Zaproponuj następny tydzień
   var d = new Date(date + 'T12:00:00');
   d.setDate(d.getDate() + 7);
-  document.getElementById('clone_date').value = d.toISOString().slice(0,10);
+  var proposed = d.toISOString().slice(0,10);
+  document.getElementById('clone_date').value = proposed;
+  if (typeof window.tiSetCloneDate === 'function') window.tiSetCloneDate(proposed);
   new bootstrap.Modal(document.getElementById('cloneModal')).show();
 }
 // Override rozliczania kursanta — pokaż stawkę (godzinowy) lub kwotę (miesięczny/stały)
