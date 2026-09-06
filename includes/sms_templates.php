@@ -62,18 +62,6 @@ function sms_tpl_registry(): array
                 'when'   => ['label' => 'Nowy termin', 'sample' => '12.09.2026 o 10:00'],
             ],
         ],
-        'ti_bulk_reschedule' => [
-            'label'       => 'Zbiorcza zmiana terminu',
-            'group'       => 'TI — Zajęcia',
-            'icon'        => 'bi-arrows-move',
-            'auto'        => true,
-            'description' => 'Wysyłane do uczestników kursu po zbiorczym przesunięciu wielu lekcji naraz (zakładka Lekcje, panel dydaktyka).',
-            'message'     => 'Zmiana terminow zajec: {{course}} - przesunieto {{count}} lekcji. Szczegoly w panelu kursanta.',
-            'vars'        => [
-                'course' => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
-                'count'  => ['label' => 'Liczba przesuniętych lekcji', 'sample' => '4'],
-            ],
-        ],
         'ti_lesson_reminder' => [
             'label'       => 'Przypomnienie o jutrzejszej lekcji',
             'group'       => 'TI — Zajęcia',
