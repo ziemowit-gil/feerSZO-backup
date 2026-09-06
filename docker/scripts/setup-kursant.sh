@@ -123,6 +123,21 @@ section "5. Status"
 sleep 2
 ${COMPOSE} ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || ${COMPOSE} ps
 
+# ── 6. Włącz przycisk "Nowy panel" w zalogowanym panelu klasycznym ────────────
+# Dopiero teraz, gdy kursant-ui faktycznie działa — nie chcemy pokazywać
+# użytkownikom przycisku do usługi, która może jeszcze nie odpowiadać.
+section "6. Włączanie przycisku „Nowy panel”"
+
+if ${COMPOSE} ps kursant-ui 2>/dev/null | grep -qi "running\|Up"; then
+    set_env_var "KURSANT_NEW_UI_ENABLED" "1" "$ENV_FILE"
+    info "Restart serwisu app, żeby podjął nową flagę…"
+    ${COMPOSE} up -d --no-deps app
+    ok "Przycisk „Nowy panel” włączony w zalogowanym panelu klasycznym"
+else
+    warn "kursant-ui nie zgłasza się jako uruchomiony — pomijam włączenie przycisku."
+    warn "Sprawdź logi (${CYAN}docker compose ... logs kursant-ui${RESET}) i uruchom ten skrypt ponownie."
+fi
+
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}━━ Gotowe ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"

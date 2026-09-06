@@ -116,6 +116,12 @@ if (!defined('SZO_PLANNER_URL')) define('SZO_PLANNER_URL', getenv('SZO_PLANNER_U
 // W produkcji: https://ti.feer.org.pl/newUI/
 if (!defined('KURSANT_NEW_UI_URL')) define('KURSANT_NEW_UI_URL', getenv('KURSANT_NEW_UI_URL') ?: 'http://localhost:4202');
 
+// Czy nowy panel kursanta jest już rzeczywiście wdrożony i widoczny dla
+// użytkowników (a nie tylko skonfigurowany adresem) — ustawiane na '1' przez
+// docker/scripts/setup-kursant.sh dopiero PO udanym wdrożeniu, żeby przycisk
+// "Nowy panel" nie pojawiał się, zanim usługa faktycznie działa.
+if (!defined('KURSANT_NEW_UI_ENABLED')) define('KURSANT_NEW_UI_ENABLED', getenv('KURSANT_NEW_UI_ENABLED') === '1');
+
 // ── Ścieżki ───────────────────────────────────────────────────────────────────
 if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/uploads/');
 if (!defined('APP_URL'))    define('APP_URL', (function() {
