@@ -59,115 +59,153 @@ $KP_BODY_CLASS = 'kp-login-split-page' . ($login_ui === 'alt' ? ' ti-skin' : '')
 include __DIR__ . '/kursant/_layout_head.php';
 ?>
 <style>
-/* ══ Układ logowania TI — ten sam język co logowanie do SZO i do CRM ══════
-   Był to ekran dzielony: 62% szerokości zajmowało zdjęcie, formularz stał
-   z prawej. Wyglądał inaczej niż pozostałe wejścia do systemu, a na laptopie
-   zakładki i pola lądowały w wąskiej kolumnie przy krawędzi.
+/* ══ Logowanie TI — ten sam minimalistyczny język co chooser.php ══════════
+   Płaska strona (bez zdjęcia, karty i cienia): biel/czerń, cienkie linie,
+   pogrubiony nagłówek, jeden akcent koloru. Ten sam zestaw zmiennych co
+   w karty30/ti/kursant/chooser.php — zmień w jednym miejscu, zmieniasz
+   w obu. */
 
-   Teraz jedna karta na środku, na tle marki z geometrią — jak w CRM i w SZO.
-   Zdjęcie zostaje, ale jako TŁO całej strony, nie jako połowa ekranu. */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg:      #ffffff;
+  --text:    #111111;
+  --muted:   #5f5f5f;
+  --rule:    #d4d4d4;
+  --accent:  #c2410c;
+  --accent-h:#9a3409;
+  --hover-bg:#f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:      #0c0c0c;
+    --text:    #ededed;
+    --muted:   #888888;
+    --rule:    #2a2a2a;
+    --accent:  #e05a1e;
+    --accent-h:#f97316;
+    --hover-bg:#161616;
+  }
+}
+:root[data-theme="light"] {
+  --bg:#ffffff; --text:#111111; --muted:#5f5f5f;
+  --rule:#d4d4d4; --accent:#c2410c; --accent-h:#9a3409; --hover-bg:#f5f5f5;
+}
+:root[data-theme="dark"] {
+  --bg:#0c0c0c; --text:#ededed; --muted:#888888;
+  --rule:#2a2a2a; --accent:#e05a1e; --accent-h:#f97316; --hover-bg:#161616;
+}
 
 html, body.kp-login-split-page { min-height: 100%; margin: 0; padding: 0 !important; }
 
 body.kp-login-split-page {
-  background: #07111e url('assets/login-bg.webp') center / cover no-repeat fixed;
-}
-/* Przyciemnienie: zdjęcie ma nieść nastrój, nie konkurować z treścią karty */
-body.kp-login-split-page::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none;
-  background: linear-gradient(155deg, rgba(4,10,26,.86) 0%, rgba(4,10,26,.72) 55%, rgba(4,10,26,.88) 100%);
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 .kp-split-wrap {
-  position: relative; z-index: 1;
   min-height: 100vh; width: 100%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 2rem 1rem 3rem;
+  padding: 3rem 1.5rem;
 }
 
-/* ── Marka nad kartą (dawna lewa kolumna) ──────────────────────────────── */
-.kp-split-left {
-  flex: 0 0 auto; background: none; overflow: visible;
-  width: 100%; max-width: 560px; margin-bottom: 1.5rem;
-}
-.kp-split-left::after { content: none; }
-.kp-split-left-inner {
-  display: flex; flex-direction: column; align-items: center; gap: .6rem;
-  height: auto; padding: 0; color: #fff; text-align: center;
-}
+/* ── Branding (dawna lewa kolumna — teraz tylko górny wiersz) ──────────── */
+.kp-split-left { width: 100%; max-width: 460px; margin-bottom: .5rem; }
+.kp-split-left-inner { display: flex; align-items: center; gap: .6rem; }
 .kp-split-brand-icon {
-  width: 54px; height: 54px; border-radius: 1rem;
-  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.24);
+  width: 40px; height: 40px; border-radius: 8px;
+  background: var(--hover-bg); border: 1px solid var(--rule); color: var(--accent);
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; flex-shrink: 0;
+  font-size: 1.15rem; flex-shrink: 0;
 }
-.kp-split-left-inner .d-flex { flex-direction: column; align-items: center; gap: .6rem !important; }
-.kp-split-tagline { margin: 0; opacity: .6; font-size: .8rem; line-height: 1.5; }
+.kp-split-tagline { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 
-/* ── Karta z formularzem (dawna prawa kolumna) ─────────────────────────── */
-.kp-split-right {
-  width: 100%; max-width: 560px;
-  background: #fff; border-radius: 18px;
-  padding: 2.25rem 2rem 1.75rem;
-  box-shadow: 0 18px 50px rgba(0,0,0,.35);
-}
-@media (min-width: 576px) { .kp-split-right { padding: 2.5rem 2.75rem 2rem; } }
+/* ── Treść (dawna prawa kolumna/karta) ─────────────────────────────────── */
+.kp-split-right { width: 100%; max-width: 460px; }
 
 .kp-split-right .kp-org-name {
-  font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-  color: #6b7280; text-align: center; margin: 0 0 .35rem;
+  font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 .5rem;
 }
 .kp-split-right .kp-login-heading {
-  font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; text-align: center;
-  color: #111827; margin: 0 0 1.5rem;
+  font-size: 2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.1;
+  color: var(--text); margin: 0 0 1.5rem;
 }
 .kp-split-right .kp-auth-footer {
-  margin: 1.5rem 0 0; text-align: center; font-size: .76rem; color: #9ca3af;
+  margin: 2rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+  text-align: center; font-size: .75rem; color: var(--muted);
 }
-/* Link w stopce musi być czytelny, a szarość stopki ma 2,6:1 — stąd własny
-   kolor (#1d4ed8 na białym = 7,5:1) i podkreślenie, żeby nie niósł samego koloru. */
-.kp-split-right .kp-auth-footer .kp-ui-switch { color: #1d4ed8; text-decoration: underline; }
-.kp-split-right .kp-auth-footer .kp-ui-switch:hover { color: #1e3a8a; }
+.kp-split-right .kp-auth-footer .kp-ui-switch { color: var(--accent); text-decoration: underline; }
+.kp-split-right .kp-auth-footer .kp-ui-switch:hover { color: var(--accent-h); }
 
-.kp-split-right .nav-tabs { border-bottom-color: #e5e7eb; margin-bottom: 1.25rem; }
-.kp-split-right .nav-tabs .nav-link { color: #6b7280; border-color: transparent; }
-.kp-split-right .nav-tabs .nav-link:hover { color: #111; }
+/* Zakładki — cienkie podkreślenie, bez pudełek */
+.kp-split-right .nav-tabs { border-bottom: 1px solid var(--rule); margin-bottom: 1.5rem; gap: .25rem; }
+.kp-split-right .nav-tabs .nav-link {
+  color: var(--muted); border: none; border-bottom: 2px solid transparent;
+  border-radius: 0; padding: .5rem .1rem; margin-right: 1.1rem; background: none;
+}
+.kp-split-right .nav-tabs .nav-link:hover { color: var(--text); }
 .kp-split-right .nav-tabs .nav-link.active {
-  color: var(--kp-primary, #2563eb); border-color: #e5e7eb #e5e7eb #fff; font-weight: 600;
+  color: var(--text); border-bottom-color: var(--accent); font-weight: 700; background: none;
 }
+
+/* Pola formularza — płasko, cienka linia, bez cienia */
+.kp-split-right .form-label { color: var(--text); font-weight: 600; font-size: .88rem; }
+.kp-split-right .form-text { color: var(--muted); font-size: .78rem; }
+.kp-split-right .input-group-text {
+  background: var(--bg); border: 1px solid var(--rule); border-right: none; color: var(--muted);
+}
+.kp-split-right .form-control {
+  background: var(--bg); border: 1px solid var(--rule); color: var(--text);
+  border-radius: 4px; box-shadow: none;
+}
+.kp-split-right .input-group .form-control { border-radius: 0 4px 4px 0; }
+.kp-split-right .input-group .input-group-text { border-radius: 4px 0 0 4px; }
+.kp-split-right .form-control:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+}
+.kp-split-right .form-control::placeholder { color: var(--muted); opacity: .7; }
+.kp-split-right .btn-outline-secondary {
+  border: 1px solid var(--rule); color: var(--muted); background: var(--bg); border-radius: 4px;
+}
+.kp-split-right .btn-outline-secondary:hover { background: var(--hover-bg); color: var(--text); }
+
 .kp-split-right .btn-primary {
-  background: var(--kp-primary, #2563eb); border-color: var(--kp-primary, #2563eb);
+  background: var(--accent); border-color: var(--accent); border-radius: 4px; font-weight: 600;
 }
-.kp-split-right .btn-primary:hover { background: #1e40af; border-color: #1e40af; }
+.kp-split-right .btn-primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
+.kp-split-right .btn-lg { border-radius: 4px; }
 
 /* ── Informacja o zmianie wyglądu ──────────────────────────────────────── */
 .kp-change {
   display: flex; gap: .6rem; align-items: flex-start;
-  background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF;
-  border-radius: 10px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55;
-  margin-bottom: 1.25rem;
+  border: 1px solid var(--rule); color: var(--muted);
+  border-radius: 4px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55;
+  margin-bottom: 1.5rem;
 }
-.kp-change i { font-size: 1rem; flex-shrink: 0; margin-top: .1rem }
+.kp-change strong { color: var(--text); }
+.kp-change i { font-size: 1rem; flex-shrink: 0; margin-top: .1rem; color: var(--accent); }
 
 /* ── Rozjazd „to nie tutaj" ────────────────────────────────────────────── */
-.kp-lost { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e5e7eb; }
-.kp-lost-h { font-size: .95rem; font-weight: 700; text-align: center; color: #111827; margin: 0 0 .3rem; }
-.kp-lost-sub { text-align: center; font-size: .8rem; color: #6b7280; line-height: 1.55; margin: 0 0 .9rem; }
-.kp-lost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.kp-lost { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
+.kp-lost-h { font-size: .95rem; font-weight: 700; color: var(--text); margin: 0 0 .3rem; }
+.kp-lost-sub { font-size: .8rem; color: var(--muted); line-height: 1.55; margin: 0 0 .9rem; }
+.kp-lost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
 .kp-lost a {
-  display: flex; align-items: center; gap: .65rem; padding: .55rem .75rem;
-  border: 1px solid #e5e7eb; border-radius: 10px; text-decoration: none; color: #111827;
-  transition: border-color .12s, background .12s;
+  display: flex; align-items: center; gap: .65rem; padding: .6rem .5rem;
+  border-radius: 4px; text-decoration: none; color: var(--text);
+  transition: background .1s;
 }
-.kp-lost a:hover, .kp-lost a:focus { border-color: var(--kp-primary, #2563eb); background: #f9fafb; }
-.kp-lost a > i:first-child { color: var(--kp-primary, #2563eb); font-size: 1rem; flex-shrink: 0; }
+.kp-lost a:hover, .kp-lost a:focus-visible { background: var(--hover-bg); outline: none; }
+.kp-lost a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.kp-lost a > i:first-child { color: var(--accent); font-size: 1rem; flex-shrink: 0; }
 .kp-lost strong { display: block; font-size: .86rem; font-weight: 600; line-height: 1.3; }
-.kp-lost span.d { display: block; font-size: .75rem; color: #6b7280; line-height: 1.4; }
-.kp-lost .arr { margin-left: auto; font-size: .78rem; color: #9ca3af; }
+.kp-lost span.d { display: block; font-size: .75rem; color: var(--muted); line-height: 1.4; }
+.kp-lost .arr { margin-left: auto; font-size: .78rem; color: var(--muted); }
 
 @media (max-width: 575px) {
-  .kp-split-right { padding: 1.75rem 1.25rem 1.5rem; }
-  .kp-split-wrap { padding: 1.25rem .75rem 2rem; }
+  .kp-split-wrap { padding: 2rem .75rem; }
 }
 </style>
 <?php if ($login_ui === 'alt'):
