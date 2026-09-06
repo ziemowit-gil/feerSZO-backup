@@ -59,41 +59,50 @@ $KP_BODY_CLASS = 'kp-login-split-page' . ($login_ui === 'alt' ? ' ti-skin' : '')
 include __DIR__ . '/kursant/_layout_head.php';
 ?>
 <style>
-/* ══ Logowanie TI — ten sam minimalistyczny język co chooser.php ══════════
-   Płaska strona (bez zdjęcia, karty i cienia): biel/czerń, cienkie linie,
-   pogrubiony nagłówek, jeden akcent koloru. Ten sam zestaw zmiennych co
-   w karty30/ti/kursant/chooser.php — zmień w jednym miejscu, zmieniasz
-   w obu. */
+/* ══ Logowanie TI — styl USOS/CAS ═══════════════════════════════════════
+   Gradientowy pasek u góry (jak Centralny System Uwierzytelniania), szare
+   tło strony i biała, obramowana „karta" logowania z zakładkami wyglądającymi
+   jak zakładki przeglądarkowe. Utylitarnie, gęsto, bez dużych cieni. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
-  --bg:      #ffffff;
-  --text:    #111111;
-  --muted:   #5f5f5f;
-  --rule:    #d4d4d4;
-  --accent:  #c2410c;
-  --accent-h:#9a3409;
-  --hover-bg:#f5f5f5;
+  --bg:       #eef0f4;
+  --card-bg:  #ffffff;
+  --strip-bg: #f2f2f6;
+  --text:     #1a1a1a;
+  --muted:    #5f5f66;
+  --rule:     #d0d0d8;
+  --accent:   #1e3a5f;
+  --accent-h: #15293f;
+  --hover-bg: #e7e9ef;
+  --topbar-1: #362f52;
+  --topbar-2: #5a3a63;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:      #0c0c0c;
-    --text:    #ededed;
-    --muted:   #888888;
-    --rule:    #2a2a2a;
-    --accent:  #e05a1e;
-    --accent-h:#f97316;
-    --hover-bg:#161616;
+    --bg:       #15151b;
+    --card-bg:  #1e1e26;
+    --strip-bg: #24242e;
+    --text:     #ededed;
+    --muted:    #9a9aa4;
+    --rule:     #34343f;
+    --accent:   #5680b3;
+    --accent-h: #6f97c6;
+    --hover-bg: #292933;
+    --topbar-1: #221d34;
+    --topbar-2: #3a2740;
   }
 }
 :root[data-theme="light"] {
-  --bg:#ffffff; --text:#111111; --muted:#5f5f5f;
-  --rule:#d4d4d4; --accent:#c2410c; --accent-h:#9a3409; --hover-bg:#f5f5f5;
+  --bg:#eef0f4; --card-bg:#ffffff; --strip-bg:#f2f2f6; --text:#1a1a1a; --muted:#5f5f66;
+  --rule:#d0d0d8; --accent:#1e3a5f; --accent-h:#15293f; --hover-bg:#e7e9ef;
+  --topbar-1:#362f52; --topbar-2:#5a3a63;
 }
 :root[data-theme="dark"] {
-  --bg:#0c0c0c; --text:#ededed; --muted:#888888;
-  --rule:#2a2a2a; --accent:#e05a1e; --accent-h:#f97316; --hover-bg:#161616;
+  --bg:#15151b; --card-bg:#1e1e26; --strip-bg:#24242e; --text:#ededed; --muted:#9a9aa4;
+  --rule:#34343f; --accent:#5680b3; --accent-h:#6f97c6; --hover-bg:#292933;
+  --topbar-1:#221d34; --topbar-2:#3a2740;
 }
 
 html, body.kp-login-split-page { min-height: 100%; margin: 0; padding: 0 !important; }
@@ -104,33 +113,55 @@ body.kp-login-split-page {
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
-.kp-split-wrap {
-  min-height: 100vh; width: 100%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 3rem 1.5rem;
+/* ── Pasek u góry (jak Centralny System Uwierzytelniania) ──────────────── */
+.kp-usos-topbar {
+  width: 100%; background: linear-gradient(120deg, var(--topbar-1), var(--topbar-2) 75%);
+  color: #fff; padding: .8rem 1.5rem;
+}
+.kp-usos-topbar-inner {
+  max-width: 460px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.kp-usos-topbar-org {
+  font-size: .78rem; font-weight: 600; letter-spacing: .03em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kp-usos-topbar-note {
+  font-size: .72rem; color: rgba(255,255,255,.75); white-space: nowrap; flex-shrink: 0;
 }
 
-/* ── Branding (dawna lewa kolumna — teraz tylko górny wiersz) ──────────── */
-.kp-split-left { width: 100%; max-width: 460px; margin-bottom: .5rem; }
+.kp-split-wrap {
+  min-height: 100vh; width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 1.5rem 3rem;
+}
+
+/* ── Branding (logo + tytuł modułu) — pasek pod topbarem, na tle strony ── */
+.kp-split-left { width: 100%; max-width: 460px; margin: 1.5rem 0 1rem; }
 .kp-split-left-inner { display: flex; align-items: center; gap: .6rem; }
 .kp-split-brand-icon {
-  width: 40px; height: 40px; border-radius: 8px;
-  background: var(--hover-bg); border: 1px solid var(--rule); color: var(--accent);
+  width: 40px; height: 40px; border-radius: 2px;
+  background: var(--card-bg); border: 1px solid var(--rule); color: var(--accent);
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 1.15rem; flex-shrink: 0;
 }
 .kp-split-tagline { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 
-/* ── Treść (dawna prawa kolumna/karta) ─────────────────────────────────── */
-.kp-split-right { width: 100%; max-width: 460px; }
+/* ── Karta logowania — obramowana, biała, kwadratowe rogi ──────────────── */
+.kp-split-right {
+  width: 100%; max-width: 460px;
+  background: var(--card-bg); border: 1px solid var(--rule); border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.09);
+  padding: 0 1.75rem 1.5rem;
+}
 
 .kp-split-right .kp-org-name {
   font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--muted); margin: 0 0 .5rem;
+  color: var(--accent); margin: 0; padding-top: 1.25rem;
 }
 .kp-split-right .kp-login-heading {
-  font-size: 2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.1;
-  color: var(--text); margin: 0 0 1.5rem;
+  font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
+  color: var(--text); margin: 0 0 1.25rem;
 }
 .kp-split-right .kp-auth-footer {
   margin: 2rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--rule);
@@ -139,49 +170,54 @@ body.kp-login-split-page {
 .kp-split-right .kp-auth-footer .kp-ui-switch { color: var(--accent); text-decoration: underline; }
 .kp-split-right .kp-auth-footer .kp-ui-switch:hover { color: var(--accent-h); }
 
-/* Zakładki — cienkie podkreślenie, bez pudełek */
-.kp-split-right .nav-tabs { border-bottom: 1px solid var(--rule); margin-bottom: 1.5rem; gap: .25rem; }
+/* Zakładki — jak zakładki przeglądarkowe, na szarym pasku nad kartą */
+.kp-split-right .nav-tabs {
+  border-bottom: 1px solid var(--rule); background: var(--strip-bg);
+  margin: 0 -1.75rem 1.5rem; padding: 0 1.25rem; gap: 0; flex-wrap: wrap;
+}
 .kp-split-right .nav-tabs .nav-link {
-  color: var(--muted); border: none; border-bottom: 2px solid transparent;
-  border-radius: 0; padding: .5rem .1rem; margin-right: 1.1rem; background: none;
+  color: var(--muted); border: 1px solid transparent; border-bottom: none;
+  border-radius: 2px 2px 0 0; padding: .65rem .9rem; margin: 0; background: none;
+  font-size: .85rem;
 }
 .kp-split-right .nav-tabs .nav-link:hover { color: var(--text); }
 .kp-split-right .nav-tabs .nav-link.active {
-  color: var(--text); border-bottom-color: var(--accent); font-weight: 700; background: none;
+  color: var(--text); background: var(--card-bg); border-color: var(--rule);
+  font-weight: 700; margin-bottom: -1px;
 }
 
-/* Pola formularza — płasko, cienka linia, bez cienia */
+/* Pola formularza — proste, kwadratowe rogi, wyraźna ramka */
 .kp-split-right .form-label { color: var(--text); font-weight: 600; font-size: .88rem; }
 .kp-split-right .form-text { color: var(--muted); font-size: .78rem; }
 .kp-split-right .input-group-text {
-  background: var(--bg); border: 1px solid var(--rule); border-right: none; color: var(--muted);
+  background: var(--strip-bg); border: 1px solid var(--rule); border-right: none; color: var(--muted);
 }
 .kp-split-right .form-control {
-  background: var(--bg); border: 1px solid var(--rule); color: var(--text);
-  border-radius: 4px; box-shadow: none;
+  background: var(--card-bg); border: 1px solid var(--rule); color: var(--text);
+  border-radius: 2px; box-shadow: none;
 }
-.kp-split-right .input-group .form-control { border-radius: 0 4px 4px 0; }
-.kp-split-right .input-group .input-group-text { border-radius: 4px 0 0 4px; }
+.kp-split-right .input-group .form-control { border-radius: 0 2px 2px 0; }
+.kp-split-right .input-group .input-group-text { border-radius: 2px 0 0 2px; }
 .kp-split-right .form-control:focus {
   border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
 }
 .kp-split-right .form-control::placeholder { color: var(--muted); opacity: .7; }
 .kp-split-right .btn-outline-secondary {
-  border: 1px solid var(--rule); color: var(--muted); background: var(--bg); border-radius: 4px;
+  border: 1px solid var(--rule); color: var(--muted); background: var(--card-bg); border-radius: 2px;
 }
 .kp-split-right .btn-outline-secondary:hover { background: var(--hover-bg); color: var(--text); }
 
 .kp-split-right .btn-primary {
-  background: var(--accent); border-color: var(--accent); border-radius: 4px; font-weight: 600;
+  background: var(--accent); border-color: var(--accent); border-radius: 2px; font-weight: 600;
 }
 .kp-split-right .btn-primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
-.kp-split-right .btn-lg { border-radius: 4px; }
+.kp-split-right .btn-lg { border-radius: 2px; }
 
 /* ── Informacja o zmianie wyglądu ──────────────────────────────────────── */
 .kp-change {
   display: flex; gap: .6rem; align-items: flex-start;
-  border: 1px solid var(--rule); color: var(--muted);
-  border-radius: 4px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55;
+  background: var(--strip-bg); border: 1px solid var(--rule); color: var(--muted);
+  border-radius: 2px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55;
   margin-bottom: 1.5rem;
 }
 .kp-change strong { color: var(--text); }
@@ -194,7 +230,7 @@ body.kp-login-split-page {
 .kp-lost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
 .kp-lost a {
   display: flex; align-items: center; gap: .65rem; padding: .6rem .5rem;
-  border-radius: 4px; text-decoration: none; color: var(--text);
+  border-radius: 2px; text-decoration: none; color: var(--text);
   transition: background .1s;
 }
 .kp-lost a:hover, .kp-lost a:focus-visible { background: var(--hover-bg); outline: none; }
@@ -205,9 +241,18 @@ body.kp-login-split-page {
 .kp-lost .arr { margin-left: auto; font-size: .78rem; color: var(--muted); }
 
 @media (max-width: 575px) {
-  .kp-split-wrap { padding: 2rem .75rem; }
+  .kp-usos-topbar { padding: .65rem 1rem; }
+  .kp-split-right { padding: 0 1.1rem 1.25rem; }
+  .kp-split-right .nav-tabs { margin: 0 -1.1rem 1.25rem; padding: 0 .6rem; }
 }
 </style>
+
+<div class="kp-usos-topbar">
+  <div class="kp-usos-topbar-inner">
+    <span class="kp-usos-topbar-org"><?= h($KP_ORG) ?> · Centralny System Logowania</span>
+    <span class="kp-usos-topbar-note">Nie jesteś zalogowany</span>
+  </div>
+</div>
 <?php if ($login_ui === 'alt'):
   // Kolejność ma znaczenie: reguły powyżej mają tę samą specyficzność, więc
   // arkusz skórki musi iść PO nich, żeby wygrał (tak samo jak w panelach).
