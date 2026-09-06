@@ -276,6 +276,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=portfel'); exit;
     }
 
+    // Nadpłata do końca roku — zgłoszenie przelewu tradycyjnego (jak wallet_declare,
+    // ale oznaczone is_year_end — po zatwierdzeniu przez kierownika leci e-mail o FV).
+    if ($op === 'year_end_declare') {
+        if (!empty($account['is_minor'])) { http_response_code(403); exit('Rozliczenia małoletnich prowadzi opiekun.'); }
+        if (!k30_ti_student_year_end_overpay_allowed((int)$student['id'])) {
+            http_response_code(403); exit('Nadpłata do końca roku nie jest dostępna dla tego konta.');
+        }
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+        $ye_amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $ye_note   = trim($_POST['note'] ?? '');
+        if ($ye_amount < 1 || $ye_amount > 50000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę przelewu od 1 do 50 000 zł.'];
+        } else {
+            ti_wallet_request_add((int)$student['client_id'], $ye_amount, $ye_note, 'kursant', true);
+            ti_account_log((int)$student['id'], 'year_end_declare', 'Zgłoszono przelew — nadpłata do końca roku: ' . number_format($ye_amount, 2, ',', ' ') . ' zł.');
+            $_SESSION['wallet_flash'] = ['ok', 'Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.'];
+        }
+        header('Location: index.php?tab=portfel'); exit;
+    }
+
     // Zapisy na zajęcia: rezerwacja terminu (żetony schodzą transakcyjnie).
     // rk_book_series = rezerwacja cykliczna: ten dzień tygodnia i godzina
     // u prowadzącego na wszystkie terminy do końca tury (wszystko-albo-nic).

@@ -181,6 +181,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_d
     header('Location: parent.php?ptab=portfel'); exit;
 }
 
+// Nadpłata do końca roku — zgłoszenie przelewu tradycyjnego przez opiekuna
+// (jak wallet_declare, ale oznaczone is_year_end — po zatwierdzeniu leci e-mail o FV).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'year_end_declare') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))
+        && k30_ti_student_year_end_overpay_allowed((int)$p['student_id'])) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+        $ye_amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $ye_note   = trim($_POST['note'] ?? '');
+        if ($ye_amount < 1 || $ye_amount > 50000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę przelewu od 1 do 50 000 zł.'];
+        } else {
+            ti_wallet_request_add((int)$p['client_id'], $ye_amount, $ye_note, 'opiekun', true);
+            $_SESSION['wallet_flash'] = ['ok', 'Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.'];
+        }
+    }
+    header('Location: parent.php?ptab=portfel'); exit;
+}
+
 // Wiadomosc od rodzica do prowadzacego
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_msg_send') {
     $p = parent_current();

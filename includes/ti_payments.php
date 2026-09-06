@@ -68,6 +68,9 @@ function ti_payments_migrate(): void {
         payment_id   INTEGER REFERENCES k30_ti_payments(id) ON DELETE SET NULL
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_wallet_req_client ON k30_ti_wallet_requests(client_id)");
+    // Zgłoszenie dotyczy nadpłaty do końca roku (przelew tradycyjny) — po
+    // zatwierdzeniu leci e-mail do adminów o FV, tak jak przy bramkach online.
+    try { $pdo->exec("ALTER TABLE k30_ti_wallet_requests ADD COLUMN is_year_end INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Wnioski o przeniesienie płatności na następny miesiąc
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_payment_deferrals (
@@ -557,7 +560,7 @@ function ti_payment_delete(int $payment_id): void {
 // ── Zgłoszenia przelewu tradycyjnego (kursant/opiekun → akceptacja kierownika) ──
 
 /** Kursant/opiekun deklaruje przelew — czeka na zaksięgowanie przez kierownika. */
-function ti_wallet_request_add(int $client_id, float $amount, string $note, string $declared_by = 'kursant'): int {
+function ti_wallet_request_add(int $client_id, float $amount, string $note, string $declared_by = 'kursant', bool $is_year_end = false): int {
     ti_payments_migrate();
     return db_insert('k30_ti_wallet_requests', [
         'client_id'   => $client_id,
@@ -565,6 +568,7 @@ function ti_wallet_request_add(int $client_id, float $amount, string $note, stri
         'note'        => mb_substr(trim($note), 0, 500),
         'status'      => 'pending',
         'declared_by' => $declared_by,
+        'is_year_end' => $is_year_end ? 1 : 0,
     ]);
 }
 
@@ -573,12 +577,17 @@ function ti_wallet_request_approve(int $id, int $decided_by, string $note = ''):
     ti_payments_migrate();
     $r = db_one("SELECT * FROM k30_ti_wallet_requests WHERE id=? AND status='pending'", [$id]);
     if (!$r) return false;
-    $pay = ti_payment_add((int)$r['client_id'], (float)$r['amount'], '', 'transfer',
-                          trim('Zgłoszenie kursanta' . ($r['note'] !== '' ? ' — ' . $r['note'] : '')),
-                          'manual', 0, 0);
+    $is_year_end = !empty($r['is_year_end']);
+    $desc = $is_year_end
+        ? trim('Nadpłata do końca roku (przelew)' . ($r['note'] !== '' ? ' — ' . $r['note'] : ''))
+        : trim('Zgłoszenie kursanta' . ($r['note'] !== '' ? ' — ' . $r['note'] : ''));
+    $pay = ti_payment_add((int)$r['client_id'], (float)$r['amount'], '', 'transfer', $desc, 'manual', 0, 0);
     db()->prepare(
         "UPDATE k30_ti_wallet_requests SET status='approved', decided_by=?, decided_at=datetime('now'), decide_note=?, payment_id=? WHERE id=?"
     )->execute([$decided_by, mb_substr(trim($note), 0, 500), $pay['payment_id'], $id]);
+    if ($is_year_end) {
+        ti_year_end_overpay_notify_admin((int)$r['client_id'], (float)$r['amount'], 'transfer');
+    }
     return true;
 }
 

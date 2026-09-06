@@ -140,7 +140,7 @@ foreach ($pw_wreqs as $wr) {
         'date'   => substr((string)$wr['created_at'], 0, 10),
         'kind'   => 'declared',
         'amount' => (float)$wr['amount'],
-        'label'  => 'Zgłoszenie przelewu tradycyjnego',
+        'label'  => !empty($wr['is_year_end']) ? 'Zgłoszenie przelewu — nadpłata do końca roku' : 'Zgłoszenie przelewu tradycyjnego',
         'note'   => (string)$wr['note'],
         'status' => '',
     ];
@@ -410,10 +410,32 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
     </form>
     <?php endif; ?>
     <?php if (in_array('transfer', $pw_year_end_methods, true)): ?>
-    <p class="small text-body-secondary mt-3 mb-0 border-top pt-3">
-      <i class="bi bi-bank2 me-1" aria-hidden="true"></i>Możesz też wpłacić nadpłatę przelewem tradycyjnym
-      (dane wpłaty niżej) — dopisz w tytule „nadpłata do końca roku <?= (int)$pw_year_end_proj['year'] ?>" i poinformuj placówkę o potrzebie faktury.
-    </p>
+    <div class="mt-3 border-top pt-3">
+      <p class="small text-body-secondary mb-2">
+        <i class="bi bi-bank2 me-1" aria-hidden="true"></i>Możesz też wpłacić nadpłatę przelewem tradycyjnym
+        (dane wpłaty niżej) i zgłosić to od razu — placówka zaksięguje wpłatę i automatycznie przygotuje fakturę.
+      </p>
+      <form method="post" action="<?= h($pw_form_action) ?>" class="row g-2 align-items-end">
+        <input type="hidden" name="_op" value="year_end_declare">
+        <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+        <div class="col-6">
+          <label for="pwYeDeclAmt" class="form-label small mb-1">Kwota przelewu</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" id="pwYeDeclAmt" name="amount" min="1" max="50000" step="0.01" inputmode="decimal" required
+                   value="<?= h(number_format($pw_year_end_proj['suggested_amount'] ?: 0, 2, '.', '')) ?>">
+            <span class="input-group-text">zł</span>
+          </div>
+        </div>
+        <div class="col-6">
+          <label for="pwYeDeclNote" class="form-label small mb-1">Tytuł / referencja (opcjonalnie)</label>
+          <input type="text" class="form-control form-control-sm" id="pwYeDeclNote" name="note" maxlength="500"
+                 placeholder="np. nadpłata do końca roku <?= (int)$pw_year_end_proj['year'] ?>">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-send-check me-1" aria-hidden="true"></i>Zgłoś przelew — nadpłata do końca roku</button>
+        </div>
+      </form>
+    </div>
     <?php endif; ?>
   </div>
 </div>

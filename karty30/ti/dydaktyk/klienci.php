@@ -166,6 +166,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
         <span>
           <strong><?= h($wr['client_name']) ?></strong> — <?= number_format((float)$wr['amount'], 2, ',', ' ') ?> zł
+          <?php if (!empty($wr['is_year_end'])): ?>
+          <span class="badge bg-info text-dark" title="Nadpłata do końca roku — po zatwierdzeniu dostaniesz osobny e-mail z prośbą o FV">Nadpłata do końca roku</span>
+          <?php endif; ?>
           <span class="text-body-secondary small">· zgłoszono <?= h(substr($wr['created_at'], 0, 16)) ?> (<?= $wr['declared_by'] === 'opiekun' ? 'opiekun' : 'kursant' ?>)</span>
           <?php if ($wr['note'] !== ''): ?><div class="text-body-secondary small"><?= h($wr['note']) ?></div><?php endif; ?>
         </span>
