@@ -189,6 +189,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
     }
 
+    // Trwałe usunięcie WSZYSTKICH kwalifikujących się grup naraz (masowe
+    // porządkowanie) — ta sama kwalifikacja co hard_delete_course pojedynczo:
+    // status=cancelled i zero lekcji/zapisów. Każda usunięta grupa dostaje
+    // własny wpis w admin_audit_log (z tych samych powodów co wyżej).
+    if ($ku_op === 'hard_delete_all_eligible' && $ku_can_del) {
+        $_cand = db_all("SELECT id, name FROM k30_ti_courses WHERE status='cancelled'");
+        $_deleted = 0;
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/admin_audit.php';
+        admin_audit_migrate();
+        foreach ($_cand as $_c) {
+            $_cid = (int)$_c['id'];
+            $_ns = (int)(db_one("SELECT COUNT(*) n FROM k30_ti_sessions WHERE course_id=?", [$_cid])['n'] ?? 0);
+            $_ne = (int)(db_one("SELECT COUNT(*) n FROM k30_ti_enrollments WHERE course_id=?", [$_cid])['n'] ?? 0);
+            if ($_ns > 0 || $_ne > 0) continue;
+            try {
+                db()->prepare(
+                    "INSERT INTO admin_audit_log (user_id,user_name,action,module,target_id,target_label,details)
+                     VALUES (?,?,?,?,?,?,?)"
+                )->execute([$uid ?? 0, (string)($me['name'] ?? ''), 'ti_course_hard_delete', 'ti', $_cid, (string)$_c['name'], 'Trwałe usunięcie grupy — masowe porządkowanie z panelu kierownika (bez lekcji i zapisów)']);
+                db()->prepare("DELETE FROM k30_ti_courses WHERE id=?")->execute([$_cid]);
+                $_deleted++;
+            } catch (\Throwable $e) {}
+        }
+        $_SESSION['dyd_flash'] = $_deleted > 0
+            ? ['type'=>'success','msg'=>"Usunięto na zawsze {$_deleted} grup(ę/y) bez lekcji i zapisów."]
+            : ['type'=>'info','msg'=>'Brak grup kwalifikujących się do trwałego usunięcia (bez lekcji i zapisów).'];
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+    }
+
     // Przenieś przyszłe zajęcia i/lub stały link do zajęć online do innej grupy —
     // np. przy wygaszaniu grupy (plan_status=to_phase_out) na rzecz jej kontynuacji.
     // Historia (odbyte lekcje, frekwencja) zostaje przy grupie źródłowej — sesje
@@ -254,6 +283,7 @@ foreach ($ku_cancelled_ids as $_cid) {
     $_ne = (int)(db_one("SELECT COUNT(*) n FROM k30_ti_enrollments WHERE course_id=?", [$_cid])['n'] ?? 0);
     $ku_hard_del_ok[(int)$_cid] = ($_ns === 0 && $_ne === 0);
 }
+$ku_hard_del_eligible_ids = array_keys(array_filter($ku_hard_del_ok));
 
 $ku_show_new = isset($_GET['new_course']);
 // Widok listy: karty (domyślny) / tabela — przełącznik w pasku narzędzi
@@ -1003,8 +1033,19 @@ function dydKuMoveOpen(fromId, fromName) {
 
 <!-- Nieaktywne / anulowane -->
 <?php if ($ku_inactive): ?>
-<div class="dyd-ku-section-head" aria-label="Sekcja Nieaktywne">
-  Nieaktywne / anulowane (<?= count($ku_inactive) ?>)
+<div class="dyd-ku-section-head d-flex align-items-center justify-content-between gap-2 flex-wrap" aria-label="Sekcja Nieaktywne">
+  <span>Nieaktywne / anulowane (<?= count($ku_inactive) ?>)</span>
+  <?php if ($ku_can_del && $ku_hard_del_eligible_ids): ?>
+  <form method="post" class="d-inline"
+        onsubmit="return confirm('Usunąć NA ZAWSZE <?= count($ku_hard_del_eligible_ids) ?> grup(ę/y) bez lekcji i zapisów?\n\nTego NIE da się cofnąć.')">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_op" value="hard_delete_all_eligible">
+    <button class="btn btn-sm btn-outline-danger py-0 px-2 text-normal" style="letter-spacing:normal;font-weight:600"
+            title="Usuń na zawsze wszystkie anulowane grupy bez lekcji i zapisów">
+      <i class="bi bi-trash3-fill me-1" aria-hidden="true"></i>Usuń na zawsze kwalifikujące się (<?= count($ku_hard_del_eligible_ids) ?>)
+    </button>
+  </form>
+  <?php endif; ?>
 </div>
 <?php foreach ($ku_inactive as $c):
   $cid = (int)$c['id'];
