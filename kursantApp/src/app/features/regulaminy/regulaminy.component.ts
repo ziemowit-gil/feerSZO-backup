@@ -52,7 +52,7 @@ import { Term } from '../../core/models/kursant.models';
               <div>
                 <div class="term-title-row">
                   @if (term.required && !term.is_accepted) {
-                    <span class="required-dot" aria-label="Wymagane"></span>
+                    <span class="required-dot" role="img" aria-label="Wymagane"></span>
                   }
                   <h2 class="term-title">{{ term.title }}</h2>
                 </div>

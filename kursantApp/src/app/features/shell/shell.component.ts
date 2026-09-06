@@ -29,6 +29,7 @@ interface Badges { msg: number; notices: number; terms: number; }
     CommonModule, MatButtonModule, MatIconModule, MatTooltipModule,
   ],
   template: `
+    <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
     <div class="app-shell">
       <!-- Top bar -->
       <header class="topbar" role="banner">
@@ -67,7 +68,7 @@ interface Badges { msg: number; notices: number; terms: number; }
 
         <!-- User menu -->
         <div class="topbar-user">
-          <span class="user-name" aria-hidden="true">{{ studentName() }}</span>
+          <span class="user-name">{{ studentName() }}</span>
           <button mat-icon-button
                   aria-label="Wyloguj się"
                   matTooltip="Wyloguj"
@@ -178,7 +179,7 @@ interface Badges { msg: number; notices: number; terms: number; }
       font-size: 1rem;
       flex-shrink: 0;
 
-      .brand-icon { color: #c2410c; font-size: 1.4rem; }
+      .brand-icon { color: #2563eb; font-size: 1.4rem; }
     }
 
     .topbar-spacer { flex: 1; }
@@ -225,7 +226,7 @@ interface Badges { msg: number; notices: number; terms: number; }
     .sidebar-avatar {
       width: 2.5rem; height: 2.5rem;
       border-radius: 50%;
-      background: linear-gradient(135deg, #c2410c, #e05a1e);
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
       color: #fff;
       display: flex;
       align-items: center;

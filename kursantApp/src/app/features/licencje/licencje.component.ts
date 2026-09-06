@@ -1,12 +1,13 @@
 import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { KursantApiService } from '../../core/services/kursant-api.service';
 import { License } from '../../core/models/kursant.models';
 
 @Component({
   selector: 'app-licencje',
   standalone: true,
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, MatSnackBarModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie licencji… }</div>
 
@@ -145,14 +146,15 @@ import { License } from '../../core/models/kursant.models';
 
       .material-symbols-outlined { font-size: 1rem; }
       &:hover { color: #111827; border-color: #9ca3af; }
-      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
+      &:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     }
 
     .lic-notes { margin: 0; }
   `],
 })
 export class LicencjeComponent implements OnInit {
-  private api = inject(KursantApiService);
+  private api   = inject(KursantApiService);
+  private snack = inject(MatSnackBar);
 
   loading  = signal(true);
   licenses = signal<License[]>([]);
@@ -169,7 +171,7 @@ export class LicencjeComponent implements OnInit {
 
   copyKey(key: string): void {
     navigator.clipboard.writeText(key).then(() => {
-      // Brief accessible announcement via screen reader
+      this.snack.open('Skopiowano klucz licencji', 'OK', { duration: 3000 });
     });
   }
 }

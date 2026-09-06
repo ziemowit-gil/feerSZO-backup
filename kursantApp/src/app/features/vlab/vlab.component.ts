@@ -94,7 +94,7 @@ import { VlabServer } from '../../core/models/kursant.models';
       @if (activeTermUrl()) {
         <section class="k-card terminal-section" aria-labelledby="terminal-heading">
           <div class="terminal-header">
-            <h2 class="k-card-title mb-0" id="terminal-heading">
+            <h2 class="k-card-title mb-0" id="terminal-heading" tabindex="-1">
               <span class="material-symbols-outlined" aria-hidden="true">terminal</span>
               Terminal WWW
             </h2>

@@ -194,7 +194,7 @@ import { DashboardData } from '../../core/models/kursant.models';
       margin: .25rem 0 0;
       color: #111827;
 
-      &.streak { color: #c2410c; }
+      &.streak { color: #2563eb; }
     }
 
     .summary-card-sub { margin: 0; font-size: .85rem; color: #6b7280; }
@@ -239,7 +239,7 @@ import { DashboardData } from '../../core/models/kursant.models';
 
       .material-symbols-outlined { font-size: 1rem; }
 
-      &:hover, &:focus-visible { border-color: #c2410c; color: #c2410c; }
+      &:hover, &:focus-visible { border-color: #2563eb; color: #2563eb; }
     }
   `],
 })

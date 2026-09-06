@@ -52,7 +52,12 @@ import { KursantApiService } from '../../core/services/kursant-api.service';
                        type="text"
                        id="pfron-contract"
                        autocomplete="off"
-                       [attr.aria-required]="true">
+                       [attr.aria-required]="true"
+                       [attr.aria-describedby]="contractErrors() ? 'pfron-contract-err' : null"
+                       [attr.aria-invalid]="contractErrors() ? 'true' : null">
+                @if (contractErrors()) {
+                  <mat-error id="pfron-contract-err">{{ contractErrors() }}</mat-error>
+                }
               </mat-form-field>
 
               <mat-form-field appearance="fill" style="width:100%;margin-bottom:1rem">
@@ -63,7 +68,12 @@ import { KursantApiService } from '../../core/services/kursant-api.service';
                        id="pfron-phone"
                        maxlength="4"
                        inputmode="numeric"
-                       [attr.aria-required]="true">
+                       [attr.aria-required]="true"
+                       [attr.aria-describedby]="phoneErrors() ? 'pfron-phone-err' : null"
+                       [attr.aria-invalid]="phoneErrors() ? 'true' : null">
+                @if (phoneErrors()) {
+                  <mat-error id="pfron-phone-err">{{ phoneErrors() }}</mat-error>
+                }
               </mat-form-field>
 
               <button mat-flat-button
@@ -89,7 +99,12 @@ import { KursantApiService } from '../../core/services/kursant-api.service';
                        maxlength="6"
                        inputmode="numeric"
                        autocomplete="one-time-code"
-                       [attr.aria-required]="true">
+                       [attr.aria-required]="true"
+                       [attr.aria-describedby]="otpErrors() ? 'pfron-otp-err' : null"
+                       [attr.aria-invalid]="otpErrors() ? 'true' : null">
+                @if (otpErrors()) {
+                  <mat-error id="pfron-otp-err">{{ otpErrors() }}</mat-error>
+                }
               </mat-form-field>
 
               <div style="display:flex;gap:.75rem">
@@ -177,6 +192,29 @@ export class PfronComponent {
   otpForm = this.fb.nonNullable.group({
     otp: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
   });
+
+  contractErrors = () => {
+    const c = this.authForm.controls.contract_no;
+    if (!c.touched || c.valid) return null;
+    if (c.hasError('required')) return 'Numer umowy jest wymagany';
+    return null;
+  };
+
+  phoneErrors = () => {
+    const c = this.authForm.controls.phone_last4;
+    if (!c.touched || c.valid) return null;
+    if (c.hasError('required')) return 'Ostatnie 4 cyfry numeru telefonu są wymagane';
+    if (c.hasError('pattern')) return 'Podaj dokładnie 4 cyfry';
+    return null;
+  };
+
+  otpErrors = () => {
+    const c = this.otpForm.controls.otp;
+    if (!c.touched || c.valid) return null;
+    if (c.hasError('required')) return 'Kod SMS jest wymagany';
+    if (c.hasError('pattern')) return 'Podaj dokładnie 6 cyfr';
+    return null;
+  };
 
   sendOtp(): void {
     if (this.authForm.invalid) { this.authForm.markAllAsTouched(); return; }

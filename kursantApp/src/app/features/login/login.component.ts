@@ -249,7 +249,7 @@ import { AuthService } from '../../core/auth/auth.service';
 
       .material-symbols-outlined {
         font-size: 3.5rem;
-        color: #c2410c;
+        color: #2563eb;
       }
     }
 
@@ -277,7 +277,7 @@ import { AuthService } from '../../core/auth/auth.service';
       height: 3rem;
       font-size: 1rem;
       font-weight: 600;
-      background: #c2410c !important;
+      background: #2563eb !important;
       color: #fff !important;
       margin-bottom: 1.5rem;
       display: flex;
@@ -285,7 +285,7 @@ import { AuthService } from '../../core/auth/auth.service';
       justify-content: center;
       gap: .5rem;
 
-      &:hover:not(:disabled) { background: #9a3409 !important; }
+      &:hover:not(:disabled) { background: #1d4ed8 !important; }
       &:disabled { opacity: .6; }
     }
 

@@ -65,10 +65,10 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
           <!-- Materials -->
           @if (group.materials.length > 0) {
             <section aria-label="Materiały z lekcji">
-              <h3 class="section-label">
+              <h2 class="section-label">
                 <span class="material-symbols-outlined" aria-hidden="true">attachment</span>
                 Materiały
-              </h3>
+              </h2>
               <ul role="list" class="material-list">
                 @for (mat of group.materials; track mat.id) {
                   <li role="listitem" class="material-item">
@@ -89,10 +89,10 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
           <!-- Homeworks -->
           @if (group.homeworks.length > 0) {
             <section aria-label="Zadania domowe">
-              <h3 class="section-label" style="margin-top:1rem">
+              <h2 class="section-label" style="margin-top:1rem">
                 <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
                 Zadania domowe
-              </h3>
+              </h2>
               @for (hw of group.homeworks; track hw.id) {
                 <article class="hw-card" [class.hw-done]="hw.status !== 'pending'">
                   <div class="hw-header">
@@ -203,8 +203,9 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       font-size: .85rem;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: #9ca3af;
+      color: #374151;
       margin-bottom: .75rem;
+      font-weight: 600;
     }
 
     .material-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
@@ -240,13 +241,13 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       display: flex;
       align-items: center;
       gap: .4rem;
-      color: #c2410c;
+      color: #2563eb;
       font-size: .875rem;
       font-weight: 500;
       list-style: none;
       padding: .25rem 0;
 
-      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; border-radius: 3px; }
+      &:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 3px; }
       &::-webkit-details-marker { display: none; }
     }
 
@@ -271,7 +272,7 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       cursor: pointer;
       transition: border-color .15s, color .15s;
 
-      &:hover { border-color: #c2410c; color: #c2410c; }
+      &:hover { border-color: #2563eb; color: #2563eb; }
     }
 
     .file-input { position: absolute; opacity: 0; width: 0; height: 0; }

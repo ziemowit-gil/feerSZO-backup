@@ -146,13 +146,15 @@ const TEST_STATUS_LABELS: Record<string, string> = {
     }
 
     .score-val { font-size: 1.75rem; font-weight: 700; color: #15803d; }
-    .score-max { font-size: 1.1rem; color: #9ca3af; }
+    .score-max { font-size: 1.1rem; color: #6b7280; }
 
     .test-start-btn { margin-top: .5rem !important; }
 
     .test-completed { border-color: #bfdbfe; }
-    .test-expired   { opacity: .6; }
-    .test-locked    { opacity: .5; }
+    .test-expired,
+    .test-locked    { background: #f9fafb; }
+    .test-expired .test-title,
+    .test-locked .test-title { color: #374151; }
   `],
 })
 export class TestyComponent implements OnInit {

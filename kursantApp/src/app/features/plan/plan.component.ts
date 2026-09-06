@@ -105,7 +105,7 @@ interface CourseGroup { course_id: number; course_name: string; items: Curriculu
       gap: .875rem;
       padding: .75rem 0;
       border-bottom: 1px solid #e5e7eb;
-      color: #9ca3af;
+      color: #374151;
 
       &:last-child { border-bottom: none; }
       &.completed { color: #111827; }

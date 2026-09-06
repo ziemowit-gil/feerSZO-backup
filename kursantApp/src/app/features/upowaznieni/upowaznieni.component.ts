@@ -108,7 +108,8 @@ import { AuthorizedPerson } from '../../core/models/kursant.models';
       flex-direction: column;
       gap: 1rem;
 
-      &.inactive { opacity: .6; }
+      &.inactive { background: #f9fafb; }
+      &.inactive .person-name { color: #374151; }
     }
 
     .person-header { display: flex; align-items: flex-start; gap: .875rem; }

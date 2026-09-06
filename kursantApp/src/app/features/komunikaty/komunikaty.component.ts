@@ -39,7 +39,7 @@ import { Notice } from '../../core/models/kursant.models';
             <div class="notice-header">
               <div>
                 @if (!notice.is_read) {
-                  <span class="unread-dot" aria-label="Nieprzeczytane"></span>
+                  <span class="unread-dot" role="img" aria-label="Nieprzeczytane"></span>
                 }
                 <h2 class="notice-title">{{ notice.title }}</h2>
                 <p class="text-muted text-sm">
@@ -69,7 +69,7 @@ import { Notice } from '../../core/models/kursant.models';
       position: relative;
       border-left: 3px solid transparent;
 
-      &.unread { border-left-color: #c2410c; }
+      &.unread { border-left-color: #2563eb; }
     }
 
     .notice-header {
@@ -84,7 +84,7 @@ import { Notice } from '../../core/models/kursant.models';
       display: inline-block;
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #c2410c;
+      background: #2563eb;
       margin-right: .5rem;
       vertical-align: middle;
     }

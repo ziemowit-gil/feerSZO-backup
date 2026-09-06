@@ -2,7 +2,7 @@ import { Component, signal, inject, OnInit, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { A11yModule } from '@angular/cdk/a11y';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -21,7 +21,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
 @Component({
   selector: 'app-lekcje',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReactiveFormsModule, MatButtonModule, MatSnackBarModule, MatFormFieldModule, MatInputModule],
+  imports: [CommonModule, DatePipe, ReactiveFormsModule, MatButtonModule, MatSnackBarModule, MatFormFieldModule, MatInputModule, A11yModule],
   template: `
     <div aria-live="polite" class="sr-only">
       @if (loading()) { Ładowanie lekcji… }
@@ -165,8 +165,9 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
     @if (ratingLesson()) {
       <div class="rating-overlay" role="dialog"
            aria-modal="true"
-           [attr.aria-label]="'Oceń lekcję ' + ratingLesson()?.date">
-        <div class="rating-panel k-card">
+           [attr.aria-label]="'Oceń lekcję ' + ratingLesson()?.date"
+           (keydown.escape)="closeRating()">
+        <div class="rating-panel k-card" cdkTrapFocus cdkTrapFocusAutoCapture>
           <h2 class="k-card-title">
             <span class="material-symbols-outlined" aria-hidden="true">star</span>
             Oceń lekcję
@@ -226,7 +227,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
       font-size: .875rem;
       cursor: pointer;
 
-      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
+      &:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
       option { background: #fff; }
     }
@@ -285,7 +286,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
 
       .material-symbols-outlined { font-size: 2rem; }
       &.active { color: #f59e0b; }
-      &:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
+      &:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     }
   `],
 })

@@ -5,7 +5,7 @@
 $theme: mat.define-theme((
   color: (
     theme-type: light,
-    primary: mat.$orange-palette,
+    primary: mat.$blue-palette,
     tertiary: mat.$blue-palette,
   ),
   typography: (
@@ -17,15 +17,15 @@ $theme: mat.define-theme((
 
 :root {
   // ── Tła ─────────────────────────────────────────────────
-  --c-bg:             #f1f5f9;
+  --c-bg:             #f9fafb;
   --c-surface:        #ffffff;
   --c-surface-2:      #f8fafc;
-  --c-surface-hover:  #f3f4f6;
+  --c-surface-hover:  #eff6ff;
 
   // ── Tekst ──────────────────────────────────────────────
   --c-text:           #111827;
   --c-text-2:         #374151;
-  --c-text-muted:     #6b7280;
+  --c-text-muted:     #5b6472;
   --c-text-disabled:  #9ca3af;
 
   // ── Obramowania ────────────────────────────────────────
@@ -33,9 +33,9 @@ $theme: mat.define-theme((
   --c-border-2:       #d1d5db;
 
   // ── Marka ──────────────────────────────────────────────
-  --c-brand:          #c2410c;
-  --c-brand-hover:    #9a3409;
-  --c-brand-light:    #fff7ed;
+  --c-brand:          #2563eb;
+  --c-brand-hover:    #1d4ed8;
+  --c-brand-light:    #eff6ff;
 
   // ── Semantyczne ────────────────────────────────────────
   --c-success:        #15803d;
@@ -304,7 +304,7 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--c-brand), #e05a1e);
+    background: linear-gradient(90deg, var(--c-brand), #3b82f6);
     border-radius: .5rem;
     transition: width .6s ease;
   }
@@ -390,7 +390,7 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .1em;
-  color: var(--c-text-disabled);
+  color: var(--c-text-muted);
   padding: 1rem 1.75rem .35rem;
 }
 
@@ -424,7 +424,7 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
 
   &.from-student {
     background: var(--c-brand-light);
-    border: 1px solid #fed7aa;
+    border: 1px solid #bfdbfe;
     align-self: flex-end;
     border-bottom-right-radius: .25rem;
     margin-left: auto;

@@ -111,7 +111,7 @@ import { Message } from '../../core/models/kursant.models';
                 <strong>{{ msg.sender_name }}</strong>
                 · {{ msg.created_at | date:'d MMM yyyy, HH:mm':'':\'pl\' }}
                 @if (!msg.is_read && msg.sender === 'staff') {
-                  <span class="unread-indicator" aria-label="Nieprzeczytana"></span>
+                  <span class="unread-indicator" role="img" aria-label="Nieprzeczytana"></span>
                 }
               </div>
               <p class="msg-subject">{{ msg.subject }}</p>
@@ -147,7 +147,7 @@ import { Message } from '../../core/models/kursant.models';
       display: inline-block;
       width: 7px; height: 7px;
       border-radius: 50%;
-      background: #c2410c;
+      background: #2563eb;
       margin-left: .35rem;
       vertical-align: middle;
     }
