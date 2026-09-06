@@ -89,7 +89,7 @@ function _ika_parse_destination(string $url): array {
         '/contracts/uslugi/'       => ['bi-file-earmark-text',    '#2563eb', 'Umowy usługowe',      ($id_str ? 'Umowa' . $id_str : $action_type)],
         '/contracts/inne/'         => ['bi-file-earmark-text',    '#2563eb', 'Inne umowy',          ($id_str ? 'Umowa' . $id_str : $action_type)],
         '/rodo/'                   => ['bi-lock-fill',             '#dc2626', 'RODO',                'Klauzule informacyjne'],
-        '/resources/'              => ['bi-box-seam-fill',        '#0891b2', 'Zasoby',              'Zarządzanie zasobami'],
+        '/modules/srs/'            => ['bi-box-seam-fill',        '#0891b2', 'Zasoby (SRS)',        'Zarządzanie zasobami'],
         '/grants/'                 => ['bi-currency-euro',        '#b45309', 'Granty',               'Moduł grantów'],
         '/actions/'                => ['bi-lightning-fill',       '#0891b2', 'Działania',            'Moduł działań'],
     ];

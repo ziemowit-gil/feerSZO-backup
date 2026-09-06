@@ -8,7 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 
 k30_require_access();
 karty30_migrate();
-require_once dirname(dirname(__DIR__)) . '/includes/resources.php';
+require_once dirname(dirname(__DIR__)) . '/modules/srs/logic/srs.php';
 resources_migrate();
 
 if (!can_write('karty30') && !is_admin()) {
@@ -643,7 +643,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php else: ?>
           <div class="alert alert-warning py-2 small mt-2">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            Brak zasobów dla Dydaktyka 3. <a href="<?= APP_URL ?>/resources/admin/resources.php">Skonfiguruj zasoby</a>.
+            Brak zasobów dla Dydaktyka 3. <a href="<?= APP_URL ?>/modules/srs/admin/resources.php">Skonfiguruj zasoby</a>.
           </div>
           <?php endif; ?>
         </div>

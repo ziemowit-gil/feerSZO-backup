@@ -333,13 +333,13 @@ function _menu_editor(): array {
     }
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
-    $fin[] = _mi('Zasoby','/resources/','bi-box-seam',['match'=>'/resources/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt']);
+    $fin[] = _mi('Zasoby','/modules/srs/','bi-box-seam',['match'=>'/modules/srs/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt srs']);
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);
     $nodes[] = [
         'search'=>$fin_search,
         'id'=>'finanse','label'=>'Finanse','icon'=>'bi-cash-coin','badge'=>$cnt['zwr']+$cnt['res']+$cnt['ship'],
-        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/resources/')||_menu_hit('/admin/shipments'),
+        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/modules/srs/')||_menu_hit('/admin/shipments'),
         'groups'=>[['label'=>null,'items'=>$fin]],
     ];
 

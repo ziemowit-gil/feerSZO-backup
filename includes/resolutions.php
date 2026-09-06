@@ -2,8 +2,8 @@
 /**
  * Moduł Uchwały i Zarządzenia — init DB + funkcje pomocnicze.
  *
- * Przedrostek `uchw_`, nie `res_`: ten drugi należy do modułu Zasobów
- * (includes/resources.php), który ma własne res_get()/res_delete()/res_categories().
+ * Przedrostek `uchw_`, nie `res_`: ten drugi należy do modułu SRS (Zasoby)
+ * (modules/srs/logic/srs.php), który ma własne res_get()/res_delete()/res_categories().
  * Dopóki oba pliki nie trafiały do jednego żądania, nic się nie działo — ale
  * pierwsza strona ładująca je razem dostałaby „Cannot redeclare function".
  */

@@ -240,9 +240,9 @@ $groups = [
         'color' => 'indigo',
         'items' => [
             ['icon'=>'bi-building-heart',       'label'=>'Zasady i Wprowadzenie',    'url'=>'/admin/org_rules.php'],
-            ['icon'=>'bi-calendar-check',       'label'=>'Rezerwacje zasobów',       'url'=>'/resources/admin/',            'badge'=>$cnt['res_pending'] ?: null, 'badge_type'=>'warning'],
-            ['icon'=>'bi-box',                  'label'=>'Zasoby',                   'url'=>'/resources/admin/resources.php'],
-            ['icon'=>'bi-tags',                 'label'=>'Kategorie zasobów',        'url'=>'/resources/admin/categories.php'],
+            ['icon'=>'bi-calendar-check',       'label'=>'Rezerwacje zasobów (SRS)', 'url'=>'/modules/srs/admin/',          'badge'=>$cnt['res_pending'] ?: null, 'badge_type'=>'warning'],
+            ['icon'=>'bi-box',                  'label'=>'Zasoby',                   'url'=>'/modules/srs/admin/resources.php'],
+            ['icon'=>'bi-tags',                 'label'=>'Kategorie zasobów',        'url'=>'/modules/srs/admin/categories.php'],
         ],
     ],
 
@@ -463,7 +463,7 @@ include dirname(__DIR__) . '/includes/header.php';
       ['val'=>$cnt['applications'], 'lbl'=>'Nowych wniosków',       'icon'=>'bi-inbox',           'color'=>'#DC2626','bg'=>'#FEE2E2', 'url'=>'/admin/applications.php',  'alert'=>$cnt['applications']>0],
       ['val'=>$cnt['mail_failed'],  'lbl'=>'Błędnych maili',        'icon'=>'bi-envelope-x',      'color'=>'#DC2626','bg'=>'#FEE2E2', 'url'=>'/admin/mail_queue.php',    'alert'=>$cnt['mail_failed']>0],
       ['val'=>$cnt['expiring_30'],  'lbl'=>'Umów wygasa (30 dni)',  'icon'=>'bi-calendar-x',      'color'=>'#EA580C','bg'=>'#FFF7ED', 'url'=>'/admin/contract_expiry.php','alert'=>$cnt['expiring_7']>0],
-      ['val'=>$cnt['res_pending'],  'lbl'=>'Oczekujących rezerwacji','icon'=>'bi-calendar-check',  'color'=>'#4F46E5','bg'=>'#EEF2FF', 'url'=>'/resources/admin/',        'alert'=>$cnt['res_pending']>0],
+      ['val'=>$cnt['res_pending'],  'lbl'=>'Oczekujących rezerwacji','icon'=>'bi-calendar-check',  'color'=>'#4F46E5','bg'=>'#EEF2FF', 'url'=>'/modules/srs/admin/',      'alert'=>$cnt['res_pending']>0],
       ['val'=>$cnt['log_today'],    'lbl'=>'Zdarzeń dzisiaj',       'icon'=>'bi-journal-text',     'color'=>'#0D9488','bg'=>'#F0FDFA', 'url'=>'/admin/log.php',           'alert'=>false],
   ];
   ?>

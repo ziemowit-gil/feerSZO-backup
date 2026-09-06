@@ -1,6 +1,6 @@
 <?php
 /**
- * includes/resources.php — Moduł rezerwacji zasobów organizacji.
+ * modules/srs/logic/srs.php — System Rezerwacji Sal (SRS): logika modułu rezerwacji zasobów organizacji.
  *
  * Tabele:
  *   resource_categories       — kategorie zasobów
@@ -462,7 +462,7 @@ function res_pending_count_for(int $user_id, bool $is_admin): int {
 function res_notify(int $to_user_id, string $title, string $body_text, string $url = '', int $res_id = 0): void {
     // ── Powiadomienie w systemie ──────────────────────────────────────────────
     try {
-        require_once __DIR__ . '/notifications.php';
+        require_once dirname(__DIR__, 3) . '/includes/notifications.php';
         notif_migrate();
         notif_create($to_user_id, 'reservation', $title, $body_text, $url);
     } catch (\Throwable $e) {
@@ -471,7 +471,7 @@ function res_notify(int $to_user_id, string $title, string $body_text, string $u
 
     // ── Email ─────────────────────────────────────────────────────────────────
     try {
-        require_once __DIR__ . '/mail_queue.php';
+        require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         $recipient = db_one("SELECT name, email FROM users WHERE id=?", [$to_user_id]);
         if (!$recipient || !$recipient['email']) return;
 

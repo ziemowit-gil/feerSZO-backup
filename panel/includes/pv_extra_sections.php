@@ -112,7 +112,7 @@ if (!defined('APP_URL')) { return; }
 <!-- ── Rezerwacje zasobów ─────────────────────────────────────────────────── -->
 <?php
 try {
-    require_once dirname(__DIR__, 2) . '/includes/resources.php';
+    require_once dirname(__DIR__, 2) . '/modules/srs/logic/srs.php';
     resources_migrate();
     $my_reservations = res_reservations_for_user((int)$user['id']);
     $my_res_active = array_filter($my_reservations, fn($r) => !in_array($r['status'], ['odmowa','anulowana']));
@@ -129,7 +129,7 @@ try {
       <?php if ($my_res_pending): ?>
       <span class="tz-badge tz-badge--warn"><i class="bi bi-hourglass-split" aria-hidden="true"></i><?= count($my_res_pending) ?> oczekuje</span>
       <?php endif; ?>
-      <a href="<?= APP_URL ?>/resources/" class="btn btn-sm btn-outline-secondary">
+      <a href="<?= APP_URL ?>/modules/srs/" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Zarezerwuj zasób
       </a>
     </div>
@@ -156,7 +156,7 @@ try {
           <td class="text-nowrap"><?= h($rr['date_from']) ?><?= $rr['date_to'] !== $rr['date_from'] ? ' – ' . h($rr['date_to']) : '' ?></td>
           <td><?= res_status_badge($rr['status']) ?></td>
           <td class="text-end">
-            <a href="<?= APP_URL ?>/resources/view.php?id=<?= (int)$rr['id'] ?>" class="btn btn-sm btn-outline-secondary"
+            <a href="<?= APP_URL ?>/modules/srs/view.php?id=<?= (int)$rr['id'] ?>" class="btn btn-sm btn-outline-secondary"
                aria-label="Podgląd rezerwacji <?= h($rr['res_name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></a>
           </td>
         </tr>
@@ -166,7 +166,7 @@ try {
   </div>
   <?php if (count($my_res_active) > 5): ?>
   <div class="tz-card__ft">
-    <a href="<?= APP_URL ?>/resources/my.php" class="tz-card__link">
+    <a href="<?= APP_URL ?>/modules/srs/my.php" class="tz-card__link">
       <i class="bi bi-list-check" aria-hidden="true"></i>Wszystkie moje rezerwacje (<?= count($my_res_active) ?>)
     </a>
   </div>
@@ -174,7 +174,7 @@ try {
   <?php else: ?>
   <div class="tz-card__bd">
     <p class="mb-0" style="font-size:.86rem;color:var(--tz-muted)">
-      Brak aktywnych rezerwacji. <a href="<?= APP_URL ?>/resources/">Przeglądaj dostępne zasoby</a>.
+      Brak aktywnych rezerwacji. <a href="<?= APP_URL ?>/modules/srs/">Przeglądaj dostępne zasoby</a>.
     </p>
   </div>
   <?php endif; ?>
