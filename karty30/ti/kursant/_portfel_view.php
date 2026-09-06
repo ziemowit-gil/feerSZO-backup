@@ -2,7 +2,8 @@
 /**
  * Partial: Portfel kursanta — dostępne środki, doładowanie online (Stripe/PayU)
  * lub przelewem, historia operacji. Bootstrap 5.3 + WCAG.
- * Wymaga: $pw_client_id (int), sesja kursanta ($student, student_token()).
+ * Wymaga: $pw_client_id (int), $pw_student_id (int, id konta w k30_ti_student_accounts —
+ * do sprawdzenia uprawnienia do nadpłaty do końca roku), sesja kursanta ($student, student_token()).
  *
  * Model: portfel to księga wpłat k30_ti_payments (includes/ti_payments.php).
  * Doładowanie = wpłata OGÓLNA (course_id=0) — alokacja FIFO automatycznie
@@ -18,6 +19,14 @@ $pw_cid = (int)$pw_client_id;
 // Partial działa w dwóch panelach: kursanta (domyślne adresy) i rodzica (nadpisywane)
 $pw_form_action     = $pw_form_action     ?? 'index.php?tab=portfel';
 $pw_rozliczenia_url = $pw_rozliczenia_url ?? '?tab=rozliczenia';
+$pw_sid = (int)($pw_student_id ?? 0);
+
+// Nadpłata do końca roku — dostępna tylko gdy kierownik ją włączył temu kursantowi
+$pw_year_end_on = $pw_sid > 0 && k30_ti_student_year_end_overpay_allowed($pw_sid);
+if ($pw_year_end_on) {
+    $pw_year_end_methods = k30_ti_student_allowed_payment_methods($pw_sid);
+    $pw_year_end_proj    = ti_year_end_projection($pw_cid);
+}
 
 $pw_flash = $_SESSION['wallet_flash'] ?? null;
 unset($_SESSION['wallet_flash']);
@@ -25,17 +34,17 @@ unset($_SESSION['wallet_flash']);
 // Płatności online rozpoczęte z portfela; oczekujące zweryfikuj aktywnie w API —
 // powrót z bramki zwykle wyprzedza webhook, a kursant chce od razu widzieć środki.
 stripe_migrate(); payu_migrate(); p24_migrate();
-$pw_stripe = db_all("SELECT * FROM stripe_payments WHERE source_type='k30_ti_wallet' AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
+$pw_stripe = db_all("SELECT * FROM stripe_payments WHERE source_type IN ('k30_ti_wallet','k30_ti_wallet_year_end') AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
 foreach ($pw_stripe as &$_sp) {
     if ($_sp['status'] === 'pending') $_sp['status'] = stripe_reconcile_payment((int)$_sp['id']) ?: 'pending';
 }
 unset($_sp);
-$pw_payu = db_all("SELECT * FROM payu_payments WHERE source_type='k30_ti_wallet' AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
+$pw_payu = db_all("SELECT * FROM payu_payments WHERE source_type IN ('k30_ti_wallet','k30_ti_wallet_year_end') AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
 foreach ($pw_payu as &$_pp) {
     if ($_pp['status'] === 'pending') $_pp['status'] = payu_reconcile_payment((int)$_pp['id']) ?: 'pending';
 }
 unset($_pp);
-$pw_p24 = db_all("SELECT * FROM p24_payments WHERE source_type='k30_ti_wallet' AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
+$pw_p24 = db_all("SELECT * FROM p24_payments WHERE source_type IN ('k30_ti_wallet','k30_ti_wallet_year_end') AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
 foreach ($pw_p24 as &$_p4) {
     if ($_p4['status'] === 'pending') $_p4['status'] = p24_reconcile_payment((int)$_p4['id']) ?: 'pending';
 }
@@ -316,6 +325,99 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
     </div>
   </div>
 </div>
+
+<?php if ($pw_year_end_on): ?>
+<div class="card mb-4">
+  <div class="card-header fw-semibold bg-white">
+    <i class="bi bi-calendar2-check text-primary me-1" aria-hidden="true"></i>Nadpłata do końca roku <?= (int)$pw_year_end_proj['year'] ?>
+  </div>
+  <div class="card-body">
+    <p class="text-body-secondary small mb-3">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+      Z powodów podatkowych/księgowych taką nadpłatę można opłacić <strong>tylko do 31 grudnia <?= (int)$pw_year_end_proj['year'] ?></strong> —
+      faktura/potwierdzenie wpłaty za dany rok musi być wystawiona w tym samym roku podatkowym.
+      Środki trafią do portfela jako nadpłata i automatycznie pokryją kolejne miesięczne rozliczenia — nie trzeba nic więcej robić.
+    </p>
+
+    <?php if ($pw_year_end_proj['courses']): ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm mb-0">
+        <caption class="visually-hidden">Szacunek pozostałych opłat do końca roku wg grupy</caption>
+        <thead><tr><th scope="col">Grupa</th><th scope="col">Model</th><th scope="col" class="text-end">Szacunek</th></tr></thead>
+        <tbody>
+          <?php foreach ($pw_year_end_proj['courses'] as $pc): ?>
+          <tr>
+            <td><?= h($pc['course_name']) ?></td>
+            <td class="text-body-secondary small"><?= h($pc['model_label']) ?></td>
+            <td class="text-end"><?= number_format($pc['amount'], 2, ',', ' ') ?> zł</td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-body-secondary mb-3">
+      Suma szacunkowa: <strong><?= number_format($pw_year_end_proj['projected_total'], 2, ',', ' ') ?> zł</strong>
+      <?php if ($pw_year_end_proj['current_credit'] > 0.005): ?>
+      &mdash; pomniejszona o obecną nadpłatę w portfelu (<?= number_format($pw_year_end_proj['current_credit'], 2, ',', ' ') ?> zł).
+      <?php endif; ?>
+      To szacunek na podstawie zaplanowanych zajęć — nie uwzględnia ewentualnych pojedynczych odwołań w przyszłości. Kwotę możesz zmienić poniżej.
+    </p>
+    <?php else: ?>
+    <p class="small text-body-secondary mb-3">Nie udało się wyliczyć szacunku (brak zaplanowanych zajęć) — podaj kwotę ręcznie.</p>
+    <?php endif; ?>
+
+    <?php if (array_intersect($pw_year_end_methods, ['stripe', 'payu', 'p24']) && ($pw_stripe_on || $pw_payu_on || $pw_p24_on)): ?>
+    <form method="post" action="<?= h($pw_form_action) ?>" class="vstack gap-3">
+      <input type="hidden" name="_op" value="year_end_overpay">
+      <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+      <div>
+        <label for="pwYeAmount" class="form-label">Kwota nadpłaty</label>
+        <div class="input-group" style="max-width:260px">
+          <input type="number" class="form-control" id="pwYeAmount" name="amount"
+                 min="1" max="50000" step="0.01" inputmode="decimal" required
+                 value="<?= h(number_format($pw_year_end_proj['suggested_amount'] ?: 0, 2, '.', '')) ?>">
+          <span class="input-group-text">zł</span>
+        </div>
+      </div>
+      <fieldset>
+        <legend class="form-label fs-6 mb-1">Metoda płatności</legend>
+        <?php $pw_ye_first = true; ?>
+        <?php if ($pw_stripe_on && in_array('stripe', $pw_year_end_methods, true)): ?>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="provider" id="pwYeStripe" value="stripe" <?= $pw_ye_first ? 'checked' : '' ?>>
+          <label class="form-check-label" for="pwYeStripe">Karta / BLIK / Przelewy — Stripe</label>
+        </div>
+        <?php $pw_ye_first = false; endif; ?>
+        <?php if ($pw_payu_on && in_array('payu', $pw_year_end_methods, true)): ?>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="provider" id="pwYePayu" value="payu" <?= $pw_ye_first ? 'checked' : '' ?>>
+          <label class="form-check-label" for="pwYePayu">BLIK / szybki przelew — PayU</label>
+        </div>
+        <?php $pw_ye_first = false; endif; ?>
+        <?php if ($pw_p24_on && in_array('p24', $pw_year_end_methods, true)): ?>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="provider" id="pwYeP24" value="p24" <?= $pw_ye_first ? 'checked' : '' ?>>
+          <label class="form-check-label" for="pwYeP24">BLIK / szybki przelew — Przelewy24</label>
+        </div>
+        <?php $pw_ye_first = false; endif; ?>
+      </fieldset>
+      <div>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-lock me-1" aria-hidden="true"></i>Przejdź do płatności
+        </button>
+        <div class="form-text mt-2">Po zaksięgowaniu wpłaty placówka automatycznie dostanie prośbę o przygotowanie faktury za ten rok.</div>
+      </div>
+    </form>
+    <?php endif; ?>
+    <?php if (in_array('transfer', $pw_year_end_methods, true)): ?>
+    <p class="small text-body-secondary mt-3 mb-0 border-top pt-3">
+      <i class="bi bi-bank2 me-1" aria-hidden="true"></i>Możesz też wpłacić nadpłatę przelewem tradycyjnym
+      (dane wpłaty niżej) — dopisz w tytule „nadpłata do końca roku <?= (int)$pw_year_end_proj['year'] ?>" i poinformuj placówkę o potrzebie faktury.
+    </p>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="card">
   <div class="card-header fw-semibold bg-white">

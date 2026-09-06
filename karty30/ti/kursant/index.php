@@ -208,6 +208,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=portfel'); exit;
     }
 
+    // Nadpłata do końca roku — jak wallet_topup, ale: (1) wymaga zgody kierownika
+    // na koncie, (2) metoda ograniczona do listy dozwolonej temu kursantowi,
+    // (3) osobny source_type — po zaksięgowaniu leci e-mail do adminów o FV.
+    if ($op === 'year_end_overpay') {
+        if (!empty($account['is_minor'])) { http_response_code(403); exit('Rozliczenia małoletnich prowadzi opiekun.'); }
+        if (!k30_ti_student_year_end_overpay_allowed((int)$student['id'])) {
+            http_response_code(403); exit('Nadpłata do końca roku nie jest dostępna dla tego konta.');
+        }
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
+        $ye_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $ye_provider = (string)($_POST['provider'] ?? '');
+        $ye_allowed  = k30_ti_student_allowed_payment_methods((int)$student['id']);
+        $ye_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php?tab=portfel';
+        if ($ye_amount < 1 || $ye_amount > 50000) {
+            $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę nadpłaty od 1 do 50 000 zł.'];
+            header('Location: index.php?tab=portfel'); exit;
+        }
+        if (!in_array($ye_provider, $ye_allowed, true)) {
+            $_SESSION['wallet_flash'] = ['err', 'Wybrana metoda płatności nie jest dostępna dla tego konta.'];
+            header('Location: index.php?tab=portfel'); exit;
+        }
+        $ye_desc  = 'Nadpłata do końca roku ' . date('Y') . ' — ' . (string)($client['name'] ?? '');
+        $ye_email = (string)($client['email'] ?? '');
+        try {
+            if ($ye_provider === 'payu' && payu_enabled()) {
+                $ye = payu_create_order('k30_ti_wallet_year_end', (int)$student['client_id'], $ye_amount, $ye_desc,
+                                        $ye_back . '&wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $ye_email);
+                ti_account_log((int)$student['id'], 'year_end_overpay', 'Rozpoczęto nadpłatę do końca roku PayU: ' . number_format($ye_amount, 2, ',', ' ') . ' zł.');
+                header('Location: ' . $ye['url']); exit;
+            }
+            if ($ye_provider === 'stripe' && stripe_enabled()) {
+                $ye = stripe_create_checkout('k30_ti_wallet_year_end', (int)$student['client_id'], $ye_amount, $ye_desc,
+                                             $ye_back . '&wpay=stripe', $ye_back . '&wcancel=1', $ye_email);
+                ti_account_log((int)$student['id'], 'year_end_overpay', 'Rozpoczęto nadpłatę do końca roku Stripe: ' . number_format($ye_amount, 2, ',', ' ') . ' zł.');
+                header('Location: ' . $ye['url']); exit;
+            }
+            if ($ye_provider === 'p24' && p24_enabled()) {
+                $ye = p24_create_order('k30_ti_wallet_year_end', (int)$student['client_id'], $ye_amount, $ye_desc,
+                                       $ye_back . '&wpay=p24', rtrim(APP_URL, '/') . '/api/p24_webhook.php', $ye_email);
+                ti_account_log((int)$student['id'], 'year_end_overpay', 'Rozpoczęto nadpłatę do końca roku Przelewy24: ' . number_format($ye_amount, 2, ',', ' ') . ' zł.');
+                header('Location: ' . $ye['url']); exit;
+            }
+            $_SESSION['wallet_flash'] = ['err', 'Wybrana metoda płatności nie jest teraz dostępna.'];
+        } catch (\Throwable $e) {
+            $_SESSION['wallet_flash'] = ['err', 'Nie udało się rozpocząć płatności: ' . $e->getMessage()];
+        }
+        header('Location: index.php?tab=portfel'); exit;
+    }
+
     // Portfel: zgłoszenie WYKONANEGO przelewu tradycyjnego — czeka na zaksięgowanie
     // przez kierownika (ti_wallet_request_approve tworzy dopiero wtedy wpłatę).
     if ($op === 'wallet_declare') {
@@ -3462,7 +3513,8 @@ document.addEventListener('DOMContentLoaded', function() {
 ?>
 
 <?php elseif ($tab === 'portfel' && !$is_minor):
-  $pw_client_id = $student['client_id'];
+  $pw_client_id  = $student['client_id'];
+  $pw_student_id = (int)$student['id'];
   include __DIR__ . '/_portfel_view.php';
 ?>
 
