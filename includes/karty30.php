@@ -1012,6 +1012,18 @@ HTML;
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+
+    // ── Nadpłata do końca roku (powody podatkowe/księgowe) + metody płatności ────
+    foreach ([
+        // Włącza kierownik dla konkretnego kursanta — bez tego kreator nadpłaty jest niedostępny
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN allow_year_end_overpay INTEGER NOT NULL DEFAULT 0",
+        // CSV metod dozwolonych dla TEGO kursanta (np. 'stripe,payu,p24,transfer') — ustawia admin;
+        // pusty string = brak ograniczenia (wszystkie globalnie włączone metody dostępne, jak dotychczas)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN allowed_payment_methods TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
     // Samoobsługowe konto ownCloud kursanta (2 GB) — panel kursanta, zakładka „dysk"
     foreach ([
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN owncloud_username   TEXT NOT NULL DEFAULT ''",
@@ -2962,6 +2974,26 @@ function k30_ti_client_payment(int $client_id): array {
         'codes'    => array_keys($codes),
         'due_days' => (int)($pick['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT),
     ];
+}
+
+/** Czy kierownik włączył temu kursantowi możliwość nadpłaty do końca roku. */
+function k30_ti_student_year_end_overpay_allowed(int $student_id): bool {
+    $row = db_one("SELECT allow_year_end_overpay FROM k30_ti_student_accounts WHERE id=?", [$student_id]);
+    return !empty($row['allow_year_end_overpay']);
+}
+
+/**
+ * Metody płatności dozwolone TEMU kursantowi (ograniczenie ustawiane przez admina).
+ * Pusta lista w bazie = brak ograniczenia — zwracamy WSZYSTKIE możliwe metody,
+ * a o faktycznej dostępności i tak decyduje globalne *_enabled() danej bramki.
+ */
+function k30_ti_student_allowed_payment_methods(int $student_id): array {
+    $all = ['stripe', 'payu', 'p24', 'transfer'];
+    $row = db_one("SELECT allowed_payment_methods FROM k30_ti_student_accounts WHERE id=?", [$student_id]);
+    $csv = trim((string)($row['allowed_payment_methods'] ?? ''));
+    if ($csv === '') return $all;
+    $picked = array_values(array_intersect($all, array_map('trim', explode(',', $csv))));
+    return $picked ?: $all;
 }
 
 // Kursy — domyślnie pomija usunięte (status='cancelled'); $include_cancelled=true

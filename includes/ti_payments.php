@@ -744,3 +744,86 @@ function ti_clients_with_debt(): array {
     foreach ($rows as &$r) { $r['debt'] = round((float)$r['charges'] - (float)$r['paid'], 2); }
     return $rows;
 }
+
+/**
+ * Prognoza "nadpłaty do końca roku": szacowana suma należności za WSZYSTKIE
+ * pozostałe zajęcia (jeszcze nieodbyte, zaplanowane) we wszystkich aktywnych
+ * zapisach kursanta, do 31 grudnia bieżącego roku, pomniejszona o obecne
+ * saldo portfela (jeśli już jest nadpłata). To SZACUNEK, nie rozliczenie:
+ * nie uwzględnia pojedynczych odwołań zajęć, które jeszcze nie zaistniały
+ * (k30_ti_attendance dla przyszłych lekcji zwykle jeszcze nie ma wierszy).
+ *
+ * k30_ti_billing NIE MA wierszy za przyszłe miesiące (rozliczenia liczą się
+ * wstecz, z frekwencji) — stąd liczymy wprost z harmonogramu (k30_ti_sessions)
+ * i cennika zapisu (k30_ti_effective_billing() z includes/karty30.php — wymaga,
+ * żeby wołający miał już załadowane includes/karty30.php, tak jak reszta
+ * funkcji rozliczeniowych w tym pliku).
+ *
+ * @return array{
+ *   year:int, deadline:string, courses:array, projected_total:float,
+ *   current_credit:float, suggested_amount:float
+ * }
+ */
+function ti_year_end_projection(int $client_id): array {
+    $today    = date('Y-m-d');
+    $cur_year = (int)date('Y');
+    $year_end = $cur_year . '-12-31';
+    // Miesiące od bieżącego do grudnia włącznie — miesięczny/stały model
+    // nalicza się per miesiąc niezależnie od tego, ile dni z niego zostało.
+    $months_left = 12 - (int)date('m') + 1;
+
+    $enrs = db_all(
+        "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount,
+                c.name AS course_name
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_courses c ON c.id=e.course_id
+         WHERE e.client_id=? AND e.status='active'",
+        [$client_id]
+    );
+
+    $total   = 0.0;
+    $courses = [];
+    foreach ($enrs as $e) {
+        $eff = k30_ti_effective_billing($e, [
+            'billing_model'  => $e['course_billing_model'],
+            'billing_amount' => $e['course_billing_amount'],
+        ]);
+
+        if ($eff['model'] === 1 || $eff['model'] === 3) {
+            // miesięczny / stały — kwota × liczba pozostałych miesięcy (od bieżącego)
+            $course_amount = $eff['amount'] * $months_left;
+        } else {
+            // godzinowy — suma godzin zaplanowanych (nieodbytych) sesji do końca roku
+            $rows = db_all(
+                "SELECT duration_min FROM k30_ti_sessions
+                 WHERE course_id=? AND status='planned' AND lesson_date BETWEEN ? AND ?",
+                [(int)$e['course_id'], $today, $year_end]
+            );
+            $hrs = 0.0;
+            foreach ($rows as $r) $hrs += (float)ceil((int)$r['duration_min'] / 60);
+            $course_amount = $hrs * $eff['hourly_rate'];
+        }
+
+        if ($course_amount > 0.005) {
+            $courses[] = [
+                'course_id'   => (int)$e['course_id'],
+                'course_name' => (string)($e['course_name'] ?? '?'),
+                'model_label' => $eff['label'],
+                'amount'      => round($course_amount, 2),
+            ];
+        }
+        $total += $course_amount;
+    }
+
+    $bal       = ti_client_balance($client_id);
+    $suggested = max(0.0, round($total - (float)$bal['credit'], 2));
+
+    return [
+        'year'             => $cur_year,
+        'deadline'         => $year_end,
+        'courses'          => $courses,
+        'projected_total'  => round($total, 2),
+        'current_credit'   => (float)$bal['credit'],
+        'suggested_amount' => $suggested,
+    ];
+}
