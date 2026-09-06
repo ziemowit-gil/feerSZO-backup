@@ -29,7 +29,7 @@ if (!$reservation) {
 
 $user        = current_user();
 $is_owner    = (int)$reservation['user_id'] === (int)$user['id'];
-$is_admin    = is_admin() || can_write('resources');
+$is_admin    = is_admin() || can_write('srs');
 $is_dysponent= (int)($reservation['dysponent_user_id'] ?? 0) === (int)$user['id'];
 
 if (!$is_owner && !$is_admin && !$is_dysponent) {

@@ -10,7 +10,7 @@ require_once dirname(__DIR__, 3) . '/modules/srs/logic/srs.php';
 
 require_login();
 ika_require();
-if (!is_admin()) { flash_set('danger','Brak uprawnień.'); header('Location: '.APP_URL.'/modules/srs/'); exit; }
+if (!is_admin() && !can_write('srs')) { flash_set('danger','Brak uprawnień.'); header('Location: '.APP_URL.'/modules/srs/'); exit; }
 resources_migrate();
 
 $PAGE_TITLE = 'Zarządzanie zasobami';

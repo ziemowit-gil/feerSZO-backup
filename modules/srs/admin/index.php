@@ -15,7 +15,7 @@ ika_require();
 resources_migrate();
 
 $user         = current_user();
-$is_admin     = is_admin() || can_write('resources');
+$is_admin     = is_admin() || can_write('srs');
 // Dysponent = użytkownik przypisany do co najmniej jednego zasobu. Wcześniej
 // `$is_dysponent = !$is_admin` sprawiało, że warunek poniżej NIGDY nie był
 // spełniony i panel decyzji otwierał każdy zalogowany użytkownik.

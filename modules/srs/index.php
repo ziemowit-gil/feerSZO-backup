@@ -94,7 +94,7 @@ $my_pending = array_filter(
 );
 
 // Panel decyzji: admin (wszystkie) albo dysponent (własne zasoby)
-$_res_admin     = is_admin() || can_write('resources');
+$_res_admin     = is_admin() || can_write('srs');
 $_res_dysponent = res_is_dysponent((int)$user['id']);
 
 // Powłoka: panel wolontariusza dla samych wolontariuszy, powłoka SZO dla reszty

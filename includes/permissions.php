@@ -30,6 +30,7 @@ const PERMISSION_MODULES = [
     'szkolenia'     => 'Szkolenia (rezerwacja TidyCal)',
     'poczta'        => 'Moduł Poczty',
     'wsparcie_ou'   => 'Rozliczanie OU',
+    'srs'           => 'System Rezerwacji Sal (SRS)',
     'admin'         => 'Administracja',
 ];
 
@@ -177,6 +178,17 @@ function _permissions_init(): void {
         $sek_id = (int)$pdo->query("SELECT id FROM roles WHERE name='dydaktyk_sekretariat'")->fetchColumn();
         $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
             ->execute([$sek_id, 'karty30', 1, 0, 0]);
+    }
+
+    // Idempotentnie dodaj rolę srs_koordynator — zarządza zasobami (salami)
+    // i decyduje o rezerwacjach w Systemie Rezerwacji Sal (SRS), bez dostępu
+    // do pozostałych modułów administracyjnych i bez pełnego is_admin().
+    if (!$pdo->query("SELECT COUNT(*) FROM roles WHERE name='srs_koordynator'")->fetchColumn()) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, sort_order)
+                    VALUES ('srs_koordynator','SRS: koordynator sal','Zarządza zasobami (salami) i kategoriami oraz decyduje o wnioskach o rezerwację w Systemie Rezerwacji Sal',1,7)");
+        $srs_id = (int)$pdo->query("SELECT id FROM roles WHERE name='srs_koordynator'")->fetchColumn();
+        $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
+            ->execute([$srs_id, 'srs', 1, 1, 0]);
     }
 
     // Idempotentnie dodaj rolę dydaktyk_ti — konto panelu dydaktyka TI (system
