@@ -51,6 +51,18 @@ services:
       # Silnik egzaminów TI (moduł Testy wiedzy i umiejętności)
       EXAM_ENGINE_URL:   ${EXAM_ENGINE_URL:-http://exam-engine:8090}
       EXAM_ENGINE_TOKEN: ${EXAM_ENGINE_TOKEN:-}
+      # Warstwa hybrydowa SZO/TI/Dydaktyka (hybrid/) — local: wszystko w tym
+      # procesie (domyślne, gdy zmienne nie ustawione); http: dana domena
+      # jest osobnym serwisem. Patrz hybrid/README.md.
+      SZO_DRIVER:              ${SZO_DRIVER:-local}
+      SZO_API_BASE_URL:        ${SZO_API_BASE_URL:-}
+      SZO_API_KEY:             ${SZO_API_KEY:-}
+      TI_DRIVER:               ${TI_DRIVER:-local}
+      TI_API_BASE_URL:         ${TI_API_BASE_URL:-}
+      TI_API_KEY:              ${TI_API_KEY:-}
+      DYDAKTYKA_DRIVER:        ${DYDAKTYKA_DRIVER:-local}
+      DYDAKTYKA_API_BASE_URL:  ${DYDAKTYKA_API_BASE_URL:-}
+      DYDAKTYKA_API_KEY:       ${DYDAKTYKA_API_KEY:-}
     networks:
       - feer
       - exam
