@@ -6,6 +6,7 @@
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
 ti_payments_migrate();
 stripe_migrate();
 payu_migrate();
@@ -120,10 +121,11 @@ foreach ($bi_unbilled as $e) {
 
 $stripe_on = stripe_enabled();
 $payu_on   = payu_enabled();
+$p24_on    = p24_enabled();
 
-// Mapa płatności Stripe/PayU
+// Mapa płatności Stripe/PayU/Przelewy24
 $bi_ids = array_column($bi_records, 'id');
-$bi_stripe = $bi_payu = [];
+$bi_stripe = $bi_payu = $bi_p24 = [];
 if ($bi_ids) {
     $in = implode(',', array_fill(0, count($bi_ids), '?'));
     foreach (db_all("SELECT * FROM stripe_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in)", $bi_ids) as $sp) {
@@ -131,6 +133,9 @@ if ($bi_ids) {
     }
     foreach (db_all("SELECT * FROM payu_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in)", $bi_ids) as $pp) {
         $bi_payu[(int)$pp['source_id']] = $pp;
+    }
+    foreach (db_all("SELECT * FROM p24_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in)", $bi_ids) as $p4) {
+        $bi_p24[(int)$p4['source_id']] = $p4;
     }
 }
 
@@ -365,6 +370,7 @@ $bi_f = fn($x) => number_format((float)$x, 2, ',', ' ');
       $bal   = $bi_balances[(int)$b['client_id']] ?? null;
       $has_stripe = !empty($bi_stripe[(int)$b['id']]);
       $has_payu   = !empty($bi_payu[(int)$b['id']]);
+      $has_p24    = !empty($bi_p24[(int)$b['id']]);
     ?>
     <div class="dyd-bi-row" role="listitem">
       <div style="min-width:0;flex:1">
@@ -397,10 +403,11 @@ $bi_f = fn($x) => number_format((float)$x, 2, ',', ' ');
           <div class="val" style="color:#dc2626"><?= $bi_f($rest) ?> zł</div>
         </div>
         <?php endif; ?>
-        <?php if ($has_stripe || $has_payu): ?>
+        <?php if ($has_stripe || $has_payu || $has_p24): ?>
         <div style="font-size:.68rem;color:var(--bs-secondary-color)">
           <?php if ($has_stripe): ?><i class="bi bi-stripe" aria-hidden="true" title="Stripe"></i><?php endif; ?>
           <?php if ($has_payu):   ?><span title="PayU" style="font-weight:600">P</span><?php endif; ?>
+          <?php if ($has_p24):    ?><span title="Przelewy24" style="font-weight:600">P24</span><?php endif; ?>
         </div>
         <?php endif; ?>
       </div>

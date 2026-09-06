@@ -12,6 +12,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 
 $me = dyd_require();
@@ -200,6 +201,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 flash_set('success', 'Link do zapłaty PayU utworzony: ' . $r['url']);
             } catch (\Throwable $e) {
                 flash_set('danger', 'PayU: ' . $e->getMessage());
+            }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Wygeneruj link do zapłaty Przelewy24 dla rozliczenia
+    if ($op === 'p24_link') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
+        if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
+        elseif (!p24_enabled()) { flash_set('danger','Płatności Przelewy24 nie są skonfigurowane (Integracje → Płatności / Przelewy24).'); }
+        else {
+            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
+            $notify = rtrim(APP_URL,'/') . '/api/p24_webhook.php';
+            try {
+                $r = p24_create_order(
+                    'k30_ti_billing', $bid, $amount,
+                    'Zajęcia TI — ' . ($b['client_name'] ?? '') . ' (' . $month . '/' . $year . ')',
+                    $back . '&paid=1', $notify,
+                    (string)($b['client_email'] ?? '')
+                );
+                flash_set('success', 'Link do zapłaty Przelewy24 utworzony: ' . $r['url']);
+            } catch (\Throwable $e) {
+                flash_set('danger', 'Przelewy24: ' . $e->getMessage());
             }
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
@@ -583,6 +609,16 @@ if ($bids) {
     }
 }
 $payu_on = payu_enabled();
+
+// Mapa płatności Przelewy24 dla wyświetlanych rozliczeń
+$p24_pay = [];
+if ($bids) {
+    $in = implode(',', array_fill(0, count($bids), '?'));
+    foreach (db_all("SELECT * FROM p24_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in) ORDER BY id", $bids) as $p4) {
+        $p24_pay[(int)$p4['source_id']] = $p4; // ostatni wygrywa
+    }
+}
+$p24_on = p24_enabled();
 
 // Podgląd kwot dla nieopłaconych
 $preview = [];
@@ -1063,6 +1099,23 @@ echo '<main id="main" class="dyd-wrap">';
               <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
               <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2" title="Wygeneruj link do zapłaty PayU">
                 <i class="bi bi-wallet2 me-1"></i>PayU
+              </button>
+            </form>
+            <?php endif; ?>
+            <?php // ── Przelewy24 ──
+              $p4 = $p24_pay[(int)$b['id']] ?? null; ?>
+            <?php if ($p24_on && $p4 && $p4['status'] === 'pending' && !empty($p4['redirect_uri'])): ?>
+            <a href="<?= h($p4['redirect_uri']) ?>" target="_blank" rel="noopener"
+               class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Otwórz link do zapłaty Przelewy24">
+              <i class="bi bi-link-45deg me-1"></i>P24
+            </a>
+            <?php elseif ($p24_on): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="p24_link">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Wygeneruj link do zapłaty Przelewy24">
+                <i class="bi bi-wallet2 me-1"></i>P24
               </button>
             </form>
             <?php endif; ?>
