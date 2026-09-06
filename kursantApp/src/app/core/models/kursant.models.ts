@@ -216,6 +216,9 @@ export interface YearEndOverpayInfo {
   current_credit?: number;
   suggested_amount?: number;
   gateways?: ('stripe' | 'payu' | 'p24')[];
+  transfer_allowed?: boolean;
+  transfer_account?: string | null;
+  transfer_title?: string | null;
 }
 
 export interface License {

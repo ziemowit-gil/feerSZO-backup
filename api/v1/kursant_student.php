@@ -700,12 +700,12 @@ switch ($action) {
         }
         $proj    = ti_year_end_projection($cid);
         $methods = k30_ti_student_allowed_payment_methods($student_id);
-        // Tylko bramki online (kreator w Angularze nie obsługuje jeszcze zgłoszenia
-        // przelewu tradycyjnego — to samo ograniczenie co w panelu klasycznym).
         $gateways = [];
         if (in_array('stripe', $methods, true) && stripe_enabled()) $gateways[] = 'stripe';
         if (in_array('payu', $methods, true)   && payu_enabled())   $gateways[] = 'payu';
         if (in_array('p24', $methods, true)    && p24_enabled())    $gateways[] = 'p24';
+        $transfer_allowed = in_array('transfer', $methods, true);
+        $pay = $transfer_allowed ? k30_ti_client_payment($cid) : null;
         json_ok([
             'allowed'          => true,
             'year'             => $proj['year'],
@@ -715,7 +715,28 @@ switch ($action) {
             'current_credit'   => $proj['current_credit'],
             'suggested_amount' => $proj['suggested_amount'],
             'gateways'         => $gateways,
+            'transfer_allowed' => $transfer_allowed,
+            'transfer_account' => $pay['account'] ?? null,
+            'transfer_title'   => $pay['title'] ?? null,
         ]);
+    }
+
+    case 'year_end_declare_transfer': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $acc = load_student($student_id);
+        if (!k30_ti_student_year_end_overpay_allowed($student_id)) {
+            json_err('Nadpłata do końca roku nie jest dostępna dla tego konta.', 403);
+        }
+        $methods = k30_ti_student_allowed_payment_methods($student_id);
+        if (!in_array('transfer', $methods, true)) {
+            json_err('Zgłoszenie przelewu nie jest dostępne dla tego konta.', 403);
+        }
+        $body   = get_body();
+        $amount = round((float)($body['amount'] ?? 0), 2);
+        $note   = trim((string)($body['note'] ?? ''));
+        if ($amount < 1 || $amount > 50000) json_err('Podaj kwotę przelewu od 1 do 50 000 zł.');
+        ti_wallet_request_add((int)$acc['client_id'], $amount, $note, 'kursant', true);
+        json_ok(['ok' => true]);
     }
 
     case 'year_end_overpay': {

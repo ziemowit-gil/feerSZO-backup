@@ -88,6 +88,9 @@ export class KursantApiService {
   yearEndOverpay(amount: number, provider: string) {
     return this.post<{ url: string }>('year_end_overpay', { amount, provider });
   }
+  yearEndDeclareTransfer(amount: number, note: string) {
+    return this.post<{ ok: boolean }>('year_end_declare_transfer', { amount, note });
+  }
   orderVlabServer()    { return this.post<void>('order_dedicated_server'); }
   cancelVlabServer(server_id: number) {
     return this.post<void>('cancel_dedicated_server', { server_id });

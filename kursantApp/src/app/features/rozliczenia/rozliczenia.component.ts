@@ -106,6 +106,34 @@ const GATEWAY_LABELS: Record<string, string> = {
           } @else {
             <p class="text-muted text-sm" style="margin:0">Płatności online nie są teraz dostępne dla tego konta — skontaktuj się z placówką.</p>
           }
+
+          @if (ye.transfer_allowed) {
+            <div style="border-top:1px solid var(--c-border);margin-top:1.25rem;padding-top:1rem">
+              <p class="text-muted text-sm" style="margin:0 0 .5rem">
+                Możesz też wpłacić nadpłatę przelewem tradycyjnym
+                @if (ye.transfer_account) { na konto <strong>{{ ye.transfer_account }}</strong> }
+                @if (ye.transfer_title) { (tytuł: {{ ye.transfer_title }}) }
+                i zgłosić to od razu — placówka zaksięguje wpłatę i automatycznie przygotuje fakturę.
+              </p>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                  <label for="yeDeclAmt" style="display:block;font-size:.8rem;margin-bottom:.25rem">Kwota przelewu</label>
+                  <input type="number" id="yeDeclAmt" min="1" max="50000" step="0.01"
+                         [(ngModel)]="yearEndDeclareAmount"
+                         style="padding:.4rem .6rem;border:1px solid var(--c-border);border-radius:.5rem;width:140px">
+                </div>
+                <div style="flex:1;min-width:180px">
+                  <label for="yeDeclNote" style="display:block;font-size:.8rem;margin-bottom:.25rem">Tytuł / referencja (opcjonalnie)</label>
+                  <input type="text" id="yeDeclNote" maxlength="500"
+                         [(ngModel)]="yearEndDeclareNote"
+                         style="padding:.4rem .6rem;border:1px solid var(--c-border);border-radius:.5rem;width:100%">
+                </div>
+                <button mat-stroked-button [disabled]="yearEndDeclareSubmitting()" (click)="submitYearEndDeclare()">
+                  Zgłoś przelew
+                </button>
+              </div>
+            </div>
+          }
         </section>
       }
     }
@@ -247,6 +275,10 @@ export class RozliczeniaComponent implements OnInit {
   yearEndProvider     = '';
   yearEndSubmitting   = signal(false);
 
+  yearEndDeclareAmount     = 0;
+  yearEndDeclareNote       = '';
+  yearEndDeclareSubmitting = signal(false);
+
   gatewayLabel(gw: string): string { return GATEWAY_LABELS[gw] ?? gw; }
 
   ngOnInit(): void {
@@ -263,6 +295,7 @@ export class RozliczeniaComponent implements OnInit {
         if (res.success && res.data) {
           this.yearEnd.set(res.data);
           this.yearEndAmount = res.data.suggested_amount || 0;
+          this.yearEndDeclareAmount = res.data.suggested_amount || 0;
           this.yearEndProvider = res.data.gateways?.[0] ?? '';
         }
       },
@@ -297,6 +330,28 @@ export class RozliczeniaComponent implements OnInit {
       error: err => {
         this.yearEndSubmitting.set(false);
         this.snack.open(err?.error?.error || 'Nie udało się rozpocząć płatności.', 'OK', { duration: 5000 });
+      },
+    });
+  }
+
+  submitYearEndDeclare(): void {
+    if (this.yearEndDeclareAmount < 1) {
+      this.snack.open('Podaj kwotę przelewu.', 'OK', { duration: 3000 });
+      return;
+    }
+    this.yearEndDeclareSubmitting.set(true);
+    this.api.yearEndDeclareTransfer(this.yearEndDeclareAmount, this.yearEndDeclareNote).subscribe({
+      next: res => {
+        this.yearEndDeclareSubmitting.set(false);
+        if (res.success) {
+          this.snack.open('Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.', 'OK', { duration: 6000 });
+        } else {
+          this.snack.open(res.error || 'Nie udało się wysłać zgłoszenia.', 'OK', { duration: 5000 });
+        }
+      },
+      error: err => {
+        this.yearEndDeclareSubmitting.set(false);
+        this.snack.open(err?.error?.error || 'Nie udało się wysłać zgłoszenia.', 'OK', { duration: 5000 });
       },
     });
   }
