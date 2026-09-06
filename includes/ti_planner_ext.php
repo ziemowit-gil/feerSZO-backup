@@ -55,6 +55,22 @@ function ti_planner_ext_migrate(): void {
     // jak dotąd; skrót nie zmienia pełnego opisu w wykazie sal ani w wyborze sali.
     try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN short_label TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
+    // Budynki — grupowanie sal ponad pojedynczą lokalizacją (jeden budynek, wiele
+    // sal). Osobna, ogólna tabela — nie tylko dla TI, więc bez powiązania z kursem.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_buildings (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        address    TEXT    NOT NULL DEFAULT '',
+        notes      TEXT    NOT NULL DEFAULT '',
+        is_active  INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Sala może (nie musi) należeć do budynku z rejestru powyżej.
+    try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN building_id INTEGER REFERENCES k30_pl_buildings(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+    // Nazwa zwyczajowa używana przez operatora przestrzeni (np. najemcę/właściciela
+    // budynku) — bywa inna niż nasza wewnętrzna nazwa/skrót sali.
+    try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN operator_label TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pl_laptop_pool (
         id        INTEGER PRIMARY KEY AUTOINCREMENT,
         asset_tag TEXT    NOT NULL UNIQUE,
@@ -316,9 +332,49 @@ function pl_audit_list(array $f = []): array {
 
 function pl_rooms_list(array $f = []): array {
     $where = ['1=1']; $params = [];
-    if (isset($f['is_active'])) { $where[] = 'is_active=?'; $params[] = (int)$f['is_active']; }
-    if (!empty($f['mode']))     { $where[] = "(mode_support='all' OR mode_support=?)"; $params[] = $f['mode']; }
-    return db_all("SELECT * FROM k30_pl_rooms WHERE " . implode(' AND ', $where) . " ORDER BY name", $params);
+    if (isset($f['is_active'])) { $where[] = 'r.is_active=?'; $params[] = (int)$f['is_active']; }
+    if (!empty($f['mode']))     { $where[] = "(r.mode_support='all' OR r.mode_support=?)"; $params[] = $f['mode']; }
+    if (!empty($f['building_id'])) { $where[] = 'r.building_id=?'; $params[] = (int)$f['building_id']; }
+    return db_all(
+        "SELECT r.*, b.name AS building_name
+           FROM k30_pl_rooms r LEFT JOIN k30_pl_buildings b ON b.id = r.building_id
+          WHERE " . implode(' AND ', $where) . " ORDER BY r.name",
+        $params
+    );
+}
+
+/* ── BUDYNKI ──────────────────────────────────────────────────────────────── */
+
+function pl_buildings_list(array $f = []): array {
+    $where = ['1=1']; $params = [];
+    if (isset($f['is_active'])) { $where[] = 'b.is_active=?'; $params[] = (int)$f['is_active']; }
+    return db_all(
+        "SELECT b.*, (SELECT COUNT(*) FROM k30_pl_rooms r WHERE r.building_id = b.id) AS room_count
+           FROM k30_pl_buildings b WHERE " . implode(' AND ', $where) . " ORDER BY b.name",
+        $params
+    );
+}
+
+function pl_building_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_pl_buildings WHERE id=?", [$id]) ?: null;
+}
+
+function pl_building_save(array $d, ?int $id = null): int {
+    $fields = [
+        'name'      => substr(trim($d['name'] ?? ''), 0, 150),
+        'address'   => substr(trim($d['address'] ?? ''), 0, 200),
+        'notes'     => substr($d['notes'] ?? '', 0, 500),
+        'is_active' => (int)(bool)($d['is_active'] ?? true),
+    ];
+    if ($id) {
+        $sets = implode(',', array_map(fn($k) => "$k=?", array_keys($fields)));
+        db_exec("UPDATE k30_pl_buildings SET $sets WHERE id=?", [...array_values($fields), $id]);
+        return $id;
+    }
+    $cols = implode(',', array_keys($fields));
+    $phs  = implode(',', array_fill(0, count($fields), '?'));
+    db_exec("INSERT INTO k30_pl_buildings ($cols) VALUES ($phs)", array_values($fields));
+    return (int)db()->lastInsertId();
 }
 
 function pl_room_get(int $id): ?array {
@@ -326,6 +382,7 @@ function pl_room_get(int $id): ?array {
 }
 
 function pl_room_save(array $d, ?int $id = null): int {
+    $building_id = (int)($d['building_id'] ?? 0);
     $fields = [
         'name'            => substr(trim($d['name'] ?? ''), 0, 120),
         'capacity'        => max(1, (int)($d['capacity'] ?? 20)),
@@ -336,6 +393,8 @@ function pl_room_save(array $d, ?int $id = null): int {
         'mode_support'    => in_array($d['mode_support'] ?? '', ['onsite','remote','hybrid','all']) ? $d['mode_support'] : 'onsite',
         'location'        => substr($d['location'] ?? '', 0, 200),
         'short_label'     => substr(trim($d['short_label'] ?? ''), 0, 40),
+        'operator_label'  => substr(trim($d['operator_label'] ?? ''), 0, 120),
+        'building_id'     => $building_id > 0 ? $building_id : null,
         'notes'           => substr($d['notes'] ?? '', 0, 500),
         'is_active'       => (int)(bool)($d['is_active'] ?? true),
     ];
