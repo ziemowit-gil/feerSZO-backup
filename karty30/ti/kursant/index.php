@@ -1176,13 +1176,19 @@ include __DIR__ . '/_layout_head.php';
 <?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
 <?php
-  // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
+  // Grupy menu — spłaszczone w dropdowny (Nauka / Konto / Dostępy / Inne).
+  // Wcześniej Rozliczenia/Portfel/Upoważnieni/Pomoc/Aktywność/Ustawienia/Regulaminy
+  // były pozycjami PŁASKIMI obok tych dropdownów — przy 12 elementach na pasku
+  // pasek zawijał się na dwa wiersze na węższych ekranach. Konto i Inne grupują
+  // je tak samo jak w panelu Angular (sekcje KONTO / INNE w bocznym menu).
   $nauka_tabs     = ['lekcje','zadania','zapisy','oceny','plan','egzaminy','testy'];
+  $konto_tabs     = ['rozliczenia','portfel','upowaznieni','ustawienia'];
   $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
-  $pomoc_tabs     = ['problem','ustawienia'];
+  $inne_tabs      = ['problem','aktywnosc','regulaminy'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
+  $konto_active   = in_array($tab, $konto_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
-  $pomoc_active   = in_array($tab, $pomoc_tabs, true);
+  $inne_active    = in_array($tab, $inne_tabs, true);
 
   // Kolory kafli w motywie Metro — własne klasy .kp-tile-1..8 (zdefiniowane w _layout_head.php),
   // dobrane pod kontrast WCAG AA (≥4.5:1 z białym tekstem kafla). Poza motywem Metro te klasy
@@ -1246,23 +1252,27 @@ include __DIR__ . '/_layout_head.php';
       </a>
     </li>
 
-    <?php if (!$is_minor): ?>
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
-        <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia
+    <!-- Konto: rozliczenia, portfel, upoważnieni (ukryte dla małoletnich — prowadzi
+         je opiekun) + ustawienia (zawsze widoczne, niezależnie od is_minor). -->
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $konto_active?'active':'' ?>" href="#" role="button"
+         data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Konto
       </a>
+      <ul class="dropdown-menu">
+        <?php if (!$is_minor): ?>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
+          <i class="bi bi-receipt me-2" aria-hidden="true"></i>Rozliczenia</a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='portfel'?'active':'' ?>" href="?tab=portfel" <?= $tab==='portfel'?'aria-current="page"':'' ?>>
+          <i class="bi bi-wallet2 me-2" aria-hidden="true"></i>Portfel</a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
+          <i class="bi bi-person-check me-2" aria-hidden="true"></i>Upoważnieni</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <?php endif; ?>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
+          <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia</a></li>
+      </ul>
     </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='portfel'?'active':'' ?>" href="?tab=portfel" <?= $tab==='portfel'?'aria-current="page"':'' ?>>
-        <i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Portfel
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
-        <i class="bi bi-person-check me-1" aria-hidden="true"></i>Upoważnieni
-      </a>
-    </li>
-    <?php endif; ?>
 
     <!-- Dostępy i narzędzia -->
     <li class="nav-item dropdown">
@@ -1289,34 +1299,22 @@ include __DIR__ . '/_layout_head.php';
       </ul>
     </li>
 
-    <!-- Pomoc / zgłoszenie problemu -->
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
-        <i class="bi bi-life-preserver me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Pomoc</span>
+    <!-- Inne: pomoc, aktywność konta, regulaminy -->
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $inne_active?'active':'' ?>" href="#" role="button"
+         data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-three-dots me-1" aria-hidden="true"></i>Inne
+        <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-1"><?= count($terms_pending) ?><span class="visually-hidden"> spraw do załatwienia</span></span><?php endif; ?>
       </a>
-    </li>
-
-    <!-- Aktywność — dziennik zdarzeń konta -->
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='aktywnosc'?'active':'' ?>" href="?tab=aktywnosc" <?= $tab==='aktywnosc'?'aria-current="page"':'' ?>
-         title="Aktywność konta" aria-label="Aktywność konta">
-        <i class="bi bi-clock-history me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Aktywność</span>
-      </a>
-    </li>
-
-    <!-- Ustawienia — bezpośrednio w nawigacji -->
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>
-         title="Ustawienia" aria-label="Ustawienia">
-        <i class="bi bi-gear<?= $tab==='ustawienia'?'-fill':'' ?> me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Ustawienia</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a class="nav-link <?= $mc() ?> <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
-        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Regulaminy
-        <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-1"><?= count($terms_pending) ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
-      </a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
+          <i class="bi bi-life-preserver me-2" aria-hidden="true"></i>Pomoc</a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='aktywnosc'?'active':'' ?>" href="?tab=aktywnosc" <?= $tab==='aktywnosc'?'aria-current="page"':'' ?>>
+          <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Aktywność konta</a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Regulaminy
+          <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-2"><?= count($terms_pending) ?></span><?php endif; ?></a></li>
+      </ul>
     </li>
 
   </ul>
