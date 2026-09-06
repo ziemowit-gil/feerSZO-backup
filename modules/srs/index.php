@@ -1,10 +1,14 @@
 <?php
 /**
- * resources/index.php — Lista zasobów do rezerwacji.
+ * modules/srs/index.php — System Rezerwacji Sal (SRS): lista zasobów.
  *
  * Powłoka jak w [[project_crm_views_wcag]]/panel/rodo.php: wolontariusz dostaje
  * powłokę panelu (header_panel.php), edytor/admin powłokę SZO. Treść w języku
  * wizualnym modułu „Tożsamość" (.tz-card/.tz-btn/.tz-badge, pv_ui.php).
+ *
+ * Niezalogowany gość dostaje samodzielny ekran powitalny (bez wspólnego
+ * nagłówka SZO — ten zakłada zalogowanego użytkownika) z zachętą do
+ * zalogowania się, zamiast twardego przekierowania na /auth/login.php.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -12,11 +16,73 @@ require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/modules/srs/logic/srs.php';
 
-require_login();
 resources_migrate();
 
+$user = current_user();
+if (!$user) {
+    require_once dirname(__DIR__, 2) . '/includes/branding.php';
+    $_b = branding_load();
+    $org_name = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'FEER');
+    $login_url = APP_URL . '/auth/login.php?redirect=' . urlencode(APP_URL . '/modules/srs/');
+    ?><!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Rezerwacji Sal — <?= h($org_name) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php branding_css($_b); ?>
+<style>
+body{background:#F1F5F9;min-height:100vh}
+.srs-topbar{background:#0f172a;color:#fff;padding:.65rem 1.25rem;display:flex;align-items:center;gap:.75rem}
+.srs-topbar .brand{font-weight:800;font-size:1rem;flex-grow:1}
+.srs-topbar .brand img{max-height:28px;margin-right:.5rem;vertical-align:middle}
+.srs-topbar .btn-login{background:var(--c,#2563eb);color:#fff;border:none;border-radius:8px;padding:.45rem 1rem;font-weight:700;font-size:.85rem;text-decoration:none}
+.srs-topbar .btn-login:hover{background:var(--c-dark,#1d4ed8);color:#fff}
+.srs-wrap{max-width:680px;margin:0 auto;padding:3rem 1.25rem}
+.srs-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:2.25rem;box-shadow:0 4px 24px rgba(15,23,42,.06)}
+.srs-icon{width:56px;height:56px;border-radius:14px;background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin-bottom:1.25rem}
+.srs-card h1{font-size:1.5rem;font-weight:800;color:#0f172a;margin:0 0 1rem;letter-spacing:-.01em}
+.srs-card p{color:#334155;font-size:.95rem;line-height:1.65}
+.srs-card ul{margin:0 0 1.25rem;padding-left:1.25rem}
+.srs-card ul li{color:#334155;font-size:.9rem;line-height:1.7;margin-bottom:.3rem}
+.srs-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}
+.srs-actions .btn{font-weight:700}
+</style>
+</head>
+<body>
+<div class="srs-topbar">
+  <span class="brand">
+    <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt=""><?php endif; ?>
+    <?= h($org_name) ?> — System Rezerwacji Sal
+  </span>
+  <a href="<?= h($login_url) ?>" class="btn-login"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się</a>
+</div>
+<div class="srs-wrap">
+  <div class="srs-card">
+    <div class="srs-icon"><i class="bi bi-door-open-fill" aria-hidden="true"></i></div>
+    <h1>Witamy w Systemie Rezerwacji Sal</h1>
+    <p>Zaloguj się poprzez pasek logowania umieszczony w górnej części ekranu.</p>
+    <p>Po zalogowaniu otrzymasz dostęp do systemu. Jego funkcje to:</p>
+    <ul>
+      <li>Interaktywny kalendarz wyświetlający wszystkie zdarzenia w wybranym dniu / tygodniu.</li>
+      <li>System filtrów umożliwiający ograniczenie wyświetlania zdarzeń do tych, którymi jesteśmy aktualnie zainteresowani.</li>
+      <li>Składanie próśb o rezerwację sali we wskazanym terminie (tylko dla uprawnionych).</li>
+    </ul>
+    <p class="mb-0">Nowych użytkowników zachęcamy do lektury <a href="<?= APP_URL ?>/modules/srs/podrecznik.php">podręcznika</a>.</p>
+    <div class="srs-actions">
+      <a href="<?= h($login_url) ?>" class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się</a>
+      <a href="<?= APP_URL ?>/modules/srs/podrecznik.php" class="btn btn-outline-secondary"><i class="bi bi-book me-1" aria-hidden="true"></i>Podręcznik</a>
+    </div>
+  </div>
+</div>
+</body>
+</html><?php
+    exit;
+}
+
 $PAGE_TITLE = 'Rezerwacja zasobów';
-$user       = current_user();
 $cat_filter = (int)($_GET['cat'] ?? 0);
 $categories = res_categories();
 $resources  = res_list($cat_filter);
@@ -42,7 +108,9 @@ if ($_is_volunteer_only) {
 }
 require_once dirname(__DIR__, 2) . '/panel/includes/pv_ui.php';
 
-$_actions = '<a href="' . APP_URL . '/modules/srs/my.php" class="tz-btn tz-btn--ghost">'
+$_actions = '<a href="' . APP_URL . '/modules/srs/kalendarz.php" class="tz-btn tz-btn--ghost">'
+    . '<i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz</a> '
+    . '<a href="' . APP_URL . '/modules/srs/my.php" class="tz-btn tz-btn--ghost">'
     . '<i class="bi bi-list-check" aria-hidden="true"></i>Moje rezerwacje'
     . ($my_pending ? '<span class="tz-badge tz-badge--warn">' . count($my_pending) . '</span>' : '')
     . '</a>';
@@ -53,6 +121,8 @@ if ($_res_admin || $_res_dysponent) {
         . ($_pending_dec ? '<span class="tz-badge tz-badge--warn">' . $_pending_dec . '</span>' : '')
         . '</a>';
 }
+$_actions .= ' <a href="' . APP_URL . '/modules/srs/podrecznik.php" class="tz-btn tz-btn--ghost" title="Podręcznik">'
+    . '<i class="bi bi-book" aria-hidden="true"></i></a>';
 
 pv_page_header('Rezerwacja zasobów', [
     'icon'    => 'bi-calendar-check',
