@@ -97,19 +97,63 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <?php foreach ($by_group as $group_key => $rows): ?>
 <div class="card mb-3">
-  <div class="card-header fw-semibold">
+  <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
     <?php if ($view === 'operator'): ?>
       <i class="bi bi-building me-1 text-primary" aria-hidden="true"></i><?= h($group_key) ?>
     <?php else: $dow = (int)date('N', strtotime($group_key)); ?>
       <?= h(TI_DAYS_PL_FULL[$dow] ?? '') ?>, <?= h(date('d.m.Y', strtotime($group_key))) ?>
     <?php endif; ?>
-    <span class="badge bg-secondary ms-1"><?= count($rows) ?></span>
+    <span class="badge bg-secondary"><?= count($rows) ?></span>
+    <?php if ($view === 'operator'): ?>
+    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator&operator=<?= urlencode($group_key) ?>"
+       target="_blank" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 ms-auto usos-noprint"
+       title="PDF tylko dla tego operatora — bez rezerwacji pozostałych">
+      <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF dla tego operatora
+    </a>
+    <?php endif; ?>
   </div>
   <div class="table-responsive">
+    <?php if ($view === 'operator'): ?>
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <?php if ($view === 'operator'): ?><th scope="col" class="text-nowrap">Data</th><?php endif; ?>
+          <th scope="col">Dzień</th>
+          <th scope="col" class="text-nowrap">Od</th>
+          <th scope="col" class="text-nowrap">Do</th>
+          <th scope="col" class="text-nowrap">Godziny</th>
+          <th scope="col">Sala (nazwa operatora)</th>
+          <th scope="col">Grupa</th>
+          <th scope="col">Prowadzący</th>
+          <th scope="col" class="text-center">Terminów</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($rows as $r): ?>
+        <tr>
+          <td class="small"><?= h(TI_DAYS_PL_FULL[$r['dow']] ?? '') ?></td>
+          <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime($r['date_from']))) ?></td>
+          <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime($r['date_to']))) ?></td>
+          <td class="text-nowrap small"><?= h($r['time_from']) ?>–<?= h($r['time_to']) ?></td>
+          <td class="small"><?= h($r['room_customary']) ?></td>
+          <td class="small"><?= h($r['course_name']) ?></td>
+          <td class="small"><?= h($r['instructor_label']) ?></td>
+          <td class="text-center"><span class="badge bg-secondary"><?= (int)$r['count'] ?></span></td>
+          <td class="small">
+            <?php if ($r['pending'] === 0): ?>
+            <span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>wszystkie potwierdzone</span>
+            <?php else: ?>
+            <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1"></i><?= (int)$r['pending'] ?>/<?= (int)$r['count'] ?> do rezerwacji</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?>
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
           <th scope="col" class="text-nowrap">Godziny</th>
           <th scope="col">Sala / lokalizacja</th>
           <th scope="col">Grupa</th>
@@ -120,7 +164,6 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <tbody>
         <?php foreach ($rows as $r): $confirmed = $r['room_reservation_status'] === 'potwierdzone'; ?>
         <tr>
-          <?php if ($view === 'operator'): ?><td class="text-nowrap small"><?= h(date('d.m.Y', strtotime((string)$r['lesson_date']))) ?></td><?php endif; ?>
           <td class="text-nowrap small"><?= h(substr((string)$r['time_from'], 0, 5)) ?>–<?= h(substr((string)$r['time_to'], 0, 5)) ?></td>
           <td class="small"><?= h($r['room_label']) ?></td>
           <td class="small"><?= h($r['course_name']) ?></td>
@@ -141,6 +184,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <?php endforeach; ?>
       </tbody>
     </table>
+    <?php endif; ?>
   </div>
 </div>
 <?php endforeach; ?>

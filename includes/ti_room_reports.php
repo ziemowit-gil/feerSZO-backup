@@ -826,7 +826,7 @@ function ti_group_location_summary(int $weeks = 8): array {
 function _ti_room_reservation_rows(string $from, string $to): array {
     $rows = db_all(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.room_id, s.room_reservation_status,
-                s.instructor_id, c.name AS course_name, c.instructor_id AS course_instructor_id,
+                s.instructor_id, c.id AS course_id, c.name AS course_name, c.instructor_id AS course_instructor_id,
                 u.name AS instr_name, cu.name AS course_instr_name,
                 r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label,
                 r.operator_label AS room_operator_label
@@ -862,15 +862,60 @@ function ti_room_reservation_report(string $from, string $to): array {
  * jaką on sam rozpoznaje. Sale bez ustawionej nazwy zwyczajowej trafiają
  * do grupy "(własne, bez nazwy operatora)" pod naszą wewnętrzną etykietą.
  *
- * @return array<string,array> klucz = nazwa operatora (albo etykieta własna),
- *                             wartość = wiersze posortowane po dacie/godzinie.
+ * W przeciwieństwie do ti_room_reservation_report() (jeden wiersz = jedna
+ * lekcja) tutaj powtarzające się co tydzień terminy tego samego slotu
+ * (sala + dzień tygodnia + godziny + grupa) są zwinięte w JEDEN wiersz
+ * z zakresem dat „od–do" i licznikiem terminów — dokument dla zewnętrznego
+ * operatora ma pokazywać "co tydzień, poniedziałki 10:00–12:00, od 1.09 do
+ * 20.12", a nie 16 osobnych identycznych wierszy.
+ *
+ * @return array<string,array<int,array{
+ *     room_customary:string, room_label:string, dow:int, time_from:string,
+ *     time_to:string, course_name:string, instructor_label:string,
+ *     date_from:string, date_to:string, count:int, pending:int, session_ids:int[]
+ * }>> klucz = nazwa operatora (albo etykieta własna).
  */
 function ti_room_reservation_report_by_operator(string $from, string $to): array {
-    $by_op = [];
+    $slots = [];
     foreach (_ti_room_reservation_rows($from, $to) as $r) {
-        $op = trim((string)($r['room_operator_label'] ?? ''));
+        $op  = trim((string)($r['room_operator_label'] ?? ''));
         $key = $op !== '' ? $op : '(własne, bez nazwy operatora — ' . $r['room_label'] . ')';
-        $by_op[$key][] = $r;
+
+        $dow = (int)date('N', strtotime((string)$r['lesson_date']));
+        $tf  = substr((string)$r['time_from'], 0, 5);
+        $tt  = substr((string)$r['time_to'], 0, 5);
+        $slot_key = $r['room_id'] . '|' . $r['course_id'] . '|' . $dow . '|' . $tf . '|' . $tt;
+
+        if (!isset($slots[$key][$slot_key])) {
+            $slots[$key][$slot_key] = [
+                'room_customary'   => $op !== '' ? $op : $r['room_label'],
+                'room_label'       => $r['room_label'],
+                'dow'              => $dow,
+                'time_from'        => $tf,
+                'time_to'          => $tt,
+                'course_name'      => (string)$r['course_name'],
+                'instructor_label' => $r['instructor_label'],
+                'date_from'        => (string)$r['lesson_date'],
+                'date_to'          => (string)$r['lesson_date'],
+                'count'            => 0,
+                'pending'          => 0,
+                'session_ids'      => [],
+            ];
+        }
+        $slot = &$slots[$key][$slot_key];
+        if ($r['lesson_date'] < $slot['date_from']) $slot['date_from'] = (string)$r['lesson_date'];
+        if ($r['lesson_date'] > $slot['date_to'])   $slot['date_to']   = (string)$r['lesson_date'];
+        $slot['count']++;
+        if ($r['room_reservation_status'] !== 'potwierdzone') $slot['pending']++;
+        $slot['session_ids'][] = (int)$r['id'];
+        unset($slot);
+    }
+
+    $by_op = [];
+    foreach ($slots as $key => $slot_list) {
+        $rows_out = array_values($slot_list);
+        usort($rows_out, fn($a, $b) => [$a['dow'], $a['time_from']] <=> [$b['dow'], $b['time_from']]);
+        $by_op[$key] = $rows_out;
     }
     ksort($by_op, SORT_STRING | SORT_FLAG_CASE);
     return $by_op;
