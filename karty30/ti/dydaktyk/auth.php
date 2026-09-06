@@ -127,6 +127,33 @@ function dyd_logout(): void {
     session_destroy();
 }
 
+const DYD_2FA_KEY = 'k30_dyd_2fa_pending';
+const DYD_2FA_TTL = 600; // 10 min na dokończenie kroku TOTP po haśle/SSO
+
+/**
+ * Zapisuje profil (z dyd_authenticate()/dyd_profile_from_user()) jako
+ * „czeka na 2FA" — TOTP jest obowiązkowe dla każdego konta dydaktyka, więc
+ * ani logowanie hasłem, ani Office SSO nie wołają już dyd_login_user()
+ * wprost; robi to dopiero totp_gate.php po zweryfikowaniu kodu.
+ */
+function dyd_2fa_stash(array $data): void {
+    dyd_start();
+    $_SESSION[DYD_2FA_KEY] = ['profile' => $data, 'ts' => time()];
+}
+
+/** Profil czekający na dokończenie 2FA, albo null (brak albo upłynął czas). */
+function dyd_2fa_pending(): ?array {
+    dyd_start();
+    $p = $_SESSION[DYD_2FA_KEY] ?? null;
+    if (!$p || (time() - ($p['ts'] ?? 0)) > DYD_2FA_TTL) { unset($_SESSION[DYD_2FA_KEY]); return null; }
+    return $p['profile'];
+}
+
+function dyd_2fa_clear_pending(): void {
+    dyd_start();
+    unset($_SESSION[DYD_2FA_KEY], $_SESSION['k30_dyd_2fa_setup_secret'], $_SESSION['k30_dyd_2fa_backup_show']);
+}
+
 /**
  * Wymaga zalogowanego dydaktyka; przy braku sesji → strona logowania.
  *
@@ -139,6 +166,21 @@ function dyd_logout(): void {
 function dyd_require(): array {
     $s = dyd_current();
     if (!$s) { header('Location: login.php'); exit; }
+
+    // TOTP jest obowiązkowe dla każdego konta dydaktyka (patrz totp_gate.php).
+    // Sesja mogła powstać przed wprowadzeniem tej bramki albo wznowić się cicho
+    // przez „zapamiętaj mnie" (dyd_current()) — sprawdzamy więc stan konta w
+    // bazie przy każdym żądaniu, nie tylko przy świeżym logowaniu. Impersonacja
+    // (imp.php, $s['imp']) jest z tego zwolniona — administrator już się uwierzytelnił.
+    if (empty($s['imp'])) {
+        $totp = db_one("SELECT totp_confirmed, totp_secret FROM users WHERE id=?", [(int)$s['user_id']]);
+        if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
+            dyd_2fa_stash($s);
+            unset($_SESSION[DYD_SESSION_KEY]);
+            header('Location: totp_gate.php'); exit;
+        }
+    }
+
     if (!empty($s['is_staff']) && !isset($_SESSION['k30_dyd_ctx']['role'])) {
         if (k30_ti_instructor_courses((int)$s['user_id'], false)) {
             header('Location: choose_context.php'); exit;

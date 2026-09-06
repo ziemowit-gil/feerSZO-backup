@@ -53,8 +53,10 @@ if (!$data) {
     header('Location: login.php?office=denied'); exit;
 }
 
-// 3) Załóż sesję panelu dydaktyka i wejdź do panelu.
-dyd_login_user($data);
+// 3) Logowanie Office poprawne — dwuetapowe uwierzytelnianie (TOTP) jest
+// obowiązkowe dla każdego konta dydaktyka, tak samo jak przy haśle.
+// Sesję panelu zakłada dopiero totp_gate.php, po weryfikacji kodu.
+dyd_2fa_stash($data);
 try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->execute([$data['user_id']]); } catch (\Throwable $e) {}
-header('Location: index.php');
+header('Location: totp_gate.php');
 exit;

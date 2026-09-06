@@ -32,12 +32,15 @@ $back_alt = ($_POST['back'] ?? '') === 'alt';
 
 $data = dyd_authenticate($email, $password);
 if ($data) {
-    dyd_login_user($data);
+    // Hasło poprawne — dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe dla
+    // każdego konta dydaktyka. Sesję panelu zakłada dopiero totp_gate.php,
+    // po weryfikacji (albo pierwszym założeniu) kodu.
+    dyd_2fa_stash($data);
     try {
         db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")
             ->execute([$data['user_id']]);
     } catch (\Throwable $e) {}
-    header('Location: index.php'); exit;
+    header('Location: totp_gate.php'); exit;
 }
 
 // Próba odróżnienia: złe hasło (kod 1) vs brak uprawnień dydaktyka (kod 4)
