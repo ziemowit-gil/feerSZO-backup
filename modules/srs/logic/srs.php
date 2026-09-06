@@ -545,7 +545,7 @@ function res_notify_event(int $reservation_id, string $new_status, string $note 
     $org      = defined('ORG_NAME') ? ORG_NAME : 'System';
     $res_name = $r['res_name'];
     $date_str = $r['date_from'] . ($r['date_to'] !== $r['date_from'] ? ' – ' . $r['date_to'] : '');
-    $url      = (defined('APP_URL') ? APP_URL : '') . '/resources/view.php?id=' . $reservation_id;
+    $url      = (defined('APP_URL') ? APP_URL : '') . '/modules/srs/view.php?id=' . $reservation_id;
     $status   = RES_STATUSES[$new_status] ?? ['label' => $new_status];
 
     switch ($new_status) {

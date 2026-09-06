@@ -1,6 +1,6 @@
 <?php
 /**
- * resources/admin/resources.php — CRUD zasobów organizacji.
+ * modules/srs/admin/resources.php — CRUD zasobów organizacji (SRS).
  */
 require_once dirname(__DIR__, 3) . '/config.php';
 require_once dirname(__DIR__, 3) . '/includes/db.php';

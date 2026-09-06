@@ -2,7 +2,7 @@
 /**
  * komunikaty/_shell.php — powłoka i język wizualny modułu „Komunikaty".
  *
- * Wzorzec jak w /resources/ i /panel/: strona renderuje się pod powłoką panelu
+ * Wzorzec jak w /modules/srs/ i /panel/: strona renderuje się pod powłoką panelu
  * wolontariusza dla samych wolontariuszy, a pod powłoką SZO dla edytorów/adminów
  * (edytorzy i admini potrzebują pełnej nawigacji). Treść stron używa komponentów
  * modułu „Tożsamość" (pv_ui.php / pv_styles.php: .tz-card, .tz-badge, .tz-btn,
