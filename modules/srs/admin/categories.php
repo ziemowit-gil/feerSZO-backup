@@ -64,14 +64,16 @@ pv_page_header('Kategorie zasobów', [
 ]);
 ?>
 
+<div class="pv-wrap" style="max-width:900px">
+
 <?= flash_html() ?>
 
 <?php if ($show_new || $edit_row):
   $f = $edit_row ?? ['name'=>'','icon'=>'bi-box','color'=>'#6366f1','sort_order'=>0,'is_active'=>1];
 ?>
-<div class="card border-0 shadow-sm mb-4" style="max-width:540px">
-  <div class="card-header fw-semibold"><?= $edit_row ? 'Edytuj kategorię' : 'Nowa kategoria' ?></div>
-  <div class="card-body">
+<div class="tz-card mb-4" style="max-width:540px">
+  <div class="tz-card__hd"><i class="bi bi-tags" aria-hidden="true"></i><?= $edit_row ? 'Edytuj kategorię' : 'Nowa kategoria' ?></div>
+  <div class="tz-card__bd">
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_op"   value="save">
@@ -124,36 +126,60 @@ document.querySelectorAll('.icon-pick').forEach(b => {
 </script>
 <?php endif; ?>
 
-<div class="card border-0 shadow-sm" style="max-width:700px">
-  <table class="table table-sm table-hover align-middle mb-0">
-    <thead class="table-light">
-      <tr><th>Ikona</th><th>Nazwa</th><th class="text-center">Zasoby</th><th>Kol.</th><th>Status</th><th class="text-end">Akcje</th></tr>
-    </thead>
-    <tbody>
-      <?php foreach ($cats as $c): ?>
-      <tr>
-        <td><span style="color:<?= h($c['color']) ?>;font-size:1.2rem"><i class="bi <?= h($c['icon']) ?>"></i></span></td>
-        <td class="fw-semibold"><?= h($c['name']) ?></td>
-        <td class="text-center"><?= (int)$c['res_count'] ?></td>
-        <td><?= (int)$c['sort_order'] ?></td>
-        <td><?= $c['is_active'] ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Aktywna</span>' : '<span class="badge bg-secondary-subtle text-secondary border">Ukryta</span>' ?></td>
-        <td class="text-end">
-          <a href="?edit=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"><i class="bi bi-pencil"></i></a>
-          <?php if (!$c['res_count']): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć kategorię?')">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_op"   value="delete">
-            <input type="hidden" name="id"    value="<?= (int)$c['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
-          </form>
-          <?php else: ?>
-          <button class="btn btn-sm btn-outline-secondary py-0 px-2" disabled title="Usuń najpierw zasoby tej kategorii"><i class="bi bi-lock"></i></button>
-          <?php endif; ?>
-        </td>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+<div class="tz-card mb-0">
+  <div class="tz-card__hd"><i class="bi bi-list-ul" aria-hidden="true"></i>Wszystkie kategorie <span class="tz-badge tz-badge--muted ms-1"><?= count($cats) ?></span></div>
+  <?php if (!$cats): ?>
+  <div class="tz-empty">
+    <i class="bi bi-tags" aria-hidden="true"></i>
+    <p class="mb-0">Brak kategorii. <a href="?new=1">Dodaj pierwszą</a>.</p>
+  </div>
+  <?php else: ?>
+  <div class="pv-table-wrap" style="border:0;border-radius:0">
+    <table class="pv-table">
+      <caption class="visually-hidden">Kategorie zasobów</caption>
+      <thead>
+        <tr>
+          <th scope="col">Ikona</th><th scope="col">Nazwa</th><th scope="col" class="text-center">Zasoby</th>
+          <th scope="col">Kol.</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($cats as $c): ?>
+        <tr>
+          <td><span style="color:<?= h($c['color']) ?>;font-size:1.2rem"><i class="bi <?= h($c['icon']) ?>" aria-hidden="true"></i></span></td>
+          <td class="fw-semibold"><?= h($c['name']) ?></td>
+          <td class="text-center"><?= (int)$c['res_count'] ?></td>
+          <td><?= (int)$c['sort_order'] ?></td>
+          <td>
+            <?= $c['is_active']
+              ? '<span class="tz-badge tz-badge--success">Aktywna</span>'
+              : '<span class="tz-badge tz-badge--muted">Ukryta</span>' ?>
+          </td>
+          <td class="text-end">
+            <a href="?edit=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"
+               aria-label="Edytuj kategorię <?= h($c['name']) ?>"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+            <?php if (!$c['res_count']): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć kategorię?')">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"   value="delete">
+              <input type="hidden" name="id"    value="<?= (int)$c['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"
+                      aria-label="Usuń kategorię <?= h($c['name']) ?>"><i class="bi bi-trash" aria-hidden="true"></i></button>
+            </form>
+            <?php else: ?>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" disabled title="Usuń najpierw zasoby tej kategorii">
+              <i class="bi bi-lock" aria-hidden="true"></i>
+            </button>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
 </div>
+
+</div><!-- /pv-wrap -->
 
 <?php include dirname(__DIR__, 3) . '/includes/footer.php'; ?>

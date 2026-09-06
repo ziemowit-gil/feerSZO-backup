@@ -124,6 +124,8 @@ pv_page_header('Zasoby organizacji', [
 ]);
 ?>
 
+<div class="pv-wrap" style="max-width:1100px">
+
 <?= flash_html() ?>
 
 <?php if ($show_new || $edit_row):
@@ -134,9 +136,9 @@ pv_page_header('Zasoby organizacji', [
 ?>
 <div class="row g-4 mb-4">
   <div class="col-lg-7">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><?= $edit_row ? 'Edytuj: '.h($f['name']) : 'Nowy zasób' ?></div>
-      <div class="card-body">
+    <div class="tz-card mb-0">
+      <div class="tz-card__hd"><i class="bi bi-box" aria-hidden="true"></i><?= $edit_row ? 'Edytuj: '.h($f['name']) : 'Nowy zasób' ?></div>
+      <div class="tz-card__bd">
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op"   value="save">
@@ -296,12 +298,13 @@ pv_page_header('Zasoby organizacji', [
 
   <?php if ($edit_row): ?>
   <div class="col-lg-5">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <div class="tz-card mb-0">
+      <div class="tz-card__hd">
+        <i class="bi bi-input-cursor-text" aria-hidden="true"></i>
         Dodatkowe pola formularza
-        <span class="badge bg-secondary ms-1"><?= count($field_defs) ?></span>
+        <span class="tz-badge tz-badge--muted ms-1"><?= count($field_defs) ?></span>
       </div>
-      <div class="card-body">
+      <div class="tz-card__bd">
         <!-- Lista istniejących pól -->
         <?php foreach ($field_defs as $fd): ?>
         <div class="d-flex align-items-center gap-2 mb-2 p-2 border rounded">
@@ -372,25 +375,35 @@ pv_page_header('Zasoby organizacji', [
 <?php endif; ?>
 
 <!-- Lista zasobów -->
-<div class="card border-0 shadow-sm" style="max-width:900px">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    Wszystkie zasoby <span class="badge bg-secondary ms-1"><?= count($resources_list) ?></span>
+<div class="tz-card mb-0">
+  <div class="tz-card__hd">
+    <i class="bi bi-list-ul" aria-hidden="true"></i>
+    Wszystkie zasoby <span class="tz-badge tz-badge--muted ms-1"><?= count($resources_list) ?></span>
   </div>
   <?php if (!$resources_list): ?>
-  <div class="card-body text-muted">Brak zasobów. <a href="?new=1">Dodaj pierwszy</a>.</div>
+  <div class="tz-empty">
+    <i class="bi bi-box-seam" aria-hidden="true"></i>
+    <p class="mb-0">Brak zasobów. <a href="?new=1">Dodaj pierwszy</a>.</p>
+  </div>
   <?php else: ?>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0" style="font-size:.87rem">
-      <thead class="table-light">
-        <tr><th>Zasób</th><th>Kategoria</th><th>Lokalizacja</th><th>Operator</th><th class="text-center">Zgoda</th><th>Dysponent</th><th>Status</th><th class="text-end">Akcje</th></tr>
+  <div class="pv-table-wrap" style="border:0;border-radius:0">
+    <table class="pv-table">
+      <caption class="visually-hidden">Wszystkie zasoby</caption>
+      <thead>
+        <tr>
+          <th scope="col">Zasób</th><th scope="col">Kategoria</th><th scope="col">Lokalizacja</th>
+          <th scope="col">Operator</th><th scope="col" class="text-center">Zgoda</th>
+          <th scope="col">Dysponent</th><th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Akcje</span></th>
+        </tr>
       </thead>
       <tbody>
         <?php foreach ($resources_list as $r): ?>
-        <tr class="<?= $r['is_active'] ? '' : 'text-muted' ?>">
+        <tr<?= $r['is_active'] ? '' : ' style="opacity:.6"' ?>>
           <td class="fw-semibold"><?= h($r['name']) ?></td>
           <td>
             <?php if ($r['cat_icon']): ?>
-            <i class="bi <?= h($r['cat_icon']) ?>" style="color:<?= h($r['cat_color']) ?>"></i>
+            <i class="bi <?= h($r['cat_icon']) ?>" style="color:<?= h($r['cat_color']) ?>" aria-hidden="true"></i>
             <?php endif; ?>
             <?= h($r['cat_name'] ?? '—') ?>
           </td>
@@ -398,16 +411,19 @@ pv_page_header('Zasoby organizacji', [
           <td><?= h($r['operator_label'] ?: '—') ?></td>
           <td class="text-center">
             <?= $r['requires_approval']
-              ? '<i class="bi bi-shield-check text-warning" title="Wymaga zatwierdzenia"></i>'
-              : '<i class="bi bi-lightning-charge text-success" title="Automatycznie"></i>' ?>
+              ? '<i class="bi bi-shield-check text-warning" title="Wymaga zatwierdzenia" aria-hidden="true"></i>'
+              : '<i class="bi bi-lightning-charge text-success" title="Automatycznie" aria-hidden="true"></i>' ?>
           </td>
           <td><?= h($r['dysponent_name'] ?? '—') ?></td>
-          <td><?= $r['is_active']
-            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Aktywny</span>'
-            : '<span class="badge bg-secondary-subtle text-secondary border">Ukryty</span>' ?></td>
+          <td>
+            <?= $r['is_active']
+              ? '<span class="tz-badge tz-badge--success">Aktywny</span>'
+              : '<span class="tz-badge tz-badge--muted">Ukryty</span>' ?>
+          </td>
           <td class="text-end">
-            <a href="?edit=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2">
-              <i class="bi bi-pencil"></i>
+            <a href="?edit=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"
+               aria-label="Edytuj zasób <?= h($r['name']) ?>">
+              <i class="bi bi-pencil" aria-hidden="true"></i>
             </a>
           </td>
         </tr>
@@ -417,5 +433,7 @@ pv_page_header('Zasoby organizacji', [
   </div>
   <?php endif; ?>
 </div>
+
+</div><!-- /pv-wrap -->
 
 <?php include dirname(__DIR__, 3) . '/includes/footer.php'; ?>
