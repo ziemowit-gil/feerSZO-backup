@@ -20,10 +20,11 @@ ti_planner_ext_migrate();
 
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w     = (string)($_GET['w'] ?? '');
+$view  = ($_GET['view'] ?? '') === 'operator' ? 'operator' : 'day';
 $RR    = ti_room_reservation_range($w, $range);
 $from  = $RR['from']; $to = $RR['to']; $range_label = $RR['label'];
 
-$by_day = ti_room_reservation_report($from, $to);
+$by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
 
 function _h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
@@ -44,7 +45,7 @@ try {
         'default_font'  => 'dejavusans',
         'tempDir'       => $mpdf_tmp,
     ]);
-    $mpdf->SetTitle('Wykaz sal do rezerwacji — ' . $range_label);
+    $mpdf->SetTitle('Wykaz sal do rezerwacji' . ($view === 'operator' ? ' — wg operatora' : '') . ' — ' . $range_label);
     $mpdf->SetAuthor($org !== '' ? $org : 'FEER');
 
     $mpdf->WriteHTML(
@@ -63,26 +64,34 @@ try {
         \Mpdf\HTMLParserMode::HEADER_CSS
     );
 
-    $html = '<h1>Wykaz sal do rezerwacji</h1>'
+    $html = '<h1>Wykaz sal do rezerwacji' . ($view === 'operator' ? ' — wg operatora' : '') . '</h1>'
           . '<p class="meta">' . ($org !== '' ? _h($org) . '   ·   ' : '') . _h($range_label) . '</p>';
 
-    if (!$by_day) {
+    if (!$by_group) {
         $html .= '<p class="empty">Brak terminów z przypisaną salą w wybranym okresie.</p>';
     } else {
-        foreach ($by_day as $date => $day_rows) {
-            $dow = (int)date('N', strtotime($date));
-            $html .= '<h2 class="day">' . _h((TI_DAYS_PL_FULL[$dow] ?? '') . ', ' . date('d.m.Y', strtotime($date)) . ' (' . count($day_rows) . ')') . '</h2>';
+        foreach ($by_group as $group_key => $rows) {
+            if ($view === 'operator') {
+                $html .= '<h2 class="day">' . _h($group_key . ' (' . count($rows) . ')') . '</h2>';
+            } else {
+                $dow = (int)date('N', strtotime($group_key));
+                $html .= '<h2 class="day">' . _h((TI_DAYS_PL_FULL[$dow] ?? '') . ', ' . date('d.m.Y', strtotime($group_key)) . ' (' . count($rows) . ')') . '</h2>';
+            }
+            $date_th = $view === 'operator' ? '<th style="width:12%">Data</th>' : '';
             $html .= '<table><thead><tr>'
-                   . '<th style="width:16%">Godziny</th>'
-                   . '<th style="width:26%">Sala / lokalizacja</th>'
-                   . '<th style="width:26%">Grupa</th>'
-                   . '<th style="width:20%">Prowadzący</th>'
-                   . '<th style="width:12%">Status</th>'
+                   . $date_th
+                   . '<th style="width:' . ($view === 'operator' ? '14' : '16') . '%">Godziny</th>'
+                   . '<th style="width:' . ($view === 'operator' ? '24' : '26') . '%">Sala / lokalizacja</th>'
+                   . '<th style="width:' . ($view === 'operator' ? '24' : '26') . '%">Grupa</th>'
+                   . '<th style="width:' . ($view === 'operator' ? '16' : '20') . '%">Prowadzący</th>'
+                   . '<th style="width:10%">Status</th>'
                    . '</tr></thead><tbody>';
-            foreach ($day_rows as $r) {
+            foreach ($rows as $r) {
                 $confirmed = $r['room_reservation_status'] === 'potwierdzone';
                 $time_lbl  = substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5);
+                $date_td = $view === 'operator' ? ('<td class="time">' . _h(date('d.m.Y', strtotime((string)$r['lesson_date']))) . '</td>') : '';
                 $html .= '<tr>'
+                       . $date_td
                        . '<td class="time">' . _h($time_lbl) . '</td>'
                        . '<td>' . _h($r['room_label']) . '</td>'
                        . '<td>' . _h($r['course_name']) . '</td>'
@@ -97,8 +106,8 @@ try {
     $html .= '<p class="footer">Wygenerowano: ' . _h(date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')) . '</p>';
     $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
 
-    ti_print_log_add('sale_rezerwacje_pdf', 'Wykaz sal do rezerwacji PDF — ' . $range_label, 0, 0, ['range' => $range], $me);
-    $fname = 'wykaz_sal_' . preg_replace('/[^a-z0-9]+/i', '_', $from . '_' . $to) . '.pdf';
+    ti_print_log_add('sale_rezerwacje_pdf', 'Wykaz sal do rezerwacji PDF — ' . $range_label, 0, 0, ['range' => $range, 'view' => $view], $me);
+    $fname = 'wykaz_sal' . ($view === 'operator' ? '_operator' : '') . '_' . preg_replace('/[^a-z0-9]+/i', '_', $from . '_' . $to) . '.pdf';
     $pdfData = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');

@@ -27,15 +27,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'toggle_r
 
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w = (string)($_GET['w'] ?? '');
+$view = ($_GET['view'] ?? '') === 'operator' ? 'operator' : 'day';
 $RR = ti_room_reservation_range($w, $range);
 $from = $RR['from']; $to = $RR['to']; $prev = $RR['prev']; $next = $RR['next']; $range_label = $RR['label'];
 
-$by_day = ti_room_reservation_report($from, $to);
-$total  = array_sum(array_map('count', $by_day));
+$by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
+$total  = array_sum(array_map('count', $by_group));
 $pending = 0;
-foreach ($by_day as $day_rows) foreach ($day_rows as $r) if ($r['room_reservation_status'] !== 'potwierdzone') $pending++;
+foreach ($by_group as $rows) foreach ($rows as $r) if ($r['room_reservation_status'] !== 'potwierdzone') $pending++;
 
-ti_print_log_add('sale_rezerwacje', 'Wykaz sal do rezerwacji — ' . $from . ' – ' . $to, 0, 0, ['range' => $range], $me);
+ti_print_log_add('sale_rezerwacje', 'Wykaz sal do rezerwacji — ' . $from . ' – ' . $to, 0, 0, ['range' => $range, 'view' => $view], $me);
 
 $KP_TITLE  = 'Wykaz sal do rezerwacji — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $me['name'] ?? '', 'logout' => 'logout.php'];
@@ -54,18 +55,22 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap usos-noprint">
   <h1 class="h4 fw-bold mb-0"><i class="bi bi-clipboard-check text-primary me-2" aria-hidden="true"></i>Wykaz sal do rezerwacji</h1>
   <div class="ms-auto d-flex gap-2 align-items-center flex-wrap">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Widok">
+      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=day" class="btn <?= $view==='day' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg dnia</a>
+      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator" class="btn <?= $view==='operator' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg operatora</a>
+    </div>
     <select class="form-select form-select-sm" style="width:auto" aria-label="Zakres"
-            onchange="location.href='?range='+this.value+'&w=<?= h(date('Y-m-d')) ?>'">
+            onchange="location.href='?range='+this.value+'&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>'">
       <option value="week"    <?= $range==='week'    ? 'selected' : '' ?>>Tydzień</option>
       <option value="month"   <?= $range==='month'   ? 'selected' : '' ?>>Miesiąc</option>
       <option value="quarter" <?= $range==='quarter' ? 'selected' : '' ?>>3 miesiące</option>
     </select>
-    <a href="?range=<?= h($range) ?>&w=<?= h($prev) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni okres"><i class="bi bi-chevron-left"></i></a>
+    <a href="?range=<?= h($range) ?>&w=<?= h($prev) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni okres"><i class="bi bi-chevron-left"></i></a>
     <span class="small fw-semibold"><?= h($range_label) ?></span>
-    <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
-    <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
+    <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
+    <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
     <button onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer me-1"></i>Drukuj</button>
-    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>" target="_blank" class="btn btn-sm btn-primary">
+    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>" target="_blank" class="btn btn-sm btn-primary">
       <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
     </a>
   </div>
@@ -74,6 +79,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <p class="text-body-secondary small usos-noprint">
   Terminy z przypisaną salą w wybranym okresie. Zaznacz „Potwierdzone" po zgłoszeniu rezerwacji do administracji budynku —
   status jest niezależny od statusu samej lekcji. Sale zarządzane w <a href="sale.php">wykazie sal</a>.
+  <?php if ($view === 'operator'): ?>
+  Widok „Wg operatora" grupuje po „nazwie zwyczajowej operatora przestrzeni" — do wydruku wysyłanego bezpośrednio
+  do zewnętrznego operatora, pod nazwą, jaką on rozpoznaje.
+  <?php endif; ?>
 </p>
 
 <?php if ($total): ?>
@@ -82,20 +91,25 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 <?php endif; ?>
 
-<?php if (!$by_day): ?>
+<?php if (!$by_group): ?>
 <div class="card"><div class="card-body text-center text-body-secondary py-4">Brak terminów z przypisaną salą w wybranym okresie.</div></div>
 <?php endif; ?>
 
-<?php foreach ($by_day as $date => $day_rows): $dow = (int)date('N', strtotime($date)); ?>
+<?php foreach ($by_group as $group_key => $rows): ?>
 <div class="card mb-3">
   <div class="card-header fw-semibold">
-    <?= h(TI_DAYS_PL_FULL[$dow] ?? '') ?>, <?= h(date('d.m.Y', strtotime($date))) ?>
-    <span class="badge bg-secondary ms-1"><?= count($day_rows) ?></span>
+    <?php if ($view === 'operator'): ?>
+      <i class="bi bi-building me-1 text-primary" aria-hidden="true"></i><?= h($group_key) ?>
+    <?php else: $dow = (int)date('N', strtotime($group_key)); ?>
+      <?= h(TI_DAYS_PL_FULL[$dow] ?? '') ?>, <?= h(date('d.m.Y', strtotime($group_key))) ?>
+    <?php endif; ?>
+    <span class="badge bg-secondary ms-1"><?= count($rows) ?></span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
         <tr>
+          <?php if ($view === 'operator'): ?><th scope="col" class="text-nowrap">Data</th><?php endif; ?>
           <th scope="col" class="text-nowrap">Godziny</th>
           <th scope="col">Sala / lokalizacja</th>
           <th scope="col">Grupa</th>
@@ -104,8 +118,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($day_rows as $r): $confirmed = $r['room_reservation_status'] === 'potwierdzone'; ?>
+        <?php foreach ($rows as $r): $confirmed = $r['room_reservation_status'] === 'potwierdzone'; ?>
         <tr>
+          <?php if ($view === 'operator'): ?><td class="text-nowrap small"><?= h(date('d.m.Y', strtotime((string)$r['lesson_date']))) ?></td><?php endif; ?>
           <td class="text-nowrap small"><?= h(substr((string)$r['time_from'], 0, 5)) ?>–<?= h(substr((string)$r['time_to'], 0, 5)) ?></td>
           <td class="small"><?= h($r['room_label']) ?></td>
           <td class="small"><?= h($r['course_name']) ?></td>

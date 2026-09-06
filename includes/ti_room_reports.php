@@ -822,12 +822,14 @@ function ti_group_location_summary(int $weeks = 8): array {
  * Wykaz sal do rezerwacji — wszystkie terminy z przypisaną salą w zakresie dat,
  * pogrupowane dniami; do zgłoszenia zapotrzebowania koordynatorowi logistycznemu.
  */
-function ti_room_reservation_report(string $from, string $to): array {
+/** Wspólne pobranie wierszy dla obu grupowań (dzień / operator) poniżej. */
+function _ti_room_reservation_rows(string $from, string $to): array {
     $rows = db_all(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.room_id, s.room_reservation_status,
                 s.instructor_id, c.name AS course_name, c.instructor_id AS course_instructor_id,
                 u.name AS instr_name, cu.name AS course_instr_name,
-                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
+                r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label,
+                r.operator_label AS room_operator_label
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
          JOIN k30_pl_rooms r ON r.id = s.room_id
@@ -837,12 +839,39 @@ function ti_room_reservation_report(string $from, string $to): array {
          ORDER BY s.lesson_date, r.name, s.time_from",
         [$from, $to]
     );
-
-    $by_day = [];
-    foreach ($rows as $r) {
+    foreach ($rows as &$r) {
         $r['instructor_label'] = (string)($r['instr_name'] ?: $r['course_instr_name'] ?: '—');
         $r['room_label']       = ti_room_label(['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? '']);
+    }
+    unset($r);
+    return $rows;
+}
+
+function ti_room_reservation_report(string $from, string $to): array {
+    $by_day = [];
+    foreach (_ti_room_reservation_rows($from, $to) as $r) {
         $by_day[(string)$r['lesson_date']][] = $r;
     }
     return $by_day;
+}
+
+/**
+ * To samo zestawienie, ale pogrupowane wg "nazwy zwyczajowej operatora
+ * przestrzeni" (k30_pl_rooms.operator_label) zamiast dnia — do wydruku,
+ * który idzie wprost do zewnętrznego operatora budynku/sali pod nazwą,
+ * jaką on sam rozpoznaje. Sale bez ustawionej nazwy zwyczajowej trafiają
+ * do grupy "(własne, bez nazwy operatora)" pod naszą wewnętrzną etykietą.
+ *
+ * @return array<string,array> klucz = nazwa operatora (albo etykieta własna),
+ *                             wartość = wiersze posortowane po dacie/godzinie.
+ */
+function ti_room_reservation_report_by_operator(string $from, string $to): array {
+    $by_op = [];
+    foreach (_ti_room_reservation_rows($from, $to) as $r) {
+        $op = trim((string)($r['room_operator_label'] ?? ''));
+        $key = $op !== '' ? $op : '(własne, bez nazwy operatora — ' . $r['room_label'] . ')';
+        $by_op[$key][] = $r;
+    }
+    ksort($by_op, SORT_STRING | SORT_FLAG_CASE);
+    return $by_op;
 }
