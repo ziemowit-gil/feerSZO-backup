@@ -43,6 +43,8 @@ const AM_API_PERMISSIONS = [
     'hybrid:ti'         => 'Hybrid — TI: profil dostępności (api/v1/hybrid_ti.php)',
     'hybrid:szo'        => 'Hybrid — SZO: raporty jakościowe i wymagania dostępności (api/v1/hybrid_szo.php)',
     'hybrid:dydaktyka'  => 'Hybrid — Dydaktyka: kursy, zapisy, zgłoszenia adaptacji (api/v1/hybrid_dydaktyka.php)',
+    'srs:read'          => 'SRS (System Rezerwacji Sal) — odczyt zasobów i rezerwacji (api/v1/srs.php)',
+    'srs:write'         => 'SRS (System Rezerwacji Sal) — zapis (nowe prośby o rezerwację)',
 ];
 
 // ── Zdarzenia Webhook ──────────────────────────────────────────────────────────
