@@ -48,6 +48,7 @@ return array(
     'GuzzleHttp\\Psr7\\' => array($vendorDir . '/guzzlehttp/psr7/src'),
     'GuzzleHttp\\Promise\\' => array($vendorDir . '/guzzlehttp/promises/src'),
     'GuzzleHttp\\' => array($vendorDir . '/guzzlehttp/guzzle/src'),
+    'FeerSzo\\Hybrid\\' => array($baseDir . '/hybrid/src'),
     'Endroid\\QrCode\\' => array($vendorDir . '/endroid/qr-code/src'),
     'Doctrine\\Instantiator\\' => array($vendorDir . '/doctrine/instantiator/src/Doctrine/Instantiator'),
     'Doctrine\\Deprecations\\' => array($vendorDir . '/doctrine/deprecations/src'),

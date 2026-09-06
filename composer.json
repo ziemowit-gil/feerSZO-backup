@@ -18,6 +18,11 @@
         "smsapi/php-client": "^4.0",
         "symfony/http-client": "^8.1"
     },
+    "autoload": {
+        "psr-4": {
+            "FeerSzo\\Hybrid\\": "hybrid/src/"
+        }
+    },
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true,

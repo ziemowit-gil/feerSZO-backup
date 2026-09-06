@@ -95,6 +95,10 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
             'GuzzleHttp\\Promise\\' => 19,
             'GuzzleHttp\\' => 11,
         ),
+        'F' =>
+        array (
+            'FeerSzo\\Hybrid\\' => 15,
+        ),
         'E' =>
         array (
             'Endroid\\QrCode\\' => 15,
@@ -293,6 +297,10 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
         'GuzzleHttp\\' =>
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/guzzle/src',
+        ),
+        'FeerSzo\\Hybrid\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/hybrid/src',
         ),
         'Endroid\\QrCode\\' =>
         array (
@@ -1064,6 +1072,27 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
         'Endroid\\QrCode\\Writer\\ValidatingWriterInterface' => __DIR__ . '/..' . '/endroid/qr-code/src/Writer/ValidatingWriterInterface.php',
         'Endroid\\QrCode\\Writer\\WebPWriter' => __DIR__ . '/..' . '/endroid/qr-code/src/Writer/WebPWriter.php',
         'Endroid\\QrCode\\Writer\\WriterInterface' => __DIR__ . '/..' . '/endroid/qr-code/src/Writer/WriterInterface.php',
+        'FeerSzo\\Hybrid\\ClientFactory' => __DIR__ . '/../..' . '/hybrid/src/ClientFactory.php',
+        'FeerSzo\\Hybrid\\Config\\DriverConfig' => __DIR__ . '/../..' . '/hybrid/src/Config/DriverConfig.php',
+        'FeerSzo\\Hybrid\\Contracts\\SzoQualityReportClientInterface' => __DIR__ . '/../..' . '/hybrid/src/Contracts/SzoQualityReportClientInterface.php',
+        'FeerSzo\\Hybrid\\Contracts\\TyfloProfileClientInterface' => __DIR__ . '/../..' . '/hybrid/src/Contracts/TyfloProfileClientInterface.php',
+        'FeerSzo\\Hybrid\\Dto\\AccessibilityProfileDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/AccessibilityProfileDto.php',
+        'FeerSzo\\Hybrid\\Dto\\AccessibilityRequirementDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/AccessibilityRequirementDto.php',
+        'FeerSzo\\Hybrid\\Dto\\CourseDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/CourseDto.php',
+        'FeerSzo\\Hybrid\\Dto\\EnrollmentDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/EnrollmentDto.php',
+        'FeerSzo\\Hybrid\\Dto\\MaterialAdaptationRequestDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/MaterialAdaptationRequestDto.php',
+        'FeerSzo\\Hybrid\\Dto\\QualityReportDto' => __DIR__ . '/../..' . '/hybrid/src/Dto/QualityReportDto.php',
+        'FeerSzo\\Hybrid\\Dydaktyka\\MaterialAdaptationController' => __DIR__ . '/../..' . '/hybrid/src/Dydaktyka/MaterialAdaptationController.php',
+        'FeerSzo\\Hybrid\\Dydaktyka\\Service\\CourseService' => __DIR__ . '/../..' . '/hybrid/src/Dydaktyka/Service/CourseService.php',
+        'FeerSzo\\Hybrid\\Dydaktyka\\Service\\EnrollmentService' => __DIR__ . '/../..' . '/hybrid/src/Dydaktyka/Service/EnrollmentService.php',
+        'FeerSzo\\Hybrid\\Dydaktyka\\Service\\MaterialAdaptationService' => __DIR__ . '/../..' . '/hybrid/src/Dydaktyka/Service/MaterialAdaptationService.php',
+        'FeerSzo\\Hybrid\\Szo\\HttpSzoQualityReportClient' => __DIR__ . '/../..' . '/hybrid/src/Szo/HttpSzoQualityReportClient.php',
+        'FeerSzo\\Hybrid\\Szo\\InternalSzoQualityReportClient' => __DIR__ . '/../..' . '/hybrid/src/Szo/InternalSzoQualityReportClient.php',
+        'FeerSzo\\Hybrid\\Szo\\Service\\QualityReportService' => __DIR__ . '/../..' . '/hybrid/src/Szo/Service/QualityReportService.php',
+        'FeerSzo\\Hybrid\\Szo\\Service\\QualityRequirementService' => __DIR__ . '/../..' . '/hybrid/src/Szo/Service/QualityRequirementService.php',
+        'FeerSzo\\Hybrid\\Ti\\HttpTyfloProfileClient' => __DIR__ . '/../..' . '/hybrid/src/Ti/HttpTyfloProfileClient.php',
+        'FeerSzo\\Hybrid\\Ti\\InternalTyfloProfileClient' => __DIR__ . '/../..' . '/hybrid/src/Ti/InternalTyfloProfileClient.php',
+        'FeerSzo\\Hybrid\\Ti\\Service\\AccessibilityProfileService' => __DIR__ . '/../..' . '/hybrid/src/Ti/Service/AccessibilityProfileService.php',
         'GuzzleHttp\\BodySummarizer' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/BodySummarizer.php',
         'GuzzleHttp\\BodySummarizerInterface' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/BodySummarizerInterface.php',
         'GuzzleHttp\\Client' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/Client.php',
