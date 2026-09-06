@@ -151,6 +151,27 @@ function ti_protocols_for_course(int $course_id): array {
     );
 }
 
+/**
+ * Zaległe protokoły — niezatwierdzone (status='open'), których okres nauczania
+ * już się skończył (per.date_to < dziś). Widok kierownika/administratora do
+ * zbiorczego zamykania protokołów, na które prowadzący nie zdążył.
+ */
+function ti_protocols_overdue(): array {
+    ti_protocols_migrate();
+    return db_all(
+        "SELECT p.*, per.name AS period_name, per.date_from, per.date_to,
+                c.name AS course_name, c.instructor_id,
+                u.name AS instructor_name,
+                CAST(julianday('now') - julianday(per.date_to) AS INTEGER) AS days_overdue
+           FROM k30_ti_protocols p
+           JOIN k30_ti_periods per ON per.id = p.period_id
+           JOIN k30_ti_courses c   ON c.id   = p.course_id
+           LEFT JOIN users u       ON u.id   = c.instructor_id
+          WHERE p.status = 'open' AND per.date_to < date('now')
+          ORDER BY per.date_to ASC, c.name ASC"
+    );
+}
+
 function ti_protocol_get(int $id): ?array {
     ti_protocols_migrate();
     if (!$id) return null;

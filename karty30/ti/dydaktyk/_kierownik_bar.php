@@ -31,6 +31,7 @@ if (!empty($KIER_ITEMS)) {
         ['Konta kursantów',           'konta.php',                  'person-badge'],
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
+        ['Zaległe protokoły',         'protokoly.php',              'exclamation-octagon'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
         ['Wydruki i raporty',         'wydruki.php',                 'printer'],
