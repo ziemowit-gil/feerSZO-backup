@@ -200,6 +200,24 @@ export interface BillingData {
   entries: BillingEntry[];
 }
 
+export interface YearEndOverpayCourse {
+  course_id: number;
+  course_name: string;
+  model_label: string;
+  amount: number;
+}
+
+export interface YearEndOverpayInfo {
+  allowed: boolean;
+  year?: number;
+  deadline?: string;
+  courses?: YearEndOverpayCourse[];
+  projected_total?: number;
+  current_credit?: number;
+  suggested_amount?: number;
+  gateways?: ('stripe' | 'payu' | 'p24')[];
+}
+
 export interface License {
   id: number;
   software_name: string;

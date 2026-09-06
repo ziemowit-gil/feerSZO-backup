@@ -5,7 +5,7 @@ import {
   ApiResponse, DashboardData, Lesson, DydGroup, GradesByCourse,
   CurriculumItem, TestItem, Notice, Message, BillingData,
   OnlineState, OwnCloudState, VlabServer, License, ActivityLogEntry,
-  Term, AuthorizedPerson,
+  Term, AuthorizedPerson, YearEndOverpayInfo,
 } from '../models/kursant.models';
 
 const API = '/api/v1/kursant_student.php';
@@ -34,6 +34,7 @@ export class KursantApiService {
   getNotices()    { return this.get<Notice[]>('notices'); }
   getMessages()   { return this.get<Message[]>('messages'); }
   getBilling()    { return this.get<BillingData>('billing'); }
+  getYearEndOverpayInfo() { return this.get<YearEndOverpayInfo>('year_end_overpay_info'); }
   getOnline()     { return this.get<OnlineState>('online'); }
   getVlab()       { return this.get<VlabServer[]>('vlab'); }
   getOwnCloud()   { return this.get<OwnCloudState>('owncloud'); }
@@ -84,6 +85,9 @@ export class KursantApiService {
   resetCalendarToken() { return this.post<{ ical: string; gcal: string }>('cal_token_reset'); }
   provisionOwnCloud()  { return this.post<void>('owncloud_create'); }
   resetOwnCloud()      { return this.post<void>('owncloud_reset'); }
+  yearEndOverpay(amount: number, provider: string) {
+    return this.post<{ url: string }>('year_end_overpay', { amount, provider });
+  }
   orderVlabServer()    { return this.post<void>('order_dedicated_server'); }
   cancelVlabServer(server_id: number) {
     return this.post<void>('cancel_dedicated_server', { server_id });
