@@ -120,6 +120,7 @@ function resources_migrate(): void {
     // Idempotentne migracje na istniejących tabelach
     foreach ([
         "ALTER TABLE resources ADD COLUMN k30_enabled INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE resources ADD COLUMN operator_label TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -173,7 +174,7 @@ function res_get(int $id): ?array {
 }
 
 function res_save(array $data, ?int $id = null): int {
-    $fields = ['category_id','name','description','location','capacity',
+    $fields = ['category_id','name','description','location','operator_label','capacity',
                'requires_approval','dysponent_user_id','is_active','k30_enabled','sort_order'];
     $data['updated_at'] = date('Y-m-d H:i:s');
     if ($id) {

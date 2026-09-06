@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'name'              => trim($_POST['name'] ?? ''),
             'description'       => trim($_POST['description'] ?? ''),
             'location'          => trim($_POST['location'] ?? ''),
+            'operator_label'    => trim($_POST['operator_label'] ?? ''),
             'capacity'          => ((int)($_POST['capacity'] ?? 0)) ?: null,
             'requires_approval' => isset($_POST['requires_approval']) ? 1 : 0,
             'dysponent_user_id' => ((int)($_POST['dysponent_user_id'] ?? 0)) ?: null,
@@ -126,7 +127,7 @@ pv_page_header('Zasoby organizacji', [
 <?= flash_html() ?>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['name'=>'','description'=>'','location'=>'','capacity'=>null,'category_id'=>null,
+  $f = $edit_row ?? ['name'=>'','description'=>'','location'=>'','operator_label'=>'','capacity'=>null,'category_id'=>null,
                      'requires_approval'=>0,'dysponent_user_id'=>null,'is_active'=>1,'k30_enabled'=>0,'sort_order'=>0];
   $field_defs  = $edit_row ? db_all("SELECT * FROM resource_field_defs WHERE resource_id=? ORDER BY sort_order,id", [$edit_id]) : [];
   $availability= $edit_row ? res_availability($edit_id) : [];
@@ -175,6 +176,13 @@ pv_page_header('Zasoby organizacji', [
               <label class="form-label">Kolejność</label>
               <input type="number" class="form-control" name="sort_order" value="<?= (int)$f['sort_order'] ?>" min="0">
             </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Nazwa zwyczajowa operatora</label>
+            <input type="text" class="form-control" name="operator_label" value="<?= h($f['operator_label'] ?? '') ?>"
+                   placeholder="np. nazwa, pod jaką rozpoznaje salę zewnętrzny operator budynku">
+            <div class="form-text">Opcjonalnie — do wydruków/zestawień wysyłanych bezpośrednio do operatora przestrzeni (jeśli inna niż nasza nazwa zasobu).</div>
           </div>
 
           <div class="mb-3">
@@ -374,7 +382,7 @@ pv_page_header('Zasoby organizacji', [
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0" style="font-size:.87rem">
       <thead class="table-light">
-        <tr><th>Zasób</th><th>Kategoria</th><th>Lokalizacja</th><th class="text-center">Zgoda</th><th>Dysponent</th><th>Status</th><th class="text-end">Akcje</th></tr>
+        <tr><th>Zasób</th><th>Kategoria</th><th>Lokalizacja</th><th>Operator</th><th class="text-center">Zgoda</th><th>Dysponent</th><th>Status</th><th class="text-end">Akcje</th></tr>
       </thead>
       <tbody>
         <?php foreach ($resources_list as $r): ?>
@@ -387,6 +395,7 @@ pv_page_header('Zasoby organizacji', [
             <?= h($r['cat_name'] ?? '—') ?>
           </td>
           <td><?= h($r['location'] ?: '—') ?></td>
+          <td><?= h($r['operator_label'] ?: '—') ?></td>
           <td class="text-center">
             <?= $r['requires_approval']
               ? '<i class="bi bi-shield-check text-warning" title="Wymaga zatwierdzenia"></i>'
