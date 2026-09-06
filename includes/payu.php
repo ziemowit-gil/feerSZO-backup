@@ -246,6 +246,14 @@ function payu_mark_paid(int $payment_id): void {
             ti_payment_add((int)$p['source_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
                            'payu', 'Doładowanie portfela (PayU)', 'payu', $payment_id, 0);
         }
+        // Nadpłata do końca roku (powody podatkowe/księgowe) — księgowana identycznie
+        // jak doładowanie portfela (wpłata ogólna), plus e-mail do adminów o FV.
+        if ($p['source_type'] === 'k30_ti_wallet_year_end' && (int)$p['source_id'] > 0) {
+            require_once __DIR__ . '/ti_payments.php';
+            ti_payment_add((int)$p['source_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
+                           'payu', 'Nadpłata do końca roku (PayU)', 'payu', $payment_id, 0);
+            ti_year_end_overpay_notify_admin((int)$p['source_id'], (float)$p['amount_grosze'] / 100, 'payu');
+        }
         // Kolejne źródła można dodać tutaj.
     } catch (\Throwable $e) {}
 }

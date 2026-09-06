@@ -827,3 +827,29 @@ function ti_year_end_projection(int $client_id): array {
         'suggested_amount' => $suggested,
     ];
 }
+
+/**
+ * Powiadamia adminów o wpłaconej nadpłacie do końca roku — cel wpłaty to
+ * przedpłata na poczet FV wystawianej w BIEŻĄCYM roku podatkowym, więc biuro
+ * powinno wiedzieć, że trzeba przygotować/wystawić fakturę (source_type
+ * 'k30_ti_wallet_year_end' w tabelach *_payments odróżnia to od zwykłego
+ * doładowania portfela — patrz stripe_mark_paid()/payu_mark_paid()/p24_mark_paid()).
+ */
+function ti_year_end_overpay_notify_admin(int $client_id, float $amount, string $gateway): void {
+    $admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email != ''");
+    if (!$admins) return;
+    $client = db_one("SELECT name FROM k30_clients WHERE id=?", [$client_id]) ?: [];
+    require_once __DIR__ . '/mail_queue.php';
+    $amt = number_format($amount, 2, ',', ' ');
+    $gw_label = match ($gateway) { 'stripe' => 'Stripe', 'payu' => 'PayU', 'p24' => 'Przelewy24', default => $gateway };
+    $subject = 'Prośba o FV — nadpłata do końca roku: ' . ($client['name'] ?? ('kursant #' . $client_id));
+    $html = "<p>Kursant <strong>" . h((string)($client['name'] ?? '')) . "</strong> opłacił nadpłatę do końca roku"
+          . " ({$amt} zł, {$gw_label}).</p>"
+          . "<p>To przedpłata na poczet zajęć do końca bieżącego roku kalendarzowego — prosimy o przygotowanie"
+          . " faktury VAT za ten rok podatkowy.</p>";
+    foreach ($admins as $a) {
+        try {
+            mail_queue_add((string)$a['email'], (string)($a['name'] ?? ''), $subject, $html);
+        } catch (\Throwable $e) {}
+    }
+}
