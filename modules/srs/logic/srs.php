@@ -411,13 +411,44 @@ function res_conflicts(int $resource_id, string $date_from, string $date_to, int
     $params = [$resource_id, $date_to, $date_from];
     $excl = $exclude_id ? "AND rr.id!=?" : '';
     if ($exclude_id) $params[] = $exclude_id;
-    return db_all(
+    $conflicts = db_all(
         "SELECT rr.*, u.name AS user_name FROM resource_reservations rr
          JOIN users u ON u.id=rr.user_id
          WHERE rr.resource_id=? AND rr.status NOT IN ('odmowa','anulowana')
          AND rr.date_from<=? AND rr.date_to>=? $excl",
         $params
     );
+
+    // Kolizja z terminami Dydaktyki 3 (k30_schedules) na tym samym zasobie —
+    // zasób współdzielony (k30_enabled=1) ma dwa niezależne rejestry rezerwacji,
+    // więc SRS musi widzieć też zajętości z drugiej strony (i odwrotnie —
+    // patrz karty30/schedules/add.php). Precyzja dnia (bez godzin), tak jak
+    // reszta res_conflicts() — rezerwacja SRS blokuje cały zakres dat.
+    if (function_exists('db_all') && db_one("SELECT name FROM sqlite_master WHERE type='table' AND name='k30_schedules'")) {
+        $k30_rows = db_all(
+            "SELECT s.id, DATE(s.start_time) AS lesson_date, TIME(s.start_time) AS t_start,
+                    TIME(s.start_time, '+' || s.duration_minutes || ' minutes') AS t_end,
+                    c.name AS user_name
+             FROM k30_schedules s
+             LEFT JOIN k30_clients c ON c.id = s.client_id
+             WHERE s.resource_id=? AND s.status NOT IN ('cancelled','rejected')
+             AND DATE(s.start_time) BETWEEN ? AND ?",
+            [$resource_id, $date_from, $date_to]
+        );
+        foreach ($k30_rows as $k) {
+            $conflicts[] = [
+                'id'         => $k['id'],
+                'date_from'  => $k['lesson_date'],
+                'date_to'    => $k['lesson_date'],
+                'time_from'  => $k['t_start'],
+                'time_to'    => $k['t_end'],
+                'user_name'  => ($k['user_name'] ?? '?') . ' (Dydaktyka 3)',
+                'source'     => 'dydaktyka3',
+            ];
+        }
+    }
+
+    return $conflicts;
 }
 
 /**

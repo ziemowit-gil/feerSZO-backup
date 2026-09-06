@@ -127,6 +127,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Zasób jest już zajęty w tym czasie (termin #' . $collision['id']
                     . ', ' . ($collision['client_name'] ?? '?')
                     . ', ' . $collision['t_start'] . '–' . $collision['t_end'] . ').';
+            } else {
+                // Kolizja z rezerwacją w Systemie Rezerwacji Sal (SRS) — zasób
+                // współdzielony (k30_enabled=1) ma dwa niezależne rejestry
+                // rezerwacji (k30_schedules i resource_reservations), więc
+                // sprawdzamy oba, żeby uniknąć podwójnej rezerwacji tej samej sali.
+                $srs_collision = db_one(
+                    "SELECT rr.id, rr.time_from, rr.time_to, rr.purpose, u.name AS user_name
+                     FROM resource_reservations rr
+                     JOIN users u ON u.id = rr.user_id
+                     WHERE rr.resource_id=?
+                       AND rr.status NOT IN ('odmowa','anulowana')
+                       AND rr.date_from<=? AND rr.date_to>=?
+                       AND (rr.time_from='' OR rr.time_to='' OR (rr.time_from < ? AND rr.time_to > ?))",
+                    [$resource_id, $date, $date, $time_end_check, $time]
+                );
+                if ($srs_collision) {
+                    $errors[] = 'Zasób jest już zarezerwowany w Systemie Rezerwacji Sal (SRS) w tym terminie'
+                        . ($srs_collision['purpose'] !== '' ? ' — ' . $srs_collision['purpose'] : '')
+                        . ' (' . ($srs_collision['user_name'] ?? '?') . ').';
+                }
             }
         }
     }
