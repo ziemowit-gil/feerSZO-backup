@@ -690,6 +690,80 @@ switch ($action) {
         json_ok(['balance' => round($bal, 2), 'currency' => 'PLN', 'entries' => $entries]);
     }
 
+    // ── nadpłata do końca roku ───────────────────────────────────────────────────
+    case 'year_end_overpay_info': {
+        $acc = load_student($student_id);
+        $cid = (int)$acc['client_id'];
+        $allowed = k30_ti_student_year_end_overpay_allowed($student_id);
+        if (!$allowed) {
+            json_ok(['allowed' => false]);
+        }
+        $proj    = ti_year_end_projection($cid);
+        $methods = k30_ti_student_allowed_payment_methods($student_id);
+        // Tylko bramki online (kreator w Angularze nie obsługuje jeszcze zgłoszenia
+        // przelewu tradycyjnego — to samo ograniczenie co w panelu klasycznym).
+        $gateways = [];
+        if (in_array('stripe', $methods, true) && stripe_enabled()) $gateways[] = 'stripe';
+        if (in_array('payu', $methods, true)   && payu_enabled())   $gateways[] = 'payu';
+        if (in_array('p24', $methods, true)    && p24_enabled())    $gateways[] = 'p24';
+        json_ok([
+            'allowed'          => true,
+            'year'             => $proj['year'],
+            'deadline'         => $proj['deadline'],
+            'courses'          => $proj['courses'],
+            'projected_total'  => $proj['projected_total'],
+            'current_credit'   => $proj['current_credit'],
+            'suggested_amount' => $proj['suggested_amount'],
+            'gateways'         => $gateways,
+        ]);
+    }
+
+    case 'year_end_overpay': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $acc = load_student($student_id);
+        $cid = (int)$acc['client_id'];
+        if (!k30_ti_student_year_end_overpay_allowed($student_id)) {
+            json_err('Nadpłata do końca roku nie jest dostępna dla tego konta.', 403);
+        }
+        $body     = get_body();
+        $amount   = round((float)($body['amount'] ?? 0), 2);
+        $provider = (string)($body['provider'] ?? '');
+        $allowed_methods = k30_ti_student_allowed_payment_methods($student_id);
+        if ($amount < 1 || $amount > 50000) json_err('Podaj kwotę nadpłaty od 1 do 50 000 zł.');
+        if (!in_array($provider, $allowed_methods, true)) json_err('Wybrana metoda płatności nie jest dostępna dla tego konta.');
+
+        require_once __DIR__ . '/../../includes/stripe.php';
+        require_once __DIR__ . '/../../includes/payu.php';
+        require_once __DIR__ . '/../../includes/p24.php';
+
+        $desc  = 'Nadpłata do końca roku ' . date('Y') . ' — ' . (string)($acc['client_name'] ?? '');
+        $email = (string)($acc['client_email'] ?? '');
+        // Kreator w Angularze wraca pod ten sam URL (SPA routing), z parametrem
+        // wpay/wcancel do wyświetlenia komunikatu — panel czyta go po powrocie z bramki.
+        $back = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/newUI/rozliczenia';
+
+        try {
+            if ($provider === 'payu' && payu_enabled()) {
+                $r = payu_create_order('k30_ti_wallet_year_end', $cid, $amount, $desc,
+                                       $back . '?wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $email);
+                json_ok(['url' => $r['url']]);
+            }
+            if ($provider === 'stripe' && stripe_enabled()) {
+                $r = stripe_create_checkout('k30_ti_wallet_year_end', $cid, $amount, $desc,
+                                            $back . '?wpay=stripe', $back . '?wcancel=1', $email);
+                json_ok(['url' => $r['url']]);
+            }
+            if ($provider === 'p24' && p24_enabled()) {
+                $r = p24_create_order('k30_ti_wallet_year_end', $cid, $amount, $desc,
+                                      $back . '?wpay=p24', rtrim(APP_URL, '/') . '/api/p24_webhook.php', $email);
+                json_ok(['url' => $r['url']]);
+            }
+            json_err('Wybrana metoda płatności nie jest teraz dostępna.');
+        } catch (\Throwable $e) {
+            json_err('Nie udało się rozpocząć płatności: ' . $e->getMessage(), 500);
+        }
+    }
+
     // ── online (MS365) ──────────────────────────────────────────────────────────
     case 'online': {
         $acc = load_student($student_id);
