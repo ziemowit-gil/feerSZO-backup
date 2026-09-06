@@ -140,7 +140,15 @@ if ($action === 'login' && $method === 'POST') {
 // ── Token authentication ──────────────────────────────────────────────────────
 function verify_token(): ?int {
     global $pdo;
+    // Apache/mod_php pod niektórymi konfiguracjami nie przekazuje nagłówka
+    // Authorization do $_SERVER (brak CGIPassAuth/RewriteRule) — bez tego
+    // fallbacku KAŻDE uwierzytelnione żądanie dostaje 401, niezależnie od
+    // akcji, mimo poprawnego tokenu (ten sam wzorzec co w includes/api_auth.php).
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if ($auth === '' && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        $auth    = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    }
     if (!str_starts_with($auth, 'Bearer ')) return null;
     $token = substr($auth, 7);
     $stmt  = $pdo->prepare("
