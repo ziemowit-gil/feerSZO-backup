@@ -76,6 +76,36 @@ function ti_notices_migrate(): void {
             ]);
         }
     } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — komunikat o zmianach w panelu dydaktyka (wrzesień 2026)
+    try {
+        $seeded3 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_panel_features_seeded'");
+        if (!$seeded3) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_panel_features_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'all', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Co nowego w panelu dydaktyka',
+                'Kilka nowych funkcji w zakładce Lekcje i menu Kierownik:'
+                . "\n\n• Kalendarz jako główny widok lekcji — zamiast (albo obok) tabeli, z przełącznikiem"
+                . ' Kalendarz/Lista. Kierownik widzi w nim od razu wszystkie grupy naraz, prowadzący — tylko swoje.'
+                . "\n• Zbiorcza zmiana terminu — przesuwa naraz wszystkie lekcje kursu w wybranym zakresie dat"
+                . ' o zadaną liczbę dni (np. gdy prowadzący choruje przez tydzień), z podglądem przed zatwierdzeniem.'
+                . "\n• Automatyczne przypomnienie SMS o zajęciach zaplanowanych na jutro."
+                . "\n• Lista oczekujących w zapisach na zajęcia — gdy termin jest pełny, kursant dołącza do kolejki"
+                . ' zamiast dostać tylko odmowę, i dostaje SMS/e-mail, gdy zwolni się miejsce.'
+                . "\n• Sale: można teraz przypisać salę do budynku, dodać jej „nazwę zwyczajową” używaną przez"
+                . ' operatora przestrzeni, oraz sprawdzić osobny raport obłożenia per sala i per budynek'
+                . ' (Kierownik → Sale / lokalizacje → Raport przestrzeni).'
+                . "\n• Poprawiony raport „Harmonogram lokalizacji” — sale zdalne (Zoom/Teams) nie liczą się już"
+                . ' jako fizyczne sale stacjonarne.'
+                . "\n• Odświeżony wizualnie Pulpit — kafle z szybkimi statystykami na górze, ikony i paski"
+                . ' postępu przy frekwencji.'
+                . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
 }
 
 function ti_notices_list_active_for_instructor(int $user_id = 0): array {
