@@ -126,6 +126,27 @@ function ti_notices_migrate(): void {
             ]);
         }
     } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — komunikat o aktualizacji do wersji PK 1.3
+    // (6-7 września 2026): nowy wygląd logowania oraz przebudowane menu panelu.
+    try {
+        $seeded5 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_pk13_wyglad_seeded'");
+        if (!$seeded5) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_pk13_wyglad_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'all', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Aktualizacja do wersji PK 1.3 — zmiana wyglądu',
+                'W dniach 6–7 września 2026 przeprowadziliśmy aktualizację systemu do wersji PK 1.3.'
+                . ' Login i hasło pozostają bez zmian — zmienił się tylko wygląd.'
+                . "\n\n• Ekran logowania ma nową, uproszczoną szatę graficzną — spójną z resztą systemu."
+                . "\n• Górne menu panelu zostało uporządkowane: rzadziej używane zakładki (Rozliczenia, Portfel,"
+                . ' Upoważnieni, Ustawienia) znajdziesz teraz pod „Konto”, a Pomoc, Aktywność konta i Regulaminy — pod „Inne”.'
+                . "\n\nW razie pytań lub problemów — skontaktuj się z prowadzącym lub administratorem.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
 }
 
 function ti_notices_list_active_for_instructor(int $user_id = 0): array {
