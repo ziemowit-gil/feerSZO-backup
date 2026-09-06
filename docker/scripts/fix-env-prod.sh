@@ -34,7 +34,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${COMPOSE_DIR}/.env.prod"
 DO_FIX=0
 [[ "${1:-}" == "--fix" ]] && DO_FIX=1
 
@@ -143,9 +151,9 @@ fi
 section "3. Walidacja"
 
 if command -v docker &>/dev/null; then
-    COMPOSE_ARGS=(-f "${SCRIPT_DIR}/docker-compose.yml")
-    [[ -f "${SCRIPT_DIR}/docker-compose.prod.yml" ]]     && COMPOSE_ARGS+=(-f "${SCRIPT_DIR}/docker-compose.prod.yml")
-    [[ -f "${SCRIPT_DIR}/docker-compose.owncloud.yml" ]] && COMPOSE_ARGS+=(-f "${SCRIPT_DIR}/docker-compose.owncloud.yml")
+    COMPOSE_ARGS=(-f "${COMPOSE_DIR}/docker-compose.yml")
+    [[ -f "${COMPOSE_DIR}/docker-compose.prod.yml" ]]     && COMPOSE_ARGS+=(-f "${COMPOSE_DIR}/docker-compose.prod.yml")
+    [[ -f "${COMPOSE_DIR}/docker-compose.owncloud.yml" ]] && COMPOSE_ARGS+=(-f "${COMPOSE_DIR}/docker-compose.owncloud.yml")
     if docker compose "${COMPOSE_ARGS[@]}" --env-file "${ENV_FILE}" config --quiet 2>/tmp/fix-env-validate.log; then
         ok "docker compose config — plik jest teraz poprawny."
     else

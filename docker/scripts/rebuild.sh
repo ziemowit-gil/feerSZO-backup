@@ -12,8 +12,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    REPO_DIR="$SCRIPT_DIR"
+else
+    REPO_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${REPO_DIR}/.env.prod"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
@@ -42,18 +49,18 @@ done
 
 # ── Budowa komendy docker compose ─────────────────────────────────────────────
 COMPOSE="docker compose \
-  -f ${SCRIPT_DIR}/docker-compose.yml \
-  -f ${SCRIPT_DIR}/docker-compose.prod.yml \
+  -f ${REPO_DIR}/docker-compose.yml \
+  -f ${REPO_DIR}/docker-compose.prod.yml \
   --env-file ${ENV_FILE}"
 
 if [[ $USE_MYSQL -eq 1 ]]; then
-    COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.mysql.yml"
+    COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.mysql.yml"
     info "Tryb: MySQL"
 else
     info "Tryb: SQLite (domyślny)"
 fi
-[[ $USE_NG      -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.ng.yml"; info "Angular UI: ng-ui (szo/newUI/)"; }
-[[ $USE_KURSANT -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.kursant.yml"; info "Kursant UI: kursant-ui (ti/newUI/)"; }
+[[ $USE_NG      -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.ng.yml"; info "Angular UI: ng-ui (szo/newUI/)"; }
+[[ $USE_KURSANT -eq 1 ]] && { COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.kursant.yml"; info "Kursant UI: kursant-ui (ti/newUI/)"; }
 
 # ── 1. Synchronizacja kodu z origin ─────────────────────────────────────────────
 # Zawsze ustawiamy lokalne repo dokładnie na stanie origin (hard reset).

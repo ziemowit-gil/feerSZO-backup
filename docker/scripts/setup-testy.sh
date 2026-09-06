@@ -23,8 +23,10 @@ set -euo pipefail
 PROD_DIR="/opt/feer-szo"
 TESTY_DIR="/opt/feer-testy"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.testy"
-COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.testy-srv.yml"
+# docker-compose*.yml i .env.* żyją w ${PROD_DIR}/docker/ (nie obok tego
+# skryptu, który mieszka w docker/scripts/ — [[project_docker_scripts_reorg]]).
+ENV_FILE="${PROD_DIR}/docker/.env.testy"
+COMPOSE_FILE="${PROD_DIR}/docker/docker-compose.testy-srv.yml"
 DOMAIN="testy-szo.feer.org.pl"
 APP_CONTAINER="feer-testy-app"
 ADMIN_EMAIL="serwis@local"
@@ -67,9 +69,9 @@ ok "feer-traefik działa"
 if ! docker image inspect feer-szo-app:latest &>/dev/null; then
     warn "Obraz feer-szo-app:latest nie istnieje — budowanie z prod Dockerfile..."
     docker compose \
-        -f "${SCRIPT_DIR}/docker-compose.yml" \
-        -f "${SCRIPT_DIR}/docker-compose.prod.yml" \
-        --env-file "${SCRIPT_DIR}/.env.prod" \
+        -f "${PROD_DIR}/docker/docker-compose.yml" \
+        -f "${PROD_DIR}/docker/docker-compose.prod.yml" \
+        --env-file "${PROD_DIR}/docker/.env.prod" \
         build app \
     || die "Budowanie obrazu nie powiodło się. Sprawdź docker/.env.prod."
 fi

@@ -28,12 +28,20 @@ set -euo pipefail
 
 # ── Konfiguracja ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${COMPOSE_DIR}/.env.prod"
 CA_DOMAIN="${1:-ca.feer.org.pl}"
 APP_CONTAINER="feer-ejbca"
 DB_CONTAINER="feer-ejbca-db"
 
-COMPOSE_FILES=(-f "${SCRIPT_DIR}/docker-compose.yml" -f "${SCRIPT_DIR}/docker-compose.prod.yml" -f "${SCRIPT_DIR}/docker-compose.ejbca.yml")
+COMPOSE_FILES=(-f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.prod.yml" -f "${COMPOSE_DIR}/docker-compose.ejbca.yml")
 
 # ── Kolory ANSI ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -54,7 +62,7 @@ echo -e "${BOLD}╚════════════════════�
 section "1. Walidacja środowiska"
 
 command -v docker &>/dev/null || die "Docker nie jest zainstalowany."
-[[ -f "${SCRIPT_DIR}/docker-compose.ejbca.yml" ]] || die "Brak pliku: docker-compose.ejbca.yml"
+[[ -f "${COMPOSE_DIR}/docker-compose.ejbca.yml" ]] || die "Brak pliku: docker-compose.ejbca.yml"
 [[ -f "${ENV_FILE}" ]] || die "Brak ${ENV_FILE} — najpierw uruchom główny stack (zob. DEPLOY.md)."
 
 if ! docker inspect feer-traefik &>/dev/null; then

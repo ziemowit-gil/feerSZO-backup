@@ -52,7 +52,15 @@ set -euo pipefail
 
 # ── Konfiguracja ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${COMPOSE_DIR}/.env.prod"
 OC_CONTAINER="feer-owncloud"
 INTEGRATION_USER="feerszo-integracja"
 APP_CONTAINER="feer-app"
@@ -71,7 +79,7 @@ for arg in "$@"; do
 done
 OC_DOMAIN="${OC_DOMAIN:-owncloud.feer.org.pl}"
 
-COMPOSE_FILES=(-f "${SCRIPT_DIR}/docker-compose.yml" -f "${SCRIPT_DIR}/docker-compose.prod.yml" -f "${SCRIPT_DIR}/docker-compose.owncloud.yml")
+COMPOSE_FILES=(-f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.prod.yml" -f "${COMPOSE_DIR}/docker-compose.owncloud.yml")
 
 # ── Kolory ANSI ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -92,7 +100,7 @@ echo -e "${BOLD}╚════════════════════�
 section "1. Walidacja środowiska"
 
 command -v docker &>/dev/null || die "Docker nie jest zainstalowany."
-[[ -f "${SCRIPT_DIR}/docker-compose.owncloud.yml" ]] || die "Brak pliku: docker-compose.owncloud.yml"
+[[ -f "${COMPOSE_DIR}/docker-compose.owncloud.yml" ]] || die "Brak pliku: docker-compose.owncloud.yml"
 [[ -f "${ENV_FILE}" ]] || die "Brak ${ENV_FILE} — najpierw uruchom główny stack (zob. DEPLOY.md)."
 
 if ! docker inspect feer-traefik &>/dev/null; then
@@ -131,7 +139,7 @@ if [[ "${REINSTALL_FROM_SCRATCH}" -eq 1 ]]; then
         read -r -p "  Wpisz dokładnie „usuń dane ownCloud” aby kontynuować: " CONFIRM
         [[ "${CONFIRM}" == "usuń dane ownCloud" ]] || die "Potwierdzenie się nie zgadza — przerwano bez żadnych zmian."
 
-        BACKUP_DIR="${SCRIPT_DIR}/backups"
+        BACKUP_DIR="${COMPOSE_DIR}/backups"
         mkdir -p "${BACKUP_DIR}"
         for v in ${VOL_NAMES}; do
             BACKUP_FILE="${BACKUP_DIR}/${v}_$(date +%Y%m%d_%H%M%S).tar.gz"

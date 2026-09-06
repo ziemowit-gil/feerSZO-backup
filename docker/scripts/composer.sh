@@ -20,7 +20,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROD_DIR="$(dirname "$SCRIPT_DIR")"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    PROD_DIR="$SCRIPT_DIR"
+else
+    PROD_DIR="$(dirname "$SCRIPT_DIR")"
+fi
 PROD_CONTAINER="feer-app"
 TEST_CONTAINER="feer-testy-app"
 
@@ -80,15 +87,15 @@ fi
 warn "Kontener ${CONTAINER} nie działa — próbuję 'docker compose run --rm'."
 
 COMPOSE_FILES=(-f docker-compose.yml)
-[[ -f "${SCRIPT_DIR}/docker-compose.prod.yml" ]] && COMPOSE_FILES+=(-f docker-compose.prod.yml)
+[[ -f "${PROD_DIR}/docker-compose.prod.yml" ]] && COMPOSE_FILES+=(-f docker-compose.prod.yml)
 ENV_ARG=()
-[[ -f "${SCRIPT_DIR}/.env.prod" ]] && ENV_ARG=(--env-file .env.prod)
-[[ "$CONTAINER" == "$TEST_CONTAINER" && -f "${SCRIPT_DIR}/docker-compose.testy-srv.yml" ]] && \
+[[ -f "${PROD_DIR}/.env.prod" ]] && ENV_ARG=(--env-file .env.prod)
+[[ "$CONTAINER" == "$TEST_CONTAINER" && -f "${PROD_DIR}/docker-compose.testy-srv.yml" ]] && \
     COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.testy-srv.yml)
 
 if docker compose version &>/dev/null; then
     section "docker compose run --rm app"
-    ( cd "$SCRIPT_DIR" && \
+    ( cd "$PROD_DIR" && \
       docker compose "${COMPOSE_FILES[@]}" "${ENV_ARG[@]}" \
         run --rm -w /var/www/html app composer "${COMPOSER_ARGS[@]}" )
     ok "Gotowe (przez docker compose run)."

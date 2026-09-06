@@ -5,7 +5,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml (i .env.prod) mogą być obok skryptu (uruchomiony przez
+# symlink docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${COMPOSE_DIR}/.env.prod"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'

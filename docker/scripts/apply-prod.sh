@@ -26,8 +26,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    REPO_DIR="$SCRIPT_DIR"
+else
+    REPO_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${REPO_DIR}/.env.prod"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
@@ -61,15 +68,15 @@ command -v docker >/dev/null || die "Brak 'docker'."
 
 # ── Budowa polecenia docker compose ───────────────────────────────────────────
 COMPOSE="docker compose \
-  -f ${SCRIPT_DIR}/docker-compose.yml \
-  -f ${SCRIPT_DIR}/docker-compose.prod.yml \
+  -f ${REPO_DIR}/docker-compose.yml \
+  -f ${REPO_DIR}/docker-compose.prod.yml \
   --env-file ${ENV_FILE}"
-[[ $USE_MYSQL   -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.mysql.yml"
-[[ $USE_NG      -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.ng.yml"
-[[ $USE_KURSANT -eq 1 ]] && COMPOSE="${COMPOSE} -f ${SCRIPT_DIR}/docker-compose.kursant.yml"
+[[ $USE_MYSQL   -eq 1 ]] && COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.mysql.yml"
+[[ $USE_NG      -eq 1 ]] && COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.ng.yml"
+[[ $USE_KURSANT -eq 1 ]] && COMPOSE="${COMPOSE} -f ${REPO_DIR}/docker-compose.kursant.yml"
 [[ $USE_SUBDOMAINS -eq 1 ]] && COMPOSE="${COMPOSE} \
-  -f ${SCRIPT_DIR}/docker-compose.szo-subdomains.yml \
-  -f ${SCRIPT_DIR}/docker-compose.wildcard-ssl.yml"
+  -f ${REPO_DIR}/docker-compose.szo-subdomains.yml \
+  -f ${REPO_DIR}/docker-compose.wildcard-ssl.yml"
 
 UP_ARGS="up -d"
 [[ $DO_BUILD -eq 1 ]] && UP_ARGS="${UP_ARGS} --build"

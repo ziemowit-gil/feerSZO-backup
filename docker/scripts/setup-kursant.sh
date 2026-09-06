@@ -15,7 +15,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env.prod"
+# docker-compose*.yml (i .env.prod) mogą być obok skryptu (uruchomiony przez
+# symlink docker/*.sh) albo jeden poziom wyżej (docker/scripts/*.sh) —
+# sprawdzamy, gdzie faktycznie jest ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+ENV_FILE="${COMPOSE_DIR}/.env.prod"
 KURSANT_NEW_UI_DEFAULT="https://ti.feer.org.pl/newUI"
 KURSANT_API_TARGET_DEFAULT="https://szo.feer.org.pl"
 
@@ -94,9 +102,9 @@ if [[ $DO_BUILD -eq 1 ]]; then
     section "3. Budowanie obrazu kursant-ui"
     info "ng build + docker build (może potrwać kilka minut)…"
     docker compose \
-        -f "${SCRIPT_DIR}/docker-compose.yml" \
-        -f "${SCRIPT_DIR}/docker-compose.prod.yml" \
-        -f "${SCRIPT_DIR}/docker-compose.kursant.yml" \
+        -f "${COMPOSE_DIR}/docker-compose.yml" \
+        -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
+        -f "${COMPOSE_DIR}/docker-compose.kursant.yml" \
         --env-file "${ENV_FILE}" \
         build kursant-ui
     ok "Obraz feer-kursant-ui:latest zbudowany"
@@ -109,9 +117,9 @@ fi
 section "4. Uruchamianie kursant-ui"
 
 COMPOSE="docker compose \
-  -f ${SCRIPT_DIR}/docker-compose.yml \
-  -f ${SCRIPT_DIR}/docker-compose.prod.yml \
-  -f ${SCRIPT_DIR}/docker-compose.kursant.yml \
+  -f ${COMPOSE_DIR}/docker-compose.yml \
+  -f ${COMPOSE_DIR}/docker-compose.prod.yml \
+  -f ${COMPOSE_DIR}/docker-compose.kursant.yml \
   --env-file ${ENV_FILE}"
 
 info "Uruchamianie stacku (kursant-ui + app env)…"
