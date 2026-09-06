@@ -1,12 +1,16 @@
 <?php
 /**
  * cron/k30_ti_billing_autoissue.php — Automatyczne wystawianie rozliczeń TI
- * ostatniego dnia miesiąca + powiadomienia (e-mail + SMS).
+ * za miniony miesiąc, do 1. dnia miesiąca następnego + powiadomienia (e-mail + SMS).
  *
  * Logika:
- *   1. Uruchamiany codziennie (dispatcher), ale działa TYLKO w ostatnim dniu miesiąca
- *      (chyba że podano --force lub okres YYYY-MM jako argument).
- *   2. Dla każdego kursanta z aktywnym zapisem, którego rozliczenie za bieżący
+ *   1. Uruchamiany codziennie (dispatcher), ale działa TYLKO w pierwszym dniu
+ *      miesiąca (chyba że podano --force lub okres YYYY-MM jako argument) —
+ *      rozlicza wtedy miesiąc POPRZEDNI. Celowo nie ostatniego dnia miesiąca:
+ *      obecność z ostatniego dnia bywa uzupełniana przez prowadzącego jeszcze
+ *      tego samego wieczoru, więc rozliczenie wystawione "na już" mogłoby
+ *      pominąć spóźnione wpisy — dzień poślizgu daje na to czas.
+ *   2. Dla każdego kursanta z aktywnym zapisem, którego rozliczenie za rozliczany
  *      miesiąc daje godziny>0 LUB kwotę>0 (model godzinowy / miesięczny / stały),
  *      wystawia rozliczenie (k30_ti_issue_billing) — idempotentnie.
  *   3. Przelicza saldo (auto-pobranie z nadpłaty) i wysyła powiadomienie
@@ -36,17 +40,19 @@ $force  = in_array('--force', $argv, true);
 $period = null;
 foreach ($argv as $a) { if (preg_match('/^(\d{4})-(\d{2})$/', $a, $m)) $period = [(int)$m[1], (int)$m[2]]; }
 
+$is_first_day = ((int)date('j') === 1); // dziś == pierwszy dzień miesiąca
+if (!$is_first_day && !$force && !$period) {
+    echo "[" . date('Y-m-d H:i:s') . "] Nie pierwszy dzień miesiąca — pomijam automatyczne rozliczenia.\n";
+    exit(0);
+}
+
 if ($period) {
     [$year, $month] = $period;
 } else {
-    $year  = (int)date('Y');
-    $month = (int)date('m');
-}
-
-$is_last_day = (date('j') === date('t')); // dziś == ostatni dzień miesiąca
-if (!$is_last_day && !$force && !$period) {
-    echo "[" . date('Y-m-d H:i:s') . "] Nie ostatni dzień miesiąca — pomijam automatyczne rozliczenia.\n";
-    exit(0);
+    // Domyślnie rozliczamy miesiąc POPRZEDNI — dziś jest 1. dzień bieżącego.
+    $prev_ts = strtotime('first day of last month');
+    $year  = (int)date('Y', $prev_ts);
+    $month = (int)date('m', $prev_ts);
 }
 
 echo "[" . date('Y-m-d H:i:s') . "] Automatyczne rozliczenia TI za {$month}/{$year} — start"

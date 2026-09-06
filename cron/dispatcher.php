@@ -142,8 +142,8 @@ $AGENTS = [
     ],
     'k30_ti_billing_autoissue' => [
         'file'     => __DIR__ . '/k30_ti_billing_autoissue.php',
-        'interval' => 86400,        // raz dziennie (skrypt działa tylko w ostatni dzień miesiąca)
-        'schedule' => [21, 23],     // wieczorem ostatniego dnia miesiąca
+        'interval' => 86400,        // raz dziennie (skrypt działa tylko w pierwszy dzień miesiąca, za miesiąc poprzedni)
+        'schedule' => [21, 23],     // wieczorem pierwszego dnia miesiąca
     ],
     'ti_lesson_reminders' => [
         'file'     => __DIR__ . '/ti_lesson_reminders.php',
