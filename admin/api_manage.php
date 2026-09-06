@@ -38,6 +38,11 @@ const AM_API_PERMISSIONS = [
     // zgłoszenia z formularzy, a nie edytować i kasować kartotekę.
     'forms:read'       => 'Formularze — odczyt definicji (do mapowania w CMS)',
     'forms:submit'     => 'Formularze — przyjmowanie zgłoszeń z zewnątrz (CMS)',
+    // Warstwa hybrydowa SZO/TI/Dydaktyka (hybrid/) — po jednym uprawnieniu per
+    // domena, żeby klucz dla jednego serwisu nie mógł wołać pozostałych.
+    'hybrid:ti'         => 'Hybrid — TI: profil dostępności (api/v1/hybrid_ti.php)',
+    'hybrid:szo'        => 'Hybrid — SZO: raporty jakościowe i wymagania dostępności (api/v1/hybrid_szo.php)',
+    'hybrid:dydaktyka'  => 'Hybrid — Dydaktyka: kursy, zapisy, zgłoszenia adaptacji (api/v1/hybrid_dydaktyka.php)',
 ];
 
 // ── Zdarzenia Webhook ──────────────────────────────────────────────────────────
