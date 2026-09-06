@@ -16,6 +16,12 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
+ti_planner_ext_migrate();
+$_srs_operators = db_all(
+    "SELECT DISTINCT operator_label FROM k30_pl_rooms
+      WHERE trim(operator_label) != '' ORDER BY operator_label COLLATE NOCASE"
+);
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -342,6 +348,34 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
               <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
             </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-building me-1 text-primary" aria-hidden="true"></i>Sale do rezerwacji — wg operatora</div>
+            <div class="small text-body-secondary">Wydruk dla zewnętrznego operatora przestrzeni: daty, godziny i jego własne sale — bez rezerwacji pozostałych operatorów.</div>
+          </td>
+          <td>
+            <?php if (!$_srs_operators): ?>
+            <span class="text-body-secondary small">Brak sal z ustawioną „nazwą zwyczajową operatora" — dodaj ją w <a href="sale.php">wykazie sal</a>.</span>
+            <?php else: ?>
+            <form method="get" action="sale_rezerwacje.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <input type="hidden" name="view" value="operator">
+              <select name="operator" class="form-select form-select-sm w-auto" style="max-width:220px" required>
+                <?php foreach ($_srs_operators as $_op): ?>
+                <option value="<?= h($_op['operator_label']) ?>"><?= h($_op['operator_label']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <select name="range" class="form-select form-select-sm w-auto">
+                <option value="week">Tydzień (bieżący)</option>
+                <option value="month">Miesiąc (bieżący)</option>
+                <option value="quarter">3 miesiące (od bieżącego)</option>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
+              <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+            <?php endif; ?>
           </td>
         </tr>
 
