@@ -270,6 +270,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?guardian=' . $aid); exit;
     }
 
+    // Zapis nadpłaty do końca roku (kierownik) + dozwolonych metod płatności (admin) —
+    // ten sam ekran obsługuje oba, bo panel kierownika nie rozróżnia ról w praktyce
+    // (dyd_is_staff() = admin SZO LUB rola panelu kierownik/zastępca).
+    if ($op === 'overpay_save') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        if ($aid) {
+            $methods = array_values(array_intersect(
+                ['stripe', 'payu', 'p24', 'transfer'],
+                (array)($_POST['allowed_methods'] ?? [])
+            ));
+            db()->prepare(
+                "UPDATE k30_ti_student_accounts
+                 SET allow_year_end_overpay=?, allowed_payment_methods=?, updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([
+                isset($_POST['allow_year_end_overpay']) ? 1 : 0,
+                implode(',', $methods),
+                $aid,
+            ]);
+            flash_set('success', 'Ustawienia nadpłaty i metod płatności zapisane.');
+        }
+        header('Location: konta.php?overpay=' . $aid); exit;
+    }
+
     // Wygeneruj link magiczny rodzica i wyślij go e-mailem (jeśli jest adres)
     if ($op === 'parent_link') {
         $aid = (int)($_POST['account_id'] ?? 0);
@@ -604,6 +628,13 @@ $guardian_acc = $guardian_id ? db_one(
 $portal_url         = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
 $parent_portal_url  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php';
 
+// Edytor nadpłaty do końca roku / dozwolonych metod płatności
+$overpay_id  = (int)($_GET['overpay'] ?? 0);
+$overpay_acc = $overpay_id ? db_one(
+    "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
+     JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$overpay_id]
+) : null;
+
 // Edytor upoważnień
 $authp_account_id  = (int)($_GET['authp'] ?? 0);
 $authp_account     = $authp_account_id ? db_one(
@@ -843,6 +874,52 @@ function printBulk(){
       <button class="btn btn-primary btn-sm"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz konto rodzica</button>
     </form>
     <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Edytor nadpłaty do końca roku / dozwolonych metod płatności -->
+<?php if ($overpay_acc):
+  $overpay_methods = array_filter(array_map('trim', explode(',', (string)($overpay_acc['allowed_payment_methods'] ?? ''))));
+  $overpay_all_methods = ['stripe' => 'Stripe', 'payu' => 'PayU', 'p24' => 'Przelewy24', 'transfer' => 'Przelew tradycyjny'];
+?>
+<div class="card border-0 shadow-sm mb-4" style="max-width:640px">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <span><i class="bi bi-cash-coin me-2 text-primary" aria-hidden="true"></i>Nadpłata do końca roku / metody płatności — <?= h($overpay_acc['client_name']) ?></span>
+    <a href="konta.php" class="btn-close ms-auto" aria-label="Zamknij"></a>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Nadpłata do końca roku (kreator w portfelu kursanta) z powodów podatkowych/księgowych musi
+      być opłacona w tym samym roku kalendarzowym — dlatego jest dostępna tylko dla wybranych
+      kursantów, świadomie włączona przez kierownika.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="overpay_save">
+      <input type="hidden" name="account_id" value="<?= (int)$overpay_acc['id'] ?>">
+
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="allow_year_end_overpay" id="oy_allow"
+               <?= $overpay_acc['allow_year_end_overpay'] ? 'checked' : '' ?>>
+        <label class="form-check-label fw-semibold" for="oy_allow">Zezwól na nadpłatę do końca roku</label>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label small fw-semibold d-block">Dozwolone metody płatności (puste = bez ograniczenia)</label>
+        <?php foreach ($overpay_all_methods as $mk => $ml): ?>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" name="allowed_methods[]" id="oy_m_<?= h($mk) ?>"
+                 value="<?= h($mk) ?>" <?= in_array($mk, $overpay_methods, true) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="oy_m_<?= h($mk) ?>"><?= h($ml) ?></label>
+        </div>
+        <?php endforeach; ?>
+      </div>
+
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+      </div>
+    </form>
   </div>
 </div>
 <?php endif; ?>
@@ -1218,6 +1295,7 @@ function printBulk(){
                     <?php endif; ?>
                     <li><a class="dropdown-item" href="../messages.php?student=<?= (int)$a['id'] ?>"><i class="bi bi-envelope me-2" aria-hidden="true"></i>Wyślij wiadomość</a></li>
                     <li><a class="dropdown-item" href="?guardian=<?= (int)$a['id'] ?>"><i class="bi bi-people me-2 text-info" aria-hidden="true"></i>Opiekun / dostęp rodzica</a></li>
+                    <li><a class="dropdown-item" href="?overpay=<?= (int)$a['id'] ?>"><i class="bi bi-cash-coin me-2 text-success" aria-hidden="true"></i>Nadpłata do końca roku / metody płatności</a></li>
                     <?php if (empty($a['is_minor'])): ?>
                     <li><a class="dropdown-item" href="?authp=<?= (int)$a['id'] ?>"><i class="bi bi-person-check me-2 text-primary" aria-hidden="true"></i>Osoby upoważnione</a></li>
                     <?php endif; ?>
