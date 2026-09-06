@@ -106,6 +106,26 @@ function ti_notices_migrate(): void {
             ]);
         }
     } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — komunikat dla prowadzących: protokoły zamykane
+    // teraz miesięcznie zamiast kwartalnie (wrzesień 2026). Widoczny tylko
+    // w panelu prowadzącego — audience inny niż 'all'/'course' jest
+    // pomijany przez ti_notices_list_for_student(), więc kursanci go nie zobaczą.
+    try {
+        $seeded4 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_protokoly_miesieczne_seeded'");
+        if (!$seeded4) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_protokoly_miesieczne_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'staff', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Protokoły zajęć — nowy tryb miesięczny',
+                'Protokoły zajęć zamykane są teraz co miesiąc, a nie jak dotychczas raz na okres nauczania.'
+                . "\n\nProsimy o zamknięcie protokołu za dany miesiąc do 5. dnia kolejnego miesiąca."
+                . "\n\nW razie pytań — skontaktuj się z administratorem.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
 }
 
 function ti_notices_list_active_for_instructor(int $user_id = 0): array {
