@@ -28,10 +28,13 @@ $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from,
 
 // Jeden konkretny operator (PDF do wysłania TYLKO jemu — bez rezerwacji
 // pozostałych operatorów/sal). Działa wyłącznie z view=operator.
+// Brak klucza w $by_group nie oznacza błędu — operator może po prostu nie
+// mieć żadnych terminów w wybranym okresie (raport grupuje tylko sale z
+// realnie zaplanowanymi lekcjami) — wtedy PDF ma po prostu pustą treść,
+// tak jak widok "wg dnia" przy braku terminów w ogóle.
 $operator = $view === 'operator' ? trim((string)($_GET['operator'] ?? '')) : '';
 if ($operator !== '') {
-    if (!isset($by_group[$operator])) { http_response_code(404); exit('Nie znaleziono operatora w wybranym okresie.'); }
-    $by_group = [$operator => $by_group[$operator]];
+    $by_group = [$operator => $by_group[$operator] ?? []];
 }
 
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
