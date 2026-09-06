@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_t
     if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
         $wl_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
         $wl_provider = (string)($_POST['provider'] ?? '');
         $wl_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?ptab=portfel';
@@ -97,6 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_t
             if ($wl_provider === 'stripe' && stripe_enabled()) {
                 $wl = stripe_create_checkout('k30_ti_wallet', (int)$p['client_id'], $wl_amount, $wl_desc,
                                              $wl_back . '&wpay=stripe', $wl_back . '&wcancel=1', $wl_email);
+                header('Location: ' . $wl['url']); exit;
+            }
+            if ($wl_provider === 'p24' && p24_enabled()) {
+                $wl = p24_create_order('k30_ti_wallet', (int)$p['client_id'], $wl_amount, $wl_desc,
+                                       $wl_back . '&wpay=p24', rtrim(APP_URL, '/') . '/api/p24_webhook.php', $wl_email);
                 header('Location: ' . $wl['url']); exit;
             }
             $_SESSION['wallet_flash'] = ['err', 'Wybrana metoda płatności nie jest teraz dostępna.'];

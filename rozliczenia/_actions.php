@@ -56,7 +56,7 @@ if ($op === 'payment') {
     $client_id = (int)($_POST['client_id'] ?? 0);
     $amount    = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
     $paid_at   = trim((string)($_POST['paid_at'] ?? ''));
-    $method    = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','other'], true) ? (string)$_POST['method'] : 'transfer';
+    $method    = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','p24','other'], true) ? (string)$_POST['method'] : 'transfer';
     $note      = trim((string)($_POST['note'] ?? ''));
     $course_id = (int)($_POST['course_id'] ?? 0);
     if ($course_id > 0 && !db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=?", [$client_id, $course_id])) {

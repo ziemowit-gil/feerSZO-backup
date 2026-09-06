@@ -1242,7 +1242,7 @@ echo '<main id="main" class="dyd-wrap">';
               <thead class="table-light"><tr><th>Data</th><th>Kwota</th><th>Grupa</th><th>Metoda</th><th>Notatka</th><th class="text-end">Akcje</th></tr></thead>
               <tbody>
                 <?php foreach ($cpayments as $pm):
-                  $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
+                  $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
                 <tr>
                   <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
                   <td class="fw-semibold text-success">+<?= number_format((float)$pm['amount'],2,',',' ') ?> zł</td>

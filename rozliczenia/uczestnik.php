@@ -220,7 +220,7 @@ include __DIR__ . '/_head.php';
       <tbody>
         <?php foreach ($payments as $pm):
           $pmc  = (int)($pm['course_id'] ?? 0);
-          $mlab = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
+          $mlab = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
         <tr>
           <td><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
           <td class="num rz-pos">+<?= h(rz_zl($pm['amount'])) ?></td>

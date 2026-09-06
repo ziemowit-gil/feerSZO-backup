@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'add_payment') {
         $amount  = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
         $paid_at = trim($_POST['paid_at'] ?? '');
-        $method  = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','other'], true)
+        $method  = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','p24','other'], true)
                    ? $_POST['method'] : 'transfer';
         $note    = trim($_POST['note'] ?? '');
         // Model kombinowany: wpłatę można zaksięgować na konkretną grupę (0 = ogólna na konto)
@@ -266,6 +266,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <option value="cash">Gotówka</option>
           <option value="stripe">Stripe</option>
           <option value="payu">PayU</option>
+          <option value="p24">Przelewy24</option>
           <option value="other">Inna</option>
         </select>
       </div>
@@ -319,8 +320,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr><td colspan="<?= $can_delete ? 7 : 6 ?>" class="text-center text-body-secondary py-4">Brak wpłat.</td></tr>
         <?php endif; ?>
         <?php foreach ($payments as $pm):
-          $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method'];
-          $slabel = match($pm['source_type']) { 'stripe'=>'Stripe (auto)', 'payu'=>'PayU (auto)', 'manual'=>'Ręcznie', default=>h($pm['source_type']) };
+          $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'Inna'][$pm['method']] ?? $pm['method'];
+          $slabel = match($pm['source_type']) { 'stripe'=>'Stripe (auto)', 'payu'=>'PayU (auto)', 'p24'=>'Przelewy24 (auto)', 'manual'=>'Ręcznie', default=>h($pm['source_type']) };
         ?>
         <tr>
           <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>

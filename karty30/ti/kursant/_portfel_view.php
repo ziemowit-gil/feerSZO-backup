@@ -12,6 +12,7 @@
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
 
 $pw_cid = (int)$pw_client_id;
 // Partial działa w dwóch panelach: kursanta (domyślne adresy) i rodzica (nadpisywane)
@@ -23,7 +24,7 @@ unset($_SESSION['wallet_flash']);
 
 // Płatności online rozpoczęte z portfela; oczekujące zweryfikuj aktywnie w API —
 // powrót z bramki zwykle wyprzedza webhook, a kursant chce od razu widzieć środki.
-stripe_migrate(); payu_migrate();
+stripe_migrate(); payu_migrate(); p24_migrate();
 $pw_stripe = db_all("SELECT * FROM stripe_payments WHERE source_type='k30_ti_wallet' AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
 foreach ($pw_stripe as &$_sp) {
     if ($_sp['status'] === 'pending') $_sp['status'] = stripe_reconcile_payment((int)$_sp['id']) ?: 'pending';
@@ -34,10 +35,19 @@ foreach ($pw_payu as &$_pp) {
     if ($_pp['status'] === 'pending') $_pp['status'] = payu_reconcile_payment((int)$_pp['id']) ?: 'pending';
 }
 unset($_pp);
+$pw_p24 = db_all("SELECT * FROM p24_payments WHERE source_type='k30_ti_wallet' AND source_id=? ORDER BY id DESC LIMIT 10", [$pw_cid]);
+foreach ($pw_p24 as &$_p4) {
+    if ($_p4['status'] === 'pending') $_p4['status'] = p24_reconcile_payment((int)$_p4['id']) ?: 'pending';
+}
+unset($_p4);
 
 // Powrót z bramki płatności → komunikat wg faktycznego (zweryfikowanego) statusu
 if (isset($_GET['wpay']) && !$pw_flash) {
-    $_last = $_GET['wpay'] === 'payu' ? ($pw_payu[0] ?? null) : ($pw_stripe[0] ?? null);
+    $_last = match ($_GET['wpay']) {
+        'payu'  => $pw_payu[0] ?? null,
+        'p24'   => $pw_p24[0] ?? null,
+        default => $pw_stripe[0] ?? null,
+    };
     if ($_last && $_last['status'] === 'paid') {
         $pw_flash = ['ok', 'Wpłata została zaksięgowana — środki są już w portfelu.'];
     } elseif ($_last && $_last['status'] === 'pending') {
@@ -52,11 +62,12 @@ $pw_bal    = ti_client_balance($pw_cid);
 $pw_wreqs  = ti_wallet_requests_for_client($pw_cid);
 $pw_stripe_on = stripe_enabled();
 $pw_payu_on   = payu_enabled();
-$pw_online    = $pw_stripe_on || $pw_payu_on;
+$pw_p24_on    = p24_enabled();
+$pw_online    = $pw_stripe_on || $pw_payu_on || $pw_p24_on;
 $pw_pay    = k30_ti_client_payment($pw_cid);
 $pw_months = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
               7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
-$pw_mlabels = ['transfer'=>'przelew','cash'=>'gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'inna'];
+$pw_mlabels = ['transfer'=>'przelew','cash'=>'gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'inna'];
 
 // Oczekujące doładowania online (do dokończenia)
 $pw_pending = [];
@@ -70,6 +81,12 @@ foreach ($pw_payu as $_p) {
     if ($_p['status'] === 'pending' && $_p['redirect_uri'] !== '') {
         $pw_pending[] = ['amount' => (int)$_p['amount_grosze'] / 100, 'url' => (string)$_p['redirect_uri'],
                          'label' => 'PayU', 'created' => (string)$_p['created_at']];
+    }
+}
+foreach ($pw_p24 as $_p) {
+    if ($_p['status'] === 'pending' && $_p['redirect_uri'] !== '') {
+        $pw_pending[] = ['amount' => (int)$_p['amount_grosze'] / 100, 'url' => (string)$_p['redirect_uri'],
+                         'label' => 'Przelewy24', 'created' => (string)$_p['created_at']];
     }
 }
 
@@ -228,6 +245,12 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
             <div class="form-check">
               <input class="form-check-input" type="radio" name="provider" id="pwProvPayu" value="payu" <?= $pw_stripe_on ? '' : 'checked' ?>>
               <label class="form-check-label" for="pwProvPayu">BLIK / szybki przelew — PayU</label>
+            </div>
+            <?php endif; ?>
+            <?php if ($pw_p24_on): ?>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="provider" id="pwProvP24" value="p24" <?= ($pw_stripe_on || $pw_payu_on) ? '' : 'checked' ?>>
+              <label class="form-check-label" for="pwProvP24">BLIK / szybki przelew — Przelewy24</label>
             </div>
             <?php endif; ?>
           </fieldset>

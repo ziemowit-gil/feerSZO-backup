@@ -49,6 +49,7 @@ const DONATION_CHANNELS = [
     'przelew' => 'Przelew na rachunek',
     'stripe'  => 'Płatność kartą (Stripe)',
     'payu'    => 'Płatność online (PayU)',
+    'p24'     => 'Płatność online (Przelewy24)',
     'zbiorka' => 'Zbiórka / wpłata za pośrednictwem',
     'gotowka' => 'Gotówka',
     'inne'    => 'Inne',
