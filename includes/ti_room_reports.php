@@ -787,6 +787,7 @@ function ti_group_location_summary(int $weeks = 8): array {
          LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
          WHERE s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')
            AND (s.lesson_method = 'stacjonarna' OR s.lesson_method = '' OR s.lesson_method IS NULL)
+           AND (r.mode_support IS NULL OR r.mode_support != 'remote')
          ORDER BY c.name COLLATE NOCASE, s.lesson_date, s.time_from",
         [$from, $to]
     );
