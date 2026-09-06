@@ -60,7 +60,6 @@ if (!empty($KIER_ITEMS)) {
 $_kier_sections = [
     ['Mój panel',    'index.php?tab=pulpit'],
     ['Kurs',         'index.php?tab=lekcje'],
-    ['Planowanie',   'index.php?tab=frekwencja_grup'],
     ['Komunikacja',  'index.php?tab=wiadomosci'],
     ['Zasoby',       'index.php?tab=dysk'],
 ];

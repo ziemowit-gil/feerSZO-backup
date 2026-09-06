@@ -3,7 +3,7 @@
  * karty30/ti/dydaktyk/_usos_bar.php — nawigacja panelu u góry (dwa poziomy).
  *
  * Cała nawigacja siedzi w pasku nad treścią: pierwszy rząd to sekcje
- * (Mój panel, Kurs, Planowanie, Komunikacja, Zasoby, Kierownik), drugi —
+ * (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik), drugi —
  * pozycje sekcji otwartej. Wcześniej te grupy stały w menu bocznym; po
  * przeniesieniu do góry treść ma całą szerokość, a widać wprost, gdzie jesteśmy.
  * Menu boczne jest w tym widoku ukryte (usos.css), a nie usunięte — układ
@@ -54,26 +54,19 @@ $_usos_sections = [
         'label' => 'Mój panel',
         'href'  => $_g('pulpit'),
         'items' => [
-            $_it('pulpit', 'Pulpit',        $_g('pulpit')),
-            $_it('pomoc',  'Gdzie co jest', $_g('pomoc')),
+            $_it('pulpit',           'Pulpit',            $_g('pulpit')),
+            $_it('pomoc',            'Gdzie co jest',     $_g('pomoc')),
+            $_it('frekwencja_grup',  'Frekwencja grup',   $_g('frekwencja_grup')),
+            $_it('dostepnosc',       'Dostępność',        $_g('dostepnosc'), $_n_avail),
+            $_it('',                 'Zapisy na zajęcia', 'rekrutacja.php'),
+            $_it('cykliczne',        'Plan cykliczny',    $_g('cykliczne')),
+            $_it('',                 'Planner',           'planner.php'),
         ],
     ],
     'kurs' => [
         'label' => 'Kurs',
         'href'  => $_c ? $_ct('lekcje') : $_g('lekcje'),
         'items' => $_kurs_items,
-    ],
-    'planowanie' => [
-        'label' => 'Planowanie',
-        'href'  => $_g('frekwencja_grup'),
-        'items' => [
-            $_it('frekwencja_grup', 'Frekwencja grup', $_g('frekwencja_grup')),
-            $_it('dostepnosc',      'Dostępność',      $_g('dostepnosc'), $_n_avail),
-            $_it('',                'Zapisy na zajęcia', 'rekrutacja.php'),
-            $_it('zoom',            'Zajętość Zoom',   $_g('zoom')),
-            $_it('cykliczne',       'Plan cykliczny',  $_g('cykliczne')),
-            $_it('',                'Planner',         'planner.php'),
-        ],
     ],
     'komunikacja' => [
         'label' => 'Komunikacja',
@@ -88,6 +81,7 @@ $_usos_sections = [
         'href'  => $_g('dysk'),
         'items' => [
             $_it('dysk', 'Mój dysk',       $_g('dysk')),
+            $_it('zoom', 'Zajętość Zoom',  $_g('zoom')),
             $_it('',     'Biblioteka materiałów', '../ext/index.php?as=dyd'),
             $_it('',     'Pełny moduł TI', rtrim(APP_URL, '/') . '/karty30/ti/index.php', 0, 'secondary', true),
         ],

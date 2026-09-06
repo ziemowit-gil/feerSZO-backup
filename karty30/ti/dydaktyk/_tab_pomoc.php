@@ -17,6 +17,11 @@ $_guide = [
     'Mój panel' => [
         ['Pulpit',         $_g('pulpit'), 'Co czeka na dziś: zajęcia, obecności do uzupełnienia, protokoły bez zatwierdzenia, nieprzeczytane wiadomości.', 'Dawniej kafelki i wykresy — teraz zestawienia w tabelach.'],
         ['Gdzie co jest',  $_g('pomoc'),  'Ta strona: spis wszystkich funkcji panelu z opisem i wejściem.', ''],
+        ['Frekwencja grup', $_g('frekwencja_grup'), 'Zestawienie frekwencji we wszystkich Twoich grupach.', 'Dawniej w sekcji „Planowanie” — sekcja zniknęła, pozycja została.'],
+        ['Dostępność',      $_g('dostepnosc'),      'Twoje okna godzinowe w tygodniu — zajęcia można ustawiać tylko w nich.', 'Dawniej siedem kafelków dni; teraz jedna tabela z sumą godzin.'],
+        ['Zapisy na zajęcia', 'rekrutacja.php',      'Zapisy kursantów na wolne terminy i tury zajęć.', ''],
+        ['Plan cykliczny',  $_g('cykliczne'),       'Zajęcia stałe: reguły powtarzania i generowanie terminów.', ''],
+        ['Planner',         'planner.php',                   'Układanie harmonogramu z bloków — osobne narzędzie.', ''],
     ],
     'Kurs — praca z grupą' => [
         ['Zajęcia',       $_ct('lekcje'),      'Terminy zajęć: dodawanie, edycja, obecność, odwołanie i zmiana terminu. Klik w datę (albo „Wejdź”) otwiera kartę lekcji z listą obecności.', 'Dawniej dwa widoki (lista i tabela) — został jeden, tabelaryczny.'],
@@ -30,19 +35,13 @@ $_guide = [
         ['Sylabus',       $_ct('program'),     'Tematy realizowane w tym kursie i ich powiązanie z zajęciami.', 'Dawniej „Program zajęć” — ta sama rzecz i te same dane, zmieniła się nazwa. Wzorzec przedmiotu prowadzi administracja.'],
         ['Testy',         $_ct('testy'),       'Testy i quizy: budowanie, udostępnianie, wyniki.', ''],
     ],
-    'Planowanie' => [
-        ['Frekwencja grup', $_g('frekwencja_grup'), 'Zestawienie frekwencji we wszystkich Twoich grupach.', ''],
-        ['Dostępność',      $_g('dostepnosc'),      'Twoje okna godzinowe w tygodniu — zajęcia można ustawiać tylko w nich.', 'Dawniej siedem kafelków dni; teraz jedna tabela z sumą godzin.'],
-        ['Zajętość Zoom',   $_g('zoom'),            'Kalendarz zajętości konta Zoom i wyjaśnienie, dlaczego termin bywa zablokowany.', 'Nowa zakładka — jeden host Zoom nie prowadzi dwóch spotkań naraz.'],
-        ['Plan cykliczny',  $_g('cykliczne'),       'Zajęcia stałe: reguły powtarzania i generowanie terminów.', ''],
-        ['Planner',         'planner.php',                   'Układanie harmonogramu z bloków — osobne narzędzie.', ''],
-    ],
     'Komunikacja' => [
         ['Wiadomości', $_g('wiadomosci'), 'Rozmowy z kursantami, opiekunami i administracją.', ''],
         ['Komunikaty', $_g('komunikaty'), 'Ogłoszenia placówki. Nieprzeczytany komunikat pokazuje się na całą stronę przy wejściu do panelu.', ''],
     ],
     'Zasoby' => [
         ['Mój dysk',       $_g('dysk'), 'Twoje pliki w chmurze organizacji.', 'Dawniej w sekcji „Moje sprawy”.'],
+        ['Zajętość Zoom',  $_g('zoom'), 'Kalendarz zajętości konta Zoom i wyjaśnienie, dlaczego termin bywa zablokowany.', 'Dawniej w sekcji „Planowanie” — sekcja zniknęła, pozycja została.'],
         ['Pełny moduł TI', rtrim(APP_URL, '/') . '/karty30/ti/index.php', 'Moduł administracyjny Zajęć TI — otwiera się w nowej karcie.', 'Wymaga uprawnień do modułu.'],
     ],
 ];
@@ -72,7 +71,7 @@ if (dyd_is_staff()) {
   <div class="card-body py-2">
     <p class="small mb-1">
       Cała nawigacja jest <strong>u góry</strong>, w dwóch rzędach — panel nie ma już menu po lewej.
-      W pierwszym rzędzie wybierasz <strong>sekcję</strong> (Mój panel, Kurs, Planowanie, Komunikacja,
+      W pierwszym rzędzie wybierasz <strong>sekcję</strong> (Mój panel, Kurs, Komunikacja,
       Zasoby<?= dyd_is_staff() ? ', Kierownik' : '' ?>), w drugim — <strong>pozycję</strong> tej sekcji.
       Pod nimi <strong>okruszki</strong> pokazują, gdzie jesteś.
     </p>

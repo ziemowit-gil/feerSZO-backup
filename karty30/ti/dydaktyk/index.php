@@ -75,7 +75,7 @@ if (!dyd_panel_is_enabled() && empty($me['is_staff'])) {
 $DYD_UI = dyd_ui($uid);
 
 // Podpowiedź dopisywana do komunikatów o kolizji z zajętością Zoom
-const ZOOM_BUSY_HINT = ' Wolne terminy i wyjaśnienie pokazuje zakładka „Zajętość Zoom” w menu Planowanie.';
+const ZOOM_BUSY_HINT = ' Wolne terminy i wyjaśnienie pokazuje zakładka „Zajętość Zoom” w menu Zasoby.';
 
 // Okno wyłączenia dziennika ocen — staff/admin prowadzą prace, więc ich nie dotyczy
 $dziennik_off = empty($me['is_staff']) ? dyd_dziennik_blackout() : null;
@@ -2972,9 +2972,28 @@ if ($cur_course && dyd_is_staff()) {
     <i class="bi bi-chevron-left" style="font-size:.7rem" aria-hidden="true"></i>
   </button>
 
+  <div class="dyd-sb-section" style="padding-bottom:.1rem">Mój panel</div>
   <a class="dyd-sb-link <?= $tab==='pulpit'?'active':'' ?>" href="index.php?tab=pulpit"
      <?= $tab==='pulpit'?'aria-current="page"':'' ?>>
     <i class="bi bi-house" aria-hidden="true"></i>Pulpit
+  </a>
+  <a class="dyd-sb-link <?= $tab==='frekwencja_grup'?'active':'' ?>" href="index.php?tab=frekwencja_grup"
+     <?= $tab==='frekwencja_grup'?'aria-current="page"':'' ?>>
+    <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>Frekwencja grup
+  </a>
+  <a class="dyd-sb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
+     <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
+    <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
+    <?php if (isset($my_avail) && count($my_avail) > 0): ?>
+    <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($my_avail) ?></span>
+    <?php endif; ?>
+  </a>
+  <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
+     <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
+    <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
+  </a>
+  <a class="dyd-sb-link" href="planner.php">
+    <i class="bi bi-layout-wtf" aria-hidden="true"></i>Planner
   </a>
 
   <div class="dyd-sb-sep"></div>
@@ -3040,32 +3059,6 @@ if ($cur_course && dyd_is_staff()) {
   <?php endif; ?>
 
   <div class="dyd-sb-sep"></div>
-  <div class="dyd-sb-section">Planowanie</div>
-
-  <a class="dyd-sb-link <?= $tab==='frekwencja_grup'?'active':'' ?>" href="index.php?tab=frekwencja_grup"
-     <?= $tab==='frekwencja_grup'?'aria-current="page"':'' ?>>
-    <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>Frekwencja grup
-  </a>
-  <a class="dyd-sb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
-     <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
-    <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
-    <?php if (isset($my_avail) && count($my_avail) > 0): ?>
-    <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($my_avail) ?></span>
-    <?php endif; ?>
-  </a>
-  <a class="dyd-sb-link <?= $tab==='zoom'?'active':'' ?>" href="index.php?tab=zoom"
-     <?= $tab==='zoom'?'aria-current="page"':'' ?>>
-    <i class="bi bi-camera-video" aria-hidden="true"></i>Zajętość Zoom
-  </a>
-  <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
-     <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
-    <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
-  </a>
-  <a class="dyd-sb-link" href="planner.php">
-    <i class="bi bi-layout-wtf" aria-hidden="true"></i>Planner
-  </a>
-
-  <div class="dyd-sb-sep"></div>
   <div class="dyd-sb-section">Komunikacja</div>
 
   <a class="dyd-sb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
@@ -3092,6 +3085,10 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link <?= $tab==='dysk'?'active':'' ?>" href="index.php?tab=dysk"
      <?= $tab==='dysk'?'aria-current="page"':'' ?>>
     <i class="bi bi-hdd-network" aria-hidden="true"></i>Mój dysk
+  </a>
+  <a class="dyd-sb-link <?= $tab==='zoom'?'active':'' ?>" href="index.php?tab=zoom"
+     <?= $tab==='zoom'?'aria-current="page"':'' ?>>
+    <i class="bi bi-camera-video" aria-hidden="true"></i>Zajętość Zoom
   </a>
 
   <?php if (dyd_is_staff()): ?>
