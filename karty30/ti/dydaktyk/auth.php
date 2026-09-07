@@ -177,6 +177,10 @@ function dyd_require(): array {
         if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
             dyd_2fa_stash($s);
             unset($_SESSION[DYD_SESSION_KEY]);
+            // Bez tego dyd_current() w totp_gate.php cicho wznawia TĘ SAMĄ sesję
+            // z trwałego tokenu „zapamiętaj mnie" (ti_remember_consume) i od razu
+            // odsyła z powrotem do index.php — a stamtąd znów tutaj: pętla przekierowań.
+            ti_remember_forget('dyd');
             header('Location: totp_gate.php'); exit;
         }
     }
