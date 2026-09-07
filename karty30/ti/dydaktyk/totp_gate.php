@@ -13,6 +13,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/totp.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/qr.php';
 
 karty30_migrate();
 
@@ -103,6 +104,10 @@ if (!$enrolled) {
     }
 }
 $totp_uri     = $pending_secret !== '' ? TOTP::get_qr_uri($pending_secret, (string)$u['email'], ORG_NAME) : '';
+// Generowany po stronie serwera (bez CDN, bez wysyłania sekretu na zewnątrz) —
+// niektóre sieci (filtrujące treść, korporacyjne) blokują skrypty z cdn.jsdelivr.net,
+// co wcześniej zostawiało puste pole zamiast kodu QR.
+$qr_data_uri  = $totp_uri !== '' ? qr_data_uri($totp_uri, 220) : null;
 $backup_show  = $_SESSION['k30_dyd_2fa_backup_show'] ?? null;
 
 $KP_TITLE      = 'Weryfikacja dwuetapowa — Panel dydaktyka';
@@ -175,10 +180,16 @@ body.kp-login-split-page { background: var(--bg); color: var(--text); font-famil
     <strong>Google Authenticator</strong> lub <strong>Microsoft Authenticator</strong> —
     to jednorazowy krok. Zeskanuj kod QR albo wpisz klucz ręcznie, potem podaj wygenerowany kod.
   </p>
+  <?php if ($qr_data_uri): ?>
   <div class="text-center mb-3">
-    <canvas id="qrcode-canvas" class="border rounded p-2"
-            aria-label="Kod QR do konfiguracji aplikacji TOTP"></canvas>
+    <img src="<?= h($qr_data_uri) ?>" width="220" height="220" class="border rounded p-2"
+         alt="Kod QR do konfiguracji aplikacji TOTP">
   </div>
+  <?php else: ?>
+  <div class="alert alert-warning py-2 mb-3" role="status">
+    Nie można wygenerować obrazu kodu QR na tym serwerze — wpisz klucz ręcznie poniżej w aplikacji uwierzytelniającej.
+  </div>
+  <?php endif; ?>
   <label class="form-label small fw-semibold" for="tg-secret">Klucz ręczny (jeśli nie możesz zeskanować):</label>
   <div class="tg-secret mb-3" id="tg-secret"><?= h($pending_secret) ?></div>
   <form method="post">
@@ -189,11 +200,6 @@ body.kp-login-split-page { background: var(--bg); color: var(--text); font-famil
            maxlength="6" placeholder="______" autofocus required aria-required="true">
     <button type="submit" class="tg-btn"><i class="bi bi-shield-check" aria-hidden="true"></i>Potwierdź i włącz 2FA</button>
   </form>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <script>
-  QRCode.toCanvas(document.getElementById('qrcode-canvas'), <?= json_encode($totp_uri) ?>, {width: 200},
-    function(err) { if (err) console.error(err); });
-  </script>
 
 <?php else: ?>
   <!-- ═══ Weryfikacja kodu — konto już ma 2FA ═══ -->

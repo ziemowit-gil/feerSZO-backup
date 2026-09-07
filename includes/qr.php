@@ -48,6 +48,37 @@ function qr_png_file(string $data, string $dir, int $size = 300): ?string {
 }
 
 /**
+ * Generuje kod QR jako data: URI (base64 PNG) do bezpośredniego osadzenia w <img src>.
+ * Bez zapisu do pliku, bez CDN i bez wysyłania danych na zewnątrz (w przeciwieństwie
+ * do qr_url()) — jedyny bezpieczny wybór dla treści wrażliwych renderowanych w
+ * przeglądarce, np. sekretu TOTP (otpauth://). Zwraca null, gdy biblioteka
+ * endroid/GD jest niedostępna.
+ */
+function qr_data_uri(string $data, int $size = 240): ?string {
+    // Patrz komentarz w qr_png_file() — te same wyciszenia są tu konieczne.
+    $er = error_reporting();
+    error_reporting($er & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+    ob_start();
+    try {
+        if (!class_exists(\Endroid\QrCode\Builder\Builder::class)) return null;
+        $result = \Endroid\QrCode\Builder\Builder::create()
+            ->writer(new \Endroid\QrCode\Writer\PngWriter())
+            ->data($data)
+            ->encoding(new \Endroid\QrCode\Encoding\Encoding('UTF-8'))
+            ->errorCorrectionLevel(\Endroid\QrCode\ErrorCorrectionLevel::Medium)
+            ->size($size)
+            ->margin(1)
+            ->build();
+        return $result->getDataUri();
+    } catch (\Throwable $e) {
+        return null;
+    } finally {
+        ob_end_clean();
+        error_reporting($er);
+    }
+}
+
+/**
  * Generuje token check-in dla umowy wolontariackiej.
  * Format base64url: wolontariat:{contract_id}:{sha256(contract_id.secret)}
  */
