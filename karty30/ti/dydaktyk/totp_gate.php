@@ -166,6 +166,9 @@ body.kp-login-split-page { background: var(--bg); color: var(--text); font-famil
     <code><?= h($bc) ?></code>
     <?php endforeach; ?>
   </div>
+  <a href="totp_backup_pdf.php" class="tg-btn" style="background:var(--card-bg);color:var(--accent);border-color:var(--accent);text-decoration:none">
+    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Pobierz jako PDF
+  </a>
   <form method="post">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_action" value="finish">
