@@ -610,7 +610,8 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal">
       <i class="bi bi-sticky me-1"></i>Notatki<?php if($notatki): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($notatki) ?></span><?php endif; ?>
     </button>
-    <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark">
+    <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark"
+       onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')">
       <i class="bi bi-printer me-1"></i>Drukuj
     </a>
     <?php if(!$mini): ?>

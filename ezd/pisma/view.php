@@ -152,6 +152,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-clock-history me-1"></i>Historia
             </a>
             <?php ezd_kopia_menu_btn('pismo', $id, $pismo['sygnatura']); ?>
+            <script>
+            (function(){
+              // Potwierdzenie przed wydrukiem pisma — scoped tylko do TEGO menu (nie ezd_kopia_menu_btn
+              // w umowach/zaświadczeniach/dokumentach), z fazą capture, żeby zadziałać PRZED globalnym
+              // listenerem modala podglądu PDF (includes/ezd_pdf_modal.php), który jest na bubble.
+              var box = document.getElementById('kppismo<?= (int)$id ?>');
+              if (!box) return;
+              box.addEventListener('click', function(e){
+                var link = e.target.closest('.ezd-pdf-btn');
+                if (!link) return;
+                if (!confirm('Czy na pewno chcesz wydrukować ten dokument?')) {
+                  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                }
+              }, true);
+            })();
+            </script>
             <?php if($pismo['tresc'] || $pismo['title']): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
                class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
