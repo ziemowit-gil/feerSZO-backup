@@ -13,6 +13,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ext_deliver.php';
 
 auth_start();
 
@@ -77,11 +79,28 @@ if (isset($_GET['view']) && $verified) {
         $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $match['sprawa_id'] . '/' . $match['filename'];
         if (is_file($path)) {
             ezd_ext_share_touch_view((int)$share['id']);
+            ezd_ext_share_log((int)$share['id'], 'view', $match['original_name']);
+
+            $servePath = $path;
+            $tmpWm = null;
+            $ext = strtolower(pathinfo($match['original_name'], PATHINFO_EXTENSION));
+            if ($ext === 'pdf' || $match['mime_type'] === 'application/pdf') {
+                // Znak wodny (kto i kiedy oglądał) — utrudnia dalsze rozpowszechnianie zrzutu ekranu.
+                $tmpWm = tempnam(sys_get_temp_dir(), 'ezdwm_') . '.pdf';
+                $mark  = ORG_NAME . ' · podgląd: ' . $share['recipient_email'] . ' · ' . date('d.m.Y H:i');
+                if (ext_watermark_pdf($path, $tmpWm, $mark, 'both')) {
+                    $servePath = $tmpWm;
+                } else {
+                    @unlink($tmpWm); $tmpWm = null;
+                }
+            }
+
             header('Content-Type: ' . ($match['mime_type'] ?: 'application/octet-stream'));
             header('Content-Disposition: inline; filename="' . addslashes($match['original_name']) . '"');
-            header('Content-Length: ' . filesize($path));
+            header('Content-Length: ' . filesize($servePath));
             header('X-Content-Type-Options: nosniff');
-            readfile($path);
+            readfile($servePath);
+            if ($tmpWm) @unlink($tmpWm);
             exit;
         }
     }
@@ -98,6 +117,7 @@ if (isset($_GET['dl']) && $verified) {
         $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $match['sprawa_id'] . '/' . $match['filename'];
         if (is_file($path)) {
             ezd_ext_share_touch_view((int)$share['id']);
+            ezd_ext_share_log((int)$share['id'], 'download', $match['original_name']);
             header('Content-Type: ' . ($match['mime_type'] ?: 'application/octet-stream'));
             header('Content-Disposition: attachment; filename="' . addslashes($match['original_name']) . '"');
             header('Content-Length: ' . filesize($path));
@@ -116,6 +136,7 @@ if (isset($_GET['zip']) && $verified) {
     $zipPath = ezd_ext_share_build_zip($files, $otp_code);
     if ($zipPath) {
         ezd_ext_share_touch_view((int)$share['id']);
+        ezd_ext_share_log((int)$share['id'], 'zip_download', count($files) . ' plik(ów)');
         header('Content-Type: application/zip');
         header('Content-Disposition: attachment; filename="' . addslashes($sprawa['znak_sprawy'] ?? 'dokumenty') . '.zip"');
         header('Content-Length: ' . filesize($zipPath));
@@ -184,34 +205,45 @@ body { margin:0; background:#EEF1F4; color:#111827; font-family:'Segoe UI',-appl
     </p>
   </div>
 
-<?php elseif (!$verified): ?>
+<?php elseif (!$verified): $otp_manual = ($share['otp_mode'] ?? 'sms') === 'manual'; ?>
   <div class="panel">
-    <h1 style="font-size:1.05rem;margin:0 0 .3rem">Potwierdź dostęp kodem SMS</h1>
+    <h1 style="font-size:1.05rem;margin:0 0 .3rem">Potwierdź dostęp kodem</h1>
+    <?php if ($otp_manual): ?>
+    <p style="font-size:.88rem;color:#6B7280;margin:0 0 1rem">
+      Ze względów bezpieczeństwa dostęp do udostępnionych dokumentów wymaga kodu, który przekazała
+      Państwu osoba udostępniająca te dokumenty (telefonicznie lub osobiście).
+    </p>
+    <?php else: ?>
     <p style="font-size:.88rem;color:#6B7280;margin:0 0 1rem">
       Ze względów bezpieczeństwa dostęp do udostępnionych dokumentów wymaga jednorazowego kodu
       wysyłanego SMS-em na numer telefonu kończący się na <strong>••• <?= h(substr($share['recipient_phone'], -3)) ?></strong>.
     </p>
+    <?php endif; ?>
 
     <?php if ($msg): ?><div class="alert alert-<?= h($msg_t) ?>" role="status"><?= h($msg) ?></div><?php endif; ?>
 
+    <?php if (!$otp_manual): ?>
     <form method="post" style="margin-bottom:.8rem">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="t" value="<?= h($token) ?>">
       <input type="hidden" name="act" value="send_otp">
       <button type="submit" class="btn btn-outline"><i class="bi bi-phone me-1" aria-hidden="true"></i> Wyślij kod SMS</button>
     </form>
+    <?php endif; ?>
 
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="t" value="<?= h($token) ?>">
       <input type="hidden" name="act" value="verify_otp">
-      <label class="lbl" for="code">Kod z SMS</label>
+      <label class="lbl" for="code"><?= $otp_manual ? 'Kod dostępu' : 'Kod z SMS' ?></label>
       <div style="display:flex;gap:.5rem;margin-top:.3rem">
         <input class="inp" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required autofocus>
         <button type="submit" class="btn btn-primary">Potwierdź</button>
       </div>
     </form>
+    <?php if (!$otp_manual): ?>
     <p style="font-size:.76rem;color:#9CA3AF;margin:.8rem 0 0">Kod jest ważny 10 minut od wysłania.</p>
+    <?php endif; ?>
   </div>
 
 <?php else: ?>
@@ -266,7 +298,7 @@ body { margin:0; background:#EEF1F4; color:#111827; font-family:'Segoe UI',-appl
       <?php endforeach; ?>
       <div class="alert alert-info" role="status" style="margin:1rem 0 0">
         Ze względu na liczbę plików (<?= count($files) ?>) pobierają się razem, jako jedno archiwum ZIP
-        zabezpieczone hasłem. <strong>Hasłem do archiwum jest ten sam kod SMS</strong>, którym przed chwilą potwierdzono dostęp.
+        zabezpieczone hasłem. <strong>Hasłem do archiwum jest ten sam kod dostępu</strong>, którym przed chwilą potwierdzono dostęp.
       </div>
       <a class="btn btn-primary" style="margin-top:.6rem;display:inline-block" href="?t=<?= h($token) ?>&zip=1">
         <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Pobierz wszystkie jako ZIP (<?= count($files) ?>)

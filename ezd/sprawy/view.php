@@ -212,7 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ext_zal_ids   = array_map('intval', $_POST['ext_zal_ids'] ?? []);
         $ext_grupa_ids = array_map('intval', $_POST['ext_grupa_ids'] ?? []);
         $ext_mode      = (string)($_POST['ext_access_mode'] ?? 'download');
-        $r = ezd_ext_share_create($id, $user_id, $ext_email, $ext_phone, $ext_message, $ext_hours, $ext_zal_ids, $ext_grupa_ids, $ext_mode);
+        $ext_otp_mode  = (string)($_POST['ext_otp_mode'] ?? 'sms');
+        $ext_manual_code = trim($_POST['ext_manual_code'] ?? '');
+        $r = ezd_ext_share_create($id, $user_id, $ext_email, $ext_phone, $ext_message, $ext_hours, $ext_zal_ids, $ext_grupa_ids, $ext_mode, $ext_otp_mode, $ext_manual_code);
         flash_set($r['ok'] ? 'success' : 'error', $r['ok']
             ? ('Udostępniono na zewnątrz.' . ($r['mail_sent'] ? ' E-mail z linkiem został wysłany.' : ' UWAGA: wysyłka e-maila nie powiodła się — użyj „Wyślij ponownie”.'))
             : $r['error']);
@@ -1260,13 +1262,14 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
         ?>
         <tr>
           <td><?= h($es['recipient_email']) ?></td>
-          <td class="text-muted text-nowrap">••• ••• <?= h(substr($es['recipient_phone'], -3)) ?></td>
+          <td class="text-muted text-nowrap"><?= ($es['otp_mode'] ?? 'sms') === 'manual' ? 'kod ręczny' : ('••• ••• ' . h(substr($es['recipient_phone'], -3))) ?></td>
           <td style="max-width:180px" class="text-truncate" title="<?= h(ezd_ext_share_scope_label($es)) ?>"><?= h(ezd_ext_share_scope_label($es)) ?></td>
           <td><?= $es_mode_badge ?></td>
           <td class="text-nowrap"><?= date('d.m.Y H:i', strtotime($es['expires_at'])) ?></td>
           <td><?= $es_badge ?></td>
           <td><?= (int)$es['view_count'] ?></td>
           <td class="text-nowrap">
+            <button class="btn btn-xs btn-link p-0 me-2" type="button" data-bs-toggle="collapse" data-bs-target="#ext-log-<?= (int)$es['id'] ?>" title="Historia dostępu"><i class="bi bi-clock-history"></i></button>
             <?php if($can_manage_share && $es_status === 'active'): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -1281,6 +1284,33 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
               <button class="btn btn-xs btn-link p-0 text-danger" title="Odwołaj"><i class="bi bi-x-circle"></i></button>
             </form>
             <?php endif; ?>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="8" class="p-0 border-0">
+            <!-- .collapse na <div>, nie na <tr> — animacja wysokości Bootstrapa nie działa poprawnie na wierszach tabeli -->
+            <div class="collapse" id="ext-log-<?= (int)$es['id'] ?>">
+              <div class="bg-light p-2 border-bottom">
+                <?php $es_log = ezd_ext_share_log_list((int)$es['id'], 30); ?>
+                <?php if(!$es_log): ?>
+                <div class="text-muted py-1" style="font-size:.74rem">Brak zdarzeń.</div>
+                <?php else: ?>
+                <table class="table table-sm mb-0" style="font-size:.72rem">
+                  <thead><tr><th>Czas</th><th>Zdarzenie</th><th>Szczegóły</th><th>IP</th></tr></thead>
+                  <tbody>
+                  <?php foreach($es_log as $le): ?>
+                  <tr>
+                    <td class="text-nowrap"><?= date('d.m.Y H:i:s', strtotime($le['created_at'])) ?></td>
+                    <td><?= h(EZD_EXT_SHARE_LOG_LABELS[$le['event']] ?? $le['event']) ?></td>
+                    <td><?= h($le['detail']) ?></td>
+                    <td class="text-muted"><?= h($le['ip']) ?></td>
+                  </tr>
+                  <?php endforeach; ?>
+                  </tbody>
+                </table>
+                <?php endif; ?>
+              </div>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -1342,8 +1372,23 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
       </div>
 
       <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Sposób weryfikacji dostępu</label>
+        <select name="ext_otp_mode" id="extOtpMode" class="form-select form-select-sm">
+          <?php foreach(EZD_EXT_SHARE_OTP_MODES as $ov=>$ol): ?>
+          <option value="<?= h($ov) ?>" <?= $ov==='sms'?'selected':'' ?>><?= h($ol) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div id="extOtpPhoneWrap">
         <label class="form-label fw-semibold" style="font-size:.78rem">Telefon odbiorcy — na ten numer wyślemy kod SMS <span class="text-danger">*</span></label>
-        <input type="tel" name="ext_phone" class="form-control form-control-sm" placeholder="np. 600 100 200" required>
+        <input type="tel" name="ext_phone" id="extOtpPhone" class="form-control form-control-sm" placeholder="np. 600 100 200" required>
+      </div>
+
+      <div id="extOtpManualWrap" class="d-none">
+        <label class="form-label fw-semibold" style="font-size:.78rem">Kod dostępu (6 cyfr) — przekażesz go sam/a odbiorcy <span class="text-danger">*</span></label>
+        <input type="text" name="ext_manual_code" id="extOtpManualCode" class="form-control form-control-sm" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="np. 482913">
+        <div class="form-text" style="font-size:.7rem">Kod nie jest wysyłany przez system — przekaż go odbiorcy telefonicznie lub osobiście.</div>
       </div>
 
       <div>
@@ -1362,8 +1407,25 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
       </div>
 
       <button class="btn btn-sm btn-primary" style="align-self:flex-start"><i class="bi bi-send-plus me-1"></i>Udostępnij i wyślij e-mail</button>
-      <small class="text-muted">Odbiorca będzie musiał potwierdzić dostęp kodem SMS wysłanym na podany numer telefonu.</small>
+      <small class="text-muted">Odbiorca będzie musiał potwierdzić dostęp jednorazowym kodem.</small>
     </form>
+    <script>
+    (function(){
+      var sel = document.getElementById('extOtpMode');
+      var phoneWrap = document.getElementById('extOtpPhoneWrap'), phoneInp = document.getElementById('extOtpPhone');
+      var manualWrap = document.getElementById('extOtpManualWrap'), manualInp = document.getElementById('extOtpManualCode');
+      if (!sel) return;
+      function sync(){
+        var manual = sel.value === 'manual';
+        phoneWrap.classList.toggle('d-none', manual);
+        manualWrap.classList.toggle('d-none', !manual);
+        phoneInp.required = !manual;
+        manualInp.required = manual;
+      }
+      sel.addEventListener('change', sync);
+      sync();
+    })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
     if (!window.tinymce) {

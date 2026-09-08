@@ -378,6 +378,17 @@ function ezd_is_manager(?int $user_id = null): bool {
     )");
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_ext_shares_sprawa ON ezd_external_shares(sprawa_id)"); } catch (\Throwable $e) {}
 
+    // Historia dostępu do udostępnienia zewnętrznego (kody SMS, podglądy, pobrania…)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_external_share_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        share_id   INTEGER NOT NULL REFERENCES ezd_external_shares(id) ON DELETE CASCADE,
+        event      TEXT    NOT NULL,
+        detail     TEXT    NOT NULL DEFAULT '',
+        ip         TEXT    NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ezd_ext_share_log_share ON ezd_external_share_log(share_id, created_at DESC)"); } catch (\Throwable $e) {}
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
@@ -394,6 +405,7 @@ function ezd_is_manager(?int $user_id = null): bool {
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_item_id   TEXT",
         "ALTER TABLE ezd_external_shares ADD COLUMN grupa_ids TEXT NOT NULL DEFAULT '[]'",
         "ALTER TABLE ezd_external_shares ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'download'",
+        "ALTER TABLE ezd_external_shares ADD COLUMN otp_mode TEXT NOT NULL DEFAULT 'sms'",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN converted_from_id INTEGER REFERENCES ezd_zalaczniki(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_status    TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_spis_id   INTEGER REFERENCES ezd_arch_spisy(id) ON DELETE SET NULL",
@@ -1379,6 +1391,7 @@ function ezd_sprawa_can_manage_share(array $sprawa, int $user_id): bool {
 // ── Udostępnianie koszulki na zewnątrz (link + potwierdzenie kodem SMS) ──────
 const EZD_EXT_SHARE_VALID_HOURS = [4 => '4 godziny', 24 => '24 godziny', 48 => '48 godzin', 72 => '3 dni', 168 => '7 dni'];
 const EZD_EXT_SHARE_ACCESS_MODES = ['download' => 'Pobieranie (plik / ZIP)', 'view' => 'Tylko podgląd w przeglądarce'];
+const EZD_EXT_SHARE_OTP_MODES = ['sms' => 'Kod SMS (system wysyła automatycznie)', 'manual' => 'Kod ustalony ręcznie (przekażesz go sam/a odbiorcy)'];
 
 function ezd_ext_share_list(int $sprawa_id): array {
     return db_all(
@@ -1413,11 +1426,16 @@ function ezd_ext_share_public_url(array $share): string {
  * e-mail z linkiem. Grupy są udostępniane "na żywo" — plik dodany do udostępnionej grupy
  * później też staje się widoczny dla odbiorcy, bez tworzenia nowego linku (zob. ezd_ext_share_files).
  */
-function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, string $phone, string $message_html, int $valid_hours, array $zal_ids, array $grupa_ids = [], string $access_mode = 'download'): array {
+function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, string $phone, string $message_html, int $valid_hours, array $zal_ids, array $grupa_ids = [], string $access_mode = 'download', string $otp_mode = 'sms', string $manual_code = ''): array {
     $email = trim($email);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Podaj poprawny adres e-mail odbiorcy.'];
+    if (!array_key_exists($otp_mode, EZD_EXT_SHARE_OTP_MODES)) $otp_mode = 'sms';
+
     $phone_norm = sms_normalize_phone(trim($phone));
-    if (strlen($phone_norm) < 11) return ['ok' => false, 'error' => 'Podaj poprawny numer telefonu odbiorcy (do wysyłki kodu SMS).'];
+    if ($otp_mode === 'sms' && strlen($phone_norm) < 11) return ['ok' => false, 'error' => 'Podaj poprawny numer telefonu odbiorcy (do wysyłki kodu SMS).'];
+    $manual_code = trim($manual_code);
+    if ($otp_mode === 'manual' && !preg_match('/^\d{6}$/', $manual_code)) return ['ok' => false, 'error' => 'Podaj kod dostępu — dokładnie 6 cyfr.'];
+
     if (!array_key_exists($valid_hours, EZD_EXT_SHARE_VALID_HOURS)) $valid_hours = 48;
     if (!array_key_exists($access_mode, EZD_EXT_SHARE_ACCESS_MODES)) $access_mode = 'download';
 
@@ -1441,17 +1459,25 @@ function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, strin
     $expires = date('Y-m-d H:i:s', time() + $valid_hours * 3600);
 
     db()->prepare(
-        "INSERT INTO ezd_external_shares (sprawa_id,token,zal_ids,grupa_ids,access_mode,recipient_email,recipient_phone,message_html,expires_at,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, $token, json_encode($zal_ids), json_encode($grupa_ids), $access_mode, $email, $phone_norm, $message_html, $expires, $user_id]);
+        "INSERT INTO ezd_external_shares (sprawa_id,token,zal_ids,grupa_ids,access_mode,otp_mode,recipient_email,recipient_phone,message_html,expires_at,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $token, json_encode($zal_ids), json_encode($grupa_ids), $access_mode, $otp_mode, $email, $phone_norm, $message_html, $expires, $user_id]);
     $share_id = (int)db()->lastInsertId();
+
+    if ($otp_mode === 'manual') {
+        // Kod ustalony przez udostępniającego — ważny tak długo jak cały link (nie 10 min jak SMS),
+        // bo przekazywany jest poza systemem (telefonicznie/osobiście) i może być potrzebny później.
+        db()->prepare("UPDATE ezd_external_shares SET otp_code_hash=?, otp_expires_at=? WHERE id=?")
+            ->execute([password_hash($manual_code, PASSWORD_DEFAULT), $expires, $share_id]);
+    }
 
     $share  = ezd_ext_share_get($share_id);
     $sprawa = ezd_sprawa_get($sprawa_id);
     $mail_ok = ezd_ext_share_send_email($share, $sprawa);
 
     ezd_log(null, $sprawa_id, null, null, $user_id, 'ext_share_add',
-        'Udostępniono na zewnątrz: ' . $email . ' / ' . $phone_norm . ' (ważne ' . EZD_EXT_SHARE_VALID_HOURS[$valid_hours] . ')');
+        'Udostępniono na zewnątrz: ' . $email . ($otp_mode === 'sms' ? ' / ' . $phone_norm : ' (kod ręczny)') . ' (ważne ' . EZD_EXT_SHARE_VALID_HOURS[$valid_hours] . ')');
+    ezd_ext_share_log($share_id, 'created', 'Utworzono przez ' . ($user_id ? (db_one("SELECT name FROM users WHERE id=?", [$user_id])['name'] ?? $user_id) : 'system'));
 
     return ['ok' => true, 'error' => null, 'id' => $share_id, 'mail_sent' => $mail_ok];
 }
@@ -1459,9 +1485,11 @@ function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, strin
 function ezd_ext_share_send_email(array $share, array $sprawa): bool {
     $url  = ezd_ext_share_public_url($share);
     $body = trim($share['message_html']) ?: ('<p>Udostępniamy Państwu dokumenty dotyczące sprawy <strong>' . htmlspecialchars($sprawa['znak_sprawy'], ENT_QUOTES) . '</strong>.</p>');
+    $access_note = ($share['otp_mode'] ?? 'sms') === 'manual'
+        ? 'Dostęp do dokumentów wymaga kodu, który przekażemy Państwu odrębnie (telefonicznie lub osobiście).'
+        : 'Dostęp do dokumentów wymaga potwierdzenia kodem SMS wysłanym na podany numer telefonu.';
     $body .= '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">' . htmlspecialchars($url, ENT_QUOTES) . '</a></p>'
-           . '<p>Dostęp do dokumentów wymaga potwierdzenia kodem SMS wysłanym na podany numer telefonu. '
-           . 'Link jest ważny do ' . date('d.m.Y H:i', strtotime($share['expires_at'])) . '.</p>';
+           . '<p>' . $access_note . ' Link jest ważny do ' . date('d.m.Y H:i', strtotime($share['expires_at'])) . '.</p>';
     try {
         mail_queue_add($share['recipient_email'], '', 'Udostępnione dokumenty — ' . $sprawa['znak_sprawy'], $body, '', 'ezd_external_share', (int)$share['id'], '', true);
         return true;
@@ -1475,6 +1503,7 @@ function ezd_ext_share_resend(int $id, int $user_id): array {
     $sprawa = ezd_sprawa_get((int)$share['sprawa_id']);
     $ok = ezd_ext_share_send_email($share, $sprawa);
     ezd_log(null, (int)$share['sprawa_id'], null, null, $user_id, 'ext_share_resend', 'Ponowiono wysyłkę linku: ' . $share['recipient_email']);
+    ezd_ext_share_log($id, 'resend', 'Wysłał: ' . (db_one("SELECT name FROM users WHERE id=?", [$user_id])['name'] ?? $user_id));
     return ['ok' => $ok, 'error' => $ok ? null : 'Wysyłka e-mail nie powiodła się.'];
 }
 
@@ -1483,10 +1512,14 @@ function ezd_ext_share_revoke(int $id, int $user_id): void {
     if (!$share) return;
     db()->prepare("UPDATE ezd_external_shares SET revoked_at=datetime('now'), revoked_by=? WHERE id=?")->execute([$user_id, $id]);
     ezd_log(null, (int)$share['sprawa_id'], null, null, $user_id, 'ext_share_revoke', 'Odwołano udostępnienie: ' . $share['recipient_email']);
+    ezd_ext_share_log($id, 'revoke', 'Odwołał: ' . (db_one("SELECT name FROM users WHERE id=?", [$user_id])['name'] ?? $user_id));
 }
 
-/** Generuje i wysyła (SMS, z fallbackiem e-mail) jednorazowy kod dostępu. */
+/** Generuje i wysyła (SMS, z fallbackiem e-mail) jednorazowy kod dostępu. Nie dotyczy trybu "manual". */
 function ezd_ext_share_send_otp(array $share): array {
+    if (($share['otp_mode'] ?? 'sms') === 'manual') {
+        return ['ok' => false, 'error' => 'Ten link używa kodu ustalonego ręcznie — kod SMS nie jest wysyłany.'];
+    }
     $code    = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $hash    = password_hash($code, PASSWORD_DEFAULT);
     $expires = date('Y-m-d H:i:s', time() + 600);
@@ -1497,24 +1530,79 @@ function ezd_ext_share_send_otp(array $share): array {
     $msg = "[$org] Kod dostępu do udostępnionych dokumentów: $code (ważny 10 minut).";
     try {
         sms_send_with_fallback($share['recipient_phone'], $msg, $share['recipient_email']);
+        ezd_ext_share_log((int)$share['id'], 'otp_sent', 'Wysłano kod SMS na numer kończący się na ' . substr($share['recipient_phone'], -3));
         return ['ok' => true, 'error' => null];
     } catch (\Throwable $e) {
+        ezd_ext_share_log((int)$share['id'], 'otp_send_failed', $e->getMessage());
         return ['ok' => false, 'error' => 'Wysyłka kodu SMS nie powiodła się: ' . $e->getMessage()];
     }
 }
 
-/** Weryfikuje kod OTP (maks. 5 prób na jeden wysłany kod). */
+/** Weryfikuje kod OTP (maks. 5 prób na jeden wysłany/ustalony kod). Przy pierwszej udanej weryfikacji powiadamia twórcę udostępnienia. */
 function ezd_ext_share_verify_otp(array $share, string $code): bool {
     if (empty($share['otp_code_hash']) || empty($share['otp_expires_at'])) return false;
     if (strtotime($share['otp_expires_at']) < time()) return false;
     if ((int)$share['otp_attempts'] >= 5) return false;
     $ok = password_verify(trim($code), $share['otp_code_hash']);
     if ($ok) {
+        $first_time = empty($share['verified_at']);
         db()->prepare("UPDATE ezd_external_shares SET verified_at=datetime('now') WHERE id=?")->execute([$share['id']]);
+        ezd_ext_share_log((int)$share['id'], 'otp_verified', 'Poprawny kod dostępu');
+        if ($first_time) ezd_ext_share_notify_owner_opened($share);
     } else {
         db()->prepare("UPDATE ezd_external_shares SET otp_attempts=otp_attempts+1 WHERE id=?")->execute([$share['id']]);
+        ezd_ext_share_log((int)$share['id'], 'otp_failed', 'Błędny kod dostępu (próba ' . ((int)$share['otp_attempts'] + 1) . '/5)');
     }
     return $ok;
+}
+
+/** Powiadamia twórcę udostępnienia (e-mail + powiadomienie w aplikacji), gdy odbiorca po raz pierwszy potwierdzi dostęp kodem. */
+function ezd_ext_share_notify_owner_opened(array $share): void {
+    $owner_id = (int)($share['created_by'] ?? 0);
+    if (!$owner_id) return;
+    $sprawa = ezd_sprawa_get((int)$share['sprawa_id']);
+    if (!$sprawa) return;
+    $owner = db_one("SELECT name, email FROM users WHERE id=?", [$owner_id]);
+
+    $title = 'Odbiorca otworzył udostępnione dokumenty';
+    $body  = $share['recipient_email'] . ' potwierdził(a) dostęp do udostępnionych dokumentów sprawy ' . $sprawa['znak_sprawy'] . '.';
+    $url   = APP_URL . '/ezd/sprawy/view.php?id=' . (int)$share['sprawa_id'] . '#tab-uczestnicy';
+
+    if (function_exists('notif_create')) {
+        try { notif_create($owner_id, 'ezd_ext_share_opened', $title, $body, $url); } catch (\Throwable $e) {}
+    }
+    if (!empty($owner['email'])) {
+        try {
+            mail_queue_add($owner['email'], (string)($owner['name'] ?? ''), $title,
+                '<p>' . htmlspecialchars($body, ENT_QUOTES) . '</p><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz koszulkę</a></p>',
+                '', 'ezd_external_share_opened', (int)$share['id']);
+        } catch (\Throwable $e) {}
+    }
+}
+
+/** Zapisuje zdarzenie w historii dostępu do udostępnienia (widoczne dla udostępniającego). */
+function ezd_ext_share_log(int $share_id, string $event, string $detail = ''): void {
+    try {
+        db()->prepare("INSERT INTO ezd_external_share_log (share_id,event,detail,ip) VALUES (?,?,?,?)")
+            ->execute([$share_id, $event, $detail, $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (\Throwable $e) {}
+}
+
+const EZD_EXT_SHARE_LOG_LABELS = [
+    'created'         => 'Utworzono udostępnienie',
+    'otp_sent'        => 'Wysłano kod SMS',
+    'otp_send_failed' => 'Nie udało się wysłać kodu SMS',
+    'otp_verified'    => 'Poprawny kod dostępu',
+    'otp_failed'      => 'Błędny kod dostępu',
+    'view'            => 'Podgląd pliku',
+    'download'        => 'Pobrano plik',
+    'zip_download'    => 'Pobrano archiwum ZIP',
+    'resend'          => 'Ponowiono wysyłkę e-maila',
+    'revoke'          => 'Odwołano udostępnienie',
+];
+
+function ezd_ext_share_log_list(int $share_id, int $limit = 100): array {
+    return db_all("SELECT * FROM ezd_external_share_log WHERE share_id=? ORDER BY created_at DESC LIMIT ?", [$share_id, $limit]);
 }
 
 function ezd_ext_share_touch_view(int $id): void {
