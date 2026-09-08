@@ -392,6 +392,8 @@ function ezd_is_manager(?int $user_id = null): bool {
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_synced_at DATETIME",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_drive_id  TEXT",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_item_id   TEXT",
+        "ALTER TABLE ezd_external_shares ADD COLUMN grupa_ids TEXT NOT NULL DEFAULT '[]'",
+        "ALTER TABLE ezd_external_shares ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'download'",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN converted_from_id INTEGER REFERENCES ezd_zalaczniki(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_status    TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_spis_id   INTEGER REFERENCES ezd_arch_spisy(id) ON DELETE SET NULL",
@@ -1376,6 +1378,7 @@ function ezd_sprawa_can_manage_share(array $sprawa, int $user_id): bool {
 
 // ── Udostępnianie koszulki na zewnątrz (link + potwierdzenie kodem SMS) ──────
 const EZD_EXT_SHARE_VALID_HOURS = [4 => '4 godziny', 24 => '24 godziny', 48 => '48 godzin', 72 => '3 dni', 168 => '7 dni'];
+const EZD_EXT_SHARE_ACCESS_MODES = ['download' => 'Pobieranie (plik / ZIP)', 'view' => 'Tylko podgląd w przeglądarce'];
 
 function ezd_ext_share_list(int $sprawa_id): array {
     return db_all(
@@ -1405,28 +1408,42 @@ function ezd_ext_share_public_url(array $share): string {
     return APP_URL . '/ezd/sprawy/udostepnij.php?t=' . urlencode((string)$share['token']);
 }
 
-/** Tworzy udostępnienie zewnętrzne wybranych plików koszulki i wysyła e-mail z linkiem. */
-function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, string $phone, string $message_html, int $valid_hours, array $zal_ids): array {
+/**
+ * Tworzy udostępnienie zewnętrzne wybranych plików i/lub całych grup koszulki i wysyła
+ * e-mail z linkiem. Grupy są udostępniane "na żywo" — plik dodany do udostępnionej grupy
+ * później też staje się widoczny dla odbiorcy, bez tworzenia nowego linku (zob. ezd_ext_share_files).
+ */
+function ezd_ext_share_create(int $sprawa_id, int $user_id, string $email, string $phone, string $message_html, int $valid_hours, array $zal_ids, array $grupa_ids = [], string $access_mode = 'download'): array {
     $email = trim($email);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Podaj poprawny adres e-mail odbiorcy.'];
     $phone_norm = sms_normalize_phone(trim($phone));
     if (strlen($phone_norm) < 11) return ['ok' => false, 'error' => 'Podaj poprawny numer telefonu odbiorcy (do wysyłki kodu SMS).'];
     if (!array_key_exists($valid_hours, EZD_EXT_SHARE_VALID_HOURS)) $valid_hours = 48;
+    if (!array_key_exists($access_mode, EZD_EXT_SHARE_ACCESS_MODES)) $access_mode = 'download';
 
-    $zal_ids = array_values(array_unique(array_filter(array_map('intval', $zal_ids))));
-    if (!$zal_ids) return ['ok' => false, 'error' => 'Wybierz co najmniej jeden plik do udostępnienia.'];
-    $ph = implode(',', array_fill(0, count($zal_ids), '?'));
-    $valid_zal = db_all("SELECT id FROM ezd_zalaczniki WHERE sprawa_id=? AND id IN ($ph)", array_merge([$sprawa_id], $zal_ids));
-    $zal_ids = array_map(fn($r) => (int)$r['id'], $valid_zal);
-    if (!$zal_ids) return ['ok' => false, 'error' => 'Wybrane pliki nie należą do tej koszulki.'];
+    $zal_ids   = array_values(array_unique(array_filter(array_map('intval', $zal_ids))));
+    $grupa_ids = array_values(array_unique(array_filter(array_map('intval', $grupa_ids))));
+    if (!$zal_ids && !$grupa_ids) return ['ok' => false, 'error' => 'Wybierz co najmniej jedną grupę lub plik do udostępnienia.'];
+
+    if ($zal_ids) {
+        $ph = implode(',', array_fill(0, count($zal_ids), '?'));
+        $valid_zal = db_all("SELECT id FROM ezd_zalaczniki WHERE sprawa_id=? AND id IN ($ph)", array_merge([$sprawa_id], $zal_ids));
+        $zal_ids = array_map(fn($r) => (int)$r['id'], $valid_zal);
+    }
+    if ($grupa_ids) {
+        $ph = implode(',', array_fill(0, count($grupa_ids), '?'));
+        $valid_grp = db_all("SELECT id FROM ezd_grupy_plikow WHERE sprawa_id=? AND id IN ($ph)", array_merge([$sprawa_id], $grupa_ids));
+        $grupa_ids = array_map(fn($r) => (int)$r['id'], $valid_grp);
+    }
+    if (!$zal_ids && !$grupa_ids) return ['ok' => false, 'error' => 'Wybrane grupy/pliki nie należą do tej koszulki.'];
 
     $token   = bin2hex(random_bytes(24));
     $expires = date('Y-m-d H:i:s', time() + $valid_hours * 3600);
 
     db()->prepare(
-        "INSERT INTO ezd_external_shares (sprawa_id,token,zal_ids,recipient_email,recipient_phone,message_html,expires_at,created_by)
-         VALUES (?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, $token, json_encode($zal_ids), $email, $phone_norm, $message_html, $expires, $user_id]);
+        "INSERT INTO ezd_external_shares (sprawa_id,token,zal_ids,grupa_ids,access_mode,recipient_email,recipient_phone,message_html,expires_at,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $token, json_encode($zal_ids), json_encode($grupa_ids), $access_mode, $email, $phone_norm, $message_html, $expires, $user_id]);
     $share_id = (int)db()->lastInsertId();
 
     $share  = ezd_ext_share_get($share_id);
@@ -1504,13 +1521,42 @@ function ezd_ext_share_touch_view(int $id): void {
     db()->prepare("UPDATE ezd_external_shares SET view_count=view_count+1, last_viewed_at=datetime('now') WHERE id=?")->execute([$id]);
 }
 
-/** Załączniki objęte danym udostępnieniem (tylko pliki wybrane przy tworzeniu linku). */
+/**
+ * Załączniki objęte danym udostępnieniem: pliki wybrane pojedynczo (zal_ids) ORAZ
+ * WSZYSTKIE aktualne pliki z udostępnionych grup (grupa_ids) — udostępnienie grupy jest
+ * "na żywo": plik dodany do grupy po utworzeniu linku też będzie widoczny dla odbiorcy.
+ */
 function ezd_ext_share_files(array $share): array {
-    $ids = json_decode($share['zal_ids'] ?? '[]', true) ?: [];
-    $ids = array_map('intval', $ids);
-    if (!$ids) return [];
-    $ph = implode(',', array_fill(0, count($ids), '?'));
-    return db_all("SELECT * FROM ezd_zalaczniki WHERE id IN ($ph) AND sprawa_id=?", array_merge($ids, [(int)$share['sprawa_id']]));
+    $sprawa_id = (int)$share['sprawa_id'];
+    $zal_ids   = array_map('intval', json_decode($share['zal_ids'] ?? '[]', true) ?: []);
+    $grupa_ids = array_map('intval', json_decode($share['grupa_ids'] ?? '[]', true) ?: []);
+
+    $where = [];
+    $params = [$sprawa_id];
+    if ($zal_ids) {
+        $where[] = 'id IN (' . implode(',', array_fill(0, count($zal_ids), '?')) . ')';
+        $params = array_merge($params, $zal_ids);
+    }
+    if ($grupa_ids) {
+        $where[] = 'grupa_id IN (' . implode(',', array_fill(0, count($grupa_ids), '?')) . ')';
+        $params = array_merge($params, $grupa_ids);
+    }
+    if (!$where) return [];
+    return db_all("SELECT * FROM ezd_zalaczniki WHERE sprawa_id=? AND (" . implode(' OR ', $where) . ') ORDER BY uploaded_at', $params);
+}
+
+/** Krótki opis zakresu udostępnienia do listy w UI, np. "Cała grupa: Faktury + 2 plik(i)". */
+function ezd_ext_share_scope_label(array $share): string {
+    $zal_ids   = json_decode($share['zal_ids'] ?? '[]', true) ?: [];
+    $grupa_ids = json_decode($share['grupa_ids'] ?? '[]', true) ?: [];
+    $parts = [];
+    if ($grupa_ids) {
+        $ph = implode(',', array_fill(0, count($grupa_ids), '?'));
+        $names = db_all("SELECT nazwa FROM ezd_grupy_plikow WHERE id IN ($ph)", array_map('intval', $grupa_ids));
+        foreach ($names as $n) $parts[] = 'grupa „' . $n['nazwa'] . '”';
+    }
+    if ($zal_ids) $parts[] = count($zal_ids) . ' plik(ów) pojedynczo';
+    return $parts ? implode(' + ', $parts) : '—';
 }
 
 /**

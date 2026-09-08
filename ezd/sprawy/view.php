@@ -205,12 +205,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'ext_share_add' && $can_manage_share) {
-        $ext_email   = trim($_POST['ext_email'] ?? '');
-        $ext_phone   = trim($_POST['ext_phone'] ?? '');
-        $ext_hours   = (int)($_POST['ext_valid_hours'] ?? 48);
-        $ext_message = trim($_POST['ext_message'] ?? '');
-        $ext_zal_ids = array_map('intval', $_POST['ext_zal_ids'] ?? []);
-        $r = ezd_ext_share_create($id, $user_id, $ext_email, $ext_phone, $ext_message, $ext_hours, $ext_zal_ids);
+        $ext_email     = trim($_POST['ext_email'] ?? '');
+        $ext_phone     = trim($_POST['ext_phone'] ?? '');
+        $ext_hours     = (int)($_POST['ext_valid_hours'] ?? 48);
+        $ext_message   = trim($_POST['ext_message'] ?? '');
+        $ext_zal_ids   = array_map('intval', $_POST['ext_zal_ids'] ?? []);
+        $ext_grupa_ids = array_map('intval', $_POST['ext_grupa_ids'] ?? []);
+        $ext_mode      = (string)($_POST['ext_access_mode'] ?? 'download');
+        $r = ezd_ext_share_create($id, $user_id, $ext_email, $ext_phone, $ext_message, $ext_hours, $ext_zal_ids, $ext_grupa_ids, $ext_mode);
         flash_set($r['ok'] ? 'success' : 'error', $r['ok']
             ? ('Udostępniono na zewnątrz.' . ($r['mail_sent'] ? ' E-mail z linkiem został wysłany.' : ' UWAGA: wysyłka e-maila nie powiodła się — użyj „Wyślij ponownie”.'))
             : $r['error']);
@@ -1243,7 +1245,7 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
     <?php if($ext_shares): ?>
     <div class="table-responsive mb-3">
       <table class="table table-sm mb-0" style="font-size:.78rem">
-        <thead class="table-light"><tr><th>E-mail</th><th>Telefon</th><th>Ważne do</th><th>Status</th><th>Wyśw.</th><th></th></tr></thead>
+        <thead class="table-light"><tr><th>E-mail</th><th>Telefon</th><th>Zakres</th><th>Tryb</th><th>Ważne do</th><th>Status</th><th>Wyśw.</th><th></th></tr></thead>
         <tbody>
         <?php foreach($ext_shares as $es):
             $es_status = ezd_ext_share_status($es);
@@ -1252,10 +1254,15 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
                 'expired' => '<span class="badge bg-secondary bg-opacity-15 text-secondary border border-secondary">Wygasłe</span>',
                 'revoked' => '<span class="badge bg-danger bg-opacity-15 text-danger border border-danger">Odwołane</span>',
             ][$es_status];
+            $es_mode_badge = ($es['access_mode'] ?? 'download') === 'view'
+                ? '<span class="badge bg-info bg-opacity-15 text-info border border-info">Podgląd</span>'
+                : '<span class="badge bg-primary bg-opacity-15 text-primary border border-primary">Pobieranie</span>';
         ?>
         <tr>
           <td><?= h($es['recipient_email']) ?></td>
           <td class="text-muted text-nowrap">••• ••• <?= h(substr($es['recipient_phone'], -3)) ?></td>
+          <td style="max-width:180px" class="text-truncate" title="<?= h(ezd_ext_share_scope_label($es)) ?>"><?= h(ezd_ext_share_scope_label($es)) ?></td>
+          <td><?= $es_mode_badge ?></td>
           <td class="text-nowrap"><?= date('d.m.Y H:i', strtotime($es['expires_at'])) ?></td>
           <td><?= $es_badge ?></td>
           <td><?= (int)$es['view_count'] ?></td>
@@ -1295,15 +1302,38 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
       <div class="fw-semibold" style="font-size:.82rem">Udostępnij dokumenty nowemu odbiorcy</div>
 
       <div>
-        <label class="form-label fw-semibold" style="font-size:.78rem">Pliki do udostępnienia <span class="text-danger">*</span></label>
-        <div class="border rounded p-2" style="max-height:160px;overflow-y:auto">
-          <?php foreach($zalaczniki as $z): ?>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Grupy / pliki do udostępnienia <span class="text-danger">*</span></label>
+        <div class="border rounded p-2" style="max-height:220px;overflow-y:auto">
+          <?php if($grupy): foreach($grupy as $g): ?>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" name="ext_grupa_ids[]" value="<?= (int)$g['id'] ?>" id="ext-grp-<?= (int)$g['id'] ?>">
+            <label class="form-check-label fw-semibold" for="ext-grp-<?= (int)$g['id'] ?>" style="font-size:.8rem">
+              <i class="bi bi-folder-fill text-warning me-1"></i>Cała grupa: <?= h($g['nazwa']) ?>
+              <span class="badge bg-secondary bg-opacity-15 text-secondary"><?= (int)$g['plik_count'] ?></span>
+            </label>
+            <div class="text-muted" style="font-size:.7rem;margin-left:1.4rem">Udostępnienie „na żywo" — obejmie też pliki dodane do tej grupy później.</div>
+          </div>
+          <?php endforeach; endif; ?>
+          <?php if($grupy && $bez_grupy): ?>
+          <div class="text-muted fw-semibold mt-2 mb-1" style="font-size:.72rem">Pliki bez grupy — wybierz pojedynczo:</div>
+          <?php endif; ?>
+          <?php foreach($bez_grupy as $z): ?>
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="ext_zal_ids[]" value="<?= (int)$z['id'] ?>" id="ext-zal-<?= (int)$z['id'] ?>" checked>
+            <input class="form-check-input" type="checkbox" name="ext_zal_ids[]" value="<?= (int)$z['id'] ?>" id="ext-zal-<?= (int)$z['id'] ?>" <?= $grupy ? '' : 'checked' ?>>
             <label class="form-check-label" for="ext-zal-<?= (int)$z['id'] ?>" style="font-size:.8rem"><?= h($z['original_name']) ?></label>
           </div>
           <?php endforeach; ?>
         </div>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Tryb dostępu</label>
+        <select name="ext_access_mode" class="form-select form-select-sm">
+          <?php foreach(EZD_EXT_SHARE_ACCESS_MODES as $mv=>$ml): ?>
+          <option value="<?= h($mv) ?>" <?= $mv==='download'?'selected':'' ?>><?= h($ml) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text" style="font-size:.7rem">„Tylko podgląd" nie pozwala pobrać pliku ani całego ZIP-a — pliki (PDF/obrazy) można jedynie obejrzeć w przeglądarce.</div>
       </div>
 
       <div>

@@ -16,6 +16,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 
 auth_start();
 
+/** Czy plik da się wyświetlić bezpośrednio w przeglądarce (tryb "Tylko podgląd"). */
+function _ezd_ext_share_is_previewable(array $f): bool {
+    $mime = (string)($f['mime_type'] ?? '');
+    $ext  = strtolower(pathinfo((string)$f['original_name'], PATHINFO_EXTENSION));
+    return $mime === 'application/pdf' || str_starts_with($mime, 'image/') || in_array($ext, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'], true);
+}
+
 $token  = trim((string)($_GET['t'] ?? $_POST['t'] ?? ''));
 $share  = $token !== '' ? ezd_ext_share_get_by_token($token) : null;
 $status = $share ? ezd_ext_share_status($share) : null;
@@ -54,13 +61,36 @@ $otp_code = $share ? (string)($_SESSION[$sess_key] ?? '') : '';
 $verified = (bool)($share && $status === 'active' && $otp_code !== '');
 $sprawa   = $share ? ezd_sprawa_get((int)$share['sprawa_id']) : null;
 $files    = $verified ? ezd_ext_share_files($share) : [];
+// Tryb "download" (domyślny) pozwala pobrać plik/ZIP; "view" — wyłącznie podgląd w przeglądarce.
+$can_download = $share && ($share['access_mode'] ?? 'download') !== 'view';
 
-if ($verified && $sprawa && empty($_GET['dl']) && empty($_GET['zip'])) {
+if ($verified && $sprawa && empty($_GET['dl']) && empty($_GET['zip']) && empty($_GET['view'])) {
     ezd_ext_share_touch_view((int)$share['id']);
 }
 
-// Pobieranie pojedynczego pliku (tylko po weryfikacji, tylko z listy objętej udostępnieniem)
+// Podgląd pojedynczego pliku wprost w przeglądarce (dostępny w obu trybach, tylko PDF/obraz)
+if (isset($_GET['view']) && $verified) {
+    $zal_id = (int)$_GET['view'];
+    $match  = null;
+    foreach ($files as $f) { if ((int)$f['id'] === $zal_id) { $match = $f; break; } }
+    if ($match && _ezd_ext_share_is_previewable($match)) {
+        $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $match['sprawa_id'] . '/' . $match['filename'];
+        if (is_file($path)) {
+            ezd_ext_share_touch_view((int)$share['id']);
+            header('Content-Type: ' . ($match['mime_type'] ?: 'application/octet-stream'));
+            header('Content-Disposition: inline; filename="' . addslashes($match['original_name']) . '"');
+            header('Content-Length: ' . filesize($path));
+            header('X-Content-Type-Options: nosniff');
+            readfile($path);
+            exit;
+        }
+    }
+    http_response_code(404); exit('Podgląd niedostępny dla tego pliku.');
+}
+
+// Pobieranie pojedynczego pliku — tylko w trybie "Pobieranie" (tylko po weryfikacji, z listy objętej udostępnieniem)
 if (isset($_GET['dl']) && $verified) {
+    if (!$can_download) { http_response_code(403); exit('Ten link umożliwia wyłącznie podgląd w przeglądarce.'); }
     $zal_id = (int)$_GET['dl'];
     $match  = null;
     foreach ($files as $f) { if ((int)$f['id'] === $zal_id) { $match = $f; break; } }
@@ -79,8 +109,10 @@ if (isset($_GET['dl']) && $verified) {
     http_response_code(404); exit('Plik nie znaleziony.');
 }
 
-// Pobieranie wszystkich plików naraz jako ZIP zaszyfrowany kodem SMS (gdy jest ich kilka)
-if (isset($_GET['zip']) && $verified && count($files) > 1) {
+// Pobieranie wszystkich plików naraz jako ZIP zaszyfrowany kodem SMS — tylko w trybie "Pobieranie"
+if (isset($_GET['zip']) && $verified) {
+    if (!$can_download) { http_response_code(403); exit('Ten link umożliwia wyłącznie podgląd w przeglądarce.'); }
+    if (count($files) <= 1) { http_response_code(400); exit('ZIP dostępny tylko przy kilku plikach.'); }
     $zipPath = ezd_ext_share_build_zip($files, $otp_code);
     if ($zipPath) {
         ezd_ext_share_touch_view((int)$share['id']);
@@ -188,8 +220,31 @@ body { margin:0; background:#EEF1F4; color:#111827; font-family:'Segoe UI',-appl
     <div class="lbl">Sprawa</div>
     <h1 style="font-size:1.05rem;margin:.15rem 0 .8rem"><?= h($sprawa['znak_sprawy'] . ' — ' . $sprawa['title']) ?></h1>
 
+    <?php if (!$can_download): ?>
+    <div class="alert alert-info" role="status" style="margin-bottom:1rem">
+      <i class="bi bi-eye me-1" aria-hidden="true"></i>Ten link umożliwia wyłącznie podgląd w przeglądarce — bez pobierania plików.
+    </div>
+    <?php endif; ?>
+
     <?php if (!$files): ?>
     <div style="font-size:.86rem;color:#6B7280">Brak plików do wyświetlenia.</div>
+
+    <?php elseif (!$can_download): ?>
+      <?php foreach ($files as $f): $prev = _ezd_ext_share_is_previewable($f); ?>
+      <div class="file-row">
+        <i class="bi bi-file-earmark-text fs-5 text-muted" aria-hidden="true"></i>
+        <div style="flex:1 1 auto;overflow:hidden">
+          <div style="font-weight:600;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($f['original_name']) ?></div>
+          <div style="font-size:.74rem;color:#9CA3AF"><?= h(ezd_filesize((int)$f['file_size'])) ?></div>
+        </div>
+        <?php if ($prev): ?>
+        <a class="btn btn-outline" href="?t=<?= h($token) ?>&view=<?= (int)$f['id'] ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd</a>
+        <?php else: ?>
+        <span class="text-muted" style="font-size:.76rem;white-space:nowrap">Podgląd niedostępny</span>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+
     <?php elseif (count($files) === 1): $f = $files[0]; ?>
     <div class="file-row">
       <i class="bi bi-file-earmark-text fs-5 text-muted" aria-hidden="true"></i>
