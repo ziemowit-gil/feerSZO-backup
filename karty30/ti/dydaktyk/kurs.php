@@ -424,8 +424,10 @@ $price_changes  = ti_price_changes_for_course($id);
 $pc_course_base = ['model' => $cbm, 'amount' => (float)($course['billing_amount'] ?? 0)];
 $pc_client_base = [];
 foreach ($enrollments as $e) {
+    if ($e['status'] !== 'active') continue;
     $has_override = (int)($e['billing_model'] ?? 0) > 0;
     $pc_client_base[(int)$e['client_id']] = [
+        'name'        => $e['client_name'],
         'model'       => $has_override ? (int)$e['billing_model'] : $cbm,
         'amount'      => $has_override ? (float)$e['billing_amount'] : (float)($course['billing_amount'] ?? 0),
         'hourly_rate' => (float)$e['hourly_rate'],
@@ -740,7 +742,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <label class="form-label small mb-1">Do (opcjonalnie)</label>
         <input type="date" name="date_to" id="pc_to" class="form-control form-control-sm" onchange="pcUpdate()">
       </div>
-      <div class="col-sm-6">
+      <div class="col-12">
         <div class="alert alert-light border py-1 px-2 mb-0 small" id="pc_preview">Wypełnij pola, żeby zobaczyć podgląd.</div>
       </div>
 
@@ -861,14 +863,31 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     if (!base) { previewEl.textContent = 'Wypełnij pola, żeby zobaczyć podgląd.'; return; }
 
     var isHourly = base.model !== 1 && base.model !== 3;
+    var unit = isHourly ? ' zł/h' : ' zł';
+
+    function computeAfter(before) {
+      return type === 'percent' ? before * (1 + value / 100) : Math.max(0, value);
+    }
+
     if (!isClient && isHourly) {
-      previewEl.textContent = 'Zasięg "Cały kurs" przy modelu godzinowym: zmiana obejmie stawkę godzinową ' +
-        'każdego kursanta bez własnego rabatu — każdy ma inną stawkę bazową, więc nie pokazujemy tu jednej kwoty.';
+      // Zasięg "Cały kurs" + model godzinowy: każdy zapis ma własną stawkę
+      // (bez rabatu/override) — pokaż rozbicie zamiast jednej mylącej liczby.
+      var rows = Object.keys(clientBase)
+        .map(function (cid) { return clientBase[cid]; })
+        .filter(function (c) { return !c.override; });
+      if (!rows.length) {
+        previewEl.textContent = 'Brak kursantów bez indywidualnego rozliczenia w tym kursie.';
+      } else {
+        previewEl.innerHTML = 'Każdy dostanie dokładną kwotę w swoim e-mailu. Podgląd:<br>' +
+          rows.map(function (c) {
+            var after = computeAfter(c.hourly_rate);
+            return c.name + ': <strong>' + fmt(c.hourly_rate) + unit + '</strong> → <strong>' + fmt(after) + unit + '</strong>';
+          }).join('<br>');
+      }
     } else {
       var before = isHourly ? base.hourly_rate : base.amount;
-      var after  = type === 'percent' ? before * (1 + value / 100) : Math.max(0, value);
-      previewEl.innerHTML = 'Podgląd: <strong>' + fmt(before) + (isHourly ? ' zł/h' : ' zł') + '</strong> → <strong>' +
-        fmt(after) + (isHourly ? ' zł/h' : ' zł') + '</strong>';
+      var after  = computeAfter(before);
+      previewEl.innerHTML = 'Podgląd: <strong>' + fmt(before) + unit + '</strong> → <strong>' + fmt(after) + unit + '</strong>';
     }
   };
 
@@ -891,7 +910,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       'informujemy o zmianie ceny zajęć „' + courseName + '”, obowiązującej od ' + range + '.\n\n' +
       'Zmiana: ' + valueLabel + '\n\n' +
       (reason ? ('Uzasadnienie: ' + reason + '\n\n') : '') +
-      'Dokładną nową kwotę znajdziesz w panelu, w zakładce Rozliczenia. W razie pytań prosimy o kontakt ' +
+      'Dokładną cenę (przed i po zmianie) znajdziesz pod tą wiadomością. W razie pytań prosimy o kontakt ' +
       'z prowadzącym albo z biurem placówki.\n\n' +
       'Pozdrawiamy,\n' + org;
     emailEdited = false;

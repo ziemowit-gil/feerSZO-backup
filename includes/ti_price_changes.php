@@ -100,7 +100,7 @@ function ti_price_change_default_email(array $data, string $course_name): array 
         . "informujemy o zmianie ceny zajęć „{$course_name}”, obowiązującej od {$range}.\n\n"
         . "Zmiana: {$value_label}\n\n"
         . (trim((string)$data['reason']) !== '' ? "Uzasadnienie: {$data['reason']}\n\n" : '')
-        . "Dokładną nową kwotę znajdziesz w panelu, w zakładce Rozliczenia. W razie pytań prosimy o kontakt "
+        . "Dokładną cenę (przed i po zmianie) znajdziesz pod tą wiadomością. W razie pytań prosimy o kontakt "
         . "z prowadzącym albo z biurem placówki.\n\n"
         . "Pozdrawiamy,\n{$org}";
     return ['subject' => $subject, 'body' => $body];
@@ -159,7 +159,7 @@ function ti_price_change_cancel(int $id): void {
 function ti_price_change_recipients(array $change): array {
     if ($change['scope'] === 'client') {
         return db_all(
-            "SELECT a.is_minor, a.guardian_email, cl.name, cl.email
+            "SELECT a.client_id, a.is_minor, a.guardian_email, cl.name, cl.email
              FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id
              WHERE a.client_id=? AND a.is_active=1",
             [(int)$change['client_id']]
@@ -168,7 +168,7 @@ function ti_price_change_recipients(array $change): array {
     // Zasięg 'course': wszyscy aktywni kursanci kursu BEZ własnego override cenowego
     // (kto ma indywidualny model, dostanie osobne powiadomienie przy swojej zmianie).
     return db_all(
-        "SELECT DISTINCT a.is_minor, a.guardian_email, cl.name, cl.email
+        "SELECT DISTINCT a.client_id, a.is_minor, a.guardian_email, cl.name, cl.email
          FROM k30_ti_enrollments e
          JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1
          JOIN k30_clients cl ON cl.id=e.client_id
@@ -177,7 +177,35 @@ function ti_price_change_recipients(array $change): array {
     );
 }
 
-/** Wysyła e-mail (z treści zapisanej przy tworzeniu zmiany) do objętych kursantów/opiekunów. */
+/**
+ * Cena PRZED/PO dla jednego konkretnego kursanta objętego zmianą — liczona
+ * tak samo jak w rozliczeniach (k30_ti_effective_billing() + ta zmiana),
+ * więc jest dokładna nawet przy zasięgu 'course' + model godzinowy, gdzie
+ * każdy zapis ma własną stawkę.
+ */
+function ti_price_change_amount_for_client(array $change, int $client_id): ?array {
+    require_once __DIR__ . '/karty30.php';
+    $course = db_one("SELECT * FROM k30_ti_courses WHERE id=?", [(int)$change['course_id']]);
+    $enr    = db_one("SELECT * FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [(int)$change['course_id'], $client_id]);
+    if (!$course || !$enr) return null;
+
+    $before_eff = k30_ti_effective_billing($enr, $course);
+    $after_eff  = ti_price_change_apply_to_effective($before_eff, $change);
+    $is_hourly  = !in_array((int)$before_eff['model'], [1, 3], true);
+    return [
+        'before' => $is_hourly ? (float)$before_eff['hourly_rate'] : (float)$before_eff['amount'],
+        'after'  => $is_hourly ? (float)$after_eff['hourly_rate']  : (float)$after_eff['amount'],
+        'unit'   => $is_hourly ? '/h' : '',
+    ];
+}
+
+/**
+ * Wysyła e-mail do objętych kursantów/opiekunów. Treść zapisana przy
+ * tworzeniu zmiany to "wstęp" (powitanie/uzasadnienie/podpis) — do niego
+ * system ZAWSZE dokleja dokładną, przeliczoną PER KURSANT kwotę przed/po,
+ * więc liczba w mailu jest poprawna nawet gdy różni się osoba od osoby
+ * (zasięg 'course' na modelu godzinowym).
+ */
 function ti_price_change_notify(int $id): int {
     ti_price_changes_migrate();
     $change = ti_price_change_get($id);
@@ -187,10 +215,20 @@ function ti_price_change_notify(int $id): int {
     $subject = $change['email_subject'] !== '' ? $change['email_subject'] : 'Zmiana ceny zajęć';
     $body_html = nl2br(htmlspecialchars((string)$change['email_body'], ENT_QUOTES));
     $org = defined('ORG_NAME') ? ORG_NAME : '';
-    $html = "<div>{$body_html}</div><p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
 
     $sent = 0;
     foreach (ti_price_change_recipients($change) as $s) {
+        $amt = ti_price_change_amount_for_client($change, (int)$s['client_id']);
+        $price_html = '';
+        if ($amt) {
+            $before = number_format($amt['before'], 2, ',', ' ') . $amt['unit'] . ' zł';
+            $after  = number_format($amt['after'],  2, ',', ' ') . $amt['unit'] . ' zł';
+            $price_html = "<p><strong>Dotychczasowa cena:</strong> {$before}<br>"
+                        . "<strong>Nowa cena:</strong> {$after}</p>";
+        }
+        $html = "<div>{$body_html}</div>{$price_html}"
+              . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+
         $emails = [];
         $primary = trim((string)($s['email'] ?? ''));
         if ($primary !== '' && filter_var($primary, FILTER_VALIDATE_EMAIL)) $emails[$primary] = (string)$s['name'];
