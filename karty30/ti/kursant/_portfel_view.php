@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
 
 $pw_cid = (int)$pw_client_id;
 // Partial działa w dwóch panelach: kursanta (domyślne adresy) i rodzica (nadpisywane)
@@ -30,6 +31,14 @@ if ($pw_year_end_on) {
 
 $pw_flash = $_SESSION['wallet_flash'] ?? null;
 unset($_SESSION['wallet_flash']);
+
+// Program poleceń — kod do udostępnienia znajomym + status własnego polecenia
+$pw_ref_settings = ti_referral_settings();
+if ($pw_ref_settings['enabled']) {
+    $pw_ref_code     = ti_referral_code_for_client($pw_cid);
+    $pw_ref_as_ref   = ti_referrals_by_referrer($pw_cid);
+    $pw_ref_as_used  = ti_referral_for_referred($pw_cid);
+}
 
 // Płatności online rozpoczęte z portfela; oczekujące zweryfikuj aktywnie w API —
 // powrót z bramki zwykle wyprzedza webhook, a kursant chce od razu widzieć środki.
@@ -325,6 +334,49 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
     </div>
   </div>
 </div>
+
+<?php if ($pw_ref_settings['enabled']): ?>
+<div class="card mb-4">
+  <div class="card-header fw-semibold bg-white">
+    <i class="bi bi-gift text-primary me-1" aria-hidden="true"></i>Poleć znajomego
+  </div>
+  <div class="card-body">
+    <p class="text-body-secondary small mb-3">
+      Podaj ten kod znajomemu, który zapisuje się na zajęcia —
+      Ty dostaniesz <strong>-<?= h((string)$pw_ref_settings['referrer_pct']) ?>%</strong> na najbliższe rozliczenie,
+      a on <strong>-<?= h((string)$pw_ref_settings['referred_pct']) ?>%</strong>
+      przez pierwsze <?= (int)$pw_ref_settings['referred_periods'] ?>
+      <?= (int)$pw_ref_settings['referred_periods'] === 1 ? 'rozliczenie' : 'rozliczenia' ?>.
+      Kod podaje prowadzący/kierownik przy zakładaniu konta.
+    </p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <code class="fs-5 fw-bold px-3 py-2 bg-body-tertiary rounded" id="pwRefCode"><?= h($pw_ref_code) ?></code>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              onclick="navigator.clipboard.writeText(document.getElementById('pwRefCode').textContent.trim())">
+        <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj
+      </button>
+    </div>
+
+    <?php if ($pw_ref_as_used): ?>
+    <p class="small text-body-secondary mb-0 mt-2">
+      <i class="bi bi-check-circle text-success me-1" aria-hidden="true"></i>
+      Zostałeś polecony przez <strong><?= h($pw_ref_as_used['referrer_name']) ?></strong> —
+      wykorzystano <?= (int)$pw_ref_as_used['referred_periods_used'] ?>/<?= (int)$pw_ref_as_used['referred_periods_total'] ?> rozliczeń rabatu.
+    </p>
+    <?php endif; ?>
+
+    <?php if ($pw_ref_as_ref): ?>
+    <p class="small text-body-secondary mb-0 mt-2">
+      Poleciłeś:
+      <?= implode(', ', array_map(
+          fn($rr) => h($rr['referred_name']) . ' (' . ($rr['referrer_reward_status'] === 'applied' ? 'nagroda naliczona' : 'oczekuje na rozliczenie') . ')',
+          $pw_ref_as_ref
+      )) ?>.
+    </p>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($pw_year_end_on): ?>
 <div class="card mb-4">
