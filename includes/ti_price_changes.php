@@ -199,6 +199,17 @@ function ti_price_change_amount_for_client(array $change, int $client_id): ?arra
     ];
 }
 
+/** "+12,00 zł (+10%)" / "-5,00 zł (-4,2%)" — bez procentu, gdy $before=0 (nie da się policzyć). */
+function ti_price_change_diff_label(float $before, float $after, string $unit = ''): string {
+    $diff  = $after - $before;
+    $label = ($diff >= 0 ? '+' : '') . number_format($diff, 2, ',', ' ') . ' zł' . $unit;
+    if (abs($before) > 0.0001) {
+        $pct = $diff / $before * 100;
+        $label .= ' (' . ($pct >= 0 ? '+' : '') . rtrim(rtrim(number_format($pct, 1, ',', ''), '0'), ',') . '%)';
+    }
+    return $label;
+}
+
 /**
  * Wysyła e-mail do objętych kursantów/opiekunów. Treść zapisana przy
  * tworzeniu zmiany to "wstęp" (powitanie/uzasadnienie/podpis) — do niego
@@ -221,10 +232,13 @@ function ti_price_change_notify(int $id): int {
         $amt = ti_price_change_amount_for_client($change, (int)$s['client_id']);
         $price_html = '';
         if ($amt) {
-            $before = number_format($amt['before'], 2, ',', ' ') . $amt['unit'] . ' zł';
-            $after  = number_format($amt['after'],  2, ',', ' ') . $amt['unit'] . ' zł';
+            $before = number_format($amt['before'], 2, ',', ' ') . ' zł' . $amt['unit'];
+            $after  = number_format($amt['after'],  2, ',', ' ') . ' zł' . $amt['unit'];
+            // Bez escapowania — diff_label() produkuje wyłącznie cyfry/znaki +/-/%/zł, żadnych danych z zewnątrz.
+            $diff = ti_price_change_diff_label($amt['before'], $amt['after'], $amt['unit']);
             $price_html = "<p><strong>Dotychczasowa cena:</strong> {$before}<br>"
-                        . "<strong>Nowa cena:</strong> {$after}</p>";
+                        . "<strong>Nowa cena:</strong> {$after}<br>"
+                        . "<strong>Zmiana:</strong> {$diff}</p>";
         }
         $html = "<div>{$body_html}</div>{$price_html}"
               . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";

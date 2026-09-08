@@ -848,6 +848,17 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
   function fmt(n) { return n.toLocaleString('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
+  function diffLabel(before, after, unitFull) {
+    // unitFull = " zł/h" albo " zł" (już ze spacją i "zł" — patrz zmienna `unit` w pcUpdate).
+    var diff = after - before;
+    var label = (diff >= 0 ? '+' : '') + fmt(diff) + unitFull;
+    if (Math.abs(before) > 0.0001) {
+      var pct = diff / before * 100;
+      label += ' (' + (pct >= 0 ? '+' : '') + (Math.round(pct * 10) / 10) + '%)';
+    }
+    return label;
+  }
+
   window.pcUpdate = function () {
     var scope  = document.getElementById('pc_scope').value;
     var isClient = scope === 'client';
@@ -881,13 +892,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         previewEl.innerHTML = 'Każdy dostanie dokładną kwotę w swoim e-mailu. Podgląd:<br>' +
           rows.map(function (c) {
             var after = computeAfter(c.hourly_rate);
-            return c.name + ': <strong>' + fmt(c.hourly_rate) + unit + '</strong> → <strong>' + fmt(after) + unit + '</strong>';
+            return c.name + ': ' + fmt(c.hourly_rate) + unit + ' → <strong>' + fmt(after) + unit + '</strong>' +
+              ' &nbsp;<span class="text-body-secondary">' + diffLabel(c.hourly_rate, after, unit) + '</span>';
           }).join('<br>');
       }
     } else {
       var before = isHourly ? base.hourly_rate : base.amount;
       var after  = computeAfter(before);
-      previewEl.innerHTML = 'Podgląd: <strong>' + fmt(before) + unit + '</strong> → <strong>' + fmt(after) + unit + '</strong>';
+      previewEl.innerHTML = 'Podgląd: <strong>' + fmt(before) + unit + '</strong> → <strong>' + fmt(after) + unit + '</strong>' +
+        ' &nbsp;<span class="text-body-secondary">' + diffLabel(before, after, unit) + '</span>';
     }
   };
 
