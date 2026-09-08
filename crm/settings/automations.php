@@ -51,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $trigger_config = match ($event) {
+            'contact_created'        => ['source' => trim($_POST['t_source'] ?? '')],
             'contact_status_changed' => ['to_status' => trim($_POST['t_to_status'] ?? '')],
             'tag_added'              => ['tag' => mb_strtolower(trim($_POST['t_tag'] ?? ''))],
             'case_status_changed'    => ['to_status' => trim($_POST['t_case_to_status'] ?? '')],
@@ -107,6 +108,9 @@ $edit_action  = $edit_row ? (json_decode($edit_row['action_config']  ?: '{}', tr
 $templates   = db_all("SELECT id, name FROM crm_templates WHERE channel='email' AND is_active=1 ORDER BY name");
 $all_tags    = array_column(db_all("SELECT DISTINCT tag FROM crm_tags ORDER BY tag"), 'tag');
 $all_statuses = array_keys(crm_statuses());
+$all_sources = array_column(
+    db_all("SELECT DISTINCT source FROM crm_contacts WHERE source<>'' ORDER BY source"), 'source'
+);
 
 $log = db_all(
     "SELECT l.*, a.name AS automation_name FROM crm_automation_log l
@@ -206,6 +210,14 @@ require_once __DIR__ . '/_nav.php';
           <option value="<?= $ev ?>" <?= ($edit_row['trigger_event'] ?? '') === $ev ? 'selected' : '' ?>><?= h($label) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-md-6" id="cfg_contact_created" style="display:none">
+        <label class="form-label small mb-1">Źródło kontaktu (opcjonalnie)</label>
+        <input type="text" name="t_source" class="form-control form-control-sm" list="dl_sources"
+               value="<?= h($edit_trigger['source'] ?? '') ?>" placeholder="puste = każde źródło">
+        <datalist id="dl_sources">
+          <?php foreach ($all_sources as $s): ?><option value="<?= h($s) ?>"><?php endforeach; ?>
+        </datalist>
       </div>
       <div class="col-md-6" id="cfg_contact_status_changed" style="display:none">
         <label class="form-label small mb-1">Docelowy status kontaktu</label>
@@ -308,7 +320,7 @@ require_once __DIR__ . '/_nav.php';
 function autoToggleFields() {
   var ev = document.getElementById('sel_event').value;
   var ac = document.getElementById('sel_action').value;
-  ['cfg_contact_status_changed', 'cfg_tag_added', 'cfg_case_status_changed'].forEach(function (id) {
+  ['cfg_contact_created', 'cfg_contact_status_changed', 'cfg_tag_added', 'cfg_case_status_changed'].forEach(function (id) {
     document.getElementById(id).style.display = 'none';
   });
   ['acfg_send_email_template', 'acfg_add_tag', 'acfg_remove_tag', 'acfg_create_activity', 'acfg_change_contact_status'].forEach(function (id) {

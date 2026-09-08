@@ -1252,6 +1252,45 @@ function crm_migrate(): void {
     // Schemat newsletterów: edytor blokowy (design_json), zamrożona treść wysyłki,
     // zdarzenia, linki, lista wykluczeń, zapisane segmenty — jedno źródło prawdy.
     require_once __DIR__ . '/crm_newsletter_schema.php';
+
+    crm_seed_ti_zapisy_automation();
+}
+
+/**
+ * Seed jednorazowy — szablon e-mail + reguła automatyzacji dla leadów z
+ * karty30/ti/zapisy.php (source='formularz_www_zajecia_ti'). Bez tego
+ * capability dodane w crm/settings/automations.php (filtr po źródle) byłoby
+ * puste — nikt by ręcznie nie skonfigurował pierwszej reguły.
+ */
+function crm_seed_ti_zapisy_automation(): void {
+    try {
+        if (db_one("SELECT value FROM settings WHERE key_='crm_ti_zapisy_automation_seeded'")) return;
+        db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('crm_ti_zapisy_automation_seeded','1')")->execute();
+
+        $org = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju FEER';
+        $tpl_id = db_insert('crm_templates', [
+            'name'    => 'Powitanie — zapisy na zajęcia TI',
+            'channel' => 'email',
+            'subject' => 'Dziękujemy za zgłoszenie — zajęcia komputerowe i angielski',
+            'body'    => "{zwrot},\n\n"
+                . "dziękujemy za zostawienie kontaktu w formularzu zapisów na zajęcia. "
+                . "Prowadzimy zajęcia z informatyki oraz języka angielskiego dla osób z niepełnosprawnością — "
+                . "indywidualnie dobrane do potrzeb i tempa pracy uczestnika.\n\n"
+                . "Skontaktujemy się telefonicznie w ciągu najbliższych dni, żeby ustalić szczegóły "
+                . "(rodzaj zajęć, dogodny termin, forma — online lub stacjonarnie).\n\n"
+                . "W razie pytań można też odpisać na tego maila.\n\n"
+                . "Pozdrawiamy,\n{$org}",
+        ]);
+
+        db_insert('crm_automations', [
+            'name'           => 'Powitanie — nowy lead (zapisy na zajęcia TI)',
+            'trigger_event'  => 'contact_created',
+            'trigger_config' => json_encode(['source' => 'formularz_www_zajecia_ti'], JSON_UNESCAPED_UNICODE),
+            'action_type'    => 'send_email_template',
+            'action_config'  => json_encode(['template_id' => $tpl_id], JSON_UNESCAPED_UNICODE),
+            'is_active'      => 1,
+        ]);
+    } catch (\Throwable $e) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1996,7 +2035,13 @@ class CrmManager
         $data = crm_strip_null_notnull($data, 'crm_contacts');
         $id = db_insert('crm_contacts', $data);
         require_once __DIR__ . '/crm_automation.php';
-        crm_automation_fire('contact_created', $id);
+        // 'source'/'status' w kontekście — pozwala regule automatyzacji zawęzić się
+        // np. do source='formularz_www_zajecia_ti' (pusty trigger_config nadal pasuje
+        // do wszystkiego, więc to nie zmienia zachowania istniejących reguł).
+        crm_automation_fire('contact_created', $id, [
+            'source' => $data['source'] ?? '',
+            'status' => $data['status'] ?? '',
+        ]);
         // Książka adresowa Outlooka — tylko gdy administrator włączył automatyczny zapis.
         // Błąd Graph nie może przerwać dodawania kontaktu, dlatego łapiemy wszystko.
         try {
