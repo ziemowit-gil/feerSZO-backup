@@ -73,15 +73,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'upload') {
         if (!$can_act) { http_response_code(403); exit; }
         $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
-        $custom_name = trim($_POST['custom_name'] ?? '');
-        $new_zal_id = null;
-        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null, $new_zal_id);
-        $msg = $err ?: 'Plik dodany do repozytorium koszulki.';
-        if (!$err && $new_zal_id && !empty($_POST['convert_pdf'])) {
-            $conv = ezd_convert_to_pdf($new_zal_id, $user_id);
-            $msg .= $conv['ok'] ? ' Utworzono też wersję PDF.' : (' Konwersja na PDF nie powiodła się: ' . $conv['error']);
+        // Pole "file[]" (multiple) zawsze zwraca tablicę — 1 element = pojedynczy plik
+        // (zachowuje własną nazwę + opcjonalną konwersję na PDF), >1 = upload zbiorczy.
+        $file_names = $_FILES['file']['name'] ?? null;
+        if (is_array($file_names) && count($file_names) > 1) {
+            $res = ezd_upload_multi('file', $id, $user_id, $grupa_id);
+            $msg = $res['ok'] . ' plik(ów) dodano do repozytorium koszulki.';
+            if ($res['errors']) $msg .= ' Nie dodano: ' . implode('; ', $res['errors']);
+            flash_set($res['ok'] && !$res['errors'] ? 'success' : ($res['ok'] ? 'warning' : 'error'), $msg);
+        } else {
+            $custom_name = trim($_POST['custom_name'] ?? '');
+            $new_zal_id = null;
+            if (is_array($file_names)) {
+                // Spłaszcz pojedynczy element tablicy do zwykłego $_FILES['file'], jak przy input bez [].
+                foreach (['name','type','tmp_name','error','size'] as $k) $_FILES['file'][$k] = $_FILES['file'][$k][0] ?? null;
+            }
+            $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null, $new_zal_id);
+            $msg = $err ?: 'Plik dodany do repozytorium koszulki.';
+            if (!$err && $new_zal_id && !empty($_POST['convert_pdf'])) {
+                $conv = ezd_convert_to_pdf($new_zal_id, $user_id);
+                $msg .= $conv['ok'] ? ' Utworzono też wersję PDF.' : (' Konwersja na PDF nie powiodła się: ' . $conv['error']);
+            }
+            flash_set($err ? 'error' : 'success', $msg);
         }
-        flash_set($err ? 'error' : 'success', $msg);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
@@ -629,8 +643,8 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
             <label class="dropdown-item" style="cursor:pointer">
-              <i class="bi bi-upload me-2"></i>Prześlij plik
-              <input type="file" class="d-none" id="quick-upload-trigger"
+              <i class="bi bi-upload me-2"></i>Prześlij pliki
+              <input type="file" class="d-none" id="quick-upload-trigger" multiple
                      accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg">
             </label>
           </li>
@@ -656,7 +670,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
   <form method="post" enctype="multipart/form-data" id="ezd-quick-upload-form" class="d-none">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="_action" value="upload">
-    <input type="file" name="file" id="ezd-quick-upload-file">
+    <input type="file" name="file[]" id="ezd-quick-upload-file" multiple>
   </form>
   <?php endif; ?>
 
@@ -746,9 +760,9 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="upload">
       <div class="d-flex gap-2 align-items-center flex-wrap">
-        <input type="file" id="ezd-upload-file" name="file" class="form-control form-control-sm" style="max-width:260px"
+        <input type="file" id="ezd-upload-file" name="file[]" multiple class="form-control form-control-sm" style="max-width:260px"
                accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.pptx,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg" required>
-        <input type="text" name="custom_name" class="form-control form-control-sm" style="max-width:220px"
+        <input type="text" name="custom_name" id="ezd-upload-custom-name" class="form-control form-control-sm" style="max-width:220px"
                placeholder="Własna nazwa (opcjonalnie)" maxlength="200">
         <?php if($grupy): ?>
         <select name="grupa_id" class="form-select form-select-sm" style="max-width:180px">
@@ -757,7 +771,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
         </select>
         <?php endif; ?>
         <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do koszulki</button>
-        <small class="text-muted">Maks. 25 MB</small>
+        <small class="text-muted">Maks. 25 MB / plik. Można wybrać wiele plików naraz.</small>
       </div>
       <div class="form-check mt-2 d-none" id="ezd-upload-convert-wrap">
         <input type="checkbox" class="form-check-input" name="convert_pdf" value="1" id="ezd-upload-convert">
@@ -766,9 +780,15 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     </form>
     <script>
     (function(){
-      var inp = document.getElementById('ezd-upload-file'), wrap = document.getElementById('ezd-upload-convert-wrap'), chk = document.getElementById('ezd-upload-convert');
+      var inp = document.getElementById('ezd-upload-file'), wrap = document.getElementById('ezd-upload-convert-wrap'), chk = document.getElementById('ezd-upload-convert'), cname = document.getElementById('ezd-upload-custom-name');
       if (!inp || !wrap || !chk) return;
-      inp.addEventListener('change', function(){ var e=inp.value.split('.').pop().toLowerCase(); var ok=['doc','docx','xls','xlsx'].includes(e); wrap.classList.toggle('d-none',!ok); if(!ok)chk.checked=false; });
+      inp.addEventListener('change', function(){
+        var multi = inp.files && inp.files.length > 1;
+        // Własna nazwa i konwersja na PDF mają sens tylko dla pojedynczego pliku
+        if (cname) cname.classList.toggle('d-none', multi);
+        if (multi) { wrap.classList.add('d-none'); chk.checked = false; return; }
+        var e=inp.value.split('.').pop().toLowerCase(); var ok=['doc','docx','xls','xlsx'].includes(e); wrap.classList.toggle('d-none',!ok); if(!ok)chk.checked=false;
+      });
       // Quick-upload trigger
       var qt = document.getElementById('quick-upload-trigger'), qf = document.getElementById('ezd-quick-upload-file'), qform = document.getElementById('ezd-quick-upload-form');
       if (qt && qf && qform) {

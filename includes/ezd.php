@@ -2953,7 +2953,42 @@ function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id
 
 function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null, ?string $custom_name = null, ?int &$out_id = null): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
-    $f = $_FILES[$field];
+    return _ezd_upload_process($_FILES[$field], $sprawa_id, $user_id, $pismo_id, $umowa_id, $dokument_id, $replace_id, $grupa_id, $custom_name, $out_id);
+}
+
+/**
+ * Zbiorcze dodanie wielu plików do repozytorium koszulki naraz — input z atrybutem
+ * `multiple` i nazwą `name="pole[]"`. Każdy plik przechodzi tę samą walidację
+ * (rozmiar/rozszerzenie) co pojedynczy upload; błędne pliki są pomijane, reszta
+ * zostaje dodana. Zwraca ['ok'=>liczba dodanych, 'errors'=>string[] z nazwami plików].
+ */
+function ezd_upload_multi(string $field, int $sprawa_id, int $user_id, ?int $grupa_id = null): array {
+    $files = $_FILES[$field] ?? null;
+    if (!$files || empty($files['name']) || !is_array($files['name'])) {
+        return ['ok' => 0, 'errors' => ['Nie wybrano plików.']];
+    }
+    $errors = [];
+    $ok = 0;
+    foreach ($files['name'] as $i => $name) {
+        if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+        $single = [
+            'name'     => $name,
+            'type'     => $files['type'][$i]     ?? '',
+            'tmp_name' => $files['tmp_name'][$i]  ?? '',
+            'error'    => $files['error'][$i]     ?? UPLOAD_ERR_NO_FILE,
+            'size'     => $files['size'][$i]      ?? 0,
+        ];
+        $out_id = null;
+        $err = _ezd_upload_process($single, $sprawa_id, $user_id, null, null, null, null, $grupa_id, null, $out_id);
+        if ($err) $errors[] = $name . ': ' . $err;
+        else $ok++;
+    }
+    if (!$ok && !$errors) $errors[] = 'Nie wybrano plików.';
+    return ['ok' => $ok, 'errors' => $errors];
+}
+
+/** Wspólna logika zapisu jednego pliku — używana przez ezd_upload() i ezd_upload_multi(). */
+function _ezd_upload_process(array $f, int $sprawa_id, int $user_id, ?int $pismo_id, ?int $umowa_id, ?int $dokument_id, ?int $replace_id, ?int $grupa_id, ?string $custom_name, ?int &$out_id): ?string {
     if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
     if ($f['size'] > EZD_MAX_SIZE)     return 'Plik za duży (maks. 25 MB).';
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
