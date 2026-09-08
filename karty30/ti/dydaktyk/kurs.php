@@ -10,6 +10,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/zoom.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }   // ekran kierownika
@@ -154,6 +155,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
         }
         header('Location: kurs.php?id=' . $id . '#uczestnicy'); exit;
+    }
+
+    // Zaplanowana zmiana ceny — grupowa (cały kurs) albo indywidualna (jeden
+    // kursant), procentowo albo kwotowo, z zakresem dat i uzasadnieniem.
+    // Patrz includes/ti_price_changes.php.
+    if ($op === 'price_change_create') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
+        $scope     = ($_POST['scope'] ?? '') === 'client' ? 'client' : 'course';
+        $pc_client = $scope === 'client' ? (int)($_POST['client_id'] ?? 0) : 0;
+        $type      = ($_POST['change_type'] ?? '') === 'percent' ? 'percent' : 'amount';
+        $value     = (float)str_replace(',', '.', (string)($_POST['change_value'] ?? '0'));
+        $date_from = trim((string)($_POST['date_from'] ?? ''));
+        $date_to   = trim((string)($_POST['date_to'] ?? ''));
+        $reason    = trim((string)($_POST['reason'] ?? ''));
+        $subject   = trim((string)($_POST['email_subject'] ?? ''));
+        $body      = trim((string)($_POST['email_body'] ?? ''));
+        $send_now  = isset($_POST['send_now']);
+
+        if ($scope === 'client' && !$pc_client) {
+            flash_set('danger', 'Wybierz kursanta dla zmiany indywidualnej.');
+        } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) {
+            flash_set('danger', 'Podaj poprawną datę „od".');
+        } elseif ($date_to !== '' && $date_to < $date_from) {
+            flash_set('danger', 'Data „do" nie może być wcześniejsza niż data „od".');
+        } elseif ($reason === '') {
+            flash_set('danger', 'Uzasadnienie jest wymagane — kursanci i opiekunowie je zobaczą.');
+        } else {
+            $pc_id = ti_price_change_create([
+                'scope' => $scope, 'course_id' => $id, 'client_id' => $pc_client,
+                'change_type' => $type, 'change_value' => $value,
+                'date_from' => $date_from, 'date_to' => $date_to ?: null,
+                'reason' => $reason, 'email_subject' => $subject, 'email_body' => $body,
+                'created_by' => $uid,
+            ]);
+            $msg = 'Zmiana ceny zapisana.';
+            if ($send_now) {
+                $n = ti_price_change_notify($pc_id);
+                $msg .= $n > 0 ? " Wysłano powiadomienie e-mail ({$n})." : ' Nie znaleziono adresów e-mail do powiadomienia.';
+            }
+            flash_set('success', $msg);
+        }
+        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
+    }
+
+    if ($op === 'price_change_cancel') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
+        ti_price_change_cancel((int)($_POST['pc_id'] ?? 0));
+        flash_set('success', 'Zmiana ceny anulowana.');
+        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
+    }
+
+    if ($op === 'price_change_resend') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
+        $n = ti_price_change_notify((int)($_POST['pc_id'] ?? 0));
+        flash_set($n > 0 ? 'success' : 'warning', $n > 0 ? "Powiadomienie wysłane ponownie ({$n})." : 'Brak adresów e-mail do powiadomienia.');
+        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
     }
 
     // ── Edycja metadanych kursu przez kierownika (pełny zestaw pól admina) ───
@@ -359,6 +416,22 @@ $consultants   = k30_get_consultants();
 $coinstr_available = array_filter($consultants, fn($u) =>
     (int)$u['id'] !== (int)$course['instructor_id'] && !in_array((int)$u['id'], $coinstr_ids));
 $cbm = (int)($course['billing_model'] ?? 2) ?: 2;
+
+// Zmiany cen (istniejące + dane bazowe do podglądu przed/po w JS formularza —
+// odzwierciedla k30_ti_effective_billing(): override > domyślne kursu, ale
+// hourly_rate jest ZAWSZE per-zapis, nawet bez override).
+$price_changes  = ti_price_changes_for_course($id);
+$pc_course_base = ['model' => $cbm, 'amount' => (float)($course['billing_amount'] ?? 0)];
+$pc_client_base = [];
+foreach ($enrollments as $e) {
+    $has_override = (int)($e['billing_model'] ?? 0) > 0;
+    $pc_client_base[(int)$e['client_id']] = [
+        'model'       => $has_override ? (int)$e['billing_model'] : $cbm,
+        'amount'      => $has_override ? (float)$e['billing_amount'] : (float)($course['billing_amount'] ?? 0),
+        'hourly_rate' => (float)$e['hourly_rate'],
+        'override'    => $has_override,
+    ];
+}
 
 // Dane do modala edycji kursu
 $ed_instructors = k30_ti_instructors();
@@ -615,6 +688,218 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
   <?php endif; ?>
 </div>
+
+<div class="card mt-3" id="zmiana-cen">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-tag text-primary" aria-hidden="true"></i>Zmiana ceny zajęć
+    <span class="badge bg-secondary"><?= count($price_changes) ?></span>
+  </div>
+  <div class="card-body">
+    <p class="text-body-secondary small mb-3">
+      Zmiana obowiązuje tylko w podanym zakresie dat — nie nadpisuje ceny kursu ani indywidualnego rozliczenia
+      na stałe. Wymaga uzasadnienia; kursanci i opiekunowie (jeśli małoletni) mogą dostać o niej e-mail.
+    </p>
+
+    <form method="post" id="pcForm" class="row g-2 align-items-end mb-2">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="price_change_create">
+
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Zasięg</label>
+        <select name="scope" id="pc_scope" class="form-select form-select-sm" onchange="pcUpdate()">
+          <option value="course">Cały kurs</option>
+          <option value="client">Wybrany kursant</option>
+        </select>
+      </div>
+      <div class="col-sm-3" id="pc_client_wrap" style="display:none">
+        <label class="form-label small mb-1">Kursant</label>
+        <select name="client_id" id="pc_client" class="form-select form-select-sm" onchange="pcUpdate()">
+          <?php foreach ($enrollments as $e): if ($e['status'] !== 'active') continue; ?>
+          <option value="<?= (int)$e['client_id'] ?>"><?= h($e['client_name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Typ zmiany</label>
+        <select name="change_type" id="pc_type" class="form-select form-select-sm" onchange="pcUpdate()">
+          <?php foreach (TI_PRICE_CHANGE_TYPES as $tk => $tl): ?>
+          <option value="<?= h($tk) ?>"><?= h($tl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label small mb-1" id="pc_value_label">Wartość</label>
+        <input type="number" name="change_value" id="pc_value" class="form-control form-control-sm" step="0.01" oninput="pcUpdate()">
+      </div>
+
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Obowiązuje od</label>
+        <input type="date" name="date_from" id="pc_from" class="form-control form-control-sm" required value="<?= date('Y-m-d') ?>" onchange="pcUpdate()">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Do (opcjonalnie)</label>
+        <input type="date" name="date_to" id="pc_to" class="form-control form-control-sm" onchange="pcUpdate()">
+      </div>
+      <div class="col-sm-6">
+        <div class="alert alert-light border py-1 px-2 mb-0 small" id="pc_preview">Wypełnij pola, żeby zobaczyć podgląd.</div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label small mb-1">Uzasadnienie <span class="text-danger">*</span></label>
+        <textarea name="reason" id="pc_reason" class="form-control form-control-sm" rows="2" required
+                  placeholder="np. Wzrost kosztów wynajmu sali od nowego roku szkolnego" oninput="pcUpdate()"></textarea>
+      </div>
+
+      <div class="col-12"><hr class="my-1"></div>
+      <div class="col-12 d-flex align-items-center gap-2">
+        <i class="bi bi-envelope text-body-secondary" aria-hidden="true"></i>
+        <span class="fw-semibold small">Wiadomość e-mail do kursanta/opiekuna</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="pcRegenerateEmail()">
+          <i class="bi bi-magic me-1" aria-hidden="true"></i>Wygeneruj / odśwież treść
+        </button>
+      </div>
+      <div class="col-12">
+        <label class="form-label small mb-1" for="pc_subject">Temat</label>
+        <input type="text" name="email_subject" id="pc_subject" class="form-control form-control-sm">
+      </div>
+      <div class="col-12">
+        <label class="form-label small mb-1" for="pc_body">Treść</label>
+        <textarea name="email_body" id="pc_body" class="form-control form-control-sm" rows="7"></textarea>
+        <div class="form-text mt-0">Treść w pełni edytowalna — przycisk wyżej tylko proponuje punkt wyjścia.</div>
+      </div>
+
+      <div class="col-12 d-flex align-items-center gap-3 mt-2">
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="send_now" id="pc_send" checked>
+          <label class="form-check-label small" for="pc_send">Wyślij e-mail od razu po zapisaniu</label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary ms-auto">
+          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz zmianę ceny
+        </button>
+      </div>
+    </form>
+
+    <?php if ($price_changes): ?>
+    <hr class="my-3">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Zasięg</th><th>Zmiana</th><th>Okres</th><th>Uzasadnienie</th><th>Powiadomienie</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($price_changes as $pc): ?>
+          <tr class="<?= $pc['status'] === 'cancelled' ? 'opacity-50' : '' ?>">
+            <td><?= $pc['client_name'] ? h($pc['client_name']) : '<span class="text-body-secondary">Cały kurs</span>' ?></td>
+            <td><?= h(ti_price_change_value_label($pc['change_type'], (float)$pc['change_value'])) ?></td>
+            <td class="text-nowrap small">
+              <?= date('d.m.Y', strtotime($pc['date_from'])) ?> –
+              <?= $pc['date_to'] ? date('d.m.Y', strtotime($pc['date_to'])) : 'bezterminowo' ?>
+            </td>
+            <td class="small" style="max-width:220px"><?= h(mb_strimwidth($pc['reason'], 0, 80, '…')) ?></td>
+            <td class="small">
+              <?php if ($pc['notified_at']): ?>
+              <span class="badge text-bg-success">wysłano (<?= (int)$pc['notified_count'] ?>)</span>
+              <?php else: ?>
+              <span class="badge text-bg-secondary">nie wysłano</span>
+              <?php endif; ?>
+            </td>
+            <td class="text-end">
+              <?php if ($pc['status'] === 'active'): ?>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="price_change_resend">
+                <input type="hidden" name="pc_id" value="<?= (int)$pc['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Wyślij e-mail ponownie">
+                  <i class="bi bi-envelope" aria-hidden="true"></i>
+                </button>
+              </form>
+              <form method="post" class="d-inline" onsubmit="return confirm('Anulować tę zmianę ceny?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="price_change_cancel">
+                <input type="hidden" name="pc_id" value="<?= (int)$pc['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Anuluj">
+                  <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+              </form>
+              <?php endif; ?>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+
+<script>
+(function () {
+  var courseBase  = <?= json_encode($pc_course_base, JSON_UNESCAPED_UNICODE) ?>;
+  var clientBase  = <?= json_encode($pc_client_base, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT) ?>;
+  var courseName  = <?= json_encode($course['name'], JSON_UNESCAPED_UNICODE) ?>;
+  var emailEdited = false;
+
+  document.getElementById('pc_body').addEventListener('input', function () { emailEdited = true; });
+  document.getElementById('pc_subject').addEventListener('input', function () { emailEdited = true; });
+
+  function fmt(n) { return n.toLocaleString('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+  window.pcUpdate = function () {
+    var scope  = document.getElementById('pc_scope').value;
+    var isClient = scope === 'client';
+    document.getElementById('pc_client_wrap').style.display = isClient ? '' : 'none';
+
+    var type  = document.getElementById('pc_type').value;
+    document.getElementById('pc_value_label').textContent = type === 'percent' ? 'Wartość (%, ujemna = obniżka)' : 'Nowa kwota (zł)';
+
+    var value = parseFloat(document.getElementById('pc_value').value.replace(',', '.')) || 0;
+    var previewEl = document.getElementById('pc_preview');
+
+    var base = isClient ? clientBase[document.getElementById('pc_client').value] : courseBase;
+    if (!base) { previewEl.textContent = 'Wypełnij pola, żeby zobaczyć podgląd.'; return; }
+
+    var isHourly = base.model !== 1 && base.model !== 3;
+    if (!isClient && isHourly) {
+      previewEl.textContent = 'Zasięg "Cały kurs" przy modelu godzinowym: zmiana obejmie stawkę godzinową ' +
+        'każdego kursanta bez własnego rabatu — każdy ma inną stawkę bazową, więc nie pokazujemy tu jednej kwoty.';
+    } else {
+      var before = isHourly ? base.hourly_rate : base.amount;
+      var after  = type === 'percent' ? before * (1 + value / 100) : Math.max(0, value);
+      previewEl.innerHTML = 'Podgląd: <strong>' + fmt(before) + (isHourly ? ' zł/h' : ' zł') + '</strong> → <strong>' +
+        fmt(after) + (isHourly ? ' zł/h' : ' zł') + '</strong>';
+    }
+  };
+
+  window.pcRegenerateEmail = function () {
+    if (emailEdited && !confirm('Treść była już edytowana ręcznie — nadpisać ją nową propozycją?')) return;
+    var type   = document.getElementById('pc_type').value;
+    var value  = parseFloat(document.getElementById('pc_value').value.replace(',', '.')) || 0;
+    var from   = document.getElementById('pc_from').value;
+    var to     = document.getElementById('pc_to').value;
+    var reason = document.getElementById('pc_reason').value.trim();
+    if (!from) { alert('Podaj datę "od" przed wygenerowaniem treści.'); return; }
+
+    var valueLabel = type === 'percent' ? ((value > 0 ? '+' : '') + value + '%') : (fmt(value) + ' zł');
+    var range = new Date(from).toLocaleDateString('pl-PL') + (to ? ' – ' + new Date(to).toLocaleDateString('pl-PL') : ' (bezterminowo)');
+    var org = <?= json_encode(defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI', JSON_UNESCAPED_UNICODE) ?>;
+
+    document.getElementById('pc_subject').value = org + ': zmiana ceny zajęć — ' + courseName;
+    document.getElementById('pc_body').value =
+      'Dzień dobry,\n\n' +
+      'informujemy o zmianie ceny zajęć „' + courseName + '”, obowiązującej od ' + range + '.\n\n' +
+      'Zmiana: ' + valueLabel + '\n\n' +
+      (reason ? ('Uzasadnienie: ' + reason + '\n\n') : '') +
+      'Dokładną nową kwotę znajdziesz w panelu, w zakładce Rozliczenia. W razie pytań prosimy o kontakt ' +
+      'z prowadzącym albo z biurem placówki.\n\n' +
+      'Pozdrawiamy,\n' + org;
+    emailEdited = false;
+  };
+
+  pcUpdate();
+})();
+</script>
 
 <!-- Modale: indywidualne rozliczanie kursanta -->
 <?php $course_due = (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT;

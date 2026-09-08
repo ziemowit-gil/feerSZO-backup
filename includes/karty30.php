@@ -5127,6 +5127,12 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             'billing_model'  => $e['course_billing_model'],
             'billing_amount' => $e['course_billing_amount'],
         ]);
+        // Zaplanowana zmiana ceny (kwota/procent, z zakresem dat) — patrz
+        // includes/ti_price_changes.php. Nie zmienia k30_ti_courses/k30_ti_enrollments,
+        // tylko wynik dla okresów objętych zakresem dat zmiany.
+        require_once __DIR__ . '/ti_price_changes.php';
+        $price_change = ti_price_change_effective_for((int)$e['course_id'], $client_id, $from, $to);
+        $eff = ti_price_change_apply_to_effective($eff, $price_change);
         $models[$eff['code']] = true;
         $course_amount = 0.0;
         if ($eff['model'] === 1 || $eff['model'] === 3) {
