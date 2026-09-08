@@ -12,6 +12,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS
 require_once dirname(__DIR__) . '/kursant/auth.php'; // parent_make_token(), student_impersonate()
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -118,10 +119,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'updated_at'    => date('Y-m-d H:i:s'),
         ]);
 
+        // Kod polecający (opcjonalnie) — rabat dla obu stron, patrz ti_referrals.php
+        $ref_code = trim((string)($_POST['referral_code'] ?? ''));
+        $ref_msg  = '';
+        if ($ref_code !== '') {
+            $ref = ti_referral_redeem($ref_code, $cid, $uid);
+            $ref_msg = $ref['ok']
+                ? " Kod polecający przyjęty — polecił {$ref['referrer_name']}."
+                : ' Kod polecający: ' . $ref['error'];
+        }
+
         // Pokaż hasło raz w sesji
         $_SESSION['new_student_creds'] = ['login' => $login, 'password' => $pass, 'name' => $c['name']];
         $sms = _student_send_login_sms($c['phone'] ?? '', $login, $pass);
-        flash_set('success', "Konto kursanta dla {$c['name']} utworzone. Login: {$login}." . $sms);
+        flash_set('success', "Konto kursanta dla {$c['name']} utworzone. Login: {$login}." . $sms . $ref_msg);
         header('Location: konta.php'); exit;
     }
 
@@ -1141,6 +1152,14 @@ function printBulk(){
               <?php endforeach; ?>
             </select>
           </div>
+          <?php if (ti_referral_settings()['enabled']): ?>
+          <div class="mb-3">
+            <label class="form-label small">Kod polecający (opcjonalnie)</label>
+            <input type="text" class="form-control text-uppercase" name="referral_code" maxlength="6"
+                   placeholder="np. AB12CD" style="letter-spacing:.15em">
+            <div class="form-text">Jeśli ktoś polecił zajęcia temu kursantowi — rabat dla obu stron naliczy się automatycznie.</div>
+          </div>
+          <?php endif; ?>
           <button type="submit" class="btn btn-success w-100">
             <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz konto
           </button>

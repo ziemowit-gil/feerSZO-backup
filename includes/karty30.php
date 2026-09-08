@@ -5185,6 +5185,15 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
         db()->prepare("UPDATE k30_ti_billing SET " . implode(',', $set) . " WHERE id=?")->execute($p);
         return (int)$ex['id'];
     }
+    // Rabat programu poleceń — TYLKO przy pierwszym wystawieniu za ten okres
+    // (nigdy przy ponownym przeliczeniu, żeby nie nadpisać ręcznej korekty
+    // pracownika). Patrz includes/ti_referrals.php.
+    require_once __DIR__ . '/ti_referrals.php';
+    $ref = ti_referral_billing_adjustment($client_id, $month, $year, (float)$calc['amount']);
+    if ($ref['adjustment'] != 0) {
+        $data['adjustment']      = $ref['adjustment'];
+        $data['adjustment_note'] = $ref['note'];
+    }
     return db_insert('k30_ti_billing', array_merge($data, [
         'client_id' => $client_id, 'month' => $month, 'year' => $year, 'course_id' => $course_id,
         'due_date'  => $due_date,
