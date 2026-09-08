@@ -83,10 +83,11 @@ function ti_price_change_apply_to_effective(array $eff, ?array $change): array {
 }
 
 /**
- * Domyślny tekst e-maila — punkt wyjścia do edycji przez kierownika w formularzu.
- * Opisuje samą zmianę (np. "+10%" albo "120,00 zł"), nie kwoty przed/po —
- * przy zasięgu 'course' i modelu godzinowym każdy kursant ma własną stawkę
- * na zapisie (nie ma jednej "ceny kursu"), więc jedna para przed/po byłaby myląca.
+ * Domyślny tekst e-maila — używany jako PUNKT WYJŚCIA w formularzu (JS,
+ * przycisk "Wygeneruj/odśwież") i jako SIATKA BEZPIECZEŃSTWA tutaj, w
+ * ti_price_change_create(): gdyby temat/treść dotarły puste (np. wywołanie
+ * spoza tego formularza), kursant i tak dostanie sensowną wiadomość, nie
+ * pustą kopertę z samą stopką.
  */
 function ti_price_change_default_email(array $data, string $course_name): array {
     $org    = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
@@ -98,7 +99,7 @@ function ti_price_change_default_email(array $data, string $course_name): array 
     $body = "Dzień dobry,\n\n"
         . "informujemy o zmianie ceny zajęć „{$course_name}”, obowiązującej od {$range}.\n\n"
         . "Zmiana: {$value_label}\n\n"
-        . (trim($data['reason']) !== '' ? "Uzasadnienie: {$data['reason']}\n\n" : '')
+        . (trim((string)$data['reason']) !== '' ? "Uzasadnienie: {$data['reason']}\n\n" : '')
         . "Dokładną nową kwotę znajdziesz w panelu, w zakładce Rozliczenia. W razie pytań prosimy o kontakt "
         . "z prowadzącym albo z biurem placówki.\n\n"
         . "Pozdrawiamy,\n{$org}";
@@ -111,6 +112,14 @@ function ti_price_change_default_email(array $data, string $course_name): array 
  */
 function ti_price_change_create(array $data): int {
     ti_price_changes_migrate();
+    $subject = trim((string)($data['email_subject'] ?? ''));
+    $body    = trim((string)($data['email_body'] ?? ''));
+    if ($subject === '' || $body === '') {
+        $course = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$data['course_id']]);
+        $draft  = ti_price_change_default_email($data, (string)($course['name'] ?? 'zajęcia'));
+        if ($subject === '') $subject = $draft['subject'];
+        if ($body === '')    $body    = $draft['body'];
+    }
     return db_insert('k30_ti_price_changes', [
         'scope'         => $data['scope'],
         'course_id'     => (int)$data['course_id'],
@@ -120,8 +129,8 @@ function ti_price_change_create(array $data): int {
         'date_from'     => $data['date_from'],
         'date_to'       => $data['date_to'] ?: null,
         'reason'        => trim((string)$data['reason']),
-        'email_subject' => trim((string)($data['email_subject'] ?? '')),
-        'email_body'    => trim((string)($data['email_body'] ?? '')),
+        'email_subject' => $subject,
+        'email_body'    => $body,
         'created_by'    => $data['created_by'] ?? null,
     ]);
 }
