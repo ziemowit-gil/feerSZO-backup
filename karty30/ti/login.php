@@ -420,7 +420,7 @@ body.kp-login-split-page {
 
         <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
           <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-          Nie masz konta? Skontaktuj się z prowadzącym.
+          Nie masz konta? <a href="zapisy.php">Zostaw kontakt</a> — odezwiemy się w sprawie zapisów.
         </p>
 
         <?php if (k30_pfron_enabled()): ?>
