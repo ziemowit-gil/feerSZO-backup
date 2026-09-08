@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 if (module_enabled('org_enabled')) {
     require_once dirname(dirname(__DIR__)) . '/includes/org.php';
     require_once dirname(dirname(__DIR__)) . '/includes/notification_service.php';
@@ -36,6 +37,7 @@ $notatki     = ezd_notatki_by_sprawa($id);
 $grupy         = ezd_grupy_by_sprawa($id);
 $sign_requests = ezd_sign_requests_by_sprawa($id);
 $shares        = ezd_sprawa_share_list($id);
+$ext_shares    = ezd_ext_share_list($id);
 try { $strony = db_all("SELECT s.*, c.imie_nazwisko AS crm_name FROM ezd_strony s LEFT JOIN crm_contacts c ON c.id=s.crm_id WHERE s.sprawa_id=? ORDER BY s.created_at", [$id]); } catch (\Throwable $e) { $strony = []; }
 
 // Pliki repozytorium pogrupowane: grupa_id => [pliki], 0 => bez grupy
@@ -200,6 +202,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_sprawa_share_remove($id, (int)($_POST['share_user_id'] ?? 0), $user_id);
         flash_set('success', 'Odebrano współdzielenie.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '&share=1'); exit;
+    }
+
+    if ($action === 'ext_share_add' && $can_manage_share) {
+        $ext_email   = trim($_POST['ext_email'] ?? '');
+        $ext_phone   = trim($_POST['ext_phone'] ?? '');
+        $ext_hours   = (int)($_POST['ext_valid_hours'] ?? 48);
+        $ext_message = trim($_POST['ext_message'] ?? '');
+        $ext_zal_ids = array_map('intval', $_POST['ext_zal_ids'] ?? []);
+        $r = ezd_ext_share_create($id, $user_id, $ext_email, $ext_phone, $ext_message, $ext_hours, $ext_zal_ids);
+        flash_set($r['ok'] ? 'success' : 'error', $r['ok']
+            ? ('Udostępniono na zewnątrz.' . ($r['mail_sent'] ? ' E-mail z linkiem został wysłany.' : ' UWAGA: wysyłka e-maila nie powiodła się — użyj „Wyślij ponownie”.'))
+            : $r['error']);
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#tab-uczestnicy'); exit;
+    }
+    if ($action === 'ext_share_resend' && $can_manage_share) {
+        $r = ezd_ext_share_resend((int)($_POST['ext_share_id'] ?? 0), $user_id);
+        flash_set($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Link wysłany ponownie.' : $r['error']);
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#tab-uczestnicy'); exit;
+    }
+    if ($action === 'ext_share_revoke' && $can_manage_share) {
+        ezd_ext_share_revoke((int)($_POST['ext_share_id'] ?? 0), $user_id);
+        flash_set('success', 'Udostępnienie zewnętrzne odwołane.');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#tab-uczestnicy'); exit;
     }
 
     if ($action === 'dekretacja' && $can_act) {
@@ -1209,6 +1234,128 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
       </select>
       <button class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1"></i>Udostępnij</button>
     </form>
+    <?php endif; ?>
+
+    <hr class="my-3">
+
+    <!-- Udostępnianie na zewnątrz (link + kod SMS na telefon) -->
+    <div class="fw-semibold mb-2" style="font-size:.8rem"><i class="bi bi-send-plus me-1 text-primary"></i>Udostępnianie na zewnątrz</div>
+    <?php if($ext_shares): ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm mb-0" style="font-size:.78rem">
+        <thead class="table-light"><tr><th>E-mail</th><th>Telefon</th><th>Ważne do</th><th>Status</th><th>Wyśw.</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach($ext_shares as $es):
+            $es_status = ezd_ext_share_status($es);
+            $es_badge  = [
+                'active'  => '<span class="badge bg-success bg-opacity-15 text-success border border-success">Aktywne</span>',
+                'expired' => '<span class="badge bg-secondary bg-opacity-15 text-secondary border border-secondary">Wygasłe</span>',
+                'revoked' => '<span class="badge bg-danger bg-opacity-15 text-danger border border-danger">Odwołane</span>',
+            ][$es_status];
+        ?>
+        <tr>
+          <td><?= h($es['recipient_email']) ?></td>
+          <td class="text-muted text-nowrap">••• ••• <?= h(substr($es['recipient_phone'], -3)) ?></td>
+          <td class="text-nowrap"><?= date('d.m.Y H:i', strtotime($es['expires_at'])) ?></td>
+          <td><?= $es_badge ?></td>
+          <td><?= (int)$es['view_count'] ?></td>
+          <td class="text-nowrap">
+            <?php if($can_manage_share && $es_status === 'active'): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="ext_share_resend">
+              <input type="hidden" name="ext_share_id" value="<?= (int)$es['id'] ?>">
+              <button class="btn btn-xs btn-link p-0 me-2" title="Wyślij ponownie e-mail z linkiem"><i class="bi bi-envelope-arrow-up"></i></button>
+            </form>
+            <form method="post" class="d-inline" onsubmit="return confirm('Odwołać to udostępnienie? Link i kod SMS przestaną działać.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="ext_share_revoke">
+              <input type="hidden" name="ext_share_id" value="<?= (int)$es['id'] ?>">
+              <button class="btn btn-xs btn-link p-0 text-danger" title="Odwołaj"><i class="bi bi-x-circle"></i></button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted mb-3" style="font-size:.82rem">Koszulka nie jest jeszcze udostępniona na zewnątrz.</div>
+    <?php endif; ?>
+
+    <?php if($can_manage_share): ?>
+      <?php if($zalaczniki):
+        $ext_default_msg = '<p>Udostępniamy Państwu dokumenty dotyczące sprawy <strong>' . h($sprawa['znak_sprawy']) . '</strong>.</p>'
+                          . '<p>Aby uzyskać dostęp, prosimy kliknąć w link w tej wiadomości i potwierdzić dostęp kodem SMS wysłanym na podany numer telefonu.</p>';
+      ?>
+    <form method="post" class="d-flex flex-column gap-2" style="max-width:480px">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="ext_share_add">
+      <div class="fw-semibold" style="font-size:.82rem">Udostępnij dokumenty nowemu odbiorcy</div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Pliki do udostępnienia <span class="text-danger">*</span></label>
+        <div class="border rounded p-2" style="max-height:160px;overflow-y:auto">
+          <?php foreach($zalaczniki as $z): ?>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="ext_zal_ids[]" value="<?= (int)$z['id'] ?>" id="ext-zal-<?= (int)$z['id'] ?>" checked>
+            <label class="form-check-label" for="ext-zal-<?= (int)$z['id'] ?>" style="font-size:.8rem"><?= h($z['original_name']) ?></label>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">E-mail odbiorcy <span class="text-danger">*</span></label>
+        <input type="email" name="ext_email" class="form-control form-control-sm" required>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Telefon odbiorcy — na ten numer wyślemy kod SMS <span class="text-danger">*</span></label>
+        <input type="tel" name="ext_phone" class="form-control form-control-sm" placeholder="np. 600 100 200" required>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Ważność linku</label>
+        <select name="ext_valid_hours" class="form-select form-select-sm">
+          <?php foreach(EZD_EXT_SHARE_VALID_HOURS as $hv=>$hl): ?>
+          <option value="<?= $hv ?>" <?= $hv===48?'selected':'' ?>><?= h($hl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold" style="font-size:.78rem">Treść wiadomości e-mail</label>
+        <textarea name="ext_message" id="extShareMsgEditor" class="form-control form-control-sm" rows="6"><?= $ext_default_msg ?></textarea>
+        <div id="extShareMsgFallback" class="form-text" hidden>Edytor treści nie wczytał się (brak dostępu do CDN) — formularz działa dalej ze zwykłym polem tekstowym.</div>
+      </div>
+
+      <button class="btn btn-sm btn-primary" style="align-self:flex-start"><i class="bi bi-send-plus me-1"></i>Udostępnij i wyślij e-mail</button>
+      <small class="text-muted">Odbiorca będzie musiał potwierdzić dostęp kodem SMS wysłanym na podany numer telefonu.</small>
+    </form>
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+    <script>
+    if (!window.tinymce) {
+      document.getElementById('extShareMsgFallback')?.removeAttribute('hidden');
+    } else {
+      tinymce.init({
+        selector: '#extShareMsgEditor',
+        license_key: 'gpl',
+        promotion: false,
+        branding: false,
+        menubar: false,
+        toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+        plugins: 'lists link',
+        height: 220,
+        entity_encoding: 'raw',
+        setup: function(editor){ editor.on('change', () => editor.save()); }
+      });
+    }
+    </script>
+      <?php else: ?>
+    <div class="text-muted" style="font-size:.82rem">Dodaj najpierw pliki do repozytorium koszulki, aby móc je udostępnić na zewnątrz.</div>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 
