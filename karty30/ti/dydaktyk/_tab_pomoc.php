@@ -54,6 +54,7 @@ if (dyd_is_staff()) {
         ['Rozliczenia grupy',       $_ct('rozliczenia'),          'Rozliczenia kursantów wybranej grupy.', ''],
         ['Rozliczenia kursantów',   $_g('billing'),      'Rozliczenia wszystkich kursantów, niezależnie od grupy.', ''],
         ['Zaległe protokoły',       'protokoly.php',     'Protokoły za zakończone okresy, których prowadzący nie zdążył zatwierdzić — do zatwierdzenia pojedynczo albo wszystkie naraz.', ''],
+        ['Program poleceń',        'polecenia.php',     'Ustawienia rabatu za polecenie (X%/Y%/Z okresów) i lista wszystkich poleceń.', ''],
         ['Zarządzanie kursami',     $_g('kursy'),        'Zakładanie i edycja kursów oraz przypisywanie prowadzących.', ''],
         ['Wypłaty prowadzących',    $_g('wypłaty'),      'Naliczenia wypłat za zajęcia — te same liczby, które trafiają na protokół.', ''],
         ['Praca własna',            $_g('praca_wlasna'), 'Zajęcia typu „praca własna prowadzącego” i ich rozliczenie.', ''],
