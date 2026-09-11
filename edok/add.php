@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
     $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
     $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
+    $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
     if ($description === '')                              $errors[] = 'Uzupełnij opis wydatku — jest wymagany do kontroli merytorycznej.';
@@ -69,6 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $user = current_user();
         $number = edok_next_number();
+        if ($tytul_przelewu === '') {
+            $tytul_przelewu = edok_generate_tytul_przelewu([
+                'typ_dokumentu'    => $typ_dokumentu,
+                'nr_faktury'       => $nr_faktury,
+                'number'           => $number,
+                'data_wystawienia' => $data_wystawienia,
+                'kontrahent_nazwa' => $kontrahent_nazwa,
+            ]);
+        }
         $doc_id = db_insert('edok_documents', [
             'number'              => $number,
             'title'               => $nr_faktury !== '' ? $nr_faktury : $number,
@@ -91,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'rachunek_bankowy'    => $rachunek_bankowy,
             'termin_platnosci'    => $termin_platnosci ?: null,
             'wymaga_mpp'          => $wymaga_mpp,
+            'tytul_przelewu'      => $tytul_przelewu,
             'file_path'           => $file_path,
             'file_size'           => is_file(UPLOAD_DIR . $file_path) ? filesize(UPLOAD_DIR . $file_path) : null,
             'status'              => 'w_obiegu',
@@ -148,7 +159,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label class="form-label">Typ dokumentu</label>
-          <select name="typ_dokumentu" class="form-select" required>
+          <select name="typ_dokumentu" id="typ_dokumentu" class="form-select" required onchange="edokSuggestTytul()">
             <option value="">— wybierz —</option>
             <?php foreach (EDOK_TYPES as $k => $l): ?>
             <option value="<?= h($k) ?>" <?= ($_POST['typ_dokumentu'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
@@ -157,8 +168,8 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="col-sm-6">
           <label class="form-label">Numer dokumentu</label>
-          <input type="text" name="nr_faktury" class="form-control" maxlength="100"
-            value="<?= h($_POST['nr_faktury'] ?? '') ?>" placeholder="np. FV/2026/01/001" required>
+          <input type="text" name="nr_faktury" id="nr_faktury" class="form-control" maxlength="100"
+            value="<?= h($_POST['nr_faktury'] ?? '') ?>" placeholder="np. FV/2026/01/001" required oninput="edokSuggestTytul()">
         </div>
       </div>
 
@@ -178,8 +189,8 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label class="form-label">Kontrahent</label>
-          <input type="text" name="kontrahent_nazwa" class="form-control" maxlength="255"
-            value="<?= h($_POST['kontrahent_nazwa'] ?? '') ?>" required>
+          <input type="text" name="kontrahent_nazwa" id="kontrahent_nazwa" class="form-control" maxlength="255"
+            value="<?= h($_POST['kontrahent_nazwa'] ?? '') ?>" required oninput="edokSuggestTytul()">
         </div>
         <div class="col-sm-3">
           <label class="form-label">NIP kontrahenta</label>
@@ -196,7 +207,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="row g-3 mb-3">
         <div class="col-sm-4">
           <label class="form-label">Data wystawienia</label>
-          <input type="date" name="data_wystawienia" class="form-control" value="<?= h($_POST['data_wystawienia'] ?? '') ?>">
+          <input type="date" name="data_wystawienia" id="data_wystawienia" class="form-control" value="<?= h($_POST['data_wystawienia'] ?? '') ?>" onchange="edokSuggestTytul()">
         </div>
         <div class="col-sm-4">
           <label class="form-label">Data sprzedaży / wykonania</label>
@@ -257,6 +268,17 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <div id="mpp-alert" class="alert alert-warning py-2 small mb-3" style="display:none">
         <i class="bi bi-exclamation-triangle-fill"></i> Kwota brutto ≥ 15 000 PLN — zwykle wymagany MPP.
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Tytuł przelewu</label>
+        <div class="input-group">
+          <input type="text" name="tytul_przelewu" id="tytul_przelewu" class="form-control" maxlength="140"
+            value="<?= h($_POST['tytul_przelewu'] ?? '') ?>" placeholder="Uzupełni się automatycznie z danych dokumentu…"
+            oninput="edokTytulDirty = true">
+          <button type="button" class="btn btn-outline-secondary" onclick="edokSuggestTytul(true)"><i class="bi bi-magic"></i> Generuj</button>
+        </div>
+        <div class="form-text">Podpowiadany automatycznie z typu, numeru, daty wystawienia i kontrahenta — można nadpisać ręcznie.</div>
       </div>
 
       <hr>
@@ -325,6 +347,30 @@ function edokToggleProjekt() {
 edokToggleProjekt();
 edokMppCheck();
 
+// Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
+// (typ dokumentu + numer + data wystawienia + kontrahent), żeby podgląd na żywo zgadzał
+// się z tym, co i tak dogenerowałby backend przy pustym polu.
+var EDOK_TYPE_LABELS = <?= json_encode(EDOK_TYPES, JSON_UNESCAPED_UNICODE) ?>;
+var edokTytulDirty = <?= !empty($_POST['tytul_przelewu']) ? 'true' : 'false' ?>;
+function edokFormatDatePl(iso) {
+  var p = (iso || '').split('-');
+  return p.length === 3 ? (p[2] + '.' + p[1] + '.' + p[0]) : '';
+}
+function edokSuggestTytul(force) {
+  var field = document.getElementById('tytul_przelewu');
+  if (!field || (edokTytulDirty && !force)) return;
+  var typ = EDOK_TYPE_LABELS[document.getElementById('typ_dokumentu').value] || 'Dokument księgowy';
+  var nr = document.getElementById('nr_faktury').value.trim();
+  var data = edokFormatDatePl(document.getElementById('data_wystawienia').value);
+  var kontrahent = document.getElementById('kontrahent_nazwa').value.trim();
+  var t = typ;
+  if (nr) t += ' nr ' + nr;
+  if (data) t += ' z ' + data;
+  if (kontrahent) t += ' — ' + kontrahent;
+  field.value = t.trim().substring(0, 140);
+  edokTytulDirty = false;
+}
+
 // ── Selektor kontrahenta (kartoteka: zapisani dostawcy + CRM) ────────────────
 (function () {
   var search  = document.getElementById('kontrahent-search');
@@ -343,6 +389,7 @@ edokMppCheck();
          + (r.nip ? ' · NIP: ' + esc(r.nip) : '')
       : '';
     results.style.display = 'none';
+    edokSuggestTytul();
   }
 
   var timer = null;
@@ -414,6 +461,7 @@ function edokKsefFetch() {
       document.getElementById('file_input').required = false;
       document.getElementById('file_upload_wrap').style.display = 'none';
       document.getElementById('ksef_file_attached').style.display = '';
+      edokSuggestTytul();
 
       status.textContent = 'Uzupełniono dane z KSeF. Sprawdź i uzupełnij netto/VAT oraz dekretację.';
       status.className = 'form-text text-success';

@@ -278,6 +278,28 @@ function edok_next_number(): string {
     return sprintf('EODoK/%04d/%s', $next, $year);
 }
 
+/**
+ * Sensowny domyślny tytuł przelewu: "{typ dokumentu} nr {nr faktury / numer EODoK}
+ * z {data wystawienia} — {kontrahent}". Pomija segmenty bez danych (np. brak daty
+ * wystawienia). Przycięty do 140 znaków (typowy limit pola tytułu przelewu w
+ * bankowości elektronicznej — ten sam limit co w KDOK, ksiegowosc/add.php).
+ */
+function edok_generate_tytul_przelewu(array $doc): string {
+    $typ = EDOK_TYPES[$doc['typ_dokumentu'] ?? ''] ?? 'Dokument księgowy';
+    $nr  = trim((string)($doc['nr_faktury'] ?? ''));
+    if ($nr === '') $nr = trim((string)($doc['number'] ?? ''));
+    $data     = trim((string)($doc['data_wystawienia'] ?? ''));
+    $data_fmt = ($data !== '' && strtotime($data)) ? date('d.m.Y', strtotime($data)) : '';
+    $kontrahent = trim((string)($doc['kontrahent_nazwa'] ?? ''));
+
+    $t = $typ;
+    if ($nr !== '')         $t .= ' nr ' . $nr;
+    if ($data_fmt !== '')   $t .= ' z ' . $data_fmt;
+    if ($kontrahent !== '') $t .= ' — ' . $kontrahent;
+
+    return mb_substr(trim($t), 0, 140);
+}
+
 // ── Pobieranie dokumentu ──────────────────────────────────────────────────────
 
 function edok_get(int $id): ?array {
@@ -784,6 +806,9 @@ function edok_preliminarz_query(array $f = []): array {
             'klasyfikacja'      => edok_transfer_label_klasyfikacja($r['rodzaj_dzialalnosci'], $r['projekt']),
             'status_platnosci'  => $r['status_platnosci'] ?: 'nowy',
             'wymaga_mpp'        => (int)$r['wymaga_mpp'],
+            // Dokumenty sprzed dodania pola mają puste tytul_przelewu — dogeneruj w locie,
+            // żeby Preliminarz zawsze pokazywał gotowy tytuł do wklejenia w przelewie.
+            'tytul_przelewu'    => $r['tytul_przelewu'] ?: edok_generate_tytul_przelewu($r),
             'view_url'          => APP_URL . '/edok/view.php?id=' . $r['id'],
         ];
     }
@@ -826,6 +851,7 @@ function edok_preliminarz_query(array $f = []): array {
                 'klasyfikacja'      => $r['centrum_kosztow'] ?: $r['projekt'] ?? '',
                 'status_platnosci'  => $r['status_platnosci'] ?: 'nowy',
                 'wymaga_mpp'        => (int)($r['wymaga_mpp'] ?? 0),
+                'tytul_przelewu'    => $r['tytul_przelewu'] ?: $r['title'],
                 'view_url'          => APP_URL . '/ksiegowosc/view.php?id=' . $r['id'],
             ];
         }

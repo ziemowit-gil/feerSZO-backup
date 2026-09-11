@@ -40,12 +40,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj])) $rodzaj = $locked_dekretacja ? $doc['rodzaj_dzialalnosci'] : '';
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
+        $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
+        if ($tytul_przelewu === '') {
+            $tytul_przelewu = edok_generate_tytul_przelewu([
+                'typ_dokumentu'    => $doc['typ_dokumentu'],
+                'nr_faktury'       => $nr_faktury,
+                'number'           => $doc['number'],
+                'data_wystawienia' => $doc['data_wystawienia'],
+                'kontrahent_nazwa' => $kontrahent_nazwa,
+            ]);
+        }
 
         db_exec(
             "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?,
-                kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, updated_at=datetime('now')
+                kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?, updated_at=datetime('now')
              WHERE id=?",
-            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $id]
+            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu, $id]
         );
         edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.');
         flash_set('success', 'Dane zaktualizowane.');
@@ -192,6 +202,18 @@ $steps_config = [
             <?php if ($doc['data_wystawienia']): ?><tr><td class="text-muted">Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_sprzedazy']): ?><tr><td class="text-muted">Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_wplywu']): ?><tr><td class="text-muted">Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['tytul_przelewu']): ?>
+            <tr>
+              <td class="text-muted">Tytuł przelewu</td>
+              <td>
+                <span class="font-monospace" id="tytul_przelewu_view"><?= h($doc['tytul_przelewu']) ?></span>
+                <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Kopiuj"
+                  onclick="navigator.clipboard.writeText(document.getElementById('tytul_przelewu_view').textContent)">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </td>
+            </tr>
+            <?php endif; ?>
           </tbody>
         </table>
 
@@ -301,6 +323,13 @@ $steps_config = [
         <div class="mb-2">
           <label class="form-label small fw-semibold mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Tytuł przelewu</label>
+          <div class="input-group input-group-sm">
+            <input type="text" id="e_tytul" name="tytul_przelewu" class="form-control form-control-sm" maxlength="140" value="<?= h($doc['tytul_przelewu']) ?>">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="edokViewSuggestTytul()"><i class="bi bi-magic"></i> Generuj</button>
+          </div>
         </div>
         <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
       </form>
@@ -464,6 +493,22 @@ function edokViewRecalc() {
   var netto = parseFloat((n.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   var vat   = parseFloat((v.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   if (netto + vat > 0) b.value = (netto + vat).toFixed(2).replace('.', ',');
+}
+
+// Ten sam wzorzec co edok_generate_tytul_przelewu() w PHP — typ i data wystawienia
+// są tu stałe (nieedytowalne w tym formularzu), numer i kontrahent brane z pól edycji.
+var EDOK_TYP_LABEL_VIEW = <?= json_encode(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_DATA_WYST_PL   = <?= json_encode($doc['data_wystawienia'] ? date('d.m.Y', strtotime($doc['data_wystawienia'])) : '', JSON_UNESCAPED_UNICODE) ?>;
+function edokViewSuggestTytul() {
+  var nrField = document.querySelector('#metaForm [name="nr_faktury"]');
+  var kontrField = document.querySelector('#metaForm [name="kontrahent_nazwa"]');
+  var nr = nrField ? nrField.value.trim() : '';
+  var kontrahent = kontrField ? kontrField.value.trim() : '';
+  var t = EDOK_TYP_LABEL_VIEW;
+  if (nr) t += ' nr ' + nr;
+  if (EDOK_DATA_WYST_PL) t += ' z ' + EDOK_DATA_WYST_PL;
+  if (kontrahent) t += ' — ' + kontrahent;
+  document.getElementById('e_tytul').value = t.trim().substring(0, 140);
 }
 </script>
 

@@ -45,10 +45,10 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Cache-Control: no-cache');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Źródło','Numer','Tytuł','Kontrahent','NIP','Nr rachunku','Netto','VAT','Brutto','Waluta','Termin płatności','Klasyfikacja','Status płatności','MPP'], ';');
+    fputcsv($out, ['Źródło','Numer','Tytuł','Tytuł przelewu','Kontrahent','NIP','Nr rachunku','Netto','VAT','Brutto','Waluta','Termin płatności','Klasyfikacja','Status płatności','MPP'], ';');
     foreach ($rows as $r) {
         fputcsv($out, [
-            strtoupper($r['source']), $r['number'], $r['title'], $r['kontrahent'], $r['nip'], $r['rachunek_bankowy'],
+            strtoupper($r['source']), $r['number'], $r['title'], $r['tytul_przelewu'] ?? '', $r['kontrahent'], $r['nip'], $r['rachunek_bankowy'],
             $r['kwota_netto'], $r['kwota_vat'], $r['kwota_brutto'], $r['waluta'],
             $r['termin_platnosci'] ? substr($r['termin_platnosci'], 0, 10) : '',
             $r['klasyfikacja'], $r['status_platnosci'], !empty($r['wymaga_mpp']) ? 'MPP' : '',
@@ -159,6 +159,7 @@ require_once __DIR__ . '/../includes/header.php';
           <th>Źródło</th>
           <th>Numer</th>
           <th>Kontrahent / NIP</th>
+          <th>Tytuł przelewu</th>
           <th class="text-end">Brutto</th>
           <th>Termin</th>
           <th class="text-center">Dni</th>
@@ -182,6 +183,15 @@ require_once __DIR__ . '/../includes/header.php';
           <td>
             <div><?= h($r['kontrahent'] ?: '—') ?></div>
             <?php if ($r['nip']): ?><div class="text-muted small font-monospace"><?= h($r['nip']) ?></div><?php endif; ?>
+          </td>
+          <td>
+            <?php if (!empty($r['tytul_przelewu'])): ?>
+            <span class="font-monospace" style="font-size:.78rem"><?= h($r['tytul_przelewu']) ?></span>
+            <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Kopiuj tytuł przelewu"
+              onclick="navigator.clipboard.writeText(<?= json_encode($r['tytul_przelewu'], JSON_UNESCAPED_UNICODE) ?>)">
+              <i class="bi bi-clipboard"></i>
+            </button>
+            <?php else: ?>—<?php endif; ?>
           </td>
           <td class="text-end font-monospace fw-semibold"><?= $r['kwota_brutto'] ? h($r['kwota_brutto']) : '—' ?> <?= h($r['waluta']) ?></td>
           <td><?php if ($termin): ?><span class="<?= $p <= 2 ? 'fw-semibold' : '' ?>"><?= h(substr($termin, 0, 10)) ?></span><?php else: ?>—<?php endif; ?></td>
