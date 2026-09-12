@@ -433,6 +433,13 @@ if ($_sms_enabled && $cur_course) {
                       aria-label="Uzupełnij obecność i temat: <?= h(date('d.m.Y', $sdate)) ?>">
                 <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Uzupełnij
               </button>
+              <?php elseif (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])): ?>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
+                      onclick="wizOpenExt(<?= (int)$s['id'] ?>)"
+                      title="Dokumentacja niekompletna — dopisz temat kreatorem"
+                      aria-label="Uzupełnij temat lekcji: <?= h(date('d.m.Y', $sdate)) ?>">
+                <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Uzupełnij
+              </button>
               <?php endif; ?>
               <div class="dropdown">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-2"
@@ -598,8 +605,13 @@ if ($_sms_enabled && $cur_course) {
 
 
 <?php
-// Dane do kreatora (wizOpenExt) — zaplanowane lekcje z dziś lub przeszłości
-$_ext_for_wiz = array_filter($sessions, fn($s) => $s['status'] === 'planned' && $s['lesson_date'] <= $_today);
+// Dane do kreatora (wizOpenExt) — zaplanowane lekcje z dziś lub przeszłości,
+// oraz odbyte lekcje z niekompletną dokumentacją (dopisanie tematu przyciskiem
+// "Uzupełnij" w wierszu, patrz niżej).
+$_ext_for_wiz = array_filter($sessions, fn($s) =>
+    ($s['status'] === 'planned' && $s['lesson_date'] <= $_today)
+    || (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete']))
+);
 $_wiz_ext_data = [];
 foreach ($_ext_for_wiz as $_we) {
     $_watt = k30_ti_session_attendance((int)$_we['id']);
