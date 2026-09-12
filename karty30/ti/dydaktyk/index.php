@@ -2504,12 +2504,14 @@ if (count($courses) > 1) {
     foreach ($courses as $_c) { if ((int)$_c['id'] === $cur_course) { $cur_course_name = $_c['name']; break; } }
     ob_start(); ?>
 <div class="dropdown">
-  <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1"
+  <button class="btn btn-light border dropdown-toggle d-flex align-items-center gap-2 py-1"
           type="button" data-bs-toggle="dropdown" aria-expanded="false"
-          style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-          title="Zmień grupę">
-    <i class="bi bi-people-fill flex-shrink-0" aria-hidden="true"></i>
-    <span class="text-truncate"><?= h($cur_course_name) ?></span>
+          style="max-width:240px" title="Zmień grupę">
+    <i class="bi bi-people-fill flex-shrink-0 text-primary" aria-hidden="true"></i>
+    <span class="d-flex flex-column align-items-start lh-sm overflow-hidden">
+      <span class="text-uppercase text-body-secondary" style="font-size:.62rem;letter-spacing:.04em">Grupa</span>
+      <span class="text-truncate fw-semibold" style="max-width:180px"><?= h($cur_course_name) ?></span>
+    </span>
   </button>
   <ul class="dropdown-menu dropdown-menu-end" style="min-width:220px">
     <li><h6 class="dropdown-header"><i class="bi bi-arrow-left-right me-1"></i>Zmień grupę</h6></li>
@@ -2574,10 +2576,19 @@ if (count($courses) > 1) {
 <?php $_dyd_course_switcher = ob_get_clean();
 }
 
-$_dyd_staff_badge = dyd_is_staff()
-    ? '<span class="badge ms-2 flex-shrink-0" style="background:#f59e0b;color:#1c1917;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz wszystkie grupy">'
-      . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Uprawnienia kierownika</span>'
-    : '';
+// Odznaka roli — zawsze widoczna, żeby było jasne w jakiej roli ktoś pracuje
+// (nie tylko dla kierownika). Trzy stany: kierownik / prowadzący / prowadzący
+// w zastępstwie (patrz choose_context.php, dyd_require()).
+if (!empty($me['acting_as_other'])) {
+    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#fdba74;color:#7c2d12;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Pełne wejście na konto tego prowadzącego">'
+      . '<i class="bi bi-person-video2 me-1" aria-hidden="true"></i>W zastępstwie</span>';
+} elseif (dyd_is_staff()) {
+    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#f59e0b;color:#1c1917;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz wszystkie grupy">'
+      . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Kierownik Instytucji</span>';
+} else {
+    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#dbeafe;color:#1e3a8a;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz tylko swoje grupy">'
+      . '<i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>Prowadzący</span>';
+}
 
 // ── Pełnoekranowe potwierdzenie nieprzeczytanych komunikatów ─────────────────
 // Komunikat placówki, którego prowadzący nie odczytał, zatrzymuje wejście do
