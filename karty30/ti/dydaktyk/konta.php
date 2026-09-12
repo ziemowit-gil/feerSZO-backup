@@ -51,6 +51,22 @@ function _gen_student_no(): string {
 }
 
 /**
+ * Samonaprawa: konta z numerem innym niż 12 cyfr (puste, ręcznie wpisane w innym
+ * formacie, albo sprzed wprowadzenia automatycznego generowania) dostają nowy,
+ * unikalny numer. Tanie przy pustym wyniku — bezpieczne do wołania co żądanie.
+ */
+function _fix_invalid_student_no(): void {
+    $bad = db_all(
+        "SELECT id FROM k30_ti_student_accounts WHERE length(student_no) != 12 OR student_no GLOB '*[^0-9]*'"
+    );
+    foreach ($bad as $row) {
+        db()->prepare("UPDATE k30_ti_student_accounts SET student_no=?, updated_at=datetime('now') WHERE id=?")
+           ->execute([_gen_student_no(), (int)$row['id']]);
+    }
+}
+_fix_invalid_student_no();
+
+/**
  * Wysyła dane logowania do panelu kursanta SMS-em (jeśli SMS włączony i jest numer).
  * Zwraca dopisek do komunikatu flash informujący o statusie wysyłki.
  */
