@@ -58,6 +58,17 @@ if (!empty($dash_pending_cancel)) {
 if (!empty($_prot_open)) {
     $_todo[] = ['secondary', 'card-checklist', $_prot_open . ' ' . ($_prot_open === 1 ? 'protokół' : 'protokoły') . ' bez zatwierdzenia', $cur_course ? 'index.php?course=' . (int)$cur_course . '&tab=protokol' : null, 'Protokoły'];
 }
+// Protokoły miesięczne (patrz includes/ti_protocols.php) — osobny tor od
+// protokołów per-okres wyżej. Zaległe (miesiąc już się skończył) są pilne;
+// między 1. a 5. dniem miesiąca to niemal zawsze protokół za miesiąc, który
+// właśnie minął — stąd czerwony akcent zamiast zwykłego "secondary".
+if (!empty($_my_pending_protocols)) {
+    $_prot_overdue = array_filter($_my_pending_protocols, fn($p) => !empty($p['is_overdue']));
+    if ($_prot_overdue) {
+        $_n = count($_prot_overdue);
+        $_todo[] = ['danger', 'journal-check', $_n . ' ' . ($_n === 1 ? 'protokół miesięczny zaległy' : 'protokoły miesięczne zaległe'), 'protokoly_moje.php', 'Zamknij protokoły'];
+    }
+}
 if (!empty($_av_drafts)) {
     $_todo[] = ['secondary', 'clock-history', $_av_drafts . ' ' . ($_av_drafts === 1 ? 'okno dostępności' : 'okien dostępności') . ' w stanie szkicu', 'index.php?tab=dostepnosc', 'Dostępność'];
 }
@@ -127,6 +138,27 @@ if (!empty($course_ids)) {
   <span class="badge bg-secondary"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
   <?php endif; ?>
 </div>
+
+<?php
+// Przypomnienie o protokole za POPRZEDNI miesiąc — tylko między 1. a 5. dniem
+// bieżącego miesiąca (wtedy zwykle trzeba go domknąć), patrz includes/ti_protocols.php.
+$_prev_ym = date('Y-m', strtotime('first day of last month'));
+$_prot_prev = ((int)date('j') <= 5)
+    ? array_values(array_filter($_my_pending_protocols ?? [], fn($p) => $p['year_month'] === $_prev_ym))
+    : [];
+if ($_prot_prev):
+?>
+<div class="alert alert-warning d-flex align-items-start gap-2 flex-wrap" role="alert">
+  <i class="bi bi-journal-check flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <strong>Zamknij protokół za poprzedni miesiąc</strong> —
+    <?= implode(', ', array_map(fn($p) => h($p['course_name']), $_prot_prev)) ?>.
+  </div>
+  <a href="protokoly_moje.php" class="btn btn-sm btn-warning text-nowrap">
+    <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Otwórz kreator protokołów
+  </a>
+</div>
+<?php endif; ?>
 
 <?php /* ── Pasek szybkich statystyk: fluid Bootstrap grid, bez stałych szerokości ── */
   $_stat_pct_all = null;

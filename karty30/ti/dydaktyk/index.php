@@ -87,6 +87,7 @@ $my_course_ids_set = dyd_is_staff()
     : [];
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
+$_my_pending_protocols = ti_protocol_pending_months_for_instructor($uid); // protokoły miesięczne do zamknięcia
 $dyd_notices        = ti_notices_list_active_for_instructor($uid);
 $dyd_notices_unread = ti_notices_unread_count_instructor($uid);
 $dyd_notices_admin  = dyd_is_staff() ? ti_notices_list_admin() : null;
@@ -3005,6 +3006,12 @@ if ($cur_course && dyd_is_staff()) {
   </a>
   <a class="dyd-sb-link" href="planner.php">
     <i class="bi bi-layout-wtf" aria-hidden="true"></i>Planner
+  </a>
+  <a class="dyd-sb-link" href="protokoly_moje.php">
+    <i class="bi bi-journal-check" aria-hidden="true"></i>Protokoły
+    <?php if (!empty($_my_pending_protocols)): ?>
+    <span class="badge bg-warning text-dark ms-auto" style="font-size:.6rem"><?= count($_my_pending_protocols) ?></span>
+    <?php endif; ?>
   </a>
 
   <div class="dyd-sb-sep"></div>

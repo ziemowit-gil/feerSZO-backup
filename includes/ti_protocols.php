@@ -84,9 +84,102 @@ function ti_protocols_migrate(): void {
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_name   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_at     TEXT",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_ip     TEXT NOT NULL DEFAULT ''",
+        // Tryb miesięczny (obok istniejącego trybu "okres nauczania" — period_id):
+        // protokół bez period_id, kluczowany (course_id, year_month) "RRRR-MM".
+        // Stare protokoły per-okres zostają nietknięte; nowe zamykanie jest per-miesiąc.
+        "ALTER TABLE k30_ti_protocols ADD COLUMN year_month TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
         try { db()->exec($sql); } catch (\Throwable $e) {}
     }
+    try {
+        db()->exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_prot_course_month
+             ON k30_ti_protocols(course_id, year_month) WHERE year_month != ''"
+        );
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Protokół miesięczny kursu — pobiera istniejący albo zakłada nowy (status
+ * 'open'). $year_month w formacie "RRRR-MM". Osobny tor od protokołów
+ * per-okres (period_id) — patrz nagłówek pliku.
+ */
+function ti_protocol_get_or_create_for_month(int $course_id, string $year_month): array {
+    ti_protocols_migrate();
+    $row = db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
+    if ($row) return $row;
+    db()->prepare(
+        "INSERT INTO k30_ti_protocols (course_id, year_month, title, status) VALUES (?,?,?,'open')"
+    )->execute([$course_id, $year_month, 'Protokół ' . $year_month]);
+    return db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
+}
+
+/**
+ * Miesiące (kurs + "RRRR-MM") które prowadzący powinien zamknąć: każdy
+ * miesiąc, w którym kurs miał choć jedną nieodwołaną lekcję, a protokół
+ * miesięczny nie jest jeszcze zatwierdzony. Miesiąc bieżący liczy się jako
+ * "w toku" (można zamknąć wcześniej, ale nie jest jeszcze zaległy);
+ * wcześniejsze niezamknięte miesiące są "zaległe".
+ */
+function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
+    ti_protocols_migrate();
+    $courses = k30_ti_instructor_courses($instructor_uid, false);
+    if (!$courses) return [];
+    $cur_ym = date('Y-m');
+    $out = [];
+    foreach ($courses as $c) {
+        $cid = (int)$c['id'];
+        $months = db_all(
+            "SELECT DISTINCT strftime('%Y-%m', lesson_date) AS ym
+               FROM k30_ti_sessions
+              WHERE course_id=? AND status NOT IN ('cancelled','draft') AND lesson_date <= date('now')
+              ORDER BY ym",
+            [$cid]
+        );
+        foreach ($months as $m) {
+            $ym = (string)$m['ym'];
+            if ($ym === '' || $ym > $cur_ym) continue;
+            $prot = db_one("SELECT id, status FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$cid, $ym]);
+            if ($prot && (string)$prot['status'] === 'approved') continue;
+            $out[] = [
+                'course_id'   => $cid,
+                'course_name' => (string)$c['name'],
+                'year_month'  => $ym,
+                'protocol_id' => $prot['id'] ?? null,
+                'is_current'  => $ym === $cur_ym,
+                'is_overdue'  => $ym < $cur_ym,
+            ];
+        }
+    }
+    usort($out, fn($a, $b) => $a['year_month'] <=> $b['year_month']);
+    return $out;
+}
+
+/** Podsumowanie miesiąca dla kreatora: liczba lekcji odbytych i średnia frekwencja (%). */
+function ti_protocol_month_summary(int $course_id, string $year_month): array {
+    $sessions = db_all(
+        "SELECT id, status FROM k30_ti_sessions
+          WHERE course_id=? AND strftime('%Y-%m', lesson_date)=? AND status NOT IN ('cancelled','draft')",
+        [$course_id, $year_month]
+    );
+    $held = array_values(array_filter($sessions, fn($s) => in_array($s['status'], K30_TI_HELD_STATUSES, true)));
+    $session_ids = array_column($held, 'id');
+    $present = 0; $total = 0;
+    if ($session_ids) {
+        $ph  = implode(',', array_fill(0, count($session_ids), '?'));
+        $row = db_one(
+            "SELECT SUM(CASE WHEN attended=1 THEN 1 ELSE 0 END) AS present, COUNT(*) AS total
+               FROM k30_ti_attendance WHERE session_id IN ($ph) AND COALESCE(cancelled,0)=0",
+            $session_ids
+        );
+        $present = (int)($row['present'] ?? 0);
+        $total   = (int)($row['total'] ?? 0);
+    }
+    return [
+        'lessons_total' => count($sessions),
+        'lessons_held'  => count($held),
+        'attendance_pct'=> $total > 0 ? round($present * 100 / $total) : null,
+    ];
 }
 
 /** Etykieta stanu protokołu. */
@@ -837,4 +930,41 @@ function ti_protocol_pdf_filename(array $prot): string {
     $base = 'protokol-' . (string)($prot['course_name'] ?? 'zajecia') . '-' . (string)($prot['period_name'] ?? 'okres');
     $base = preg_replace('/[^A-Za-z0-9_\-]+/', '-', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $base) ?: $base);
     return trim((string)$base, '-') . '.pdf';
+}
+
+/**
+ * Wywołuje karty30/ti/dydaktyk/api_protocols.php przez HTTP, przekazując
+ * ciasteczko BIEŻĄCEJ sesji panelu (dyd_start() już ją otworzył) — działa
+ * "w imieniu" zalogowanego prowadzącego. Przygotowanie pod przyszłe
+ * wydzielenie panelu dydaktyka jako osobnej aplikacji: wywołujący (patrz
+ * protokoly_moje.php) próbuje NAJPIERW przez API, a dopiero gdy się nie
+ * uda (sieć, timeout, błąd) — woła bezpośrednio odpowiednią funkcję z tego
+ * pliku (ta sama baza). Zwraca null przy jakimkolwiek niepowodzeniu, żeby
+ * wywołujący mógł spaść na fallback bez rzucania wyjątku.
+ */
+function ti_protocols_api_call(string $action, array $params = [], string $method = 'GET'): ?array {
+    if (!defined('APP_URL') || !function_exists('curl_init')) return null;
+    $url = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/api_protocols.php?action=' . urlencode($action);
+    if ($method === 'GET' && $params) $url .= '&' . http_build_query($params);
+
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 3,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_COOKIE         => session_name() . '=' . session_id(),
+        CURLOPT_CUSTOMREQUEST  => $method,
+    ];
+    if ($method === 'POST') {
+        $opts[CURLOPT_POSTFIELDS] = json_encode($params, JSON_UNESCAPED_UNICODE);
+        $opts[CURLOPT_HTTPHEADER] = ['Content-Type: application/json'];
+    }
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $code < 200 || $code >= 300) return null;
+    $json = json_decode((string)$body, true);
+    return is_array($json) && !isset($json['error']) ? $json : null;
 }
