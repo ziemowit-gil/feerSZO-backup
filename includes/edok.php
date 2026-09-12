@@ -279,23 +279,31 @@ function edok_next_number(): string {
 }
 
 /**
- * Sensowny domyślny tytuł przelewu: "{typ dokumentu} nr {nr faktury / numer EODoK}
- * z {data wystawienia} — {kontrahent}". Pomija segmenty bez danych (np. brak daty
- * wystawienia). Przycięty do 140 znaków (typowy limit pola tytułu przelewu w
- * bankowości elektronicznej — ten sam limit co w KDOK, ksiegowosc/add.php).
+ * Sensowny domyślny tytuł przelewu: "{numer EODoK} — {typ dokumentu} nr {nr faktury}
+ * z {data wystawienia} — {krótki opis}". Numer EODoK jest zawsze na początku (jeśli
+ * znany — patrz obsługa w edok/add.php, gdzie w momencie podglądu w formularzu numer
+ * jeszcze nie istnieje). Zamiast nazwy kontrahenta — skrócony opis wydatku (pierwsze
+ * 60 znaków pola „description”), bo to on identyfikuje przelew na wyciągu bankowym
+ * lepiej niż sama nazwa kontrahenta. Przycięty do 140 znaków (typowy limit pola
+ * tytułu przelewu w bankowości elektronicznej — ten sam limit co w KDOK, ksiegowosc/add.php).
  */
 function edok_generate_tytul_przelewu(array $doc): string {
-    $typ = EDOK_TYPES[$doc['typ_dokumentu'] ?? ''] ?? 'Dokument księgowy';
-    $nr  = trim((string)($doc['nr_faktury'] ?? ''));
-    if ($nr === '') $nr = trim((string)($doc['number'] ?? ''));
+    $numer = trim((string)($doc['number'] ?? ''));
+    $typ   = EDOK_TYPES[$doc['typ_dokumentu'] ?? ''] ?? 'Dokument księgowy';
+    $nr    = trim((string)($doc['nr_faktury'] ?? ''));
     $data     = trim((string)($doc['data_wystawienia'] ?? ''));
     $data_fmt = ($data !== '' && strtotime($data)) ? date('d.m.Y', strtotime($data)) : '';
-    $kontrahent = trim((string)($doc['kontrahent_nazwa'] ?? ''));
+    $opis = preg_replace('/\s+/', ' ', trim((string)($doc['description'] ?? '')));
+    $opis_krotki = '';
+    if ($opis !== '') {
+        $opis_krotki = mb_substr($opis, 0, 60);
+        if (mb_strlen($opis) > 60) $opis_krotki .= '…';
+    }
 
-    $t = $typ;
-    if ($nr !== '')         $t .= ' nr ' . $nr;
-    if ($data_fmt !== '')   $t .= ' z ' . $data_fmt;
-    if ($kontrahent !== '') $t .= ' — ' . $kontrahent;
+    $t = $numer !== '' ? $numer . ' — ' . $typ : $typ;
+    if ($nr !== '')          $t .= ' nr ' . $nr;
+    if ($data_fmt !== '')    $t .= ' z ' . $data_fmt;
+    if ($opis_krotki !== '') $t .= ' — ' . $opis_krotki;
 
     return mb_substr(trim($t), 0, 140);
 }

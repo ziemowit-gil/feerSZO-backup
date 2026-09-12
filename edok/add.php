@@ -36,6 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
     $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
     $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
+    // Numer EODoK nie istnieje jeszcze w momencie renderowania formularza (nadawany
+    // dopiero przy zapisie) — dopóki user ręcznie nie tknie pola, tytuł jest zawsze
+    // dogenerowywany na serwerze z prawdziwym numerem, niezależnie od tego, co JS
+    // pokazał w podglądzie (patrz edokSuggestTytul()/edokTytulDirty w skrypcie niżej).
+    $tytul_przelewu_auto = ($_POST['tytul_przelewu_auto'] ?? '1') === '1';
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
     if ($description === '')                              $errors[] = 'Uzupełnij opis wydatku — jest wymagany do kontroli merytorycznej.';
@@ -70,13 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $user = current_user();
         $number = edok_next_number();
-        if ($tytul_przelewu === '') {
+        if ($tytul_przelewu === '' || $tytul_przelewu_auto) {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $typ_dokumentu,
                 'nr_faktury'       => $nr_faktury,
                 'number'           => $number,
                 'data_wystawienia' => $data_wystawienia,
-                'kontrahent_nazwa' => $kontrahent_nazwa,
+                'description'      => $description,
             ]);
         }
         $doc_id = db_insert('edok_documents', [
@@ -144,6 +149,7 @@ require_once __DIR__ . '/../includes/header.php';
     <form method="post" enctype="multipart/form-data" id="edok-add-form">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="ksef_file_path" id="ksef_file_path" value="">
+      <input type="hidden" name="tytul_przelewu_auto" id="tytul_przelewu_auto" value="<?= ($_POST['tytul_przelewu_auto'] ?? '1') === '0' ? '0' : '1' ?>">
 
       <?php if (org_setting('kdok_ksef_enabled') === '1'): ?>
       <div class="mb-3 p-2 rounded border bg-light">
@@ -175,7 +181,7 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="mb-3">
         <label class="form-label">Opis wydatku <span class="text-muted fw-normal">(kontrola merytoryczna)</span></label>
-        <textarea name="description" class="form-control" rows="2" required
+        <textarea name="description" class="form-control" rows="2" required oninput="edokSuggestTytul()"
           placeholder="Cel wydatku, potwierdzenie wykonania usługi/dostawy…"><?= h($_POST['description'] ?? '') ?></textarea>
       </div>
 
@@ -190,7 +196,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-sm-6">
           <label class="form-label">Kontrahent</label>
           <input type="text" name="kontrahent_nazwa" id="kontrahent_nazwa" class="form-control" maxlength="255"
-            value="<?= h($_POST['kontrahent_nazwa'] ?? '') ?>" required oninput="edokSuggestTytul()">
+            value="<?= h($_POST['kontrahent_nazwa'] ?? '') ?>" required>
         </div>
         <div class="col-sm-3">
           <label class="form-label">NIP kontrahenta</label>
@@ -275,10 +281,10 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="input-group">
           <input type="text" name="tytul_przelewu" id="tytul_przelewu" class="form-control" maxlength="140"
             value="<?= h($_POST['tytul_przelewu'] ?? '') ?>" placeholder="Uzupełni się automatycznie z danych dokumentu…"
-            oninput="edokTytulDirty = true">
+            oninput="edokTytulDirty = true; document.getElementById('tytul_przelewu_auto').value = '0';">
           <button type="button" class="btn btn-outline-secondary" onclick="edokSuggestTytul(true)"><i class="bi bi-magic"></i> Generuj</button>
         </div>
-        <div class="form-text">Podpowiadany automatycznie z typu, numeru, daty wystawienia i kontrahenta — można nadpisać ręcznie.</div>
+        <div class="form-text">Podpowiadany automatycznie z typu dokumentu, numeru, daty wystawienia i skróconego opisu wydatku — można nadpisać ręcznie. Numer EODoK zostanie dopisany na początku dopiero po zapisaniu (nadawany przy zapisie dokumentu).</div>
       </div>
 
       <hr>
@@ -348,13 +354,22 @@ edokToggleProjekt();
 edokMppCheck();
 
 // Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
-// (typ dokumentu + numer + data wystawienia + kontrahent), żeby podgląd na żywo zgadzał
-// się z tym, co i tak dogenerowałby backend przy pustym polu.
+// (numer EODoK + typ dokumentu + numer faktury + data wystawienia + skrócony opis),
+// żeby podgląd na żywo odpowiadał temu, co dogeneruje backend. Numer EODoK nie
+// istnieje jeszcze na etapie formularza (nadawany dopiero przy zapisie) — podgląd
+// pokazuje placeholder, ale to serwer (edok_generate_tytul_przelewu()) wstawi
+// prawdziwy numer, dopóki pole nie zostanie ręcznie zmienione (edokTytulDirty /
+// ukryte pole tytul_przelewu_auto).
 var EDOK_TYPE_LABELS = <?= json_encode(EDOK_TYPES, JSON_UNESCAPED_UNICODE) ?>;
-var edokTytulDirty = <?= !empty($_POST['tytul_przelewu']) ? 'true' : 'false' ?>;
+var edokTytulDirty = <?= (($_POST['tytul_przelewu_auto'] ?? '1') === '0') ? 'true' : 'false' ?>;
 function edokFormatDatePl(iso) {
   var p = (iso || '').split('-');
   return p.length === 3 ? (p[2] + '.' + p[1] + '.' + p[0]) : '';
+}
+function edokShortOpis(text) {
+  text = (text || '').trim().replace(/\s+/g, ' ');
+  if (!text) return '';
+  return text.length > 60 ? text.substring(0, 60) + '…' : text;
 }
 function edokSuggestTytul(force) {
   var field = document.getElementById('tytul_przelewu');
@@ -362,12 +377,14 @@ function edokSuggestTytul(force) {
   var typ = EDOK_TYPE_LABELS[document.getElementById('typ_dokumentu').value] || 'Dokument księgowy';
   var nr = document.getElementById('nr_faktury').value.trim();
   var data = edokFormatDatePl(document.getElementById('data_wystawienia').value);
-  var kontrahent = document.getElementById('kontrahent_nazwa').value.trim();
-  var t = typ;
+  var opisEl = document.querySelector('[name="description"]');
+  var opis = edokShortOpis(opisEl ? opisEl.value : '');
+  var t = 'EODoK/…/' + new Date().getFullYear() + ' — ' + typ;
   if (nr) t += ' nr ' + nr;
   if (data) t += ' z ' + data;
-  if (kontrahent) t += ' — ' + kontrahent;
+  if (opis) t += ' — ' + opis;
   field.value = t.trim().substring(0, 140);
+  document.getElementById('tytul_przelewu_auto').value = '1';
   edokTytulDirty = false;
 }
 
@@ -389,7 +406,6 @@ function edokSuggestTytul(force) {
          + (r.nip ? ' · NIP: ' + esc(r.nip) : '')
       : '';
     results.style.display = 'none';
-    edokSuggestTytul();
   }
 
   var timer = null;
