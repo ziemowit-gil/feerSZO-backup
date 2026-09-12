@@ -30,27 +30,28 @@ if (empty($s['is_staff']) || !$own_courses) {
     header('Location: index.php'); exit;
 }
 
+// Przełączenie na siebie (kierownik/prowadzący) — zwykły link GET, tak jak
+// zakładki Zaloguj/Rejestracja w SZO i dawny przełącznik wyglądu logowania TI.
+// Bez formularza/przycisku submit — eliminuje wszelkie wątpliwości co do
+// klikalności (zgłoszenie: przyciski w <form> czasem nie reagowały).
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['role'] ?? '', ['staff', 'instructor'], true)) {
+    $_SESSION['k30_dyd_ctx']['role'] = $_GET['role'];
+    unset($_SESSION['k30_dyd_ctx']['as_instructor_id']); // powrót do siebie — koniec wcielenia
+    header('Location: index.php'); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
-    $role = (string)($_POST['role'] ?? '');
-
-    if ($role === 'other_instructor') {
-        $instr_id = (int)($_POST['instructor_id'] ?? 0);
-        $reason   = trim((string)($_POST['reason'] ?? ''));
-        $target   = $instr_id ? db_one("SELECT id, name FROM users WHERE id=? AND is_active=1", [$instr_id]) : null;
-        if (!$target || $reason === '') {
-            flash_set('danger', 'Wybierz prowadzącego i podaj uzasadnienie przełączenia.');
-            header('Location: choose_context.php'); exit;
-        }
-        $_SESSION['k30_dyd_ctx']['role']            = 'instructor';
-        $_SESSION['k30_dyd_ctx']['as_instructor_id'] = (int)$target['id'];
-        dyd_instructor_switch_log((int)$s['user_id'], (int)$target['id'], $reason);
-        header('Location: index.php'); exit;
+    $instr_id = (int)($_POST['instructor_id'] ?? 0);
+    $reason   = trim((string)($_POST['reason'] ?? ''));
+    $target   = $instr_id ? db_one("SELECT id, name FROM users WHERE id=? AND is_active=1", [$instr_id]) : null;
+    if (!$target || $reason === '') {
+        flash_set('danger', 'Wybierz prowadzącego i podaj uzasadnienie przełączenia.');
+        header('Location: choose_context.php'); exit;
     }
-
-    $role = $role === 'instructor' ? 'instructor' : 'staff';
-    $_SESSION['k30_dyd_ctx']['role'] = $role;
-    unset($_SESSION['k30_dyd_ctx']['as_instructor_id']); // powrót do siebie — koniec wcielenia
+    $_SESSION['k30_dyd_ctx']['role']            = 'instructor';
+    $_SESSION['k30_dyd_ctx']['as_instructor_id'] = (int)$target['id'];
+    dyd_instructor_switch_log((int)$s['user_id'], (int)$target['id'], $reason);
     header('Location: index.php'); exit;
 }
 
@@ -61,17 +62,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth_screen.php';
 
 ob_start();
 ?>
-<form method="post" class="ks-tabs" aria-label="Wybór roli">
-  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-  <button type="submit" name="role" value="staff" class="ks-tab" style="border:0;background:none;cursor:pointer"
-          <?= $cur_role !== 'instructor' ? 'aria-current="page"' : '' ?>>
+<nav class="ks-tabs" aria-label="Wybór roli">
+  <a class="ks-tab" href="choose_context.php?role=staff"
+     <?= $cur_role !== 'instructor' ? 'aria-current="page"' : '' ?>>
     <i class="bi bi-building me-1" aria-hidden="true"></i>Kierownik Instytucji
-  </button>
-  <button type="submit" name="role" value="instructor" class="ks-tab" style="border:0;background:none;cursor:pointer"
-          <?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? 'aria-current="page"' : '' ?>>
+  </a>
+  <a class="ks-tab" href="choose_context.php?role=instructor"
+     <?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? 'aria-current="page"' : '' ?>>
     <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Prowadzący
-  </button>
-</form>
+  </a>
+</nav>
 <?php
 $_tabs_html = ob_get_clean();
 
@@ -85,20 +85,26 @@ auth_screen_head([
 
 <h1 class="ks-h1">Pracuję jako</h1>
 <p class="ks-lead">
-  Masz uprawnienia kierownika i jednocześnie prowadzisz własne zajęcia. Wybierz rolę zakładką powyżej —
+  Masz uprawnienia kierownika i jednocześnie prowadzisz własne zajęcia. Wybierz rolę poniżej —
   możesz to zmienić w każdej chwili linkiem „Zmień rolę".
 </p>
 
 <?= flash_html() ?>
 
-<div class="ks-field">
-  <label>Kierownik Instytucji</label>
-  <p class="ks-fieldhint mt-0">Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.</p>
-</div>
-<div class="ks-field">
-  <label>Prowadzący</label>
-  <p class="ks-fieldhint mt-0">Tylko Twoje własne kursy (<?= count($own_courses) ?>) — jak zwykły prowadzący, bez zakładek Kierownika.</p>
-</div>
+<a href="choose_context.php?role=staff" class="ks-btn ks-btn--ghost mb-2" style="justify-content:flex-start;text-align:left;height:auto;padding:.85rem 1.1rem">
+  <i class="bi bi-building me-2" aria-hidden="true"></i>
+  <span>
+    <span class="d-block fw-semibold"><?= $cur_role !== 'instructor' ? '✓ ' : '' ?>Kierownik Instytucji</span>
+    <span class="d-block" style="font-size:.8rem;color:var(--ks-muted)">Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.</span>
+  </span>
+</a>
+<a href="choose_context.php?role=instructor" class="ks-btn ks-btn--ghost" style="justify-content:flex-start;text-align:left;height:auto;padding:.85rem 1.1rem">
+  <i class="bi bi-mortarboard me-2" aria-hidden="true"></i>
+  <span>
+    <span class="d-block fw-semibold"><?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? '✓ ' : '' ?>Prowadzący</span>
+    <span class="d-block" style="font-size:.8rem;color:var(--ks-muted)">Tylko Twoje własne kursy (<?= count($own_courses) ?>) — jak zwykły prowadzący, bez zakładek Kierownika.</span>
+  </span>
+</a>
 
 <?php if ($all_instructors): ?>
 <hr class="ks-sep">
