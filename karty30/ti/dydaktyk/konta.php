@@ -41,6 +41,15 @@ function _gen_student_pass(): string {
     return $words[random_int(0, count($words)-1)] . random_int(10, 99);
 }
 
+/** Generuje unikalny 12-cyfrowy numer identyfikacyjny kursanta */
+function _gen_student_no(): string {
+    do {
+        $no = '';
+        for ($i = 0; $i < 12; $i++) $no .= random_int(0, 9);
+    } while (db_one("SELECT id FROM k30_ti_student_accounts WHERE student_no=?", [$no]));
+    return $no;
+}
+
 /**
  * Wysyła dane logowania do panelu kursanta SMS-em (jeśli SMS włączony i jest numer).
  * Zwraca dopisek do komunikatu flash informujący o statusie wysyłki.
@@ -112,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'client_id'     => $cid,
             'login'         => $login,
             'password_hash' => $hash,
+            'student_no'    => _gen_student_no(),
             'is_active'     => 1,
             'must_change_password' => 1, // kursant ustawi własne hasło przy pierwszym logowaniu
             'created_by'    => $uid,
@@ -158,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'client_id'     => $cid,
                 'login'         => $login,
                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+                'student_no'    => _gen_student_no(),
                 'is_active'     => 1,
                 'must_change_password' => 1,
                 'created_by'    => $uid,
