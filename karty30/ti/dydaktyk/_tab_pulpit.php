@@ -249,6 +249,13 @@ if (!empty($course_ids)) {
           <td class="text-end small"><?= (int)($_s['enrolled'] ?? 0) ?: '<span class="text-muted">—</span>' ?></td>
           <td class="small"><span class="badge text-bg-<?= h($_pulpit_status_badge((string)$_s['status'])) ?>"><?= h($_pulpit_status_label((string)$_s['status'])) ?></span></td>
           <td class="text-end text-nowrap">
+            <?php if ((string)$_s['status'] === 'planned'): ?>
+            <button type="button" class="btn btn-sm btn-success" aria-haspopup="dialog"
+                    onclick="wizOpen(<?= (int)$_s['id'] ?>)"
+                    aria-label="Uzupełnij obecność i temat: <?= h($_s['course_name']) ?>">
+              <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Uzupełnij dane lekcji
+            </button>
+            <?php endif; ?>
             <?php if (!$done && !$canc && $att): ?>
             <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
                     data-bs-target="#dyd-att-<?= (int)$_s['id'] ?>" aria-haspopup="dialog"
