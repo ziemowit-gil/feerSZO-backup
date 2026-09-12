@@ -32,14 +32,22 @@ $back_alt = ($_POST['back'] ?? '') === 'alt';
 
 $data = dyd_authenticate($email, $password);
 if ($data) {
-    // Hasło poprawne — dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe dla
-    // każdego konta dydaktyka. Sesję panelu zakłada dopiero totp_gate.php,
-    // po weryfikacji (albo pierwszym założeniu) kodu.
-    dyd_2fa_stash($data);
     try {
         db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")
             ->execute([$data['user_id']]);
     } catch (\Throwable $e) {}
+
+    // Role SZO "admin" pomijają obowiązkowe TOTP (patrz dyd_require()) — sesja
+    // panelu zakłada się od razu, bez przystanku na totp_gate.php.
+    if (($data['role'] ?? '') === 'admin') {
+        dyd_login_user($data);
+        header('Location: index.php'); exit;
+    }
+
+    // Pozostałe konta: dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe.
+    // Sesję panelu zakłada dopiero totp_gate.php, po weryfikacji (albo
+    // pierwszym założeniu) kodu.
+    dyd_2fa_stash($data);
     header('Location: totp_gate.php'); exit;
 }
 
