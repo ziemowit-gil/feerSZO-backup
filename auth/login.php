@@ -87,7 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user && $user['password'] && password_verify($pass, $user['password'])) {
                 brute_clear($email);
                 auth_start();
-                if (!empty($user['twofa_method'])) {
+                // Role "admin" pomijają obowiązkowe 2FA (TOTP/SMS) — spójnie z
+                // panelem dydaktyka TI (karty30/ti/dydaktyk/auth.php, dyd_require()).
+                if (!empty($user['twofa_method']) && ($user['role'] ?? '') !== 'admin') {
                     auth_start();
                     $_SESSION['2fa_uid']      = $user['id'];
                     $_SESSION['2fa_method']   = $user['twofa_method'];
