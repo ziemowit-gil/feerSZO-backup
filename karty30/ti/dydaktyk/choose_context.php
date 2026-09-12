@@ -61,18 +61,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth_screen.php';
 
 ob_start();
 ?>
-<form method="post" style="display:contents">
+<form method="post" class="ks-tabs" aria-label="Wybór roli">
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-  <nav class="ks-tabs" aria-label="Wybór roli">
-    <button type="submit" name="role" value="staff" class="ks-tab" style="border:0;background:none;cursor:pointer"
-            <?= $cur_role !== 'instructor' ? 'aria-current="page"' : '' ?>>
-      <i class="bi bi-building me-1" aria-hidden="true"></i>Kierownik Instytucji
-    </button>
-    <button type="submit" name="role" value="instructor" class="ks-tab" style="border:0;background:none;cursor:pointer"
-            <?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? 'aria-current="page"' : '' ?>>
-      <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Prowadzący
-    </button>
-  </nav>
+  <button type="submit" name="role" value="staff" class="ks-tab" style="border:0;background:none;cursor:pointer"
+          <?= $cur_role !== 'instructor' ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-building me-1" aria-hidden="true"></i>Kierownik Instytucji
+  </button>
+  <button type="submit" name="role" value="instructor" class="ks-tab" style="border:0;background:none;cursor:pointer"
+          <?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Prowadzący
+  </button>
 </form>
 <?php
 $_tabs_html = ob_get_clean();
