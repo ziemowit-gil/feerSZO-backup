@@ -4,9 +4,15 @@
  *
  * Kierownik, który jest TEŻ prowadzącym (własne kursy), wybiera raz na sesję:
  * "Kierownik Instytucji" (pełny widok, jak dziś) albo "Prowadzący" (widzi
- * TYLKO swoje kursy — zakładki Kierownika znikają, jak zwykłemu prowadzącemu).
- * Wybór żyje w sesji ($_SESSION['k30_dyd_ctx']['role']) — patrz dyd_is_staff()
- * w auth.php — zmienny linkiem „Zmień rolę" bez ponownego logowania.
+ * TYLKO swoje kursy — zakładki Kierownika znikają, jak zwykłemu prowadzącemu),
+ * albo pełne wejście na konto DOWOLNEGO prowadzącego (wymaga uzasadnienia,
+ * logowane w k30_ti_instructor_switch_log). Wybór żyje w sesji
+ * ($_SESSION['k30_dyd_ctx']) — patrz dyd_is_staff()/dyd_require() w auth.php —
+ * zmienny linkiem „Zmień rolę" bez ponownego logowania.
+ *
+ * Wygląd współdzielony z resztą logowania SZO (includes/auth_screen.php) —
+ * ten sam szablon co karty30/ti/login.php, tylko zamiast zakładek
+ * Zaloguj/Rejestracja na górze jest wybór roli.
  *
  * UWAGA: NIE woła dyd_require() — ten ekran jest właśnie tym, co dyd_require()
  * przekierowuje, więc wywołanie go tutaj zapętliłoby przekierowania.
@@ -48,78 +54,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: index.php'); exit;
 }
 
-$all_instructors = k30_ti_instructors();
+$all_instructors  = array_values(array_filter(k30_ti_instructors(), fn($i) => (int)$i['id'] !== (int)$s['user_id']));
+$cur_role         = dyd_ctx_role();
 
-$KP_TITLE  = 'Wybierz rolę';
-$KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($s['name'] ?? ''), 'logout' => 'logout.php'];
-$KP_BODY_CLASS = '';
-include dirname(__DIR__) . '/kursant/_layout_head.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth_screen.php';
+
+ob_start();
+?>
+<form method="post" style="display:contents">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <nav class="ks-tabs" aria-label="Wybór roli">
+    <button type="submit" name="role" value="staff" class="ks-tab" style="border:0;background:none;cursor:pointer"
+            <?= $cur_role !== 'instructor' ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-building me-1" aria-hidden="true"></i>Kierownik Instytucji
+    </button>
+    <button type="submit" name="role" value="instructor" class="ks-tab" style="border:0;background:none;cursor:pointer"
+            <?= ($cur_role === 'instructor' && empty($s['acting_as_other'])) ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Prowadzący
+    </button>
+  </nav>
+</form>
+<?php
+$_tabs_html = ob_get_clean();
+
+auth_screen_head([
+    'title'     => 'Wybierz rolę',
+    'tabs_html' => $_tabs_html,
+    'width'     => 560,
+    'main_id'   => 'choose-ctx-main',
+]);
 ?>
 
-<main id="main" class="kp-auth-wrap mx-auto my-5">
-  <div class="card kp-auth-card shadow-lg border-0">
-    <div class="card-body p-4 p-lg-5">
-      <h1 class="h4 fw-bold mb-2"><i class="bi bi-person-gear text-primary me-2" aria-hidden="true"></i>Pracuję jako</h1>
-      <p class="text-body-secondary mb-4">
-        Masz uprawnienia kierownika i jednocześnie prowadzisz własne zajęcia. Wybierz, w jakiej
-        roli chcesz teraz pracować — możesz to zmienić w każdej chwili linkiem „Zmień rolę".
-      </p>
-      <?= flash_html() ?>
-      <form method="post" class="d-flex flex-column gap-2">
-        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-        <button type="submit" name="role" value="staff" class="btn btn-outline-primary btn-lg text-start d-flex align-items-center gap-2">
-          <i class="bi bi-building fs-5" aria-hidden="true"></i>
-          <span>
-            <span class="d-block fw-semibold">Kierownik Instytucji</span>
-            <span class="d-block small text-body-secondary">Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.</span>
-          </span>
-        </button>
-        <button type="submit" name="role" value="instructor" class="btn btn-outline-primary btn-lg text-start d-flex align-items-center gap-2">
-          <i class="bi bi-mortarboard fs-5" aria-hidden="true"></i>
-          <span>
-            <span class="d-block fw-semibold">Prowadzący</span>
-            <span class="d-block small text-body-secondary">
-              Tylko Twoje własne kursy (<?= count($own_courses) ?>) — jak zwykły prowadzący, bez zakładek Kierownika.
-            </span>
-          </span>
-        </button>
-      </form>
+<h1 class="ks-h1">Pracuję jako</h1>
+<p class="ks-lead">
+  Masz uprawnienia kierownika i jednocześnie prowadzisz własne zajęcia. Wybierz rolę zakładką powyżej —
+  możesz to zmienić w każdej chwili linkiem „Zmień rolę".
+</p>
 
-      <?php if ($all_instructors): ?>
-      <hr class="my-4">
-      <h2 class="h6 fw-bold mb-2"><i class="bi bi-person-video2 text-primary me-2" aria-hidden="true"></i>Wejdź jako inny prowadzący</h2>
-      <p class="text-body-secondary small mb-3">
-        Zobaczysz panel dokładnie tak, jak widzi go wybrany prowadzący — zapisywane akcje (obecność,
-        edycje) trafiają na jego konto. Wymaga uzasadnienia — przełączenie jest logowane.
-      </p>
-      <form method="post" class="d-flex flex-column gap-2">
-        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="role" value="other_instructor">
-        <div>
-          <label class="form-label small fw-semibold mb-1" for="oi_instr">Prowadzący</label>
-          <select class="form-select" id="oi_instr" name="instructor_id" required>
-            <option value="">— wybierz —</option>
-            <?php foreach ($all_instructors as $ins): if ((int)$ins['id'] === (int)$s['user_id']) continue; ?>
-            <option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label class="form-label small fw-semibold mb-1" for="oi_reason">Uzasadnienie <span class="text-danger">*</span></label>
-          <textarea class="form-control" id="oi_reason" name="reason" rows="2" required
-                    placeholder="np. weryfikacja zgłoszenia — prowadzący nie widzi swojej lekcji"></textarea>
-        </div>
-        <button type="submit" class="btn btn-outline-primary btn-lg text-start d-flex align-items-center gap-2">
-          <i class="bi bi-box-arrow-in-right fs-5" aria-hidden="true"></i>
-          <span>
-            <span class="d-block fw-semibold">Przełącz się</span>
-            <span class="d-block small text-body-secondary">Pełne wejście na konto wybranego prowadzącego, w Twoim zastępstwie.</span>
-          </span>
-        </button>
-      </form>
-      <?php endif; ?>
-    </div>
+<?= flash_html() ?>
+
+<div class="ks-field">
+  <label>Kierownik Instytucji</label>
+  <p class="ks-fieldhint mt-0">Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.</p>
+</div>
+<div class="ks-field">
+  <label>Prowadzący</label>
+  <p class="ks-fieldhint mt-0">Tylko Twoje własne kursy (<?= count($own_courses) ?>) — jak zwykły prowadzący, bez zakładek Kierownika.</p>
+</div>
+
+<?php if ($all_instructors): ?>
+<hr class="ks-sep">
+<h2 class="ks-h1" style="font-size:1.15rem"><i class="bi bi-person-video2 me-2" aria-hidden="true"></i>Wejdź jako inny prowadzący</h2>
+<p class="ks-lead" style="margin-bottom:1.25rem">
+  Zobaczysz panel dokładnie tak, jak widzi go wybrany prowadzący — zapisywane akcje (obecność, edycje)
+  trafiają na jego konto. Wymaga uzasadnienia — przełączenie jest logowane.
+</p>
+<form method="post">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="role" value="other_instructor">
+  <div class="ks-field">
+    <label for="oi_instr">Prowadzący</label>
+    <select class="form-control" id="oi_instr" name="instructor_id" required>
+      <option value="">— wybierz —</option>
+      <?php foreach ($all_instructors as $ins): ?>
+      <option value="<?= (int)$ins['id'] ?>"><?= h($ins['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
-</main>
+  <div class="ks-field">
+    <label for="oi_reason">Uzasadnienie</label>
+    <textarea class="form-control" id="oi_reason" name="reason" rows="2" required
+              placeholder="np. weryfikacja zgłoszenia — prowadzący nie widzi swojej lekcji"></textarea>
+  </div>
+  <button type="submit" class="ks-btn ks-btn--primary">
+    <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przełącz się
+  </button>
+</form>
+<?php endif; ?>
 
-<?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
+<?php
+auth_screen_foot([
+    'links' => [
+        ['url' => 'index.php', 'label' => 'Panel dydaktyka', 'icon' => 'bi-easel2'],
+        ['url' => 'logout.php', 'label' => 'Wyloguj',         'icon' => 'bi-box-arrow-right'],
+    ],
+]);

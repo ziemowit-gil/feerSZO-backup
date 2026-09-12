@@ -376,7 +376,11 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
     <?php endif; ?>
   </div>
 
-  <?php if ($tab): ?>
+  <?php if (isset($o['tabs_html'])): ?>
+  <div class="ks-toprow">
+    <?= $o['tabs_html'] ?>
+  </div>
+  <?php elseif ($tab): ?>
   <div class="ks-toprow">
     <nav class="ks-tabs" aria-label="Logowanie lub rejestracja">
       <a class="ks-tab" href="<?= APP_URL ?>/auth/login.php"    <?= $tab === 'login'    ? 'aria-current="page"' : '' ?>>Zaloguj</a>
