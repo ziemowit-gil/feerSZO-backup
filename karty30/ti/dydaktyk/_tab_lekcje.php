@@ -374,22 +374,32 @@ if ($_sms_enabled && $cur_course) {
             <?php elseif ($_lm2 === 'zdalna_inne'): ?>
             <i class="bi bi-display ms-1" title="Zdalna — Inne" data-bs-toggle="tooltip" style="color:#6B21A8;font-size:.8rem"></i>
             <?php endif; ?>
-            <?php $_s_instr = (int)($s['instructor_id'] ?? 0); if ($_s_instr && $_s_instr !== (int)($course['instructor_id'] ?? 0)): ?>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-block mt-1" style="font-size:.66rem">
-              <i class="bi bi-person-workspace me-1" aria-hidden="true"></i>Zastępstwo: <?= h($_instr_names[$_s_instr] ?? ('#' . $_s_instr)) ?>
-            </span>
-            <?php endif; ?>
-            <?php if (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])): ?>
-            <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle d-block mt-1" style="font-size:.66rem"
-                  title="Brak potwierdzenia uzupełnienia dokumentacji — zaznacz w menu „Więcej”">
-              <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Dokumentacja niekompletna
-            </span>
-            <?php endif; ?>
-            <?php if (!empty($s['rescheduled_from_date'])): ?>
-            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1" style="font-size:.66rem"
-                  title="Normalny termin tej lekcji to <?= h(date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))) ?><?= $s['rescheduled_from_time_from'] ? ', ' . h(substr((string)$s['rescheduled_from_time_from'], 0, 5)) : '' ?> — uwzględniane tak w planie zajęć (siatka).">
-              <i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Przeniesiono z <?= h(date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))) ?>
-            </span>
+            <?php
+              // Odznaki dodatkowe — jako ikony w jednej linii zamiast osobnych bloków,
+              // żeby wiersz nie rozciągał się na kilka linii (pełny opis w title/tooltip).
+              $_s_instr = (int)($s['instructor_id'] ?? 0);
+              $_flags = [];
+              if ($_s_instr && $_s_instr !== (int)($course['instructor_id'] ?? 0)) {
+                  $_flags[] = ['icon' => 'person-workspace', 'cls' => 'text-warning-emphasis bg-warning-subtle border-warning-subtle',
+                               'title' => 'Zastępstwo: ' . ($_instr_names[$_s_instr] ?? ('#' . $_s_instr))];
+              }
+              if (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])) {
+                  $_flags[] = ['icon' => 'exclamation-triangle-fill', 'cls' => 'text-danger-emphasis bg-danger-subtle border-danger-subtle',
+                               'title' => 'Dokumentacja niekompletna — zaznacz w menu „Więcej”'];
+              }
+              if (!empty($s['rescheduled_from_date'])) {
+                  $_flags[] = ['icon' => 'calendar2-range', 'cls' => 'text-info-emphasis bg-info-subtle border-info-subtle',
+                               'title' => 'Przeniesiono z ' . date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))];
+              }
+            ?>
+            <?php if ($_flags): ?>
+            <div class="mt-1">
+              <?php foreach ($_flags as $_f): ?>
+              <span class="badge <?= $_f['cls'] ?> border me-1" title="<?= h($_f['title']) ?>" data-bs-toggle="tooltip">
+                <i class="bi bi-<?= $_f['icon'] ?>" aria-hidden="true"></i><span class="visually-hidden"><?= h($_f['title']) ?></span>
+              </span>
+              <?php endforeach; ?>
+            </div>
             <?php endif; ?>
           </td>
           <td class="text-truncate" style="max-width:0;font-size:.83rem">
@@ -440,22 +450,14 @@ if ($_sms_enabled && $cur_course) {
               <div class="dropdown">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                         data-bs-toggle="dropdown" aria-expanded="false"
-                        aria-label="Wydruki dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
-                  <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydruki
+                        aria-label="Więcej akcji dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
+                  Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                   <li><a class="dropdown-item" href="lekcja_pdf.php?id=<?= (int)$s['id'] ?>" target="_blank">
                     <i class="bi bi-file-earmark-pdf me-2"></i>Karta lekcji (PDF)
                   </a></li>
-                </ul>
-              </div>
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                        data-bs-toggle="dropdown" aria-expanded="false"
-                        aria-label="Więcej akcji dla lekcji <?= h(date('d.m.Y', $sdate)) ?>">
-                  Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><hr class="dropdown-divider"></li>
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
