@@ -191,7 +191,49 @@ function dyd_require(): array {
         }
         $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej
     }
+
+    // Pełne wcielenie w wybranego prowadzącego (patrz choose_context.php, opcja
+    // „Wejdź jako inny prowadzący"). Od tego miejsca $s['user_id']/name/email to
+    // dane WSKAZANEGO prowadzącego — dalsze dyd_owns_course()/dyd_owns_session()
+    // i wszystkie zapisy (created_by, instructor_id...) w dalszym kodzie działają
+    // tak, jakby to on był zalogowany. Prawdziwa tożsamość (TOTP wyżej już jej
+    // użyło) zostaje pod real_user_id — do banera „w zastępstwie" w UI.
+    $s['real_user_id'] = (int)$s['user_id'];
+    $as_id = (int)($_SESSION['k30_dyd_ctx']['as_instructor_id'] ?? 0);
+    if ($as_id && dyd_ctx_role() === 'instructor') {
+        $target = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$as_id]);
+        if ($target) {
+            $s['user_id']         = (int)$target['id'];
+            $s['name']            = (string)$target['name'];
+            $s['email']           = (string)$target['email'];
+            $s['acting_as_other'] = true;
+        } else {
+            // Prowadzący zniknął/dezaktywowany w międzyczasie — wyjdź z wcielenia.
+            unset($_SESSION['k30_dyd_ctx']['as_instructor_id']);
+            header('Location: choose_context.php'); exit;
+        }
+    }
     return $s;
+}
+
+/**
+ * Loguje przełączenie kierownika na widok/konto innego prowadzącego (pełne
+ * wcielenie — patrz choose_context.php). Wymaga uzasadnienia po stronie
+ * wywołującego; tu tylko zapis do audytu.
+ */
+function dyd_instructor_switch_log(int $kierownik_user_id, int $instructor_user_id, string $reason): void {
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_switch_log (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            kierownik_user_id   INTEGER NOT NULL,
+            instructor_user_id  INTEGER NOT NULL,
+            reason              TEXT NOT NULL,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+        db()->prepare(
+            "INSERT INTO k30_ti_instructor_switch_log (kierownik_user_id, instructor_user_id, reason) VALUES (?,?,?)"
+        )->execute([$kierownik_user_id, $instructor_user_id, $reason]);
+    } catch (\Throwable $e) {}
 }
 
 /** Rola robocza kierownika-prowadzącego w tej sesji: 'staff'|'instructor'|'' (zwykły użytkownik, brak wyboru). */

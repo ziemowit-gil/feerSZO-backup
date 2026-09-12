@@ -3199,7 +3199,13 @@ if ($cur_course && dyd_is_staff()) {
     // kierownik bez własnych kursów i zwykły prowadzący nigdy tego nie widzą.
     $_dyd_own_courses = k30_ti_instructor_courses($uid, false);
   ?>
-  <?php if ($_dyd_own_courses && dyd_ctx_role() !== ''): ?>
+  <?php if (!empty($me['acting_as_other'])): ?>
+  <p class="small mb-3 p-2 rounded" style="background:#FFF7ED;border:1px solid #FDBA74">
+    <i class="bi bi-person-video2 me-1 text-warning-emphasis" aria-hidden="true"></i>
+    Pracujesz jako: <strong>Prowadzący — w zastępstwie: <?= h($me['name']) ?></strong>
+    &middot; <a href="choose_context.php">Zakończ / zmień rolę</a>
+  </p>
+  <?php elseif ($_dyd_own_courses && dyd_ctx_role() !== ''): ?>
   <p class="small text-body-secondary mb-3">
     <i class="bi bi-person-gear me-1" aria-hidden="true"></i>Pracujesz jako:
     <strong><?= dyd_ctx_role() === 'instructor' ? 'Prowadzący' : 'Kierownik Instytucji' ?></strong>
