@@ -196,21 +196,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             flash_set('success', $msg);
         }
-        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
+        header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
     }
 
     if ($op === 'price_change_cancel') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
         ti_price_change_cancel((int)($_POST['pc_id'] ?? 0));
         flash_set('success', 'Zmiana ceny anulowana.');
-        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
+        header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
     }
 
     if ($op === 'price_change_resend') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
         $n = ti_price_change_notify((int)($_POST['pc_id'] ?? 0));
         flash_set($n > 0 ? 'success' : 'warning', $n > 0 ? "Powiadomienie wysłane ponownie ({$n})." : 'Brak adresów e-mail do powiadomienia.');
-        header('Location: kurs.php?id=' . $id . '#zmiana-cen'); exit;
+        header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
     }
 
     // ── Edycja metadanych kursu przez kierownika (pełny zestaw pól admina) ───
@@ -510,6 +510,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia grupy</a>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#courseEditModal">
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#priceChangeModal">
+      <i class="bi bi-tag me-1" aria-hidden="true"></i>Zmiana ceny
+      <?php if ($price_changes): ?><span class="badge bg-secondary ms-1"><?= count($price_changes) ?></span><?php endif; ?>
+    </button>
     <a href="log_grup.php?course=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Log operacji tej grupy">
       <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Log operacji</a>
   </div>
@@ -691,12 +695,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?php endif; ?>
 </div>
 
-<div class="card mt-3" id="zmiana-cen">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-tag text-primary" aria-hidden="true"></i>Zmiana ceny zajęć
-    <span class="badge bg-secondary"><?= count($price_changes) ?></span>
-  </div>
-  <div class="card-body">
+<div class="modal fade" id="priceChangeModal" tabindex="-1" aria-labelledby="priceChangeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="priceChangeModalLabel"><i class="bi bi-tag text-primary me-2" aria-hidden="true"></i>Zmiana ceny zajęć</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
     <p class="text-body-secondary small mb-3">
       Zmiana obowiązuje tylko w podanym zakresie dat — nie nadpisuje ceny kursu ani indywidualnego rozliczenia
       na stałe. Wymaga uzasadnienia; kursanci i opiekunowie (jeśli małoletni) mogą dostać o niej e-mail.
@@ -833,6 +839,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </table>
     </div>
     <?php endif; ?>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -930,6 +938,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   };
 
   pcUpdate();
+
+  // Otwórz modal automatycznie po zapisaniu/anulowaniu/wysyłce (redirect z ?pc=1).
+  if ((new URLSearchParams(window.location.search)).get('pc') === '1') {
+    new bootstrap.Modal(document.getElementById('priceChangeModal')).show();
+  }
 })();
 </script>
 
