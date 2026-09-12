@@ -421,19 +421,6 @@ if ($_sms_enabled && $cur_course) {
                  aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
                 <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Wejdź
               </a>
-              <?php if ($s['status'] !== 'remote_material'): ?>
-              <button type="button" class="btn btn-sm btn-primary py-0 px-2"
-                      data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"
-                      aria-label="Obecność: <?= h(date('d.m.Y', $sdate)) ?>">
-                <i class="bi bi-people me-1" aria-hidden="true"></i>Obecność
-              </button>
-              <?php endif; ?>
-              <?php if ($s['status'] === 'remote_material' && $_mat_url): ?>
-              <a href="<?= h($_mat_url) ?>" class="btn btn-sm btn-outline-info py-0 px-2"
-                 target="_blank" rel="noopener noreferrer" aria-label="Materiał do pracy własnej (nowa karta)">
-                <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Materiał
-              </a>
-              <?php endif; ?>
               <?php if ($_meet_url && $s['status'] !== 'cancelled'): ?>
               <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-outline-primary py-0 px-2"
                  target="_blank" rel="noopener noreferrer" aria-label="Otwórz spotkanie online (nowa karta)">
@@ -454,12 +441,22 @@ if ($_sms_enabled && $cur_course) {
                   Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
+                  <?php if ($s['status'] !== 'remote_material'): ?>
+                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
+                    <i class="bi bi-people me-2"></i>Obecność
+                  </a></li>
+                  <?php endif; ?>
+                  <?php if ($s['status'] === 'remote_material' && $_mat_url): ?>
+                  <li><a class="dropdown-item" href="<?= h($_mat_url) ?>" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-file-earmark-arrow-up me-2"></i>Materiał do pracy własnej
+                  </a></li>
+                  <?php endif; ?>
                   <?php if (dyd_is_staff()): ?>
                   <li><a class="dropdown-item" href="lekcja_pdf.php?id=<?= (int)$s['id'] ?>" target="_blank">
                     <i class="bi bi-file-earmark-pdf me-2"></i>Karta lekcji (PDF)
                   </a></li>
-                  <li><hr class="dropdown-divider"></li>
                   <?php endif; ?>
+                  <li><hr class="dropdown-divider"></li>
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
