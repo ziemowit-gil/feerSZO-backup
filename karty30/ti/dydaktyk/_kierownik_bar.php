@@ -32,6 +32,7 @@ if (!empty($KIER_ITEMS)) {
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
         ['Zaległe protokoły',         'protokoly.php',              'exclamation-octagon'],
+        ['Audyt dzienników',          'audyt_dziennikow.php',       'clipboard2-check'],
         ['Program poleceń',          'polecenia.php',               'gift'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
