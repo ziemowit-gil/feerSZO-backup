@@ -170,9 +170,10 @@ function dyd_require(): array {
     // TOTP jest obowiązkowe dla każdego konta dydaktyka (patrz totp_gate.php).
     // Sesja mogła powstać przed wprowadzeniem tej bramki albo wznowić się cicho
     // przez „zapamiętaj mnie" (dyd_current()) — sprawdzamy więc stan konta w
-    // bazie przy każdym żądaniu, nie tylko przy świeżym logowaniu. Impersonacja
-    // (imp.php, $s['imp']) jest z tego zwolniona — administrator już się uwierzytelnił.
-    if (empty($s['imp'])) {
+    // bazie przy każdym żądaniu, nie tylko przy świeżym logowaniu. Zwolnieni:
+    // impersonacja (imp.php, $s['imp']) — administrator już się uwierzytelnił —
+    // oraz konta z rolą SZO „admin", które mają pełny dostęp niezależnie od TOTP.
+    if (empty($s['imp']) && ($s['role'] ?? '') !== 'admin') {
         $totp = db_one("SELECT totp_confirmed, totp_secret FROM users WHERE id=?", [(int)$s['user_id']]);
         if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
             dyd_2fa_stash($s);
