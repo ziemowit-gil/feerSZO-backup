@@ -1,6 +1,6 @@
 <?php
 /**
- * _wizard.php — Kreator zajęć (2 kroki: obecność → temat/notatki).
+ * _wizard.php — Kreator zajęć (1-2 ekrany: [wybór lekcji] → obecność + temat/notatki razem).
  * Wymaga: $dyd_wizard_sessions (array lekcji z dziś), $cur_course, $uid, dyd_token().
  * Dołączany z index.php tuż przed </body>.
  */
@@ -24,13 +24,6 @@
   .wiz-att-row:last-child { border-bottom:none; }
   .wiz-att-cb { width:1.3rem; height:1.3rem; cursor:pointer; flex-shrink:0; }
   .wiz-att-cb:checked { accent-color:#16a34a; }
-  .wiz-progress { display:flex; gap:.4rem; margin-bottom:1.5rem; }
-  .wiz-prog-step {
-    flex:1; height:4px; border-radius:2px; background:var(--bs-border-color);
-    transition:background .2s;
-  }
-  .wiz-prog-step.done { background:#2563eb; }
-  .wiz-prog-step.active { background:#93c5fd; }
   .wiz-att-row-present { background:rgba(22,163,74,.08); border-radius:.3rem; }
 </style>
 
@@ -46,7 +39,7 @@
         <div class="modal-header pb-2">
           <div class="flex-grow-1">
             <h5 class="modal-title mb-0" id="dydWizardTitle">
-              <i class="bi bi-magic me-2 text-primary" aria-hidden="true"></i>Kreator zajęć
+              <i class="bi bi-magic me-2 text-primary" aria-hidden="true"></i>Uzupełnij zajęcia
             </h5>
             <div class="text-body-secondary small mt-1" id="wiz_sess_label"></div>
           </div>
@@ -54,16 +47,10 @@
         </div>
 
         <div class="modal-body">
-          <!-- Pasek postępu -->
-          <div class="wiz-progress" aria-hidden="true">
-            <div class="wiz-prog-step active" id="wiz_pr1"></div>
-            <div class="wiz-prog-step"        id="wiz_pr2"></div>
-          </div>
-
           <?php if (count($dyd_wizard_sessions) > 1): ?>
-          <!-- Krok 0: wybór lekcji (tylko gdy >1) -->
+          <!-- Ekran wyboru lekcji (tylko gdy dziś jest więcej niż jedna) -->
           <div class="wiz-step active" id="wiz_step0">
-            <div class="fw-semibold mb-2"><i class="bi bi-calendar-event me-1 text-primary"></i>Krok 1 z 2 — Wybierz lekcję</div>
+            <div class="fw-semibold mb-2"><i class="bi bi-calendar-event me-1 text-primary"></i>Wybierz lekcję</div>
             <p class="text-body-secondary small mb-3">Dzisiaj masz kilka zaplanowanych lekcji. Wybierz, którą chcesz teraz uzupełnić.</p>
             <?php foreach ($dyd_wizard_sessions as $_ws):
               $tf = substr((string)($_ws['time_from']??''),0,5);
@@ -89,17 +76,18 @@
           <input type="hidden" id="wiz_sid_init" value="<?= (int)$_ws0['id'] ?>">
           <?php endif; ?>
 
-          <!-- Krok 1: obecność -->
+          <!-- Ekran wypełniania: obecność + temat + notatki razem -->
           <div class="wiz-step <?= count($dyd_wizard_sessions) === 1 ? 'active' : '' ?>" id="wiz_step1">
-            <div class="fw-semibold mb-1"><i class="bi bi-people me-1 text-primary"></i>Krok <?= count($dyd_wizard_sessions)>1?'2':'1' ?> z 2 — Obecność</div>
-            <p class="text-body-secondary small mb-3">
-              <i class="bi bi-info-circle me-1"></i><strong>Zaznacz kursantów, którzy uczestniczyli w zajęciach.</strong>
-              Niezaznaczeni zostaną odnotowani jako nieobecni.
-            </p>
+            <?php if (count($dyd_wizard_sessions) > 1): ?>
+            <button type="button" class="btn btn-link btn-sm p-0 mb-2 text-decoration-none" onclick="wizGoStep(0)">
+              <i class="bi bi-arrow-left me-1"></i>Zmień lekcję
+            </button>
+            <?php endif; ?>
 
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span class="small fw-semibold">
-                <i class="bi bi-check2-circle text-success me-1"></i>Obecni: <span id="wiz_cnt">0</span> / <span id="wiz_tot">0</span>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-semibold small">
+                <i class="bi bi-people me-1 text-primary"></i>Obecność —
+                <span id="wiz_cnt">0</span>/<span id="wiz_tot">0</span> obecnych
               </span>
               <div class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-success btn-sm py-0" onclick="wizAllPresent()">
@@ -110,48 +98,26 @@
                 </button>
               </div>
             </div>
-            <div style="height:4px;border-radius:2px;background:rgba(100,116,139,.15);margin-bottom:.75rem">
-              <div id="wiz_att_bar" style="height:4px;border-radius:2px;background:#16a34a;width:0%;transition:width .18s"></div>
-            </div>
+            <p class="text-body-secondary small mb-2">Niezaznaczeni zostaną odnotowani jako nieobecni.</p>
 
-            <div id="wiz_att_list" class="mb-2">
+            <div id="wiz_att_list" class="mb-3">
               <div class="text-body-secondary small text-center py-3">
                 <i class="bi bi-hourglass-split me-1"></i>Ładowanie listy kursantów…
               </div>
             </div>
-
-            <div class="d-flex gap-2 mt-3">
-              <?php if (count($dyd_wizard_sessions) > 1): ?>
-              <button type="button" class="btn btn-outline-secondary" onclick="wizGoStep(0)">
-                <i class="bi bi-arrow-left me-1"></i>Wstecz
-              </button>
-              <?php endif; ?>
-              <button type="button" class="btn btn-primary ms-auto" onclick="wizGoStep(2)">
-                Dalej <i class="bi bi-arrow-right ms-1"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Krok 2: temat i notatki -->
-          <div class="wiz-step" id="wiz_step2">
-            <div class="fw-semibold mb-1"><i class="bi bi-journal-text me-1 text-primary"></i>Krok <?= count($dyd_wizard_sessions)>1?'3':'2' ?> z <?= count($dyd_wizard_sessions)>1?'3':'2' ?> — Temat i notatki</div>
-            <p class="text-body-secondary small mb-3">Opcjonalnie wpisz temat lekcji i swoje notatki — zostaną zapisane razem z obecnością.</p>
 
             <div class="mb-3">
               <label for="wiz_topic" class="form-label fw-semibold">Temat lekcji</label>
               <input type="text" class="form-control" id="wiz_topic" name="topic"
                      placeholder="np. Wprowadzenie do zmiennych, Ćwiczenia z czytania…" maxlength="300">
             </div>
-            <div class="mb-3">
+            <div class="mb-2">
               <label for="wiz_notes" class="form-label fw-semibold">Notatki prowadzącego <span class="text-body-secondary fw-normal">(opcjonalne)</span></label>
-              <textarea class="form-control" id="wiz_notes" name="notes" rows="3"
+              <textarea class="form-control" id="wiz_notes" name="notes" rows="2"
                         placeholder="np. Uwagi o przebiegu zajęć, materiały do uzupełnienia…"></textarea>
             </div>
 
-            <div class="d-flex gap-2 mt-1">
-              <button type="button" class="btn btn-outline-secondary" onclick="wizGoStep(1)">
-                <i class="bi bi-arrow-left me-1"></i>Wstecz
-              </button>
+            <div class="d-flex mt-2">
               <button type="submit" class="btn btn-success ms-auto">
                 <i class="bi bi-check2-square me-1"></i>Zapisz zajęcia
               </button>
@@ -189,7 +155,6 @@
 
   var curSid   = <?= count($dyd_wizard_sessions) === 1 ? (int)$dyd_wizard_sessions[0]['id'] : 0 ?>;
   var curStep  = <?= count($dyd_wizard_sessions) > 1 ? 0 : 1 ?>;
-  var numSteps = <?= count($dyd_wizard_sessions) > 1 ? 3 : 2 ?>;
 
   // Inicjalizuj sid gdy pojedyncza sesja
   <?php if (count($dyd_wizard_sessions) === 1): ?>
@@ -213,7 +178,6 @@
     var list = document.getElementById('wiz_att_list'); if (!list) return;
     var cnt  = document.getElementById('wiz_cnt');
     var tot  = document.getElementById('wiz_tot');
-    var bar  = document.getElementById('wiz_att_bar');
 
     // Pre-fill topic if existing
     var topicInp = document.getElementById('wiz_topic');
@@ -253,9 +217,6 @@
       else { if (row) row.classList.remove('wiz-att-row-present'); }
     });
     var cntEl = document.getElementById('wiz_cnt'); if (cntEl) cntEl.textContent = cnt;
-    var bar   = document.getElementById('wiz_att_bar');
-    var total = boxes.length;
-    if (bar) bar.style.width = (total > 0 ? Math.round(cnt/total*100) : 0) + '%';
   };
 
   window.wizAllPresent = function() {
@@ -278,13 +239,7 @@
     var to = document.getElementById('wiz_step' + curStep);
     if (to) to.classList.add('active');
 
-    // Pasek postępu
-    [0,1,2].forEach(function(i) {
-      var el = document.getElementById('wiz_pr' + (i+1)); if (!el) return;
-      el.className = 'wiz-prog-step' + (i < curStep ? ' done' : (i === curStep ? ' active' : ''));
-    });
-
-    // Przy przejściu na krok 1 — załaduj listę kursantów
+    // Przy przejściu na ekran wypełniania — załaduj listę kursantów
     if (step === 1 && curSid) {
       renderAttList(curSid);
       var lbl = document.getElementById('wiz_sess_label');
