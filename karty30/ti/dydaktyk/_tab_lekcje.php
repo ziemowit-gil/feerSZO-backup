@@ -454,10 +454,12 @@ if ($_sms_enabled && $cur_course) {
                   Więcej <i class="bi bi-caret-down-fill" style="font-size:.6rem" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
+                  <?php if (dyd_is_staff()): ?>
                   <li><a class="dropdown-item" href="lekcja_pdf.php?id=<?= (int)$s['id'] ?>" target="_blank">
                     <i class="bi bi-file-earmark-pdf me-2"></i>Karta lekcji (PDF)
                   </a></li>
                   <li><hr class="dropdown-divider"></li>
+                  <?php endif; ?>
                   <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                     <i class="bi bi-pencil me-2"></i>Edytuj lekcję
                   </a></li>
@@ -475,7 +477,7 @@ if ($_sms_enabled && $cur_course) {
                     </form>
                   </li>
                   <?php endif; ?>
-                  <?php if (in_array($s['status'], K30_TI_HELD_STATUSES, true)): ?>
+                  <?php if (dyd_is_staff() && in_array($s['status'], K30_TI_HELD_STATUSES, true)): ?>
                   <li>
                     <form method="post">
                       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">

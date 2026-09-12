@@ -729,7 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // przez kierownika (staff), jak i prowadzącego kursu (ten sam warunek co edycja lekcji).
     if ($op === 'toggle_docs_complete') {
         $sid = (int)($_POST['session_id'] ?? 0);
-        if (dyd_owns_session($uid, $sid)) {
+        if (dyd_is_staff() && dyd_owns_session($uid, $sid)) {
             db()->prepare("UPDATE k30_ti_sessions SET docs_complete = 1 - COALESCE(docs_complete,0) WHERE id=?")->execute([$sid]);
         }
         // Zachowaj otwartą kartę lekcji (?lesson=), gdy przełącznik wywołano stamtąd.

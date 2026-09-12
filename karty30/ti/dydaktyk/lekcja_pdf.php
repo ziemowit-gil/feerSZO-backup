@@ -3,7 +3,7 @@
  * karty30/ti/dydaktyk/lekcja_pdf.php — Karta pojedynczej lekcji do wydruku (PDF).
  * Odpowiednik podglądu "Wejdź" w zakładce Lekcje (_lekcja_karta.php), ale jako
  * plik do pobrania/wydruku — dostępny też z katalogu Wydruki (wydruki.php).
- * GET: id (session_id, wymagane). Dostęp: dyd_owns_session (własna lekcja lub staff).
+ * GET: id (session_id, wymagane). Dostęp: tylko kierownik (dyd_is_staff()).
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
@@ -12,7 +12,7 @@ $me  = dyd_require();
 $uid = (int)$me['user_id'];
 
 $id = (int)($_GET['id'] ?? 0);
-if (!$id || !dyd_owns_session($uid, $id)) { http_response_code(403); exit('Brak uprawnień do tej lekcji.'); }
+if (!$id || !dyd_is_staff() || !dyd_owns_session($uid, $id)) { http_response_code(403); exit('Brak uprawnień do tej lekcji.'); }
 
 $s = db_one(
     "SELECT s.*, c.name AS course_name FROM k30_ti_sessions s

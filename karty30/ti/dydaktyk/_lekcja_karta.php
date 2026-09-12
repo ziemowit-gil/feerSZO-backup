@@ -105,10 +105,12 @@ if ($open_ses):
       <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$open_id ?>">
         <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj lekcję
       </button>
+      <?php if (dyd_is_staff()): ?>
       <a href="lekcja_pdf.php?id=<?= (int)$open_id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartę lekcji
       </a>
-      <?php if (in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
+      <?php endif; ?>
+      <?php if (dyd_is_staff() && in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
       <form method="post" class="d-inline">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="toggle_docs_complete">
