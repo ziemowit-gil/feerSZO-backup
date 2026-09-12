@@ -119,9 +119,10 @@ $nc_courses = k30_ti_courses(true);
 $q = trim($_GET['q'] ?? '');
 
 $rows = db_all(
-    "SELECT DISTINCT cl.id, cl.name, cl.email, cl.phone
+    "SELECT DISTINCT cl.id, cl.name, cl.email, cl.phone, a.student_no
      FROM k30_clients cl
      JOIN k30_ti_enrollments e ON e.client_id=cl.id AND e.status='active'
+     LEFT JOIN k30_ti_student_accounts a ON a.client_id=cl.id
      WHERE (? = '' OR cl.name LIKE ?)
      ORDER BY cl.name",
     [$q, '%' . $q . '%']
@@ -134,6 +135,7 @@ foreach ($rows as $r) {
     $bal     = ti_client_balance($cid);
     $clients[] = [
         'id' => $cid, 'name' => (string)$r['name'], 'email' => (string)$r['email'], 'phone' => (string)$r['phone'],
+        'student_no' => (string)($r['student_no'] ?? ''),
         'courses' => array_values(array_filter($courses, fn($c) => $c['status'] === 'active')),
         'balance' => $bal,
     ];
@@ -289,6 +291,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <thead class="table-light">
           <tr>
             <th scope="col">Kursant</th>
+            <th scope="col">Nr kursanta</th>
             <th scope="col">Grupy</th>
             <th scope="col">Kontakt</th>
             <th scope="col" class="text-end">Saldo</th>
@@ -297,11 +300,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </thead>
         <tbody>
           <?php if (!$clients): ?>
-          <tr><td colspan="5" class="text-center text-body-secondary py-4">Brak kursantów.</td></tr>
+          <tr><td colspan="6" class="text-center text-body-secondary py-4">Brak kursantów.</td></tr>
           <?php endif; ?>
           <?php foreach ($clients as $c): $b = $c['balance']; ?>
           <tr>
             <th scope="row" class="fw-normal"><?= h($c['name']) ?></th>
+            <td class="font-monospace small"><?= $c['student_no'] !== '' ? h($c['student_no']) : '<span class="text-body-secondary">—</span>' ?></td>
             <td>
               <?php foreach ($c['courses'] as $co): ?>
               <span class="badge bg-light text-secondary border me-1 mb-1"><?= h($co['course_name']) ?></span>
