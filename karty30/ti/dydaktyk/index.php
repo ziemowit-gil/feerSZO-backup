@@ -3774,7 +3774,6 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
 
 <!-- ─── Modal: wybór stylu powiadomień (jednorazowy) ──────────────────── -->
 <div class="modal fade" id="dydFlashPrefModal" tabindex="-1"
-     data-bs-backdrop="static" data-bs-keyboard="false"
      aria-labelledby="dfpLbl" aria-modal="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
     <div class="modal-content">
@@ -3782,6 +3781,7 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
         <h5 class="modal-title fw-bold" id="dfpLbl">
           <i class="bi bi-bell text-primary me-2" aria-hidden="true"></i>Styl powiadomień
         </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body py-3">
         <p class="text-body-secondary small mb-3">Wybierz jak chcesz widzieć potwierdzenia operacji (np. „Lekcja dodana"):</p>
@@ -3873,7 +3873,7 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   function showFlashPrefChooser() {
     var el = document.getElementById('dydFlashPrefModal');
     if (!el) return;
-    var modal = new bootstrap.Modal(el, {backdrop:'static', keyboard:false});
+    var modal = new bootstrap.Modal(el);
     function choose(val) {
       localStorage.setItem(FLASH_KEY, val);
       modal.hide();
@@ -3884,20 +3884,9 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
     modal.show();
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-    var pref = localStorage.getItem(FLASH_KEY);
-    if (pref !== null) {
-      applyFlashStyle();
-    } else {
-      window._dydOnTourComplete = function() {
-        setTimeout(showFlashPrefChooser, 500);
-      };
-      // Fallback: jeśli tour już był lub brak CDN, pokaż po 4s
-      setTimeout(function() {
-        if (localStorage.getItem(FLASH_KEY) === null) showFlashPrefChooser();
-      }, 4000);
-    }
-  });
+  // Domyślnie „pasek u góry" (bez wymuszania wyboru) — kto chce okno modalne,
+  // wybiera je ręcznie linkiem „Powiadomienia" w sidebarze (dydShowFlashPref()).
+  document.addEventListener('DOMContentLoaded', applyFlashStyle);
 
   window.dydShowFlashPref = showFlashPrefChooser;
 })();
