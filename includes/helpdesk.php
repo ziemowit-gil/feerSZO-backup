@@ -1382,3 +1382,103 @@ function _hd_email_message(array $ticket, array $message, string $org, string $u
 </div></body></html>
 HTML;
 }
+
+/**
+ * Szybkie utworzenie zgłoszenia bez załączników — do wywołania spoza
+ * głównego formularza helpdesk/new.php (który obsługuje też pliki i wymaga
+ * sesji SZO/current_user()). Używane m.in. przez panel dydaktyka
+ * (karty30/ti/dydaktyk/api_helpdesk.php), którego sesja jest odrębna
+ * (k30_dydaktyk) i nie ma current_user().
+ *
+ * $requester: ['id'=>int|null, 'name'=>string, 'email'=>string].
+ * $source: znacznik pochodzenia zgłoszenia (np. 'dydaktyk') — do raportów.
+ */
+function hd_ticket_quick_create(array $requester, string $title, string $description, string $category, string $priority, string $source): int {
+    helpdesk_migrate();
+    if (!isset(HD_CATEGORIES[$category])) $category = 'it_inne';
+    if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
+    $number = hd_next_number(hd_number_prefix_for($category));
+
+    $ticket_id = db_insert('helpdesk_tickets', [
+        'number'          => $number,
+        'title'           => $title,
+        'description'     => $description,
+        'category'        => $category,
+        'priority'        => $priority,
+        'status'          => 'nowe',
+        'requester_id'    => $requester['id'] ?: null,
+        'requester_name'  => (string)($requester['name'] ?? ''),
+        'requester_email' => (string)($requester['email'] ?? ''),
+        'source'          => $source,
+    ]);
+    db_insert('helpdesk_messages', [
+        'ticket_id'   => $ticket_id,
+        'user_id'     => $requester['id'] ?: null,
+        'user_name'   => (string)($requester['name'] ?? ''),
+        'body'        => $description,
+        'is_internal' => 0,
+    ]);
+
+    // E-mail potwierdzający do zgłaszającego + powiadomienie operatorów —
+    // ten sam wzorzec co w helpdesk/new.php, w try/catch (mail nie może
+    // zablokować utworzenia zgłoszenia).
+    try {
+        require_once __DIR__ . '/mail_queue.php';
+        $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/helpdesk/view.php?id=' . $ticket_id;
+        $num_h = h($number);
+        $title_h = h($title);
+        if (!empty($requester['email']) && filter_var($requester['email'], FILTER_VALIDATE_EMAIL)) {
+            mail_queue_add(
+                (string)$requester['email'], (string)($requester['name'] ?? ''),
+                "[{$number}] Zgłoszenie przyjęte",
+                "<p>Zgłoszenie <strong>{$num_h}</strong> — {$title_h} zostało zarejestrowane.</p>"
+                . "<p><a href=\"{$url}\">Śledź status</a></p>"
+            );
+        }
+        $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL AND email != ''");
+        foreach ($ops as $op) {
+            if (empty($op['email'])) continue;
+            mail_queue_add(
+                (string)$op['email'], (string)($op['name'] ?? ''),
+                "[{$number}] Nowe zgłoszenie: {$title}",
+                "<p>Nowe zgłoszenie {$num_h} — {$title_h}.</p><p><a href=\"{$url}\">Otwórz</a></p>"
+            );
+        }
+    } catch (\Throwable $e) {}
+
+    return $ticket_id;
+}
+
+/**
+ * Wywołuje karty30/ti/dydaktyk/api_helpdesk.php przez HTTP, przekazując
+ * ciasteczko bieżącej sesji panelu dydaktyka — patrz ti_protocols_api_call()
+ * (includes/ti_protocols.php) po dokładne uzasadnienie tego wzorca. Zwraca
+ * null przy jakimkolwiek niepowodzeniu, żeby wywołujący spadł na fallback
+ * (hd_ticket_quick_create() wprost).
+ */
+function hd_dyd_api_call(string $action, array $params = [], string $method = 'GET'): ?array {
+    if (!defined('APP_URL') || !function_exists('curl_init')) return null;
+    $url = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/api_helpdesk.php?action=' . urlencode($action);
+    if ($method === 'GET' && $params) $url .= '&' . http_build_query($params);
+
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 3,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_COOKIE         => session_name() . '=' . session_id(),
+        CURLOPT_CUSTOMREQUEST  => $method,
+    ];
+    if ($method === 'POST') {
+        $opts[CURLOPT_POSTFIELDS] = json_encode($params, JSON_UNESCAPED_UNICODE);
+        $opts[CURLOPT_HTTPHEADER] = ['Content-Type: application/json'];
+    }
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $code < 200 || $code >= 300) return null;
+    $json = json_decode((string)$body, true);
+    return is_array($json) && !isset($json['error']) ? $json : null;
+}
