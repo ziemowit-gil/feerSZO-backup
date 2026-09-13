@@ -1,5 +1,5 @@
-import { Component, signal, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, signal, inject, OnInit } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -120,6 +120,14 @@ type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
               <button type="button" class="login-switch-link" (click)="parentStage.set('sms-phone'); error.set(null)">
                 Nie masz hasła? Zaloguj się kodem SMS
               </button>
+            }
+
+            @if (mode() === 'student') {
+              <div class="login-divider"><span>lub</span></div>
+              <a mat-stroked-button href="/auth/ms365_kursant.php" class="login-m365-btn">
+                <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+                Zaloguj przez Microsoft 365
+              </a>
             }
           }
 
@@ -336,6 +344,29 @@ type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
       ::ng-deep .mat-button-toggle-label-content { padding: 0 .5rem; font-size: .85rem; }
     }
 
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      color: #9ca3af;
+      font-size: .8rem;
+      margin: .25rem 0 1rem;
+
+      &::before, &::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+    }
+
+    .login-m365-btn {
+      width: 100%;
+      height: 3rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      color: #111827 !important;
+      border-color: #d1d5db !important;
+    }
+
     .login-switch-link {
       display: block;
       width: 100%;
@@ -396,10 +427,11 @@ type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
     }
   `],
 })
-export class LoginComponent {
-  private fb   = inject(FormBuilder);
-  private auth = inject(AuthService);
+export class LoginComponent implements OnInit {
+  private fb    = inject(FormBuilder);
+  private auth  = inject(AuthService);
   private router = inject(Router);
+  private route  = inject(ActivatedRoute);
 
   form = this.fb.nonNullable.group({
     login:    ['', [Validators.required, Validators.minLength(2)]],
@@ -423,6 +455,17 @@ export class LoginComponent {
     parent:  'Wgląd opiekuna w konto dziecka',
     authp:   'Wgląd osoby upoważnionej (tylko odczyt)',
   })[this.mode()];
+
+  private static readonly M365_ERRORS: Record<string, string> = {
+    no_account:   'To konto Microsoft nie jest powiązane z żadnym kontem kursanta. Zaloguj się loginem i hasłem.',
+    inactive:     'Konto kursanta jest nieaktywne. Skontaktuj się z organizacją.',
+    unavailable:  'Logowanie przez Microsoft 365 jest obecnie niedostępne.',
+  };
+
+  ngOnInit(): void {
+    const code = this.route.snapshot.queryParamMap.get('m365_error');
+    if (code) this.error.set(LoginComponent.M365_ERRORS[code] ?? 'Nie udało się zalogować przez Microsoft 365.');
+  }
 
   setMode(mode: LoginMode): void {
     this.mode.set(mode);

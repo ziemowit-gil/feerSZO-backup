@@ -120,6 +120,37 @@ if (!$error && $redirect_after === '__kdok_ms365__' && !empty($_SESSION['kdok_ms
     exit;
 }
 
+// ── Logowanie kursanta przez Microsoft 365 — bridge do kursantApp/newUI ───────
+// Kursanci nie mają wpisu w tabeli users — dopasowanie po ms_upn/ms_user_id
+// w k30_ti_student_accounts (konto M365 zakładane przez includes/ti_online.php).
+if (!$error && $redirect_after === '__kursant_ms365__') {
+    $ms_id = $ms_user['id'] ?? '';
+    $ms_em = strtolower((string)($ms_user['mail'] ?? $ms_user['userPrincipalName'] ?? ''));
+    $kursant_login_url = rtrim(KURSANT_NEW_UI_URL, '/') . '/login';
+
+    $student = null;
+    if ($ms_id !== '') {
+        $student = db_one("SELECT * FROM k30_ti_student_accounts WHERE ms_user_id = ?", [$ms_id]);
+    }
+    if (!$student && $ms_em !== '') {
+        $student = db_one("SELECT * FROM k30_ti_student_accounts WHERE ms_upn != '' AND LOWER(ms_upn) = ?", [$ms_em]);
+    }
+
+    if (!$student) {
+        header('Location: ' . $kursant_login_url . '?m365_error=no_account');
+        exit;
+    }
+    if (!$student['is_active']) {
+        header('Location: ' . $kursant_login_url . '?m365_error=inactive');
+        exit;
+    }
+
+    require_once dirname(__DIR__) . '/includes/karty30.php';
+    $token = k30_imp_token_create('stu', (int)$student['id'], 0);
+    header('Location: ' . rtrim(KURSANT_NEW_UI_URL, '/') . '/impersonate?t=' . urlencode($token));
+    exit;
+}
+
 if (!$error) {
     $email = $ms_user['mail'] ?? $ms_user['userPrincipalName'];
     $name  = $ms_user['displayName'] ?? $email;

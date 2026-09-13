@@ -265,13 +265,25 @@ if ($action === 'impersonate_exchange' && ($method === 'POST' || $method === 'GE
     $sid = (int)$imp['target_id'];
     $acc = load_account_with_client($sid);
     if (!$acc) json_err('Nie znaleziono konta kursanta.', 404);
-    $admin = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
-    $admin->execute([(int)$imp['admin_id']]);
-    $adminRow = $admin->fetch(PDO::FETCH_ASSOC);
-    $adminName = $adminRow['name'] ?? $adminRow['email'] ?? 'Administrator';
 
-    $token = issue_token($sid, 'impersonation', (int)$imp['admin_id'], $adminName, false, 2 * 3600);
-    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'impersonation', 'actor_name' => $adminName], build_login_payload($acc)));
+    $adminId = (int)$imp['admin_id'];
+    if ($adminId > 0) {
+        // Prawdziwa impersonacja z panelu admina.
+        $admin = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
+        $admin->execute([$adminId]);
+        $adminRow = $admin->fetch(PDO::FETCH_ASSOC);
+        $adminName = $adminRow['name'] ?? $adminRow['email'] ?? 'Administrator';
+        $role = 'impersonation';
+    } else {
+        // admin_id=0 → samodzielne logowanie kursanta przez Microsoft 365
+        // (token wystawiony w auth/microsoft.php, sentinel '__kursant_ms365__'),
+        // nie prawdziwa impersonacja — zwykła sesja studenta, bez bannera.
+        $adminName = '';
+        $role = 'student';
+    }
+
+    $token = issue_token($sid, $role, $adminId ?: null, $adminName, false, $adminId > 0 ? 2 * 3600 : 8 * 3600);
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => $role, 'actor_name' => $adminName], build_login_payload($acc)));
     exit;
 }
 
