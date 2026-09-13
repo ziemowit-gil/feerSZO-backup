@@ -520,13 +520,18 @@ export interface InstructorHomework {
   id: number;
   course_id: number;
   course_name: string;
+  session_id: number | null;
   title: string;
   description: string | null;
   hint: string | null;
   due_at: string | null;
+  open_at: string | null;
+  close_at: string | null;
   is_active: number;
   sub_count: number;
   graded_count: number;
+  has_file: boolean;
+  attach_name: string | null;
   availability: { state: 'open' | 'upcoming' | 'closed'; label: string };
 }
 

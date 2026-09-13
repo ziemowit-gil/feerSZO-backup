@@ -2,27 +2,32 @@ import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/models/kursant.models';
+import { HomeworkFormDialogComponent } from './homework-form-dialog.component';
 
 /**
- * Zadania domowe prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_zadania.php,
- * wyłącznie widok listy zadań i ocenianie oddań. Dodawanie/edycja/usuwanie
- * zadania (modal z formularzem + upload załącznika) zostaje na razie w
- * klasycznym panelu — kolejny krok migracji.
+ * Zadania domowe prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_zadania.php:
+ * lista zadań, ocenianie oddań, oraz dodawanie/edycja/usuwanie zadania w oknie
+ * modalnym (ten sam wzorzec co Materiały/Lekcje).
  */
 @Component({
   selector: 'app-instructor-zadania',
   standalone: true,
-  imports: [CommonModule, DatePipe, FormsModule, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, DatePipe, FormsModule, MatButtonModule, MatDialogModule, MatSnackBarModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie zadań… }</div>
 
     <div class="page-header">
       <h1>Zadania</h1>
       <p class="subtitle">Zadania domowe Twoich kursów — oddania i ocenianie</p>
+      <button mat-flat-button type="button" class="add-btn" (click)="startAdd()">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        Dodaj zadanie
+      </button>
     </div>
 
     @if (loading()) {
@@ -55,12 +60,22 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
             @if (hw.due_at) { <p class="text-muted text-sm hw-due">Termin: {{ hw.due_at | slice:0:16 }}</p> }
             @if (hw.description) { <p class="hw-desc">{{ hw.description }}</p> }
             @if (hw.hint) { <p class="hw-hint"><strong>Podpowiedź:</strong> {{ hw.hint }}</p> }
+            @if (hw.has_file) {
+              <a mat-stroked-button class="btn-small" [href]="fileUrl(hw.id)" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem">download</span>
+                {{ hw.attach_name || 'Załącznik' }}
+              </a>
+            }
 
             <div class="hw-footer">
               <span class="text-muted text-sm">{{ hw.sub_count }} oddań · {{ hw.graded_count }} ocenionych</span>
-              <button mat-stroked-button type="button" class="btn-small" (click)="toggleExpand(hw)">
-                {{ expandedId() === hw.id ? 'Zwiń' : 'Oddania / oceny' }}
-              </button>
+              <span class="hw-footer-actions">
+                <button mat-stroked-button type="button" class="btn-small" (click)="toggleExpand(hw)">
+                  {{ expandedId() === hw.id ? 'Zwiń' : 'Oddania / oceny' }}
+                </button>
+                <button mat-stroked-button type="button" class="btn-small btn-edit" (click)="startEdit(hw)">Edytuj</button>
+                <button mat-stroked-button type="button" class="btn-small btn-danger" (click)="remove(hw)">Usuń</button>
+              </span>
             </div>
 
             @if (expandedId() === hw.id) {
@@ -96,13 +111,18 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
     }
   `,
   styles: [`
+    .page-header { position: relative; }
+    .add-btn { position: absolute; top: 0; right: 0; }
     .hw-card { &.hw-inactive { opacity: .6; } }
     .hw-title-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .hw-title { font-size: 1.05rem; margin: 0; }
     .hw-due, .hw-desc, .hw-hint { margin: .5rem 0 0; font-size: .9rem; }
     .hw-hint { color: var(--c-info); }
-    .hw-footer { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--c-border); }
+    .hw-footer { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--c-border); flex-wrap: wrap; }
+    .hw-footer-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .btn-small { font-size: .78rem !important; padding: .2rem .625rem !important; height: auto !important; }
+    .btn-edit   { color: #4f46e5 !important; border-color: #4f46e5 !important; }
+    .btn-danger { color: #b91c1c !important; border-color: #b91c1c !important; }
     .status-badge.upcoming { background: var(--c-warning-bg); color: var(--c-warning); }
     .status-badge.closed { background: var(--c-border); color: var(--c-text-muted); }
     .status-badge.graded { background: var(--c-success-bg); color: var(--c-success); }
@@ -117,9 +137,10 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
   `],
 })
 export class InstructorZadaniaComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private snack = inject(MatSnackBar);
-  courseCtx     = inject(InstructorCourseContextService);
+  private api    = inject(InstructorApiService);
+  private snack  = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
+  courseCtx      = inject(InstructorCourseContextService);
 
   loading  = signal(true);
   homework = signal<InstructorHomework[]>([]);
@@ -187,6 +208,35 @@ export class InstructorZadaniaComponent implements OnInit {
         this.savingId.set(null);
         this.snack.open(err?.error?.error || 'Nie udało się zapisać oceny.', 'OK', { duration: 5000 });
       },
+    });
+  }
+
+  fileUrl(id: number): string {
+    return this.api.homeworkFileUrl(id);
+  }
+
+  startAdd(): void {
+    this.dialog.open(HomeworkFormDialogComponent, {
+      width: '640px', maxWidth: '95vw',
+      data: { mode: 'add', homework: null, courses: this.courseCtx.courses() },
+    }).afterClosed().subscribe(saved => { if (saved) this.load(); });
+  }
+
+  startEdit(hw: InstructorHomework): void {
+    this.dialog.open(HomeworkFormDialogComponent, {
+      width: '640px', maxWidth: '95vw',
+      data: { mode: 'edit', homework: hw, courses: this.courseCtx.courses() },
+    }).afterClosed().subscribe(saved => { if (saved) this.load(); });
+  }
+
+  remove(hw: InstructorHomework): void {
+    if (!confirm(`Usunąć zadanie „${hw.title}"? Usunie to też wszystkie oddania kursantów.`)) return;
+    this.api.deleteHomework(hw.id).subscribe({
+      next: res => {
+        this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
+        if (res.success) this.load();
+      },
+      error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć zadania.', 'OK', { duration: 5000 }),
     });
   }
 }

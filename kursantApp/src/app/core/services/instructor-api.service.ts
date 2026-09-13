@@ -84,6 +84,17 @@ export class InstructorApiService {
   gradeSubmission(submissionId: number, grade: string, feedback: string) {
     return this.post<void>('grade_submission', { submission_id: submissionId, grade, feedback });
   }
+  homeworkFileUrl(homeworkId: number): string {
+    return `${API}?action=homework_file&id=${homeworkId}&token=${encodeURIComponent(this.auth.token() ?? '')}`;
+  }
+  /** FormData: homework_id (edycja, opcjonalnie), course_id, title, description, hint,
+   *  due_at, session_id, open_at, close_at, is_active, notify, attach (plik, opcjonalnie). */
+  saveHomework(fd: FormData) {
+    return this.post<void>('save_homework', fd);
+  }
+  deleteHomework(homeworkId: number) {
+    return this.post<void>('delete_homework', { homework_id: homeworkId });
+  }
 
   getMaterials(courseId?: number) {
     return this.get<InstructorMaterial[]>('materials', courseId ? { course_id: String(courseId) } : {});

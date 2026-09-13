@@ -626,10 +626,112 @@ switch ($action) {
             ?: ((int)$b['id'] <=> (int)$a['id'])
         );
         $homeworks = array_map(function ($hw) {
+            $hw['has_file']    = $hw['attach_path'] !== '';
             $hw['availability'] = k30_ti_avail_status($hw['open_at'] ?? null, $hw['close_at'] ?? null);
+            unset($hw['attach_path']);
             return $hw;
         }, $homeworks);
         json_ok($homeworks);
+    }
+
+    // Zwykły <a href> (nie XHR) — patrz komentarz przy verify_instructor_token().
+    case 'homework_file': {
+        $hid = (int)($_GET['id'] ?? 0);
+        $hw  = $hid ? k30_ti_homework_get($hid) : null;
+        if (!$hw || !k30_ti_instructor_owns_course($instructor_id, (int)$hw['course_id'])) {
+            json_err('Brak dostępu do tego zadania.', 403);
+        }
+        if ($hw['attach_path'] !== '') k30_ti_homework_send_file((string)$hw['attach_path'], (string)$hw['attach_name']);
+        json_err('Plik nie istnieje.', 404);
+    }
+
+    // Dodanie/edycja zadania domowego — 1:1 z index.php op=save_homework/
+    // delete_homework, bez wyboru pliku z dysku ownCloud (cloud_pick.php).
+    case 'save_homework': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+
+        $hid = (int)($body['homework_id'] ?? 0);
+        $cid = (int)($body['course_id'] ?? 0);
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$cid || !in_array($cid, $course_ids, true)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $title = trim((string)($body['title'] ?? ''));
+        $desc  = trim((string)($body['description'] ?? ''));
+        $hint  = trim((string)($body['hint'] ?? ''));
+        $session_id = (int)($body['session_id'] ?? 0) ?: null;
+        $dt_in = function (string $k) use ($body): ?string {
+            $v = trim((string)($body[$k] ?? ''));
+            return $v !== '' ? str_replace('T', ' ', $v) . (strlen($v) === 16 ? ':00' : '') : null;
+        };
+        $due_at   = $dt_in('due_at');
+        $open_at  = $dt_in('open_at');
+        $close_at = $dt_in('close_at');
+
+        if ($title === '') json_err('Podaj tytuł zadania.');
+        if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $cid])) $session_id = null;
+
+        try {
+            $up = k30_ti_homework_upload('attach', 'hw');
+        } catch (\Throwable $e) {
+            json_err($e->getMessage());
+        }
+
+        if ($hid) {
+            $hw = k30_ti_homework_get($hid);
+            if (!$hw || !k30_ti_instructor_owns_course($instructor_id, (int)$hw['course_id'])) {
+                json_err('Brak dostępu do tego zadania.', 403);
+            }
+            $set = [
+                'course_id' => $cid, 'session_id' => $session_id, 'title' => $title, 'description' => $desc,
+                'hint' => $hint, 'due_at' => $due_at, 'open_at' => $open_at, 'close_at' => $close_at,
+                'is_active' => !empty($body['is_active']) ? 1 : 0,
+            ];
+            if ($up) {
+                if ($hw['attach_path'] !== '') k30_ti_homework_delete_file($hw['attach_path']);
+                $set['attach_name'] = $up['name'];
+                $set['attach_path'] = $up['stored'];
+            }
+            $cols = []; $params = [];
+            foreach ($set as $k => $v) { $cols[] = "$k=?"; $params[] = $v; }
+            $params[] = $hid;
+            $pdo->prepare('UPDATE k30_ti_homework SET ' . implode(',', $cols) . ' WHERE id=?')->execute($params);
+            $msg = 'Zadanie zaktualizowane.';
+        } else {
+            db_insert('k30_ti_homework', [
+                'course_id' => $cid, 'session_id' => $session_id, 'title' => $title, 'description' => $desc,
+                'hint' => $hint, 'due_at' => $due_at, 'open_at' => $open_at, 'close_at' => $close_at,
+                'attach_name' => $up['name'] ?? '', 'attach_path' => $up['stored'] ?? '',
+                'is_active' => 1, 'created_by' => $instructor_id,
+            ]);
+            $msg = 'Zadanie dodane.';
+        }
+
+        if (!empty($body['notify'])) {
+            k30_ti_notify_dydaktyka(
+                $cid, 'Zmiana w zadaniu: ' . $title,
+                'Prowadzący zaktualizował zadanie domowe „' . htmlspecialchars($title, ENT_QUOTES) . '".',
+                rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                (defined('ORG_NAME') ? ORG_NAME : 'TI') . ': zmiana w zadaniu "' . $title . '".'
+            );
+        }
+        json_ok(null, $msg);
+    }
+
+    case 'delete_homework': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $hid  = (int)($body['homework_id'] ?? 0);
+        $hw   = $hid ? k30_ti_homework_get($hid) : null;
+        if (!$hw || !k30_ti_instructor_owns_course($instructor_id, (int)$hw['course_id'])) {
+            json_err('Brak dostępu do tego zadania.', 403);
+        }
+        foreach (db_all("SELECT file_path FROM k30_ti_homework_submissions WHERE homework_id=?", [$hid]) as $s) {
+            k30_ti_homework_delete_file($s['file_path']);
+        }
+        k30_ti_homework_delete_file($hw['attach_path']);
+        $pdo->prepare('DELETE FROM k30_ti_homework WHERE id=?')->execute([$hid]);
+        json_ok(null, 'Zadanie usunięte.');
     }
 
     case 'homework_submissions': {
