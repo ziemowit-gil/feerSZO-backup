@@ -25,6 +25,7 @@ $_n_notices   = (int)($dyd_notices_unread ?? 0);
 $_n_contracts = isset($dyd_contracts) && is_array($dyd_contracts)
     ? count(array_filter($dyd_contracts, fn($c) => in_array($c['status'] ?? '', ['podpisana','w realizacji'], true)))
     : 0;
+$_n_protocols = isset($_my_pending_protocols) ? count($_my_pending_protocols) : 0;
 
 /** Pozycja nawigacji: [zakładka albo '', etykieta, adres, licznik, wariant plakietki, nowa karta?] */
 $_it = fn(string $tab_key, string $label, string $href, int $n = 0, string $variant = 'secondary', bool $blank = false)
@@ -61,6 +62,7 @@ $_usos_sections = [
             $_it('',                 'Zapisy na zajęcia', 'rekrutacja.php'),
             $_it('cykliczne',        'Plan cykliczny',    $_g('cykliczne')),
             $_it('',                 'Planner',           'planner.php'),
+            $_it('',                 'Protokoły',         'protokoly_moje.php', $_n_protocols, 'warning'),
         ],
     ],
     'kurs' => [
@@ -74,6 +76,7 @@ $_usos_sections = [
         'items' => [
             $_it('wiadomosci', 'Wiadomości', $_g('wiadomosci'), $_n_msg, 'danger'),
             $_it('komunikaty', 'Komunikaty', $_g('komunikaty'), $_n_notices, 'warning'),
+            $_it('',           'Zgłoś problem', 'zglos_problem.php'),
         ],
     ],
     'zasoby' => [
