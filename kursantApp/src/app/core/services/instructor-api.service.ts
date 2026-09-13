@@ -6,7 +6,7 @@ import {
   InstructorHomework, InstructorHomeworkDetail, InstructorMaterial,
   InstructorRoom, InstructorRescheduleRequest,
   InstructorMessageThreads, InstructorAdminMessage, Message,
-  InstructorFormalnosci,
+  InstructorFormalnosci, InstructorHelpdeskTicket,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -156,5 +156,10 @@ export class InstructorApiService {
   /** Eksport CSV frekwencji za dany miesiąc (opcjonalnie jedna grupa). */
   attendanceCsvUrl(month: string, courseId: number | null): string {
     return this.downloadUrl('attendance_csv', courseId ? { month, course_id: String(courseId) } : { month });
+  }
+
+  getHelpdeskTickets() { return this.get<InstructorHelpdeskTicket[]>('helpdesk_tickets'); }
+  createHelpdeskTicket(fd: FormData) {
+    return this.post<void>('helpdesk_create', fd);
   }
 }

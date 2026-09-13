@@ -32,6 +32,7 @@ require_once __DIR__ . '/../../includes/ti_planner_ext.php';
 require_once __DIR__ . '/../../includes/ti_messages.php';
 require_once __DIR__ . '/../../includes/ti_room_reports.php';
 require_once __DIR__ . '/../../includes/ti_print_log.php';
+require_once __DIR__ . '/../../includes/helpdesk.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -1286,6 +1287,37 @@ switch ($action) {
         }
         fclose($f);
         exit;
+    }
+
+    // ── helpdesk ──────────────────────────────────────────────────────────────────
+    // Zgłoszenia własne prowadzącego do Helpdesk IT — odpowiednik
+    // karty30/ti/dydaktyk/api_helpdesk.php (tam: sesja panelu; tu: Bearer
+    // token). Ląduje w tym samym module Helpdesk (helpdesk_tickets,
+    // source='dydaktyk'), obsługiwane przez ten sam panel operatorów.
+    case 'helpdesk_tickets': {
+        json_ok(db_all(
+            "SELECT id, number, title, category, priority, status, created_at, updated_at
+             FROM helpdesk_tickets WHERE requester_id=? ORDER BY created_at DESC",
+            [$instructor_id]
+        ));
+    }
+
+    case 'helpdesk_create': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $title       = trim((string)($body['title'] ?? ''));
+        $description = trim((string)($body['description'] ?? ''));
+        $category    = (string)($body['category'] ?? 'it_inne');
+        $priority    = (string)($body['priority'] ?? 'normalny');
+        if ($title === '' || $description === '') json_err('Temat i opis są wymagane.');
+
+        $u = db_one("SELECT name, email FROM users WHERE id=?", [$instructor_id]);
+        $ticket_id = hd_ticket_quick_create(
+            ['id' => $instructor_id, 'name' => (string)($u['name'] ?? ''), 'email' => (string)($u['email'] ?? '')],
+            $title, $description, $category, $priority, 'dydaktyk'
+        );
+        if (!empty($_FILES['attachments']['name'][0])) hd_save_attachments($ticket_id, $_FILES['attachments'], $instructor_id);
+        json_ok(null, 'Zgłoszenie zarejestrowane.');
     }
 
     default:

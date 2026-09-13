@@ -656,3 +656,32 @@ export interface InstructorFormalnosci {
   contact: InstructorContact;
   contracts: InstructorContract[];
 }
+
+export interface InstructorHelpdeskTicket {
+  id: number;
+  number: string;
+  title: string;
+  category: string;
+  priority: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Zsynchronizowane ręcznie z HD_CATEGORIES w includes/helpdesk.php. */
+export const HD_CATEGORIES: Record<string, string> = {
+  it_sprzet: 'Sprzęt IT', it_oprogramowanie: 'Oprogramowanie', it_siec: 'Sieć / Internet',
+  it_dostep: 'Dostęp / Uprawnienia', it_konto: 'Konto / Logowanie', it_m365: 'Microsoft 365',
+  it_printer: 'Drukarki / Urządzenia', it_backup: 'Kopia zapasowa / Dane', it_inne: 'Inne IT',
+  inne: 'Inne (spoza IT)', zgl_blad: 'Błąd w systemie', zgl_sugestia: 'Sugestia dot. obecnej funkcji',
+};
+/** Zsynchronizowane ręcznie z HD_PRIORITIES w includes/helpdesk.php. */
+export const HD_PRIORITIES: Record<string, string> = {
+  niski: 'Niski', normalny: 'Normalny', wysoki: 'Wysoki', krytyczny: 'Krytyczny',
+};
+/** Zsynchronizowane ręcznie z HD_STATUSES w includes/helpdesk.php. */
+export const HD_STATUSES: Record<string, string> = {
+  nowe: 'Nowe', otwarte: 'Otwarte', oczekuje: 'Oczekuje', krytyczne: 'Krytyczne — wymaga interwencji',
+  przekazane_zewn: 'Przekazano do firmy zewnętrznej', zastepcze: 'Rozwiązanie zastępcze',
+  wymaga_prac: 'Wymaga prac programistycznych', 'rozwiązane': 'Rozwiązane', 'zamknięte': 'Zamknięte',
+};

@@ -64,6 +64,12 @@ export const routes: Routes = [
           import('./features/instructor/wydruki/wydruki.component').then(m => m.InstructorWydrukiComponent),
         title: 'Wydruki — Panel prowadzącego',
       },
+      {
+        path: 'helpdesk',
+        loadComponent: () =>
+          import('./features/instructor/helpdesk/helpdesk.component').then(m => m.InstructorHelpdeskComponent),
+        title: 'Helpdesk — Panel prowadzącego',
+      },
     ],
   },
   {
