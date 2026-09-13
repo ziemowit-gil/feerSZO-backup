@@ -1604,6 +1604,120 @@ switch ($action) {
         json_ok(null, 'Kolejność zaktualizowana.');
     }
 
+    // ── zajęcia stałe (reguła cykliczna) ─────────────────────────────────────────────
+    // Odpowiednik op=save_recurring_rule/delete_recurring_rule w index.php —
+    // OSOBNE od Serii lekcji (save_lesson_series): tu zapisuje się trwała
+    // reguła w k30_ti_series, a wygenerowane lekcje dostają session.series_id
+    // (usuwanie reguły może pociągnąć za sobą przyszłe lekcje albo je
+    // zachować, odłączając od reguły). Zakres zawsze "until" (data końcowa
+    // wymagana) — bez trybów count/hours jak w Serii.
+    case 'recurring_rules': {
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$course_ids) json_ok([]);
+        $ph = implode(',', array_fill(0, count($course_ids), '?'));
+        $rows = db_all(
+            "SELECT r.*, c.name AS course_name,
+                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.series_id=r.id) AS sessions_count,
+                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.series_id=r.id AND s.lesson_date >= date('now')) AS future_count
+             FROM k30_ti_series r JOIN k30_ti_courses c ON c.id=r.course_id
+             WHERE r.course_id IN ($ph) ORDER BY r.date_from DESC",
+            $course_ids
+        );
+        json_ok($rows);
+    }
+
+    case 'save_recurring_rule': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+
+        $cid = (int)($body['course_id'] ?? 0);
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$cid || !in_array($cid, $course_ids, true)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $date_from = trim((string)($body['date_from'] ?? ''));
+        $date_to   = trim((string)($body['date_to'] ?? ''));
+        $tf = trim((string)($body['time_from'] ?? ''));
+        $tt = trim((string)($body['time_to'] ?? ''));
+        $topic = trim((string)($body['topic'] ?? ''));
+        $room_id = max(0, (int)($body['room_id'] ?? 0));
+        if (!$date_from || !$date_to || $date_to < $date_from) json_err('Podaj poprawny zakres dat.');
+
+        $dur = 60;
+        if ($tf && $tt) {
+            $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
+            if ($m > 0) $dur = (int)$m;
+        }
+
+        $recur_mode = ($body['recur_mode'] ?? '') === 'monthly' ? 'monthly' : 'weekly';
+        $every = max(1, min(8, (int)($body['weeks'] ?? 1)));
+        $recur_dow = max(0, min(6, (int)($body['recur_dow'] ?? 1)));
+        $recur_pos = in_array((string)($body['recur_position'] ?? '1'), ['1', '2', '3', '4', 'last'], true) ? (string)$body['recur_position'] : '1';
+
+        $rule_dates = ti_recurrence_dates([
+            'mode' => $recur_mode, 'start' => $date_from, 'every' => $every,
+            'dow' => $recur_dow, 'position' => $recur_pos, 'end_mode' => 'until', 'until' => $date_to,
+        ]);
+        if (!$rule_dates) json_err('Wzorzec nie wygenerował żadnego terminu w podanym zakresie dat.');
+
+        foreach ($rule_dates as $d) {
+            if ($pc = ti_period_closed_for_date($d)) json_err(ti_period_closed_msg($pc) . ' Zajęcia stałe nie zostały dodane.');
+        }
+        // Zajęcia stałe nie mają wybranej metody (jak w klasyku) — Zoom obciążają tylko, gdy kurs ma stały link.
+        $zs = ti_zoom_dates_check($cid, '', $rule_dates, $tf, $tt);
+        if (!$zs['ok']) json_err(ti_zoom_conflicts_msg($zs['conflicts']) . ' Zajęcia stałe nie zostały dodane.');
+        $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
+
+        if ($room_id) {
+            foreach ($rule_dates as $d) {
+                $rc = pl_check_conflicts(['lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $room_id]);
+                if ($rc['hard']) json_err(($rc['hard'][0]['msg'] ?? 'Sala zajęta.') . " ({$d}) Zajęcia stałe nie zostały dodane.");
+            }
+        }
+
+        $rule_id = db_insert('k30_ti_series', [
+            'course_id' => $cid, 'time_from' => $tf, 'time_to' => $tt, 'interval_weeks' => $every,
+            'recur_mode' => $recur_mode, 'recur_dow' => $recur_mode === 'monthly' ? $recur_dow : null,
+            'recur_position' => $recur_mode === 'monthly' ? $recur_pos : '',
+            'date_from' => $date_from, 'date_to' => $date_to, 'topic' => $topic, 'room_id' => $room_id ?: null,
+            'created_by' => $instructor_id, 'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]);
+        $created = 0;
+        foreach ($rule_dates as $d) {
+            $sid = db_insert('k30_ti_sessions', [
+                'course_id' => $cid, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
+                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'room_id' => $room_id ?: null, 'created_by' => $instructor_id, 'created_at' => date('Y-m-d H:i:s'),
+                'series_id' => $rule_id,
+            ]);
+            foreach ($enrollees as $e) {
+                try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
+                catch (\Throwable $ex) {}
+            }
+            $created++;
+        }
+        $pattern_label = $recur_mode === 'monthly' ? 'wzorzec miesięczny' : "co {$every} tyg.";
+        json_ok(null, "Zajęcia stałe dodane: {$created} lekcji ({$pattern_label})." . $zw);
+    }
+
+    case 'delete_recurring_rule': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $ruleId = (int)($body['rule_id'] ?? 0);
+        $rule = $ruleId ? db_one("SELECT id, course_id FROM k30_ti_series WHERE id=?", [$ruleId]) : null;
+        if (!$rule || !k30_ti_instructor_owns_course($instructor_id, (int)$rule['course_id'])) {
+            json_err('Brak dostępu do tej reguły.', 403);
+        }
+        if (!empty($body['del_future'])) {
+            $pdo->prepare("DELETE FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'")->execute([$ruleId]);
+            $pdo->prepare("DELETE FROM k30_ti_series WHERE id=?")->execute([$ruleId]);
+            json_ok(null, 'Usunięto regułę zajęć stałych i nadchodzące lekcje.');
+        }
+        $pdo->prepare("UPDATE k30_ti_sessions SET series_id=NULL WHERE series_id=?")->execute([$ruleId]);
+        $pdo->prepare("DELETE FROM k30_ti_series WHERE id=?")->execute([$ruleId]);
+        json_ok(null, 'Usunięto regułę zajęć stałych (istniejące lekcje zachowane).');
+    }
+
     default:
         json_err('Nieznana akcja.', 404);
 }

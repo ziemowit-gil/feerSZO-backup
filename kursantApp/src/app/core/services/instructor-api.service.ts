@@ -10,6 +10,7 @@ import {
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
   InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
   InstructorAttendanceTrendPoint, InstructorAbsence, InstructorCurriculumItem,
+  InstructorRecurringRule,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -209,5 +210,16 @@ export class InstructorApiService {
   }
   moveCurriculumItem(courseId: number, itemId: number, dir: 'up' | 'down') {
     return this.post<void>('curriculum_move', { course_id: courseId, item_id: itemId, dir });
+  }
+
+  getRecurringRules() { return this.get<InstructorRecurringRule[]>('recurring_rules'); }
+  saveRecurringRule(payload: {
+    course_id: number; date_from: string; date_to: string; time_from: string; time_to: string; topic: string;
+    room_id: number | null; recur_mode: 'weekly' | 'monthly'; weeks: number; recur_dow: number; recur_position: string;
+  }) {
+    return this.post<void>('save_recurring_rule', payload);
+  }
+  deleteRecurringRule(ruleId: number, delFuture: boolean) {
+    return this.post<void>('delete_recurring_rule', { rule_id: ruleId, del_future: delFuture });
   }
 }

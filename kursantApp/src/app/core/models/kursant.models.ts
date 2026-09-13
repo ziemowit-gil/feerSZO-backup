@@ -759,6 +759,24 @@ export interface InstructorCurriculumItem {
   position: number;
 }
 
+export interface InstructorRecurringRule {
+  id: number;
+  course_id: number;
+  course_name: string;
+  time_from: string;
+  time_to: string;
+  interval_weeks: number;
+  recur_mode: 'weekly' | 'monthly';
+  recur_dow: number | null;
+  recur_position: string;
+  date_from: string;
+  date_to: string;
+  topic: string | null;
+  room_id: number | null;
+  sessions_count: number;
+  future_count: number;
+}
+
 export interface InstructorAbsence {
   session_id: number;
   client_id: number;

@@ -89,6 +89,12 @@ export const routes: Routes = [
         title: 'Program nauczania — Panel prowadzącego',
       },
       {
+        path: 'zajecia-stale',
+        loadComponent: () =>
+          import('./features/instructor/zajecia-stale/zajecia-stale.component').then(m => m.InstructorZajeciaStaleComponent),
+        title: 'Zajęcia stałe — Panel prowadzącego',
+      },
+      {
         path: 'zasoby/dysk',
         loadComponent: () =>
           import('./features/instructor/zasoby/dysk.component').then(m => m.InstructorDyskComponent),
