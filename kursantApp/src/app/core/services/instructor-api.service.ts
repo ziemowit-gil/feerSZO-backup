@@ -5,6 +5,7 @@ import {
   ApiResponse, InstructorDashboard, InstructorLessonRow, InstructorAttendanceEntry,
   InstructorHomework, InstructorHomeworkDetail, InstructorMaterial,
   InstructorRoom, InstructorRescheduleRequest,
+  InstructorMessageThreads, InstructorAdminMessage, Message,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -100,5 +101,19 @@ export class InstructorApiService {
   }
   deleteMaterial(materialId: number) {
     return this.post<void>('delete_material', { material_id: materialId });
+  }
+
+  getMessageThreads() { return this.get<InstructorMessageThreads>('message_threads'); }
+  getStudentThread(accountId: number) {
+    return this.get<Message[]>('message_thread', { kind: 'student', id: String(accountId) });
+  }
+  getAdminThread(toAdminId: number) {
+    return this.get<InstructorAdminMessage[]>('message_thread', { kind: 'admin', id: String(toAdminId) });
+  }
+  sendStudentMessage(accountId: number, body: string, subject = '') {
+    return this.post<void>('send_message', { kind: 'student', account_id: accountId, body, subject });
+  }
+  sendAdminMessage(toAdminId: number, body: string, subject = '') {
+    return this.post<void>('send_message', { kind: 'admin', to_admin_id: toAdminId, body, subject });
   }
 }

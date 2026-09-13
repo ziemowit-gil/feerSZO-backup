@@ -29,6 +29,7 @@ require_once __DIR__ . '/../../includes/ti_notices.php';
 require_once __DIR__ . '/../../includes/ti_reschedule.php';
 require_once __DIR__ . '/../../includes/ti_periods.php';
 require_once __DIR__ . '/../../includes/ti_planner_ext.php';
+require_once __DIR__ . '/../../includes/ti_messages.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -779,6 +780,115 @@ switch ($action) {
         k30_ti_homework_delete_file($m['attach_path']);
         $pdo->prepare('DELETE FROM k30_ti_materials WHERE id=?')->execute([$mid]);
         json_ok(null, 'Materiał usunięty.');
+    }
+
+    // ── wiadomości ────────────────────────────────────────────────────────────────
+    // Odpowiednik _tab_wiadomosci.php: wątki z kursantami (k30_ti_messages, per
+    // student_id) i osobno z kierownictwem (k30_ti_admin_msgs, jeden wiersz =
+    // wiadomość+ewentualna odpowiedź, nie symetryczny wątek). Załączniki,
+    // blokowanie kursanta, archiwizacja i przekierowanie do Helpdesk IT
+    // zostają na razie w klasycznym panelu.
+    case 'message_threads': {
+        $course_ids = instructor_course_ids($instructor_id);
+        $in = $course_ids ? implode(',', $course_ids) : '0';
+
+        $student_threads = db_all(
+            "SELECT a.id AS account_id, COALESCE(cl.name, a.login) AS name, a.login,
+                    MAX(m.created_at) AS last_at,
+                    SUM(CASE WHEN m.sender='student' AND m.is_read=0 THEN 1 ELSE 0 END) AS unread
+             FROM k30_ti_messages m
+             JOIN k30_ti_student_accounts a ON a.id=m.student_id
+             LEFT JOIN k30_clients cl ON cl.id=a.client_id
+             WHERE a.id IN (
+                 SELECT DISTINCT sa.id FROM k30_ti_student_accounts sa
+                 JOIN k30_ti_enrollments e ON e.client_id=sa.client_id
+                 WHERE e.course_id IN ($in) AND e.status='active'
+             )
+             GROUP BY a.id ORDER BY last_at DESC"
+        );
+        $recipients = db_all(
+            "SELECT DISTINCT a.id, COALESCE(cl.name, a.login) AS name, c.name AS course_name
+             FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             JOIN k30_ti_courses c ON c.id=e.course_id
+             LEFT JOIN k30_clients cl ON cl.id=a.client_id
+             WHERE e.course_id IN ($in) AND e.status='active' AND a.is_active=1
+             ORDER BY name"
+        );
+
+        $admin_users   = ti_admin_users();
+        $admin_threads = array_map(function ($t) use ($admin_users) {
+            $t['to_admin_id'] = (int)$t['to_admin_id'];
+            $t['label']       = ti_admin_thread_label($t['to_admin_id'], $admin_users);
+            $t['unseen']      = (int)$t['unseen'];
+            $t['msg_count']   = (int)$t['msg_count'];
+            return $t;
+        }, ti_admin_msg_thread_list($instructor_id));
+        $admin_recipients = array_merge(
+            [['id' => -1, 'label' => 'Kierownik Instytucji'], ['id' => 0, 'label' => 'Administratorzy (wszyscy)']],
+            array_map(fn($a) => ['id' => (int)$a['id'], 'label' => (string)$a['name']], $admin_users)
+        );
+
+        json_ok([
+            'student_threads'  => $student_threads,
+            'recipients'       => $recipients,
+            'admin_threads'    => $admin_threads,
+            'admin_recipients' => $admin_recipients,
+            'admin_unseen_total' => ti_admin_msg_unseen_total($instructor_id),
+        ]);
+    }
+
+    case 'message_thread': {
+        $kind = (string)($_GET['kind'] ?? 'student');
+        $id   = (int)($_GET['id'] ?? 0);
+
+        if ($kind === 'admin') {
+            $msgs = ti_admin_msg_list_for_thread($instructor_id, $id);
+            ti_admin_msg_mark_instructor_seen($instructor_id, $id);
+            json_ok($msgs);
+        }
+
+        $course_ids = instructor_course_ids($instructor_id);
+        $in = $course_ids ? implode(',', $course_ids) : '0';
+        $owns = $id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN ($in) AND e.status='active' LIMIT 1",
+            [$id]
+        ) : null;
+        if (!$owns) json_err('Ten kursant nie jest zapisany do Twojego kursu.', 403);
+        ti_msg_mark_read_for_staff($id);
+        json_ok(ti_msg_list_for_student($id));
+    }
+
+    case 'send_message': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body    = get_body();
+        $kind    = (string)($body['kind'] ?? 'student');
+        $text    = trim((string)($body['body'] ?? ''));
+        $subject = trim((string)($body['subject'] ?? ''));
+        if ($text === '') json_err('Treść wiadomości jest wymagana.');
+        $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+        $senderName = (string)($u['name'] ?? 'Prowadzący');
+
+        if ($kind === 'admin') {
+            $toAdminId = (int)($body['to_admin_id'] ?? 0);
+            ti_admin_msg_send($instructor_id, $senderName, $subject, $text, $toAdminId);
+            json_ok(null, 'Wiadomość wysłana.');
+        }
+
+        $accId = (int)($body['account_id'] ?? 0);
+        $course_ids = instructor_course_ids($instructor_id);
+        $in = $course_ids ? implode(',', $course_ids) : '0';
+        $owns = $accId ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN ($in) AND e.status='active' LIMIT 1",
+            [$accId]
+        ) : null;
+        if (!$owns) json_err('Nie możesz pisać do tego kursanta.', 403);
+        ti_msg_post_to_student($accId, $subject, $text, $instructor_id, $senderName, true);
+        json_ok(null, 'Wiadomość wysłana.');
     }
 
     default:

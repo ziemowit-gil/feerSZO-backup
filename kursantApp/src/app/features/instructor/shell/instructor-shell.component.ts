@@ -120,6 +120,7 @@ export class InstructorShellComponent {
     { path: 'lekcje', label: 'Lekcje', icon: 'calendar_month' },
     { path: 'zadania', label: 'Zadania', icon: 'assignment' },
     { path: 'materialy', label: 'Materiały', icon: 'collections_bookmark' },
+    { path: 'wiadomosci', label: 'Wiadomości', icon: 'forum' },
   ];
 
   instructorName = computed(() => this.instructor()?.name ?? '');

@@ -576,3 +576,51 @@ export const INSTRUCTOR_MATERIAL_TYPES: { value: string; label: string }[] = [
   { value: 'prezentacja', label: 'Prezentacja' },
   { value: 'inne', label: 'Inne' },
 ];
+
+export interface InstructorStudentThread {
+  account_id: number;
+  name: string;
+  login: string;
+  last_at: string | null;
+  unread: number;
+}
+
+export interface InstructorMessageRecipient {
+  id: number;
+  name: string;
+  course_name: string;
+}
+
+export interface InstructorAdminThread {
+  to_admin_id: number;
+  label: string;
+  last_at: string | null;
+  unseen: number;
+  msg_count: number;
+}
+
+export interface InstructorAdminRecipient {
+  id: number;
+  label: string;
+}
+
+export interface InstructorMessageThreads {
+  student_threads: InstructorStudentThread[];
+  recipients: InstructorMessageRecipient[];
+  admin_threads: InstructorAdminThread[];
+  admin_recipients: InstructorAdminRecipient[];
+  admin_unseen_total: number;
+}
+
+/** Jeden wiersz = wiadomość prowadzącego + (opcjonalnie) doklejona odpowiedź admina — NIE symetryczny wątek jak Message. */
+export interface InstructorAdminMessage {
+  id: number;
+  user_id: number;
+  to_admin_id: number;
+  subject: string;
+  body: string;
+  created_at: string;
+  reply_body: string;
+  reply_by: string;
+  replied_at: string | null;
+}
