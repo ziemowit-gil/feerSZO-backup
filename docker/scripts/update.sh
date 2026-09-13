@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update.sh — git pull kodu + restart Apache + migracje (bez rebuildu obrazu)
+# update.sh — git pull kodu + restart Apache + migracje (bez rebuildu obrazu app)
 #
 # Używaj gdy zmieniły się tylko pliki PHP/HTML/JS/CSS.
 # Dla zmian w Dockerfile lub php.prod.ini użyj rebuild.sh.
@@ -8,9 +8,14 @@
 # nie czyści OPcache (workers dziedziczą SHM z procesu-rodzica). Skrypt
 # robi pełny restart Apache, który reinicjalizuje moduł PHP i niszczy stary SHM.
 #
+# Panel kursanta (kursantApp, Angular) jest inny: serwowany jako statyczny
+# dist/ zapieczony w obrazie kursant-ui, więc dla niego "bez rebuildu obrazu"
+# nie wystarczy — skrypt i tak przebudowuje ten jeden obraz (docker compose
+# build kursant-ui), jeśli kontener feer-kursant-ui jest wdrożony na hoście.
+#
 # Użycie:
-#   bash docker/update.sh           # prod + testy (jeśli działa)
-#   bash docker/update.sh --no-testy  # tylko prod
+#   bash docker/update.sh           # prod + kursant-ui (jeśli wdrożony) + testy (jeśli działa)
+#   bash docker/update.sh --no-testy  # bez środowiska testowego
 
 set -euo pipefail
 
@@ -19,6 +24,15 @@ PROD_DIR="$(dirname "$SCRIPT_DIR")"
 TESTY_DIR="/opt/feer-testy"
 PROD_CONTAINER="feer-app"
 TEST_CONTAINER="feer-testy-app"
+
+# docker-compose.yml może być obok skryptu (uruchomiony przez symlink
+# docker/update.sh) albo jeden poziom wyżej (docker/scripts/update.sh) —
+# ten sam wzorzec co w rebuild.sh ([[project_docker_scripts_reorg]]).
+if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    COMPOSE_DIR="$SCRIPT_DIR"
+else
+    COMPOSE_DIR="$(dirname "$SCRIPT_DIR")"
+fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
@@ -156,6 +170,41 @@ reload_container() {
     fi
 }
 
+# ── Funkcja: przebuduj i zrestartuj kursant-ui (Angular, statyczny build) ────
+# git pull (krok 1) tylko aktualizuje źródła kursantApp/ na hoście — w
+# odróżnieniu od app (PHP interpretowany na żywo z bind-mounta), kursant-ui
+# serwuje przez nginx prebuildowany dist/ zapieczony w obrazie przy `docker
+# compose build`. Bez tego kroku zmiany w kursantApp/ nigdy nie trafią na
+# serwer, mimo zaktualizowanego repo.
+update_kursant_ui() {
+    local container="feer-kursant-ui"
+
+    if ! docker inspect "${container}" &>/dev/null; then
+        info "kursant-ui: kontener nie istnieje — pomijam (pierwsze wdrożenie: docker/rebuild.sh --kursant)"
+        return
+    fi
+
+    local env_file="${COMPOSE_DIR}/.env.prod"
+    if [[ ! -f "${env_file}" ]]; then
+        warn "kursant-ui: brak ${env_file} — pomijam rebuild"
+        return
+    fi
+
+    local compose="docker compose \
+        -f ${COMPOSE_DIR}/docker-compose.yml \
+        -f ${COMPOSE_DIR}/docker-compose.prod.yml \
+        -f ${COMPOSE_DIR}/docker-compose.kursant.yml \
+        --env-file ${env_file}"
+
+    info "kursant-ui: przebudowuję obraz (ng build --configuration production)..."
+    if ${compose} build kursant-ui 2>&1 | sed 's/^/    /'; then
+        ${compose} up -d --no-deps kursant-ui 2>&1 | sed 's/^/    /'
+        ok "kursant-ui: zaktualizowany i zrestartowany"
+    else
+        warn "kursant-ui: build nie powiódł się — sprawdź wyjście wyżej"
+    fi
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
@@ -172,21 +221,24 @@ run_migrations   "${PROD_CONTAINER}" "feer-app"
 reload_container "${PROD_CONTAINER}" "feer-app"
 renew_cert       "${PROD_CONTAINER}" "feer-app"
 
-# ── 2. Środowisko testowe (opcjonalne) ────────────────────────────────────────
+section "3. Panel kursanta (Angular) — rebuild + restart"
+update_kursant_ui
+
+# ── 4. Środowisko testowe (opcjonalne) ────────────────────────────────────────
 if [[ $SKIP_TESTY -eq 1 ]]; then
     warn "Środowisko testowe pominięte (--no-testy)"
 elif ! docker inspect "${TEST_CONTAINER}" &>/dev/null || \
      [[ "$(docker inspect "${TEST_CONTAINER}" --format '{{.State.Status}}' 2>/dev/null)" != "running" ]]; then
     info "Środowisko testowe nie działa — pomijam"
 else
-    section "3. Środowisko testowe — git pull"
+    section "4. Środowisko testowe — git pull"
     if [[ -d "${TESTY_DIR}/.git" ]]; then
         update_repo "${TESTY_DIR}" "testy"
     else
         warn "${TESTY_DIR} nie istnieje — pomiń lub uruchom setup-testy.sh"
     fi
 
-    section "4. Środowisko testowe — migracje + reload + certyfikat"
+    section "5. Środowisko testowe — migracje + reload + certyfikat"
     run_migrations   "${TEST_CONTAINER}" "feer-testy-app"
     reload_container "${TEST_CONTAINER}" "feer-testy-app"
     renew_cert       "${TEST_CONTAINER}" "feer-testy-app"
