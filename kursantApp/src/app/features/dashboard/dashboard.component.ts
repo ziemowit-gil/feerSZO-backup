@@ -99,6 +99,18 @@ import { AppDataService } from '../../core/services/app-data.service';
               <a routerLink="/wiadomosci" mat-stroked-button class="mt-2">Czytaj →</a>
             }
           </article>
+
+          @if (d.hw_pending > 0) {
+            <article class="k-card summary-card warning-card" role="listitem" aria-label="Zadania do oddania">
+              <p class="summary-card-label">
+                <span class="material-symbols-outlined" aria-hidden="true">assignment</span>
+                Zadania
+              </p>
+              <p class="summary-card-value">{{ d.hw_pending }}</p>
+              <p class="summary-card-sub">do oddania</p>
+              <a routerLink="/zadania" mat-stroked-button class="mt-2">Zobacz →</a>
+            </article>
+          }
         </div>
 
         <!-- Najbliższe zajęcia -->

@@ -27,7 +27,7 @@ export class AppDataService {
 
   readonly badges = computed(() => {
     const d = this._dashboard();
-    return { msg: d?.msg_unread ?? 0, notices: d?.notices_unread ?? 0, terms: d?.terms_pending ?? 0 };
+    return { msg: d?.msg_unread ?? 0, notices: d?.notices_unread ?? 0, terms: d?.terms_pending ?? 0, hw: d?.hw_pending ?? 0 };
   });
 
   readonly courses = computed<Course[]>(() => this._dashboard()?.active_courses ?? []);
