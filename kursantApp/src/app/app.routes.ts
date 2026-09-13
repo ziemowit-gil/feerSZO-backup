@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { instructorGuard } from './core/auth/instructor.guard';
 
 export const routes: Routes = [
   {
@@ -7,6 +8,27 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/login/login.component').then(m => m.LoginComponent),
     title: 'Logowanie — Panel Kursanta',
+  },
+  {
+    path: 'logowanie-prowadzacy',
+    loadComponent: () =>
+      import('./features/instructor/login/instructor-login.component').then(m => m.InstructorLoginComponent),
+    title: 'Logowanie — Panel prowadzącego',
+  },
+  {
+    path: 'prowadzacy',
+    loadComponent: () =>
+      import('./features/instructor/shell/instructor-shell.component').then(m => m.InstructorShellComponent),
+    canActivate: [instructorGuard],
+    children: [
+      { path: '', redirectTo: 'pulpit', pathMatch: 'full' },
+      {
+        path: 'pulpit',
+        loadComponent: () =>
+          import('./features/instructor/pulpit/pulpit.component').then(m => m.InstructorPulpitComponent),
+        title: 'Pulpit — Panel prowadzącego',
+      },
+    ],
   },
   {
     path: 'impersonate',

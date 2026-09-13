@@ -402,3 +402,61 @@ export interface ParentOtpChild {
   id: number;
   name: string;
 }
+
+// ── Panel prowadzącego (dydaktyka TI) ───────────────────────────────────────
+// Osobna tożsamość (konto SZO `users`, nie k30_ti_student_accounts) i osobne
+// API (api/v1/dydaktyk_instructor.php) — patrz InstructorAuthService /
+// InstructorApiService. Zakres zawsze ograniczony do WŁASNYCH kursów
+// prowadzącego; funkcje kierownika nie mają tu odpowiednika (zostają w
+// klasycznym panelu karty30/ti/dydaktyk/).
+
+export interface Instructor {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface InstructorTotpRequiredResponse {
+  success: boolean;
+  data?: { totp_required: true; pending_token: string };
+  error?: string;
+}
+
+export interface InstructorLoginResponse {
+  success: boolean;
+  data?: { token: string; instructor: Instructor };
+  error?: string;
+}
+
+export interface InstructorLesson {
+  id: number;
+  course_id: number;
+  course_name: string;
+  lesson_date: string;
+  time_from: string;
+  time_to: string;
+  status: LessonStatus;
+  topic: string | null;
+  meeting_url: string | null;
+  default_meeting_url: string | null;
+  enrolled?: number;
+}
+
+export interface InstructorAttendanceMonthRow {
+  course_id: number;
+  course_name: string;
+  lessons: number;
+  present: number;
+  absent: number;
+}
+
+export interface InstructorDashboard {
+  instructor: Instructor;
+  courses_count: number;
+  today: InstructorLesson[];
+  upcoming: InstructorLesson[];
+  pending_cancel: number;
+  notices_unread: number;
+  msg_unread_total: number;
+  attendance_month: InstructorAttendanceMonthRow[];
+}

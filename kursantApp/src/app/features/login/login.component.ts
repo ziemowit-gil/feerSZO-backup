@@ -1,5 +1,5 @@
 import { Component, signal, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -20,7 +20,7 @@ type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
   selector: 'app-login',
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule, FormsModule,
+    CommonModule, ReactiveFormsModule, FormsModule, RouterLink,
     MatFormFieldModule, MatInputModule, MatButtonModule,
     MatCheckboxModule, MatProgressSpinnerModule, MatButtonToggleModule,
   ],
@@ -173,6 +173,10 @@ type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
             <a href="/karty30/ti/dydaktyk/login.php" class="login-link">
               <span class="material-symbols-outlined" aria-hidden="true">person_book</span>
               Panel prowadzącego
+            </a>
+            <a routerLink="/logowanie-prowadzacy" class="login-link">
+              <span class="material-symbols-outlined" aria-hidden="true">science</span>
+              Panel prowadzącego (nowy, beta)
             </a>
           </nav>
         </div>
