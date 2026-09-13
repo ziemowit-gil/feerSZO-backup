@@ -11,20 +11,23 @@ import { AttendanceDialogComponent } from './attendance-dialog.component';
 import { RescheduleDialogComponent } from './reschedule-dialog.component';
 import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
 import { SeriesFormDialogComponent } from './series-form-dialog.component';
+import { MonthCalendarComponent, CalendarChip } from '../../../shared/components/month-calendar.component';
 
 /**
- * Lekcje prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_lekcje.php: lista
- * (bez kalendarza FullCalendar), dodawanie/edycja pojedynczej lekcji, Seria
- * lekcji (masowe tworzenie wg wzorca), obecność, odwoływanie/przywracanie
- * lekcji i zmiana terminu. Każda akcja to osobne okno modalne (na życzenie —
- * zamiast rozwijanego panelu szczegółów pod wierszem). "Zajęcia stałe"
- * (reguła cykliczna), kalendarz miesięczny i eksporty PDF/Excel zostają na
- * razie w klasycznym panelu — kolejny krok migracji.
+ * Lekcje prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_lekcje.php:
+ * lista (z alternatywnym widokiem kalendarza miesięcznego zamiast tabeli),
+ * dodawanie/edycja pojedynczej lekcji, Seria lekcji (masowe tworzenie wg
+ * wzorca), obecność, odwoływanie/przywracanie lekcji i zmiana terminu.
+ * Każda akcja to osobne okno modalne (na życzenie — zamiast rozwijanego
+ * panelu szczegółów pod wierszem). W widoku kalendarza kliknięcie lekcji
+ * otwiera od razu edycję — pozostałe akcje (Obecność/Termin/Odwołaj)
+ * dostępne w widoku tabeli. Eksporty PDF/Excel zostają na razie w
+ * klasycznym panelu.
  */
 @Component({
   selector: 'app-instructor-lekcje',
   standalone: true,
-  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, StatusLabelPipe],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, StatusLabelPipe, MonthCalendarComponent],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie lekcji… }</div>
 
@@ -51,12 +54,27 @@ import { SeriesFormDialogComponent } from './series-form-dialog.component';
     }
 
     @if (!loading()) {
+      <div class="view-toggle">
+        <button mat-stroked-button type="button" [class.active]="view() === 'table'" (click)="view.set('table')">
+          <span class="material-symbols-outlined" aria-hidden="true">table_rows</span>
+          Tabela
+        </button>
+        <button mat-stroked-button type="button" [class.active]="view() === 'calendar'" (click)="view.set('calendar')">
+          <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+          Kalendarz
+        </button>
+      </div>
+
       @if (filteredLessons().length === 0) {
         <div class="k-card">
           <div class="empty-state">
             <span class="material-symbols-outlined empty-icon" aria-hidden="true">calendar_month</span>
             <p>Brak lekcji.</p>
           </div>
+        </div>
+      } @else if (view() === 'calendar') {
+        <div class="k-card">
+          <app-month-calendar [eventsByDay]="calendarEvents()" (chipClick)="onCalendarChipClick($event)" />
         </div>
       } @else {
         <div class="k-card">
@@ -114,6 +132,9 @@ import { SeriesFormDialogComponent } from './series-form-dialog.component';
     .page-header { position: relative; }
     .add-btn { position: absolute; top: 0; right: 0; }
     .header-actions { display: flex; gap: .5rem; }
+    .view-toggle { display: flex; gap: .4rem; margin-bottom: 1rem;
+      button.active { background: var(--c-surface-2); font-weight: 600; }
+    }
 
     .btn-small { font-size: .78rem !important; padding: .2rem .625rem !important; height: auto !important; }
     .actions-cell { display: flex; gap: .4rem; justify-content: flex-end; flex-wrap: wrap; }
@@ -138,12 +159,38 @@ export class InstructorLekcjeComponent implements OnInit {
 
   loading  = signal(true);
   lessons  = signal<InstructorLessonRow[]>([]);
+  view     = signal<'table' | 'calendar'>('table');
 
   filteredLessons = computed(() => {
     const cid = this.courseCtx.selectedId();
     const all = this.lessons();
     return cid ? all.filter(l => l.course_id === cid) : all;
   });
+
+  private lessonsByDay = computed(() => {
+    const byDay: Record<string, InstructorLessonRow[]> = {};
+    for (const l of this.filteredLessons()) (byDay[l.lesson_date] ??= []).push(l);
+    return byDay;
+  });
+
+  calendarEvents = computed<Record<string, CalendarChip[]>>(() => {
+    const byDay: Record<string, CalendarChip[]> = {};
+    for (const [date, ls] of Object.entries(this.lessonsByDay())) {
+      byDay[date] = ls.map(l => {
+        const colorClass = l.status === 'cancelled' ? 'danger'
+          : l.status === 'held' ? 'success'
+          : (l.rescheduled_from_date ? 'warn' : 'info');
+        const time = l.time_from ? l.time_from.slice(0, 5) + ' ' : '';
+        return { label: `${time}${l.course_name}`, colorClass };
+      });
+    }
+    return byDay;
+  });
+
+  onCalendarChipClick(ev: { date: string; index: number }): void {
+    const lesson = this.lessonsByDay()[ev.date]?.[ev.index];
+    if (lesson) this.startEdit(lesson);
+  }
 
   ngOnInit(): void {
     this.load();
