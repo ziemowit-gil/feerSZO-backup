@@ -2,16 +2,12 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorDashboard } from '../../../core/models/kursant.models';
-
-const STATUS_LABEL: Record<string, string> = {
-  held: 'odbyta', individual_change: 'odbyta (ind.)', remote_material: 'praca własna',
-  planned: 'zaplanowana', cancelled: 'odwołana', draft: 'szkic',
-};
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 
 @Component({
   selector: 'app-instructor-pulpit',
   standalone: true,
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, StatusLabelPipe],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie pulpitu… }</div>
 
@@ -74,7 +70,7 @@ const STATUS_LABEL: Record<string, string> = {
                     <td class="text-nowrap">{{ s.time_from | slice:0:5 }}@if (s.time_to) {–{{ s.time_to | slice:0:5 }}}</td>
                     <td>{{ s.course_name }}</td>
                     <td>{{ s.topic || '—' }}</td>
-                    <td><span class="status-badge">{{ statusLabel(s.status) }}</span></td>
+                    <td><span class="status-badge">{{ s.status | statusLabel }}</span></td>
                   </tr>
                 }
               </tbody>
@@ -147,8 +143,6 @@ export class InstructorPulpitComponent implements OnInit {
 
   loading = signal(true);
   data    = signal<InstructorDashboard | null>(null);
-
-  statusLabel(s: string): string { return STATUS_LABEL[s] ?? s; }
 
   ngOnInit(): void {
     this.api.getDashboard().subscribe({

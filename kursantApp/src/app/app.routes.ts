@@ -28,6 +28,12 @@ export const routes: Routes = [
           import('./features/instructor/pulpit/pulpit.component').then(m => m.InstructorPulpitComponent),
         title: 'Pulpit — Panel prowadzącego',
       },
+      {
+        path: 'lekcje',
+        loadComponent: () =>
+          import('./features/instructor/lekcje/lekcje.component').then(m => m.InstructorLekcjeComponent),
+        title: 'Lekcje — Panel prowadzącego',
+      },
     ],
   },
   {

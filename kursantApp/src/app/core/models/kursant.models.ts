@@ -460,3 +460,29 @@ export interface InstructorDashboard {
   msg_unread_total: number;
   attendance_month: InstructorAttendanceMonthRow[];
 }
+
+export interface InstructorLessonRow {
+  id: number;
+  course_id: number;
+  course_name: string;
+  lesson_date: string;
+  time_from: string;
+  time_to: string;
+  status: LessonStatus;
+  topic: string | null;
+  meeting_url: string | null;
+  default_meeting_url: string | null;
+  docs_complete: number;
+  rescheduled_from_date: string | null;
+  attended_count: number;
+  total_count: number;
+  is_substitution: boolean;
+}
+
+export interface InstructorAttendanceEntry {
+  client_id: number;
+  client_name: string;
+  attended: number;
+  cancelled: number;
+  no_show: number;
+}

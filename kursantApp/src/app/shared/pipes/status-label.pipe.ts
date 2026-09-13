@@ -2,12 +2,15 @@ import { Pipe, PipeTransform } from '@angular/core';
 import { LessonStatus } from '../../core/models/kursant.models';
 
 const LESSON_LABELS: Record<string, string> = {
-  held:            'Odbyła się',
-  planned:         'Zaplanowana',
-  cancelled:       'Odwołana',
-  excused:         'Usprawiedliwiona',
-  absence:         'Nieobecność',
-  remote_material: 'Praca własna',
+  held:               'Odbyła się',
+  individual_change:  'Odbyła się (ind.)',
+  planned:            'Zaplanowana',
+  cancelled:          'Odwołana',
+  excused:            'Usprawiedliwiona',
+  absence:            'Nieobecność',
+  remote_material:    'Praca własna',
+  reserved:           'Zarezerwowana',
+  draft:              'Szkic',
 };
 
 const HOMEWORK_LABELS: Record<string, string> = {

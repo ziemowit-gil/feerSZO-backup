@@ -114,6 +114,11 @@ function instructor_public_profile(array $u): array {
     ];
 }
 
+/** Id własnych kursów prowadzącego (główny lub coProwadzący) — nigdy zakres kierownika. */
+function instructor_course_ids(int $instructorId): array {
+    return array_map(fn($c) => (int)$c['id'], k30_ti_instructor_courses($instructorId, false));
+}
+
 // ── Krok 1: login hasłem ──────────────────────────────────────────────────────
 if ($action === 'login' && $method === 'POST') {
     $body     = get_body();
@@ -288,6 +293,107 @@ switch ($action) {
             'msg_unread_total'  => $msg_unread_total,
             'attendance_month'  => $attendance_month,
         ]);
+    }
+
+    // ── lekcje ─────────────────────────────────────────────────────────────────
+    case 'lessons': {
+        $course_ids = instructor_course_ids($instructor_id);
+        $filter_course = (int)($_GET['course_id'] ?? 0);
+        if ($filter_course && !in_array($filter_course, $course_ids, true)) {
+            json_err('Ten kurs nie jest Twój.', 403);
+        }
+        $scope_ids = $filter_course ? [$filter_course] : $course_ids;
+        if (!$scope_ids) json_ok([]);
+
+        $ph = implode(',', array_fill(0, count($scope_ids), '?'));
+        $rows = db_all(
+            "SELECT s.id, s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.time_to,
+                    s.status, s.topic, s.meeting_url, c.default_meeting_url, s.docs_complete,
+                    s.rescheduled_from_date, s.instructor_id,
+                    (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,
+                    (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count
+             FROM k30_ti_sessions s
+             JOIN k30_ti_courses c ON c.id=s.course_id
+             WHERE s.course_id IN ($ph)
+             ORDER BY s.lesson_date DESC, s.time_from DESC",
+            $scope_ids
+        );
+        $lessons = array_map(function ($s) {
+            $s['is_substitution'] = !empty($s['instructor_id']);
+            unset($s['instructor_id']);
+            return $s;
+        }, $rows);
+        json_ok($lessons);
+    }
+
+    case 'session_attendance': {
+        $sid = (int)($_GET['session_id'] ?? 0);
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        json_ok(k30_ti_session_attendance($sid));
+    }
+
+    case 'mark_attendance': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sid  = (int)($body['session_id'] ?? 0);
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+
+        $sess = db_one("SELECT lesson_date, status FROM k30_ti_sessions WHERE id=?", [$sid]);
+        if ((string)($sess['lesson_date'] ?? '') > date('Y-m-d')) json_err('Nie można oznaczyć jako odbytej lekcji z przyszłości.');
+
+        if (($sess['status'] ?? '') === 'remote_material') {
+            $pdo->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
+            json_ok(null, 'Praca prowadzącego — wszyscy kursanci oznaczeni jako obecni.');
+        }
+
+        $attended = array_map('intval', (array)($body['attended'] ?? []));
+        k30_ti_save_attendance($sid, $attended);
+
+        // Lekcja się odbyła (gdy była zaplanowana) — zmiana indywidualna gdy:
+        // podgrupa LUB ≥1 nieobecny LUB kurs jednosobowy (patrz index.php op=save_attendance).
+        $any_absent = !empty(array_filter(
+            db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$sid]),
+            fn($r) => !$r['attended']
+        ));
+        $s_course   = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$sid]);
+        $cid        = (int)($s_course['course_id'] ?? 0);
+        $course_row = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$cid]);
+        $is_sub     = !empty($course_row['is_subgroup']);
+        $enrolled_n = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid])['n'] ?? 0);
+        $new_status = ($is_sub || $any_absent || $enrolled_n <= 1) ? 'individual_change' : 'held';
+        $pdo->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$new_status, $sid]);
+
+        foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]) as $er) {
+            try { k30_ti_check_low_attendance($cid, (int)$er['client_id']); } catch (\Throwable $e) {}
+        }
+        json_ok(null, 'Obecność zapisana.');
+    }
+
+    case 'cancel_lesson': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body   = get_body();
+        $sid    = (int)($body['session_id'] ?? 0);
+        $reason = trim((string)($body['reason'] ?? ''));
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        if ($reason === '') json_err('Podaj powód odwołania lekcji.');
+
+        $sess_date = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_date'] ?? '');
+        if ($sess_date && $sess_date < date('Y-m-d')) json_err('Nie można odwołać lekcji z przeszłości.');
+
+        $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+        $sms_sent = k30_ti_cancel_session($sid, $reason, 'doradca', (string)($u['name'] ?? ''));
+        json_ok(null, 'Lekcja odwołana — nie zostanie policzona do ceny.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
+    }
+
+    case 'uncancel_lesson': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sid  = (int)($body['session_id'] ?? 0);
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        $pdo->prepare(
+            "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"
+        )->execute([$sid]);
+        json_ok(null, 'Lekcja przywrócona (zaplanowana).');
     }
 
     default:
