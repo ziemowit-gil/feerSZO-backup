@@ -351,6 +351,14 @@ function load_student(int $sid): array {
 switch ($action) {
     // ── dashboard ──────────────────────────────────────────────────────────────
     case 'dashboard': {
+        // Wymagane, żeby zapytanie o "upcoming_lessons" niżej mogło bezpiecznie
+        // SELECT-ować z k30_ti_reschedule_requests — ta tabela jest tworzona
+        // dopiero w k30_ti_reschedule_migrate(), którą do tej pory wołał tylko
+        // case 'lessons'. Bez tego pierwsze wejście na dashboard przed
+        // jakimkolwiek wejściem na Lekcje kończyło się PDOException (no such
+        // table) i nieczytelnym "Błąd połączenia z serwerem" po stronie Angulara.
+        k30_ti_reschedule_migrate();
+
         $acc = load_student($student_id);
         $cid = (int)$acc['client_id'];
 
