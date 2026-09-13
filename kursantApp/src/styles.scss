@@ -220,12 +220,17 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
   font-weight: 500;
   white-space: nowrap;
 
-  &.held         { background: #f0fdf4; color: #15803d; }
-  &.planned      { background: #eff6ff; color: #1d4ed8; }
-  &.cancelled    { background: #fef2f2; color: #b91c1c; }
-  &.excused      { background: #fffbeb; color: #92400e; }
-  &.absence      { background: #fef2f2; color: #b91c1c; }
-  &.remote       { background: #faf5ff; color: #7c3aed; }
+  &.held              { background: #f0fdf4; color: #15803d; }
+  &.planned           { background: #eff6ff; color: #1d4ed8; }
+  &.cancelled         { background: #fef2f2; color: #b91c1c; }
+  &.excused           { background: #fffbeb; color: #92400e; }
+  &.absence           { background: #fef2f2; color: #b91c1c; }
+  // Kolory zgodne z K30_TI_SESSION_STATUSES (includes/karty30.php) — ten sam
+  // status ma wyglądać tak samo w panelu kursanta i w panelu dydaktyka.
+  &.individual_change { background: #f5f3ff; color: #7c3aed; }
+  &.remote_material   { background: #ccfbf1; color: #0694a2; }
+  &.reserved          { background: #eff6ff; color: #2563eb; }
+  &.draft             { background: #f9fafb; color: #9ca3af; }
   &.submitted    { background: #eff6ff; color: #1d4ed8; }
   &.graded       { background: #f0fdf4; color: #15803d; }
   &.pending      { background: #fffbeb; color: #92400e; }

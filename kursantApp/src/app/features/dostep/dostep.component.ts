@@ -38,7 +38,10 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
     <mat-tab-group animationDuration="200ms" aria-label="Sekcje dostępu opiekuna">
       <mat-tab label="Konto dziecka">
         <section class="k-card tab-content">
-          <h2 class="k-card-title">Logowanie dziecka do panelu</h2>
+          <h2 class="k-card-title">
+            <span class="material-symbols-outlined" aria-hidden="true">shield_person</span>
+            Logowanie dziecka do panelu
+          </h2>
           @if (newChildPassword()) {
             <div class="k-alert warning" role="alert">
               <span class="material-symbols-outlined" aria-hidden="true">key</span>
@@ -62,7 +65,10 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
 
       <mat-tab label="Powiadomienia">
         <section class="k-card tab-content">
-          <h2 class="k-card-title">Powiadomienia dla opiekuna</h2>
+          <h2 class="k-card-title">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+            Powiadomienia dla opiekuna
+          </h2>
           <form [formGroup]="notifyForm" (ngSubmit)="saveNotify()">
             <mat-checkbox formControlName="parent_notify_absence">Nieobecność dziecka</mat-checkbox><br>
             <mat-checkbox formControlName="parent_notify_grade">Nowa ocena</mat-checkbox><br>
@@ -77,7 +83,10 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
 
       <mat-tab label="Moje hasło">
         <section class="k-card tab-content">
-          <h2 class="k-card-title">Zmiana hasła opiekuna</h2>
+          <h2 class="k-card-title">
+            <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+            Zmiana hasła opiekuna
+          </h2>
           <form [formGroup]="pwdForm" (ngSubmit)="changePassword()">
             <mat-form-field appearance="fill" class="w-100">
               <mat-label>Nowe hasło (min. 8 znaków)</mat-label>
@@ -98,7 +107,6 @@ function passwordMatch(control: AbstractControl): ValidationErrors | null {
   `,
   styles: [`
     .tab-content { margin-top: 1rem; }
-    .k-card-title { font-size: 1rem; font-weight: 600; margin: 0 0 1rem; }
     .btn-row { display: flex; gap: .75rem; margin-top: 1rem; flex-wrap: wrap; }
     .new-pass { font-family: monospace; font-weight: 700; color: #b45309; margin-top: .25rem; }
     .w-100 { width: 100%; }

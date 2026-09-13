@@ -239,16 +239,6 @@ interface Thread {
       margin-bottom: 1rem;
     }
 
-    .msg-bubble {
-      padding: .6rem .875rem;
-      border-radius: .6rem;
-      max-width: 85%;
-
-      &.from-staff   { background: #f3f4f6; align-self: flex-start; }
-      &.from-student { background: #eff6ff; align-self: flex-end; }
-    }
-
-    .msg-meta { font-size: .78rem; color: #6b7280; margin-bottom: .25rem; }
     .msg-body { margin: 0; white-space: pre-wrap; word-break: break-word; }
 
     .wm-form-actions { display: flex; gap: .5rem; align-items: center; }
