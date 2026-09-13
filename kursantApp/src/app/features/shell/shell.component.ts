@@ -27,7 +27,7 @@ interface NavItem {
  * harmonogram/wiadomosci/vlab/dostep) i authorized_person.php (tylko
  * lekcje/rozliczenia, do odczytu — patrz gating w api/v1/kursant_student.php).
  */
-const PARENT_VISIBLE = new Set(['dane', 'lekcje', 'oceny', 'plan', 'licencje', 'wiadomosci', 'rozliczenia', 'vlab', 'dostep']);
+const PARENT_VISIBLE = new Set(['dane', 'lekcje', 'oceny', 'plan', 'licencje', 'wiadomosci', 'rozliczenia', 'portfel', 'vlab', 'dostep']);
 const AUTHP_VISIBLE  = new Set(['dane', 'lekcje', 'rozliczenia']);
 
 interface Badges { msg: number; notices: number; terms: number; hw: number; }
@@ -374,6 +374,7 @@ export class ShellComponent implements OnInit {
     { path: 'komunikaty', label: 'Komunikaty',         icon: 'campaign',        badgeKey: 'notices' },
     { path: 'wiadomosci', label: 'Wiadomości',         icon: 'mail',            badgeKey: 'msg' },
     { path: 'rozliczenia', label: 'Rozliczenia',       icon: 'receipt_long',    section: 'Konto', hideMinor: true },
+    { path: 'portfel',     label: 'Portfel',           icon: 'wallet',          hideMinor: true },
     { path: 'upowaznieni', label: 'Upoważnieni',       icon: 'supervisor_account', hideMinor: true },
     { path: 'online',     label: 'Szkolenia online',   icon: 'video_call',      section: 'Dostępy' },
     { path: 'vlab',       label: 'VLab',               icon: 'terminal' },

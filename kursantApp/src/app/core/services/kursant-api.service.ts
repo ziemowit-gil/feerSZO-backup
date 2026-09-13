@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   ApiResponse, DashboardData, Lesson, DydGroup, GradesByCourse,
-  CurriculumItem, TestItem, Notice, Message, BillingData,
+  CurriculumItem, TestItem, Notice, Message, BillingData, WalletData,
   OnlineState, OwnCloudState, VlabServer, License, ActivityLogEntry,
   Term, AuthorizedPerson, YearEndOverpayInfo, GuardianNotifyPrefs,
 } from '../models/kursant.models';
@@ -35,6 +35,7 @@ export class KursantApiService {
   getNotices()    { return this.get<Notice[]>('notices'); }
   getMessages()   { return this.get<Message[]>('messages'); }
   getBilling()    { return this.get<BillingData>('billing'); }
+  getWallet()     { return this.get<WalletData>('wallet'); }
   getYearEndOverpayInfo() { return this.get<YearEndOverpayInfo>('year_end_overpay_info'); }
   getOnline()     { return this.get<OnlineState>('online'); }
   getVlab()       { return this.get<VlabServer[]>('vlab'); }
@@ -91,6 +92,12 @@ export class KursantApiService {
   }
   yearEndDeclareTransfer(amount: number, note: string) {
     return this.post<{ ok: boolean }>('year_end_declare_transfer', { amount, note });
+  }
+  walletTopup(amount: number, provider: string) {
+    return this.post<{ url: string }>('wallet_topup', { amount, provider });
+  }
+  walletDeclare(amount: number, note: string) {
+    return this.post<void>('wallet_declare', { amount, note });
   }
   orderVlabServer()    { return this.post<void>('order_dedicated_server'); }
   cancelVlabServer(server_id: number) {

@@ -76,6 +76,12 @@ export const routes: Routes = [
         title: 'Rozliczenia',
       },
       {
+        path: 'portfel',
+        loadComponent: () =>
+          import('./features/portfel/portfel.component').then(m => m.PortfelComponent),
+        title: 'Portfel',
+      },
+      {
         path: 'online',
         loadComponent: () =>
           import('./features/online/online.component').then(m => m.OnlineComponent),
