@@ -9,13 +9,15 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { InstructorAuthService } from '../../../core/auth/instructor-auth.service';
 
-type Stage = 'password' | 'totp';
+type Stage = 'choice' | 'password' | 'totp';
 
 /**
- * Logowanie prowadzącego — zawsze dwuetapowe (e-mail+hasło, potem kod TOTP),
- * bo 2FA jest obowiązkowe dla każdego konta dydaktyka (patrz dyd_require()
- * w karty30/ti/dydaktyk/auth.php). Zakładanie 2FA od zera (QR) nie jest tu
- * obsługiwane — konto musi mieć je już aktywne z klasycznego panelu.
+ * Logowanie prowadzącego — na życzenie zaczyna się od jawnego wyboru metody
+ * (Microsoft 365 / hasło lokalne), zamiast pokazywać oba naraz na jednym
+ * ekranie. Logowanie hasłem jest zawsze dwuetapowe (e-mail+hasło, potem kod
+ * TOTP), bo 2FA jest obowiązkowe dla każdego konta dydaktyka (patrz
+ * dyd_require() w karty30/ti/dydaktyk/auth.php). Zakładanie 2FA od zera (QR)
+ * nie jest tu obsługiwane — konto musi mieć je już aktywne z klasycznego panelu.
  */
 @Component({
   selector: 'app-instructor-login',
@@ -27,7 +29,11 @@ type Stage = 'password' | 'totp';
         <div class="logo" aria-hidden="true"><span class="material-symbols-outlined">person_book</span></div>
         <h1 class="title">Panel prowadzącego</h1>
         <p class="subtitle">
-          @if (stage() === 'password') { Zaloguj się danymi z konta SZO. } @else { Podaj kod z aplikacji uwierzytelniającej. }
+          @switch (stage()) {
+            @case ('choice') { Jak chcesz się zalogować? }
+            @case ('password') { Zaloguj się danymi z konta SZO. }
+            @default { Podaj kod z aplikacji uwierzytelniającej. }
+          }
         </p>
 
         @if (error()) {
@@ -35,6 +41,18 @@ type Stage = 'password' | 'totp';
             <span class="material-symbols-outlined" aria-hidden="true">error</span>
             <span>{{ error() }}</span>
           </div>
+        }
+
+        @if (stage() === 'choice') {
+          <a mat-flat-button href="/auth/ms365_prowadzacy.php" class="m365-btn">
+            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+            Zaloguj przez Microsoft 365
+          </a>
+          <div class="divider"><span>lub</span></div>
+          <button mat-stroked-button type="button" class="submit" (click)="stage.set('password')">
+            <span class="material-symbols-outlined" aria-hidden="true">password</span>
+            Zaloguj hasłem
+          </button>
         }
 
         @if (stage() === 'password') {
@@ -50,13 +68,8 @@ type Stage = 'password' | 'totp';
             <button mat-flat-button type="submit" class="submit" [disabled]="loading()" [attr.aria-busy]="loading()">
               @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="Logowanie…"></mat-progress-spinner> } @else { Dalej }
             </button>
+            <button type="button" class="back" (click)="stage.set('choice'); error.set(null)">Wróć</button>
           </form>
-
-          <div class="divider"><span>lub</span></div>
-          <a mat-stroked-button href="/auth/ms365_prowadzacy.php" class="m365-btn">
-            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
-            Zaloguj przez Microsoft 365
-          </a>
         }
 
         @if (stage() === 'totp') {
@@ -114,7 +127,7 @@ export class InstructorLoginComponent implements OnInit {
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
 
-  stage   = signal<Stage>('password');
+  stage   = signal<Stage>('choice');
   loading = signal(false);
   error   = signal<string | null>(null);
 
