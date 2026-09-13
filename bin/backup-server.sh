@@ -22,6 +22,12 @@
 #   bash bin/backup-server.sh [--dry-run] [--no-remote] [--no-git]
 #
 # Wymagania: bash 4+, tar, git, gzip; opcjonalnie: sqlite3, gpg, rsync, aws
+#
+# Wpis do crontaba HOSTA (crontab -e — NIE docker/crontab, ten drugi działa
+# wewnątrz kontenera app i nie ma dostępu do docker.sock/wolumenów):
+#   0 2 * * 0 /ścieżka/do/repo/bin/backup-server.sh >> /var/log/feerszo_backup.log 2>&1
+# (raz w tygodniu, w nocy z soboty na niedzielę — pełny backup jest cięższy
+# niż przyrostowy cron/agents/backup.php, który dalej działa co 4h bez zmian)
 # =============================================================================
 set -euo pipefail
 
@@ -41,6 +47,10 @@ REMOTE_S3=""             # np. s3://moj-bucket/feerszo
 KEEP_REMOTE=30           # ile paczek zachować na S3 (rsync zarządza sam)
 
 # EJBCA Docker (opcjonalnie — jeśli nie używasz DOCKER_MYSQL poniżej)
+# UWAGA: integracja EJBCA została usunięta z aplikacji (2026-09). Jeśli
+# kontenery EJBCA nadal działają na serwerze produkcyjnym, wypełnij to PRZED
+# ich wygaszeniem — tam żyje klucz prywatny CA (zob. [[project_ejbca_ca]]) —
+# potem to pole można zostawić puste.
 EJBCA_CONTAINER=""       # np. "feer-ejbca-db"; puste = pomijaj
 EJBCA_DB="ejbca"
 EJBCA_USER="root"
@@ -56,13 +66,16 @@ DOCKER_MYSQL=(
 # Docker — named volumes do zarchiwizowania (tar przez obraz alpine)
 # Wolumin musi istnieć; kontener może być zatrzymany.
 DOCKER_VOLUMES=(
-  # "ejbca_data"        # EJBCA certyfikaty (/mnt/persistent)
-  # "ldap_data"         # OpenLDAP dane
-  # "ldap_config"       # OpenLDAP konfiguracja
-  # "owncloud_files"    # ownCloud pliki użytkowników
-  # "letsencrypt_data"  # Certyfikaty Let's Encrypt
-  # "rabbitmq_data"     # RabbitMQ kolejki
-  # "rc_db"             # Roundcube SQLite
+  "ldap_data"         # OpenLDAP dane
+  "ldap_config"       # OpenLDAP konfiguracja
+  "owncloud_files"    # ownCloud pliki użytkowników
+  "letsencrypt_data"  # Certyfikaty Let's Encrypt
+  "rc_db"             # Roundcube SQLite
+  # "rabbitmq_data"     # RabbitMQ kolejki (tylko dev — docker-compose.override.yml)
+  # "ejbca_data"        # EJBCA certyfikaty — integracja usunięta (zob. usunięty
+  #                       docker/docker-compose.ejbca.yml); jeśli kontenery EJBCA
+  #                       nadal działają na serwerze, odkomentuj TO i EJBCA_CONTAINER
+  #                       wyżej na czas jednorazowego backupu przed ich wygaszeniem
 )
 
 # Szyfrowanie GPG (opcjonalnie)
