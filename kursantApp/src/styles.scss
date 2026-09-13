@@ -353,6 +353,14 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
   --mdc-snackbar-supporting-text-color: #fff;
 }
 
+// Odstęp między ikoną (.material-symbols-outlined) a tekstem przycisku —
+// przyciski Material są flexboxem, ale bez tej reguły ikona i tekst się stykają.
+.mat-mdc-button-base {
+  gap: .4rem;
+
+  .material-symbols-outlined { font-size: 1.15rem; }
+}
+
 // ── Nav item ─────────────────────────────────────────────
 .nav-item {
   display: flex;
