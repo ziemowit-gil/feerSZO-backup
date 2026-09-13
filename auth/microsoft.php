@@ -41,8 +41,16 @@ if (!$error && $state) {
                 $_SESSION['ms_login_verifier'] = $_oauth_db_row['verifier'];
                 $_SESSION['ms_login_redirect'] = $_oauth_db_row['redirect_to'];
                 $expected = $state;
+            } else {
+                // Brak wiersza = albo sesja przeżyła (rzadkie — patrz niżej), stan już
+                // wykorzystany/wygasł (>15 min, patrz _ms_states_migrate), albo klient
+                // wysłał nieaktualny link (np. Wstecz w przeglądarce do wcześniejszej
+                // próby logowania). Log ułatwia odróżnienie od realnej awarii zapisu.
+                error_log("[auth/microsoft.php] oauth_states: brak wiersza dla state={$state}");
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            error_log('[auth/microsoft.php] oauth_states select failed: ' . $e->getMessage());
+        }
     }
 
     if (!$state || $state !== $expected) {

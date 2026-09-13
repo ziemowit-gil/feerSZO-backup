@@ -593,7 +593,12 @@ function ms_auth_url(string $redirect_after = ''): string {
         db()->prepare(
             "INSERT OR REPLACE INTO oauth_states (state, verifier, redirect_to, created_at) VALUES (?,?,?,?)"
         )->execute([$state, $verifier, $redirect_after, time()]);
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+        // To jedyna asekuracja stanu OAuth, gdy sesja nie przeżyje przekierowania
+        // na inny host (patrz auth/microsoft.php) — cichy błąd tutaj oznaczał do tej
+        // pory niewyjaśnione "nieprawidłowy parametr state" bez śladu w logach.
+        error_log('[ms_auth_url] oauth_states insert failed: ' . $e->getMessage());
+    }
 
     $params = http_build_query([
         'client_id'             => $client_id,
