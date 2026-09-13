@@ -238,6 +238,9 @@ h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 .75rem; color: var(--c-te
   &.completed    { background: #eff6ff; color: #1d4ed8; }
   &.expired      { background: #f9fafb; color: #6b7280; }
   &.locked       { background: #fef2f2; color: #b91c1c; }
+  // Rozliczenia miesięczne (billing): zgodne z $rv_st w _rozliczenia_view.php
+  &.issued       { background: #eff6ff; color: #1d4ed8; }
+  &.paid         { background: #f0fdf4; color: #15803d; }
 }
 
 // ── Table ────────────────────────────────────────────────

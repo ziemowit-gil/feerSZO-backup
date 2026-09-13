@@ -139,25 +139,43 @@ const GATEWAY_LABELS: Record<string, string> = {
     }
 
     @if (data(); as d) {
-      <!-- Balance card -->
-      <div class="k-card balance-card">
-        <p class="balance-label">
-          <span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span>
-          Saldo konta
-        </p>
-        <p class="balance-value"
-           [class.positive]="d.balance >= 0"
-           [class.negative]="d.balance < 0"
-           [attr.aria-label]="'Saldo: ' + (d.balance | currency:d.currency:'symbol':'1.2-2':'pl')">
-          {{ d.balance | currency:d.currency:'symbol':'1.2-2':'pl' }}
-        </p>
-        @if (d.balance < 0) {
-          <div class="k-alert warning" role="alert" style="margin-top:1rem">
-            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-            Masz zaległość. Skontaktuj się z organizacją.
-          </div>
-        }
+      <!-- Balance summary -->
+      <div class="summary-grid">
+        <div class="k-card balance-card">
+          <p class="balance-label">Suma rozliczeń</p>
+          <p class="balance-value">{{ d.balance.charges | currency:'PLN':'symbol':'1.2-2':'pl' }}</p>
+        </div>
+        <div class="k-card balance-card">
+          <p class="balance-label">Opłacone</p>
+          <p class="balance-value positive">{{ d.balance.payments | currency:'PLN':'symbol':'1.2-2':'pl' }}</p>
+        </div>
+        <div class="k-card balance-card">
+          @if (d.balance.credit > 0.005) {
+            <p class="balance-label">Nadpłata</p>
+            <p class="balance-value positive">{{ d.balance.credit | currency:'PLN':'symbol':'1.2-2':'pl' }}</p>
+          } @else if (d.balance.debt > 0.005) {
+            <p class="balance-label">Do zapłaty</p>
+            <p class="balance-value negative">{{ d.balance.debt | currency:'PLN':'symbol':'1.2-2':'pl' }}</p>
+          } @else {
+            <p class="balance-label">Saldo</p>
+            <p class="balance-value">0,00 zł</p>
+          }
+        </div>
       </div>
+
+      @if (d.balance.credit > 0.005) {
+        <div class="k-alert success">
+          <span class="material-symbols-outlined" aria-hidden="true">savings</span>
+          Na koncie jest nadpłata <strong>{{ d.balance.credit | currency:'PLN':'symbol':'1.2-2':'pl' }}</strong> — zostanie
+          automatycznie zaliczona na poczet kolejnych zajęć.
+        </div>
+      }
+      @if (d.balance.debt > 0.005) {
+        <div class="k-alert warning">
+          <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+          Masz zaległość <strong>{{ d.balance.debt | currency:'PLN':'symbol':'1.2-2':'pl' }}</strong> — sprawdź dane do wpłaty poniżej.
+        </div>
+      }
 
       <!-- Dane do wpłaty -->
       @if (d.pay_account || d.pay_title || d.pay_codes?.length || d.pay_refs?.length) {
@@ -213,56 +231,134 @@ const GATEWAY_LABELS: Record<string, string> = {
         </section>
       }
 
-      <!-- History table -->
-      <section class="k-card" aria-labelledby="billing-history-heading">
-        <h2 class="k-card-title" id="billing-history-heading">
-          <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
-          Historia transakcji
-        </h2>
-
-        @if (d.entries.length === 0) {
-          <div class="empty-state">
-            <span class="material-symbols-outlined empty-icon" aria-hidden="true">receipt</span>
-            <p>Brak historii transakcji.</p>
-          </div>
-        } @else {
+      <!-- Saldo w podziale na grupy -->
+      @if (d.groups.length > 1) {
+        <section class="k-card" aria-labelledby="groups-heading">
+          <h2 class="k-card-title" id="groups-heading">
+            <span class="material-symbols-outlined" aria-hidden="true">collections_bookmark</span>
+            Saldo w podziale na grupy
+          </h2>
           <div class="k-table-wrap">
-            <table class="k-table" aria-label="Historia płatności">
+            <table class="k-table" aria-label="Saldo w podziale na grupy zajęciowe">
               <thead>
                 <tr>
-                  <th scope="col">Data</th>
-                  <th scope="col">Opis</th>
-                  <th scope="col">Kwota</th>
-                  <th scope="col">Status</th>
-                  <th scope="col"><span class="sr-only">Faktura</span></th>
+                  <th scope="col">Grupa / przedmiot</th>
+                  <th scope="col">Należności</th>
+                  <th scope="col">Pokryte</th>
+                  <th scope="col">Saldo</th>
                 </tr>
               </thead>
               <tbody>
-                @for (entry of d.entries; track entry.id) {
+                @for (g of d.groups; track g.course_id) {
                   <tr>
-                    <td>{{ entry.date | date:'d MMM yyyy':'':\'pl\' }}</td>
-                    <td>{{ entry.description }}</td>
-                    <td class="amount" [class.positive]="entry.type === 'payment'" [class.negative]="entry.type === 'charge'">
-                      {{ entry.type === 'payment' ? '+' : '-' }}{{ entry.amount | currency:'PLN':'symbol':'1.2-2':'pl' }}
-                    </td>
+                    <td>{{ g.course_name }}</td>
+                    <td>{{ g.charges | currency:'PLN':'symbol':'1.2-2':'pl' }}</td>
+                    <td>{{ g.paid | currency:'PLN':'symbol':'1.2-2':'pl' }}</td>
                     <td>
-                      <span class="status-badge" [class]="entry.status === 'paid' ? 'held' : 'planned'">
-                        {{ entry.status === 'paid' ? 'Opłacone' : entry.status }}
-                      </span>
-                    </td>
-                    <td>
-                      @if (entry.invoice_url) {
-                        <a [href]="entry.invoice_url"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           class="invoice-link"
-                           [attr.aria-label]="'Pobierz fakturę za: ' + entry.description + ', nowa karta'">
-                          <span class="material-symbols-outlined" aria-hidden="true">download</span>
-                          Faktura
-                        </a>
+                      @if (g.debt > 0.005) {
+                        <span class="negative">do zapłaty {{ g.debt | currency:'PLN':'symbol':'1.2-2':'pl' }}</span>
+                      } @else if (g.credit > 0.005) {
+                        <span class="positive">nadpłata {{ g.credit | currency:'PLN':'symbol':'1.2-2':'pl' }}</span>
+                      } @else {
+                        <span class="text-muted">rozliczone</span>
                       }
                     </td>
                   </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (d.general_credit > 0.005) {
+            <p class="text-muted text-sm" style="margin:.75rem 0 0">
+              Dodatkowo nadpłata ogólna <strong>{{ d.general_credit | currency:'PLN':'symbol':'1.2-2':'pl' }}</strong> — do wykorzystania w dowolnej grupie.
+            </p>
+          }
+        </section>
+      }
+
+      <!-- Rozliczenia miesięczne -->
+      <section class="k-card" aria-labelledby="billing-history-heading">
+        <h2 class="k-card-title" id="billing-history-heading">
+          <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+          Rozliczenia miesięczne
+        </h2>
+
+        @if (d.months.length === 0) {
+          <div class="empty-state">
+            <span class="material-symbols-outlined empty-icon" aria-hidden="true">receipt</span>
+            <p>Brak rozliczeń.</p>
+          </div>
+        } @else {
+          <div class="k-table-wrap">
+            <table class="k-table" aria-label="Rozliczenia miesięczne">
+              <thead>
+                <tr>
+                  <th scope="col">Okres / Grupa</th>
+                  <th scope="col">Godziny</th>
+                  <th scope="col">Do zapłaty</th>
+                  <th scope="col">Termin</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Faktura</th>
+                  <th scope="col"><span class="sr-only">Godziny (PDF)</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of d.months; track m.year + '-' + m.month) {
+                  <tr [class.month-header]="m.multi">
+                    <td class="fw-semibold">{{ m.label }}</td>
+                    <td>{{ m.sum_hours }} h</td>
+                    <td class="fw-semibold">{{ m.sum_due | currency:'PLN':'symbol':'1.2-2':'pl' }}</td>
+                    <td>
+                      @if (m.due_date) {
+                        <span [class.negative]="m.overdue">{{ m.due_date | date:'d.MM.yyyy' }}</span>
+                      } @else { <span class="text-muted">—</span> }
+                    </td>
+                    <td>
+                      <span class="status-badge" [class]="m.status">{{ statusLabel(m.status) }}</span>
+                    </td>
+                    <td>
+                      @if (!m.multi && m.invoice_url) {
+                        <a [href]="m.invoice_url" target="_blank" rel="noopener noreferrer" class="invoice-link"
+                           [attr.aria-label]="'Pobierz fakturę za ' + m.label + ', nowa karta'">
+                          <span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>Faktura
+                        </a>
+                      } @else if (!m.multi) { <span class="text-muted">—</span> }
+                    </td>
+                    <td>
+                      <a [href]="m.hours_url" target="_blank" rel="noopener noreferrer" class="invoice-link"
+                         [attr.aria-label]="'Rozpiska godzin za ' + m.label + ', nowa karta'">
+                        <span class="material-symbols-outlined" aria-hidden="true">schedule</span>Godziny
+                      </a>
+                    </td>
+                  </tr>
+                  @if (m.multi) {
+                    @for (r of m.rows; track r.course_name) {
+                      <tr class="sub-row">
+                        <td><span class="material-symbols-outlined sub-arrow" aria-hidden="true">subdirectory_arrow_right</span>{{ r.course_name }}</td>
+                        <td>{{ r.hours_billed }} h</td>
+                        <td>
+                          {{ r.total | currency:'PLN':'symbol':'1.2-2':'pl' }}
+                          @if (r.adjustment) {
+                            <div class="text-sm" [class.negative]="r.adjustment > 0" [class.positive]="r.adjustment < 0">
+                              {{ r.adjustment > 0 ? '+' : '−' }}{{ (r.adjustment < 0 ? -r.adjustment : r.adjustment) | currency:'PLN':'symbol':'1.2-2':'pl' }}
+                              @if (r.adjustment_note) { — {{ r.adjustment_note }} }
+                            </div>
+                          }
+                        </td>
+                        <td></td>
+                        <td></td>
+                        <td>
+                          @if (r.invoice_url) {
+                            <a [href]="r.invoice_url" target="_blank" rel="noopener noreferrer" class="invoice-link text-sm"
+                               [attr.aria-label]="'Pobierz fakturę za ' + r.course_name + ', nowa karta'">FVAT</a>
+                          } @else { <span class="text-muted">—</span> }
+                        </td>
+                        <td>
+                          <a [href]="r.hours_url" target="_blank" rel="noopener noreferrer" class="invoice-link text-sm">Godziny</a>
+                        </td>
+                      </tr>
+                    }
+                  }
                 }
               </tbody>
             </table>
@@ -304,24 +400,25 @@ const GATEWAY_LABELS: Record<string, string> = {
       &.individual { background: #fffbeb; color: #92400e; }
     }
 
-    .balance-card { text-align: center; padding: 2rem; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .balance-card { text-align: center; padding: 1.5rem; margin-bottom: 0; }
 
     .balance-label {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: .5rem;
-      font-size: .85rem;
+      font-size: .8rem;
       text-transform: uppercase;
       letter-spacing: .07em;
       color: #6b7280;
       margin: 0 0 .5rem;
-
-      .material-symbols-outlined { font-size: 1rem; }
     }
 
     .balance-value {
-      font-size: 2.75rem;
+      font-size: 1.75rem;
       font-weight: 700;
       margin: 0;
 
@@ -329,11 +426,13 @@ const GATEWAY_LABELS: Record<string, string> = {
       &.negative { color: #b91c1c; }
     }
 
-    .amount {
-      font-weight: 600;
-      &.positive { color: #15803d; }
-      &.negative { color: #b91c1c; }
-    }
+    .positive { color: #15803d; }
+    .negative { color: #b91c1c; }
+    .fw-semibold { font-weight: 600; }
+
+    .month-header td { background: #f8fafc; }
+    .sub-row td { font-size: .86rem; color: #6b7280; }
+    .sub-arrow { font-size: .95rem; vertical-align: middle; margin-right: .25rem; }
 
     .invoice-link {
       display: inline-flex;
@@ -342,6 +441,7 @@ const GATEWAY_LABELS: Record<string, string> = {
       color: #1d4ed8;
       text-decoration: none;
       font-size: .875rem;
+      white-space: nowrap;
 
       .material-symbols-outlined { font-size: .95rem; }
       &:hover { text-decoration: underline; }
@@ -366,6 +466,10 @@ export class RozliczeniaComponent implements OnInit {
   yearEndDeclareSubmitting = signal(false);
 
   gatewayLabel(gw: string): string { return GATEWAY_LABELS[gw] ?? gw; }
+
+  statusLabel(s: string): string {
+    return { draft: 'Robocze', issued: 'Wystawione', paid: 'Opłacone' }[s] ?? s;
+  }
 
   ngOnInit(): void {
     this.api.getBilling().subscribe({
