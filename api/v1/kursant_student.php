@@ -15,6 +15,8 @@ require_once __DIR__ . '/../../includes/ti_notices.php';
 require_once __DIR__ . '/../../includes/ti_payments.php';
 require_once __DIR__ . '/../../includes/ti_terms.php';
 require_once __DIR__ . '/../../includes/ti_reschedule.php';
+require_once __DIR__ . '/../../includes/ti_planner_ext.php';
+require_once __DIR__ . '/../../includes/ti_room_reports.php';
 require_once __DIR__ . '/../../karty30/ti/kursant/auth.php';
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -486,6 +488,18 @@ switch ($action) {
         $trm_stmt->execute([$student_id]);
         $terms_pending = (int)$trm_stmt->fetchColumn();
 
+        // Zadania domowe bez oddanej odpowiedzi (aktywne zapisy) — odpowiednik
+        // $hw_pending_total z karty30/ti/kursant/index.php:917/981.
+        $hw_stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM k30_ti_homework h
+            JOIN k30_ti_sessions s ON s.id = h.session_id
+            WHERE h.is_active = 1
+              AND s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id = ? AND status = 'active')
+              AND NOT EXISTS (SELECT 1 FROM k30_ti_homework_submissions hs WHERE hs.homework_id = h.id AND hs.client_id = ?)
+        ");
+        $hw_stmt->execute([$cid, $cid]);
+        $hw_pending = (int)$hw_stmt->fetchColumn();
+
         // Calendar token
         $cal_stmt = $pdo->prepare("SELECT calendar_token FROM k30_ti_student_accounts WHERE id = ?");
         $cal_stmt->execute([$student_id]);
@@ -524,6 +538,7 @@ switch ($action) {
             'msg_unread'       => $msg_unread,
             'notices_unread'   => $notices_unread,
             'terms_pending'    => $terms_pending,
+            'hw_pending'       => $hw_pending,
             'cal_ical'         => "{$cal_base}?token={$cal_token}",
             'cal_gcal'         => 'https://calendar.google.com/calendar/r?cid=' . urlencode("webcal://szo.feer.org.pl/karty30/ti/kursant/ical.php?token={$cal_token}"),
             'role'             => $auth_role,
@@ -535,15 +550,17 @@ switch ($action) {
     case 'lessons': {
         $cid  = (int)($pdo->query("SELECT client_id FROM k30_ti_student_accounts WHERE id = {$student_id}")->fetchColumn());
         k30_ti_reschedule_migrate();
+        ti_planner_ext_migrate();
         $stmt = $pdo->prepare("
             SELECT s.id, s.course_id, s.lesson_date AS date, s.time_from, s.time_to,
-                   s.status, s.notes,
+                   s.status, s.notes, s.mode,
                    COALESCE(s.meeting_url, e.zoom_meeting_url, c.default_meeting_url) AS meeting_url,
                    c.name AS course_name,
                    (u.first_name || ' ' || u.last_name) AS instructor_name,
                    a.cancel_pending AS cancel_requested,
                    r.rating,
-                   (CASE WHEN rq.id IS NOT NULL THEN 1 ELSE 0 END) AS reschedule_proposed
+                   (CASE WHEN rq.id IS NOT NULL THEN 1 ELSE 0 END) AS reschedule_proposed,
+                   rm.name AS room_name, rm.location AS room_location, rm.short_label AS room_short_label
             FROM k30_ti_sessions s
             JOIN k30_ti_courses c ON c.id = s.course_id
             LEFT JOIN k30_ti_enrollments e ON e.course_id = s.course_id AND e.client_id = ?
@@ -552,6 +569,7 @@ switch ($action) {
             LEFT JOIN k30_ti_lesson_ratings r ON r.session_id = s.id AND r.client_id = ?
             LEFT JOIN k30_ti_reschedule_requests rq
                 ON rq.session_id = s.id AND rq.client_id = ? AND rq.status = 'pending'
+            LEFT JOIN k30_pl_rooms rm ON rm.id = s.room_id
             WHERE s.course_id IN (
                 SELECT course_id FROM k30_ti_enrollments WHERE client_id = ? AND status = 'active'
             )
@@ -560,22 +578,33 @@ switch ($action) {
         ");
         $stmt->execute([$cid, $cid, $cid, $cid, $cid]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        json_ok(array_map(fn($r) => [
-            'id'                  => (int)$r['id'],
-            'course_id'           => (int)$r['course_id'],
-            'course_name'         => $r['course_name'],
-            'date'                => $r['date'],
-            'time_from'           => $r['time_from'],
-            'time_to'             => $r['time_to'],
-            'status'              => $r['status'],
-            'instructor_name'     => $r['instructor_name'] ?? '',
-            'room_name'           => null,
-            'notes'               => $r['notes'],
-            'rating'              => isset($r['rating']) ? (int)$r['rating'] : null,
-            'cancel_requested'    => (bool)($r['cancel_requested'] ?? 0),
-            'reschedule_proposed' => (bool)($r['reschedule_proposed'] ?? 0),
-            'meeting_url'         => $r['meeting_url'],
-        ], $rows));
+        json_ok(array_map(function ($r) {
+            // Sala ma sens tylko dla zajęć stacjonarnych — dla online/hybrydowych
+            // pokazywanie pustego pola sali z bazy tylko myliłoby kursanta.
+            $isOnsite = ($r['mode'] ?? 'onsite') === 'onsite';
+            $roomName = $isOnsite
+                ? ti_room_label(
+                    $r['room_name'] ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label']] : null
+                  )
+                : null;
+            if ($roomName === '—') $roomName = null;
+            return [
+                'id'                  => (int)$r['id'],
+                'course_id'           => (int)$r['course_id'],
+                'course_name'         => $r['course_name'],
+                'date'                => $r['date'],
+                'time_from'           => $r['time_from'],
+                'time_to'             => $r['time_to'],
+                'status'              => $r['status'],
+                'instructor_name'     => $r['instructor_name'] ?? '',
+                'room_name'           => $roomName,
+                'notes'               => $r['notes'],
+                'rating'              => isset($r['rating']) ? (int)$r['rating'] : null,
+                'cancel_requested'    => (bool)($r['cancel_requested'] ?? 0),
+                'reschedule_proposed' => (bool)($r['reschedule_proposed'] ?? 0),
+                'meeting_url'         => $r['meeting_url'],
+            ];
+        }, $rows));
     }
 
     // ── homework / materiały ───────────────────────────────────────────────────
@@ -865,7 +894,20 @@ switch ($action) {
         ], $stmt->fetchAll(PDO::FETCH_ASSOC));
 
         $bal = array_sum(array_map(fn($e) => $e['amount'], $entries));
-        json_ok(['balance' => round($bal, 2), 'currency' => 'PLN', 'entries' => $entries]);
+
+        // Dane do wpłaty (numer konta + tytuł przelewu) — odpowiednik bloku
+        // "Dane do wpłaty" z karty30/ti/kursant/_rozliczenia_view.php:52-80,
+        // dotąd nieobecnego w nowym panelu.
+        $pay = k30_ti_client_payment($cid);
+
+        json_ok([
+            'balance'      => round($bal, 2),
+            'currency'     => 'PLN',
+            'entries'      => $entries,
+            'pay_account'  => $pay['account'],
+            'pay_title'    => $pay['title'],
+            'pay_codes'    => $pay['codes'],
+        ]);
     }
 
     // ── nadpłata do końca roku ───────────────────────────────────────────────────
@@ -1081,7 +1123,7 @@ switch ($action) {
     case 'terms': {
         ti_terms_migrate();
         $stmt = $pdo->prepare("
-            SELECT t.id, t.type, t.title, t.version, t.is_active,
+            SELECT t.id, t.type, t.title, t.version, t.is_active, t.body_html,
                    a.accepted_at
             FROM k30_ti_terms t
             LEFT JOIN k30_ti_terms_accepts a ON a.term_id = t.id AND a.account_id = ?
@@ -1095,6 +1137,7 @@ switch ($action) {
             'type'        => $r['type'],
             'version'     => (int)$r['version'],
             'file_url'    => null,
+            'body_html'   => $r['body_html'],
             'required'    => true,
             'is_accepted' => $r['accepted_at'] !== null,
             'accepted_at' => $r['accepted_at'],

@@ -71,6 +71,7 @@ export interface DashboardData {
   notices_unread: number;
   msg_unread: number;
   terms_pending: number;
+  hw_pending: number;
   cal_ical: string;
   cal_gcal: string;
   role: KursantRole;
@@ -78,7 +79,8 @@ export interface DashboardData {
 }
 
 export type LessonStatus =
-  | 'planned' | 'held' | 'cancelled' | 'excused' | 'absence' | 'remote_material';
+  | 'planned' | 'held' | 'cancelled' | 'excused' | 'absence' | 'remote_material'
+  | 'individual_change' | 'reserved' | 'draft';
 
 export interface Lesson {
   id: number;
@@ -212,6 +214,12 @@ export interface BillingData {
   balance: number;
   currency: string;
   entries: BillingEntry[];
+  /** Numer konta do wpłat (NRB/IBAN) — puste, gdy nie ustawiono (indywidualne, kursu, ani organizacji). */
+  pay_account: string;
+  /** Tytuł przelewu, np. "TI/105/74226 Jan Kowalski". */
+  pay_title: string;
+  /** Kody modeli rozliczeń aktywnych zapisów (9999 = indywidualny). */
+  pay_codes: number[];
 }
 
 export interface YearEndOverpayCourse {
@@ -259,6 +267,7 @@ export interface Term {
   type: string;
   version: string;
   file_url: string | null;
+  body_html: string;
   is_accepted: boolean;
   accepted_at: string | null;
   required: boolean;
