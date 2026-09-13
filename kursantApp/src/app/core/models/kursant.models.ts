@@ -518,3 +518,20 @@ export interface InstructorHomeworkDetail {
   homework: InstructorHomework;
   submissions: InstructorHomeworkSubmission[];
 }
+
+export interface InstructorMaterial {
+  id: number;
+  course_id: number;
+  course_name: string;
+  type: string;
+  title: string;
+  description: string | null;
+  url: string | null;
+  attach_name: string | null;
+  has_file: boolean;
+  is_active: number;
+  session_id: number | null;
+  session_date: string | null;
+  session_topic: string | null;
+  availability: { state: 'open' | 'upcoming' | 'closed'; label: string };
+}

@@ -12,7 +12,7 @@ interface NavItem { path: string; label: string; icon: string; }
  * Layout panelu prowadzącego — osobny od ShellComponent (kursant), bo to
  * zupełnie inna domena (nawigacja/role). Lista zakładek rośnie wraz z kolejnymi
  * commitami migracji (patrz plan: jedna zakładka PHP = jeden endpoint +
- * komponent + wpis tutaj) — dziś tylko Pulpit.
+ * komponent + wpis tutaj).
  */
 @Component({
   selector: 'app-instructor-shell',
@@ -119,6 +119,7 @@ export class InstructorShellComponent {
     { path: 'pulpit', label: 'Pulpit', icon: 'home' },
     { path: 'lekcje', label: 'Lekcje', icon: 'calendar_month' },
     { path: 'zadania', label: 'Zadania', icon: 'assignment' },
+    { path: 'materialy', label: 'Materiały', icon: 'collections_bookmark' },
   ];
 
   instructorName = computed(() => this.instructor()?.name ?? '');

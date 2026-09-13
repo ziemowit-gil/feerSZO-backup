@@ -210,6 +210,10 @@ if ($action === 'impersonate_exchange' && $method === 'POST') {
 }
 
 // ── Token authentication ──────────────────────────────────────────────────────
+// Dla zwykłych wywołań XHR token idzie w nagłówku Authorization; dla pobierania
+// załącznika materiału (zwykły <a href>, przeglądarka nie dołoży nagłówka)
+// dopuszczamy ten sam token jako ?token= w URL-u — to nadal ten sam losowy
+// 256-bitowy sekret co w nagłówku, tylko inny transport.
 function verify_instructor_token(): ?int {
     global $pdo;
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -217,9 +221,9 @@ function verify_instructor_token(): ?int {
         $headers = apache_request_headers();
         $auth    = $headers['Authorization'] ?? $headers['authorization'] ?? '';
     }
-    if (!str_starts_with($auth, 'Bearer ')) return null;
-    $token = substr($auth, 7);
-    $stmt  = $pdo->prepare("SELECT instructor_id FROM k30_ti_instructor_api_tokens WHERE token=? AND expires_at > datetime('now') LIMIT 1");
+    $token = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : (string)($_GET['token'] ?? '');
+    if ($token === '') return null;
+    $stmt = $pdo->prepare("SELECT instructor_id FROM k30_ti_instructor_api_tokens WHERE token=? AND expires_at > datetime('now') LIMIT 1");
     $stmt->execute([$token]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? (int)$row['instructor_id'] : null;
@@ -484,6 +488,43 @@ switch ($action) {
         )->execute([$grade, $fb, ($grade !== '' || $fb !== '') ? 'graded' : 'submitted', $instructor_id, $sid]);
         k30_ti_grade_sync_from_homework($sid, $instructor_id);
         json_ok(null, 'Ocena zapisana' . ($grade !== '' ? ' i dodana do dziennika ocen.' : '.'));
+    }
+
+    // ── materiały ─────────────────────────────────────────────────────────────────
+    case 'materials': {
+        $course_ids = instructor_course_ids($instructor_id);
+        $filter_course = (int)($_GET['course_id'] ?? 0);
+        if ($filter_course && !in_array($filter_course, $course_ids, true)) {
+            json_err('Ten kurs nie jest Twój.', 403);
+        }
+        $scope_ids = $filter_course ? [$filter_course] : $course_ids;
+
+        $materials = [];
+        foreach ($scope_ids as $cid) {
+            foreach (k30_ti_materials_list($cid) as $m) $materials[] = $m;
+        }
+        usort($materials, fn($a, $b) =>
+            ((int)$b['is_active'] <=> (int)$a['is_active'])
+            ?: ((int)$b['id'] <=> (int)$a['id'])
+        );
+        $materials = array_map(function ($m) {
+            $m['has_file']    = $m['attach_path'] !== '';
+            $m['availability'] = k30_ti_avail_status($m['open_at'] ?? null, $m['close_at'] ?? null);
+            unset($m['attach_path']);
+            return $m;
+        }, $materials);
+        json_ok($materials);
+    }
+
+    // Zwykły <a href> (nie XHR) — patrz komentarz przy verify_instructor_token().
+    case 'material_file': {
+        $mid = (int)($_GET['id'] ?? 0);
+        $m   = $mid ? k30_ti_material_get($mid) : null;
+        if (!$m || !k30_ti_instructor_owns_course($instructor_id, (int)$m['course_id'])) {
+            json_err('Brak dostępu do tego materiału.', 403);
+        }
+        if ($m['attach_path'] !== '') k30_ti_homework_send_file((string)$m['attach_path'], (string)$m['attach_name']);
+        json_err('Plik nie istnieje.', 404);
     }
 
     default:

@@ -3,14 +3,16 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   ApiResponse, InstructorDashboard, InstructorLessonRow, InstructorAttendanceEntry,
-  InstructorHomework, InstructorHomeworkDetail,
+  InstructorHomework, InstructorHomeworkDetail, InstructorMaterial,
 } from '../models/kursant.models';
+import { InstructorAuthService } from '../auth/instructor-auth.service';
 
 const API = '/api/v1/dydaktyk_instructor.php';
 
 @Injectable({ providedIn: 'root' })
 export class InstructorApiService {
   private http = inject(HttpClient);
+  private auth = inject(InstructorAuthService);
 
   private get<T>(action: string, params: Record<string, string> = {}): Observable<ApiResponse<T>> {
     let p = new HttpParams().set('action', action);
@@ -48,5 +50,16 @@ export class InstructorApiService {
   }
   gradeSubmission(submissionId: number, grade: string, feedback: string) {
     return this.post<void>('grade_submission', { submission_id: submissionId, grade, feedback });
+  }
+
+  getMaterials(courseId?: number) {
+    return this.get<InstructorMaterial[]>('materials', courseId ? { course_id: String(courseId) } : {});
+  }
+  /**
+   * Zwykły link `<a href>` (nie XHR) — nie może dołożyć nagłówka Authorization,
+   * więc token API idzie tu jako ?token= (patrz komentarz w dydaktyk_instructor.php).
+   */
+  materialFileUrl(materialId: number): string {
+    return `${API}?action=material_file&id=${materialId}&token=${encodeURIComponent(this.auth.token() ?? '')}`;
   }
 }
