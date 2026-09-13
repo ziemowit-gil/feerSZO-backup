@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorContract, InstructorContractType } from '../../../core/models/kursant.models';
@@ -34,7 +35,7 @@ const ACTIVE_STATUSES = ['podpisana', 'w realizacji'];
   standalone: true,
   imports: [
     CommonModule, DatePipe, ReactiveFormsModule, MatButtonModule,
-    MatFormFieldModule, MatInputModule, MatCheckboxModule, MatSnackBarModule,
+    MatFormFieldModule, MatInputModule, MatCheckboxModule, MatTabsModule, MatSnackBarModule,
   ],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie formalności… }</div>
@@ -52,68 +53,73 @@ const ACTIVE_STATUSES = ['podpisana', 'w realizacji'];
     }
 
     @if (!loading()) {
-      <div class="k-card">
-        <h2 class="section-title">Dane kontaktowe</h2>
-        <form [formGroup]="contactForm" (ngSubmit)="saveContact()">
-          <mat-form-field appearance="fill" class="full">
-            <mat-label>Adres systemowy (login)</mat-label>
-            <input matInput [value]="email" disabled>
-            <mat-hint>Powiązany z Twoim kontem — nie można go zmienić tutaj.</mat-hint>
-          </mat-form-field>
-          <div class="row-2">
-            <mat-form-field appearance="fill">
-              <mat-label>E-mail kontaktowy</mat-label>
-              <input matInput type="email" formControlName="alt_email" [placeholder]="email">
-              <mat-hint>Widoczny dla kursantów i administracji.</mat-hint>
-            </mat-form-field>
-            <mat-form-field appearance="fill">
-              <mat-label>Telefon kontaktowy</mat-label>
-              <input matInput type="tel" formControlName="phone_number" placeholder="+48 000 000 000">
-            </mat-form-field>
-          </div>
-          <mat-checkbox formControlName="share_contact">Udostępnij dane kontaktowe kursantom</mat-checkbox>
-          <div class="form-actions">
-            <button mat-flat-button type="submit" [disabled]="contactForm.invalid || saving()">Zapisz dane kontaktowe</button>
-          </div>
-        </form>
-      </div>
-
-      <h2 class="section-title page-section">Twoje formalności</h2>
-      @if (contracts().length === 0) {
-        <div class="k-card">
-          <div class="empty-state">
-            <span class="material-symbols-outlined empty-icon" aria-hidden="true">description_off</span>
-            <p>Brak informacji z rejestru umów.</p>
-          </div>
-        </div>
-      } @else {
-        @for (c of contracts(); track c.id) {
-          <div class="k-card contract-card" [class.contract-inactive]="!isActive(c)">
-            <div class="contract-header">
-              <div>
-                <div class="contract-number">{{ c.numer_umowy || '(brak numeru)' }}</div>
-                <div class="text-muted text-sm">{{ typeLabels[c.contract_type] }}</div>
+      <mat-tab-group>
+        <mat-tab label="Dane kontaktowe">
+          <div class="k-card tab-card">
+            <form [formGroup]="contactForm" (ngSubmit)="saveContact()">
+              <mat-form-field appearance="fill" class="full">
+                <mat-label>Adres systemowy (login)</mat-label>
+                <input matInput [value]="email" disabled>
+                <mat-hint>Powiązany z Twoim kontem — nie można go zmienić tutaj.</mat-hint>
+              </mat-form-field>
+              <div class="row-2">
+                <mat-form-field appearance="fill">
+                  <mat-label>E-mail kontaktowy</mat-label>
+                  <input matInput type="email" formControlName="alt_email" [placeholder]="email">
+                  <mat-hint>Widoczny dla kursantów i administracji.</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="fill">
+                  <mat-label>Telefon kontaktowy</mat-label>
+                  <input matInput type="tel" formControlName="phone_number" placeholder="+48 000 000 000">
+                </mat-form-field>
               </div>
-              <span class="status-badge" [class.active]="isActive(c)">{{ statusLabels[c.status] || c.status }}</span>
-            </div>
-            <dl class="contract-details">
-              @if (c.imie_nazwisko) { <div><dt>Imię i nazwisko</dt><dd>{{ c.imie_nazwisko }}</dd></div> }
-              @if (c.data_zawarcia) { <div><dt>Data zawarcia</dt><dd>{{ c.data_zawarcia | date:'d.MM.yyyy' }}</dd></div> }
-              @if (c.data_zakonczenia) {
-                <div><dt>Ważna do</dt><dd [class.expired]="isExpired(c)">{{ c.data_zakonczenia | date:'d.MM.yyyy' }}</dd></div>
-              }
-              @if (c.stanowisko) { <div><dt>Stanowisko / rola</dt><dd>{{ c.stanowisko }}</dd></div> }
-              @if (c.miejsce_wolontariatu) { <div><dt>Miejsce</dt><dd>{{ c.miejsce_wolontariatu }}</dd></div> }
-              @if (c.przedmiot_porozumienia) { <div class="span-full"><dt>Zakres działania</dt><dd class="pre-wrap">{{ c.przedmiot_porozumienia }}</dd></div> }
-            </dl>
+              <mat-checkbox formControlName="share_contact">Udostępnij dane kontaktowe kursantom</mat-checkbox>
+              <div class="form-actions">
+                <button mat-flat-button type="submit" [disabled]="contactForm.invalid || saving()">Zapisz dane kontaktowe</button>
+              </div>
+            </form>
           </div>
-        }
-      }
+        </mat-tab>
+
+        <mat-tab [label]="'Umowy (' + contracts().length + ')'">
+          <div class="tab-card">
+            @if (contracts().length === 0) {
+              <div class="k-card">
+                <div class="empty-state">
+                  <span class="material-symbols-outlined empty-icon" aria-hidden="true">description_off</span>
+                  <p>Brak informacji z rejestru umów.</p>
+                </div>
+              </div>
+            } @else {
+              @for (c of contracts(); track c.id) {
+                <div class="k-card contract-card" [class.contract-inactive]="!isActive(c)">
+                  <div class="contract-header">
+                    <div>
+                      <div class="contract-number">{{ c.numer_umowy || '(brak numeru)' }}</div>
+                      <div class="text-muted text-sm">{{ typeLabels[c.contract_type] }}</div>
+                    </div>
+                    <span class="status-badge" [class.active]="isActive(c)">{{ statusLabels[c.status] || c.status }}</span>
+                  </div>
+                  <dl class="contract-details">
+                    @if (c.imie_nazwisko) { <div><dt>Imię i nazwisko</dt><dd>{{ c.imie_nazwisko }}</dd></div> }
+                    @if (c.data_zawarcia) { <div><dt>Data zawarcia</dt><dd>{{ c.data_zawarcia | date:'d.MM.yyyy' }}</dd></div> }
+                    @if (c.data_zakonczenia) {
+                      <div><dt>Ważna do</dt><dd [class.expired]="isExpired(c)">{{ c.data_zakonczenia | date:'d.MM.yyyy' }}</dd></div>
+                    }
+                    @if (c.stanowisko) { <div><dt>Stanowisko / rola</dt><dd>{{ c.stanowisko }}</dd></div> }
+                    @if (c.miejsce_wolontariatu) { <div><dt>Miejsce</dt><dd>{{ c.miejsce_wolontariatu }}</dd></div> }
+                    @if (c.przedmiot_porozumienia) { <div class="span-full"><dt>Zakres działania</dt><dd class="pre-wrap">{{ c.przedmiot_porozumienia }}</dd></div> }
+                  </dl>
+                </div>
+              }
+            }
+          </div>
+        </mat-tab>
+      </mat-tab-group>
     }
   `,
   styles: [`
-    .section-title { font-size: 1rem; font-weight: 600; margin: 0 0 1rem; }
-    .page-section { margin-top: 1.75rem; }
+    .tab-card { padding-top: 1.25rem; }
     .full { width: 100%; }
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
     @media (max-width: 640px) { .row-2 { grid-template-columns: 1fr; } }
