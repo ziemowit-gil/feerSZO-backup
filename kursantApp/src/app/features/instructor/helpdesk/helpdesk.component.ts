@@ -1,12 +1,13 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTabsModule } from '@angular/material/tabs';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorHelpdeskTicket, HD_CATEGORIES, HD_PRIORITIES, HD_STATUSES } from '../../../core/models/kursant.models';
 import { HelpdeskTicketDialogComponent } from './helpdesk-ticket-dialog.component';
 
-const ACTIVE_STATUSES = new Set(['rozwiązane', 'zamknięte']);
+const CLOSED_STATUSES = new Set(['rozwiązane', 'zamknięte']);
 
 /**
  * Helpdesk IT — zgłoszenia własne prowadzącego, odpowiednik
@@ -19,7 +20,7 @@ const ACTIVE_STATUSES = new Set(['rozwiązane', 'zamknięte']);
 @Component({
   selector: 'app-instructor-helpdesk',
   standalone: true,
-  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, MatTabsModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie zgłoszeń… }</div>
 
@@ -40,38 +41,61 @@ const ACTIVE_STATUSES = new Set(['rozwiązane', 'zamknięte']);
     }
 
     @if (!loading()) {
-      @if (tickets().length === 0) {
-        <div class="k-card">
-          <div class="empty-state">
-            <span class="material-symbols-outlined empty-icon" aria-hidden="true">support_agent</span>
-            <p>Brak zgłoszeń.</p>
-          </div>
-        </div>
-      } @else {
-        @for (t of tickets(); track t.id) {
-          <div class="k-card ticket-card" [class.ticket-closed]="isClosed(t)">
-            <div class="ticket-header">
-              <div>
-                <span class="ticket-number">{{ t.number }}</span>
-                <h2 class="ticket-title">{{ t.title }}</h2>
+      <mat-tab-group>
+        <mat-tab [label]="'Otwarte (' + openTickets().length + ')'">
+          <div class="tab-card">
+            @if (openTickets().length === 0) {
+              <div class="k-card">
+                <div class="empty-state">
+                  <span class="material-symbols-outlined empty-icon" aria-hidden="true">check_circle</span>
+                  <p>Brak otwartych zgłoszeń.</p>
+                </div>
               </div>
-              <span class="status-badge" [class.closed]="isClosed(t)">{{ statusLabels[t.status] || t.status }}</span>
-            </div>
-            <div class="ticket-meta text-muted text-sm">
-              <span>{{ categoryLabels[t.category] || t.category }}</span>
-              <span>·</span>
-              <span>Priorytet: {{ priorityLabels[t.priority] || t.priority }}</span>
-              <span>·</span>
-              <span>Zgłoszono: {{ t.created_at | date:'d.MM.yyyy HH:mm' }}</span>
-            </div>
+            } @else {
+              @for (t of openTickets(); track t.id) { <ng-container *ngTemplateOutlet="ticketCard; context: { $implicit: t }" /> }
+            }
           </div>
-        }
-      }
+        </mat-tab>
+        <mat-tab [label]="'Zamknięte (' + closedTickets().length + ')'">
+          <div class="tab-card">
+            @if (closedTickets().length === 0) {
+              <div class="k-card">
+                <div class="empty-state">
+                  <span class="material-symbols-outlined empty-icon" aria-hidden="true">inventory_2</span>
+                  <p>Brak jeszcze zamkniętych zgłoszeń.</p>
+                </div>
+              </div>
+            } @else {
+              @for (t of closedTickets(); track t.id) { <ng-container *ngTemplateOutlet="ticketCard; context: { $implicit: t }" /> }
+            }
+          </div>
+        </mat-tab>
+      </mat-tab-group>
     }
+
+    <ng-template #ticketCard let-t>
+      <div class="k-card ticket-card" [class.ticket-closed]="isClosed(t)">
+        <div class="ticket-header">
+          <div>
+            <span class="ticket-number">{{ t.number }}</span>
+            <h2 class="ticket-title">{{ t.title }}</h2>
+          </div>
+          <span class="status-badge" [class.closed]="isClosed(t)">{{ statusLabels[t.status] || t.status }}</span>
+        </div>
+        <div class="ticket-meta text-muted text-sm">
+          <span>{{ categoryLabels[t.category] || t.category }}</span>
+          <span>·</span>
+          <span>Priorytet: {{ priorityLabels[t.priority] || t.priority }}</span>
+          <span>·</span>
+          <span>Zgłoszono: {{ t.created_at | date:'d.MM.yyyy HH:mm' }}</span>
+        </div>
+      </div>
+    </ng-template>
   `,
   styles: [`
     .page-header { position: relative; }
     .add-btn { position: absolute; top: 0; right: 0; }
+    .tab-card { padding-top: 1.25rem; }
     .ticket-card { &.ticket-closed { opacity: .65; } }
     .ticket-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .5rem; }
     .ticket-number { font-size: .78rem; color: var(--c-text-muted); font-weight: 600; letter-spacing: .03em; }
@@ -91,6 +115,9 @@ export class InstructorHelpdeskComponent implements OnInit {
   loading = signal(true);
   tickets = signal<InstructorHelpdeskTicket[]>([]);
 
+  openTickets   = computed(() => this.tickets().filter(t => !this.isClosed(t)));
+  closedTickets = computed(() => this.tickets().filter(t => this.isClosed(t)));
+
   ngOnInit(): void {
     this.load();
   }
@@ -107,7 +134,7 @@ export class InstructorHelpdeskComponent implements OnInit {
   }
 
   isClosed(t: InstructorHelpdeskTicket): boolean {
-    return ACTIVE_STATUSES.has(t.status);
+    return CLOSED_STATUSES.has(t.status);
   }
 
   startNew(): void {
