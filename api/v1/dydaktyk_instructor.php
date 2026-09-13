@@ -1433,6 +1433,76 @@ switch ($action) {
         json_ok(null, 'Protokół za ' . $ym . ' zatwierdzony.');
     }
 
+    // ── wykresy: trend frekwencji ────────────────────────────────────────────────
+    // Frekwencja % per miesiąc (ostatnie N miesięcy), zbiorczo dla własnych
+    // kursów lub zawężone do jednej grupy (?course_id=) — dla wykresu na
+    // Pulpicie. Liczone tak samo jak 'attendance_month' w case 'dashboard',
+    // tylko rozbite na kolejne miesiące zamiast tylko bieżącego.
+    case 'attendance_trend': {
+        $course_ids = instructor_course_ids($instructor_id);
+        $filter_course = (int)($_GET['course_id'] ?? 0);
+        if ($filter_course && !in_array($filter_course, $course_ids, true)) {
+            json_err('Ten kurs nie jest Twój.', 403);
+        }
+        $scope_ids = $filter_course ? [$filter_course] : $course_ids;
+        if (!$scope_ids) json_ok([]);
+
+        $months = max(1, min(24, (int)($_GET['months'] ?? 6)));
+        $ph = implode(',', array_fill(0, count($scope_ids), '?'));
+        $rows = db_all(
+            "SELECT strftime('%Y-%m', s.lesson_date) AS ym,
+                    SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 AND a.attended=1 THEN 1 ELSE 0 END) AS present,
+                    SUM(CASE WHEN COALESCE(a.cancelled,0)=0 AND COALESCE(a.no_show,0)=0 THEN 1 ELSE 0 END) AS total
+             FROM k30_ti_sessions s
+             LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
+             WHERE s.course_id IN ($ph) AND s.status IN ('held', 'individual_change')
+               AND s.lesson_date >= date('now', 'localtime', '-' || ? || ' months')
+             GROUP BY ym ORDER BY ym",
+            array_merge($scope_ids, [$months])
+        );
+        json_ok(array_map(function ($r) {
+            $total = (int)$r['total'];
+            return [
+                'year_month' => (string)$r['ym'],
+                'present'    => (int)$r['present'],
+                'total'      => $total,
+                'pct'        => $total > 0 ? round((int)$r['present'] * 100 / $total) : null,
+            ];
+        }, $rows));
+    }
+
+    // Wydruk protokołu do PDF — działa zarówno dla zamkniętego (zatwierdzonego)
+    // jak i wciąż otwartego/roboczego protokołu (identycznie jak
+    // protokol_pdf.php w klasycznym panelu — ti_protocol_pdf() renderuje
+    // treść w zależności od statusu). Zwykły <a href>, patrz komentarz przy
+    // verify_instructor_token().
+    case 'protocol_pdf': {
+        $pid = (int)($_GET['id'] ?? 0);
+        $cid = (int)($_GET['course_id'] ?? 0);
+        $ym  = (string)($_GET['year_month'] ?? '');
+
+        $pr = null;
+        if ($pid) {
+            $pr = ti_protocol_get($pid);
+        } elseif ($cid && preg_match('/^\d{4}-\d{2}$/', $ym)) {
+            $created = ti_protocol_get_or_create_for_month($cid, $ym);
+            $pr = ti_protocol_get((int)$created['id']);
+        }
+        if (!$pr || !k30_ti_instructor_owns_course($instructor_id, (int)$pr['course_id'])) {
+            json_err('Brak dostępu do tego protokołu.', 403);
+        }
+
+        $pdf = ti_protocol_pdf($pr);
+        if ($pdf === null) json_err('Nie udało się wygenerować PDF protokołu.', 500);
+
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . ti_protocol_pdf_filename($pr) . '"');
+        header('Content-Length: ' . strlen($pdf));
+        echo $pdf;
+        exit;
+    }
+
     default:
         json_err('Nieznana akcja.', 404);
 }

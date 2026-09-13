@@ -9,6 +9,7 @@ import {
   InstructorFormalnosci, InstructorHelpdeskTicket,
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
   InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
+  InstructorAttendanceTrendPoint,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -179,5 +180,19 @@ export class InstructorApiService {
   }
   approveProtocol(courseId: number, yearMonth: string) {
     return this.post<void>('protocol_approve', { course_id: courseId, year_month: yearMonth });
+  }
+
+  getAttendanceTrend(months = 6, courseId?: number | null) {
+    return this.get<InstructorAttendanceTrendPoint[]>('attendance_trend', {
+      months: String(months), ...(courseId ? { course_id: String(courseId) } : {}),
+    });
+  }
+
+  /** Wydruk PDF protokołu — istniejący (zamknięty) po protocol_id, albo jeszcze-nie-utworzony (otwarty) po course_id+year_month. */
+  protocolPdfUrlById(protocolId: number): string {
+    return this.downloadUrl('protocol_pdf', { id: String(protocolId) });
+  }
+  protocolPdfUrlForMonth(courseId: number, yearMonth: string): string {
+    return this.downloadUrl('protocol_pdf', { course_id: String(courseId), year_month: yearMonth });
   }
 }

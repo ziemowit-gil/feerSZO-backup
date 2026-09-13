@@ -51,6 +51,10 @@ const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
                     <div class="text-muted text-sm">{{ monthLabel(p.year_month) }}</div>
                   </div>
                   <span class="status-badge" [class.warn]="p.is_overdue">{{ p.is_overdue ? 'zaległy' : 'bieżący' }}</span>
+                  <a mat-stroked-button [href]="draftPdfUrl(p)" target="_blank" rel="noopener">
+                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem">picture_as_pdf</span>
+                    PDF (wersja robocza)
+                  </a>
                   <button mat-flat-button type="button" (click)="openApprove(p)">Zamknij protokół</button>
                 </div>
               }
@@ -75,6 +79,10 @@ const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
                     <div class="text-muted text-sm">{{ monthLabel(c.year_month) }}</div>
                   </div>
                   <span class="status-badge active">zatwierdzony</span>
+                  <a mat-stroked-button [href]="closedPdfUrl(c)" target="_blank" rel="noopener">
+                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem">picture_as_pdf</span>
+                    Pobierz PDF
+                  </a>
                 </div>
               }
             }
@@ -85,7 +93,7 @@ const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
   `,
   styles: [`
     .tab-card { padding-top: 1.25rem; }
-    .protocol-row { display: flex; align-items: center; gap: 1rem; }
+    .protocol-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
     .protocol-course { font-weight: 600; }
     .status-badge.warn { background: var(--c-warning-bg); color: var(--c-warning); }
     .status-badge.active { background: var(--c-success-bg, #dcfce7); color: var(--c-success, #15803d); }
@@ -120,6 +128,14 @@ export class InstructorProtokolyComponent implements OnInit {
   monthLabel(ym: string): string {
     const [y, m] = ym.split('-').map(Number);
     return `${MONTHS_PL[m - 1]} ${y}`;
+  }
+
+  draftPdfUrl(p: InstructorProtocolPending): string {
+    return this.api.protocolPdfUrlForMonth(p.course_id, p.year_month);
+  }
+
+  closedPdfUrl(c: InstructorProtocolClosed): string {
+    return this.api.protocolPdfUrlById(c.protocol_id);
   }
 
   openApprove(row: InstructorProtocolPending): void {

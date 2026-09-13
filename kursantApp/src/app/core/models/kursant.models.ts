@@ -740,3 +740,10 @@ export interface InstructorProtocolSummary {
   lessons_total: number;
   attendance_pct: number | null;
 }
+
+export interface InstructorAttendanceTrendPoint {
+  year_month: string;
+  present: number;
+  total: number;
+  pct: number | null;
+}
