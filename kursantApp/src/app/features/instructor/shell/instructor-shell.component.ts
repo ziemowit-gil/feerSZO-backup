@@ -177,6 +177,7 @@ export class InstructorShellComponent implements OnInit {
         { path: 'wydruki', label: 'Wydruki', icon: 'print' },
         { path: 'helpdesk', label: 'Helpdesk', icon: 'support_agent' },
         { path: 'protokoly', label: 'Protokoły', icon: 'fact_check' },
+        { path: 'nieobecnosci', label: 'Nieobecności', icon: 'person_off' },
       ],
     },
     {

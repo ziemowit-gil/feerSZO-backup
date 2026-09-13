@@ -1503,6 +1503,39 @@ switch ($action) {
         exit;
     }
 
+    // ── nieobecności (widok zbiorczy) ───────────────────────────────────────────────
+    // Odpowiednik _tab_nieobecnosci.php, ale zbiorczo dla WSZYSTKICH własnych
+    // kursów naraz (klasyczny panel pokazuje jeden kurs na raz, po
+    // przełączeniu $cur_course) — filtrowanie po grupie robi się po stronie
+    // frontu (ten sam wzorzec co Lekcje/Zadania/Materiały: InstructorCourseContextService).
+    // Akcje (usprawiedliw/cofnij) reużywają istniejące action=cancel_attendee/
+    // restore_attendee z Lekcji — to dokładnie te same funkcje
+    // (k30_ti_cancel_attendance/k30_ti_uncancel_attendance) co
+    // excuse_absence/unexcuse_absence w klasycznym panelu. Oznaczanie "nie
+    // pojawił się" (z uploadem zrzutu ekranu jako dowodu) zostaje na razie w
+    // klasycznym panelu — tu tylko podgląd i cofnięcie takiego oznaczenia.
+    case 'absences': {
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$course_ids) json_ok([]);
+        $tracked_ids = array_values(array_filter($course_ids, fn($cid) => k30_ti_course_tracks_attendance($cid)));
+        if (!$tracked_ids) json_ok([]);
+        $ph = implode(',', array_fill(0, count($tracked_ids), '?'));
+        $rows = db_all(
+            "SELECT a.session_id, a.client_id, a.cancelled, a.cancel_reason, a.cancelled_by, a.cancelled_at,
+                    a.no_show, a.no_show_billing, a.no_show_reason,
+                    s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.topic, cl.name AS client_name
+             FROM k30_ti_attendance a
+             JOIN k30_ti_sessions s ON s.id=a.session_id
+             JOIN k30_ti_courses c ON c.id=s.course_id
+             JOIN k30_clients cl ON cl.id=a.client_id
+             WHERE s.course_id IN ($ph) AND s.status IN ('held', 'individual_change')
+               AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
+             ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
+            $tracked_ids
+        );
+        json_ok($rows);
+    }
+
     default:
         json_err('Nieznana akcja.', 404);
 }

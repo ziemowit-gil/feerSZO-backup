@@ -747,3 +747,21 @@ export interface InstructorAttendanceTrendPoint {
   total: number;
   pct: number | null;
 }
+
+export interface InstructorAbsence {
+  session_id: number;
+  client_id: number;
+  cancelled: number;
+  cancel_reason: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  no_show: number;
+  no_show_billing: string | null;
+  no_show_reason: string | null;
+  course_id: number;
+  course_name: string;
+  lesson_date: string;
+  time_from: string | null;
+  topic: string | null;
+  client_name: string;
+}

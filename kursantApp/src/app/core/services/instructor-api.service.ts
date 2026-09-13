@@ -9,7 +9,7 @@ import {
   InstructorFormalnosci, InstructorHelpdeskTicket,
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
   InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
-  InstructorAttendanceTrendPoint,
+  InstructorAttendanceTrendPoint, InstructorAbsence,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -195,4 +195,6 @@ export class InstructorApiService {
   protocolPdfUrlForMonth(courseId: number, yearMonth: string): string {
     return this.downloadUrl('protocol_pdf', { course_id: String(courseId), year_month: yearMonth });
   }
+
+  getAbsences() { return this.get<InstructorAbsence[]>('absences'); }
 }
