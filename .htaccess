@@ -202,13 +202,24 @@ RewriteCond %{REQUEST_FILENAME} !-d
 <Files "config.php">
     Require all denied
 </Files>
+<Files "config.local.php">
+    Require all denied
+</Files>
 
 # Chroń katalogi wrażliwe przed bezpośrednim dostępem HTTP
+# Uwaga: na Dockerze te same katalogi (+ docker/) są dodatkowo blokowane na
+# poziomie VirtualHost (docker/apache.conf) — na hostingu bez kontroli nad
+# głównym blokiem serwera (np. MyDevil) TYLKO poniższe reguły .htaccess
+# stanowią ochronę, więc muszą pokrywać komplet katalogów.
 <IfModule mod_rewrite.c>
     RewriteRule ^includes/  - [F,L]
     RewriteRule ^backups/   - [F,L]
     RewriteRule ^cron/      - [F,L]
     RewriteRule ^tenants/   - [F,L]
+    RewriteRule ^docker/    - [F,L]
+    RewriteRule ^cli/       - [F,L]
+    RewriteRule ^bin/       - [F,L]
+    RewriteRule ^vendor/    - [F,L]
 </IfModule>
 
 # Nagłówki bezpieczeństwa
