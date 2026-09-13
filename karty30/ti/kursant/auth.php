@@ -346,3 +346,22 @@ function authp_logout(): void {
     student_start();
     unset($_SESSION[AUTHP_SESSION_KEY]);
 }
+
+/**
+ * Uwierzytelnienie przez token API panelu Angular (k30_ti_api_tokens) — dla
+ * odnośników do pobrania (faktura/rozpiska godzin), które <a href> otwiera w
+ * nowej karcie bez wspólnej sesji PHP z kursantApp. Token w query string, ten
+ * sam wzorzec co ical.php (jedyny dotąd wyjątek od sesji ciasteczkowej).
+ * Zwraca tablicę zgodną z sesją kursanta (id/client_id) albo null.
+ */
+function student_current_via_api_token(): ?array {
+    $token = (string)($_GET['token'] ?? '');
+    if ($token === '') return null;
+    $row = db_one(
+        "SELECT student_id FROM k30_ti_api_tokens WHERE token = ? AND expires_at > datetime('now')",
+        [$token]
+    );
+    if (!$row) return null;
+    $acc = db_one("SELECT id, client_id FROM k30_ti_student_accounts WHERE id = ? AND is_active = 1", [(int)$row['student_id']]);
+    return $acc ? ['id' => (int)$acc['id'], 'client_id' => (int)$acc['client_id']] : null;
+}

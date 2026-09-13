@@ -12,7 +12,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_hours_report.php
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
-$student   = student_require();
+// Token API (kursantApp) — link pobierania nie ma wspólnej sesji PHP z
+// Angularem; sprawdzany PRZED wymuszeniem sesji klasycznego panelu, żeby
+// student_require() nie zdążył przekierować na login.php.
+$student = student_current_via_api_token() ?? student_require();
 $client_id = (int)$student['client_id'];          // zawsze własny kursant — bez parametru z URL
 $month     = max(1, min(12, (int)($_GET['month'] ?? date('n'))));
 $year      = (int)($_GET['year'] ?? date('Y'));

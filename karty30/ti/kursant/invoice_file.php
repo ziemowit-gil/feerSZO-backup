@@ -12,14 +12,20 @@ require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 
-// Sesja kursanta albo rodzica
+// Sesja kursanta/rodzica (klasyczny panel) albo token API (kursantApp — link
+// pobierania nie ma wspólnej sesji PHP z Angularem, patrz auth.php).
 $cid = 0;
 $st  = student_current();
 if ($st) {
     $cid = (int)$st['client_id'];
 } else {
     $pr = function_exists('parent_current') ? parent_current() : null;
-    if ($pr) $cid = (int)$pr['client_id'];
+    if ($pr) {
+        $cid = (int)$pr['client_id'];
+    } else {
+        $tok = student_current_via_api_token();
+        if ($tok) $cid = (int)$tok['client_id'];
+    }
 }
 if (!$cid) { http_response_code(401); exit('Sesja wygasła.'); }
 

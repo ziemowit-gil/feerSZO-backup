@@ -200,28 +200,88 @@ export interface Message {
   is_read: boolean;
 }
 
-export interface BillingEntry {
-  id: number;
-  type: 'payment' | 'charge';
-  amount: number;
-  description: string;
-  date: string;
-  status: string;
+export interface BillingBalance {
+  charges: number;
+  payments: number;
+  credit: number;
+  debt: number;
+}
+
+export interface BillingGroupBalance {
+  course_id: number;
+  course_name: string;
+  charges: number;
+  paid: number;
+  debt: number;
+  credit: number;
+}
+
+export interface BillingMonthRow {
+  course_name: string;
+  hours_billed: number;
+  adjustment: number;
+  adjustment_note: string | null;
+  total: number;
   invoice_url: string | null;
+  hours_url: string;
+}
+
+export interface BillingMonth {
+  year: number;
+  month: number;
+  label: string;
+  sum_hours: number;
+  sum_due: number;
+  status: 'draft' | 'issued' | 'paid';
+  due_date: string | null;
+  overdue: boolean;
+  /** Gdy true — miesiąc ma rozbicie na kilka grup (rows); gdy false — jeden wpis łączny. */
+  multi: boolean;
+  hours_url: string;
+  invoice_url: string | null;
+  rows: BillingMonthRow[];
 }
 
 export interface BillingData {
-  balance: number;
-  currency: string;
-  entries: BillingEntry[];
+  balance: BillingBalance;
+  /** Saldo per grupa — tylko gdy kursant ma >1 aktywną grupę. */
+  groups: BillingGroupBalance[];
+  general_credit: number;
+  months: BillingMonth[];
   /** Numer konta do wpłat (NRB/IBAN) — puste, gdy nie ustawiono (indywidualne, kursu, ani organizacji). */
   pay_account: string;
   /** Tytuł przelewu, np. "TI/105/74226 Jan Kowalski". */
   pay_title: string;
   /** Kody modeli rozliczeń aktywnych zapisów (9999 = indywidualny). */
   pay_codes: number[];
-  /** 12-cyfrowy numer referencyjny per aktywna grupa: 6 cyfr nr kursanta + 6 cyfr nr kursu. */
+  /** 12-cyfrowy numer referencyjny per aktywna grupa: 6 cyfr nr kursanta + 6 cyfr nr kursu — indywidualny numer konta kursanta w tej grupie (część numeru rachunku bankowego); przy wpłacie na ten numer tytuł przelewu nie ma znaczenia. */
   pay_refs: PaymentRef[];
+}
+
+export interface PendingWalletPayment {
+  amount: number;
+  url: string;
+  label: string;
+  created_at: string;
+}
+
+export interface WalletOp {
+  date: string;
+  kind: 'in' | 'out' | 'declared';
+  amount: number;
+  label: string;
+  note: string;
+  status: string;
+  covered: number;
+}
+
+export interface WalletData {
+  balance: { credit: number; debt: number; payments: number };
+  gateways: { stripe: boolean; payu: boolean; p24: boolean };
+  pending: PendingWalletPayment[];
+  ops: WalletOp[];
+  pay_account: string;
+  pay_title: string;
 }
 
 export interface PaymentRef {

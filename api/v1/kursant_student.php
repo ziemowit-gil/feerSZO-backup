@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../includes/ti_payments.php';
 require_once __DIR__ . '/../../includes/ti_terms.php';
 require_once __DIR__ . '/../../includes/ti_reschedule.php';
 require_once __DIR__ . '/../../includes/ti_planner_ext.php';
+require_once __DIR__ . '/../../includes/ti_messages.php';
 require_once __DIR__ . '/../../includes/ti_room_reports.php';
 require_once __DIR__ . '/../../karty30/ti/kursant/auth.php';
 
@@ -301,6 +302,7 @@ function verify_token(): ?array {
         'role'       => $row['role'] ?: 'student',
         'actor_id'   => $row['actor_id'] !== null ? (int)$row['actor_id'] : null,
         'actor_name' => $row['actor_name'] ?? '',
+        'token'      => $token, // do budowy linków pobierania (faktura/rozpiska godzin) bez wspólnej sesji PHP
     ];
 }
 
@@ -872,28 +874,87 @@ switch ($action) {
     }
 
     // ── billing ────────────────────────────────────────────────────────────────
+    // ── Rozliczenia miesięczne (odpowiednik _rozliczenia_view.php) ────────────
     case 'billing': {
         $cid = (int)($pdo->query("SELECT client_id FROM k30_ti_student_accounts WHERE id = {$student_id}")->fetchColumn());
         ti_payments_migrate();
-        $stmt = $pdo->prepare("
-            SELECT id, amount, COALESCE(paid_at, created_at) AS date,
-                   method, note, source_type, created_at
-            FROM k30_ti_payments
-            WHERE client_id = ?
-            ORDER BY COALESCE(paid_at, created_at) DESC
-        ");
-        $stmt->execute([$cid]);
-        $entries = array_map(fn($r) => [
-            'id'          => (int)$r['id'],
-            'type'        => 'payment',
-            'amount'      => (float)$r['amount'],
-            'description' => $r['note'] ?: $r['method'],
-            'date'        => $r['date'],
-            'status'      => 'paid',
-            'invoice_url' => null,
-        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        $bal = array_sum(array_map(fn($e) => $e['amount'], $entries));
+        $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                      7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+
+        $bal = ti_client_balance($cid);
+
+        $grp = ti_client_group_balances($cid);
+        $groups = count($grp['groups']) > 1 ? array_map(fn($g) => [
+            'course_id'   => (int)$g['course_id'],
+            'course_name' => $g['course_name'],
+            'charges'     => round((float)$g['charges'], 2),
+            'paid'        => round((float)$g['paid'], 2),
+            'debt'        => round((float)$g['debt'], 2),
+            'credit'      => round((float)$g['credit'], 2),
+        ], array_values($grp['groups'])) : [];
+
+        // Grupowanie wg miesiąca — jak $_rv_grouped w _rozliczenia_view.php:17-47.
+        $billing = k30_ti_client_billing($cid);
+        $grouped = [];
+        foreach ($billing as $b) {
+            $key = sprintf('%04d-%02d', (int)$b['year'], (int)$b['month']);
+            $grouped[$key]['year']  ??= (int)$b['year'];
+            $grouped[$key]['month'] ??= (int)$b['month'];
+            $grouped[$key]['rows'][] = $b;
+        }
+
+        $tok = urlencode($auth_ctx['token']);
+        $hoursUrl = fn(int $y, int $m, int $courseId = 0) =>
+            '/karty30/ti/kursant/hours_pdf.php?month=' . $m . '&year=' . $y
+            . ($courseId ? '&course_id=' . $courseId : '') . '&token=' . $tok;
+        $invoiceUrl = fn(int $billingId) => '/karty30/ti/kursant/invoice_file.php?id=' . $billingId . '&token=' . $tok;
+
+        $monthsOut = [];
+        foreach ($grouped as $g) {
+            $sumDue = 0.0; $sumHours = 0.0; $statuses = []; $dueDate = null;
+            foreach ($g['rows'] as $b) {
+                $sumDue   += (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+                $sumHours += (float)$b['hours_billed'];
+                $statuses[] = $b['status'];
+                if (!$dueDate && !empty($b['due_date'])) $dueDate = $b['due_date'];
+            }
+            $allPaid  = !array_filter($statuses, fn($s) => $s !== 'paid');
+            $allDraft = !array_filter($statuses, fn($s) => $s !== 'draft');
+            $aggStatus = $allPaid ? 'paid' : ($allDraft ? 'draft' : 'issued');
+            $multi = count($g['rows']) > 1 || (int)($g['rows'][0]['course_id'] ?? 0) > 0;
+
+            $rowsOut = [];
+            if ($multi) {
+                foreach ($g['rows'] as $b) {
+                    $rowsOut[] = [
+                        'course_name'     => $b['course_name'] !== '' ? $b['course_name'] : 'Zajęcia',
+                        'hours_billed'    => (float)$b['hours_billed'],
+                        'adjustment'      => (float)($b['adjustment'] ?? 0),
+                        'adjustment_note' => $b['adjustment_note'] ?? null,
+                        'total'           => round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2),
+                        'invoice_url'     => !empty($b['invoice_path']) ? $invoiceUrl((int)$b['id']) : null,
+                        'hours_url'       => $hoursUrl($g['year'], $g['month'], (int)($b['course_id'] ?? 0)),
+                    ];
+                }
+            }
+
+            $single = $g['rows'][0];
+            $monthsOut[] = [
+                'year'         => $g['year'],
+                'month'        => $g['month'],
+                'label'        => ($months_pl[$g['month']] ?? (string)$g['month']) . ' ' . $g['year'],
+                'sum_hours'    => round($sumHours, 2),
+                'sum_due'      => round($sumDue, 2),
+                'status'       => $aggStatus,
+                'due_date'     => $dueDate,
+                'overdue'      => $aggStatus !== 'paid' && $dueDate && $dueDate < date('Y-m-d'),
+                'multi'        => $multi,
+                'hours_url'    => $hoursUrl($g['year'], $g['month']),
+                'invoice_url'  => (!$multi && !empty($single['invoice_path'])) ? $invoiceUrl((int)$single['id']) : null,
+                'rows'         => $rowsOut,
+            ];
+        }
 
         // Dane do wpłaty (numer konta + tytuł przelewu) — odpowiednik bloku
         // "Dane do wpłaty" z karty30/ti/kursant/_rozliczenia_view.php:52-80,
@@ -919,14 +980,199 @@ switch ($action) {
         ], $refs_stmt->fetchAll(PDO::FETCH_ASSOC));
 
         json_ok([
-            'balance'      => round($bal, 2),
-            'currency'     => 'PLN',
-            'entries'      => $entries,
+            'balance'        => [
+                'charges' => round((float)$bal['charges'], 2),
+                'payments'=> round((float)$bal['payments'], 2),
+                'credit'  => round((float)$bal['credit'], 2),
+                'debt'    => round((float)$bal['debt'], 2),
+            ],
+            'groups'         => $groups,
+            'general_credit' => round((float)$grp['general_credit'], 2),
+            'months'         => $monthsOut,
+            'pay_account'    => $pay['account'],
+            'pay_title'      => $pay['title'],
+            'pay_codes'      => $pay['codes'],
+            'pay_refs'       => $pay_refs,
+        ]);
+    }
+
+    // ── Portfel (odpowiednik _portfel_view.php) ───────────────────────────────
+    case 'wallet': {
+        $acc = load_student($student_id);
+        $cid = (int)$acc['client_id'];
+        ti_payments_migrate();
+        require_once __DIR__ . '/../../includes/stripe.php';
+        require_once __DIR__ . '/../../includes/payu.php';
+        require_once __DIR__ . '/../../includes/p24.php';
+        stripe_migrate(); payu_migrate(); p24_migrate();
+
+        $bal = ti_client_balance($cid);
+
+        $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+                      7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+        $method_labels = ['transfer'=>'przelew','cash'=>'gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'inna'];
+
+        // Oczekujące doładowania online (do dokończenia) — reconciliacja "na żywo"
+        // przy powrocie z bramki zwykle wyprzedza webhook.
+        $pending = [];
+        $walletSourceTypes = ['k30_ti_wallet', 'k30_ti_wallet_year_end'];
+
+        $stripe_stmt = $pdo->prepare("SELECT * FROM stripe_payments WHERE source_type IN (?, ?) AND source_id = ? ORDER BY id DESC LIMIT 10");
+        $stripe_stmt->execute([...$walletSourceTypes, $cid]);
+        foreach ($stripe_stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            if ($p['status'] === 'pending') $p['status'] = stripe_reconcile_payment((int)$p['id']) ?: 'pending';
+            if ($p['status'] === 'pending' && $p['checkout_url'] !== '') {
+                $pending[] = ['amount' => (int)$p['amount_grosze'] / 100, 'url' => (string)$p['checkout_url'], 'label' => 'Stripe', 'created_at' => (string)$p['created_at']];
+            }
+        }
+
+        $payu_stmt = $pdo->prepare("SELECT * FROM payu_payments WHERE source_type IN (?, ?) AND source_id = ? ORDER BY id DESC LIMIT 10");
+        $payu_stmt->execute([...$walletSourceTypes, $cid]);
+        foreach ($payu_stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            if ($p['status'] === 'pending') $p['status'] = payu_reconcile_payment((int)$p['id']) ?: 'pending';
+            if ($p['status'] === 'pending' && $p['redirect_uri'] !== '') {
+                $pending[] = ['amount' => (int)$p['amount_grosze'] / 100, 'url' => (string)$p['redirect_uri'], 'label' => 'PayU', 'created_at' => (string)$p['created_at']];
+            }
+        }
+
+        $p24_stmt = $pdo->prepare("SELECT * FROM p24_payments WHERE source_type IN (?, ?) AND source_id = ? ORDER BY id DESC LIMIT 10");
+        $p24_stmt->execute([...$walletSourceTypes, $cid]);
+        foreach ($p24_stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            if ($p['status'] === 'pending') $p['status'] = p24_reconcile_payment((int)$p['id']) ?: 'pending';
+            if ($p['status'] === 'pending' && $p['redirect_uri'] !== '') {
+                $pending[] = ['amount' => (int)$p['amount_grosze'] / 100, 'url' => (string)$p['redirect_uri'], 'label' => 'Przelewy24', 'created_at' => (string)$p['created_at']];
+            }
+        }
+
+        // Historia operacji: wpłaty (+), należności (−), zgłoszenia oczekujące — jedna oś czasu.
+        $ops = [];
+        foreach (ti_payments_for_client($cid) as $p) {
+            $label = 'Wpłata do portfela';
+            if ((int)($p['course_id'] ?? 0) > 0) {
+                $c = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$p['course_id']]);
+                $label = 'Wpłata na grupę: ' . (string)($c['name'] ?? ('#' . (int)$p['course_id']));
+            }
+            $ops[] = [
+                'date'   => (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10)),
+                'kind'   => 'in',
+                'amount' => (float)$p['amount'],
+                'label'  => $label,
+                'note'   => trim(($method_labels[$p['method']] ?? (string)$p['method']) . ((string)$p['note'] !== '' ? ' · ' . (string)$p['note'] : '')),
+                'status' => '',
+                'covered'=> 0,
+            ];
+        }
+        foreach (k30_ti_client_billing($cid) as $b) {
+            if (!in_array($b['status'], ['issued', 'paid'], true)) continue;
+            $due = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            if (abs($due) < 0.005) continue;
+            $mn = $months_pl[(int)$b['month']] ?? (string)$b['month'];
+            $ops[] = [
+                'date'   => !empty($b['issued_at']) ? substr((string)$b['issued_at'], 0, 10) : sprintf('%04d-%02d-01', (int)$b['year'], (int)$b['month']),
+                'kind'   => 'out',
+                'amount' => $due,
+                'label'  => 'Zajęcia — ' . ($b['course_name'] !== '' ? $b['course_name'] : 'rozliczenie łączne') . ' (' . $mn . ' ' . (int)$b['year'] . ')',
+                'note'   => (string)($b['adjustment_note'] ?? ''),
+                'status' => (string)$b['status'],
+                'covered'=> (float)($b['paid_amount'] ?? 0),
+            ];
+        }
+        foreach (ti_wallet_requests_for_client($cid) as $wr) {
+            if ($wr['status'] !== 'pending') continue;
+            $ops[] = [
+                'date'   => substr((string)$wr['created_at'], 0, 10),
+                'kind'   => 'declared',
+                'amount' => (float)$wr['amount'],
+                'label'  => !empty($wr['is_year_end']) ? 'Zgłoszenie przelewu — nadpłata do końca roku' : 'Zgłoszenie przelewu tradycyjnego',
+                'note'   => (string)$wr['note'],
+                'status' => '',
+                'covered'=> 0,
+            ];
+        }
+        usort($ops, fn($a, $b) => strcmp($b['date'], $a['date']));
+
+        $pay = k30_ti_client_payment($cid);
+
+        json_ok([
+            'balance'      => [
+                'credit'   => round((float)$bal['credit'], 2),
+                'debt'     => round((float)$bal['debt'], 2),
+                'payments' => round((float)$bal['payments'], 2),
+            ],
+            'gateways'     => [
+                'stripe' => stripe_enabled(),
+                'payu'   => payu_enabled(),
+                'p24'    => p24_enabled(),
+            ],
+            'pending'      => $pending,
+            'ops'          => $ops,
             'pay_account'  => $pay['account'],
             'pay_title'    => $pay['title'],
-            'pay_codes'    => $pay['codes'],
-            'pay_refs'     => $pay_refs,
         ]);
+    }
+
+    // ── Portfel: doładowanie online (Stripe/PayU/Przelewy24) ──────────────────
+    case 'wallet_topup': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $acc = load_student($student_id);
+        // Blokada tylko dla WŁASNEGO tokenu małoletniego — rodzic (role=parent)
+        // steruje właśnie finansami dziecka, więc jego token nie podlega temu ograniczeniu.
+        if ($auth_role === 'student' && !empty($acc['is_minor'])) json_err('Rozliczenia małoletnich prowadzi opiekun.', 403);
+        $cid = (int)$acc['client_id'];
+
+        $body     = get_body();
+        $amount   = round((float)($body['amount'] ?? 0), 2);
+        $provider = (string)($body['provider'] ?? '');
+        if ($amount < 1 || $amount > 20000) json_err('Podaj kwotę doładowania od 1 do 20 000 zł.');
+
+        require_once __DIR__ . '/../../includes/stripe.php';
+        require_once __DIR__ . '/../../includes/payu.php';
+        require_once __DIR__ . '/../../includes/p24.php';
+
+        $desc  = 'Doładowanie portfela TI — ' . (string)($acc['client_name'] ?? '');
+        $email = (string)($acc['client_email'] ?? '');
+        $back  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/newUI/rozliczenia';
+
+        try {
+            if ($provider === 'payu' && payu_enabled()) {
+                $r = payu_create_order('k30_ti_wallet', $cid, $amount, $desc,
+                                       $back . '?wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $email);
+                ti_account_log($student_id, 'wallet_topup', 'Rozpoczęto doładowanie portfela PayU: ' . number_format($amount, 2, ',', ' ') . ' zł.');
+                json_ok(['url' => $r['url']]);
+            }
+            if ($provider === 'stripe' && stripe_enabled()) {
+                $r = stripe_create_checkout('k30_ti_wallet', $cid, $amount, $desc,
+                                            $back . '?wpay=stripe', $back . '?wcancel=1', $email);
+                ti_account_log($student_id, 'wallet_topup', 'Rozpoczęto doładowanie portfela Stripe: ' . number_format($amount, 2, ',', ' ') . ' zł.');
+                json_ok(['url' => $r['url']]);
+            }
+            if ($provider === 'p24' && p24_enabled()) {
+                $r = p24_create_order('k30_ti_wallet', $cid, $amount, $desc,
+                                      $back . '?wpay=p24', rtrim(APP_URL, '/') . '/api/p24_webhook.php', $email);
+                ti_account_log($student_id, 'wallet_topup', 'Rozpoczęto doładowanie portfela Przelewy24: ' . number_format($amount, 2, ',', ' ') . ' zł.');
+                json_ok(['url' => $r['url']]);
+            }
+            json_err('Wybrana metoda płatności nie jest teraz dostępna.');
+        } catch (\Throwable $e) {
+            json_err('Nie udało się rozpocząć płatności: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // ── Portfel: zgłoszenie wykonanego przelewu tradycyjnego ──────────────────
+    case 'wallet_declare': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $acc = load_student($student_id);
+        // Blokada tylko dla WŁASNEGO tokenu małoletniego — rodzic (role=parent)
+        // steruje właśnie finansami dziecka, więc jego token nie podlega temu ograniczeniu.
+        if ($auth_role === 'student' && !empty($acc['is_minor'])) json_err('Rozliczenia małoletnich prowadzi opiekun.', 403);
+        require_once __DIR__ . '/../../includes/ti_payments.php';
+        $body   = get_body();
+        $amount = round((float)($body['amount'] ?? 0), 2);
+        $note   = trim((string)($body['note'] ?? ''));
+        if ($amount < 1 || $amount > 20000) json_err('Podaj kwotę przelewu od 1 do 20 000 zł.');
+        ti_wallet_request_add((int)$acc['client_id'], $amount, $note, 'kursant');
+        ti_account_log($student_id, 'wallet_declare', 'Zgłoszono przelew tradycyjny: ' . number_format($amount, 2, ',', ' ') . ' zł.');
+        json_ok(null, 'Zgłoszenie przyjęte — placówka zaksięguje przelew po jego zaksięgowaniu na koncie.');
     }
 
     // ── nadpłata do końca roku ───────────────────────────────────────────────────
