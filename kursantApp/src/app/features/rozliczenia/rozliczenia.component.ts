@@ -159,6 +159,45 @@ const GATEWAY_LABELS: Record<string, string> = {
         }
       </div>
 
+      <!-- Dane do wpłaty -->
+      @if (d.pay_account || d.pay_title || d.pay_codes?.length) {
+        <section class="k-card" aria-labelledby="pay-info-heading">
+          <h2 class="k-card-title" id="pay-info-heading">
+            <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
+            Dane do wpłaty
+          </h2>
+          <dl class="pay-info-list">
+            @if (d.pay_account) {
+              <div class="pay-info-row">
+                <dt>Nr konta</dt>
+                <dd class="pay-account">{{ d.pay_account }}</dd>
+              </div>
+            }
+            @if (d.pay_title) {
+              <div class="pay-info-row">
+                <dt>Tytuł wpłaty</dt>
+                <dd>{{ d.pay_title }}</dd>
+              </div>
+            }
+            @if (d.pay_codes?.length) {
+              <div class="pay-info-row">
+                <dt>Kod rozliczeń</dt>
+                <dd>
+                  @for (code of d.pay_codes; track code) {
+                    <span class="pay-code-chip" [class.individual]="code === 9999">
+                      {{ code === 9999 ? '9999 · indywidualny' : code }}
+                    </span>
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+          @if (!d.pay_account && !d.pay_title) {
+            <p class="text-muted text-sm mb-0">Dane do wpłaty nie zostały jeszcze ustawione — skontaktuj się z placówką.</p>
+          }
+        </section>
+      }
+
       <!-- History table -->
       <section class="k-card" aria-labelledby="billing-history-heading">
         <h2 class="k-card-title" id="billing-history-heading">
@@ -218,6 +257,36 @@ const GATEWAY_LABELS: Record<string, string> = {
     }
   `,
   styles: [`
+    .pay-info-list { margin: 0; }
+
+    .pay-info-row {
+      display: flex;
+      gap: 1rem;
+      padding: .4rem 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: .9rem;
+
+      &:last-child { border-bottom: none; }
+
+      dt { flex: 0 0 9rem; color: #6b7280; font-weight: normal; }
+      dd { margin: 0; flex: 1; min-width: 0; word-break: break-word; }
+    }
+
+    .pay-account { font-family: monospace; font-weight: 600; letter-spacing: .02em; }
+
+    .pay-code-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: .1rem .5rem;
+      border-radius: 1rem;
+      background: #f3f4f6;
+      color: #374151;
+      font-size: .8rem;
+      margin-right: .35rem;
+
+      &.individual { background: #fffbeb; color: #92400e; }
+    }
+
     .balance-card { text-align: center; padding: 2rem; }
 
     .balance-label {
