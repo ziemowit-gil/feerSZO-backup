@@ -58,12 +58,12 @@ interface Thread {
             <h2 class="k-card-title" style="margin:0">Wątki</h2>
             <button mat-stroked-button type="button" (click)="startNewThread()">
               <span class="material-symbols-outlined" aria-hidden="true">add</span>
-              Nowy temat
+              Nowy wątek
             </button>
           </div>
 
           @if (threads().length === 0) {
-            <p class="text-muted text-sm" style="margin-top:.75rem">Brak wiadomości — zacznij od nowego tematu.</p>
+            <p class="text-muted text-sm" style="margin-top:.75rem">Brak wiadomości — zacznij od nowego wątku.</p>
           }
 
           <ul role="list" class="wm-thread-list">
@@ -96,7 +96,7 @@ interface Thread {
           @if (mode() === 'new') {
             <h2 id="wm-detail-heading" class="k-card-title">
               <span class="material-symbols-outlined" aria-hidden="true">edit</span>
-              Nowy temat
+              Nowy wątek
             </h2>
 
             <form [formGroup]="newForm" (ngSubmit)="sendNewThread()" novalidate>
@@ -170,7 +170,7 @@ interface Thread {
           } @else {
             <div class="empty-state">
               <span class="material-symbols-outlined empty-icon" aria-hidden="true">mail_outline</span>
-              <p>Wybierz wątek z listy albo rozpocznij nowy temat.</p>
+              <p>Wybierz wątek z listy albo rozpocznij nowy wątek.</p>
             </div>
           }
           }
