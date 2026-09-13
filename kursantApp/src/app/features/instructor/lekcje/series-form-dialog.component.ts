@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorRoom } from '../../../core/models/kursant.models';
 
 export interface SeriesFormDialogData {
@@ -165,10 +166,11 @@ const POSITIONS = [
   `],
 })
 export class SeriesFormDialogComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private fb    = inject(FormBuilder);
-  private snack = inject(MatSnackBar);
-  private ref   = inject(MatDialogRef<SeriesFormDialogComponent>);
+  private api       = inject(InstructorApiService);
+  private fb        = inject(FormBuilder);
+  private snack     = inject(MatSnackBar);
+  private ref       = inject(MatDialogRef<SeriesFormDialogComponent>);
+  private courseCtx = inject(InstructorCourseContextService);
   data: SeriesFormDialogData = inject(MAT_DIALOG_DATA);
 
   readonly lessonMethods = LESSON_METHODS;
@@ -200,7 +202,8 @@ export class SeriesFormDialogComponent implements OnInit {
   ngOnInit(): void {
     this.api.getRooms().subscribe({ next: res => { if (res.success && res.data) this.rooms.set(res.data); } });
     const courses = this.data.courses;
-    if (courses.length === 1) this.form.patchValue({ course_id: courses[0].id });
+    const preselected = this.courseCtx.selectedId() ?? (courses.length === 1 ? courses[0].id : null);
+    if (preselected) this.form.patchValue({ course_id: preselected });
   }
 
   onCourseChange(_courseId: number): void {}

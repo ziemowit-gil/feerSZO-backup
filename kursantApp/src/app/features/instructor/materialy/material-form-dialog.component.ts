@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorMaterial, InstructorLessonRow, INSTRUCTOR_MATERIAL_TYPES } from '../../../core/models/kursant.models';
 
 export interface MaterialFormDialogData {
@@ -115,10 +116,11 @@ export interface MaterialFormDialogData {
   `],
 })
 export class MaterialFormDialogComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private fb    = inject(FormBuilder);
-  private snack = inject(MatSnackBar);
-  private ref   = inject(MatDialogRef<MaterialFormDialogComponent>);
+  private api       = inject(InstructorApiService);
+  private fb        = inject(FormBuilder);
+  private snack     = inject(MatSnackBar);
+  private ref       = inject(MatDialogRef<MaterialFormDialogComponent>);
+  private courseCtx = inject(InstructorCourseContextService);
   data: MaterialFormDialogData = inject(MAT_DIALOG_DATA);
 
   readonly materialTypes = INSTRUCTOR_MATERIAL_TYPES;
@@ -160,7 +162,7 @@ export class MaterialFormDialogComponent implements OnInit {
       });
     } else {
       const courses = this.data.courses;
-      const preselected = courses.length === 1 ? courses[0].id : null;
+      const preselected = this.courseCtx.selectedId() ?? (courses.length === 1 ? courses[0].id : null);
       this.form.patchValue({ course_id: preselected });
       if (preselected) this.onCourseChange(preselected);
     }

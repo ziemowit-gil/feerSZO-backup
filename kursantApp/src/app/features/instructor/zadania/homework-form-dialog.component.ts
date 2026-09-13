@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorHomework, InstructorLessonRow } from '../../../core/models/kursant.models';
 
 export interface HomeworkFormDialogData {
@@ -111,10 +112,11 @@ export interface HomeworkFormDialogData {
   `],
 })
 export class HomeworkFormDialogComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private fb    = inject(FormBuilder);
-  private snack = inject(MatSnackBar);
-  private ref   = inject(MatDialogRef<HomeworkFormDialogComponent>);
+  private api       = inject(InstructorApiService);
+  private fb        = inject(FormBuilder);
+  private snack     = inject(MatSnackBar);
+  private ref       = inject(MatDialogRef<HomeworkFormDialogComponent>);
+  private courseCtx = inject(InstructorCourseContextService);
   data: HomeworkFormDialogData = inject(MAT_DIALOG_DATA);
 
   saving = signal(false);
@@ -154,7 +156,7 @@ export class HomeworkFormDialogComponent implements OnInit {
       });
     } else {
       const courses = this.data.courses;
-      const preselected = courses.length === 1 ? courses[0].id : null;
+      const preselected = this.courseCtx.selectedId() ?? (courses.length === 1 ? courses[0].id : null);
       this.form.patchValue({ course_id: preselected });
       if (preselected) this.onCourseChange(preselected);
     }

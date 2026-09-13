@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorLessonRow, InstructorRoom } from '../../../core/models/kursant.models';
 
 const LESSON_METHODS = [
@@ -132,10 +133,11 @@ export interface LessonFormDialogData {
   `],
 })
 export class LessonFormDialogComponent implements OnInit {
-  private api    = inject(InstructorApiService);
-  private fb     = inject(FormBuilder);
-  private snack  = inject(MatSnackBar);
-  private ref    = inject(MatDialogRef<LessonFormDialogComponent>);
+  private api       = inject(InstructorApiService);
+  private fb        = inject(FormBuilder);
+  private snack     = inject(MatSnackBar);
+  private ref       = inject(MatDialogRef<LessonFormDialogComponent>);
+  private courseCtx = inject(InstructorCourseContextService);
   data: LessonFormDialogData = inject(MAT_DIALOG_DATA);
 
   readonly lessonMethods = LESSON_METHODS;
@@ -173,7 +175,8 @@ export class LessonFormDialogComponent implements OnInit {
       });
     } else {
       const courses = this.data.courses;
-      this.form.patchValue({ course_id: courses.length === 1 ? courses[0].id : null });
+      const preselected = this.courseCtx.selectedId() ?? (courses.length === 1 ? courses[0].id : null);
+      this.form.patchValue({ course_id: preselected });
     }
   }
 
