@@ -64,6 +64,16 @@ export class InstructorApiService {
     return this.post<void>('save_lesson', payload);
   }
 
+  /** Masowe tworzenie N lekcji wg wzorca (co M tygodni / N-ty dzień tygodnia miesiąca). */
+  saveLessonSeries(payload: {
+    course_id: number; lesson_date: string; time_from: string; time_to: string; topic: string;
+    lesson_method: '' | 'stacjonarna' | 'zdalna_zoom' | 'zdalna_inne'; meeting_url: string; room_id: number | null;
+    recur_mode: 'weekly' | 'monthly'; weeks: number; recur_position: string; recur_dow: number;
+    end_mode: 'count' | 'until' | 'hours'; count: number; until: string; target_hours: number;
+  }) {
+    return this.post<void>('save_lesson_series', payload);
+  }
+
   getReschedulePending(sessionId: number) {
     return this.get<InstructorRescheduleRequest[]>('reschedule_pending', { session_id: String(sessionId) });
   }

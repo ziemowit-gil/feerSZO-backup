@@ -10,14 +10,16 @@ import { LessonFormDialogComponent } from './lesson-form-dialog.component';
 import { AttendanceDialogComponent } from './attendance-dialog.component';
 import { RescheduleDialogComponent } from './reschedule-dialog.component';
 import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
+import { SeriesFormDialogComponent } from './series-form-dialog.component';
 
 /**
  * Lekcje prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_lekcje.php: lista
- * (bez kalendarza FullCalendar), dodawanie/edycja pojedynczej lekcji, obecność,
- * odwoływanie/przywracanie lekcji i zmiana terminu. Każda akcja to osobne okno
- * modalne (na życzenie — zamiast rozwijanego panelu szczegółów pod wierszem).
- * Seria lekcji, "Zajęcia stałe", kalendarz miesięczny i eksporty PDF/Excel
- * zostają na razie w klasycznym panelu — kolejny krok migracji.
+ * (bez kalendarza FullCalendar), dodawanie/edycja pojedynczej lekcji, Seria
+ * lekcji (masowe tworzenie wg wzorca), obecność, odwoływanie/przywracanie
+ * lekcji i zmiana terminu. Każda akcja to osobne okno modalne (na życzenie —
+ * zamiast rozwijanego panelu szczegółów pod wierszem). "Zajęcia stałe"
+ * (reguła cykliczna), kalendarz miesięczny i eksporty PDF/Excel zostają na
+ * razie w klasycznym panelu — kolejny krok migracji.
  */
 @Component({
   selector: 'app-instructor-lekcje',
@@ -29,10 +31,16 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
     <div class="page-header">
       <h1>Lekcje</h1>
       <p class="subtitle">Twoje zajęcia — obecność, terminy i odwoływanie</p>
-      <button mat-flat-button type="button" class="add-btn" (click)="startAdd()">
-        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-        Dodaj lekcję
-      </button>
+      <div class="add-btn header-actions">
+        <button mat-stroked-button type="button" (click)="startSeries()">
+          <span class="material-symbols-outlined" aria-hidden="true">event_repeat</span>
+          Seria lekcji
+        </button>
+        <button mat-flat-button type="button" (click)="startAdd()">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          Dodaj lekcję
+        </button>
+      </div>
     </div>
 
     @if (loading()) {
@@ -105,6 +113,7 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
   styles: [`
     .page-header { position: relative; }
     .add-btn { position: absolute; top: 0; right: 0; }
+    .header-actions { display: flex; gap: .5rem; }
 
     .btn-small { font-size: .78rem !important; padding: .2rem .625rem !important; height: auto !important; }
     .actions-cell { display: flex; gap: .4rem; justify-content: flex-end; flex-wrap: wrap; }
@@ -156,6 +165,13 @@ export class InstructorLekcjeComponent implements OnInit {
     this.dialog.open(LessonFormDialogComponent, {
       width: '720px', maxWidth: '95vw',
       data: { mode: 'add', lesson: null, courses: this.courseCtx.courses() },
+    }).afterClosed().subscribe(saved => { if (saved) this.load(); });
+  }
+
+  startSeries(): void {
+    this.dialog.open(SeriesFormDialogComponent, {
+      width: '640px', maxWidth: '95vw',
+      data: { courses: this.courseCtx.courses() },
     }).afterClosed().subscribe(saved => { if (saved) this.load(); });
   }
 

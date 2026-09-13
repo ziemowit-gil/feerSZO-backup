@@ -429,7 +429,11 @@ switch ($action) {
              FROM k30_ti_sessions s
              JOIN k30_ti_courses c ON c.id=s.course_id
              WHERE s.course_id IN ($ph)
-             ORDER BY s.lesson_date DESC, s.time_from DESC",
+             ORDER BY (s.lesson_date < date('now', 'localtime')),
+                      CASE WHEN s.lesson_date >= date('now', 'localtime') THEN s.lesson_date END ASC,
+                      CASE WHEN s.lesson_date >= date('now', 'localtime') THEN s.time_from END ASC,
+                      CASE WHEN s.lesson_date <  date('now', 'localtime') THEN s.lesson_date END DESC,
+                      CASE WHEN s.lesson_date <  date('now', 'localtime') THEN s.time_from END DESC",
             $scope_ids
         );
         $lessons = array_map(function ($s) {
@@ -613,6 +617,100 @@ switch ($action) {
             if ($n) $msg .= " Wysłano SMS: {$n}.";
         }
         json_ok(null, $msg);
+    }
+
+    // Seria lekcji — odpowiednik index.php op=save_lesson_series, w zakresie
+    // prowadzącego: bez zastępstwa/pomijania dostępności (kierownik-only),
+    // rezerwacji "na PESEL" i wersji roboczej — każda lekcja serii to zawsze
+    // zwykła 'planned' lekcja, jak pojedyncze dodawanie (save_lesson).
+    case 'save_lesson_series': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+
+        $cid = (int)($body['course_id'] ?? 0);
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$cid || !in_array($cid, $course_ids, true)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $date  = trim((string)($body['lesson_date'] ?? ''));
+        $tf    = trim((string)($body['time_from'] ?? ''));
+        $tt    = trim((string)($body['time_to'] ?? ''));
+        $topic = trim((string)($body['topic'] ?? ''));
+        $lm    = in_array($body['lesson_method'] ?? '', ['stacjonarna', 'zdalna_zoom', 'zdalna_inne'], true) ? $body['lesson_method'] : '';
+        $meet_url = in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) ? trim((string)($body['meeting_url'] ?? '')) : '';
+        $room_id  = max(0, (int)($body['room_id'] ?? 0));
+
+        if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) json_err('Podaj poprawną datę startową serii.');
+
+        $dur = 60;
+        if ($tf && $tt) {
+            $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
+            if ($m > 0) $dur = (int)$m;
+        }
+
+        $end_mode = in_array($body['end_mode'] ?? '', ['until', 'hours'], true) ? $body['end_mode'] : 'count';
+        $until    = trim((string)($body['until'] ?? ''));
+        $count    = max(1, min(104, (int)($body['count'] ?? 1)));
+        if ($end_mode === 'until' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) || $until < $date)) {
+            json_err('Podaj poprawną datę końcową (nie wcześniejszą niż data startowa).');
+        }
+        $target_hours = null;
+        if ($end_mode === 'hours') {
+            $target_hours = max(0.5, (float)str_replace(',', '.', (string)($body['target_hours'] ?? '0')));
+            $count = max(1, min(104, (int)ceil($target_hours * 60 / $dur)));
+        }
+
+        $dates = ti_recurrence_dates([
+            'mode'     => ($body['recur_mode'] ?? '') === 'monthly' ? 'monthly' : 'weekly',
+            'start'    => $date,
+            'every'    => max(1, min(8, (int)($body['weeks'] ?? 1))),
+            'dow'      => max(0, min(6, (int)($body['recur_dow'] ?? 1))),
+            'position' => (string)($body['recur_position'] ?? '1'),
+            'end_mode' => $end_mode === 'until' ? 'until' : 'count',
+            'count'    => $count,
+            'until'    => $until,
+        ]);
+        if (!$dates) json_err('Wzorzec nie wygenerował żadnego terminu — sprawdź datę startową i warunek zakończenia.');
+
+        $eff_instr = ti_course_instructor_id($cid);
+        $av = ti_instructor_available_at($eff_instr, $dates[0], $tf, $tt);
+        if (!$av['ok']) json_err($av['reason'] . ' Seria nie została utworzona.');
+
+        foreach ($dates as $d) {
+            if ($pc = ti_period_closed_for_date($d)) json_err(ti_period_closed_msg($pc) . ' Seria nie została utworzona.');
+        }
+
+        $zs = ti_zoom_dates_check($cid, $lm, $dates, $tf, $tt);
+        if (!$zs['ok']) json_err(ti_zoom_conflicts_msg($zs['conflicts']) . ' Seria nie została utworzona.');
+        $zw = $zs['warning'] !== '' ? ' ' . $zs['warning'] : '';
+
+        if ($room_id) {
+            foreach ($dates as $d) {
+                $rc = pl_check_conflicts(['lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $room_id]);
+                if ($rc['hard']) json_err(($rc['hard'][0]['msg'] ?? 'Sala zajęta.') . " ({$d}) Seria nie została utworzona.");
+            }
+        }
+
+        $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]);
+        $created = 0;
+        foreach ($dates as $d) {
+            $sid = db_insert('k30_ti_sessions', [
+                'course_id' => $cid, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
+                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'lesson_method' => $lm, 'meeting_url' => $meet_url, 'room_id' => $room_id ?: null,
+                'created_by' => $instructor_id, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            foreach ($enrollees as $e) {
+                try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
+                catch (\Throwable $ex) {}
+            }
+            $created++;
+        }
+
+        $pattern_label = ($body['recur_mode'] ?? '') === 'monthly' ? 'wzorzec miesięczny' : ('co ' . max(1, min(8, (int)($body['weeks'] ?? 1))) . ' tyg.');
+        $hours_note = $target_hours !== null
+            ? ' — łącznie ' . number_format($created * $dur / 60, 1, ',', '') . ' godz. (cel: ' . number_format($target_hours, 1, ',', '') . ')'
+            : '';
+        json_ok(null, "Utworzono serię: {$created} lekcji ({$pattern_label}){$hours_note}." . $zw);
     }
 
     // ── zmiana terminu ────────────────────────────────────────────────────────────
