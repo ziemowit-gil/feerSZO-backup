@@ -76,7 +76,6 @@ $_usos_sections = [
         'items' => [
             $_it('wiadomosci', 'Wiadomości', $_g('wiadomosci'), $_n_msg, 'danger'),
             $_it('komunikaty', 'Komunikaty', $_g('komunikaty'), $_n_notices, 'warning'),
-            $_it('',           'Zgłoś problem', 'zglos_problem.php'),
         ],
     ],
     'zasoby' => [

@@ -404,6 +404,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <option value="a_<?= (int)$au['id'] ?>"><?= h($au['name']) ?></option>
                 <?php endforeach; ?>
               </optgroup>
+              <optgroup label="Pomoc techniczna">
+                <option value="h_1">Helpdesk IT — zgłoś problem</option>
+              </optgroup>
             </select>
           </div>
           <!-- Pola specyficzne dla kursanta -->
@@ -419,6 +422,14 @@ document.addEventListener('DOMContentLoaded', function () {
               <label class="form-label">Temat</label>
               <input type="text" class="form-control" name="subject_a" placeholder="Temat wiadomości (opcjonalny)">
             </div>
+          </div>
+          <!-- Pola specyficzne dla helpdesku -->
+          <div id="dydMsgHelpdeskFields" class="d-none">
+            <div class="mb-3">
+              <label class="form-label">Temat zgłoszenia</label>
+              <input type="text" class="form-control" name="subject_h" placeholder="np. Nie działa link do spotkania Zoom">
+            </div>
+            <p class="text-body-secondary small">Zgłoszenie trafi do Helpdesku IT, nie do kierownictwa placówki.</p>
           </div>
           <div class="mb-2">
             <label class="form-label fw-semibold">Treść <span class="text-danger">*</span></label>
@@ -441,12 +452,15 @@ document.addEventListener('DOMContentLoaded', function () {
   var sel   = document.getElementById('dydMsgRecip');
   var sflds = document.getElementById('dydMsgStudentFields');
   var aflds = document.getElementById('dydMsgAdminFields');
+  var hflds = document.getElementById('dydMsgHelpdeskFields');
 
   function applyRecip() {
     var v = sel ? sel.value : '';
-    var isAdmin = v.startsWith('a_');
-    sflds.classList.toggle('d-none', isAdmin);
+    var isAdmin    = v.startsWith('a_');
+    var isHelpdesk = v.startsWith('h_');
+    sflds.classList.toggle('d-none', isAdmin || isHelpdesk);
     aflds.classList.toggle('d-none', !isAdmin);
+    hflds.classList.toggle('d-none', !isHelpdesk);
   }
   if (sel) sel.addEventListener('change', applyRecip);
   applyRecip();
@@ -491,6 +505,14 @@ document.addEventListener('DOMContentLoaded', function () {
         var subOut = form.querySelector('[name="subject"]');
         if (!subOut) { subOut = document.createElement('input'); subOut.type='hidden'; subOut.name='subject'; form.appendChild(subOut); }
         if (subEl) subOut.value = subEl.value;
+        if (adminInput) adminInput.value = '';
+      } else if (v.startsWith('h_')) {
+        opInput.value = 'dyd_msg_helpdesk_send';
+        var subElH = form.querySelector('[name="subject_h"]');
+        var subOutH = form.querySelector('[name="subject"]');
+        if (!subOutH) { subOutH = document.createElement('input'); subOutH.type='hidden'; subOutH.name='subject'; form.appendChild(subOutH); }
+        if (subElH) subOutH.value = subElH.value;
+        if (accInput) accInput.value = '';
         if (adminInput) adminInput.value = '';
       } else {
         opInput.value = 'dyd_msg_admin_send';

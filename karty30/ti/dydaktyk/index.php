@@ -505,6 +505,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
     }
 
+    // "Nowa wiadomość" → adresat "Helpdesk IT": zamiast wątku wewnętrznego
+    // zakłada zgłoszenie w module Helpdesk (patrz includes/helpdesk.php,
+    // karty30/ti/dydaktyk/api_helpdesk.php — ten sam wzorzec API+fallback
+    // co protokoły miesięczne).
+    if ($op === 'dyd_msg_helpdesk_send') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
+        $subject = trim((string)($_POST['subject'] ?? ''));
+        $body    = trim((string)($_POST['body'] ?? ''));
+        if ($subject === '') $subject = mb_strimwidth($body, 0, 60, '…');
+        if ($body !== '') {
+            $requester = ['id' => $uid, 'name' => (string)($me['name'] ?? ''), 'email' => (string)($me['email'] ?? '')];
+            $api = hd_dyd_api_call('create', [
+                'title' => $subject, 'description' => $body, 'category' => 'it_inne', 'priority' => 'normalny',
+            ], 'POST');
+            if ($api === null) {
+                hd_ticket_quick_create($requester, $subject, $body, 'it_inne', 'normalny', 'dydaktyk');
+            }
+            flash_set('success', 'Zgłoszenie wysłane do Helpdesku IT.');
+        }
+        header('Location: index.php?tab=wiadomosci'); exit;
+    }
+
     // Komunikaty placówki — nie wymagają course_id
     if ($op === 'mark_notice') {
         $nid = (int)($_POST['notice_id'] ?? 0);
@@ -3092,9 +3114,6 @@ if ($cur_course && dyd_is_staff()) {
     <?php if (!empty($dyd_notices_unread) && $dyd_notices_unread > 0): ?>
     <span class="badge bg-warning text-dark ms-auto" style="font-size:.6rem"><?= (int)$dyd_notices_unread ?></span>
     <?php endif; ?>
-  </a>
-  <a class="dyd-sb-link" href="zglos_problem.php">
-    <i class="bi bi-life-preserver" aria-hidden="true"></i>Zgłoś problem
   </a>
 
   <div class="dyd-sb-sep"></div>
