@@ -33,6 +33,13 @@ command -v ssh >/dev/null || die "Brak polecenia: ssh"
 # shellcheck source=/dev/null
 [[ -f "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
 
+# Logowanie hasłem (nie kluczem): ta sama pula gniazd ControlMaster co
+# deploy-mydevil.sh — hasło raz tutaj, deploy-mydevil.sh (uruchomiony niżej
+# albo osobno) już go nie zapyta przez 10 minut.
+SSH_CTL_DIR="${HOME}/.ssh/feerszo-cm"
+mkdir -p "$SSH_CTL_DIR" 2>/dev/null || true
+SSH_OPTS=(-o "ControlMaster=auto" -o "ControlPath=${SSH_CTL_DIR}/%r@%h:%p" -o "ControlPersist=600")
+
 # ── helper: pytanie z domyślną wartością ────────────────────────────────────
 ask() {
     local __var="$1" __prompt="$2" __default="${3:-}"
@@ -60,12 +67,12 @@ echo
 section "Połączenie SSH"
 ask MYDEVIL_SSH "Login SSH do konta MyDevil (user@serwerX.mydevil.net)" "${MYDEVIL_SSH:-}"
 while true; do
-    info "Sprawdzam połączenie…"
-    if ssh -o ConnectTimeout=8 -o BatchMode=yes "$MYDEVIL_SSH" "echo ok" >/dev/null 2>&1; then
+    info "Sprawdzam połączenie (może zapytać o hasło)…"
+    if ssh -o ConnectTimeout=8 "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "echo ok" >/dev/null 2>&1; then
         ok "Połączenie działa"
         break
     fi
-    warn "Nie udało się połączyć z ${MYDEVIL_SSH} (klucz SSH dodany na koncie?)."
+    warn "Nie udało się połączyć z ${MYDEVIL_SSH} (login/hasło poprawne?)."
     confirm "Spróbować ponownie z inną wartością?" || die "Przerwano — popraw dostęp SSH i uruchom kreator ponownie."
     ask MYDEVIL_SSH "Login SSH do konta MyDevil (user@serwerX.mydevil.net)" "$MYDEVIL_SSH"
 done
@@ -79,7 +86,7 @@ ask GIT_REMOTE_URL "URL repozytorium git do sklonowania" "${GIT_REMOTE_URL:-${_l
 
 # Spróbuj wykryć wersję PHP na koncie, żeby zaproponować composerXX
 _detected_composer=""
-_php_ver="$(ssh "$MYDEVIL_SSH" "php -r 'echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;'" 2>/dev/null || true)"
+_php_ver="$(ssh "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "php -r 'echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;'" 2>/dev/null || true)"
 if [[ "$_php_ver" =~ ^[0-9]{2,3}$ ]]; then
     _detected_composer="composer${_php_ver}"
     info "Wykryto PHP ${_php_ver:0:1}.${_php_ver:1} na koncie → proponuję ${_detected_composer}"
@@ -111,7 +118,7 @@ ok "Aliasy: ${ALIAS_DOMAINS[*]:-(brak)}"
 # ── 4. SSL / IP konta ────────────────────────────────────────────────────────
 section "SSL"
 info "IP konta znajdziesz w panelu MyDevil albo komendą 'devil vhost list' przez SSH."
-_suggested_ip="$(ssh "$MYDEVIL_SSH" "devil vhost list 2>/dev/null | awk 'NR==2{print \$1}'" 2>/dev/null || true)"
+_suggested_ip="$(ssh "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "devil vhost list 2>/dev/null | awk 'NR==2{print \$1}'" 2>/dev/null || true)"
 ask MYDEVIL_IP "IP konta (do certyfikatów Let's Encrypt, Enter = pomiń SSL na razie)" "${MYDEVIL_IP:-$_suggested_ip}"
 
 # ── 5. Zapis konfiguracji ────────────────────────────────────────────────────

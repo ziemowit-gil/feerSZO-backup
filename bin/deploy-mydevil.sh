@@ -83,12 +83,21 @@ section() { echo -e "\n${BOLD}━━ $* ━━━━━━━━━━━━━�
 [[ "$MYDEVIL_SSH" == "login@serwerX.mydevil.net" ]] && \
     die "Uzupełnij MYDEVIL_SSH (i resztę sekcji KONFIGURACJA) na górze skryptu przed uruchomieniem."
 
+# ── Logowanie hasłem: jedna sesja SSH, wiele poleceń ────────────────────────
+# Konto działa na hasłach (nie klucz) — bez tego każde ssh/scp/rsync osobno
+# pytałoby o hasło. ControlMaster=auto+ControlPersist trzyma jedno połączenie
+# przez 10 minut, więc hasło podajesz raz, a kolejne wywołania (także z
+# deploy-mydevil-wizard.sh, jeśli to on Cię tu przywiódł) je reużywają.
+SSH_CTL_DIR="${HOME}/.ssh/feerszo-cm"
+mkdir -p "$SSH_CTL_DIR" 2>/dev/null || true
+SSH_OPTS=(-o "ControlMaster=auto" -o "ControlPath=${SSH_CTL_DIR}/%r@%h:%p" -o "ControlPersist=600")
+
 run_remote() {
     local cmd="$1"
     if $DRY; then
         warn "[dry] ssh ${MYDEVIL_SSH} \"${cmd}\""
     else
-        ssh "$MYDEVIL_SSH" "$cmd"
+        ssh "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "$cmd"
     fi
 }
 
@@ -106,9 +115,10 @@ fi
 if $DRY; then
     warn "[dry] pomijam test połączenia SSH"
 else
-    ssh -o ConnectTimeout=8 -o BatchMode=yes "$MYDEVIL_SSH" "echo ok" >/dev/null 2>&1 \
+    info "Łączę (może zapytać o hasło — kolejne kroki go już nie zapytają przez 10 min)…"
+    ssh -o ConnectTimeout=8 "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "echo ok" >/dev/null 2>&1 \
         && ok "Połączenie SSH działa" \
-        || die "Nie mogę połączyć się przez SSH z ${MYDEVIL_SSH} (klucz dodany na koncie?)."
+        || die "Nie mogę połączyć się przez SSH z ${MYDEVIL_SSH} (login/hasło poprawne?)."
 fi
 
 # ── 1. Kod: klon albo fast-forward pull ────────────────────────────────────
@@ -170,10 +180,10 @@ if $DRY; then
     warn "[dry] dopisałbym do crontaba (jeśli marker jeszcze nie istnieje):"
     echo "$CRON_BLOCK"
 else
-    if ssh "$MYDEVIL_SSH" "crontab -l 2>/dev/null | grep -qF '${CRON_MARKER}'"; then
+    if ssh "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "crontab -l 2>/dev/null | grep -qF '${CRON_MARKER}'"; then
         ok "Wpisy crona już obecne (marker znaleziony) — pomijam"
     else
-        printf '%s\n' "$CRON_BLOCK" | ssh "$MYDEVIL_SSH" "(crontab -l 2>/dev/null; cat) | crontab -" \
+        printf '%s\n' "$CRON_BLOCK" | ssh "${SSH_OPTS[@]}" "$MYDEVIL_SSH" "(crontab -l 2>/dev/null; cat) | crontab -" \
             && ok "Dopisano crontab"
     fi
 fi
@@ -195,9 +205,9 @@ if $SYNC_DATA; then
     if $DRY; then
         warn "[dry] scp ${_db_source} → ${REMOTE_REPO_DIR}/umowy.import.db, rsync uploads/ certs/ → ${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/"
     else
-        scp "$_db_source" "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/umowy.import.db"
-        rsync -avz "${REPO_ROOT}/uploads/" "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/uploads/"
-        rsync -avz "${REPO_ROOT}/certs/"   "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/certs/"
+        scp "${SSH_OPTS[@]}" "$_db_source" "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/umowy.import.db"
+        rsync -avz -e "ssh ${SSH_OPTS[*]}" "${REPO_ROOT}/uploads/" "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/uploads/"
+        rsync -avz -e "ssh ${SSH_OPTS[*]}" "${REPO_ROOT}/certs/"   "${MYDEVIL_SSH}:${REMOTE_REPO_DIR}/certs/"
         ok "Dane przesłane — dokończ import: https://${PRIMARY_DOMAIN}/install.php"
     fi
 else
