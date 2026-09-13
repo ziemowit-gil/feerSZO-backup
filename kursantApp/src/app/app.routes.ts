@@ -58,6 +58,12 @@ export const routes: Routes = [
           import('./features/instructor/formalnosci/formalnosci.component').then(m => m.InstructorFormalnosciComponent),
         title: 'Formalności — Panel prowadzącego',
       },
+      {
+        path: 'wydruki',
+        loadComponent: () =>
+          import('./features/instructor/wydruki/wydruki.component').then(m => m.InstructorWydrukiComponent),
+        title: 'Wydruki — Panel prowadzącego',
+      },
     ],
   },
   {

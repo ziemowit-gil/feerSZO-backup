@@ -144,4 +144,17 @@ export class InstructorApiService {
   updateContact(phoneNumber: string, altEmail: string, shareContact: boolean) {
     return this.post<void>('update_contact', { phone_number: phoneNumber, alt_email: altEmail, share_contact: shareContact });
   }
+
+  private downloadUrl(action: string, params: Record<string, string>): string {
+    const p = new URLSearchParams({ action, token: this.auth.token() ?? '', ...params });
+    return `${API}?${p.toString()}`;
+  }
+  /** Plan zajęć (siatka) — PDF, własny plan prowadzącego. */
+  planPdfUrl(weeks: number): string {
+    return this.downloadUrl('plan_pdf', { weeks: String(weeks) });
+  }
+  /** Eksport CSV frekwencji za dany miesiąc (opcjonalnie jedna grupa). */
+  attendanceCsvUrl(month: string, courseId: number | null): string {
+    return this.downloadUrl('attendance_csv', courseId ? { month, course_id: String(courseId) } : { month });
+  }
 }
