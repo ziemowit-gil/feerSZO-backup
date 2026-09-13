@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import {
   ApiResponse, InstructorDashboard, InstructorLessonRow, InstructorAttendanceEntry,
   InstructorHomework, InstructorHomeworkDetail, InstructorMaterial,
+  InstructorRoom, InstructorRescheduleRequest,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -40,6 +41,36 @@ export class InstructorApiService {
   }
   uncancelLesson(sessionId: number) {
     return this.post<void>('uncancel_lesson', { session_id: sessionId });
+  }
+  cancelAttendee(sessionId: number, clientId: number, reason: string) {
+    return this.post<void>('cancel_attendee', { session_id: sessionId, client_id: clientId, reason });
+  }
+  restoreAttendee(sessionId: number, clientId: number) {
+    return this.post<void>('restore_attendee', { session_id: sessionId, client_id: clientId });
+  }
+
+  getRooms() { return this.get<InstructorRoom[]>('rooms'); }
+
+  /** session_id=0/pominięte → nowa lekcja. */
+  saveLesson(payload: {
+    session_id?: number; course_id: number; lesson_date: string; time_from: string; time_to: string;
+    topic: string; notes: string; has_homework: boolean; self_prep_remote: boolean;
+    lesson_method: '' | 'stacjonarna' | 'zdalna_zoom' | 'zdalna_inne'; meeting_url: string;
+    room_id: number | null; status?: string; notify?: boolean;
+  }) {
+    return this.post<void>('save_lesson', payload);
+  }
+
+  getReschedulePending(sessionId: number) {
+    return this.get<InstructorRescheduleRequest[]>('reschedule_pending', { session_id: String(sessionId) });
+  }
+  rescheduleLesson(sessionId: number, date: string, timeFrom: string, timeTo: string, notify: boolean, notifySms: boolean) {
+    return this.post<void>('reschedule_lesson', {
+      session_id: sessionId, lesson_date: date, time_from: timeFrom, time_to: timeTo, notify, notify_sms: notifySms,
+    });
+  }
+  rescheduleDecide(requestId: number, accept: boolean, note: string) {
+    return this.post<void>('reschedule_decide', { request_id: requestId, accept, note });
   }
 
   getHomework(courseId?: number) {

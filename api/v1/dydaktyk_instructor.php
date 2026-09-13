@@ -26,6 +26,9 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/karty30.php';
 require_once __DIR__ . '/../../includes/totp.php';
 require_once __DIR__ . '/../../includes/ti_notices.php';
+require_once __DIR__ . '/../../includes/ti_reschedule.php';
+require_once __DIR__ . '/../../includes/ti_periods.php';
+require_once __DIR__ . '/../../includes/ti_planner_ext.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -44,6 +47,7 @@ header('X-Content-Type-Options: nosniff');
 
 // ── Schema: token tables ───────────────────────────────────────────────────────
 $pdo = db();
+k30_ti_reschedule_migrate(); // k30_ti_reschedule_requests — jak w index.php (klasyczny panel)
 $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_api_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     instructor_id INTEGER NOT NULL,
@@ -343,10 +347,12 @@ switch ($action) {
         $ph = implode(',', array_fill(0, count($scope_ids), '?'));
         $rows = db_all(
             "SELECT s.id, s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.time_to,
-                    s.status, s.topic, s.meeting_url, c.default_meeting_url, s.docs_complete,
+                    s.status, s.topic, s.notes, s.meeting_url, c.default_meeting_url, s.docs_complete,
+                    s.lesson_method, s.room_id, s.has_homework, s.self_prep_remote,
                     s.rescheduled_from_date, s.instructor_id,
                     (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,
-                    (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count
+                    (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count,
+                    (SELECT COUNT(*) FROM k30_ti_reschedule_requests r WHERE r.session_id=s.id AND r.status='pending') AS pending_reschedule_count
              FROM k30_ti_sessions s
              JOIN k30_ti_courses c ON c.id=s.course_id
              WHERE s.course_id IN ($ph)
@@ -429,6 +435,165 @@ switch ($action) {
             "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"
         )->execute([$sid]);
         json_ok(null, 'Lekcja przywrócona (zaplanowana).');
+    }
+
+    case 'cancel_attendee':
+    case 'restore_attendee': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sid  = (int)($body['session_id'] ?? 0);
+        $cid  = (int)($body['client_id'] ?? 0);
+        if (!$sid || !$cid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        if ($action === 'cancel_attendee') {
+            $reason = trim((string)($body['reason'] ?? '')) ?: 'Odwołane przez prowadzącego';
+            $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+            k30_ti_cancel_attendance($sid, $cid, $reason, 'doradca', (string)($u['name'] ?? ''));
+            json_ok(null, 'Udział kursanta odwołany — nie będzie liczony do ceny.');
+        }
+        k30_ti_uncancel_attendance($sid, $cid);
+        json_ok(null, 'Udział kursanta przywrócony.');
+    }
+
+    // Lista pokoi (stacjonarne) do wyboru w formularzu lekcji.
+    case 'rooms': {
+        json_ok(pl_rooms_list(['is_active' => 1]));
+    }
+
+    // Dodanie/edycja pojedynczej lekcji — 1:1 z index.php op=save_lesson, ale
+    // wyłącznie w zakresie prowadzącego: bez zastępstwa (pole widoczne tylko
+    // kierownikowi), pomijania sprawdzenia dostępności, rezerwacji „na PESEL",
+    // wersji roboczej i powiązania z programem nauczania (curriculum_ids) —
+    // te zostają na razie w klasycznym panelu.
+    case 'save_lesson': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+
+        $sid  = (int)($body['session_id'] ?? 0);
+        $cid  = (int)($body['course_id'] ?? 0);
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$cid || !in_array($cid, $course_ids, true)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $date  = trim((string)($body['lesson_date'] ?? ''));
+        $tf    = trim((string)($body['time_from'] ?? ''));
+        $tt    = trim((string)($body['time_to'] ?? ''));
+        $topic = trim((string)($body['topic'] ?? ''));
+        $notes = trim((string)($body['notes'] ?? ''));
+        $hw    = !empty($body['has_homework']) ? 1 : 0;
+        $spr   = !empty($body['self_prep_remote']) ? 1 : 0;
+        $lm    = in_array($body['lesson_method'] ?? '', ['stacjonarna', 'zdalna_zoom', 'zdalna_inne'], true) ? $body['lesson_method'] : '';
+        $meet_url = in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) ? trim((string)($body['meeting_url'] ?? '')) : '';
+        $room_id  = max(0, (int)($body['room_id'] ?? 0));
+        $status   = $sid && in_array($body['status'] ?? '', ['planned', 'held', 'remote_material'], true) ? $body['status'] : 'planned';
+
+        if ($date === '') json_err('Data lekcji jest wymagana.');
+
+        $dur = 60;
+        if ($tf && $tt) {
+            $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
+            if ($m > 0) $dur = (int)$m;
+        }
+
+        $eff_instr = ti_course_instructor_id($cid);
+        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
+        if (!$av['ok']) json_err($av['reason']);
+
+        if ($pc = ti_period_closed_for_date($date)) json_err(ti_period_closed_msg($pc));
+
+        $zc = ti_zoom_slot_check($cid, $lm, $date, $tf, $tt, $sid);
+        if (!$zc['ok']) json_err($zc['reason']);
+        $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
+
+        if ($room_id) {
+            $rc = pl_check_conflicts(['lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $room_id, 'skip_id' => $sid]);
+            if ($rc['hard']) json_err($rc['hard'][0]['msg'] ?? 'Sala zajęta w tym terminie.');
+        }
+
+        if ($sid) {
+            if (!k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+            $pdo->prepare(
+                "UPDATE k30_ti_sessions
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, lesson_method=?, meeting_url=?, room_id=?, updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $status, $lm, $meet_url, $room_id ?: null, $sid]);
+            if ($status === 'remote_material') {
+                $pdo->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
+            }
+            json_ok(null, 'Lekcja zaktualizowana.' . $zw);
+        }
+
+        $new_sid = db_insert('k30_ti_sessions', [
+            'course_id' => $cid, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'duration_min' => $dur,
+            'status' => 'planned', 'topic' => $topic, 'notes' => $notes,
+            'has_homework' => $hw, 'self_prep_remote' => $spr,
+            'lesson_method' => $lm, 'meeting_url' => $meet_url, 'room_id' => $room_id ?: null,
+            'created_by' => $instructor_id, 'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]) as $e) {
+            try { db_insert('k30_ti_attendance', ['session_id' => $new_sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
+            catch (\Throwable $ex) {}
+        }
+        $msg = 'Lekcja dodana.' . $zw;
+        if (!empty($body['notify']) && !$spr) {
+            $cn   = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid]);
+            $when = $date . ($tf !== '' ? ' o ' . $tf : '');
+            $n = ti_lesson_sms_notify($cid, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+            if ($n) $msg .= " Wysłano SMS: {$n}.";
+        }
+        json_ok(null, $msg);
+    }
+
+    // ── zmiana terminu ────────────────────────────────────────────────────────────
+    case 'reschedule_pending': {
+        $sid = (int)($_GET['session_id'] ?? 0);
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        json_ok(k30_ti_reschedule_pending_for_session($sid));
+    }
+
+    case 'reschedule_lesson': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sid  = (int)($body['session_id'] ?? 0);
+        $date = trim((string)($body['lesson_date'] ?? ''));
+        $tf   = trim((string)($body['time_from'] ?? ''));
+        $tt   = trim((string)($body['time_to'] ?? ''));
+        if (!$sid || !k30_ti_instructor_owns_session($instructor_id, $sid)) json_err('Brak dostępu do tej lekcji.', 403);
+        if ($date === '') json_err('Podaj nowy termin lekcji.');
+
+        $s = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$sid]);
+        $v = ti_validate_reschedule($sid, (int)$s['course_id'], $date, $tf, $tt);
+        if (!$v['ok']) json_err($v['reason']);
+
+        $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
+        if ($old !== null && !empty($body['notify'])) {
+            k30_ti_reschedule_notify_parties($sid, $old, !empty($body['notify_sms']));
+            json_ok(null, 'Termin lekcji zmieniony. Powiadomiono uczestników.');
+        }
+        json_ok(null, 'Termin lekcji zmieniony.');
+    }
+
+    case 'reschedule_decide': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body   = get_body();
+        $rid    = (int)($body['request_id'] ?? 0);
+        $accept = !empty($body['accept']);
+        $req    = $rid ? k30_ti_reschedule_get($rid) : null;
+        if (!$req || !k30_ti_instructor_owns_session($instructor_id, (int)$req['session_id'])) {
+            json_err('Brak dostępu do tej propozycji.', 403);
+        }
+        if ($accept) {
+            $cid = (int)$req['course_id'];
+            $av  = ti_instructor_available_at(ti_course_instructor_id($cid), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
+            if (!$av['ok']) json_err('Nie można zaakceptować: ' . $av['reason']);
+            if ($pc = ti_period_closed_for_date((string)$req['proposed_date'])) json_err('Nie można zaakceptować: ' . ti_period_closed_msg($pc));
+            $lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [(int)$req['session_id']])['lesson_method'] ?? '');
+            $zc = ti_zoom_slot_check($cid, $lm, (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$req['session_id']);
+            if (!$zc['ok']) json_err('Nie można zaakceptować: ' . $zc['reason']);
+        }
+        $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+        k30_ti_reschedule_decide($rid, $accept, (string)($u['name'] ?? ''), trim((string)($body['note'] ?? '')));
+        json_ok(null, $accept
+            ? 'Propozycja zaakceptowana — termin lekcji zmieniony, kursant powiadomiony.'
+            : 'Propozycja odrzucona — kursant powiadomiony.');
     }
 
     // ── zadania domowe ───────────────────────────────────────────────────────────

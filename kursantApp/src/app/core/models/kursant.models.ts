@@ -470,13 +470,42 @@ export interface InstructorLessonRow {
   time_to: string;
   status: LessonStatus;
   topic: string | null;
+  notes: string | null;
   meeting_url: string | null;
   default_meeting_url: string | null;
   docs_complete: number;
+  lesson_method: '' | 'stacjonarna' | 'zdalna_zoom' | 'zdalna_inne';
+  room_id: number | null;
+  has_homework: number;
+  self_prep_remote: number;
   rescheduled_from_date: string | null;
   attended_count: number;
   total_count: number;
   is_substitution: boolean;
+  pending_reschedule_count: number;
+}
+
+export interface InstructorRoom {
+  id: number;
+  name: string;
+  building_name: string | null;
+}
+
+export interface InstructorRescheduleRequest {
+  id: number;
+  session_id: number;
+  client_id: number;
+  client_name: string | null;
+  requested_by_role: string;
+  requested_by: string;
+  old_date: string;
+  old_from: string;
+  old_to: string;
+  proposed_date: string;
+  proposed_from: string;
+  proposed_to: string;
+  reason: string;
+  created_at: string;
 }
 
 export interface InstructorAttendanceEntry {
