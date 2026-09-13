@@ -7,6 +7,7 @@ import { InstructorCourseContextService } from '../../../core/services/instructo
 import { InstructorMaterial } from '../../../core/models/kursant.models';
 import { MaterialFormDialogComponent } from './material-form-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 /**
  * Materiały prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_materialy.php:
@@ -155,13 +156,18 @@ export class InstructorMaterialyComponent implements OnInit {
   }
 
   remove(m: InstructorMaterial): void {
-    if (!confirm(`Usunąć materiał „${m.title}"?`)) return;
-    this.api.deleteMaterial(m.id).subscribe({
-      next: res => {
-        this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
-        if (res.success) this.load();
-      },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć materiału.', 'OK', { duration: 5000 }),
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Usuń materiał', danger: true, confirmLabel: 'Usuń', message: `Usunąć materiał „${m.title}"?` },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.api.deleteMaterial(m.id).subscribe({
+        next: res => {
+          this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
+          if (res.success) this.load();
+        },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć materiału.', 'OK', { duration: 5000 }),
+      });
     });
   }
 }

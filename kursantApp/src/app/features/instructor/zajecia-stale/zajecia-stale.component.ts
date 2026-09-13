@@ -7,6 +7,7 @@ import { InstructorApiService } from '../../../core/services/instructor-api.serv
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorRecurringRule } from '../../../core/models/kursant.models';
 import { RecurringRuleDialogComponent } from './recurring-rule-dialog.component';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 const WEEKDAY_LABELS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
 const POSITION_LABELS: Record<string, string> = { '1': '1.', '2': '2.', '3': '3.', '4': '4.', last: 'ostatni' };
@@ -130,16 +131,21 @@ export class InstructorZajeciaStaleComponent implements OnInit {
   }
 
   deleteRule(r: InstructorRecurringRule, delFuture: boolean): void {
-    const msg = delFuture
+    const message = delFuture
       ? `Usunąć regułę "${this.patternLabel(r)}" i ${r.future_count} nadchodzących lekcji? Tej operacji nie można cofnąć.`
       : `Usunąć regułę "${this.patternLabel(r)}"? Istniejące lekcje zostaną zachowane (odłączone od reguły).`;
-    if (!confirm(msg)) return;
-    this.api.deleteRecurringRule(r.id, delFuture).subscribe({
-      next: res => {
-        this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
-        if (res.success) this.load();
-      },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć reguły.', 'OK', { duration: 5000 }),
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '440px', maxWidth: '95vw',
+      data: { title: 'Usuń regułę', danger: delFuture, confirmLabel: 'Usuń', message },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.api.deleteRecurringRule(r.id, delFuture).subscribe({
+        next: res => {
+          this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
+          if (res.success) this.load();
+        },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć reguły.', 'OK', { duration: 5000 }),
+      });
     });
   }
 }

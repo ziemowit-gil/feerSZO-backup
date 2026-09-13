@@ -10,6 +10,7 @@ import { InstructorCurriculumItem, InstructorSyllabusRef } from '../../../core/m
 import { CurriculumItemDialogComponent } from './curriculum-item-dialog.component';
 import { CurriculumBulkDialogComponent } from './curriculum-bulk-dialog.component';
 import { CurriculumImportDialogComponent } from './curriculum-import-dialog.component';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 /**
  * Program nauczania / sylabus kursu — odpowiednik _tab_program.php (dawniej
@@ -276,13 +277,18 @@ export class InstructorProgramComponent {
   remove(item: InstructorCurriculumItem): void {
     const cid = this.courseId();
     if (!cid) return;
-    if (!confirm(`Usunąć pozycję planu "${item.title}"? Powiązania z lekcjami zostaną usunięte.`)) return;
-    this.api.deleteCurriculumItem(cid, item.id).subscribe({
-      next: res => {
-        this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
-        if (res.success) this.load(cid);
-      },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć pozycji.', 'OK', { duration: 5000 }),
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Usuń pozycję planu', danger: true, confirmLabel: 'Usuń', message: `Usunąć pozycję planu "${item.title}"? Powiązania z lekcjami zostaną usunięte.` },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.api.deleteCurriculumItem(cid, item.id).subscribe({
+        next: res => {
+          this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
+          if (res.success) this.load(cid);
+        },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć pozycji.', 'OK', { duration: 5000 }),
+      });
     });
   }
 }

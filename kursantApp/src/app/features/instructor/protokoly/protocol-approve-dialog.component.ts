@@ -1,10 +1,11 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorProtocolPending, InstructorProtocolSummary } from '../../../core/models/kursant.models';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 export interface ProtocolApproveDialogData { row: InstructorProtocolPending; monthLabel: string }
 
@@ -51,9 +52,10 @@ export interface ProtocolApproveDialogData { row: InstructorProtocolPending; mon
   `],
 })
 export class ProtocolApproveDialogComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private snack = inject(MatSnackBar);
-  private ref   = inject(MatDialogRef<ProtocolApproveDialogComponent>);
+  private api    = inject(InstructorApiService);
+  private snack  = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
+  private ref    = inject(MatDialogRef<ProtocolApproveDialogComponent>);
   data: ProtocolApproveDialogData = inject(MAT_DIALOG_DATA);
 
   loading   = signal(true);
@@ -71,18 +73,23 @@ export class ProtocolApproveDialogComponent implements OnInit {
   }
 
   approve(): void {
-    if (!confirm(`Zatwierdzić protokół za ${this.data.monthLabel}? Tej operacji nie można cofnąć samodzielnie.`)) return;
-    this.approving.set(true);
-    this.api.approveProtocol(this.data.row.course_id, this.data.row.year_month).subscribe({
-      next: res => {
-        this.approving.set(false);
-        this.snack.open(res.message || 'Protokół zatwierdzony.', 'OK', { duration: 4000 });
-        if (res.success) this.ref.close(true);
-      },
-      error: err => {
-        this.approving.set(false);
-        this.snack.open(err?.error?.error || 'Nie udało się zatwierdzić protokołu.', 'OK', { duration: 5000 });
-      },
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Zatwierdź protokół', confirmLabel: 'Zatwierdź', message: `Zatwierdzić protokół za ${this.data.monthLabel}? Tej operacji nie można cofnąć samodzielnie.` },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.approving.set(true);
+      this.api.approveProtocol(this.data.row.course_id, this.data.row.year_month).subscribe({
+        next: res => {
+          this.approving.set(false);
+          this.snack.open(res.message || 'Protokół zatwierdzony.', 'OK', { duration: 4000 });
+          if (res.success) this.ref.close(true);
+        },
+        error: err => {
+          this.approving.set(false);
+          this.snack.open(err?.error?.error || 'Nie udało się zatwierdzić protokołu.', 'OK', { duration: 5000 });
+        },
+      });
     });
   }
 }

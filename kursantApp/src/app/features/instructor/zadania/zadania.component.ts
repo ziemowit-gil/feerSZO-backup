@@ -8,6 +8,7 @@ import { InstructorApiService } from '../../../core/services/instructor-api.serv
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/models/kursant.models';
 import { HomeworkFormDialogComponent } from './homework-form-dialog.component';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 /**
  * Zadania domowe prowadzącego — odpowiednik karty30/ti/dydaktyk/_tab_zadania.php:
@@ -230,13 +231,18 @@ export class InstructorZadaniaComponent implements OnInit {
   }
 
   remove(hw: InstructorHomework): void {
-    if (!confirm(`Usunąć zadanie „${hw.title}"? Usunie to też wszystkie oddania kursantów.`)) return;
-    this.api.deleteHomework(hw.id).subscribe({
-      next: res => {
-        this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
-        if (res.success) this.load();
-      },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć zadania.', 'OK', { duration: 5000 }),
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Usuń zadanie', danger: true, confirmLabel: 'Usuń', message: `Usunąć zadanie „${hw.title}"? Usunie to też wszystkie oddania kursantów.` },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.api.deleteHomework(hw.id).subscribe({
+        next: res => {
+          this.snack.open(res.message || 'Usunięto.', 'OK', { duration: 4000 });
+          if (res.success) this.load();
+        },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się usunąć zadania.', 'OK', { duration: 5000 }),
+      });
     });
   }
 }

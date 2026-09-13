@@ -1,9 +1,11 @@
 import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorOwnCloudAccount, InstructorOwnCloudReveal } from '../../../core/models/kursant.models';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 /**
  * Mój dysk (prowadzący) — odpowiednik karty30/ti/dydaktyk/_tab_dysk.php:
@@ -15,7 +17,7 @@ import { InstructorOwnCloudAccount, InstructorOwnCloudReveal } from '../../../co
 @Component({
   selector: 'app-instructor-dysk',
   standalone: true,
-  imports: [CommonModule, DatePipe, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, MatSnackBarModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie… }</div>
 
@@ -99,8 +101,9 @@ import { InstructorOwnCloudAccount, InstructorOwnCloudReveal } from '../../../co
   `],
 })
 export class InstructorDyskComponent implements OnInit {
-  private api   = inject(InstructorApiService);
-  private snack = inject(MatSnackBar);
+  private api    = inject(InstructorApiService);
+  private snack  = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
 
   loading = signal(true);
   working = signal(false);
@@ -141,28 +144,41 @@ export class InstructorDyskComponent implements OnInit {
   }
 
   reset(): void {
-    if (!confirm('Zresetować hasło? Stare hasło stanie się nieprawidłowe.')) return;
-    this.working.set(true);
-    this.api.ownCloudReset().subscribe({
-      next: res => {
-        this.working.set(false);
-        this.snack.open(res.message || 'Hasło zresetowane.', 'OK', { duration: 4000 });
-        if (res.success && res.data) this.reveal.set(res.data);
-      },
-      error: err => { this.working.set(false); this.snack.open(err?.error?.error || 'Nie udało się zresetować hasła.', 'OK', { duration: 5000 }); },
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Resetuj hasło', message: 'Zresetować hasło? Stare hasło stanie się nieprawidłowe.', confirmLabel: 'Resetuj' },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.working.set(true);
+      this.api.ownCloudReset().subscribe({
+        next: res => {
+          this.working.set(false);
+          this.snack.open(res.message || 'Hasło zresetowane.', 'OK', { duration: 4000 });
+          if (res.success && res.data) this.reveal.set(res.data);
+        },
+        error: err => { this.working.set(false); this.snack.open(err?.error?.error || 'Nie udało się zresetować hasła.', 'OK', { duration: 5000 }); },
+      });
     });
   }
 
   recreate(): void {
-    if (!confirm('UWAGA: to usunie Twoje obecne konto ownCloud WRAZ ZE WSZYSTKIMI plikami — nieodwracalnie. Zostanie od razu założone nowe, puste konto z nowym loginem i hasłem. Czy na pewno chcesz kontynuować?')) return;
-    this.working.set(true);
-    this.api.ownCloudRecreate().subscribe({
-      next: res => {
-        this.working.set(false);
-        this.snack.open(res.message || 'Konto odtworzone.', 'OK', { duration: 4000 });
-        if (res.success && res.data) { this.reveal.set(res.data); this.load(); }
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '460px', maxWidth: '95vw',
+      data: {
+        title: 'Utwórz konto od nowa', danger: true, confirmLabel: 'Usuń i utwórz od nowa',
+        message: 'UWAGA: to usunie Twoje obecne konto ownCloud WRAZ ZE WSZYSTKIMI plikami — nieodwracalnie. Zostanie od razu założone nowe, puste konto z nowym loginem i hasłem. Czy na pewno chcesz kontynuować?',
       },
-      error: err => { this.working.set(false); this.snack.open(err?.error?.error || 'Nie udało się odtworzyć konta.', 'OK', { duration: 5000 }); },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.working.set(true);
+      this.api.ownCloudRecreate().subscribe({
+        next: res => {
+          this.working.set(false);
+          this.snack.open(res.message || 'Konto odtworzone.', 'OK', { duration: 4000 });
+          if (res.success && res.data) { this.reveal.set(res.data); this.load(); }
+        },
+        error: err => { this.working.set(false); this.snack.open(err?.error?.error || 'Nie udało się odtworzyć konta.', 'OK', { duration: 5000 }); },
+      });
     });
   }
 }

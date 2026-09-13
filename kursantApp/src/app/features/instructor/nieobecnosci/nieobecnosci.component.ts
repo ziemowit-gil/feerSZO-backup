@@ -1,10 +1,13 @@
 import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorAbsence } from '../../../core/models/kursant.models';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
+import { PromptDialogComponent } from '../../../shared/components/prompt-dialog.component';
 
 type AbsenceState = 'unexcused' | 'excused' | 'no_show';
 
@@ -21,7 +24,7 @@ type AbsenceState = 'unexcused' | 'excused' | 'no_show';
 @Component({
   selector: 'app-instructor-nieobecnosci',
   standalone: true,
-  imports: [CommonModule, DatePipe, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, MatSnackBarModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie nieobecności… }</div>
 
@@ -108,6 +111,7 @@ type AbsenceState = 'unexcused' | 'excused' | 'no_show';
 export class InstructorNieobecnosciComponent implements OnInit {
   private api    = inject(InstructorApiService);
   private snack  = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   courseCtx      = inject(InstructorCourseContextService);
 
   loading   = signal(true);
@@ -141,21 +145,31 @@ export class InstructorNieobecnosciComponent implements OnInit {
   }
 
   excuse(a: InstructorAbsence): void {
-    const reason = prompt(`Powód usprawiedliwienia (${a.client_name}, opcjonalnie):`, '') ?? '';
-    this.api.cancelAttendee(a.session_id, a.client_id, reason).subscribe({
-      next: res => { this.snack.open(res.message || 'Nieobecność usprawiedliwiona.', 'OK', { duration: 4000 }); if (res.success) this.load(); },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się usprawiedliwić nieobecności.', 'OK', { duration: 5000 }),
+    this.dialog.open(PromptDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Usprawiedliwienie nieobecności', label: 'Powód (opcjonalnie)', placeholder: a.client_name, confirmLabel: 'Usprawiedliw' },
+    }).afterClosed().subscribe((reason: string | undefined) => {
+      if (reason === undefined) return;
+      this.api.cancelAttendee(a.session_id, a.client_id, reason).subscribe({
+        next: res => { this.snack.open(res.message || 'Nieobecność usprawiedliwiona.', 'OK', { duration: 4000 }); if (res.success) this.load(); },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się usprawiedliwić nieobecności.', 'OK', { duration: 5000 }),
+      });
     });
   }
 
   restore(a: InstructorAbsence): void {
-    const msg = this.stateOf(a) === 'no_show'
+    const message = this.stateOf(a) === 'no_show'
       ? 'Cofnąć oznaczenie? Udział uczestnika zostanie przywrócony.'
       : 'Cofnąć usprawiedliwienie? Nieobecność znów będzie nieusprawiedliwiona.';
-    if (!confirm(msg)) return;
-    this.api.restoreAttendee(a.session_id, a.client_id).subscribe({
-      next: res => { this.snack.open(res.message || 'Cofnięto.', 'OK', { duration: 4000 }); if (res.success) this.load(); },
-      error: err => this.snack.open(err?.error?.error || 'Nie udało się cofnąć.', 'OK', { duration: 5000 }),
+    this.dialog.open(ConfirmDialogComponent, {
+      width: '420px', maxWidth: '95vw',
+      data: { title: 'Cofnij', message, confirmLabel: 'Cofnij' },
+    }).afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.api.restoreAttendee(a.session_id, a.client_id).subscribe({
+        next: res => { this.snack.open(res.message || 'Cofnięto.', 'OK', { duration: 4000 }); if (res.success) this.load(); },
+        error: err => this.snack.open(err?.error?.error || 'Nie udało się cofnąć.', 'OK', { duration: 5000 }),
+      });
     });
   }
 }
