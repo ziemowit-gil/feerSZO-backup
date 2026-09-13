@@ -256,6 +256,68 @@ switch ($action) {
         ));
     }
 
+    // ── formalności ───────────────────────────────────────────────────────────────
+    // Odpowiednik _tab_formalnosci.php: dane kontaktowe własnego konta +
+    // odczyt WŁASNYCH umów z rejestru (umowy_zlecenie/wolontariat/dzielo/praca,
+    // dopasowanie po email/microsoft_id — ten sam sposób co klasyczny panel).
+    // Wyłącznie odczyt umów — edycja/generowanie dokumentów zostaje w module
+    // Rejestr Umów (poza zakresem prowadzącego).
+    case 'formalnosci': {
+        $u = db_one("SELECT email, microsoft_id, phone_number, alt_email, share_contact FROM users WHERE id=?", [$instructor_id]);
+        if (!$u) json_err('Konto nie istnieje.', 404);
+
+        $email = trim((string)($u['email'] ?? ''));
+        $msId  = trim((string)($u['microsoft_id'] ?? ''));
+
+        $contracts = [];
+        foreach ([
+            ['zlecenie', 'data_zakonczenia'], ['wolontariat', 'data_zakonczenia'],
+            ['dzielo', 'termin_oddania'], ['praca', 'data_zakonczenia'],
+        ] as [$ctype, $end_col]) {
+            $table = "umowy_{$ctype}";
+            try {
+                $conds = []; $params = [];
+                if ($email) { $conds[] = 'email=?'; $params[] = $email; }
+                if ($msId)  { $conds[] = 'm365_user_id=?'; $params[] = $msId; }
+                if (!$conds) continue;
+                $rows = db_all(
+                    "SELECT id, '{$ctype}' AS contract_type, numer_umowy, status, data_zawarcia,
+                            {$end_col} AS data_zakonczenia, imie_nazwisko, stanowisko,
+                            miejsce_wolontariatu, przedmiot_porozumienia
+                     FROM {$table} WHERE (" . implode(' OR ', $conds) . ") ORDER BY data_zawarcia DESC",
+                    $params
+                );
+                foreach ($rows as $r) $contracts[] = $r;
+            } catch (\Throwable $e) {}
+        }
+        usort($contracts, function ($a, $b) {
+            $active = fn($s) => in_array($s, ['podpisana', 'w realizacji'], true) ? 0 : 1;
+            return $active($a['status']) <=> $active($b['status'])
+                ?: strcmp((string)($b['data_zawarcia'] ?? ''), (string)($a['data_zawarcia'] ?? ''));
+        });
+
+        json_ok([
+            'contact' => [
+                'email' => $email,
+                'phone_number' => (string)($u['phone_number'] ?? ''),
+                'alt_email' => (string)($u['alt_email'] ?? ''),
+                'share_contact' => !empty($u['share_contact']),
+            ],
+            'contracts' => $contracts,
+        ]);
+    }
+
+    case 'update_contact': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $phone = trim((string)($body['phone_number'] ?? ''));
+        $alt   = trim((string)($body['alt_email'] ?? ''));
+        if ($alt !== '' && !filter_var($alt, FILTER_VALIDATE_EMAIL)) json_err('Podaj poprawny adres e-mail kontaktowy.');
+        $pdo->prepare("UPDATE users SET phone_number=?, alt_email=?, share_contact=? WHERE id=?")
+            ->execute([$phone, $alt ?: null, !empty($body['share_contact']) ? 1 : 0, $instructor_id]);
+        json_ok(null, 'Dane kontaktowe zostały zapisane.');
+    }
+
     // ── pulpit ─────────────────────────────────────────────────────────────────
     case 'dashboard': {
         $u = db_one("SELECT id, name, email FROM users WHERE id=?", [$instructor_id]);

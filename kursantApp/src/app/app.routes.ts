@@ -52,6 +52,12 @@ export const routes: Routes = [
           import('./features/instructor/wiadomosci/wiadomosci.component').then(m => m.InstructorWiadomosciComponent),
         title: 'Wiadomości — Panel prowadzącego',
       },
+      {
+        path: 'formalnosci',
+        loadComponent: () =>
+          import('./features/instructor/formalnosci/formalnosci.component').then(m => m.InstructorFormalnosciComponent),
+        title: 'Formalności — Panel prowadzącego',
+      },
     ],
   },
   {

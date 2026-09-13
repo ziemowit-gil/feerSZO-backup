@@ -629,3 +629,30 @@ export interface InstructorAdminMessage {
   reply_by: string;
   replied_at: string | null;
 }
+
+export interface InstructorContact {
+  email: string;
+  phone_number: string;
+  alt_email: string;
+  share_contact: boolean;
+}
+
+export type InstructorContractType = 'zlecenie' | 'wolontariat' | 'dzielo' | 'praca';
+
+export interface InstructorContract {
+  id: number;
+  contract_type: InstructorContractType;
+  numer_umowy: string | null;
+  status: string;
+  data_zawarcia: string | null;
+  data_zakonczenia: string | null;
+  imie_nazwisko: string | null;
+  stanowisko: string | null;
+  miejsce_wolontariatu: string | null;
+  przedmiot_porozumienia: string | null;
+}
+
+export interface InstructorFormalnosci {
+  contact: InstructorContact;
+  contracts: InstructorContract[];
+}

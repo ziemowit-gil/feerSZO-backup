@@ -6,6 +6,7 @@ import {
   InstructorHomework, InstructorHomeworkDetail, InstructorMaterial,
   InstructorRoom, InstructorRescheduleRequest,
   InstructorMessageThreads, InstructorAdminMessage, Message,
+  InstructorFormalnosci,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -127,5 +128,10 @@ export class InstructorApiService {
   }
   sendAdminMessage(toAdminId: number, body: string, subject = '') {
     return this.post<void>('send_message', { kind: 'admin', to_admin_id: toAdminId, body, subject });
+  }
+
+  getFormalnosci() { return this.get<InstructorFormalnosci>('formalnosci'); }
+  updateContact(phoneNumber: string, altEmail: string, shareContact: boolean) {
+    return this.post<void>('update_contact', { phone_number: phoneNumber, alt_email: altEmail, share_contact: shareContact });
   }
 }

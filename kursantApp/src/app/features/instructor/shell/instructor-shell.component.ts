@@ -144,6 +144,7 @@ export class InstructorShellComponent implements OnInit {
     { path: 'zadania', label: 'Zadania', icon: 'assignment' },
     { path: 'materialy', label: 'Materiały', icon: 'collections_bookmark' },
     { path: 'wiadomosci', label: 'Wiadomości', icon: 'forum' },
+    { path: 'formalnosci', label: 'Formalności', icon: 'badge' },
   ];
 
   instructorName = computed(() => this.instructor()?.name ?? '');
