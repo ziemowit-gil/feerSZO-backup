@@ -9,7 +9,8 @@ import { InstructorAuthService } from '../../../core/auth/instructor-auth.servic
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { CoursePickerDialogComponent } from './course-picker-dialog.component';
 
-interface NavItem { path: string; label: string; icon: string; }
+interface NavItem { path: string; label: string; icon: string; external?: boolean; }
+interface NavSection { title?: string; items: NavItem[]; }
 
 /**
  * Layout panelu prowadzącego — osobny od ShellComponent (kursant), bo to
@@ -61,17 +62,29 @@ interface NavItem { path: string; label: string; icon: string; }
             </button>
           }
           <hr class="k-divider" aria-hidden="true">
-          <ul role="list" style="margin:0;padding:0;list-style:none;">
-            @for (item of NAV_ITEMS; track item.path) {
-              <li role="presentation">
-                <a [routerLink]="'/prowadzacy/' + item.path" routerLinkActive="active" class="nav-item"
-                   [attr.aria-label]="item.label" (click)="closeSidebar()">
-                  <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
-                  <span>{{ item.label }}</span>
-                </a>
-              </li>
+          @for (section of NAV_SECTIONS; track section.title ?? 'main') {
+            @if (section.title) {
+              <div class="nav-section-title">{{ section.title }}</div>
             }
-          </ul>
+            <ul role="list" style="margin:0;padding:0;list-style:none;">
+              @for (item of section.items; track item.path + item.label) {
+                <li role="presentation">
+                  @if (item.external) {
+                    <a [href]="item.path" target="_blank" rel="noopener" class="nav-item" [attr.aria-label]="item.label">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                      <span>{{ item.label }}</span>
+                    </a>
+                  } @else {
+                    <a [routerLink]="'/prowadzacy/' + item.path" routerLinkActive="active" class="nav-item"
+                       [attr.aria-label]="item.label" (click)="closeSidebar()">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                      <span>{{ item.label }}</span>
+                    </a>
+                  }
+                </li>
+              }
+            </ul>
+          }
           <div class="sidebar-footer">
             <a class="nav-item nav-item--switch" href="/karty30/ti/dydaktyk/login.php"
                aria-label="Zmień interfejs — przejdź do klasycznego panelu">
@@ -123,6 +136,10 @@ interface NavItem { path: string; label: string; icon: string; }
       &:hover { background: #f3f4f6; }
     }
     .course-picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left; }
+    .nav-section-title {
+      padding: .9rem 1.1rem .3rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: #9ca3af;
+    }
     .sidebar-footer { margin-top: auto; padding: .5rem 0 1rem; border-top: 1px solid #e5e7eb; }
     main#main-content { flex: 1; overflow-y: auto; padding: 1.75rem 2rem; }
     @media (max-width: 768px) { main#main-content { padding: 1rem; } }
@@ -155,15 +172,27 @@ export class InstructorShellComponent implements OnInit {
     });
   }
 
-  readonly NAV_ITEMS: NavItem[] = [
-    { path: 'pulpit', label: 'Pulpit', icon: 'home' },
-    { path: 'lekcje', label: 'Lekcje', icon: 'calendar_month' },
-    { path: 'zadania', label: 'Zadania', icon: 'assignment' },
-    { path: 'materialy', label: 'Materiały', icon: 'collections_bookmark' },
-    { path: 'wiadomosci', label: 'Wiadomości', icon: 'forum' },
-    { path: 'formalnosci', label: 'Formalności', icon: 'badge' },
-    { path: 'wydruki', label: 'Wydruki', icon: 'print' },
-    { path: 'helpdesk', label: 'Helpdesk', icon: 'support_agent' },
+  readonly NAV_SECTIONS: NavSection[] = [
+    {
+      items: [
+        { path: 'pulpit', label: 'Pulpit', icon: 'home' },
+        { path: 'lekcje', label: 'Lekcje', icon: 'calendar_month' },
+        { path: 'zadania', label: 'Zadania', icon: 'assignment' },
+        { path: 'materialy', label: 'Materiały', icon: 'collections_bookmark' },
+        { path: 'wiadomosci', label: 'Wiadomości', icon: 'forum' },
+        { path: 'formalnosci', label: 'Formalności', icon: 'badge' },
+        { path: 'wydruki', label: 'Wydruki', icon: 'print' },
+        { path: 'helpdesk', label: 'Helpdesk', icon: 'support_agent' },
+      ],
+    },
+    {
+      title: 'Zasoby',
+      items: [
+        { path: 'zasoby/dysk', label: 'Mój dysk', icon: 'hard_drive' },
+        { path: 'zasoby/zoom', label: 'Zajętość Zoom', icon: 'videocam' },
+        { path: '/ext/index.php?as=dyd', label: 'Biblioteka materiałów', icon: 'menu_book', external: true },
+      ],
+    },
   ];
 
   instructorName = computed(() => this.instructor()?.name ?? '');

@@ -7,6 +7,7 @@ import {
   InstructorRoom, InstructorRescheduleRequest,
   InstructorMessageThreads, InstructorAdminMessage, Message,
   InstructorFormalnosci, InstructorHelpdeskTicket,
+  InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -162,4 +163,11 @@ export class InstructorApiService {
   createHelpdeskTicket(fd: FormData) {
     return this.post<void>('helpdesk_create', fd);
   }
+
+  getOwnCloudStatus() { return this.get<InstructorOwnCloudStatus>('owncloud_status'); }
+  ownCloudCreate()   { return this.post<InstructorOwnCloudReveal>('owncloud_create'); }
+  ownCloudReset()    { return this.post<InstructorOwnCloudReveal>('owncloud_reset'); }
+  ownCloudRecreate() { return this.post<InstructorOwnCloudReveal>('owncloud_recreate'); }
+
+  getZoomBusy(month: string) { return this.get<InstructorZoomBusy>('zoom_busy', { month }); }
 }

@@ -70,6 +70,18 @@ export const routes: Routes = [
           import('./features/instructor/helpdesk/helpdesk.component').then(m => m.InstructorHelpdeskComponent),
         title: 'Helpdesk — Panel prowadzącego',
       },
+      {
+        path: 'zasoby/dysk',
+        loadComponent: () =>
+          import('./features/instructor/zasoby/dysk.component').then(m => m.InstructorDyskComponent),
+        title: 'Mój dysk — Panel prowadzącego',
+      },
+      {
+        path: 'zasoby/zoom',
+        loadComponent: () =>
+          import('./features/instructor/zasoby/zoom-zajetosc.component').then(m => m.InstructorZoomZajetoscComponent),
+        title: 'Zajętość Zoom — Panel prowadzącego',
+      },
     ],
   },
   {

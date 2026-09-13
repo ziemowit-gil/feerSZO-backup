@@ -685,3 +685,36 @@ export const HD_STATUSES: Record<string, string> = {
   przekazane_zewn: 'Przekazano do firmy zewnętrznej', zastepcze: 'Rozwiązanie zastępcze',
   wymaga_prac: 'Wymaga prac programistycznych', 'rozwiązane': 'Rozwiązane', 'zamknięte': 'Zamknięte',
 };
+
+export interface InstructorOwnCloudAccount {
+  owncloud_username: string;
+  owncloud_quota_mb: number;
+  owncloud_created_at: string | null;
+}
+
+export interface InstructorOwnCloudReveal {
+  ok: boolean;
+  msg: string;
+  username: string;
+  password: string;
+  quota_mb: number;
+  url: string;
+}
+
+export interface InstructorOwnCloudStatus {
+  enabled: boolean;
+  account: InstructorOwnCloudAccount | null;
+  url: string;
+}
+
+export interface InstructorZoomBusySlot {
+  start: string;
+  end: string;
+  title: string;
+}
+
+export interface InstructorZoomBusy {
+  enabled: boolean;
+  ok?: boolean;
+  days: Record<string, InstructorZoomBusySlot[]>;
+}

@@ -33,6 +33,8 @@ require_once __DIR__ . '/../../includes/ti_messages.php';
 require_once __DIR__ . '/../../includes/ti_room_reports.php';
 require_once __DIR__ . '/../../includes/ti_print_log.php';
 require_once __DIR__ . '/../../includes/helpdesk.php';
+require_once __DIR__ . '/../../includes/owncloud.php';
+require_once __DIR__ . '/../../includes/ti_zoom_calendar.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -1318,6 +1320,68 @@ switch ($action) {
         );
         if (!empty($_FILES['attachments']['name'][0])) hd_save_attachments($ticket_id, $_FILES['attachments'], $instructor_id);
         json_ok(null, 'Zgłoszenie zarejestrowane.');
+    }
+
+    // ── zasoby: mój dysk (ownCloud) ─────────────────────────────────────────────────
+    // Odpowiednik _tab_dysk.php — samoobsługowe konto ownCloud prowadzącego.
+    // W klasycznym panelu hasło pokazuje się raz przez $_SESSION['owncloud_reveal'];
+    // tu, bez sesji, po prostu zwracamy je wprost w odpowiedzi create/reset/recreate
+    // (i tak wyświetlane tylko raz, w oknie modalnym frontendu).
+    case 'owncloud_status': {
+        json_ok([
+            'enabled' => owncloud_enabled() && owncloud_admin_configured(),
+            'account' => owncloud_instructor_account($instructor_id),
+            'url'     => rtrim(owncloud_setting('url'), '/'),
+        ]);
+    }
+
+    case 'owncloud_create': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $r = owncloud_create_instructor_account($instructor_id);
+        if (!$r['ok']) json_err($r['msg']);
+        json_ok($r, $r['msg']);
+    }
+
+    case 'owncloud_reset': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $r = owncloud_reset_instructor_password($instructor_id);
+        if (!$r['ok']) json_err($r['msg']);
+        json_ok($r, $r['msg']);
+    }
+
+    case 'owncloud_recreate': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $r = owncloud_recreate_instructor_account($instructor_id);
+        if (!$r['ok']) json_err($r['msg']);
+        json_ok($r, $r['msg']);
+    }
+
+    // ── zasoby: zajętość Zoom ────────────────────────────────────────────────────────
+    // Odpowiednik _tab_zoom.php — zajęte terminy Zoom w miesiącu, żeby prowadzący
+    // rozumiał dlaczego pewne godziny są niedostępne przy zdalnych zajęciach.
+    // Nazwy kursów widoczne tylko dla WŁASNYCH grup, reszta jako "Inne zajęcia zdalne"
+    // (ten sam maskujący warunek co $zc_visible w klasycznym panelu, tam dla staff=null=brak maski).
+    case 'zoom_busy': {
+        $month = (string)($_GET['month'] ?? date('Y-m'));
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) $month = date('Y-m');
+        $from = $month . '-01';
+        $to   = date('Y-m-t', strtotime($from));
+
+        if (!zoom_enabled()) json_ok(['enabled' => false, 'days' => []]);
+
+        $course_ids = instructor_course_ids($instructor_id);
+        $busy = ti_zoom_busy_range($from, $to);
+        $days = [];
+        foreach ($busy['days'] as $date => $slots) {
+            $days[$date] = array_map(function ($s) use ($course_ids) {
+                $own = isset($s['course_id']) && in_array((int)$s['course_id'], $course_ids, true);
+                return [
+                    'start' => $s['start'], 'end' => $s['end'],
+                    'title' => $own ? $s['title'] : 'Inne zajęcia zdalne',
+                ];
+            }, $slots);
+        }
+        json_ok(['enabled' => true, 'ok' => $busy['ok'], 'days' => $days]);
     }
 
     default:
