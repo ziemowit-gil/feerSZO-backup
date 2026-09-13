@@ -386,29 +386,56 @@ document.addEventListener('DOMContentLoaded', function () {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
-          <!-- Rodzaj adresata -->
+          <!-- Rodzaj adresata — drzewo zamiast płaskiej listy -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Adresat <span class="text-danger">*</span></label>
-            <select class="form-select" id="dydMsgRecip" name="_recip" required>
+            <label class="form-label fw-semibold" id="dydMsgRecipLbl">Adresat <span class="text-danger">*</span></label>
+            <input type="hidden" id="dydMsgRecip" name="_recip">
+            <div class="border rounded" id="dydMsgRecipTree" role="tree" aria-labelledby="dydMsgRecipLbl"
+                 style="max-height:230px;overflow-y:auto">
               <?php if (!empty($dyd_msg_accounts)): ?>
-              <optgroup label="Kursanci">
-                <?php foreach ($dyd_msg_accounts as $a): ?>
-                <option value="s_<?= (int)$a['id'] ?>"><?= h($a['name']) ?> — <?= h($a['course_name']) ?></option>
-                <?php endforeach; ?>
-              </optgroup>
+              <details open class="dyd-recip-group">
+                <summary class="fw-semibold px-2 py-1"><i class="bi bi-people me-1" aria-hidden="true"></i>Kursanci</summary>
+                <div class="pb-1">
+                  <?php foreach ($dyd_msg_accounts as $a): ?>
+                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                          data-value="s_<?= (int)$a['id'] ?>"><?= h($a['name']) ?> — <?= h($a['course_name']) ?></button>
+                  <?php endforeach; ?>
+                </div>
+              </details>
               <?php endif; ?>
-              <optgroup label="Kierownictwo">
-                <option value="a_-1"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</option>
-                <option value="a_0">Administratorzy (wszyscy)</option>
-                <?php foreach ($dyd_admin_users as $au): ?>
-                <option value="a_<?= (int)$au['id'] ?>"><?= h($au['name']) ?></option>
-                <?php endforeach; ?>
-              </optgroup>
-              <optgroup label="Pomoc techniczna">
-                <option value="h_1">Helpdesk IT — zgłoś problem</option>
-              </optgroup>
-            </select>
+              <details open class="dyd-recip-group">
+                <summary class="fw-semibold px-2 py-1"><i class="bi bi-building me-1" aria-hidden="true"></i>Kierownictwo</summary>
+                <div class="pb-1">
+                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                          data-value="a_-1"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</button>
+                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                          data-value="a_0">Administratorzy (wszyscy)</button>
+                  <?php foreach ($dyd_admin_users as $au): ?>
+                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                          data-value="a_<?= (int)$au['id'] ?>"><?= h($au['name']) ?></button>
+                  <?php endforeach; ?>
+                </div>
+              </details>
+              <details open class="dyd-recip-group">
+                <summary class="fw-semibold px-2 py-1"><i class="bi bi-life-preserver me-1" aria-hidden="true"></i>Pomoc techniczna</summary>
+                <div class="pb-1">
+                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                          data-value="h_1">Helpdesk IT — zgłoś problem</button>
+                </div>
+              </details>
+            </div>
+            <div class="small text-body-secondary mt-1" id="dydMsgRecipHint">Wybierz adresata z listy powyżej.</div>
           </div>
+          <style>
+            #dydMsgRecipTree summary { cursor: pointer; list-style: none; background: var(--bs-tertiary-bg); }
+            #dydMsgRecipTree summary::-webkit-details-marker { display: none; }
+            #dydMsgRecipTree summary::before { content: "\25B8"; display: inline-block; width: 1em; transition: transform .1s; }
+            #dydMsgRecipTree details[open] > summary::before { transform: rotate(90deg); }
+            #dydMsgRecipTree .dyd-recip-group + .dyd-recip-group { border-top: 1px solid var(--bs-border-color); }
+            .dydRecipItem { padding-left: 2rem !important; font-size: .875rem; }
+            .dydRecipItem:hover { background: var(--bs-tertiary-bg); }
+            .dydRecipItem.active { background: var(--bs-primary); color: #fff; }
+          </style>
           <!-- Pola specyficzne dla kursanta -->
           <div id="dydMsgStudentFields">
             <div class="mb-3">
@@ -453,6 +480,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var sflds = document.getElementById('dydMsgStudentFields');
   var aflds = document.getElementById('dydMsgAdminFields');
   var hflds = document.getElementById('dydMsgHelpdeskFields');
+  var hint  = document.getElementById('dydMsgRecipHint');
+  var items = Array.prototype.slice.call(document.querySelectorAll('.dydRecipItem'));
 
   function applyRecip() {
     var v = sel ? sel.value : '';
@@ -462,36 +491,43 @@ document.addEventListener('DOMContentLoaded', function () {
     aflds.classList.toggle('d-none', !isAdmin);
     hflds.classList.toggle('d-none', !isHelpdesk);
   }
-  if (sel) sel.addEventListener('change', applyRecip);
+
+  // Drzewo adresatów: klik na pozycję ustawia ukryte pole + podświetla wybór
+  function selectRecip(btn) {
+    items.forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    sel.value = btn.dataset.value;
+    if (hint) { hint.textContent = 'Wybrano: ' + btn.textContent.trim(); hint.classList.remove('text-danger'); }
+    applyRecip();
+  }
+  items.forEach(function (btn) {
+    btn.addEventListener('click', function () { selectRecip(btn); });
+  });
   applyRecip();
 
-  // Przycisk "Nowa" w sekcji Kierownictwo — pre-select admina
+  // Przycisk "Nowa" w sekcji Kierownictwo/Kursanci — pre-select w drzewie
   if (modal) {
     modal.addEventListener('show.bs.modal', function (e) {
       var btn = e.relatedTarget;
-      if (btn && btn.dataset.section === 'admin') {
-        // wybierz pierwszą opcję z Kierownictwo (a_-1)
-        if (sel) {
-          for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value.startsWith('a_')) { sel.selectedIndex = i; break; }
-          }
-          applyRecip();
-        }
-      } else if (btn && btn.dataset.section === 'student') {
-        if (sel) {
-          for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value.startsWith('s_')) { sel.selectedIndex = i; break; }
-          }
-          applyRecip();
-        }
+      var wantPrefix = null;
+      if (btn && btn.dataset.section === 'admin') wantPrefix = 'a_';
+      else if (btn && btn.dataset.section === 'student') wantPrefix = 's_';
+      if (wantPrefix) {
+        var target = items.filter(function (b) { return b.dataset.value.indexOf(wantPrefix) === 0; })[0];
+        if (target) selectRecip(target);
       }
     });
   }
 
   // Podmień _op i hidden field w zależności od rodzaju adresata
   if (form) {
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (ev) {
       var v = sel ? sel.value : '';
+      if (!v) {
+        ev.preventDefault();
+        if (hint) { hint.textContent = 'Wybierz adresata z listy powyżej — to pole jest wymagane.'; hint.classList.add('text-danger'); }
+        return;
+      }
       var opInput    = form.querySelector('input[name="_op"]');
       var accInput   = form.querySelector('input[name="account_id"]');
       var adminInput = form.querySelector('input[name="to_admin_id"]');
