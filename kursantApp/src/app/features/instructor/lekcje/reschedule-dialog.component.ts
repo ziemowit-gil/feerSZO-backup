@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorLessonRow, InstructorRescheduleRequest } from '../../../core/models/kursant.models';
+import { QuickDateChipsComponent } from '../../../shared/components/quick-date-chips.component';
 
 export interface RescheduleDialogData { lesson: InstructorLessonRow }
 
@@ -19,6 +20,7 @@ export interface RescheduleDialogData { lesson: InstructorLessonRow }
   imports: [
     CommonModule, DatePipe, FormsModule, MatDialogModule, MatButtonModule,
     MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSnackBarModule,
+    QuickDateChipsComponent,
   ],
   template: `
     <h2 mat-dialog-title>Zmień termin — {{ data.lesson.topic || (data.lesson.lesson_date | date:'d.MM.yyyy') }}</h2>
@@ -50,6 +52,7 @@ export interface RescheduleDialogData { lesson: InstructorLessonRow }
           <mat-label>Nowa data</mat-label>
           <input matInput type="date" [(ngModel)]="reschDate" name="reschDate">
         </mat-form-field>
+        <app-quick-date-chips (picked)="reschDate = $event" />
         <div class="times">
           <mat-form-field appearance="fill"><mat-label>Od</mat-label><input matInput type="time" [(ngModel)]="reschFrom" name="reschFrom"></mat-form-field>
           <mat-form-field appearance="fill"><mat-label>Do</mat-label><input matInput type="time" [(ngModel)]="reschTo" name="reschTo"></mat-form-field>

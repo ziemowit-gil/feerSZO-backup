@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorLessonRow, InstructorRoom } from '../../../core/models/kursant.models';
+import { QuickDateChipsComponent } from '../../../shared/components/quick-date-chips.component';
 
 const LESSON_METHODS = [
   { value: '', label: '— nie określono —' },
@@ -35,6 +36,7 @@ export interface LessonFormDialogData {
   imports: [
     CommonModule, ReactiveFormsModule, MatDialogModule,
     MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSnackBarModule,
+    QuickDateChipsComponent,
   ],
   template: `
     <h2 mat-dialog-title>{{ data.mode === 'add' ? 'Nowa lekcja' : 'Edytuj lekcję' }}</h2>
@@ -63,6 +65,7 @@ export interface LessonFormDialogData {
             <mat-label>Data</mat-label>
             <input matInput type="date" formControlName="lesson_date" required>
           </mat-form-field>
+          <app-quick-date-chips class="date-chips-row" (picked)="form.patchValue({ lesson_date: $event })" />
           <mat-form-field appearance="fill">
             <mat-label>Od</mat-label>
             <input matInput type="time" formControlName="time_from">
@@ -127,6 +130,7 @@ export interface LessonFormDialogData {
     .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 1rem; padding-top: .25rem; }
     .form-grid mat-form-field { width: 100%; }
     .span-2 { grid-column: span 2; }
+    .date-chips-row { grid-column: 1 / -1; margin-top: -.5rem; }
     .form-checks { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0 0 .5rem; }
     .check-row { display: flex; align-items: center; gap: .4rem; font-size: .88rem; }
     @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr 1fr; } .span-2 { grid-column: 1 / -1; } }

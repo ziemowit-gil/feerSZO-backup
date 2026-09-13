@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorRoom } from '../../../core/models/kursant.models';
+import { QuickDateChipsComponent } from '../../../shared/components/quick-date-chips.component';
 
 export interface SeriesFormDialogData {
   courses: { id: number; name: string }[];
@@ -43,6 +44,7 @@ const POSITIONS = [
   imports: [
     CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatRadioModule, MatSnackBarModule,
+    QuickDateChipsComponent,
   ],
   template: `
     <h2 mat-dialog-title>Seria lekcji</h2>
@@ -60,6 +62,7 @@ const POSITIONS = [
             <mat-label>Data startowa</mat-label>
             <input matInput type="date" formControlName="lesson_date" required>
           </mat-form-field>
+          <app-quick-date-chips class="date-chips-row" (picked)="form.patchValue({ lesson_date: $event })" />
           <mat-form-field appearance="fill">
             <mat-label>Od</mat-label>
             <input matInput type="time" formControlName="time_from">
@@ -142,6 +145,7 @@ const POSITIONS = [
             <mat-label>Data końcowa (włącznie)</mat-label>
             <input matInput type="date" formControlName="until">
           </mat-form-field>
+          <app-quick-date-chips (picked)="form.patchValue({ until: $event })" />
         } @else {
           <mat-form-field appearance="fill" class="narrow">
             <mat-label>Docelowa liczba godzin</mat-label>
@@ -159,6 +163,7 @@ const POSITIONS = [
     .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 1rem; padding-top: .25rem; min-width: 340px; }
     .form-grid mat-form-field { width: 100%; }
     .span-2 { grid-column: span 2; }
+    .date-chips-row { grid-column: 1 / -1; margin-top: -.5rem; }
     .narrow { width: 220px; }
     h3 { font-size: .85rem; font-weight: 600; margin: .5rem 0 .5rem; color: var(--c-text-muted); }
     .radio-row { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-bottom: .75rem; }
