@@ -74,7 +74,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                   Otwórz link
                 </a>
               }
-              <button mat-stroked-button type="button" class="btn-small" (click)="startEdit(m)">
+              <button mat-stroked-button type="button" class="btn-small btn-edit" (click)="startEdit(m)">
                 <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem">edit</span>
                 Edytuj
               </button>
@@ -99,6 +99,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
     .mat-session, .mat-desc { margin: .5rem 0 0; font-size: .9rem; }
     .mat-footer { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--c-border); }
     .btn-small { font-size: .78rem !important; padding: .2rem .625rem !important; height: auto !important; display: inline-flex !important; align-items: center; gap: .3rem; }
+    .btn-edit   { color: #4f46e5 !important; border-color: #4f46e5 !important; }
     .btn-danger { color: var(--c-danger, #dc2626) !important; border-color: var(--c-danger, #dc2626) !important; }
     .status-badge.upcoming { background: var(--c-warning-bg); color: var(--c-warning); }
     .status-badge.closed { background: var(--c-border); color: var(--c-text-muted); }
