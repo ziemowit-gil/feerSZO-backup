@@ -7,6 +7,25 @@ session_start();
 
 define('INSTALL_LOCK_FILE', __DIR__ . '/.install.lock');
 
+/**
+ * Ścieżka pliku bazy SQLite wcześniej "podrzuconego" na serwer (np. przez
+ * scp/rsync — bin/deploy-mydevil.sh --sync-data) przed uruchomieniem
+ * kreatora. Pozwala zaimportować istniejącą bazę bez wgrywania jej przez
+ * formularz (limit upload_max_filesize/post_max_size na hostingu).
+ */
+define('INSTALL_STAGED_DB_FILE', __DIR__ . '/umowy.import.db');
+
+/** Czy plik SQLite ma sensowną strukturę tego systemu (tabela users). */
+function install_is_valid_sqlite(string $path): bool {
+    try {
+        $pdo = new PDO('sqlite:' . $path);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return (bool)$pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")->fetch();
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
 $step      = (int)($_GET['step'] ?? 1);
 $reinstall = !empty($_GET['reinstall']) || !empty($_SESSION['reinstall_mode']);
 
@@ -102,22 +121,59 @@ if ($reinstall) {
 
 // ── KROK 2: Baza danych ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
-    $db_type = $_POST['db_type'] ?? 'sqlite';
-    $db_host = trim($_POST['db_host'] ?? 'localhost');
-    $db_name = trim($_POST['db_name'] ?? 'umowy');
-    $db_user = trim($_POST['db_user'] ?? '');
-    $db_pass = $_POST['db_pass'] ?? '';
-    $db_port = (int)($_POST['db_port'] ?? 3306);
+    $db_type     = $_POST['db_type'] ?? 'sqlite';
+    $db_host     = trim($_POST['db_host'] ?? 'localhost');
+    $db_name     = trim($_POST['db_name'] ?? 'umowy');
+    $db_user     = trim($_POST['db_user'] ?? '');
+    $db_pass     = $_POST['db_pass'] ?? '';
+    $db_port     = (int)($_POST['db_port'] ?? 3306);
+    $sqlite_mode = $_POST['sqlite_mode'] ?? 'new'; // new | import_staged | import_upload
+    $imported    = false;
+
     try {
         if ($db_type === 'sqlite') {
-            new PDO('sqlite:' . __DIR__ . '/umowy.db');
+            $target = __DIR__ . '/umowy.db';
+
+            if ($sqlite_mode === 'import_staged') {
+                if (!is_file(INSTALL_STAGED_DB_FILE)) {
+                    throw new RuntimeException('Plik umowy.import.db nie został znaleziony w katalogu aplikacji.');
+                }
+                if (!install_is_valid_sqlite(INSTALL_STAGED_DB_FILE)) {
+                    throw new RuntimeException('umowy.import.db nie wygląda na poprawną bazę tego systemu (brak tabeli users).');
+                }
+                if (!@rename(INSTALL_STAGED_DB_FILE, $target)) {
+                    throw new RuntimeException('Nie udało się przenieść umowy.import.db — sprawdź uprawnienia zapisu.');
+                }
+                $imported = true;
+            } elseif ($sqlite_mode === 'import_upload') {
+                $f = $_FILES['db_import_file'] ?? null;
+                if (!$f || $f['error'] === UPLOAD_ERR_NO_FILE) {
+                    throw new RuntimeException('Wybierz plik bazy (.db) do zaimportowania.');
+                }
+                if ($f['error'] === UPLOAD_ERR_INI_SIZE || $f['error'] === UPLOAD_ERR_FORM_SIZE) {
+                    throw new RuntimeException('Plik przekracza limit uploadu na tym serwerze (upload_max_filesize/post_max_size). '
+                        . 'Prześlij bazę przez SSH/SCP jako umowy.import.db do katalogu aplikacji i wybierz opcję "Plik już na serwerze".');
+                }
+                if ($f['error'] !== UPLOAD_ERR_OK || empty($f['tmp_name']) || !is_uploaded_file($f['tmp_name'])) {
+                    throw new RuntimeException('Błąd wysyłki pliku (kod ' . ($f['error'] ?? '?') . ').');
+                }
+                if (!install_is_valid_sqlite($f['tmp_name'])) {
+                    throw new RuntimeException('Przesłany plik nie wygląda na poprawną bazę tego systemu (brak tabeli users).');
+                }
+                if (!@move_uploaded_file($f['tmp_name'], $target)) {
+                    throw new RuntimeException('Nie udało się zapisać przesłanego pliku.');
+                }
+                $imported = true;
+            } else {
+                new PDO('sqlite:' . $target); // dotychczasowe zachowanie — tworzy pustą bazę
+            }
         } else {
             new PDO("mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4", $db_user, $db_pass);
         }
-        $_SESSION['install_db'] = compact('db_type','db_host','db_name','db_user','db_pass','db_port');
+        $_SESSION['install_db'] = compact('db_type','db_host','db_name','db_user','db_pass','db_port') + ['imported' => $imported];
         header('Location: install.php?step=3'); exit;
-    } catch (PDOException $e) {
-        $errors[] = 'Błąd połączenia: ' . $e->getMessage();
+    } catch (\Throwable $e) {
+        $errors[] = 'Błąd bazy: ' . $e->getMessage();
     }
 }
 
@@ -231,15 +287,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 6) {
 
 // ── KROK 7: Konto admina + zapis ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
+    $db_for_import_check = $_SESSION['install_db'] ?? [];
+    $is_import   = !empty($db_for_import_check['imported']);
+
     $admin_name  = trim($_POST['admin_name']  ?? '');
     $admin_email = trim($_POST['admin_email'] ?? '');
     $admin_pass  = $_POST['admin_pass']  ?? '';
     $admin_pass2 = $_POST['admin_pass2'] ?? '';
 
-    if (!$admin_name)                                    $errors[] = 'Podaj imię i nazwisko.';
-    if (!filter_var($admin_email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Nieprawidłowy adres e-mail.';
-    if (strlen($admin_pass) < 8)                         $errors[] = 'Hasło musi mieć co najmniej 8 znaków.';
-    if ($admin_pass !== $admin_pass2)                    $errors[] = 'Hasła nie są identyczne.';
+    if (!$is_import) {
+        if (!$admin_name)                                    $errors[] = 'Podaj imię i nazwisko.';
+        if (!filter_var($admin_email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Nieprawidłowy adres e-mail.';
+        if (strlen($admin_pass) < 8)                         $errors[] = 'Hasło musi mieć co najmniej 8 znaków.';
+        if ($admin_pass !== $admin_pass2)                    $errors[] = 'Hasła nie są identyczne.';
+    }
 
     if (!$errors) {
         $db  = $_SESSION['install_db']  ?? ['db_type' => 'sqlite'];
@@ -252,16 +313,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
                 : new PDO("mysql:host={$db['db_host']};port={$db['db_port']};dbname={$db['db_name']};charset=utf8mb4", $db['db_user'], $db['db_pass']);
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            // Schema
+            // Schema — zawsze bezpieczne (CREATE TABLE IF NOT EXISTS), także dla
+            // zaimportowanej bazy: dopełnia tabele dodane w nowszym kodzie.
             $schema = file_get_contents(__DIR__ . '/schema.sql');
             $schema = preg_replace('/--[^\n]*/', '', $schema);
             foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
                 try { $pdo->exec($sql); } catch (PDOException $e) {}
             }
 
-            // Admin
-            $pdo->prepare("INSERT INTO users (name,email,password,role,is_active) VALUES (?,?,?,'admin',1)")
-                ->execute([$admin_name, $admin_email, password_hash($admin_pass, PASSWORD_BCRYPT)]);
+            if (!$is_import) {
+                // Admin — TYLKO przy świeżej bazie; zaimportowana ma już konta.
+                $pdo->prepare("INSERT INTO users (name,email,password,role,is_active) VALUES (?,?,?,'admin',1)")
+                    ->execute([$admin_name, $admin_email, password_hash($admin_pass, PASSWORD_BCRYPT)]);
+            }
 
             // Konto serwisowe — losowe hasło, bez ujawniania
             $serwis_exists = $pdo->prepare("SELECT id FROM users WHERE email='serwis@local'")->execute() && $pdo->query("SELECT id FROM users WHERE email='serwis@local'")->fetch();
@@ -270,12 +334,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
                     ->execute([password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT)]);
             }
 
-            // Org settings
+            // Org settings — TYLKO przy świeżej bazie; zaimportowana ma już swoje.
             $upsert = $db['db_type'] === 'sqlite'
                 ? "INSERT OR REPLACE INTO settings (key_,value) VALUES (?,?)"
                 : "INSERT INTO settings (key_,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)";
-            foreach (['org_name' => $org['org_name'], 'org_krs' => $org['org_krs']] as $k => $v) {
-                $pdo->prepare($upsert)->execute([$k, $v]);
+            if (!$is_import) {
+                foreach (['org_name' => $org['org_name'], 'org_krs' => $org['org_krs']] as $k => $v) {
+                    $pdo->prepare($upsert)->execute([$k, $v]);
+                }
             }
 
             // config.php
@@ -598,11 +664,14 @@ $total_steps = count($step_labels);
   </div>
 
   <?php // ── KROK 2: Baza
-  elseif ($step === 2): ?>
+  elseif ($step === 2):
+    $staged_exists = is_file(INSTALL_STAGED_DB_FILE);
+    $staged_size   = $staged_exists ? round(filesize(INSTALL_STAGED_DB_FILE) / 1024 / 1024, 1) : 0;
+  ?>
   <h2>Baza danych</h2>
   <p class="sub">SQLite jest zalecane dla większości instalacji — nie wymaga osobnego serwera.</p>
 
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     <div class="mb-3">
       <div class="d-flex flex-column gap-2">
         <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
@@ -621,6 +690,44 @@ $total_steps = count($step_labels);
         </label>
       </div>
     </div>
+
+    <div id="sqlite_fields">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Zawartość bazy</label>
+        <div class="d-flex flex-column gap-2">
+          <label class="border rounded p-2 d-flex align-items-start gap-2" style="cursor:pointer">
+            <input type="radio" name="sqlite_mode" value="new" checked onchange="toggleImport(this.value)" style="margin-top:.2rem">
+            <div>
+              <div class="fw-semibold small">Nowa, pusta instalacja</div>
+              <div class="text-muted" style="font-size:.78rem">Standardowy start od zera.</div>
+            </div>
+          </label>
+          <?php if ($staged_exists): ?>
+          <label class="border rounded p-2 d-flex align-items-start gap-2" style="cursor:pointer">
+            <input type="radio" name="sqlite_mode" value="import_staged" onchange="toggleImport(this.value)" style="margin-top:.2rem">
+            <div>
+              <div class="fw-semibold small">Zaimportuj plik już wgrany na serwer <span class="badge bg-success ms-1" style="font-size:.65rem">wykryto</span></div>
+              <div class="text-muted" style="font-size:.78rem">
+                Znaleziono <code>umowy.import.db</code> (<?= $staged_size ?> MB) w katalogu aplikacji — np. wgrane wcześniej przez SSH/SCP.
+              </div>
+            </div>
+          </label>
+          <?php endif; ?>
+          <label class="border rounded p-2 d-flex align-items-start gap-2" style="cursor:pointer">
+            <input type="radio" name="sqlite_mode" value="import_upload" onchange="toggleImport(this.value)" style="margin-top:.2rem">
+            <div>
+              <div class="fw-semibold small">Prześlij plik bazy (.db) z tego komputera</div>
+              <div class="text-muted" style="font-size:.78rem">Dla mniejszych baz — duże pliki mogą przekroczyć limit uploadu hostingu.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div id="import_upload_field" class="mb-3" style="display:none">
+        <label class="form-label small fw-semibold">Plik bazy (umowy.db)</label>
+        <input type="file" name="db_import_file" accept=".db,.sqlite,.sqlite3" class="form-control form-control-sm">
+      </div>
+    </div>
+
     <div id="mysql_fields" style="display:none">
       <div class="row g-2 mb-2">
         <div class="col-8"><label class="form-label small fw-semibold">Host</label><input name="db_host" class="form-control form-control-sm" value="localhost"></div>
@@ -632,7 +739,15 @@ $total_steps = count($step_labels);
     </div>
     <button type="submit" class="btn btn-primary w-100">Testuj połączenie i kontynuuj <i class="bi bi-arrow-right ms-1"></i></button>
   </form>
-  <script>function toggleMysql(v){document.getElementById('mysql_fields').style.display=v?'':'none'}</script>
+  <script>
+    function toggleMysql(v) {
+      document.getElementById('mysql_fields').style.display = v ? '' : 'none';
+      document.getElementById('sqlite_fields').style.display = v ? 'none' : '';
+    }
+    function toggleImport(mode) {
+      document.getElementById('import_upload_field').style.display = mode === 'import_upload' ? '' : 'none';
+    }
+  </script>
 
   <?php // ── KROK 3: Organizacja
   elseif ($step === 3): ?>
@@ -1003,7 +1118,22 @@ $total_steps = count($step_labels);
   </form>
 
   <?php // ── KROK 7: Administrator
-  elseif ($step === 7): ?>
+  elseif ($step === 7):
+    $is_import_step7 = !empty($_SESSION['install_db']['imported']);
+  ?>
+  <?php if ($is_import_step7): ?>
+  <h2>Zaimportowana baza</h2>
+  <p class="sub">Baza zawiera już konta użytkowników — nie zakładamy nowego admina, żeby nic nie zdublować.</p>
+  <div class="alert alert-info small">
+    <i class="bi bi-info-circle-fill me-1"></i>
+    Zaloguj się po instalacji istniejącym kontem administratora z zaimportowanej bazy.
+  </div>
+  <form method="post">
+    <button type="submit" class="btn btn-success w-100 fw-semibold">
+      <i class="bi bi-check-lg me-1"></i>Zakończ instalację
+    </button>
+  </form>
+  <?php else: ?>
   <h2>Konto administratora</h2>
   <p class="sub">Pierwsze konto do zarządzania systemem. Możesz dodać więcej użytkowników po instalacji.</p>
 
@@ -1028,6 +1158,7 @@ $total_steps = count($step_labels);
       <i class="bi bi-check-lg me-1"></i>Zainstaluj Platformę NGO
     </button>
   </form>
+  <?php endif; ?>
 
   <?php // ── KROK 8: Gotowe
   elseif ($step === 8):
