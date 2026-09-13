@@ -9,7 +9,7 @@ import { InstructorAuthService } from '../../../core/auth/instructor-auth.servic
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { CoursePickerDialogComponent } from './course-picker-dialog.component';
 
-interface NavItem { path: string; label: string; icon: string; external?: boolean; }
+interface NavItem { path: string; label: string; icon: string; }
 interface NavSection { title?: string; items: NavItem[]; }
 
 /**
@@ -69,18 +69,11 @@ interface NavSection { title?: string; items: NavItem[]; }
             <ul role="list" style="margin:0;padding:0;list-style:none;">
               @for (item of section.items; track item.path + item.label) {
                 <li role="presentation">
-                  @if (item.external) {
-                    <a [href]="item.path" target="_blank" rel="noopener" class="nav-item" [attr.aria-label]="item.label">
-                      <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
-                      <span>{{ item.label }}</span>
-                    </a>
-                  } @else {
-                    <a [routerLink]="'/prowadzacy/' + item.path" routerLinkActive="active" class="nav-item"
-                       [attr.aria-label]="item.label" (click)="closeSidebar()">
-                      <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
-                      <span>{{ item.label }}</span>
-                    </a>
-                  }
+                  <a [routerLink]="'/prowadzacy/' + item.path" routerLinkActive="active" class="nav-item"
+                     [attr.aria-label]="item.label" (click)="closeSidebar()">
+                    <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                    <span>{{ item.label }}</span>
+                  </a>
                 </li>
               }
             </ul>
@@ -183,6 +176,7 @@ export class InstructorShellComponent implements OnInit {
         { path: 'formalnosci', label: 'Formalności', icon: 'badge' },
         { path: 'wydruki', label: 'Wydruki', icon: 'print' },
         { path: 'helpdesk', label: 'Helpdesk', icon: 'support_agent' },
+        { path: 'protokoly', label: 'Protokoły', icon: 'fact_check' },
       ],
     },
     {
@@ -190,7 +184,7 @@ export class InstructorShellComponent implements OnInit {
       items: [
         { path: 'zasoby/dysk', label: 'Mój dysk', icon: 'hard_drive' },
         { path: 'zasoby/zoom', label: 'Zajętość Zoom', icon: 'videocam' },
-        { path: '/ext/index.php?as=dyd', label: 'Biblioteka materiałów', icon: 'menu_book', external: true },
+        { path: 'zasoby/biblioteka', label: 'Biblioteka materiałów', icon: 'menu_book' },
       ],
     },
   ];

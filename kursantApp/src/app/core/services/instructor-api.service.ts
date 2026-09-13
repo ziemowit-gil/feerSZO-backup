@@ -8,6 +8,7 @@ import {
   InstructorMessageThreads, InstructorAdminMessage, Message,
   InstructorFormalnosci, InstructorHelpdeskTicket,
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
+  InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -170,4 +171,13 @@ export class InstructorApiService {
   ownCloudRecreate() { return this.post<InstructorOwnCloudReveal>('owncloud_recreate'); }
 
   getZoomBusy(month: string) { return this.get<InstructorZoomBusy>('zoom_busy', { month }); }
+
+  getProtocolsPending() { return this.get<InstructorProtocolPending[]>('protocols_pending'); }
+  getProtocolsClosed() { return this.get<InstructorProtocolClosed[]>('protocols_closed'); }
+  getProtocolSummary(courseId: number, yearMonth: string) {
+    return this.get<InstructorProtocolSummary>('protocol_summary', { course_id: String(courseId), year_month: yearMonth });
+  }
+  approveProtocol(courseId: number, yearMonth: string) {
+    return this.post<void>('protocol_approve', { course_id: courseId, year_month: yearMonth });
+  }
 }

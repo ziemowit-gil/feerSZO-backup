@@ -71,6 +71,12 @@ export const routes: Routes = [
         title: 'Helpdesk — Panel prowadzącego',
       },
       {
+        path: 'protokoly',
+        loadComponent: () =>
+          import('./features/instructor/protokoly/protokoly.component').then(m => m.InstructorProtokolyComponent),
+        title: 'Protokoły — Panel prowadzącego',
+      },
+      {
         path: 'zasoby/dysk',
         loadComponent: () =>
           import('./features/instructor/zasoby/dysk.component').then(m => m.InstructorDyskComponent),
@@ -81,6 +87,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/instructor/zasoby/zoom-zajetosc.component').then(m => m.InstructorZoomZajetoscComponent),
         title: 'Zajętość Zoom — Panel prowadzącego',
+      },
+      {
+        path: 'zasoby/biblioteka',
+        loadComponent: () =>
+          import('./features/instructor/zasoby/biblioteka-niedostepna.component').then(m => m.BibliotekaNiedostepnaComponent),
+        title: 'Biblioteka materiałów — Panel prowadzącego',
       },
     ],
   },

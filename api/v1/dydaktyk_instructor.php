@@ -35,6 +35,7 @@ require_once __DIR__ . '/../../includes/ti_print_log.php';
 require_once __DIR__ . '/../../includes/helpdesk.php';
 require_once __DIR__ . '/../../includes/owncloud.php';
 require_once __DIR__ . '/../../includes/ti_zoom_calendar.php';
+require_once __DIR__ . '/../../includes/ti_protocols.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -54,6 +55,7 @@ header('X-Content-Type-Options: nosniff');
 // ── Schema: token tables ───────────────────────────────────────────────────────
 $pdo = db();
 k30_ti_reschedule_migrate(); // k30_ti_reschedule_requests — jak w index.php (klasyczny panel)
+ti_protocols_migrate();
 $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_api_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     instructor_id INTEGER NOT NULL,
@@ -1382,6 +1384,53 @@ switch ($action) {
             }, $slots);
         }
         json_ok(['enabled' => true, 'ok' => $busy['ok'], 'days' => $days]);
+    }
+
+    // ── protokoły ─────────────────────────────────────────────────────────────────
+    // Odpowiednik protokoly_moje.php (widok prowadzącego — kreator "zamknij
+    // miesiąc", OSOBNY tor od protokoly.php/protokol_pdf.php widoku kierownika).
+    case 'protocols_pending': {
+        json_ok(ti_protocol_pending_months_for_instructor($instructor_id));
+    }
+
+    case 'protocols_closed': {
+        $course_ids = instructor_course_ids($instructor_id);
+        if (!$course_ids) json_ok([]);
+        $in = implode(',', $course_ids);
+        $rows = db_all(
+            "SELECT p.course_id, c.name AS course_name, p.year_month, p.id AS protocol_id
+             FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id=p.course_id
+             WHERE p.course_id IN ($in) AND p.status='approved'
+             ORDER BY p.year_month DESC"
+        );
+        json_ok($rows);
+    }
+
+    case 'protocol_summary': {
+        $cid = (int)($_GET['course_id'] ?? 0);
+        $ym  = (string)($_GET['year_month'] ?? '');
+        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
+            json_err('Nieprawidłowe dane protokołu.', 403);
+        }
+        json_ok(ti_protocol_month_summary($cid, $ym));
+    }
+
+    case 'protocol_approve': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid = (int)($body['course_id'] ?? 0);
+        $ym  = (string)($body['year_month'] ?? '');
+        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
+            json_err('Nieprawidłowe dane protokołu.', 403);
+        }
+        $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+        try {
+            $prot = ti_protocol_get_or_create_for_month($cid, $ym);
+            ti_protocol_approve((int)$prot['id'], $instructor_id, (string)($u['name'] ?? ''));
+        } catch (\Throwable $e) {
+            json_err($e->getMessage());
+        }
+        json_ok(null, 'Protokół za ' . $ym . ' zatwierdzony.');
     }
 
     default:

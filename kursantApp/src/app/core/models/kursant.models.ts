@@ -718,3 +718,25 @@ export interface InstructorZoomBusy {
   ok?: boolean;
   days: Record<string, InstructorZoomBusySlot[]>;
 }
+
+export interface InstructorProtocolPending {
+  course_id: number;
+  course_name: string;
+  year_month: string;
+  protocol_id: number | null;
+  is_current: boolean;
+  is_overdue: boolean;
+}
+
+export interface InstructorProtocolClosed {
+  course_id: number;
+  course_name: string;
+  year_month: string;
+  protocol_id: number;
+}
+
+export interface InstructorProtocolSummary {
+  lessons_held: number;
+  lessons_total: number;
+  attendance_pct: number | null;
+}
